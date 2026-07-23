@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -149,6 +150,8 @@ func HandleOAuth(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
 		case *OAuthRegistrationDisabledError:
 			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+		case *OAuthEmailConflictError:
+			common.ApiErrorI18n(c, i18n.MsgOAuthAccountUsed)
 		default:
 			common.ApiError(c, err)
 		}
@@ -275,6 +278,21 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		}
 	}
 
+	// Google returns a verified email address. Reuse a single existing account
+	// with that email instead of creating a second account when the provider ID
+	// has not been bound yet. Ambiguous emails and existing conflicting Google
+	// bindings are rejected so OAuth cannot silently merge the wrong accounts.
+	if _, ok := provider.(*oauth.GoogleProvider); ok {
+		matchedUser, matched, err := findGoogleUserByEmail(oauthUser.Email, oauthUser.ProviderUserID)
+		if err != nil {
+			return nil, false, err
+		}
+		if matched {
+			updateUserAdsAttributionIfEmpty(matchedUser, adsAttribution)
+			return matchedUser, false, nil
+		}
+	}
+
 	// User doesn't exist, create new user if registration is enabled
 	if !common.RegisterEnabled {
 		return nil, false, &OAuthRegistrationDisabledError{}
@@ -301,6 +319,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	if oauthUser.Email != "" {
 		user.Email = oauthUser.Email
+		if _, ok := provider.(*oauth.GoogleProvider); ok {
+			user.Email = normalizeOAuthEmail(oauthUser.Email)
+		}
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
@@ -380,6 +401,46 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	return user, true, nil
 }
 
+func normalizeOAuthEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// findGoogleUserByEmail returns the only account matching a normalized email.
+// It intentionally uses the default GORM scope so soft-deleted accounts do not
+// become targets for a new OAuth login.
+func findGoogleUserByEmail(email string, googleID string) (*model.User, bool, error) {
+	normalizedEmail := normalizeOAuthEmail(email)
+	if normalizedEmail == "" {
+		return nil, false, nil
+	}
+
+	users, err := model.FindUsersByNormalizedEmail(normalizedEmail)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(users) == 0 {
+		return nil, false, nil
+	}
+	if len(users) != 1 {
+		return nil, false, &OAuthEmailConflictError{}
+	}
+
+	user := &users[0]
+	if user.GoogleId != "" && user.GoogleId != googleID {
+		return nil, false, &OAuthEmailConflictError{}
+	}
+	if user.GoogleId == "" {
+		bound, err := user.BindGoogleIDIfEmpty(googleID)
+		if err != nil {
+			return nil, false, err
+		}
+		if !bound && user.GoogleId != googleID {
+			return nil, false, &OAuthEmailConflictError{}
+		}
+	}
+	return user, true, nil
+}
+
 // Error types for OAuth
 type OAuthUserDeletedError struct{}
 
@@ -391,6 +452,14 @@ type OAuthRegistrationDisabledError struct{}
 
 func (e *OAuthRegistrationDisabledError) Error() string {
 	return "registration is disabled"
+}
+
+// OAuthEmailConflictError indicates that a verified OAuth email cannot be
+// safely associated with exactly one local account.
+type OAuthEmailConflictError struct{}
+
+func (e *OAuthEmailConflictError) Error() string {
+	return "oauth email is already associated with multiple or conflicting users"
 }
 
 // handleOAuthError handles OAuth errors and returns translated message

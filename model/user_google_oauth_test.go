@@ -47,3 +47,30 @@ func TestIsGoogleIdAlreadyTaken(t *testing.T) {
 	require.NoError(t, DB.Create(&User{Username: "g2", GoogleId: "google-sub-456"}).Error)
 	require.True(t, IsGoogleIdAlreadyTaken("google-sub-456"))
 }
+
+func TestFindUsersByNormalizedEmail(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.Create(&User{Username: "email-user", Email: " AFOAVI@GMAIL.COM "}).Error)
+
+	users, err := FindUsersByNormalizedEmail("afoavi@gmail.com")
+
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	require.Equal(t, "email-user", users[0].Username)
+}
+
+func TestBindGoogleIDIfEmptyDoesNotOverwriteExistingBinding(t *testing.T) {
+	truncateTables(t)
+	user := &User{Username: "google-bind-user"}
+	require.NoError(t, DB.Create(user).Error)
+
+	bound, err := user.BindGoogleIDIfEmpty("google-sub-1")
+	require.NoError(t, err)
+	require.True(t, bound)
+	require.Equal(t, "google-sub-1", user.GoogleId)
+
+	bound, err = user.BindGoogleIDIfEmpty("google-sub-2")
+	require.NoError(t, err)
+	require.False(t, bound)
+	require.Equal(t, "google-sub-1", user.GoogleId)
+}

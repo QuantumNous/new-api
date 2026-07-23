@@ -686,6 +686,20 @@ func (user *User) FillUserByEmail() error {
 	return nil
 }
 
+// FindUsersByNormalizedEmail finds active users whose email matches after
+// trimming surrounding whitespace and folding ASCII case. It returns all
+// matches so callers can reject ambiguous legacy data instead of picking one.
+func FindUsersByNormalizedEmail(email string) ([]User, error) {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	if normalizedEmail == "" {
+		return nil, nil
+	}
+
+	var users []User
+	err := DB.Where("LOWER(TRIM(email)) = ?", normalizedEmail).Find(&users).Error
+	return users, err
+}
+
 func (user *User) FillUserByGitHubId() error {
 	if user.GitHubId == "" {
 		return errors.New("GitHub id 为空！")
@@ -724,6 +738,38 @@ func (user *User) FillUserByGoogleId() error {
 	}
 	DB.Where(User{GoogleId: user.GoogleId}).First(user)
 	return nil
+}
+
+// BindGoogleIDIfEmpty binds a Google account to this user without allowing a
+// concurrent request to overwrite an existing binding. The returned boolean
+// reports whether this call performed the binding.
+func (user *User) BindGoogleIDIfEmpty(googleID string) (bool, error) {
+	if user.Id == 0 {
+		return false, errors.New("user id is empty")
+	}
+	if googleID == "" {
+		return false, errors.New("google id is empty")
+	}
+
+	result := DB.Model(&User{}).
+		Where("id = ? AND (google_id IS NULL OR google_id = '')", user.Id).
+		Update("google_id", googleID)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 1 {
+		user.GoogleId = googleID
+		return true, nil
+	}
+
+	// Another request may have won the race. Refresh only the binding field so
+	// the caller can distinguish an idempotent retry from a real conflict.
+	var current User
+	if err := DB.Unscoped().Select("google_id").First(&current, user.Id).Error; err != nil {
+		return false, err
+	}
+	user.GoogleId = current.GoogleId
+	return false, nil
 }
 
 func (user *User) FillUserByWeChatId() error {
