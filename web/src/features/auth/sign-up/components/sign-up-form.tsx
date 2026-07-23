@@ -92,6 +92,7 @@ export function SignUpForm({
     defaultValues: {
       username: '',
       email: '',
+      registrationCode: '',
       password: '',
       confirmPassword: '',
     },
@@ -99,6 +100,7 @@ export function SignUpForm({
 
   const emailValue = form.watch('email')
   const emailVerificationRequired = !!status?.email_verification
+  const registrationCodeRequired = !!status?.registration_code_enabled
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
   const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
@@ -156,6 +158,11 @@ export function SignUpForm({
       }
     }
 
+    if (registrationCodeRequired && !data.registrationCode?.trim()) {
+      toast.error(t('Please enter the registration code'))
+      return
+    }
+
     if (!validateTurnstile()) return
 
     setIsLoading(true)
@@ -165,6 +172,9 @@ export function SignUpForm({
         password: data.password,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
+        registration_code: registrationCodeRequired
+          ? data.registrationCode?.trim()
+          : undefined,
         aff_code: getAffiliateCode(),
         turnstile: turnstileToken,
       })
@@ -294,6 +304,26 @@ export function SignUpForm({
             </FormItem>
           )}
         />
+
+        {/* Registration Code Field */}
+        {registrationCodeRequired && (
+          <FormField
+            control={form.control}
+            name='registrationCode'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Registration code')}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={t('Enter the registration code')}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* Email Verification Section */}
         {emailVerificationRequired && (

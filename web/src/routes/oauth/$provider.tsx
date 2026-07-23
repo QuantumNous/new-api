@@ -24,9 +24,15 @@ import {
 } from '@tanstack/react-router'
 import type { AxiosRequestConfig } from 'axios'
 import i18next from 'i18next'
-import { useEffect } from 'react'
+import { Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { completeOAuthRegistration } from '@/features/auth/api'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import {
   OAUTH_BIND_CALLBACK_MESSAGE,
@@ -70,6 +76,10 @@ function OAuthCallback() {
   }
   const mode: 'login' | 'bind' =
     typeof window !== 'undefined' && window.opener ? 'bind' : 'login'
+  // Held in memory only so the pending flow token never enters the URL/history.
+  const [pendingFlowToken, setPendingFlowToken] = useState<string | null>(null)
+  const [registrationCode, setRegistrationCode] = useState('')
+  const [isCompleting, setIsCompleting] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -189,6 +199,13 @@ function OAuthCallback() {
           toast.success(i18next.t('Signed in successfully!'))
           return
         }
+        if (
+          response.data?.data?.registration_code_required &&
+          typeof response.data.data.flow_token === 'string'
+        ) {
+          setPendingFlowToken(response.data.data.flow_token)
+          return
+        }
         const messageKey = getServerErrorMessageKey(response.data)
         toast.error(
           messageKey
@@ -224,6 +241,96 @@ function OAuthCallback() {
     search.state,
     search.telegram_bind,
   ])
+
+  async function handleCompleteRegistration() {
+    if (!pendingFlowToken || !registrationCode.trim() || isCompleting) return
+    setIsCompleting(true)
+    try {
+      const res = await completeOAuthRegistration({
+        flow_token: pendingFlowToken,
+        registration_code: registrationCode.trim(),
+      })
+      if (res?.success && isAuthBundle(res.data)) {
+        applyAuthBundle(res.data)
+        const href =
+          sanitizeAuthRedirect(search.redirect, window.location.origin) ??
+          '/dashboard'
+        void navigate({ href, replace: true })
+        toast.success(i18next.t('Signed in successfully!'))
+        return
+      }
+      const messageKey = getServerErrorMessageKey(res)
+      toast.error(
+        messageKey
+          ? i18next.t(messageKey)
+          : res?.message || i18next.t('OAuth failed')
+      )
+    } catch (error: unknown) {
+      const response = (
+        error as {
+          response?: { status?: number; data?: { message?: string } }
+        }
+      ).response
+      if (response?.status === 403) {
+        // The pending flow is invalid or expired; restart from sign-in.
+        toast.error(response.data?.message || i18next.t('OAuth failed'))
+        void navigate({ href: '/sign-in', replace: true })
+        return
+      }
+      const messageKey = getServerErrorMessageKey(error)
+      toast.error(
+        messageKey
+          ? i18next.t(messageKey)
+          : response?.data?.message || i18next.t('OAuth failed')
+      )
+    } finally {
+      setIsCompleting(false)
+    }
+  }
+
+  if (pendingFlowToken) {
+    return (
+      <div className='flex min-h-svh items-center justify-center p-4'>
+        <Card className='w-full max-w-sm'>
+          <CardHeader>
+            <CardTitle>{i18next.t('Registration code required')}</CardTitle>
+          </CardHeader>
+          <CardContent className='grid gap-4'>
+            <p className='text-muted-foreground text-sm'>
+              {i18next.t(
+                'This site requires a registration code to create a new account. Enter it to finish signing up.'
+              )}
+            </p>
+            <div className='grid gap-2'>
+              <Label htmlFor='oauth-registration-code'>
+                {i18next.t('Registration code')}
+              </Label>
+              <Input
+                id='oauth-registration-code'
+                placeholder={i18next.t('Enter the registration code')}
+                value={registrationCode}
+                onChange={(event) => setRegistrationCode(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void handleCompleteRegistration()
+                }}
+                autoFocus
+              />
+            </div>
+            <Button
+              className='w-full justify-center gap-2'
+              disabled={isCompleting || !registrationCode.trim()}
+              onClick={() => void handleCompleteRegistration()}
+            >
+              {isCompleting ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : null}
+              {i18next.t('Complete registration')}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return <OAuthCallbackScreen provider={provider} mode={mode} />
 }

@@ -36,7 +36,8 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
+import { useStatus } from '@/hooks/use-status'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -47,6 +48,8 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const registrationCodeEnabled = Boolean(status?.registration_code_enabled)
 
   return {
     navGroups: [
@@ -134,6 +137,15 @@ export function useSidebarData(): SidebarData {
             url: '/users',
             icon: Users,
           },
+          ...(registrationCodeEnabled
+            ? [
+                {
+                  title: t('Registration Codes'),
+                  url: '/registration-codes',
+                  icon: Ticket,
+                },
+              ]
+            : []),
           {
             title: t('Redemption Codes'),
             url: '/redemption-codes',
