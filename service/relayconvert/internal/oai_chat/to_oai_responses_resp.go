@@ -219,14 +219,6 @@ func chatCreatedAt(created any) int {
 	return int(time.Now().Unix())
 }
 
-func responsesStreamEvent(eventType string, payload dto.ResponsesStreamResponse) ChatToResponsesStreamEvent {
-	payload.Type = eventType
-	return ChatToResponsesStreamEvent{
-		Type:    eventType,
-		Payload: payload,
-	}
-}
-
 func intPtr(v int) *int {
 	return &v
 }

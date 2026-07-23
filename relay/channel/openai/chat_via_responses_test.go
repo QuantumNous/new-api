@@ -168,6 +168,58 @@ func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 	)
 }
 
+func TestOaiChatToResponsesStreamHandlerReturnsErrorBeforeOutput(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"error":{"type":"server_error","code":"upstream_failure","message":"upstream failed"}}`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	usage, err := OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.False(t, c.Writer.Written())
+	require.Empty(t, recorder.Body.String())
+}
+
+func TestOaiChatToResponsesStreamHandlerEmitsFailureAfterOutput(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+		`data: {"error":{"type":"server_error","code":"upstream_failure","message":"upstream failed"}}`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	usage, err := OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.True(t, c.Writer.Written())
+
+	got := recorder.Body.String()
+	require.Contains(t, got, `event: response.created`)
+	require.Contains(t, got, `event: response.failed`)
+	require.Contains(t, got, `"status":"failed"`)
+	require.Contains(t, got, `"code":"upstream_failure"`)
+	require.Contains(t, got, `"message":"upstream failed"`)
+	require.NotContains(t, got, `event: response.completed`)
+	requireOrderedSubstrings(t, got,
+		`event: response.created`,
+		`event: response.failed`,
+	)
+}
+
 func requireOrderedSubstrings(t *testing.T, s string, parts ...string) {
 	t.Helper()
 
@@ -176,5 +228,133 @@ func requireOrderedSubstrings(t *testing.T, s string, parts ...string) {
 		idx := strings.Index(s[offset:], part)
 		require.NotEqualf(t, -1, idx, "missing %q after byte offset %d", part, offset)
 		offset += idx + len(part)
+	}
+}
+
+type decodedResponsesStreamEvent struct {
+	Type           string `json:"type"`
+	SequenceNumber *int64 `json:"sequence_number"`
+	Payload        map[string]any
+}
+
+func TestOaiChatToResponsesStreamHandlerRequiresSequenceNumbers(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	usage, err := OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+
+	events := decodeResponsesStreamEvents(t, recorder.Body.String())
+	require.NotEmpty(t, events)
+	for i, event := range events {
+		require.NotNilf(t, event.SequenceNumber, "%s is missing sequence_number", event.Type)
+		require.Equalf(t, int64(i), *event.SequenceNumber, "%s has a non-monotonic sequence_number", event.Type)
+	}
+}
+
+func decodeResponsesStreamEvents(t *testing.T, body string) []decodedResponsesStreamEvent {
+	t.Helper()
+
+	events := make([]decodedResponsesStreamEvent, 0)
+	for _, line := range strings.Split(body, "\n") {
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+
+		var event decodedResponsesStreamEvent
+		require.NoError(t, common.Unmarshal([]byte(data), &event), "invalid Responses SSE data: %s", data)
+		require.NotEmpty(t, event.Type, "Responses SSE event is missing type: %s", data)
+		require.NoError(t, common.Unmarshal([]byte(data), &event.Payload), "invalid Responses SSE payload: %s", data)
+		events = append(events, event)
+	}
+	return events
+}
+
+func TestOaiChatToResponsesStreamHandlerEmitsSequencedFailureAfterPayload(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	tests := []struct {
+		name  string
+		chunk string
+	}{
+		{
+			name:  "text delta",
+			chunk: `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":null}]}`,
+		},
+		{
+			name:  "tool delta",
+			chunk: `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"x\"}"}}]},"finish_reason":null}]}`,
+		},
+		{
+			name:  "reasoning delta",
+			chunk: `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"reasoning_content":"thinking"},"finish_reason":null}]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := strings.Join([]string{
+				`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+				tt.chunk,
+				`data: {"error":{"type":"server_error","code":"upstream_failure","message":"upstream failed"}}`,
+				``,
+			}, "\n")
+
+			c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+			usage, err := OaiChatToResponsesStreamHandler(c, info, resp)
+			require.Nil(t, usage)
+			require.NotNil(t, err)
+			require.True(t, c.Writer.Written())
+
+			got := recorder.Body.String()
+			requireValidSSEFraming(t, got)
+			events := decodeResponsesStreamEvents(t, got)
+			require.NotEmpty(t, events)
+			for i, event := range events {
+				require.NotNilf(t, event.SequenceNumber, "%s is missing sequence_number", event.Type)
+				require.Equalf(t, int64(i), *event.SequenceNumber, "%s has a non-monotonic sequence_number", event.Type)
+			}
+
+			failed := events[len(events)-1]
+			require.Equal(t, "response.failed", failed.Type)
+			response, ok := failed.Payload["response"].(map[string]any)
+			require.True(t, ok)
+			errorObject, ok := response["error"].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, "upstream_failure", errorObject["code"])
+			require.Equal(t, "upstream failed", errorObject["message"])
+			require.NotContains(t, got, "event: response.completed")
+		})
+	}
+}
+
+func requireValidSSEFraming(t *testing.T, body string) {
+	t.Helper()
+	for _, line := range strings.Split(body, "\n") {
+		if line == "" {
+			continue
+		}
+		require.Truef(t, strings.HasPrefix(line, "event: ") || strings.HasPrefix(line, "data: ") || strings.HasPrefix(line, ":"), "non-SSE line after stream start: %q", line)
 	}
 }

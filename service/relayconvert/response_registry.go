@@ -408,6 +408,18 @@ func (s *ResponseStreamState) UsageText() string {
 	return ""
 }
 
+func (s *ResponseStreamState) FailureEvent(code string, message string) (ChatToResponsesStreamEvent, error) {
+	if s == nil {
+		return ChatToResponsesStreamEvent{}, fmt.Errorf("response stream state is nil")
+	}
+	for _, state := range s.stepStates {
+		if typed, ok := state.(*ChatToResponsesStreamState); ok {
+			return typed.FailureEvent(code, message), nil
+		}
+	}
+	return ChatToResponsesStreamEvent{}, fmt.Errorf("response stream has no chat-to-responses state")
+}
+
 func executeResponseSpec(c *gin.Context, info *relaycommon.RelayInfo, from types.RelayFormat, target types.RelayFormat, response any, spec ResponseConverterSpec) (*ResponseResult, error) {
 	steps, err := expandResponseConverterSteps(spec)
 	if err != nil {
