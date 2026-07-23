@@ -514,6 +514,8 @@
     "Auto refresh": "Автообновление",
     "Auto Sync Upstream Models": "Автоматическая синхронизация моделей провайдера",
     "Auto-disable rules": "Правила автоотключения",
+    "Auto-disable models with no available channels": "Auto-disable models with no available channels",
+    "Auto-enable models disabled by this setting when a channel recovers": "Auto-enable models disabled by this setting when a channel recovers",
     "Auto-disable status codes": "Коды автоотключения",
     "Auto-disable-enabled channels only": "Только каналы с автовыключением",
     "Auto-disable-enabled mode probes non-manually-disabled channels with auto-disable enabled.": "В этом режиме проверяются только каналы с включённым автоматическим отключением, которые не были отключены вручную.",

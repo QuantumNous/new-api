@@ -514,6 +514,8 @@
     "Auto refresh": "自動重新整理",
     "Auto Sync Upstream Models": "自動同步上游模型",
     "Auto-disable rules": "自動停用規則",
+    "Auto-disable models with no available channels": "Auto-disable models with no available channels",
+    "Auto-enable models disabled by this setting when a channel recovers": "Auto-enable models disabled by this setting when a channel recovers",
     "Auto-disable status codes": "自動停用狀態碼",
     "Auto-disable-enabled channels only": "僅測試已啟用自動停用的渠道",
     "Auto-disable-enabled mode probes non-manually-disabled channels with auto-disable enabled.": "此模式僅探測已啟用自動停用且未被手動停用的渠道。",

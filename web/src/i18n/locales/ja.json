@@ -514,6 +514,8 @@
     "Auto refresh": "自動更新",
     "Auto Sync Upstream Models": "アップストリームモデルの自動同期",
     "Auto-disable rules": "自動無効化ルール",
+    "Auto-disable models with no available channels": "Auto-disable models with no available channels",
+    "Auto-enable models disabled by this setting when a channel recovers": "Auto-enable models disabled by this setting when a channel recovers",
     "Auto-disable status codes": "自動無効化するステータスコード",
     "Auto-disable-enabled channels only": "自動無効化が有効なチャネルのみ",
     "Auto-disable-enabled mode probes non-manually-disabled channels with auto-disable enabled.": "このモードでは、自動無効化が有効で、手動で無効化されていないチャネルのみを検査します。",

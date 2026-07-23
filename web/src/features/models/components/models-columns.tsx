@@ -58,7 +58,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
 
   // Get translated configs
   const NAME_RULE_CONFIG = getNameRuleConfig(t)
-  const MODEL_STATUS_CONFIG = getModelStatusConfig(t)
   const QUOTA_TYPE_CONFIG = getQuotaTypeConfig(t)
 
   const vendorMap: Record<number, Vendor> = {}
@@ -208,9 +207,12 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       header: t('Status'),
       meta: { mobileBadge: true },
       cell: ({ row }) => {
-        const status = row.getValue('status') as number
-        const config =
-          MODEL_STATUS_CONFIG[status as 0 | 1] || MODEL_STATUS_CONFIG[0]
+        const model = row.original
+        const config = getModelStatusConfig(
+          t,
+          (model.status === 1 ? 1 : 0) as 0 | 1,
+          Boolean(model.auto_disabled_by_rule)
+        )
 
         return (
           <StatusBadge
@@ -226,6 +228,9 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       filterFn: (row, id, value) => {
         if (!value || value.length === 0 || value.includes('all')) return true
         const status = row.getValue(id) as number
+        const autoDisabledByRule = Boolean(row.original.auto_disabled_by_rule)
+        if (value.includes('auto-enabled')) return status === 1 && autoDisabledByRule
+        if (value.includes('auto-disabled')) return status !== 1 && autoDisabledByRule
         if (value.includes('enabled')) return status === 1
         if (value.includes('disabled')) return status !== 1
         return false

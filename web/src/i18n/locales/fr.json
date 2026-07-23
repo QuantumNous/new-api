@@ -514,6 +514,8 @@
     "Auto refresh": "Actualisation automatique",
     "Auto Sync Upstream Models": "Synchronisation automatique des modèles en amont",
     "Auto-disable rules": "Règles de désactivation automatique",
+    "Auto-disable models with no available channels": "Auto-disable models with no available channels",
+    "Auto-enable models disabled by this setting when a channel recovers": "Auto-enable models disabled by this setting when a channel recovers",
     "Auto-disable status codes": "Codes de statut de désactivation auto",
     "Auto-disable-enabled channels only": "Canaux avec désactivation automatique uniquement",
     "Auto-disable-enabled mode probes non-manually-disabled channels with auto-disable enabled.": "Ce mode sonde uniquement les canaux dont la désactivation automatique est activée et qui ne sont pas désactivés manuellement.",

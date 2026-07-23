@@ -701,6 +701,7 @@ func AddChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	service.SyncModelChannelAvailability("channel.create")
 	recordManageAudit(c, "channel.create", map[string]interface{}{
 		"name":  addChannelRequest.Channel.Name,
 		"type":  addChannelRequest.Channel.Type,
@@ -731,6 +732,7 @@ func DeleteChannel(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	service.SyncModelChannelAvailability("channel.delete")
 	if channelLookupFailed {
 		service.ResetProxyClientCache()
 	} else {
@@ -756,6 +758,7 @@ func DeleteDisabledChannel(c *gin.Context) {
 	model.InitChannelCache()
 	if rows > 0 {
 		service.ResetProxyClientCache()
+		service.SyncModelChannelAvailability("channel.delete_disabled")
 	}
 	recordManageAudit(c, "channel.delete_disabled", map[string]interface{}{
 		"count": rows,
@@ -796,6 +799,7 @@ func DisableTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	service.SyncModelChannelAvailability("channel.tag_disable")
 	recordManageAudit(c, "channel.tag_disable", map[string]interface{}{
 		"tag": channelTag.Tag,
 	})
@@ -822,6 +826,7 @@ func EnableTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	service.SyncModelChannelAvailability("channel.tag_enable")
 	recordManageAudit(c, "channel.tag_enable", map[string]interface{}{
 		"tag": channelTag.Tag,
 	})
@@ -882,6 +887,9 @@ func EditTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	if channelTag.Models != nil {
+		service.SyncModelChannelAvailability("channel.tag_edit")
+	}
 	recordManageAudit(c, "channel.tag_edit", map[string]interface{}{
 		"tag": channelTag.Tag,
 	})
@@ -915,6 +923,7 @@ func DeleteChannelBatch(c *gin.Context) {
 	model.InitChannelCache()
 	if deletedCount > 0 {
 		service.ResetProxyClientCache()
+		service.SyncModelChannelAvailability("channel.delete_batch")
 	}
 	recordManageAudit(c, "channel.delete_batch", map[string]interface{}{
 		"count": deletedCount,
@@ -1089,6 +1098,10 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	// Recalibrate when models list may have changed; always safe and idempotent.
+	if channel.Models != originChannel.Models || channel.Status != originChannel.Status {
+		service.SyncModelChannelAvailability("channel.update")
+	}
 	if proxyChanged {
 		service.InvalidateProxyClient(originProxy)
 	}
@@ -1138,6 +1151,7 @@ func UpdateChannelStatus(c *gin.Context) {
 	changed := model.UpdateChannelStatus(id, "", req.Status, "manual operation")
 	if changed {
 		model.InitChannelCache()
+		service.SyncModelChannelAvailability("channel.status_update")
 	}
 	recordManageAudit(c, "channel.status_update", map[string]interface{}{
 		"id":      id,
@@ -1165,6 +1179,7 @@ func BatchUpdateChannelStatus(c *gin.Context) {
 	}
 	if changedCount > 0 {
 		model.InitChannelCache()
+		service.SyncModelChannelAvailability("channel.status_update_batch")
 	}
 	recordManageAudit(c, "channel.status_update_batch", map[string]interface{}{
 		"count":  changedCount,
@@ -1450,6 +1465,7 @@ func CopyChannel(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	service.SyncModelChannelAvailability("channel.copy")
 	recordManageAudit(c, "channel.copy", map[string]interface{}{
 		"sourceId": id,
 		"id":       clone.Id,

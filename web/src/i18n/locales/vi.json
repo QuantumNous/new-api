@@ -514,6 +514,8 @@
     "Auto refresh": "Tự động làm mới",
     "Auto Sync Upstream Models": "Tự động đồng bộ mô hình nguồn",
     "Auto-disable rules": "Quy tắc tự động tắt",
+    "Auto-disable models with no available channels": "Auto-disable models with no available channels",
+    "Auto-enable models disabled by this setting when a channel recovers": "Auto-enable models disabled by this setting when a channel recovers",
     "Auto-disable status codes": "Mã trạng thái tự tắt",
     "Auto-disable-enabled channels only": "Chỉ kênh đã bật tự động vô hiệu hóa",
     "Auto-disable-enabled mode probes non-manually-disabled channels with auto-disable enabled.": "Chế độ này chỉ kiểm tra các kênh đã bật tự động vô hiệu hóa và không bị vô hiệu hóa thủ công.",

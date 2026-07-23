@@ -102,6 +102,30 @@ export async function updateModelStatus(
 }
 
 /**
+ * Batch disable models with no available channels
+ */
+export async function batchDisableModelsNoChannels(): Promise<{
+  success: boolean
+  message?: string
+  data?: { disabled: number; enabled: number; skipped: boolean; reason: string }
+}> {
+  const res = await api.post('/api/models/batch_disable_no_channels')
+  return res.data
+}
+
+/**
+ * Batch enable models with available channels that were auto-disabled
+ */
+export async function batchEnableModelsWithChannels(): Promise<{
+  success: boolean
+  message?: string
+  data?: { disabled: number; enabled: number; skipped: boolean; reason: string }
+}> {
+  const res = await api.post('/api/models/batch_enable_with_channels')
+  return res.data
+}
+
+/**
  * Delete model
  */
 export async function deleteModel(
@@ -631,3 +655,5 @@ export async function checkClusterNameAvailability(name: string): Promise<{
   })
   return res.data
 }
+
+
