@@ -75,16 +75,30 @@ export function getModelStatusOptions(t: TFunction) {
     { label: t('All Status'), value: 'all' },
     { label: t('Enabled'), value: 'enabled' },
     { label: t('Disabled'), value: 'disabled' },
+    { label: t('Auto-enabled'), value: 'auto-enabled' },
+    { label: t('Auto-disabled'), value: 'auto-disabled' },
   ] as const
 }
 
+/**
+ * Get model status config based on status and auto_disabled_by_rule.
+ * Returns the appropriate label and variant for the status badge.
+ */
 export function getModelStatusConfig(
-  t: TFunction
-): Record<ModelStatus, { label: string; variant: 'success' | 'neutral' }> {
-  return {
-    1: { label: t('Enabled'), variant: 'success' },
-    0: { label: t('Disabled'), variant: 'neutral' },
+  t: TFunction,
+  status: ModelStatus,
+  autoDisabledByRule?: boolean
+): { label: string; variant: 'success' | 'neutral' | 'warning' } {
+  if (status === 1) {
+    if (autoDisabledByRule) {
+      return { label: t('Auto-enabled'), variant: 'warning' }
+    }
+    return { label: t('Enabled'), variant: 'success' }
   }
+  if (autoDisabledByRule) {
+    return { label: t('Auto-disabled'), variant: 'warning' }
+  }
+  return { label: t('Disabled'), variant: 'neutral' }
 }
 
 // ============================================================================

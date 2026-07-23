@@ -30,10 +30,13 @@ type Model struct {
 	VendorID     int            `json:"vendor_id,omitempty" gorm:"index"`
 	Endpoints    string         `json:"endpoints,omitempty" gorm:"type:text"`
 	Status       int            `json:"status" gorm:"default:1"`
-	SyncOfficial int            `json:"sync_official" gorm:"default:1"`
-	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
-	UpdatedTime  int64          `json:"updated_time" gorm:"bigint"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
+	// AutoDisabledByRule marks models managed by channel-availability automation.
+	// Used for auto re-enable protection and UI status badges/filters.
+	AutoDisabledByRule bool           `json:"auto_disabled_by_rule" gorm:"column:auto_disabled_by_rule"`
+	SyncOfficial       int            `json:"sync_official" gorm:"default:1"`
+	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
+	UpdatedTime        int64          `json:"updated_time" gorm:"bigint"`
+	DeletedAt          gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
 
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
@@ -205,8 +208,8 @@ func SearchModels(keyword string, vendor string, status string, syncOfficial str
 			db = db.Joins("JOIN vendors ON vendors.id = models.vendor_id").Where("vendors.name LIKE ?", "%"+vendor+"%")
 		}
 	}
-	if statusValue, ok := parseModelStatusFilter(status); ok {
-		db = db.Where("models.status = ?", statusValue)
+	if statusFilter, ok := parseModelStatusFilterSpec(status); ok {
+		db = db.Where(statusFilter.query, statusFilter.args...)
 	}
 	if syncValue, ok := parseModelSyncFilter(syncOfficial); ok {
 		db = db.Where("models.sync_official = ?", syncValue)
@@ -221,22 +224,58 @@ func SearchModels(keyword string, vendor string, status string, syncOfficial str
 	return models, total, nil
 }
 
-// parseModelStatusFilter maps UI/API status values to the models.status column.
+type modelStatusFilterSpec struct {
+	query string
+	args  []interface{}
+}
+
+// parseModelStatusFilterSpec maps UI/API status values to SQL filters on models.
 // Returns ok=false when no status filter should be applied.
-func parseModelStatusFilter(status string) (value int, ok bool) {
+func parseModelStatusFilterSpec(status string) (spec modelStatusFilterSpec, ok bool) {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "", "all":
-		return 0, false
+		return modelStatusFilterSpec{}, false
 	case "enabled", "1":
-		return 1, true
+		return modelStatusFilterSpec{query: "models.status = ?", args: []interface{}{1}}, true
 	case "disabled", "0":
-		return 0, true
+		return modelStatusFilterSpec{query: "models.status = ?", args: []interface{}{0}}, true
+	case "auto-enabled", "auto_enabled":
+		return modelStatusFilterSpec{
+			query: "models.status = ? AND models.auto_disabled_by_rule = ?",
+			args:  []interface{}{1, true},
+		}, true
+	case "auto-disabled", "auto_disabled":
+		return modelStatusFilterSpec{
+			query: "models.status = ? AND models.auto_disabled_by_rule = ?",
+			args:  []interface{}{0, true},
+		}, true
 	default:
 		n, err := strconv.Atoi(status)
 		if err != nil {
+			return modelStatusFilterSpec{}, false
+		}
+		return modelStatusFilterSpec{query: "models.status = ?", args: []interface{}{n}}, true
+	}
+}
+
+// parseModelStatusFilter maps UI/API status values to the models.status column.
+// Returns ok=false when no status filter should be applied.
+// Kept for callers that only need plain status=0/1 filtering.
+func parseModelStatusFilter(status string) (value int, ok bool) {
+	spec, ok := parseModelStatusFilterSpec(status)
+	if !ok {
+		return 0, false
+	}
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "auto-enabled", "auto_enabled", "auto-disabled", "auto_disabled":
+		// Plain status-only callers cannot express auto flags.
+		return 0, false
+	default:
+		if len(spec.args) == 0 {
 			return 0, false
 		}
-		return n, true
+		n, ok := spec.args[0].(int)
+		return n, ok
 	}
 }
 

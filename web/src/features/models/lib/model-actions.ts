@@ -20,7 +20,12 @@ import { type QueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
-import { updateModelStatus, deleteModel as deleteModelAPI } from '../api'
+import {
+  updateModelStatus,
+  deleteModel as deleteModelAPI,
+  batchDisableModelsNoChannels,
+  batchEnableModelsWithChannels,
+} from '../api'
 import { modelsQueryKeys } from './query-keys'
 
 // ============================================================================
@@ -268,5 +273,77 @@ export async function handleBatchDisableModels(
     }
   } catch (error: unknown) {
     toast.error((error as Error)?.message || i18next.t('Batch disable failed'))
+  }
+}
+
+// ============================================================================
+// Batch Channel Availability Actions
+// ============================================================================
+
+/**
+ * One-click disable all models that currently have no available channels.
+ */
+export async function handleBatchDisableModelsNoChannels(
+  queryClient?: QueryClient,
+  onSuccess?: (disabledCount: number) => void
+): Promise<void> {
+  try {
+    const response = await batchDisableModelsNoChannels()
+    if (response.success) {
+      const disabled = response.data?.disabled ?? 0
+      if (disabled > 0) {
+        toast.success(
+          i18next.t(
+            'Successfully disabled {{count}} model(s) with no available channels',
+            { count: disabled }
+          )
+        )
+      } else {
+        toast.info(i18next.t('No models with unavailable channels found'))
+      }
+      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+      onSuccess?.(disabled)
+    } else {
+      toast.error(
+        response.message || i18next.t('Failed to batch disable models')
+      )
+    }
+  } catch (error: unknown) {
+    toast.error((error as Error)?.message || i18next.t('Batch disable failed'))
+  }
+}
+
+/**
+ * One-click enable all models that currently have available channels.
+ */
+export async function handleBatchEnableModelsWithChannels(
+  queryClient?: QueryClient,
+  onSuccess?: (enabledCount: number) => void
+): Promise<void> {
+  try {
+    const response = await batchEnableModelsWithChannels()
+    if (response.success) {
+      const enabled = response.data?.enabled ?? 0
+      if (enabled > 0) {
+        toast.success(
+          i18next.t(
+            'Successfully enabled {{count}} model(s) with recovered channels',
+            { count: enabled }
+          )
+        )
+      } else {
+        toast.info(
+          i18next.t('No disabled models with available channels found')
+        )
+      }
+      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+      onSuccess?.(enabled)
+    } else {
+      toast.error(
+        response.message || i18next.t('Failed to batch enable models')
+      )
+    }
+  } catch (error: unknown) {
+    toast.error((error as Error)?.message || i18next.t('Batch enable failed'))
   }
 }

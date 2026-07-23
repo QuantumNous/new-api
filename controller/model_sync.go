@@ -15,6 +15,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -435,6 +436,8 @@ func SyncUpstreamModels(c *gin.Context) {
 				}
 				if containsField(ow.Fields, "status") {
 					local.Status = chooseStatus(up.Status, local.Status)
+					// Upstream explicit status overwrite clears auto-disable marker.
+					local.AutoDisabledByRule = false
 					needUpdate = true
 				}
 				if !needUpdate {
@@ -448,6 +451,11 @@ func SyncUpstreamModels(c *gin.Context) {
 				return nil
 			})
 		}
+	}
+
+	if createdModels > 0 || updatedModels > 0 {
+		service.SyncModelChannelAvailability("model.sync_upstream")
+		model.RefreshPricing()
 	}
 
 	c.JSON(http.StatusOK, gin.H{

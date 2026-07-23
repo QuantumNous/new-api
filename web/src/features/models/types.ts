@@ -50,6 +50,7 @@ export interface Model {
   bound_channels?: BoundChannel[]
   enable_groups?: string[]
   quota_types?: number[]
+  auto_disabled_by_rule?: boolean
   matched_models?: string[]
   matched_count?: number
 }
