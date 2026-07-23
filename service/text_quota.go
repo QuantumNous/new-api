@@ -212,6 +212,13 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.CacheCreationTokens5m = usage.ClaudeCacheCreation5mTokens
 	summary.CacheCreationTokens1h = usage.ClaudeCacheCreation1hTokens
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
+	// 上游未返回 ImageTokens 时，使用估算阶段记录的固定值作为 fallback。
+	// 估算阶段不下载完整文件，仅用固定值估算（见 token_counter.go）。
+	// 此 fallback 假定上游 PromptTokens 已包含图片 token（多数上游如此），
+	// 因此从 baseTokens 中减去 ImageTokens 避免按文本重复计费。
+	if summary.ImageTokens == 0 && relayInfo.GetEstimateImageTokens() > 0 {
+		summary.ImageTokens = relayInfo.GetEstimateImageTokens()
+	}
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
 	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&

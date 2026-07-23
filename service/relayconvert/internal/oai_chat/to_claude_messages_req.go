@@ -11,6 +11,7 @@ import (
 	sharedclaude "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/claude"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -348,6 +349,26 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 					if source == nil {
 						continue
 					}
+					// URL 来源直传给 Claude，避免下载图片造成内存飙升。
+					// Claude 的 source.type="url" 支持直接传入 URL，由 Claude 侧获取文件。
+					if urlSource, isURL := source.(*types.URLSource); isURL {
+						claudeMediaMessage := dto.ClaudeMediaMessage{
+							Source: &dto.ClaudeMessageSource{
+								Type: "url",
+								Url:  urlSource.URL,
+							},
+						}
+						// 根据 OpenAI 请求中的 content type 推断 Claude 媒体类型
+						// image_url -> image, file/video_url/input_audio -> document
+						if mediaMessage.Type == dto.ContentTypeImageURL {
+							claudeMediaMessage.Type = "image"
+						} else {
+							claudeMediaMessage.Type = "document"
+						}
+						claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
+						continue
+					}
+					// Base64 来源：解析数据并转为 base64（保留原有行为）
 					base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting image for Claude")
 					if err != nil {
 						return nil, fmt.Errorf("get file data failed: %s", err.Error())
