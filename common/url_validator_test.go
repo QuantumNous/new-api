@@ -193,3 +193,29 @@ func TestInitSessionCookieSettingsRejectsEmptyTrustedURLInList(t *testing.T) {
 
 	require.Error(t, InitSessionCookieSettings())
 }
+
+func TestInitSessionCookieSettingsNormalizesExactOrigins(t *testing.T) {
+	resetSessionCookieSettingsAfterTest(t)
+	t.Setenv("SESSION_COOKIE_SECURE", "true")
+	t.Setenv("SESSION_COOKIE_TRUSTED_URL", "https://EXAMPLE.com:443,https://admin.example.com:8443/")
+
+	require.NoError(t, InitSessionCookieSettings())
+	assert.Equal(t, []string{"https://example.com", "https://admin.example.com:8443"}, SessionCookieTrustedURLs)
+}
+
+func TestInitSessionCookieSettingsRejectsNonOriginURLs(t *testing.T) {
+	for _, trustedURL := range []string{
+		"https://*.example.com",
+		"https://user@example.com",
+		"https://example.com/admin",
+		"https://example.com?next=admin",
+		"https://example.com#admin",
+	} {
+		t.Run(trustedURL, func(t *testing.T) {
+			resetSessionCookieSettingsAfterTest(t)
+			t.Setenv("SESSION_COOKIE_SECURE", "true")
+			t.Setenv("SESSION_COOKIE_TRUSTED_URL", trustedURL)
+			require.Error(t, InitSessionCookieSettings())
+		})
+	}
+}

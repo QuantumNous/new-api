@@ -1,6 +1,6 @@
 <div align="center">
 
-![new-api](/web/default/public/logo.png)
+![new-api](/web/public/logo.png)
 
 # New API
 
@@ -315,8 +315,16 @@ docker run --name new-api -d --restart always \
 
 | 変数名 | 説明 | デフォルト値 |
 |--------|------|--------|
-| `SESSION_SECRET` | セッションシークレット（マルチマシンデプロイに必須） | - |
-| `CRYPTO_SECRET` | 暗号化シークレット（Redisに必須） | - |
+| `SESSION_SECRET` | 認証署名シークレット。すべてのノードで同じ値が必要 | - |
+| `SESSION_COOKIE_SECURE` | `false`/未設定ではローカル HTTP 開発プロキシ向けに refresh/logout の OriginGuard を無効化し、`true` では Secure Cookie と厳格な Origin 検証を有効化 | `false` |
+| `SESSION_COOKIE_TRUSTED_URL` | Secure モードでは必須。refresh/logout を許可する完全一致の HTTPS Origin をカンマ区切りで指定。relay CORS 設定ではありません | - |
+| `TRUSTED_PROXIES` | 未設定/空ではループバック、RFC 1918、IPv6 ULA を信頼して起動時に警告し、`none` ではすべて無効、明示的なプロキシ IP/CIDR リストは既定値を完全に置き換えます | `127.0.0.0/8, ::1, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7` |
+| `USER_SESSION_ACTIVE_LIMIT` | 1 ユーザーあたりの有効なログイン Session 上限 | `50` |
+| `USER_SESSION_ISSUANCE_LIMIT` | カウント期間内に作成できる Session 数の上限（取り消し済みを含む） | `100` |
+| `USER_SESSION_ISSUANCE_WINDOW_SECONDS` | Session 発行のカウント期間（秒）。取り消し済み Session の保持期間を超える場合は自動的に制限 | `86400` |
+| `USER_SESSION_REVOKED_RETENTION_DAYS` | 監査と発行数計算のため取り消し済み Session を保持する日数 | `7` |
+| `USER_SESSION_HOURLY_ALERT_THRESHOLD` | 1 時間あたりのグローバル Session 発行数の警告閾値。ログインは拒否しません | `5000` |
+| `CRYPTO_SECRET` | キャッシュキー用 HMAC シークレット。Redis を共有するノードでは同じ実効値が必要 | デフォルトは `SESSION_SECRET` |
 | `SQL_DSN** | データベース接続文字列 | - |
 | `REDIS_CONN_STRING` | Redis接続文字列 | - |
 | `STREAMING_TIMEOUT` | ストリーミング応答のタイムアウト時間（秒） | `300` |
@@ -395,8 +403,20 @@ docker run --name new-api -d --restart always \
 ### ⚠️ マルチマシンデプロイの注意事項
 
 > [!WARNING]
-> - **必ず設定する必要があります** `SESSION_SECRET` - そうしないとマルチマシンデプロイ時にログイン状態が不一致になります
-> - **共有Redisは必ず設定する必要があります** `CRYPTO_SECRET` - そうしないとデータを復号化できません
+> - すべてのノードで同じプライマリデータベースと同じ `SESSION_SECRET` を使用してください。異なる場合、Access Token、Refresh セッション、一時認証フローを一貫して検証できません。
+> - 同じ Redis に接続するノードでは同じ `CRYPTO_SECRET` も設定してください。異なる場合、キャッシュキーのダイジェストが一致せず、共有エントリを正しく再利用できません。
+
+ログイン Session とユーザー単位の有効数／発行数制限では、データベースが信頼できる唯一の情報源です。Redis の Session エントリは短期キャッシュであり、TTL は `SYNC_FREQUENCY`（デフォルト 60 秒）に従い、Session の残り有効期間を超えません。
+
+| Redis トポロジー | Session 状態の伝播 | レート制限 |
+| --- | --- | --- |
+| すべてのノードで Redis を共有 | 取り消しとバージョン更新は通常即時に伝播 | Redis の制限枠はノード間で共有 |
+| ノードごとに独立した Redis | 有効な `SYNC_FREQUENCY` 以内にデータベースへフォールバックして収束。バージョンローテーション直後の新しい Token は、古いキャッシュを持つノードで一時的に 401 になる場合があります | ノードごとに独立して計数するため、クラスター全体では設定値の約ノード数倍まで許可される可能性があります |
+| Redis なし | Session の検証ごとにデータベースを直接参照 | メモリ内の制限枠はノードごとに独立 |
+
+`SYNC_FREQUENCY` を短くすると独立 Redis のキャッシュ陳腐化時間は短くなりますが、有効な SID ごと、ノードごと、TTL ごとにデータベースへの主キー照会が 1 回増えます。この保証は Session 認証の陳腐化時間を限定するものです。レート制限や Redis を使うその他のコントロールプレーンキャッシュは、引き続きトポロジーに依存します。
+
+Token、Origin 検証、PAT の契約については[ユーザー認証とログインセッション](./docs/authentication.md)を参照してください。
 
 ### 🔄 チャネルリトライとキャッシュ
 
