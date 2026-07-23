@@ -178,3 +178,98 @@ func requireOrderedSubstrings(t *testing.T, s string, parts ...string) {
 		offset += idx + len(part)
 	}
 }
+
+type decodedResponsesStreamEvent struct {
+	Type           string `json:"type"`
+	SequenceNumber *int64 `json:"sequence_number"`
+	Payload        map[string]any
+}
+
+func TestOaiChatToResponsesStreamHandlerRequiresDoneEventFields(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"q\":"}}]},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"x\"}"}}]},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	usage, err := OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+
+	events := decodeResponsesStreamEvents(t, recorder.Body.String())
+	textDone := requireResponsesStreamEvent(t, events, "response.output_text.done")
+	require.Equal(t, "hello", textDone.Payload["text"])
+
+	argumentsDone := requireResponsesStreamEvent(t, events, "response.function_call_arguments.done")
+	require.Equal(t, "lookup", argumentsDone.Payload["name"])
+	require.Equal(t, `{"q":"x"}`, argumentsDone.Payload["arguments"])
+}
+
+func TestOaiChatToResponsesStreamHandlerRequiresReasoningDoneText(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"reasoning_content":"thinking"},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	usage, err := OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+
+	events := decodeResponsesStreamEvents(t, recorder.Body.String())
+	reasoningDone := requireResponsesStreamEvent(t, events, "response.reasoning_summary_text.done")
+	require.Equal(t, "thinking", reasoningDone.Payload["text"])
+}
+
+func decodeResponsesStreamEvents(t *testing.T, body string) []decodedResponsesStreamEvent {
+	t.Helper()
+
+	events := make([]decodedResponsesStreamEvent, 0)
+	for _, line := range strings.Split(body, "\n") {
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+
+		var event decodedResponsesStreamEvent
+		require.NoError(t, common.Unmarshal([]byte(data), &event), "invalid Responses SSE data: %s", data)
+		require.NotEmpty(t, event.Type, "Responses SSE event is missing type: %s", data)
+		require.NoError(t, common.Unmarshal([]byte(data), &event.Payload), "invalid Responses SSE payload: %s", data)
+		events = append(events, event)
+	}
+	return events
+}
+
+func requireResponsesStreamEvent(t *testing.T, events []decodedResponsesStreamEvent, eventType string) decodedResponsesStreamEvent {
+	t.Helper()
+	for _, event := range events {
+		if event.Type == eventType {
+			return event
+		}
+	}
+	require.FailNowf(t, "missing Responses SSE event", "event type %s was not emitted", eventType)
+	return decodedResponsesStreamEvent{}
+}

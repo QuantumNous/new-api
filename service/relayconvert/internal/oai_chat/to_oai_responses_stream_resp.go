@@ -251,6 +251,7 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 			OutputIndex:  intPtr(s.textOutputIndex),
 			ContentIndex: intPtr(0),
 			ItemID:       s.messageID(),
+			Text:         stringPtr(s.text.String()),
 		}))
 		events = append(events, responsesStreamEvent(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemDone,
@@ -265,10 +266,7 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 			OutputIndex:  intPtr(s.reasoningIndex),
 			SummaryIndex: intPtr(0),
 			ItemID:       s.reasoningID(),
-			Part: &dto.ResponsesReasoningSummaryPart{
-				Type: "summary_text",
-				Text: s.reasoning.String(),
-			},
+			Text:         stringPtr(s.reasoning.String()),
 		}))
 		events = append(events, responsesStreamEvent(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemDone,
@@ -285,6 +283,8 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 			Type:        responsesEventFunctionArgsDone,
 			OutputIndex: intPtr(tool.OutputIndex),
 			ItemID:      tool.ID,
+			Name:        stringPtr(tool.Name),
+			Arguments:   stringPtr(tool.Arguments.String()),
 		}))
 		events = append(events, responsesStreamEvent(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemDone,
