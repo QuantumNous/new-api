@@ -3,12 +3,14 @@ package dto
 import "fmt"
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat            bool     `json:"force_format,omitempty"`
+	ThinkingToContent      bool     `json:"thinking_to_content,omitempty"`
+	StripPrefixThinkBlock  bool     `json:"strip_prefix_think_block,omitempty"`
+	StripPrefixThinkModels []string `json:"strip_prefix_think_models,omitempty"`
+	Proxy                  string   `json:"proxy"`
+	PassThroughBodyEnabled bool     `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt           string   `json:"system_prompt,omitempty"`
+	SystemPromptOverride   bool     `json:"system_prompt_override,omitempty"`
 }
 
 type VertexKeyType string

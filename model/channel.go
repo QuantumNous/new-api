@@ -986,6 +986,14 @@ func (channel *Channel) ValidateSettings() error {
 			return err
 		}
 	}
+	if channelParams.ThinkingToContent && channelParams.StripPrefixThinkBlock {
+		return fmt.Errorf("thinking_to_content and strip_prefix_think_block cannot be enabled together")
+	}
+	for _, modelName := range channelParams.StripPrefixThinkModels {
+		if strings.TrimSpace(modelName) == "" {
+			return fmt.Errorf("strip_prefix_think_models cannot contain an empty model name")
+		}
+	}
 	return nil
 }
 

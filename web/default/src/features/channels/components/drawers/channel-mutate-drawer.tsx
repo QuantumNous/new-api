@@ -238,6 +238,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.system_prompt?.trim() ||
     values.force_format ||
     values.thinking_to_content ||
+    values.strip_prefix_think_block ||
+    values.strip_prefix_think_models?.trim() ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
@@ -3750,7 +3752,40 @@ export function ChannelMutateDrawer({
                             <FormControl>
                               <Switch
                                 checked={field.value}
-                                onCheckedChange={field.onChange}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked)
+                                  if (checked) {
+                                    form.setValue('strip_prefix_think_block', false)
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='strip_prefix_think_block'
+                        render={({ field }) => (
+                          <FormItem className='flex items-center justify-between px-4 py-3'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>{t('Strip Prefix Think Block')}</FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'Remove only a leading <think>...</think> block from responses; upstream reasoning tokens are still billed'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked)
+                                  if (checked) {
+                                    form.setValue('thinking_to_content', false)
+                                  }
+                                }}
                               />
                             </FormControl>
                           </FormItem>
@@ -3778,6 +3813,24 @@ export function ChannelMutateDrawer({
                         )}
                       />
                     </div>
+
+                    <FormField
+                      control={form.control}
+                      name='strip_prefix_think_models'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Prefix Think Filter Models')}</FormLabel>
+                          <FormControl>
+                            <Input placeholder='grok-4.5' {...field} />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Comma-separated model names; leave empty to apply to every model on this channel'
+                            )}
+                          </FormDescription>
+                        </FormItem>
+                      )}
+                    />
 
                     <FormField
                       control={form.control}
