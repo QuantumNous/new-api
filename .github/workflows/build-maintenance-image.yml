@@ -2,6 +2,8 @@ name: Publish maintenance image
 
 on:
   push:
+    branches:
+      - "maintenance/rc.15"
     tags:
       - "v1.0.0-rc.15-treehouse.*"
   workflow_dispatch:
@@ -49,8 +51,10 @@ jobs:
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             image_tag="$DISPATCH_TAG"
-          else
+          elif [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             image_tag="$GITHUB_REF_NAME"
+          else
+            image_tag="maintenance-${GITHUB_SHA::7}"
           fi
 
           if [[ ! "$image_tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
