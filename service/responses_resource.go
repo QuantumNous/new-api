@@ -1,7 +1,7 @@
 package service
 
 import (
-	"fmt"
+	"errors"
 	"net/url"
 	"strconv"
 	"strings"
@@ -67,7 +67,7 @@ func RecordResponsesResourceRoute(c *gin.Context, responseID string, expiresAt i
 
 	parsedURL, err := url.Parse(upstreamResponsesURL)
 	if err != nil {
-		return fmt.Errorf("parse upstream responses URL: %w", err)
+		return errors.New("parse upstream responses URL: invalid")
 	}
 	parsedURL.RawQuery = removeSensitiveQueryValues(parsedURL.Query()).Encode()
 
@@ -114,7 +114,7 @@ func DeleteResponsesResourceRoute(c *gin.Context, responseID string) error {
 func BuildResponsesResourceURL(upstreamResponsesURL string, responseID string, inputItems bool, query url.Values) (string, error) {
 	parsedURL, err := url.Parse(upstreamResponsesURL)
 	if err != nil {
-		return "", fmt.Errorf("parse upstream responses URL: %w", err)
+		return "", errors.New("parse upstream responses URL: invalid")
 	}
 
 	parsedURL.Path = strings.TrimSuffix(parsedURL.Path, "/") + "/" + url.PathEscape(strings.TrimSpace(responseID))
@@ -136,12 +136,28 @@ func BuildResponsesResourceURL(upstreamResponsesURL string, responseID string, i
 func removeSensitiveQueryValues(query url.Values) url.Values {
 	for key := range query {
 		normalized := strings.ToLower(strings.TrimSpace(key))
-		if strings.Contains(normalized, "key") ||
-			strings.Contains(normalized, "token") ||
-			strings.Contains(normalized, "secret") ||
-			strings.Contains(normalized, "signature") ||
-			normalized == "authorization" ||
-			normalized == "auth" {
+		switch normalized {
+		case "key",
+			"api_key",
+			"api-key",
+			"apikey",
+			"x-api-key",
+			"access_token",
+			"refresh_token",
+			"id_token",
+			"token",
+			"authorization",
+			"auth",
+			"client_secret",
+			"secret",
+			"password",
+			"passwd",
+			"signature",
+			"sig",
+			"awsaccesskeyid",
+			"x-amz-credential",
+			"x-amz-security-token",
+			"x-amz-signature":
 			query.Del(key)
 		}
 	}

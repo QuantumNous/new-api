@@ -113,3 +113,56 @@ func TestRelayResponsesResourceProxiesRetrieveInputItemsAndDelete(t *testing.T) 
 		"DELETE /v1/responses/resp_delete?api-version=preview",
 	}, requests)
 }
+
+func TestRelayResponsesResourceRejectsInvalidOrUnavailableRoutes(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+	})
+
+	invoke := func(responseID string) *httptest.ResponseRecorder {
+		t.Helper()
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Request = httptest.NewRequest(http.MethodGet, "/v1/responses/"+responseID, nil)
+		context.Params = gin.Params{{Key: "response_id", Value: responseID}}
+		common.SetContextKey(context, constant.ContextKeyUserId, 302)
+		RelayResponsesResource(context)
+		return recorder
+	}
+
+	assert.Equal(t, http.StatusBadRequest, invoke("").Code)
+	assert.Equal(t, http.StatusNotFound, invoke("resp_missing").Code)
+
+	recordRoute := func(responseID string, channelID int, multiKeyIndex int) {
+		t.Helper()
+		context := &gin.Context{}
+		common.SetContextKey(context, constant.ContextKeyUserId, 302)
+		common.SetContextKey(context, constant.ContextKeyChannelId, channelID)
+		common.SetContextKey(context, constant.ContextKeyChannelIsMultiKey, multiKeyIndex >= 0)
+		common.SetContextKey(context, constant.ContextKeyChannelMultiKeyIndex, multiKeyIndex)
+		require.NoError(t, service.RecordResponsesResourceRoute(
+			context,
+			responseID,
+			0,
+			"https://example.com/v1/responses",
+		))
+	}
+
+	recordRoute("resp_unavailable", 999999, -1)
+	assert.Equal(t, http.StatusBadGateway, invoke("resp_unavailable").Code)
+
+	baseURL := "https://example.com"
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeOpenAI,
+		Key:     "only-key",
+		Status:  common.ChannelStatusEnabled,
+		Name:    "responses-resource-multi-key-test",
+		BaseURL: &baseURL,
+	}
+	require.NoError(t, db.Create(channel).Error)
+	recordRoute("resp_bad_key_index", channel.Id, 2)
+	assert.Equal(t, http.StatusBadGateway, invoke("resp_bad_key_index").Code)
+}

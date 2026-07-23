@@ -57,6 +57,8 @@ func TestBuildResponsesResourceURLPreservesProviderQueryAndForwardsPagination(t 
 		"limit":          []string{"50"},
 		"starting_after": []string{"42"},
 		"api_key":        []string{"must-not-forward"},
+		"sort_key":       []string{"created_at"},
+		"cache_token":    []string{"cache_123"},
 	}
 
 	got, err := BuildResponsesResourceURL(
@@ -68,7 +70,23 @@ func TestBuildResponsesResourceURLPreservesProviderQueryAndForwardsPagination(t 
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		"https://example.com/openai/v1/responses/resp_123/input_items?after=item_123&api-version=preview&limit=50&starting_after=42",
+		"https://example.com/openai/v1/responses/resp_123/input_items?after=item_123&api-version=preview&cache_token=cache_123&limit=50&sort_key=created_at&starting_after=42",
 		got,
 	)
+}
+
+func TestResponsesResourceURLParseErrorsDoNotExposeSecrets(t *testing.T) {
+	const invalidURL = "https://example.com/%zz?api_key=must-not-leak"
+
+	context := &gin.Context{}
+	common.SetContextKey(context, constant.ContextKeyUserId, 103)
+	err := RecordResponsesResourceRoute(context, "resp_invalid", 0, invalidURL)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "must-not-leak")
+	assert.NotContains(t, err.Error(), invalidURL)
+
+	_, err = BuildResponsesResourceURL(invalidURL, "resp_invalid", false, nil)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "must-not-leak")
+	assert.NotContains(t, err.Error(), invalidURL)
 }
