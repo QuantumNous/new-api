@@ -1,3 +1,4 @@
+# Disabled in the maintenance fork. Kept for upstream reference only.
 name: Sync Release to Gitee
 
 permissions:
@@ -88,4 +89,3 @@ jobs:
         run: |
           echo "✅ Successfully synced release ${{ github.event.inputs.tag_name }} to Gitee!"
           echo "🔗 Gitee Release URL: https://gitee.com/${{ env.GITEE_OWNER }}/${{ env.GITEE_REPO }}/releases/tag/${{ github.event.inputs.tag_name }}"
-

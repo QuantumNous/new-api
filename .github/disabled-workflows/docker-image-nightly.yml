@@ -1,3 +1,4 @@
+# Disabled in the maintenance fork. Kept for upstream reference only.
 name: Publish Docker image (nightly)
 
 on:
