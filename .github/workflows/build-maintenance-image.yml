@@ -1,0 +1,130 @@
+name: Publish maintenance image
+
+on:
+  push:
+    tags:
+      - "v1.0.0-rc.15-treehouse.*"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to publish"
+        required: true
+        default: "v1.0.0-rc.15-treehouse.1"
+        type: string
+      update_channel_tag:
+        description: "Also update the floating maintenance tag"
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: maintenance-image-${{ github.ref }}-${{ inputs.image_tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and publish multi-arch image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Resolve image name
+        id: image
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          echo "name=ghcr.io/${repository}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve image tag and version
+        id: version
+        shell: bash
+        env:
+          DISPATCH_TAG: ${{ inputs.image_tag }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            image_tag="$DISPATCH_TAG"
+          else
+            image_tag="$GITHUB_REF_NAME"
+          fi
+
+          if [[ ! "$image_tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "::error::Invalid Docker image tag: $image_tag"
+            exit 1
+          fi
+
+          echo "$image_tag" > VERSION
+          echo "tag=$image_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.tag }}
+            type=raw,value=maintenance,enable=${{ github.event_name == 'push' || inputs.update_channel_tag }}
+            type=sha,format=short,prefix=sha-
+          labels: |
+            org.opencontainers.image.title=new-api
+            org.opencontainers.image.description=Multi-arch maintenance build of new-api
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        shell: bash
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE_NAME}@${IMAGE_DIGEST}"
+
+      - name: Publish summary
+        shell: bash
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_TAG: ${{ steps.version.outputs.tag }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "### Published maintenance image"
+            echo
+            echo '```text'
+            echo "${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "${IMAGE_NAME}@${IMAGE_DIGEST}"
+            echo '```'
+            echo
+            echo "Platforms: \`linux/amd64\`, \`linux/arm64\`"
+          } >> "$GITHUB_STEP_SUMMARY"
