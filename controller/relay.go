@@ -181,17 +181,33 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
+	// excludeChannels tracks channel IDs already tried in this request so each
+	// retry moves to a fresh channel instead of possibly re-selecting a channel
+	// that just failed. Populated after every attempt below.
+	excludeChannels := make(map[int]bool)
 	retryParam := &service.RetryParam{
-		Ctx:         c,
-		TokenGroup:  relayInfo.TokenGroup,
-		ModelName:   relayInfo.OriginModelName,
-		RequestPath: c.Request.URL.Path,
-		Retry:       common.GetPointer(0),
+		Ctx:             c,
+		TokenGroup:      relayInfo.TokenGroup,
+		ModelName:       relayInfo.OriginModelName,
+		RequestPath:     c.Request.URL.Path,
+		Retry:           common.GetPointer(0),
+		ExcludeChannels: excludeChannels,
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	// Adaptive retry budget: try every available channel before giving up.
+	// A fixed RetryTimes smaller than the channel pool would abort while
+	// healthy channels remain untried. We size the cap to cover all channels
+	// (count-1 retries after the first attempt) but never below the configured
+	// RetryTimes. The exclude-driven selection stops cleanly once the pool is
+	// exhausted, so an oversized cap costs nothing.
+	retryCap := common.RetryTimes
+	if availableChannels := countAvailableChannelsForRetry(c, relayInfo); availableChannels-1 > retryCap {
+		retryCap = availableChannels - 1
+	}
+
+	for ; retryParam.GetRetry() <= retryCap; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
@@ -200,6 +216,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		addUsedChannel(c, channel.Id)
+		// Mark this channel as tried so the next retry skips it and moves on to
+		// a different channel instead of possibly re-selecting the same one.
+		excludeChannels[channel.Id] = true
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break
@@ -295,6 +314,31 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 		// Best-effort: leave CombineText empty to avoid large allocations.
 	}
 	return meta
+}
+
+// countAvailableChannelsForRetry returns how many distinct channels can serve
+// this request, used to size the adaptive retry budget. For the "auto" token
+// group it sums channels across all of the user's auto groups (retry fails over
+// across them); otherwise it counts the single token group. When a fixed
+// channel is pinned (specific_channel_id / ChannelMeta), there is nothing to
+// fail over to, so it returns 1.
+func countAvailableChannelsForRetry(c *gin.Context, info *relaycommon.RelayInfo) int {
+	if info.ChannelMeta != nil {
+		return 1
+	}
+	if _, ok := c.Get("specific_channel_id"); ok {
+		return 1
+	}
+	requestPath := c.Request.URL.Path
+	if info.TokenGroup == "auto" {
+		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		total := 0
+		for _, g := range service.GetUserAutoGroup(userGroup) {
+			total += model.CountAvailableChannels(g, info.OriginModelName, requestPath)
+		}
+		return total
+	}
+	return model.CountAvailableChannels(info.TokenGroup, info.OriginModelName, requestPath)
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
