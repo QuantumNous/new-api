@@ -37,7 +37,7 @@ export async function getRegistrationCodes(
 ): Promise<GetRegistrationCodesResponse> {
   const { p = 1, page_size = 10 } = params
   const res = await api.get(
-    `/api/registration_code?p=${p}&page_size=${page_size}`
+    `/api/registration_code/?p=${p}&page_size=${page_size}`
   )
   return res.data
 }
