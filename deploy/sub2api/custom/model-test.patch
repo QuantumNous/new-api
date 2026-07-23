@@ -1,0 +1,772 @@
+diff --git a/frontend/src/components/layout/AppSidebar.vue b/frontend/src/components/layout/AppSidebar.vue
+index ea89b8d..1cb4149 100644
+--- a/frontend/src/components/layout/AppSidebar.vue
++++ b/frontend/src/components/layout/AppSidebar.vue
+@@ -769,6 +769,7 @@ const adminNavItems = computed((): NavItem[] => {
+     },
+     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
+     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
++    { path: '/admin/model-test', label: t('admin.accounts.modelTest.nav'), icon: BatchImageIcon },
+     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
+     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
+     {
+diff --git a/frontend/src/i18n/locales/en/admin/accounts.ts b/frontend/src/i18n/locales/en/admin/accounts.ts
+index f60dca1..d424be8 100644
+--- a/frontend/src/i18n/locales/en/admin/accounts.ts
++++ b/frontend/src/i18n/locales/en/admin/accounts.ts
+@@ -1193,6 +1193,50 @@ export default {
+       grokAccount: 'Grok Account',
+       inputMethod: 'Input Method',
+       reAuthorizedSuccess: 'Account re-authorized successfully',
++      modelTest: {
++        nav: 'Model Test',
++        title: 'Model Test',
++        description: 'Send real text, image-generation, or image-editing requests with an active API key',
++        actualRequestNotice: 'This page sends real requests and incurs actual usage. Test only when needed.',
++        apiKeyMemoryHint: 'The key stays in page memory only. It is not written to Local Storage or included in test output.',
++        configuration: 'Test Configuration',
++        selectKey: 'API Key',
++        selectedGroup: 'Current group: {group}',
++        noActiveKey: 'There is no active API key for this account.',
++        goCreateKey: 'Create an API key',
++        loadKeysFailed: 'Failed to load API keys. Refresh the page and try again.',
++        mode: 'Test Type',
++        textMode: 'Text',
++        imageMode: 'Image Generation',
++        imageEditMode: 'Image Editing',
++        textProtocol: 'Protocol: Anthropic Messages (/v1/messages)',
++        imageProtocol: 'Protocol: Antigravity native Gemini (/antigravity/v1beta)',
++        model: 'Model',
++        imageVerifiedHint: 'The listed models have been verified locally to return images.',
++        aspectRatio: 'Aspect Ratio',
++        imageSize: 'Image Size',
++        sourceImage: 'Source Image',
++        sourceImageHint: 'PNG, JPEG, or WebP, up to 20 MB. The image stays in page memory and is sent inline only for this request.',
++        removeSourceImage: 'Remove',
++        invalidSourceImage: 'Select a PNG, JPEG, or WebP image no larger than 20 MB.',
++        sourceImageReadFailed: 'Failed to read the source image. Select it again.',
++        prompt: 'Prompt',
++        textPromptPlaceholder: 'Enter a text test prompt',
++        imagePromptPlaceholder: 'Describe the image to generate',
++        imageEditPromptPlaceholder: 'Describe how the source image should be changed',
++        send: 'Send Real Request',
++        sending: 'Requesting...',
++        cancel: 'Cancel',
++        result: 'Test Result',
++        idle: 'Configure the request, then click “Send Real Request”.',
++        requestFailed: 'Request Failed',
++        noText: 'The request succeeded, but the response contains no displayable text.',
++        noImage: 'The request succeeded, but no image data was found in the response.',
++        textOutput: 'Model Output',
++        generatedImage: 'Generated Image',
++        download: 'Download Original',
++        responseSummary: 'View response summary (image Base64 hidden)'
++      },
+       // Test Modal
+       testAccountConnection: 'Test Account Connection',
+       account: 'Account',
+diff --git a/frontend/src/i18n/locales/zh/admin/accounts.ts b/frontend/src/i18n/locales/zh/admin/accounts.ts
+index 0a6c739..9a530e0 100644
+--- a/frontend/src/i18n/locales/zh/admin/accounts.ts
++++ b/frontend/src/i18n/locales/zh/admin/accounts.ts
+@@ -1275,6 +1275,50 @@ export default {
+       grokAccount: 'Grok 账号',
+       inputMethod: '输入方式',
+       reAuthorizedSuccess: '账号重新授权成功',
++      modelTest: {
++        nav: '模型测试',
++        title: '模型测试',
++        description: '通过当前 API 密钥发送真实文本、图片生成或图片改图请求',
++        actualRequestNotice: '这里会发送真实请求并产生实际用量，请按需测试。',
++        apiKeyMemoryHint: '密钥仅保留在当前页面内存中，不写入 Local Storage，也不会显示在测试结果中。',
++        configuration: '测试配置',
++        selectKey: 'API 密钥',
++        selectedGroup: '当前分组：{group}',
++        noActiveKey: '当前账号没有可用的 API 密钥。',
++        goCreateKey: '前往创建密钥',
++        loadKeysFailed: '读取 API 密钥失败，请刷新页面重试。',
++        mode: '测试类型',
++        textMode: '文本生成',
++        imageMode: '图片生成',
++        imageEditMode: '图像改图',
++        textProtocol: '协议：Anthropic Messages（/v1/messages）',
++        imageProtocol: '协议：Antigravity 原生 Gemini（/antigravity/v1beta）',
++        model: '模型',
++        imageVerifiedHint: '当前列出的是已经在本机验证可返回图片的模型。',
++        aspectRatio: '宽高比',
++        imageSize: '图片尺寸',
++        sourceImage: '原始图片',
++        sourceImageHint: '支持 PNG、JPEG、WebP，最大 20 MB。图片仅保留在当前页面内存中，并随本次请求内联发送。',
++        removeSourceImage: '移除原图',
++        invalidSourceImage: '请选择不超过 20 MB 的 PNG、JPEG 或 WebP 图片。',
++        sourceImageReadFailed: '读取原图失败，请重新选择。',
++        prompt: '提示词',
++        textPromptPlaceholder: '输入文本测试提示词',
++        imagePromptPlaceholder: '描述要生成的图片',
++        imageEditPromptPlaceholder: '描述希望如何修改原图',
++        send: '发送真实请求',
++        sending: '请求中...',
++        cancel: '取消',
++        result: '测试结果',
++        idle: '配置参数后点击“发送真实请求”开始测试。',
++        requestFailed: '请求失败',
++        noText: '请求成功，但响应中没有可显示的文本。',
++        noImage: '请求成功，但响应中没有找到图片数据。',
++        textOutput: '模型输出',
++        generatedImage: '生成图片',
++        download: '下载原图',
++        responseSummary: '查看响应摘要（图片 Base64 已隐藏）'
++      },
+       // Test Modal
+       testAccountConnection: '测试账号连接',
+       account: '账号',
+diff --git a/frontend/src/router/index.ts b/frontend/src/router/index.ts
+index 259ea55..a6161c2 100644
+--- a/frontend/src/router/index.ts
++++ b/frontend/src/router/index.ts
+@@ -514,6 +514,18 @@ const routes: RouteRecordRaw[] = [
+       descriptionKey: 'admin.accounts.description'
+     }
+   },
++  {
++    path: '/admin/model-test',
++    name: 'AdminModelTest',
++    component: () => import('@/views/admin/ModelTestView.vue'),
++    meta: {
++      requiresAuth: true,
++      requiresAdmin: true,
++      title: 'Model Test',
++      titleKey: 'admin.accounts.modelTest.title',
++      descriptionKey: 'admin.accounts.modelTest.description'
++    }
++  },
+   {
+     path: '/admin/announcements',
+     name: 'AdminAnnouncements',
+diff --git a/frontend/src/views/admin/ModelTestView.vue b/frontend/src/views/admin/ModelTestView.vue
+new file mode 100644
+index 0000000..816e52f
+--- /dev/null
++++ b/frontend/src/views/admin/ModelTestView.vue
+@@ -0,0 +1,621 @@
++<template>
++  <AppLayout>
++    <div class="mx-auto max-w-6xl space-y-6">
++      <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
++        <div class="flex items-start gap-3">
++          <Icon name="exclamationTriangle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
++          <div>
++            <p class="text-sm font-medium text-amber-800 dark:text-amber-200">
++              {{ t('admin.accounts.modelTest.actualRequestNotice') }}
++            </p>
++            <p class="mt-1 text-xs text-amber-700 dark:text-amber-300">
++              {{ t('admin.accounts.modelTest.apiKeyMemoryHint') }}
++            </p>
++          </div>
++        </div>
++      </div>
++
++      <div class="grid min-w-0 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
++        <section class="card min-w-0 h-fit">
++          <div class="border-b border-gray-100 px-5 py-4 dark:border-dark-700">
++            <h2 class="text-base font-semibold text-gray-900 dark:text-white">
++              {{ t('admin.accounts.modelTest.configuration') }}
++            </h2>
++          </div>
++
++          <div class="space-y-5 p-5">
++            <div class="space-y-1.5">
++              <label for="model-test-key" class="input-label">
++                {{ t('admin.accounts.modelTest.selectKey') }}
++              </label>
++              <div v-if="loadingKeys" class="flex h-10 items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
++                <Icon name="refresh" size="sm" class="animate-spin" />
++                {{ t('common.loading') }}
++              </div>
++              <template v-else-if="apiKeys.length > 0">
++                <select id="model-test-key" v-model.number="selectedKeyId" class="input">
++                  <option v-for="key in apiKeys" :key="key.id" :value="key.id">
++                    {{ key.name }} · {{ maskApiKey(key.key) }} · {{ key.group?.name || t('keys.noGroup') }}
++                  </option>
++                </select>
++                <p class="input-hint">
++                  {{ t('admin.accounts.modelTest.selectedGroup', { group: selectedKey?.group?.name || t('keys.noGroup') }) }}
++                </p>
++              </template>
++              <div v-else class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300">
++                <p>{{ t('admin.accounts.modelTest.noActiveKey') }}</p>
++                <router-link to="/keys" class="mt-2 inline-flex font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
++                  {{ t('admin.accounts.modelTest.goCreateKey') }}
++                </router-link>
++              </div>
++            </div>
++
++            <div class="space-y-1.5">
++              <span class="input-label">{{ t('admin.accounts.modelTest.mode') }}</span>
++              <div class="grid min-w-0 grid-cols-3 gap-2 rounded-xl bg-gray-100 p-1 dark:bg-dark-700">
++                <button
++                  type="button"
++                  class="min-w-0 rounded-lg px-1.5 py-2 text-xs font-medium transition sm:px-3 sm:text-sm"
++                  :class="mode === 'text' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-600 dark:text-primary-300' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
++                  @click="setMode('text')"
++                >
++                  {{ t('admin.accounts.modelTest.textMode') }}
++                </button>
++                <button
++                  type="button"
++                  class="min-w-0 rounded-lg px-1.5 py-2 text-xs font-medium transition sm:px-3 sm:text-sm"
++                  :class="mode === 'image' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-600 dark:text-primary-300' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
++                  @click="setMode('image')"
++                >
++                  {{ t('admin.accounts.modelTest.imageMode') }}
++                </button>
++                <button
++                  type="button"
++                  class="min-w-0 rounded-lg px-1.5 py-2 text-xs font-medium transition sm:px-3 sm:text-sm"
++                  :class="mode === 'edit' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-600 dark:text-primary-300' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
++                  @click="setMode('edit')"
++                >
++                  {{ t('admin.accounts.modelTest.imageEditMode') }}
++                </button>
++              </div>
++              <p class="input-hint">
++                {{ isImageMode ? t('admin.accounts.modelTest.imageProtocol') : t('admin.accounts.modelTest.textProtocol') }}
++              </p>
++            </div>
++
++            <div class="space-y-1.5">
++              <label for="model-test-model" class="input-label">
++                {{ t('admin.accounts.modelTest.model') }}
++              </label>
++              <select v-if="isImageMode" id="model-test-model" v-model="imageModel" class="input">
++                <option value="gemini-3.1-flash-image">gemini-3.1-flash-image</option>
++                <option value="gemini-3-pro-image">gemini-3-pro-image</option>
++              </select>
++              <input v-else id="model-test-model" v-model.trim="textModel" type="text" class="input" />
++              <p v-if="isImageMode" class="input-hint">
++                {{ t('admin.accounts.modelTest.imageVerifiedHint') }}
++              </p>
++            </div>
++
++            <div v-if="isImageMode" class="grid grid-cols-2 gap-3">
++              <div class="space-y-1.5">
++                <label for="model-test-ratio" class="input-label">
++                  {{ t('admin.accounts.modelTest.aspectRatio') }}
++                </label>
++                <select id="model-test-ratio" v-model="aspectRatio" class="input">
++                  <option value="1:1">1:1</option>
++                  <option value="16:9">16:9</option>
++                  <option value="9:16">9:16</option>
++                  <option value="4:3">4:3</option>
++                  <option value="3:4">3:4</option>
++                </select>
++              </div>
++              <div class="space-y-1.5">
++                <label for="model-test-size" class="input-label">
++                  {{ t('admin.accounts.modelTest.imageSize') }}
++                </label>
++                <select id="model-test-size" v-model="imageSize" class="input">
++                  <option value="1K">1K</option>
++                  <option value="2K">2K</option>
++                  <option value="4K">4K</option>
++                </select>
++              </div>
++            </div>
++
++            <div v-if="mode === 'edit'" class="space-y-2">
++              <label for="model-test-source-image" class="input-label">
++                {{ t('admin.accounts.modelTest.sourceImage') }}
++              </label>
++              <input
++                :key="sourceImageInputKey"
++                id="model-test-source-image"
++                type="file"
++                accept="image/png,image/jpeg,image/webp"
++                class="input h-auto min-w-0 max-w-full overflow-hidden py-2"
++                @change="handleSourceImageChange"
++              />
++              <p class="input-hint">{{ t('admin.accounts.modelTest.sourceImageHint') }}</p>
++              <p v-if="sourceImageError" class="text-xs text-red-600 dark:text-red-400">{{ sourceImageError }}</p>
++              <div v-if="sourceImage" class="overflow-hidden rounded-xl border border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-800">
++                <button type="button" class="block w-full" @click="previewImageUrl = sourceImage.url">
++                  <img :src="sourceImage.url" :alt="sourceImage.name" class="max-h-52 w-full object-contain" />
++                </button>
++                <div class="flex items-center justify-between gap-3 border-t border-gray-200 px-3 py-2 text-xs dark:border-dark-600">
++                  <span class="min-w-0 truncate text-gray-500 dark:text-gray-400">
++                    {{ sourceImage.name }} · {{ (sourceImage.size / 1024 / 1024).toFixed(2) }} MB
++                  </span>
++                  <button type="button" class="flex-shrink-0 font-medium text-red-600 hover:text-red-700 dark:text-red-400" @click="clearSourceImage">
++                    {{ t('admin.accounts.modelTest.removeSourceImage') }}
++                  </button>
++                </div>
++              </div>
++            </div>
++
++            <div class="space-y-1.5">
++              <label for="model-test-prompt" class="input-label">
++                {{ t('admin.accounts.modelTest.prompt') }}
++              </label>
++              <textarea
++                id="model-test-prompt"
++                v-model="prompt"
++                rows="6"
++                class="input min-h-[140px] resize-y py-3"
++                :placeholder="mode === 'edit' ? t('admin.accounts.modelTest.imageEditPromptPlaceholder') : mode === 'image' ? t('admin.accounts.modelTest.imagePromptPlaceholder') : t('admin.accounts.modelTest.textPromptPlaceholder')"
++              ></textarea>
++            </div>
++
++            <div class="flex gap-2">
++              <button
++                type="button"
++                class="btn btn-primary flex-1"
++                :disabled="!canSubmit || status === 'loading'"
++                @click="sendRequest"
++              >
++                <Icon v-if="status === 'loading'" name="refresh" size="sm" class="mr-2 animate-spin" />
++                <Icon v-else name="play" size="sm" class="mr-2" />
++                {{ status === 'loading' ? t('admin.accounts.modelTest.sending') : t('admin.accounts.modelTest.send') }}
++              </button>
++              <button v-if="status === 'loading'" type="button" class="btn btn-secondary" @click="cancelRequest">
++                {{ t('admin.accounts.modelTest.cancel') }}
++              </button>
++            </div>
++          </div>
++        </section>
++
++        <section class="card min-w-0 min-h-[560px] overflow-hidden">
++          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
++            <h2 class="text-base font-semibold text-gray-900 dark:text-white">
++              {{ t('admin.accounts.modelTest.result') }}
++            </h2>
++            <div v-if="httpStatus" class="flex items-center gap-2 text-xs">
++              <span
++                class="rounded-full px-2.5 py-1 font-medium"
++                :class="status === 'success' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'"
++              >
++                HTTP {{ httpStatus }}
++              </span>
++              <span class="text-gray-500 dark:text-gray-400">{{ latencyMs }} ms</span>
++            </div>
++          </div>
++
++          <div class="space-y-5 p-5">
++            <div v-if="status === 'idle'" class="flex min-h-[440px] flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500">
++              <Icon name="play" size="xl" class="mb-3" />
++              <p class="text-sm">{{ t('admin.accounts.modelTest.idle') }}</p>
++            </div>
++
++            <div v-else-if="status === 'loading'" class="flex min-h-[440px] flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400">
++              <Icon name="refresh" size="xl" class="mb-3 animate-spin text-primary-500" />
++              <p class="text-sm">{{ t('admin.accounts.modelTest.sending') }}</p>
++            </div>
++
++            <div v-else-if="status === 'error'" class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
++              <div class="flex items-start gap-3">
++                <Icon name="x" size="md" class="mt-0.5 flex-shrink-0 text-red-500" />
++                <div>
++                  <p class="font-medium text-red-800 dark:text-red-200">
++                    {{ t('admin.accounts.modelTest.requestFailed') }}
++                  </p>
++                  <pre class="mt-2 whitespace-pre-wrap break-words text-sm text-red-700 dark:text-red-300">{{ errorMessage }}</pre>
++                </div>
++              </div>
++            </div>
++
++            <template v-else>
++              <div v-if="textOutput" class="space-y-2">
++                <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">
++                  {{ t('admin.accounts.modelTest.textOutput') }}
++                </h3>
++                <div class="whitespace-pre-wrap rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm leading-6 text-gray-800 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200">
++                  {{ textOutput }}
++                </div>
++              </div>
++
++              <div v-if="generatedImages.length > 0" class="space-y-3">
++                <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">
++                  {{ t('admin.accounts.modelTest.generatedImage') }}
++                </h3>
++                <div class="grid gap-4 sm:grid-cols-2">
++                  <article
++                    v-for="(image, index) in generatedImages"
++                    :key="`${image.mimeType}-${index}`"
++                    class="overflow-hidden rounded-xl border border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-800"
++                  >
++                    <button type="button" class="block w-full" @click="previewImageUrl = image.url">
++                      <img :src="image.url" :alt="`generated-image-${index + 1}`" class="max-h-[520px] w-full object-contain" />
++                    </button>
++                    <div class="flex items-center justify-between border-t border-gray-200 px-3 py-2 text-xs dark:border-dark-600">
++                      <span class="text-gray-500 dark:text-gray-400">{{ image.mimeType }}</span>
++                      <a :href="image.url" :download="`sub2api-model-test-${index + 1}.${extensionFor(image.mimeType)}`" class="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
++                        {{ t('admin.accounts.modelTest.download') }}
++                      </a>
++                    </div>
++                  </article>
++                </div>
++              </div>
++
++              <details v-if="responseSummary" class="rounded-xl border border-gray-200 dark:border-dark-600">
++                <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300">
++                  {{ t('admin.accounts.modelTest.responseSummary') }}
++                </summary>
++                <pre class="max-h-[320px] overflow-auto border-t border-gray-200 bg-gray-950 p-4 text-xs leading-5 text-gray-200 dark:border-dark-600">{{ responseSummary }}</pre>
++              </details>
++            </template>
++          </div>
++        </section>
++      </div>
++    </div>
++
++    <Teleport to="body">
++      <Transition name="fade">
++        <div
++          v-if="previewImageUrl"
++          class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
++          @click.self="previewImageUrl = ''"
++        >
++          <button class="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white hover:bg-black/70" @click="previewImageUrl = ''">
++            <Icon name="x" size="lg" />
++          </button>
++          <img :src="previewImageUrl" alt="preview" class="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl" />
++        </div>
++      </Transition>
++    </Teleport>
++  </AppLayout>
++</template>
++
++<script setup lang="ts">
++import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
++import { useI18n } from 'vue-i18n'
++import { keysAPI } from '@/api'
++import AppLayout from '@/components/layout/AppLayout.vue'
++import { Icon } from '@/components/icons'
++import type { ApiKey } from '@/types'
++
++type TestMode = 'text' | 'image' | 'edit'
++type TestStatus = 'idle' | 'loading' | 'success' | 'error'
++
++interface PreviewImage {
++  url: string
++  mimeType: string
++}
++
++interface SourceImage extends PreviewImage {
++  data: string
++  name: string
++  size: number
++}
++
++const MAX_SOURCE_IMAGE_BYTES = 20 * 1024 * 1024
++const SOURCE_IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
++
++const { t } = useI18n()
++
++const apiKeys = ref<ApiKey[]>([])
++const selectedKeyId = ref<number | ''>('')
++const loadingKeys = ref(false)
++const mode = ref<TestMode>('image')
++const textModel = ref('gemini-2.5-flash')
++const imageModel = ref('gemini-3.1-flash-image')
++const aspectRatio = ref('1:1')
++const imageSize = ref('1K')
++const prompt = ref('生成一只戴宇航员头盔的橘猫，干净的浅色背景，细节清晰。')
++const sourceImage = ref<SourceImage | null>(null)
++const sourceImageError = ref('')
++const sourceImageInputKey = ref(0)
++const status = ref<TestStatus>('idle')
++const httpStatus = ref(0)
++const latencyMs = ref(0)
++const textOutput = ref('')
++const generatedImages = ref<PreviewImage[]>([])
++const responseSummary = ref('')
++const errorMessage = ref('')
++const previewImageUrl = ref('')
++let abortController: AbortController | null = null
++
++const selectedKey = computed(() => apiKeys.value.find((key) => key.id === selectedKeyId.value))
++const isImageMode = computed(() => mode.value !== 'text')
++const activeModel = computed(() => isImageMode.value ? imageModel.value : textModel.value)
++const canSubmit = computed(() => Boolean(
++  selectedKey.value?.key
++  && activeModel.value.trim()
++  && prompt.value.trim()
++  && (mode.value !== 'edit' || sourceImage.value)
++))
++
++function maskApiKey(value: string): string {
++  if (value.length <= 12) return `${value.slice(0, 4)}...`
++  return `${value.slice(0, 6)}...${value.slice(-4)}`
++}
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++  return typeof value === 'object' && value !== null && !Array.isArray(value)
++}
++
++function extractError(payload: unknown, fallback: string): string {
++  if (!isRecord(payload)) return fallback
++  if (typeof payload.message === 'string' && payload.message) return payload.message
++  if (typeof payload.detail === 'string' && payload.detail) return payload.detail
++  if (isRecord(payload.error)) {
++    if (typeof payload.error.message === 'string' && payload.error.message) return payload.error.message
++    if (typeof payload.error.status === 'string' && payload.error.status) return payload.error.status
++  }
++  return fallback
++}
++
++function extractText(payload: unknown): string {
++  if (!isRecord(payload)) return ''
++
++  if (Array.isArray(payload.content)) {
++    const text = payload.content
++      .filter(isRecord)
++      .map((part) => typeof part.text === 'string' ? part.text : '')
++      .filter(Boolean)
++      .join('\n')
++    if (text) return text
++  }
++
++  if (Array.isArray(payload.candidates)) {
++    const chunks: string[] = []
++    for (const candidate of payload.candidates) {
++      if (!isRecord(candidate) || !isRecord(candidate.content) || !Array.isArray(candidate.content.parts)) continue
++      for (const part of candidate.content.parts) {
++        if (isRecord(part) && typeof part.text === 'string' && part.text) chunks.push(part.text)
++      }
++    }
++    if (chunks.length > 0) return chunks.join('\n')
++  }
++
++  if (typeof payload.completion === 'string') return payload.completion
++  return ''
++}
++
++function extractImages(payload: unknown): PreviewImage[] {
++  if (!isRecord(payload) || !Array.isArray(payload.candidates)) return []
++  const images: PreviewImage[] = []
++
++  for (const candidate of payload.candidates) {
++    if (!isRecord(candidate) || !isRecord(candidate.content) || !Array.isArray(candidate.content.parts)) continue
++    for (const part of candidate.content.parts) {
++      if (!isRecord(part)) continue
++      const inlineData = isRecord(part.inlineData) ? part.inlineData : isRecord(part.inline_data) ? part.inline_data : null
++      if (!inlineData || typeof inlineData.data !== 'string' || !inlineData.data) continue
++      const mimeType = typeof inlineData.mimeType === 'string'
++        ? inlineData.mimeType
++        : typeof inlineData.mime_type === 'string'
++          ? inlineData.mime_type
++          : 'image/png'
++      images.push({ url: `data:${mimeType};base64,${inlineData.data}`, mimeType })
++    }
++  }
++
++  return images
++}
++
++function summarizeResponse(payload: unknown): string {
++  return JSON.stringify(payload, (key, value) => {
++    if (key === 'data' && typeof value === 'string' && value.length > 200) {
++      return `[base64 omitted: ${value.length} characters]`
++    }
++    return value
++  }, 2)
++}
++
++function extensionFor(mimeType: string): string {
++  if (mimeType.includes('jpeg')) return 'jpg'
++  if (mimeType.includes('webp')) return 'webp'
++  return 'png'
++}
++
++function resetResult(): void {
++  status.value = 'idle'
++  httpStatus.value = 0
++  latencyMs.value = 0
++  textOutput.value = ''
++  generatedImages.value = []
++  responseSummary.value = ''
++  errorMessage.value = ''
++  previewImageUrl.value = ''
++}
++
++function setMode(nextMode: TestMode): void {
++  if (mode.value === nextMode) return
++  cancelRequest()
++  mode.value = nextMode
++  if (nextMode === 'text') {
++    prompt.value = '请只回复：Sub2API account pool OK'
++    clearSourceImage()
++  } else if (nextMode === 'edit') {
++    prompt.value = '保持原图主体和构图不变，将背景改成干净的浅蓝色，并增强画面细节。'
++  } else {
++    prompt.value = '生成一只戴宇航员头盔的橘猫，干净的浅色背景，细节清晰。'
++    clearSourceImage()
++  }
++  resetResult()
++}
++
++function clearSourceImage(): void {
++  sourceImage.value = null
++  sourceImageError.value = ''
++  sourceImageInputKey.value += 1
++}
++
++async function handleSourceImageChange(event: Event): Promise<void> {
++  const input = event.currentTarget as HTMLInputElement
++  const file = input.files?.[0]
++  if (!file) {
++    clearSourceImage()
++    return
++  }
++
++  if (!SOURCE_IMAGE_MIME_TYPES.has(file.type) || file.size > MAX_SOURCE_IMAGE_BYTES) {
++    clearSourceImage()
++    sourceImageError.value = t('admin.accounts.modelTest.invalidSourceImage')
++    return
++  }
++
++  sourceImageError.value = ''
++  try {
++    const url = await new Promise<string>((resolve, reject) => {
++      const reader = new FileReader()
++      reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid file result'))
++      reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'))
++      reader.readAsDataURL(file)
++    })
++    const separatorIndex = url.indexOf(',')
++    if (separatorIndex < 0) throw new Error('Invalid data URL')
++    sourceImage.value = {
++      url,
++      data: url.slice(separatorIndex + 1),
++      mimeType: file.type,
++      name: file.name,
++      size: file.size
++    }
++  } catch {
++    clearSourceImage()
++    sourceImageError.value = t('admin.accounts.modelTest.sourceImageReadFailed')
++  }
++}
++
++async function loadKeys(): Promise<void> {
++  loadingKeys.value = true
++  try {
++    const response = await keysAPI.list(1, 100, { status: 'active' })
++    apiKeys.value = response.items.filter((key) => key.status === 'active')
++    const antigravityKey = apiKeys.value.find((key) => key.group?.platform === 'antigravity')
++    selectedKeyId.value = antigravityKey?.id ?? apiKeys.value[0]?.id ?? ''
++  } catch (error) {
++    console.error('Failed to load API keys:', error)
++    errorMessage.value = t('admin.accounts.modelTest.loadKeysFailed')
++    status.value = 'error'
++  } finally {
++    loadingKeys.value = false
++  }
++}
++
++function cancelRequest(): void {
++  abortController?.abort()
++  abortController = null
++  if (status.value === 'loading') status.value = 'idle'
++}
++
++async function sendRequest(): Promise<void> {
++  if (!canSubmit.value || !selectedKey.value) return
++
++  cancelRequest()
++  resetResult()
++  status.value = 'loading'
++  abortController = new AbortController()
++  const startedAt = performance.now()
++
++  const url = isImageMode.value
++    ? `/antigravity/v1beta/models/${encodeURIComponent(imageModel.value)}:generateContent`
++    : '/v1/messages'
++  const imageParts: Record<string, unknown>[] = [{ text: prompt.value.trim() }]
++  if (mode.value === 'edit' && sourceImage.value) {
++    imageParts.unshift({
++      inlineData: {
++        mimeType: sourceImage.value.mimeType,
++        data: sourceImage.value.data
++      }
++    })
++  }
++  const body = isImageMode.value
++    ? {
++        contents: [{ role: 'user', parts: imageParts }],
++        generationConfig: {
++          maxOutputTokens: 4096,
++          imageConfig: { aspectRatio: aspectRatio.value, imageSize: imageSize.value }
++        }
++      }
++    : {
++        model: textModel.value.trim(),
++        max_tokens: 512,
++        stream: false,
++        messages: [{ role: 'user', content: prompt.value.trim() }]
++      }
++
++  try {
++    const response = await fetch(url, {
++      method: 'POST',
++      headers: {
++        Authorization: `Bearer ${selectedKey.value.key}`,
++        'Content-Type': 'application/json'
++      },
++      body: JSON.stringify(body),
++      signal: abortController.signal
++    })
++    httpStatus.value = response.status
++    latencyMs.value = Math.round(performance.now() - startedAt)
++
++    const responseText = await response.text()
++    let payload: unknown = responseText
++    try {
++      payload = JSON.parse(responseText)
++    } catch {
++      // Keep non-JSON upstream responses visible in the summary.
++    }
++    responseSummary.value = typeof payload === 'string' ? payload : summarizeResponse(payload)
++
++    if (!response.ok) {
++      throw new Error(extractError(payload, `HTTP ${response.status}`))
++    }
++
++    if (isImageMode.value) {
++      generatedImages.value = extractImages(payload)
++      textOutput.value = extractText(payload)
++      if (generatedImages.value.length === 0) {
++        throw new Error(t('admin.accounts.modelTest.noImage'))
++      }
++    } else {
++      textOutput.value = extractText(payload)
++      if (!textOutput.value) {
++        throw new Error(t('admin.accounts.modelTest.noText'))
++      }
++    }
++
++    status.value = 'success'
++  } catch (error) {
++    if (error instanceof DOMException && error.name === 'AbortError') return
++    latencyMs.value = Math.round(performance.now() - startedAt)
++    errorMessage.value = error instanceof Error ? error.message : t('admin.accounts.modelTest.requestFailed')
++    status.value = 'error'
++  } finally {
++    abortController = null
++  }
++}
++
++onMounted(loadKeys)
++onBeforeUnmount(cancelRequest)
++</script>
++
++<style scoped>
++.fade-enter-active,
++.fade-leave-active {
++  transition: opacity 0.2s ease;
++}
++
++.fade-enter-from,
++.fade-leave-to {
++  opacity: 0;
++}
++</style>

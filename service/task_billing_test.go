@@ -41,6 +41,9 @@ func TestMain(m *testing.M) {
 
 	if err := db.AutoMigrate(
 		&model.Task{},
+		&model.AsyncJob{},
+		&model.Artifact{},
+		&model.TaskEvent{},
 		&model.User{},
 		&model.Token{},
 		&model.Log{},

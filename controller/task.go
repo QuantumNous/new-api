@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
@@ -32,7 +33,12 @@ func GetAllTask(c *gin.Context) {
 	items := model.TaskGetAllTasks(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
 	total := model.TaskCountAllTasks(queryParams)
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(tasksToDto(items, true))
+	dtos, err := tasksToDto(c.Request.Context(), items, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetItems(dtos)
 	common.ApiSuccess(c, pageInfo)
 }
 
@@ -56,11 +62,16 @@ func GetUserTask(c *gin.Context) {
 	items := model.TaskGetAllUserTask(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
 	total := model.TaskCountAllUserTask(userId, queryParams)
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(tasksToDto(items, false))
+	dtos, err := tasksToDto(c.Request.Context(), items, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetItems(dtos)
 	common.ApiSuccess(c, pageInfo)
 }
 
-func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
+func tasksToDto(ctx context.Context, tasks []*model.Task, fillUser bool) ([]*dto.TaskDto, error) {
 	var userIdMap map[int]*model.UserBase
 	if fillUser {
 		userIdMap = make(map[int]*model.UserBase)
@@ -76,13 +87,35 @@ func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 		}
 	}
 	result := make([]*dto.TaskDto, len(tasks))
+	asyncTaskIDs := make([]int64, 0, len(tasks))
+	for _, task := range tasks {
+		if task.Platform == constant.TaskPlatformAsyncImage {
+			asyncTaskIDs = append(asyncTaskIDs, task.ID)
+		}
+	}
+	asyncJobs, err := model.ListAsyncJobsByTaskIDs(ctx, asyncTaskIDs)
+	if err != nil {
+		return nil, err
+	}
 	for i, task := range tasks {
 		if fillUser {
 			if user, ok := userIdMap[task.UserId]; ok {
 				task.Username = user.Username
 			}
 		}
-		result[i] = relay.TaskModel2Dto(task)
+		item := relay.TaskModel2Dto(task)
+		if job, ok := asyncJobs[task.ID]; ok {
+			item.Async = &dto.AsyncTaskMeta{
+				ExecutionStatus: string(job.ExecutionStatus),
+				WorkerID:        job.WorkerID,
+				Attempt:         job.Attempt,
+				RequestSentAt:   job.RequestSentAt,
+				ErrorPhase:      job.ErrorPhase,
+				ErrorCode:       job.ErrorCode,
+				BillingStatus:   job.BillingStatus,
+			}
+		}
+		result[i] = item
 	}
-	return result
+	return result, nil
 }

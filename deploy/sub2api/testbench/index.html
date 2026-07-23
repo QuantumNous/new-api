@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sub2API 账号测试台</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #07100f;
+        --panel: rgba(13, 27, 25, 0.88);
+        --panel-strong: #10201e;
+        --border: #25443f;
+        --muted: #8aa19d;
+        --text: #ecf8f5;
+        --accent: #39d0b4;
+        --accent-strong: #75efd8;
+        --danger: #ff7f7f;
+        --warning: #ffd277;
+        --success: #6ce4a5;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 15% 10%, rgba(57, 208, 180, 0.14), transparent 34rem),
+          radial-gradient(circle at 88% 18%, rgba(80, 136, 255, 0.12), transparent 28rem),
+          var(--bg);
+      }
+
+      button, input, select, textarea { font: inherit; }
+
+      .shell { width: min(1440px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+      .brand { display: flex; align-items: center; gap: 14px; }
+      .logo {
+        display: grid; place-items: center; width: 48px; height: 48px; border-radius: 15px;
+        color: #06251f; font-weight: 900; background: linear-gradient(135deg, var(--accent-strong), #42a5ff);
+        box-shadow: 0 12px 40px rgba(57, 208, 180, 0.24);
+      }
+      h1 { margin: 0; font-size: clamp(22px, 3vw, 30px); letter-spacing: -0.035em; }
+      .subtitle { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+      .live { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 13px; }
+      .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 5px rgba(255, 210, 119, 0.09); }
+      .dot.ok { background: var(--success); box-shadow: 0 0 0 5px rgba(108, 228, 165, 0.09); }
+      .dot.bad { background: var(--danger); box-shadow: 0 0 0 5px rgba(255, 127, 127, 0.09); }
+
+      .grid { display: grid; grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.7fr); gap: 18px; }
+      .stack { display: grid; gap: 18px; align-content: start; }
+      .card {
+        border: 1px solid var(--border); border-radius: 20px; padding: 20px;
+        background: linear-gradient(160deg, rgba(18, 38, 35, 0.93), rgba(9, 22, 20, 0.94));
+        box-shadow: 0 18px 70px rgba(0, 0, 0, 0.2); backdrop-filter: blur(18px);
+      }
+      .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+      h2 { margin: 0; font-size: 16px; letter-spacing: -0.01em; }
+      .hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
+      .fields { display: grid; gap: 15px; }
+      label { display: grid; gap: 7px; color: #bcd0cc; font-size: 12px; font-weight: 700; }
+      input, select, textarea {
+        width: 100%; border: 1px solid var(--border); border-radius: 12px; outline: none;
+        color: var(--text); background: #081614; padding: 11px 12px; transition: border-color 0.2s, box-shadow 0.2s;
+      }
+      input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(57, 208, 180, 0.12); }
+      textarea { min-height: 148px; resize: vertical; line-height: 1.6; }
+      .key-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+      .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+      button {
+        border: 1px solid var(--border); border-radius: 11px; padding: 10px 14px; cursor: pointer;
+        color: var(--text); background: #142724; font-weight: 750; transition: transform 0.15s, border-color 0.15s, background 0.15s;
+      }
+      button:hover { transform: translateY(-1px); border-color: #47746d; background: #19322e; }
+      button:disabled { opacity: 0.55; cursor: wait; transform: none; }
+      button.primary { color: #042019; border-color: transparent; background: linear-gradient(135deg, var(--accent-strong), var(--accent)); }
+      button.ghost { padding: 9px 11px; color: var(--muted); background: transparent; }
+      button.danger { color: #ffd0d0; border-color: rgba(255, 127, 127, 0.3); background: rgba(255, 127, 127, 0.08); }
+
+      .checks { display: grid; gap: 10px; }
+      .check { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-top: 1px solid rgba(55, 92, 85, 0.55); padding-top: 11px; }
+      .check:first-child { border-top: 0; padding-top: 0; }
+      .badge { border-radius: 999px; padding: 5px 9px; white-space: nowrap; color: var(--muted); background: rgba(138, 161, 157, 0.1); font-size: 11px; font-weight: 800; }
+      .badge.ok { color: var(--success); background: rgba(108, 228, 165, 0.09); }
+      .badge.bad { color: var(--danger); background: rgba(255, 127, 127, 0.1); }
+
+      .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+      .meta { display: flex; gap: 8px; flex-wrap: wrap; }
+      .metric { border: 1px solid var(--border); border-radius: 10px; padding: 7px 9px; color: var(--muted); background: rgba(7, 16, 15, 0.45); font-size: 11px; }
+      .result {
+        min-height: 250px; margin-top: 14px; border: 1px solid var(--border); border-radius: 15px; overflow: hidden;
+        background: #050d0c;
+      }
+      .result-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+      .answer { margin: 0; padding: 18px; min-height: 115px; white-space: pre-wrap; word-break: break-word; line-height: 1.65; font-size: 14px; }
+      details { border-top: 1px solid var(--border); }
+      summary { padding: 11px 14px; cursor: pointer; color: var(--muted); font-size: 12px; }
+      pre { margin: 0; padding: 0 14px 16px; overflow: auto; color: #9bd3c9; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .notice { margin-top: 14px; border-left: 3px solid var(--warning); border-radius: 8px; padding: 11px 12px; color: #e7d3a4; background: rgba(255, 210, 119, 0.07); font-size: 12px; line-height: 1.6; }
+      .notice.bad { border-left-color: var(--danger); color: #ffc4c4; background: rgba(255, 127, 127, 0.07); }
+
+      @media (max-width: 850px) {
+        .grid { grid-template-columns: 1fr; }
+        .topbar { align-items: flex-start; flex-direction: column; }
+      }
+      @media (max-width: 560px) {
+        .shell { width: min(100% - 20px, 1440px); padding-top: 18px; }
+        .two { grid-template-columns: 1fr; }
+        .actions { align-items: stretch; flex-direction: column; }
+        .actions .row { width: 100%; }
+        .actions button { flex: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="logo">S2</div>
+          <div>
+            <h1>Sub2API 账号测试台</h1>
+            <p class="subtitle">直接检查密钥、模型列表和真实生成请求</p>
+          </div>
+        </div>
+        <div class="live"><span id="serviceDot" class="dot"></span><span id="serviceText">正在检查本地服务</span></div>
+      </header>
+
+      <div class="grid">
+        <aside class="stack">
+          <section class="card">
+            <div class="card-head"><h2>连接配置</h2><span class="badge">仅本机</span></div>
+            <div class="fields">
+              <label>
+                Sub2API API 密钥
+                <div class="key-row">
+                  <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." />
+                  <button id="toggleKey" class="ghost" type="button">显示</button>
+                </div>
+              </label>
+              <div class="two">
+                <label>
+                  协议
+                  <select id="protocol">
+                    <option value="openai">OpenAI Chat</option>
+                    <option value="gemini">Gemini Native</option>
+                  </select>
+                </label>
+                <label>
+                  模型
+                  <select id="model">
+                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                  </select>
+                </label>
+              </div>
+              <button id="loadModels" type="button">读取可用模型</button>
+              <p class="hint">密钥只保留在当前页面内存中，不写入 Local Storage，也不记录到测试台日志。</p>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><h2>快速检查</h2><button id="runChecks" class="ghost" type="button">重新检查</button></div>
+            <div class="checks">
+              <div class="check"><div><strong>网关健康</strong><div class="hint">GET /health</div></div><span id="healthBadge" class="badge">待检查</span></div>
+              <div class="check"><div><strong>密钥鉴权</strong><div class="hint">GET /v1/models</div></div><span id="keyBadge" class="badge">待检查</span></div>
+              <div class="check"><div><strong>真实生成</strong><div class="hint">POST completion</div></div><span id="generateBadge" class="badge">待测试</span></div>
+            </div>
+            <div id="diagnosis" class="notice" hidden></div>
+          </section>
+        </aside>
+
+        <section class="card">
+          <div class="card-head"><h2>生成测试</h2><span class="badge">非流式</span></div>
+          <label>
+            测试提示词
+            <textarea id="prompt" spellcheck="false">请只回复：Sub2API Google account OK</textarea>
+          </label>
+          <div class="actions">
+            <div class="meta">
+              <span id="statusMetric" class="metric">HTTP --</span>
+              <span id="latencyMetric" class="metric">延迟 --</span>
+              <span id="requestMetric" class="metric">Request ID --</span>
+            </div>
+            <div class="row">
+              <button id="clearResult" class="ghost" type="button">清空</button>
+              <button id="cancelRequest" class="danger" type="button" disabled>取消</button>
+              <button id="sendRequest" class="primary" type="button">发送真实请求</button>
+            </div>
+          </div>
+
+          <div class="result">
+            <div class="result-head"><span>模型输出</span><span id="resultState">尚未发送</span></div>
+            <p id="answer" class="answer">在左侧填入 API 密钥，读取模型后发送测试请求。</p>
+            <details>
+              <summary>查看原始 JSON</summary>
+              <pre id="rawJson">{}</pre>
+            </details>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const apiKey = document.getElementById('apiKey');
+      const model = document.getElementById('model');
+      const protocol = document.getElementById('protocol');
+      const promptInput = document.getElementById('prompt');
+      const loadModelsButton = document.getElementById('loadModels');
+      const sendButton = document.getElementById('sendRequest');
+      const cancelButton = document.getElementById('cancelRequest');
+      const answer = document.getElementById('answer');
+      const rawJson = document.getElementById('rawJson');
+      const resultState = document.getElementById('resultState');
+      const diagnosis = document.getElementById('diagnosis');
+      let activeController = null;
+
+      function authHeaders() {
+        const key = apiKey.value.trim();
+        return key ? { Authorization: `Bearer ${key}` } : {};
+      }
+
+      function setBadge(id, text, state = '') {
+        const element = document.getElementById(id);
+        element.textContent = text;
+        element.className = `badge ${state}`.trim();
+      }
+
+      function setService(ok, text) {
+        document.getElementById('serviceDot').className = `dot ${ok ? 'ok' : 'bad'}`;
+        document.getElementById('serviceText').textContent = text;
+      }
+
+      function showDiagnosis(message, isError = true) {
+        diagnosis.hidden = !message;
+        diagnosis.className = `notice ${isError ? 'bad' : ''}`.trim();
+        diagnosis.textContent = message;
+      }
+
+      async function parseResponse(response) {
+        const text = await response.text();
+        if (!text) return {};
+        try { return JSON.parse(text); } catch { return { raw: text }; }
+      }
+
+      async function checkHealth() {
+        setBadge('healthBadge', '检查中');
+        try {
+          const response = await fetch('/gateway/health', { cache: 'no-store' });
+          const data = await parseResponse(response);
+          const ok = response.ok && data.status === 'ok';
+          setBadge('healthBadge', ok ? '正常' : `HTTP ${response.status}`, ok ? 'ok' : 'bad');
+          setService(ok, ok ? '本地 Sub2API 正常' : '本地 Sub2API 异常');
+        } catch (error) {
+          setBadge('healthBadge', '不可达', 'bad');
+          setService(false, '无法连接本地 Sub2API');
+        }
+      }
+
+      async function loadModels() {
+        if (!apiKey.value.trim()) {
+          showDiagnosis('请先填入完整的 Sub2API API 密钥。');
+          apiKey.focus();
+          return;
+        }
+        loadModelsButton.disabled = true;
+        setBadge('keyBadge', '验证中');
+        showDiagnosis('');
+        try {
+          const response = await fetch('/gateway/v1/models', { headers: authHeaders(), cache: 'no-store' });
+          const data = await parseResponse(response);
+          rawJson.textContent = JSON.stringify(data, null, 2);
+          if (!response.ok) throw new Error(data?.error?.message || `HTTP ${response.status}`);
+          const models = Array.isArray(data.data) ? data.data : [];
+          model.replaceChildren(...models.map((item) => {
+            const option = document.createElement('option');
+            option.value = item.id;
+            option.textContent = item.id;
+            return option;
+          }));
+          setBadge('keyBadge', `有效 · ${models.length} 模型`, 'ok');
+          resultState.textContent = '模型列表已更新';
+          answer.textContent = `密钥验证成功，网关返回 ${models.length} 个模型。\n\n注意：模型列表成功不代表上游账号一定能生成，请继续发送真实请求。`;
+        } catch (error) {
+          setBadge('keyBadge', '失败', 'bad');
+          showDiagnosis(`密钥或模型列表检查失败：${error.message}`);
+        } finally {
+          loadModelsButton.disabled = false;
+        }
+      }
+
+      function extractAnswer(data) {
+        if (protocol.value === 'openai') return data?.choices?.[0]?.message?.content || '';
+        const parts = data?.candidates?.[0]?.content?.parts;
+        return Array.isArray(parts) ? parts.map((part) => part.text || '').join('') : '';
+      }
+
+      async function sendRequest() {
+        if (!apiKey.value.trim()) {
+          showDiagnosis('请先填入完整的 Sub2API API 密钥。');
+          apiKey.focus();
+          return;
+        }
+        if (!promptInput.value.trim()) {
+          showDiagnosis('请输入测试提示词。');
+          promptInput.focus();
+          return;
+        }
+
+        activeController = new AbortController();
+        sendButton.disabled = true;
+        cancelButton.disabled = false;
+        setBadge('generateBadge', '请求中');
+        showDiagnosis('');
+        resultState.textContent = '正在等待上游';
+        answer.textContent = '正在生成…';
+        rawJson.textContent = '{}';
+
+        const selectedModel = model.value || 'gemini-2.5-flash';
+        const isOpenAI = protocol.value === 'openai';
+        const endpoint = isOpenAI
+          ? '/gateway/v1/chat/completions'
+          : `/gateway/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent`;
+        const payload = isOpenAI
+          ? { model: selectedModel, messages: [{ role: 'user', content: promptInput.value.trim() }], stream: false, max_tokens: 512 }
+          : { contents: [{ role: 'user', parts: [{ text: promptInput.value.trim() }] }], generationConfig: { maxOutputTokens: 512 } };
+        const startedAt = performance.now();
+
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: activeController.signal,
+          });
+          const data = await parseResponse(response);
+          const elapsed = Math.round(performance.now() - startedAt);
+          const requestId = response.headers.get('x-request-id') || '--';
+          document.getElementById('statusMetric').textContent = `HTTP ${response.status}`;
+          document.getElementById('latencyMetric').textContent = `延迟 ${elapsed} ms`;
+          document.getElementById('requestMetric').textContent = `Request ID ${requestId}`;
+          rawJson.textContent = JSON.stringify(data, null, 2);
+
+          if (!response.ok) {
+            const message = data?.error?.message || data?.message || `HTTP ${response.status}`;
+            throw new Error(message);
+          }
+
+          const output = extractAnswer(data);
+          answer.textContent = output || '请求成功，但未在标准字段中找到文本输出。请查看原始 JSON。';
+          resultState.textContent = '生成成功';
+          setBadge('generateBadge', '成功', 'ok');
+          showDiagnosis('真实生成请求已成功，说明 API 密钥、分组调度和上游 Google 账号均可用。', false);
+        } catch (error) {
+          const aborted = error.name === 'AbortError';
+          const message = aborted ? '请求已取消' : error.message;
+          answer.textContent = message;
+          resultState.textContent = aborted ? '已取消' : '生成失败';
+          setBadge('generateBadge', aborted ? '已取消' : '失败', 'bad');
+          if (message.includes('All available accounts exhausted')) {
+            showDiagnosis('密钥和分组已通过，但分组内没有可调度的上游账号。请到 Sub2API「账号管理」查看该账号的红色错误信息，修复后重新启用账号。');
+          } else {
+            showDiagnosis(`真实生成失败：${message}`);
+          }
+        } finally {
+          activeController = null;
+          sendButton.disabled = false;
+          cancelButton.disabled = true;
+        }
+      }
+
+      document.getElementById('toggleKey').addEventListener('click', (event) => {
+        const hidden = apiKey.type === 'password';
+        apiKey.type = hidden ? 'text' : 'password';
+        event.currentTarget.textContent = hidden ? '隐藏' : '显示';
+      });
+      document.getElementById('clearResult').addEventListener('click', () => {
+        answer.textContent = '结果已清空。';
+        rawJson.textContent = '{}';
+        resultState.textContent = '尚未发送';
+        showDiagnosis('');
+      });
+      document.getElementById('runChecks').addEventListener('click', async () => {
+        await checkHealth();
+        if (apiKey.value.trim()) await loadModels();
+      });
+      loadModelsButton.addEventListener('click', loadModels);
+      sendButton.addEventListener('click', sendRequest);
+      cancelButton.addEventListener('click', () => activeController?.abort());
+      promptInput.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') sendRequest();
+      });
+      checkHealth();
+    </script>
+  </body>
+</html>

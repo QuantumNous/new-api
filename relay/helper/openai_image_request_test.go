@@ -158,3 +158,19 @@ func TestGetAndValidOpenAIImageRequestNBounds(t *testing.T) {
 		require.Contains(t, err.Error(), boundErr)
 	})
 }
+
+func TestGeminiAsyncImageQualityPriceRatio(t *testing.T) {
+	tests := []struct {
+		model string
+		want  float64
+	}{
+		{model: "gemini-3.1-flash-image-preview", want: 0.7093 / 0.3972},
+		{model: "gemini-3-pro-image-preview", want: 1.418 / 0.7920},
+	}
+	for _, test := range tests {
+		t.Run(test.model, func(t *testing.T) {
+			request := dto.ImageRequest{Model: test.model, Prompt: "a cat", Quality: "4K"}
+			require.InDelta(t, test.want, request.GetTokenCountMeta().ImagePriceRatio, 0.000001)
+		})
+	}
+}

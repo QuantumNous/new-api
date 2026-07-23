@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
-import { Music } from 'lucide-react'
+import { AlertTriangle, Eye, Music } from 'lucide-react'
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -31,6 +32,7 @@ import { cn } from '@/lib/utils'
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
 import type { TaskLog } from '../../types'
+import { AsyncTaskDetailsDialog } from '../dialogs/async-task-details-dialog'
 import {
   AudioPreviewDialog,
   type AudioClip,
@@ -85,6 +87,84 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
         open={open}
         onOpenChange={setOpen}
         clips={clips as AudioClip[]}
+      />
+    </>
+  )
+}
+
+function compactDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '-'
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`
+}
+
+function AsyncTimingCell(props: { log: TaskLog }) {
+  if (!props.log.async) {
+    return <span className='text-muted-foreground/60'>-</span>
+  }
+  const now = Date.now() / 1000
+  const queueEnd = props.log.start_time || props.log.finish_time || now
+  const executionEnd = props.log.finish_time || now
+  return (
+    <div className='flex flex-col gap-0.5 font-mono text-[11px]'>
+      <span>Q {compactDuration(queueEnd - props.log.submit_time)}</span>
+      <span className='text-muted-foreground'>
+        E{' '}
+        {props.log.start_time
+          ? compactDuration(executionEnd - props.log.start_time)
+          : '-'}
+      </span>
+    </div>
+  )
+}
+
+function AsyncExecutionCell(props: { log: TaskLog }) {
+  if (!props.log.async) {
+    return <span className='text-muted-foreground/60'>-</span>
+  }
+  const error = [props.log.async.error_phase, props.log.async.error_code]
+    .filter(Boolean)
+    .join('/')
+  return (
+    <div className='flex max-w-[190px] flex-col gap-0.5 text-[11px]'>
+      <span className='truncate font-mono'>
+        {props.log.async.worker_id || '-'} · #{props.log.async.attempt}
+      </span>
+      <span className='text-muted-foreground truncate font-mono'>
+        {error || props.log.async.billing_status}
+      </span>
+    </div>
+  )
+}
+
+function AsyncTaskDetailsCell(props: { log: TaskLog; isAdmin: boolean }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button
+        type='button'
+        variant={
+          props.log.status === TASK_STATUS.UNCERTAIN ? 'destructive' : 'ghost'
+        }
+        size='sm'
+        className='h-7'
+        onClick={() => setOpen(true)}
+      >
+        {props.log.status === TASK_STATUS.UNCERTAIN ? (
+          <AlertTriangle className='size-3.5' />
+        ) : (
+          <Eye className='size-3.5' />
+        )}
+        {props.log.status === TASK_STATUS.UNCERTAIN
+          ? t('High risk')
+          : t('Inspect')}
+      </Button>
+      <AsyncTaskDetailsDialog
+        log={props.log}
+        isAdmin={props.isAdmin}
+        open={open}
+        onOpenChange={setOpen}
       />
     </>
   )
@@ -214,6 +294,18 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     },
     createProgressColumn<TaskLog>({ headerLabel: t('Progress') }),
     {
+      id: 'async_timing',
+      header: t('Queue / Execution'),
+      cell: ({ row }) => <AsyncTimingCell log={row.original} />,
+      size: 110,
+    },
+    {
+      id: 'async_execution',
+      header: t('Worker / Attempt'),
+      cell: ({ row }) => <AsyncExecutionCell log={row.original} />,
+      size: 180,
+    },
+    {
       accessorKey: 'fail_reason',
       header: t('Details'),
       cell: function DetailsCell({ row }) {
@@ -221,6 +313,10 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         const failReason = row.getValue('fail_reason') as string
         const status = log.status
         const [dialogOpen, setDialogOpen] = useState(false)
+
+        if (log.async) {
+          return <AsyncTaskDetailsCell log={log} isAdmin={isAdmin} />
+        }
 
         const isSunoSuccess =
           log.platform === 'suno' && status === TASK_STATUS.SUCCESS

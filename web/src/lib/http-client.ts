@@ -143,7 +143,7 @@ api.interceptors.response.use(
 
 api.interceptors.request.use((config) => {
   const accessToken = useAuthStore.getState().auth.accessToken
-  if (accessToken) {
+  if (accessToken && !config.skipAuthRefresh) {
     config.headers.Authorization = `Bearer ${accessToken}`
   }
   return config

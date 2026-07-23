@@ -99,6 +99,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -149,6 +150,10 @@ import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
   CHANNEL_TYPE_ADVANCED_CUSTOM,
+  ASYNC_RETENTION_MINUTES_DEFAULT,
+  ASYNC_JOB_TIMEOUT_SECONDS_DEFAULT,
+  ASYNC_RETENTION_MINUTES_MAX,
+  ASYNC_RETENTION_MINUTES_MIN,
   channelFormSchema,
   channelsQueryKeys,
   getAdvancedCustomStats,
@@ -743,6 +748,7 @@ export function ChannelMutateDrawer({
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
   )
+  const currentAsyncImageEnabled = form.watch('async_image_enabled')
   const currentProxy = form.watch('proxy')
   const currentSystemPrompt = form.watch('system_prompt')
   const currentSystemPromptOverride = form.watch('system_prompt_override')
@@ -1011,6 +1017,7 @@ export function ChannelMutateDrawer({
     currentThinkingToContent ||
     currentPassThroughBodyEnabled ||
     currentDisableTaskPollingSleep ||
+    currentAsyncImageEnabled ||
     currentProxy?.trim() ||
     currentSystemPrompt?.trim() ||
     currentSystemPromptOverride
@@ -4174,7 +4181,250 @@ export function ChannelMutateDrawer({
                                   </FormItem>
                                 )}
                               />
+
+                              <FormField
+                                control={form.control}
+                                name='async_image_enabled'
+                                render={({ field }) => (
+                                  <FormItem className='flex items-center justify-between px-4 py-3'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel>
+                                        {t('Async image wrapper')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Allow the worker to wrap an approved synchronous image endpoint as a durable async task'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
                             </div>
+
+                            {currentAsyncImageEnabled ? (
+                              <div className='grid gap-4 rounded-lg border p-4 sm:grid-cols-2'>
+                                <FormField
+                                  control={form.control}
+                                  name='async_image_models'
+                                  render={({ field }) => (
+                                    <FormItem className='sm:col-span-2'>
+                                      <FormLabel>
+                                        {t('Allowed image models')}
+                                      </FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          placeholder='model-a,model-b'
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormDescription>
+                                        {t(
+                                          'Comma-separated allowlist; models not listed here remain synchronous only'
+                                        )}
+                                      </FormDescription>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <FormField
+                                  control={form.control}
+                                  name='async_max_concurrency'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>
+                                        {t('Maximum concurrency')}
+                                      </FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type='number'
+                                          min={1}
+                                          max={100}
+                                          value={field.value ?? 2}
+                                          onChange={(event) =>
+                                            field.onChange(
+                                              Number(event.target.value)
+                                            )
+                                          }
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <FormField
+                                  control={form.control}
+                                  name='async_job_timeout_seconds'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>
+                                        {t('Task timeout (seconds)')}
+                                      </FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type='number'
+                                          min={10}
+                                          max={3600}
+                                          value={
+                                            field.value ??
+                                            ASYNC_JOB_TIMEOUT_SECONDS_DEFAULT
+                                          }
+                                          onChange={(event) =>
+                                            field.onChange(
+                                              Number(event.target.value)
+                                            )
+                                          }
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <FormField
+                                  control={form.control}
+                                  name='async_retention_minutes'
+                                  render={({ field, fieldState }) => {
+                                    const retentionMinutes =
+                                      field.value ??
+                                      ASYNC_RETENTION_MINUTES_DEFAULT
+                                    const sliderValue = Math.min(
+                                      ASYNC_RETENTION_MINUTES_MAX,
+                                      Math.max(
+                                        ASYNC_RETENTION_MINUTES_MIN,
+                                        retentionMinutes
+                                      )
+                                    )
+                                    let retentionLabel = t(
+                                      '{{count}} minutes',
+                                      { count: retentionMinutes }
+                                    )
+                                    if (
+                                      retentionMinutes >= 60 &&
+                                      retentionMinutes % 60 === 0
+                                    ) {
+                                      retentionLabel = t('{{count}} hours', {
+                                        count: retentionMinutes / 60,
+                                      })
+                                    } else if (retentionMinutes >= 60) {
+                                      retentionLabel = t(
+                                        '{{hours}} hours {{minutes}} minutes',
+                                        {
+                                          hours: Math.floor(
+                                            retentionMinutes / 60
+                                          ),
+                                          minutes: retentionMinutes % 60,
+                                        }
+                                      )
+                                    }
+
+                                    return (
+                                      <FormItem className='sm:col-span-2'>
+                                        <div className='flex items-center justify-between gap-3'>
+                                          <FormLabel>
+                                            {t('Automatic deletion delay')}
+                                          </FormLabel>
+                                          <span className='text-muted-foreground text-sm tabular-nums'>
+                                            {retentionLabel}
+                                          </span>
+                                        </div>
+                                        <FormControl>
+                                          <Slider
+                                            min={ASYNC_RETENTION_MINUTES_MIN}
+                                            max={ASYNC_RETENTION_MINUTES_MAX}
+                                            step={5}
+                                            name={field.name}
+                                            value={sliderValue}
+                                            onValueChange={(value) =>
+                                              field.onChange(
+                                                Array.isArray(value)
+                                                  ? value[0]
+                                                  : value
+                                              )
+                                            }
+                                            onValueCommitted={field.onBlur}
+                                          />
+                                        </FormControl>
+                                        <div className='text-muted-foreground flex justify-between text-xs'>
+                                          <span>{t('5 minutes')}</span>
+                                          <span>{t('24 hours')}</span>
+                                        </div>
+                                        <div className='flex items-center gap-2'>
+                                          <Input
+                                            className='w-28'
+                                            type='number'
+                                            min={ASYNC_RETENTION_MINUTES_MIN}
+                                            max={ASYNC_RETENTION_MINUTES_MAX}
+                                            step={5}
+                                            value={retentionMinutes}
+                                            aria-label={t(
+                                              'Automatic deletion delay in minutes'
+                                            )}
+                                            aria-invalid={fieldState.invalid}
+                                            onBlur={field.onBlur}
+                                            onChange={(event) =>
+                                              field.onChange(
+                                                Number(event.target.value)
+                                              )
+                                            }
+                                          />
+                                          <span className='text-muted-foreground text-sm'>
+                                            {t('minutes')}
+                                          </span>
+                                        </div>
+                                        <FormDescription>
+                                          {t(
+                                            'Archived images and embedded upstream image data are permanently deleted after this time. This setting applies to newly generated results.'
+                                          )}
+                                        </FormDescription>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )
+                                  }}
+                                />
+
+                                <FormField
+                                  control={form.control}
+                                  name='async_auto_archive'
+                                  render={({ field }) => (
+                                    <FormItem className='flex items-center justify-between rounded-md border px-3 py-2'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>
+                                          {t('Auto archive')}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Required for first-version tasks'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <Alert className='sm:col-span-2'>
+                                  <AlertDescription>
+                                    {t(
+                                      'Only approved Yunwu and GRS AI API base URLs are accepted, and automatic archiving is required.'
+                                    )}
+                                  </AlertDescription>
+                                </Alert>
+                              </div>
+                            ) : null}
 
                             <FormField
                               control={form.control}

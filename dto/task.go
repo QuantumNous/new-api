@@ -50,6 +50,20 @@ type TaskDto struct {
 	Properties any             `json:"properties"`
 	Username   string          `json:"username,omitempty"`
 	Data       json.RawMessage `json:"data"`
+	Async      *AsyncTaskMeta  `json:"async,omitempty"`
+}
+
+// AsyncTaskMeta contains operational metadata exposed only through the
+// authenticated task-management APIs. The encrypted request body and channel
+// credentials are deliberately excluded.
+type AsyncTaskMeta struct {
+	ExecutionStatus string `json:"execution_status"`
+	WorkerID        string `json:"worker_id,omitempty"`
+	Attempt         int    `json:"attempt"`
+	RequestSentAt   int64  `json:"request_sent_at,omitempty"`
+	ErrorPhase      string `json:"error_phase,omitempty"`
+	ErrorCode       string `json:"error_code,omitempty"`
+	BillingStatus   string `json:"billing_status"`
 }
 
 type FetchReq struct {

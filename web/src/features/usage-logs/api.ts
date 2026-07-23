@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import { buildQueryParams } from './lib/utils'
+import { buildQueryParams } from './lib/query-params'
 import type {
   GetLogsParams,
   GetLogsResponse,
@@ -26,6 +26,7 @@ import type {
   GetLogStatsResponse,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
+  AsyncTaskDetail,
   UserInfo,
 } from './types'
 
@@ -110,3 +111,34 @@ export const getAllTaskLogs = (params: GetTaskLogsParams) =>
 
 export const getUserTaskLogs = (params: GetTaskLogsParams) =>
   fetchLogs('/api/task', params, false)
+
+function asyncTaskPath(taskId: string, isAdmin: boolean): string {
+  return isAdmin
+    ? `/api/task/async/${encodeURIComponent(taskId)}`
+    : `/api/task/self/async/${encodeURIComponent(taskId)}`
+}
+
+export async function getAsyncTaskDetail(
+  taskId: string,
+  isAdmin: boolean
+): Promise<{
+  success: boolean
+  message?: string
+  data?: AsyncTaskDetail
+}> {
+  const res = await api.get(asyncTaskPath(taskId, isAdmin))
+  return res.data
+}
+
+export async function cancelAsyncTask(taskId: string, isAdmin: boolean) {
+  const res = await api.post(`${asyncTaskPath(taskId, isAdmin)}/cancel`)
+  return res.data
+}
+
+export async function retryAsyncTask(taskId: string) {
+  const res = await api.post(
+    `/api/task/async/${encodeURIComponent(taskId)}/retry`,
+    { confirm_risk: true }
+  )
+  return res.data
+}

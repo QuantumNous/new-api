@@ -153,6 +153,13 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				qualityRatio = 1.5
 			}
 		}
+	} else if strings.EqualFold(i.Quality, "4K") {
+		switch i.Model {
+		case "gemini-3.1-flash-image-preview":
+			qualityRatio = 0.7093 / 0.3972
+		case "gemini-3-pro-image-preview":
+			qualityRatio = 1.418 / 0.7920
+		}
 	}
 
 	imageN := uint(1)

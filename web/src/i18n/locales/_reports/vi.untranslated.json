@@ -1,0 +1,11 @@
+{
+  "Accept risk and retry": "Accept risk and retry",
+  "Allow the worker to wrap this Yunwu synchronous image endpoint as a durable async task": "Allow the worker to wrap this Yunwu synchronous image endpoint as a durable async task",
+  "Async task cancelled and refunded": "Async task cancelled and refunded",
+  "Failed to load task details": "Failed to load task details",
+  "I understand this may charge upstream and local quota again.": "I understand this may charge upstream and local quota again.",
+  "I understand this may generate the same image more than once.": "I understand this may generate the same image more than once.",
+  "The first version accepts only an allowed Yunwu base URL and requires automatic archiving.": "The first version accepts only an allowed Yunwu base URL and requires automatic archiving.",
+  "The upstream request may already have completed. Never retry automatically; a manual retry may duplicate both generation and billing.": "The upstream request may already have completed. Never retry automatically; a manual retry may duplicate both generation and billing.",
+  "This action is never performed automatically. The previous upstream execution may be impossible to verify.": "This action is never performed automatically. The previous upstream execution may be impossible to verify."
+}

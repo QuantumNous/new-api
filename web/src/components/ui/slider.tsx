@@ -32,7 +32,11 @@ function Slider({
     ? value
     : Array.isArray(defaultValue)
       ? defaultValue
-      : [min, max]
+      : value !== undefined
+        ? [value]
+        : defaultValue !== undefined
+          ? [defaultValue]
+          : [min]
 
   return (
     <SliderPrimitive.Root

@@ -1,3 +1,5 @@
+import { AiImageIcon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -34,10 +36,19 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
+import { createElement } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
+
+function AsyncImageLabIcon(props: { className?: string }) {
+  return createElement(HugeiconsIcon, {
+    icon: AiImageIcon,
+    strokeWidth: 2,
+    className: props.className,
+  })
+}
 
 /**
  * Root navigation groups for the application sidebar.
@@ -58,6 +69,11 @@ export function useSidebarData(): SidebarData {
             title: t('Playground'),
             url: '/playground',
             icon: FlaskConical,
+          },
+          {
+            title: t('Async image lab'),
+            url: '/async-image-lab',
+            icon: AsyncImageLabIcon,
           },
           {
             title: t('Chat'),
