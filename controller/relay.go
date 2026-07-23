@@ -260,14 +260,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
-			// Success: clear any cooldown on the key just used so a recovered
-			// upstream becomes immediately selectable instead of waiting out
-			// the remaining TTL.
-			clearKeyIndex := 0
-			if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
-				clearKeyIndex = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
-			}
-			model.ClearChannelKeyCooldown(channel.Id, clearKeyIndex)
+			clearCooldownForContext(c, channel.Id)
 			return
 		}
 
@@ -275,6 +268,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relayInfo.LastError = newAPIError
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		markCooldownFromError(c, channel.Id, newAPIError)
 
 		if !shouldRetry(c, newAPIError, retryCap-retryParam.GetRetry()) {
 			break
@@ -423,6 +417,39 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	return operation_setting.ShouldRetryByStatusCode(code)
 }
 
+// contextKeyIndex returns the multi-key index recorded for the current request,
+// or 0 for a single-key channel. It mirrors what SetupContextForSelectedChannel
+// stored from GetNextEnabledKey, so cooldown reads/writes target the exact key
+// that was used.
+func contextKeyIndex(c *gin.Context) int {
+	if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
+		return common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
+	}
+	return 0
+}
+
+// markCooldownFromError puts the failing channel key into a short cross-request
+// cooldown on a rate-limit response, so other requests skip a just-throttled
+// upstream instead of re-hitting it. The upstream Retry-After hint (if any)
+// sizes the cooldown; otherwise a small default is used. This is called only
+// from the relay loops (not from processChannelError) so channel health checks
+// never pollute live rate-limit state.
+func markCooldownFromError(c *gin.Context, channelId int, err *types.NewAPIError) {
+	if err == nil {
+		return
+	}
+	if err.StatusCode == http.StatusTooManyRequests || err.RetryAfterSeconds > 0 {
+		model.MarkChannelKeyCooldown(channelId, contextKeyIndex(c), err.RetryAfterSeconds)
+	}
+}
+
+// clearCooldownForContext removes any cooldown on the key just used, called
+// after a successful request so a recovered upstream becomes immediately
+// selectable instead of waiting out the remaining TTL.
+func clearCooldownForContext(c *gin.Context, channelId int) {
+	model.ClearChannelKeyCooldown(channelId, contextKeyIndex(c))
+}
+
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
@@ -431,19 +458,6 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		gopool.Go(func() {
 			service.DisableChannel(channelError, err.ErrorWithStatusCode())
 		})
-	}
-
-	// Put the failing channel key into a short cross-request cooldown on a
-	// rate-limit response, so other requests skip a just-throttled upstream
-	// instead of re-hitting it. The upstream Retry-After hint (if any) sizes
-	// the cooldown; otherwise a small default is used. keyIndex is 0 for
-	// single-key channels.
-	if err.StatusCode == http.StatusTooManyRequests || err.RetryAfterSeconds > 0 {
-		keyIndex := 0
-		if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
-			keyIndex = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
-		}
-		model.MarkChannelKeyCooldown(channelError.ChannelId, keyIndex, err.RetryAfterSeconds)
 	}
 
 	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
@@ -647,19 +661,17 @@ func RelayTask(c *gin.Context) {
 		if taskErr == nil {
 			// Success: clear any cooldown on the key just used so a recovered
 			// upstream becomes immediately selectable again.
-			clearKeyIndex := 0
-			if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
-				clearKeyIndex = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
-			}
-			model.ClearChannelKeyCooldown(channel.Id, clearKeyIndex)
+			clearCooldownForContext(c, channel.Id)
 			break
 		}
 
 		if !taskErr.LocalError {
+			taskAPIErr := types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode)
 			processChannelError(c,
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
-				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
+				taskAPIErr)
+			markCooldownFromError(c, channel.Id, taskAPIErr)
 		}
 
 		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
