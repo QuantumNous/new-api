@@ -83,6 +83,10 @@ type ChannelMeta struct {
 type TokenCountMeta struct {
 	//promptTokens int
 	estimatePromptTokens int
+	// estimateImageTokens 是请求中图片/媒体的 token 估算值。
+	// 仅在估算阶段计算（使用固定值，不下载完整文件），
+	// 当上游 usage 中未返回 ImageTokens 时作为 fallback 用于计费。
+	estimateImageTokens int
 }
 
 type RelayInfo struct {
@@ -659,6 +663,17 @@ func (info *RelayInfo) SetEstimatePromptTokens(promptTokens int) {
 
 func (info *RelayInfo) GetEstimatePromptTokens() int {
 	return info.estimatePromptTokens
+}
+
+// SetEstimateImageTokens 记录估算阶段计算的图片/媒体 token 数。
+// 当上游 usage 未返回 ImageTokens 时，计费逻辑会以此值作为 fallback。
+func (info *RelayInfo) SetEstimateImageTokens(tokens int) {
+	info.estimateImageTokens = tokens
+}
+
+// GetEstimateImageTokens 返回估算的图片 token 数。
+func (info *RelayInfo) GetEstimateImageTokens() int {
+	return info.estimateImageTokens
 }
 
 func (info *RelayInfo) SetFirstResponseTime() {
