@@ -505,7 +505,13 @@
     "Auto Group Chain": "Auto Group Chain",
     "Auto refresh": "Auto refresh",
     "Auto Sync Upstream Models": "Auto Sync Upstream Models",
+    "Auto-enabled": "Auto-enabled",
+    "Auto-disabled": "Auto-disabled",
+    "Batch Disable Models with No Channels": "Disable Models with No Channels",
+    "Batch Enable Models with Recovered Channels": "Enable Models with Available Channels",
     "Auto-disable rules": "Auto-disable rules",
+    "Auto-disable models with no available channels": "Auto-disable models with no available channels",
+    "Auto-enable models disabled by this setting when a channel recovers": "Auto-enable models disabled by this setting when a channel recovers",
     "Auto-disable status codes": "Auto-disable status codes",
     "Auto-discover": "Auto-discover",
     "Auto-discovers endpoints from the provider": "Auto-discovers endpoints from the provider",
@@ -2029,7 +2035,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -5214,6 +5220,12 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Successfully disabled {{count}} model(s) with no available channels": "Successfully disabled {{count}} model(s) with no available channels",
+    "Successfully enabled {{count}} model(s) with recovered channels": "Successfully enabled {{count}} model(s) with available channels",
+    "No models with unavailable channels found": "No models with unavailable channels found",
+    "No disabled models with available channels found": "No disabled models with available channels found",
+    "Failed to batch disable models": "Failed to batch disable models",
+    "Failed to batch enable models": "Failed to batch enable models"
   }
 }

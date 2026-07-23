@@ -506,6 +506,8 @@
     "Auto refresh": "Actualisation automatique",
     "Auto Sync Upstream Models": "Synchronisation automatique des modèles en amont",
     "Auto-disable rules": "Règles de désactivation automatique",
+    "Auto-disable models with no available channels": "Auto-disable models with no available channels",
+    "Auto-enable models disabled by this setting when a channel recovers": "Auto-enable models disabled by this setting when a channel recovers",
     "Auto-disable status codes": "Codes de statut de désactivation auto",
     "Auto-discover": "Découverte automatique",
     "Auto-discovers endpoints from the provider": "Découvre automatiquement les points de terminaison du fournisseur",

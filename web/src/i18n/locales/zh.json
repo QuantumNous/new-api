@@ -505,7 +505,13 @@
     "Auto Group Chain": "自动分组链",
     "Auto refresh": "自动刷新",
     "Auto Sync Upstream Models": "自动同步上游模型",
+    "Auto-enabled": "自动启用",
+    "Auto-disabled": "自动禁用",
+    "Batch Disable Models with No Channels": "一键禁用无渠道模型",
+    "Batch Enable Models with Recovered Channels": "一键启用有渠道模型",
     "Auto-disable rules": "自动禁用规则",
+    "Auto-disable models with no available channels": "无可用渠道时自动禁用模型",
+    "Auto-enable models disabled by this setting when a channel recovers": "可用渠道恢复时自动启用由此设置禁用的模型",
     "Auto-disable status codes": "自动禁用状态码",
     "Auto-discover": "自动发现",
     "Auto-discovers endpoints from the provider": "自动从提供商发现端点",
@@ -2029,7 +2035,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -5214,6 +5220,12 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Successfully disabled {{count}} model(s) with no available channels": "已禁用 {{count}} 个无渠道模型",
+    "Successfully enabled {{count}} model(s) with recovered channels": "已启用 {{count}} 个有渠道模型",
+    "No models with unavailable channels found": "没有发现需要禁用的无渠道模型",
+    "No disabled models with available channels found": "没有发现可启用的有渠道模型",
+    "Failed to batch disable models": "批量禁用模型失败",
+    "Failed to batch enable models": "批量启用模型失败"
   }
 }

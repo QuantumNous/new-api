@@ -506,6 +506,8 @@
     "Auto refresh": "自動重新整理",
     "Auto Sync Upstream Models": "自動同步上游模型",
     "Auto-disable rules": "自動停用規則",
+    "Auto-disable models with no available channels": "Auto-disable models with no available channels",
+    "Auto-enable models disabled by this setting when a channel recovers": "Auto-enable models disabled by this setting when a channel recovers",
     "Auto-disable status codes": "自動停用狀態碼",
     "Auto-discover": "自動發現",
     "Auto-discovers endpoints from the provider": "自動從供應商發現端點",
