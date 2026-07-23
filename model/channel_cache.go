@@ -174,6 +174,20 @@ func GetRandomSatisfiedChannel(group string, model string, requestPath string, e
 	})
 	targetChannels := priorityChannels[sortedPriorities[0]]
 
+	// Within the chosen tier, prefer channels that still have a key ready to
+	// serve, skipping any whose every enabled key is in rate-limit cooldown.
+	// Fall back to the full tier when all of them are cooling down, so cooldown
+	// only reorders preference and never denies service on its own.
+	readyChannels := make([]*Channel, 0, len(targetChannels))
+	for _, ch := range targetChannels {
+		if !ch.EnabledKeysAllCoolingDown() {
+			readyChannels = append(readyChannels, ch)
+		}
+	}
+	if len(readyChannels) > 0 {
+		targetChannels = readyChannels
+	}
+
 	if len(targetChannels) == 1 {
 		return targetChannels[0], nil
 	}

@@ -239,10 +239,26 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		return "", 0, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
 	}
 
+	// Prefer keys that are not in rate-limit cooldown. cooling(idx) reports
+	// whether a key was recently throttled; we skip such keys when a ready one
+	// exists but fall back to them when every enabled key is cooling down, so
+	// cooldown never denies service on its own.
+	cooling := func(idx int) bool { return IsChannelKeyCoolingDown(channel.Id, idx) }
+
 	switch channel.ChannelInfo.MultiKeyMode {
 	case constant.MultiKeyModeRandom:
-		// Randomly pick one enabled key
-		selectedIdx := enabledIdx[rand.Intn(len(enabledIdx))]
+		// Pick randomly from keys that are not cooling down; fall back to all
+		// enabled keys if every one is in cooldown.
+		readyIdx := make([]int, 0, len(enabledIdx))
+		for _, idx := range enabledIdx {
+			if !cooling(idx) {
+				readyIdx = append(readyIdx, idx)
+			}
+		}
+		if len(readyIdx) == 0 {
+			readyIdx = enabledIdx
+		}
+		selectedIdx := readyIdx[rand.Intn(len(readyIdx))]
 		return keys[selectedIdx], selectedIdx, nil
 	case constant.MultiKeyModePolling:
 		// Use channel-specific lock to ensure thread-safe polling
@@ -266,10 +282,19 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		if start < 0 || start >= len(keys) {
 			start = 0
 		}
+		// First pass: next enabled key that is not cooling down.
+		for i := 0; i < len(keys); i++ {
+			idx := (start + i) % len(keys)
+			if getStatus(idx) == common.ChannelStatusEnabled && !cooling(idx) {
+				channel.ChannelInfo.MultiKeyPollingIndex = (idx + 1) % len(keys)
+				return keys[idx], idx, nil
+			}
+		}
+		// Second pass: every enabled key is cooling down — fall back to the next
+		// enabled key rather than deny service.
 		for i := 0; i < len(keys); i++ {
 			idx := (start + i) % len(keys)
 			if getStatus(idx) == common.ChannelStatusEnabled {
-				// update polling index for next call (point to the next position)
 				channel.ChannelInfo.MultiKeyPollingIndex = (idx + 1) % len(keys)
 				return keys[idx], idx, nil
 			}

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	taskdto "github.com/QuantumNous/new-api/dto"
@@ -84,8 +85,74 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 	return claudeErr
 }
 
+// ParseRetryAfterSeconds extracts an upstream rate-limit hint from response
+// headers. It understands Retry-After (delta seconds or an HTTP date) and the
+// common X-RateLimit-Reset* variants (delta seconds, or a unix timestamp in
+// seconds / milliseconds). Returns 0 when no usable hint is present.
+func ParseRetryAfterSeconds(header http.Header) int {
+	if header == nil {
+		return 0
+	}
+
+	if v := strings.TrimSpace(header.Get("Retry-After")); v != "" {
+		// Delta seconds form.
+		if secs, err := strconv.Atoi(v); err == nil {
+			if secs < 0 {
+				return 0
+			}
+			return secs
+		}
+		// HTTP-date form.
+		if t, err := http.ParseTime(v); err == nil {
+			if d := int(time.Until(t).Seconds()); d > 0 {
+				return d
+			}
+			return 0
+		}
+	}
+
+	for _, name := range []string{"X-RateLimit-Reset", "X-Ratelimit-Reset", "X-RateLimit-Reset-Requests", "X-RateLimit-Reset-Tokens"} {
+		v := strings.TrimSpace(header.Get(name))
+		if v == "" {
+			continue
+		}
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			continue
+		}
+		now := time.Now().Unix()
+		switch {
+		case f > 1e12:
+			// Unix time in milliseconds.
+			if d := int(int64(f/1000) - now); d > 0 {
+				return d
+			}
+		case f > 1e9:
+			// Unix time in seconds.
+			if d := int(int64(f) - now); d > 0 {
+				return d
+			}
+		default:
+			// Delta seconds.
+			if f > 0 {
+				return int(f)
+			}
+		}
+	}
+	return 0
+}
+
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+
+	// Capture an upstream rate-limit hint (if any) on whatever error is finally
+	// returned, so the relay loop can cool the failing channel key down.
+	retryAfter := ParseRetryAfterSeconds(resp.Header)
+	defer func() {
+		if newApiErr != nil && retryAfter > 0 {
+			newApiErr.RetryAfterSeconds = retryAfter
+		}
+	}()
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
