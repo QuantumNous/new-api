@@ -230,3 +230,7 @@ func responsesStreamEvent(eventType string, payload dto.ResponsesStreamResponse)
 func intPtr(v int) *int {
 	return &v
 }
+
+func stringPtr(v string) *string {
+	return &v
+}
