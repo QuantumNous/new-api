@@ -42,17 +42,27 @@ import { Button } from '@/components/ui/button'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { cn } from '@/lib/utils'
 
-export type JsonCodeEditorProps = Omit<ComponentProps<'div'>, 'onChange'> & {
+export type JsonCodeEditorProps = Omit<
+  ComponentProps<'div'>,
+  'name' | 'onBlur' | 'onChange'
+> & {
   value: string
   onChange: (value: string) => void
+  name?: string
+  onBlur?: () => void
+  textareaRef?: (element: HTMLTextAreaElement | null) => void
   disabled?: boolean
   heightClassName?: string
   placeholder?: string
+  'data-form-root'?: string
 }
 
 export function JsonCodeEditor({
   value,
   onChange,
+  name,
+  onBlur,
+  textareaRef,
   disabled,
   heightClassName = 'h-56 min-h-56 max-h-56',
   placeholder,
@@ -60,6 +70,7 @@ export function JsonCodeEditor({
   id,
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
+  'data-form-root': dataFormRoot,
   ...rootProps
 }: JsonCodeEditorProps) {
   const { t } = useTranslation()
@@ -67,6 +78,7 @@ export function JsonCodeEditor({
   const editorRef = useRef<Yace | null>(null)
   const latestValueRef = useRef(value)
   const latestOnChangeRef = useRef(onChange)
+  const latestOnBlurRef = useRef(onBlur)
   const [cursorLocation, setCursorLocation] = useState<CursorLocation>({
     line: 1,
     column: 1,
@@ -84,6 +96,7 @@ export function JsonCodeEditor({
 
   latestValueRef.current = value
   latestOnChangeRef.current = onChange
+  latestOnBlurRef.current = onBlur
 
   useEffect(() => {
     const mountNode = mountRef.current
@@ -130,12 +143,14 @@ export function JsonCodeEditor({
       lineNumberLayer,
     })
     const syncScrollLayers = () => scrollSynchronizer.sync()
+    const handleBlur = () => latestOnBlurRef.current?.()
 
     editor.onUpdate(handleUpdate)
     editor.textarea.addEventListener('click', updateCursorLocation)
     editor.textarea.addEventListener('input', updateCursorLocation)
     editor.textarea.addEventListener('keyup', updateCursorLocation)
     editor.textarea.addEventListener('select', updateCursorLocation)
+    editor.textarea.addEventListener('blur', handleBlur)
     editor.textarea.addEventListener('scroll', syncScrollLayers, {
       passive: true,
     })
@@ -149,11 +164,19 @@ export function JsonCodeEditor({
       editor.textarea.removeEventListener('input', updateCursorLocation)
       editor.textarea.removeEventListener('keyup', updateCursorLocation)
       editor.textarea.removeEventListener('select', updateCursorLocation)
+      editor.textarea.removeEventListener('blur', handleBlur)
       editor.textarea.removeEventListener('scroll', syncScrollLayers)
       editor.destroy()
       editorRef.current = null
     }
   }, [editorPlugins])
+
+  useEffect(() => {
+    const textarea = editorRef.current?.textarea ?? null
+    textareaRef?.(textarea)
+
+    return () => textareaRef?.(null)
+  }, [textareaRef])
 
   useEffect(() => {
     const editor = editorRef.current
@@ -174,7 +197,14 @@ export function JsonCodeEditor({
 
     editor.textarea.disabled = Boolean(disabled)
     editor.textarea.id = id ?? ''
+    editor.textarea.name = name ?? ''
     editor.textarea.setAttribute('aria-label', t('JSON'))
+
+    if (dataFormRoot) {
+      editor.textarea.setAttribute('data-form-root', String(dataFormRoot))
+    } else {
+      editor.textarea.removeAttribute('data-form-root')
+    }
 
     if (placeholder) {
       editor.textarea.placeholder = placeholder
@@ -197,8 +227,10 @@ export function JsonCodeEditor({
     ariaDescribedBy,
     ariaInvalid,
     disabled,
+    dataFormRoot,
     id,
     jsonStatus.isValid,
+    name,
     placeholder,
     t,
   ])
@@ -229,6 +261,7 @@ export function JsonCodeEditor({
         'border-input bg-background focus-within:border-ring focus-within:ring-ring/50 overflow-hidden rounded-lg border transition-colors focus-within:ring-3',
         className
       )}
+      data-form-root={dataFormRoot}
       {...rootProps}
     >
       <div className='bg-muted/30 flex h-8 items-center justify-between border-b px-2'>

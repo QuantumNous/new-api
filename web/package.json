@@ -91,6 +91,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260702.3",
     "@xyflow/react": "^12.11.1",
     "embla-carousel-react": "^8.6.0",
+    "happy-dom": "^20.11.1",
     "knip": "^6.24.0",
     "oxfmt": "^0.57.0",
     "oxlint": "^1.72.0",

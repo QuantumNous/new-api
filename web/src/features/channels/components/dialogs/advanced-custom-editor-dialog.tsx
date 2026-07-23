@@ -33,6 +33,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
+import { JsonCodeEditor } from '@/components/json-code-editor'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -54,7 +55,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Tooltip,
   TooltipContent,
@@ -461,12 +461,6 @@ export function AdvancedCustomEditorDialog({
     if (jsonError) setJsonError('')
   }
 
-  const formatJson = () => {
-    const parsed = parseJsonEditorConfig()
-    if (!parsed) return
-    setJsonText(stringifyAdvancedCustomConfig(parsed))
-  }
-
   const applyTemplate = (mode: 'fill' | 'append') => {
     const templateConfig = getAdvancedCustomTemplateConfig(templateKey)
     let nextConfig = templateConfig
@@ -713,26 +707,18 @@ export function AdvancedCustomEditorDialog({
       ) : (
         <div className='p-4'>
           <div className='mb-2 flex items-center gap-2'>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={formatJson}
-            >
-              {t('Format')}
-            </Button>
             <span className='text-muted-foreground text-xs'>
               {t('Advanced text editing')}
             </span>
           </div>
-          <Textarea
+          <JsonCodeEditor
             value={jsonText}
-            onChange={(event) => handleJsonChange(event.target.value)}
+            onChange={handleJsonChange}
             placeholder={stringifyAdvancedCustomConfig(
               getAdvancedCustomTemplateConfig(templateKey)
             )}
-            rows={22}
-            className='min-h-[420px] font-mono text-xs'
+            heightClassName='h-[420px] min-h-[420px] max-h-[420px]'
+            aria-invalid={Boolean(jsonError)}
           />
           <p className='text-muted-foreground mt-2 text-xs'>
             {t('Edit JSON text directly. Format will be validated on save.')}

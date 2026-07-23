@@ -221,6 +221,9 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                   <JsonCodeEditor
                     value={field.value}
                     onChange={(value) => field.onChange(value)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    textareaRef={field.ref}
                     placeholder={`${t('Example:')}\n${thinkingBlacklistExample}`}
                     heightClassName='h-32 min-h-32 max-h-32'
                   />
@@ -268,6 +271,9 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                     <JsonCodeEditor
                       value={field.value}
                       onChange={(value) => field.onChange(value)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
                       placeholder={`${t('Example (specific channels):')}\n${chatToResponsesPolicyExample}\n\n${t('Example (all channels):')}\n${chatToResponsesPolicyAllChannelsExample}`}
                     />
                   </FormControl>
