@@ -155,17 +155,11 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			message = streamErr.Error()
 		}
 
-		sendEvent(relayconvert.ChatToResponsesStreamEvent{
-			Type: "response.failed",
-			Payload: dto.ResponsesStreamResponse{
-				Type: "response.failed",
-				Response: &dto.OpenAIResponsesResponse{
-					ID: responseID, Object: "response", CreatedAt: int(created),
-					Status: []byte(`"failed"`), Error: map[string]any{"code": code, "message": message},
-					Model: info.UpstreamModelName, Output: []dto.ResponsesOutput{},
-				},
-			},
-		})
+		failureEvent, failureErr := state.FailureEvent(code, message)
+		if failureErr != nil {
+			return nil, types.NewOpenAIError(failureErr, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+		sendEvent(failureEvent)
 		return nil, streamErr
 	}
 
