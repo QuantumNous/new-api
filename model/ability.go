@@ -63,10 +63,10 @@ func GetAllEnableAbilities() []Ability {
 // GetChannel is the non-memory-cache (direct DB) counterpart of
 // GetRandomSatisfiedChannel. It selects a channel for the given group/model,
 // excluding any channel IDs in excludeChannels (already tried this request),
-// and walks priority tiers from highest to lowest so every channel in a tier
-// is exhausted before descending. Returns (nil, nil) when no eligible channel
-// remains.
-func GetChannel(group string, model string, retry int, requestPath string, excludeChannels map[int]bool) (*Channel, error) {
+// and picks the highest priority tier that still has non-excluded channels so
+// every channel in a tier is exhausted before descending. Returns (nil, nil)
+// when no eligible channel remains.
+func GetChannel(group string, model string, requestPath string, excludeChannels map[int]bool) (*Channel, error) {
 	var abilities []Ability
 
 	// Load all enabled abilities for this group/model ordered by priority so we

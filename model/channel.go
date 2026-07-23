@@ -282,6 +282,33 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	}
 }
 
+// CountEnabledKeys returns how many currently-enabled keys a channel has. For a
+// multi-key channel this mirrors the enabled-key logic in GetNextEnabledKey
+// (a key is enabled unless its status list entry says otherwise). It is used to
+// size how many times a channel may be re-selected within a single request so
+// each key gets a chance before the channel is excluded from retry. Returns 1
+// for single-key channels, 0 for a multi-key channel with no keys configured.
+func (channel *Channel) CountEnabledKeys() int {
+	if !channel.ChannelInfo.IsMultiKey {
+		return 1
+	}
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return 0
+	}
+	statusList := channel.ChannelInfo.MultiKeyStatusList
+	if statusList == nil {
+		return len(keys)
+	}
+	count := 0
+	for i := range keys {
+		if status, ok := statusList[i]; !ok || status == common.ChannelStatusEnabled {
+			count++
+		}
+	}
+	return count
+}
+
 func (channel *Channel) SaveChannelInfo() error {
 	return DB.Model(channel).Update("channel_info", channel.ChannelInfo).Error
 }

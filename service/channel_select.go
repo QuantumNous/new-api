@@ -12,16 +12,17 @@ import (
 )
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	RequestPath  string
-	Retry        *int
-	resetNextTry bool
-	// ExcludeChannels holds channel IDs already tried in this request. They are
-	// removed from the candidate pool on retry so a fresh channel is always
-	// selected instead of re-hitting a channel that just failed. Nil on first
-	// attempt.
+	Ctx         *gin.Context
+	TokenGroup  string
+	ModelName   string
+	RequestPath string
+	Retry       *int
+	// ExcludeChannels holds channel IDs already tried (and exhausted) in this
+	// request. They are removed from the candidate pool on retry so selection
+	// moves to a fresh channel instead of re-hitting a channel that just failed.
+	// A multi-key channel is only added here once all its keys have been tried
+	// (see the relay loop), so per-request key rotation is preserved. Nil on the
+	// first attempt.
 	ExcludeChannels map[int]bool
 }
 
@@ -37,55 +38,38 @@ func (p *RetryParam) SetRetry(retry int) {
 }
 
 func (p *RetryParam) IncreaseRetry() {
-	if p.resetNextTry {
-		p.resetNextTry = false
-		return
-	}
 	if p.Retry == nil {
 		p.Retry = new(int)
 	}
 	*p.Retry++
 }
 
-func (p *RetryParam) ResetRetryNextTry() {
-	p.resetNextTry = true
-}
-
-// CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
-// 尝试获取一个满足要求的随机渠道。
+// CacheGetRandomSatisfiedChannel returns a channel that satisfies the request,
+// honouring param.ExcludeChannels so retries never re-pick an already-exhausted
+// channel.
+// 返回一个满足请求的渠道，遵守 param.ExcludeChannels，使重试不会重新选中已耗尽的渠道。
 //
-// For "auto" tokenGroup with cross-group Retry enabled:
-// 对于启用了跨分组重试的 "auto" tokenGroup：
+// For the "auto" tokenGroup, selection is purely exclude-driven:
+// 对于 "auto" tokenGroup，渠道选择完全由 exclude 驱动：
 //
-//   - Each group will exhaust all its priorities before moving to the next group.
-//     每个分组会用完所有优先级后才会切换到下一个分组。
+//   - Within a group, GetRandomSatisfiedChannel walks priority tiers high→low and
+//     skips excluded channels, so every channel in the group is tried before the
+//     group is considered exhausted.
+//     组内 GetRandomSatisfiedChannel 从高到低遍历优先级并跳过已排除渠道，
+//     因此在判定组耗尽前，组内每个渠道都会被尝试。
 //
-//   - Uses ContextKeyAutoGroupIndex to track current group index.
-//     使用 ContextKeyAutoGroupIndex 跟踪当前分组索引。
+//   - A group with no channels for this model at all is a "discovery" miss and is
+//     always skipped, regardless of the cross-group-retry switch.
+//     完全没有该模型渠道的组属于"发现"未命中，无条件跳过，与跨组重试开关无关。
 //
-//   - Uses ContextKeyAutoGroupRetryIndex to track the global Retry count when current group started.
-//     使用 ContextKeyAutoGroupRetryIndex 跟踪当前分组开始时的全局重试次数。
+//   - A group that *had* channels but has them all excluded this request is a
+//     "failover" case: it advances to the next group only when cross-group retry
+//     is enabled; otherwise selection stops within the current group.
+//     曾有渠道但本请求已全部排除的组属于"故障转移"：仅当启用跨组重试时才前进到
+//     下一组，否则在当前组内停止。
 //
-//   - priorityRetry = Retry - startRetryIndex, represents the priority level within current group.
-//     priorityRetry = Retry - startRetryIndex，表示当前分组内的优先级级别。
-//
-//   - When GetRandomSatisfiedChannel returns nil (priorities exhausted), moves to next group.
-//     当 GetRandomSatisfiedChannel 返回 nil（优先级用完）时，切换到下一个分组。
-//
-// Example flow (2 groups, each with 2 priorities, RetryTimes=3):
-// 示例流程（2个分组，每个有2个优先级，RetryTimes=3）：
-//
-//	Retry=0: GroupA, priority0 (startRetryIndex=0, priorityRetry=0)
-//	         分组A, 优先级0
-//
-//	Retry=1: GroupA, priority1 (startRetryIndex=0, priorityRetry=1)
-//	         分组A, 优先级1
-//
-//	Retry=2: GroupA exhausted → GroupB, priority0 (startRetryIndex=2, priorityRetry=0)
-//	         分组A用完 → 分组B, 优先级0
-//
-//	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
-//	         分组B, 优先级1
+// ContextKeyAutoGroupIndex records the group to resume from on the next retry.
+// ContextKeyAutoGroupIndex 记录下次重试从哪个组恢复。
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
 	var channel *model.Channel
 	var err error
@@ -98,8 +82,6 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 		autoGroups := GetUserAutoGroup(userGroup)
 
-		// startGroupIndex: the group index to start searching from
-		// startGroupIndex: 开始搜索的分组索引
 		startGroupIndex := 0
 		crossGroupRetry := common.GetContextKeyBool(param.Ctx, constant.ContextKeyTokenCrossGroupRetry)
 
@@ -111,55 +93,33 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 		for i := startGroupIndex; i < len(autoGroups); i++ {
 			autoGroup := autoGroups[i]
-			// Calculate priorityRetry for current group
-			// 计算当前分组的 priorityRetry
-			priorityRetry := param.GetRetry()
-			// If moved to a new group, reset priorityRetry and update startRetryIndex
-			// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
-			if i > startGroupIndex {
-				priorityRetry = 0
-			}
-			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.RequestPath, param.ExcludeChannels)
-			if channel == nil {
-				// Current group has no available channel for this model, try next group
-				// 当前分组没有该模型的可用渠道，尝试下一个分组
-				logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", autoGroup, param.ModelName, priorityRetry)
-				// 重置状态以尝试下一个分组
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
-				param.SetRetry(0)
-				continue
-			}
-			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, autoGroup)
-			selectGroup = autoGroup
-			logger.LogDebug(param.Ctx, "Auto selected group: %s", autoGroup)
-
-			// Prepare state for next retry
-			// 为下一次重试准备状态
-			if crossGroupRetry && priorityRetry >= common.RetryTimes {
-				// Current group has exhausted all retries, prepare to switch to next group
-				// This request still uses current group, but next retry will use next group
-				// 当前分组已用完所有重试次数，准备切换到下一个分组
-				// 本次请求仍使用当前分组，但下次重试将使用下一个分组
-				logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, priorityRetry, common.RetryTimes)
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
-				param.SetRetry(0)
-				param.ResetRetryNextTry()
-			} else {
-				// Stay in current group, save current state
-				// 保持在当前分组，保存当前状态
+			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, param.RequestPath, param.ExcludeChannels)
+			if channel != nil {
+				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, autoGroup)
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
+				selectGroup = autoGroup
+				logger.LogDebug(param.Ctx, "Auto selected group: %s", autoGroup)
+				break
 			}
-			break
+
+			// No channel returned. Distinguish "this group never had a channel for
+			// the model" (discovery miss — always skip to next group) from "the
+			// group had channels but they are all excluded this request" (failover
+			// — only advance across groups when cross-group retry is enabled).
+			// 未返回渠道。区分"该组本就没有此模型的渠道"（发现未命中——总是跳到下一组）
+			// 与"该组有渠道但本请求已全部排除"（故障转移——仅在启用跨组重试时才跨组前进）。
+			hadChannels := model.CountAvailableChannels(autoGroup, param.ModelName, param.RequestPath) > 0
+			if hadChannels && !crossGroupRetry {
+				logger.LogDebug(param.Ctx, "Group %s exhausted for model %s and cross-group retry disabled, stopping", autoGroup, param.ModelName)
+				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
+				break
+			}
+			logger.LogDebug(param.Ctx, "No available channel in group %s for model %s, trying next group", autoGroup, param.ModelName)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath, param.ExcludeChannels)
+		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.RequestPath, param.ExcludeChannels)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}

@@ -123,10 +123,10 @@ func SyncChannelCache(frequency int) {
 //
 // Returns (nil, nil) when no eligible channel remains (all excluded or none
 // configured), letting the caller stop retrying cleanly.
-func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string, excludeChannels map[int]bool) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, requestPath string, excludeChannels map[int]bool) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry, requestPath, excludeChannels)
+		return GetChannel(group, model, requestPath, excludeChannels)
 	}
 
 	channelSyncLock.RLock()
@@ -244,11 +244,13 @@ func filterChannelsByRequestPathAndModel(channels []int, requestPath string, mod
 	return filtered
 }
 
-// CountAvailableChannels returns the number of distinct enabled channels that
-// can serve the given group/model (falling back to the normalized model name),
-// applying the same request-path filter as selection. It is used to size the
-// retry budget so every available channel can be tried before giving up,
-// instead of stopping at a fixed RetryTimes that may be smaller than the pool.
+// CountAvailableChannels returns the total number of retryable attempts that can
+// serve the given group/model (falling back to the normalized model name),
+// applying the same request-path filter as selection. Each distinct channel
+// contributes its enabled-key count, so a multi-key channel counts once per key.
+// It is used to size the retry budget so every channel — and every key of a
+// multi-key channel — can be tried before giving up, instead of stopping at a
+// fixed RetryTimes that may be smaller than the pool.
 func CountAvailableChannels(group string, model string, requestPath string) int {
 	if !common.MemoryCacheEnabled {
 		var abilities []Ability
@@ -258,16 +260,25 @@ func CountAvailableChannels(group string, model string, requestPath string) int 
 		}
 		abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
 		seen := make(map[int]struct{}, len(abilities))
+		total := 0
 		for _, ability := range abilities {
+			if _, ok := seen[ability.ChannelId]; ok {
+				continue
+			}
 			seen[ability.ChannelId] = struct{}{}
+			if channel, err := GetChannelById(ability.ChannelId, true); err == nil {
+				total += channel.CountEnabledKeys()
+			} else {
+				total++
+			}
 		}
-		if len(seen) == 0 {
+		if total == 0 {
 			normalized := ratio_setting.FormatMatchingModelName(model)
 			if normalized != "" && normalized != model {
 				return CountAvailableChannels(group, normalized, requestPath)
 			}
 		}
-		return len(seen)
+		return total
 	}
 
 	channelSyncLock.RLock()
@@ -281,10 +292,19 @@ func CountAvailableChannels(group string, model string, requestPath string) int 
 		}
 	}
 	seen := make(map[int]struct{}, len(channels))
+	total := 0
 	for _, channelId := range channels {
+		if _, ok := seen[channelId]; ok {
+			continue
+		}
 		seen[channelId] = struct{}{}
+		if channel, ok := channelsIDM[channelId]; ok {
+			total += channel.CountEnabledKeys()
+		} else {
+			total++
+		}
 	}
-	return len(seen)
+	return total
 }
 
 func CacheGetChannel(id int) (*Channel, error) {
