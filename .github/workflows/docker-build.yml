@@ -5,6 +5,7 @@ on:
     tags:
       - '*'
       - '!nightly*'
+      - '!v1.0.0-rc.15-treehouse.*'
   workflow_dispatch:
     inputs:
       tag:
