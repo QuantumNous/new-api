@@ -45,7 +45,14 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
   if (value === 'zh-CN' || value === 'zh-Hans' || value === 'zhCN') {
     normalized = 'zhCN'
   }
-  if (value === 'pt-BR' || value === 'pt-PT' || value === 'ptBR') {
+  // Match on the canonicalized value so casing and separator variants
+  // (`pt-br`, `PT-BR`, `pt_BR`) resolve too, not just the exact tags.
+  if (
+    normalized === 'pt' ||
+    normalized === 'pt-br' ||
+    normalized === 'pt-pt' ||
+    normalized === 'ptbr'
+  ) {
     normalized = 'ptBR'
   }
 

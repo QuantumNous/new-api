@@ -26,17 +26,21 @@ func TestTranslatePtBR(t *testing.T) {
 	got := Translate(LangPtBR, MsgOperationSuccess)
 	assert.Equal(t, "Operação concluída com sucesso", got)
 
-	// Placeholder substitution in pt-BR
+	// Placeholder substitution in pt-BR, asserted in full: a partial match
+	// would still pass on a malformed or half-interpolated message.
 	got = Translate(LangPtBR, MsgBatchTooMany, map[string]any{"Max": 100})
-	assert.Contains(t, got, "100")
-	assert.Contains(t, got, "máximo")
+	assert.Equal(t, "Excesso de itens na solicitação em lote, o máximo é 100", got)
 }
 
 // TestNormalizeLangPtBR verifies that common pt-BR variants resolve to the
 // pt-BR locale rather than falling back to the default (English).
+//
+// This asserts normalizeLang directly instead of IsSupported: unknown tags
+// normalize to the default language, which is itself supported, so IsSupported
+// answers true for any input and would pass even with pt-BR support removed.
 func TestNormalizeLangPtBR(t *testing.T) {
 	variants := []string{"pt-BR", "pt-br", "pt", "pt-PT", "pt_BR"}
 	for _, v := range variants {
-		assert.True(t, IsSupported(v), "expected %s to be supported", v)
+		assert.Equal(t, LangPtBR, normalizeLang(v), "expected %s to normalize to pt-BR", v)
 	}
 }
