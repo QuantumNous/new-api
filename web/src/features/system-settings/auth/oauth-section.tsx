@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import axios from 'axios'
 import { ExternalLink } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
@@ -54,6 +53,10 @@ import {
   buildOAuthCallbackUrl,
   resolveOAuthSiteUrl,
 } from './oauth-callback-url'
+import {
+  discoverOIDCEndpoints,
+  getOIDCEndpointSettings,
+} from './oidc-discovery'
 
 /**
  * react-hook-form 7 treats dotted `name` strings as nested paths. To keep
@@ -299,24 +302,30 @@ export function OAuthSection(props: OAuthSectionProps) {
       }
 
       try {
-        const res = await axios.create().get(wellKnown)
-        const authEndpoint = res.data['authorization_endpoint'] || ''
-        const tokenEndpoint = res.data['token_endpoint'] || ''
-        const userInfoEndpoint = res.data['userinfo_endpoint'] || ''
+        const response = await discoverOIDCEndpoints(wellKnown)
+        const discovery = response.data?.discovery
+        if (!response.success || !discovery) {
+          throw new Error(response.message || 'OIDC discovery failed')
+        }
+        const endpointSettings = getOIDCEndpointSettings(discovery)
 
         finalValues = {
           ...values,
           oidc: {
             ...values.oidc,
-            authorization_endpoint: authEndpoint,
-            token_endpoint: tokenEndpoint,
-            user_info_endpoint: userInfoEndpoint,
+            ...endpointSettings,
           },
         }
 
-        form.setValue('oidc.authorization_endpoint', authEndpoint)
-        form.setValue('oidc.token_endpoint', tokenEndpoint)
-        form.setValue('oidc.user_info_endpoint', userInfoEndpoint)
+        form.setValue(
+          'oidc.authorization_endpoint',
+          endpointSettings.authorization_endpoint
+        )
+        form.setValue('oidc.token_endpoint', endpointSettings.token_endpoint)
+        form.setValue(
+          'oidc.user_info_endpoint',
+          endpointSettings.user_info_endpoint
+        )
 
         toast.success(t('OIDC configuration fetched successfully'))
       } catch (err) {
