@@ -16,14 +16,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
 function RedirectToLogin() {
-  // Redirect to /_panel/dashboard so console-bridge comes back inside the iframe,
-  // not to the outer /console wrapper (which would cause nested iframes).
-  window.location.replace(
-    'https://apimaster.ai/api/console-bridge?redirect=/_panel/dashboard'
-  )
+  useEffect(() => {
+    if (window.self !== window.top) {
+      window.parent.postMessage(
+        { type: 'new-api-auth-required' },
+        window.location.origin
+      )
+      return
+    }
+
+    // Direct visits still enter through APIMaster's server-side bridge.
+    window.location.replace(
+      'https://apimaster.ai/api/console-bridge?redirect=/_panel/dashboard'
+    )
+  }, [])
+
   return null
 }
 
