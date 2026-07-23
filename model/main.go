@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -247,13 +248,13 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
+	if err := migrateRecallRecipientIdentity(); err != nil {
+		return err
+	}
 	// Migrate price_amount column from float/double to decimal for existing tables
 	migrateSubscriptionPlanPriceAmount()
 	// Migrate model_limits column from varchar to text for existing tables
 	if err := migrateTokenModelLimitsToText(); err != nil {
-		return err
-	}
-	if err := migrateRecallRecipientIdentity(); err != nil {
 		return err
 	}
 
@@ -484,10 +485,10 @@ func requireRecallCampaignsDisabledForIdentityMigration() error {
 
 	var option Option
 	err := DB.Model(&Option{}).
-		Where("key = ?", "recall_campaign_setting.enabled").
+		Where(&Option{Key: "recall_campaign_setting.enabled"}).
 		First(&option).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
 		return fmt.Errorf("failed to check recall campaign migration guard: %w", err)

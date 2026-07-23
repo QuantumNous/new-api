@@ -95,6 +95,8 @@ Release sequence for this one-release swap:
 5. Deploy the same image to `newapi-router`.
 6. Confirm no old revision is still serving Recall traffic, then re-enable Recall.
 
+After the schema swap, do not roll back to an old binary while Recall is enabled; if a fault occurs, keep Recall disabled and roll forward with a fixed image.
+
 True rolling compatibility requires a two-release expand/contract plan: expand with the new nullable column plus dual writes, backfill under mixed versions, then contract by adding the new unique index and removing the old one after every writer is upgraded.
 
 Eligibility snapshots continue to store the selected template and non-sensitive eligibility facts. `email_snapshot` stores the delivery address, while `eligibility_snapshot` and events must not store the full email or the operator's complete identifier input.
