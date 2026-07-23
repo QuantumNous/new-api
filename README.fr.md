@@ -1,6 +1,6 @@
 <div align="center">
 
-![new-api](/web/default/public/logo.png)
+![new-api](/web/public/logo.png)
 
 # New API
 
@@ -313,8 +313,16 @@ docker run --name new-api -d --restart always \
 
 | Nom de variable | Description | Valeur par défaut |
 |--------|------|--------|
-| `SESSION_SECRET` | Secret de session (requis pour le déploiement multi-machines) |
-| `CRYPTO_SECRET` | Secret de chiffrement (requis pour Redis) | - |
+| `SESSION_SECRET` | Secret de signature d’authentification, identique sur tous les nœuds | - |
+| `SESSION_COOKIE_SECURE` | `false`/non défini désactive l’OriginGuard de refresh/logout pour les proxys HTTP locaux ; `true` active le cookie Secure et le contrôle strict de l’Origin | `false` |
+| `SESSION_COOKIE_TRUSTED_URL` | Obligatoire en mode Secure : Origins HTTPS exactes autorisées pour refresh/logout, séparées par des virgules ; ce n’est pas une liste CORS relay | - |
+| `TRUSTED_PROXIES` | Variable absente/vide : approuve le bouclage, les réseaux RFC 1918 et l’ULA IPv6 avec un avertissement au démarrage ; `none` n’approuve aucun proxy ; une liste IP/CIDR explicite remplace les valeurs par défaut | `127.0.0.0/8, ::1, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7` |
+| `USER_SESSION_ACTIVE_LIMIT` | Nombre maximal de Sessions de connexion actives par utilisateur | `50` |
+| `USER_SESSION_ISSUANCE_LIMIT` | Nombre maximal de Sessions créées par utilisateur dans la fenêtre, y compris les Sessions révoquées | `100` |
+| `USER_SESSION_ISSUANCE_WINDOW_SECONDS` | Fenêtre de comptage des Sessions ; limitée à la durée de conservation des Sessions révoquées si elle est supérieure | `86400` |
+| `USER_SESSION_REVOKED_RETENTION_DAYS` | Conservation en jours des Sessions révoquées pour l’audit et le comptage | `7` |
+| `USER_SESSION_HOURLY_ALERT_THRESHOLD` | Seuil global horaire déclenchant uniquement une alerte, sans bloquer les connexions | `5000` |
+| `CRYPTO_SECRET` | Secret HMAC des clés de cache ; les nœuds partageant Redis doivent utiliser la même valeur effective | Par défaut, `SESSION_SECRET` |
 | `SQL_DSN` | Chaine de connexion à la base de données | - |
 | `REDIS_CONN_STRING` | Chaine de connexion Redis | - |
 | `STREAMING_TIMEOUT` | Délai d'expiration du streaming (secondes) | `300` |
@@ -395,8 +403,20 @@ docker run --name new-api -d --restart always \
 ### ⚠️ Considérations sur le déploiement multi-machines
 
 > [!WARNING]
-> - **Doit définir** `SESSION_SECRET` - Sinon l'état de connexion sera incohérent sur plusieurs machines
-> - **Redis partagé doit définir** `CRYPTO_SECRET` - Sinon les données ne pourront pas être déchiffrées
+> - Tous les nœuds doivent utiliser la même base de données principale et la même valeur `SESSION_SECRET` ; sinon les Access Tokens, sessions Refresh et flux d’authentification temporaires ne peuvent pas être vérifiés de façon cohérente.
+> - Les nœuds connectés au même Redis doivent aussi utiliser le même `CRYPTO_SECRET`, faute de quoi les empreintes de clé de cache diffèrent et les entrées partagées ne peuvent pas être réutilisées de façon cohérente.
+
+La base de données fait autorité pour les Sessions de connexion et pour les limites actives/d’émission par utilisateur. Les entrées Session de Redis sont des caches de courte durée dont le TTL suit `SYNC_FREQUENCY` (60 secondes par défaut), sans jamais dépasser la durée de vie restante de la Session.
+
+| Topologie Redis | Propagation des Sessions | Limitation de débit |
+| --- | --- | --- |
+| Redis partagé | Les révocations et publications de version se propagent normalement immédiatement | Les quotas Redis sont partagés entre les nœuds |
+| Redis indépendant par nœud | Les nœuds se resynchronisent depuis la base dans le délai effectif de `SYNC_FREQUENCY` ; un nouveau Token issu d’une rotation peut recevoir temporairement une réponse 401 sur un nœud dont le cache est obsolète | Chaque nœud possède son propre quota ; la capacité agrégée peut donc atteindre environ la limite configurée multipliée par le nombre de nœuds |
+| Sans Redis | Chaque validation de Session consulte directement la base de données | Les limites en mémoire sont indépendantes sur chaque nœud |
+
+Réduire `SYNC_FREQUENCY` raccourcit la fenêtre d’obsolescence avec des Redis indépendants, mais ajoute une lecture de Session par clé primaire, par SID actif, par nœud et par TTL. Ces garanties donnent une obsolescence bornée à l’authentification Session ; les limites et les autres caches du plan de contrôle adossés à Redis restent dépendants de la topologie.
+
+Consultez [Authentification utilisateur et sessions de connexion](./docs/authentication.md) pour les contrats de token, de vérification Origin et de PAT.
 
 ### 🔄 Nouvelle tentative de canal et cache
 

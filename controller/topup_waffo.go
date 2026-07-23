@@ -248,7 +248,7 @@ func RequestWaffoPay(c *gin.Context) {
 	if setting.WaffoNotifyUrl != "" {
 		notifyUrl = setting.WaffoNotifyUrl
 	}
-	returnUrl := paymentReturnPath("/console/topup?show_history=true")
+	returnUrl := paymentReturnPath("/wallet?show_history=true")
 	if setting.WaffoReturnUrl != "" {
 		returnUrl = setting.WaffoReturnUrl
 	}
