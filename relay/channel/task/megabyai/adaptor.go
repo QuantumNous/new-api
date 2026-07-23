@@ -296,8 +296,19 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "processing", "in_progress":
 		taskResult.Status = model.TaskStatusInProgress
 	case "completed":
-		taskResult.Status = model.TaskStatusSuccess
-		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
+		// 保护逻辑：如果 progress < 100，说明上游是假成功（任务实际上还在排队/处理中）
+		// 或者 completed_at 与 created_at 过于接近（<5秒），说明上游创建后立即返回了假完成状态
+		if resTask.Progress > 0 && resTask.Progress < 100 {
+			common.SysLog(fmt.Sprintf("[megabyai_anti_fake_complete] task %s: completed but progress=%d%%, degrading to in_progress", resTask.ID, resTask.Progress))
+			taskResult.Status = model.TaskStatusInProgress
+		} else if resTask.CompletedAt > 0 && resTask.CreatedAt > 0 && resTask.CompletedAt-resTask.CreatedAt < 5 {
+			common.SysLog(fmt.Sprintf("[megabyai_anti_fake_complete] task %s: completed_at-created_at=%ds <5s, degrading to in_progress",
+				resTask.ID, resTask.CompletedAt-resTask.CreatedAt))
+			taskResult.Status = model.TaskStatusInProgress
+		} else {
+			taskResult.Status = model.TaskStatusSuccess
+			// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
+		}
 	case "failed", "cancelled":
 		taskResult.Status = model.TaskStatusFailure
 		if resTask.Error != nil {
