@@ -96,6 +96,10 @@ type NewAPIError struct {
 	errorCode      ErrorCode
 	StatusCode     int
 	Metadata       json.RawMessage
+	// RetryAfterSeconds carries an upstream rate-limit hint (from a Retry-After
+	// or X-RateLimit-Reset header) so the relay loop can put the failing channel
+	// key into cooldown for that duration. 0 means no hint was provided.
+	RetryAfterSeconds int
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.

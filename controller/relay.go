@@ -260,6 +260,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			// Success: clear any cooldown on the key just used so a recovered
+			// upstream becomes immediately selectable instead of waiting out
+			// the remaining TTL.
+			clearKeyIndex := 0
+			if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
+				clearKeyIndex = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
+			}
+			model.ClearChannelKeyCooldown(channel.Id, clearKeyIndex)
 			return
 		}
 
@@ -423,6 +431,19 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		gopool.Go(func() {
 			service.DisableChannel(channelError, err.ErrorWithStatusCode())
 		})
+	}
+
+	// Put the failing channel key into a short cross-request cooldown on a
+	// rate-limit response, so other requests skip a just-throttled upstream
+	// instead of re-hitting it. The upstream Retry-After hint (if any) sizes
+	// the cooldown; otherwise a small default is used. keyIndex is 0 for
+	// single-key channels.
+	if err.StatusCode == http.StatusTooManyRequests || err.RetryAfterSeconds > 0 {
+		keyIndex := 0
+		if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
+			keyIndex = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
+		}
+		model.MarkChannelKeyCooldown(channelError.ChannelId, keyIndex, err.RetryAfterSeconds)
 	}
 
 	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
@@ -624,6 +645,13 @@ func RelayTask(c *gin.Context) {
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
+			// Success: clear any cooldown on the key just used so a recovered
+			// upstream becomes immediately selectable again.
+			clearKeyIndex := 0
+			if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
+				clearKeyIndex = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
+			}
+			model.ClearChannelKeyCooldown(channel.Id, clearKeyIndex)
 			break
 		}
 
