@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -69,9 +71,11 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	defer service.CloseResponseBodyGracefully(resp)
 
 	responseID := helper.GetResponseID(c)
+	created := time.Now().Unix()
 	state, err := relayconvert.NewResponseStreamState(types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses, relayconvert.ResponseStreamOptions{
-		ID:    responseID,
-		Model: info.UpstreamModelName,
+		ID:      responseID,
+		Model:   info.UpstreamModelName,
+		Created: created,
 	})
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -84,7 +88,10 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
 			return false
 		}
-		helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: event.Type}, string(data))
+		if err := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: event.Type}, string(data)); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			return false
+		}
 		return true
 	}
 
@@ -131,6 +138,34 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	})
 
 	if streamErr != nil {
+		if !c.Writer.Written() {
+			return nil, streamErr
+		}
+
+		oaiError := streamErr.ToOpenAIError()
+		code := strings.TrimSpace(fmt.Sprintf("%v", oaiError.Code))
+		if code == "" || code == "<nil>" {
+			code = strings.TrimSpace(oaiError.Type)
+		}
+		if code == "" {
+			code = "server_error"
+		}
+		message := strings.TrimSpace(oaiError.Message)
+		if message == "" {
+			message = streamErr.Error()
+		}
+
+		sendEvent(relayconvert.ChatToResponsesStreamEvent{
+			Type: "response.failed",
+			Payload: dto.ResponsesStreamResponse{
+				Type: "response.failed",
+				Response: &dto.OpenAIResponsesResponse{
+					ID: responseID, Object: "response", CreatedAt: int(created),
+					Status: []byte(`"failed"`), Error: map[string]any{"code": code, "message": message},
+					Model: info.UpstreamModelName, Output: []dto.ResponsesOutput{},
+				},
+			},
+		})
 		return nil, streamErr
 	}
 

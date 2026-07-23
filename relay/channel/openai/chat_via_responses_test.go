@@ -168,6 +168,58 @@ func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 	)
 }
 
+func TestOaiChatToResponsesStreamHandlerReturnsErrorBeforeOutput(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"error":{"type":"server_error","code":"upstream_failure","message":"upstream failed"}}`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	usage, err := OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.False(t, c.Writer.Written())
+	require.Empty(t, recorder.Body.String())
+}
+
+func TestOaiChatToResponsesStreamHandlerEmitsFailureAfterOutput(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+		`data: {"error":{"type":"server_error","code":"upstream_failure","message":"upstream failed"}}`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	usage, err := OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.True(t, c.Writer.Written())
+
+	got := recorder.Body.String()
+	require.Contains(t, got, `event: response.created`)
+	require.Contains(t, got, `event: response.failed`)
+	require.Contains(t, got, `"status":"failed"`)
+	require.Contains(t, got, `"code":"upstream_failure"`)
+	require.Contains(t, got, `"message":"upstream failed"`)
+	require.NotContains(t, got, `event: response.completed`)
+	requireOrderedSubstrings(t, got,
+		`event: response.created`,
+		`event: response.failed`,
+	)
+}
+
 func requireOrderedSubstrings(t *testing.T, s string, parts ...string) {
 	t.Helper()
 
