@@ -67,6 +67,8 @@ export interface DrawingLogFilters extends CommonFilters {
  */
 export interface TaskLogFilters extends CommonFilters {
   taskId?: string
+  platform?: string
+  status?: string
 }
 
 /**
@@ -285,6 +287,7 @@ export interface TaskLog {
   action: string // MUSIC, LYRICS, GENERATE, TEXT_GENERATE, etc.
   channel_id: number
   submit_time: number // seconds
+  start_time?: number // seconds
   finish_time?: number // seconds
   progress?: string
   progress_message_en?: string
@@ -294,6 +297,46 @@ export interface TaskLog {
   other?: string
   created_at?: number
   updated_at?: number
+  async?: AsyncTaskMeta
+}
+
+export interface AsyncTaskMeta {
+  execution_status: string
+  worker_id?: string
+  attempt: number
+  request_sent_at?: number
+  error_phase?: string
+  error_code?: string
+  billing_status: string
+}
+
+export interface AsyncArtifact {
+  content_type: string
+  size_bytes: number
+  sha256: string
+  expires_at: number
+  url: string
+}
+
+export interface AsyncTaskEvent {
+  id: number
+  event_type: string
+  from_status?: string
+  to_status?: string
+  worker_id?: string
+  error_phase?: string
+  error_code?: string
+  actor_type?: string
+  actor_id?: number
+  details?: unknown
+  created_at: number
+}
+
+export interface AsyncTaskDetail {
+  task: TaskLog
+  upstream_response?: unknown
+  artifacts: AsyncArtifact[]
+  events: AsyncTaskEvent[]
 }
 
 // ============================================================================
@@ -369,6 +412,8 @@ export interface GetTaskLogsParams {
   task_id?: string
   start_timestamp?: number
   end_timestamp?: number
+  platform?: string
+  status?: string
 }
 
 // ============================================================================

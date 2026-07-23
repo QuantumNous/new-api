@@ -32,6 +32,20 @@ import {
   validateAdvancedCustomConfig,
 } from './advanced-custom'
 
+export const ASYNC_RETENTION_MINUTES_MIN = 5
+export const ASYNC_RETENTION_MINUTES_MAX = 24 * 60
+export const ASYNC_RETENTION_MINUTES_DEFAULT = 60
+export const ASYNC_JOB_TIMEOUT_SECONDS_DEFAULT = 1800
+
+function normalizeAsyncRetentionMinutes(value: unknown): number {
+  const minutes = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(minutes)) return ASYNC_RETENTION_MINUTES_DEFAULT
+  return Math.min(
+    ASYNC_RETENTION_MINUTES_MAX,
+    Math.max(ASYNC_RETENTION_MINUTES_MIN, Math.round(minutes))
+  )
+}
+
 // ============================================================================
 // Form Validation Schema
 // ============================================================================
@@ -191,6 +205,17 @@ export const channelFormSchema = z
     pass_through_body_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
+    async_image_enabled: z.boolean().optional(),
+    async_image_models: z.string().optional(),
+    async_max_concurrency: z.number().int().min(1).max(100).optional(),
+    async_job_timeout_seconds: z.number().int().min(10).max(3600).optional(),
+    async_retention_minutes: z
+      .number()
+      .int()
+      .min(ASYNC_RETENTION_MINUTES_MIN, 'Retention must be at least 5 minutes.')
+      .max(ASYNC_RETENTION_MINUTES_MAX, 'Retention must not exceed 24 hours.')
+      .optional(),
+    async_auto_archive: z.boolean().optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -238,6 +263,18 @@ export const channelFormSchema = z
           'Base URL is required when an advanced route uses an upstream path'
         )
       }
+    }
+    if (
+      data.async_image_enabled &&
+      !String(data.async_image_models || '')
+        .split(',')
+        .some((model) => model.trim().length > 0)
+    ) {
+      addRequiredIssue(
+        ctx,
+        'async_image_models',
+        'At least one async image model is required'
+      )
     }
 
     if ([3, 18, 21, 39, 41, 49].includes(data.type) && !data.other?.trim()) {
@@ -331,6 +368,12 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   pass_through_body_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
+  async_image_enabled: false,
+  async_image_models: '',
+  async_max_concurrency: 2,
+  async_job_timeout_seconds: ASYNC_JOB_TIMEOUT_SECONDS_DEFAULT,
+  async_retention_minutes: ASYNC_RETENTION_MINUTES_DEFAULT,
+  async_auto_archive: true,
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -369,6 +412,12 @@ export function transformChannelToFormDefaults(
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    async_image_enabled: false,
+    async_image_models: '',
+    async_max_concurrency: 2,
+    async_job_timeout_seconds: ASYNC_JOB_TIMEOUT_SECONDS_DEFAULT,
+    async_retention_minutes: ASYNC_RETENTION_MINUTES_DEFAULT,
+    async_auto_archive: true,
   }
 
   if (channel.setting) {
@@ -381,6 +430,20 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+        async_image_enabled: parsed.async_image_enabled === true,
+        async_image_models: Array.isArray(parsed.async_image_models)
+          ? parsed.async_image_models.join(',')
+          : '',
+        async_max_concurrency: parsed.async_max_concurrency || 2,
+        async_job_timeout_seconds:
+          parsed.async_job_timeout_seconds || ASYNC_JOB_TIMEOUT_SECONDS_DEFAULT,
+        async_retention_minutes: normalizeAsyncRetentionMinutes(
+          parsed.async_retention_minutes ??
+            (parsed.async_retention_days
+              ? parsed.async_retention_days * 24 * 60
+              : ASYNC_RETENTION_MINUTES_DEFAULT)
+        ),
+        async_auto_archive: parsed.async_auto_archive !== false,
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -498,6 +561,22 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+    async_image_enabled: formData.async_image_enabled === true,
+    async_image_models: [
+      ...new Set(
+        String(formData.async_image_models || '')
+          .split(',')
+          .map((model) => model.trim())
+          .filter(Boolean)
+      ),
+    ],
+    async_max_concurrency: formData.async_max_concurrency || 2,
+    async_job_timeout_seconds:
+      formData.async_job_timeout_seconds || ASYNC_JOB_TIMEOUT_SECONDS_DEFAULT,
+    async_retention_minutes: normalizeAsyncRetentionMinutes(
+      formData.async_retention_minutes
+    ),
+    async_auto_archive: formData.async_auto_archive !== false,
   }
   return JSON.stringify(settingObj)
 }
@@ -564,12 +643,15 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.allow_inference_geo = formData.allow_inference_geo === true
   } else {
     if ('disable_store' in settingsObj) delete settingsObj.disable_store
-    if ('allow_safety_identifier' in settingsObj)
+    if ('allow_safety_identifier' in settingsObj) {
       delete settingsObj.allow_safety_identifier
-    if ('allow_include_obfuscation' in settingsObj)
+    }
+    if ('allow_include_obfuscation' in settingsObj) {
       delete settingsObj.allow_include_obfuscation
-    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj)
+    }
+    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj) {
       delete settingsObj.allow_inference_geo
+    }
   }
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed
@@ -592,14 +674,14 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.upstream_model_update_auto_sync_enabled =
       settingsObj.upstream_model_update_check_enabled === true &&
       formData.upstream_model_update_auto_sync_enabled === true
-    settingsObj.upstream_model_update_ignored_models = Array.from(
-      new Set(
+    settingsObj.upstream_model_update_ignored_models = [
+      ...new Set(
         String(formData.upstream_model_update_ignored_models || '')
           .split(',')
           .map((model) => model.trim())
           .filter(Boolean)
-      )
-    )
+      ),
+    ]
     if (
       !Array.isArray(settingsObj.upstream_model_update_last_detected_models) ||
       settingsObj.upstream_model_update_check_enabled !== true

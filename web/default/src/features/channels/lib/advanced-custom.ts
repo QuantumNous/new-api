@@ -208,6 +208,74 @@ const geminiQueryAuth = (): AdvancedCustomRouteAuth => ({
 export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
   [
     {
+      value: 'sub2api_gateway',
+      label: 'Sub2API Gateway',
+      config: {
+        advanced_routes: [
+          {
+            incoming_path: '/v1/chat/completions',
+            upstream_path: '/v1/chat/completions',
+            converter: 'none',
+            auth: bearerHeaderAuth(),
+          },
+          {
+            incoming_path: '/v1/responses',
+            upstream_path: '/v1/responses',
+            converter: 'none',
+            auth: bearerHeaderAuth(),
+          },
+          {
+            incoming_path: '/v1/responses/compact',
+            upstream_path: '/v1/responses/compact',
+            converter: 'none',
+            auth: bearerHeaderAuth(),
+          },
+          {
+            incoming_path: '/v1/messages',
+            upstream_path: '/v1/messages',
+            converter: 'none',
+            auth: bearerHeaderAuth(),
+          },
+          {
+            incoming_path: '/v1/embeddings',
+            upstream_path: '/v1/embeddings',
+            converter: 'none',
+            auth: bearerHeaderAuth(),
+          },
+          {
+            incoming_path: '/v1/images/generations',
+            upstream_path: '/v1/images/generations',
+            converter: 'none',
+            auth: bearerHeaderAuth(),
+          },
+          {
+            incoming_path: '/v1/images/edits',
+            upstream_path: '/v1/images/edits',
+            converter: 'none',
+            auth: bearerHeaderAuth(),
+          },
+          {
+            incoming_path: '/v1beta/models/{model}:generateContent',
+            upstream_path: '/v1beta/models/{model}:generateContent',
+            converter: 'none',
+            auth: bearerHeaderAuth(),
+          },
+          {
+            incoming_path: '/v1beta/models/{model}:embedContent',
+            upstream_path: '/v1beta/models/{model}:embedContent',
+            converter: 'none',
+            auth: bearerHeaderAuth(),
+          },
+          {
+            incoming_path: '/v1beta/models/{model}:batchEmbedContents',
+            upstream_path: '/v1beta/models/{model}:batchEmbedContents',
+            converter: 'none',
+            auth: bearerHeaderAuth(),
+          },
+        ],
+      },
+    },
+    {
       value: 'official_openai_chat',
       label: 'Official OpenAI Chat',
       config: {

@@ -1,0 +1,20 @@
+{
+	admin off
+}
+
+http://localhost {
+	redir https://localhost{uri} permanent
+}
+
+https://localhost {
+	tls internal
+	encode zstd gzip
+	reverse_proxy new-api-api:3000
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		-Server
+	}
+}

@@ -26,6 +26,7 @@ declare module 'axios' {
   export interface AxiosRequestConfig {
     skipBusinessError?: boolean
     skipErrorHandler?: boolean
+    skipAuthReset?: boolean
     disableDuplicate?: boolean
   }
 }
@@ -65,7 +66,8 @@ api.get = ((url: string, config: ApiRequestConfig = {}) => {
   const key = `${url}?${params}`
 
   // Return existing in-flight request if available
-  if (inFlightGet.has(key)) return inFlightGet.get(key)!
+  const inFlightRequest = inFlightGet.get(key)
+  if (inFlightRequest) return inFlightRequest
 
   // Create new request and clean up after completion
   const req = originalGet(url, config).finally(() => inFlightGet.delete(key))
@@ -101,7 +103,7 @@ api.interceptors.response.use(
     const skip = error?.config?.skipErrorHandler
     const status = error?.response?.status
 
-    if (status === 401) {
+    if (status === 401 && !error?.config?.skipAuthReset) {
       try {
         useAuthStore.getState().auth.reset()
       } catch {

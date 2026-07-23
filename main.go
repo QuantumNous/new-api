@@ -25,6 +25,7 @@ import (
 	"github.com/QuantumNous/new-api/oauth"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/asyncwrap"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -75,6 +76,24 @@ func main() {
 			common.FatalLog("failed to close database: " + err.Error())
 		}
 	}()
+
+	appRole := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ROLE")))
+	if appRole == "" {
+		appRole = "api"
+	}
+	if appRole == "worker" {
+		runAsyncWorkerRole()
+		return
+	}
+	if appRole != "api" {
+		common.FatalLog("invalid APP_ROLE: " + appRole + " (expected api or worker)")
+		return
+	}
+	if processed, err := model.ReconcileAsyncBilling(context.Background(), 100); err != nil {
+		common.SysError("async billing startup reconciliation failed: " + err.Error())
+	} else if processed > 0 {
+		common.SysLog(fmt.Sprintf("reconciled %d async billing records", processed))
+	}
 
 	if common.RedisEnabled {
 		// for compatibility with old versions
@@ -246,6 +265,36 @@ func main() {
 		model.SaveQuotaDataCache()
 	}
 	common.SysLog("server exited")
+}
+
+func runAsyncWorkerRole() {
+	service.NewAsyncImageExecutor = func(channel *model.Channel, apiKey string, timeout time.Duration) (service.AsyncImageExecutor, error) {
+		provider, ok := common.AsyncImageProviderForBaseURL(channel.GetBaseURL())
+		if !ok {
+			return nil, fmt.Errorf("channel %d does not use an allowed synchronous image provider", channel.Id)
+		}
+		switch provider {
+		case common.AsyncImageProviderYunwu:
+			return asyncwrap.NewYunwuExecutor(channel.GetBaseURL(), apiKey, timeout)
+		case common.AsyncImageProviderGRSAI:
+			return asyncwrap.NewGRSAIExecutor(channel.GetBaseURL(), apiKey, timeout)
+		default:
+			return nil, fmt.Errorf("channel %d uses an unsupported synchronous image provider", channel.Id)
+		}
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	worker, err := service.NewAsyncWorkerFromEnv(ctx)
+	if err != nil {
+		common.FatalLog("failed to initialize async worker: " + err.Error())
+		return
+	}
+	common.SysLog(fmt.Sprintf("async worker %s started with concurrency %d", worker.ID, worker.Concurrency))
+	if err := worker.Run(ctx); err != nil {
+		common.FatalLog("async worker stopped with error: " + err.Error())
+		return
+	}
+	common.SysLog("async worker stopped")
 }
 
 func InjectUmamiAnalytics() {

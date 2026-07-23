@@ -11,12 +11,68 @@ import (
 )
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat            bool     `json:"force_format,omitempty"`
+	ThinkingToContent      bool     `json:"thinking_to_content,omitempty"`
+	Proxy                  string   `json:"proxy"`
+	PassThroughBodyEnabled bool     `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt           string   `json:"system_prompt,omitempty"`
+	SystemPromptOverride   bool     `json:"system_prompt_override,omitempty"`
+	AsyncImageEnabled      bool     `json:"async_image_enabled,omitempty"`
+	AsyncImageModels       []string `json:"async_image_models,omitempty"`
+	AsyncMaxConcurrency    int      `json:"async_max_concurrency,omitempty"`
+	AsyncJobTimeoutSeconds int      `json:"async_job_timeout_seconds,omitempty"`
+	AsyncRetentionMinutes  int      `json:"async_retention_minutes,omitempty"`
+	// AsyncRetentionDays is retained only for channels saved before minute-level retention was introduced.
+	AsyncRetentionDays int   `json:"async_retention_days,omitempty"`
+	AsyncAutoArchive   *bool `json:"async_auto_archive,omitempty"`
+}
+
+const (
+	AsyncRetentionMinMinutes     = 5
+	AsyncRetentionMaxMinutes     = 24 * 60
+	AsyncRetentionDefaultMinutes = 60
+)
+
+func NormalizeAsyncRetentionMinutes(minutes int) int {
+	if minutes < AsyncRetentionMinMinutes {
+		return AsyncRetentionMinMinutes
+	}
+	if minutes > AsyncRetentionMaxMinutes {
+		return AsyncRetentionMaxMinutes
+	}
+	return minutes
+}
+
+func (s ChannelSettings) EffectiveAsyncRetentionMinutes(fallback int) int {
+	minutes := s.AsyncRetentionMinutes
+	if minutes <= 0 && s.AsyncRetentionDays > 0 {
+		// The old setting was measured in whole days, so every valid legacy value
+		// is at least the new 24-hour upper bound.
+		minutes = AsyncRetentionMaxMinutes
+	}
+	if minutes <= 0 {
+		minutes = fallback
+	}
+	if minutes <= 0 {
+		minutes = AsyncRetentionDefaultMinutes
+	}
+	return NormalizeAsyncRetentionMinutes(minutes)
+}
+
+func (s ChannelSettings) AllowsAsyncImageModel(model string) bool {
+	if !s.AsyncImageEnabled || strings.TrimSpace(model) == "" {
+		return false
+	}
+	for _, allowed := range s.AsyncImageModels {
+		if strings.TrimSpace(allowed) == model {
+			return true
+		}
+	}
+	return false
+}
+
+func (s ChannelSettings) AsyncArchiveEnabled() bool {
+	return s.AsyncAutoArchive == nil || *s.AsyncAutoArchive
 }
 
 type VertexKeyType string

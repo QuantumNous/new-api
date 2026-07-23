@@ -72,6 +72,8 @@ export function buildSearchParams(
       return {
         ...baseParams,
         ...(taskFilters.taskId && { filter: taskFilters.taskId }),
+        ...(taskFilters.platform && { platform: taskFilters.platform }),
+        ...(taskFilters.status && { status: taskFilters.status }),
       }
     }
     default:

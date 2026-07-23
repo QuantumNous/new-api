@@ -1,0 +1,142 @@
+name: new-api-sub2api
+
+services:
+  sub2api:
+    image: ${SUB2API_IMAGE:-sub2api-local:0.1.160-model-test}
+    build:
+      context: ./custom
+      dockerfile: Dockerfile
+      args:
+        VERSION: 0.1.160
+    restart: unless-stopped
+    environment:
+      AUTO_SETUP: "true"
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      SERVER_MODE: release
+      RUN_MODE: simple
+      DATABASE_HOST: sub2api-postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: sub2api
+      DATABASE_PASSWORD: ${SUB2API_POSTGRES_PASSWORD:?SUB2API_POSTGRES_PASSWORD is required}
+      DATABASE_DBNAME: sub2api
+      DATABASE_SSLMODE: disable
+      DATABASE_MAX_OPEN_CONNS: ${SUB2API_DATABASE_MAX_OPEN_CONNS:-50}
+      DATABASE_MAX_IDLE_CONNS: ${SUB2API_DATABASE_MAX_IDLE_CONNS:-10}
+      REDIS_HOST: sub2api-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${SUB2API_REDIS_PASSWORD:?SUB2API_REDIS_PASSWORD is required}
+      REDIS_DB: 0
+      ADMIN_EMAIL: ${SUB2API_ADMIN_EMAIL:?SUB2API_ADMIN_EMAIL is required}
+      ADMIN_PASSWORD: ${SUB2API_ADMIN_PASSWORD:?SUB2API_ADMIN_PASSWORD is required}
+      JWT_SECRET: ${SUB2API_JWT_SECRET:?SUB2API_JWT_SECRET is required}
+      JWT_EXPIRE_HOUR: ${SUB2API_JWT_EXPIRE_HOUR:-24}
+      TOTP_ENCRYPTION_KEY: ${SUB2API_TOTP_ENCRYPTION_KEY:?SUB2API_TOTP_ENCRYPTION_KEY is required}
+      SECURITY_URL_ALLOWLIST_ENABLED: ${SUB2API_URL_ALLOWLIST_ENABLED:-false}
+      SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP: "false"
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "${SUB2API_BIND_HOST:-127.0.0.1}:${SUB2API_PORT:-38080}:8080"
+    volumes:
+      - sub2api_data:/app/data
+    depends_on:
+      sub2api-postgres:
+        condition: service_healthy
+      sub2api-redis:
+        condition: service_healthy
+    networks:
+      sub2api-internal:
+      new-api-backend:
+        aliases:
+          - sub2api-account-pool
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-T",
+          "5",
+          "-O",
+          "/dev/null",
+          "http://localhost:8080/health",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  sub2api-postgres:
+    image: postgres:16.10-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sub2api
+      POSTGRES_PASSWORD: ${SUB2API_POSTGRES_PASSWORD:?SUB2API_POSTGRES_PASSWORD is required}
+      POSTGRES_DB: sub2api
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - sub2api_postgres_data:/var/lib/postgresql/data
+    networks:
+      - sub2api-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sub2api -d sub2api"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  sub2api-redis:
+    image: redis:7.4.5-alpine
+    restart: unless-stopped
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--appendfsync",
+        "everysec",
+        "--requirepass",
+        "${SUB2API_REDIS_PASSWORD:?SUB2API_REDIS_PASSWORD is required}",
+      ]
+    environment:
+      REDISCLI_AUTH: ${SUB2API_REDIS_PASSWORD:?SUB2API_REDIS_PASSWORD is required}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - sub2api_redis_data:/data
+    networks:
+      - sub2api-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  sub2api-testbench:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${SUB2API_BIND_HOST:-127.0.0.1}:${SUB2API_TESTBENCH_PORT:-38081}:8080"
+    volumes:
+      - ./testbench/index.html:/usr/share/nginx/html/index.html:ro
+      - ./testbench/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      sub2api:
+        condition: service_healthy
+    networks:
+      - new-api-backend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  sub2api_data:
+  sub2api_postgres_data:
+  sub2api_redis_data:
+
+networks:
+  sub2api-internal:
+  new-api-backend:
+    external: true
+    name: ${NEW_API_DOCKER_NETWORK:-new-api-async-staging_backend}

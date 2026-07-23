@@ -325,7 +325,12 @@ func SetApiRouter(router *gin.Engine) {
 		taskRoute := apiRouter.Group("/task")
 		{
 			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
+			taskRoute.GET("/self/async/:task_id", middleware.UserAuth(), controller.GetUserAsyncTaskDetail)
+			taskRoute.POST("/self/async/:task_id/cancel", middleware.UserAuth(), controller.CancelUserAsyncTask)
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
+			taskRoute.GET("/async/:task_id", middleware.AdminAuth(), controller.GetAdminAsyncTaskDetail)
+			taskRoute.POST("/async/:task_id/cancel", middleware.AdminAuth(), controller.CancelAdminAsyncTask)
+			taskRoute.POST("/async/:task_id/retry", middleware.AdminAuth(), controller.RetryAdminAsyncTask)
 		}
 
 		vendorRoute := apiRouter.Group("/vendors")

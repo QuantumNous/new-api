@@ -86,6 +86,14 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  async_image_enabled?: boolean
+  async_image_models?: string[]
+  async_max_concurrency?: number
+  async_job_timeout_seconds?: number
+  async_retention_minutes?: number
+  /** Legacy setting read by older saved channels. */
+  async_retention_days?: number
+  async_auto_archive?: boolean
 }
 
 export interface ChannelOtherSettings {

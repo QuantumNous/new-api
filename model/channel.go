@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
@@ -291,6 +292,82 @@ func (channel *Channel) GetModels() []string {
 		return []string{}
 	}
 	return strings.Split(strings.Trim(channel.Models, ","), ",")
+}
+
+// GetAsyncImageChannel selects an enabled channel at the highest configured
+// priority that explicitly enables the asynchronous image wrapper for model.
+// It intentionally queries PostgreSQL rather than the general relay cache so a
+// synchronous-only channel can never be selected for an asynchronous job.
+func GetAsyncImageChannel(group string, modelName string) (*Channel, error) {
+	type candidate struct {
+		Channel
+		AbilityPriority int64 `gorm:"column:ability_priority"`
+		AbilityWeight   uint  `gorm:"column:ability_weight"`
+	}
+
+	load := func(candidateModel string) ([]candidate, error) {
+		var candidates []candidate
+		err := DB.Table("channels").
+			Select("channels.*, abilities.priority AS ability_priority, abilities.weight AS ability_weight").
+			Joins("JOIN abilities ON abilities.channel_id = channels.id").
+			Where("abilities."+commonGroupCol+" = ? AND abilities.model = ? AND abilities.enabled = ?", group, candidateModel, true).
+			Where("channels.status = ?", common.ChannelStatusEnabled).
+			Order("abilities.priority DESC, channels.id ASC").
+			Scan(&candidates).Error
+		return candidates, err
+	}
+
+	candidates, err := load(modelName)
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 {
+		normalized := ratio_setting.FormatMatchingModelName(modelName)
+		if normalized != modelName {
+			candidates, err = load(normalized)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	filtered := make([]candidate, 0, len(candidates))
+	var highestPriority int64
+	for _, item := range candidates {
+		setting := item.GetSetting()
+		if !setting.AllowsAsyncImageModel(modelName) || !setting.AsyncArchiveEnabled() || !common.IsAllowedAsyncImageBaseURL(item.GetBaseURL()) {
+			continue
+		}
+		if len(filtered) == 0 {
+			highestPriority = item.AbilityPriority
+		}
+		if item.AbilityPriority != highestPriority {
+			break
+		}
+		filtered = append(filtered, item)
+	}
+	if len(filtered) == 0 {
+		return nil, nil
+	}
+	if len(filtered) == 1 {
+		channel := filtered[0].Channel
+		return &channel, nil
+	}
+
+	weightSum := 0
+	for _, item := range filtered {
+		weightSum += int(item.AbilityWeight) + 10
+	}
+	target := common.GetRandomInt(weightSum)
+	for _, item := range filtered {
+		target -= int(item.AbilityWeight) + 10
+		if target <= 0 {
+			channel := item.Channel
+			return &channel, nil
+		}
+	}
+	channel := filtered[len(filtered)-1].Channel
+	return &channel, nil
 }
 
 func (channel *Channel) GetGroups() []string {

@@ -59,6 +59,18 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 
+	asyncRouter := router.Group("/v1/async")
+	asyncRouter.Use(middleware.RouteTag("relay"))
+	asyncRouter.Use(middleware.SystemPerformanceCheck())
+	asyncRouter.Use(middleware.TokenAuth())
+	asyncRouter.Use(middleware.ModelRequestRateLimit())
+	{
+		asyncRouter.POST("/images/generations", middleware.AsyncImageDistribute(), controller.SubmitAsyncImageTask)
+		asyncRouter.GET("/tasks/:task_id", controller.GetAsyncTask)
+		asyncRouter.GET("/tasks/:task_id/result", controller.GetAsyncTaskResult)
+		asyncRouter.POST("/tasks/:task_id/cancel", controller.CancelAsyncTask)
+	}
+
 	playgroundRouter := router.Group("/pg")
 	playgroundRouter.Use(middleware.RouteTag("relay"))
 	playgroundRouter.Use(middleware.SystemPerformanceCheck())

@@ -58,6 +58,30 @@ func TestAdvancedCustomValidateResponsesToChatConverterPath(t *testing.T) {
 	}
 }
 
+func TestEffectiveAsyncRetentionMinutes(t *testing.T) {
+	tests := []struct {
+		name     string
+		setting  ChannelSettings
+		fallback int
+		want     int
+	}{
+		{name: "configured minimum", setting: ChannelSettings{AsyncRetentionMinutes: 5}, fallback: 60, want: 5},
+		{name: "configured maximum", setting: ChannelSettings{AsyncRetentionMinutes: 1440}, fallback: 60, want: 1440},
+		{name: "configured value below minimum is bounded", setting: ChannelSettings{AsyncRetentionMinutes: 1}, fallback: 60, want: 5},
+		{name: "configured value above maximum is bounded", setting: ChannelSettings{AsyncRetentionMinutes: 2000}, fallback: 60, want: 1440},
+		{name: "legacy one day setting", setting: ChannelSettings{AsyncRetentionDays: 1}, fallback: 60, want: 1440},
+		{name: "legacy multi-day setting is bounded", setting: ChannelSettings{AsyncRetentionDays: 30}, fallback: 60, want: 1440},
+		{name: "environment fallback", setting: ChannelSettings{}, fallback: 90, want: 90},
+		{name: "invalid fallback uses default", setting: ChannelSettings{}, fallback: 0, want: AsyncRetentionDefaultMinutes},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.setting.EffectiveAsyncRetentionMinutes(tt.fallback))
+		})
+	}
+}
+
 func TestAdvancedCustomValidateDuplicateIncomingPathWithDisjointModels(t *testing.T) {
 	config := &AdvancedCustomConfig{
 		Routes: []AdvancedCustomRoute{
