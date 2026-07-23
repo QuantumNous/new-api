@@ -307,6 +307,14 @@ DESCRIPTORS: list[ProviderDescriptor] = [
         recommended_model="mistral-large-latest",
         env_key="MISTRAL_API_KEY",
     ),
+    _compat(
+        "meta",
+        "Meta (Muse Spark)",
+        base_url="https://api.meta.ai/v1",
+        recommended_model="muse-spark-1.1",
+        env_key="META_API_KEY",
+        endpoint_help="Prefilled with the Meta Model API endpoint (public preview, US-only as of 2026-07).",
+    ),
     # Resellers: many labs' models behind one key, using THEIR model namespaces (the curated
     # ids + display labels live in providers/matrix.py). TODO: add Groq and OpenRouter here
     # (+ their matrix rows) once the current provider surface is tested — deliberately
