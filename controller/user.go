@@ -228,6 +228,19 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	if common.RegistrationCodeEnabled {
+		user.RegistrationCode = strings.TrimSpace(user.RegistrationCode)
+		if user.RegistrationCode == "" {
+			common.ApiErrorI18n(c, i18n.MsgRegistrationCodeRequired)
+			return
+		}
+		// Fast fail for UX; the authoritative check happens atomically in the
+		// registration transaction below.
+		if err := model.CheckRegistrationCodeUsable(user.RegistrationCode); err != nil {
+			apiErrorRegistrationCode(c, err)
+			return
+		}
+	}
 	if common.EmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
@@ -272,7 +285,25 @@ func Register(c *gin.Context) {
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
-	if err := cleanUser.Insert(inviterId); err != nil {
+	if common.RegistrationCodeEnabled {
+		// Create the user and consume the code in one transaction so a
+		// concurrently stolen code rolls back the whole registration.
+		err = model.DB.Transaction(func(tx *gorm.DB) error {
+			if err := cleanUser.InsertWithTx(tx, inviterId); err != nil {
+				return err
+			}
+			return model.ConsumeRegistrationCodeWithTx(tx, user.RegistrationCode, cleanUser.Id)
+		})
+		if err != nil {
+			if errors.Is(err, model.ErrEmailAlreadyTaken) {
+				common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+				return
+			}
+			apiErrorRegistrationCode(c, err)
+			return
+		}
+		cleanUser.FinishInsert(inviterId)
+	} else if err := cleanUser.Insert(inviterId); err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
 			return

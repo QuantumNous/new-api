@@ -188,6 +188,17 @@ export async function register(payload: RegisterPayload): Promise<ApiResponse> {
   return res.data
 }
 
+// Complete an OAuth registration that requires a registration code
+export async function completeOAuthRegistration(payload: {
+  flow_token: string
+  registration_code: string
+}): Promise<ApiResponse> {
+  const res = await api.post('/api/oauth/complete_registration', payload, {
+    skipBusinessError: true,
+  })
+  return res.data
+}
+
 // Send email verification code
 export async function sendEmailVerification(
   email: string,

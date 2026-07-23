@@ -206,6 +206,8 @@ func HandleOAuth(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
 		case *OAuthEmailAlreadyTakenError:
 			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+		case *OAuthRegistrationCodeRequiredError:
+			startOAuthRegistrationFlow(c, providerName, err.(*OAuthRegistrationCodeRequiredError))
 		default:
 			common.ApiError(c, err)
 		}
@@ -335,7 +337,38 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		return nil, &OAuthRegistrationDisabledError{}
 	}
 
-	// Set up new user
+	// When registration codes are required, defer user creation until the code
+	// is submitted via CompleteOAuthRegistration. Existing users never reach here.
+	if common.RegistrationCodeEnabled {
+		return nil, &OAuthRegistrationCodeRequiredError{
+			OAuthUser:     oauthUser,
+			AffiliateCode: affiliateCode,
+		}
+	}
+
+	// Handle affiliate code
+	inviterId := 0
+	if affiliateCode != "" {
+		inviterId, _ = model.GetUserIdByAffCode(affiliateCode)
+	}
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		return createOAuthUserWithTx(tx, provider, oauthUser, user, inviterId)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform post-transaction tasks (logs, sidebar config, inviter rewards)
+	user.FinalizeOAuthUserCreation(inviterId)
+
+	return user, nil
+}
+
+// createOAuthUserWithTx populates user and creates it together with its OAuth
+// binding inside the caller's transaction. Callers must run
+// user.FinalizeOAuthUserCreation(inviterId) after the transaction commits.
+func createOAuthUserWithTx(tx *gorm.DB, provider oauth.Provider, oauthUser *oauth.OAuthUser, user *model.User, inviterId int) error {
 	user.Username = provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)
 
 	if oauthUser.Username != "" {
@@ -358,79 +391,38 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		user.Email = model.NormalizeEmail(oauthUser.Email)
 		if err := model.EnsureEmailAvailable(user.Email, 0); err != nil {
 			if errors.Is(err, model.ErrEmailAlreadyTaken) {
-				return nil, &OAuthEmailAlreadyTakenError{}
+				return &OAuthEmailAlreadyTakenError{}
 			}
-			return nil, err
+			return err
 		}
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 
-	// Handle affiliate code
-	inviterId := 0
-	if affiliateCode != "" {
-		inviterId, _ = model.GetUserIdByAffCode(affiliateCode)
+	if err := user.InsertWithTx(tx, inviterId); err != nil {
+		return err
 	}
 
-	// Use transaction to ensure user creation and OAuth binding are atomic
 	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
-		// Custom provider: create user and binding in a transaction
-		err := model.DB.Transaction(func(tx *gorm.DB) error {
-			// Create user
-			if err := user.InsertWithTx(tx, inviterId); err != nil {
-				return err
-			}
-
-			// Create OAuth binding
-			binding := &model.UserOAuthBinding{
-				UserId:         user.Id,
-				ProviderId:     genericProvider.GetProviderId(),
-				ProviderUserId: oauthUser.ProviderUserID,
-			}
-			if err := model.CreateUserOAuthBindingWithTx(tx, binding); err != nil {
-				return err
-			}
-
-			return nil
-		})
-		if err != nil {
-			return nil, err
+		// Custom provider: use user_oauth_bindings table
+		binding := &model.UserOAuthBinding{
+			UserId:         user.Id,
+			ProviderId:     genericProvider.GetProviderId(),
+			ProviderUserId: oauthUser.ProviderUserID,
 		}
-
-		// Perform post-transaction tasks (logs, sidebar config, inviter rewards)
-		user.FinalizeOAuthUserCreation(inviterId)
-	} else {
-		// Built-in provider: create user and update provider ID in a transaction
-		err := model.DB.Transaction(func(tx *gorm.DB) error {
-			// Create user
-			if err := user.InsertWithTx(tx, inviterId); err != nil {
-				return err
-			}
-
-			// Set the provider user ID on the user model and update
-			provider.SetProviderUserID(user, oauthUser.ProviderUserID)
-			if err := tx.Model(user).Updates(map[string]interface{}{
-				"github_id":   user.GitHubId,
-				"discord_id":  user.DiscordId,
-				"oidc_id":     user.OidcId,
-				"linux_do_id": user.LinuxDOId,
-				"wechat_id":   user.WeChatId,
-				"telegram_id": user.TelegramId,
-			}).Error; err != nil {
-				return err
-			}
-
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		// Perform post-transaction tasks
-		user.FinalizeOAuthUserCreation(inviterId)
+		return model.CreateUserOAuthBindingWithTx(tx, binding)
 	}
 
-	return user, nil
+	// Built-in provider: set the provider user ID on the user record directly
+	provider.SetProviderUserID(user, oauthUser.ProviderUserID)
+	return tx.Model(user).Updates(map[string]interface{}{
+		"github_id":   user.GitHubId,
+		"discord_id":  user.DiscordId,
+		"oidc_id":     user.OidcId,
+		"linux_do_id": user.LinuxDOId,
+		"wechat_id":   user.WeChatId,
+		"telegram_id": user.TelegramId,
+	}).Error
 }
 
 // Error types for OAuth
@@ -450,6 +442,148 @@ type OAuthEmailAlreadyTakenError struct{}
 
 func (e *OAuthEmailAlreadyTakenError) Error() string {
 	return "email is already in use"
+}
+
+// OAuthRegistrationCodeRequiredError signals that the OAuth identity is new
+// and must submit a registration code before the account is created.
+type OAuthRegistrationCodeRequiredError struct {
+	OAuthUser     *oauth.OAuthUser
+	AffiliateCode string
+}
+
+func (e *OAuthRegistrationCodeRequiredError) Error() string {
+	return "registration code is required"
+}
+
+// oauthRegisterFlowPayload is persisted in the pending oauth_register auth
+// flow between the OAuth callback and registration code submission.
+type oauthRegisterFlowPayload struct {
+	ProviderUserID string `json:"provider_user_id"`
+	Username       string `json:"username,omitempty"`
+	DisplayName    string `json:"display_name,omitempty"`
+	Email          string `json:"email,omitempty"`
+	AffiliateCode  string `json:"affiliate_code,omitempty"`
+}
+
+// startOAuthRegistrationFlow stores the resolved OAuth identity in a pending
+// auth flow and asks the client for a registration code.
+func startOAuthRegistrationFlow(c *gin.Context, providerName string, e *OAuthRegistrationCodeRequiredError) {
+	payload, err := common.Marshal(oauthRegisterFlowPayload{
+		ProviderUserID: e.OAuthUser.ProviderUserID,
+		Username:       e.OAuthUser.Username,
+		DisplayName:    e.OAuthUser.DisplayName,
+		Email:          e.OAuthUser.Email,
+		AffiliateCode:  e.AffiliateCode,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	flowToken, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose:   model.AuthFlowPurposeOAuthRegister,
+		Provider:  providerName,
+		Payload:   string(payload),
+		ExpiresAt: time.Now().Add(oauthAuthFlowTTL),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": i18n.T(c, i18n.MsgRegistrationCodeRequired),
+		"data": gin.H{
+			"registration_code_required": true,
+			"flow_token":                 flowToken,
+		},
+	})
+}
+
+// CompleteOAuthRegistration finishes a pending OAuth registration by consuming
+// the auth flow, creating the user and consuming the registration code in one
+// transaction. On failure the flow stays unconsumed so the user can retry.
+func CompleteOAuthRegistration(c *gin.Context) {
+	var request struct {
+		FlowToken        string `json:"flow_token"`
+		RegistrationCode string `json:"registration_code"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	request.FlowToken = strings.TrimSpace(request.FlowToken)
+	request.RegistrationCode = strings.TrimSpace(request.RegistrationCode)
+	if request.FlowToken == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if request.RegistrationCode == "" {
+		common.ApiErrorI18n(c, i18n.MsgRegistrationCodeRequired)
+		return
+	}
+
+	user := &model.User{}
+	inviterId := 0
+	_, err := model.ConsumeAuthFlowWithAction(request.FlowToken, model.AuthFlowMatch{
+		Purpose: model.AuthFlowPurposeOAuthRegister,
+	}, func(tx *gorm.DB, flow *model.AuthFlow) error {
+		var payload oauthRegisterFlowPayload
+		if err := common.UnmarshalJsonStr(flow.Payload, &payload); err != nil {
+			return err
+		}
+		provider := oauth.GetProvider(flow.Provider)
+		if provider == nil || !provider.IsEnabled() {
+			return model.ErrAuthFlowInvalid
+		}
+		// Re-check the outer registration gate: turning it off must also stop
+		// pending OAuth registrations.
+		if !common.RegisterEnabled {
+			return &OAuthRegistrationDisabledError{}
+		}
+		// The same OAuth account may have completed registration in another
+		// flow meanwhile.
+		if provider.IsUserIDTaken(payload.ProviderUserID) {
+			return model.ErrAuthFlowInvalid
+		}
+		if payload.AffiliateCode != "" {
+			inviterId, _ = model.GetUserIdByAffCode(payload.AffiliateCode)
+		}
+		oauthUser := &oauth.OAuthUser{
+			ProviderUserID: payload.ProviderUserID,
+			Username:       payload.Username,
+			DisplayName:    payload.DisplayName,
+			Email:          payload.Email,
+		}
+		if err := createOAuthUserWithTx(tx, provider, oauthUser, user, inviterId); err != nil {
+			return err
+		}
+		return model.ConsumeRegistrationCodeWithTx(tx, request.RegistrationCode, user.Id)
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, model.ErrAuthFlowInvalid), errors.Is(err, model.ErrAuthFlowExpired), errors.Is(err, model.ErrAuthFlowConsumed):
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+		default:
+			switch err.(type) {
+			case *OAuthRegistrationDisabledError:
+				common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+			case *OAuthEmailAlreadyTakenError:
+				common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+			default:
+				apiErrorRegistrationCode(c, err)
+			}
+		}
+		return
+	}
+
+	user.FinalizeOAuthUserCreation(inviterId)
+
+	if user.Status != common.UserStatusEnabled {
+		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
+		return
+	}
+
+	setupLogin(user, c)
 }
 
 // handleOAuthError handles OAuth errors and returns translated message

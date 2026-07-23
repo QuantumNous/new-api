@@ -69,6 +69,16 @@ const (
 	MsgRedemptionFailed            = "redemption.failed"
 	MsgRedemptionNotProvided       = "redemption.not_provided"
 	MsgRedemptionExpireTimeInvalid = "redemption.expire_time_invalid"
+
+	MsgRegistrationCodeNameLength        = "registration_code.name_length"
+	MsgRegistrationCodeCountPositive     = "registration_code.count_positive"
+	MsgRegistrationCodeCountMax          = "registration_code.count_max"
+	MsgRegistrationCodeCreateFailed      = "registration_code.create_failed"
+	MsgRegistrationCodeInvalid           = "registration_code.invalid"
+	MsgRegistrationCodeUsed              = "registration_code.used"
+	MsgRegistrationCodeExpired           = "registration_code.expired"
+	MsgRegistrationCodeRequired          = "registration_code.required"
+	MsgRegistrationCodeExpireTimeInvalid = "registration_code.expire_time_invalid"
 )
 
 // User related messages
