@@ -104,9 +104,28 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 }
 
 func GetChannel(group string, model string, retry int) (*Channel, error) {
+	return GetChannelWithPolicy(group, model, retry, false)
+}
+
+// GetChannelWithPolicy is the database-backed equivalent of
+// GetRandomSatisfiedChannelWithPolicy.
+func GetChannelWithPolicy(group string, model string, retry int, stopAtExhaustion bool) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
+	if stopAtExhaustion {
+		var priorityCount int64
+		err = DB.Model(&Ability{}).
+			Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+			Distinct("priority").
+			Count(&priorityCount).Error
+		if err != nil {
+			return nil, err
+		}
+		if retry >= int(priorityCount) {
+			return nil, nil
+		}
+	}
 	channelQuery, err := getChannelQuery(group, model, retry)
 	if err != nil {
 		return nil, err

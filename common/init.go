@@ -104,6 +104,20 @@ func InitEnv() {
 	RelayTimeout = GetEnvOrDefault("RELAY_TIMEOUT", 0)
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
+	SafeFailoverV1Enabled = GetEnvOrDefaultBool("SAFE_FAILOVER_V1", false)
+	SafeFailoverMaxAttempts = GetEnvOrDefault("SAFE_FAILOVER_MAX_ATTEMPTS", 1)
+	if SafeFailoverMaxAttempts < 0 {
+		SafeFailoverMaxAttempts = 0
+	}
+	if SafeFailoverMaxAttempts > 1 {
+		SysLog("SAFE_FAILOVER_MAX_ATTEMPTS is capped at 1 for SAFE_FAILOVER_V1")
+		SafeFailoverMaxAttempts = 1
+	}
+	SafeFailoverImageGuardSeconds = GetEnvOrDefault("SAFE_FAILOVER_IMAGE_GUARD_SECONDS", 60)
+	if SafeFailoverImageGuardSeconds < 1 {
+		SysLog("SAFE_FAILOVER_IMAGE_GUARD_SECONDS must be positive; using 60")
+		SafeFailoverImageGuardSeconds = 60
+	}
 
 	// Initialize string variables with GetEnvOrDefaultString
 	GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")

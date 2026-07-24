@@ -131,6 +131,20 @@ var PreConsumedQuota = 500
 
 var RetryTimes = 0
 
+// SafeFailoverV1Enabled gates the stage-aware channel failover policy.
+// It defaults to false so deploying a new binary does not change routing
+// until the target node explicitly opts in.
+var SafeFailoverV1Enabled = false
+
+// SafeFailoverMaxAttempts is the maximum number of cross-channel retries
+// after the initial attempt. V1 intentionally caps this at one.
+var SafeFailoverMaxAttempts = 1
+
+// SafeFailoverImageGuardSeconds is a conservative upper bound for proving
+// that an image request has not entered an irreversible generation stage.
+// Reaching this bound blocks failover; it never triggers a retry.
+var SafeFailoverImageGuardSeconds = 60
+
 //var RootUserEmail = ""
 
 var IsMasterNode bool

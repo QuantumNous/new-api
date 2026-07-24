@@ -179,15 +179,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}()
 
 	retryParam := &service.RetryParam{
-		Ctx:        c,
-		TokenGroup: relayInfo.TokenGroup,
-		ModelName:  relayInfo.OriginModelName,
-		Retry:      common.GetPointer(0),
+		Ctx:              c,
+		TokenGroup:       relayInfo.TokenGroup,
+		ModelName:        relayInfo.OriginModelName,
+		Retry:            common.GetPointer(0),
+		StopAtExhaustion: common.SafeFailoverV1Enabled,
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	maxRetries := effectiveRelayRetryTimes()
+
+	for ; retryParam.GetRetry() <= maxRetries; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
@@ -209,6 +212,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		attemptStartedAt := time.Now()
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
@@ -230,7 +234,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetry(c, relayInfo, newAPIError, maxRetries-retryParam.GetRetry(), time.Since(attemptStartedAt)) {
 			break
 		}
 	}
@@ -245,6 +249,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func effectiveRelayRetryTimes() int {
+	if common.SafeFailoverV1Enabled {
+		return common.SafeFailoverMaxAttempts
+	}
+	return common.RetryTimes
 }
 
 var upgrader = websocket.Upgrader{
@@ -321,12 +332,48 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	return channel, nil
 }
 
-func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
+func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.NewAPIError, retryTimes int, attemptElapsed time.Duration) bool {
 	if openaiErr == nil {
 		return false
 	}
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		return false
+	}
+	if common.SafeFailoverV1Enabled {
+		if retryTimes <= 0 {
+			return false
+		}
+		if _, ok := c.Get("specific_channel_id"); ok {
+			return false
+		}
+		responseWritten := c.Writer != nil && c.Writer.Written()
+		requestContextErr := error(nil)
+		if c.Request != nil {
+			requestContextErr = c.Request.Context().Err()
+		}
+		decision := service.EvaluateSafeFailover(service.SafeFailoverInput{
+			RetryIndex:            info.RetryIndex,
+			MaxAttempts:           common.SafeFailoverMaxAttempts,
+			RelayMode:             info.RelayMode,
+			ModelName:             info.OriginModelName,
+			IsStream:              info.IsStream,
+			ResponseWritten:       responseWritten,
+			ReceivedResponseCount: info.ReceivedResponseCount,
+			AttemptElapsed:        attemptElapsed,
+			ImageGuard:            time.Duration(common.SafeFailoverImageGuardSeconds) * time.Second,
+			RequestContextErr:     requestContextErr,
+			Error:                 openaiErr,
+		})
+		logger.LogInfo(c, fmt.Sprintf(
+			"safe failover decision: retry=%t reason=%s attempt=%d status=%d error_code=%s elapsed_ms=%d",
+			decision.Retry,
+			decision.Reason,
+			info.RetryIndex,
+			openaiErr.StatusCode,
+			openaiErr.GetErrorCode(),
+			attemptElapsed.Milliseconds(),
+		))
+		return decision.Retry
 	}
 	if types.IsChannelError(openaiErr) {
 		return true

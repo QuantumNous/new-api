@@ -12,11 +12,14 @@ import (
 )
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	Retry        *int
-	resetNextTry bool
+	Ctx        *gin.Context
+	TokenGroup string
+	ModelName  string
+	Retry      *int
+	// StopAtExhaustion prevents retries from being clamped to the lowest
+	// priority and selecting the same fallback tier repeatedly.
+	StopAtExhaustion bool
+	resetNextTry     bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -115,7 +118,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = model.GetRandomSatisfiedChannelWithPolicy(autoGroup, param.ModelName, priorityRetry, param.StopAtExhaustion)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,7 +156,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = model.GetRandomSatisfiedChannelWithPolicy(param.TokenGroup, param.ModelName, param.GetRetry(), param.StopAtExhaustion)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
