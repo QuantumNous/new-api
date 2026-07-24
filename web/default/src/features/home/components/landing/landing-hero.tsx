@@ -21,6 +21,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import ribbonAnimation from '@/assets/home/alltokenapi-smooth-ribbon-loop-v3.webp'
 import { Button } from '@/components/ui/button'
 
 import { ProviderMarquee } from './provider-marquee'
@@ -28,6 +29,33 @@ import { ProviderMarquee } from './provider-marquee'
 interface LandingHeroProps {
   isAuthenticated: boolean
   catalogAvailable: boolean
+}
+
+function HeroRibbonBackdrop() {
+  return (
+    <div
+      aria-hidden='true'
+      className='pointer-events-none absolute inset-x-0 top-[8%] z-0 h-[64%] overflow-hidden'
+    >
+      <div className='absolute inset-0 overflow-hidden'>
+        <img
+          src={ribbonAnimation}
+          alt=''
+          width={1200}
+          height={646}
+          decoding='async'
+          className='landing-hero-ribbon-source absolute top-[-12%] left-1/2 max-w-none -translate-x-1/2'
+        />
+      </div>
+      <div className='from-background/80 to-background/80 absolute inset-0 bg-gradient-to-r via-transparent' />
+      <div className='landing-hero-ribbon-glow absolute inset-x-[4%] top-[17%] h-[62%]' />
+      <span className='landing-hero-ribbon-wave landing-hero-ribbon-wave-mint absolute' />
+      <span className='landing-hero-ribbon-wave landing-hero-ribbon-wave-lavender absolute' />
+      <span className='landing-hero-ribbon-wave landing-hero-ribbon-wave-pink absolute' />
+      <div className='landing-hero-ribbon-veil absolute inset-x-[12%] top-[24%] h-[50%]' />
+      <div className='landing-hero-stardust absolute inset-0' />
+    </div>
+  )
 }
 
 export function LandingHero(props: LandingHeroProps) {
@@ -43,24 +71,18 @@ export function LandingHero(props: LandingHeroProps) {
 
   return (
     <section className='border-border/70 relative grid min-h-svh min-w-0 grid-rows-[31svh_auto_1fr] overflow-hidden border-b sm:grid-rows-[27svh_auto_1fr]'>
-      <div aria-hidden='true' className='pointer-events-none absolute inset-0'>
-        <span className='bg-primary/15 absolute top-[38%] left-[7%] h-px w-[42%] -rotate-12' />
-        <span className='bg-primary/15 absolute top-[32%] right-[4%] h-px w-[42%] rotate-12' />
-        <span className='bg-primary/10 absolute bottom-[24%] left-[32%] h-px w-[36%] rotate-6' />
-        <span className='border-primary/25 bg-background absolute top-[30%] left-[18%] size-1.5 rounded-[2px] border' />
-        <span className='border-primary/25 bg-background absolute top-[40%] right-[18%] size-1.5 rounded-[2px] border' />
-      </div>
+      <HeroRibbonBackdrop />
 
       <div className='relative row-start-2 mx-auto flex w-full max-w-6xl min-w-0 flex-col items-center px-4 text-center sm:px-6'>
-        <h1 className='text-foreground text-4xl leading-[1.08] font-bold sm:text-5xl lg:text-6xl'>
+        <h1 className='text-foreground relative z-10 max-w-[calc(100vw-2rem)] text-3xl leading-[1.12] font-bold sm:max-w-4xl sm:text-5xl lg:text-6xl'>
           {t('One API key')}
           <br />
           {t('Connect to global AI models')}
         </h1>
-        <p className='text-muted-foreground mt-5 max-w-2xl text-base leading-7 font-medium sm:text-lg'>
+        <p className='text-muted-foreground relative z-10 mt-5 max-w-2xl text-base leading-7 font-medium sm:text-lg'>
           {t('Prices start at less than 1/100 of official rates.')}
         </p>
-        <div className='mt-7 flex flex-wrap items-center justify-center gap-3 lg:mt-10'>
+        <div className='relative z-10 mt-7 flex flex-wrap items-center justify-center gap-3 lg:mt-10'>
           <Button
             size='lg'
             className='h-11 px-5'
@@ -70,7 +92,7 @@ export function LandingHero(props: LandingHeroProps) {
             <HugeiconsIcon icon={ArrowRight01Icon} data-icon='inline-end' />
           </Button>
           <Button
-            variant='outline'
+            variant='ghost'
             size='lg'
             className='h-11 px-5'
             render={<Link to={secondaryPath} />}

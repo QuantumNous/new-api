@@ -29,14 +29,14 @@ type ProviderMarqueeItem = {
 }
 
 const PROVIDERS: PricingVendor[] = [
-  { id: 1, name: 'Claude', icon: 'Claude.Color' },
-  { id: 2, name: 'Gemini', icon: 'Gemini.Color' },
-  { id: 3, name: 'Grok', icon: "Grok.Avatar.shape={'square'}" },
+  { id: 1, name: 'Grok', icon: "Grok.Avatar.shape={'square'}" },
   {
-    id: 4,
+    id: 2,
     name: 'ChatGPT',
     icon: "OpenAI.Avatar.type={'platform'}.shape={'square'}",
   },
+  { id: 3, name: 'Claude', icon: 'Claude.Color' },
+  { id: 4, name: 'Gemini', icon: 'Gemini.Color' },
 ]
 
 const PROVIDER_MARQUEE_ITEMS = fillProviderMarquee(PROVIDERS).map(
