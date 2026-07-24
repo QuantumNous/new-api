@@ -19,6 +19,7 @@ import (
 
 const KeyRequestBody = "key_request_body"
 const KeyBodyStorage = "key_body_storage"
+const KeySeedanceOfficialAPI = "seedance_official_api"
 
 var ErrRequestBodyTooLarge = errors.New("request body too large")
 
