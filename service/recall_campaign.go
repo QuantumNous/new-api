@@ -422,7 +422,7 @@ func (b *recallExportBuffer) Bytes() []byte {
 }
 
 func (s *RecallCampaignService) ValidateStripe(ctx context.Context, draft RecallCampaignDraft) (RecallStripePreview, error) {
-	if err := recallCampaignGate(ctx); err != nil {
+	if err := validateRecallCampaignContext(ctx); err != nil {
 		return RecallStripePreview{}, err
 	}
 	normalized, err := validateAndNormalizeRecallCampaignDraft(draft, s.now())
@@ -530,7 +530,7 @@ func recallAdminSourceEventID(ctx context.Context, action string, fallbackIdenti
 }
 
 func (s *RecallCampaignService) SaveDraft(ctx context.Context, actorID int, draft RecallCampaignDraft) (*model.RecallCampaign, error) {
-	if err := recallCampaignGate(ctx); err != nil {
+	if err := validateRecallCampaignContext(ctx); err != nil {
 		return nil, err
 	}
 	if actorID <= 0 {
@@ -559,7 +559,7 @@ func (s *RecallCampaignService) SaveDraft(ctx context.Context, actorID int, draf
 }
 
 func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id int64, draft RecallCampaignDraft) (*model.RecallCampaign, error) {
-	if err := recallCampaignGate(ctx); err != nil {
+	if err := validateRecallCampaignContext(ctx); err != nil {
 		return nil, err
 	}
 	if actorID <= 0 || id <= 0 {
@@ -648,7 +648,7 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 }
 
 func (s *RecallCampaignService) Preview(ctx context.Context, id int64, sampleSize int) (RecallAudiencePreview, RecallStripePreview, error) {
-	if err := recallCampaignGate(ctx); err != nil {
+	if err := validateRecallCampaignContext(ctx); err != nil {
 		return RecallAudiencePreview{}, RecallStripePreview{}, err
 	}
 	if id <= 0 {
@@ -1214,14 +1214,21 @@ func recallCampaignActivationFields(draft RecallCampaignDraft, couponID string, 
 }
 
 func recallCampaignGate(ctx context.Context) error {
+	if err := validateRecallCampaignContext(ctx); err != nil {
+		return err
+	}
+	if !operation_setting.IsRecallCampaignEnabled() {
+		return ErrRecallDisabled
+	}
+	return nil
+}
+
+func validateRecallCampaignContext(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("recall campaign context is nil")
 	}
 	if err := ctx.Err(); err != nil {
 		return err
-	}
-	if !operation_setting.IsRecallCampaignEnabled() {
-		return ErrRecallDisabled
 	}
 	return nil
 }

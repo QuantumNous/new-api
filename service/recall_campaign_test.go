@@ -2098,7 +2098,7 @@ func TestRecallCampaignRetryTreatsOnlyExpiredSendingAsAcknowledgedUncertainty(t 
 	require.True(t, won)
 }
 
-func TestRecallCampaignAllEntryPointsRespectFeatureGate(t *testing.T) {
+func TestRecallCampaignConfigurationEntryPointsRemainAvailableWhenRuntimeDisabled(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
 	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
@@ -2108,12 +2108,32 @@ func TestRecallCampaignAllEntryPointsRespectFeatureGate(t *testing.T) {
 	require.NoError(t, err)
 	loadRecallCampaignEnabled(t, false)
 
-	_, err = service.SaveDraft(context.Background(), 7, validRecallCampaignDraft(now))
-	require.ErrorIs(t, err, ErrRecallDisabled)
-	_, err = service.UpdateDraft(context.Background(), 7, campaign.Id, validRecallCampaignDraft(now))
-	require.ErrorIs(t, err, ErrRecallDisabled)
+	created, err := service.SaveDraft(context.Background(), 7, validRecallCampaignDraft(now))
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignDraft, created.Status)
+
+	updatedDraft := validRecallCampaignDraft(now)
+	updatedDraft.Name = "Editable while recall is paused"
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, updatedDraft)
+	require.NoError(t, err)
+	require.Equal(t, updatedDraft.Name, updated.Name)
+
 	_, _, err = service.Preview(context.Background(), campaign.Id, 1)
-	require.ErrorIs(t, err, ErrRecallDisabled)
+	require.NoError(t, err)
+	_, err = service.ValidateStripe(context.Background(), updatedDraft)
+	require.NoError(t, err)
+}
+
+func TestRecallCampaignExecutionEntryPointsRespectFeatureGate(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, validRecallCampaignDraft(now))
+	require.NoError(t, err)
+	loadRecallCampaignEnabled(t, false)
+
 	for _, action := range []func(context.Context, int, int64) error{
 		service.Activate,
 		service.Pause,

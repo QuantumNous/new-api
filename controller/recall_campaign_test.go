@@ -525,8 +525,9 @@ func TestRecallCampaignEmailPreviewRejectsInvalidHTMLWithoutPersistence(t *testi
 	require.Equal(t, beforeMessages, countRecallControllerRows[model.RecallMessage](t, harness.db))
 }
 
-func TestRecallCampaignDisabledRejectsMutationAndWorkerAffectingHandlers(t *testing.T) {
+func TestRecallCampaignDisabledAllowsConfigurationHandlers(t *testing.T) {
 	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
 	setRecallControllerEnabled(t, false)
 	body := recallControllerJSON(t, recallControllerDraft())
 
@@ -538,20 +539,43 @@ func TestRecallCampaignDisabledRejectsMutationAndWorkerAffectingHandlers(t *test
 		params  gin.Params
 	}{
 		{name: "create", handler: CreateRecallCampaign, method: http.MethodPost, body: body},
-		{name: "update", handler: UpdateRecallCampaign, method: http.MethodPut, body: body, params: gin.Params{{Key: "id", Value: "1"}}},
-		{name: "preview", handler: PreviewRecallCampaign, method: http.MethodPost, params: gin.Params{{Key: "id", Value: "1"}}},
-		{name: "activate", handler: ActivateRecallCampaign, method: http.MethodPost, params: gin.Params{{Key: "id", Value: "1"}}},
-		{name: "pause", handler: PauseRecallCampaign, method: http.MethodPost, params: gin.Params{{Key: "id", Value: "1"}}},
-		{name: "resume", handler: ResumeRecallCampaign, method: http.MethodPost, params: gin.Params{{Key: "id", Value: "1"}}},
-		{name: "cancel", handler: CancelRecallCampaign, method: http.MethodPost, params: gin.Params{{Key: "id", Value: "1"}}},
-		{name: "complete", handler: CompleteRecallCampaign, method: http.MethodPost, params: gin.Params{{Key: "id", Value: "1"}}},
-		{name: "retry", handler: RetryRecallRecipient, method: http.MethodPost, body: []byte(`{}`), params: gin.Params{{Key: "id", Value: "1"}, {Key: "rid", Value: "1"}}},
+		{name: "update", handler: UpdateRecallCampaign, method: http.MethodPut, body: body, params: gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}}},
+		{name: "preview", handler: PreviewRecallCampaign, method: http.MethodPost, params: gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}}},
 		{name: "stripe validate", handler: ValidateRecallStripeConfig, method: http.MethodPost, body: body},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := invokeRecallHandler(t, tt.handler, tt.method, "/", tt.body, 7, tt.params)
+			require.Equal(t, true, decodeRecallEnvelope(t, recorder)["success"])
+		})
+	}
+	require.Zero(t, harness.stripe.createCoupon)
+	require.Zero(t, harness.stripe.createCustomer)
+	require.Zero(t, harness.stripe.createPromotionCode)
+}
+
+func TestRecallCampaignDisabledRejectsExecutionAndWorkerAffectingHandlers(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
+	setRecallControllerEnabled(t, false)
+
+	tests := []struct {
+		name    string
+		handler gin.HandlerFunc
+		params  gin.Params
+	}{
+		{name: "activate", handler: ActivateRecallCampaign, params: gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}}},
+		{name: "pause", handler: PauseRecallCampaign, params: gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}}},
+		{name: "resume", handler: ResumeRecallCampaign, params: gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}}},
+		{name: "cancel", handler: CancelRecallCampaign, params: gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}}},
+		{name: "complete", handler: CompleteRecallCampaign, params: gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}}},
+		{name: "retry", handler: RetryRecallRecipient, params: gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "rid", Value: "1"}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := invokeRecallHandler(t, tt.handler, http.MethodPost, "/", []byte(`{}`), 7, tt.params)
 			requireRecallFailure(t, recorder, service.ErrRecallDisabled.Error())
 		})
 	}
