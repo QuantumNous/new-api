@@ -39,6 +39,27 @@ def _origin_allowed(origin: str | None) -> bool:
     return origin is None or bool(_ALLOWED_ORIGIN_RE.match(origin))
 
 
+# Caps on a single inbound `user_message` frame. The loopback socket is unauthenticated
+# (any local process can reach it), so an oversized frame is a cheap way to spike memory —
+# these bound one message's text and its attachments before we build content / start a turn.
+_MAX_MESSAGE_TEXT_CHARS = 200_000
+_MAX_ATTACHMENTS = 25
+_MAX_ATTACHMENTS_BYTES = 32 * 1024 * 1024  # ~32 MB total across a message's attachments
+
+
+def _attachments_size(attachments: list) -> int:
+    """Approximate on-wire byte size of a message's attachments (data URLs dominate)."""
+    total = 0
+    for a in attachments:
+        if isinstance(a, str):
+            total += len(a)
+        elif isinstance(a, dict):
+            for v in a.values():
+                if isinstance(v, str):
+                    total += len(v)
+    return total
+
+
 # Brand colors for the connector badge riding the ✓ (UX-DECISIONS §30). The GUI owns the
 # real logos; this page must render offline with zero assets, so a colored initial stands in.
 _BRAND_COLORS = {
@@ -1665,6 +1686,26 @@ def create_app(manager: SessionManager) -> FastAPI:
                 elif kind == "user_message":
                     text = (message.get("text") or "").strip()
                     attachments = message.get("attachments") or []
+                    # Reject an oversized frame instead of buffering it into a turn. Send a
+                    # visible error so the surface can tell the user, and drop the message.
+                    if not isinstance(attachments, list):
+                        attachments = []
+                    reject = None
+                    if len(text) > _MAX_MESSAGE_TEXT_CHARS:
+                        reject = (
+                            f"Message too long ({len(text)} chars; "
+                            f"limit {_MAX_MESSAGE_TEXT_CHARS})."
+                        )
+                    elif len(attachments) > _MAX_ATTACHMENTS:
+                        reject = (
+                            f"Too many attachments ({len(attachments)}; "
+                            f"limit {_MAX_ATTACHMENTS})."
+                        )
+                    elif _attachments_size(attachments) > _MAX_ATTACHMENTS_BYTES:
+                        reject = "Attachments too large (limit 32 MB per message)."
+                    if reject is not None:
+                        await ws.send_json({"type": "error", "data": {"error": reject}})
+                        continue
                     # The composer sends its visible model with every message — the FIRST
                     # one binds the session (race-proof across reconnects; see api.ts
                     # Session.userMessage), later ones may switch it (notice persisted).

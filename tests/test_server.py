@@ -323,6 +323,36 @@ def test_ws_simple_turn(tmp_path):
         assert "turn_end" in types
 
 
+def test_ws_rejects_oversized_message(tmp_path):
+    from coworker.server import app as app_mod
+
+    client = _client(tmp_path, [_text("should not run")])
+    with client.websocket_connect("/ws/session/big") as ws:
+        assert ws.receive_json()["type"] == "ready"
+
+        # Oversized text → single error frame, no turn runs.
+        ws.send_json(
+            {"type": "user_message", "text": "x" * (app_mod._MAX_MESSAGE_TEXT_CHARS + 1)}
+        )
+        evt = ws.receive_json()
+        assert evt["type"] == "error" and "too long" in evt["data"]["error"].lower()
+
+        # Too many attachments → error frame.
+        ws.send_json(
+            {
+                "type": "user_message",
+                "text": "hi",
+                "attachments": ["a"] * (app_mod._MAX_ATTACHMENTS + 1),
+            }
+        )
+        evt = ws.receive_json()
+        assert evt["type"] == "error" and "attachment" in evt["data"]["error"].lower()
+
+        # A normal message still works afterwards (the socket wasn't torn down).
+        ws.send_json({"type": "user_message", "text": "hello"})
+        assert "turn_done" in _drain(ws)
+
+
 def test_ws_error_persists_notice_and_retry_reruns(tmp_path):
     class FlakyProvider(ProviderClient):
         def __init__(self):

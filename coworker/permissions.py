@@ -8,10 +8,21 @@ prefixes) and a session allowlist. The engine only *decides*; the turn engine ro
 
 from __future__ import annotations
 
+import shlex
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
+
+# Shell metacharacters that turn one "allowlisted" command into several. Any of these in a
+# command disqualifies it from allowlist auto-run — approval is required instead. Covers
+# chaining (`;` `&` `&&` `||`), pipes (`|`), redirection (`>` `<`), command substitution
+# (`` ` `` `$(`), process substitution / grouping (`(`), and newlines.
+_SHELL_OPERATORS = (";", "&", "|", ">", "<", "`", "$(", "(", "\n", "\r")
+
+
+def _has_shell_operators(command: str) -> bool:
+    return any(op in command for op in _SHELL_OPERATORS)
 
 from .risk import (  # re-exported for back-compat (manager.py imports WRITE_TOOLS)
     SHELL_TOOL,
@@ -203,7 +214,25 @@ class PermissionEngine:
         return False
 
     def _command_allowed(self, command: str) -> bool:
+        # An allowlist entry auto-runs a command WITHOUT approval, so prefix matching is
+        # unsafe: `git status` would auto-approve `git status && rm -rf ~`. Reject anything
+        # carrying shell operators (chaining/redirection/substitution) up front, then match
+        # the parsed argv against each entry — the entry's own tokens must be an exact
+        # prefix of the command's tokens (so `git status` matches `git status -s` but never
+        # `git statusfoo` or a bare `git`).
+        if _has_shell_operators(command):
+            return False
+        try:
+            argv = shlex.split(command)
+        except ValueError:
+            return False  # unbalanced quotes etc. — treat as not-allowlisted
+        if not argv:
+            return False
         for allowed in self.allowed_commands:
-            if command == allowed or command.startswith(f"{allowed} "):
+            try:
+                prefix = shlex.split(allowed)
+            except ValueError:
+                continue
+            if prefix and argv[: len(prefix)] == prefix:
                 return True
         return False

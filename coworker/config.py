@@ -13,6 +13,12 @@ from typing import Any, Optional
 
 from .secrets import state_dir
 
+# Commands auto-run WITHOUT an approval prompt. Deliberately limited to read-only
+# inspection: language interpreters and package managers (python/node/npm/npx) are NOT
+# here — allowlisting an interpreter allowlists arbitrary code (`python3 -c "..."`), which
+# defeats the point of approval gating. Users can still add them via config if they accept
+# that trade-off. Matching is exact-argv-prefix and rejects shell operators — see
+# PermissionEngine._command_allowed.
 DEFAULT_ALLOWED_COMMANDS = [
     "ls",
     "cat",
@@ -27,12 +33,7 @@ DEFAULT_ALLOWED_COMMANDS = [
     "git diff",
     "git log",
     "git show",
-    "python3",
-    "python",
     "pytest",
-    "node",
-    "npm",
-    "npx",
 ]
 
 
