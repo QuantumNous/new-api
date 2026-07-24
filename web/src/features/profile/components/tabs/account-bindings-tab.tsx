@@ -33,6 +33,7 @@ import {
   OAUTH_BIND_RESULT_MESSAGE,
 } from '@/features/auth/constants'
 import { watchOAuthPopupClosed } from '@/features/auth/lib/oauth-bind-window'
+import { markOAuthBindPopup } from '@/features/auth/lib/oauth-callback-mode'
 import type { CustomOAuthProviderInfo } from '@/features/auth/types'
 import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
@@ -162,6 +163,10 @@ export function AccountBindingsTab({
         toast.error(t('OAuth pop-up was blocked'))
         return
       }
+      // Stamp the popup while it is still same-origin (about:blank). The mark
+      // rides through the provider round trip and is what tells the callback
+      // this is a bind rather than a login in a tab that merely has an opener.
+      markOAuthBindPopup(popup.sessionStorage, provider)
       const pending: PendingOAuthBinding = {
         provider,
         state: '',
