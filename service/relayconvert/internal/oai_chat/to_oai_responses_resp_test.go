@@ -1,6 +1,7 @@
 package oaichat
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
@@ -9,6 +10,88 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestChatCompletionsResponseToResponsesUsesReasoningSummaryField(t *testing.T) {
+	reasoning := "thinking"
+	resp, _, err := ChatCompletionsResponseToResponsesResponse(&dto.OpenAITextResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{
+			{
+				Message: dto.Message{
+					Role:             "assistant",
+					ReasoningContent: &reasoning,
+				},
+				FinishReason: "stop",
+			},
+		},
+	}, "resp_1")
+	require.NoError(t, err)
+	require.Len(t, resp.Output, 1)
+
+	assertReasoningSummaryJSON(t, resp.Output[0], "thinking")
+}
+
+func TestChatCompletionsStreamToResponsesUsesReasoningSummaryField(t *testing.T) {
+	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+	reasoning := "thinking"
+
+	events := mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Index: 0, Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ReasoningContent: &reasoning}},
+		},
+	})
+
+	var added *dto.ResponsesOutput
+	for _, event := range events {
+		if event.Type == responsesEventOutputItemAdded {
+			added = event.Payload.Item
+		}
+	}
+	require.NotNil(t, added)
+	assertReasoningSummaryJSON(t, *added, "")
+
+	finishReason := "stop"
+	events = mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Index: 0, FinishReason: &finishReason},
+		},
+	})
+
+	var done *dto.ResponsesOutput
+	for _, event := range events {
+		if event.Type == responsesEventOutputItemDone {
+			done = event.Payload.Item
+		}
+	}
+	require.NotNil(t, done)
+	assertReasoningSummaryJSON(t, *done, "thinking")
+
+	finalEvents := FinalizeChatCompletionsStreamToResponses(state)
+	require.Len(t, finalEvents, 1)
+	require.NotNil(t, finalEvents[0].Payload.Response)
+	require.Len(t, finalEvents[0].Payload.Response.Output, 1)
+	assertReasoningSummaryJSON(t, finalEvents[0].Payload.Response.Output[0], "thinking")
+}
+
+func assertReasoningSummaryJSON(t *testing.T, output dto.ResponsesOutput, wantText string) {
+	t.Helper()
+	require.Equal(t, responsesOutputTypeReasoning, output.Type)
+
+	encoded, err := json.Marshal(output)
+	require.NoError(t, err)
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(encoded, &raw))
+	summaryJSON, ok := raw["summary"]
+	require.True(t, ok, "reasoning output must include summary: %s", encoded)
+
+	var summary []dto.ResponsesReasoningSummaryPart
+	require.NoError(t, json.Unmarshal(summaryJSON, &summary))
+	if wantText == "" {
+		require.Empty(t, summary)
+		return
+	}
+	require.Equal(t, []dto.ResponsesReasoningSummaryPart{{Type: "summary_text", Text: wantText}}, summary)
+}
 func TestChatCompletionsResponseToResponsesPreservesTextToolCallsAndUsage(t *testing.T) {
 	chat := &dto.OpenAITextResponse{
 		Id:      "chatcmpl_1",
