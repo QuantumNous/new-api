@@ -322,6 +322,12 @@ def test_manager_curated_models(tmp_path, monkeypatch):
             monkeypatch.delenv(d.env_key, raising=False)
     from coworker.server.manager import SessionManager
 
+    # `ollama:*` selectability is an HTTP probe of a local server; pin it so this test
+    # covers picker mechanics only (the probe itself is covered by
+    # test_settings.py::test_ollama_models_gated_on_liveness). Unpinned, the ollama
+    # assertions below pass only where Ollama happens to run — green on a dev box, red in CI.
+    monkeypatch.setattr(SessionManager, "_ollama_alive", lambda self: True)
+
     mgr = SessionManager(data_dir=tmp_path)
     # no provider keys → nothing but the always-selectable default
     assert mgr.get_settings()["models"] == [mgr.model]
