@@ -6,6 +6,10 @@
 
 🍥 **Next-Generation LLM Gateway and AI Asset Management System**
 
+> **生产定制分支**：`custom/production-20260719` 包含 Responses API
+> 重试/限流代理、systemd 并发配置、PostgreSQL 参数兼容脚本和部署模板。
+> 参见 [中文定制部署说明](./CUSTOM_DEPLOYMENT.zh-CN.md)。
+
 <p align="center">
   <a href="./README.zh_CN.md">简体中文</a> |
   <a href="./README.zh_TW.md">繁體中文</a> |
