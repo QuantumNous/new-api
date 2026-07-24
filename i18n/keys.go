@@ -38,6 +38,11 @@ const (
 	MsgAuthUserIdMismatch        = "auth.user_id_mismatch"
 	MsgAuthUserBanned            = "auth.user_banned"
 	MsgAuthInsufficientPrivilege = "auth.insufficient_privilege"
+	MsgAuthClientIpParseFailed   = "auth.client_ip_parse_failed"
+	MsgAuthIpNotAllowed          = "auth.ip_not_allowed"
+	MsgAuthGroupAccessDenied     = "auth.group_access_denied"
+	MsgAuthGroupDeprecated       = "auth.group_deprecated"
+	MsgAuthSpecificChannelDenied = "auth.specific_channel_denied"
 )
 
 // Token related messages
@@ -169,17 +174,30 @@ const (
 
 // Channel related messages
 const (
-	MsgChannelNotExists          = "channel.not_exists"
-	MsgChannelIdFormatError      = "channel.id_format_error"
-	MsgChannelNoAvailableKey     = "channel.no_available_key"
-	MsgChannelGetListFailed      = "channel.get_list_failed"
-	MsgChannelGetTagsFailed      = "channel.get_tags_failed"
-	MsgChannelGetKeyFailed       = "channel.get_key_failed"
-	MsgChannelGetOllamaFailed    = "channel.get_ollama_failed"
-	MsgChannelQueryFailed        = "channel.query_failed"
-	MsgChannelNoValidUpstream    = "channel.no_valid_upstream"
-	MsgChannelUpstreamSaturated  = "channel.upstream_saturated"
-	MsgChannelGetAvailableFailed = "channel.get_available_failed"
+	MsgChannelNotExists                = "channel.not_exists"
+	MsgChannelIdFormatError            = "channel.id_format_error"
+	MsgChannelNoAvailableKey           = "channel.no_available_key"
+	MsgChannelGetListFailed            = "channel.get_list_failed"
+	MsgChannelGetTagsFailed            = "channel.get_tags_failed"
+	MsgChannelGetKeyFailed             = "channel.get_key_failed"
+	MsgChannelGetOllamaFailed          = "channel.get_ollama_failed"
+	MsgChannelQueryFailed              = "channel.query_failed"
+	MsgChannelNoValidUpstream          = "channel.no_valid_upstream"
+	MsgChannelUpstreamSaturated        = "channel.upstream_saturated"
+	MsgChannelUpstreamSaturatedUpgrade = "channel.upstream_saturated_upgrade"
+	MsgChannelGetAvailableFailed       = "channel.get_available_failed"
+	MsgChannelGetAvailableRetryFailed  = "channel.get_available_retry_failed"
+	MsgChannelNoAvailableRetry         = "channel.no_available_retry"
+)
+
+// Playground related messages
+const (
+	MsgPlaygroundAccessTokenUnsupported = "playground.access_token_unsupported"
+)
+
+// Task related messages
+const (
+	MsgTaskFileTooLarge = "task.file_too_large"
 )
 
 // Model related messages

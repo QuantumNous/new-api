@@ -33,6 +33,11 @@ auth.user_id_format_error: "无权进行此操作，New-Api-User 格式错误"
 auth.user_id_mismatch: "无权进行此操作，New-Api-User 与登录用户不匹配"
 auth.user_banned: "用户已被封禁"
 auth.insufficient_privilege: "无权进行此操作，权限不足"
+auth.client_ip_parse_failed: "无法解析客户端 IP 地址"
+auth.ip_not_allowed: "您的 IP 不在令牌允许访问的列表中"
+auth.group_access_denied: "无权访问 {{.Group}} 分组"
+auth.group_deprecated: "分组 {{.Group}} 已被弃用"
+auth.specific_channel_denied: "普通用户不支持指定渠道"
 
 # Token messages
 token.name_too_long: "令牌名称过长"
@@ -158,7 +163,16 @@ channel.get_ollama_failed: "获取Ollama模型失败"
 channel.query_failed: "查询渠道失败"
 channel.no_valid_upstream: "无有效上游渠道"
 channel.upstream_saturated: "当前分组上游负载已饱和，请稍后再试"
+channel.upstream_saturated_upgrade: "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量"
 channel.get_available_failed: "获取分组 {{.Group}} 下模型 {{.Model}} 的可用渠道失败"
+channel.get_available_retry_failed: "获取分组 {{.Group}} 下模型 {{.Model}} 的可用渠道失败（retry）：{{.Error}}"
+channel.no_available_retry: "分组 {{.Group}} 下模型 {{.Model}} 的可用渠道不存在（retry）"
+
+# Playground messages
+playground.access_token_unsupported: "暂不支持使用 access token"
+
+# Task messages
+task.file_too_large: "文件 {{.File}} 大小超过限制，最大允许 {{.MaxMB}} MB"
 
 # Model messages
 model.name_empty: "模型名称不能为空"
