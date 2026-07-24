@@ -10,9 +10,11 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,6 +35,26 @@ func newImageTestContext(t *testing.T, body, contentType string, isStream bool) 
 		IsStream:    isStream,
 	}
 	return c, recorder, resp, info
+}
+
+func TestNormalizeOpenAIImageUsagePreservesProvidedOutputDetails(t *testing.T) {
+	usage := dto.Usage{OutputTokens: 10}
+	usage.CompletionTokenDetails.ImageTokens = 8
+	usage.CompletionTokenDetails.TextTokens = 2
+
+	normalizeOpenAIUsage(&usage)
+
+	assert.Equal(t, 10, usage.CompletionTokens)
+	assert.Equal(t, 8, usage.CompletionTokenDetails.ImageTokens)
+	assert.Equal(t, 2, usage.CompletionTokenDetails.TextTokens)
+}
+
+func TestNormalizeOpenAIImageUsageCopiesNativeOutputDetails(t *testing.T) {
+	usage := dto.Usage{OutputTokens: 10, OutputTokensDetails: &dto.OutputTokenDetails{ImageTokens: 7, TextTokens: 3}}
+
+	normalizeOpenAIUsage(&usage)
+
+	assert.Equal(t, dto.OutputTokenDetails{ImageTokens: 7, TextTokens: 3}, usage.CompletionTokenDetails)
 }
 
 func TestOpenaiImageDoResponseUsesInfoIsStream(t *testing.T) {

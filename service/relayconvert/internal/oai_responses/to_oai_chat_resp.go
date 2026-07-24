@@ -170,6 +170,11 @@ func UsageFromResponsesUsage(src *dto.Usage) *dto.Usage {
 		usage.CompletionTokenDetails.AudioTokens = src.CompletionTokenDetails.AudioTokens
 		usage.CompletionTokenDetails.ImageTokens = src.CompletionTokenDetails.ImageTokens
 	}
+	if src.OutputTokensDetails != nil {
+		outputTokensDetails := *src.OutputTokensDetails
+		usage.OutputTokensDetails = &outputTokensDetails
+		usage.CompletionTokenDetails = outputTokensDetails
+	}
 	usage.ClaudeCacheCreation5mTokens = src.ClaudeCacheCreation5mTokens
 	usage.ClaudeCacheCreation1hTokens = src.ClaudeCacheCreation1hTokens
 	return usage

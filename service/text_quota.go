@@ -30,6 +30,7 @@ type textQuotaSummary struct {
 	CacheCreationTokens5m    int
 	CacheCreationTokens1h    int
 	ImageTokens              int
+	ImageOutputTokens        int
 	AudioTokens              int
 	ModelName                string
 	TokenName                string
@@ -55,6 +56,20 @@ type textQuotaSummary struct {
 	AudioInputPrice          float64
 	ImageGenerationCallPrice float64
 	ToolCallSurchargeQuota   decimal.Decimal
+}
+
+func appendImageUsageLogFields(other map[string]interface{}, summary textQuotaSummary) {
+	if summary.ImageTokens == 0 && summary.ImageOutputTokens == 0 {
+		return
+	}
+	other["image"] = true
+	if summary.ImageTokens != 0 {
+		other["image_input"] = summary.ImageTokens
+		other["image_ratio"] = summary.ImageRatio
+	}
+	if summary.ImageOutputTokens != 0 {
+		other["image_output"] = summary.ImageOutputTokens
+	}
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -212,6 +227,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.CacheCreationTokens5m = usage.ClaudeCacheCreation5mTokens
 	summary.CacheCreationTokens1h = usage.ClaudeCacheCreation1hTokens
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
+	summary.ImageOutputTokens = usage.CompletionTokenDetails.ImageTokens
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
 	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
@@ -428,11 +444,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
 	}
-	if summary.ImageTokens != 0 {
-		other["image"] = true
-		other["image_ratio"] = summary.ImageRatio
-		other["image_output"] = summary.ImageTokens
-	}
+	appendImageUsageLogFields(other, summary)
 	if summary.WebSearchCallCount > 0 {
 		other["web_search"] = true
 		other["web_search_call_count"] = summary.WebSearchCallCount
