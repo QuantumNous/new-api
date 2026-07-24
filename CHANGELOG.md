@@ -2,6 +2,10 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-07-24
+
+- 补齐火山引擎 Seedance 视频模型默认定价：为 `doubao-seedance-1-0-pro-250528`、`-1-0-lite-t2v`、`-1-0-lite-i2v`、`-1-5-pro-251215`、`-2-0-fast-260128` 新增默认倍率（按官方 ¥/百万 tokens 等比对齐 2.0 锚点），修复这些模型在非 self-use 模式下"价格未配置"直接不可用的问题；seed 配置新增 `火山引擎 Seedance 视频` 渠道（type 54，复用 `VOLCENGINE_API_KEY`）；新增 `TestDoubaoVideoModelListHasPricing` 回归测试并接入 `unit-test.yml` + `airbotix-internal.yml` 双 CI 门；附任务 PRD（`setting/ratio_setting/model_ratio.go`, `scripts/seed-models/channels.yaml`, `relay/channel/task/doubao/constants_test.go`, `.github/workflows/`, `docs/tasks/volcengine-seedance-readiness-prd.md`）
+
 ## 2026-07-01
 
 - 修复 Skill Analytics 与 Admin Skill usage 彩色可视化中固定柱状图可能误导为真实趋势的问题：百分比 Metric card 改为实心单色浅深半圆进度，计数 Metric card 改为单位图标，Activity mix / Conversion funnel 改为单色浅深渐变，Admin 弹窗改为基于真实 token totals 的 Top Skill token share，并更新回归测试（`web/default/src/features/skill-analytics/components/metric-card.tsx`, `web/default/src/features/users/components/dialogs/user-skill-usage-dialog.tsx`）

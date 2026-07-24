@@ -402,15 +402,21 @@ var defaultModelPrice = map[string]float64{
 	"doubao-seedream-4-0-250828": 0.03,  // image gen (≈imagen-3)
 	"doubao-seedream-5.0":        0.03,  // image gen ¥0.22/img
 	"doubao-seedream-4.5":        0.034, // image gen ¥0.25/img
-	"doubao-seedance-2-0-260128": 0.15,  // video gen (≈veo fast)
+	"doubao-seedance-2-0-260128": 0.15,  // video gen (≈veo fast); official ¥46/M tokens (pure gen) — family anchor
 	"doubao-seedance-2.0":        0.15,  // video gen
-	"doubao-seedance-2.0-fast":   0.10,  // video gen (fast tier)
-	"kling-v2-master":            0.4,   // video gen (≈veo)
-	"kling-v2-6":                 0.4,   // video gen
-	"kling-v3":                   0.4,   // video gen
-	"gemini-3-pro-image":         0.134, // Nano Banana image $0.134/img (1K-2K)
-	"gemini-3.1-flash-image":     0.045, // image $0.045/img
-	"grok-imagine-image":         0.02,  // image $0.02/img
+	"doubao-seedance-2.0-fast":   0.10,  // video gen (fast tier); official ¥37/M tokens
+	// Seedance family ratios below scale off the 2.0 anchor (0.15 ≙ ¥46/M) by official Ark pricing.
+	"doubao-seedance-2-0-fast-260128": 0.10,  // video gen, dated fast tier (= doubao-seedance-2.0-fast)
+	"doubao-seedance-1-5-pro-251215":  0.08,  // video gen, est. ~¥25/M tokens (between 1.0-pro and 2.0)
+	"doubao-seedance-1-0-pro-250528":  0.05,  // video gen, ¥15/M tokens (¥0.015/1K)
+	"doubao-seedance-1-0-lite-t2v":    0.035, // video gen, ¥10/M tokens
+	"doubao-seedance-1-0-lite-i2v":    0.035, // video gen, ¥10/M tokens
+	"kling-v2-master":                 0.4,   // video gen (≈veo)
+	"kling-v2-6":                      0.4,   // video gen
+	"kling-v3":                        0.4,   // video gen
+	"gemini-3-pro-image":              0.134, // Nano Banana image $0.134/img (1K-2K)
+	"gemini-3.1-flash-image":          0.045, // image $0.045/img
+	"grok-imagine-image":              0.02,  // image $0.02/img
 }
 
 var defaultAudioRatio = map[string]float64{

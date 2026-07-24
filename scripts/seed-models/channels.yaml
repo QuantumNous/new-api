@@ -267,6 +267,24 @@ channels:
       - doubao-vision-pro-32k
       - doubao-vision-lite-32k
 
+  # 火山方舟视频生成（Seedance）。type 54 = ChannelTypeDoubaoVideo,
+  # 与上面的聊天渠道共用同一个方舟 API Key（VOLCENGINE_API_KEY）。
+  # 调用入口：POST /v1/video/generations → 轮询 GET /v1/videos/{task_id}。
+  - name: 火山引擎 Seedance 视频
+    type: 54
+    enabled: true
+    key_env: VOLCENGINE_API_KEY
+    base_url: https://ark.cn-beijing.volces.com
+    test_model: doubao-seedance-1-0-lite-t2v
+    tag: doubao
+    models:
+      - doubao-seedance-1-0-pro-250528
+      - doubao-seedance-1-0-lite-t2v
+      - doubao-seedance-1-0-lite-i2v
+      - doubao-seedance-1-5-pro-251215
+      - doubao-seedance-2-0-260128
+      - doubao-seedance-2-0-fast-260128
+
   - name: 百度文心 ERNIE
     type: 46
     enabled: true

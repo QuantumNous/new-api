@@ -17,6 +17,8 @@ on:
       - 'relay/kids_coverage_matrix_test.go'
       - 'service/airbotix_billing.go'
       - 'constant/context_key.go'
+      - 'setting/ratio_setting/**'
+      - 'relay/channel/task/doubao/**'
       - 'controller/**'
       - 'router/**'
       - 'dto/**'
@@ -36,6 +38,8 @@ on:
       - 'relay/kids_coverage_matrix_test.go'
       - 'service/airbotix_billing.go'
       - 'constant/context_key.go'
+      - 'setting/ratio_setting/**'
+      - 'relay/channel/task/doubao/**'
       - 'controller/**'
       - 'router/**'
       - 'dto/**'
@@ -91,6 +95,10 @@ jobs:
           go test ./controller/ -run 'TestModelRatio|TestGetModelRatio|TestKidsMode|TestListModels|TestGetRouterCatalog|TestChannelTypeToBrand|TryCrossModelFallback|IsChannelExhaustion' -count=1 -race -timeout 60s
           # kids_mode middleware layer: policy resolution + defensive pass-through (DR-12).
           go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel|TestPrepareSkillRelay_DR66' -count=1 -race -timeout 60s
+          # Pricing consistency: default ratio/price coverage for cache-ratio models
+          # and the Doubao/Seedance video ModelList (价格未配置 regression guards).
+          go test ./setting/ratio_setting/ -count=1 -timeout 60s
+          go test ./relay/channel/task/doubao/ -count=1 -timeout 60s
 
       - name: Verify kids coverage matrix (go test -list)
         # scripts/check-kids-coverage-matrix.sh parses docs/kids-coverage-matrix.md,
