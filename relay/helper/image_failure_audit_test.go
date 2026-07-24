@@ -71,3 +71,16 @@ func TestTruncateImageAuditTextBoundsPrompt(t *testing.T) {
 	assert.Contains(t, result, "original_length=4196")
 	assert.Less(t, len(result), len(value))
 }
+
+func TestSummarizeImageRequestHandlesTypedNil(t *testing.T) {
+	var geminiRequest *dto.GeminiChatRequest
+	var openAIRequest *dto.ImageRequest
+
+	geminiData, err := common.Marshal(summarizeImageRequest(geminiRequest))
+	require.NoError(t, err)
+	openAIData, err := common.Marshal(summarizeImageRequest(openAIRequest))
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{"parsed":false,"type":"gemini"}`, string(geminiData))
+	assert.JSONEq(t, `{"parsed":false,"type":"openai_image"}`, string(openAIData))
+}

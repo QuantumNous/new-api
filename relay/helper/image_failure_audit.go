@@ -79,8 +79,14 @@ func isImageRequest(relayFormat types.RelayFormat, c *gin.Context, info *relayco
 func summarizeImageRequest(request dto.Request) any {
 	switch req := request.(type) {
 	case *dto.ImageRequest:
+		if req == nil {
+			return map[string]any{"parsed": false, "type": "openai_image"}
+		}
 		return summarizeOpenAIImageRequest(req)
 	case *dto.GeminiChatRequest:
+		if req == nil {
+			return map[string]any{"parsed": false, "type": "gemini"}
+		}
 		return summarizeGeminiImageRequest(req)
 	case nil:
 		return map[string]any{"parsed": false}
