@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -614,5 +615,11 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo.CreatedAt = t.CreatedAt
 	openAIVideo.CompletedAt = t.UpdatedAt
 	openAIVideo.SetMetadata("url", t.GetResultURL())
+	// 按秒计费的时长（OtherRatios["seconds"]）统一带出，供下游按秒计费
+	if bc := t.PrivateData.BillingContext; bc != nil {
+		if s, ok := bc.OtherRatios["seconds"]; ok && s > 0 {
+			openAIVideo.Seconds = strconv.Itoa(int(s))
+		}
+	}
 	return openAIVideo
 }
