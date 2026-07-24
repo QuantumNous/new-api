@@ -64,6 +64,7 @@ export function getChannelTypeIcon(type: number): string {
 
     // Cloud providers
     33: 'Aws', // AWS
+    59: 'Aws', // AWS OpenAI
     39: 'Cloudflare', // Cloudflare
 
     // Chinese providers

@@ -585,8 +585,8 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     delete settingsObj.openrouter_enterprise
   }
 
-  // Add aws_key_type for AWS channels (type 33)
-  if (formData.type === 33) {
+  // Add aws_key_type for AWS channels (types 33 and 59)
+  if (formData.type === 33 || formData.type === 59) {
     settingsObj.aws_key_type = formData.aws_key_type || 'ak_sk'
   } else if ('aws_key_type' in settingsObj) {
     delete settingsObj.aws_key_type

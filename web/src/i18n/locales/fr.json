@@ -243,6 +243,8 @@
     "Advanced": "Avancé",
     "Advanced Configuration": "Configuration avancée",
     "Advanced Custom": "Personnalisé avancé",
+    "AWS OpenAI": "AWS OpenAI",
+    "The AWS endpoint is generated from Region. AK/SK mode uses AccessKey|SecretAccessKey|Region; API Key mode uses APIKey|Region.": "Le point de terminaison AWS est généré à partir de Region. Le mode AK/SK utilise AccessKey|SecretAccessKey|Region ; le mode API Key utilise APIKey|Region.",
     "Advanced custom configuration is required": "La configuration personnalisée avancée est requise",
     "Advanced custom configuration requires at least one route": "La configuration personnalisée avancée nécessite au moins une route",
     "Advanced Custom Routes": "Routes personnalisées avancées",

@@ -31,6 +31,13 @@ type Adaptor interface {
 	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
 }
 
+// RequestSigner signs a fully constructed outbound HTTP request after header
+// overrides have been applied. Adaptors that use request-bound authentication,
+// such as AWS SigV4, can implement this optional interface.
+type RequestSigner interface {
+	SignRequest(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error
+}
+
 type TaskAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 

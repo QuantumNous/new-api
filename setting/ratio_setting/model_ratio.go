@@ -100,6 +100,17 @@ var defaultModelRatio = map[string]float64{
 	"gpt-5.6-sol":                               2.5,
 	"gpt-5.6-terra":                             1.25,
 	"gpt-5.6-luna":                              0.5,
+	"openai.gpt-5.6-sol":                        2.75,  // AWS US in-region: $5.50 / 1M input tokens
+	"openai.gpt-5.6-terra":                      1.375, // AWS US in-region: $2.75 / 1M input tokens
+	"openai.gpt-5.6-luna":                       0.55,  // AWS US in-region: $1.10 / 1M input tokens
+	"openai.gpt-5.5":                            2.75,  // AWS US in-region: $5.50 / 1M input tokens
+	"openai.gpt-5.4":                            1.375, // AWS US in-region: $2.75 / 1M input tokens
+	"openai.gpt-oss-120b":                       0.075, // AWS US standard: $0.15 / 1M input tokens
+	"openai.gpt-oss-20b":                        0.035, // AWS US standard: $0.07 / 1M input tokens
+	"openai.gpt-oss-safeguard-120b":             0.075, // AWS US on-demand: $0.15 / 1M input tokens
+	"openai.gpt-oss-safeguard-20b":              0.035, // AWS US on-demand: $0.07 / 1M input tokens
+	"openai.gpt-oss-120b-1:0":                   0.075,
+	"openai.gpt-oss-20b-1:0":                    0.035,
 	"gpt-3.5-turbo":                             0.25,
 	"gpt-3.5-turbo-0613":                        0.75,
 	"gpt-3.5-turbo-16k":                         1.5, // $0.003 / 1K tokens
@@ -326,10 +337,21 @@ var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
 var defaultCompletionRatio = map[string]float64{
-	"gpt-4-gizmo-*":  2,
-	"gpt-4o-gizmo-*": 3,
-	"gpt-4-all":      2,
-	"gpt-image-1":    8,
+	"gpt-4-gizmo-*":                 2,
+	"gpt-4o-gizmo-*":                3,
+	"gpt-4-all":                     2,
+	"gpt-image-1":                   8,
+	"openai.gpt-5.6-sol":            6,
+	"openai.gpt-5.6-terra":          6,
+	"openai.gpt-5.6-luna":           6,
+	"openai.gpt-5.5":                6,
+	"openai.gpt-5.4":                6,
+	"openai.gpt-oss-120b":           4,
+	"openai.gpt-oss-20b":            4.285714285714286,
+	"openai.gpt-oss-safeguard-120b": 4,
+	"openai.gpt-oss-safeguard-20b":  2.857142857142857,
+	"openai.gpt-oss-120b-1:0":       4,
+	"openai.gpt-oss-20b-1:0":        4.285714285714286,
 }
 
 // InitRatioSettings initializes all model related settings maps
