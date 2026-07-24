@@ -85,6 +85,17 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			info.Action = constant.TaskActionGenerate
 		}
 	}
+	features, err := ApplyVeoMetadataToInstance(req.Metadata, &instance)
+	if err != nil {
+		return nil, err
+	}
+	if features.HasLastFrame {
+		info.Action = constant.TaskActionFirstTailGenerate
+	} else if features.HasReferenceImages {
+		info.Action = constant.TaskActionReferenceGenerate
+	} else if features.HasImage {
+		info.Action = constant.TaskActionGenerate
+	}
 
 	params := &VeoParameters{}
 	if err := taskcommon.UnmarshalMetadata(req.Metadata, params); err != nil {
