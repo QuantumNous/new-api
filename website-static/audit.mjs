@@ -32,7 +32,7 @@ for (const file of files) {
   if (/\bdata-i18n(?:-ph)?=/.test(html) && !/assets\/i18n\.js\?v=/.test(html)) {
     fail(file, "uses i18n keys without loading assets/i18n.js");
   }
-  const i18nScript = html.indexOf("assets/i18n.js?v=724a");
+  const i18nScript = html.indexOf("assets/i18n.js?v=724b");
   const shellScript = html.indexOf("assets/site-shell.js?v=720a");
   const trackScript = html.indexOf("assets/track.js?v=721a");
   if (i18nScript === -1) fail(file, "missing the current locale-routing script version");
