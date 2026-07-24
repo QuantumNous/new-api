@@ -1,7 +1,7 @@
 {
   "name": "new-api-electron",
   "version": "1.0.0",
-  "description": "大晟 AI - AI 模型网关桌面应用",
+  "description": "晟枢｜统一模型服务网关 - AI 模型网关桌面应用",
   "main": "main.js",
   "scripts": {
     "start-app": "electron .",
@@ -30,7 +30,7 @@
   },
   "build": {
     "appId": "com.newapi.desktop",
-    "productName": "大晟 AI",
+    "productName": "晟枢｜统一模型服务网关",
     "publish": null,
     "directories": {
       "output": "dist"

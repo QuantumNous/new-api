@@ -397,7 +397,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true
     },
-    title: '大晟 AI',
+    title: '晟枢｜统一模型服务网关',
     icon: path.join(__dirname, 'icon.png')
   });
 

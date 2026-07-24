@@ -56,7 +56,7 @@ func main() {
 		return
 	}
 
-	common.SysLog("大晟 AI " + common.Version + " started")
+	common.SysLog("晟枢｜统一模型服务网关 " + common.Version + " started")
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
 	}

@@ -21,7 +21,7 @@ For commercial licensing, please contact support@quantumnous.com
  */
 
 // System Configuration Defaults
-export const DEFAULT_SYSTEM_NAME = '大晟 AI'
+export const DEFAULT_SYSTEM_NAME = '晟枢｜统一模型服务网关'
 export const DEFAULT_LOGO = '/logo.png'
 
 // LocalStorage Keys

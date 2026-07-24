@@ -50,7 +50,7 @@ export function SystemBrand(props: SystemBrandProps) {
   const { logo } = useSystemConfig()
 
   const variant = props.variant ?? 'sidebar'
-  const name = status?.system_name || props.defaultName || '大晟 AI'
+  const name = status?.system_name || props.defaultName || '晟枢｜统一模型服务网关'
   const version =
     status?.version || props.defaultVersion || t('Unknown version')
 

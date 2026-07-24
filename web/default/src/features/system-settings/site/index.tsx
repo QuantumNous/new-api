@@ -27,7 +27,7 @@ import {
 const defaultSiteSettings: SiteSettings = {
   'theme.frontend': 'default',
   Notice: '',
-  SystemName: '大晟 AI',
+  SystemName: '晟枢｜统一模型服务网关',
   Logo: '',
   Footer: '',
   About: '',
