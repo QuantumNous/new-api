@@ -270,7 +270,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 		markCooldownFromError(c, channel.Id, newAPIError)
 
-		if !shouldRetry(c, newAPIError, retryCap-retryParam.GetRetry()) {
+		if !shouldRetry(c, relayInfo, newAPIError, retryCap-retryParam.GetRetry()) {
 			break
 		}
 	}
@@ -385,8 +385,17 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	return channel, nil
 }
 
-func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
+func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.NewAPIError, retryTimes int) bool {
 	if openaiErr == nil {
+		return false
+	}
+	// Never retry once any bytes have been written to the client. Retrying
+	// would reuse the same http.ResponseWriter and append a second response
+	// (e.g. a fresh SSE stream from another channel) onto the partial output
+	// already sent, corrupting what the client sees. Individual stream handlers
+	// mostly avoid propagating a retryable error after their first flush, but
+	// this is the single authoritative guard that closes any gap.
+	if info != nil && info.HasSendResponse() {
 		return false
 	}
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
