@@ -68,9 +68,11 @@ body{display:grid;grid-template-columns:1.05fr .95fr;grid-template-rows:auto 1fr
     <form action="https://formsubmit.co/mguozhen@gmail.com" method="POST">
       <input type="hidden" name="_subject" value="[flatkey] Contact sales lead">
       <input type="hidden" name="_captcha" value="false">
-      <input type="hidden" name="_next" value="https://flatkey.11agents.ai/contact?sent=1">
+      <input type="hidden" name="_cc" value="skao@solvea.cx,boyuan.gao@shulex-tech.com,support@flatkey.ai">
+      <input type="hidden" name="_next" value="https://flatkey.ai/contact?sent=1">
       <div class="slot"><input type="text" name="name" required data-i18n-ph="ct.ph1" placeholder="Full name"><input name="email" type="email" required data-i18n-ph="ct.ph2" placeholder="Work email"></div>
-      <div class="slot"><input type="text" name="company" required data-i18n-ph="ct.ph3" placeholder="Company"><input type="text" name="volume" data-i18n-ph="ct.ph4" placeholder="Monthly token volume (est.)"></div>
+      <div class="slot"><input type="text" name="company" required data-i18n-ph="ct.ph3" placeholder="Company"><input type="tel" name="phone" data-i18n-ph="ct.ph6" placeholder="Phone number"></div>
+      <div class="slot" style="grid-template-columns:1fr"><input type="text" name="volume" data-i18n-ph="ct.ph4" placeholder="Monthly token volume (est.)"></div>
       <div class="slot" style="grid-template-columns:1fr"><textarea name="message" rows="4" required data-i18n-ph="ct.ph5" placeholder="What are you running? (agents, RAG, coding tools…)" style="border:1.5px solid var(--line);border-radius:8px;padding:12px 14px;font-size:14px;font-family:var(--sans);color:var(--ink);resize:vertical"></textarea></div>
       <button type="submit" class="act dark" style="width:100%;border:none;font-family:var(--sans)" data-i18n="ct.send">Send — we reply within 1 business day →</button>
     </form>
