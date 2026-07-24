@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -160,6 +161,16 @@ type RelayInfo struct {
 	// http.Request.ContentLength manually (net/http only auto-detects it for
 	// *bytes.Reader/Buffer/strings.Reader). 0 means "let net/http decide".
 	UpstreamRequestBodySize int64
+
+	// UpstreamRequestGetBody returns a fresh reader over the full marshaled
+	// upstream request body. It is set alongside UpstreamRequestBodySize when
+	// the body is wrapped in a BodyStorage (see relay/common/outbound_body.go),
+	// so that DoApiRequest can populate http.Request.GetBody manually (net/http
+	// only auto-populates it for *bytes.Reader/Buffer/strings.Reader). Without
+	// GetBody the HTTP/2 transport cannot transparently retry a request whose
+	// stream was reset by the upstream after the body was already written.
+	// nil means "no safe replay available".
+	UpstreamRequestGetBody func() (io.ReadCloser, error)
 
 	PriceData types.PriceData
 
