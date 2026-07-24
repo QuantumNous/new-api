@@ -168,6 +168,11 @@ func (c ChannelInfo) Value() (driver.Value, error) {
 
 // Scan implements sql.Scanner interface
 func (c *ChannelInfo) Scan(value interface{}) error {
+	// SQLite drivers return TEXT columns as strings.
+	if stringValue, ok := value.(string); ok {
+		return common.UnmarshalJsonStr(stringValue, c)
+	}
+
 	bytesValue, _ := value.([]byte)
 	return common.Unmarshal(bytesValue, c)
 }
