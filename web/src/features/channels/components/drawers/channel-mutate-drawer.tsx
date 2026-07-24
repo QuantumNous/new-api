@@ -128,6 +128,7 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import {
   fetchModels,
+  fetchUpstreamModels,
   getAllModels,
   getChannel,
   getChannelKey,
@@ -620,6 +621,10 @@ export function ChannelMutateDrawer({
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
   const initialStatusCodeMappingRef = useRef<string>('')
+  const upstreamModelsCacheRef = useRef<{
+    key: string
+    models: string[]
+  } | null>(null)
   const [statusCodeRiskOpen, setStatusCodeRiskOpen] = useState(false)
   const [statusCodeRiskDetailItems, setStatusCodeRiskDetailItems] = useState<
     string[]
@@ -693,6 +698,7 @@ export function ChannelMutateDrawer({
     if (!open) {
       setChannelKey(null)
       setIsChannelKeyLoading(false)
+      upstreamModelsCacheRef.current = null
     } else if (channelId) {
       setChannelKey(null)
     }
@@ -1465,6 +1471,50 @@ export function ChannelMutateDrawer({
     }
     throw new Error(response.message || t('No models fetched from upstream'))
   }, [canEditSensitive, channelId, form, isEditing, t])
+
+  // Fetch upstream models for the model-mapping row picker, cached so
+  // consecutive row picks in one editing session reuse a single request.
+  const mappingModelFetcher = useCallback(async (): Promise<string[]> => {
+    const type = form.getValues('type')
+    const cacheKey = JSON.stringify([
+      type,
+      channelId ?? '',
+      form.getValues('base_url') || '',
+      form.getValues('key') || '',
+      form.getValues('advanced_custom'),
+      form.getValues('header_override'),
+      form.getValues('proxy'),
+    ])
+    if (upstreamModelsCacheRef.current?.key === cacheKey) {
+      return upstreamModelsCacheRef.current.models
+    }
+    let models: string[]
+    if (!shouldPreviewUnsavedModels && isEditing && channelId) {
+      const response = await fetchUpstreamModels(channelId)
+      if (!response.success || !response.data) {
+        throw new Error(response.message || t('Failed to fetch models'))
+      }
+      models = response.data
+    } else {
+      if (
+        !isEditing &&
+        type !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
+        !form.getValues('key')?.trim()
+      ) {
+        throw new Error(t('Please enter API key first'))
+      }
+      models = await formPreviewFetcher()
+    }
+    upstreamModelsCacheRef.current = { key: cacheKey, models }
+    return models
+  }, [
+    isEditing,
+    channelId,
+    formPreviewFetcher,
+    form,
+    shouldPreviewUnsavedModels,
+    t,
+  ])
 
   // Handle model operations
   const handleFillRelatedModels = useCallback(() => {
@@ -3513,6 +3563,11 @@ export function ChannelMutateDrawer({
                                       targetModelOptions={modelOptions.map(
                                         (option) => option.value
                                       )}
+                                      fetchUpstreamModels={
+                                        MODEL_FETCHABLE_TYPES.has(currentType)
+                                          ? mappingModelFetcher
+                                          : undefined
+                                      }
                                     />
                                   </FormControl>
                                   {modelMappingGuardrail.invalidJson && (

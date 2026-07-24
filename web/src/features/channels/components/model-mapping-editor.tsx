@@ -16,16 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Code, Plus, Table, Trash2 } from 'lucide-react'
+import { Code, Plus, Search, Table, Trash2 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+
+import { SingleModelSelectDialog } from './dialogs/single-model-select-dialog'
 
 type ModelMappingEditorProps = {
   value: string
@@ -33,6 +41,7 @@ type ModelMappingEditorProps = {
   disabled?: boolean
   sourceModelOptions?: string[]
   targetModelOptions?: string[]
+  fetchUpstreamModels?: () => Promise<string[]>
 }
 
 type MappingRow = {
@@ -57,7 +66,7 @@ function getDuplicateSources(rows: MappingRow[]): string[] {
     }
   }
 
-  return Array.from(duplicates)
+  return [...duplicates]
 }
 
 export function ModelMappingEditor(props: ModelMappingEditorProps) {
@@ -68,6 +77,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
   const [rows, setRows] = useState<MappingRow[]>([])
   const [jsonValue, setJsonValue] = useState(props.value)
   const [jsonError, setJsonError] = useState<string | null>(null)
+  const [pickerRowId, setPickerRowId] = useState<string | null>(null)
   const nextRowIdRef = useRef(0)
   const duplicateSources = useMemo(() => getDuplicateSources(rows), [rows])
 
@@ -121,7 +131,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
       })
       setJsonError(null)
       return true
-    } catch (_error) {
+    } catch {
       setJsonError(t('Model mapping must be valid JSON format'))
       return false
     }
@@ -132,6 +142,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setJsonValue(props.value)
     parseJsonToRows(props.value)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.value])
 
   const convertRowsToJson = (updatedRows: MappingRow[]): string => {
@@ -268,7 +279,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
               <div className='grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-medium'>
                 <div>{t('Original Model')}</div>
                 <div>{t('Replacement Model')}</div>
-                <div className='w-10'></div>
+                <div className='w-10' />
               </div>
               {rows.map((row) => (
                 <div
@@ -284,15 +295,39 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
                     disabled={props.disabled}
                     list={sourceListId}
                   />
-                  <Input
-                    value={row.to}
-                    onChange={(e) =>
-                      handleRowChange(row.id, 'to', e.target.value)
-                    }
-                    placeholder='gpt-3.5-turbo-0125'
-                    disabled={props.disabled}
-                    list={targetListId}
-                  />
+                  {props.fetchUpstreamModels ? (
+                    <InputGroup>
+                      <InputGroupInput
+                        value={row.to}
+                        onChange={(e) =>
+                          handleRowChange(row.id, 'to', e.target.value)
+                        }
+                        placeholder='gpt-3.5-turbo-0125'
+                        disabled={props.disabled}
+                        list={targetListId}
+                      />
+                      <InputGroupAddon align='inline-end'>
+                        <InputGroupButton
+                          size='icon-xs'
+                          onClick={() => setPickerRowId(row.id)}
+                          disabled={props.disabled}
+                          aria-label={t('Select Model')}
+                        >
+                          <Search className='h-3.5 w-3.5' aria-hidden='true' />
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
+                  ) : (
+                    <Input
+                      value={row.to}
+                      onChange={(e) =>
+                        handleRowChange(row.id, 'to', e.target.value)
+                      }
+                      placeholder='gpt-3.5-turbo-0125'
+                      disabled={props.disabled}
+                      list={targetListId}
+                    />
+                  )}
                   <Button
                     type='button'
                     variant='ghost'
@@ -355,6 +390,20 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
             <option key={model} value={model} />
           ))}
         </datalist>
+      )}
+
+      {props.fetchUpstreamModels && (
+        <SingleModelSelectDialog
+          open={pickerRowId !== null}
+          onOpenChange={(open) => {
+            if (!open) setPickerRowId(null)
+          }}
+          fetcher={props.fetchUpstreamModels}
+          selected={rows.find((row) => row.id === pickerRowId)?.to}
+          onConfirm={(model) => {
+            if (pickerRowId) handleRowChange(pickerRowId, 'to', model)
+          }}
+        />
       )}
     </div>
   )
