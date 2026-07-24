@@ -578,6 +578,26 @@ func TestRecallCampaignSaveDraftTranslatesAndPersistsAllLanguages(t *testing.T) 
 	require.Equal(t, "vi:Your offer is still waiting.", stored[1].Templates["vi"].BodyText)
 }
 
+func TestRecallCampaignSaveDraftFallsBackToEnglishWhenTranslationIsNotConfigured(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 25, 9, 0, 0, 0, time.UTC)
+	translator := NewRecallEmailTranslator(RecallEmailTranslatorOptions{})
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+
+	campaign, err := service.SaveDraft(context.Background(), 7, validRecallCampaignDraft(now))
+
+	require.NoError(t, err)
+	require.NotNil(t, campaign)
+	var stored []RecallEmailStage
+	require.NoError(t, common.Unmarshal([]byte(campaign.EmailSequenceConfig), &stored))
+	require.Len(t, stored, 1)
+	require.Equal(t, map[string]RecallEmailTemplate{
+		"en": stored[0].Templates["en"],
+	}, stored[0].Templates)
+}
+
 func TestRecallCampaignSaveDraftTranslationFailureDoesNotPersist(t *testing.T) {
 	db := setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

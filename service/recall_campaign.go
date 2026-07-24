@@ -1410,6 +1410,9 @@ func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, i
 
 	translated, err := s.emailTranslator.Translate(ctx, needsTranslation)
 	if err != nil {
+		if errors.Is(err, errRecallEmailTranslationNotConfigured) {
+			return localized, nil
+		}
 		return nil, fmt.Errorf("translate recall campaign email templates: %w", err)
 	}
 	if len(translated) != len(needsTranslation) {
