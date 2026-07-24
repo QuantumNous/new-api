@@ -36,6 +36,27 @@ func TestGetRequestURLForImageGeneration(t *testing.T) {
 	}
 }
 
+func TestGetRequestURLForChatCompletionsUsesOpenAICompatibleEndpoint(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeChatCompletions,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.minimax.chat",
+		},
+	}
+
+	got, err := GetRequestURL(info)
+	if err != nil {
+		t.Fatalf("GetRequestURL returned error: %v", err)
+	}
+
+	want := "https://api.minimax.chat/v1/chat/completions"
+	if got != want {
+		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
+	}
+}
+
 func TestConvertImageRequest(t *testing.T) {
 	t.Parallel()
 
