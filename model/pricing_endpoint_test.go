@@ -190,6 +190,36 @@ func TestPricingNativeChannelEndpointTypesUnchanged(t *testing.T) {
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}, byModel["claude-3-5-sonnet"])
 }
 
+func TestInitChannelCacheRoutesByExplicitAbilities(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+
+	channel := &Channel{
+		Id:     204,
+		Type:   constant.ChannelTypeGemini,
+		Key:    "special-ability-key",
+		Status: common.ChannelStatusEnabled,
+		Name:   "special-ability-channel",
+		Group:  "public-image",
+		Models: "public-model,private-model",
+	}
+	require.NoError(t, DB.Create(channel).Error)
+	require.NoError(t, DB.Create(&[]Ability{
+		{Group: "public-image", Model: "public-model", ChannelId: channel.Id, Enabled: true},
+		{Group: "private-image", Model: "private-model", ChannelId: channel.Id, Enabled: true},
+	}).Error)
+
+	InitChannelCache()
+
+	privateChannel, err := GetRandomSatisfiedChannel("private-image", "private-model", 0, "")
+	require.NoError(t, err)
+	require.NotNil(t, privateChannel)
+	assert.Equal(t, channel.Id, privateChannel.Id)
+
+	publicPrivateChannel, err := GetRandomSatisfiedChannel("public-image", "private-model", 0, "")
+	require.NoError(t, err)
+	assert.Nil(t, publicPrivateChannel)
+}
+
 func TestInitChannelCacheInvalidatesPricingCache(t *testing.T) {
 	resetPricingEndpointTestTables(t)
 
