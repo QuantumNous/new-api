@@ -637,49 +637,55 @@ describe('CampaignEditor audience rules', () => {
     )
   })
 
-  test('integrates the configured group selector with a stable id', () => {
-    const html = renderEditor('first_purchase')
+  test('integrates the configured group selector with a stable id when group filtering is active', () => {
+    const draft = makeDraft('first_purchase')
+    draft.audience_config.group_mode = 'allow'
+    const html = renderEditor('first_purchase', draft)
 
     expect(html).toContain('for="recall-groups"')
     expect(html).toContain('Recall user groups')
     expect(html).toContain('aria-label="Select user groups"')
     expect(html).not.toContain('Loading configured user groups...')
-    expect(html).toMatch(
-      /<input(?=[^>]*id="recall-groups")(?=[^>]*disabled="")[^>]*>/
-    )
+    const groupInput = html.match(/<input[^>]*id="recall-groups"[^>]*>/)?.[0]
+    expect(groupInput).toBeTruthy()
+    expect(groupInput).not.toContain('disabled=""')
   })
 
-  test('keeps all group-mode choices', () => {
-    for (const [mode, label] of [
-      ['', 'No group filter'],
-      ['allow', 'Allow groups'],
-      ['block', 'Block groups'],
-    ] as const) {
+  test('hides only the group selector when group filtering is disabled', () => {
+    const draft = makeDraft('first_purchase')
+    draft.audience_config.groups = ['stale-group']
+    const html = renderEditor('first_purchase', draft)
+
+    expect(html).not.toContain('for="recall-groups"')
+    expect(html).not.toContain('Recall user groups')
+    expect(html).not.toContain('aria-label="Select user groups"')
+    expect(html).toContain('Group mode')
+    expect(html).toContain('No group filter')
+    expect(html).toContain(groupHelp)
+    expect(html).not.toContain('stale-group')
+  })
+
+  test('keeps active group selectors and every group-mode choice visible', () => {
+    for (const mode of ['allow', 'block'] as const) {
       const draft = makeDraft('first_purchase')
       draft.audience_config.group_mode = mode
+      const html = renderEditor('first_purchase', draft)
 
-      expect(renderEditor('first_purchase', draft)).toContain(label)
+      expect(html).toContain('for="recall-groups"')
+      expect(html).toContain('No group filter')
+      expect(html).toContain('Allow groups')
+      expect(html).toContain('Block groups')
     }
   })
 
-  test('uses approved group guidance without free-form or PLG wording', () => {
-    const html = renderEditor('first_purchase')
+  test('uses approved group guidance without free-form or PLG wording when group filtering is active', () => {
+    const draft = makeDraft('first_purchase')
+    draft.audience_config.group_mode = 'allow'
+    const html = renderEditor('first_purchase', draft)
 
     expect(html).toContain(groupHelp)
     expect(html).not.toContain('Groups (comma separated)')
     expect(html).not.toContain('PLG group')
-  })
-
-  test('clears stale groups when loading a no-filter draft', () => {
-    const draft = makeDraft('first_purchase')
-    draft.audience_config.groups = ['stale-group']
-    const html = renderEditor('first_purchase', draft)
-    const groupInput = html.match(/<input[^>]*id="recall-groups"[^>]*>/)?.[0]
-
-    expect(groupInput).toBeTruthy()
-    expect(groupInput).toContain('disabled=""')
-    expect(groupInput).toContain('value=""')
-    expect(groupInput).not.toContain('stale-group')
   })
 
   test('uses configured product selectors instead of manual Stripe Price ID inputs', () => {
@@ -737,7 +743,7 @@ describe('CampaignEditor audience rules', () => {
     expect(html).toContain('Payment providers (comma separated)')
   })
 
-  test('shows registration dates, group controls, and verified email only for registered-only audiences', () => {
+  test('shows registration dates, group mode, and verified email for registered-only audiences without group filtering', () => {
     const draft = makeDraft('registered_only')
     draft.audience_config.registration_start_at =
       recallLocalDateTimeToUnix('2031-01-02T03:04')
@@ -750,8 +756,10 @@ describe('CampaignEditor audience rules', () => {
     expect(html).toContain('type="datetime-local"')
     expect(html).toContain('value="2031-01-02T03:04"')
     expect(html).toContain('value="2031-01-03T03:04"')
-    expect(html).toContain('for="recall-groups"')
+    expect(html).not.toContain('for="recall-groups"')
     expect(html).toContain('Group mode')
+    expect(html).toContain('No group filter')
+    expect(html).toContain(groupHelp)
     expect(html).toContain('Require verified email')
     expectAudienceThresholds(html, [])
     expect(html).not.toContain('Payment providers (comma separated)')

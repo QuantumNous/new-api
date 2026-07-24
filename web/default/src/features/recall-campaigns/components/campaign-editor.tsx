@@ -284,6 +284,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const SpecifiedUsersSelector =
     props.specifiedUsersSelector ?? LazyCampaignSpecifiedUsersSelector
   const showGroupFilter = audienceTemplate !== 'specified_users'
+  const showGroupSelector = showGroupFilter && groupMode !== ''
   const showPaymentProviders =
     audienceTemplate === 'lapsed_payer' ||
     audienceTemplate === 'expired_subscription'
@@ -625,12 +626,14 @@ export function CampaignEditor(props: CampaignEditorProps) {
           ) : null}
           {showGroupFilter ? (
             <>
-              <CampaignGroupSelector
-                groups={groups}
-                groupMode={groupMode}
-                onChange={setGroups}
-                immutable={immutable}
-              />
+              {showGroupSelector ? (
+                <CampaignGroupSelector
+                  groups={groups}
+                  groupMode={groupMode}
+                  onChange={setGroups}
+                  immutable={immutable}
+                />
+              ) : null}
               <div className='space-y-2'>
                 <Label>{t('Group mode')}</Label>
                 <Select

@@ -10,6 +10,8 @@ import {
   CampaignEmailHtmlEditor,
   RecallEmailPreviewFrame,
   clearRecallEmailPreviewError,
+  createRecallEmailPreviewTemplate,
+  prepareRecallEmailPreviewRequest,
   shouldApplyRecallEmailPreviewResult,
 } from './campaign-email-html-editor'
 
@@ -179,6 +181,67 @@ describe('recall email preview race guard', () => {
       latestError: '',
     })
   })
+
+  test('builds preview templates with converted body HTML and a fallback subject', () => {
+    const plainPreview = createRecallEmailPreviewTemplate({
+      subject: '',
+      bodyHTML: 'Plain preview\n2 < 3',
+    })
+
+    expect(plainPreview.subject).toBe('Recall email preview')
+    expect(plainPreview.body_html).toContain('<p>Plain preview</p>')
+    expect(plainPreview.body_html).toContain('<p>2 &lt; 3</p>')
+
+    const source =
+      '<p>Hello</p><p><a href="{{.ClaimURL}}">Claim</a></p><p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>'
+    expect(
+      createRecallEmailPreviewTemplate({
+        subject: 'Actual subject',
+        bodyHTML: source,
+      })
+    ).toEqual({ subject: 'Actual subject', body_html: source })
+  })
+
+  test('prepares a plain-text preview without replacing the operator input', async () => {
+    const operatorBody = 'Plain preview\n2 < 3'
+    const prepared = await prepareRecallEmailPreviewRequest({
+      nextRequestId: () => 3,
+      subject: '',
+      bodyHTML: operatorBody,
+      validateBody: async () => true,
+    })
+
+    expect(prepared?.snapshot).toEqual({
+      requestId: 3,
+      subject: '',
+      bodyHTML: operatorBody,
+    })
+    expect(prepared?.template.subject).toBe('Recall email preview')
+    expect(prepared?.template.body_html).toContain('<p>Plain preview</p>')
+    expect(prepared?.template.body_html).toContain('<p>2 &lt; 3</p>')
+    expect(operatorBody).toBe('Plain preview\n2 < 3')
+  })
+
+  test('assigns the preview request id only after body validation completes', async () => {
+    let resolveValidation: ((valid: boolean) => void) | undefined
+    let nextRequestId = 0
+    const preparing = prepareRecallEmailPreviewRequest({
+      nextRequestId: () => (nextRequestId += 1),
+      subject: 'Subject',
+      bodyHTML: '<p>Body</p>',
+      validateBody: () =>
+        new Promise<boolean>((resolve) => {
+          resolveValidation = resolve
+        }),
+    })
+
+    expect(nextRequestId).toBe(0)
+    resolveValidation?.(true)
+    const prepared = await preparing
+
+    expect(prepared?.snapshot.requestId).toBe(1)
+    expect(nextRequestId).toBe(1)
+  })
 })
 
 describe('CampaignEmailHtmlEditor', () => {
@@ -188,6 +251,13 @@ describe('CampaignEmailHtmlEditor', () => {
     expect(html).toContain('name="email_sequence.0.templates.en.body_html"')
     expect(html).not.toContain('name="email_sequence.0.templates.en.body_text"')
     expect(html).toContain('&lt;p&gt;Hello {{.RecipientName}}&lt;/p&gt;')
+  })
+
+  test('labels the editor field as body text for operators', () => {
+    const html = renderEditor()
+
+    expect(html).toContain('>Body text</label>')
+    expect(html).not.toContain('>Body HTML</label>')
   })
 
   test('renders all insertion buttons with accessible action labels', () => {

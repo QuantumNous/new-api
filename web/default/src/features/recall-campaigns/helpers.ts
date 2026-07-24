@@ -2,6 +2,7 @@ import type { UseFormReturn } from 'react-hook-form'
 import {
   RECALL_EMAIL_STARTER_HTML,
   convertRecallBodyTextToHtml,
+  normalizeRecallBodyInputToHtml,
 } from './email-html'
 import type {
   RecallCampaignDraft,
@@ -17,6 +18,7 @@ export {
   RECALL_EMAIL_STARTER_HTML,
   convertRecallBodyTextToHtml,
   insertRecallEmailAction,
+  normalizeRecallBodyInputToHtml,
 } from './email-html'
 
 export const recallFixedCurrencies = ['USD', 'INR', 'BRL', 'JPY'] as const
@@ -133,7 +135,13 @@ export function prepareRecallCampaignSubmitDraft(
           if (bodyHtml) {
             return [
               locale,
-              { ...template, body_text: '', body_html: template.body_html },
+              {
+                ...template,
+                body_text: '',
+                body_html: normalizeRecallBodyInputToHtml(
+                  template.body_html ?? ''
+                ),
+              },
             ]
           }
           const bodyText = template.body_text?.trim()

@@ -99,6 +99,14 @@ export function convertRecallBodyTextToHtml(bodyText: string): string {
 </html>`
 }
 
+export function normalizeRecallBodyInputToHtml(bodyInput: string): string {
+  const trimmed = bodyInput.trim()
+  if (/<\/?[a-z][\w:-]*(?:\s[^<>]*)?>/i.test(trimmed)) {
+    return bodyInput
+  }
+  return convertRecallBodyTextToHtml(bodyInput)
+}
+
 export function insertRecallEmailAction(
   value: string,
   selectionStart: number,
