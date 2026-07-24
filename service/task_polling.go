@@ -553,9 +553,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				// 其他错误认为是任务失败，记录错误信息并更新任务状态
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
-				// unknown error format, log original response
-				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
-				taskResult = relaycommon.FailTaskInfo("upstream returned unrecognized message")
+				// Upstream may return a body without a status field in early/intermediate
+				// polling phases (e.g. xAI grok-imagine-video returns {"request_id":"...","id":"..."}
+				// before the task starts). Such a response is not an error — keep the current
+				// task status and wait for the next polling round instead of failing the task.
+				logger.LogInfo(ctx, fmt.Sprintf("Task %s returned empty status, will retry next poll. response: %s", taskId, string(responseBody)))
+				return nil
 			}
 		}
 	}
