@@ -54,6 +54,20 @@ export async function searchApiKeys(
   return res.data
 }
 
+// Admin-only: search all users' API keys by keyword or token (with pagination)
+export async function searchAdminApiKeys(
+  params: SearchApiKeysParams
+): Promise<GetApiKeysResponse> {
+  const { keyword = '', token = '', p, size } = params
+  const queryParams = new URLSearchParams()
+  if (keyword) queryParams.set('keyword', keyword)
+  if (token) queryParams.set('token', token)
+  if (p != null) queryParams.set('p', String(p))
+  if (size != null) queryParams.set('size', String(size))
+  const res = await api.get(`/api/token/admin/search?${queryParams.toString()}`)
+  return res.data
+}
+
 // Get single API key by ID
 export async function getApiKey(id: number): Promise<ApiResponse<ApiKey>> {
   const res = await api.get(`/api/token/${id}`)
