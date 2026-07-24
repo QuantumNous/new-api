@@ -38,6 +38,9 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		if shouldSelectChannel && strings.HasPrefix(c.Request.URL.Path, "/v1/messages") {
+			modelRequest.Model = resolveAnthropicModelForRouting(modelRequest.Model)
+		}
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
@@ -167,6 +170,24 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+// resolveAnthropicModelForRouting strips the `claude-` prefix from model names
+// that were disguised for Claude Code Desktop compatibility. Real Claude models
+// (e.g. claude-sonnet-4-6) are returned unchanged because they exist in the
+// ability system; disguised models (e.g. claude-gpt-4o) have their prefix stripped.
+func resolveAnthropicModelForRouting(modelName string) string {
+	if !strings.HasPrefix(modelName, "claude-") {
+		return modelName
+	}
+	if model.IsModelInAnyAbility(modelName) {
+		return modelName
+	}
+	stripped := modelName[len("claude-"):]
+	if stripped == "" {
+		return modelName
+	}
+	return stripped
 }
 
 // channelSupportsRequestPath reports whether a channel can serve the request path.

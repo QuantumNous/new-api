@@ -47,6 +47,7 @@ interface StatusApiResponse {
     usd_exchange_rate?: number
     custom_currency_symbol?: string
     custom_currency_exchange_rate?: number
+    affiliate_rewards_enabled?: boolean
   }
 }
 
@@ -98,6 +99,7 @@ export function mapStatusDataToConfig(
     footerHtml: data.footer_html,
     demoSiteEnabled: data.demo_site_enabled,
     displayTokenStatEnabled: data.display_token_stat_enabled,
+    affiliateRewardsEnabled: data.affiliate_rewards_enabled === true,
     currency,
   }
 }

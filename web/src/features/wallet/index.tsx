@@ -46,6 +46,7 @@ import {
   getDefaultPaymentType,
   getMinTopupAmount,
   dispatchSelectedPayment,
+  shouldShowAffiliateRewards,
 } from './lib'
 import type {
   UserWalletData,
@@ -83,6 +84,9 @@ export function Wallet(props: WalletProps) {
   const { status } = useStatus()
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+  const affiliateRewardsEnabled = shouldShowAffiliateRewards(
+    topupInfo?.affiliate_rewards_enabled
+  )
 
   // Calculate effective exchange rate - when display type is USD, use rate of 1
   const effectiveUsdExchangeRate = useMemo(() => {
@@ -102,7 +106,7 @@ export function Wallet(props: WalletProps) {
     loading: affiliateLoading,
     transferQuota,
     transferring,
-  } = useAffiliate()
+  } = useAffiliate({ enabled: affiliateRewardsEnabled })
   const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
@@ -337,15 +341,17 @@ export function Wallet(props: WalletProps) {
               />
             </div>
 
-            <AffiliateRewardsCard
-              user={user}
-              affiliateLink={affiliateLink}
-              onTransfer={() => setTransferDialogOpen(true)}
-              complianceConfirmed={
-                topupInfo?.payment_compliance_confirmed !== false
-              }
-              loading={affiliateLoading}
-            />
+            {affiliateRewardsEnabled ? (
+              <AffiliateRewardsCard
+                user={user}
+                affiliateLink={affiliateLink}
+                onTransfer={() => setTransferDialogOpen(true)}
+                complianceConfirmed={
+                  topupInfo?.payment_compliance_confirmed !== false
+                }
+                loading={affiliateLoading}
+              />
+            ) : null}
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
