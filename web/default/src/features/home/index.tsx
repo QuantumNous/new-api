@@ -255,10 +255,11 @@ function formatPriceRange(range: { min: number; max: number } | null): string {
 }
 
 function formatPerRequestPriceRange(
-  range: { min: number; max: number } | null
+  range: { min: number; max: number } | null,
+  requestLabel: string
 ): string {
   const price = formatPriceRange(range)
-  return price === '-' ? price : `${price}/次`
+  return price === '-' ? price : `${price}/${requestLabel}`
 }
 
 function getDiscountPercent(actual: number, official: number): number | null {
@@ -435,11 +436,11 @@ export function Home() {
 
       return {
         name: configItem.name,
-        types: typeLabels.join('、'),
-        price: formatPerRequestPriceRange(priceRange),
+        types: typeLabels.join(', '),
+        price: formatPerRequestPriceRange(priceRange, t('request')),
       }
     })
-  }, [pricingData])
+  }, [pricingData, t])
 
   const displayHomePageContent = async () => {
     const cached = localStorage.getItem('home_page_content') || ''
@@ -460,9 +461,9 @@ export function Home() {
   const handleCopyBaseURL = async () => {
     try {
       await navigator.clipboard.writeText(serverAddress)
-      toast.success(t('已复制到剪切板'))
+      toast.success(t('Copied to clipboard'))
     } catch {
-      toast.error(t('复制失败'))
+      toast.error(t('Copy failed'))
     }
   }
 
@@ -517,14 +518,16 @@ export function Home() {
                       isChinese && 'tracking-wide md:tracking-wider'
                     )}
                   >
-                    {t('直连官方的')}
+                    {t('Direct access to official providers')}
                     <br />
                     <span className='shine-text from-primary to-primary/70 bg-gradient-to-r bg-clip-text text-transparent'>
-                      {t('企业级接口网关')}
+                      {t('Enterprise-grade API gateway')}
                     </span>
                   </h1>
                   <p className='text-muted-foreground mt-4 max-w-xl text-base md:mt-6 md:text-lg lg:text-xl'>
-                    {t('还有更多低价渠道，稳定流畅，只需要将BaseUrl替换为：')}
+                    {t(
+                      'More affordable routes are available. For stable access, replace BaseUrl with:'
+                    )}
                   </p>
                   <div className='mt-4 flex w-full max-w-lg flex-col items-center justify-center gap-4 md:mt-6 md:flex-row'>
                     <div className='relative w-full flex-1'>
@@ -551,7 +554,7 @@ export function Home() {
                   <Link to='/keys' className='w-full sm:w-auto'>
                     <Button size='lg' className='w-full rounded-full px-8'>
                       <Play data-icon='inline-start' />
-                      {t('获取密钥')}
+                      {t('Get API Key')}
                     </Button>
                   </Link>
                   {isDemoSiteMode && (
@@ -579,28 +582,28 @@ export function Home() {
                       aria-level={2}
                       className='text-xl font-semibold md:text-2xl'
                     >
-                      {t('模型价格对比')}
+                      {t('Model Price Comparison')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className='px-0'>
                     <div className='text-muted-foreground hidden grid-cols-6 px-5 py-3 text-xs font-semibold tracking-wider uppercase md:grid'>
                       <span className='min-w-[140px] text-left md:min-w-[180px]'>
-                        {pricingHeaderConfig.model}
+                        {t(pricingHeaderConfig.model)}
                       </span>
                       <span className='hidden text-center md:block'>
-                        {pricingHeaderConfig.input}
+                        {t(pricingHeaderConfig.input)}
                       </span>
                       <span className='hidden text-center md:block'>
-                        {pricingHeaderConfig.output}
+                        {t(pricingHeaderConfig.output)}
                       </span>
                       <span className='text-center'>
-                        {pricingHeaderConfig.official}
+                        {t(pricingHeaderConfig.official)}
                       </span>
                       <span className='text-center'>
-                        {pricingHeaderConfig.discount}
+                        {t(pricingHeaderConfig.discount)}
                       </span>
                       <span className='text-center'>
-                        {pricingHeaderConfig.cacheHit}
+                        {t(pricingHeaderConfig.cacheHit)}
                       </span>
                     </div>
 
@@ -608,7 +611,7 @@ export function Home() {
 
                     {modelPricingRows.length === 0 ? (
                       <div className='text-muted-foreground px-5 py-6 text-sm'>
-                        {t('暂无价格数据')}
+                        {t('No pricing data available')}
                       </div>
                     ) : (
                       modelPricingRows.map((item) => (
@@ -624,7 +627,7 @@ export function Home() {
                           </span>
                           <span className='bg-muted/35 flex flex-col gap-1 rounded-xl p-2 text-left md:hidden'>
                             <span className='text-muted-foreground text-xs'>
-                              {pricingHeaderConfig.input}
+                              {t(pricingHeaderConfig.input)}
                             </span>
                             <span className='text-foreground font-mono font-medium'>
                               {item.inputPrice}
@@ -632,7 +635,7 @@ export function Home() {
                           </span>
                           <span className='bg-muted/35 flex flex-col gap-1 rounded-xl p-2 text-left md:hidden'>
                             <span className='text-muted-foreground text-xs'>
-                              {pricingHeaderConfig.output}
+                              {t(pricingHeaderConfig.output)}
                             </span>
                             <span className='text-foreground font-mono font-medium'>
                               {item.outputPrice}
@@ -646,7 +649,7 @@ export function Home() {
                           </span>
                           <span className='text-muted-foreground flex flex-col gap-1 text-left font-mono md:block md:text-center'>
                             <span className='text-muted-foreground text-xs md:hidden'>
-                              {pricingHeaderConfig.official}
+                              {t(pricingHeaderConfig.official)}
                             </span>
                             <span>
                               {item.officialInput} / {item.officialOutput}
@@ -654,7 +657,7 @@ export function Home() {
                           </span>
                           <span className='flex flex-col gap-1 text-left md:block md:text-center'>
                             <span className='text-muted-foreground text-xs md:hidden'>
-                              {pricingHeaderConfig.discount}
+                              {t(pricingHeaderConfig.discount)}
                             </span>
                             <Badge variant='outline' className='font-mono'>
                               {item.discount}
@@ -662,7 +665,7 @@ export function Home() {
                           </span>
                           <span className='flex flex-col gap-1 text-left md:block md:text-center'>
                             <span className='text-muted-foreground text-xs md:hidden'>
-                              {pricingHeaderConfig.cacheHit}
+                              {t(pricingHeaderConfig.cacheHit)}
                             </span>
                             <Badge variant='secondary' className='font-mono'>
                               {item.cacheHit}
@@ -681,19 +684,19 @@ export function Home() {
                       aria-level={2}
                       className='text-xl font-semibold md:text-2xl'
                     >
-                      {t('图像模型')}
+                      {t('Image Models')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className='px-0'>
                     <div className='text-muted-foreground hidden grid-cols-3 px-5 py-3 text-xs font-semibold tracking-wider uppercase sm:grid'>
                       <span className='text-left'>
-                        {imagePricingHeaderConfig.model}
+                        {t(imagePricingHeaderConfig.model)}
                       </span>
                       <span className='text-center'>
-                        {imagePricingHeaderConfig.type}
+                        {t(imagePricingHeaderConfig.type)}
                       </span>
                       <span className='text-center'>
-                        {imagePricingHeaderConfig.price}
+                        {t(imagePricingHeaderConfig.price)}
                       </span>
                     </div>
 
@@ -701,7 +704,7 @@ export function Home() {
 
                     {imageModelPricingRows.length === 0 ? (
                       <div className='text-muted-foreground px-5 py-6 text-sm'>
-                        {t('暂无价格数据')}
+                        {t('No pricing data available')}
                       </div>
                     ) : (
                       imageModelPricingRows.map((item) => (
@@ -717,7 +720,7 @@ export function Home() {
                           </span>
                           <span className='flex flex-col gap-1 text-left sm:block sm:text-center'>
                             <span className='text-muted-foreground text-xs sm:hidden'>
-                              {imagePricingHeaderConfig.type}
+                              {t(imagePricingHeaderConfig.type)}
                             </span>
                             <span className='text-muted-foreground font-mono'>
                               {item.types}
@@ -725,7 +728,7 @@ export function Home() {
                           </span>
                           <span className='flex flex-col gap-1 text-left sm:block sm:text-center'>
                             <span className='text-muted-foreground text-xs sm:hidden'>
-                              {imagePricingHeaderConfig.price}
+                              {t(imagePricingHeaderConfig.price)}
                             </span>
                             <span className='text-foreground font-mono font-semibold'>
                               {item.price}

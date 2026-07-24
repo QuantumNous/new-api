@@ -54,18 +54,18 @@ export const pricingCurrencyConfig = {
  * 可自定义各列的显示标题
  */
 export const pricingHeaderConfig = {
-  model: '模型',
-  input: '输入(1M)',
-  output: '输出(1M)',
-  official: '官方输入/输出(1M)',
-  discount: '折扣',
-  cacheHit: '缓存命中',
+  model: 'Model',
+  input: 'Input (1M)',
+  output: 'Output (1M)',
+  official: 'Official Input / Output (1M)',
+  discount: 'Discount',
+  cacheHit: 'Cache Hit',
 }
 
 export const imagePricingHeaderConfig = {
-  model: '模型名称',
-  type: '图像类型',
-  price: '价格',
+  model: 'Model Name',
+  type: 'Image Type',
+  price: 'Price',
 }
 
 /**

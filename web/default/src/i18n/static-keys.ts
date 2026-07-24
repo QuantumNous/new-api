@@ -173,6 +173,13 @@ export const STATIC_I18N_KEYS = [
   'Multi-user management with flexible permission allocation',
   'Technical Support',
   'Professional team providing 24/7 technical support',
+  'Input (1M)',
+  'Output (1M)',
+  'Official Input / Output (1M)',
+  'Discount',
+  'Cache Hit',
+  'Model Name',
+  'Image Type',
 
   // User management (interpolated keys)
   'Remaining Quota ({{currency}})',
