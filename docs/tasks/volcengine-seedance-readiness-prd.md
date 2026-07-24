@@ -1,6 +1,6 @@
 # PRD — 火山引擎 / Seedance 可用性补齐 (volcengine-seedance-readiness)
 
-**Status**: eval
+**Status**: ship
 **Owner**: Claude (background job, 2026-07-24)
 **Refs**: `docs/PRD.md`(网关产品 PRD), `docs/pricing-catalog-2026h1-prd.md`(定价目录)
 
@@ -67,3 +67,13 @@
 - `go test ./relay/channel/task/doubao/` 绿;新测试在两个 CI 工作流中执行。
 - 配好 type 54 渠道后,`POST /v1/video/generations`(model=doubao-seedance-*)
   不再报"价格未配置"。
+
+## 6. 结果(2026-07-24)
+
+- PR #153 双 CI 门(unit-test + airbotix-internal)通过,squash 合并至 main;
+  合并触发 `deploy.yml` 自动生产部署。
+- 本地 e2e 验证(SQLite 网关 + type 54 渠道 + 假上游 key,self-use 模式关闭):
+  6 个 Seedance 模型全部通过定价解析并真实到达方舟
+  (`AuthenticationError`,带 Ark request id),提交失败后预扣费正确退回。
+- 真实 key 打通留待运营方在管理后台配置渠道 Key 后复验
+  (或 `seed.py` + `VOLCENGINE_API_KEY`)。
