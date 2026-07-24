@@ -133,6 +133,11 @@ func usageFromClaudeBillingUsage(billingUsage *dto.BillingUsage) *dto.Usage {
 	if cacheCreation1h == 0 {
 		cacheCreation1h = claudeUsage.ClaudeCacheCreation1hTokens
 	}
+	// If both split values are still 0 but there's a total, default to 5m
+	// (Claude standard cache TTL is 5 minutes).
+	if cacheCreation5m == 0 && cacheCreation1h == 0 && claudeUsage.CacheCreationInputTokens > 0 {
+		cacheCreation5m = claudeUsage.CacheCreationInputTokens
+	}
 
 	usage := &dto.Usage{
 		PromptTokens:                claudeUsage.InputTokens,
