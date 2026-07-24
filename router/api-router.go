@@ -352,6 +352,8 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.POST("/", controller.CreateModelMeta)
 			modelsRoute.PUT("/", controller.UpdateModelMeta)
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
+			modelsRoute.POST("/batch_disable_no_channels", controller.BatchDisableModelsNoChannels)
+			modelsRoute.POST("/batch_enable_with_channels", controller.BatchEnableModelsWithChannels)
 		}
 
 		// Deployments (model deployment management)

@@ -506,6 +506,8 @@
     "Auto refresh": "Tự động làm mới",
     "Auto Sync Upstream Models": "Tự động đồng bộ mô hình nguồn",
     "Auto-disable rules": "Quy tắc tự động tắt",
+    "Auto-disable models with no available channels": "Auto-disable models with no available channels",
+    "Auto-enable models disabled by this setting when a channel recovers": "Auto-enable models disabled by this setting when a channel recovers",
     "Auto-disable status codes": "Mã trạng thái tự tắt",
     "Auto-discover": "Tự động khám phá",
     "Auto-discovers endpoints from the provider": "Tự động khám phá các điểm cuối từ nhà cung cấp",

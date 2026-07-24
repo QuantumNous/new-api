@@ -35,6 +35,7 @@ import { modelsQueryKeys, vendorsQueryKeys } from '../lib'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useModelsColumns } from './models-columns'
 import { useModels } from './models-provider'
+import { ModelsAvailabilitySwitches } from './models-availability-switches'
 
 const route = getRouteApi('/_authenticated/models/$section')
 
@@ -189,41 +190,46 @@ export function ModelsTable() {
   ]
 
   return (
-    <DataTablePage
-      table={table}
-      columns={columns}
-      isLoading={isLoading}
-      isFetching={isFetching}
-      emptyTitle={t('No Models Found')}
-      emptyDescription={t(
-        'No models available. Create your first model to get started.'
-      )}
-      skeletonKeyPrefix='model-skeleton'
-      applyHeaderSize
-      toolbarProps={{
-        searchPlaceholder: t('Filter by model name...'),
-        filters: [
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: [...getModelStatusOptions(t)],
-            singleSelect: true,
-          },
-          {
-            columnId: 'vendor_id',
-            title: t('Vendor'),
-            options: vendorFilterOptions,
-            singleSelect: true,
-          },
-          {
-            columnId: 'sync_official',
-            title: t('Official Sync'),
-            options: [...getSyncStatusOptions(t)],
-            singleSelect: true,
-          },
-        ],
-      }}
-      bulkActions={<DataTableBulkActions table={table} />}
-    />
+    <div className='flex h-full min-h-0 flex-col gap-3'>
+      <ModelsAvailabilitySwitches />
+      <div className='min-h-0 flex-1'>
+        <DataTablePage
+          table={table}
+          columns={columns}
+          isLoading={isLoading}
+          isFetching={isFetching}
+          emptyTitle={t('No Models Found')}
+          emptyDescription={t(
+            'No models available. Create your first model to get started.'
+          )}
+          skeletonKeyPrefix='model-skeleton'
+          applyHeaderSize
+          toolbarProps={{
+            searchPlaceholder: t('Filter by model name...'),
+            filters: [
+              {
+                columnId: 'status',
+                title: t('Status'),
+                options: [...getModelStatusOptions(t)],
+                singleSelect: true,
+              },
+              {
+                columnId: 'vendor_id',
+                title: t('Vendor'),
+                options: vendorFilterOptions,
+                singleSelect: true,
+              },
+              {
+                columnId: 'sync_official',
+                title: t('Official Sync'),
+                options: [...getSyncStatusOptions(t)],
+                singleSelect: true,
+              },
+            ],
+          }}
+          bulkActions={<DataTableBulkActions table={table} />}
+        />
+      </div>
+    </div>
   )
 }

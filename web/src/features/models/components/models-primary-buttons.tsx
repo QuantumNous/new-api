@@ -23,8 +23,11 @@ import {
   List,
   Building2,
   AlertCircle,
+  PowerOff,
+  Power,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -37,10 +40,15 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 import { useModels } from './models-provider'
+import {
+  handleBatchDisableModelsNoChannels,
+  handleBatchEnableModelsWithChannels,
+} from '../lib/model-actions'
 
 export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
+  const queryClient = useQueryClient()
 
   const handleCreateModel = () => {
     setCurrentRow(null)
@@ -63,6 +71,14 @@ export function ModelsPrimaryButtons() {
     setOpen('create-vendor') // Will be a separate vendors management dialog
   }
 
+  const handleBatchDisableNoChannels = async () => {
+    await handleBatchDisableModelsNoChannels(queryClient)
+  }
+
+  const handleBatchEnableWithChannels = async () => {
+    await handleBatchEnableModelsWithChannels(queryClient)
+  }
+
   return (
     <div className='flex items-center gap-2'>
       {/* Create Model */}
@@ -76,7 +92,7 @@ export function ModelsPrimaryButtons() {
         <DropdownMenuTrigger render={<Button variant='outline' size='sm' />}>
           <MoreHorizontal className='h-4 w-4' />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-56'>
+        <DropdownMenuContent align='end' className='w-64'>
           <DropdownMenuItem onClick={handleMissingModels}>
             {t('Missing Models')}
             <DropdownMenuShortcut>
@@ -104,6 +120,22 @@ export function ModelsPrimaryButtons() {
             {t('Manage Vendors')}
             <DropdownMenuShortcut>
               <Building2 className='h-4 w-4' />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem onClick={handleBatchDisableNoChannels}>
+            {t('Batch Disable Models with No Channels')}
+            <DropdownMenuShortcut>
+              <PowerOff className='h-4 w-4' />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={handleBatchEnableWithChannels}>
+            {t('Batch Enable Models with Recovered Channels')}
+            <DropdownMenuShortcut>
+              <Power className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuContent>

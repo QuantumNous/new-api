@@ -506,6 +506,8 @@
     "Auto refresh": "Автообновление",
     "Auto Sync Upstream Models": "Автоматическая синхронизация моделей провайдера",
     "Auto-disable rules": "Правила автоотключения",
+    "Auto-disable models with no available channels": "Auto-disable models with no available channels",
+    "Auto-enable models disabled by this setting when a channel recovers": "Auto-enable models disabled by this setting when a channel recovers",
     "Auto-disable status codes": "Коды автоотключения",
     "Auto-discover": "Автообнаружение",
     "Auto-discovers endpoints from the provider": "Автоматически обнаруживает конечные точки от провайдера",
