@@ -237,7 +237,8 @@ test("paid attribution keeps an immutable first landing across the console hando
   });
   assert.equal(later.payload.first_landing_path, "/pt");
   assert.equal(later.payload.landing_path, "/pricing");
-  assert.equal(later.payload.gclid, "click-2");
+  assert.equal(later.payload.gclid, "click-1");
+  assert.equal(later.payload.expires_at, first.payload.expires_at);
 });
 
 test("authentication routes never become acquisition landers", () => {

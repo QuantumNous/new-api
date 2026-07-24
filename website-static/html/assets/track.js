@@ -3,7 +3,15 @@
   /* Preserve paid acquisition across flatkey.ai -> console.flatkey.ai OAuth. */
   function captureAttribution() {
     try {
-      var keep = { aff: 1, fbclid: 1, gad_campaignid: 1, gad_source: 1, gbraid: 1, gclid: 1, lng: 1, msclkid: 1, ttclid: 1, wbraid: 1, yclid: 1 };
+      var keep = {
+        aff: 1, fbclid: 1, gad_campaignid: 1, gad_source: 1, gbraid: 1,
+        gclid: 1, lng: 1, msclkid: 1, ttclid: 1, wbraid: 1, yclid: 1,
+        account: 1, campaign_id: 1, ad_group: 1, ad_group_id: 1,
+        creative: 1, creative_id: 1, placement: 1, network: 1, device: 1,
+        market: 1, country: 1, match_type: 1, target_id: 1,
+        location_id: 1, loc_physical_ms: 1, language: 1,
+        experiment: 1, experiment_id: 1
+      };
       var params = new URLSearchParams(location.search || "");
       var values = {};
       params.forEach(function (value, key) {
@@ -18,6 +26,15 @@
       if (part) {
         try { existing = JSON.parse(decodeURIComponent(part.slice(prefix.length))) || {}; } catch (_) { existing = {}; }
       }
+      try {
+        var stored = JSON.parse(localStorage.getItem("ads:attribution") || "{}");
+        existing = Object.assign({}, stored, existing);
+      } catch (_) {}
+      var nowDate = new Date();
+      if (existing.expires_at && Date.parse(existing.expires_at) <= nowDate.getTime()) existing = {};
+      if (existing.gclid || existing.gbraid || existing.wbraid) {
+        values = Object.assign({}, values, existing);
+      }
 
       function acquisitionPath(path) {
         return path && path.charAt(0) === "/" && path.indexOf("/oauth/") !== 0 && path !== "/sign-in" && path.indexOf("/sign-in/") !== 0 && path !== "/sign-up" && path.indexOf("/sign-up/") !== 0;
@@ -25,16 +42,19 @@
       var path = location.pathname || "/";
       var previous = existing.first_landing_path || existing.landing_path || "";
       var first = acquisitionPath(previous) ? previous : (acquisitionPath(path) ? path : "");
-      var now = new Date().toISOString();
+      var now = nowDate.toISOString();
       values.landing_path = acquisitionPath(path) ? path : (existing.landing_path || "");
       values.captured_at = now;
+      values.expires_at = existing.expires_at || new Date(nowDate.getTime() + 7776000000).toISOString();
       if (first) {
         values.first_landing_path = first;
         values.first_captured_at = existing.first_captured_at || existing.captured_at || now;
       }
       if (document.referrer && document.referrer.indexOf(location.origin + "/") !== 0) values.referrer = document.referrer;
 
-      var attributes = ["path=/", "max-age=7776000", "SameSite=Lax"];
+      try { localStorage.setItem("ads:attribution", JSON.stringify(values)); } catch (_) {}
+      var maxAge = Math.max(0, Math.floor((Date.parse(values.expires_at) - nowDate.getTime()) / 1000));
+      var attributes = ["path=/", "max-age=" + maxAge, "SameSite=Lax"];
       if (location.hostname === "flatkey.ai" || location.hostname.endsWith(".flatkey.ai")) attributes.push("domain=.flatkey.ai");
       if (location.protocol === "https:") attributes.push("Secure");
       document.cookie = cookieName + "=" + encodeURIComponent(JSON.stringify(values)) + "; " + attributes.join("; ");

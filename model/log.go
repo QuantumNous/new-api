@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -320,6 +321,7 @@ type RecordConsumeLogParams struct {
 // variable set by the service layer at init to avoid an import cycle (model must not
 // import service). Keep the callback cheap; it runs on the settlement path.
 var TemporaryChannelSpendHook func(channelId int, modelName string, quota int)
+var adsActivationSeen sync.Map
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
 	if !common.LogConsumeEnabled {
@@ -371,6 +373,14 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, "failed to record log: "+err.Error())
 	} else {
 		maybeRecordLogRequestSample(c, userId, params, log)
+		if _, loaded := adsActivationSeen.LoadOrStore(userId, struct{}{}); !loaded {
+			occurredAt := time.Unix(log.CreatedAt, 0)
+			gopool.Go(func() {
+				if err := EnqueueAdsActivation(userId, occurredAt); err != nil {
+					adsActivationSeen.Delete(userId)
+				}
+			})
+		}
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {

@@ -525,7 +525,10 @@ func (user *User) insertWithTx(tx *gorm.DB, inviterId int, registrationIP string
 		return result.Error
 	}
 
-	return claimRegistrationIPNewUserBonusInTx(tx, user)
+	if err := claimRegistrationIPNewUserBonusInTx(tx, user); err != nil {
+		return err
+	}
+	return EnqueueAdsSignupInTx(tx, user)
 }
 
 // InsertWithTx inserts a new user within an existing transaction.

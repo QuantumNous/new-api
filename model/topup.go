@@ -275,6 +275,9 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 		if err != nil {
 			return err
 		}
+		if err := EnqueueAdsPurchaseInTx(tx, topUp); err != nil {
+			return err
+		}
 
 		var rewardErr error
 		rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)

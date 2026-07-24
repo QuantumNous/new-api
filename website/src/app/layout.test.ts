@@ -49,9 +49,11 @@ describe("ATTRIBUTION_COOKIE_SCRIPT", () => {
     expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("SameSite=Lax");
     expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("first_landing_path");
     expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("existing.landing_path");
-    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain('path!=="/sign-in"');
-    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain('path!=="/sign-up"');
-    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain('path.indexOf("/oauth/")!==0');
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain('path !== "/sign-in"');
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain('path !== "/sign-up"');
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain('path.indexOf("/oauth/") !== 0');
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("localStorage.setItem");
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("expires_at");
   });
 });
 

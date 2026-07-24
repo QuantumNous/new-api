@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -339,6 +340,8 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 	require.NotNil(t, params.CustomerEmail)
 	require.Equal(t, "buyer+location_JP@example.com", *params.CustomerEmail)
 	require.Nil(t, params.AllowPromotionCodes, "promotion code field must stay hidden on checkout")
+	require.NotNil(t, params.PaymentIntentData)
+	require.Equal(t, "trade_123", params.PaymentIntentData.Metadata["trade_no"])
 }
 
 func TestStripeCheckoutSessionRequestsThreeDSecure(t *testing.T) {
@@ -655,6 +658,55 @@ func TestStripePaymentSnapshotFromEventRequiresAmountAndCurrency(t *testing.T) {
 	} {
 		require.Equal(t, model.PaymentSnapshot{}, stripePaymentSnapshotFromEvent(event))
 	}
+}
+
+func TestChargeRefundedQueuesCumulativeRevenueAdjustment(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	user := &model.User{
+		Id:             905,
+		Username:       "stripe_refund_attribution",
+		Status:         common.UserStatusEnabled,
+		AdsAttribution: `{"gclid":"CLICK_REFUND_12345"}`,
+	}
+	require.NoError(t, model.DB.Create(user).Error)
+	topUp := &model.TopUp{
+		UserId:          user.Id,
+		TradeNo:         "ref_stripe_refund",
+		Money:           10,
+		PaymentCurrency: "USD",
+		PaymentProvider: model.PaymentProviderStripe,
+		CompleteTime:    1_800_000_000,
+		Status:          common.TopUpStatusSuccess,
+	}
+	require.NoError(t, model.DB.Create(topUp).Error)
+	require.NoError(t, model.EnqueueAdsPurchaseInTx(model.DB, topUp))
+
+	event := stripe.Event{
+		ID:      "evt_refund_partial",
+		Type:    stripe.EventTypeChargeRefunded,
+		Created: 1_800_000_100,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"metadata":        map[string]interface{}{"trade_no": topUp.TradeNo},
+			"currency":        "usd",
+			"amount_refunded": float64(350),
+		}},
+	}
+	require.NoError(t, chargeReversed(
+		context.Background(), event, model.InviteSubRewardReasonRefunded, "127.0.0.1",
+	))
+	require.NoError(t, chargeReversed(
+		context.Background(), event, model.InviteSubRewardReasonRefunded, "127.0.0.1",
+	), "Stripe webhook replay must be idempotent")
+
+	var refunds []model.AdsAttributionOutbox
+	require.NoError(t, model.DB.Where("event_type = ?", "refund").Find(&refunds).Error)
+	require.Len(t, refunds, 1)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(refunds[0].Payload), &payload))
+	require.Equal(t, "restatement", payload["adjustment_type"])
+	require.Equal(t, 3.5, payload["value"])
+	require.Equal(t, 6.5, payload["adjusted_value"])
+	require.Equal(t, "USD", payload["currency"])
 }
 
 func TestFulfillOrderRejectsMismatchedStripePaymentContract(t *testing.T) {
@@ -1196,6 +1248,8 @@ func setupStripeFulfillmentTestDB(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(
 		&model.User{},
 		&model.TopUp{},
+		&model.AdsAttributionOutbox{},
+		&model.InviteSubscriptionReward{},
 		&model.TopUpBonusClaim{},
 		&model.Log{},
 		&model.PaymentInvoice{},

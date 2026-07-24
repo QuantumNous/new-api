@@ -145,6 +145,10 @@ func main() {
 	service.StartSubscriptionQuotaResetTask()
 	service.StartStripeSubscriptionReconciliationTask()
 
+	// Deliver paid-click signup, first-use, purchase, and refund events through
+	// the durable product outbox into the shared Ads Agent attribution service.
+	service.StartAdsAttributionDeliveryTask()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)

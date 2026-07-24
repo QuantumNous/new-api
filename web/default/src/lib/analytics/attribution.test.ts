@@ -21,6 +21,7 @@ import {
   applyPtPostSignupTopupExperiment,
   captureAdsAttribution,
   getAttributionPayload,
+  getStoredAdsAttribution,
   isAcquisitionLandingPath,
   isPtGooglePaidAttribution,
   isPtPostSignupTopupExperiment,
@@ -173,7 +174,7 @@ describe('attribution normalization', () => {
     expect(merged.source_type).toBe('utm')
   })
 
-  test('keeps immutable first landing when a later paid campaign replaces last touch', () => {
+  test('keeps the first paid click and landing for the 90-day attribution window', () => {
     const merged = mergeAttributionValues(
       {
         gclid: 'first-click',
@@ -187,8 +188,8 @@ describe('attribution normalization', () => {
       }
     )
 
-    expect(merged.gclid).toBe('second-click')
-    expect(merged.landing_path).toBe('/pricing')
+    expect(merged.gclid).toBe('first-click')
+    expect(merged.landing_path).toBe('/pt')
     expect(merged.first_landing_path).toBe('/pt')
     expect(merged.first_captured_at).toBe('2026-07-21T00:00:00.000Z')
   })
@@ -236,6 +237,36 @@ describe('attribution normalization', () => {
     expect(parsed.medium).toBe('cpc')
     expect(parsed.campaign).toBe('signup')
     expect(parsed.keyword).toBe('flatkey api')
+  })
+
+  test('drops localStorage attribution after the 90-day expiry', () => {
+    const originalWindow = globalThis.window
+    let removed = false
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: () =>
+            JSON.stringify({
+              gclid: 'expired-click',
+              expires_at: '2000-01-01T00:00:00.000Z',
+            }),
+          removeItem: () => {
+            removed = true
+          },
+        },
+      },
+    })
+
+    try {
+      expect(getStoredAdsAttribution()).toEqual({})
+      expect(removed).toBe(true)
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+    }
   })
 
   test('stores external referrer keyword without raw query or hash', () => {

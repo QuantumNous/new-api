@@ -29,11 +29,30 @@ const ATTRIBUTION_KEYS = new Set([
   'ttclid',
   'wbraid',
   'yclid',
+  'account',
+  'campaign_id',
+  'ad_group',
+  'ad_group_id',
+  'creative',
+  'creative_id',
+  'placement',
+  'network',
+  'device',
+  'market',
+  'country',
+  'match_type',
+  'target_id',
+  'location_id',
+  'loc_physical_ms',
+  'language',
+  'experiment',
+  'experiment_id',
 ])
 
 const ATTRIBUTION_STORAGE_KEY = 'ads:attribution'
 const SHARED_ATTRIBUTION_COOKIE_KEY = 'flatkey_ads_attribution'
 export const PT_POST_SIGNUP_TOPUP_EXPERIMENT_ID = 'pt_post_signup_topup_v1'
+const ATTRIBUTION_TTL_MS = 90 * 24 * 60 * 60 * 1000
 const PAID_CLICK_IDS = new Set([
   'fbclid',
   'gbraid',
@@ -89,6 +108,11 @@ const NON_ACQUISITION_PATH_PREFIXES = [
 
 export type AttributionValues = Record<string, string>
 
+function isExpiredAttribution(values: AttributionValues): boolean {
+  const expiresAt = Date.parse(values.expires_at || '')
+  return Number.isFinite(expiresAt) && expiresAt <= Date.now()
+}
+
 function shouldPreserveQueryKey(key: string): boolean {
   return (
     ATTRIBUTION_KEYS.has(key) ||
@@ -126,9 +150,10 @@ function getSharedAdsAttribution(): Record<string, string> {
   }
 
   try {
-    return parseAttributionPayload(
+    const parsed = parseAttributionPayload(
       decodeURIComponent(cookie.slice(prefix.length))
     )
+    return isExpiredAttribution(parsed) ? {} : parsed
   } catch {
     return {}
   }
@@ -322,15 +347,25 @@ export function mergeAttributionValues(
   const cleanExisting = cleanAttributionValues(existing)
   const cleanCurrent = cleanAttributionValues(current)
   const existingNormalized = normalizeAttribution(cleanExisting)
-  const currentNormalized = normalizeAttribution(cleanCurrent)
 
-  if (
-    existingNormalized.source_type === 'paid' &&
-    currentNormalized.source_type !== 'paid'
-  ) {
-    return {
+  if (existingNormalized.source_type === 'paid') {
+    const preservedFirstPaidTouch = {
+      ...cleanCurrent,
       ...cleanExisting,
-      ...existingNormalized,
+    }
+    const firstLanding =
+      cleanExisting.first_landing_path ||
+      (isAcquisitionLandingPath(cleanExisting.landing_path || '')
+        ? cleanExisting.landing_path
+        : '')
+    if (firstLanding) {
+      preservedFirstPaidTouch.first_landing_path = firstLanding
+      preservedFirstPaidTouch.first_captured_at =
+        cleanExisting.first_captured_at || cleanExisting.captured_at || ''
+    }
+    return {
+      ...preservedFirstPaidTouch,
+      ...normalizeAttribution(preservedFirstPaidTouch),
     }
   }
 
@@ -444,11 +479,16 @@ export function getStoredAdsAttribution(): Record<string, string> {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return {}
     }
-    return Object.fromEntries(
+    const attribution = Object.fromEntries(
       Object.entries(parsed).filter(
         ([, value]) => typeof value === 'string' && value.length > 0
       )
     ) as Record<string, string>
+    if (isExpiredAttribution(attribution)) {
+      window.localStorage.removeItem?.(ATTRIBUTION_STORAGE_KEY)
+      return {}
+    }
+    return attribution
   } catch {
     return {}
   }
@@ -461,6 +501,7 @@ export function captureAdsAttribution(): Record<string, string> {
 
   const queryAttribution = collectAttributionFromSearch(window.location.search)
   const sharedAttribution = getSharedAdsAttribution()
+  const now = new Date()
   const currentPath = window.location.pathname
   const validCurrentPath = isAcquisitionLandingPath(currentPath)
   const firstLandingPath =
@@ -472,7 +513,7 @@ export function captureAdsAttribution(): Record<string, string> {
   const firstCapturedAt =
     sharedAttribution.first_captured_at ||
     sharedAttribution.captured_at ||
-    (firstLandingPath ? new Date().toISOString() : '')
+    (firstLandingPath ? now.toISOString() : '')
   const current: AttributionValues = {
     ...(hasCampaignSignal(queryAttribution)
       ? { ...sharedAttribution, ...queryAttribution }
@@ -486,10 +527,13 @@ export function captureAdsAttribution(): Record<string, string> {
         : sharedAttribution.landing_path,
     captured_at:
       hasCampaignSignal(queryAttribution) || !sharedAttribution.captured_at
-        ? new Date().toISOString()
+        ? now.toISOString()
         : sharedAttribution.captured_at,
     first_landing_path: firstLandingPath,
     first_captured_at: firstCapturedAt,
+    expires_at:
+      sharedAttribution.expires_at ||
+      new Date(now.getTime() + ATTRIBUTION_TTL_MS).toISOString(),
   }
   if (isExternalReferrer(document.referrer)) {
     const keyword = getSearchKeyword(document.referrer)

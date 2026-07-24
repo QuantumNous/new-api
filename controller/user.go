@@ -32,8 +32,13 @@ var allowedAdsAttributionKeys = map[string]struct{}{
 	"gbraid": {}, "gclid": {}, "lng": {}, "msclkid": {}, "ttclid": {},
 	"wbraid": {}, "yclid": {}, "landing_path": {}, "captured_at": {},
 	"first_landing_path": {}, "first_captured_at": {}, "referrer": {},
+	"expires_at": {}, "experiment": {}, "experiment_id": {},
 	"source_type": {}, "source": {}, "medium": {}, "campaign": {},
 	"keyword": {}, "is_paid": {}, "rule_version": {},
+	"account": {}, "campaign_id": {}, "ad_group": {}, "ad_group_id": {},
+	"creative": {}, "creative_id": {}, "placement": {}, "network": {},
+	"device": {}, "market": {}, "country": {}, "match_type": {},
+	"target_id": {}, "location_id": {}, "loc_physical_ms": {}, "language": {},
 }
 
 func isAllowedAdsAttributionKey(key string) bool {
