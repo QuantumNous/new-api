@@ -171,6 +171,8 @@ function type2secretPrompt(type) {
       return 'th12345ai_key_prompt';
     case 65:
       return 'megabyai_key_prompt';
+    case 66:
+      return 'sora2u_key_prompt';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -765,6 +767,17 @@ const EditChannelModal = (props) => {
             megabyai_face_pass: true,
             megabyai_face_single_eye: true,
             megabyai_face_size: 5,
+          }));
+          break;
+        case 66: // sora2u
+          localModels = [
+            'seedance-2.0',
+            'seedance-2.0-character',
+            'seedance-1.5',
+          ];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://sora2u.com',
           }));
           break;
         default:
@@ -2844,7 +2857,7 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
-                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64 || inputs.type === 65) && (
+                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64 || inputs.type === 65 || inputs.type === 66) && (
                       <Banner
                         type='info'
                         closeIcon={null}
@@ -2860,7 +2873,9 @@ const EditChannelModal = (props) => {
                                   ? 'th12345ai 渠道说明'
                                   : inputs.type === 65
                                     ? 'megabyai 渠道说明'
-                                    : '异步视频渠道通用说明',
+                                    : inputs.type === 66
+                                      ? 'Sora2U 渠道说明'
+                                      : '异步视频渠道通用说明',
                         )}
                       />
                     )}

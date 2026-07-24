@@ -245,6 +245,20 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Async video: POST /v1/videos, poll GET /v1/videos/{id}, content GET .../content. Maps size→ratio/resolution, images→referenceImages. Supports referenceVideos/referenceAudios. No first_image/last_image. Optional Face pass (default on): resize max edge 1600 → WebP → face.83zi.com → upstream.',
     },
   },
+  66: {
+    id: 66,
+    name: CHANNEL_TYPES[66],
+    icon: 'openai',
+    defaultBaseUrl: 'https://sora2u.com',
+    supportedModels: ['seedance-2.0', 'seedance-2.0-character', 'seedance-1.5'],
+    hints: {
+      key: 'Bearer token (Sora2U API Key, sk_sora_...)',
+      models: 'seedance-2.0, seedance-2.0-character, seedance-1.5',
+      baseUrl: 'Default: https://sora2u.com (paths under /api/v1/videos)',
+      other:
+        'Async video via OpenAI Videos façade. Upstream wraps {success,task}. Maps seconds→duration, size→aspect_ratio, images→reference/reference_url. Completed tasks expose metadata.url (public video_url). No channel credit sync.',
+    },
+  },
 }
 
 export const CHANNEL_83ZI_BASE_URL_PRESETS = [
