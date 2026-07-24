@@ -2,9 +2,11 @@ package billing_setting
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
 )
 
@@ -45,6 +47,22 @@ func GetBillingMode(model string) string {
 func GetBillingExpr(model string) (string, bool) {
 	expr, ok := billingSetting.BillingExpr[model]
 	return expr, ok
+}
+
+// HasModelBillingConfig reports whether a model has usable ratio, fixed-price,
+// or expression-based billing configured.
+func HasModelBillingConfig(model string) bool {
+	if _, ok := ratio_setting.GetModelPrice(model, false); ok {
+		return true
+	}
+	if _, ok, _ := ratio_setting.GetModelRatio(model); ok {
+		return true
+	}
+	if GetBillingMode(model) != BillingModeTieredExpr {
+		return false
+	}
+	expr, ok := GetBillingExpr(model)
+	return ok && strings.TrimSpace(expr) != ""
 }
 
 func GetBillingModeCopy() map[string]string {
