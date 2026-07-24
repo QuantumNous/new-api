@@ -185,26 +185,26 @@
 
 <section class="sec" id="apply">
   <div class="bar" style="max-width:680px;margin:0 auto;background:linear-gradient(160deg,#fff,#F7F5FD);border:1px solid var(--line);border-radius:18px;padding:34px 34px 30px;box-shadow:0 20px 60px rgba(10,26,60,.08)">
-    <h3 data-i18n="cr.applyh" style="text-align:center;margin:0 0 4px">Apply</h3>
-    <p data-i18n="cr.applysub" style="text-align:center;color:var(--ink2);font-size:14.5px;margin:0 auto 20px;max-width:480px">One form — a human reads every application. Links, not adjectives.</p>
+    <h3 style="text-align:center;margin:0 0 4px">Apply</h3>
+    <p style="text-align:center;color:var(--ink2);font-size:14.5px;margin:0 auto 20px;max-width:480px">One form — a human reads every application. Links, not adjectives.</p>
     <form action="https://formsubmit.co/mguozhen@gmail.com" method="POST">
       <input type="hidden" name="_subject" value="[flatkey careers] Application">
       <input type="hidden" name="_captcha" value="false">
       <input type="hidden" name="_cc" value="support@flatkey.ai">
       <input type="hidden" name="_next" value="https://flatkey.ai/careers?sent=1">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-        <input type="text" name="name" required data-i18n-ph="cr.ph1" placeholder="Full name" style="height:46px;border:1.5px solid var(--line);border-radius:8px;padding:0 14px;font-size:14px;font-family:var(--sans);color:var(--ink)">
-        <input type="email" name="email" required data-i18n-ph="cr.ph2" placeholder="Email" style="height:46px;border:1.5px solid var(--line);border-radius:8px;padding:0 14px;font-size:14px;font-family:var(--sans);color:var(--ink)">
+        <input type="text" name="name" required placeholder="Full name" style="height:46px;border:1.5px solid var(--line);border-radius:8px;padding:0 14px;font-size:14px;font-family:var(--sans);color:var(--ink)">
+        <input type="email" name="email" required placeholder="Email" style="height:46px;border:1.5px solid var(--line);border-radius:8px;padding:0 14px;font-size:14px;font-family:var(--sans);color:var(--ink)">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-        <input type="tel" name="phone" data-i18n-ph="cr.ph3" placeholder="Phone number" style="height:46px;border:1.5px solid var(--line);border-radius:8px;padding:0 14px;font-size:14px;font-family:var(--sans);color:var(--ink)">
-        <input type="text" id="apply-role" name="role" required data-i18n-ph="cr.ph4" placeholder="Role you're applying for" style="height:46px;border:1.5px solid var(--line);border-radius:8px;padding:0 14px;font-size:14px;font-family:var(--sans);color:var(--ink)">
+        <input type="tel" name="phone" placeholder="Phone number" style="height:46px;border:1.5px solid var(--line);border-radius:8px;padding:0 14px;font-size:14px;font-family:var(--sans);color:var(--ink)">
+        <input type="text" id="apply-role" name="role" required placeholder="Role you're applying for" style="height:46px;border:1.5px solid var(--line);border-radius:8px;padding:0 14px;font-size:14px;font-family:var(--sans);color:var(--ink)">
       </div>
-      <input type="text" name="links" data-i18n-ph="cr.ph5" placeholder="Links — your product, GitHub, portfolio, socials" style="width:100%;height:46px;border:1.5px solid var(--line);border-radius:8px;padding:0 14px;font-size:14px;font-family:var(--sans);color:var(--ink);margin-bottom:10px">
-      <textarea name="message" rows="4" required data-i18n-ph="cr.ph6" placeholder="What have you built? What did you have AI do for you last week?" style="width:100%;border:1.5px solid var(--line);border-radius:8px;padding:12px 14px;font-size:14px;font-family:var(--sans);color:var(--ink);resize:vertical;margin-bottom:14px"></textarea>
-      <button type="submit" class="btn violet" style="width:100%;border:none;justify-content:center;font-family:var(--sans)" data-i18n="cr.send">Send application — a human reads every one →</button>
+      <input type="text" name="links" placeholder="Links — your product, GitHub, portfolio, socials" style="width:100%;height:46px;border:1.5px solid var(--line);border-radius:8px;padding:0 14px;font-size:14px;font-family:var(--sans);color:var(--ink);margin-bottom:10px">
+      <textarea name="message" rows="4" required placeholder="What have you built? What did you have AI do for you last week?" style="width:100%;border:1.5px solid var(--line);border-radius:8px;padding:12px 14px;font-size:14px;font-family:var(--sans);color:var(--ink);resize:vertical;margin-bottom:14px"></textarea>
+      <button type="submit" class="btn violet" style="width:100%;border:none;justify-content:center;font-family:var(--sans)">Send application — a human reads every one →</button>
     </form>
-    <p id="careers-sent" style="display:none;text-align:center;color:var(--green);font-weight:700;font-size:13.5px;margin-top:14px" data-i18n="cr.sent">✓ Sent. We read every application (twice).</p>
+    <p id="careers-sent" style="display:none;text-align:center;color:var(--green);font-weight:700;font-size:13.5px;margin-top:14px">✓ Sent. We read every application (twice).</p>
   </div>
 </section>
 

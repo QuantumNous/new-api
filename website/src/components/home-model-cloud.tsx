@@ -8,7 +8,7 @@ type Props = {
 };
 
 // Hero visual: a staggered wall of LLM vendor logos — conveys the breadth of
-// 160+ models better than a price table. Logos are local SVGs under /logos
+// 300+ models better than a price table. Logos are local SVGs under /logos
 // (from the brand design kit); layout mirrors the design's 5-column masonry.
 type Tile = { src: string; label: string; size?: number };
 
@@ -79,7 +79,7 @@ export function HomeModelCloud(props: Props) {
       <div className="relative flex items-center justify-between px-0.5">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F3EFFC] px-3.5 py-1.5 text-[13px] font-bold text-[#6D28D9] dark:bg-violet-500/15 dark:text-violet-300">
           <img src="/flatkey-mark.svg" width={14} height={14} alt="" className="block" />
-          160+
+          300+
         </span>
         <span className="rounded-full bg-[#E7F5EF] px-3.5 py-1.5 text-[13px] font-bold text-[#0A7B54] dark:bg-emerald-500/15 dark:text-emerald-300">
           {props.copy.badge}

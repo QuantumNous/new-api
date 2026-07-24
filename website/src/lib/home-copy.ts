@@ -74,7 +74,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
   en: {
     hero: {
       badge: "Official models · Stable and secure",
-      titleLine1: "160+ official models. One key.",
+      titleLine1: "300+ official models. One key.",
       titleLine2: "As low as 50% off.",
       description:
         "flatkey.ai routes your traffic to the official GPT, Claude, Gemini, DeepSeek, Qwen and GLM APIs through one key — real models, no downgrades, no disappearing acts. Model prices run 60-90% of official list, and topping up $200 gets $100 free — stacked, as low as half the official price.",
@@ -84,7 +84,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     stats: [
       { value: "46B", label: "tokens served monthly" },
       { value: "4K+", label: "paying users" },
-      { value: "160+", label: "models behind one key" },
+      { value: "300+", label: "models behind one key" },
       { value: "100+", label: "enterprises in production" },
     ],
     compare: {
@@ -129,10 +129,10 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Cut your model spend",
-        desc: "Model prices at 60-90% of official, and the top-up bonus takes another third off — as low as 50% of official. One key for 160+ models — now including DeepSeek, Qwen and GLM — so every task runs on the right-cost model.",
+        desc: "Model prices at 60-90% of official, and the top-up bonus takes another third off — as low as 50% of official. One key for 300+ models — now including DeepSeek, Qwen and GLM — so every task runs on the right-cost model.",
         points: [
           "60-90% of official pricing, stacked with the top-up bonus — as low as 50% off",
-          "160+ models behind one key — incl. DeepSeek, Qwen and GLM",
+          "300+ models behind one key — incl. DeepSeek, Qwen and GLM",
           "Route cheap tasks to cheap models, hard tasks to frontier models",
         ],
       },
@@ -149,7 +149,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     },
     table: {
       eyebrow: "All models",
-      title: "160+ models, one key — prices, latency, and health",
+      title: "300+ models, one key — prices, latency, and health",
       description: "The 10 busiest models: after-bonus price vs official, TTFT latency, and 30-day health. The full directory lives on the models page.",
       colModel: "Model",
       colOfficial: "Official",
@@ -173,7 +173,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
   zh: {
     hero: {
       badge: "官方模型 · 稳定安全",
-      titleLine1: "160+ 官方模型，一个 key",
+      titleLine1: "300+ 官方模型，一个 key",
       titleLine2: "最低 5 折",
       description:
         "flatkey.ai 用一个 key 把你的请求路由到 GPT、Claude、Gemini、DeepSeek、Qwen、GLM 官方 API——真模型、不降智、不跑路。模型定价为官方 6～9 折，充值 $200 再送 $100，两层优惠叠加最低 5 折。",
@@ -183,7 +183,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     stats: [
       { value: "46B", label: "每月处理 Token" },
       { value: "4K+", label: "付费用户" },
-      { value: "160+", label: "个模型一个 key" },
+      { value: "300+", label: "个模型一个 key" },
       { value: "100+", label: "企业生产环境在用" },
     ],
     compare: {
@@ -228,10 +228,10 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "降低成本",
-        desc: "模型价为官方 6～9 折，充值赠送再省 1/3，叠加最低 5 折；一个 key 集成 160+ 模型（新增 DeepSeek、Qwen、GLM），不同任务用不同成本的模型。",
+        desc: "模型价为官方 6～9 折，充值赠送再省 1/3，叠加最低 5 折；一个 key 集成 300+ 模型（新增 DeepSeek、Qwen、GLM），不同任务用不同成本的模型。",
         points: [
           "官方 6～9 折 × 充值赠送，最低 5 折",
-          "一个 key 集成 160+ 模型，含 DeepSeek、Qwen、GLM",
+          "一个 key 集成 300+ 模型，含 DeepSeek、Qwen、GLM",
           "轻任务用低价模型，难任务用旗舰模型",
         ],
       },
@@ -248,7 +248,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     },
     table: {
       eyebrow: "全部模型",
-      title: "160+ 个模型一个 key——价格、延迟、健康度",
+      title: "300+ 个模型一个 key——价格、延迟、健康度",
       description: "最热门的 10 个模型：充值后价格 vs 官方价、首字延迟与 30 天健康度。完整列表见模型页。",
       colModel: "模型",
       colOfficial: "官方价",
@@ -272,7 +272,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
   es: {
     hero: {
       badge: "Modelos oficiales · Estable y seguro",
-      titleLine1: "160+ modelos oficiales. Una key.",
+      titleLine1: "300+ modelos oficiales. Una key.",
       titleLine2: "Hasta 50% de descuento.",
       description:
         "flatkey.ai enruta tu tráfico a las API oficiales de GPT, Claude, Gemini, DeepSeek, Qwen y GLM con una sola key: modelos de verdad, sin versiones degradadas, sin desaparecer. Los precios son el 60-90% del oficial y al recargar $200 recibes $100 gratis: combinados, hasta la mitad del precio oficial.",
@@ -282,7 +282,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     stats: [
       { value: "46B", label: "tokens servidos al mes" },
       { value: "4K+", label: "usuarios de pago" },
-      { value: "160+", label: "modelos con una key" },
+      { value: "300+", label: "modelos con una key" },
       { value: "100+", label: "empresas en producción" },
     ],
     compare: {
@@ -327,10 +327,10 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Reduce tu gasto en modelos",
-        desc: "Precios de modelo al 60-90% del oficial y el bono de recarga quita otro tercio: hasta el 50% del oficial. Una key para 160+ modelos, ahora con DeepSeek, Qwen y GLM.",
+        desc: "Precios de modelo al 60-90% del oficial y el bono de recarga quita otro tercio: hasta el 50% del oficial. Una key para 300+ modelos, ahora con DeepSeek, Qwen y GLM.",
         points: [
           "60-90% del precio oficial, combinado con el bono de recarga: hasta 50% menos",
-          "160+ modelos integrados con una key, incl. DeepSeek, Qwen y GLM",
+          "300+ modelos integrados con una key, incl. DeepSeek, Qwen y GLM",
           "Tareas simples a modelos baratos, tareas difíciles a modelos frontier",
         ],
       },
@@ -347,7 +347,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     },
     table: {
       eyebrow: "Todos los modelos",
-      title: "160+ modelos, una key: precios, latencia y salud",
+      title: "300+ modelos, una key: precios, latencia y salud",
       description: "Los 10 modelos más usados: precio con bono vs oficial, latencia TTFT y salud de 30 días. El directorio completo está en la página de modelos.",
       colModel: "Modelo",
       colOfficial: "Oficial",
@@ -371,7 +371,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
   fr: {
     hero: {
       badge: "Modèles officiels · Stable et sécurisé",
-      titleLine1: "160+ modèles officiels. Une clé.",
+      titleLine1: "300+ modèles officiels. Une clé.",
       titleLine2: "Jusqu'à 50 % de remise.",
       description:
         "flatkey.ai route votre trafic vers les API officielles GPT, Claude, Gemini, DeepSeek, Qwen et GLM avec une seule clé — de vrais modèles, sans version dégradée, sans disparition. Les prix sont à 60-90 % du tarif officiel, et recharger 200 $ offre 100 $ : cumulés, jusqu'à la moitié du prix officiel.",
@@ -381,7 +381,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     stats: [
       { value: "46B", label: "tokens servis par mois" },
       { value: "4K+", label: "utilisateurs payants" },
-      { value: "160+", label: "modèles avec une clé" },
+      { value: "300+", label: "modèles avec une clé" },
       { value: "100+", label: "entreprises en production" },
     ],
     compare: {
@@ -426,10 +426,10 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Réduisez vos coûts de modèles",
-        desc: "Prix des modèles à 60-90 % du tarif officiel, et le bonus de recharge retire encore un tiers : jusqu'à 50 % du prix officiel. Une clé pour 160+ modèles, désormais avec DeepSeek, Qwen et GLM.",
+        desc: "Prix des modèles à 60-90 % du tarif officiel, et le bonus de recharge retire encore un tiers : jusqu'à 50 % du prix officiel. Une clé pour 300+ modèles, désormais avec DeepSeek, Qwen et GLM.",
         points: [
           "60-90 % du tarif officiel, cumulé au bonus de recharge : jusqu'à -50 %",
-          "160+ modèles intégrés derrière une clé — incl. DeepSeek, Qwen et GLM",
+          "300+ modèles intégrés derrière une clé — incl. DeepSeek, Qwen et GLM",
           "Tâches simples sur modèles économiques, tâches dures sur modèles frontier",
         ],
       },
@@ -446,7 +446,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     },
     table: {
       eyebrow: "Tous les modèles",
-      title: "160+ modèles, une clé : prix, latence et santé",
+      title: "300+ modèles, une clé : prix, latence et santé",
       description: "Les 10 modèles les plus utilisés : prix avec bonus vs officiel, latence TTFT et santé sur 30 jours. Le catalogue complet est sur la page modèles.",
       colModel: "Modèle",
       colOfficial: "Officiel",
@@ -470,7 +470,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
   pt: {
     hero: {
       badge: "Modelos oficiais · Estável e seguro",
-      titleLine1: "160+ modelos oficiais. Uma key.",
+      titleLine1: "300+ modelos oficiais. Uma key.",
       titleLine2: "Até 50% de desconto.",
       description:
         "A flatkey.ai roteia seu tráfego para as APIs oficiais de GPT, Claude, Gemini, DeepSeek, Qwen e GLM com uma única key — modelos de verdade, sem downgrade, sem sumir. Os preços ficam em 60-90% do oficial e recarregar $200 dá $100 grátis: somados, até a metade do preço oficial.",
@@ -480,7 +480,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     stats: [
       { value: "46B", label: "tokens servidos por mês" },
       { value: "4K+", label: "usuários pagantes" },
-      { value: "160+", label: "modelos com uma key" },
+      { value: "300+", label: "modelos com uma key" },
       { value: "100+", label: "empresas em produção" },
     ],
     compare: {
@@ -525,10 +525,10 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Reduza o gasto com modelos",
-        desc: "Preços de modelo a 60-90% do oficial e o bônus de recarga tira mais um terço: até 50% do oficial. Uma key para 160+ modelos, agora com DeepSeek, Qwen e GLM.",
+        desc: "Preços de modelo a 60-90% do oficial e o bônus de recarga tira mais um terço: até 50% do oficial. Uma key para 300+ modelos, agora com DeepSeek, Qwen e GLM.",
         points: [
           "60-90% do preço oficial, somado ao bônus de recarga: até 50% off",
-          "160+ modelos integrados com uma key — incl. DeepSeek, Qwen e GLM",
+          "300+ modelos integrados com uma key — incl. DeepSeek, Qwen e GLM",
           "Tarefas simples em modelos baratos, tarefas difíceis em modelos frontier",
         ],
       },
@@ -545,7 +545,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     },
     table: {
       eyebrow: "Todos os modelos",
-      title: "160+ modelos, uma key: preços, latência e saúde",
+      title: "300+ modelos, uma key: preços, latência e saúde",
       description: "Os 10 modelos mais usados: preço com bônus vs oficial, latência TTFT e saúde de 30 dias. O diretório completo está na página de modelos.",
       colModel: "Modelo",
       colOfficial: "Oficial",
@@ -569,7 +569,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
   ru: {
     hero: {
       badge: "Официальные модели · Стабильно и безопасно",
-      titleLine1: "160+ официальных моделей. Один ключ.",
+      titleLine1: "300+ официальных моделей. Один ключ.",
       titleLine2: "До 50% дешевле.",
       description:
         "flatkey.ai направляет ваш трафик в официальные API GPT, Claude, Gemini, DeepSeek, Qwen и GLM через один ключ — настоящие модели, без даунгрейда, без исчезновений. Цены — 60-90% от официальных, а при пополнении на $200 вы получаете $100 в подарок: вместе до половины официальной цены.",
@@ -579,7 +579,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     stats: [
       { value: "46B", label: "токенов в месяц" },
       { value: "4K+", label: "платящих пользователей" },
-      { value: "160+", label: "моделей за одним ключом" },
+      { value: "300+", label: "моделей за одним ключом" },
       { value: "100+", label: "компаний в продакшене" },
     ],
     compare: {
@@ -624,10 +624,10 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Снижайте расходы на модели",
-        desc: "Цены моделей 60-90% от официальных, бонус пополнения снимает ещё треть — до 50% от официальной цены. Один ключ на 160+ моделей — теперь с DeepSeek, Qwen и GLM.",
+        desc: "Цены моделей 60-90% от официальных, бонус пополнения снимает ещё треть — до 50% от официальной цены. Один ключ на 300+ моделей — теперь с DeepSeek, Qwen и GLM.",
         points: [
           "60-90% от официальной цены плюс бонус пополнения — до 50% скидки",
-          "160+ моделей за одним ключом — вкл. DeepSeek, Qwen и GLM",
+          "300+ моделей за одним ключом — вкл. DeepSeek, Qwen и GLM",
           "Простые задачи — на дешёвых моделях, сложные — на frontier",
         ],
       },
@@ -644,7 +644,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     },
     table: {
       eyebrow: "Все модели",
-      title: "160+ моделей, один ключ: цены, задержка, здоровье",
+      title: "300+ моделей, один ключ: цены, задержка, здоровье",
       description: "10 самых загруженных моделей: цена с бонусом vs официальная, задержка TTFT и 30-дневное здоровье. Полный каталог — на странице моделей.",
       colModel: "Модель",
       colOfficial: "Официально",
@@ -668,7 +668,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
   ja: {
     hero: {
       badge: "公式モデル · 安定・安全",
-      titleLine1: "160+ の公式モデルを 1 つの key で。",
+      titleLine1: "300+ の公式モデルを 1 つの key で。",
       titleLine2: "最安で半額。",
       description:
         "flatkey.ai は 1 つの key でトラフィックを GPT・Claude・Gemini・DeepSeek・Qwen・GLM の公式 API にルーティング——本物のモデル、ダウングレードなし、突然消えることもありません。モデル価格は公式の 60〜90%、さらに $200 チャージで $100 プレゼント。二重の割引で最安なら公式の半額です。",
@@ -678,7 +678,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     stats: [
       { value: "46B", label: "月間処理トークン" },
       { value: "4K+", label: "有料ユーザー" },
-      { value: "160+", label: "モデルを 1 key で" },
+      { value: "300+", label: "モデルを 1 key で" },
       { value: "100+", label: "企業が本番利用" },
     ],
     compare: {
@@ -723,10 +723,10 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "コスト削減",
-        desc: "モデル価格は公式の 60〜90%、チャージ特典でさらに 1/3 オフ——最安で公式の半額。1 key で 160+ モデル（DeepSeek・Qwen・GLM を追加）を統合できます。",
+        desc: "モデル価格は公式の 60〜90%、チャージ特典でさらに 1/3 オフ——最安で公式の半額。1 key で 300+ モデル（DeepSeek・Qwen・GLM を追加）を統合できます。",
         points: [
           "公式の 60〜90% × チャージ特典で、最安 50% オフ",
-          "1 key で 160+ モデルを統合——DeepSeek・Qwen・GLM も",
+          "1 key で 300+ モデルを統合——DeepSeek・Qwen・GLM も",
           "軽いタスクは低価格モデル、難しいタスクはフロンティアモデルへ",
         ],
       },
@@ -743,7 +743,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     },
     table: {
       eyebrow: "全モデル",
-      title: "160+ モデルを 1 key で——価格・レイテンシ・健全性",
+      title: "300+ モデルを 1 key で——価格・レイテンシ・健全性",
       description: "利用の多い上位 10 モデル：チャージ後価格 vs 公式価格、TTFT レイテンシ、30 日健全性。全モデルはモデルページへ。",
       colModel: "モデル",
       colOfficial: "公式",
@@ -767,7 +767,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
   vi: {
     hero: {
       badge: "Model chính thức · Ổn định và an toàn",
-      titleLine1: "160+ model chính thức. Một key.",
+      titleLine1: "300+ model chính thức. Một key.",
       titleLine2: "Rẻ hơn tới 50%.",
       description:
         "flatkey.ai định tuyến traffic của bạn tới API chính thức của GPT, Claude, Gemini, DeepSeek, Qwen và GLM qua một key — model thật, không hạ cấp, không biến mất. Giá bằng 60-90% giá chính thức, nạp $200 tặng $100: cộng dồn, thấp nhất bằng một nửa giá chính thức.",
@@ -777,7 +777,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     stats: [
       { value: "46B", label: "token xử lý mỗi tháng" },
       { value: "4K+", label: "người dùng trả phí" },
-      { value: "160+", label: "model sau một key" },
+      { value: "300+", label: "model sau một key" },
       { value: "100+", label: "doanh nghiệp dùng production" },
     ],
     compare: {
@@ -822,10 +822,10 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Giảm chi phí model",
-        desc: "Giá model bằng 60-90% chính thức, ưu đãi nạp giảm thêm 1/3 — thấp nhất 50% giá chính thức. Một key cho 160+ model — nay có DeepSeek, Qwen và GLM.",
+        desc: "Giá model bằng 60-90% chính thức, ưu đãi nạp giảm thêm 1/3 — thấp nhất 50% giá chính thức. Một key cho 300+ model — nay có DeepSeek, Qwen và GLM.",
         points: [
           "60-90% giá chính thức, cộng ưu đãi nạp: giảm tới 50%",
-          "160+ model tích hợp sau một key — gồm DeepSeek, Qwen và GLM",
+          "300+ model tích hợp sau một key — gồm DeepSeek, Qwen và GLM",
           "Tác vụ nhẹ dùng model rẻ, tác vụ khó dùng model frontier",
         ],
       },
@@ -842,7 +842,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     },
     table: {
       eyebrow: "Tất cả model",
-      title: "160+ model, một key — giá, độ trễ, sức khỏe",
+      title: "300+ model, một key — giá, độ trễ, sức khỏe",
       description: "10 model được dùng nhiều nhất: giá sau ưu đãi vs chính thức, độ trễ TTFT và sức khỏe 30 ngày. Danh mục đầy đủ ở trang model.",
       colModel: "Model",
       colOfficial: "Chính thức",
@@ -866,7 +866,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
   de: {
     hero: {
       badge: "Offizielle Modelle · Stabil und sicher",
-      titleLine1: "160+ offizielle Modelle. Ein Key.",
+      titleLine1: "300+ offizielle Modelle. Ein Key.",
       titleLine2: "Bis zu 50% günstiger.",
       description:
         "flatkey.ai leitet deinen Traffic mit einem Key zu den offiziellen GPT-, Claude-, Gemini-, DeepSeek-, Qwen- und GLM-APIs — echte Modelle, kein Downgrade, kein Verschwinden. Modellpreise liegen bei 60-90% des offiziellen Listenpreises, und wer $200 auflädt, bekommt $100 geschenkt: kombiniert bis zu 50% des offiziellen Preises.",
@@ -876,7 +876,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     stats: [
       { value: "46B", label: "Tokens pro Monat" },
       { value: "4K+", label: "zahlende Nutzer" },
-      { value: "160+", label: "Modelle hinter einem Key" },
+      { value: "300+", label: "Modelle hinter einem Key" },
       { value: "100+", label: "Unternehmen in Produktion" },
     ],
     compare: {
@@ -921,10 +921,10 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Modellkosten senken",
-        desc: "Modellpreise bei 60-90% des offiziellen Preises, der Aufladebonus spart ein weiteres Drittel — bis zu 50% des offiziellen Preises. Ein Key für 160+ Modelle — jetzt mit DeepSeek, Qwen und GLM.",
+        desc: "Modellpreise bei 60-90% des offiziellen Preises, der Aufladebonus spart ein weiteres Drittel — bis zu 50% des offiziellen Preises. Ein Key für 300+ Modelle — jetzt mit DeepSeek, Qwen und GLM.",
         points: [
           "60-90% des offiziellen Preises, kombiniert mit dem Aufladebonus: bis zu -50%",
-          "160+ Modelle hinter einem Key — inkl. DeepSeek, Qwen und GLM",
+          "300+ Modelle hinter einem Key — inkl. DeepSeek, Qwen und GLM",
           "Leichte Aufgaben auf günstige Modelle, harte auf Frontier-Modelle",
         ],
       },
@@ -941,7 +941,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     },
     table: {
       eyebrow: "Alle Modelle",
-      title: "160+ Modelle, ein Key — Preise, Latenz und Gesundheit",
+      title: "300+ Modelle, ein Key — Preise, Latenz und Gesundheit",
       description: "Die 10 meistgenutzten Modelle: Preis mit Bonus vs offiziell, TTFT-Latenz und 30-Tage-Gesundheit. Das vollständige Verzeichnis gibt es auf der Modellseite.",
       colModel: "Modell",
       colOfficial: "Offiziell",
@@ -965,7 +965,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
   id: {
     hero: {
       badge: "Model resmi · Stabil dan aman",
-      titleLine1: "160+ model resmi. Satu key.",
+      titleLine1: "300+ model resmi. Satu key.",
       titleLine2: "Hemat sampai 50%.",
       description:
         "flatkey.ai merutekan traffic kamu ke API resmi GPT, Claude, Gemini, DeepSeek, Qwen, dan GLM lewat satu key — model asli, tanpa downgrade, tanpa kabur. Harga model 60-90% dari harga resmi, dan top-up $200 dapat $100 gratis — digabung, serendah setengah harga resmi.",
@@ -975,7 +975,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     stats: [
       { value: "46B", label: "token diproses per bulan" },
       { value: "4K+", label: "pengguna berbayar" },
-      { value: "160+", label: "model dalam satu key" },
+      { value: "300+", label: "model dalam satu key" },
       { value: "100+", label: "perusahaan di production" },
     ],
     compare: {
@@ -1020,10 +1020,10 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Pangkas biaya model",
-        desc: "Harga model 60-90% dari resmi, dan bonus top-up memangkas sepertiga lagi — serendah 50% dari resmi. Satu key untuk 160+ model — kini termasuk DeepSeek, Qwen, dan GLM — jadi tiap tugas jalan di model dengan biaya yang pas.",
+        desc: "Harga model 60-90% dari resmi, dan bonus top-up memangkas sepertiga lagi — serendah 50% dari resmi. Satu key untuk 300+ model — kini termasuk DeepSeek, Qwen, dan GLM — jadi tiap tugas jalan di model dengan biaya yang pas.",
         points: [
           "60-90% dari harga resmi, digabung bonus top-up — serendah 50% off",
-          "160+ model dalam satu key — termasuk DeepSeek, Qwen, dan GLM",
+          "300+ model dalam satu key — termasuk DeepSeek, Qwen, dan GLM",
           "Tugas ringan ke model murah, tugas berat ke model frontier",
         ],
       },
@@ -1040,7 +1040,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     },
     table: {
       eyebrow: "Semua model",
-      title: "160+ model, satu key — harga, latensi, dan kesehatan",
+      title: "300+ model, satu key — harga, latensi, dan kesehatan",
       description:
         "10 model tersibuk: harga setelah bonus vs resmi, latensi TTFT, dan kesehatan 30 hari. Direktori lengkap ada di halaman model.",
       colModel: "Model",
