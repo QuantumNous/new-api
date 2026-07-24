@@ -30,6 +30,15 @@ func TestPatchClaudeMessageDeltaUsageDataPreserveUnknownFields(t *testing.T) {
 	require.EqualValues(t, 50, gjson.Get(patchedData, "usage.cache_creation_input_tokens").Int())
 }
 
+func TestPatchClaudeMessageDeltaUsageDataPatchMissingOutputTokens(t *testing.T) {
+	originalData := `{"type":"message_delta","usage":{}}`
+	usage := &dto.ClaudeUsage{OutputTokens: 99}
+
+	patchedData := patchClaudeMessageDeltaUsageData(originalData, usage)
+
+	require.EqualValues(t, 99, gjson.Get(patchedData, "usage.output_tokens").Int())
+}
+
 func TestPatchClaudeMessageDeltaUsageDataZeroValueChecks(t *testing.T) {
 	originalData := `{"type":"message_delta","usage":{"output_tokens":53,"input_tokens":9,"cache_read_input_tokens":0}}`
 	usage := &dto.ClaudeUsage{
@@ -87,6 +96,28 @@ func TestBuildMessageDeltaPatchUsage(t *testing.T) {
 		require.NotNil(t, usage.CacheCreation)
 		require.EqualValues(t, 30, usage.CacheCreation.Ephemeral5mInputTokens)
 		require.EqualValues(t, 20, usage.CacheCreation.Ephemeral1hInputTokens)
+	})
+
+	t.Run("patch missing OutputTokens from CompletionTokens", func(t *testing.T) {
+		claudeResponse := &dto.ClaudeResponse{Usage: &dto.ClaudeUsage{}}
+		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{
+			CompletionTokens: 99,
+		}}
+
+		usage := buildMessageDeltaPatchUsage(claudeResponse, claudeInfo)
+		require.EqualValues(t, 99, usage.OutputTokens)
+	})
+
+	t.Run("keep upstream OutputTokens when CompletionTokens is available", func(t *testing.T) {
+		claudeResponse := &dto.ClaudeResponse{Usage: &dto.ClaudeUsage{
+			OutputTokens: 53,
+		}}
+		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{
+			CompletionTokens: 99,
+		}}
+
+		usage := buildMessageDeltaPatchUsage(claudeResponse, claudeInfo)
+		require.EqualValues(t, 53, usage.OutputTokens)
 	})
 
 	t.Run("keep upstream non-zero values", func(t *testing.T) {
