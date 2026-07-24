@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
@@ -34,7 +36,27 @@ func SetUpLogger(server *gin.Engine) {
 			param.Latency,
 			param.ClientIP,
 			param.Method,
-			param.Path,
+			sanitizeAccessLogPath(param.Path),
 		)
 	}))
+}
+
+func sanitizeAccessLogPath(path string) string {
+	queryIndex := strings.IndexByte(path, '?')
+	if queryIndex < 0 {
+		return path
+	}
+	basePath := path[:queryIndex]
+	values, err := url.ParseQuery(path[queryIndex+1:])
+	if err != nil {
+		// A malformed query must not make the logger fall back to emitting raw
+		// bytes, because those bytes may still contain an invitation code.
+		return basePath + "?[query-redacted]"
+	}
+	for key := range values {
+		if strings.EqualFold(key, "invitation_code") || strings.EqualFold(key, "invite") {
+			values[key] = []string{"[REDACTED]"}
+		}
+	}
+	return basePath + "?" + values.Encode()
 }

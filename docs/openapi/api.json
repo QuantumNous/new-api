@@ -56,6 +56,9 @@
     },
     {
       "name": "系统设置"
+    },
+    {
+      "name": "注册邀请码"
     }
   ],
   "paths": {
@@ -128,7 +131,7 @@
       "get": {
         "summary": "获取系统状态",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权 响应 data 可含 invitation_code_required（boolean）与 invitation_code_methods（string[]：password/github/discord/linuxdo/oidc/custom_oauth/wechat，不含 telegram）。",
         "tags": [
           "系统"
         ],
@@ -518,7 +521,7 @@
       "post": {
         "summary": "用户注册",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权 请求可含 invitation_code；响应为注册成功消息（不直接返回 AuthBundle/邀请码）。",
         "tags": [
           "用户登陆注册"
         ],
@@ -543,6 +546,11 @@
                   },
                   "aff_code": {
                     "type": "string"
+                  },
+                  "invitation_code": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "可选。密码注册在 invitation_code_required 且 methods 含 password 时，新用户必须提供有效邀请码；关闭时保持兼容可省略。成功响应不返回邀请码；新用户事务包含用户创建、AuthIdentity 与邀请码核销。"
                   }
                 }
               }
@@ -1069,7 +1077,7 @@
       "post": {
         "summary": "生成OAuth State",
         "deprecated": false,
-        "description": "创建一次性 OAuth AuthFlow。login 无需鉴权；bind 需要面板 Access Token 并绑定当前登录会话",
+        "description": "创建一次性 OAuth AuthFlow。login 无需鉴权；bind 需要面板 Access Token 并绑定当前登录会话 login body 可含可选 invitation_code（仅新用户路径由服务端校验核销；创建 flow 本身不因缺失邀请码失败）。bind 不使用邀请码。query 中禁止 invitation_code。",
         "tags": [
           "OAuth"
         ],
@@ -1097,7 +1105,12 @@
                   },
                   "aff": {
                     "type": "string",
-                    "description": "仅 login intent 可用的 affiliate code"
+                    "description": "仅 login intent 可用的 affiliate code；bind 时必须为空"
+                  },
+                  "invitation_code": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "可选。仅 login intent 有效：trim 后非空时服务端解析为内部引用并写入 AuthFlow payload；空白应省略字段。bind intent 忽略/不得依赖该字段。缺失或仅在新用户注册时由服务端核销；已有用户免邀请码。禁止放入 query/state/redirect/callback。"
                   }
                 }
               }
@@ -1106,8 +1119,37 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
-            "headers": {}
+            "description": "成功时 data 为 { flow_token, expires_at }（flow_token 作为 OAuth state 使用）。不含 invitation_code 或 invitation_code_id。",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "flow_token": {
+                          "type": "string",
+                          "description": "一次性 AuthFlow token，用作 OAuth state"
+                        },
+                        "expires_at": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "Unix 秒级过期时间"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1124,11 +1166,21 @@
       "get": {
         "summary": "微信OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。 GET/query 仅允许微信协议 code；invitation_code 出现在 query 将被拒绝。",
         "tags": [
           "OAuth"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "微信授权 code。禁止携带 invitation_code。"
+          }
+        ],
         "responses": {
           "200": {
             "description": "成功",
@@ -1149,6 +1201,52 @@
             "Combination1243": []
           }
         ]
+      },
+      "post": {
+        "summary": "微信OAuth登录（JSON body）",
+        "deprecated": false,
+        "description": "🔓 无需鉴权。通过 POST JSON 提交微信 code，并可在 body 中携带可选 invitation_code（仅新用户注册时由服务端事务校验并核销；已有用户免邀请码）。query 中不得出现 code 或 invitation_code。成功响应为 AuthBundle/登录结果，不含邀请码明文。新用户创建在同一事务中包含用户、AuthIdentity 认领与邀请码核销。",
+        "tags": [
+          "OAuth"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "description": "微信授权 code"
+                  },
+                  "invitation_code": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "可选邀请码；trim 后为空应省略。仅新用户路径使用。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功或业务失败（success=false）；成功时不含 invitation_code",
+            "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
+          }
+        },
+        "security": []
       }
     },
     "/api/oauth/wechat/bind": {
@@ -1240,7 +1338,7 @@
       "get": {
         "summary": "Telegram登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。 Telegram 登录/绑定不参与邀请码注册方式，请求与响应均无邀请码字段。",
         "tags": [
           "OAuth"
         ],
@@ -5134,7 +5232,7 @@
       "put": {
         "summary": "更新系统选项",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）。兼容期内 theme.frontend=default 可幂等写入，其他主题值会被拒绝。",
+        "description": "👑 需要超级管理员权限（Root）。兼容期内 theme.frontend=default 可幂等写入，其他主题值会被拒绝。 邀请码配置键 InvitationCodeRequired / InvitationCodeMethods 必须通过 PUT /api/option/invitation-code 原子更新，通用本接口会拒绝。",
         "tags": [
           "系统设置"
         ],
@@ -5226,6 +5324,346 @@
           },
           {
             "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/invitation/": {
+      "get": {
+        "summary": "获取注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。返回分页列表；条目仅含 code_prefix 等脱敏字段，不含明文。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "p",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "页码"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "每页数量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功；data 为分页结构，items 为 InvitationCode 数组（无明文）",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "批量生成注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。创建成功时 data 为明文邀请码字符串数组，仅本次响应返回一次；客户端须自行妥善保存。列表/详情/更新/删除不会再次返回明文。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCodeCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功时 data 为 string[] 明文占位结果（示例值仅作格式说明，非真实邀请码）；失败时 success=false",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "description": "仅创建成功时存在的一次性明文邀请码列表",
+                      "items": {
+                        "type": "string",
+                        "description": "明文邀请码（一次性）",
+                        "example": "INV-PLACEHOLDER-EXAMPLE-NOT-REAL"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "更新注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。query status_only 非空时仅更新 status（1/2）；否则可更新 name/status/expired_time。已使用码不可更新。响应不含明文。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "status_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "任意非空值表示仅更新状态"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCodeUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功时 data 为脱敏 InvitationCode",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/invitation/search": {
+      "get": {
+        "summary": "搜索注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。结果仅含脱敏字段。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "enabled",
+                "disabled",
+                "used",
+                "expired"
+              ]
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功；分页列表，无明文",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/invitation/used": {
+      "delete": {
+        "summary": "删除所有已使用注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。软删除保留审计信息；data 为删除数量。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功；data 为删除数量",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/invitation/{id}": {
+      "get": {
+        "summary": "获取指定注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。仅返回脱敏字段，不含明文。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功；data 为 InvitationCode（无明文）",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "删除指定注册邀请码",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。",
+        "tags": [
+          "注册邀请码"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/option/invitation-code": {
+      "put": {
+        "summary": "原子更新邀请码配置",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。required 与 methods 必须同时提供且不得为 null，并在同一事务中保存。required=true 时 methods 不得为空；required=false 时允许空数组。方法名会去除首尾空白、转换为小写、去重并按字典序排序，未知方法会被拒绝。InvitationCodeRequired 与 InvitationCodeMethods 不允许再通过通用 PUT /api/option/ 单独修改。",
+        "tags": [
+          "系统设置"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCodeConfig"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功时 data 为归一化后的完整配置对；业务失败时 HTTP 仍可能为 200 且 success=false。",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/InvitationCodeConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON 无法解析，或 required / methods 任一字段缺失或为 null。",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
           }
         ]
       }
@@ -5431,6 +5869,145 @@
           },
           "redeemed_time": {
             "type": "integer"
+          }
+        }
+      },
+      "InvitationCode": {
+        "type": "object",
+        "description": "注册邀请码列表/详情项。仅返回脱敏前缀，不包含完整明文或哈希。",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "code_prefix": {
+            "type": "string",
+            "description": "邀请码安全前缀；完整明文不会出现在列表/详情/更新响应中"
+          },
+          "status": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ],
+            "description": "1=启用，2=停用，3=已使用"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "enabled",
+              "disabled",
+              "used",
+              "expired"
+            ],
+            "description": "派生状态（含过期判断）"
+          },
+          "created_by": {
+            "type": "integer"
+          },
+          "used_user_id": {
+            "type": "integer"
+          },
+          "used_username": {
+            "type": "string"
+          },
+          "created_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "used_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expired_time": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "InvitationCodeConfig": {
+        "type": "object",
+        "description": "邀请码总开关与适用注册方式组成的不可分割配置对。响应中的 methods 已转换为小写、去重并按字典序排序。",
+        "required": [
+          "required",
+          "methods"
+        ],
+        "properties": {
+          "required": {
+            "type": "boolean",
+            "description": "是否对 methods 列出的新用户注册方式强制要求邀请码。为 true 时 methods 至少包含一项。"
+          },
+          "methods": {
+            "type": "array",
+            "description": "受邀请码开关约束的注册方式。请求值会被去除首尾空白、转换为小写、去重并排序；required=false 时可为空数组。不含 telegram。",
+            "items": {
+              "type": "string",
+              "enum": [
+                "password",
+                "github",
+                "discord",
+                "linuxdo",
+                "oidc",
+                "custom_oauth",
+                "wechat"
+              ]
+            }
+          }
+        }
+      },
+      "InvitationCodeCreateRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "count"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 20,
+            "description": "批次名称"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "生成数量"
+          },
+          "expired_time": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix 时间戳；0 表示永不过期"
+          }
+        }
+      },
+      "InvitationCodeUpdateRequest": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "status": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "description": "status_only 时仅允许 1=启用 或 2=停用；已使用码不可更新"
+          },
+          "expired_time": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix 时间戳；0 表示永不过期"
           }
         }
       }

@@ -130,6 +130,10 @@ func UpdateOption(c *gin.Context) {
 		})
 		return
 	}
+	if model.IsInvitationCodeOptionKey(option.Key) {
+		common.ApiErrorI18n(c, i18n.MsgInvitationSettingsAtomicUpdateRequired)
+		return
+	}
 	switch option.Value.(type) {
 	case bool:
 		option.Value = common.Interface2String(option.Value.(bool))
@@ -348,4 +352,42 @@ func UpdateOption(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
+}
+
+type InvitationCodeOptionUpdateRequest struct {
+	Required *bool     `json:"required"`
+	Methods  *[]string `json:"methods"`
+}
+
+func UpdateInvitationCodeOption(c *gin.Context) {
+	var request InvitationCodeOptionUpdateRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+	if request.Required == nil || request.Methods == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+
+	settings, err := model.UpdateInvitationCodeSettings(*request.Required, *request.Methods)
+	if err != nil {
+		if model.IsSQLiteBusyError(err) {
+			common.SysError("invitation settings update remained busy after retries: " + err.Error())
+			common.ApiErrorI18n(c, i18n.MsgRetryLater)
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAudit(c, "option.update", map[string]interface{}{
+		"key": model.InvitationCodeRequiredOptionKey + "," + model.InvitationCodeMethodsOptionKey,
+	})
+	common.ApiSuccess(c, settings)
 }

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -124,6 +125,61 @@ func normalizeClickHouseDSN(dsn string) string {
 	return parsed.String()
 }
 
+const defaultSQLiteBusyTimeoutMilliseconds = 30000
+
+// normalizeSQLiteDSN makes the configured busy timeout effective for the
+// modernc SQLite driver used by github.com/glebarez/sqlite. Older deployments
+// commonly use the mattn/go-sqlite3-style _busy_timeout parameter, which this
+// driver ignores. Preserve that configuration by translating it to the
+// supported _pragma=busy_timeout(...) form, add a safe default when no timeout
+// was configured, and begin transactions with an immediate write reservation.
+// The latter prevents SQLite's deferred read-to-write upgrade from returning
+// SQLITE_BUSY immediately even when busy_timeout is configured.
+func normalizeSQLiteDSN(dsn string) string {
+	parts := strings.SplitN(dsn, "?", 2)
+	query := make(url.Values)
+	if len(parts) == 2 {
+		parsed, err := url.ParseQuery(parts[1])
+		if err != nil {
+			return dsn
+		}
+		query = parsed
+	}
+
+	hasBusyTimeoutPragma := false
+	for _, pragma := range query["_pragma"] {
+		normalized := strings.ToLower(strings.TrimSpace(pragma))
+		if !strings.HasPrefix(normalized, "busy_timeout") {
+			continue
+		}
+		remainder := strings.TrimSpace(strings.TrimPrefix(normalized, "busy_timeout"))
+		if strings.HasPrefix(remainder, "(") || strings.HasPrefix(remainder, "=") {
+			hasBusyTimeoutPragma = true
+			break
+		}
+	}
+
+	if !hasBusyTimeoutPragma {
+		timeout := defaultSQLiteBusyTimeoutMilliseconds
+		if legacyTimeout := strings.TrimSpace(query.Get("_busy_timeout")); legacyTimeout != "" {
+			if parsedTimeout, err := strconv.Atoi(legacyTimeout); err == nil && parsedTimeout >= 0 {
+				timeout = parsedTimeout
+			}
+		}
+		query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", timeout))
+	}
+	query.Del("_busy_timeout")
+	if strings.TrimSpace(query.Get("_txlock")) == "" {
+		query.Set("_txlock", "immediate")
+	}
+
+	encodedQuery := query.Encode()
+	if encodedQuery == "" {
+		return parts[0]
+	}
+	return parts[0] + "?" + encodedQuery
+}
+
 func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error) {
 	dsn := os.Getenv(envName)
 	if dsn != "" {
@@ -150,7 +206,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error)
 		}
 		if strings.HasPrefix(dsn, "local") {
 			common.SysLog("SQL_DSN not set, using SQLite as database")
-			db, err := gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
+			db, err := gorm.Open(sqlite.Open(normalizeSQLiteDSN(common.SQLitePath)), &gorm.Config{
 				PrepareStmt: true, // precompile SQL
 			})
 			return db, common.DatabaseTypeSQLite, err
@@ -172,7 +228,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error)
 	}
 	// Use SQLite
 	common.SysLog("SQL_DSN not set, using SQLite as database")
-	db, err := gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
+	db, err := gorm.Open(sqlite.Open(normalizeSQLiteDSN(common.SQLitePath)), &gorm.Config{
 		PrepareStmt: true, // precompile SQL
 	})
 	return db, common.DatabaseTypeSQLite, err
@@ -274,10 +330,10 @@ func migrateDB() error {
 		&User{},
 		&UserSession{},
 		&AuthFlow{},
-		&ExternalIdentityClaim{},
 		&PasskeyCredential{},
 		&Option{},
 		&Redemption{},
+		&InvitationCode{},
 		&Ability{},
 		&Log{},
 		&Midjourney{},
@@ -295,7 +351,7 @@ func migrateDB() error {
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
 		&CustomOAuthProvider{},
-		&UserOAuthBinding{},
+		&AuthIdentity{},
 		&PerfMetric{},
 		&SystemInstance{},
 		&SystemTask{},
@@ -309,7 +365,7 @@ func migrateDB() error {
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err
 	}
-	if err := InitializeExternalIdentityClaims(); err != nil {
+	if err := InitializeAuthIdentities(); err != nil {
 		return err
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
@@ -337,10 +393,10 @@ func migrateDBFast() error {
 		{&User{}, "User"},
 		{&UserSession{}, "UserSession"},
 		{&AuthFlow{}, "AuthFlow"},
-		{&ExternalIdentityClaim{}, "ExternalIdentityClaim"},
 		{&PasskeyCredential{}, "PasskeyCredential"},
 		{&Option{}, "Option"},
 		{&Redemption{}, "Redemption"},
+		{&InvitationCode{}, "InvitationCode"},
 		{&Ability{}, "Ability"},
 		{&Log{}, "Log"},
 		{&Midjourney{}, "Midjourney"},
@@ -358,7 +414,7 @@ func migrateDBFast() error {
 		{&UserSubscription{}, "UserSubscription"},
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
-		{&UserOAuthBinding{}, "UserOAuthBinding"},
+		{&AuthIdentity{}, "AuthIdentity"},
 		{&PerfMetric{}, "PerfMetric"},
 		{&SystemInstance{}, "SystemInstance"},
 		{&SystemTask{}, "SystemTask"},
@@ -390,7 +446,7 @@ func migrateDBFast() error {
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err
 	}
-	if err := InitializeExternalIdentityClaims(); err != nil {
+	if err := InitializeAuthIdentities(); err != nil {
 		return err
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
