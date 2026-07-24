@@ -1,0 +1,53 @@
+name: Feature Request
+description: Describe the new feature you would like to add with clear and detailed language
+title: ""
+labels:
+  - enhancement
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Read This First (Do Not Remove This Section)
+
+        - Docs: https://docs.newapi.ai/
+        - Usage questions first: https://deepwiki.com/QuantumNous/new-api
+        - Issues about forwarding behavior after enabling pass-through mode are not accepted; pass-through mode forwards requests directly, so please verify upstream behavior yourself.
+        - Reports about Coding Plan services, reverse-engineered channels, third-party API wrappers, or compatibility issues caused by exposing a Codex endpoint through a reverse proxy as a general-purpose API are not accepted. Protocols or behavior specific to the Codex API should not be treated as standard OpenAI API behavior; confirm such issues with the channel or API provider first.
+        - Warning: issues with this template removed, section headings deleted, or content cleared may be closed directly. Repeated abusive submissions may result in a block.
+
+  - type: input
+    id: version
+    attributes:
+      label: Your current newapi version
+      description: "Please fill this in, for example: `v1.0.0`"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: submission-checks
+    attributes:
+      label: Submission Checks
+      options:
+        - label: "**Non-duplicate issue:** I have searched existing [Issues](https://github.com/QuantumNous/new-api/issues?q=is%3Aissue) and confirmed there are no similar issues."
+          required: true
+        - label: "**Read this first:** I have fully read the section above, reviewed the docs at https://docs.newapi.ai/ and the project README, and asked AI first, confirming this is not a usage, configuration, or integration question, and that the current version cannot meet my needs."
+          required: true
+        - label: "**Template intact:** I have not removed any guidance or section headings from this template and will complete it as requested."
+          required: true
+        - label: "**Maintainer time:** I understand that maintainers have limited time and issues that do not follow this template may be ignored or closed directly."
+          required: true
+
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: Feature Description
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+    validations:
+      required: true
