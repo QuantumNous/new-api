@@ -409,6 +409,50 @@ export function ModelMutateDrawer({
         audioRatio: '',
         audioCompletionRatio: '',
       })
+
+      // Prefill pricing already configured for this name: submit rebuilds the
+      // pricing maps delete-then-readd, so empty fields would wipe the entries
+      const modelName = currentRow?.model_name || ''
+      if (modelSettings && modelName) {
+        const lookup = (raw: string) =>
+          safeJsonParse<Record<string, number>>(raw, {
+            fallback: {},
+            silent: true,
+          })[modelName]
+
+        const price = lookup(modelSettings.ModelPrice)
+        const ratio = lookup(modelSettings.ModelRatio)
+        const cacheRatio = lookup(modelSettings.CacheRatio)
+        const completionRatio = lookup(modelSettings.CompletionRatio)
+        const imageRatio = lookup(modelSettings.ImageRatio)
+        const audioRatio = lookup(modelSettings.AudioRatio)
+        const audioCompletionRatio = lookup(modelSettings.AudioCompletionRatio)
+
+        if (price !== undefined && price !== null) {
+          setPricingMode('per-request')
+          form.setValue('price', price.toString())
+        } else {
+          if (ratio !== undefined && ratio !== null) {
+            const tokenPrice = ratio * 2
+            setPromptPrice(tokenPrice.toString())
+            if (completionRatio !== undefined && completionRatio !== null) {
+              setCompletionPrice((tokenPrice * completionRatio).toString())
+            }
+          }
+          form.setValue('ratio', ratio?.toString() || '')
+          form.setValue('cacheRatio', cacheRatio?.toString() || '')
+          form.setValue('completionRatio', completionRatio?.toString() || '')
+          form.setValue('imageRatio', imageRatio?.toString() || '')
+          form.setValue('audioRatio', audioRatio?.toString() || '')
+          form.setValue(
+            'audioCompletionRatio',
+            audioCompletionRatio?.toString() || ''
+          )
+          setAdvancedOpen(
+            !!(cacheRatio || imageRatio || audioRatio || audioCompletionRatio)
+          )
+        }
+      }
     }
   }, [open, isEditing, modelData, currentRow, form, modelSettings])
 
