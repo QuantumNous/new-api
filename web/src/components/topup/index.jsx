@@ -26,6 +26,7 @@ import {
   renderQuota,
   renderQuotaWithAmount,
 } from '../../helpers';
+import { getQuotaPerUnit, quotaToDisplayAmount } from '../../helpers/quota';
 import { Modal, Toast, Typography, Button } from '@douyinfe/semi-ui';
 import { ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -116,6 +117,9 @@ const TopUp = () => {
     discount: {},
     redemption_enabled: true,
     redemption_allowed_groups: [],
+    gift_enabled: false,
+    gift_rules: [],
+    gift_valid_days: 0,
   });
 
   const topUp = async () => {
@@ -435,6 +439,9 @@ const TopUp = () => {
           discount: data.discount || {},
           redemption_enabled: data.redemption_enabled !== false,
           redemption_allowed_groups: data.redemption_allowed_groups || [],
+          gift_enabled: data.gift_enabled || false,
+          gift_rules: data.gift_rules || [],
+          gift_valid_days: data.gift_valid_days || 0,
         });
 
         // 处理支付方式
@@ -903,6 +910,20 @@ const TopUp = () => {
         payMethods={payMethods}
         amountNumber={amount}
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
+        giftAmount={
+          topupInfo?.gift_enabled && topupInfo?.gift_rules?.length
+            ? (() => {
+                const qpu = getQuotaPerUnit();
+                const sorted = [...topupInfo.gift_rules].sort(
+                  (a, b) => (b.threshold || 0) - (a.threshold || 0),
+                );
+                const hit = sorted.find(
+                  (r) => (r.threshold || 0) / qpu === topUpCount,
+                );
+                return hit?.gift || 0;
+              })()
+            : 0
+        }
         includeTax={includeTax}
         taxRate={invoiceFeeRate}
       />

@@ -375,6 +375,20 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		logger.LogError(ctx, "error settling billing: "+err.Error())
 	}
 
+	// 钱包扣款明细
+	if relayInfo.WalletQuotaDeducted > 0 {
+		var walletParts []string
+		if relayInfo.WalletRechargeQuotaDeducted > 0 {
+			walletParts = append(walletParts, fmt.Sprintf("充值钱包扣款 %s", logger.FormatQuota(relayInfo.WalletRechargeQuotaDeducted)))
+		}
+		if relayInfo.WalletFreeQuotaDeducted > 0 {
+			walletParts = append(walletParts, fmt.Sprintf("免费钱包扣款 %s", logger.FormatQuota(relayInfo.WalletFreeQuotaDeducted)))
+		}
+		if len(walletParts) > 0 {
+			extraContent = append(extraContent, strings.Join(walletParts, "，"))
+		}
+	}
+
 	logModel := summary.ModelName
 	if strings.HasPrefix(logModel, "gpt-4-gizmo") {
 		logModel = "gpt-4-gizmo-*"

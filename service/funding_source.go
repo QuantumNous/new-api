@@ -30,21 +30,168 @@ type FundingSource interface {
 // ---------------------------------------------------------------------------
 
 type WalletFunding struct {
-	userId   int
-	consumed int // 实际预扣的用户额度
+	userId       int
+	consumed     int                  // 冗余镜像 = sumFree(fromFree)+fromRecharge，供外部读取（WalletQuotaDeducted 等）
+	fromFree     []model.LedgerDeduct // 命中的免费明细扣减记录（原路退款依据）
+	fromRecharge int                  // 充值钱包扣减量
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
+
+// FreeConsumed 返回免费钱包扣减总额。
+func (w *WalletFunding) FreeConsumed() int { return sumFree(w.fromFree) }
+
+// RechargeConsumed 返回充值钱包扣减总额。
+func (w *WalletFunding) RechargeConsumed() int { return w.fromRecharge }
+
+// FreeDeducts 返回免费钱包扣减明细的副本（供 relayInfo 保存，退款原路复原用）。
+func (w *WalletFunding) FreeDeducts() []model.LedgerDeduct {
+	if len(w.fromFree) == 0 {
+		return nil
+	}
+	out := make([]model.LedgerDeduct, len(w.fromFree))
+	copy(out, w.fromFree)
+	return out
+}
+
+// sumFree 汇总免费明细扣减量。
+func sumFree(ds []model.LedgerDeduct) int {
+	s := 0
+	for _, d := range ds {
+		s += d.Amount
+	}
+	return s
+}
+
+// mergeFree 把 add 合并进 base（同 LedgerId 累加 Amount，避免账本条目膨胀）。
+func mergeFree(base, add []model.LedgerDeduct) []model.LedgerDeduct {
+	for _, d := range add {
+		if d.Amount <= 0 {
+			continue
+		}
+		found := false
+		for i := range base {
+			if base[i].LedgerId == d.LedgerId {
+				base[i].Amount += d.Amount
+				found = true
+				break
+			}
+		}
+		if !found {
+			base = append(base, d)
+		}
+	}
+	return base
+}
+
+// subtractFree 从 base 中按 LedgerId 逐条扣减 sub 的 Amount，归零的条目移除。
+func subtractFree(base, sub []model.LedgerDeduct) []model.LedgerDeduct {
+	for _, s := range sub {
+		for i := range base {
+			if base[i].LedgerId == s.LedgerId {
+				base[i].Amount -= s.Amount
+				break
+			}
+		}
+	}
+	out := base[:0]
+	for _, d := range base {
+		if d.Amount > 0 {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// deduct 三级扣减 amount 并合并进账本。余额不足时对差额透支充值钱包
+// （ConsumeQuotaWithOverdraft 内部单事务处理），保持"结算补扣允许透支"的语义。
+func (w *WalletFunding) deduct(amount int) error {
+	if amount <= 0 {
+		return nil
+	}
+	fromFree, fromRecharge, err := model.ConsumeQuotaWithOverdraft(w.userId, amount)
+	if err != nil {
+		return err
+	}
+	w.fromFree = mergeFree(w.fromFree, fromFree)
+	w.fromRecharge += fromRecharge
+	w.consumed += sumFree(fromFree) + fromRecharge
+	return nil
+}
+
+// refund 按原始扣款比例原路退款：免费钱包与充值钱包各按其占总扣款的比例获得退款。
+// 免费明细内部按 LIFO 分配（先退最近扣的永久额度，后退较早扣的会过期额度）。
+func (w *WalletFunding) refund(refundAmount int) error {
+	if refundAmount <= 0 {
+		return nil
+	}
+	if refundAmount > w.consumed {
+		refundAmount = w.consumed
+	}
+	refundFree, refundRecharge := calcLIFORefund(w.fromFree, w.fromRecharge, refundAmount)
+	if refundRecharge == 0 && len(refundFree) == 0 {
+		return nil
+	}
+	if err := model.RefundQuota(w.userId, refundFree, refundRecharge); err != nil {
+		return err
+	}
+	// 退款成功后才更新账本，保证失败可重入
+	w.fromRecharge -= refundRecharge
+	w.fromFree = subtractFree(w.fromFree, refundFree)
+	w.consumed -= refundRecharge + sumFree(refundFree)
+	return nil
+}
+
+// calcLIFORefund 按原始扣款比例分配退款额度，免费明细按 LIFO 分配（先退最近扣的）。
+// 供 WalletFunding.refund 与 PostConsumeQuota 退款路径共用。
+func calcLIFORefund(fromFree []model.LedgerDeduct, fromRecharge int, refundAmount int) (refundFree []model.LedgerDeduct, refundRecharge int) {
+	if refundAmount <= 0 {
+		return nil, 0
+	}
+	totalDeducted := sumFree(fromFree) + fromRecharge
+	if totalDeducted <= 0 {
+		return nil, 0
+	}
+	if refundAmount > totalDeducted {
+		refundAmount = totalDeducted
+	}
+
+	// 按原始扣款比例分配
+	if fromRecharge > 0 {
+		refundRecharge = refundAmount * fromRecharge / totalDeducted
+	}
+	freeRefund := refundAmount - refundRecharge
+
+	// 免费明细按 LIFO 分配
+	for i := len(fromFree) - 1; i >= 0 && freeRefund > 0; i-- {
+		d := fromFree[i]
+		if d.Amount <= 0 {
+			continue
+		}
+		take := d.Amount
+		if take > freeRefund {
+			take = freeRefund
+		}
+		refundFree = append(refundFree, model.LedgerDeduct{
+			LedgerId:    d.LedgerId,
+			ExpiredTime: d.ExpiredTime,
+			Amount:      take,
+		})
+		freeRefund -= take
+	}
+	// 整数取整导致的余数归还到充值钱包
+	if freeRefund > 0 {
+		refundRecharge += freeRefund
+	}
+	return refundFree, refundRecharge
+}
 
 func (w *WalletFunding) PreConsume(amount int) error {
 	if amount <= 0 {
 		return nil
 	}
-	if err := model.DecreaseUserQuota(w.userId, amount, false); err != nil {
-		return err
-	}
-	w.consumed = amount
-	return nil
+	// 预扣有门禁（ensureWalletQuota / tryWallet），正常不会透支；deduct 兜底透支逻辑仅补扣才会触发。
+	return w.deduct(amount)
 }
 
 func (w *WalletFunding) Settle(delta int) error {
@@ -52,18 +199,24 @@ func (w *WalletFunding) Settle(delta int) error {
 		return nil
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta, false)
+		return w.deduct(delta) // 补扣：允许透支
 	}
-	return model.IncreaseUserQuota(w.userId, -delta, false)
+	return w.refund(-delta) // 退还：先充值再免费 LIFO
 }
 
 func (w *WalletFunding) Refund() error {
 	if w.consumed <= 0 {
 		return nil
 	}
-	// IncreaseUserQuota 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
-	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
-	return model.IncreaseUserQuota(w.userId, w.consumed, false)
+	// RefundQuota 与旧 IncreaseUserQuota 一样是非幂等累加，不能 retry。
+	if err := model.RefundQuota(w.userId, w.fromFree, w.fromRecharge); err != nil {
+		return err
+	}
+	// 退完清空账本，防止重复退。
+	w.fromFree = nil
+	w.fromRecharge = 0
+	w.consumed = 0
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -180,14 +333,13 @@ func (h *HybridFunding) PreConsume(amount int) error {
 		}
 		return err
 	}
-	if err := model.DecreaseUserQuota(h.wallet.userId, walletAmount, false); err != nil {
+	if err := h.wallet.deduct(walletAmount); err != nil {
 		if h.subscription.preConsumed > 0 {
 			_ = model.RefundSubscriptionPreConsume(h.subscription.requestId)
 			h.subscription.preConsumed = 0
 		}
 		return err
 	}
-	h.wallet.consumed = walletAmount
 	return nil
 }
 
@@ -216,13 +368,12 @@ func (h *HybridFunding) Settle(delta int) error {
 			}
 			return err
 		}
-		if err := model.DecreaseUserQuota(h.wallet.userId, walletDelta, false); err != nil {
+		if err := h.wallet.deduct(walletDelta); err != nil {
 			if rollbackErr := h.rollbackSubscriptionDelta(subDelta); rollbackErr != nil {
 				return fmt.Errorf("%v; rollback subscription delta failed: %w", err, rollbackErr)
 			}
 			return err
 		}
-		h.wallet.consumed += walletDelta
 		return nil
 	}
 
@@ -232,10 +383,10 @@ func (h *HybridFunding) Settle(delta int) error {
 		walletRefund = h.wallet.consumed
 	}
 	if walletRefund > 0 {
-		if err := model.IncreaseUserQuota(h.wallet.userId, walletRefund, false); err != nil {
+		// 委托 WalletFunding.refund：先充值再免费 LIFO，原路返回。
+		if err := h.wallet.refund(walletRefund); err != nil {
 			return err
 		}
-		h.wallet.consumed -= walletRefund
 		refund -= walletRefund
 	}
 	if refund <= 0 {
@@ -288,7 +439,8 @@ func isSubscriptionQuotaUnavailable(err error) bool {
 }
 
 func ensureWalletQuota(userId int, amount int) error {
-	quota, err := model.GetUserQuota(userId, false)
+	// 双钱包拆分：钱包可用额度 = 充值钱包 + 免费钱包（总可用额度）。
+	quota, err := model.GetUserTotalQuota(userId, false)
 	if err != nil {
 		return err
 	}

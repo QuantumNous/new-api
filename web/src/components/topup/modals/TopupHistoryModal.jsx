@@ -44,6 +44,9 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
+import {
+  quotaToDisplayAmount,
+} from '../../../helpers/quota';
 
 const { Text } = Typography;
 
@@ -295,10 +298,29 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
             );
           }
           return (
-            <span className='flex items-center gap-1'>
-              <Coins size={16} />
-              <Text>{amount}</Text>
-            </span>
+            <div>
+              <span className='flex items-center gap-1'>
+                <Coins size={16} />
+                <Text>{amount}</Text>
+              </span>
+              {(() => {
+                const gift = record.expected_gift || record.gift;
+                if (!gift || gift <= 0) return null;
+                return (
+                  <div>
+                    <Text
+                      type='success'
+                      size='small'
+                      style={{ fontSize: 11, fontWeight: 600 }}
+                    >
+                      + {t('赠送')} ${Number(
+                        quotaToDisplayAmount(gift).toFixed(2),
+                      )}
+                    </Text>
+                  </div>
+                );
+              })()}
+            </div>
           );
         },
       },

@@ -15,18 +15,21 @@ import (
 
 // UserBase struct remains the same as it represents the cached data structure
 type UserBase struct {
-	Id       int    `json:"id"`
-	Group    string `json:"group"`
-	Email    string `json:"email"`
-	Quota    int    `json:"quota"`
-	Status   int    `json:"status"`
-	Username string `json:"username"`
-	Setting  string `json:"setting"`
+	Id        int    `json:"id"`
+	Group     string `json:"group"`
+	Email     string `json:"email"`
+	Quota     int    `json:"quota"`
+	FreeQuota int    `json:"free_quota"`
+	Status    int    `json:"status"`
+	Username  string `json:"username"`
+	Setting   string `json:"setting"`
 }
 
 func (user *UserBase) WriteContext(c *gin.Context) {
 	common.SetContextKey(c, constant.ContextKeyUserGroup, user.Group)
-	common.SetContextKey(c, constant.ContextKeyUserQuota, user.Quota)
+	// 双钱包拆分：ContextKeyUserQuota 承载"总可用额度 = 充值钱包 + 免费钱包"，
+	// 下游余额门禁/信任放行/展示统一读此总额，保持"计费总额行为不变"。
+	common.SetContextKey(c, constant.ContextKeyUserQuota, user.Quota+user.FreeQuota)
 	common.SetContextKey(c, constant.ContextKeyUserStatus, user.Status)
 	common.SetContextKey(c, constant.ContextKeyUserEmail, user.Email)
 	common.SetContextKey(c, constant.ContextKeyUserName, user.Username)
@@ -106,13 +109,14 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 
 	// Create cache object from user data
 	userCache = &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:        user.Id,
+		Group:     user.Group,
+		Quota:     user.Quota,
+		FreeQuota: user.FreeQuota,
+		Status:    user.Status,
+		Username:  user.Username,
+		Setting:   user.Setting,
+		Email:     user.Email,
 	}
 
 	return userCache, nil
@@ -141,6 +145,26 @@ func cacheIncrUserQuota(userId int, delta int64) error {
 
 func cacheDecrUserQuota(userId int, delta int64) error {
 	return cacheIncrUserQuota(userId, -delta)
+}
+
+// 免费钱包缓存原子增减（hash 字段 FreeQuota）
+func cacheIncrFreeQuota(userId int, delta int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	return common.RedisHIncrBy(getUserCacheKey(userId), "FreeQuota", delta)
+}
+
+func cacheDecrFreeQuota(userId int, delta int64) error {
+	return cacheIncrFreeQuota(userId, -delta)
+}
+
+// setFreeQuotaCache 直接把免费钱包缓存字段设为指定值（覆盖语义，供管理员 override 使用）。
+func setFreeQuotaCache(userId int, value int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	return common.RedisHSetField(getUserCacheKey(userId), "FreeQuota", fmt.Sprintf("%d", value))
 }
 
 // Helper functions to get individual fields if needed

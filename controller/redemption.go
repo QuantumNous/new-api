@@ -130,9 +130,51 @@ func AddRedemption(c *gin.Context) {
 		return
 	}
 
+	// 双钱包拆分：max_uses / valid_days / tag / custom_key 校验。
+	if redemption.MaxUses <= 0 {
+		redemption.MaxUses = 1 // 默认一次性
+	}
+	if redemption.MaxUses > 1000000 {
+		common.ApiErrorMsg(c, "最大兑换次数过大")
+		return
+	}
+	if redemption.ValidDays < 0 {
+		common.ApiErrorMsg(c, "兑换额度有效天数不能为负数")
+		return
+	}
+	customKey := strings.TrimSpace(redemption.Key)
+	tag := strings.TrimSpace(redemption.Tag)
+	if customKey != "" {
+		// 自定义兑换码：仅允许生成一个，且需校验唯一性。
+		if redemption.Count != 1 {
+			common.ApiErrorMsg(c, "使用自定义兑换码时只能生成 1 个")
+			return
+		}
+		if utf8.RuneCountInString(customKey) > 64 {
+			common.ApiErrorMsg(c, "自定义兑换码长度不能超过 64 个字符")
+			return
+		}
+		var exist int64
+		keyCol := "`key`"
+		if common.UsingPostgreSQL {
+			keyCol = `"key"`
+		}
+		if err := model.DB.Model(&model.Redemption{}).Where(keyCol+" = ?", customKey).Count(&exist).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if exist > 0 {
+			common.ApiErrorMsg(c, "该自定义兑换码已存在")
+			return
+		}
+	}
+
 	var keys []string
 	for i := 0; i < redemption.Count; i++ {
-		key := common.GetUUID()
+		key := customKey
+		if key == "" {
+			key = common.GetUUID()
+		}
 		cleanRedemption := model.Redemption{
 			UserId:               c.GetInt("id"),
 			Name:                 redemption.Name,
@@ -144,6 +186,10 @@ func AddRedemption(c *gin.Context) {
 			SubscriptionPlanId:   redemption.SubscriptionPlanId,
 			UpgradeGroup:         redemption.UpgradeGroup,
 			UpgradeGroupRollback: redemption.UpgradeGroupRollback,
+			Tag:                  tag,
+			MaxUses:              redemption.MaxUses,
+			UsedCount:            0,
+			ValidDays:            redemption.ValidDays,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -224,6 +270,14 @@ func UpdateRedemption(c *gin.Context) {
 		cleanRedemption.Type = redemption.Type
 		cleanRedemption.SubscriptionPlanId = redemption.SubscriptionPlanId
 		cleanRedemption.UpgradeGroup = redemption.UpgradeGroup
+		// 双钱包拆分：同步 tag / max_uses / valid_days。
+		cleanRedemption.Tag = strings.TrimSpace(redemption.Tag)
+		if redemption.MaxUses > 0 {
+			cleanRedemption.MaxUses = redemption.MaxUses
+		}
+		if redemption.ValidDays >= 0 {
+			cleanRedemption.ValidDays = redemption.ValidDays
+		}
 		// 验证 upgrade_group_rollback
 		if redemption.IsUpgradeGroupRollback() && redemption.Type == common.RedemptionTypeQuota {
 			falseVal := false
@@ -249,6 +303,33 @@ func UpdateRedemption(c *gin.Context) {
 		"data":    cleanRedemption,
 	})
 	return
+}
+
+func DeleteRedemptionsByIds(c *gin.Context) {
+	var req struct {
+		Ids []int `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(req.Ids) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": i18n.T(c, i18n.MsgRedemptionSelectAtLeastOne),
+		})
+		return
+	}
+	deleted, err := model.DeleteRedemptionsByIds(req.Ids)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    deleted,
+	})
 }
 
 func DeleteInvalidRedemption(c *gin.Context) {

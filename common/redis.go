@@ -96,6 +96,17 @@ func RedisDel(key string) error {
 	return RDB.Del(ctx, key).Err()
 }
 
+// RedisSetNX attempts to set key to value with an expiration, returning true if the key was set
+// (i.e. the lock was acquired). Returns false if the key already exists.
+func RedisSetNX(key, value string, expiration time.Duration) (bool, error) {
+	ctx := context.Background()
+	ok, err := RDB.SetNX(ctx, key, value, expiration).Result()
+	if DebugEnabled {
+		SysLog(fmt.Sprintf("Redis SETNX: key=%s, value=%s, expiration=%v, ok=%v, err=%v", key, value, expiration, ok, err))
+	}
+	return ok, err
+}
+
 func RedisDelKey(key string) error {
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis DEL Key: key=%s", key))

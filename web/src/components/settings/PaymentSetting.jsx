@@ -44,6 +44,9 @@ const PaymentSetting = () => {
     AmountOptions: '',
     AmountDiscount: '',
     InvoiceFeeRate: '',
+    GiftEnabled: false,
+    GiftRules: '',
+    GiftValidDays: '',
 
     StripeApiSecret: '',
     StripeWebhookSecret: '',
@@ -108,6 +111,23 @@ const PaymentSetting = () => {
             break;
           case 'payment_setting.invoice_fee_rate':
             newInputs['InvoiceFeeRate'] = item.value;
+            break;
+          case 'payment_setting.gift_enabled':
+            newInputs['GiftEnabled'] = toBoolean(item.value);
+            break;
+          case 'payment_setting.gift_rules':
+            try {
+              newInputs['GiftRules'] = JSON.stringify(
+                JSON.parse(item.value),
+                null,
+                2,
+              );
+            } catch (error) {
+              newInputs['GiftRules'] = item.value;
+            }
+            break;
+          case 'payment_setting.gift_valid_days':
+            newInputs['GiftValidDays'] = item.value;
             break;
           case 'Price':
           case 'MinTopUp':

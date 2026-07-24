@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -14,6 +15,14 @@ import (
 
 // ErrSubscriptionPurchaseLimit is returned when user has reached the max purchase limit for a plan
 var ErrSubscriptionPurchaseLimit = errors.New("subscription.purchase_limit")
+
+// 兑换限领 / 计数相关错误（透传给用户，不被 ErrRedeemFailed 吞掉）。
+var (
+	ErrRedeemClaimedByKey = errors.New("您已兑换过该兑换码，每人限领一次")
+	ErrRedeemClaimedByTag = errors.New("您已兑换过该批次的兑换码，每人限领一次")
+	ErrRedeemUsedUp       = errors.New("该兑换码兑换次数已用完")
+	ErrRedeemRateLimited  = errors.New("操作过于频繁，请稍后再试")
+)
 
 type Redemption struct {
 	Id           int            `json:"id"`
@@ -33,6 +42,11 @@ type Redemption struct {
 	SubscriptionPlanId   int    `json:"subscription_plan_id" gorm:"type:int;default:0"`    // 订阅套餐ID，仅当type=2或3时有效
 	UpgradeGroup         string `json:"upgrade_group" gorm:"type:varchar(64);default:''"` // 升级用户分组
 	UpgradeGroupRollback *bool  `json:"upgrade_group_rollback" gorm:"default:true"`       // 到期后是否回退分组，默认true（到期回退）
+	// 双钱包拆分新增字段
+	Tag       string `json:"tag" gorm:"type:varchar(64);index"` // 批次标签，空=无批次
+	MaxUses   int    `json:"max_uses" gorm:"default:1"`         // 最大可兑换次数，1=一次性
+	UsedCount int    `json:"used_count" gorm:"default:0"`       // 已兑换次数
+	ValidDays int    `json:"valid_days" gorm:"default:0"`       // 兑换后额度有效天数，0=不过期(进充值钱包)
 }
 
 // IsUpgradeGroupRollback returns the effective value of UpgradeGroupRollback (defaults to true if nil)
@@ -190,6 +204,29 @@ func Redeem(key string, userId int) (*RedeemResult, error) {
 	if common.UsingPostgreSQL {
 		keyCol = `"key"`
 	}
+
+	// 同批次限领：对 (tag, userId) 加 Redis 锁，串行化同一用户对同 tag 的并发兑换，
+	// 解决"不同码锁不同行、HasClaimedByTag 互相看不见"的 check-then-insert 竞态。
+	var lockKey string
+	if common.RedisEnabled {
+		var preTag string
+		if err := DB.Model(&Redemption{}).Where(keyCol+" = ?", key).Select("tag").Scan(&preTag).Error; err == nil {
+			preTag = strings.TrimSpace(preTag)
+			if preTag != "" {
+				lockKey = fmt.Sprintf("redeem_claim_lock:%s:%d", preTag, userId)
+				ok, lockErr := common.RedisSetNX(lockKey, "1", 5*time.Second)
+				if lockErr == nil && !ok {
+					return nil, ErrRedeemRateLimited
+				}
+			}
+		}
+	}
+	defer func() {
+		if lockKey != "" {
+			common.RedisDel(lockKey)
+		}
+	}()
+
 	var resolvedGroup string
 	common.RandomSleep()
 	err := DB.Transaction(func(tx *gorm.DB) error {
@@ -204,8 +241,44 @@ func Redeem(key string, userId int) (*RedeemResult, error) {
 			return errors.New("该兑换码已过期")
 		}
 
+		// 双钱包拆分：计数模型 —— 校验剩余可兑换次数（MaxUses<=0 视为一次性）。
+		maxUses := redemption.MaxUses
+		if maxUses <= 0 {
+			maxUses = 1
+		}
+		if redemption.UsedCount >= maxUses {
+			return ErrRedeemUsedUp
+		}
+
+		// 限领校验：同码一人一次 & 同批次(tag)一人一次。
+		if claimed, e := HasClaimedByKey(tx, userId, redemption.Key); e != nil {
+			return e
+		} else if claimed {
+			return ErrRedeemClaimedByKey
+		}
+		tag := strings.TrimSpace(redemption.Tag)
+		if tag != "" {
+			if claimed, e := HasClaimedByTag(tx, userId, tag); e != nil {
+				return e
+			} else if claimed {
+				return ErrRedeemClaimedByTag
+			}
+		}
+
 		upgradeGroup := strings.TrimSpace(redemption.UpgradeGroup)
 		rollback := redemption.IsUpgradeGroupRollback()
+
+		// creditQuotaTx 按 valid_days 决定余额入账钱包：>0 进免费钱包（带过期明细），否则进充值钱包。
+		creditQuotaTx := func(amount int) error {
+			if amount <= 0 {
+				return nil
+			}
+			if redemption.ValidDays > 0 {
+				expiredTime := common.GetTimestamp() + int64(redemption.ValidDays)*86400
+				return AddFreeQuota(tx, userId, amount, FreeQuotaSourceRedemption, redemption.Id, expiredTime)
+			}
+			return AddRechargeQuota(tx, userId, amount)
+		}
 
 		// 根据兑换码类型处理
 		switch redemption.Type {
@@ -223,9 +296,8 @@ func Redeem(key string, userId int) (*RedeemResult, error) {
 			if redemption.SubscriptionPlanId <= 0 {
 				return errors.New("兑换码配置错误：缺少订阅套餐ID")
 			}
-			// 先充值余额
-			err = tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
-			if err != nil {
+			// 先充值余额（按 valid_days 分流钱包）
+			if err = creditQuotaTx(redemption.Quota); err != nil {
 				return err
 			}
 			if err := redeemBindSubscriptionTx(tx, userId, redemption, upgradeGroup, rollback); err != nil {
@@ -234,8 +306,7 @@ func Redeem(key string, userId int) (*RedeemResult, error) {
 
 		default:
 			// 余额类型兑换码（默认）— type=1 无订阅，upgrade_group 始终永久升级
-			err = tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
-			if err != nil {
+			if err = creditQuotaTx(redemption.Quota); err != nil {
 				return err
 			}
 			if upgradeGroup != "" {
@@ -256,15 +327,28 @@ func Redeem(key string, userId int) (*RedeemResult, error) {
 			resolvedGroup = currentGroup
 		}
 
+		// 写限领记录（同码 / 同批次 一人一次）。
+		if err := insertRedemptionClaim(tx, userId, redemption.Id, redemption.Key, tag); err != nil {
+			return err
+		}
+
+		// 计数模型：递增已用次数；达到上限才整体置为已用状态。
+		redemption.UsedCount++
 		redemption.RedeemedTime = common.GetTimestamp()
-		redemption.Status = common.RedemptionCodeStatusUsed
 		redemption.UsedUserId = userId
+		if redemption.UsedCount >= maxUses {
+			redemption.Status = common.RedemptionCodeStatusUsed
+		}
 		err = tx.Save(redemption).Error
 		return err
 	})
 	if err != nil {
 		if errors.Is(err, ErrSubscriptionPurchaseLimit) {
 			return nil, ErrSubscriptionPurchaseLimit
+		}
+		// 限领 / 次数用尽 / 限频错误透传给用户明确文案。
+		if errors.Is(err, ErrRedeemClaimedByKey) || errors.Is(err, ErrRedeemClaimedByTag) || errors.Is(err, ErrRedeemUsedUp) || errors.Is(err, ErrRedeemRateLimited) {
+			return nil, err
 		}
 		common.SysError("redemption failed: " + err.Error())
 		return nil, ErrRedeemFailed
@@ -305,7 +389,7 @@ func Redeem(key string, userId int) (*RedeemResult, error) {
 
 func (redemption *Redemption) Insert() error {
 	var err error
-	err = DB.Select("user_id", "key", "status", "name", "quota", "created_time", "expired_time", "type", "subscription_plan_id", "upgrade_group", "upgrade_group_rollback").Create(redemption).Error
+	err = DB.Select("user_id", "key", "status", "name", "quota", "created_time", "expired_time", "type", "subscription_plan_id", "upgrade_group", "upgrade_group_rollback", "tag", "max_uses", "used_count", "valid_days").Create(redemption).Error
 	return err
 }
 
@@ -317,14 +401,38 @@ func (redemption *Redemption) SelectUpdate() error {
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (redemption *Redemption) Update() error {
 	var err error
-	err = DB.Model(redemption).Select("name", "status", "quota", "redeemed_time", "expired_time", "type", "subscription_plan_id", "upgrade_group", "upgrade_group_rollback").Updates(redemption).Error
+	err = DB.Model(redemption).Select("name", "status", "quota", "redeemed_time", "expired_time", "type", "subscription_plan_id", "upgrade_group", "upgrade_group_rollback", "tag", "max_uses", "valid_days").Updates(redemption).Error
 	return err
 }
 
 func (redemption *Redemption) Delete() error {
-	var err error
-	err = DB.Delete(redemption).Error
-	return err
+	// 双钱包拆分：级联清理限领记录。
+	// 单码删除清该码的 key claim；若该码带 tag 且删除后该 tag 下已无其它兑换码，
+	// 则一并清理该 tag 的批次限领记录（限领记录保留至标签被删除为止）。
+	return DB.Transaction(func(tx *gorm.DB) error {
+		tag := strings.TrimSpace(redemption.Tag)
+		key := redemption.Key
+		if err := tx.Delete(redemption).Error; err != nil {
+			return err
+		}
+		if key != "" {
+			if err := DeleteRedemptionClaimsByKey(tx, key); err != nil {
+				return err
+			}
+		}
+		if tag != "" {
+			var remaining int64
+			if err := tx.Model(&Redemption{}).Where("tag = ?", tag).Count(&remaining).Error; err != nil {
+				return err
+			}
+			if remaining == 0 {
+				if err := DeleteRedemptionClaimsByTag(tx, tag); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
 }
 
 func DeleteRedemptionById(id int) (err error) {
@@ -337,6 +445,21 @@ func DeleteRedemptionById(id int) (err error) {
 		return err
 	}
 	return redemption.Delete()
+}
+
+func DeleteRedemptionsByIds(ids []int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("ids 为空")
+	}
+	var deleted int64
+	for _, id := range ids {
+		if err := DeleteRedemptionById(id); err != nil {
+			common.SysError("failed to delete redemption " + strconv.Itoa(id) + ": " + err.Error())
+			continue
+		}
+		deleted++
+	}
+	return deleted, nil
 }
 
 func DeleteInvalidRedemptions() (int64, error) {

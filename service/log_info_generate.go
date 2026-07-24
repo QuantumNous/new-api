@@ -171,12 +171,24 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		}
 		if relayInfo.BillingSource == "hybrid" {
 			other["wallet_quota_deducted"] = relayInfo.WalletQuotaDeducted
+			if relayInfo.WalletFreeQuotaDeducted > 0 {
+				other["wallet_free_quota_deducted"] = relayInfo.WalletFreeQuotaDeducted
+			}
+			if relayInfo.WalletRechargeQuotaDeducted > 0 {
+				other["wallet_recharge_quota_deducted"] = relayInfo.WalletRechargeQuotaDeducted
+			}
 		} else {
 			// Wallet quota is not deducted when billed entirely from subscription.
 			other["wallet_quota_deducted"] = 0
 		}
 	} else if relayInfo.BillingSource == "wallet" && relayInfo.WalletQuotaDeducted > 0 {
 		other["wallet_quota_deducted"] = relayInfo.WalletQuotaDeducted
+		if relayInfo.WalletFreeQuotaDeducted > 0 {
+			other["wallet_free_quota_deducted"] = relayInfo.WalletFreeQuotaDeducted
+		}
+		if relayInfo.WalletRechargeQuotaDeducted > 0 {
+			other["wallet_recharge_quota_deducted"] = relayInfo.WalletRechargeQuotaDeducted
+		}
 	}
 }
 

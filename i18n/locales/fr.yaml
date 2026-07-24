@@ -49,6 +49,7 @@ redemption.expired: "Ce code de rachat a expiré"
 redemption.failed: "Échec du rachat, veuillez réessayer plus tard"
 redemption.not_provided: "Code de rachat non fourni"
 redemption.expire_time_invalid: "La date d'expiration ne peut pas être antérieure à la date actuelle"
+redemption.select_at_least_one: "Veuillez sélectionner au moins un code d'échange"
 
 # User messages
 user.password_login_disabled: "La connexion par mot de passe a été désactivée par l'administrateur"

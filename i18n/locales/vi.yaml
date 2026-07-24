@@ -49,6 +49,7 @@ redemption.expired: "Mã đổi thưởng này đã hết hạn"
 redemption.failed: "Đổi thưởng thất bại, vui lòng thử lại sau"
 redemption.not_provided: "Chưa cung cấp mã đổi thưởng"
 redemption.expire_time_invalid: "Thời gian hết hạn không được sớm hơn thời gian hiện tại"
+redemption.select_at_least_one: "Vui lòng chọn ít nhất một mã đổi"
 
 # User messages
 user.password_login_disabled: "Quản trị viên đã tắt đăng nhập bằng mật khẩu"

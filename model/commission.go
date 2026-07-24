@@ -305,8 +305,7 @@ func ApproveWithdrawal(withdrawalId int, adminRemark string) error {
 			// 这里直接用元数 * QuotaPerUnit
 			moneyInYuan := float64(withdrawal.Amount) / 100.0
 			quotaToAdd := int(moneyInYuan * common.QuotaPerUnit)
-			if err := tx.Model(&User{}).Where("id = ?", withdrawal.UserId).
-				Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			if err := AddRechargeQuota(tx, withdrawal.UserId, quotaToAdd); err != nil {
 				return err
 			}
 			quotaInUSD := float64(quotaToAdd) / common.QuotaPerUnit

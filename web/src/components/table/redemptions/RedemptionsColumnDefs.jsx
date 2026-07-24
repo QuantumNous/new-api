@@ -185,6 +185,34 @@ export const getRedemptionsColumns = ({
       },
     },
     {
+      title: t('已用/上限'),
+      dataIndex: 'used_count',
+      width: 90,
+      render: (text, record) => {
+        const used = record.used_count || 0;
+        const max = record.max_uses || 1;
+        return (
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {used}/{max}
+          </span>
+        );
+      },
+    },
+    {
+      title: t('标签'),
+      dataIndex: 'tag',
+      width: 120,
+      render: (text) => {
+        return text ? (
+          <Tag color='light-blue' shape='circle' size='small'>
+            {text}
+          </Tag>
+        ) : (
+          <span className='text-gray-400'>-</span>
+        );
+      },
+    },
+    {
       title: t('创建时间'),
       dataIndex: 'created_time',
       render: (text) => {

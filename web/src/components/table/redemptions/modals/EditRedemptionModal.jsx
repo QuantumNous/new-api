@@ -73,6 +73,7 @@ const EditRedemptionModal = (props) => {
 
   const getInitValues = () => ({
     name: '',
+    key: '',
     quota: 100000,
     amount: Number(quotaToDisplayAmount(100000).toFixed(6)),
     count: 1,
@@ -81,6 +82,9 @@ const EditRedemptionModal = (props) => {
     subscription_plan_id: 0,
     upgrade_group: '',
     upgrade_group_rollback: true,
+    tag: '',
+    max_uses: 1,
+    valid_days: 0,
   });
 
   const handleCancel = () => {
@@ -185,9 +189,13 @@ const EditRedemptionModal = (props) => {
       return;
     }
     localInputs.name = name;
+    localInputs.key = (localInputs.key || '').trim();
     localInputs.type = parseInt(localInputs.type) || 1;
     localInputs.subscription_plan_id = parseInt(localInputs.subscription_plan_id) || 0;
     localInputs.upgrade_group = localInputs.upgrade_group || '';
+    localInputs.tag = (localInputs.tag || '').trim();
+    localInputs.max_uses = parseInt(localInputs.max_uses) || 1;
+    localInputs.valid_days = parseInt(localInputs.valid_days) || 0;
     // type=1 无订阅，不支持到期回退，强制 false
     if (localInputs.type === 1) {
       localInputs.upgrade_group_rollback = false;
@@ -358,6 +366,18 @@ const EditRedemptionModal = (props) => {
                           showClear
                         />
                       </Col>
+                      {!isEdit && (
+                        <Col span={24}>
+                          <Form.Input
+                            field='key'
+                            label={t('自定义兑换码')}
+                            placeholder={t('留空自动生成，填写则使用自定义码')}
+                            style={{ width: '100%' }}
+                            showClear
+                            extraText={t('自定义码需全局唯一，且仅能生成 1 个')}
+                          />
+                        </Col>
+                      )}
                       <Col span={24}>
                         <Form.RadioGroup
                           field='type'
@@ -526,6 +546,42 @@ const EditRedemptionModal = (props) => {
                           </Form.Select>
                         </Col>
                       )}
+
+                      {/* 双钱包拆分：有效天数 / 最大兑换次数 / 批次标签 */}
+                      <Col span={12}>
+                        <Form.InputNumber
+                          field='valid_days'
+                          label={t('额度有效天数')}
+                          placeholder={t('输入天数')}
+                          min={0}
+                          step={1}
+                          style={{ width: '100%' }}
+                          extraText={t('0 为不过期进充值钱包，>0 进免费钱包')}
+                          showClear
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Form.InputNumber
+                          field='max_uses'
+                          label={t('最大兑换次数')}
+                          placeholder={t('输入次数')}
+                          min={1}
+                          step={1}
+                          style={{ width: '100%' }}
+                          extraText={t('默认 1 次，>1 可被多人各兑一次')}
+                          showClear
+                        />
+                      </Col>
+                      <Col span={24}>
+                        <Form.Input
+                          field='tag'
+                          label={t('批次标签')}
+                          placeholder={t('输入批次标签（可选）')}
+                          style={{ width: '100%' }}
+                          showClear
+                          extraText={t('同标签批次下每人限兑一次')}
+                        />
+                      </Col>
 
                       {/* 到期回退开关：upgrade_group 非空且 type=2 或 type=3 */}
                       {showUpgradeGroup(values.type) && values.upgrade_group && (values.type === 2 || values.type === 3) && (

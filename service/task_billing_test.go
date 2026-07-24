@@ -48,6 +48,7 @@ func TestMain(m *testing.M) {
 		&model.UserSubscription{},
 		&model.SubscriptionPreConsumeRecord{},
 		&model.SubscriptionPreConsumeDetail{},
+		&model.FreeQuotaLedger{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}

@@ -49,6 +49,7 @@ redemption.expired: "该兑换码已过期"
 redemption.failed: "兑换失败，请稍后重试"
 redemption.not_provided: "未提供兑换码"
 redemption.expire_time_invalid: "过期时间不能早于当前时间"
+redemption.select_at_least_one: "请至少选择一个兑换码"
 
 # User messages
 user.password_login_disabled: "管理员关闭了密码登录"

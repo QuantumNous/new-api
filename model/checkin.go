@@ -93,6 +93,10 @@ func UserCheckin(userId int) (*Checkin, error) {
 
 // userCheckinWithTransaction 使用事务执行签到（适用于 MySQL 和 PostgreSQL）
 func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) (*Checkin, error) {
+	// 签到额度有效期（进免费钱包）
+	validDays := operation_setting.GetCheckinValidDays()
+	expiredTime := common.GetTimestamp() + int64(validDays)*86400
+
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		// 步骤1: 创建签到记录
 		// 数据库有唯一约束 (user_id, checkin_date)，可以防止并发重复签到
@@ -100,9 +104,8 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 			return errors.New("签到失败，请稍后重试")
 		}
 
-		// 步骤2: 在事务中增加用户额度
-		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota + ?", quotaAwarded)).Error; err != nil {
+		// 步骤2: 双钱包拆分——签到额度进免费钱包（带过期明细），不再进充值钱包。
+		if err := AddFreeQuota(tx, userId, quotaAwarded, FreeQuotaSourceCheckin, checkin.Id, expiredTime); err != nil {
 			return errors.New("签到失败：更新额度出错")
 		}
 
@@ -112,11 +115,6 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 	if err != nil {
 		return nil, err
 	}
-
-	// 事务成功后，异步更新缓存
-	go func() {
-		_ = cacheIncrUserQuota(userId, int64(quotaAwarded))
-	}()
 
 	return checkin, nil
 }
@@ -129,9 +127,10 @@ func userCheckinWithoutTransaction(checkin *Checkin, userId int, quotaAwarded in
 		return nil, errors.New("签到失败，请稍后重试")
 	}
 
-	// 步骤2: 增加用户额度
-	// 使用 db=true 强制直接写入数据库，不使用批量更新
-	if err := IncreaseUserQuota(userId, quotaAwarded, true); err != nil {
+	// 步骤2: 双钱包拆分——签到额度进免费钱包（带过期明细）。
+	validDays := operation_setting.GetCheckinValidDays()
+	expiredTime := common.GetTimestamp() + int64(validDays)*86400
+	if err := AddFreeQuota(nil, userId, quotaAwarded, FreeQuotaSourceCheckin, checkin.Id, expiredTime); err != nil {
 		// 如果增加额度失败，需要回滚签到记录
 		DB.Delete(checkin)
 		return nil, errors.New("签到失败：更新额度出错")

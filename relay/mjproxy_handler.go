@@ -201,7 +201,8 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		}
 	}
 
-	userQuota, err := model.GetUserQuota(info.UserId, false)
+	// 双钱包拆分：门禁口径为总可用额度（充值钱包 + 免费钱包）。
+	userQuota, err := model.GetUserTotalQuota(info.UserId, false)
 	if err != nil {
 		return &dto.MidjourneyResponse{
 			Code:        4,
@@ -508,7 +509,8 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		}
 	}
 
-	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
+	// 双钱包拆分：门禁口径为总可用额度（充值钱包 + 免费钱包）。
+	userQuota, err := model.GetUserTotalQuota(relayInfo.UserId, false)
 	if err != nil {
 		return &dto.MidjourneyResponse{
 			Code:        4,

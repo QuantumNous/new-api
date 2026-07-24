@@ -137,7 +137,9 @@ const renderStatistics = (text, record, showEnableDisableModal, t) => {
 const renderQuotaUsage = (text, record, t) => {
   const { Paragraph } = Typography;
   const used = parseInt(record.used_quota) || 0;
-  const remain = parseInt(record.quota) || 0;
+  const recharge = parseInt(record.quota) || 0;
+  const free = parseInt(record.free_quota) || 0;
+  const remain = recharge + free;
   const total = used + remain;
   const percent = total > 0 ? (remain / total) * 100 : 0;
   const popoverContent = (
@@ -145,8 +147,14 @@ const renderQuotaUsage = (text, record, t) => {
       <Paragraph copyable={{ content: renderQuota(used) }}>
         {t('已用额度')}: {renderQuota(used)}
       </Paragraph>
+      <Paragraph copyable={{ content: renderQuota(recharge) }}>
+        {t('充值钱包')}: {renderQuota(recharge)}
+      </Paragraph>
+      <Paragraph copyable={{ content: renderQuota(free) }}>
+        {t('免费钱包')}: {renderQuota(free)}
+      </Paragraph>
       <Paragraph copyable={{ content: renderQuota(remain) }}>
-        {t('剩余额度')}: {renderQuota(remain)} ({percent.toFixed(0)}%)
+        {t('可用合计')}: {renderQuota(remain)}
       </Paragraph>
       <Paragraph copyable={{ content: renderQuota(total) }}>
         {t('总额度')}: {renderQuota(total)}

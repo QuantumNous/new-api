@@ -242,9 +242,14 @@ const CheckinCalendar = ({ t, status }) => {
       const res = await postCheckin();
       const { success, data, message } = res.data;
       if (success) {
-        showSuccess(
-          t('签到成功！获得') + ' ' + renderQuota(data.quota_awarded),
-        );
+        // 优先展示后端返回的过期提醒文案；带上本次获得额度与有效期天数。
+        let tip =
+          t('签到成功！获得') + ' ' + renderQuota(data.quota_awarded);
+        if (data.valid_days > 0) {
+          tip +=
+            '，' + t('有效期') + ' ' + data.valid_days + ' ' + t('天，不使用会过期');
+        }
+        showSuccess(tip);
         // 刷新签到状态
         fetchCheckinStatus(currentMonth);
         deleteCookieValue(CHECKIN_CAPTCHA_COUNT_COOKIE);

@@ -84,6 +84,15 @@ type TokenCountMeta struct {
 	estimatePromptTokens int
 }
 
+// FreeLedgerDeduct mirrors model.LedgerDeduct to avoid cross-package dependency.
+// Each entry records which free-quota ledger was deducted and by how much,
+// so refunds can be routed back to the original ledger (preserving expiry).
+type FreeLedgerDeduct struct {
+	LedgerId    int
+	ExpiredTime int64
+	Amount      int
+}
+
 type RelayInfo struct {
 	TokenId           int
 	TokenKey          string
@@ -131,8 +140,14 @@ type RelayInfo struct {
 	// BillingSource indicates whether this request is billed from wallet quota, subscription, or both.
 	// "" or "wallet" => wallet; "subscription" => subscription; "hybrid" => subscription + wallet
 	BillingSource string
-	// WalletQuotaDeducted is the quota finally deducted from wallet when BillingSource == "hybrid".
+	// WalletQuotaDeducted is the total quota deducted from wallet.
 	WalletQuotaDeducted int
+	// WalletFreeQuotaDeducted is the quota deducted from free wallet.
+	WalletFreeQuotaDeducted int
+	// WalletRechargeQuotaDeducted is the quota deducted from recharge wallet.
+	WalletRechargeQuotaDeducted int
+	// WalletFreeDeducts records per-ledger deductions from the free wallet (for proportional LIFO refund).
+	WalletFreeDeducts []FreeLedgerDeduct
 	// SubscriptionId is the user_subscriptions.id used when BillingSource == "subscription"
 	SubscriptionId int
 	// SubscriptionPreConsumed is the amount pre-consumed on subscription item (quota units or 1)

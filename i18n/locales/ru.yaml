@@ -49,6 +49,7 @@ redemption.expired: "Этот код активации истёк"
 redemption.failed: "Ошибка активации, пожалуйста, повторите попытку позже"
 redemption.not_provided: "Код активации не предоставлен"
 redemption.expire_time_invalid: "Дата истечения не может быть раньше текущего времени"
+redemption.select_at_least_one: "Пожалуйста, выберите хотя бы один код"
 
 # User messages
 user.password_login_disabled: "Вход по паролю отключён администратором"

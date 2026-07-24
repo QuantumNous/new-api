@@ -69,6 +69,7 @@ const (
 	MsgRedemptionFailed            = "redemption.failed"
 	MsgRedemptionNotProvided       = "redemption.not_provided"
 	MsgRedemptionExpireTimeInvalid = "redemption.expire_time_invalid"
+	MsgRedemptionSelectAtLeastOne  = "redemption.select_at_least_one"
 	MsgSubscriptionPurchaseLimit   = "subscription.purchase_limit"
 )
 

@@ -22,7 +22,8 @@ func GetSubscription(c *gin.Context) {
 		usedQuota = token.UsedQuota
 	} else {
 		userId := c.GetInt("id")
-		remainQuota, err = model.GetUserQuota(userId, false)
+		// 双钱包拆分：展示剩余额度 = 总可用额度（充值钱包 + 免费钱包）。
+		remainQuota, err = model.GetUserTotalQuota(userId, false)
 		usedQuota, err = model.GetUserUsedQuota(userId)
 	}
 	if expiredTime <= 0 {

@@ -111,6 +111,10 @@ func GetTopUpInfo(c *gin.Context) {
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"invoice_fee_rate":        operation_setting.GetPaymentSetting().InvoiceFeeRate,
+		// 充值赠送档位（供前端展示）
+		"gift_enabled":    operation_setting.GetPaymentSetting().GiftEnabled,
+		"gift_rules":      operation_setting.GetPaymentSetting().GiftRules,
+		"gift_valid_days": operation_setting.GetPaymentSetting().GiftValidDays,
 	}
 	common.ApiSuccess(c, data)
 }
@@ -417,30 +421,29 @@ func EpayNotify(c *gin.Context) {
 			return
 		}
 		if topUp.Status == common.TopUpStatusPending {
+			var callbackPaymentMethod string
 			if topUp.PaymentMethod != verifyInfo.Type {
 				logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 实际支付方式与订单不同 trade_no=%s order_payment_method=%s actual_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, topUp.PaymentMethod, verifyInfo.Type, c.ClientIP()))
-				topUp.PaymentMethod = verifyInfo.Type
+				callbackPaymentMethod = verifyInfo.Type
 			}
-			topUp.Status = common.TopUpStatusSuccess
-			err := topUp.Update()
+			// 单事务内完成：状态更新 + 充值入账 + 赠送发放（原子操作 + Redis 缓存同步）
+			userId, quotaToAdd, giftQuota, payMoney, paymentMethod, err := model.CompleteEpayTopUp(verifyInfo.ServiceTradeNo)
 			if err != nil {
-				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 更新充值订单失败 trade_no=%s user_id=%d client_ip=%s error=%q topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), err.Error(), common.GetJsonString(topUp)))
+				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 完成充值失败 trade_no=%s user_id=%d client_ip=%s error=%q", verifyInfo.ServiceTradeNo, topUp.UserId, c.ClientIP(), err.Error()))
 				return
 			}
-			//user, _ := model.GetUserById(topUp.UserId, false)
-			//user.Quota += topUp.Amount * 500000
-			dAmount := decimal.NewFromInt(int64(topUp.Amount))
-			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
-			err = model.IncreaseUserQuota(topUp.UserId, quotaToAdd, true)
-			if err != nil {
-				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 更新用户额度失败 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d error=%q topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), quotaToAdd, err.Error(), common.GetJsonString(topUp)))
-				return
+			// 如果回调时支付方式与订单不同，单独回写（不影响入账原子性）
+			if callbackPaymentMethod != "" && paymentMethod != callbackPaymentMethod {
+				_ = model.DB.Model(&model.TopUp{}).Where("trade_no = ?", verifyInfo.ServiceTradeNo).Update("payment_method", callbackPaymentMethod)
 			}
-			logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值成功 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d money=%.2f topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), quotaToAdd, topUp.Money, common.GetJsonString(topUp)))
-			model.RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money), c.ClientIP(), topUp.PaymentMethod, "epay")
+			logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值成功 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d money=%.2f", verifyInfo.ServiceTradeNo, userId, c.ClientIP(), quotaToAdd, payMoney))
+			epayLogMsg := fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), payMoney)
+			if giftQuota > 0 {
+				epayLogMsg += fmt.Sprintf("，赠送金额: %v", logger.LogQuota(giftQuota))
+			}
+			model.RecordTopupLog(userId, epayLogMsg, c.ClientIP(), paymentMethod, "epay")
 			if model.OnTopUpSuccessHook != nil {
-				go model.OnTopUpSuccessHook(topUp.UserId, topUp.Id, topUp.Money)
+				go model.OnTopUpSuccessHook(userId, topUp.Id, payMoney)
 			}
 		}
 	} else {

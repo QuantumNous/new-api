@@ -388,6 +388,7 @@ func GetSelf(c *gin.Context) {
 		"telegram_id":       user.TelegramId,
 		"group":             user.Group,
 		"quota":             user.Quota,
+		"free_quota":        user.FreeQuota,
 		"used_quota":        user.UsedQuota,
 		"request_count":     user.RequestCount,
 		"aff_code":          user.AffCode,
@@ -406,6 +407,22 @@ func GetSelf(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data":    responseData,
+	})
+	return
+}
+
+// GetSelfFreeQuotaLedgers 返回当前登录用户的免费钱包明细（来源/入账/剩余/过期时间/状态）。
+func GetSelfFreeQuotaLedgers(c *gin.Context) {
+	id := c.GetInt("id")
+	ledgers, err := model.ListFreeQuotaLedgers(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    ledgers,
 	})
 	return
 }
@@ -874,10 +891,12 @@ func CreateUser(c *gin.Context) {
 }
 
 type ManageRequest struct {
-	Id     int    `json:"id"`
-	Action string `json:"action"`
-	Value  int    `json:"value"`
-	Mode   string `json:"mode"`
+	Id        int    `json:"id"`
+	Action    string `json:"action"`
+	Value     int    `json:"value"`
+	Mode      string `json:"mode"`
+	Wallet    string `json:"wallet"`     // 双钱包拆分：目标钱包 recharge(默认) / free
+	ValidDays int    `json:"valid_days"` // 免费钱包 add/override 时的有效天数，<=0 走默认 7 天
 }
 
 // ManageUser Only admin user can do this
@@ -956,6 +975,59 @@ func ManageUser(c *gin.Context) {
 			"admin_id":       adminId,
 			"admin_username": adminName,
 		}
+		// 双钱包拆分：目标钱包（默认充值钱包）。
+		if req.Wallet == "free" {
+			// 免费钱包有效期：add/override 需要过期时间，默认 7 天。
+			validDays := req.ValidDays
+			if validDays <= 0 {
+				validDays = 7
+			}
+			expiredTime := common.GetTimestamp() + int64(validDays)*86400
+			switch req.Mode {
+			case "add":
+				if req.Value <= 0 {
+					common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
+					return
+				}
+				if err := model.AddFreeQuota(nil, user.Id, req.Value, model.FreeQuotaSourceAdmin, adminId, expiredTime); err != nil {
+					common.ApiError(c, err)
+					return
+				}
+				model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
+					fmt.Sprintf("管理员增加用户免费钱包额度 %s，有效期 %d 天", logger.LogQuota(req.Value), validDays), adminInfo)
+			case "subtract":
+				if req.Value <= 0 {
+					common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
+					return
+				}
+				if err := model.ConsumeFreeQuotaOnly(user.Id, req.Value); err != nil {
+					common.ApiError(c, err)
+					return
+				}
+				model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
+					fmt.Sprintf("管理员减少用户免费钱包额度 %s", logger.LogQuota(req.Value)), adminInfo)
+			case "override":
+				if req.Value < 0 {
+					common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+					return
+				}
+				if err := model.OverrideFreeQuota(user.Id, req.Value, model.FreeQuotaSourceAdmin, adminId, expiredTime); err != nil {
+					common.ApiError(c, err)
+					return
+				}
+				model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
+					fmt.Sprintf("管理员覆盖用户免费钱包额度为 %s，有效期 %d 天", logger.LogQuota(req.Value), validDays), adminInfo)
+			default:
+				common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "",
+			})
+			return
+		}
+		// 充值钱包（默认，行为与拆分前一致）
 		switch req.Mode {
 		case "add":
 			if req.Value <= 0 {
@@ -967,7 +1039,7 @@ func ManageUser(c *gin.Context) {
 				return
 			}
 			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员增加用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
+				fmt.Sprintf("管理员增加用户充值钱包额度 %s", logger.LogQuota(req.Value)), adminInfo)
 		case "subtract":
 			if req.Value <= 0 {
 				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
@@ -978,7 +1050,7 @@ func ManageUser(c *gin.Context) {
 				return
 			}
 			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员减少用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
+				fmt.Sprintf("管理员减少用户充值钱包额度 %s", logger.LogQuota(req.Value)), adminInfo)
 		case "override":
 			oldQuota := user.Quota
 			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", req.Value).Error; err != nil {
@@ -986,7 +1058,7 @@ func ManageUser(c *gin.Context) {
 				return
 			}
 			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员覆盖用户额度从 %s 为 %s", logger.LogQuota(oldQuota), logger.LogQuota(req.Value)), adminInfo)
+				fmt.Sprintf("管理员覆盖用户充值钱包额度从 %s 为 %s", logger.LogQuota(oldQuota), logger.LogQuota(req.Value)), adminInfo)
 		default:
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 			return

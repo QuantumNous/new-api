@@ -68,6 +68,8 @@ const EditUserModal = (props) => {
   const [adjustQuotaLocal, setAdjustQuotaLocal] = useState('');
   const [adjustAmountLocal, setAdjustAmountLocal] = useState('');
   const [adjustMode, setAdjustMode] = useState('add');
+  const [adjustWallet, setAdjustWallet] = useState('recharge'); // 双钱包：recharge / free
+  const [adjustValidDays, setAdjustValidDays] = useState(7); // 免费钱包 add/override 的有效天数
   const [adjustLoading, setAdjustLoading] = useState(false);
   const isMobile = useIsMobile();
   const [groupOptions, setGroupOptions] = useState([]);
@@ -178,6 +180,9 @@ const EditUserModal = (props) => {
         action: 'add_quota',
         mode: adjustMode,
         value: adjustMode === 'override' ? quotaVal : Math.abs(quotaVal),
+        wallet: adjustWallet,
+        // 免费钱包 add/override 需要有效天数（subtract 不需要，后端忽略）。
+        valid_days: adjustWallet === 'free' ? parseInt(adjustValidDays) || 7 : 0,
       });
       const { success, message } = res.data;
       if (success) {
@@ -185,6 +190,8 @@ const EditUserModal = (props) => {
         setAdjustModalOpen(false);
         setAdjustQuotaLocal('');
         setAdjustAmountLocal('');
+        setAdjustWallet('recharge');
+        setAdjustValidDays(7);
         const userRes = await API.get(`/api/user/${userId}`);
         if (userRes.data.success) {
           const data = userRes.data.data;
@@ -205,18 +212,23 @@ const EditUserModal = (props) => {
   };
 
   const getPreviewText = () => {
-    const current = formApiRef.current?.getValue('quota') || 0;
+    // 免费钱包读 free_quota，充值钱包读 quota。
+    const current =
+      adjustWallet === 'free'
+        ? formApiRef.current?.getValue('free_quota') || 0
+        : formApiRef.current?.getValue('quota') || 0;
+    const label = adjustWallet === 'free' ? t('当前免费钱包') : t('当前充值钱包');
     const val = parseInt(adjustQuotaLocal) || 0;
     let result;
     switch (adjustMode) {
       case 'add':
         result = current + Math.abs(val);
-        return `${t('当前额度')}：${renderQuota(current)}  +${renderQuota(Math.abs(val))} = ${renderQuota(result)}`;
+        return `${label}：${renderQuota(current)}  +${renderQuota(Math.abs(val))} = ${renderQuota(result)}`;
       case 'subtract':
         result = current - Math.abs(val);
-        return `${t('当前额度')}：${renderQuota(current)}  -${renderQuota(Math.abs(val))} = ${renderQuota(result)}`;
+        return `${label}：${renderQuota(current)}  -${renderQuota(Math.abs(val))} = ${renderQuota(result)}`;
       case 'override':
-        return `${t('当前额度')}：${renderQuota(current)} → ${renderQuota(val)}`;
+        return `${label}：${renderQuota(current)} → ${renderQuota(val)}`;
       default:
         return '';
     }
@@ -470,6 +482,8 @@ const EditUserModal = (props) => {
           setAdjustQuotaLocal('');
           setAdjustAmountLocal('');
           setAdjustMode('add');
+          setAdjustWallet('recharge');
+          setAdjustValidDays(7);
         }}
         confirmLoading={adjustLoading}
         closable={null}
@@ -484,6 +498,25 @@ const EditUserModal = (props) => {
           <Text type='secondary' className='block mb-2'>
             {getPreviewText()}
           </Text>
+        </div>
+        <div className='mb-3'>
+          <div className='mb-1'>
+            <Text size='small'>{t('钱包类型')}</Text>
+          </div>
+          <RadioGroup
+            type='button'
+            value={adjustWallet}
+            onChange={(e) => setAdjustWallet(e.target.value)}
+            style={{ width: '100%' }}
+          >
+            <Radio value='recharge'>{t('充值钱包')}</Radio>
+            <Radio value='free'>{t('免费钱包')}</Radio>
+          </RadioGroup>
+          {adjustWallet === 'free' && (
+            <div className='text-xs mt-1' style={{ color: 'var(--semi-color-text-2)' }}>
+              {t('免费钱包额度不可退款，且会按有效期过期')}
+            </div>
+          )}
         </div>
         <div className='mb-3'>
           <div className='mb-1'>
@@ -504,6 +537,25 @@ const EditUserModal = (props) => {
             <Radio value='override'>{t('覆盖')}</Radio>
           </RadioGroup>
         </div>
+        {adjustWallet === 'free' && adjustMode !== 'subtract' && (
+          <div className='mb-3'>
+            <div className='mb-1'>
+              <Text size='small'>{t('有效天数')}</Text>
+            </div>
+            <InputNumber
+              min={1}
+              step={1}
+              precision={0}
+              value={adjustValidDays}
+              onChange={(val) => setAdjustValidDays(val === '' || val == null ? '' : val)}
+              suffix={t('天')}
+              style={{ width: '100%' }}
+            />
+            <div className='text-xs mt-1' style={{ color: 'var(--semi-color-text-2)' }}>
+              {t('本次发放的免费额度将在该天数后过期，不使用会失效')}
+            </div>
+          </div>
+        )}
         <div className='mb-3'>
           <div className='mb-1'>
             <Text size='small'>{t('金额')}</Text>

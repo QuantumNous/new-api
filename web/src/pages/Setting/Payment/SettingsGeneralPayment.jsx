@@ -26,7 +26,41 @@ import {
   showSuccess,
   verifyJSON,
 } from '../../../helpers';
+import {
+  quotaToDisplayAmount,
+  displayAmountToQuota,
+} from '../../../helpers/quota';
 import { useTranslation } from 'react-i18next';
+
+// 赠送档位在后端以额度(quota)存储，前端展示/编辑统一使用货币金额(美元)。
+// 读取时把 quota 换算成金额，提交时把金额换算回 quota。
+const giftRulesQuotaToAmount = (jsonStr) => {
+  try {
+    const arr = JSON.parse(jsonStr);
+    if (!Array.isArray(arr)) return jsonStr;
+    return JSON.stringify(
+      arr.map((r) => ({
+        threshold: Number(quotaToDisplayAmount(r.threshold || 0).toFixed(6)),
+        gift: Number(quotaToDisplayAmount(r.gift || 0).toFixed(6)),
+      })),
+      null,
+      2,
+    );
+  } catch (e) {
+    return jsonStr;
+  }
+};
+
+const giftRulesAmountToQuota = (jsonStr) => {
+  const arr = JSON.parse(jsonStr);
+  if (!Array.isArray(arr)) throw new Error('gift rules must be an array');
+  return JSON.stringify(
+    arr.map((r) => ({
+      threshold: displayAmountToQuota(r.threshold || 0),
+      gift: displayAmountToQuota(r.gift || 0),
+    })),
+  );
+};
 
 export default function SettingsGeneralPayment(props) {
   const { t } = useTranslation();
@@ -40,6 +74,9 @@ export default function SettingsGeneralPayment(props) {
     AmountOptions: '',
     AmountDiscount: '',
     InvoiceFeeRate: '',
+    GiftEnabled: false,
+    GiftRules: '',
+    GiftValidDays: '',
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
@@ -54,6 +91,14 @@ export default function SettingsGeneralPayment(props) {
         AmountOptions: props.options.AmountOptions || '',
         AmountDiscount: props.options.AmountDiscount || '',
         InvoiceFeeRate: props.options.InvoiceFeeRate || '',
+        GiftEnabled: props.options.GiftEnabled || false,
+        GiftRules: props.options.GiftRules
+          ? giftRulesQuotaToAmount(props.options.GiftRules)
+          : '',
+        GiftValidDays:
+          props.options.GiftValidDays === undefined
+            ? ''
+            : props.options.GiftValidDays,
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -100,6 +145,15 @@ export default function SettingsGeneralPayment(props) {
       return;
     }
 
+    if (
+      originInputs.GiftRules !== inputs.GiftRules &&
+      inputs.GiftRules.trim() !== '' &&
+      !verifyJSON(inputs.GiftRules)
+    ) {
+      showError(t('充值赠送档位不是合法的 JSON 数组'));
+      return;
+    }
+
     setLoading(true);
     try {
       const options = [
@@ -137,6 +191,26 @@ export default function SettingsGeneralPayment(props) {
         options.push({
           key: 'payment_setting.invoice_fee_rate',
           value: inputs.InvoiceFeeRate,
+        });
+      }
+      if (originInputs.GiftEnabled !== inputs.GiftEnabled) {
+        options.push({
+          key: 'payment_setting.gift_enabled',
+          value: String(inputs.GiftEnabled),
+        });
+      }
+      if (originInputs.GiftRules !== inputs.GiftRules) {
+        options.push({
+          key: 'payment_setting.gift_rules',
+          value: inputs.GiftRules.trim() === ''
+            ? inputs.GiftRules
+            : giftRulesAmountToQuota(inputs.GiftRules),
+        });
+      }
+      if (originInputs.GiftValidDays !== inputs.GiftValidDays) {
+        options.push({
+          key: 'payment_setting.gift_valid_days',
+          value: String(inputs.GiftValidDays),
         });
       }
 
@@ -252,6 +326,45 @@ export default function SettingsGeneralPayment(props) {
                 placeholder={t('例如：0.06 表示 6%')}
                 extraText={t(
                   '用户选择含税支付时额外收取的服务费率，例如 0.06 表示 6%',
+                )}
+              />
+            </Col>
+          </Row>
+          <Row style={{ marginTop: 24 }}>
+            <Col span={24}>
+              <Form.Switch
+                field='GiftEnabled'
+                label={t('启用充值赠送')}
+                extraText={t(
+                  '开启后，用户充值命中档位时额外赠送免费额度（进入免费钱包，不可退款、按有效期过期）',
+                )}
+              />
+            </Col>
+          </Row>
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginTop: 16 }}
+          >
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.TextArea
+                field='GiftRules'
+                label={t('充值赠送档位')}
+                placeholder={
+                  '[{"threshold": 10, "gift": 1}, {"threshold": 50, "gift": 6}]'
+                }
+                autosize
+                extraText={t(
+                  '为一个 JSON 数组，threshold 为充值本金门槛、gift 为赠送金额（单位均为货币金额，如美元）。命中“最高满足档位”，不叠加。',
+                )}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.Input
+                field='GiftValidDays'
+                label={t('赠送额度有效天数')}
+                placeholder={t('例如：30；填 0 或留空表示永不过期')}
+                extraText={t(
+                  '赠送的免费额度在该天数后过期，不使用会失效；0 或留空表示永不过期',
                 )}
               />
             </Col>

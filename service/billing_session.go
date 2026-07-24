@@ -71,11 +71,19 @@ func (s *BillingSession) Settle(actualQuota int) error {
 				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
 		}
 	}
-	// 3) 更新 relayInfo 上的订阅 PostDelta（用于日志）
+	// 3) 更新 relayInfo 上的订阅 PostDelta 和钱包扣款明细（用于日志）
 	if funding, ok := s.funding.(*HybridFunding); ok {
 		s.relayInfo.SubscriptionPostDelta += funding.lastSubscriptionDelta
 		s.relayInfo.WalletQuotaDeducted = funding.wallet.consumed
+		s.relayInfo.WalletFreeDeducts = convertDeducts(funding.wallet.FreeDeducts())
+		s.relayInfo.WalletFreeQuotaDeducted = funding.wallet.FreeConsumed()
+		s.relayInfo.WalletRechargeQuotaDeducted = funding.wallet.RechargeConsumed()
 		s.relayInfo.BillingSource = funding.Source()
+	} else if w, ok := s.funding.(*WalletFunding); ok {
+		s.relayInfo.WalletQuotaDeducted = w.consumed
+		s.relayInfo.WalletFreeDeducts = convertDeducts(w.FreeDeducts())
+		s.relayInfo.WalletFreeQuotaDeducted = w.FreeConsumed()
+		s.relayInfo.WalletRechargeQuotaDeducted = w.RechargeConsumed()
 	} else if s.funding.Source() == BillingSourceSubscription {
 		s.relayInfo.SubscriptionPostDelta += int64(delta)
 	}
@@ -243,10 +251,10 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 func (s *BillingSession) reserveFunding(delta int) error {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
-		if err := model.DecreaseUserQuota(funding.userId, delta, false); err != nil {
+		// 走 Settle 而非直接 DecreaseUserQuota，保证追加扣减进账本（否则退款丢账）。
+		if err := funding.Settle(delta); err != nil {
 			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 		}
-		funding.consumed += delta
 		return nil
 	case *SubscriptionFunding:
 		if err := model.AdjustSubscriptionPreConsume(funding.requestId, funding.userId, int64(delta), funding.group); err != nil {
@@ -266,13 +274,39 @@ func (s *BillingSession) reserveFunding(delta int) error {
 	}
 }
 
+// convertDeducts converts model.LedgerDeduct slice to relaycommon.FreeLedgerDeduct slice,
+// allowing the service layer to persist per-ledger deduction info on RelayInfo for LIFO refunds.
+func convertDeducts(ds []model.LedgerDeduct) []relaycommon.FreeLedgerDeduct {
+	out := make([]relaycommon.FreeLedgerDeduct, len(ds))
+	for i, d := range ds {
+		out[i] = relaycommon.FreeLedgerDeduct{
+			LedgerId:    d.LedgerId,
+			ExpiredTime: d.ExpiredTime,
+			Amount:      d.Amount,
+		}
+	}
+	return out
+}
+
+// revertDeducts converts relaycommon.FreeLedgerDeduct back to model.LedgerDeduct for LIFO refund.
+func revertDeducts(ds []relaycommon.FreeLedgerDeduct) []model.LedgerDeduct {
+	out := make([]model.LedgerDeduct, len(ds))
+	for i, d := range ds {
+		out[i] = model.LedgerDeduct{
+			LedgerId:    d.LedgerId,
+			ExpiredTime: d.ExpiredTime,
+			Amount:      d.Amount,
+		}
+	}
+	return out
+}
+
 func (s *BillingSession) rollbackFundingReserve(delta int) {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
-		if err := model.IncreaseUserQuota(funding.userId, delta, false); err != nil {
+		// 走 Settle(-delta) 原路退回并同步账本。
+		if err := funding.Settle(-delta); err != nil {
 			common.SysLog("error rolling back wallet funding reserve: " + err.Error())
-		} else {
-			funding.consumed -= delta
 		}
 	case *SubscriptionFunding:
 		if err := model.AdjustSubscriptionPreConsume(funding.requestId, funding.userId, -int64(delta), funding.group); err != nil {
@@ -383,7 +417,8 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 
 	// 钱包路径需要先检查用户额度
 	tryWallet := func() (*BillingSession, *types.NewAPIError) {
-		userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
+		// 双钱包拆分：钱包门禁按总可用额度（充值 + 免费）判断。
+		userQuota, err := model.GetUserTotalQuota(relayInfo.UserId, false)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}

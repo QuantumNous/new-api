@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Typography,
   Tag,
@@ -45,6 +46,7 @@ import {
 } from 'lucide-react';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
+import { getQuotaPerUnit, quotaToDisplayAmount } from '../../helpers/quota';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
 
 const { Text } = Typography;
@@ -128,6 +130,7 @@ const RechargeCard = ({
 }) => {
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
+  const navigate = useNavigate();
   const showAmountSkeleton = useMinimumLoadingTime(amountLoading);
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
@@ -156,6 +159,19 @@ const RechargeCard = ({
     enableCreemTopUp ||
     enableWaffoTopUp ||
     enableWaffoPancakeTopUp;
+
+  // 当前选中金额匹配的赠送额度
+  const currentGift = React.useMemo(() => {
+    if (!topupInfo?.gift_enabled || !topupInfo?.gift_rules?.length) return 0;
+    const qpu = getQuotaPerUnit();
+    const sorted = [...topupInfo.gift_rules].sort(
+      (a, b) => (b.threshold || 0) - (a.threshold || 0),
+    );
+    const hit = sorted.find(
+      (r) => (r.threshold || 0) / qpu === topUpCount,
+    );
+    return hit?.gift || 0;
+  }, [topupInfo?.gift_enabled, topupInfo?.gift_rules, topUpCount]);
 
   // Currency info for summary
   const {
@@ -395,7 +411,43 @@ const RechargeCard = ({
                     letterSpacing: '-0.055em',
                   }}
                 >
-                  {renderQuota(userState?.user?.quota)}
+                  {renderQuota(
+                    (userState?.user?.quota || 0) +
+                      (userState?.user?.free_quota || 0),
+                  )}
+                </div>
+                <div
+                  className='console-finance-hero-metric-breakdown'
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                    marginTop: 8,
+                    color: 'var(--console-text)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>
+                    {t('充值钱包')}：{renderQuota(userState?.user?.quota || 0)}
+                  </span>
+                  <span style={{ opacity: 0.35 }}>·</span>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate('/console/free-wallet');
+                    }}
+                    style={{
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 2,
+                    }}
+                    title={t('查看免费钱包明细')}
+                  >
+                    {t('免费钱包')}：
+                    {renderQuota(userState?.user?.free_quota || 0)}
+                  </span>
                 </div>
               </div>
               <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
@@ -634,16 +686,34 @@ const RechargeCard = ({
   };
 
   // ─── Payment Summary Sidebar ───────────────────────────────────
+  // 使用 CSS position:sticky 实现浮动。祖先元素 .console-finance-command-page
+  // 和 .semi-layout-content 有 overflow:hidden，会破坏 sticky，需通过 CSS 覆盖。
   const paymentSummary = (
-    <div className='w-full lg:w-[320px] flex-shrink-0'>
+    <>
+      <style>{`
+        .wallet-page.console-finance-command-page {
+          overflow: visible !important;
+        }
+        .semi-layout-content:has(.wallet-page) {
+          overflow: visible !important;
+        }
+      `}</style>
       <div
-        className='rounded-[28px] p-6 lg:sticky lg:top-24'
+        className='w-full lg:w-[320px] flex-shrink-0'
         style={{
-          background: 'var(--console-card-gradient-teal)',
-          border: '1px solid var(--console-border-strong)',
-          boxShadow: 'var(--console-shadow-soft)',
+          position: 'sticky',
+          top: 80,
+          alignSelf: 'flex-start',
         }}
       >
+        <div
+          className='rounded-[28px] p-6'
+          style={{
+            background: 'var(--console-card-gradient-teal)',
+            border: '1px solid var(--console-border-strong)',
+            boxShadow: 'var(--console-shadow-soft)',
+          }}
+        >
         <div className='space-y-4'>
           <div className='flex justify-between items-center'>
             <Text type='tertiary' size='small'>
@@ -654,6 +724,17 @@ const RechargeCard = ({
               {topUpCount || 0}
             </Text>
           </div>
+          {currentGift > 0 && (
+            <div className='flex justify-between items-center'>
+              <Text type='tertiary' size='small'>
+                {t('充值赠送')}
+              </Text>
+              <Text strong style={{ fontSize: 15, color: 'var(--semi-color-success)' }}>
+                + {currencySymbol}
+                {Number(quotaToDisplayAmount(currentGift).toFixed(2))}
+              </Text>
+            </div>
+          )}
           <div className='flex justify-between items-center'>
             <span className='flex items-center gap-1'>
               <Text type='tertiary' size='small'>
@@ -729,9 +810,10 @@ const RechargeCard = ({
           >
             {t('支付')}
           </Button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 
   // ─── Main Content: Online Recharge ─────────────────────────────
@@ -966,6 +1048,19 @@ const RechargeCard = ({
                       const hasDiscount = discount < 1.0;
                       const actualPay = discountedPrice;
                       const save = originalPrice - discountedPrice;
+                      // 赠送档位：命中最高满足档位（阈值 DESC，不叠加）
+                      // r.threshold 是配额，preset.value 是美元，需要换算
+                      let matchGift = 0;
+                      if (topupInfo?.gift_enabled && topupInfo?.gift_rules?.length > 0) {
+                        const qpu = getQuotaPerUnit();
+                        const sorted = [...topupInfo.gift_rules].sort(
+                          (a, b) => (b.threshold || 0) - (a.threshold || 0),
+                        );
+                        const hit = sorted.find(
+                          (r) => (r.threshold || 0) / qpu === preset.value,
+                        );
+                        if (hit) matchGift = hit.gift || 0;
+                      }
                       const { symbol, rate, type } = getCurrencyConfig();
                       const statusStr = localStorage.getItem('status');
                       let localUsdRate = 7;
@@ -1024,7 +1119,37 @@ const RechargeCard = ({
                             style={{ margin: '0 0 4px 0' }}
                           >
                             <Coins size={14} className='mr-1' />
-                            {formatLargeNumber(displayValue)} {symbol}
+                            {symbol}
+                            {formatLargeNumber(displayValue)}{' '}
+                            {matchGift > 0 && (
+                              <span
+                                style={{
+                                  color: 'var(--semi-color-success)',
+                                  fontWeight: 600,
+                                  marginLeft: 6,
+                                  fontSize: 13,
+                                }}
+                              >
+                                {t('赠送')} {symbol}
+                                {Number(
+                                  quotaToDisplayAmount(matchGift).toFixed(2),
+                                )}
+                              </span>
+                            )}
+                            {matchGift > 0 &&
+                              topupInfo?.gift_valid_days > 0 && (
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: 'var(--semi-color-text-2)',
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {t('赠送额度 {{days}} 天内有效', {
+                                    days: topupInfo.gift_valid_days,
+                                  })}
+                                </div>
+                              )}
                             {hasDiscount && (
                               <Tag
                                 style={{ marginLeft: 4 }}

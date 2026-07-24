@@ -49,6 +49,7 @@ redemption.expired: "この引換コードは期限切れです"
 redemption.failed: "引換に失敗しました、後でもう一度お試しください"
 redemption.not_provided: "引換コードが提供されていません"
 redemption.expire_time_invalid: "有効期限は現在時刻より前に設定できません"
+redemption.select_at_least_one: "少なくとも1つのコードを選択してください"
 
 # User messages
 user.password_login_disabled: "管理者がパスワードログインを無効にしました"

@@ -127,6 +127,9 @@ func main() {
 	// Image cleanup task (remove expired saved images daily)
 	service.StartImageCleanupTask()
 
+	// Free quota expiry recycle task (master only, periodic batch recycle)
+	go model.RecycleExpiredFreeQuotaLoop()
+
 	// Register top-up success hook for commission and automatic group upgrades.
 	model.OnTopUpSuccessHook = service.ProcessTopUpSuccess
 

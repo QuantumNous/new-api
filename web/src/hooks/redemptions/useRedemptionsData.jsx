@@ -252,6 +252,36 @@ export const useRedemptionsData = () => {
     await copyText(keys);
   };
 
+  // Batch delete selected redemption codes
+  const batchDeleteSelectedRedemptions = async () => {
+    if (selectedKeys.length === 0) {
+      showError(t('请至少选择一个兑换码'));
+      return;
+    }
+    Modal.confirm({
+      title: t('确定删除所选兑换码？'),
+      content: t('将删除选中的 {{count}} 个兑换码，此操作不可撤销。', { count: selectedKeys.length }),
+      onOk: async () => {
+        setLoading(true);
+        const ids = selectedKeys.map((r) => r.id);
+        try {
+          const res = await API.delete('/api/redemption/batch', { data: { ids } });
+          const { success, message, data } = res.data;
+          if (success) {
+            showSuccess(t('已删除 {{count}} 个兑换码', { count: data }));
+            setSelectedKeys([]);
+            await refresh();
+          } else {
+            showError(message);
+          }
+        } catch (error) {
+          showError(error.message);
+        }
+        setLoading(false);
+      },
+    });
+  };
+
   // Batch delete redemption codes (clear invalid)
   const batchDeleteRedemptions = async () => {
     Modal.confirm({
@@ -353,6 +383,7 @@ export const useRedemptionsData = () => {
     // Batch operations
     batchCopyRedemptions,
     batchDeleteRedemptions,
+    batchDeleteSelectedRedemptions,
 
     // Translation function
     t,

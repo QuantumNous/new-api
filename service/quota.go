@@ -90,7 +90,9 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	if relayInfo.UsePrice {
 		return nil
 	}
-	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
+	// 双钱包拆分：门禁口径为总可用额度（充值钱包 + 免费钱包），
+	// 否则仅有免费额度的用户会被误判余额不足而拒绝。
+	userQuota, err := model.GetUserTotalQuota(relayInfo.UserId, false)
 	if err != nil {
 		return err
 	}
@@ -242,6 +244,23 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		logger.LogError(ctx, "error settling billing: "+err.Error())
 	}
 
+	// 钱包扣款明细
+	if relayInfo.WalletQuotaDeducted > 0 {
+		var walletParts []string
+		if relayInfo.WalletRechargeQuotaDeducted > 0 {
+			walletParts = append(walletParts, fmt.Sprintf("充值钱包扣款 %s", logger.FormatQuota(relayInfo.WalletRechargeQuotaDeducted)))
+		}
+		if relayInfo.WalletFreeQuotaDeducted > 0 {
+			walletParts = append(walletParts, fmt.Sprintf("免费钱包扣款 %s", logger.FormatQuota(relayInfo.WalletFreeQuotaDeducted)))
+		}
+		if len(walletParts) > 0 {
+			if extraContent != "" {
+				extraContent += "，"
+			}
+			extraContent += strings.Join(walletParts, "，")
+		}
+	}
+
 	logModel := modelName
 	if extraContent != "" {
 		logContent += ", " + extraContent
@@ -368,6 +387,23 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		logger.LogError(ctx, "error settling billing: "+err.Error())
 	}
 
+	// 钱包扣款明细
+	if relayInfo.WalletQuotaDeducted > 0 {
+		var walletParts []string
+		if relayInfo.WalletRechargeQuotaDeducted > 0 {
+			walletParts = append(walletParts, fmt.Sprintf("充值钱包扣款 %s", logger.FormatQuota(relayInfo.WalletRechargeQuotaDeducted)))
+		}
+		if relayInfo.WalletFreeQuotaDeducted > 0 {
+			walletParts = append(walletParts, fmt.Sprintf("免费钱包扣款 %s", logger.FormatQuota(relayInfo.WalletFreeQuotaDeducted)))
+		}
+		if len(walletParts) > 0 {
+			if extraContent != "" {
+				extraContent += "，"
+			}
+			extraContent += strings.Join(walletParts, "，")
+		}
+	}
+
 	logModel := relayInfo.OriginModelName
 	if extraContent != "" {
 		logContent += ", " + extraContent
@@ -432,11 +468,30 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 			relayInfo.SubscriptionPostDelta += delta
 		}
 	} else {
-		// Wallet
+		// Wallet（旧路径：按次计费/violation_fee/mjproxy，无预扣账本）
 		if quota > 0 {
-			err = model.DecreaseUserQuota(relayInfo.UserId, quota, false)
-		} else {
-			err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
+			// 双钱包三级扣减，不足透支充值钱包。
+			fromFree, fromRecharge, cErr := model.ConsumeQuotaWithOverdraft(relayInfo.UserId, quota)
+			if cErr != nil {
+				return cErr
+			}
+			relayInfo.WalletQuotaDeducted = quota
+			relayInfo.WalletFreeDeducts = convertDeducts(fromFree)
+			for _, d := range fromFree {
+				relayInfo.WalletFreeQuotaDeducted += d.Amount
+			}
+			relayInfo.WalletRechargeQuotaDeducted = fromRecharge
+		} else if quota < 0 {
+			// 原路退款：免费部分按原始 ledger 明细 LIFO 比例复原（保留原过期时间）。
+			refundAmount := -quota
+			if len(relayInfo.WalletFreeDeducts) == 0 {
+				// 无扣费明细兜底：全额入充值钱包（兼容未设置 WalletFreeDeducts 的路径）。
+				err = model.RefundQuota(relayInfo.UserId, nil, refundAmount)
+			} else {
+				fromFree := revertDeducts(relayInfo.WalletFreeDeducts)
+				refundFree, refundRecharge := calcLIFORefund(fromFree, relayInfo.WalletRechargeQuotaDeducted, refundAmount)
+				err = model.RefundQuota(relayInfo.UserId, refundFree, refundRecharge)
+			}
 		}
 		if err != nil {
 			return err

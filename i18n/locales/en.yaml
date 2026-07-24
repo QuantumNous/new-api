@@ -48,6 +48,7 @@ redemption.expired: "This redemption code has expired"
 redemption.failed: "Redemption failed, please try again later"
 redemption.not_provided: "Redemption code not provided"
 redemption.expire_time_invalid: "Expiration time cannot be earlier than current time"
+redemption.select_at_least_one: "Please select at least one redemption code"
 
 # User messages
 user.password_login_disabled: "Password login has been disabled by administrator"

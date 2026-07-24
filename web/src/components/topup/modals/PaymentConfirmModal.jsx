@@ -20,7 +20,8 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
-import { CreditCard } from 'lucide-react';
+import { Gift, CreditCard } from 'lucide-react';
+import { quotaToDisplayAmount } from '../../../helpers/quota';
 
 const { Text } = Typography;
 
@@ -41,6 +42,7 @@ const PaymentConfirmModal = ({
   discountRate,
   includeTax,
   taxRate,
+  giftAmount = 0,
 }) => {
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
@@ -102,6 +104,16 @@ const PaymentConfirmModal = ({
               </div>
             </div>
           </div>
+          {giftAmount > 0 && (
+            <div className='mt-3 rounded-xl bg-emerald-500/15 px-4 py-2.5'>
+              <div className='flex items-center gap-2'>
+                <Gift size={16} className='text-emerald-300' />
+                <span className='text-sm text-emerald-200'>
+                  {t('充值赠送')}：$ {Number(quotaToDisplayAmount(giftAmount).toFixed(2))}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
         <Card className='!rounded-3xl !border-0 bg-white/85 shadow-sm ring-1 ring-slate-200/80 dark:!bg-slate-900/80 dark:ring-slate-700/80'>
           <div className='space-y-3'>
@@ -132,6 +144,16 @@ const PaymentConfirmModal = ({
                 </div>
               )}
             </div>
+            {giftAmount > 0 && (
+              <div className='flex justify-between items-center'>
+                <Text strong className='text-slate-700 dark:text-slate-200'>
+                  {t('充值赠送')}：
+                </Text>
+                <Text className='font-bold' style={{ color: 'var(--semi-color-success)' }}>
+                  $ {Number(quotaToDisplayAmount(giftAmount).toFixed(2))}
+                </Text>
+              </div>
+            )}
             {hasDiscount && !amountLoading && (
               <>
                 <div className='flex justify-between items-center'>

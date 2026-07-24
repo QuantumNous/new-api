@@ -289,6 +289,8 @@ func migrateDB() error {
 		&UserGroupRatio{},
 		&Group{},
 		&GroupAlias{},
+		&FreeQuotaLedger{},
+		&RedemptionClaim{},
 	)
 	if err != nil {
 		return err
@@ -345,6 +347,8 @@ func migrateDBFast() error {
 		{&Invoice{}, "Invoice"},
 		{&Group{}, "Group"},
 		{&GroupAlias{}, "GroupAlias"},
+		{&FreeQuotaLedger{}, "FreeQuotaLedger"},
+		{&RedemptionClaim{}, "RedemptionClaim"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

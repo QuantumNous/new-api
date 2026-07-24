@@ -131,12 +131,14 @@ func DoCheckin(c *gin.Context) {
 		req.ClientSubmittedAt,
 		req.CaptchaKeyInputs,
 	)
+	validDays := operation_setting.GetCheckinValidDays()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "签到成功",
+		"message": fmt.Sprintf("签到成功，签到额度有效期 %d 天，不使用会过期", validDays),
 		"data": gin.H{
 			"quota_awarded": checkin.QuotaAwarded,
-			"checkin_date":  checkin.CheckinDate},
+			"checkin_date":  checkin.CheckinDate,
+			"valid_days":    validDays},
 	})
 }
 
