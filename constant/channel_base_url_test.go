@@ -12,6 +12,9 @@ func TestGetChannelDefaultBaseURL(t *testing.T) {
 	if got := GetChannelDefaultBaseURL(ChannelTypeMegabyai); got != "https://newapi.megabyai.cc" {
 		t.Fatalf("megabyai default base URL = %q", got)
 	}
+	if got := GetChannelDefaultBaseURL(ChannelTypeSora2U); got != "https://sora2u.com" {
+		t.Fatalf("sora2u default base URL = %q", got)
+	}
 	if got := GetChannelDefaultBaseURL(len(ChannelBaseURLs)); got != "" {
 		t.Fatalf("out of range should return empty, got %q", got)
 	}

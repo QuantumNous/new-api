@@ -63,6 +63,7 @@ const (
 	ChannelType7tai           = 63
 	ChannelTypeTh12345ai      = 64
 	ChannelTypeMegabyai       = 65
+	ChannelTypeSora2U         = 66
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -134,6 +135,7 @@ var ChannelBaseURLs = []string{
 	"https://api.7tai.cc/v1",                    //63 7tai (炳火) video
 	"https://sd.12345ai.net",                    //64 th12345ai (TH API) video
 	"https://newapi.megabyai.cc",                //65 megabyai video
+	"https://sora2u.com",                        //66 sora2u Seedance video
 }
 
 var ChannelTypeNames = map[int]string{
@@ -199,6 +201,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelType7tai:          "7tai",
 	ChannelTypeTh12345ai:     "th12345ai",
 	ChannelTypeMegabyai:      "megabyai",
+	ChannelTypeSora2U:        "sora2u",
 }
 
 func GetChannelTypeName(channelType int) string {
