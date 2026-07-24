@@ -1,9 +1,7 @@
 name: Feature Request
 description: Describe the new feature you would like to add with clear and detailed language
-title: ""
 labels:
   - enhancement
-assignees: []
 body:
   - type: markdown
     attributes:

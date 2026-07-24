@@ -1,9 +1,7 @@
 name: Bug Report
 description: Describe the issue you encountered with clear and detailed language
-title: ""
 labels:
   - bug
-assignees: []
 body:
   - type: markdown
     attributes:
