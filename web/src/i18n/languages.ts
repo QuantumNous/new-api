@@ -24,6 +24,7 @@ export const INTERFACE_LANGUAGE_OPTIONS = [
   { code: 'ja', label: '日本語' },
   { code: 'vi', label: 'Tiếng Việt' },
   { code: 'zhTW', label: '繁體中文' },
+  { code: 'ptBR', label: 'Português (Brasil)' },
 ] as const
 
 export type InterfaceLanguageCode =
@@ -44,6 +45,16 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
   if (value === 'zh-CN' || value === 'zh-Hans' || value === 'zhCN') {
     normalized = 'zhCN'
   }
+  // Match on the canonicalized value so casing and separator variants
+  // (`pt-br`, `PT-BR`, `pt_BR`) resolve too, not just the exact tags.
+  if (
+    normalized === 'pt' ||
+    normalized === 'pt-br' ||
+    normalized === 'pt-pt' ||
+    normalized === 'ptbr'
+  ) {
+    normalized = 'ptBR'
+  }
 
   return INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === normalized)
     ? normalized
@@ -62,6 +73,7 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
  */
 export function convertDetectedLanguage(value: string): string {
   const lower = value.trim().replaceAll('_', '-').toLowerCase()
+  if (lower.startsWith('pt')) return 'ptBR'
   if (!lower.startsWith('zh')) return value
   if (
     lower === 'zh-tw' ||
