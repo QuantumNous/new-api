@@ -681,9 +681,9 @@ func (s *RecallCampaignService) validateStripe(ctx context.Context, draft Recall
 	preview := RecallStripePreview{
 		CouponSource:         draft.CouponSource,
 		Discount:             draft.Discount,
-		TopUpPriceIDs:        append([]string(nil), resolved.TopUpPriceIDs...),
-		SubscriptionPriceIDs: append([]string(nil), resolved.SubscriptionPriceIDs...),
-		ProductIDs:           append([]string(nil), resolved.ProductIDs...),
+		TopUpPriceIDs:        append([]string{}, resolved.TopUpPriceIDs...),
+		SubscriptionPriceIDs: append([]string{}, resolved.SubscriptionPriceIDs...),
+		ProductIDs:           append([]string{}, resolved.ProductIDs...),
 	}
 	if draft.CouponSource == "existing" {
 		coupon, discount, err := s.stripe.EnsureCoupon(

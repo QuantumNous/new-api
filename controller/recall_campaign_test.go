@@ -633,6 +633,7 @@ func TestRecallCampaignPreviewReturnsAudienceAndStripeWithoutCreateOrSend(t *tes
 	require.NotNil(t, data["exclusions"])
 	stripePreview := data["stripe"].(map[string]any)
 	require.Equal(t, []any{"price_topup"}, stripePreview["topup_price_ids"])
+	require.Equal(t, []any{}, stripePreview["subscription_price_ids"])
 	require.Equal(t, float64(1), float64(harness.stripe.getPrice))
 	require.Zero(t, harness.stripe.createCoupon)
 	require.Zero(t, harness.stripe.createCustomer)
