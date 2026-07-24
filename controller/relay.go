@@ -179,18 +179,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}()
 
 	retryParam := &service.RetryParam{
-		Ctx:              c,
-		TokenGroup:       relayInfo.TokenGroup,
-		ModelName:        relayInfo.OriginModelName,
-		Retry:            common.GetPointer(0),
-		StopAtExhaustion: common.SafeFailoverV1Enabled,
+		Ctx:                    c,
+		TokenGroup:             relayInfo.TokenGroup,
+		ModelName:              relayInfo.OriginModelName,
+		Retry:                  common.GetPointer(0),
+		StopAtExhaustion:       common.SafeFailoverV1Enabled,
+		ExhaustiveSafeFailover: common.SafeFailoverV1Enabled,
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
 	maxRetries := effectiveRelayRetryTimes()
 
-	for ; retryParam.GetRetry() <= maxRetries; retryParam.IncreaseRetry() {
+	for ; common.SafeFailoverV1Enabled || retryParam.GetRetry() <= maxRetries; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
@@ -199,7 +200,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
+		if common.SafeFailoverV1Enabled && retryParam.IsChannelExcluded(channel.Id) {
+			newAPIError = types.NewError(
+				fmt.Errorf("safe failover selected channel #%d more than once", channel.Id),
+				types.ErrorCodeGetChannelFailed,
+				types.ErrOptionWithSkipRetry(),
+			)
+			logger.LogError(c, newAPIError.Error())
+			break
+		}
 		addUsedChannel(c, channel.Id)
+		if common.SafeFailoverV1Enabled {
+			retryParam.ExcludeChannel(channel.Id)
+		}
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
@@ -340,9 +353,6 @@ func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.N
 		return false
 	}
 	if common.SafeFailoverV1Enabled {
-		if retryTimes <= 0 {
-			return false
-		}
 		if _, ok := c.Get("specific_channel_id"); ok {
 			return false
 		}

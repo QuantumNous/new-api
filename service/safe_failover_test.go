@@ -127,13 +127,22 @@ func TestEvaluateSafeFailover(t *testing.T) {
 			reason: "client_or_protocol_400",
 		},
 		{
-			name: "second switch is blocked",
+			name: "positive attempt cap blocks the next switch",
 			input: SafeFailoverInput{
 				RetryIndex:  1,
 				MaxAttempts: 1,
 				Error:       makeErr(http.StatusTooManyRequests, types.ErrorCodeBadResponseStatusCode, "capacity exhausted"),
 			},
 			reason: "attempt_limit",
+		},
+		{
+			name: "zero attempt cap allows safe retries until candidates exhaust",
+			input: SafeFailoverInput{
+				RetryIndex:  7,
+				MaxAttempts: 0,
+				Error:       makeErr(http.StatusTooManyRequests, types.ErrorCodeBadResponseStatusCode, "capacity exhausted"),
+			},
+			retry: true, reason: "upstream_capacity",
 		},
 	}
 

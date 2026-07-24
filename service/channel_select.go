@@ -19,7 +19,11 @@ type RetryParam struct {
 	// StopAtExhaustion prevents retries from being clamped to the lowest
 	// priority and selecting the same fallback tier repeatedly.
 	StopAtExhaustion bool
-	resetNextTry     bool
+	// ExhaustiveSafeFailover tries each eligible channel at most once, exhausting
+	// channels within a priority before moving to the next priority.
+	ExhaustiveSafeFailover bool
+	excludedChannelIDs     map[int]struct{}
+	resetNextTry           bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -46,6 +50,25 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+func (p *RetryParam) ExcludeChannel(channelID int) {
+	if p.excludedChannelIDs == nil {
+		p.excludedChannelIDs = make(map[int]struct{})
+	}
+	p.excludedChannelIDs[channelID] = struct{}{}
+}
+
+func (p *RetryParam) IsChannelExcluded(channelID int) bool {
+	_, excluded := p.excludedChannelIDs[channelID]
+	return excluded
+}
+
+func (p *RetryParam) ExcludedChannelIDs() map[int]struct{} {
+	if p.excludedChannelIDs == nil {
+		p.excludedChannelIDs = make(map[int]struct{})
+	}
+	return p.excludedChannelIDs
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -84,6 +107,10 @@ func (p *RetryParam) ResetRetryNextTry() {
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	if param.ExhaustiveSafeFailover {
+		return cacheGetRandomSatisfiedChannelExhaustive(param)
+	}
+
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup
@@ -162,4 +189,53 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+func cacheGetRandomSatisfiedChannelExhaustive(param *RetryParam) (*model.Channel, string, error) {
+	if param.TokenGroup != "auto" {
+		channel, err := model.GetRandomSatisfiedChannelExcluding(
+			param.TokenGroup,
+			param.ModelName,
+			param.ExcludedChannelIDs(),
+		)
+		return channel, param.TokenGroup, err
+	}
+
+	if len(setting.GetAutoGroups()) == 0 {
+		return nil, param.TokenGroup, errors.New("auto groups is not enabled")
+	}
+	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+	autoGroups := GetUserAutoGroup(userGroup)
+	startGroupIndex := 0
+	if lastGroupIndex, exists := common.GetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex); exists {
+		if idx, ok := lastGroupIndex.(int); ok {
+			startGroupIndex = idx
+		}
+	}
+	crossGroupRetry := common.GetContextKeyBool(param.Ctx, constant.ContextKeyTokenCrossGroupRetry)
+
+	for i := startGroupIndex; i < len(autoGroups); i++ {
+		if i > startGroupIndex && !crossGroupRetry {
+			break
+		}
+		autoGroup := autoGroups[i]
+		channel, err := model.GetRandomSatisfiedChannelExcluding(
+			autoGroup,
+			param.ModelName,
+			param.ExcludedChannelIDs(),
+		)
+		if err != nil {
+			return nil, autoGroup, err
+		}
+		if channel != nil {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, autoGroup)
+			return channel, autoGroup, nil
+		}
+		if !crossGroupRetry {
+			return nil, autoGroup, nil
+		}
+		common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+	}
+	return nil, param.TokenGroup, nil
 }

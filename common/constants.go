@@ -136,9 +136,10 @@ var RetryTimes = 0
 // until the target node explicitly opts in.
 var SafeFailoverV1Enabled = false
 
-// SafeFailoverMaxAttempts is the maximum number of cross-channel retries
-// after the initial attempt. V1 intentionally caps this at one.
-var SafeFailoverMaxAttempts = 1
+// SafeFailoverMaxAttempts is an optional maximum number of cross-channel
+// retries after the initial attempt. Zero means to exhaust every eligible
+// channel once; a positive value provides an operator-defined upper bound.
+var SafeFailoverMaxAttempts = 0
 
 // SafeFailoverImageGuardSeconds is a conservative upper bound for proving
 // that an image request has not entered an irreversible generation stage.

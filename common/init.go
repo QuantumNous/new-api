@@ -105,13 +105,10 @@ func InitEnv() {
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
 	SafeFailoverV1Enabled = GetEnvOrDefaultBool("SAFE_FAILOVER_V1", false)
-	SafeFailoverMaxAttempts = GetEnvOrDefault("SAFE_FAILOVER_MAX_ATTEMPTS", 1)
+	SafeFailoverMaxAttempts = GetEnvOrDefault("SAFE_FAILOVER_MAX_ATTEMPTS", 0)
 	if SafeFailoverMaxAttempts < 0 {
+		SysLog("SAFE_FAILOVER_MAX_ATTEMPTS must not be negative; using 0 (exhaust eligible channels)")
 		SafeFailoverMaxAttempts = 0
-	}
-	if SafeFailoverMaxAttempts > 1 {
-		SysLog("SAFE_FAILOVER_MAX_ATTEMPTS is capped at 1 for SAFE_FAILOVER_V1")
-		SafeFailoverMaxAttempts = 1
 	}
 	SafeFailoverImageGuardSeconds = GetEnvOrDefault("SAFE_FAILOVER_IMAGE_GUARD_SECONDS", 60)
 	if SafeFailoverImageGuardSeconds < 1 {

@@ -162,6 +162,65 @@ func GetChannelWithPolicy(group string, model string, retry int, stopAtExhaustio
 	return &channel, err
 }
 
+// GetChannelExcluding returns one channel from the highest-priority tier that
+// still has an eligible channel not present in excluded. It is the
+// database-backed selector for exhaustive safe failover.
+func GetChannelExcluding(group string, model string, excluded map[int]struct{}) (*Channel, error) {
+	var abilities []Ability
+	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Order("priority DESC").
+		Order("weight DESC").
+		Find(&abilities).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var targetPriority int64
+	targetPrioritySet := false
+	targetAbilities := make([]Ability, 0)
+	for _, ability := range abilities {
+		if _, used := excluded[ability.ChannelId]; used {
+			continue
+		}
+		priority := int64(0)
+		if ability.Priority != nil {
+			priority = *ability.Priority
+		}
+		if !targetPrioritySet {
+			targetPriority = priority
+			targetPrioritySet = true
+		}
+		if priority != targetPriority {
+			break
+		}
+		targetAbilities = append(targetAbilities, ability)
+	}
+	if len(targetAbilities) == 0 {
+		return nil, nil
+	}
+
+	weightSum := uint(0)
+	for _, ability := range targetAbilities {
+		weightSum += ability.Weight + 10
+	}
+	weight := common.GetRandomInt(int(weightSum))
+	channelID := 0
+	for _, ability := range targetAbilities {
+		weight -= int(ability.Weight) + 10
+		if weight <= 0 {
+			channelID = ability.ChannelId
+			break
+		}
+	}
+	if channelID == 0 {
+		return nil, errors.New("channel not found")
+	}
+
+	channel := Channel{}
+	err = DB.First(&channel, "id = ?", channelID).Error
+	return &channel, err
+}
+
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")

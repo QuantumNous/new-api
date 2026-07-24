@@ -32,7 +32,7 @@ func EvaluateSafeFailover(input SafeFailoverInput) SafeFailoverDecision {
 	if input.Error == nil {
 		return SafeFailoverDecision{Reason: "no_error"}
 	}
-	if input.MaxAttempts <= 0 || input.RetryIndex >= input.MaxAttempts {
+	if input.MaxAttempts > 0 && input.RetryIndex >= input.MaxAttempts {
 		return SafeFailoverDecision{Reason: "attempt_limit"}
 	}
 	if input.RequestContextErr != nil {

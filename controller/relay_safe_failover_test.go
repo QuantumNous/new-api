@@ -28,7 +28,7 @@ func setupSafeFailoverTest(t *testing.T) {
 		common.RetryTimes = oldRetryTimes
 	})
 	common.SafeFailoverV1Enabled = true
-	common.SafeFailoverMaxAttempts = 1
+	common.SafeFailoverMaxAttempts = 0
 	common.SafeFailoverImageGuardSeconds = 60
 	common.RetryTimes = 10
 }
@@ -40,15 +40,15 @@ func safeFailoverContext() *gin.Context {
 	return c
 }
 
-func TestEffectiveRelayRetryTimesSafeModeCapsLegacySetting(t *testing.T) {
+func TestEffectiveRelayRetryTimesSafeModeUsesExhaustiveSetting(t *testing.T) {
 	setupSafeFailoverTest(t)
-	require.Equal(t, 1, effectiveRelayRetryTimes())
+	require.Equal(t, 0, effectiveRelayRetryTimes())
 
 	common.SafeFailoverV1Enabled = false
 	require.Equal(t, 10, effectiveRelayRetryTimes())
 }
 
-func TestShouldRetrySafeModeCapsChannelErrors(t *testing.T) {
+func TestShouldRetrySafeModeAllowsChannelErrorsUntilCandidatesExhaust(t *testing.T) {
 	setupSafeFailoverTest(t)
 	c := safeFailoverContext()
 	info := &relaycommon.RelayInfo{RetryIndex: 0}
@@ -61,7 +61,10 @@ func TestShouldRetrySafeModeCapsChannelErrors(t *testing.T) {
 	require.True(t, shouldRetry(c, info, channelErr, 1, time.Second))
 
 	info.RetryIndex = 1
-	require.False(t, shouldRetry(c, info, channelErr, 9, time.Second))
+	require.True(t, shouldRetry(c, info, channelErr, 0, time.Second))
+
+	common.SafeFailoverMaxAttempts = 1
+	require.False(t, shouldRetry(c, info, channelErr, 0, time.Second))
 }
 
 func TestShouldRetrySafeModeBlocksLongImageFailure(t *testing.T) {
