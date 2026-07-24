@@ -620,6 +620,7 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 	if name == "" || len(name) > 128 {
 		return nil, fmt.Errorf("recall campaign name must contain 1 to 128 characters")
 	}
+	applyRecallEmailSubjectFallbacks(canonical.Emails, name)
 	normalizedEmails, err := normalizeRecallEmailStages(canonical.Emails)
 	if err != nil {
 		return nil, err
@@ -731,6 +732,12 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 		return err
 	}
 	resolved, err := s.stripe.ValidateAndResolveProducts(ctx, draft.Products)
+	if err != nil {
+		return err
+	}
+	draft.Products.TopUpPriceIDs = resolved.TopUpPriceIDs
+	draft.Products.SubscriptionPriceIDs = resolved.SubscriptionPriceIDs
+	draft.Products, err = resolveRecallProductDisplaySnapshots(ctx, draft.Products)
 	if err != nil {
 		return err
 	}
@@ -1224,6 +1231,7 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 	if draft.Name == "" || len(draft.Name) > 128 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign name must contain 1 to 128 characters")
 	}
+	applyRecallEmailSubjectFallbacks(draft.Emails, draft.Name)
 	draft.AudienceTemplate = strings.ToLower(strings.TrimSpace(draft.AudienceTemplate))
 	draft.Audience.GroupMode = strings.ToLower(strings.TrimSpace(draft.Audience.GroupMode))
 	if err := ValidateRecallAudience(draft.AudienceTemplate, draft.Audience); err != nil {
@@ -1287,6 +1295,8 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 	draft.Discount = discount
 	draft.Products.TopUpPriceIDs = normalizeRecallStripeIDs(draft.Products.TopUpPriceIDs)
 	draft.Products.SubscriptionPriceIDs = normalizeRecallStripeIDs(draft.Products.SubscriptionPriceIDs)
+	draft.Products.TopUpDisplaySnapshots = nil
+	draft.Products.SubscriptionDisplaySnapshots = nil
 	if len(draft.Products.TopUpPriceIDs)+len(draft.Products.SubscriptionPriceIDs) == 0 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign requires at least one Stripe Price")
 	}
@@ -1305,6 +1315,18 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 	}
 	draft.Emails = emails
 	return draft, nil
+}
+
+func applyRecallEmailSubjectFallbacks(stages []RecallEmailStage, campaignName string) {
+	for stageIndex := range stages {
+		for language, template := range stages[stageIndex].Templates {
+			if strings.TrimSpace(template.Subject) != "" {
+				continue
+			}
+			template.Subject = campaignName
+			stages[stageIndex].Templates[language] = template
+		}
+	}
 }
 
 func normalizeRecallAudienceConfig(cfg RecallAudienceConfig) RecallAudienceConfig {
@@ -1664,8 +1686,10 @@ func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCamp
 	if draft.Discount.CurrencyOptions == nil {
 		draft.Discount.CurrencyOptions = map[string]int64{}
 	}
-	draft.Products.TopUpPriceIDs = normalizeRecallStripeIDs(draft.Products.TopUpPriceIDs)
-	draft.Products.SubscriptionPriceIDs = normalizeRecallStripeIDs(draft.Products.SubscriptionPriceIDs)
+	draft.Products = RecallProductScope{
+		TopUpPriceIDs:        normalizeRecallStripeIDs(draft.Products.TopUpPriceIDs),
+		SubscriptionPriceIDs: normalizeRecallStripeIDs(draft.Products.SubscriptionPriceIDs),
+	}
 	emailStages := make([]recallImmutableEmailStage, len(draft.Emails))
 	for i, stage := range draft.Emails {
 		emailStages[i] = recallImmutableEmailStage{StageNo: stage.StageNo, DelaySeconds: stage.DelaySeconds}

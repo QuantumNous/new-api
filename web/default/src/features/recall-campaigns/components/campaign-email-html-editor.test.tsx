@@ -276,6 +276,27 @@ describe('CampaignEmailHtmlEditor', () => {
     }
   })
 
+  test('explains every placeholder directly in the editor', () => {
+    const html = renderEditor()
+
+    expect(html).toContain('Available placeholders')
+    expect(html).toContain('Click a placeholder to insert it into the body.')
+    for (const description of [
+      'Recipient&#x27;s display name, or username when no display name is set.',
+      'Masked promotion code, for example SAVE****25.',
+      'Selected top-up amounts and subscription plan names and prices; internal product IDs are never shown.',
+      'Promotion expiration time, displayed in UTC.',
+      'Personal link that opens the top-up page and claims the offer.',
+      'Personal link that stops future recall emails for this recipient.',
+    ]) {
+      expect(html).toContain(description)
+    }
+    expect(html).toContain('HTML link example:')
+    expect(html).toContain('&lt;a href=&quot;{{.ClaimURL}}&quot;&gt;')
+    expect(html).toContain('&lt;a href=&quot;{{.UnsubscribeURL}}&quot;&gt;')
+    expect(html).toContain('Preview uses sample recipient and offer data.')
+  })
+
   test('disables textarea and preview button for terminal campaigns', () => {
     const html = renderEditor(true)
     const textarea = getElement(

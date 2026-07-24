@@ -14,6 +14,7 @@ import type {
 } from './types'
 
 export {
+  RECALL_EMAIL_ACTION_DESCRIPTIONS,
   RECALL_EMAIL_ACTIONS,
   RECALL_EMAIL_STARTER_HTML,
   convertRecallBodyTextToHtml,
@@ -137,6 +138,7 @@ export function prepareRecallCampaignSubmitDraft(
               locale,
               {
                 ...template,
+                subject: template.subject.trim() || draft.name.trim(),
                 body_text: '',
                 body_html: normalizeRecallBodyInputToHtml(
                   template.body_html ?? ''
@@ -149,6 +151,7 @@ export function prepareRecallCampaignSubmitDraft(
             locale,
             {
               ...template,
+              subject: template.subject.trim() || draft.name.trim(),
               body_text: '',
               body_html: bodyText
                 ? convertRecallBodyTextToHtml(template.body_text ?? '')

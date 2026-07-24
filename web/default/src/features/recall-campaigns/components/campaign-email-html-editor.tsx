@@ -9,6 +9,7 @@ import { previewRecallEmail } from '../api'
 import {
   insertRecallEmailAction,
   normalizeRecallBodyInputToHtml,
+  RECALL_EMAIL_ACTION_DESCRIPTIONS,
   RECALL_EMAIL_ACTIONS,
 } from '../helpers'
 import type { RecallCampaignDraft } from '../types'
@@ -250,19 +251,43 @@ export function CampaignEmailHtmlEditor(
           </p>
         ) : null}
       </div>
-      <div className='flex flex-wrap gap-2'>
-        {RECALL_EMAIL_ACTIONS.map((action) => (
-          <Button
-            aria-label={t('Insert {{action}}', { action })}
-            disabled={props.disabled}
-            key={action}
-            type='button'
-            variant='outline'
-            onClick={() => insertAction(action)}
-          >
-            {action}
-          </Button>
-        ))}
+      <div className='space-y-2'>
+        <div>
+          <p className='text-sm font-medium'>{t('Available placeholders')}</p>
+          <p className='text-muted-foreground text-sm'>
+            {t('Click a placeholder to insert it into the body.')}
+          </p>
+        </div>
+        <div className='grid gap-2 md:grid-cols-2'>
+          {RECALL_EMAIL_ACTIONS.map((action) => (
+            <Button
+              aria-label={t('Insert {{action}}', { action })}
+              className='h-auto w-full justify-start px-3 py-2 text-left whitespace-normal'
+              disabled={props.disabled}
+              key={action}
+              type='button'
+              variant='outline'
+              onClick={() => insertAction(action)}
+            >
+              <span className='grid gap-1'>
+                <code className='text-xs'>{action}</code>
+                <span className='text-muted-foreground text-xs font-normal'>
+                  {t(RECALL_EMAIL_ACTION_DESCRIPTIONS[action])}
+                </span>
+                {action === '{{.ClaimURL}}' ||
+                action === '{{.UnsubscribeURL}}' ? (
+                  <span className='text-muted-foreground text-xs font-normal'>
+                    {t('HTML link example:')}{' '}
+                    <code>{`<a href="${action}">`}</code>
+                  </span>
+                ) : null}
+              </span>
+            </Button>
+          ))}
+        </div>
+        <p className='text-muted-foreground text-xs'>
+          {t('Preview uses sample recipient and offer data.')}
+        </p>
       </div>
       <Button
         aria-label={t('Recall email preview')}

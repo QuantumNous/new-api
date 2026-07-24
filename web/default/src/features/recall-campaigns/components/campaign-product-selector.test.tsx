@@ -73,9 +73,11 @@ describe('CampaignProductSelector', () => {
       ],
     })
 
-    expect(html).toContain('20 USD · price_topup_20')
+    expect(html).toContain('20 USD')
+    expect(html).not.toContain('20 USD · price_topup_20')
     expect(html).toContain('Unavailable · price_removed')
-    expect(html).toContain('Pro monthly · 20 USD · price_pro_month')
+    expect(html).toContain('Pro monthly · 20 USD')
+    expect(html).not.toContain('Pro monthly · 20 USD · price_pro_month')
   })
 
   test('explains where to configure products when no options exist', () => {

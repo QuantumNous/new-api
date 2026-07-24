@@ -560,6 +560,18 @@ export const STATIC_I18N_KEYS = [
   'Targets users who registered within a selected registration date range.',
   'Targets explicitly selected users by user ID or email address.',
 
+  // Recall email placeholder help
+  'Available placeholders',
+  'Click a placeholder to insert it into the body.',
+  "Recipient's display name, or username when no display name is set.",
+  'Masked promotion code, for example SAVE****25.',
+  'Selected top-up amounts and subscription plan names and prices; internal product IDs are never shown.',
+  'Promotion expiration time, displayed in UTC.',
+  'Personal link that opens the top-up page and claims the offer.',
+  'Personal link that stops future recall emails for this recipient.',
+  'HTML link example:',
+  'Preview uses sample recipient and offer data.',
+
   // Misc
   'Cancel',
   'Status',

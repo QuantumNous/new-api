@@ -402,6 +402,34 @@ func ListRecallStripeSubscriptionPricesWithContext(ctx context.Context) ([]strin
 	return prices, nil
 }
 
+func ListRecallSubscriptionPlansByStripePriceIDsWithContext(ctx context.Context, rawPriceIDs []string) ([]SubscriptionPlan, error) {
+	priceIDs := make([]string, 0, len(rawPriceIDs))
+	seen := make(map[string]struct{}, len(rawPriceIDs))
+	for _, rawPriceID := range rawPriceIDs {
+		priceID := strings.TrimSpace(rawPriceID)
+		if priceID == "" {
+			continue
+		}
+		if _, exists := seen[priceID]; exists {
+			continue
+		}
+		seen[priceID] = struct{}{}
+		priceIDs = append(priceIDs, priceID)
+	}
+	if len(priceIDs) == 0 {
+		return []SubscriptionPlan{}, nil
+	}
+
+	var plans []SubscriptionPlan
+	if err := DB.WithContext(ctx).
+		Select("title", "price_amount", "currency", "stripe_price_id").
+		Where("stripe_price_id IN ?", priceIDs).
+		Find(&plans).Error; err != nil {
+		return nil, err
+	}
+	return plans, nil
+}
+
 func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	if id <= 0 {
 		return nil, errors.New("invalid plan id")

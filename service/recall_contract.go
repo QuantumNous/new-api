@@ -68,8 +68,10 @@ type RecallDiscountConfig struct {
 }
 
 type RecallProductScope struct {
-	TopUpPriceIDs        []string `json:"topup_price_ids"`
-	SubscriptionPriceIDs []string `json:"subscription_price_ids"`
+	TopUpPriceIDs                []string `json:"topup_price_ids"`
+	SubscriptionPriceIDs         []string `json:"subscription_price_ids"`
+	TopUpDisplaySnapshots        []string `json:"topup_display_snapshots,omitempty"`
+	SubscriptionDisplaySnapshots []string `json:"subscription_display_snapshots,omitempty"`
 }
 
 type RecallEmailStage struct {
@@ -111,7 +113,7 @@ func PreviewRecallEmail(request RecallEmailPreviewRequest) (RecallEmailPreviewRe
 		RecipientName:       "Ada",
 		PromotionCodeMasked: "SAVE****25",
 		ExpiresAt:           1_900_000_000,
-		ProductSummary:      "Flatkey top-ups and subscriptions",
+		ProductSummary:      "Top-ups: 50 USD, 10 USD; Subscriptions: Pro monthly (20 USD)",
 		ClaimURL:            "https://flatkey.ai/recall/claim?preview=1",
 		UnsubscribeURL:      "https://flatkey.ai/recall/unsubscribe?preview=1",
 	})

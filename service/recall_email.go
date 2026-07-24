@@ -8,30 +8,45 @@ import (
 	"html"
 	htmltemplate "html/template"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"gorm.io/gorm"
 )
 
 const (
-	recallEmailLeaseSeconds = int64(60)
-	recallEmailMaxAttempts  = 5
+	recallEmailLeaseSeconds           = int64(60)
+	recallEmailMaxAttempts            = 5
+	recallEmailProductSummaryCacheTTL = 5 * time.Minute
 )
 
-var ErrRecallEmailLeaseLost = errors.New("recall email message lease was lost")
+var (
+	ErrRecallEmailLeaseLost                 = errors.New("recall email message lease was lost")
+	errRecallEmailProductScopeInvalid       = errors.New("recall email product scope is invalid")
+	errRecallEmailProductSummaryUnavailable = errors.New("recall email product summary is unavailable")
+)
 
 type RecallEmailSender func(subject, receiver, content, messageID string) error
 
 type RecallEmailWorker struct {
-	sender   RecallEmailSender
-	audience *RecallAudienceSelector
-	claims   *RecallClaimService
-	now      func() time.Time
-	owner    string
+	sender              RecallEmailSender
+	audience            *RecallAudienceSelector
+	claims              *RecallClaimService
+	now                 func() time.Time
+	owner               string
+	productSummaryMu    sync.Mutex
+	productSummaryCache map[string]recallEmailProductSummaryCacheEntry
+}
+
+type recallEmailProductSummaryCacheEntry struct {
+	summary   string
+	expiresAt time.Time
 }
 
 type RecallEmailRenderInput struct {
@@ -123,11 +138,12 @@ func NewRecallEmailWorker(sender RecallEmailSender, audience *RecallAudienceSele
 		claims = NewRecallClaimService()
 	}
 	return &RecallEmailWorker{
-		sender:   sender,
-		audience: audience,
-		claims:   claims,
-		now:      time.Now,
-		owner:    strings.TrimSpace(owner),
+		sender:              sender,
+		audience:            audience,
+		claims:              claims,
+		now:                 time.Now,
+		owner:               strings.TrimSpace(owner),
+		productSummaryCache: make(map[string]recallEmailProductSummaryCacheEntry),
 	}
 }
 
@@ -303,9 +319,15 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	baseOrigin := strings.TrimRight(strings.TrimSpace(topUpBaseOrigin()), "/")
 	claimURL := baseOrigin + "/console/topup?recall_claim=" + url.QueryEscape(rawClaim)
 	unsubscribeURL := baseOrigin + "/api/recall/unsubscribe?token=" + url.QueryEscape(unsubscribeToken)
-	productSummary, err := recallEmailProductSummary(item.Campaign.ProductScope, resolvedLanguage)
+	productSummary, err := w.recallEmailProductSummary(ctx, item.Campaign.ProductScope, resolvedLanguage)
 	if err != nil {
-		return w.finishPreAcceptError(ctx, item, "product_scope_invalid", false)
+		if errors.Is(err, errRecallEmailProductScopeInvalid) {
+			return w.finishPreAcceptError(ctx, item, "product_scope_invalid", false)
+		}
+		if errors.Is(err, errRecallEmailProductSummaryUnavailable) {
+			return w.finishPreAcceptError(ctx, item, "product_summary_unavailable", false)
+		}
+		return w.finishPreAcceptError(ctx, item, "product_summary_lookup_failed", true)
 	}
 	recipientName := strings.TrimSpace(item.User.DisplayName)
 	if recipientName == "" {
@@ -610,23 +632,107 @@ func nextRecallEmailMessage(item *model.RecallEmailWorkItem, acceptedAt int64) (
 }
 
 func recallEmailProductSummary(productScopeJSON string, language string) (string, error) {
+	return recallEmailProductSummaryWithContext(context.Background(), productScopeJSON, language)
+}
+
+func recallEmailProductSummaryWithContext(ctx context.Context, productScopeJSON string, language string) (string, error) {
 	products := RecallProductScope{}
 	if err := common.Unmarshal([]byte(productScopeJSON), &products); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %v", errRecallEmailProductScopeInvalid, err)
 	}
 	copy := recallEmailCopyForLanguage(language)
-	hasTopUps := len(products.TopUpPriceIDs) > 0
-	hasSubscriptions := len(products.SubscriptionPriceIDs) > 0
-	switch {
-	case hasTopUps && hasSubscriptions:
-		return copy.TopUpsAndSubscriptions, nil
-	case hasTopUps:
-		return copy.TopUps, nil
-	case hasSubscriptions:
-		return copy.Subscriptions, nil
-	default:
+	if len(products.TopUpPriceIDs)+len(products.SubscriptionPriceIDs) == 0 {
 		return copy.EligibleProducts, nil
 	}
+	if !recallProductDisplaySnapshotsComplete(products) {
+		resolved, err := resolveRecallProductDisplaySnapshots(ctx, products)
+		if err != nil {
+			return "", err
+		}
+		products = resolved
+	}
+
+	parts := make([]string, 0, 2)
+	if len(products.TopUpPriceIDs) > 0 {
+		parts = append(parts, copy.TopUps+": "+strings.Join(products.TopUpDisplaySnapshots, ", "))
+	}
+	if len(products.SubscriptionPriceIDs) > 0 {
+		parts = append(parts, copy.Subscriptions+": "+strings.Join(products.SubscriptionDisplaySnapshots, ", "))
+	}
+	return strings.Join(parts, "; "), nil
+}
+
+func recallProductDisplaySnapshotsComplete(products RecallProductScope) bool {
+	if len(products.TopUpDisplaySnapshots) != len(products.TopUpPriceIDs) ||
+		len(products.SubscriptionDisplaySnapshots) != len(products.SubscriptionPriceIDs) {
+		return false
+	}
+	for _, snapshot := range append(append([]string{}, products.TopUpDisplaySnapshots...), products.SubscriptionDisplaySnapshots...) {
+		if strings.TrimSpace(snapshot) == "" {
+			return false
+		}
+	}
+	return true
+}
+
+func resolveRecallProductDisplaySnapshots(ctx context.Context, products RecallProductScope) (RecallProductScope, error) {
+	products.TopUpPriceIDs = normalizeRecallStripeIDs(products.TopUpPriceIDs)
+	products.SubscriptionPriceIDs = normalizeRecallStripeIDs(products.SubscriptionPriceIDs)
+	products.TopUpDisplaySnapshots = make([]string, 0, len(products.TopUpPriceIDs))
+	products.SubscriptionDisplaySnapshots = make([]string, 0, len(products.SubscriptionPriceIDs))
+
+	amountByPriceID := setting.StripeTopUpAmountsByPriceID()
+	for _, priceID := range products.TopUpPriceIDs {
+		amount, ok := amountByPriceID[priceID]
+		if !ok {
+			return RecallProductScope{}, fmt.Errorf("%w: selected top-up amount metadata is missing", errRecallEmailProductSummaryUnavailable)
+		}
+		products.TopUpDisplaySnapshots = append(products.TopUpDisplaySnapshots, strconv.FormatInt(amount, 10)+" USD")
+	}
+
+	plans, err := model.ListRecallSubscriptionPlansByStripePriceIDsWithContext(ctx, products.SubscriptionPriceIDs)
+	if err != nil {
+		return RecallProductScope{}, err
+	}
+	planByPriceID := make(map[string]model.SubscriptionPlan, len(plans))
+	for _, plan := range plans {
+		planByPriceID[strings.TrimSpace(plan.StripePriceId)] = plan
+	}
+	for _, priceID := range products.SubscriptionPriceIDs {
+		plan, ok := planByPriceID[priceID]
+		title := strings.TrimSpace(plan.Title)
+		currency := strings.ToUpper(strings.TrimSpace(plan.Currency))
+		if !ok || title == "" || currency == "" {
+			return RecallProductScope{}, fmt.Errorf("%w: selected subscription plan metadata is missing", errRecallEmailProductSummaryUnavailable)
+		}
+		amount := strconv.FormatFloat(plan.PriceAmount, 'f', -1, 64)
+		products.SubscriptionDisplaySnapshots = append(products.SubscriptionDisplaySnapshots, fmt.Sprintf("%s (%s %s)", title, amount, currency))
+	}
+	return products, nil
+}
+
+func (w *RecallEmailWorker) recallEmailProductSummary(ctx context.Context, productScopeJSON string, language string) (string, error) {
+	cacheKey := strings.TrimSpace(language) + "\x00" + productScopeJSON
+	now := w.now()
+	w.productSummaryMu.Lock()
+	entry, exists := w.productSummaryCache[cacheKey]
+	if exists && now.Before(entry.expiresAt) {
+		w.productSummaryMu.Unlock()
+		return entry.summary, nil
+	}
+	w.productSummaryMu.Unlock()
+
+	summary, err := recallEmailProductSummaryWithContext(ctx, productScopeJSON, language)
+	if err != nil {
+		return "", err
+	}
+	w.productSummaryMu.Lock()
+	w.productSummaryCache[cacheKey] = recallEmailProductSummaryCacheEntry{
+		summary:   summary,
+		expiresAt: now.Add(recallEmailProductSummaryCacheTTL),
+	}
+	w.productSummaryMu.Unlock()
+	return summary, nil
 }
 
 func recallEmailCopyForLanguage(language string) recallEmailCopy {

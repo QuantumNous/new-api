@@ -7,6 +7,22 @@ export const RECALL_EMAIL_ACTIONS = [
   '{{.UnsubscribeURL}}',
 ] as const
 
+export const RECALL_EMAIL_ACTION_DESCRIPTIONS: Record<
+  (typeof RECALL_EMAIL_ACTIONS)[number],
+  string
+> = {
+  '{{.RecipientName}}':
+    "Recipient's display name, or username when no display name is set.",
+  '{{.PromotionCodeMasked}}': 'Masked promotion code, for example SAVE****25.',
+  '{{.ProductSummary}}':
+    'Selected top-up amounts and subscription plan names and prices; internal product IDs are never shown.',
+  '{{.ExpiresAt}}': 'Promotion expiration time, displayed in UTC.',
+  '{{.ClaimURL}}':
+    'Personal link that opens the top-up page and claims the offer.',
+  '{{.UnsubscribeURL}}':
+    'Personal link that stops future recall emails for this recipient.',
+}
+
 export const RECALL_EMAIL_STARTER_HTML = `<!doctype html>
 <html>
   <head>

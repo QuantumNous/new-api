@@ -1062,6 +1062,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
               `email_sequence.${index}.templates.en.subject` as FieldPath<RecallCampaignDraft>
             const subjectId = `recall-email-${index}-subject`
             const subjectErrorId = `${subjectId}-error`
+            const subjectHelpId = `${subjectId}-help`
             const subjectError = form.getFieldState(
               subjectPath,
               form.formState
@@ -1096,11 +1097,15 @@ export function CampaignEditor(props: CampaignEditorProps) {
                       id={subjectId}
                       disabled={terminal}
                       aria-invalid={Boolean(subjectError)}
-                      aria-describedby={
-                        subjectError ? subjectErrorId : undefined
-                      }
+                      aria-describedby={`${subjectHelpId}${subjectError ? ` ${subjectErrorId}` : ''}`}
                       {...form.register(subjectPath)}
                     />
+                    <p
+                      id={subjectHelpId}
+                      className='text-muted-foreground text-sm'
+                    >
+                      {t('Leave empty to use the campaign name.')}
+                    </p>
                     {subjectError ? (
                       <p
                         id={subjectErrorId}

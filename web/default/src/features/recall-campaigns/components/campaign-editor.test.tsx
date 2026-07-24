@@ -922,6 +922,24 @@ describe('CampaignEditor audience rules', () => {
 })
 
 describe('CampaignEditor email sequence', () => {
+  test('uses the campaign name when an email subject is left empty', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates.en.subject = ''
+    const { root, container } = renderEditorDom(draft)
+
+    await submit(container)
+
+    expect(createMutation).toHaveBeenCalledTimes(1)
+    const submitted = createMutation.mock.calls[0][0] as RecallCampaignDraft
+    expect(submitted.email_sequence[0].templates.en.subject).toBe(
+      'Test campaign'
+    )
+    expect(container.textContent).toContain(
+      'Leave empty to use the campaign name.'
+    )
+    dispose(root)
+  })
+
   test('renders only English HTML template fields', () => {
     const draft = makeDraft('first_purchase')
     const html = renderEditor('first_purchase', draft)
@@ -962,7 +980,9 @@ describe('CampaignEditor email sequence', () => {
     expect(html).toContain('for="recall-email-0-subject"')
     expect(subjectInput).toContain('id="recall-email-0-subject"')
     expect(subjectInput).toContain('aria-invalid="false"')
-    expect(subjectInput).not.toContain('aria-describedby')
+    expect(subjectInput).toContain(
+      'aria-describedby="recall-email-0-subject-help"'
+    )
     expect(html).toContain('for="recall-email-0-body-html"')
     expect(bodyInput).toContain('id="recall-email-0-body-html"')
     expect(bodyInput).toContain('aria-invalid="false"')
