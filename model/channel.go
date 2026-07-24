@@ -69,6 +69,23 @@ type ChannelInfo struct {
 	MultiKeyMode           constant.MultiKeyMode `json:"multi_key_mode"`
 }
 
+// ChannelSupportsRequestPath reports whether a channel can serve a relay path.
+// Standalone Codex Search is channel-type-specific; Advanced Custom channels
+// remain constrained by their configured route table.
+func ChannelSupportsRequestPath(channel *Channel, requestPath string, requestModel string) bool {
+	if channel == nil {
+		return false
+	}
+	if requestPath == constant.CodexSearchPath {
+		return channel.Type == constant.ChannelTypeCodex
+	}
+	if channel.Type != constant.ChannelTypeAdvancedCustom {
+		return true
+	}
+	config := channel.GetOtherSettings().AdvancedCustom
+	return config != nil && config.SupportsPathForModel(requestPath, requestModel)
+}
+
 type ChannelSortOptions struct {
 	SortBy    string
 	SortOrder string

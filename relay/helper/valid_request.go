@@ -38,6 +38,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateResponsesRequest(c)
 	case types.RelayFormatOpenAIResponsesCompaction:
 		request, err = GetAndValidateResponsesCompactionRequest(c)
+	case types.RelayFormatCodexSearch:
+		request, err = GetAndValidateCodexSearchRequest(c)
 
 	case types.RelayFormatOpenAIImage:
 		request, err = GetAndValidOpenAIImageRequest(c, relayMode)
@@ -139,6 +141,20 @@ func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest
 	}
 	if request.Input == nil {
 		return nil, errors.New("input is required")
+	}
+	if exceedsMaxTokensLimit(request.MaxOutputTokens) {
+		return nil, errors.New("max_output_tokens is invalid")
+	}
+	return request, nil
+}
+
+func GetAndValidateCodexSearchRequest(c *gin.Context) (*dto.CodexSearchRequest, error) {
+	request := &dto.CodexSearchRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		return nil, errors.New("model is required")
 	}
 	if exceedsMaxTokensLimit(request.MaxOutputTokens) {
 		return nil, errors.New("max_output_tokens is invalid")

@@ -8,7 +8,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -146,11 +145,8 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 	return &channel, err
 }
 
-// filterAbilitiesByRequestPathAndModel restricts candidates by request path and
-// model for the DB (non-memory-cache) selection path. Only Advanced Custom
-// (type 58) channels are path-checked: kept only when one of their routes matches
-// requestPath and model; all other channel types always pass. When requestPath is
-// empty, filtering is skipped.
+// filterAbilitiesByRequestPathAndModel applies the same path contract as the
+// in-memory channel selector to the DB selection path.
 func filterAbilitiesByRequestPathAndModel(abilities []Ability, requestPath string, model string) []Ability {
 	if requestPath == "" || len(abilities) == 0 {
 		return abilities
@@ -168,25 +164,28 @@ func filterAbilitiesByRequestPathAndModel(abilities []Ability, requestPath strin
 
 	var channels []*Channel
 	if err := DB.Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
-		// On error, fall back to unfiltered candidates to avoid blocking selection
+		if requestPath == constant.CodexSearchPath {
+			return nil
+		}
+		// On error, preserve the legacy fail-open behavior for unrelated paths.
 		return abilities
 	}
 
-	advancedConfigs := make(map[int]*dto.AdvancedCustomConfig)
+	channelsByID := make(map[int]*Channel, len(channels))
 	for _, channel := range channels {
-		if channel.Type == constant.ChannelTypeAdvancedCustom {
-			advancedConfigs[channel.Id] = channel.GetOtherSettings().AdvancedCustom
-		}
+		channelsByID[channel.Id] = channel
 	}
 
 	filtered := make([]Ability, 0, len(abilities))
 	for _, ability := range abilities {
-		config, isAdvancedCustom := advancedConfigs[ability.ChannelId]
-		if !isAdvancedCustom {
-			filtered = append(filtered, ability)
+		channel, ok := channelsByID[ability.ChannelId]
+		if !ok {
+			if requestPath != constant.CodexSearchPath {
+				filtered = append(filtered, ability)
+			}
 			continue
 		}
-		if config != nil && config.SupportsPathForModel(requestPath, model) {
+		if ChannelSupportsRequestPath(channel, requestPath, model) {
 			filtered = append(filtered, ability)
 		}
 	}
