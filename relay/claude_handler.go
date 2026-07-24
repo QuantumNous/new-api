@@ -107,6 +107,10 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		info.UpstreamModelName = request.Model
 	}
 
+	if request.Thinking != nil {
+		info.IsThinking = true
+	}
+
 	if info.ChannelSetting.SystemPrompt != "" {
 		if request.System == nil {
 			request.SetStringSystem(info.ChannelSetting.SystemPrompt)

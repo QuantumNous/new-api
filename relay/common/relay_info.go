@@ -184,6 +184,8 @@ type RelayInfo struct {
 
 	StreamStatus *StreamStatus
 
+	IsThinking bool
+
 	ThinkingContentInfo
 	TokenCountMeta
 	*ClaudeConvertInfo

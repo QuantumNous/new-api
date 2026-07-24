@@ -53,6 +53,7 @@ export interface CommonLogFilters extends CommonFilters {
   username?: string
   requestId?: string
   upstreamRequestId?: string
+  ip?: string
 }
 
 /**
@@ -242,6 +243,12 @@ export interface LogStatistics {
   quota: number
   rpm: number
   tpm: number
+  total_requests: number
+  today_requests: number
+  total_tokens: number
+  today_tokens: number
+  avg_use_time: number
+  error_count: number
 }
 
 // ============================================================================
@@ -313,6 +320,7 @@ export interface GetLogsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  ip?: string
 }
 
 export interface GetLogsResponse {
@@ -337,6 +345,7 @@ export interface GetLogStatsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  ip?: string
 }
 
 export interface GetLogStatsResponse {

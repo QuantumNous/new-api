@@ -175,6 +175,7 @@ func positiveUserSessionEnv(name string, fallback int) int {
 
 func initConstantEnv() {
 	constant.StreamingTimeout = GetEnvOrDefault("STREAMING_TIMEOUT", 300)
+	constant.ThinkingStreamingTimeout = GetEnvOrDefault("THINKING_STREAMING_TIMEOUT", 900)
 	constant.DifyDebug = GetEnvOrDefaultBool("DIFY_DEBUG", true)
 	constant.MaxFileDownloadMB = GetEnvOrDefault("MAX_FILE_DOWNLOAD_MB", 64)
 	constant.StreamScannerMaxBufferMB = GetEnvOrDefault("STREAM_SCANNER_MAX_BUFFER_MB", 128)

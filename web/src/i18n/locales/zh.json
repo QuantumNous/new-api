@@ -5214,6 +5214,24 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Total Req": "总请求",
+    "Today Req": "今日请求",
+    "Range RPM": "区间 RPM",
+    "Today RPM": "今日 RPM",
+    "Range TPM": "区间 TPM",
+    "Today TPM": "今日 TPM",
+    "Avg Latency": "平均延迟",
+    "Errors": "错误数",
+    "Total consume requests in selected range": "所选时间段内的总消费请求数",
+    "Consume requests since today 00:00": "今日 00:00 至今的消费请求数",
+    "Average requests per minute over selected range": "所选时间段内的平均每分钟请求数",
+    "Average requests per minute since today 00:00": "今日 00:00 至今的平均每分钟请求数",
+    "Average tokens per minute over selected range": "所选时间段内的平均每分钟 Token 数",
+    "Average tokens per minute since today 00:00": "今日 00:00 至今的平均每分钟 Token 数",
+    "Average response time for consume requests": "消费请求的平均响应时间",
+    "Error log count in selected range": "所选时间段内的错误日志数",
+    "Auto refresh: Off. Click to enable.": "自动刷新：关闭，点击开启",
+    "Auto refresh": "自动刷新"
   }
 }
