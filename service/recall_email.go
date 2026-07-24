@@ -449,10 +449,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 
 func (w *RecallEmailWorker) createUnsubscribeToken(item *model.RecallEmailWorkItem) (string, error) {
 	expiresAt := time.Unix(item.Recipient.PromotionExpiresAt, 0)
-	if item.Recipient.UserId == 0 {
-		return w.claims.CreateRecipientUnsubscribeToken(item.Recipient.Id, expiresAt)
-	}
-	return w.claims.CreateUnsubscribeToken(item.User.Id, expiresAt)
+	return w.claims.CreateRecipientUnsubscribeToken(item.Recipient.Id, expiresAt)
 }
 
 func (w *RecallEmailWorker) recallEmailStopReason(ctx context.Context, item *model.RecallEmailWorkItem, recentlyActive bool, now int64) (string, error) {

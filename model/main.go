@@ -503,7 +503,40 @@ func requireRecallCampaignsDisabledForIdentityMigration() error {
 		// disable Recall and drain active recipient/message leases first.
 		return fmt.Errorf("recall recipient identity migration requires recall_campaign_setting.enabled=false and drain/empty active recall recipient/message leases before schema swap")
 	}
+	hasActiveLeases, err := hasActiveRecallMigrationLeases(time.Now().Unix())
+	if err != nil {
+		return err
+	}
+	if hasActiveLeases {
+		return fmt.Errorf("recall recipient identity migration requires recall_campaign_setting.enabled=false and drain/empty active recall recipient/message leases before schema swap")
+	}
 	return nil
+}
+
+func hasActiveRecallMigrationLeases(nowUnix int64) (bool, error) {
+	for _, table := range []struct {
+		model interface{}
+		name  string
+	}{
+		{model: &RecallRecipient{}, name: "recall_recipients"},
+		{model: &RecallMessage{}, name: "recall_messages"},
+	} {
+		if !DB.Migrator().HasTable(table.model) ||
+			!DB.Migrator().HasColumn(table.model, "lease_owner") ||
+			!DB.Migrator().HasColumn(table.model, "lease_expires_at") {
+			continue
+		}
+		var activeLeases int64
+		if err := DB.Model(table.model).
+			Where("lease_owner <> ? AND lease_expires_at > ?", "", nowUnix).
+			Count(&activeLeases).Error; err != nil {
+			return false, fmt.Errorf("failed to check active %s leases for recall recipient identity migration: %w", table.name, err)
+		}
+		if activeLeases > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func migrateLOGDB() error {

@@ -442,6 +442,16 @@ func TestRecallEmailAcceptedSchedulesVersionedStagesRelativeToFirstAcceptance(t 
 	require.EqualValues(t, 1, stageTwoCount)
 }
 
+func TestRecallEmailAccountBackedRecipientUsesRecipientUnsubscribeToken(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	require.Len(t, *fixture.sent, 1)
+	unsubscribeToken := recallEmailRawUnsubscribeToken(t, (*fixture.sent)[0].htmlBody)
+	requireRecallEmailUnsubscribePayload(t, unsubscribeToken, 2, 0, fixture.recipient.Id, fixture.recipient.PromotionExpiresAt)
+}
+
 func TestRecallEmailAcceptedTimestampUsesSMTPAcceptanceTime(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 2, nil)
 	fixture.worker.sender = func(subject, receiver, content, messageID string) error {

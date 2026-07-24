@@ -112,6 +112,8 @@ func (s *RecallClaimService) validateClaim(ctx context.Context, userID int, clai
 	if !found || subtle.ConstantTimeCompare([]byte(record.ClaimTokenHash), []byte(claimHash)) != 1 {
 		return nil, nil, ErrRecallClaimUnknown
 	}
+	bindNeeded := false
+	bindRecipientEmail := ""
 	if record.Recipient.UserId > 0 {
 		if record.Recipient.UserId != userID {
 			return nil, nil, ErrRecallClaimWrongUser
@@ -132,14 +134,8 @@ func (s *RecallClaimService) validateClaim(ctx context.Context, userID int, clai
 		if !ok || userEmail != recipientEmail {
 			return nil, nil, ErrRecallClaimWrongUser
 		}
-		bound, _, err := model.BindRecallRecipientUserWithContext(ctx, record.Recipient.Id, userID, recipientEmail)
-		if err != nil {
-			if errors.Is(err, model.ErrRecallRecipientBindingConflict) {
-				return nil, nil, ErrRecallClaimWrongUser
-			}
-			return nil, nil, err
-		}
-		record.Recipient = *bound
+		bindNeeded = true
+		bindRecipientEmail = recipientEmail
 	}
 	if record.Campaign.Id != record.Recipient.CampaignId || !activeRecallCampaignStatus(record.Campaign.Status) {
 		return nil, nil, ErrRecallClaimInactive
@@ -167,6 +163,16 @@ func (s *RecallClaimService) validateClaim(ctx context.Context, userID int, clai
 	products := RecallProductScope{}
 	if err := common.Unmarshal([]byte(record.Campaign.ProductScope), &products); err != nil {
 		return nil, nil, fmt.Errorf("%w: products", ErrRecallClaimInvalidConfig)
+	}
+	if bindNeeded {
+		bound, _, err := model.BindRecallRecipientUserWithContext(ctx, record.Recipient.Id, userID, bindRecipientEmail)
+		if err != nil {
+			if errors.Is(err, model.ErrRecallRecipientBindingConflict) {
+				return nil, nil, ErrRecallClaimWrongUser
+			}
+			return nil, nil, err
+		}
+		record.Recipient = *bound
 	}
 	clickOutcome, err := model.RecordRecallClaimClickWithContext(ctx, record.Recipient.Id, record.Campaign.Id, s.now().Unix())
 	if err != nil {
