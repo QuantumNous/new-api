@@ -1,0 +1,51 @@
+name: 功能请求
+description: 使用简练详细的语言描述希望加入的新功能
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 提交前必读（请勿删除本节）
+
+        - 文档：https://docs.newapi.ai/
+        - 使用问题先看或先问：https://deepwiki.com/QuantumNous/new-api
+        - 开启透传后的转发相关反馈不接受 issue；透传模式会直接转发请求，请自行确认上游行为。
+        - 不接受 Coding Plan、逆向渠道、第三方封装接口，以及将 Codex 接口反代为通用 API 后产生的兼容性问题；Codex API 自身特有的协议或行为也不应被当作标准 OpenAI API 行为，相关问题请先向渠道或接口提供方确认。
+        - 警告：删除本模板、删除小节标题或随意清空内容的 issue，可能会被直接关闭；重复恶意提交者可能会被 block。
+
+  - type: input
+    id: version
+    attributes:
+      label: 您当前的 newapi 版本
+      description: 请填写，例如：`v1.0.0`
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: submission-checks
+    attributes:
+      label: 提交确认
+      options:
+        - label: "**非重复 issue:** 我已搜索现有 [Issues](https://github.com/QuantumNous/new-api/issues?q=is%3Aissue)，确认目前没有类似 issue。"
+          required: true
+        - label: "**提交前必读:** 我已完整阅读上方“提交前必读”，并已查看文档 https://docs.newapi.ai/、项目 README 且向 AI 提问，确认这不是使用、配置或接入类问题，且现有版本无法满足需求。"
+          required: true
+        - label: "**模板完整:** 我未删除此模板中的任何引导内容或小节标题，并会按要求完整填写。"
+          required: true
+        - label: "**维护成本:** 我理解项目维护者精力有限，不遵循模板要求的 issue 可能会被无视或直接关闭。"
+          required: true
+
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: 功能描述
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: 应用场景
+    validations:
+      required: true
