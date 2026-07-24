@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 )
@@ -262,6 +263,39 @@ func (s *SubscriptionFunding) Settle(delta int) error {
 	if delta == 0 {
 		return nil
 	}
+	if delta > 0 {
+		// 先尽量从订阅扣，不够的部分扣余额兜底
+		subDelta, err := model.AdjustSubscriptionPreConsumePartial(s.requestId, s.userId, int64(delta), s.group)
+		if err != nil {
+			return err
+		}
+		s.preConsumed += subDelta
+		walletDelta := delta - int(subDelta)
+		if walletDelta <= 0 {
+			return nil
+		}
+		w := &WalletFunding{userId: s.userId}
+		if err := ensureWalletQuota(s.userId, walletDelta); err != nil {
+			if rbErr := model.AdjustSubscriptionPreConsume(s.requestId, s.userId, -subDelta, s.group); rbErr != nil {
+				common.SysLog(fmt.Sprintf("FATAL: rollback subscription settle failed (requestId=%s, userId=%d, subDelta=%d, err=%v, rbErr=%v)",
+					s.requestId, s.userId, subDelta, err, rbErr))
+				return fmt.Errorf("%v; rollback subscription delta failed: %w", err, rbErr)
+			}
+			s.preConsumed -= subDelta
+			return err
+		}
+		if err := w.deduct(walletDelta); err != nil {
+			if rbErr := model.AdjustSubscriptionPreConsume(s.requestId, s.userId, -subDelta, s.group); rbErr != nil {
+				common.SysLog(fmt.Sprintf("FATAL: rollback subscription settle failed (requestId=%s, userId=%d, subDelta=%d, err=%v, rbErr=%v)",
+					s.requestId, s.userId, subDelta, err, rbErr))
+				return fmt.Errorf("%v; rollback subscription delta failed: %w", err, rbErr)
+			}
+			s.preConsumed -= subDelta
+			return err
+		}
+		return nil
+	}
+	// delta < 0: 退款
 	return model.AdjustSubscriptionPreConsume(s.requestId, s.userId, int64(delta), s.group)
 }
 

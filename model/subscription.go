@@ -761,9 +761,9 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 	})
 }
 
-// resolveUserGroupBySubscriptions calculates the user's group based on active subscriptions.
-// If there are active subscriptions with upgrade_group, returns the upgrade_group of the latest-started one.
-// Otherwise, returns the user's base_level.
+// resolveUserGroupBySubscriptions calculates the user's group based on subscriptions.
+// Looks at both active (non-expired) and pending_activation subscriptions with upgrade_group.
+// Returns the upgrade_group of the latest-started one, or the user's base_level if none found.
 func resolveUserGroupBySubscriptions(tx *gorm.DB, userId int) (string, error) {
 	if tx == nil {
 		tx = DB
@@ -773,8 +773,8 @@ func resolveUserGroupBySubscriptions(tx *gorm.DB, userId int) (string, error) {
 	}
 	now := common.GetTimestamp()
 	var activeSub UserSubscription
-	result := tx.Where("user_id = ? AND status = ? AND disabled = ? AND end_time > ? AND upgrade_group <> ''",
-		userId, "active", false, now).
+	result := tx.Where("user_id = ? AND disabled = ? AND upgrade_group <> '' AND ((status = ? AND end_time > ?) OR status = ?)",
+		userId, false, "active", now, "pending_activation").
 		Order("start_time desc, id desc").
 		Limit(1).
 		Find(&activeSub)
@@ -784,7 +784,7 @@ func resolveUserGroupBySubscriptions(tx *gorm.DB, userId int) (string, error) {
 	if result.RowsAffected > 0 {
 		return strings.TrimSpace(activeSub.UpgradeGroup), nil
 	}
-	// No active upgraded subscription, return base_level
+	// No subscription with upgrade_group found, return base_level
 	var baseLevel string
 	if err := tx.Model(&User{}).Where("id = ?", userId).Select("base_level").Find(&baseLevel).Error; err != nil {
 		return "", err
