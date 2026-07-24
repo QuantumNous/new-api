@@ -2523,6 +2523,33 @@ export function ChannelMutateDrawer({
                                     </FormItem>
                                   )}
                                 />
+                                {vertexKeyType === 'api_key' && (
+                                  <FormField
+                                    control={form.control}
+                                    name='vertex_project_id'
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>
+                                          {t('Vertex AI Project ID')}
+                                        </FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            placeholder={t(
+                                              'e.g., my-project-123'
+                                            )}
+                                            {...field}
+                                          />
+                                        </FormControl>
+                                        <FormDescription>
+                                          {t(
+                                            'Required in API Key mode: the Google Cloud project ID that owns the Vertex AI resource. The official endpoint requires /projects/{project_id}/locations/{region}/... in the path.'
+                                          )}
+                                        </FormDescription>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                )}
                                 {vertexKeyType === 'json' && (
                                   <FormItem>
                                     <FormLabel>
