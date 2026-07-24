@@ -870,15 +870,26 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 // after the user's subscription quota is exhausted. A single active subscription that
 // disallows wallet overflow (allow_wallet_overflow = false) blocks the fallback.
 func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
+	return UserActiveSubscriptionsAllowWalletOverflowForGroup(userId, "")
+}
+
+// UserActiveSubscriptionsAllowWalletOverflowForGroup is group-aware: only
+// subscriptions that can cover requestGroup can block wallet fallback.
+// Empty UpgradeGroup means the subscription applies to any group.
+func UserActiveSubscriptionsAllowWalletOverflowForGroup(userId int, requestGroup string) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
-	var strictCount int64
-	if err := DB.Model(&UserSubscription{}).
+	requestGroup = strings.TrimSpace(requestGroup)
+	query := DB.Model(&UserSubscription{}).
 		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
-			userId, "active", now, false).
-		Count(&strictCount).Error; err != nil {
+			userId, "active", now, false)
+	if requestGroup != "" {
+		query = query.Where("(upgrade_group = '' OR upgrade_group = ?)", requestGroup)
+	}
+	var strictCount int64
+	if err := query.Count(&strictCount).Error; err != nil {
 		return false, err
 	}
 	return strictCount == 0, nil
@@ -1286,6 +1297,13 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	return PreConsumeUserSubscriptionForGroup(requestId, userId, modelName, "", quotaType, amount)
+}
+
+// PreConsumeUserSubscriptionForGroup pre-consumes from an active subscription
+// that is valid for the request group. Plans with an empty UpgradeGroup are
+// usable for any group; scoped plans only cover requests in the same group.
+func PreConsumeUserSubscriptionForGroup(requestId string, userId int, modelName string, requestGroup string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1296,6 +1314,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		return nil, errors.New("amount must be > 0")
 	}
 	now := GetDBTimestamp()
+	requestGroup = strings.TrimSpace(requestGroup)
 
 	returnValue := &SubscriptionPreConsumeResult{}
 
@@ -1339,6 +1358,10 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
+			}
+			planGroup := strings.TrimSpace(plan.UpgradeGroup)
+			if planGroup != "" && requestGroup != "" && planGroup != requestGroup {
+				continue
 			}
 			usedBefore := sub.AmountUsed
 			if sub.AmountTotal > 0 {
