@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@douyinfe/semi-ui';
 import {
@@ -66,6 +66,8 @@ export const useLogsData = () => {
 
   // Basic state
   const [logs, setLogs] = useState([]);
+  const [filterOptionLogs, setFilterOptionLogs] = useState([]);
+  const filterOptionQueryKeyRef = useRef('');
   const [expandData, setExpandData] = useState({});
   const [showStat, setShowStat] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -725,6 +727,62 @@ export const useLogsData = () => {
     setLogs(logs);
   };
 
+  const loadFilterOptionLogs = async (
+    currentLogType,
+    localStartTimestamp,
+    localEndTimestamp,
+  ) => {
+    const optionPageSize = 100;
+    const maxOptionPages = 10;
+    const optionPath = isAdminUser ? '/api/log/' : '/api/log/self/';
+    const optionQueryKey = [
+      currentLogType,
+      localStartTimestamp,
+      localEndTimestamp,
+      optionPath,
+    ].join('|');
+
+    if (filterOptionQueryKeyRef.current === optionQueryKey) {
+      return;
+    }
+
+    filterOptionQueryKeyRef.current = optionQueryKey;
+    const buildOptionUrl = (page) =>
+      encodeURI(
+        `${optionPath}?p=${page}&page_size=${optionPageSize}&type=${currentLogType}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`,
+      );
+
+    const firstRes = await API.get(buildOptionUrl(1));
+    const { success, data } = firstRes.data;
+    if (!success) {
+      return;
+    }
+
+    const total = Number(data?.total || 0);
+    const totalPages = Math.ceil(total / optionPageSize);
+    const pageCount = Math.min(maxOptionPages, totalPages || 1);
+    const optionLogs = Array.isArray(data?.items) ? [...data.items] : [];
+
+    if (pageCount > 1) {
+      const restResponses = await Promise.all(
+        Array.from({ length: pageCount - 1 }, (_, index) =>
+          API.get(buildOptionUrl(index + 2)),
+        ),
+      );
+
+      restResponses.forEach((response) => {
+        const responseData = response.data?.data;
+        if (response.data?.success && Array.isArray(responseData?.items)) {
+          optionLogs.push(...responseData.items);
+        }
+      });
+    }
+
+    if (filterOptionQueryKeyRef.current === optionQueryKey) {
+      setFilterOptionLogs(optionLogs);
+    }
+  };
+
   // Load logs function
   const loadLogs = async (startIdx, pageSize, customLogType = null) => {
     setLoading(true);
@@ -766,6 +824,11 @@ export const useLogsData = () => {
       setLogCount(data.total);
 
       setLogsFormat(newPageData);
+      loadFilterOptionLogs(
+        currentLogType,
+        localStartTimestamp,
+        localEndTimestamp,
+      ).catch(() => {});
     } else {
       showError(message);
     }
@@ -835,6 +898,7 @@ export const useLogsData = () => {
   return {
     // Basic state
     logs,
+    filterOptionLogs,
     expandData,
     showStat,
     loading,

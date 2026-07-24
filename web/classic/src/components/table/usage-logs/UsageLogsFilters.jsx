@@ -17,11 +17,45 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+import { selectFilter } from '../../../helpers';
+
+const getUniqueOptions = (logs, fields) => {
+  const fieldList = Array.isArray(fields) ? fields : [fields];
+
+  return Array.from(
+    new Set(
+      (logs || [])
+        .flatMap((log) =>
+          fieldList.map((field) => String(log?.[field] ?? '').trim()),
+        )
+        .filter((value) => value.length > 0),
+    ),
+  )
+    .sort((a, b) => a.localeCompare(b))
+    .map((value) => ({ label: value, value }));
+};
+
+const FilterSelect = ({ field, placeholder, options }) => (
+  <Form.Select
+    key={`${field}-${options.map((option) => option.value).join('|')}`}
+    field={field}
+    prefix={<IconSearch />}
+    placeholder={placeholder}
+    optionList={options}
+    filter={selectFilter}
+    allowCreate
+    autoClearSearchValue={false}
+    searchPosition='dropdown'
+    showClear
+    pure
+    size='small'
+  />
+);
 
 const LogsFilters = ({
   formInitValues,
@@ -32,8 +66,22 @@ const LogsFilters = ({
   setLogType,
   loading,
   isAdminUser,
+  logs,
+  filterOptionLogs,
   t,
 }) => {
+  const optionSourceLogs = filterOptionLogs?.length ? filterOptionLogs : logs;
+  const filterOptions = useMemo(
+    () => ({
+      token_name: getUniqueOptions(optionSourceLogs, 'token_name'),
+      model_name: getUniqueOptions(optionSourceLogs, ['model_name', 'model']),
+      group: getUniqueOptions(optionSourceLogs, ['group', 'group_name']),
+      channel: getUniqueOptions(optionSourceLogs, 'channel'),
+      username: getUniqueOptions(optionSourceLogs, 'username'),
+    }),
+    [optionSourceLogs],
+  );
+
   return (
     <Form
       initValues={formInitValues}
@@ -54,6 +102,7 @@ const LogsFilters = ({
               className='w-full'
               type='dateTimeRange'
               placeholder={[t('开始时间'), t('结束时间')]}
+              inputReadOnly
               showClear
               pure
               size='small'
@@ -66,31 +115,22 @@ const LogsFilters = ({
           </div>
 
           {/* 其他搜索字段 */}
-          <Form.Input
+          <FilterSelect
             field='token_name'
-            prefix={<IconSearch />}
             placeholder={t('令牌名称')}
-            showClear
-            pure
-            size='small'
+            options={filterOptions.token_name}
           />
 
-          <Form.Input
+          <FilterSelect
             field='model_name'
-            prefix={<IconSearch />}
             placeholder={t('模型名称')}
-            showClear
-            pure
-            size='small'
+            options={filterOptions.model_name}
           />
 
-          <Form.Input
+          <FilterSelect
             field='group'
-            prefix={<IconSearch />}
             placeholder={t('分组')}
-            showClear
-            pure
-            size='small'
+            options={filterOptions.group}
           />
 
           <Form.Input
@@ -104,21 +144,15 @@ const LogsFilters = ({
 
           {isAdminUser && (
             <>
-              <Form.Input
+              <FilterSelect
                 field='channel'
-                prefix={<IconSearch />}
                 placeholder={t('渠道 ID')}
-                showClear
-                pure
-                size='small'
+                options={filterOptions.channel}
               />
-              <Form.Input
+              <FilterSelect
                 field='username'
-                prefix={<IconSearch />}
                 placeholder={t('用户名称')}
-                showClear
-                pure
-                size='small'
+                options={filterOptions.username}
               />
             </>
           )}
