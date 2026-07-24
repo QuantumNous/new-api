@@ -19,6 +19,7 @@ const (
 	RealtimeEventResponseFunctionCallArgumentsDelta = "response.function_call_arguments.delta"
 	RealtimeEventResponseFunctionCallArgumentsDone  = "response.function_call_arguments.done"
 	RealtimeEventConversationItemCreated            = "conversation.item.created"
+	RealtimeEventInputAudioTranscriptionCompleted   = "conversation.item.input_audio_transcription.completed"
 )
 
 type RealtimeEvent struct {
@@ -31,6 +32,8 @@ type RealtimeEvent struct {
 	Response *RealtimeResponse  `json:"response,omitempty"`
 	Delta    string             `json:"delta,omitempty"`
 	Audio    string             `json:"audio,omitempty"`
+	// GA 转写结果事件(input_audio_transcription.completed)自带转写模型的 usage
+	Usage *RealtimeUsage `json:"usage,omitempty"`
 }
 
 type RealtimeResponse struct {

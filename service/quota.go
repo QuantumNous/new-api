@@ -39,6 +39,33 @@ type QuotaInfo struct {
 	GroupRatio    float64
 }
 
+// WssQuotaResult keeps an incremental websocket charge and its ratio snapshot
+// together, so consume logging does not perform a second settings lookup.
+type WssQuotaResult struct {
+	Quota                int
+	ModelRatio           float64
+	GroupRatio           float64
+	UserGroupRatio       float64
+	CompletionRatio      float64
+	AudioRatio           float64
+	AudioCompletionRatio float64
+}
+
+type wssQuotaSummary struct {
+	SettlementQuota int
+	StatisticsQuota int
+}
+
+func summarizeWssQuotas(mainQuota, transcriptionQuota int) (wssQuotaSummary, *common.QuotaClamp) {
+	statisticsQuota, clamp := common.QuotaFromDecimalChecked(
+		decimal.NewFromInt(int64(mainQuota)).Add(decimal.NewFromInt(int64(transcriptionQuota))),
+	)
+	return wssQuotaSummary{
+		SettlementQuota: mainQuota,
+		StatisticsQuota: statisticsQuota,
+	}, clamp
+}
+
 func hasCustomModelRatio(modelName string, currentRatio float64) bool {
 	defaultRatio, exists := ratio_setting.GetDefaultModelRatioMap()[modelName]
 	if !exists {
@@ -86,40 +113,45 @@ func calculateAudioQuota(info QuotaInfo) (int, *common.QuotaClamp) {
 	return common.QuotaFromDecimalChecked(quota)
 }
 
-func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage) error {
+func getWssGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) (float64, float64) {
+	autoGroup, exists := common.GetContextKey(ctx, constant.ContextKeyAutoGroup)
+	if exists {
+		relayInfo.UsingGroup = autoGroup.(string)
+		logger.LogDebug(ctx, "final group ratio: %f", ratio_setting.GetGroupRatio(relayInfo.UsingGroup))
+	}
+
+	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
+	userGroupRatio := -1.0
+	if ratio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup); ok {
+		groupRatio = ratio
+		userGroupRatio = ratio
+	}
+	return groupRatio, userGroupRatio
+}
+
+func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelName string, usage *dto.RealtimeUsage) (WssQuotaResult, error) {
 	if relayInfo.UsePrice {
-		return nil
+		return WssQuotaResult{}, nil
 	}
 	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
 	if err != nil {
-		return err
+		return WssQuotaResult{}, err
 	}
 
 	token, err := model.GetTokenByKey(strings.TrimPrefix(relayInfo.TokenKey, "sk-"), false)
 	if err != nil {
-		return err
+		return WssQuotaResult{}, err
 	}
 
-	modelName := relayInfo.OriginModelName
 	textInputTokens := usage.InputTokenDetails.TextTokens
 	textOutTokens := usage.OutputTokenDetails.TextTokens
 	audioInputTokens := usage.InputTokenDetails.AudioTokens
 	audioOutTokens := usage.OutputTokenDetails.AudioTokens
-	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
-
-	autoGroup, exists := common.GetContextKey(ctx, constant.ContextKeyAutoGroup)
-	if exists {
-		groupRatio = ratio_setting.GetGroupRatio(autoGroup.(string))
-		logger.LogDebug(ctx, "final group ratio: %f", groupRatio)
-		relayInfo.UsingGroup = autoGroup.(string)
-	}
-
-	actualGroupRatio := groupRatio
-	userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
-	if ok {
-		actualGroupRatio = userGroupRatio
-	}
+	actualGroupRatio, userGroupRatio := getWssGroupRatio(ctx, relayInfo)
+	completionRatio := ratio_setting.GetCompletionRatio(modelName)
+	audioRatio := ratio_setting.GetAudioRatio(modelName)
+	audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(modelName)
 
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
@@ -138,21 +170,68 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 
 	quota, clamp := calculateAudioQuota(quotaInfo)
 	noteQuotaClamp(relayInfo, clamp)
+	result := WssQuotaResult{
+		Quota:                quota,
+		ModelRatio:           modelRatio,
+		GroupRatio:           actualGroupRatio,
+		UserGroupRatio:       userGroupRatio,
+		CompletionRatio:      completionRatio,
+		AudioRatio:           audioRatio,
+		AudioCompletionRatio: audioCompletionRatio,
+	}
 
 	if userQuota < quota {
-		return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(userQuota), logger.FormatQuota(quota))
+		return WssQuotaResult{}, fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(userQuota), logger.FormatQuota(quota))
 	}
 
 	if !token.UnlimitedQuota && token.RemainQuota < quota {
-		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
+		return WssQuotaResult{}, fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
 	}
 
 	err = PostConsumeQuota(relayInfo, quota, 0, false)
 	if err != nil {
-		return err
+		return WssQuotaResult{}, err
 	}
 	logger.LogInfo(ctx, "realtime streaming consume quota success, quota: "+fmt.Sprintf("%d", quota))
-	return nil
+	return result, nil
+}
+
+// RecordRealtimeTranscriptionConsumeLog records an ASR charge already deducted
+// by PreWssConsumeQuota. It must not settle BillingSession or update aggregate
+// request statistics; PostWssConsumeQuota performs those operations once per session.
+func RecordRealtimeTranscriptionConsumeLog(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelName string,
+	usage *dto.RealtimeUsage, result WssQuotaResult) {
+	if relayInfo == nil || usage == nil {
+		return
+	}
+
+	logContent := fmt.Sprintf("模型倍率 %.2f，补全倍率 %.2f，音频倍率 %.2f，音频补全倍率 %.2f，分组倍率 %.2f",
+		result.ModelRatio, result.CompletionRatio, result.AudioRatio, result.AudioCompletionRatio, result.GroupRatio)
+	logContent += ", 实时转写"
+
+	other := GenerateWssOtherInfo(ctx, relayInfo, usage, result.ModelRatio, result.GroupRatio,
+		result.CompletionRatio, result.AudioRatio, result.AudioCompletionRatio, 0, result.UserGroupRatio)
+	// 增量日志早于主 BillingSession 最终结算,不能记录尚未完成的会话级订阅汇总
+	delete(other, "subscription_pre_consumed")
+	delete(other, "subscription_post_delta")
+	delete(other, "subscription_consumed")
+	delete(other, "subscription_used")
+	delete(other, "subscription_remain")
+	attachQuotaSaturation(ctx, relayInfo, other)
+	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
+		ChannelId:        relayInfo.ChannelId,
+		PromptTokens:     usage.InputTokens,
+		CompletionTokens: usage.OutputTokens,
+		ModelName:        modelName,
+		TokenName:        ctx.GetString("token_name"),
+		Quota:            result.Quota,
+		Content:          logContent,
+		TokenId:          relayInfo.TokenId,
+		UseTimeSeconds:   int(time.Now().Unix() - relayInfo.StartTime.Unix()),
+		IsStream:         relayInfo.IsStream,
+		Group:            relayInfo.UsingGroup,
+		Other:            other,
+	})
 }
 
 func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelName string,
@@ -207,6 +286,9 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 
 	totalTokens := usage.TotalTokens
+	hasMainUsage := totalTokens != 0
+	hasTranscriptionUsage, transcriptionQuota, transcriptionClamp := relayInfo.GetRealtimeTranscriptionBilling()
+	noteQuotaClamp(relayInfo, transcriptionClamp)
 	var logContent string
 	if !usePrice {
 		logContent = fmt.Sprintf("模型倍率 %.2f，补全倍率 %.2f，音频倍率 %.2f，音频补全倍率 %.2f，分组倍率 %.2f",
@@ -216,20 +298,27 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 
 	// record all the consume log even if quota is 0
-	if totalTokens == 0 {
-		// in this case, must be some error happened
-		// we cannot just return, because we may have to return the pre-consumed quota
+	if !hasMainUsage {
+		// 主 usage 为空时仍需用 0 结算,退回可能存在的主模型预扣费
 		quota = 0
-		logContent += "（可能是上游超时）"
-		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, "+
-			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, modelName, relayInfo.FinalPreConsumedQuota))
-	} else {
-		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
-		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		if !hasTranscriptionUsage {
+			logContent += "（可能是上游超时）"
+			logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, "+
+				"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, modelName, relayInfo.FinalPreConsumedQuota))
+		}
+	}
+	quotaSummary, summaryClamp := summarizeWssQuotas(quota, transcriptionQuota)
+	noteQuotaClamp(relayInfo, summaryClamp)
+	if hasMainUsage || hasTranscriptionUsage {
+		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quotaSummary.StatisticsQuota)
+		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quotaSummary.StatisticsQuota)
 	}
 
-	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
+	if err := SettleBilling(ctx, relayInfo, quotaSummary.SettlementQuota); err != nil {
 		logger.LogError(ctx, "error settling billing: "+err.Error())
+	}
+	if !hasMainUsage && hasTranscriptionUsage {
+		return
 	}
 
 	logModel := modelName
