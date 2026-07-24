@@ -124,6 +124,25 @@ func (e *NewAPIError) GetErrorType() ErrorType {
 	return e.errorType
 }
 
+// IsRateLimited reports whether the failure is a per-key rate-limit signal: an
+// HTTP 429 or any response carrying an upstream Retry-After / X-RateLimit-Reset
+// hint. This is the single source of truth that distinguishes key-level from
+// channel-level failures during retry:
+//
+//   - rate-limited (true):  only the key just used is throttled; the channel's
+//     other keys are likely fine, so retry should rotate to the next key and
+//     the key should enter cooldown for the hinted duration.
+//   - not rate-limited (false): the failure comes from the channel's upstream
+//     backend (e.g. 5xx, auth_unavailable). Every key of that channel faces the
+//     same broken backend, so retry should exclude the whole channel and fail
+//     over immediately instead of burning the remaining keys.
+func (e *NewAPIError) IsRateLimited() bool {
+	if e == nil {
+		return false
+	}
+	return e.StatusCode == http.StatusTooManyRequests || e.RetryAfterSeconds > 0
+}
+
 func (e *NewAPIError) Error() string {
 	if e == nil {
 		return ""

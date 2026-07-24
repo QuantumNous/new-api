@@ -181,15 +181,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
-	// excludeChannels tracks channel IDs fully exhausted in this request so each
-	// retry moves to a fresh channel instead of re-selecting a channel that has
-	// nothing left to try. A multi-key channel is only excluded once every one
-	// of its enabled keys has been attempted (tracked via channelTries), so the
-	// per-request key rotation that GetNextEnabledKey performs is preserved.
+	// excludeChannels tracks channel IDs that should no longer be selected in
+	// this request so each retry moves to a fresh channel. recordChannelFailure
+	// populates it: a channel-level failure excludes the channel immediately,
+	// while a per-key rate-limit only excludes it once every enabled key has
+	// been throttled (counted via channelTries), preserving the per-request key
+	// rotation that GetNextEnabledKey performs.
 	excludeChannels := make(map[int]bool)
-	// channelTries counts how many times each channel has been selected in this
-	// request; compared against the channel's enabled-key count to decide when
-	// to exclude it.
+	// channelTries counts rate-limited attempts per channel, compared against
+	// the channel's enabled-key count by recordChannelFailure.
 	channelTries := make(map[int]int)
 	retryParam := &service.RetryParam{
 		Ctx:             c,
@@ -222,14 +222,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		addUsedChannel(c, channel.Id)
-		// Count this attempt and exclude the channel only when all of its enabled
-		// keys have been tried. For single-key channels this excludes immediately;
-		// for multi-key channels it lets subsequent retries rotate through the
-		// remaining keys (via GetNextEnabledKey) before moving to another channel.
-		channelTries[channel.Id]++
-		if channelTries[channel.Id] >= channel.CountEnabledKeys() {
-			excludeChannels[channel.Id] = true
-		}
+		// Channel exclusion bookkeeping (channelTries / excludeChannels) is done
+		// by recordChannelFailure after a failed attempt; nothing to do here on
+		// the success path.
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break
@@ -269,6 +264,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 		markCooldownFromError(c, channel.Id, newAPIError)
+		recordChannelFailure(channel.Id, channel.CountEnabledKeys(), newAPIError, excludeChannels, channelTries)
 
 		if !shouldRetry(c, relayInfo, newAPIError, retryCap-retryParam.GetRetry()) {
 			break
@@ -447,7 +443,7 @@ func markCooldownFromError(c *gin.Context, channelId int, err *types.NewAPIError
 	if err == nil {
 		return
 	}
-	if err.StatusCode == http.StatusTooManyRequests || err.RetryAfterSeconds > 0 {
+	if err.IsRateLimited() {
 		model.MarkChannelKeyCooldown(channelId, contextKeyIndex(c), err.RetryAfterSeconds)
 	}
 }
@@ -457,6 +453,27 @@ func markCooldownFromError(c *gin.Context, channelId int, err *types.NewAPIError
 // selectable instead of waiting out the remaining TTL.
 func clearCooldownForContext(c *gin.Context, channelId int) {
 	model.ClearChannelKeyCooldown(channelId, contextKeyIndex(c))
+}
+
+// recordChannelFailure updates retry bookkeeping after a channel attempt fails,
+// deciding whether the next retry should rotate to another key of the same
+// channel or fail over to a different channel entirely.
+//
+// A channel-level failure (broken upstream backend: 5xx, auth_unavailable, etc.)
+// excludes the whole channel at once, since every key of that channel talks to
+// the same broken backend and retrying the remaining keys only adds latency. A
+// per-key rate-limit instead advances the key-rotation counter and excludes the
+// channel only once all of its enabled keys have been throttled. IsRateLimited
+// is the single source of truth for the distinction, shared with cooldown.
+func recordChannelFailure(channelID, enabledKeys int, err *types.NewAPIError, excludeChannels map[int]bool, channelTries map[int]int) {
+	if !err.IsRateLimited() {
+		excludeChannels[channelID] = true
+		return
+	}
+	channelTries[channelID]++
+	if channelTries[channelID] >= enabledKeys {
+		excludeChannels[channelID] = true
+	}
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
@@ -646,12 +663,6 @@ func RelayTask(c *gin.Context) {
 				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", http.StatusInternalServerError)
 				break
 			}
-			// Exclude the channel once all its enabled keys have been tried, so the
-			// next retry rotates keys first, then moves to a different channel.
-			channelTries[channel.Id]++
-			if channelTries[channel.Id] >= channel.CountEnabledKeys() {
-				excludeChannels[channel.Id] = true
-			}
 		}
 
 		addUsedChannel(c, channel.Id)
@@ -681,6 +692,7 @@ func RelayTask(c *gin.Context) {
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
 				taskAPIErr)
 			markCooldownFromError(c, channel.Id, taskAPIErr)
+			recordChannelFailure(channel.Id, channel.CountEnabledKeys(), taskAPIErr, excludeChannels, channelTries)
 		}
 
 		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
