@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net/http"
@@ -150,7 +151,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 
 	httpResp = resp.(*http.Response)
 	clientStream := info.IsStream
-	upstreamStream := isResponsesEventStreamContentType(httpResp.Header.Get("Content-Type"))
+	upstreamStream := detectResponsesEventStream(httpResp)
 	info.IsStream = clientStream || upstreamStream
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
@@ -186,4 +187,33 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 
 func isResponsesEventStreamContentType(contentType string) bool {
 	return strings.Contains(strings.ToLower(contentType), "text/event-stream")
+}
+
+func detectResponsesEventStream(resp *http.Response) bool {
+	if resp == nil {
+		return false
+	}
+	if isResponsesEventStreamContentType(resp.Header.Get("Content-Type")) {
+		return true
+	}
+	if resp.Body == nil {
+		return false
+	}
+
+	const sniffLen = 64
+	reader := bufio.NewReader(resp.Body)
+	peeked, err := reader.Peek(sniffLen)
+	resp.Body = struct {
+		io.Reader
+		io.Closer
+	}{
+		Reader: reader,
+		Closer: resp.Body,
+	}
+	if err != nil && len(peeked) == 0 {
+		return false
+	}
+
+	prefix := strings.TrimLeft(string(peeked), "\ufeff \t\r\n")
+	return strings.HasPrefix(prefix, "event:") || strings.HasPrefix(prefix, "data:")
 }
