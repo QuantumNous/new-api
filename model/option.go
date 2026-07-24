@@ -39,6 +39,10 @@ func InitOptionMap() {
 	common.OptionMap["PasswordLoginEnabled"] = strconv.FormatBool(common.PasswordLoginEnabled)
 	common.OptionMap["PasswordRegisterEnabled"] = strconv.FormatBool(common.PasswordRegisterEnabled)
 	common.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(common.EmailVerificationEnabled)
+	common.OptionMap["UserSendEmailVerificationEnabled"] = strconv.FormatBool(common.UserSendEmailVerificationEnabled)
+	common.OptionMap["CloudMailBaseURL"] = common.CloudMailBaseURL
+	common.OptionMap["CloudMailToken"] = common.CloudMailToken
+	common.OptionMap["CloudMailRecipient"] = common.CloudMailRecipient
 	common.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(common.GitHubOAuthEnabled)
 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
@@ -292,6 +296,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.PasswordLoginEnabled = boolValue
 		case "EmailVerificationEnabled":
 			common.EmailVerificationEnabled = boolValue
+		case "UserSendEmailVerificationEnabled":
+			common.UserSendEmailVerificationEnabled = boolValue
 		case "GitHubOAuthEnabled":
 			common.GitHubOAuthEnabled = boolValue
 		case "LinuxDOOAuthEnabled":
@@ -375,6 +381,12 @@ func updateOptionMap(key string, value string) (err error) {
 	switch key {
 	case "EmailDomainWhitelist":
 		common.EmailDomainWhitelist = strings.Split(value, ",")
+	case "CloudMailBaseURL":
+		common.CloudMailBaseURL = value
+	case "CloudMailToken":
+		common.CloudMailToken = value
+	case "CloudMailRecipient":
+		common.CloudMailRecipient = value
 	case "SMTPServer":
 		common.SMTPServer = value
 	case "SMTPPort":

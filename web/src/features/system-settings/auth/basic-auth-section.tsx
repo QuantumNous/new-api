@@ -32,6 +32,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
 import {
@@ -48,6 +49,10 @@ const basicAuthSchema = z.object({
   PasswordLoginEnabled: z.boolean(),
   PasswordRegisterEnabled: z.boolean(),
   EmailVerificationEnabled: z.boolean(),
+  UserSendEmailVerificationEnabled: z.boolean(),
+  CloudMailBaseURL: z.string(),
+  CloudMailToken: z.string(),
+  CloudMailRecipient: z.string(),
   RegisterEnabled: z.boolean(),
   EmailDomainRestrictionEnabled: z.boolean(),
   EmailAliasRestrictionEnabled: z.boolean(),
@@ -132,6 +137,77 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
                   />
                 </FormControl>
               </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='UserSendEmailVerificationEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('User-sent Email Verification')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Require new users to send a challenge email to the configured mailbox'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='CloudMailBaseURL'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Cloud Mail Base URL')}</FormLabel>
+                <FormControl>
+                  <Input placeholder='https://mail.example.com' {...field} />
+                </FormControl>
+                <FormDescription>
+                  {t('Cloud Mail server address used to query received emails')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='CloudMailToken'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Cloud Mail Token')}</FormLabel>
+                <FormControl>
+                  <Input type='password' autoComplete='new-password' {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='CloudMailRecipient'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Verification Recipient Email')}</FormLabel>
+                <FormControl>
+                  <Input type='email' placeholder='verify@example.com' {...field} />
+                </FormControl>
+                <FormDescription>
+                  {t('Users must send their challenge email to this address')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
             )}
           />
 
