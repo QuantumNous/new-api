@@ -1,9 +1,7 @@
 name: 功能请求
 description: 使用简练详细的语言描述希望加入的新功能
-title: ""
 labels:
   - enhancement
-assignees: []
 body:
   - type: markdown
     attributes:
