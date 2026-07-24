@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -97,7 +98,8 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		var errorResp dto.OpenAITextResponse
 		if err := common.UnmarshalJsonStr(data, &errorResp); err == nil {
 			if oaiError := errorResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
-				streamErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
+				statusCode := responsesViaChatStreamErrorStatus(resp.StatusCode, oaiError, c.Writer.Written())
+				streamErr = types.WithOpenAIError(*oaiError, statusCode)
 				sr.Stop(streamErr)
 				return
 			}
@@ -155,4 +157,17 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	}
 
 	return usage, nil
+}
+
+func responsesViaChatStreamErrorStatus(upstreamStatus int, oaiError *types.OpenAIError, downstreamStarted bool) int {
+	if downstreamStarted || oaiError == nil || upstreamStatus < http.StatusOK || upstreamStatus >= http.StatusMultipleChoices {
+		return upstreamStatus
+	}
+
+	errorType := strings.ToLower(strings.TrimSpace(oaiError.Type))
+	errorCode := strings.ToLower(strings.TrimSpace(fmt.Sprint(oaiError.Code)))
+	if errorType == "rate_limit_error" || errorCode == "rate_limit_exceeded" || errorCode == "rate_limit_error" || errorCode == "429" {
+		return http.StatusTooManyRequests
+	}
+	return upstreamStatus
 }
