@@ -2,7 +2,7 @@
 
 ## Goal
 
-Apply an eligible recall subscription offer to the first month of a multi-month Alipay, Pix, or UPI purchase while Stripe Checkout still collects the full multi-month order in one payment.
+Apply an eligible recall subscription offer to the first month of a multi-month Alipay, Pix, UPI, or balance purchase. Hosted payment methods still collect the full multi-month order in one payment, while balance purchases deduct the same authoritative discounted total.
 
 For `N` purchased months, the charged total is:
 
@@ -10,7 +10,7 @@ For `N` purchased months, the charged total is:
 
 ## Confirmed behavior
 
-- The offer applies to Alipay, Pix, and UPI one-time subscription purchases. Balance purchases remain unchanged.
+- The offer applies to Alipay, Pix, UPI, and balance subscription purchases. Every method uses the same first-month-only formula; balance deducts the discounted total from the user's balance.
 - Percentage and fixed-amount offers discount only one monthly unit, including a one-month purchase.
 - Pix uses the configured BRL monthly quote, UPI uses INR, and Alipay uses the plan quote currency.
 - Fixed discounts use the matching `currency_options` value, falling back to the primary amount only when its currency matches. A missing matching currency leaves the quote at full price.
@@ -36,22 +36,22 @@ Separate first-month and remaining-month line items could constrain the coupon t
 
 ## Backend design
 
-1. `QuoteSubscriptionPurchase` resolves the normal monthly quote, validates the recall claim against the plan's Stripe Price, and calculates a first-month discount in minor units.
+1. `QuoteSubscriptionPurchase` resolves the normal monthly quote, validates the recall claim against the plan's Stripe Price, and calculates a first-month discount in minor units for hosted and balance purchases.
 2. The signed quote token binds the original monthly amount, discounted total, discount amount, campaign ID, and recipient ID to user, plan, payment method, month count, request ID, plan revision, and expiry.
-3. `PurchaseSubscription` independently validates the raw claim again and requires its recomputed discount and recipient identity to match the signed quote before creating an order.
+3. `PurchaseSubscription` independently validates the raw claim again and requires its recomputed discount and recipient identity to match the signed quote before creating an order or deducting balance.
 4. The subscription order stores the validated recall campaign, recipient, Promotion Code, and discount amount. No raw claim is persisted.
 5. Stripe Checkout metadata carries those server-generated fields. Recall attribution treats the metadata Promotion Code and discount amount as the authoritative locally applied offer after successful payment.
 
 ## Frontend design
 
-1. Quote and purchase requests include `recall_claim` for eligible Stripe recurring, Alipay, Pix, and UPI choices, but never for balance.
+1. Quote and purchase requests include `recall_claim` for eligible Stripe recurring, Alipay, Pix, UPI, and balance choices.
 2. One-time payment display uses backend quote fields `original_total`, `discount_amount`, and `total`; it does not recalculate local-currency discounts in the browser.
-3. Stripe recurring keeps the existing preview and Promotion Code path.
+3. Stripe recurring keeps the existing preview and Promotion Code path. Balance uses the same authoritative one-time quote totals as Alipay, Pix, and UPI.
 
 ## Error handling and security
 
 - Expired, converted, suppressed, wrong-user, or wrong-price claims fail at quote or purchase time.
-- A discounted quote without the matching raw claim is rejected.
+- A discounted quote without the matching raw claim is rejected, including balance purchases.
 - A full-price quote remains valid when no currency-specific fixed discount applies.
 - Quote arithmetic requires `total = unit_price * months - first_month_discount` and `0 <= discount <= unit_price`.
 - Replayed request IDs reuse the existing order; they cannot alter payment method, months, quote, or recall identity.
@@ -59,5 +59,5 @@ Separate first-month and remaining-month line items could constrain the coupon t
 ## Verification
 
 - Backend tests cover three-month percentage and fixed discounts, local currencies, one-month clamping, full-price fallback, token tampering, missing/mismatched claims, order persistence, Checkout metadata, and attribution parsing.
-- Frontend tests cover quote/purchase claim propagation, discounted multi-month totals, original-total strike-through, and unchanged balance behavior.
+- Frontend tests cover quote/purchase claim propagation for every supported method, discounted multi-month totals, original-total strike-through, and discounted balance totals.
 - Targeted Go tests, wallet tests, typecheck, formatting, and diff checks must pass before opening the PR.
