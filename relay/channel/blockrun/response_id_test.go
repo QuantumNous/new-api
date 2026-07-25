@@ -43,6 +43,11 @@ func TestCaptureUpstreamID_NonStream(t *testing.T) {
 			want: "chatcmpl-DrDjcU",
 		},
 		{
+			name: "native responses top-level resp_* wins over output item ids",
+			body: `{"output":[{"id":"call_SHOULD_NOT_WIN","type":"custom_tool_call","call_id":"call_nested"}],"id":"resp_NATIVE_REAL","object":"response","status":"completed"}`,
+			want: "resp_NATIVE_REAL",
+		},
+		{
 			name: "anthropic message",
 			body: `{"model":"claude-haiku-4-5","id":"msg_015Hcka9","type":"message","role":"assistant","content":[{"type":"text","text":"Hi"}]}`,
 			want: "msg_015Hcka9",
@@ -92,6 +97,11 @@ func TestCaptureUpstreamID_Stream(t *testing.T) {
 			name: "anthropic stream message_start (id nested under message, first id wins)",
 			body: "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_stream456\",\"type\":\"message\"}}\n\n",
 			want: "msg_stream456",
+		},
+		{
+			name: "native responses response.created nested resp_* wins over later item id",
+			body: "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_stream_native\",\"object\":\"response\"}}\n\nevent: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"call_SHOULD_NOT_WIN\",\"call_id\":\"call_nested\"}}\n\n",
+			want: "resp_stream_native",
 		},
 		{
 			name: "request_id must not false-match id",

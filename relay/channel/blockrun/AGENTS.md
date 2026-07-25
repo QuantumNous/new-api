@@ -13,9 +13,10 @@ BlockRun (https://blockrun.ai) **VIP 原生直通** 适配器。与其他 provid
 3. 把签名塞进 `gin.Context` 的 `ctxKeyPaymentSignature`，重放同一请求——`SetupRequestHeader` 读 context 注入 `PAYMENT-SIGNATURE` 头。
 4. 若重放仍 402，**硬失败**（不再签名，避免重复扣款）。
 
-入站格式分派（VIP 原生直通，零改写）：
+入站格式分派（VIP 原生语义直通）：
 - **Anthropic Messages** → `/v1/messages`，`DoResponse` 委托内嵌的 `claude.Adaptor.DoResponse`。
 - **OpenAI Chat Completions** → `/v1/chat/completions`，`DoResponse` 委托内嵌的 `openai.Adaptor.DoResponse`。
+- **OpenAI Responses** → `/v1/responses`，请求与 JSON/SSE 响应保持 Responses 原生语义，`DoResponse` 委托内嵌的 `openai.Adaptor.DoResponse`。上游原生 `response.completed.usage` 与 `response.incomplete.usage` 都用于结算；BlockRun 会拒绝 `stream_options`，因此在 Responses 请求转换阶段和参数覆盖后的最终发送边界都移除该字段。
 - **Gemini** → 拒绝（VIP 仅支持 Anthropic + OpenAI）。
 - **图像 generations** → `/v1/images/generations`（OpenAI 兼容 JSON 直通）。
 - **图像 image2image** → `/v1/images/image2image`（JSON + base64 data URI，客户端用标准 OpenAI multipart/form-data 上传，适配器转 base64）。
@@ -46,7 +47,7 @@ BlockRun (https://blockrun.ai) **VIP 原生直通** 适配器。与其他 provid
 - **图像路径时间窗放宽**：`maxImageAuthorizationWindowSeconds=900s` 是图像端点唯一允许的放宽，因为 BlockRun 在生成期间需要保持签名有效。chat/video 仍用 300s。如果未来要为其他端点放宽窗口，参考 `SignX402PaymentWithCaps` 的显式参数模式，不要改默认值。
 - **签名重用而非重签**：`pollImageJob` 拿到 402 时**硬错**，不再重签——因为每次签名等于一次链上 transfer 授权，重复签名会被多次扣款。修改 polling 逻辑时严守这条。
 - **白标**：`ensureImageB64` 强制把 URL 转 base64 返回，客户端永远收不到 BlockRun CDN 的 host。即便下载失败，也只是降级（保留 URL + 警告日志），而不是抛错——因为上游已经扣款，失败回错会让用户付了钱拿不到图。改这条逻辑时理解 trade-off。
-- **`captureUpstreamID` 的结构感知**：非流式 body 里 `choices` 在 top-level `id` 之前，naive `"id"` regex 会先命中 `tool_calls[].id`，所以非流式必须 buffer + unmarshal；流式首个 chunk 的 top-level id 在 tool_call id 之前，所以用 regex 取首个即可。修改时不要把两条路径合并。
+- **`captureUpstreamID` 的结构感知**：非流式 body 里 `choices`/`output` 可能在 top-level `id` 之前，naive `"id"` regex 会先命中 `tool_calls[].id`/`output[].id`，所以非流式必须 buffer + unmarshal；流式首个 Chat/Claude/Responses 事件中的请求 id 在 tool-call item id 之前，所以用 regex 取首个即可。修改时不要把两条路径合并。
 - **多节点（Rule 11）**：所有支付签名都是链上 nonce-protected 的（ERC-3009 单次使用），自然防止跨节点重复扣款；但 `pollImageJob` 的轮询是 process-local 的，客户端断开重连到另一节点会丢失轮询上下文。生产环境使用 BlockRun 时需告知运营方这个限制。
 - **`maxImageBodyBytes=64MiB`**：单个图像响应/上传文件上限。改它时同步评估 `DecompressRequestMiddleware` 的 `MaxRequestBodyMB`。
 - **`collectMultipartFiles` 的排序**：多图融合依赖数字下标自然排序（`image[10]` 在 `image[2]` 之后），改排序逻辑会破坏多图融合的顺序合约。
