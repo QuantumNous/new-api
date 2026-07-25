@@ -269,15 +269,6 @@ func (s *RecallStripeService) ValidateAndResolveProducts(ctx context.Context, sc
 		return RecallResolvedProductScope{}, recallStripePermanent("validate products", "at least one Stripe Price is required")
 	}
 
-	configuredTopUp, err := recallConfiguredTopUpPriceIDs()
-	if err != nil {
-		return RecallResolvedProductScope{}, err
-	}
-	configuredSubscription, err := model.ListRecallStripeSubscriptionPricesWithContext(ctx)
-	if err != nil {
-		return RecallResolvedProductScope{}, wrapRecallStripeError("list configured subscription prices", err)
-	}
-
 	priceCache := make(map[string]*stripe.Price)
 	loadPrice := func(priceID string) (*stripe.Price, error) {
 		if cached, ok := priceCache[priceID]; ok {
@@ -313,20 +304,13 @@ func (s *RecallStripeService) ValidateAndResolveProducts(ctx context.Context, sc
 		return stripePrice, nil
 	}
 
-	selectedIDs := make(map[string]struct{}, len(resolved.TopUpPriceIDs)+len(resolved.SubscriptionPriceIDs))
-	selectedProductKinds := make(map[string]string)
 	seenProducts := make(map[string]struct{})
-	addSelected := func(priceID string, expected stripe.PriceType, kind string) error {
+	addSelected := func(priceID string, expected stripe.PriceType) error {
 		stripePrice, validateErr := validatePrice(priceID, expected)
 		if validateErr != nil {
 			return validateErr
 		}
 		productID := strings.TrimSpace(stripePrice.Product.ID)
-		if priorKind, exists := selectedProductKinds[productID]; exists && priorKind != kind {
-			return recallStripePermanent("validate products", "Stripe Product %s cannot be selected for both top-up and subscription Prices", productID)
-		}
-		selectedProductKinds[productID] = kind
-		selectedIDs[priceID] = struct{}{}
 		if _, exists := seenProducts[productID]; !exists {
 			seenProducts[productID] = struct{}{}
 			resolved.ProductIDs = append(resolved.ProductIDs, productID)
@@ -334,48 +318,14 @@ func (s *RecallStripeService) ValidateAndResolveProducts(ctx context.Context, sc
 		return nil
 	}
 	for _, priceID := range resolved.TopUpPriceIDs {
-		if err := addSelected(priceID, stripe.PriceTypeOneTime, "top-up"); err != nil {
+		if err := addSelected(priceID, stripe.PriceTypeOneTime); err != nil {
 			return RecallResolvedProductScope{}, err
 		}
 	}
 	for _, priceID := range resolved.SubscriptionPriceIDs {
-		if err := addSelected(priceID, stripe.PriceTypeRecurring, "subscription"); err != nil {
+		if err := addSelected(priceID, stripe.PriceTypeRecurring); err != nil {
 			return RecallResolvedProductScope{}, err
 		}
-	}
-
-	validateConfigured := func(priceIDs []string, allowTopUpForSelectedSubscriptions bool) error {
-		for _, priceID := range priceIDs {
-			stripePrice, loadErr := loadPrice(priceID)
-			if loadErr != nil {
-				return loadErr
-			}
-			if stripePrice.Product == nil || strings.TrimSpace(stripePrice.Product.ID) == "" {
-				return recallStripePermanent("validate products", "Stripe Price %s has no product ID", priceID)
-			}
-			productID := strings.TrimSpace(stripePrice.Product.ID)
-			selectedKind, selectedProduct := selectedProductKinds[productID]
-			if !selectedProduct {
-				continue
-			}
-			if _, selectedPrice := selectedIDs[priceID]; !selectedPrice {
-				// Top-up Checkout never accepts manually entered promotion codes,
-				// and recall checkout requires the exact selected Price ID. Existing
-				// catalogs may therefore reuse a subscription Product for an
-				// unselected top-up Price without making that Price redeemable.
-				if allowTopUpForSelectedSubscriptions && selectedKind == "subscription" {
-					continue
-				}
-				return recallStripePermanent("validate products", "unselected configured price %s shares selected Stripe Product %s", priceID, productID)
-			}
-		}
-		return nil
-	}
-	if err := validateConfigured(configuredTopUp, true); err != nil {
-		return RecallResolvedProductScope{}, err
-	}
-	if err := validateConfigured(configuredSubscription, false); err != nil {
-		return RecallResolvedProductScope{}, err
 	}
 	return resolved, nil
 }
