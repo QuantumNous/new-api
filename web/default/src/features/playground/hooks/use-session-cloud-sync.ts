@@ -66,8 +66,9 @@ function toServerMessages(
       const tool: ToolPayload = {}
       if (message.managedTool) tool.managedTool = message.managedTool
       if (message.sources?.length) tool.sources = message.sources
-      if (message.modelChangeFrom)
+      if (message.modelChangeFrom) {
         tool.modelChangeFrom = message.modelChangeFrom
+      }
       if (message.modelChangeTo) tool.modelChangeTo = message.modelChangeTo
       if (message.reasoning) tool.reasoning = message.reasoning
       const hasTool = Object.keys(tool).length > 0

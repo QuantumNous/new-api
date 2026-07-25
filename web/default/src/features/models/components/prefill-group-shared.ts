@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { StatusBadgeProps } from '@/components/status-badge'
 
-import { type PrefillGroup, type PrefillGroupFormValues } from '../types'
+import type { PrefillGroup, PrefillGroupFormValues } from '../types'
 
 export type PrefillGroupType = PrefillGroup['type']
 

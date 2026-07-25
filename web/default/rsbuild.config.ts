@@ -16,9 +16,9 @@ function stripSecureCookieFlag(proxyRes: {
   const list = Array.isArray(raw) ? raw : [raw]
   proxyRes.headers['set-cookie'] = list.map((c) =>
     c
-      .replace(/;\s*Secure/gi, '')
-      .replace(/;\s*Domain=[^;]*/gi, '')
-      .replace(/;\s*SameSite=None/gi, '; SameSite=Lax')
+      .replaceAll(/;\s*Secure/gi, '')
+      .replaceAll(/;\s*Domain=[^;]*/gi, '')
+      .replaceAll(/;\s*SameSite=None/gi, '; SameSite=Lax')
   )
 }
 

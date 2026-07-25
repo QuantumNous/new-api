@@ -17,11 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export function normalizeModelList(models: unknown[] = []): string[] {
-  return Array.from(
-    new Set(
+  return [
+    ...new Set(
       (models || []).map((model) => String(model || '').trim()).filter(Boolean)
-    )
-  )
+    ),
+  ]
 }
 
 export function parseUpstreamUpdateMeta(settings: unknown): {

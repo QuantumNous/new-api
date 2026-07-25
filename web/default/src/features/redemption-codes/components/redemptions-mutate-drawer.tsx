@@ -63,7 +63,7 @@ import {
   transformFormDataToPayload,
   transformRedemptionToFormDefaults,
 } from '../lib'
-import { type Redemption } from '../types'
+import type { Redemption } from '../types'
 import { useRedemptions } from './redemptions-provider'
 
 type RedemptionsMutateDrawerProps = {
@@ -226,7 +226,7 @@ export function RedemptionsMutateDrawer({
                         step={tokensOnly ? 1 : 0.01}
                         placeholder={quotaPlaceholder}
                         onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value) || 0)
+                          field.onChange(Number.parseFloat(e.target.value) || 0)
                         }
                       />
                     </FormControl>
@@ -314,7 +314,9 @@ export function RedemptionsMutateDrawer({
                           max='100'
                           placeholder={t('Number of codes to create')}
                           onChange={(e) =>
-                            field.onChange(parseInt(e.target.value, 10) || 1)
+                            field.onChange(
+                              Number.parseInt(e.target.value, 10) || 1
+                            )
                           }
                         />
                       </FormControl>

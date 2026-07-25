@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 export const modelGroupSelectorLayoutClasses = {
   desktopPanel: 'max-h-[min(50vh,28rem)] overflow-hidden',
   desktopContent:

@@ -60,8 +60,9 @@ export function TagInput({
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
       addTag(inputValue)
-    } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
-      removeTag(value[value.length - 1])
+    } else if (e.key === 'Backspace' && !inputValue) {
+      const lastTag = value.at(-1)
+      if (lastTag !== undefined) removeTag(lastTag)
     }
   }
 

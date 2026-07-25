@@ -79,7 +79,7 @@ export function DeleteAccountDialog({
       } else {
         toast.error(response.message || t('Failed to delete account'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to delete account'))
     } finally {
       setLoading(false)

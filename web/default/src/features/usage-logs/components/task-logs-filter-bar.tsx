@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 

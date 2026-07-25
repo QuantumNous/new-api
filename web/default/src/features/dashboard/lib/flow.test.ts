@@ -1,5 +1,22 @@
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { describe, expect, it } from 'vitest'
 
 import type { FlowQuotaDataItem } from '../types'
 import {
@@ -90,105 +107,99 @@ const topLimitRows: FlowQuotaDataItem[] = [
 ]
 
 describe('dashboard flow data', () => {
-  test('builds normal user token-group-model flow', () => {
+  it('builds normal user token-group-model flow', () => {
     const result = buildDashboardFlowData(rows.slice(0, 2), 'quota', {
       role: 'user',
     })
 
-    assert.equal(result.summary.quota, 150)
-    assert.equal(result.summary.tokens, 60)
-    assert.equal(result.summary.requests, 3)
-    assert.deepEqual(
-      result.flow.links.map((link) => [link.source, link.target, link.value]),
-      [
-        ['group:vip', 'model:gpt-4.1', 150],
-        ['token:11', 'group:vip', 150],
-      ]
-    )
-    assert.equal(
-      result.flow.nodes.some((node) => node.kind === 'channel'),
+    expect(result.summary.quota).toBe(150)
+    expect(result.summary.tokens).toBe(60)
+    expect(result.summary.requests).toBe(3)
+    expect(
+      result.flow.links.map((link) => [link.source, link.target, link.value])
+    ).toStrictEqual([
+      ['group:vip', 'model:gpt-4.1', 150],
+      ['token:11', 'group:vip', 150],
+    ])
+    expect(result.flow.nodes.some((node) => node.kind === 'channel')).toBe(
       false
     )
   })
 
-  test('builds admin user-group-model-channel flow', () => {
+  it('builds admin user-group-model-channel flow', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'admin',
     })
 
-    assert.deepEqual(
-      result.flow.links.map((link) => [link.source, link.target, link.value]),
-      [
-        ['group:default', 'model:claude-4-sonnet', 70],
-        ['group:vip', 'model:gpt-4.1', 150],
-        ['model:claude-4-sonnet', 'channel:101', 70],
-        ['model:gpt-4.1', 'channel:101', 100],
-        ['model:gpt-4.1', 'channel:102', 50],
-        ['user:1', 'group:vip', 150],
-        ['user:2', 'group:default', 70],
-      ]
-    )
+    expect(
+      result.flow.links.map((link) => [link.source, link.target, link.value])
+    ).toStrictEqual([
+      ['group:default', 'model:claude-4-sonnet', 70],
+      ['group:vip', 'model:gpt-4.1', 150],
+      ['model:claude-4-sonnet', 'channel:101', 70],
+      ['model:gpt-4.1', 'channel:101', 100],
+      ['model:gpt-4.1', 'channel:102', 50],
+      ['user:1', 'group:vip', 150],
+      ['user:2', 'group:default', 70],
+    ])
   })
 
-  test('builds root user-node-token-group-model-channel flow', () => {
+  it('builds root user-node-token-group-model-channel flow', () => {
     const result = buildDashboardFlowData(rows, 'requests', {
       role: 'root',
     })
 
-    assert.deepEqual(
-      result.flow.links.map((link) => [link.source, link.target, link.value]),
-      [
-        ['group:default', 'model:claude-4-sonnet', 3],
-        ['group:vip', 'model:gpt-4.1', 3],
-        ['model:claude-4-sonnet', 'channel:101', 3],
-        ['model:gpt-4.1', 'channel:101', 2],
-        ['model:gpt-4.1', 'channel:102', 1],
-        ['node:node-a', 'token:11', 3],
-        ['node:node-b', 'token:22', 3],
-        ['token:11', 'group:vip', 3],
-        ['token:22', 'group:default', 3],
-        ['user:1', 'node:node-a', 3],
-        ['user:2', 'node:node-b', 3],
-      ]
-    )
+    expect(
+      result.flow.links.map((link) => [link.source, link.target, link.value])
+    ).toStrictEqual([
+      ['group:default', 'model:claude-4-sonnet', 3],
+      ['group:vip', 'model:gpt-4.1', 3],
+      ['model:claude-4-sonnet', 'channel:101', 3],
+      ['model:gpt-4.1', 'channel:101', 2],
+      ['model:gpt-4.1', 'channel:102', 1],
+      ['node:node-a', 'token:11', 3],
+      ['node:node-b', 'token:22', 3],
+      ['token:11', 'group:vip', 3],
+      ['token:22', 'group:default', 3],
+      ['user:1', 'node:node-a', 3],
+      ['user:2', 'node:node-b', 3],
+    ])
   })
 
-  test('filters by selected users', () => {
+  it('filters by selected users', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'admin',
       selectedUsers: ['user:2'],
     })
 
-    assert.equal(result.summary.quota, 70)
-    assert.deepEqual(
-      result.flow.links.map((link) => [link.source, link.target, link.value]),
-      [
-        ['group:default', 'model:claude-4-sonnet', 70],
-        ['model:claude-4-sonnet', 'channel:101', 70],
-        ['user:2', 'group:default', 70],
-      ]
-    )
+    expect(result.summary.quota).toBe(70)
+    expect(
+      result.flow.links.map((link) => [link.source, link.target, link.value])
+    ).toStrictEqual([
+      ['group:default', 'model:claude-4-sonnet', 70],
+      ['model:claude-4-sonnet', 'channel:101', 70],
+      ['user:2', 'group:default', 70],
+    ])
   })
 
-  test('filters rows by selected flow nodes', () => {
+  it('filters rows by selected flow nodes', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'admin',
       selectedNodes: [{ kind: 'model', id: 'model:gpt-4.1' }],
     })
 
-    assert.equal(result.summary.quota, 150)
-    assert.deepEqual(
-      result.flow.links.map((link) => [link.source, link.target, link.value]),
-      [
-        ['group:vip', 'model:gpt-4.1', 150],
-        ['model:gpt-4.1', 'channel:101', 100],
-        ['model:gpt-4.1', 'channel:102', 50],
-        ['user:1', 'group:vip', 150],
-      ]
-    )
+    expect(result.summary.quota).toBe(150)
+    expect(
+      result.flow.links.map((link) => [link.source, link.target, link.value])
+    ).toStrictEqual([
+      ['group:vip', 'model:gpt-4.1', 150],
+      ['model:gpt-4.1', 'channel:101', 100],
+      ['model:gpt-4.1', 'channel:102', 50],
+      ['user:1', 'group:vip', 150],
+    ])
   })
 
-  test('combines node filters with OR inside a column and AND across columns', () => {
+  it('combines node filters with OR inside a column and AND across columns', () => {
     const sameColumn = buildDashboardFlowData(rows, 'quota', {
       role: 'admin',
       selectedNodes: [
@@ -204,200 +215,183 @@ describe('dashboard flow data', () => {
       ],
     })
 
-    assert.equal(sameColumn.summary.quota, 220)
-    assert.equal(crossColumn.summary.quota, 100)
-    assert.deepEqual(
+    expect(sameColumn.summary.quota).toBe(220)
+    expect(crossColumn.summary.quota).toBe(100)
+    expect(
       crossColumn.flow.links.map((link) => [
         link.source,
         link.target,
         link.value,
-      ]),
-      [
-        ['group:vip', 'model:gpt-4.1', 100],
-        ['model:gpt-4.1', 'channel:101', 100],
-        ['user:1', 'group:vip', 100],
-      ]
-    )
+      ])
+    ).toStrictEqual([
+      ['group:vip', 'model:gpt-4.1', 100],
+      ['model:gpt-4.1', 'channel:101', 100],
+      ['user:1', 'group:vip', 100],
+    ])
   })
 
-  test('combines user and node filters', () => {
+  it('combines user and node filters', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'admin',
       selectedUsers: ['user:1'],
       selectedNodes: [{ kind: 'channel', id: 'channel:101' }],
     })
 
-    assert.equal(result.summary.quota, 100)
-    assert.deepEqual(
-      result.flow.links.map((link) => [link.source, link.target, link.value]),
-      [
-        ['group:vip', 'model:gpt-4.1', 100],
-        ['model:gpt-4.1', 'channel:101', 100],
-        ['user:1', 'group:vip', 100],
-      ]
-    )
+    expect(result.summary.quota).toBe(100)
+    expect(
+      result.flow.links.map((link) => [link.source, link.target, link.value])
+    ).toStrictEqual([
+      ['group:vip', 'model:gpt-4.1', 100],
+      ['model:gpt-4.1', 'channel:101', 100],
+      ['user:1', 'group:vip', 100],
+    ])
   })
 
-  test('reconnects links when a middle stage is hidden', () => {
+  it('reconnects links when a middle stage is hidden', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'admin',
       visibleStages: ['user', 'model', 'channel'],
     })
 
-    assert.deepEqual(
-      result.flow.links.map((link) => [link.source, link.target, link.value]),
-      [
-        ['model:claude-4-sonnet', 'channel:101', 70],
-        ['model:gpt-4.1', 'channel:101', 100],
-        ['model:gpt-4.1', 'channel:102', 50],
-        ['user:1', 'model:gpt-4.1', 150],
-        ['user:2', 'model:claude-4-sonnet', 70],
-      ]
-    )
-    assert.equal(
-      result.flow.nodes.some((node) => node.kind === 'group'),
-      false
-    )
+    expect(
+      result.flow.links.map((link) => [link.source, link.target, link.value])
+    ).toStrictEqual([
+      ['model:claude-4-sonnet', 'channel:101', 70],
+      ['model:gpt-4.1', 'channel:101', 100],
+      ['model:gpt-4.1', 'channel:102', 50],
+      ['user:1', 'model:gpt-4.1', 150],
+      ['user:2', 'model:claude-4-sonnet', 70],
+    ])
+    expect(result.flow.nodes.some((node) => node.kind === 'group')).toBe(false)
   })
 
-  test('ignores stage filters that would leave fewer than two columns', () => {
+  it('ignores stage filters that would leave fewer than two columns', () => {
     const result = buildDashboardFlowData(rows.slice(0, 2), 'quota', {
       role: 'user',
       visibleStages: ['model'],
     })
 
-    assert.deepEqual(
-      result.flow.links.map((link) => [link.source, link.target, link.value]),
-      [
-        ['group:vip', 'model:gpt-4.1', 150],
-        ['token:11', 'group:vip', 150],
-      ]
-    )
+    expect(
+      result.flow.links.map((link) => [link.source, link.target, link.value])
+    ).toStrictEqual([
+      ['group:vip', 'model:gpt-4.1', 150],
+      ['token:11', 'group:vip', 150],
+    ])
   })
 
-  test('builds user filter options with stable values', () => {
+  it('builds user filter options with stable values', () => {
     const options = buildFlowFilterOptions(rows, 'quota')
 
-    assert.deepEqual(
-      options.users.map((user) => [user.value, user.label, user.valueLabel]),
-      [
-        ['user:1', 'alice', '150'],
-        ['user:2', 'bob', '70'],
-      ]
-    )
-    assert.notEqual(options.users[0].color, options.users[1].color)
+    expect(
+      options.users.map((user) => [user.value, user.label, user.valueLabel])
+    ).toStrictEqual([
+      ['user:1', 'alice', '150'],
+      ['user:2', 'bob', '70'],
+    ])
+    expect(options.users[0].color).not.toBe(options.users[1].color)
   })
 
-  test('builds node filter options without applying top limits', () => {
+  it('builds node filter options without applying top limits', () => {
     const result = buildDashboardFlowData(topLimitRows, 'quota', {
       role: 'admin',
       topNodeLimit: 1,
       overflowMode: 'aggregate',
     })
 
-    assert.equal(
+    expect(
       result.filterOptions.nodes.some(
         (option) => option.kind === 'model' && option.value === 'model:model-c'
-      ),
-      true
-    )
-    assert.deepEqual(
+      )
+    ).toBe(true)
+    expect(
       result.filterOptions.nodes
         .filter((option) => option.kind === 'model')
-        .map((option) => [option.value, option.valueLabel]),
-      [
-        ['model:model-a', '100'],
-        ['model:model-b', '80'],
-        ['model:model-c', '10'],
-      ]
-    )
+        .map((option) => [option.value, option.valueLabel])
+    ).toStrictEqual([
+      ['model:model-a', '100'],
+      ['model:model-b', '80'],
+      ['model:model-c', '10'],
+    ])
   })
 
-  test('facets node filter options by selected nodes from other columns', () => {
+  it('facets node filter options by selected nodes from other columns', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'root',
       selectedNodes: [{ kind: 'node', id: 'node:node-a' }],
     })
     const nodeOptions = result.filterOptions.nodes
 
-    assert.deepEqual(
+    expect(
       nodeOptions
         .filter((option) => option.kind === 'node')
-        .map((option) => [option.value, option.valueLabel]),
-      [
-        ['node:node-a', '150'],
-        ['node:node-b', '70'],
-      ]
-    )
-    assert.deepEqual(
+        .map((option) => [option.value, option.valueLabel])
+    ).toStrictEqual([
+      ['node:node-a', '150'],
+      ['node:node-b', '70'],
+    ])
+    expect(
       nodeOptions
         .filter((option) => option.kind === 'token')
-        .map((option) => [option.value, option.valueLabel]),
-      [['token:11', '150']]
-    )
-    assert.deepEqual(
+        .map((option) => [option.value, option.valueLabel])
+    ).toStrictEqual([['token:11', '150']])
+    expect(
       nodeOptions
         .filter((option) => option.kind === 'channel')
-        .map((option) => [option.value, option.valueLabel]),
-      [
-        ['channel:101', '100'],
-        ['channel:102', '50'],
-      ]
-    )
+        .map((option) => [option.value, option.valueLabel])
+    ).toStrictEqual([
+      ['channel:101', '100'],
+      ['channel:102', '50'],
+    ])
   })
 
-  test('keeps same-column node options available for OR filtering', () => {
+  it('keeps same-column node options available for OR filtering', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'admin',
       selectedNodes: [{ kind: 'model', id: 'model:gpt-4.1' }],
     })
 
-    assert.deepEqual(
+    expect(
       result.filterOptions.nodes
         .filter((option) => option.kind === 'model')
-        .map((option) => [option.value, option.valueLabel]),
-      [
-        ['model:gpt-4.1', '150'],
-        ['model:claude-4-sonnet', '70'],
-      ]
-    )
-    assert.deepEqual(
+        .map((option) => [option.value, option.valueLabel])
+    ).toStrictEqual([
+      ['model:gpt-4.1', '150'],
+      ['model:claude-4-sonnet', '70'],
+    ])
+    expect(
       result.filterOptions.nodes
         .filter((option) => option.kind === 'channel')
-        .map((option) => [option.value, option.valueLabel]),
-      [
-        ['channel:101', '100'],
-        ['channel:102', '50'],
-      ]
-    )
+        .map((option) => [option.value, option.valueLabel])
+    ).toStrictEqual([
+      ['channel:101', '100'],
+      ['channel:102', '50'],
+    ])
   })
 
-  test('combines user filters with faceted node filter options', () => {
+  it('combines user filters with faceted node filter options', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'root',
       selectedUsers: ['user:1'],
       selectedNodes: [{ kind: 'channel', id: 'channel:101' }],
     })
 
-    assert.equal(result.summary.quota, 100)
-    assert.deepEqual(
+    expect(result.summary.quota).toBe(100)
+    expect(
       result.filterOptions.nodes
         .filter((option) => option.kind === 'model')
-        .map((option) => [option.value, option.valueLabel]),
-      [['model:gpt-4.1', '100']]
-    )
-    assert.deepEqual(
+        .map((option) => [option.value, option.valueLabel])
+    ).toStrictEqual([['model:gpt-4.1', '100']])
+    expect(
       result.filterOptions.nodes
         .filter((option) => option.kind === 'channel')
-        .map((option) => [option.value, option.valueLabel]),
-      [
-        ['channel:101', '100'],
-        ['channel:102', '50'],
-      ]
-    )
+        .map((option) => [option.value, option.valueLabel])
+    ).toStrictEqual([
+      ['channel:101', '100'],
+      ['channel:102', '50'],
+    ])
   })
 
-  test('aggregates overflow nodes into per-column Other buckets', () => {
+  it('aggregates overflow nodes into per-column Other buckets', () => {
     const result = buildDashboardFlowData(topLimitRows, 'quota', {
       role: 'admin',
       topNodeLimit: 2,
@@ -416,21 +410,21 @@ describe('dashboard flow data', () => {
       .filter((link) => link.source.startsWith('user:'))
       .reduce((sum, link) => sum + link.value, 0)
 
-    assert.equal(result.summary.quota, 190)
-    assert.equal(firstStepTotal, 190)
-    assert.equal(otherUser?.label, 'Other user')
-    assert.equal(otherFirstStepLink?.value, 10)
-    assert.equal(nodeIds.has('user:3'), false)
-    assert.equal(nodeIds.has('group:free'), false)
-    assert.equal(nodeIds.has('model:model-c'), false)
-    assert.equal(nodeIds.has('channel:203'), false)
-    assert.equal(nodeIds.has('user:__other__'), true)
-    assert.equal(nodeIds.has('group:__other__'), true)
-    assert.equal(nodeIds.has('model:__other__'), true)
-    assert.equal(nodeIds.has('channel:__other__'), true)
+    expect(result.summary.quota).toBe(190)
+    expect(firstStepTotal).toBe(190)
+    expect(otherUser?.label).toBe('Other user')
+    expect(otherFirstStepLink?.value).toBe(10)
+    expect(nodeIds.has('user:3')).toBe(false)
+    expect(nodeIds.has('group:free')).toBe(false)
+    expect(nodeIds.has('model:model-c')).toBe(false)
+    expect(nodeIds.has('channel:203')).toBe(false)
+    expect(nodeIds.has('user:__other__')).toBe(true)
+    expect(nodeIds.has('group:__other__')).toBe(true)
+    expect(nodeIds.has('model:__other__')).toBe(true)
+    expect(nodeIds.has('channel:__other__')).toBe(true)
   })
 
-  test('hides overflow paths when overflow mode is hide', () => {
+  it('hides overflow paths when overflow mode is hide', () => {
     const result = buildDashboardFlowData(topLimitRows, 'quota', {
       role: 'admin',
       topNodeLimit: 2,
@@ -442,14 +436,14 @@ describe('dashboard flow data', () => {
       .filter((link) => link.source.startsWith('user:'))
       .reduce((sum, link) => sum + link.value, 0)
 
-    assert.equal(result.summary.quota, 190)
-    assert.equal(firstStepTotal, 180)
-    assert.equal(nodeIds.has('user:3'), false)
-    assert.equal(nodeIds.has('user:__other__'), false)
-    assert.equal(nodeIds.has('model:__other__'), false)
+    expect(result.summary.quota).toBe(190)
+    expect(firstStepTotal).toBe(180)
+    expect(nodeIds.has('user:3')).toBe(false)
+    expect(nodeIds.has('user:__other__')).toBe(false)
+    expect(nodeIds.has('model:__other__')).toBe(false)
   })
 
-  test('ranks top nodes using the selected flow metric', () => {
+  it('ranks top nodes using the selected flow metric', () => {
     const byQuota = buildDashboardFlowData(topLimitRows, 'quota', {
       role: 'admin',
       topNodeLimit: 1,
@@ -466,21 +460,14 @@ describe('dashboard flow data', () => {
       overflowMode: 'aggregate',
     })
 
-    assert.equal(
-      byQuota.flow.nodes.some((node) => node.id === 'user:1'),
+    expect(byQuota.flow.nodes.some((node) => node.id === 'user:1')).toBe(true)
+    expect(byRequests.flow.nodes.some((node) => node.id === 'user:2')).toBe(
       true
     )
-    assert.equal(
-      byRequests.flow.nodes.some((node) => node.id === 'user:2'),
-      true
-    )
-    assert.equal(
-      byTokens.flow.nodes.some((node) => node.id === 'user:3'),
-      true
-    )
+    expect(byTokens.flow.nodes.some((node) => node.id === 'user:3')).toBe(true)
   })
 
-  test('applies top limits only to visible stages', () => {
+  it('applies top limits only to visible stages', () => {
     const result = buildDashboardFlowData(topLimitRows, 'quota', {
       role: 'admin',
       visibleStages: ['user', 'model'],
@@ -489,22 +476,21 @@ describe('dashboard flow data', () => {
     })
     const nodeIds = new Set(result.flow.nodes.map((node) => node.id))
 
-    assert.equal(nodeIds.has('user:1'), true)
-    assert.equal(nodeIds.has('user:__other__'), true)
-    assert.equal(nodeIds.has('model:model-a'), true)
-    assert.equal(nodeIds.has('model:__other__'), true)
-    assert.equal(nodeIds.has('group:__other__'), false)
-    assert.equal(nodeIds.has('channel:__other__'), false)
-    assert.deepEqual(
-      result.flow.links.map((link) => [link.source, link.target, link.value]),
-      [
-        ['user:__other__', 'model:__other__', 90],
-        ['user:1', 'model:model-a', 100],
-      ]
-    )
+    expect(nodeIds.has('user:1')).toBe(true)
+    expect(nodeIds.has('user:__other__')).toBe(true)
+    expect(nodeIds.has('model:model-a')).toBe(true)
+    expect(nodeIds.has('model:__other__')).toBe(true)
+    expect(nodeIds.has('group:__other__')).toBe(false)
+    expect(nodeIds.has('channel:__other__')).toBe(false)
+    expect(
+      result.flow.links.map((link) => [link.source, link.target, link.value])
+    ).toStrictEqual([
+      ['user:__other__', 'model:__other__', 90],
+      ['user:1', 'model:model-a', 100],
+    ])
   })
 
-  test('applies top limits after node filters', () => {
+  it('applies top limits after node filters', () => {
     const result = buildDashboardFlowData(topLimitRows, 'quota', {
       role: 'admin',
       selectedNodes: [{ kind: 'model', id: 'model:model-c' }],
@@ -513,34 +499,32 @@ describe('dashboard flow data', () => {
     })
     const nodeIds = new Set(result.flow.nodes.map((node) => node.id))
 
-    assert.equal(result.summary.quota, 10)
-    assert.equal(nodeIds.has('model:model-c'), true)
-    assert.equal(nodeIds.has('model:__other__'), false)
-    assert.deepEqual(
-      result.flow.links.map((link) => [link.source, link.target, link.value]),
-      [
-        ['group:free', 'model:model-c', 10],
-        ['model:model-c', 'channel:203', 10],
-        ['user:3', 'group:free', 10],
-      ]
-    )
+    expect(result.summary.quota).toBe(10)
+    expect(nodeIds.has('model:model-c')).toBe(true)
+    expect(nodeIds.has('model:__other__')).toBe(false)
+    expect(
+      result.flow.links.map((link) => [link.source, link.target, link.value])
+    ).toStrictEqual([
+      ['group:free', 'model:model-c', 10],
+      ['model:model-c', 'channel:203', 10],
+      ['user:3', 'group:free', 10],
+    ])
   })
 
-  test('ignores selected node filters for hidden stages', () => {
+  it('ignores selected node filters for hidden stages', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'admin',
       visibleStages: ['user', 'model', 'channel'],
       selectedNodes: [{ kind: 'group', id: 'group:vip' }],
     })
 
-    assert.equal(result.summary.quota, 220)
-    assert.equal(
-      result.flow.nodes.some((node) => node.id === 'group:vip'),
+    expect(result.summary.quota).toBe(220)
+    expect(result.flow.nodes.some((node) => node.id === 'group:vip')).toBe(
       false
     )
   })
 
-  test('highlights full paths that contain the active user node', () => {
+  it('highlights full paths that contain the active user node', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'root',
       activeNode: { kind: 'user', id: 'user:1' },
@@ -558,41 +542,41 @@ describe('dashboard flow data', () => {
       ])
     )
 
-    assert.deepEqual(nodeState.get('user:1'), {
+    expect(nodeState.get('user:1')).toStrictEqual({
       highlighted: true,
       dimmed: false,
     })
-    assert.deepEqual(nodeState.get('node:node-a'), {
+    expect(nodeState.get('node:node-a')).toStrictEqual({
       highlighted: true,
       dimmed: false,
     })
-    assert.deepEqual(nodeState.get('model:gpt-4.1'), {
+    expect(nodeState.get('model:gpt-4.1')).toStrictEqual({
       highlighted: true,
       dimmed: false,
     })
-    assert.deepEqual(nodeState.get('channel:101'), {
+    expect(nodeState.get('channel:101')).toStrictEqual({
       highlighted: true,
       dimmed: false,
     })
-    assert.deepEqual(nodeState.get('user:2'), {
+    expect(nodeState.get('user:2')).toStrictEqual({
       highlighted: false,
       dimmed: true,
     })
-    assert.deepEqual(linkState.get('user:1->node:node-a'), {
+    expect(linkState.get('user:1->node:node-a')).toStrictEqual({
       highlighted: true,
       dimmed: false,
     })
-    assert.deepEqual(linkState.get('model:gpt-4.1->channel:101'), {
+    expect(linkState.get('model:gpt-4.1->channel:101')).toStrictEqual({
       highlighted: true,
       dimmed: false,
     })
-    assert.deepEqual(linkState.get('model:claude-4-sonnet->channel:101'), {
+    expect(linkState.get('model:claude-4-sonnet->channel:101')).toStrictEqual({
       highlighted: false,
       dimmed: true,
     })
   })
 
-  test('highlights full paths that traverse the active link', () => {
+  it('highlights full paths that traverse the active link', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'root',
       activeLink: { source: 'model:gpt-4.1', target: 'channel:101' },
@@ -610,29 +594,29 @@ describe('dashboard flow data', () => {
       ])
     )
 
-    assert.deepEqual(linkState.get('model:gpt-4.1->channel:101'), {
+    expect(linkState.get('model:gpt-4.1->channel:101')).toStrictEqual({
       highlighted: true,
       dimmed: false,
     })
-    assert.deepEqual(linkState.get('model:gpt-4.1->channel:102'), {
+    expect(linkState.get('model:gpt-4.1->channel:102')).toStrictEqual({
       highlighted: false,
       dimmed: true,
     })
-    assert.deepEqual(nodeState.get('user:1'), {
+    expect(nodeState.get('user:1')).toStrictEqual({
       highlighted: true,
       dimmed: false,
     })
-    assert.deepEqual(nodeState.get('node:node-a'), {
+    expect(nodeState.get('node:node-a')).toStrictEqual({
       highlighted: true,
       dimmed: false,
     })
-    assert.deepEqual(nodeState.get('user:2'), {
+    expect(nodeState.get('user:2')).toStrictEqual({
       highlighted: false,
       dimmed: true,
     })
   })
 
-  test('highlights shared aggregate edges when they contain an active path', () => {
+  it('highlights shared aggregate edges when they contain an active path', () => {
     const sharedRows: FlowQuotaDataItem[] = [
       {
         user_id: 1,
@@ -668,14 +652,14 @@ describe('dashboard flow data', () => {
       (link) => link.source === 'user:2' && link.target === 'group:vip'
     )
 
-    assert.equal(sharedLink?.value, 150)
-    assert.equal(sharedLink?.highlighted, true)
-    assert.equal(sharedLink?.dimmed, false)
-    assert.equal(inactiveUserLink?.highlighted, false)
-    assert.equal(inactiveUserLink?.dimmed, true)
+    expect(sharedLink?.value).toBe(150)
+    expect(sharedLink?.highlighted).toBe(true)
+    expect(sharedLink?.dimmed).toBe(false)
+    expect(inactiveUserLink?.highlighted).toBe(false)
+    expect(inactiveUserLink?.dimmed).toBe(true)
   })
 
-  test('does not emit highlight states without a visible active node', () => {
+  it('does not emit highlight states without a visible active node', () => {
     const withoutActive = buildDashboardFlowData(rows, 'quota', {
       role: 'root',
     })
@@ -685,33 +669,29 @@ describe('dashboard flow data', () => {
       activeNode: { kind: 'user', id: 'user:1' },
     })
 
-    assert.equal(
+    expect(
       withoutActive.flow.nodes.every(
         (node) => node.highlighted === undefined && node.dimmed === undefined
-      ),
-      true
-    )
-    assert.equal(
+      )
+    ).toBe(true)
+    expect(
       withoutActive.flow.links.every(
         (link) => link.highlighted === undefined && link.dimmed === undefined
-      ),
-      true
-    )
-    assert.equal(
+      )
+    ).toBe(true)
+    expect(
       hiddenActive.flow.nodes.every(
         (node) => node.highlighted === undefined && node.dimmed === undefined
-      ),
-      true
-    )
-    assert.equal(
+      )
+    ).toBe(true)
+    expect(
       hiddenActive.flow.links.every(
         (link) => link.highlighted === undefined && link.dimmed === undefined
-      ),
-      true
-    )
+      )
+    ).toBe(true)
   })
 
-  test('builds Sankey spec with quota token request tooltips', () => {
+  it('builds Sankey spec with quota token request tooltips', () => {
     const result = buildDashboardFlowData(rows.slice(0, 1), 'quota', {
       role: 'root',
     })
@@ -725,19 +705,19 @@ describe('dashboard flow data', () => {
         link.source === 'user:1' && link.target === 'node:node-a'
     )
 
-    assert.equal(flowSpec.type, 'sankey')
-    assert.equal(flowSpec.title.text, 'Flow')
-    assert.deepEqual(flowSpec.emphasis, { enable: false })
-    assert.equal(flowSpec.tooltip.mark.visible({ datum: aliceNode }), true)
-    assert.equal(flowSpec.tooltip.mark.visible({ datum: userNodeLink }), true)
-    assert.equal(flowSpec.animation, false)
-    assert.equal(values.nodes.length, 6)
-    assert.equal(values.links.length, 5)
-    assert.equal(aliceNode.name, 'alice')
-    assert.match(userNodeLink.linkColor, /^rgba\(/)
+    expect(flowSpec.type).toBe('sankey')
+    expect(flowSpec.title.text).toBe('Flow')
+    expect(flowSpec.emphasis).toStrictEqual({ enable: false })
+    expect(flowSpec.tooltip.mark.visible({ datum: aliceNode })).toBe(true)
+    expect(flowSpec.tooltip.mark.visible({ datum: userNodeLink })).toBe(true)
+    expect(flowSpec.animation).toBe(false)
+    expect(values.nodes.length).toBe(6)
+    expect(values.links.length).toBe(5)
+    expect(aliceNode.name).toBe('alice')
+    expect(userNodeLink.linkColor).toMatch(/^rgba\(/)
 
     const tooltipRows = flowSpec.tooltip.mark.content
-    assert.deepEqual(
+    expect(
       tooltipRows
         .filter((row: Record<string, unknown>) =>
           typeof row.visible === 'function'
@@ -749,17 +729,16 @@ describe('dashboard flow data', () => {
           typeof row.value === 'function'
             ? row.value({ datum: userNodeLink })
             : row.value,
-        ]),
-      [
-        ['Quota', '100'],
-        ['Tokens', '40'],
-        ['Requests', '2'],
-        ['Share', '100.0%'],
-      ]
-    )
+        ])
+    ).toStrictEqual([
+      ['Quota', '100'],
+      ['Tokens', '40'],
+      ['Requests', '2'],
+      ['Share', '100.0%'],
+    ])
   })
 
-  test('maps active flow highlight states into the Sankey spec', () => {
+  it('maps active flow highlight states into the Sankey spec', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'root',
       activeNode: { kind: 'user', id: 'user:1' },
@@ -783,15 +762,15 @@ describe('dashboard flow data', () => {
     const nodeOpacity = flowSpec.node.style.fillOpacity
     const linkOpacity = flowSpec.link.style.fillOpacity
 
-    assert.deepEqual(flowSpec.emphasis, { enable: false })
-    assert.equal(aliceNode.highlighted, true)
-    assert.equal(bobNode.dimmed, true)
-    assert.equal(highlightedLink.highlighted, true)
-    assert.equal(dimmedLink.dimmed, true)
-    assert.equal(nodeOpacity(aliceNode), 1)
-    assert.equal(nodeOpacity(bobNode), 0.18)
-    assert.equal(linkOpacity(highlightedLink), 0.86)
-    assert.equal(linkOpacity(dimmedLink), 0.08)
-    assert.equal(highlightedLink.zIndex > dimmedLink.zIndex, true)
+    expect(flowSpec.emphasis).toStrictEqual({ enable: false })
+    expect(aliceNode.highlighted).toBe(true)
+    expect(bobNode.dimmed).toBe(true)
+    expect(highlightedLink.highlighted).toBe(true)
+    expect(dimmedLink.dimmed).toBe(true)
+    expect(nodeOpacity(aliceNode)).toBe(1)
+    expect(nodeOpacity(bobNode)).toBe(0.18)
+    expect(linkOpacity(highlightedLink)).toBe(0.86)
+    expect(linkOpacity(dimmedLink)).toBe(0.08)
+    expect(highlightedLink.zIndex > dimmedLink.zIndex).toBe(true)
   })
 })

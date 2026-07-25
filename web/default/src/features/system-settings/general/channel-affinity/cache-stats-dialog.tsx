@@ -85,47 +85,57 @@ export function CacheStatsDialog(props: Props) {
     const hit = Number(s.hit || 0)
     const total = Number(s.total || 0)
 
-    if (s.rule_name || props.target?.rule_name)
+    if (s.rule_name || props.target?.rule_name) {
       data.push({
         key: t('Rule'),
         value: (s.rule_name || props.target?.rule_name || '') as string,
       })
-    if (s.using_group || props.target?.using_group)
+    }
+    if (s.using_group || props.target?.using_group) {
       data.push({
         key: t('Group'),
         value: (s.using_group || props.target?.using_group || '') as string,
       })
-    if (props.target?.key_hint)
+    }
+    if (props.target?.key_hint) {
       data.push({ key: t('Key Summary'), value: props.target.key_hint })
-    if (s.key_fp || props.target?.key_fp)
+    }
+    if (s.key_fp || props.target?.key_fp) {
       data.push({
         key: t('Key Fingerprint'),
         value: (s.key_fp || props.target?.key_fp || '') as string,
       })
-    if (Number(s.window_seconds || 0) > 0)
+    }
+    if (Number(s.window_seconds || 0) > 0) {
       data.push({ key: t('TTL (seconds)'), value: s.window_seconds as number })
-    if (total > 0)
+    }
+    if (total > 0) {
       data.push({
         key: t('Hit Rate'),
         value: `${hit}/${total} (${formatRate(hit, total)})`,
       })
-    if (Number(s.last_seen_at || 0) > 0)
+    }
+    if (Number(s.last_seen_at || 0) > 0) {
       data.push({
         key: t('Last Seen'),
         value: formatTimestampToDate(s.last_seen_at as number | undefined),
       })
+    }
 
     const promptTokens = Number(s.prompt_tokens || 0)
     const cachedTokens = Number(s.cached_tokens || 0)
     const completionTokens = Number(s.completion_tokens || 0)
     const totalTokens = Number(s.total_tokens || 0)
 
-    if (promptTokens > 0)
+    if (promptTokens > 0) {
       data.push({ key: 'Prompt tokens', value: promptTokens })
-    if (cachedTokens > 0)
+    }
+    if (cachedTokens > 0) {
       data.push({ key: 'Cached tokens', value: cachedTokens })
-    if (completionTokens > 0)
+    }
+    if (completionTokens > 0) {
       data.push({ key: 'Completion tokens', value: completionTokens })
+    }
     if (totalTokens > 0) data.push({ key: 'Total tokens', value: totalTokens })
 
     return data

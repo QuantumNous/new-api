@@ -31,7 +31,10 @@ const PAGE_SIZE_STORAGE_KEY = 'page-size'
 
 function getStoredPageSize(): number | undefined {
   try {
-    const n = parseInt(localStorage.getItem(PAGE_SIZE_STORAGE_KEY) ?? '', 10)
+    const n = Number.parseInt(
+      localStorage.getItem(PAGE_SIZE_STORAGE_KEY) ?? '',
+      10
+    )
     return n > 0 ? n : undefined // n > 0 also rejects NaN
   } catch {
     return undefined

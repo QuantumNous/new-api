@@ -52,19 +52,19 @@ function extractErrorPosition(
   const positionMatch = message.match(/at position (\d+)/i)
 
   if (positionMatch) {
-    const position = parseInt(positionMatch[1], 10)
+    const position = Number.parseInt(positionMatch[1], 10)
     const lines = jsonString.substring(0, position).split('\n')
     return {
       line: lines.length,
-      column: lines[lines.length - 1].length + 1,
+      column: (lines.at(-1) ?? '').length + 1,
     }
   }
 
   const lineColMatch = message.match(/at line (\d+) column (\d+)/i)
   if (lineColMatch) {
     return {
-      line: parseInt(lineColMatch[1], 10),
-      column: parseInt(lineColMatch[2], 10),
+      line: Number.parseInt(lineColMatch[1], 10),
+      column: Number.parseInt(lineColMatch[2], 10),
     }
   }
 
