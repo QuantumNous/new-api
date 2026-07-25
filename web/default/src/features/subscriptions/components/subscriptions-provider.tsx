@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useState } from 'react'
 
-import useDialogState from '@/hooks/use-dialog'
+import { useDialogState } from '@/hooks/use-dialog'
 
 import type { PlanRecord, SubscriptionsDialogType } from '../types'
 

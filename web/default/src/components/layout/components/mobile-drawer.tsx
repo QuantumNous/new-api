@@ -25,7 +25,7 @@ import { SignOutDialog } from '@/components/sign-out-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import useDialogState from '@/hooks/use-dialog'
+import { useDialogState } from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
 import type { AuthUser } from '@/stores/auth-store'
 

@@ -179,8 +179,3 @@ export function useDialogs<T extends string>(): DialogsHandlers<T> {
     [open, close, toggle, openDialogs, closeAll, hasAnyOpen]
   )
 }
-
-/**
- * @deprecated Use named import useDialogState instead
- */
-export default useDialogState
