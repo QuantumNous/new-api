@@ -52,7 +52,6 @@ import {
 } from '../lib/subscription-plan-lifecycle'
 import {
   getRecallPriceDiscount,
-  validateRecallClaim,
   type RecallPriceDiscount,
 } from '../lib/recall-claim'
 import type { TopupInfo } from '../types'
@@ -331,30 +330,20 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         purchaseProjection?.payment_quotes ?? selfData.payment_quotes,
         months
       )
-      const stripePriceId = purchaseTarget.plan.plan.stripe_price_id
       const selectedRecallDiscount = getRecallPriceDiscount(
         recallClaim.view,
-        stripePriceId,
+        purchaseTarget.plan.plan.id,
         'subscription',
         Number(purchaseTarget.plan.plan.price_amount || 0),
         purchaseTarget.plan.plan.currency || 'USD'
       )
-      let validatedRecallClaim: string | undefined
+      let eligibleRecallClaim: string | undefined
       if (
         paymentChoice === 'stripe_recurring' &&
         recallClaim.claim &&
         selectedRecallDiscount
       ) {
-        const validation = await validateRecallClaim({
-          claim: recallClaim.claim,
-          price_id: stripePriceId,
-          purchase_kind: 'subscription',
-        })
-        if (!validation.success || !validation.data) {
-          toast.error(validation.message || t('Recall offer is unavailable'))
-          return
-        }
-        validatedRecallClaim = recallClaim.claim
+        eligibleRecallClaim = recallClaim.claim
       }
       const res = await purchaseSubscriptionPlanFlexible({
         ...buildFlexiblePurchaseRequest({
@@ -364,7 +353,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
           requestId: purchaseTarget.requestId,
           quoteId: selectedQuote?.quote_id,
           orderId: selectedQuote?.order_id,
-          recallClaim: validatedRecallClaim,
+          recallClaim: eligibleRecallClaim,
         }),
       })
       if (!res.success || !res.data) {
@@ -497,7 +486,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
               const price = formatPlanPrice(Number(plan.price_amount || 0))
               const recallDiscount = getRecallPriceDiscount(
                 recallClaim.view,
-                plan.stripe_price_id,
+                plan.id,
                 'subscription',
                 Number(plan.price_amount || 0),
                 plan.currency || 'USD'
@@ -651,7 +640,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
           purchaseTarget
             ? getRecallPriceDiscount(
                 recallClaim.view,
-                purchaseTarget.plan.plan.stripe_price_id,
+                purchaseTarget.plan.plan.id,
                 'subscription',
                 Number(purchaseTarget.plan.plan.price_amount || 0),
                 purchaseTarget.plan.plan.currency || 'USD'

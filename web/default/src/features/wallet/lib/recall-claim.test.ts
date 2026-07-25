@@ -44,6 +44,7 @@ const claimView: RecallClaimView = {
   products: {
     topup_price_ids: ['price_topup_20'],
     subscription_price_ids: ['price_subscription_monthly'],
+    subscription_plan_ids: [1],
   },
   redeemed: false,
 }
@@ -97,17 +98,9 @@ describe('isRecallPriceEligible', () => {
     ).toBe(false)
   })
 
-  test('uses the subscription Stripe Price allowlist for subscriptions', () => {
-    expect(
-      isRecallPriceEligible(
-        claimView,
-        'price_subscription_monthly',
-        'subscription'
-      )
-    ).toBe(true)
-    expect(
-      isRecallPriceEligible(claimView, 'price_topup_20', 'subscription')
-    ).toBe(false)
+  test('uses the internal plan ID allowlist for subscriptions', () => {
+    expect(isRecallPriceEligible(claimView, 1, 'subscription')).toBe(true)
+    expect(isRecallPriceEligible(claimView, 2, 'subscription')).toBe(false)
   })
 
   test('rejects a missing Stripe Price ID', () => {
@@ -118,7 +111,7 @@ describe('isRecallPriceEligible', () => {
     expect(
       isRecallPriceEligible(
         claimView,
-        'price_subscription_monthly',
+        1,
         'subscription',
         claimView.expires_at + 1
       )
@@ -134,7 +127,7 @@ describe('getRecallPriceDiscount', () => {
           ...claimView,
           discount: { ...claimView.discount, type: 'percent', percent_off: 20 },
         },
-        'price_subscription_monthly',
+        1,
         'subscription',
         10,
         'USD',
@@ -161,7 +154,7 @@ describe('getRecallPriceDiscount', () => {
             currency: 'USD',
           },
         },
-        'price_subscription_monthly',
+        1,
         'subscription',
         10,
         'USD',
@@ -188,7 +181,7 @@ describe('getRecallPriceDiscount', () => {
             currency: 'EUR',
           },
         },
-        'price_subscription_monthly',
+        1,
         'subscription',
         10,
         'USD',
@@ -211,7 +204,7 @@ describe('getRecallPriceDiscount', () => {
             minimum_amount_currency: 'USD',
           },
         },
-        'price_subscription_monthly',
+        1,
         'subscription',
         10,
         'USD',
@@ -232,7 +225,7 @@ describe('getRecallPriceDiscount', () => {
             currency: 'USD',
           },
         },
-        'price_subscription_monthly',
+        1,
         'subscription',
         10,
         'USD',

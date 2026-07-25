@@ -105,6 +105,7 @@ export interface RecallDiscountConfig {
 export interface RecallProductScope {
   topup_price_ids: string[]
   subscription_price_ids: string[]
+  subscription_plan_ids?: number[]
 }
 
 export interface RecallClaimView {

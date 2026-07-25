@@ -123,7 +123,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hasStripe = props.enableStripe && !!plan.stripe_price_id
   const recallPlanEligible = isRecallPriceEligible(
     recallClaim.view,
-    plan.stripe_price_id,
+    plan.id,
     'subscription'
   )
   const hasCreem = props.enableCreem && !!plan.creem_product_id

@@ -55,19 +55,24 @@ export function getTopupStripePriceId(
 
 export function isRecallPriceEligible(
   claim: RecallClaimView | null | undefined,
-  priceId: string | undefined,
+  productId: string | number | undefined,
   purchaseKind: RecallPurchaseKind,
   nowSeconds = Math.floor(Date.now() / 1000)
 ): boolean {
-  if (!claim || !priceId || claim.expires_at <= nowSeconds) {
+  if (!claim || productId === undefined || claim.expires_at <= nowSeconds) {
     return false
   }
 
-  const eligiblePriceIds =
-    purchaseKind === 'topup'
-      ? claim.products.topup_price_ids
-      : claim.products.subscription_price_ids
-  return eligiblePriceIds.includes(priceId)
+  if (purchaseKind === 'topup') {
+    return (
+      typeof productId === 'string' &&
+      claim.products.topup_price_ids.includes(productId)
+    )
+  }
+  return (
+    typeof productId === 'number' &&
+    (claim.products.subscription_plan_ids ?? []).includes(productId)
+  )
 }
 
 function amountToMinor(amountMajor: number): number {
@@ -96,7 +101,7 @@ function getFixedDiscountMinor(
 
 export function getRecallPriceDiscount(
   claim: RecallClaimView | null | undefined,
-  priceId: string | undefined,
+  productId: string | number | undefined,
   purchaseKind: RecallPurchaseKind,
   amountMajor: number,
   currency: string,
@@ -104,7 +109,7 @@ export function getRecallPriceDiscount(
 ): RecallPriceDiscount | null {
   const normalizedCurrency = currency.trim().toUpperCase()
   if (
-    !isRecallPriceEligible(claim, priceId, purchaseKind, nowSeconds) ||
+    !isRecallPriceEligible(claim, productId, purchaseKind, nowSeconds) ||
     !claim ||
     !normalizedCurrency
   ) {

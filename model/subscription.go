@@ -833,8 +833,9 @@ func ListRecallSubscriptionPlansByStripePriceIDsWithContext(ctx context.Context,
 
 	var plans []SubscriptionPlan
 	if err := DB.WithContext(ctx).
-		Select("title", "price_amount", "currency", "stripe_price_id").
+		Select("id", "title", "price_amount", "currency", "enabled", "stripe_price_id").
 		Where("stripe_price_id IN ?", priceIDs).
+		Order("id ASC").
 		Find(&plans).Error; err != nil {
 		return nil, err
 	}
