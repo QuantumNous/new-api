@@ -765,7 +765,7 @@ describe('CampaignEditor audience rules', () => {
     expect(html).not.toContain('Payment providers (comma separated)')
   })
 
-  test('registration-time-range shows only the shared registration range controls', () => {
+  test('registration-time-range shows registration controls and reusable group filtering', () => {
     const template = 'registration_time_range' as RecallAudienceTemplate
     let html = ''
 
@@ -776,8 +776,20 @@ describe('CampaignEditor audience rules', () => {
     expect(html).toContain('aria-labelledby="recall-registration-range-label"')
     expect(html).toContain('name="audience_config.registration_start_at"')
     expect(html).toContain('name="audience_config.registration_end_at"')
-    expect(html).not.toContain('Group mode')
-    expect(html).not.toContain('Require verified email')
+    expect(html).toContain('Group mode')
+    expect(html).toContain('No group filter')
+    expect(html).toContain(groupHelp)
+    expect(html).not.toContain('for="recall-groups"')
+    expect(html).toContain('Require verified email')
+
+    const groupedDraft = makeDraft(template)
+    groupedDraft.audience_config.group_mode = 'allow'
+    groupedDraft.audience_config.groups = ['plg']
+    html = renderEditor(template, groupedDraft)
+    expect(html).toContain('for="recall-groups"')
+    expect(html).toContain('Recall user groups')
+    expect(html).toContain('value="plg"')
+    expect(html).toContain('>plg<')
     expect(html).not.toContain('Payment providers (comma separated)')
     expectAudienceThresholds(html, [])
   })

@@ -44,7 +44,10 @@ func ValidateRecallAudience(template string, cfg RecallAudienceConfig) error {
 		}
 		return validateRecallAudienceGroups(cfg)
 	case "registration_time_range":
-		return validateRecallAudienceRegistrationTimeRange(cfg)
+		if err := validateRecallAudienceRegistrationTimeRange(cfg); err != nil {
+			return err
+		}
+		return validateRecallAudienceGroups(cfg)
 	case "specified_users":
 		return validateRecallSpecifiedAudience(cfg)
 	default:
@@ -380,10 +383,10 @@ func recallAudienceCandidate(draft RecallCampaignDraft, fact model.RecallCandida
 	if setting.RecallMarketingOptOut {
 		return recallAudienceSelection{}, "opted_out", nil
 	}
-	if draft.AudienceTemplate != "registration_time_range" && draft.Audience.RequireVerifiedEmail && user.EmailVerifiedAt <= 0 {
+	if draft.Audience.RequireVerifiedEmail && user.EmailVerifiedAt <= 0 {
 		return recallAudienceSelection{}, "unverified_email", nil
 	}
-	if draft.AudienceTemplate != "specified_users" && draft.AudienceTemplate != "registration_time_range" &&
+	if draft.AudienceTemplate != "specified_users" &&
 		!recallAudienceGroupAllowed(user.Group, draft.Audience.Groups, draft.Audience.GroupMode) {
 		return recallAudienceSelection{}, "group_filtered", nil
 	}
