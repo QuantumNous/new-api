@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"testing"
@@ -91,6 +92,84 @@ func TestParseRecallPaymentStoresAuthoritativeMinorUnits(t *testing.T) {
 	require.Equal(t, int64(12345), fact.AmountTotal)
 	require.Equal(t, "USD", fact.Currency)
 	require.Equal(t, int64(2345), fact.DiscountAmount)
+	require.Equal(t, int64(41), fact.ClaimCampaignID)
+	require.Equal(t, int64(82), fact.ClaimRecipientID)
+}
+
+func TestRecallAttributionPaymentFactUsesCompleteLocalMetadataWithoutHydration(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	campaign, recipient := createRecallAttributionRecipient(t, "promo_local")
+	raw := fmt.Sprintf(`{
+		"id":"cs_local_metadata","amount_total":280,"currency":"usd",
+		"metadata":{
+			"recall_campaign_id":"%d",
+			"recall_recipient_id":"%d",
+			"recall_promotion_code_id":"promo_local",
+			"recall_discount_amount_minor":"20"
+		}
+	}`, campaign.Id, recipient.Id)
+	fact, err := ParseRecallPayment(stripe.Event{ID: "evt_local_metadata", Data: &stripe.EventData{Raw: []byte(raw)}}, "trade_local_metadata", recipient.UserId)
+	require.NoError(t, err)
+	require.Equal(t, "promo_local", fact.PromotionCodeID)
+	require.Equal(t, int64(20), fact.DiscountAmount)
+
+	fetched := false
+	client := &recallStripeFakeClient{getCheckoutSessionFn: func(context.Context, string, ...string) (*stripe.CheckoutSession, error) {
+		fetched = true
+		return nil, errors.New("metadata should avoid hydration")
+	}}
+	service := NewRecallAttributionService(client)
+	service.now = func() time.Time { return time.Unix(1_700_000_200, 0).UTC() }
+
+	require.NoError(t, service.Attribute(context.Background(), fact))
+	require.False(t, fetched)
+	stored := model.RecallRecipient{}
+	require.NoError(t, model.DB.First(&stored, recipient.Id).Error)
+	require.Equal(t, model.RecallRecipientConverted, stored.State)
+	require.Equal(t, model.RecallConversionDirect, stored.ConversionKind)
+	require.Equal(t, int64(280), stored.ConversionAmount)
+	require.Equal(t, int64(20), stored.DiscountAmount)
+}
+
+func TestRecallAttributionStripeDiscountOverridesLocalMetadata(t *testing.T) {
+	raw := `{
+		"id":"cs_native_wins","amount_total":750,"currency":"usd",
+		"discounts":[{"promotion_code":{"id":"promo_native"}}],
+		"total_details":{"amount_discount":250,"breakdown":{"discounts":[]}},
+		"metadata":{
+			"recall_campaign_id":"41",
+			"recall_recipient_id":"82",
+			"recall_promotion_code_id":"promo_local",
+			"recall_discount_amount_minor":"20"
+		}
+	}`
+
+	fact, err := ParseRecallPayment(stripe.Event{ID: "evt_native_wins", Data: &stripe.EventData{Raw: []byte(raw)}}, "trade_native_wins", 7)
+
+	require.NoError(t, err)
+	require.Equal(t, "promo_native", fact.PromotionCodeID)
+	require.Equal(t, int64(250), fact.DiscountAmount)
+	require.Equal(t, int64(41), fact.ClaimCampaignID)
+	require.Equal(t, int64(82), fact.ClaimRecipientID)
+}
+
+func TestRecallAttributionPaymentFactIgnoresIncompleteLocalMetadata(t *testing.T) {
+	raw := `{
+		"id":"cs_incomplete_metadata","amount_total":280,"currency":"usd",
+		"metadata":{
+			"recall_campaign_id":"41",
+			"recall_recipient_id":"82",
+			"recall_discount_amount_minor":"20"
+		}
+	}`
+
+	fact, err := ParseRecallPayment(stripe.Event{ID: "evt_incomplete_metadata", Data: &stripe.EventData{Raw: []byte(raw)}}, "trade_incomplete_metadata", 7)
+
+	require.NoError(t, err)
+	require.Empty(t, fact.PromotionCodeID)
+	require.Zero(t, fact.DiscountAmount)
+	require.False(t, fact.hasDiscount)
+	require.False(t, fact.discountDetailsLoaded)
 	require.Equal(t, int64(41), fact.ClaimCampaignID)
 	require.Equal(t, int64(82), fact.ClaimRecipientID)
 }

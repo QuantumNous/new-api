@@ -142,6 +142,16 @@ func recallPaymentFactFromSession(session *stripe.CheckoutSession) RecallPayment
 	if session.Metadata != nil {
 		fact.ClaimCampaignID, _ = strconv.ParseInt(strings.TrimSpace(session.Metadata["recall_campaign_id"]), 10, 64)
 		fact.ClaimRecipientID, _ = strconv.ParseInt(strings.TrimSpace(session.Metadata["recall_recipient_id"]), 10, 64)
+		if !fact.hasDiscount && fact.DiscountAmount == 0 && strings.TrimSpace(fact.PromotionCodeID) == "" {
+			localPromotionCodeID := strings.TrimSpace(session.Metadata["recall_promotion_code_id"])
+			localDiscountAmount, _ := strconv.ParseInt(strings.TrimSpace(session.Metadata["recall_discount_amount_minor"]), 10, 64)
+			if fact.ClaimCampaignID > 0 && fact.ClaimRecipientID > 0 && localPromotionCodeID != "" && localDiscountAmount > 0 {
+				fact.PromotionCodeID = localPromotionCodeID
+				fact.DiscountAmount = localDiscountAmount
+				fact.hasDiscount = true
+				fact.discountDetailsLoaded = true
+			}
+		}
 	}
 	return fact
 }

@@ -262,6 +262,42 @@ func (s *RecallClaimService) BuildCheckoutDiscount(ctx context.Context, userID i
 	}, nil
 }
 
+func (s *RecallClaimService) BuildFirstMonthPurchaseDiscount(ctx context.Context, userID int, claim string, purchaseKind string, priceID string, currency string, unitAmountMinor int64) (*RecallPurchaseDiscount, error) {
+	if strings.TrimSpace(claim) == "" {
+		return nil, nil
+	}
+	record, view, err := s.validateClaim(ctx, userID, claim)
+	if err != nil {
+		return nil, err
+	}
+	var allowedPrices []string
+	switch purchaseKind {
+	case RecallPurchaseKindTopUp:
+		allowedPrices = view.Products.TopUpPriceIDs
+	case RecallPurchaseKindSubscription:
+		allowedPrices = view.Products.SubscriptionPriceIDs
+	default:
+		return nil, ErrRecallClaimPurchaseKind
+	}
+	if !containsRecallPriceID(allowedPrices, priceID) {
+		return nil, ErrRecallClaimWrongPrice
+	}
+	discountMinor := calculateRecallFirstMonthDiscountAmountMinor(view.Discount, currency, unitAmountMinor)
+	if discountMinor <= 0 {
+		return &RecallPurchaseDiscount{}, nil
+	}
+	promotionCodeID := strings.TrimSpace(*record.Recipient.StripePromotionCodeId)
+	if promotionCodeID == "" || view.CampaignID <= 0 || view.RecipientID <= 0 {
+		return nil, ErrRecallClaimPromotionInvalid
+	}
+	return &RecallPurchaseDiscount{
+		PromotionCodeID:     promotionCodeID,
+		CampaignID:          view.CampaignID,
+		RecipientID:         view.RecipientID,
+		DiscountAmountMinor: discountMinor,
+	}, nil
+}
+
 type recallUnsubscribePayload struct {
 	Version     int   `json:"v"`
 	UserID      int   `json:"u"`

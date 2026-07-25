@@ -76,6 +76,29 @@ func TestBuildOneTimePlanCheckoutUsesQuantityOneAndFullOrderAmount(t *testing.T)
 	require.Contains(t, *item.PriceData.ProductData.Name, "Pro Local")
 }
 
+func TestBuildOneTimePlanCheckoutRecallMetadataUsesDiscountedOrderWithoutRawClaim(t *testing.T) {
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoiceAlipay, "USD", 280, 3)
+	order.RecallCampaignId = 41
+	order.RecallRecipientId = 82
+	order.RecallPromotionCodeId = "promo_local"
+	order.RecallDiscountAmountMinor = 20
+
+	params, err := buildOneTimePlanCheckoutSessionParams(order, &model.User{Id: 501, Email: "buyer@example.com"})
+
+	require.NoError(t, err)
+	require.EqualValues(t, 280, *params.LineItems[0].PriceData.UnitAmount)
+	require.Equal(t, "41", params.Metadata["recall_campaign_id"])
+	require.Equal(t, "82", params.Metadata["recall_recipient_id"])
+	require.Equal(t, "promo_local", params.Metadata["recall_promotion_code_id"])
+	require.Equal(t, "20", params.Metadata["recall_discount_amount_minor"])
+	require.Equal(t, params.Metadata, params.PaymentIntentData.Metadata)
+	for key, value := range params.Metadata {
+		require.NotContains(t, strings.ToLower(key), "claim")
+		require.NotContains(t, strings.ToLower(value), "claim")
+		require.NotContains(t, value, "FKSECRET234")
+	}
+}
+
 func TestBuildOneTimePlanCheckoutEmbeddedUsesReturnURLWithoutHostedURLs(t *testing.T) {
 	originalPublishableKey := setting.StripePublishableKey
 	setting.StripePublishableKey = "pk_test_embedded"

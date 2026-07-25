@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -402,6 +403,173 @@ func TestPurchaseSubscriptionRecallBalanceRequiresClaimAndChargesDiscountedQuote
 	require.Equal(t, 49720, user.Quota)
 	require.NotEqual(t, 49700, user.Quota)
 	require.NotEqual(t, 49760, user.Quota)
+}
+
+func TestPurchaseSubscriptionRecallOneTimeOrderPersistsAttributionFields(t *testing.T) {
+	setupSubscriptionRecallPurchaseTestDB(t)
+	now := time.Now().UTC()
+	fixture := createRecallClaimFixture(t, now)
+	insertPurchaseServiceUser(t, fixture.recipient.UserId, 50000)
+	plan := insertPurchaseServicePlan(t, 7537, 1, 1, 100)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription").Error)
+
+	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        3,
+		RequestID:     "recall-one-time-persist",
+		RecallClaim:   fixture.claim,
+		VerifiedQuote: discountedRecallPurchaseQuote(fixture, 1, 3, 20),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, common.TopUpStatusPending, result.Order.Status)
+	require.Equal(t, int64(280), result.Order.PaymentAmountMinor)
+	require.Equal(t, fixture.campaign.Id, result.Order.RecallCampaignId)
+	require.Equal(t, fixture.recipient.Id, result.Order.RecallRecipientId)
+	require.Equal(t, "promo_recall", result.Order.RecallPromotionCodeId)
+	require.Equal(t, int64(20), result.Order.RecallDiscountAmountMinor)
+	require.NotContains(t, result.Order.ProviderPayload, fixture.claim)
+	require.NotContains(t, result.Order.PlanSnapshot, fixture.claim)
+	var stored model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&stored, result.Order.Id).Error)
+	require.Equal(t, result.Order.RecallCampaignId, stored.RecallCampaignId)
+	require.Equal(t, result.Order.RecallRecipientId, stored.RecallRecipientId)
+	require.Equal(t, result.Order.RecallPromotionCodeId, stored.RecallPromotionCodeId)
+	require.Equal(t, result.Order.RecallDiscountAmountMinor, stored.RecallDiscountAmountMinor)
+}
+
+func TestPurchaseSubscriptionRecallBalanceOrderConvertsAndReplayDoesNotDoubleConsume(t *testing.T) {
+	setupSubscriptionRecallPurchaseTestDB(t)
+	now := time.Now().UTC()
+	fixture := createRecallClaimFixture(t, now)
+	insertPurchaseServiceUser(t, fixture.recipient.UserId, 50000)
+	plan := insertPurchaseServicePlan(t, 7538, 1, 1, 100)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription").Error)
+	cmd := PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        3,
+		RequestID:     "recall-balance-convert",
+		RecallClaim:   fixture.claim,
+		VerifiedQuote: discountedRecallPurchaseQuote(fixture, 1, 3, 20),
+	}
+
+	first, err := PurchaseSubscription(cmd)
+	require.NoError(t, err)
+	require.Equal(t, fixture.campaign.Id, first.Order.RecallCampaignId)
+	require.Equal(t, fixture.recipient.Id, first.Order.RecallRecipientId)
+	require.Equal(t, "promo_recall", first.Order.RecallPromotionCodeId)
+	require.Equal(t, int64(20), first.Order.RecallDiscountAmountMinor)
+
+	var converted model.RecallRecipient
+	require.NoError(t, model.DB.First(&converted, fixture.recipient.Id).Error)
+	require.Equal(t, model.RecallRecipientConverted, converted.State)
+	require.Equal(t, model.RecallConversionDirect, converted.ConversionKind)
+	require.Equal(t, first.Order.TradeNo, converted.ConversionTradeNo)
+	require.Equal(t, "USD", converted.ConversionCurrency)
+	require.Equal(t, int64(280), converted.ConversionAmount)
+	require.Equal(t, int64(20), converted.DiscountAmount)
+	var conversion model.RecallEvent
+	require.NoError(t, model.DB.Where("recipient_id = ? AND event_type = ?", fixture.recipient.Id, "conversion").First(&conversion).Error)
+	require.Equal(t, "balance", conversion.Source)
+	require.Equal(t, "balance:"+first.Order.TradeNo, conversion.SourceEventId)
+	require.NotContains(t, conversion.EventData, fixture.claim)
+	require.NotContains(t, first.Order.ProviderPayload, fixture.claim)
+	require.NotContains(t, first.Order.PlanSnapshot, fixture.claim)
+
+	replay, err := PurchaseSubscription(cmd)
+	require.NoError(t, err)
+	require.Equal(t, first.Order.Id, replay.Order.Id)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", fixture.recipient.UserId).Count(&orderCount).Error)
+	require.Equal(t, int64(1), orderCount)
+	var ledgerCount int64
+	require.NoError(t, model.DB.Model(&model.WalletLedgerEntry{}).Where("user_id = ?", fixture.recipient.UserId).Count(&ledgerCount).Error)
+	require.Equal(t, int64(1), ledgerCount)
+	var conversionCount int64
+	require.NoError(t, model.DB.Model(&model.RecallEvent{}).Where("recipient_id = ? AND event_type = ?", fixture.recipient.Id, "conversion").Count(&conversionCount).Error)
+	require.Equal(t, int64(1), conversionCount)
+
+	_, err = PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        3,
+		RequestID:     "recall-balance-reuse-other-request",
+		RecallClaim:   fixture.claim,
+		VerifiedQuote: discountedRecallPurchaseQuote(fixture, 1, 3, 20),
+	})
+	require.ErrorIs(t, err, ErrRecallClaimConverted)
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", fixture.recipient.UserId).Count(&orderCount).Error)
+	require.Equal(t, int64(1), orderCount)
+	require.NoError(t, model.DB.Model(&model.WalletLedgerEntry{}).Where("user_id = ?", fixture.recipient.UserId).Count(&ledgerCount).Error)
+	require.Equal(t, int64(1), ledgerCount)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, fixture.recipient.UserId).Error)
+	require.Equal(t, 49720, user.Quota)
+}
+
+func TestPurchaseSubscriptionRecallBalanceConversionRollsBackWithLaterTransactionFailure(t *testing.T) {
+	setupSubscriptionRecallPurchaseTestDB(t)
+	now := time.Now().UTC()
+	fixture := createRecallClaimFixture(t, now)
+	insertPurchaseServiceUser(t, fixture.recipient.UserId, 50000)
+	plan := insertPurchaseServicePlan(t, 7539, 1, 1, 100)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription").Error)
+	sentinel := errors.New("injected ledger failure after recall conversion")
+	callbackName := "recall_balance_atomic_rollback_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, model.DB.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "wallet_ledger_entries" {
+			tx.AddError(sentinel)
+		}
+	}))
+	t.Cleanup(func() { _ = model.DB.Callback().Create().Remove(callbackName) })
+
+	_, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        3,
+		RequestID:     "recall-balance-rollback",
+		RecallClaim:   fixture.claim,
+		VerifiedQuote: discountedRecallPurchaseQuote(fixture, 1, 3, 20),
+	})
+
+	require.ErrorIs(t, err, sentinel)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, fixture.recipient.UserId).Error)
+	require.Equal(t, 50000, user.Quota)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", fixture.recipient.UserId).Count(&orderCount).Error)
+	require.Zero(t, orderCount)
+	var ledgerCount int64
+	require.NoError(t, model.DB.Model(&model.WalletLedgerEntry{}).Where("user_id = ?", fixture.recipient.UserId).Count(&ledgerCount).Error)
+	require.Zero(t, ledgerCount)
+	var eventCount int64
+	require.NoError(t, model.DB.Model(&model.RecallEvent{}).Where("recipient_id = ? AND event_type = ?", fixture.recipient.Id, "conversion").Count(&eventCount).Error)
+	require.Zero(t, eventCount)
+	var recipient model.RecallRecipient
+	require.NoError(t, model.DB.First(&recipient, fixture.recipient.Id).Error)
+	require.Equal(t, model.RecallRecipientContacting, recipient.State)
+	require.Zero(t, recipient.ConvertedAt)
+}
+
+func discountedRecallPurchaseQuote(fixture recallClaimFixture, unitPrice float64, months int, discountMinor int64) *SubscriptionPurchaseQuote {
+	quote := subscriptionPurchaseTestQuote("USD", unitPrice, months)
+	quote.DiscountAmountMinor = discountMinor
+	quote.DiscountAmount = float64(discountMinor) / 100
+	quote.PaymentAmountMinor = quote.OriginalTotalAmountMinor - discountMinor
+	quote.Total = float64(quote.PaymentAmountMinor) / 100
+	quote.RecallCampaignID = fixture.campaign.Id
+	quote.RecallRecipientID = fixture.recipient.Id
+	quote.RecallPromotionCodeID = "promo_recall"
+	return quote
 }
 
 func TestPurchaseSubscriptionRecallRejectsTamperedDiscountedQuote(t *testing.T) {
