@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { useStatus } from '@/hooks/use-status'
+import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 
 import { HeroTerminalDemo } from '../hero-terminal-demo'
 
@@ -50,6 +51,9 @@ export function Hero(props: HeroProps) {
   const { status } = useStatus()
   const docsUrl =
     (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
+  const docsEnabled =
+    parseHeaderNavModulesFromStatus(status as Record<string, unknown> | null)
+      .docs !== false
 
   const renderDocsButton = () => {
     const isExternal = docsUrl.startsWith('http')
@@ -146,7 +150,7 @@ export function Hero(props: HeroProps) {
                   {t('Go to Dashboard')}
                   <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
                 </Button>
-                {renderDocsButton()}
+                {docsEnabled && renderDocsButton()}
               </>
             ) : (
               <>
@@ -164,7 +168,7 @@ export function Hero(props: HeroProps) {
                 >
                   {t('View Pricing')}
                 </Button>
-                {renderDocsButton()}
+                {docsEnabled && renderDocsButton()}
               </>
             )}
           </div>
