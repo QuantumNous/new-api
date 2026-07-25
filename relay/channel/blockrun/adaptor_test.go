@@ -10,9 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/pkg/apicompat"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
@@ -169,10 +167,10 @@ func TestConvertOpenAIRequest_NilRejected(t *testing.T) {
 	}
 }
 
-// TestConvertOpenAIResponsesRequest_BridgesToChat asserts the inbound Responses
-// request is converted to Chat Completions because BlockRun does not expose a
-// native /v1/responses endpoint today.
-func TestConvertOpenAIResponsesRequest_BridgesToChat(t *testing.T) {
+// TestConvertOpenAIResponsesRequest_NativeRemarshal asserts Responses stays in
+// its native DTO and preserves custom tools plus explicit zero/false values.
+// stream_options is the only provider-local removal because BlockRun rejects it.
+func TestConvertOpenAIResponsesRequest_NativeRemarshal(t *testing.T) {
 	a := &Adaptor{}
 	c := newTestContext(http.MethodPost, "/v1/responses", nil)
 	info := &relaycommon.RelayInfo{
@@ -181,35 +179,46 @@ func TestConvertOpenAIResponsesRequest_BridgesToChat(t *testing.T) {
 		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
 	}
 	stream := true
-	instructions, _ := common.Marshal("be brief")
-	input, _ := common.Marshal("hello")
+	zeroUint := uint(0)
+	zeroFloat := 0.0
 	in := dto.OpenAIResponsesRequest{
-		Model:         "openai/gpt-5.4",
-		Instructions:  instructions,
-		Input:         input,
-		Stream:        &stream,
-		StreamOptions: &dto.StreamOptions{IncludeUsage: true},
+		Model:              "openai/gpt-5.4",
+		Input:              []byte(`[{"role":"user","content":"hello"}]`),
+		Instructions:       []byte(`"be brief"`),
+		MaxOutputTokens:    &zeroUint,
+		ParallelToolCalls:  []byte(`false`),
+		Temperature:        &zeroFloat,
+		TopP:               &zeroFloat,
+		Stream:             &stream,
+		StreamOptions:      &dto.StreamOptions{IncludeUsage: true},
+		ToolChoice:         []byte(`{"type":"custom","name":"shell"}`),
+		Tools:              []byte(`[{"type":"custom","name":"shell","description":"run a command","format":{"type":"text"}}]`),
+		ClientMetadata:     []byte(`{"session_id":"sess-1"}`),
+		PreviousResponseID: "resp_previous",
 	}
 
 	out, err := a.ConvertOpenAIResponsesRequest(c, info, in)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	got, ok := out.(*apicompat.ChatCompletionsRequest)
+	got, ok := out.(dto.OpenAIResponsesRequest)
 	if !ok {
-		t.Fatalf("expected *apicompat.ChatCompletionsRequest, got %T", out)
+		t.Fatalf("expected dto.OpenAIResponsesRequest, got %T", out)
 	}
 	if got.Model != in.Model {
 		t.Fatalf("model not preserved: got %q want %q", got.Model, in.Model)
 	}
-	if len(got.Messages) != 2 {
-		t.Fatalf("expected system + user messages, got %#v", got.Messages)
+	if got.Stream == nil || !*got.Stream {
+		t.Fatalf("stream flag not preserved: %#v", got.Stream)
 	}
-	if !got.Stream {
-		t.Fatalf("stream flag not preserved")
+	if got.StreamOptions != nil {
+		t.Fatalf("stream_options must be stripped for native BlockRun Responses: %#v", got.StreamOptions)
 	}
-	if got.StreamOptions == nil || !got.StreamOptions.IncludeUsage {
-		t.Fatalf("stream_options.include_usage not preserved: %#v", got.StreamOptions)
+	if got.MaxOutputTokens == nil || *got.MaxOutputTokens != 0 || got.Temperature == nil || *got.Temperature != 0 || got.TopP == nil || *got.TopP != 0 {
+		t.Fatalf("explicit zero values were not preserved: max=%v temperature=%v top_p=%v", got.MaxOutputTokens, got.Temperature, got.TopP)
+	}
+	if string(got.ParallelToolCalls) != "false" || string(got.ToolChoice) != string(in.ToolChoice) || string(got.Tools) != string(in.Tools) {
+		t.Fatalf("tool fields changed: parallel=%s choice=%s tools=%s", got.ParallelToolCalls, got.ToolChoice, got.Tools)
 	}
 }
 
@@ -223,53 +232,6 @@ func TestConvertOpenAIResponsesRequest_MissingModelRejected(t *testing.T) {
 
 	if _, err := a.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{}); err == nil {
 		t.Fatalf("expected error for missing responses model, got nil")
-	}
-}
-
-func TestBlockRunChatJSONToResponses(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-
-	body := `{
-		"id":"chatcmpl-test",
-		"object":"chat.completion",
-		"created":1782969000,
-		"model":"openai/gpt-5.4",
-		"choices":[{"index":0,"message":{"role":"assistant","content":"pong"},"finish_reason":"stop"}],
-		"usage":{"prompt_tokens":3,"completion_tokens":4,"total_tokens":7}
-	}`
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     make(http.Header),
-		Body:       io.NopCloser(strings.NewReader(body)),
-	}
-	info := &relaycommon.RelayInfo{
-		RelayMode: relayconstant.RelayModeResponses,
-		ChannelMeta: &relaycommon.ChannelMeta{
-			UpstreamModelName: "openai/gpt-5.4",
-		},
-	}
-
-	usageAny, apiErr := blockRunChatJSONToResponses(c, resp, info)
-	if apiErr != nil {
-		t.Fatalf("unexpected api error: %v", apiErr)
-	}
-	usage := usageAny.(*dto.Usage)
-	if usage.TotalTokens != 7 {
-		t.Fatalf("usage not converted: %#v", usage)
-	}
-
-	var got apicompat.ResponsesResponse
-	if err := common.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatalf("response body is not JSON: %v\n%s", err, rec.Body.String())
-	}
-	if got.ID != "chatcmpl-test" || got.Object != "response" || got.Status != "completed" {
-		t.Fatalf("unexpected responses envelope: %#v", got)
-	}
-	if len(got.Output) != 1 || len(got.Output[0].Content) != 1 || got.Output[0].Content[0].Text != "pong" {
-		t.Fatalf("unexpected responses output: %#v", got.Output)
 	}
 }
 
