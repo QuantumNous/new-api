@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Loader2 } from 'lucide-react'
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -112,6 +112,120 @@ type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>
 type PricingMode = 'per-token' | 'per-request'
 type PricingSubMode = 'ratio' | 'price'
 
+type PricingFields = Pick<
+  ExtendedModelFormValues,
+  | 'price'
+  | 'ratio'
+  | 'cacheRatio'
+  | 'completionRatio'
+  | 'imageRatio'
+  | 'audioRatio'
+  | 'audioCompletionRatio'
+>
+
+// Form state describing the pricing currently configured for one model name.
+type PricingConfig = {
+  mode: PricingMode
+  fields: PricingFields
+  promptPrice: string
+  completionPrice: string
+  advancedOpen: boolean
+}
+
+const EMPTY_PRICING_FIELDS: PricingFields = {
+  price: '',
+  ratio: '',
+  cacheRatio: '',
+  completionRatio: '',
+  imageRatio: '',
+  audioRatio: '',
+  audioCompletionRatio: '',
+}
+
+const EMPTY_PRICING_CONFIG: PricingConfig = {
+  mode: 'per-token',
+  fields: EMPTY_PRICING_FIELDS,
+  promptPrice: '',
+  completionPrice: '',
+  advancedOpen: false,
+}
+
+function lookupModelRatio(
+  rawMap: string,
+  modelName: string
+): number | undefined {
+  return safeJsonParse<Record<string, number>>(rawMap, {
+    fallback: {},
+    silent: true,
+  })[modelName]
+}
+
+// Pricing is not stored on the model row: it lives in system options as
+// model-name keyed JSON maps, so it has to be read back out of those maps to
+// populate the form. Both create and edit rely on this, because submit rebuilds
+// the maps from the form and would otherwise drop pricing it never loaded.
+function readPricingConfig(
+  settings: ModelSettings | null,
+  modelName: string
+): PricingConfig {
+  if (!settings || !modelName) return EMPTY_PRICING_CONFIG
+
+  const price = lookupModelRatio(settings.ModelPrice, modelName)
+  const ratio = lookupModelRatio(settings.ModelRatio, modelName)
+  const cacheRatio = lookupModelRatio(settings.CacheRatio, modelName)
+  const completionRatio = lookupModelRatio(settings.CompletionRatio, modelName)
+  const imageRatio = lookupModelRatio(settings.ImageRatio, modelName)
+  const audioRatio = lookupModelRatio(settings.AudioRatio, modelName)
+  const audioCompletionRatio = lookupModelRatio(
+    settings.AudioCompletionRatio,
+    modelName
+  )
+
+  // A fixed per-request price wins outright at billing time (see
+  // GetModelRatioOrPrice), so a name that has one is shown, and saved back, as
+  // price-only: the ratios alongside it are dead weight.
+  if (price !== undefined && price !== null) {
+    return {
+      ...EMPTY_PRICING_CONFIG,
+      mode: 'per-request',
+      fields: { ...EMPTY_PRICING_FIELDS, price: price.toString() },
+    }
+  }
+
+  let promptPrice = ''
+  let completionPrice = ''
+  if (ratio !== undefined && ratio !== null) {
+    const tokenPrice = ratio * 2
+    promptPrice = tokenPrice.toString()
+    if (completionRatio !== undefined && completionRatio !== null) {
+      completionPrice = (tokenPrice * completionRatio).toString()
+    }
+  }
+
+  return {
+    mode: 'per-token',
+    fields: {
+      price: '',
+      ratio: ratio?.toString() || '',
+      cacheRatio: cacheRatio?.toString() || '',
+      completionRatio: completionRatio?.toString() || '',
+      imageRatio: imageRatio?.toString() || '',
+      audioRatio: audioRatio?.toString() || '',
+      audioCompletionRatio: audioCompletionRatio?.toString() || '',
+    },
+    promptPrice,
+    completionPrice,
+    // Configured is not the same as non-zero: a 0 ratio (free cache reads, for
+    // instance) still has to be visible rather than hidden behind the collapse.
+    advancedOpen: [
+      cacheRatio,
+      imageRatio,
+      audioRatio,
+      audioCompletionRatio,
+    ].some((value) => value !== undefined && value !== null),
+  }
+}
+
 type ModelMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -134,6 +248,14 @@ export function ModelMutateDrawer({
   const [promptPrice, setPromptPrice] = useState('')
   const [completionPrice, setCompletionPrice] = useState('')
   const [oldModelName, setOldModelName] = useState<string>('')
+  // Model name whose pricing was read into the form when the drawer opened.
+  // Submit may only rewrite pricing for this name, or for a name the user
+  // explicitly priced; anything else it never saw and must leave alone.
+  const [loadedPricingName, setLoadedPricingName] = useState<string>('')
+  // Keep a ref so the load effect can read the latest modelSettings without
+  // depending on it: modelSettings is a fresh object on every system-options
+  // refetch, and including it in the deps would reset the form under the user.
+  const modelSettingsRef = useRef<ModelSettings | null>(null)
 
   // Fetch vendors for dropdown
   const { data: vendorsData } = useQuery({
@@ -225,6 +347,15 @@ export function ModelMutateDrawer({
     return getOptionValue(systemOptionsData.data, defaultModelSettings)
   }, [systemOptionsData])
 
+  // The load effect keys off this boolean, not the object: it re-runs once
+  // when the settings first arrive (so a drawer opened before that still gets
+  // its pricing prefilled), while later refetches only produce a new object
+  // reference and must not reset a form the user may be editing.
+  const hasModelSettings = modelSettings !== null
+  useEffect(() => {
+    modelSettingsRef.current = modelSettings
+  })
+
   const form = useForm<ExtendedModelFormValues>({
     resolver: zodResolver(extendedModelFormSchema),
     defaultValues: {
@@ -285,8 +416,16 @@ export function ModelMutateDrawer({
       const model = modelData.data
       setOldModelName(model.model_name)
 
-      // Base model data reset
-      const baseModelData = {
+      const pricing = readPricingConfig(
+        modelSettingsRef.current,
+        model.model_name
+      )
+      setLoadedPricingName(model.model_name)
+      setPricingMode(pricing.mode)
+      setPromptPrice(pricing.promptPrice)
+      setCompletionPrice(pricing.completionPrice)
+      setAdvancedOpen(pricing.advancedOpen)
+      form.reset({
         id: model.id,
         model_name: model.model_name,
         description: model.description || '',
@@ -297,102 +436,23 @@ export function ModelMutateDrawer({
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
-        price: '',
-        ratio: '',
-        cacheRatio: '',
-        completionRatio: '',
-        imageRatio: '',
-        audioRatio: '',
-        audioCompletionRatio: '',
-      }
-
-      // Parse ratio configurations from system settings if available
-      if (modelSettings) {
-        const priceMap = safeJsonParse<Record<string, number>>(
-          modelSettings.ModelPrice,
-          { fallback: {}, silent: true }
-        )
-        const ratioMap = safeJsonParse<Record<string, number>>(
-          modelSettings.ModelRatio,
-          { fallback: {}, silent: true }
-        )
-        const cacheMap = safeJsonParse<Record<string, number>>(
-          modelSettings.CacheRatio,
-          { fallback: {}, silent: true }
-        )
-        const completionMap = safeJsonParse<Record<string, number>>(
-          modelSettings.CompletionRatio,
-          { fallback: {}, silent: true }
-        )
-        const imageMap = safeJsonParse<Record<string, number>>(
-          modelSettings.ImageRatio,
-          { fallback: {}, silent: true }
-        )
-        const audioMap = safeJsonParse<Record<string, number>>(
-          modelSettings.AudioRatio,
-          { fallback: {}, silent: true }
-        )
-        const audioCompletionMap = safeJsonParse<Record<string, number>>(
-          modelSettings.AudioCompletionRatio,
-          { fallback: {}, silent: true }
-        )
-
-        // Extract ratio config for this model
-        const modelName = model.model_name
-        const price = priceMap[modelName]
-        const ratio = ratioMap[modelName]
-        const cacheRatio = cacheMap[modelName]
-        const completionRatio = completionMap[modelName]
-        const imageRatio = imageMap[modelName]
-        const audioRatio = audioMap[modelName]
-        const audioCompletionRatio = audioCompletionMap[modelName]
-
-        // Determine pricing mode
-        if (price !== undefined && price !== null) {
-          setPricingMode('per-request')
-          form.reset({
-            ...baseModelData,
-            price: price.toString(),
-          })
-        } else {
-          setPricingMode('per-token')
-          if (ratio !== undefined && ratio !== null) {
-            const tokenPrice = ratio * 2
-            setPromptPrice(tokenPrice.toString())
-            if (completionRatio !== undefined && completionRatio !== null) {
-              const compPrice = tokenPrice * completionRatio
-              setCompletionPrice(compPrice.toString())
-            }
-          }
-          form.reset({
-            ...baseModelData,
-            ratio: ratio?.toString() || '',
-            cacheRatio: cacheRatio?.toString() || '',
-            completionRatio: completionRatio?.toString() || '',
-            imageRatio: imageRatio?.toString() || '',
-            audioRatio: audioRatio?.toString() || '',
-            audioCompletionRatio: audioCompletionRatio?.toString() || '',
-          })
-          setAdvancedOpen(
-            !!(cacheRatio || imageRatio || audioRatio || audioCompletionRatio)
-          )
-        }
-      } else {
-        // If system settings not loaded yet, just load base model data
-        setPricingMode('per-token')
-        form.reset(baseModelData)
-        setAdvancedOpen(false)
-      }
+        ...pricing.fields,
+      })
     } else if (open && !isEditing) {
-      // Pre-fill model name if passed from missing models
+      // Pre-fill model name if passed from missing models, along with any
+      // pricing that name already has, so the user edits it instead of being
+      // shown an empty form that hides existing configuration.
+      const modelName = currentRow?.model_name || ''
+      const pricing = readPricingConfig(modelSettingsRef.current, modelName)
       setOldModelName('')
-      setPricingMode('per-token')
+      setLoadedPricingName(modelName)
       setPricingSubMode('ratio')
-      setPromptPrice('')
-      setCompletionPrice('')
-      setAdvancedOpen(false)
+      setPricingMode(pricing.mode)
+      setPromptPrice(pricing.promptPrice)
+      setCompletionPrice(pricing.completionPrice)
+      setAdvancedOpen(pricing.advancedOpen)
       form.reset({
-        model_name: currentRow?.model_name || '',
+        model_name: modelName,
         description: '',
         icon: '',
         tags: [],
@@ -401,16 +461,10 @@ export function ModelMutateDrawer({
         name_rule: 0,
         status: true,
         sync_official: true,
-        price: '',
-        ratio: '',
-        cacheRatio: '',
-        completionRatio: '',
-        imageRatio: '',
-        audioRatio: '',
-        audioCompletionRatio: '',
+        ...pricing.fields,
       })
     }
-  }, [open, isEditing, modelData, currentRow, form, modelSettings])
+  }, [open, isEditing, modelData, currentRow, form, hasModelSettings])
 
   const onSubmit = useCallback(
     async (values: ExtendedModelFormValues): Promise<void> => {
@@ -500,15 +554,24 @@ export function ModelMutateDrawer({
               delete audioCompletionMap[oldModelName]
             }
 
-            // Remove current model name from all maps first (always, to handle mode switches or clearing)
-            // This ensures stale entries are removed even when user clears all fields
-            delete priceMap[finalModelName]
-            delete ratioMap[finalModelName]
-            delete cacheMap[finalModelName]
-            delete completionMap[finalModelName]
-            delete imageMap[finalModelName]
-            delete audioMap[finalModelName]
-            delete audioCompletionMap[finalModelName]
+            // Rebuild this model name's entries from the form, but only when
+            // the form speaks for that name: it loaded the name's pricing when
+            // the drawer opened, so clearing every field means "remove
+            // pricing", or the user typed pricing in, which then wins outright
+            // (this is also what replaces the old entries across a mode
+            // switch). A name the form never loaded may still have pricing
+            // configured elsewhere, and an untouched pricing section must not
+            // wipe it -- that covers creating a model over an existing name,
+            // and renaming onto one.
+            if (hasRatioConfig || finalModelName === loadedPricingName) {
+              delete priceMap[finalModelName]
+              delete ratioMap[finalModelName]
+              delete cacheMap[finalModelName]
+              delete completionMap[finalModelName]
+              delete imageMap[finalModelName]
+              delete audioMap[finalModelName]
+              delete audioCompletionMap[finalModelName]
+            }
 
             // Only add new entries if user provided new configuration
             if (hasRatioConfig) {
@@ -647,6 +710,7 @@ export function ModelMutateDrawer({
       onOpenChange,
       pricingMode,
       oldModelName,
+      loadedPricingName,
       modelSettings,
       updateOption,
     ]
