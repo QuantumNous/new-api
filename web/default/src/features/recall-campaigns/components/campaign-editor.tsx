@@ -1,5 +1,10 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react'
-import { useFieldArray, useForm, type FieldPath } from 'react-hook-form'
+import {
+  Controller,
+  useFieldArray,
+  useForm,
+  type FieldPath,
+} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   INTERFACE_LANGUAGE_OPTIONS,
@@ -209,6 +214,7 @@ const audienceFields: Record<
     },
   ],
   registered_only: [],
+  registration_time_range: [],
   specified_users: [],
 }
 
@@ -310,10 +316,6 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const groups = form.watch('audience_config.groups')
   const groupMode = form.watch('audience_config.group_mode')
   const providers = form.watch('audience_config.payment_providers')
-  const registrationStartAt = form.watch(
-    'audience_config.registration_start_at'
-  )
-  const registrationEndAt = form.watch('audience_config.registration_end_at')
   const specifiedUserIDs = form.watch('audience_config.specified_user_ids')
   const specifiedEmails = form.watch('audience_config.specified_emails')
   const topUpPrices = form.watch('product_scope.topup_price_ids')
@@ -325,7 +327,12 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const isSaving = mutations.create.isPending || mutations.update.isPending
   const SpecifiedUsersSelector =
     props.specifiedUsersSelector ?? LazyCampaignSpecifiedUsersSelector
-  const showGroupFilter = audienceTemplate !== 'specified_users'
+  const usesRegistrationRange =
+    audienceTemplate === 'registered_only' ||
+    audienceTemplate === 'registration_time_range'
+  const showGroupFilter =
+    audienceTemplate !== 'specified_users' &&
+    audienceTemplate !== 'registration_time_range'
   const showGroupSelector = showGroupFilter && groupMode !== ''
   const showPaymentProviders =
     audienceTemplate === 'lapsed_payer' ||
@@ -380,18 +387,6 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const setGroups = (value: string[]) => {
     void setRecallCampaignGroups(form, value).catch(() => {
       toast.error(t('Something went wrong!'))
-    })
-  }
-
-  const setRegistrationDateTime = (
-    path:
-      | 'audience_config.registration_start_at'
-      | 'audience_config.registration_end_at',
-    value: string
-  ) => {
-    form.setValue(path, recallLocalDateTimeToUnix(value), {
-      shouldDirty: true,
-      shouldValidate: true,
     })
   }
 
@@ -488,6 +483,10 @@ export function CampaignEditor(props: CampaignEditorProps) {
                   label: t('Expired subscription'),
                 },
                 { value: 'registered_only', label: t('Registered only') },
+                {
+                  value: 'registration_time_range',
+                  label: t('Registration time range'),
+                },
                 { value: 'specified_users', label: t('Specified users') },
               ]}
             >
@@ -510,6 +509,9 @@ export function CampaignEditor(props: CampaignEditorProps) {
                   </SelectItem>
                   <SelectItem value='registered_only'>
                     {t('Registered only')}
+                  </SelectItem>
+                  <SelectItem value='registration_time_range'>
+                    {t('Registration time range')}
                   </SelectItem>
                   <SelectItem value='specified_users'>
                     {t('Specified users')}
@@ -551,77 +553,98 @@ export function CampaignEditor(props: CampaignEditorProps) {
               />
             </div>
           ))}
-          {audienceTemplate === 'registered_only' ? (
-            <>
-              <div className='space-y-2'>
-                <Label htmlFor='recall-registration-start-at'>
-                  {t('Registration start')}
-                </Label>
-                <Input
-                  id='recall-registration-start-at'
-                  type='datetime-local'
-                  required
-                  disabled={immutable}
-                  aria-invalid={Boolean(registrationStartError)}
-                  aria-describedby={
-                    registrationStartError
-                      ? 'recall-registration-start-at-error'
-                      : undefined
-                  }
-                  value={recallUnixToLocalDateTime(registrationStartAt)}
-                  {...form.register('audience_config.registration_start_at', {
-                    onChange: (event) =>
-                      setRegistrationDateTime(
-                        'audience_config.registration_start_at',
-                        event.target.value
-                      ),
-                  })}
+          {usesRegistrationRange ? (
+            <fieldset
+              aria-labelledby='recall-registration-range-label'
+              className='rounded-lg border p-3 md:col-span-3'
+            >
+              <legend
+                id='recall-registration-range-label'
+                className='px-1 text-sm font-medium'
+              >
+                {t('Registration time range')}
+              </legend>
+              <div className='grid gap-4 md:grid-cols-2'>
+                <Controller
+                  control={form.control}
+                  name='audience_config.registration_start_at'
+                  render={({ field }) => (
+                    <div className='space-y-2'>
+                      <Label htmlFor='recall-registration-start-at'>
+                        {t('Registration start')}
+                      </Label>
+                      <Input
+                        {...field}
+                        id='recall-registration-start-at'
+                        type='datetime-local'
+                        required
+                        disabled={immutable}
+                        aria-invalid={Boolean(registrationStartError)}
+                        aria-describedby={
+                          registrationStartError
+                            ? 'recall-registration-start-at-error'
+                            : undefined
+                        }
+                        value={recallUnixToLocalDateTime(field.value)}
+                        onChange={(event) =>
+                          field.onChange(
+                            recallLocalDateTimeToUnix(event.target.value)
+                          )
+                        }
+                      />
+                      {registrationStartError ? (
+                        <p
+                          id='recall-registration-start-at-error'
+                          role='alert'
+                          className='text-destructive text-sm'
+                        >
+                          {t(String(registrationStartError.message))}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                 />
-                {registrationStartError ? (
-                  <p
-                    id='recall-registration-start-at-error'
-                    role='alert'
-                    className='text-destructive text-sm'
-                  >
-                    {t(String(registrationStartError.message))}
-                  </p>
-                ) : null}
-              </div>
-              <div className='space-y-2'>
-                <Label htmlFor='recall-registration-end-at'>
-                  {t('Registration end')}
-                </Label>
-                <Input
-                  id='recall-registration-end-at'
-                  type='datetime-local'
-                  required
-                  disabled={immutable}
-                  aria-invalid={Boolean(registrationEndError)}
-                  aria-describedby={
-                    registrationEndError
-                      ? 'recall-registration-end-at-error'
-                      : undefined
-                  }
-                  value={recallUnixToLocalDateTime(registrationEndAt)}
-                  {...form.register('audience_config.registration_end_at', {
-                    onChange: (event) =>
-                      setRegistrationDateTime(
-                        'audience_config.registration_end_at',
-                        event.target.value
-                      ),
-                  })}
+                <Controller
+                  control={form.control}
+                  name='audience_config.registration_end_at'
+                  render={({ field }) => (
+                    <div className='space-y-2'>
+                      <Label htmlFor='recall-registration-end-at'>
+                        {t('Registration end')}
+                      </Label>
+                      <Input
+                        {...field}
+                        id='recall-registration-end-at'
+                        type='datetime-local'
+                        required
+                        disabled={immutable}
+                        aria-invalid={Boolean(registrationEndError)}
+                        aria-describedby={
+                          registrationEndError
+                            ? 'recall-registration-end-at-error'
+                            : undefined
+                        }
+                        value={recallUnixToLocalDateTime(field.value)}
+                        onChange={(event) =>
+                          field.onChange(
+                            recallLocalDateTimeToUnix(event.target.value)
+                          )
+                        }
+                      />
+                      {registrationEndError ? (
+                        <p
+                          id='recall-registration-end-at-error'
+                          role='alert'
+                          className='text-destructive text-sm'
+                        >
+                          {t(String(registrationEndError.message))}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                 />
-                {registrationEndError ? (
-                  <p
-                    id='recall-registration-end-at-error'
-                    role='alert'
-                    className='text-destructive text-sm'
-                  >
-                    {t(String(registrationEndError.message))}
-                  </p>
-                ) : null}
               </div>
-            </>
+            </fieldset>
           ) : null}
           {audienceTemplate === 'specified_users' ? (
             <div className='space-y-3 md:col-span-3'>
@@ -727,14 +750,16 @@ export function CampaignEditor(props: CampaignEditorProps) {
               />
             </div>
           )}
-          <label className='flex items-center gap-2 md:col-span-3'>
-            <input
-              type='checkbox'
-              disabled={immutable}
-              {...form.register('audience_config.require_verified_email')}
-            />
-            {t('Require verified email')}
-          </label>
+          {audienceTemplate !== 'registration_time_range' ? (
+            <label className='flex items-center gap-2 md:col-span-3'>
+              <input
+                type='checkbox'
+                disabled={immutable}
+                {...form.register('audience_config.require_verified_email')}
+              />
+              {t('Require verified email')}
+            </label>
+          ) : null}
         </CardContent>
       </Card>
 

@@ -44,6 +44,7 @@ const translatedAudienceTemplateDescriptionKeys = [
   audienceTemplateDescriptionKeys.lapsed_payer,
   audienceTemplateDescriptionKeys.expired_subscription,
   audienceTemplateDescriptionKeys.registered_only,
+  audienceTemplateDescriptionKeys.registration_time_range,
   audienceTemplateDescriptionKeys.specified_users,
 ] as const
 
@@ -56,6 +57,7 @@ const activityConfigurationKeys = [
 
 const exactAudienceControlKeys = [
   'Registered only',
+  'Registration time range',
   'Specified users',
   'Registration start',
   'Registration end',
@@ -70,6 +72,7 @@ const exactAudienceControlKeys = [
 
 const dynamicAudienceTemplateValueKeys = [
   'registered_only',
+  'registration_time_range',
   'specified_users',
 ] as const
 
@@ -139,6 +142,8 @@ describe('recall campaign copy', () => {
         'Targets previous subscribers whose subscription is no longer active and expired long enough ago.',
       registered_only:
         'Targets users who registered within a selected registration date range.',
+      registration_time_range:
+        'Targets users registered within the selected time range, regardless of API usage, payment, or subscription status.',
       specified_users:
         'Targets explicitly selected users by user ID or email address.',
     })
