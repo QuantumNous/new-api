@@ -497,6 +497,56 @@ func resetExpiredStripeWebhookLeases(ctx context.Context) (int, error) {
 	return int(result.RowsAffected), result.Error
 }
 
+// ReconcileUnresolvedStripeIntentsForUser is the self-serve fast path of
+// reconcileUnresolvedStripeInvoiceIntents: it applies this user's paid-but-
+// unsettled Stripe change intents inline, so a buyer returning from a Stripe
+// hosted-invoice payment sees the new plan on the very next
+// GET /api/subscription/self instead of waiting for the invoice webhook
+// (whose events may not be delivered) or the 15-minute background tick.
+// Errors are logged, never surfaced — this must not break the read path.
+// Multi-node safe: ReconcilePaidInvoice is transactional and idempotent.
+func ReconcileUnresolvedStripeIntentsForUser(ctx context.Context, userId int) int {
+	if userId <= 0 || !common.IsMasterNode {
+		return 0
+	}
+	if err := ensureStripeSecretForSubscription(); err != nil {
+		return 0
+	}
+	var intents []model.SubscriptionChangeIntent
+	if err := model.DB.
+		Where("user_id = ? AND payment_mode = ? AND status IN ? AND provider_invoice_id <> ?",
+			userId,
+			model.SubscriptionPaymentModeStripeRecurring,
+			[]string{
+				model.SubscriptionChangeIntentStatusAwaitingPayment,
+				model.SubscriptionChangeIntentStatusSyncing,
+			},
+			"").
+		Order("id asc").
+		Limit(3).
+		Find(&intents).Error; err != nil {
+		return 0
+	}
+	applied := 0
+	for _, intent := range intents {
+		invoiceID := strings.TrimSpace(intent.ProviderInvoiceId)
+		if invoiceID == "" {
+			continue
+		}
+		inv, err := stripeInvoiceGetter(ctx, invoiceID)
+		if err != nil || inv == nil || !stripeInvoiceIsPaid(inv) {
+			continue
+		}
+		if _, err := ReconcilePaidInvoice(ctx, invoiceID); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("self-serve Stripe intent reconcile failed user=%d intent=%d invoice=%s error=%q", userId, intent.Id, invoiceID, err.Error()))
+			continue
+		}
+		applied++
+		logger.LogInfo(ctx, fmt.Sprintf("self-serve Stripe intent reconcile applied user=%d intent=%d invoice=%s", userId, intent.Id, invoiceID))
+	}
+	return applied
+}
+
 func reconcileUnresolvedStripeInvoiceIntents(ctx context.Context) (int, error) {
 	if !stripeReconciliationTableAvailable(&model.SubscriptionChangeIntent{}) {
 		return 0, nil

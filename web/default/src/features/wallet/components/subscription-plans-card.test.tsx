@@ -474,7 +474,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('Image + video: Not included')
   })
 
-  test('uses repurchase for the same plan and switch for every other active plan without next-period copy', () => {
+  test('labels the current stripe-recurring plan as current subscription and switch for every other active plan without next-period copy', () => {
     const html = renderWalletCard(
       normalizeSelfSubscriptionData({
         contract: {
@@ -496,7 +496,10 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       })
     )
 
-    expect(html).toContain('Repurchase now')
+    // A live Stripe recurring subscription renews itself: its own card must
+    // read as the current subscription, not prompt the buyer to repurchase.
+    expect(html).toContain('Current subscription')
+    expect(html).not.toContain('Repurchase now')
     expect(html.match(/Switch now/g)?.length).toBe(2)
     expect(html).not.toContain('Downgrade next period')
     expect(html).not.toContain('next period')

@@ -762,6 +762,20 @@ func reconcilePaidInvoiceUpgradeTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 	}).Error; err != nil {
 		return true, err
 	}
+	// Close the snapshot order created by ensureStripeSubscriptionUpgradeSnapshotOrder:
+	// the upgrade is applied and its invoice is paid, so the order must leave
+	// "pending" — revenue reports and support tooling read subscription_orders by
+	// status, and a forever-pending row makes a settled upgrade look unpaid.
+	if err := tx.Model(&model.SubscriptionOrder{}).
+		Where("change_intent_id = ? AND payment_provider = ? AND purchase_intent = ? AND status = ?",
+			intent.Id, model.PaymentProviderStripe, model.SubscriptionChangeIntentKindUpgrade, common.TopUpStatusPending).
+		Updates(map[string]interface{}{
+			"status":           common.TopUpStatusSuccess,
+			"complete_time":    now,
+			"provider_payload": fmt.Sprintf("invoice_id=%s;subscription_id=%s;change_intent_id=%d", facts.InvoiceID, facts.SubscriptionID, intent.Id),
+		}).Error; err != nil {
+		return true, err
+	}
 	if err := tx.Model(&model.UserSubscriptionContract{}).Where("id = ?", contract.Id).Updates(map[string]interface{}{
 		"status":                  model.SubscriptionContractStatusActive,
 		"payment_mode":            model.SubscriptionPaymentModeStripeRecurring,

@@ -460,6 +460,13 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                 currentPlanId,
                 relation: item.relation,
               })
+              // A live Stripe recurring subscription renews itself — showing
+              // "Repurchase now" on the buyer's own plan reads like the plan is
+              // inactive. Label it as the current subscription instead.
+              // One-time purchases (Alipay/Pix/balance) keep the repurchase CTA.
+              const isCurrentRecurring =
+                action === 'repurchase' &&
+                selfData.contract?.payment_mode === 'stripe_recurring'
               const entitlements = getPlanEntitlements(plan, t)
 
               return (
@@ -521,6 +528,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                           'bg-[#070707] text-white hover:bg-[#4c1d95] dark:bg-white dark:text-black dark:hover:bg-[#ddd6fe]'
                       )}
                       variant={action === 'switch' ? 'outline' : 'default'}
+                      disabled={isCurrentRecurring}
                       onClick={() => {
                         setPurchaseProjection(null)
                         latestQuoteRequestRef.current = null
@@ -531,7 +539,9 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                         })
                       }}
                     >
-                      {getActionLabel(action, t)}
+                      {isCurrentRecurring
+                        ? t('Current subscription')
+                        : getActionLabel(action, t)}
                     </Button>
                   </CardContent>
                 </Card>
