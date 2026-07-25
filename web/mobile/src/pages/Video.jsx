@@ -110,7 +110,13 @@ const VideoBody = ({ mode }) => {
           <SpinLoading style={{ '--size': '24px' }} />
         )}
         <div>
-          <div>{m.status === 'queued' ? '排队中…' : '生成中…'}</div>
+          <div>
+            {m.stage === 'upscaling'
+              ? '画质增强中（超分）…'
+              : m.status === 'queued'
+                ? '排队中…'
+                : '生成中…'}
+          </div>
           {m.pollTimedOut && (
             <Button
               size='mini'

@@ -51,10 +51,14 @@ const downloadVideo = async (url, t) => {
   }
 };
 
-// 生成中：精简三阶段（文字不缩略）+ 进度
-const VideoProgress = ({ status, progress, t }) => {
-  const current = status === VIDEO_STATUS.QUEUED ? 0 : 1;
-  const stages = [t('排队中'), t('生成中'), t('完成')];
+// 生成中：精简阶段（文字不缩略）+ 进度。1080P 流水线多一个「超分」阶段。
+const VideoProgress = ({ status, progress, stage, t }) => {
+  const upscaling = stage === 'upscaling';
+  const current =
+    status === VIDEO_STATUS.QUEUED && !upscaling ? 0 : upscaling ? 2 : 1;
+  const stages = stage
+    ? [t('排队中'), t('生成中'), t('画质增强'), t('完成')]
+    : [t('排队中'), t('生成中'), t('完成')];
   const hasPercent = typeof progress === 'number' && progress > 0;
   return (
     <div
@@ -114,7 +118,11 @@ const VideoProgress = ({ status, progress, t }) => {
         ) : (
           <div className='flex items-center gap-2 text-gray-500 text-sm'>
             <Spin size='small' />
-            {status === VIDEO_STATUS.QUEUED ? t('任务排队中…') : t('生成中…')}
+            {stage === 'upscaling'
+              ? t('画质增强中（超分）…')
+              : status === VIDEO_STATUS.QUEUED
+                ? t('任务排队中…')
+                : t('生成中…')}
           </div>
         )}
       </div>
@@ -301,7 +309,14 @@ const VideoChatArea = ({
         );
       }
       // queued / in_progress
-      return <VideoProgress status={m.status} progress={m.progress} t={t} />;
+      return (
+        <VideoProgress
+          status={m.status}
+          progress={m.progress}
+          stage={m.stage}
+          t={t}
+        />
+      );
     },
     [byId, generating, onRegenerate, onRefetch, t],
   );
