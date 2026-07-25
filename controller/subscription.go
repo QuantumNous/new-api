@@ -383,6 +383,11 @@ func subscriptionPlanPaymentModes(plan *model.SubscriptionPlan) []string {
 
 func GetSubscriptionSelf(c *gin.Context) {
 	userId := c.GetInt("id")
+	// Self-serve fast path: if this user has a Stripe change intent whose
+	// invoice is already paid, apply it inline so the response below reflects
+	// the purchased plan immediately (the frontend polls this endpoint after
+	// returning from Stripe payment). No-op unless such an intent exists.
+	service.ReconcileUnresolvedStripeIntentsForUser(c.Request.Context(), userId)
 	settingMap, _ := model.GetUserSetting(userId, false)
 	pref := common.NormalizeBillingPreference(settingMap.BillingPreference)
 
