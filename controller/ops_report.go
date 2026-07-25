@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"net/http"
 	"net/netip"
 	"sort"
@@ -26,7 +27,11 @@ import (
 //   - manual key:   token created >= 120s after registration (earlier ones are
 //     auto-provisioned by signup integrations: main-key/auto/default).
 //   - key used:     any API-key request (token_id > 0), auto keys included.
-//   - paid:         top_ups status = success.
+//   - paid:         top_ups status = success (one-time plan purchases are
+//     mirrored in by SyncSubscriptionOrderTopUpHistory), plus the unmirrored
+//     subscription_orders (Stripe-recurring create/upgrade) with status =
+//     success, excluding balance-paid orders whose money was already counted
+//     at top-up time.
 //   - op cost:      quota burned via auto-provisioned keys (created < 120s
 //     after signup) — signup-credit spend, dominated by farm registrations.
 //
@@ -300,6 +305,21 @@ func buildOpsReport(days int, dauScope string) (*opsReportData, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Fold the unmirrored subscription orders into the same stream: Stripe-
+	// recurring plan purchases and upgrades (pure-plan launch 2026-07-22) live
+	// only in subscription_orders — unlike one-time checkout purchases, which
+	// SyncSubscriptionOrderTopUpHistory mirrors into top_ups — so every
+	// paid/intent aggregate below was blind to them. The converted rows reuse
+	// the OpsTopUp shape so the daily funnel, weekly payment rollup and
+	// top-payers table count them without further changes.
+	subOrders, err := model.GetOpsSubscriptionOrders()
+	if err != nil {
+		return nil, err
+	}
+	topUps = append(topUps, opsSubscriptionOrdersAsTopUps(subOrders)...)
+	// Re-establish global create_time order: first/last-paid timestamps in
+	// opsTopPayers rely on paidOrders arriving sorted ascending.
+	sort.Slice(topUps, func(i, j int) bool { return topUps[i].CreateTime < topUps[j].CreateTime })
 	for _, t := range topUps {
 		a, ok := aggs[t.UserId]
 		if !ok {
@@ -497,6 +517,33 @@ func (a *opsUserAgg) usedKey() bool {
 
 func (a *opsUserAgg) manualKey() bool {
 	return a.tokenStats != nil && a.tokenStats.ManualTokenCount > 0
+}
+
+// opsSubscriptionOrdersAsTopUps folds plg subscription orders into the
+// OpsTopUp shape so downstream aggregates treat plan purchases exactly like
+// top-ups. Balance-paid orders are excluded upstream (double counting).
+// Local-currency orders (Pix BRL / UPI INR plan pricing) record the original
+// amount in money — same trap as top_ups — so BonusTier carries the plan's
+// USD list price minus any invitee discount, mirroring how non-USD top-ups
+// are valued at their USD package tier by opsTopUpUSD.
+func opsSubscriptionOrdersAsTopUps(orders []*model.OpsSubscriptionOrder) []*model.OpsTopUp {
+	converted := make([]*model.OpsTopUp, 0, len(orders))
+	for _, o := range orders {
+		usd := o.PlanUSD - o.DiscountUSD
+		if usd < 0 {
+			usd = 0
+		}
+		converted = append(converted, &model.OpsTopUp{
+			UserId:          o.UserId,
+			Money:           o.Money,
+			Status:          o.Status,
+			CreateTime:      o.CreateTime,
+			PaymentCurrency: o.PaymentCurrency,
+			BonusTier:       int(math.Round(usd)),
+			PaymentProvider: o.PaymentProvider,
+		})
+	}
+	return converted
 }
 
 // opsTopUpUSD converts a top-up's recorded amount to USD. Stripe webhooks write

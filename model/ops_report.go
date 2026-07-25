@@ -245,6 +245,46 @@ func GetOpsTopUps() ([]*OpsTopUp, error) {
 	return topUps, err
 }
 
+// OpsSubscriptionOrder carries one plg subscription order plus the USD list
+// price of its plan, so the ops report can fold plan purchases into the
+// top-up-based revenue aggregates.
+type OpsSubscriptionOrder struct {
+	UserId          int     `json:"user_id"`
+	Money           float64 `json:"money"`
+	Status          string  `json:"status"`
+	CreateTime      int64   `json:"create_time"`
+	PaymentCurrency string  `json:"payment_currency"`
+	PaymentProvider string  `json:"payment_provider"`
+	PlanUSD         float64 `json:"plan_usd"`
+	DiscountUSD     float64 `json:"discount_usd"`
+}
+
+// GetOpsSubscriptionOrders returns the plg subscription orders that the
+// top-up-based revenue aggregates cannot see, i.e. everything EXCEPT:
+//   - balance-paid orders: a balance purchase spends money that was already
+//     counted when the balance was topped up — counting the plan order again
+//     would double the revenue;
+//   - orders mirrored into top_ups (same trade_no) by
+//     SyncSubscriptionOrderTopUpHistory — the one-time checkout purchase path
+//     mirrors its orders there, so GetOpsTopUps already counts them.
+//
+// In practice this leaves the Stripe-recurring orders (subscription create /
+// upgrade invoices), which are never mirrored.
+func GetOpsSubscriptionOrders() ([]*OpsSubscriptionOrder, error) {
+	var orders []*OpsSubscriptionOrder
+	sql := fmt.Sprintf(`
+		SELECT o.user_id, o.money, o.status, o.create_time, o.payment_currency, o.payment_provider,
+		       COALESCE(p.price_amount, 0) AS plan_usd, o.discount_usd
+		FROM subscription_orders o
+		INNER JOIN users u ON u.id = o.user_id
+		LEFT JOIN subscription_plans p ON p.id = o.plan_id
+		LEFT JOIN top_ups t ON t.trade_no = o.trade_no
+		WHERE u.%s = ? AND o.payment_provider <> ? AND t.id IS NULL
+		ORDER BY o.create_time`, commonGroupCol)
+	err := DB.Raw(sql, "plg", PaymentProviderBalance).Scan(&orders).Error
+	return orders, err
+}
+
 type OpsTopUpTradeUser struct {
 	TradeNo string `json:"trade_no"`
 	UserId  int    `json:"user_id"`
