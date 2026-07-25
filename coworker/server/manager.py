@@ -35,9 +35,11 @@ from ..subscriptions import ChannelBuffer, SubscriptionStore
 from ..unrouted import UnroutedStore
 from ..unattended import UnattendedRegistry
 from ..audit import AuditStore
+from ..config import load_config, workspace_allowed_commands
 from ..conversations import ConversationStore, title_from
 from ..engine import ApprovalOutcome, Approver, TurnEngine
 from ..roots import RootDir
+from ..workspace_trust import WorkspaceTrustStore
 from ..automation import Schedule, ScheduledTask, Scheduler, TaskRun, TaskStore
 from ..connectors import (
     Gateway,
@@ -140,6 +142,7 @@ class SessionManager:
         self._autotitle_inflight: set[str] = set()
         self._autotitle_tasks: set[asyncio.Task] = set()
         self._autotitle_attempts: dict[str, int] = {}
+        self.workspace_trust = WorkspaceTrustStore()
         self.secrets = SecretStore()
         # No explicit provider injected → route by the model's `provider:` prefix (OpenAI default,
         # Ollama, …). Tests inject a provider directly and bypass the router. The same router is
@@ -242,7 +245,69 @@ class SessionManager:
                 return {"path": str(resolved), "ok": False, "error": str(exc)}
         resolved = resolved.resolve()
         self.session_store.touch_workspace(str(resolved))
-        return {"path": str(resolved), "ok": True, "git_branch": _git_branch(resolved)}
+        return {
+            "path": str(resolved),
+            "ok": True,
+            "git_branch": _git_branch(resolved),
+            "command_trust": self.workspace_command_trust(resolved),
+        }
+
+    def workspace_command_trust(self, path: str | Path) -> dict[str, Any]:
+        if not str(path).strip():
+            return {
+                "workspace": "",
+                "requested_commands": [],
+                "trusted": False,
+                "required": False,
+            }
+        canonical = WorkspaceTrustStore.canonical(path)
+        commands = (
+            workspace_allowed_commands(canonical)
+            if Path(canonical).is_dir()
+            else []
+        )
+        trusted = self.workspace_trust.is_trusted(canonical)
+        return {
+            "workspace": canonical,
+            "requested_commands": commands,
+            "trusted": trusted,
+            "required": bool(commands and not trusted),
+        }
+
+    def set_workspace_trust(
+        self, path: str | Path, *, trusted: bool
+    ) -> dict[str, Any]:
+        if not str(path).strip():
+            return {"ok": False, "error": "workspace path is required"}
+        candidate = Path(path).expanduser()
+        if trusted and not candidate.is_dir():
+            return {"ok": False, "error": "workspace is not a directory"}
+        canonical = self.workspace_trust.set_trusted(candidate, trusted)
+        effective = load_config(
+            canonical, workspace_trusted=trusted
+        ).allowed_commands
+        # Apply trust/revocation immediately to live sessions rooted at this exact path.
+        for engine in self._engines.values():
+            engine_workspace = str(
+                (getattr(engine, "audit_context", {}) or {}).get("workspace", "")
+            )
+            if engine_workspace and WorkspaceTrustStore.canonical(
+                engine_workspace
+            ) == canonical:
+                engine.permissions.allowed_commands = list(effective)
+        return {
+            "ok": True,
+            **self.workspace_command_trust(canonical),
+        }
+
+    def trusted_workspaces(self) -> list[dict[str, Any]]:
+        return [
+            {
+                **self.workspace_command_trust(path),
+                "exists": Path(path).is_dir(),
+            }
+            for path in self.workspace_trust.list()
+        ]
 
     def recent_workspaces(self) -> list[dict[str, Any]]:
         """Recent real projects for the folder gate. Per-conversation scratch dirs are

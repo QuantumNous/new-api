@@ -3,8 +3,8 @@
 Global:    <state-dir>/config.toml   (see `secrets.state_dir`; platform-native)
 Workspace: <workspace>/.coworker/config.toml   (overrides global)
 
-Permission grants are deliberately global-only. A checked-out repository is untrusted
-input and must not be able to grant its own shell commands or consequential tools.
+Workspace command allowances apply only after the user trusts that exact canonical
+workspace path. Other permission grants remain global-only.
 """
 
 from __future__ import annotations
@@ -74,8 +74,9 @@ _FIELDS = {
     "cloud_relay_ws_url",
 }
 
-# These fields change what consequential actions can run without a prompt. Only the
-# user-owned global config may set them; a repository's `.coworker/config.toml` may not.
+# These fields change what consequential actions can run without a prompt, so the normal
+# workspace override pass never applies them. `allowed_commands` is added separately only
+# for a canonically trusted workspace; `auto_allow` remains user-global only.
 _GLOBAL_ONLY_FIELDS = {"allowed_commands", "auto_allow"}
 _WORKSPACE_FIELDS = _FIELDS - _GLOBAL_ONLY_FIELDS
 
@@ -92,8 +93,20 @@ def _read(path: Path) -> dict[str, Any]:
         return {}
 
 
+def workspace_allowed_commands(workspace: str | Path) -> list[str]:
+    """Command prefixes requested by repository config; advisory until workspace trust."""
+    path = Path(workspace).expanduser() / ".coworker" / "config.toml"
+    value = _read(path).get("allowed_commands", [])
+    if not isinstance(value, list):
+        return []
+    return list(dict.fromkeys(v.strip() for v in value if isinstance(v, str) and v.strip()))
+
+
 def load_config(
-    workspace: Optional[str | Path] = None, *, global_path: Optional[Path] = None
+    workspace: Optional[str | Path] = None,
+    *,
+    global_path: Optional[Path] = None,
+    workspace_trusted: bool = False,
 ) -> Config:
     cfg = Config()
 
@@ -108,4 +121,10 @@ def load_config(
             for key, value in _read(w).items():
                 if key in _WORKSPACE_FIELDS:
                     setattr(cfg, key, value)
+            if workspace_trusted:
+                cfg.allowed_commands = list(
+                    dict.fromkeys(
+                        [*cfg.allowed_commands, *workspace_allowed_commands(workspace)]
+                    )
+                )
     return cfg

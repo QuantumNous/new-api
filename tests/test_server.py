@@ -606,6 +606,66 @@ def test_open_and_recent_workspaces(tmp_path):
     assert any(w["path"] == str(proj.resolve()) for w in recents)
 
 
+def test_workspace_command_trust_controls_live_engine(tmp_path):
+    from urllib.parse import quote
+
+    proj = tmp_path / "trusted-project"
+    (proj / ".coworker").mkdir(parents=True)
+    (proj / ".coworker" / "config.toml").write_text(
+        'allowed_commands = ["pytest"]\nauto_allow = ["write_file"]\n'
+    )
+    manager = SessionManager(
+        workspace=None, data_dir=tmp_path / "data", provider=ScriptedProvider([])
+    )
+    client = TestClient(create_app(manager))
+
+    with client.websocket_connect(
+        f"/ws/session/trust?workspace={quote(str(proj))}"
+    ) as ws:
+        ready = ws.receive_json()
+        policy = ready["data"]["command_trust"]
+        assert policy["required"] is True
+        assert policy["requested_commands"] == ["pytest"]
+
+        engine = manager._engines["trust"]
+        before = engine.permissions.evaluate(
+            "run_shell", {"command": "pytest -q"}, None
+        )
+        assert not before.allowed and before.needs_user
+        # Workspace auto_allow remains ignored even after command trust.
+        assert "write_file" not in engine.permissions.auto_allow_tools
+
+        trusted = client.post(
+            "/v1/workspaces/trust",
+            json={"path": str(proj), "trusted": True},
+        ).json()
+        assert trusted["ok"] and trusted["trusted"]
+        assert engine.permissions.evaluate(
+            "run_shell", {"command": "pytest -q"}, None
+        ).allowed
+
+        listed = client.get("/v1/workspaces/trusted").json()["workspaces"]
+        assert [item["workspace"] for item in listed] == [str(proj.resolve())]
+
+        revoked = client.post(
+            "/v1/workspaces/trust",
+            json={"path": str(proj), "trusted": False},
+        ).json()
+        assert revoked["ok"] and not revoked["trusted"]
+        after = engine.permissions.evaluate(
+            "run_shell", {"command": "pytest -q"}, None
+        )
+        assert not after.allowed and after.needs_user
+
+    manager.workspace_trust.set_trusted(proj, True)
+    proj.rename(tmp_path / "moved-project")
+    assert client.post(
+        "/v1/workspaces/trust",
+        json={"path": str(proj), "trusted": False},
+    ).json()["ok"]
+    assert manager.trusted_workspaces() == []
+
+
 def test_recent_workspaces_exclude_scratch_dirs(tmp_path):
     # Scratch dirs get touched like any workspace, but must never show up as
     # "recent projects" in the folder gate (owner call, 2026-07-03).

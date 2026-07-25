@@ -523,6 +523,17 @@ def create_app(manager: SessionManager) -> FastAPI:
             body.get("path", ""), create=bool(body.get("create"))
         )
 
+    @app.get("/v1/workspaces/trusted")
+    def trusted_workspaces() -> dict[str, Any]:
+        return {"workspaces": manager.trusted_workspaces()}
+
+    @app.post("/v1/workspaces/trust")
+    def set_workspace_trust(body: dict) -> dict[str, Any]:
+        return manager.set_workspace_trust(
+            str((body or {}).get("path", "")),
+            trusted=bool((body or {}).get("trusted", False)),
+        )
+
     @app.post("/v1/workspaces/pick")
     async def pick_workspace() -> dict[str, Any]:
         # Native folder picker opened by the LOCAL sidecar (browser GUIs can't get absolute
@@ -1606,6 +1617,9 @@ def create_app(manager: SessionManager) -> FastAPI:
                         str(getattr(engine, "executor").cwd)
                         if getattr(engine, "executor", None)
                         else None
+                    ),
+                    "command_trust": manager.workspace_command_trust(
+                        str(getattr(engine, "audit_context", {}).get("workspace", ""))
                     ),
                 },
             }

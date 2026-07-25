@@ -47,6 +47,45 @@ def test_workspace_cannot_grant_its_own_permissions(tmp_path):
     assert cfg.auto_allow == ["write_file"]
 
 
+def test_trusted_workspace_adds_its_command_allowances_only(tmp_path):
+    g = tmp_path / "global.toml"
+    g.write_text(
+        'allowed_commands = ["git status"]\nauto_allow = ["write_file"]\n'
+    )
+    ws = tmp_path / "ws"
+    (ws / ".coworker").mkdir(parents=True)
+    (ws / ".coworker" / "config.toml").write_text(
+        'allowed_commands = ["pytest", "git status"]\n'
+        'auto_allow = ["run_shell"]\n'
+    )
+
+    cfg = load_config(ws, global_path=g, workspace_trusted=True)
+    assert cfg.allowed_commands == ["git status", "pytest"]
+    assert cfg.auto_allow == ["write_file"]
+
+
+def test_workspace_trust_is_canonical_and_user_owned(tmp_path):
+    from coworker.workspace_trust import WorkspaceTrustStore
+
+    real = tmp_path / "real"
+    real.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(real, target_is_directory=True)
+    store = WorkspaceTrustStore(tmp_path / "state" / "workspace_trust.json")
+
+    canonical = store.set_trusted(alias, True)
+    assert canonical == str(real.resolve())
+    assert store.is_trusted(real)
+    assert store.list() == [str(real.resolve())]
+    assert (store.path.stat().st_mode & 0o777) == 0o600
+
+    store.set_trusted(real, False)
+    assert not store.is_trusted(alias)
+
+    store.path.write_text("[]")
+    assert store.list() == []
+
+
 def test_build_engine_honors_explicit_empty_command_allowlist(tmp_path):
     from coworker.agent import build_code_engine
     from coworker.config import global_config_path

@@ -37,6 +37,7 @@ from .tools.directories import request_directory_tool
 from .tools.plan import propose_plan_tool
 from .tools.subagent import explorer_tools
 from .web import make_web_fetch_tool, make_web_search_tool
+from .workspace_trust import WorkspaceTrustStore
 from .tools.shell import LocalExecutor
 from .tools.todo import TodoList
 
@@ -147,7 +148,8 @@ def build_engine(
     else:
         root_list = []
 
-    config = load_config(ws)
+    workspace_trusted = bool(ws and WorkspaceTrustStore().is_trusted(ws))
+    config = load_config(ws, workspace_trusted=workspace_trusted)
     executor = (
         LocalExecutor(cwd=ws) if (agent.needs_workspace and ws is not None) else None
     )
