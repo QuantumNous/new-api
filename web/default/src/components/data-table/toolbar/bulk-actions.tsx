@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils'
 type DataTableBulkActionsProps<TData> = {
   table: Table<TData>
   entityName: string
-  children: React.ReactNode
+  children?: React.ReactNode
 }
 
 /**
@@ -84,8 +84,9 @@ export function DataTableBulkActions<TData>({
     const buttons = buttonsRef.current
     if (!buttons) return
 
-    const currentIndex = Array.from(buttons).findIndex(
-      (button) => button === document.activeElement
+    const buttonList = [...buttons]
+    const currentIndex = buttonList.indexOf(
+      document.activeElement as HTMLButtonElement
     )
 
     switch (event.key) {
@@ -108,7 +109,7 @@ export function DataTableBulkActions<TData>({
         break
       case 'End':
         event.preventDefault()
-        buttons[buttons.length - 1]?.focus()
+        buttonList.at(-1)?.focus()
         break
       case 'Escape': {
         // Check if the Escape key came from a dropdown trigger or content

@@ -257,10 +257,11 @@ export function processChartData(
     const tokens = Number(item.token_used) || 0
 
     // Aggregate by time and model
-    if (!timeModelMap.has(timeBucket)) {
-      timeModelMap.set(timeBucket, new Map())
+    let modelMap = timeModelMap.get(timeBucket)
+    if (!modelMap) {
+      modelMap = new Map()
+      timeModelMap.set(timeBucket, modelMap)
     }
-    const modelMap = timeModelMap.get(timeBucket)!
     const existing = modelMap.get(model) || { quota: 0, count: 0, tokens: 0 }
     modelMap.set(model, {
       quota: existing.quota + quota,
@@ -806,8 +807,11 @@ export function processUserChartData(
     allTimePoints.add(timeBucket)
     const user = item.username || 'unknown'
     if (!topUserSet.has(user)) return
-    if (!timeUserMap.has(timeBucket)) timeUserMap.set(timeBucket, new Map())
-    const map = timeUserMap.get(timeBucket)!
+    let map = timeUserMap.get(timeBucket)
+    if (!map) {
+      map = new Map()
+      timeUserMap.set(timeBucket, map)
+    }
     map.set(user, (map.get(user) || 0) + (Number(item.quota) || 0))
   })
 

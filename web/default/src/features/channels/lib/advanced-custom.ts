@@ -336,7 +336,7 @@ export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
 export function cloneAdvancedCustomConfig(
   config: AdvancedCustomConfig
 ): AdvancedCustomConfig {
-  return JSON.parse(JSON.stringify(config)) as AdvancedCustomConfig
+  return structuredClone(config)
 }
 
 export function getAdvancedCustomTemplateConfig(

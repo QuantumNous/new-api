@@ -96,7 +96,7 @@ export function NumericSpinnerInput({
   const commitValue = () => {
     setEditing(false)
     const num = Number(localValue)
-    if (isNaN(num) || localValue === '' || localValue === '-') {
+    if (Number.isNaN(num) || localValue === '' || localValue === '-') {
       setLocalValue(String(value ?? 0))
       return
     }

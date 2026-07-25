@@ -49,14 +49,14 @@ export function AmountOptionsVisualEditor({
     })
 
     return parsed
-      .filter((item) => typeof item === 'number' || !isNaN(Number(item)))
+      .filter((item) => typeof item === 'number' || !Number.isNaN(Number(item)))
       .map(Number)
       .sort((a, b) => a - b)
   }, [value, t])
 
   const handleAdd = () => {
     const amount = Number.parseFloat(newAmount)
-    if (isNaN(amount) || amount <= 0) {
+    if (Number.isNaN(amount) || amount <= 0) {
       return
     }
 

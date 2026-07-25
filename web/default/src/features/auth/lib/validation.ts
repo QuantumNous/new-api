@@ -64,7 +64,7 @@ export function formatBackupCode(value: string): string {
  * Remove hyphens from backup code before sending to server
  */
 export function cleanBackupCode(code: string): string {
-  return code.replaceAll(/-/g, '')
+  return code.replaceAll('-', '')
 }
 
 // ============================================================================

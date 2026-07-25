@@ -16,19 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-/**
- * Get plain text preview (strip HTML tags and Markdown formatting)
- */
-export function getPreviewText(
-  content: string,
-  maxLength: number = 60
-): string {
-  if (!content) return ''
-  const plainText = content
-    .replaceAll(/<[^>]*>/g, '') // Remove HTML tags
-    .replaceAll(/[#*_]/g, '') // Remove Markdown formatting symbols
-    .trim()
-  return plainText.length > maxLength
-    ? `${plainText.slice(0, maxLength)}...`
-    : plainText
+import { createContext, useContext } from 'react'
+
+export type SearchContextType = {
+  open: boolean
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
+}
+
+export const SearchContext = createContext<SearchContextType | null>(null)
+
+export const useSearch = () => {
+  const searchContext = useContext(SearchContext)
+
+  if (!searchContext) {
+    throw new Error('useSearch has to be used within SearchProvider')
+  }
+
+  return searchContext
 }
