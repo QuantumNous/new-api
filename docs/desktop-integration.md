@@ -3,7 +3,7 @@
 - 状态：实施中（方案已评审通过）
 - 上游：https://github.com/andrewyng/openworker （MIT，Copyright 2024 Andrew Ng）
 - 产品命名：**BoxAI 桌面端**，全线使用 BoxAI 品牌
-- 仓库策略：独立 fork 仓库 `dev-fan-sophon/boxai-desktop`，保留 `upstream` remote 定期 rebase
+- 仓库策略：桌面端源码合并在当前仓库 `desktop/`，通过 subtree 同步 `dev-fan-sophon/boxai-desktop` 及其 OpenWorker 上游
 - 连接器 broker：自建 Cloudflare Worker（小 QQ 账号 `123592844@qq.com's Account`）
 
 ---

@@ -1,10 +1,10 @@
 # Third-Party Licenses
 
 This file summarizes direct third-party dependencies used by distributed builds of this project.
-It is an engineering compliance artifact and should be kept with Docker images, standalone binaries, frontend bundles, and Electron installers.
+It is an engineering compliance artifact and should be kept with Docker images, standalone binaries, frontend bundles, and desktop installers.
 
-Scope: direct dependencies from `go.mod`, `web/default/package.json`, `web/classic/package.json`, and `electron/package.json`.
-Transitive dependencies should be audited before a final external release.
+Scope: direct dependencies from `go.mod`, `web/default/package.json`, and `web/classic/package.json`.
+The newly imported desktop manifests under `desktop/` and all transitive dependencies should be audited before a final external release.
 
 ## Dependency Inventory
 
@@ -191,9 +191,6 @@ Transitive dependencies should be audited before a final external release.
 | web/classic | development | npm       | `tailwindcss`                                         | `3.4.17`                             | MIT                                                |
 | web/classic | development | npm       | `typescript`                                          | `4.4.2`                              | Apache-2.0                                         |
 | web/classic | development | npm       | `vite`                                                | `5.4.11`                             | MIT                                                |
-| electron    | development | npm       | `cross-env`                                           | `7.0.3`                              | MIT                                                |
-| electron    | development | npm       | `electron`                                            | `39.8.5`                             | MIT                                                |
-| electron    | development | npm       | `electron-builder`                                    | `26.7.0`                             | MIT                                                |
 
 ## License Texts
 
@@ -372,4 +369,3 @@ this software, either in source code form or as a compiled binary, for any
 purpose, commercial or non-commercial, and by any means.
 
 For more information, please refer to https://unlicense.org/
-
