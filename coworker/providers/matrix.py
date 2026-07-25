@@ -120,6 +120,23 @@ MATRIX: dict[str, ModelEntry] = {
     "openrouter:meta-llama/llama-4-maverick": ModelEntry(
         "Llama 4 Maverick · via OpenRouter"
     ),
+    # -- cloud accounts (models running in the user's own AWS/GCP) ----------------
+    # Bedrock ids carry a family segment (claude/ → native Anthropic path, other/ →
+    # Converse) plus AWS's own `-v<n>:<m>` version suffix. Some regions require the
+    # `us.`/`eu.` cross-region inference-profile prefix — custom add-model accepts those.
+    "bedrock:claude/anthropic.claude-sonnet-4-6-v1:0": ModelEntry(
+        "Claude Sonnet 4.6 · AWS Bedrock", _AGENTIC_VISION
+    ),
+    "bedrock:claude/anthropic.claude-haiku-4-5-v1:0": ModelEntry(
+        "Claude Haiku 4.5 · AWS Bedrock", _AGENTIC_VISION
+    ),
+    "bedrock:other/amazon.nova-2-pro-v1:0": ModelEntry("Nova 2 Pro · AWS Bedrock"),
+    "bedrock:other/meta.llama4-maverick-17b-instruct-v1:0": ModelEntry(
+        "Llama 4 Maverick · AWS Bedrock"
+    ),
+    "bedrock:other/mistral.mistral-large-3-v1:0": ModelEntry(
+        "Mistral Large 3 · AWS Bedrock"
+    ),
 }
 
 

@@ -8,8 +8,9 @@ model string and builds (and caches) its client from the matching SecretStore pr
 
 Today: `openai` (the default, with an optional custom endpoint that covers Azure OpenAI's
 `/openai/v1` and any OpenAI-compliant gateway), `anthropic` (native Messages API via
-`AnthropicProvider`), `gemini` (native Google GenAI API via `GeminiProvider`), and `ollama`
-(local, OpenAI-compatible `/v1`). Bedrock/Vertex auth for Claude is future work.
+`AnthropicProvider`), `gemini` (native Google GenAI API via `GeminiProvider`), `bedrock`
+(models in the user's own AWS account — Claude natively, everything else via Converse),
+and `ollama` (local, OpenAI-compatible `/v1`).
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from typing import Any, Callable, Optional
 
 from .anthropic_provider import AnthropicProvider
 from .base import ProviderClient
+from .bedrock_provider import BedrockProvider
 from .gemini_provider import GeminiProvider
 from .openai_provider import OpenAIProvider
 
@@ -124,6 +126,23 @@ def _build_gemini(profile: dict[str, Any], secrets: Any) -> ProviderClient:
     # Same deferred-key contract as anthropic (GeminiProvider/resolve_api_key).
     api_key = ((profile or {}).get("api_key") or "").strip() or None
     return GeminiProvider(api_key=api_key, secrets=secrets)
+
+
+def _build_bedrock(profile: dict[str, Any], secrets: Any) -> ProviderClient:
+    # Credentials resolve inside boto3/AnthropicBedrock at call time: explicit keys →
+    # named profile → ambient chain (env / ~/.aws default / instance role).
+    p = profile or {}
+
+    def get(key: str) -> Optional[str]:
+        return (p.get(key) or "").strip() or None
+
+    return BedrockProvider(
+        region=get("region"),
+        profile_name=get("aws_profile"),
+        access_key_id=get("aws_access_key_id"),
+        secret_access_key=get("aws_secret_access_key"),
+        session_token=get("aws_session_token"),
+    )
 
 
 def _build_ollama(profile: dict[str, Any], secrets: Any) -> ProviderClient:
@@ -251,6 +270,54 @@ DESCRIPTORS: list[ProviderDescriptor] = [
         build=_build_gemini,
         recommended_model="gemini-3.6-flash",
         env_key="GEMINI_API_KEY",
+    ),
+    ProviderDescriptor(
+        name="bedrock",
+        title="AWS Bedrock",
+        needs_key=True,
+        fields=[
+            ProviderField(
+                "region",
+                "AWS region",
+                secret=False,
+                placeholder="us-east-1",
+                help="The region your Bedrock model access is enabled in.",
+            ),
+            ProviderField(
+                "aws_profile",
+                "AWS profile (optional)",
+                secret=False,
+                required=False,
+                placeholder="default",
+                help="A named profile from ~/.aws — works with `aws configure` and "
+                "`aws sso login` (IAM Identity Center). Leave blank to use explicit "
+                "keys below, or the default credential chain.",
+            ),
+            ProviderField(
+                "aws_access_key_id",
+                "Access key ID (optional)",
+                secret=False,
+                required=False,
+                placeholder="AKIA…",
+            ),
+            ProviderField(
+                "aws_secret_access_key",
+                "Secret access key (optional)",
+                secret=True,
+                required=False,
+            ),
+            ProviderField(
+                "aws_session_token",
+                "Session token (optional)",
+                secret=True,
+                required=False,
+                help="Only for temporary credentials (STS).",
+            ),
+        ],
+        build=_build_bedrock,
+        recommended_model="claude/anthropic.claude-sonnet-4-6-v1:0",
+        blurb="Runs models inside your own AWS account. Claude uses Anthropic's native "
+        "Bedrock path; every other model goes through the Converse API.",
     ),
     # OpenAI-compatible vendors, listed as first-class providers so users don't need to know the
     # "point the OpenAI slot at a different endpoint" trick (owner call, 2026-07-04). Each keeps
@@ -384,6 +451,21 @@ def build_provider_client(
     return descriptor.build(profile or {}, secrets)
 
 
+def descriptor_configured(d: ProviderDescriptor, profile: dict[str, Any]) -> bool:
+    """Whether a provider is usable with the given stored profile. Single-key providers:
+    a stored or env key. Multi-field cloud providers (no `api_key` field, e.g. Bedrock):
+    every required field present — their actual credentials may be ambient (~/.aws, ADC).
+    """
+    if not d.needs_key:
+        return True  # keyless (Ollama) — usable out of the box
+    profile = profile or {}
+    if any(f.key == "api_key" for f in d.fields):
+        return bool(profile.get("api_key")) or bool(
+            d.env_key and os.environ.get(d.env_key)
+        )
+    return all(profile.get(f.key) for f in d.fields if f.required)
+
+
 def detect_provider(api_key: str) -> Optional[str]:
     """Best-effort provider guess from an API key's shape, for the onboarding auto-detect.
     Returns a known provider name or None. Mirrors the GUI's client-side detection so both agree.
@@ -402,21 +484,80 @@ def detect_provider(api_key: str) -> Optional[str]:
     return None
 
 
+def _verify_bedrock(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
+    """One cheap read-only Bedrock call (list models) with the same explicit → profile →
+    ambient credential resolution the provider itself uses."""
+    from .bedrock_provider import _session_kwargs
+
+    def get(key: str) -> Optional[str]:
+        return (fields.get(key) or "").strip() or None
+
+    try:
+        import boto3
+        from botocore.config import Config
+    except ImportError:
+        return {
+            "ok": False,
+            "error": "boto3 is not installed — `pip install 'openworker[bedrock]'`.",
+        }
+    try:
+        session = boto3.session.Session(
+            **_session_kwargs(
+                get("aws_profile"),
+                get("aws_access_key_id"),
+                get("aws_secret_access_key"),
+                get("aws_session_token"),
+            )
+        )
+        client = session.client(
+            "bedrock",
+            region_name=get("region"),
+            config=Config(connect_timeout=timeout, read_timeout=timeout),
+        )
+        client.list_foundation_models()
+    except Exception as exc:
+        kind = exc.__class__.__name__
+        if kind == "NoCredentialsError":
+            return {
+                "ok": False,
+                "error": "No AWS credentials found — enter keys or a profile, or run "
+                "`aws configure` / `aws sso login` first.",
+            }
+        if kind == "ProfileNotFound":
+            return {"ok": False, "error": f"{exc}"}
+        if kind == "ClientError":
+            code = (getattr(exc, "response", {}) or {}).get("Error", {}).get("Code", "")
+            if code in ("UnrecognizedClientException", "InvalidSignatureException"):
+                return {"ok": False, "error": "AWS rejected the credentials."}
+            if code in ("AccessDeniedException", "AccessDenied"):
+                return {
+                    "ok": False,
+                    "error": "Credentials work but lack Bedrock access (bedrock:ListFoundationModels).",
+                }
+            return {"ok": False, "error": f"AWS Bedrock returned {code or kind}."}
+        return {"ok": False, "error": f"Couldn't reach AWS Bedrock ({kind})."}
+    return {"ok": True}
+
+
 def verify_provider_key(
     name: str,
     *,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
+    fields: Optional[dict[str, Any]] = None,
     timeout: float = 10.0,
 ) -> dict[str, Any]:
     """Validate a provider's credentials with one cheap, read-only call (list models) — the same
     pattern connectors use to validate tokens. Transient: callers pass the key directly so a user
-    can Test before saving. Never raises; returns {ok, error?}.
+    can Test before saving. Never raises; returns {ok, error?}. Multi-field cloud providers
+    (Bedrock) take their whole form via `fields`; everyone else uses api_key/base_url.
     """
     import httpx
 
     d = _BY_NAME.get(name) or _BY_NAME["openai"]
     key = (api_key or "").strip()
+    if name == "bedrock":
+        return _verify_bedrock(fields or {}, timeout)
     try:
         if name == "anthropic":
             resp = httpx.get(
