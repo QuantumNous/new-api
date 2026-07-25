@@ -4,8 +4,10 @@ import { describe, expect, test } from 'bun:test'
 import {
   convertRecallBodyTextToHtml,
   formatRecallMinorAmount,
+  formatRecallCampaignType,
   getRecallPageCount,
   getRecallRecipientRetry,
+  isRecallPromotionCampaign,
   insertRecallEmailAction,
   normalizeRecallGroupsForMode,
   normalizeRecallCouponSource,
@@ -549,6 +551,13 @@ describe('recall campaign editor normalization', () => {
 })
 
 describe('recall campaign detail guards', () => {
+  test('formats campaign type labels and promotion applicability', () => {
+    expect(formatRecallCampaignType('promotion')).toBe('Promotion')
+    expect(formatRecallCampaignType('content_only')).toBe('Content only')
+    expect(isRecallPromotionCampaign('promotion')).toBe(true)
+    expect(isRecallPromotionCampaign('content_only')).toBe(false)
+  })
+
   test('exposes a second detail page beyond the first 100 rows', () => {
     expect(getRecallPageCount(101, 100)).toBe(2)
   })

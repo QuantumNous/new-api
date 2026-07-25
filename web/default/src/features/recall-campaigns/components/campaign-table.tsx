@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DataTablePage } from '@/components/data-table'
 import { listRecallCampaigns, recallCampaignKeys } from '../api'
+import { formatRecallCampaignType } from '../helpers'
 import type { RecallCampaignSearch, RecallCampaignSummary } from '../types'
 
 function formatTimestamp(value: number): string {
@@ -48,6 +49,12 @@ export function CampaignTable() {
             </div>
           </div>
         ),
+      },
+      {
+        accessorKey: 'campaign_type',
+        header: t('Activity type'),
+        cell: ({ row }) =>
+          t(formatRecallCampaignType(row.original.campaign_type)),
       },
       {
         accessorKey: 'status',

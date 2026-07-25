@@ -19,6 +19,7 @@ const testI18n = createInstance()
 
 function makeDraft(): RecallCampaignDraft {
   return {
+    campaign_type: 'promotion',
     name: 'Test campaign',
     audience_template: 'first_purchase',
     audience_config: {
@@ -212,6 +213,7 @@ describe('recall email preview race guard', () => {
   test('prepares a plain-text preview without replacing the operator input', async () => {
     const operatorBody = 'Plain preview\n2 < 3'
     const prepared = await prepareRecallEmailPreviewRequest({
+      campaignType: 'promotion',
       nextRequestId: () => 3,
       subject: '',
       bodyHTML: operatorBody,
@@ -223,6 +225,7 @@ describe('recall email preview race guard', () => {
       subject: '',
       bodyHTML: operatorBody,
     })
+    expect(prepared?.campaign_type).toBe('promotion')
     expect(prepared?.template.subject).toBe('Recall email preview')
     expect(prepared?.template.body_html).toContain('<p>Plain preview</p>')
     expect(prepared?.template.body_html).toContain('<p>2 &lt; 3</p>')
@@ -233,6 +236,7 @@ describe('recall email preview race guard', () => {
     let resolveValidation: ((valid: boolean) => void) | undefined
     let nextRequestId = 0
     const preparing = prepareRecallEmailPreviewRequest({
+      campaignType: 'promotion',
       nextRequestId: () => (nextRequestId += 1),
       subject: 'Subject',
       bodyHTML: '<p>Body</p>',
@@ -281,6 +285,20 @@ describe('CampaignEmailHtmlEditor', () => {
       expect(html).toContain(`aria-label="Insert ${action}"`)
       expect(html).toContain('type="button"')
     }
+  })
+
+  test('renders only content-safe insertion buttons for content-only campaigns', () => {
+    const draft = makeDraft()
+    draft.campaign_type = 'content_only'
+    const html = renderEditor(false, draft)
+
+    expect(html).toContain('aria-label="Insert {{.RecipientName}}"')
+    expect(html).toContain('aria-label="Insert {{.UnsubscribeURL}}"')
+    expect(html).not.toContain('aria-label="Insert {{.PromotionCodeMasked}}"')
+    expect(html).not.toContain('aria-label="Insert {{.ProductSummary}}"')
+    expect(html).not.toContain('aria-label="Insert {{.ExpiresAt}}"')
+    expect(html).not.toContain('aria-label="Insert {{.ClaimURL}}"')
+    expect(html).not.toContain('Preview uses sample recipient and offer data.')
   })
 
   test('explains every placeholder directly in the editor', () => {

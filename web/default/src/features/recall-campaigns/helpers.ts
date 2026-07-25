@@ -7,6 +7,7 @@ import {
 } from './email-html'
 import type {
   RecallCampaignDraft,
+  RecallCampaignType,
   RecallCouponSource,
   RecallDiscountType,
   RecallEmailStage,
@@ -26,6 +27,14 @@ export {
 } from './email-html'
 
 export const recallFixedCurrencies = ['USD', 'INR', 'BRL', 'JPY'] as const
+
+export function formatRecallCampaignType(type: RecallCampaignType): string {
+  return type === 'content_only' ? 'Content only' : 'Promotion'
+}
+
+export function isRecallPromotionCampaign(type: RecallCampaignType): boolean {
+  return type === 'promotion'
+}
 
 export const recallFixedCurrencyDefaults = {
   amount_off: 500,

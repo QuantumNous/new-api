@@ -33,7 +33,7 @@ export function CampaignPreviewDialog(props: CampaignPreviewDialogProps) {
           <DialogTitle>{t('Campaign preview')}</DialogTitle>
           <DialogDescription>
             {t(
-              'Review eligibility, exclusions, Stripe Products, and Coupon validation before activation.'
+              'Review eligibility, exclusions, and promotion validation before activation.'
             )}
           </DialogDescription>
         </DialogHeader>
@@ -61,7 +61,7 @@ export function CampaignPreviewDialog(props: CampaignPreviewDialogProps) {
                 </dl>
               </div>
               <div className='rounded-lg border p-3'>
-                <h3 className='font-medium'>{t('Stripe validation')}</h3>
+                <h3 className='font-medium'>{t('Promotion validation')}</h3>
                 {data.stripe ? (
                   <>
                     <p>

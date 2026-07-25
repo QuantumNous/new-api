@@ -34,6 +34,10 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
 import * as recallApi from '../api'
 import { recallLocalDateTimeToUnix } from '../audience-inputs'
+import {
+  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
+  RECALL_EMAIL_STARTER_HTML,
+} from '../helpers'
 import type { RecallAudienceTemplate, RecallCampaignDraft } from '../types'
 
 const commonHelp =
@@ -57,6 +61,7 @@ let latestSpecifiedUsersProps:
     }
   | undefined
 let latestAudienceTemplateChange: ((value: string) => void) | undefined
+let latestCampaignTypeChange: ((value: string) => void) | undefined
 const latestInputProps: Record<
   string,
   React.InputHTMLAttributes<HTMLInputElement>
@@ -85,9 +90,14 @@ mock.module('@/components/ui/select', () => ({
   }) => {
     const name = props.items?.some((item) => item.value === 'first_purchase')
       ? 'audience_template'
-      : undefined
+      : props.items?.some((item) => item.value === 'content_only')
+        ? 'campaign_type'
+        : undefined
     if (name === 'audience_template') {
       latestAudienceTemplateChange = props.onValueChange
+    }
+    if (name === 'campaign_type') {
+      latestCampaignTypeChange = props.onValueChange
     }
     return (
       <>
@@ -191,6 +201,7 @@ function MockSpecifiedUsersSelector(
 
 function makeDraft(template: RecallAudienceTemplate): RecallCampaignDraft {
   return {
+    campaign_type: 'promotion',
     name: 'Test campaign',
     audience_template: template,
     audience_config: {
@@ -600,6 +611,7 @@ beforeAll(async () => {
 beforeEach(() => {
   latestSpecifiedUsersProps = undefined
   latestAudienceTemplateChange = undefined
+  latestCampaignTypeChange = undefined
   for (const key of Object.keys(latestInputProps)) {
     delete latestInputProps[key]
   }
@@ -612,6 +624,88 @@ afterAll(() => {
 })
 
 describe('CampaignEditor audience rules', () => {
+  test('offers promotion and content-only campaign types', () => {
+    const html = renderEditor('first_purchase')
+
+    expect(html).toContain('Campaign type')
+    expect(html).toContain('value="promotion"')
+    expect(html).toContain('Promotion')
+    expect(html).toContain('value="content_only"')
+    expect(html).toContain('Content only')
+  })
+
+  test('hides promotion-only controls for content-only campaigns', () => {
+    const draft = makeDraft('first_purchase')
+    draft.campaign_type = 'content_only'
+    draft.product_scope = { topup_price_ids: [], subscription_price_ids: [] }
+    draft.promotion_valid_seconds = 0
+
+    const html = renderEditor('first_purchase', draft)
+
+    expect(html).toContain('Campaign type')
+    expect(html).toContain('1. Campaign and audience')
+    expect(html).toContain('2. Audience rules')
+    expect(html).toContain('5. Execution schedule')
+    expect(html).toContain('6. Email sequence')
+    expect(html).not.toContain('3. Stripe Coupon')
+    expect(html).not.toContain('4. Products, minimum, and validity')
+    expect(html).not.toContain('Coupon source')
+    expect(html).not.toContain('Discount type')
+    expect(html).not.toContain('Top-up products')
+    expect(html).not.toContain('Subscription products')
+    expect(html).not.toContain('Promotion validity seconds')
+  })
+
+  test('preserves hidden promotion state when switching to content-only and submitting', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates = Object.fromEntries(
+      ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'].map((locale) => [
+        locale,
+        {
+          subject: '',
+          body_text: '',
+          body_html: RECALL_EMAIL_STARTER_HTML,
+        },
+      ])
+    )
+    draft.coupon_source = 'existing'
+    draft.existing_coupon_id = 'coupon_preserve'
+    draft.discount_config = {
+      type: 'fixed',
+      percent_off: 0,
+      amount_off: 1200,
+      currency: 'USD',
+      currency_options: {},
+      minimum_amount: 2500,
+      minimum_amount_currency: 'USD',
+      coupon_redeem_by: 0,
+    }
+    draft.product_scope = {
+      topup_price_ids: ['price_topup_usd'],
+      subscription_price_ids: ['price_sub_monthly'],
+    }
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestCampaignTypeChange?.('content_only')
+    })
+    await submit(container)
+
+    expect(createMutation).toHaveBeenCalledTimes(1)
+    const submitted = createMutation.mock.calls[0][0] as RecallCampaignDraft
+    expect(submitted.campaign_type).toBe('content_only')
+    expect(submitted.coupon_source).toBe('existing')
+    expect(submitted.existing_coupon_id).toBe('coupon_preserve')
+    expect(submitted.discount_config).toEqual(draft.discount_config)
+    expect(submitted.product_scope).toEqual(draft.product_scope)
+    for (const template of Object.values(
+      submitted.email_sequence[0].templates
+    )) {
+      expect(template.body_html).toBe(RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML)
+    }
+    dispose(root)
+  })
+
   test('offers all six audience template values with source descriptions', () => {
     const html = renderEditor('first_purchase')
 
