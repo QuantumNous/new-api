@@ -42,8 +42,6 @@ const firstPurchaseHelp =
   'Targets registered users who have never paid, for campaigns that encourage a first purchase.'
 const groupHelp =
   'Choose Allow or Block, then select the user groups to include or exclude. With no group filter, eligible users from every group are included.'
-const automaticTranslationHelp =
-  "Email content is translated automatically when saved, sent in each user's language, and falls back to English when unavailable."
 const testI18n = createInstance()
 const createMutation = mock(async (draft: RecallCampaignDraft) => ({
   success: true,
@@ -592,7 +590,6 @@ beforeAll(async () => {
           [commonHelp]: commonHelp,
           [firstPurchaseHelp]: firstPurchaseHelp,
           [groupHelp]: groupHelp,
-          [automaticTranslationHelp]: automaticTranslationHelp,
         },
       },
     },
@@ -940,11 +937,12 @@ describe('CampaignEditor email sequence', () => {
     dispose(root)
   })
 
-  test('renders only English HTML template fields', () => {
+  test('renders eight language buttons and the active English fields', () => {
     const draft = makeDraft('first_purchase')
     const html = renderEditor('first_purchase', draft)
 
-    expect(html).not.toContain('Template language')
+    expect(html.match(/aria-pressed=/g) ?? []).toHaveLength(8)
+    expect(html).toContain('English')
     expect(html).toContain('name="email_sequence.0.templates.en.subject"')
     expect(html).toContain('name="email_sequence.0.templates.en.body_html"')
     expect(html).not.toContain('name="email_sequence.0.templates.en.body_text"')
@@ -960,7 +958,6 @@ describe('CampaignEditor email sequence', () => {
       /<textarea[^>]*name="email_sequence\.0\.templates\.en\.body_html"[^>]*>/
     )?.[0]
 
-    expect(html.replaceAll('&#x27;', "'")).toContain(automaticTranslationHelp)
     expect(subjectInput).toBeTruthy()
     expect(subjectInput?.toLowerCase()).not.toContain('maxlength')
     expect(bodyInput).toBeTruthy()
@@ -977,14 +974,14 @@ describe('CampaignEditor email sequence', () => {
       /<textarea[^>]*name="email_sequence\.0\.templates\.en\.body_html"[^>]*>/
     )?.[0]
 
-    expect(html).toContain('for="recall-email-0-subject"')
-    expect(subjectInput).toContain('id="recall-email-0-subject"')
+    expect(html).toContain('for="recall-email-0-en-subject"')
+    expect(subjectInput).toContain('id="recall-email-0-en-subject"')
     expect(subjectInput).toContain('aria-invalid="false"')
     expect(subjectInput).toContain(
-      'aria-describedby="recall-email-0-subject-help"'
+      'aria-describedby="recall-email-0-en-subject-help"'
     )
-    expect(html).toContain('for="recall-email-0-body-html"')
-    expect(bodyInput).toContain('id="recall-email-0-body-html"')
+    expect(html).toContain('for="recall-email-0-en-body-html"')
+    expect(bodyInput).toContain('id="recall-email-0-en-body-html"')
     expect(bodyInput).toContain('aria-invalid="false"')
     expect(bodyInput).not.toContain('aria-describedby')
   })

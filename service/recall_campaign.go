@@ -1369,20 +1369,42 @@ func canonicalizeRecallEmailDraft(draft RecallCampaignDraft) (RecallCampaignDraf
 			StageNo:         stage.StageNo,
 			DelaySeconds:    stage.DelaySeconds,
 			TemplateVersion: stage.TemplateVersion,
-			Templates:       make(map[string]RecallEmailTemplate, 1),
+			Templates:       make(map[string]RecallEmailTemplate, len(stage.Templates)),
 		}
 		for language, template := range stage.Templates {
-			if strings.ToLower(strings.TrimSpace(language)) != "en" {
-				continue
+			language = strings.ToLower(strings.TrimSpace(language))
+			if language == "" {
+				return RecallCampaignDraft{}, fmt.Errorf("recall email stage %d has an empty language", stage.StageNo)
 			}
-			if _, exists := stages[i].Templates["en"]; exists {
-				return RecallCampaignDraft{}, fmt.Errorf("recall email stage %d has duplicate English templates", stage.StageNo)
+			if _, exists := stages[i].Templates[language]; exists {
+				return RecallCampaignDraft{}, fmt.Errorf("recall email stage %d has duplicate language %q", stage.StageNo, language)
 			}
-			stages[i].Templates["en"] = template
+			stages[i].Templates[language] = template
+		}
+		if err := validateRecallEmailTemplateLocaleSet(stage.StageNo, stages[i].Templates); err != nil {
+			return RecallCampaignDraft{}, err
 		}
 	}
 	draft.Emails = stages
 	return draft, nil
+}
+
+func validateRecallEmailTemplateLocaleSet(stageNo int, templates map[string]RecallEmailTemplate) error {
+	if _, exists := templates["en"]; !exists {
+		return fmt.Errorf("recall email stage %d requires an English template", stageNo)
+	}
+	if len(templates) == 1 {
+		return nil
+	}
+	if len(templates) != len(recallEmailTranslationLanguages)+1 {
+		return fmt.Errorf("recall email stage %d manual locales must contain either only en or all eight supported languages", stageNo)
+	}
+	for _, language := range recallEmailTranslationLanguages {
+		if _, exists := templates[language]; !exists {
+			return fmt.Errorf("recall email stage %d manual locales are missing language %s", stageNo, language)
+		}
+	}
+	return nil
 }
 
 func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, incoming []RecallEmailStage, stored []RecallEmailStage) ([]RecallEmailStage, error) {
@@ -1398,6 +1420,13 @@ func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, i
 	needsTranslation := make([]RecallEmailStage, 0, len(incoming))
 	for i, stage := range incoming {
 		localized[i] = stage
+		if templates, complete, err := completeManualRecallEmailTemplates(stage); complete || err != nil {
+			if err != nil {
+				return nil, err
+			}
+			localized[i].Templates = templates
+			continue
+		}
 		if templates, reusable := reusableRecallEmailTemplates(stage, storedByStage[stage.StageNo]); reusable {
 			localized[i].Templates = templates
 			continue
@@ -1438,6 +1467,22 @@ func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, i
 		localized[i].Templates = templates
 	}
 	return localized, nil
+}
+
+func completeManualRecallEmailTemplates(stage RecallEmailStage) (map[string]RecallEmailTemplate, bool, error) {
+	if len(stage.Templates) != len(recallEmailTranslationLanguages)+1 {
+		return nil, false, nil
+	}
+	targets := make(map[string]RecallEmailTemplate, len(recallEmailTranslationLanguages))
+	for _, language := range recallEmailTranslationLanguages {
+		template, exists := stage.Templates[language]
+		if !exists {
+			return nil, false, nil
+		}
+		targets[language] = template
+	}
+	templates, err := canonicalRecallEmailTemplates(stage.StageNo, stage.Templates["en"], targets)
+	return templates, true, err
 }
 
 func reusableRecallEmailTemplates(incoming RecallEmailStage, stored RecallEmailStage) (map[string]RecallEmailTemplate, bool) {

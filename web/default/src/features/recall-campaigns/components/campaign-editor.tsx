@@ -1,6 +1,10 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react'
 import { useFieldArray, useForm, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import {
+  INTERFACE_LANGUAGE_OPTIONS,
+  type InterfaceLanguageCode,
+} from '@/i18n/languages'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -41,6 +45,7 @@ import type {
   RecallCampaignDraft,
   RecallCampaignStatus,
   RecallDiscountConfig,
+  RecallEmailTemplate,
   RecallFixedCurrency,
 } from '../types'
 import { CampaignEmailHtmlEditor } from './campaign-email-html-editor'
@@ -63,6 +68,40 @@ const LazyCampaignSpecifiedUsersSelector = lazy(async () => {
 })
 
 type RecallFixedAmountInputs = Record<RecallFixedCurrency, string>
+
+const recallEmailLocaleOrder: InterfaceLanguageCode[] = [
+  'en',
+  'zh',
+  'es',
+  'fr',
+  'pt',
+  'ru',
+  'ja',
+  'vi',
+]
+
+const recallEmailLanguageOptions = recallEmailLocaleOrder.map((code) => ({
+  code,
+  label:
+    INTERFACE_LANGUAGE_OPTIONS.find((option) => option.code === code)?.label ??
+    code.toUpperCase(),
+}))
+
+function createRecallEmailTemplates(
+  templates: Record<string, RecallEmailTemplate> = {}
+): Record<string, RecallEmailTemplate> {
+  const englishTemplate = templates.en ?? {
+    subject: '',
+    body_text: '',
+    body_html: RECALL_EMAIL_STARTER_HTML,
+  }
+  return Object.fromEntries(
+    recallEmailLocaleOrder.map((locale) => [
+      locale,
+      { ...(templates[locale] ?? englishTemplate) },
+    ])
+  )
+}
 
 const recallFixedAmountPaths: Record<
   RecallFixedCurrency,
@@ -105,7 +144,14 @@ export function createRecallCampaignFormDraft(
     draft.discount_config.type === 'fixed'
       ? normalizeRecallDiscountType(draft, 'fixed')
       : draft
-  return prepareRecallCampaignSubmitDraft(normalizedDraft)
+  const preparedDraft = prepareRecallCampaignSubmitDraft(normalizedDraft)
+  return {
+    ...preparedDraft,
+    email_sequence: preparedDraft.email_sequence.map((stage) => ({
+      ...stage,
+      templates: createRecallEmailTemplates(stage.templates),
+    })),
+  }
 }
 
 const audienceFields: Record<
@@ -219,13 +265,7 @@ function createRecallCampaignDefaults(): RecallCampaignDraft {
         stage_no: 1,
         delay_seconds: 0,
         template_version: 1,
-        templates: {
-          en: {
-            subject: '',
-            body_text: '',
-            body_html: RECALL_EMAIL_STARTER_HTML,
-          },
-        },
+        templates: createRecallEmailTemplates(),
       },
     ],
   }
@@ -253,6 +293,8 @@ export function CampaignEditor(props: CampaignEditorProps) {
     resolver: zodResolver(updateSchema),
     defaultValues,
   })
+  const [activeEmailLocale, setActiveEmailLocale] =
+    useState<InterfaceLanguageCode>('en')
   const [fixedAmountInputs, setFixedAmountInputs] =
     useState<RecallFixedAmountInputs>(() =>
       createRecallFixedAmountInputs(defaultValues.discount_config)
@@ -1052,15 +1094,30 @@ export function CampaignEditor(props: CampaignEditorProps) {
           <CardTitle>{t('6. Email sequence')}</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
-          <p className='text-muted-foreground text-sm'>
-            {t(
-              "Email content is translated automatically when saved, sent in each user's language, and falls back to English when unavailable."
-            )}
-          </p>
+          <div
+            aria-label={t('Language')}
+            className='flex flex-wrap gap-2'
+            role='group'
+          >
+            {recallEmailLanguageOptions.map((language) => (
+              <Button
+                key={language.code}
+                type='button'
+                size='sm'
+                variant={
+                  activeEmailLocale === language.code ? 'default' : 'outline'
+                }
+                aria-pressed={activeEmailLocale === language.code}
+                onClick={() => setActiveEmailLocale(language.code)}
+              >
+                {language.label}
+              </Button>
+            ))}
+          </div>
           {stages.fields.map((stage, index) => {
             const subjectPath =
-              `email_sequence.${index}.templates.en.subject` as FieldPath<RecallCampaignDraft>
-            const subjectId = `recall-email-${index}-subject`
+              `email_sequence.${index}.templates.${activeEmailLocale}.subject` as FieldPath<RecallCampaignDraft>
+            const subjectId = `recall-email-${index}-${activeEmailLocale}-subject`
             const subjectErrorId = `${subjectId}-error`
             const subjectHelpId = `${subjectId}-help`
             const subjectError = form.getFieldState(
@@ -1094,6 +1151,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
                   <div className='space-y-2'>
                     <Label htmlFor={subjectId}>{t('Subject')}</Label>
                     <Input
+                      key={subjectPath}
                       id={subjectId}
                       disabled={terminal}
                       aria-invalid={Boolean(subjectError)}
@@ -1118,8 +1176,10 @@ export function CampaignEditor(props: CampaignEditorProps) {
                   </div>
                 </div>
                 <CampaignEmailHtmlEditor
+                  key={`${stage.id}-${activeEmailLocale}`}
                   form={form}
                   index={index}
+                  locale={activeEmailLocale}
                   disabled={terminal}
                 />
                 {stages.fields.length > 1 && !immutable ? (
@@ -1150,13 +1210,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
                   stage_no: stages.fields.length + 1,
                   delay_seconds: stages.fields.length * 86400,
                   template_version: 1,
-                  templates: {
-                    en: {
-                      subject: '',
-                      body_text: '',
-                      body_html: RECALL_EMAIL_STARTER_HTML,
-                    },
-                  },
+                  templates: createRecallEmailTemplates(),
                 })
               }
             >

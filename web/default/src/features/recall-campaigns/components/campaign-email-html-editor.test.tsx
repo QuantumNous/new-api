@@ -90,7 +90,14 @@ function renderEditor(disabled = false, draft = makeDraft()): string {
       },
     })
 
-    return <CampaignEmailHtmlEditor form={form} index={0} disabled={disabled} />
+    return (
+      <CampaignEmailHtmlEditor
+        form={form}
+        index={0}
+        locale='en'
+        disabled={disabled}
+      />
+    )
   }
 
   const queryClient = new QueryClient()
@@ -323,7 +330,7 @@ describe('CampaignEmailHtmlEditor', () => {
 
     expect(textarea).toContain('aria-invalid="true"')
     expect(textarea).toContain(
-      'aria-describedby="recall-email-0-body-html-error"'
+      'aria-describedby="recall-email-0-en-body-html-error"'
     )
     expect(html).toContain('Exactly one email body is required')
   })
