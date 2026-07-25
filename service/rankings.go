@@ -37,6 +37,7 @@ type RankedModel struct {
 	VendorIcon   string  `json:"vendor_icon,omitempty"`
 	Category     string  `json:"category"`
 	TotalTokens  int64   `json:"total_tokens"`
+	TotalQuota   int64   `json:"total_quota"`
 	Share        float64 `json:"share"`
 	GrowthPct    float64 `json:"growth_pct"`
 }
@@ -281,6 +282,7 @@ func buildRankedModels(totals []model.RankingQuotaTotal, totalTokens int64, prev
 			VendorIcon:   modelMeta.vendorIcon,
 			Category:     "all",
 			TotalTokens:  item.TotalTokens,
+			TotalQuota:   item.TotalQuota,
 			Share:        rankingShare(item.TotalTokens, totalTokens),
 			GrowthPct:    growth,
 		})

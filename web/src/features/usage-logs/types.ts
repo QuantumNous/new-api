@@ -30,6 +30,11 @@ import type { UsageLog } from './data/schema'
  */
 export type LogCategory = 'common' | 'drawing' | 'task'
 
+/**
+ * Matching strategy for the model name usage-log filter.
+ */
+export type ModelNameMode = 'contains' | 'exact'
+
 // ============================================================================
 // Filter Types
 // ============================================================================
@@ -48,6 +53,7 @@ export interface CommonFilters {
  */
 export interface CommonLogFilters extends CommonFilters {
   model?: string
+  modelNameMode?: ModelNameMode
   token?: string
   group?: string
   username?: string
@@ -307,6 +313,7 @@ export interface GetLogsParams {
   username?: string
   token_name?: string
   model_name?: string
+  model_name_mode?: ModelNameMode
   start_timestamp?: number
   end_timestamp?: number
   channel?: number
@@ -331,6 +338,7 @@ export interface GetLogStatsParams {
   username?: string
   token_name?: string
   model_name?: string
+  model_name_mode?: ModelNameMode
   start_timestamp?: number
   end_timestamp?: number
   channel?: number
@@ -343,6 +351,15 @@ export interface GetLogStatsResponse {
   success: boolean
   message?: string
   data?: LogStatistics
+}
+
+export interface ExportLogsParams extends GetLogStatsParams {
+  scope: 'all' | 'self'
+}
+
+export interface ExportLogsResult {
+  blob: Blob
+  contentDisposition?: string
 }
 
 // ============================================================================

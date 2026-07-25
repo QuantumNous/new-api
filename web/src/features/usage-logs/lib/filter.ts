@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 /**
  * Utility functions for usage logs filters
  */
-import { LOG_CATEGORY_LABELS } from '../constants'
+import { DEFAULT_MODEL_NAME_MODE, LOG_CATEGORY_LABELS } from '../constants'
 import type {
   LogCategory,
   LogFilters,
@@ -48,9 +48,13 @@ export function buildSearchParams(
   switch (logCategory) {
     case 'common': {
       const commonFilters = filters as CommonLogFilters
+      const modelName = commonFilters.model?.trim()
       return {
         ...baseParams,
-        ...(commonFilters.model && { model: commonFilters.model }),
+        ...(modelName && {
+          model: modelName,
+          modelNameMode: commonFilters.modelNameMode ?? DEFAULT_MODEL_NAME_MODE,
+        }),
         ...(commonFilters.token && { token: commonFilters.token }),
         ...(commonFilters.group && { group: commonFilters.group }),
         ...(commonFilters.username && { username: commonFilters.username }),

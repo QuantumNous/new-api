@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
+import { formatLogQuota } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { formatTokens } from '../lib/format'
@@ -36,7 +37,7 @@ type ModelLeaderboardProps = {
 
 /**
  * Two-column model leaderboard list: "rank · model
- * (with vendor below) · tokens (with growth below)" rendering. Splits
+ * (with vendor below) · tokens, quota, and growth" rendering. Splits
  * `rows` evenly between the two columns so the visual rhythm matches a
  * single ranked list rather than two independent lists.
  *
@@ -126,6 +127,16 @@ function ModelList(props: {
                   </span>
                 </>
               )}
+            </div>
+            <div
+              className={
+                compact
+                  ? 'text-muted-foreground/80 font-mono text-[10px] tabular-nums'
+                  : 'text-muted-foreground/80 font-mono text-[11px] tabular-nums'
+              }
+              aria-label={`${t('Usage')}: ${formatLogQuota(row.total_quota)}`}
+            >
+              {formatLogQuota(row.total_quota)}
             </div>
             <GrowthText
               value={row.growth_pct}

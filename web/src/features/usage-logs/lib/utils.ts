@@ -28,6 +28,7 @@ import {
   getUserTaskLogs,
 } from '../api'
 import {
+  DEFAULT_MODEL_NAME_MODE,
   LOG_TYPES,
   DISPLAYABLE_LOG_TYPES,
   TIMING_LOG_TYPES,
@@ -38,6 +39,7 @@ import type {
   FetchLogsConfig,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
+  ExportLogsParams,
 } from '../types'
 
 // ============================================================================
@@ -91,23 +93,7 @@ function timestampToSeconds(ms: number): number {
   return Math.floor(ms / 1000)
 }
 
-/**
- * Build query parameters from filters
- */
-export function buildQueryParams(
-  params: Record<string, unknown>
-): URLSearchParams {
-  const queryParams = new URLSearchParams()
-
-  Object.entries(params).forEach(([key, value]) => {
-    // Keep 0 as a valid value, only filter out undefined, null, and empty string
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, String(value))
-    }
-  })
-
-  return queryParams
-}
+export { buildQueryParams } from './query'
 
 /**
  * Build time range parameters with default values
@@ -178,6 +164,7 @@ export function buildApiParams(config: {
   isAdmin: boolean
 }): GetLogsParams {
   const { page, pageSize, searchParams, columnFilters = [], isAdmin } = config
+  const modelName = searchParams.model ? String(searchParams.model).trim() : ''
 
   // Helper to process type parameter (single value from array)
   const processType = (value: unknown): number | undefined => {
@@ -200,7 +187,15 @@ export function buildApiParams(config: {
     p: page,
     page_size: pageSize,
     ...(searchParams.type ? { type: processType(searchParams.type) } : {}),
-    ...(searchParams.model ? { model_name: String(searchParams.model) } : {}),
+    ...(modelName
+      ? {
+          model_name: modelName,
+          model_name_mode:
+            searchParams.modelNameMode === 'exact'
+              ? 'exact'
+              : DEFAULT_MODEL_NAME_MODE,
+        }
+      : {}),
     ...(searchParams.token ? { token_name: String(searchParams.token) } : {}),
     ...(searchParams.group ? { group: String(searchParams.group) } : {}),
     ...(isAdmin && searchParams.channel
@@ -228,7 +223,11 @@ export function buildApiParams(config: {
           params.type = processType(value)
           break
         case 'model_name':
-          params.model_name = String(value)
+          params.model_name = String(value).trim()
+          params.model_name_mode =
+            searchParams.modelNameMode === 'exact'
+              ? 'exact'
+              : DEFAULT_MODEL_NAME_MODE
           break
         case 'token_name':
           params.token_name = String(value)
@@ -247,6 +246,24 @@ export function buildApiParams(config: {
   }
 
   return params
+}
+
+/** Build the unpaginated filter set used by the Root-only CSV export. */
+export function buildExportParams(config: {
+  searchParams: Record<string, unknown>
+  columnFilters?: Array<{ id: string; value: unknown }>
+  scope: 'all' | 'self'
+}): ExportLogsParams {
+  const params = buildApiParams({
+    page: 1,
+    pageSize: 1,
+    searchParams: config.searchParams,
+    columnFilters: config.columnFilters,
+    isAdmin: config.scope === 'all',
+  })
+  delete params.p
+  delete params.page_size
+  return { ...params, scope: config.scope }
 }
 
 // ============================================================================
