@@ -48,6 +48,7 @@ func TestMain(m *testing.M) {
 		&model.Ability{},
 		&model.Model{},
 		&model.Vendor{},
+		&model.Option{},
 		&model.TopUp{},
 		&model.UserSubscription{},
 		&model.SystemTask{},

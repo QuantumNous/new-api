@@ -111,8 +111,10 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	service.SyncModelChannelAvailability("model.create")
-	model.RefreshPricing()
+	res := service.SyncModelChannelAvailability("model.create")
+	if !res.PricingRefreshed {
+		model.RefreshPricing()
+	}
 	common.ApiSuccess(c, &m)
 }
 
@@ -140,6 +142,13 @@ func UpdateModelMeta(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+		// Re-evaluate immediately so auto-disable can correct a manual enable without channels.
+		res := service.SyncModelChannelAvailability("model.status_update")
+		if !res.PricingRefreshed {
+			model.RefreshPricing()
+		}
+		common.ApiSuccess(c, &m)
+		return
 	} else {
 		// 名称冲突检查
 		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
@@ -160,18 +169,23 @@ func UpdateModelMeta(c *gin.Context) {
 		}
 		// Admin explicitly changed status via metadata editor -> clear auto-disable marker.
 		// Other metadata edits do not clear the marker.
+		pricingRefreshed := false
 		if prev.Id != 0 && prev.Status != m.Status {
 			service.ClearModelAutoDisabledByRule(m.Id)
+			res := service.SyncModelChannelAvailability("model.status_update")
+			pricingRefreshed = res.PricingRefreshed
 		}
 		// Name/rule changes can alter availability matching.
 		if prev.Id == 0 || prev.ModelName != m.ModelName || prev.NameRule != m.NameRule {
-			service.SyncModelChannelAvailability("model.update")
+			res := service.SyncModelChannelAvailability("model.update")
+			pricingRefreshed = pricingRefreshed || res.PricingRefreshed
 		}
+		if !pricingRefreshed {
+			model.RefreshPricing()
+		}
+		common.ApiSuccess(c, &m)
+		return
 	}
-	// Manual status changes take effect first; re-evaluation happens on the next
-	// related channel/model change or full calibration, not immediately here.
-	model.RefreshPricing()
-	common.ApiSuccess(c, &m)
 }
 
 // DeleteModelMeta 删除模型
@@ -186,8 +200,10 @@ func DeleteModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	service.SyncModelChannelAvailability("model.delete")
-	model.RefreshPricing()
+	res := service.SyncModelChannelAvailability("model.delete")
+	if !res.PricingRefreshed {
+		model.RefreshPricing()
+	}
 	common.ApiSuccess(c, nil)
 }
 
@@ -371,7 +387,7 @@ func BatchDisableModelsNoChannels(c *gin.Context) {
 	})
 }
 
-// BatchEnableModelsWithChannels 批量启用有可用渠道且被自动禁用的模型
+// BatchEnableModelsWithChannels 批量启用：仅恢复被渠道可用性规则自动禁用、且现已有可用渠道的模型
 func BatchEnableModelsWithChannels(c *gin.Context) {
 	result := service.ManualEnableModelsWithChannels()
 	common.ApiSuccess(c, gin.H{

@@ -103,11 +103,12 @@ export function ModelsAvailabilitySwitches() {
 
   const handleDisableChange = useCallback(
     (checked: boolean) => {
-      const previous = disableEnabled
+      const previousDisable = disableEnabled
+      const previousEnable = enableEnabled
       setDisableEnabled(checked)
       if (!checked) {
-        // hide dependent switch immediately; keep its server value for restore
-        setEnableEnabled(serverValues.AutomaticEnableModelEnabled)
+        // Paired automation: turning disable off also turns enable off.
+        setEnableEnabled(false)
       }
       mutation.mutate(
         {
@@ -115,18 +116,37 @@ export function ModelsAvailabilitySwitches() {
           value: checked,
         },
         {
-          onError: () => setDisableEnabled(previous),
+          onError: () => {
+            setDisableEnabled(previousDisable)
+            setEnableEnabled(previousEnable)
+          },
           onSuccess: (resp) => {
-            if (!resp.success) setDisableEnabled(previous)
+            if (!resp.success) {
+              setDisableEnabled(previousDisable)
+              setEnableEnabled(previousEnable)
+              return
+            }
+            if (!checked && previousEnable) {
+              // Persist paired off for enable; backend also enforces this.
+              mutation.mutate({
+                key: 'AutomaticEnableModelEnabled',
+                value: false,
+              })
+            }
           },
         }
       )
     },
-    [disableEnabled, mutation, serverValues.AutomaticEnableModelEnabled]
+    [disableEnabled, enableEnabled, mutation]
   )
 
   const handleEnableChange = useCallback(
     (checked: boolean) => {
+      // Enable is only meaningful while disable automation is on.
+      if (checked && !disableEnabled) {
+        setEnableEnabled(false)
+        return
+      }
       const previous = enableEnabled
       setEnableEnabled(checked)
       mutation.mutate(
@@ -142,7 +162,7 @@ export function ModelsAvailabilitySwitches() {
         }
       )
     },
-    [enableEnabled, mutation]
+    [disableEnabled, enableEnabled, mutation]
   )
 
   return (
