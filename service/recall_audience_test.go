@@ -439,7 +439,7 @@ func TestRecallAudienceRegistrationTimeRangeIncludesActivityAndPaymentHistory(t 
 
 	wantUserIDs := []int{
 		plain.Id, used.Id, paidTopup.Id, paidSubscription.Id, activeSubscription.Id,
-		expiredSubscription.Id, unverified.Id, end.Id,
+		expiredSubscription.Id, end.Id,
 	}
 	gotPreviewIDs := make([]int, len(preview.Sample))
 	for i := range preview.Sample {
@@ -458,12 +458,14 @@ func TestRecallAudienceRegistrationTimeRangeIncludesActivityAndPaymentHistory(t 
 	require.EqualValues(t, 1, exclusions["disabled"])
 	require.EqualValues(t, 1, exclusions["invalid_email"])
 	require.EqualValues(t, 1, exclusions["opted_out"])
-	require.Zero(t, exclusions["unverified_email"], "registration_time_range must include unverified users")
+	require.EqualValues(t, 1, exclusions["unverified_email"])
 	require.EqualValues(t, 1, exclusions["group_filtered"])
 	require.Zero(t, exclusions["recent_api_activity"], "registration_time_range must not use stale LastAPICallAgeDays")
 	require.Zero(t, exclusions["payment_exists"], "registration_time_range must include paid users")
 	require.Zero(t, exclusions["active_subscription"], "registration_time_range must include active subscriptions")
 	require.Zero(t, exclusions["threshold_not_met"], "registration_time_range must ignore behavioral thresholds")
+	require.NotContains(t, gotPreviewIDs, unverified.Id)
+	require.NotContains(t, gotRecipientIDs, unverified.Id)
 	require.NotContains(t, gotPreviewIDs, disabled.Id)
 	require.NotContains(t, gotPreviewIDs, invalid.Id)
 	require.NotContains(t, gotPreviewIDs, optedOut.Id)

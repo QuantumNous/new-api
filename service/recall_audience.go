@@ -383,7 +383,7 @@ func recallAudienceCandidate(draft RecallCampaignDraft, fact model.RecallCandida
 	if setting.RecallMarketingOptOut {
 		return recallAudienceSelection{}, "opted_out", nil
 	}
-	if draft.AudienceTemplate != "registration_time_range" && draft.Audience.RequireVerifiedEmail && user.EmailVerifiedAt <= 0 {
+	if draft.Audience.RequireVerifiedEmail && user.EmailVerifiedAt <= 0 {
 		return recallAudienceSelection{}, "unverified_email", nil
 	}
 	if draft.AudienceTemplate != "specified_users" &&
