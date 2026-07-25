@@ -1126,18 +1126,25 @@ func stripeSubscriptionProviderPayload(event stripe.Event, tradeNo string, custo
 }
 
 func attributeRecallAfterStripeFulfillment(ctx context.Context, event stripe.Event, tradeNo string, userID int) {
+	if err := attributeRecallAfterStripeFulfillmentResult(ctx, event, tradeNo, userID); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe recall attribution failed trade_no=%s", tradeNo))
+	}
+}
+
+func attributeRecallAfterStripeFulfillmentResult(ctx context.Context, event stripe.Event, tradeNo string, userID int) error {
 	runtime := service.GetRecallRuntime()
 	if runtime == nil || runtime.Attribution == nil {
-		return
+		return nil
 	}
 	fact, err := service.ParseRecallPayment(event, tradeNo, userID)
 	if err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("Stripe recall attribution parse failed trade_no=%s", tradeNo))
-		return
+		return err
 	}
 	if err := runtime.Attribution.Attribute(ctx, fact); err != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("Stripe recall attribution failed trade_no=%s", tradeNo))
+		return err
 	}
+	return nil
 }
 
 var stripeCheckoutPaymentContractFromEvent = getStripeCheckoutPaymentContractFromEvent
@@ -1218,6 +1225,14 @@ func handleStripeOneTimePlanPaid(ctx context.Context, event stripe.Event, refere
 		return permanentStripeWebhookProcessingError(err)
 	}
 	if err == nil {
+		if order.RecallDiscountAmountMinor > 0 {
+			if attributionErr := attributeRecallAfterStripeFulfillmentResult(ctx, event, referenceId, order.UserId); attributionErr != nil {
+				logger.LogWarn(ctx, fmt.Sprintf("Stripe one-time recall attribution failed after fulfillment trade_no=%s", referenceId))
+				return attributionErr
+			}
+		} else {
+			attributeRecallAfterStripeFulfillment(ctx, event, referenceId, order.UserId)
+		}
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe one-time subscription order processed trade_no=%s event_type=%s client_ip=%s", referenceId, string(event.Type), callerIp))
 	}
 	return err
@@ -1252,6 +1267,9 @@ func isOneTimePlanStripeOrder(order *model.SubscriptionOrder) bool {
 
 func validateOneTimePlanStripeSessionEvent(event stripe.Event, order *model.SubscriptionOrder) error {
 	if err := validateOneTimePlanStripeSessionIdentity(event, order); err != nil {
+		return err
+	}
+	if err := validateOneTimePlanRecallAttributionTuple(order); err != nil {
 		return err
 	}
 	if event.GetObjectValue("mode") != string(stripe.CheckoutSessionModePayment) {
@@ -1292,6 +1310,30 @@ func validateOneTimePlanStripeSessionEvent(event stripe.Event, order *model.Subs
 		}
 		if item.foldCase {
 			actual = strings.ToLower(actual)
+		}
+		if actual != item.expected {
+			return fmt.Errorf("Stripe one-time checkout metadata %s mismatch", item.key)
+		}
+	}
+	recallMetadata := []struct {
+		key      string
+		expected string
+	}{
+		{key: "recall_campaign_id", expected: strconv.FormatInt(order.RecallCampaignId, 10)},
+		{key: "recall_recipient_id", expected: strconv.FormatInt(order.RecallRecipientId, 10)},
+		{key: "recall_promotion_code_id", expected: strings.TrimSpace(order.RecallPromotionCodeId)},
+		{key: "recall_discount_amount_minor", expected: strconv.FormatInt(order.RecallDiscountAmountMinor, 10)},
+	}
+	for _, item := range recallMetadata {
+		actual := strings.TrimSpace(stripeEventObjectValue(event, "metadata", item.key))
+		if order.RecallDiscountAmountMinor <= 0 {
+			if actual != "" {
+				return fmt.Errorf("Stripe one-time checkout metadata %s is unexpected", item.key)
+			}
+			continue
+		}
+		if actual == "" {
+			return fmt.Errorf("Stripe one-time checkout metadata %s is missing", item.key)
 		}
 		if actual != item.expected {
 			return fmt.Errorf("Stripe one-time checkout metadata %s mismatch", item.key)
@@ -1353,7 +1395,7 @@ func validateStripeCheckoutLivemodeForLocalKey(livemode bool) error {
 
 func oneTimePlanStripeProviderPayload(event stripe.Event) string {
 	payload := map[string]any{
-		"session_id":           strings.TrimSpace(event.GetObjectValue("id")),
+		"checkout_session_id":  strings.TrimSpace(event.GetObjectValue("id")),
 		"payment_intent":       strings.TrimSpace(event.GetObjectValue("payment_intent")),
 		"amount_total":         event.GetObjectValue("amount_total"),
 		"currency":             strings.ToUpper(strings.TrimSpace(event.GetObjectValue("currency"))),

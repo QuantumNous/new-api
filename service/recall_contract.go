@@ -11,6 +11,13 @@ type RecallCheckoutDiscount struct {
 	RecipientID     int64  `json:"recipient_id"`
 }
 
+type RecallPurchaseDiscount struct {
+	PromotionCodeID     string
+	CampaignID          int64
+	RecipientID         int64
+	DiscountAmountMinor int64
+}
+
 type RecallCampaignDraft struct {
 	Name                  string               `json:"name"`
 	AudienceTemplate      string               `json:"audience_template"`

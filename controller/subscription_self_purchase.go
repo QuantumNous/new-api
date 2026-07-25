@@ -23,6 +23,7 @@ type SubscriptionSelfPurchaseQuoteRequest struct {
 	PaymentChoice string `json:"payment_choice"`
 	Months        int    `json:"months"`
 	RequestID     string `json:"request_id"`
+	RecallClaim   string `json:"recall_claim"`
 }
 
 type SubscriptionSelfPurchaseRequest struct {
@@ -41,12 +42,14 @@ type SubscriptionSelfPurchaseQuoteResponse struct {
 }
 
 type SubscriptionSelfPaymentQuote struct {
-	Currency  string  `json:"currency"`
-	Months    int     `json:"months"`
-	UnitPrice float64 `json:"unit_price"`
-	Total     float64 `json:"total"`
-	QuoteID   string  `json:"quote_id,omitempty"`
-	ExpiresAt int64   `json:"expires_at,omitempty"`
+	Currency       string  `json:"currency"`
+	Months         int     `json:"months"`
+	UnitPrice      float64 `json:"unit_price"`
+	OriginalTotal  float64 `json:"original_total"`
+	DiscountAmount float64 `json:"discount_amount"`
+	Total          float64 `json:"total"`
+	QuoteID        string  `json:"quote_id,omitempty"`
+	ExpiresAt      int64   `json:"expires_at,omitempty"`
 }
 
 type SubscriptionSelfPurchaseResponse struct {
@@ -90,6 +93,7 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 		PlanID:        req.PlanID,
 		PaymentChoice: choice,
 		Months:        req.Months,
+		RecallClaim:   req.RecallClaim,
 	})
 	if err != nil {
 		common.ApiError(c, err)
@@ -103,20 +107,22 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 		common.ApiErrorMsg(c, reason)
 		return
 	}
-	unitAmount := quote.PaymentAmountMinor / int64(req.Months)
 	expiresAt := time.Now().Add(subscriptionSelfQuoteTTL).Unix()
 	token, err := service.SignSubscriptionPurchaseQuoteToken(service.SubscriptionPurchaseQuoteTokenClaims{
-		Version:          1,
-		UserID:           userID,
-		PlanID:           req.PlanID,
-		PaymentChoice:    choice,
-		Months:           req.Months,
-		RequestID:        req.RequestID,
-		Currency:         strings.ToUpper(strings.TrimSpace(quote.Currency)),
-		UnitAmountMinor:  unitAmount,
-		TotalAmountMinor: quote.PaymentAmountMinor,
-		PlanRevision:     subscriptionPurchasePlanRevision(plan),
-		ExpiresAt:        expiresAt,
+		Version:             1,
+		UserID:              userID,
+		PlanID:              req.PlanID,
+		PaymentChoice:       choice,
+		Months:              req.Months,
+		RequestID:           req.RequestID,
+		Currency:            strings.ToUpper(strings.TrimSpace(quote.Currency)),
+		UnitAmountMinor:     quote.UnitAmountMinor,
+		TotalAmountMinor:    quote.PaymentAmountMinor,
+		DiscountAmountMinor: quote.DiscountAmountMinor,
+		RecallCampaignID:    quote.RecallCampaignID,
+		RecallRecipientID:   quote.RecallRecipientID,
+		PlanRevision:        subscriptionPurchasePlanRevision(plan),
+		ExpiresAt:           expiresAt,
 	})
 	if err != nil {
 		common.ApiError(c, err)
@@ -125,12 +131,14 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 	common.ApiSuccess(c, SubscriptionSelfPurchaseQuoteResponse{
 		PaymentQuotes: map[string]SubscriptionSelfPaymentQuote{
 			choice: {
-				Currency:  strings.ToUpper(strings.TrimSpace(quote.Currency)),
-				Months:    req.Months,
-				UnitPrice: quote.UnitPrice,
-				Total:     quote.Total,
-				QuoteID:   token,
-				ExpiresAt: expiresAt,
+				Currency:       strings.ToUpper(strings.TrimSpace(quote.Currency)),
+				Months:         req.Months,
+				UnitPrice:      quote.UnitPrice,
+				OriginalTotal:  quote.OriginalTotal,
+				DiscountAmount: quote.DiscountAmount,
+				Total:          quote.Total,
+				QuoteID:        token,
+				ExpiresAt:      expiresAt,
 			},
 		},
 	})
@@ -159,7 +167,7 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		return
 	}
 	var claims service.SubscriptionPurchaseQuoteTokenClaims
-	requiresQuote := isOneTimePlanStripeMethod(choice)
+	requiresQuote := isOneTimePlanStripeMethod(choice) || choice == service.SubscriptionPaymentChoiceBalance
 	if requiresQuote {
 		var err error
 		claims, err = validateSubscriptionSelfPurchaseQuote(req, userID, choice)
@@ -249,10 +257,17 @@ func subscriptionPurchaseQuoteFromClaims(claims service.SubscriptionPurchaseQuot
 		return nil
 	}
 	return &service.SubscriptionPurchaseQuote{
-		Currency:           claims.Currency,
-		UnitPrice:          float64(claims.UnitAmountMinor) / 100,
-		Total:              float64(claims.TotalAmountMinor) / 100,
-		PaymentAmountMinor: claims.TotalAmountMinor,
+		Currency:                 claims.Currency,
+		UnitPrice:                float64(claims.UnitAmountMinor) / 100,
+		UnitAmountMinor:          claims.UnitAmountMinor,
+		OriginalTotal:            float64(claims.UnitAmountMinor*int64(claims.Months)) / 100,
+		OriginalTotalAmountMinor: claims.UnitAmountMinor * int64(claims.Months),
+		DiscountAmount:           float64(claims.DiscountAmountMinor) / 100,
+		DiscountAmountMinor:      claims.DiscountAmountMinor,
+		Total:                    float64(claims.TotalAmountMinor) / 100,
+		PaymentAmountMinor:       claims.TotalAmountMinor,
+		RecallCampaignID:         claims.RecallCampaignID,
+		RecallRecipientID:        claims.RecallRecipientID,
 	}
 }
 

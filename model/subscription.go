@@ -585,6 +585,11 @@ type SubscriptionOrder struct {
 	PurchaseIntent     string  `json:"purchase_intent" gorm:"type:varchar(32);default:'';index"`
 	RenewalSource      string  `json:"renewal_source" gorm:"type:varchar(32);default:'';index"`
 
+	RecallCampaignId          int64  `json:"recall_campaign_id" gorm:"type:bigint;not null;default:0;index"`
+	RecallRecipientId         int64  `json:"recall_recipient_id" gorm:"type:bigint;not null;default:0;index"`
+	RecallPromotionCodeId     string `json:"recall_promotion_code_id" gorm:"type:varchar(128);not null;default:'';index"`
+	RecallDiscountAmountMinor int64  `json:"recall_discount_amount_minor" gorm:"type:bigint;not null;default:0"`
+
 	ProviderPayload    string `json:"provider_payload" gorm:"type:text"`
 	ChangeIntentId     int64  `json:"change_intent_id" gorm:"type:bigint;default:0;index"`
 	ProviderSessionId  string `json:"provider_session_id" gorm:"type:varchar(128);default:'';index"`
@@ -616,11 +621,15 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 func StripeCheckoutSessionIDFromProviderPayload(providerPayload string) string {
 	var payload struct {
 		CheckoutSessionId string `json:"checkout_session_id"`
+		LegacySessionId   string `json:"session_id"`
 	}
 	if err := common.Unmarshal([]byte(providerPayload), &payload); err != nil {
 		return ""
 	}
-	return strings.TrimSpace(payload.CheckoutSessionId)
+	if sessionID := strings.TrimSpace(payload.CheckoutSessionId); sessionID != "" {
+		return sessionID
+	}
+	return strings.TrimSpace(payload.LegacySessionId)
 }
 
 // User subscription instance

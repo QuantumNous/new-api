@@ -52,6 +52,7 @@ import {
 } from '../lib/subscription-plan-lifecycle'
 import {
   getRecallPriceDiscount,
+  isRecallPriceEligible,
   type RecallPriceDiscount,
 } from '../lib/recall-claim'
 import type { TopupInfo } from '../types'
@@ -330,21 +331,15 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         purchaseProjection?.payment_quotes ?? selfData.payment_quotes,
         months
       )
-      const selectedRecallDiscount = getRecallPriceDiscount(
-        recallClaim.view,
-        purchaseTarget.plan.plan.id,
-        'subscription',
-        Number(purchaseTarget.plan.plan.price_amount || 0),
-        purchaseTarget.plan.plan.currency || 'USD'
-      )
-      let eligibleRecallClaim: string | undefined
-      if (
-        paymentChoice === 'stripe_recurring' &&
+      const eligibleRecallClaim =
         recallClaim.claim &&
-        selectedRecallDiscount
-      ) {
-        eligibleRecallClaim = recallClaim.claim
-      }
+        isRecallPriceEligible(
+          recallClaim.view,
+          purchaseTarget.plan.plan.id,
+          'subscription'
+        )
+          ? recallClaim.claim
+          : undefined
       const res = await purchaseSubscriptionPlanFlexible({
         ...buildFlexiblePurchaseRequest({
           planId: purchaseTarget.plan.plan.id,
@@ -400,6 +395,15 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
       paymentChoice,
       months,
       requestId: purchaseTarget.requestId,
+      recallClaim:
+        recallClaim.claim &&
+        isRecallPriceEligible(
+          recallClaim.view,
+          purchaseTarget.plan.plan.id,
+          'subscription'
+        )
+          ? recallClaim.claim
+          : undefined,
     })
     const sequence = quoteRequestSequenceRef.current + 1
     quoteRequestSequenceRef.current = sequence

@@ -96,6 +96,80 @@ func TestSubscriptionSelfQuoteSignsPixBRLQuote(t *testing.T) {
 	require.Equal(t, subscriptionPurchasePlanRevision(&plan), claims.PlanRevision)
 }
 
+func seedSubscriptionSelfRecallClaim(t *testing.T, userID int, priceID string, discount service.RecallDiscountConfig) (model.RecallCampaign, model.RecallRecipient, string) {
+	t.Helper()
+	discountJSON, err := common.Marshal(discount)
+	require.NoError(t, err)
+	productsJSON, err := common.Marshal(service.RecallProductScope{SubscriptionPriceIDs: []string{priceID}})
+	require.NoError(t, err)
+	campaign := model.RecallCampaign{
+		Name: "self purchase prepaid recall", Status: model.RecallCampaignRunning, AudienceTemplate: "first_purchase",
+		AudienceConfig: `{}`, ExecutionMode: "manual", CouponSource: "automatic",
+		DiscountConfig: string(discountJSON), ProductScope: string(productsJSON), EmailSequenceConfig: `[]`,
+	}
+	require.NoError(t, model.DB.Create(&campaign).Error)
+	promotionID := "promo_self_prepaid_recall"
+	recipient := model.RecallRecipient{
+		CampaignId: campaign.Id, UserId: userID, EligibilitySnapshot: `{}`, EmailSnapshot: "self-prepaid-recall@example.com",
+		LanguageSnapshot: "en", State: model.RecallRecipientContacting,
+		StripePromotionCodeId: &promotionID, PromotionCode: "FKPREPAID234", PromotionExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}
+	require.NoError(t, model.DB.Create(&recipient).Error)
+	claim := strings.Repeat("q", 48)
+	claimDigest := sha256.Sum256([]byte(claim))
+	claimHash := hex.EncodeToString(claimDigest[:])
+	require.NoError(t, model.DB.Create(&model.RecallMessage{
+		RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 1, TemplateSnapshot: `{}`,
+		State: model.RecallMessageAccepted, ClaimTokenHash: &claimHash,
+	}).Error)
+	return campaign, recipient, claim
+}
+
+func TestSubscriptionSelfQuoteRecallFirstMonthSignsOriginalUnitAndDiscount(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.RecallCampaign{}, &model.RecallRecipient{}, &model.RecallMessage{}, &model.RecallEvent{}))
+	setRecallControllerEnabled(t, true)
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "controller-subscription-recall-quote-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+	insertSubscriptionControllerUser(t, 9121)
+	plan := insertSubscriptionSelfPurchasePlan(t, 9221)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).Updates(map[string]interface{}{
+		"price_amount":    1.00,
+		"stripe_price_id": "price_subscription",
+	}).Error)
+	model.InvalidateSubscriptionPlanCache(plan.Id)
+	campaign, recipient, claim := seedSubscriptionSelfRecallClaim(t, 9121, "price_subscription", service.RecallDiscountConfig{Type: "percent", PercentOff: 20})
+
+	recorder := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9221,"payment_method":"balance","months":3,"request_id":"quote-recall-balance","recall_claim":"`+claim+`"}`,
+		QuoteSubscriptionSelfPurchase,
+		9121,
+	)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var envelope struct {
+		Data struct {
+			PaymentQuotes map[string]SubscriptionSelfPaymentQuote `json:"payment_quotes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &envelope))
+	balanceQuote := envelope.Data.PaymentQuotes["balance"]
+	require.Equal(t, float64(1), balanceQuote.UnitPrice)
+	require.Equal(t, float64(3), balanceQuote.OriginalTotal)
+	require.Equal(t, float64(0.20), balanceQuote.DiscountAmount)
+	require.Equal(t, float64(2.80), balanceQuote.Total)
+
+	claims, err := service.VerifySubscriptionPurchaseQuoteToken(balanceQuote.QuoteID, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, int64(100), claims.UnitAmountMinor)
+	require.Equal(t, int64(20), claims.DiscountAmountMinor)
+	require.Equal(t, int64(280), claims.TotalAmountMinor)
+	require.Equal(t, campaign.Id, claims.RecallCampaignID)
+	require.Equal(t, recipient.Id, claims.RecallRecipientID)
+}
+
 func TestSubscriptionSelfQuoteSignsUPIINRQuoteForTwelveMonths(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
@@ -663,7 +737,7 @@ func TestSubscriptionSelfPurchaseRejectsExpiredQuote(t *testing.T) {
 	require.Contains(t, purchase.Body.String(), "expired")
 }
 
-func TestSubscriptionSelfPurchaseBalanceDoesNotRequireQuote(t *testing.T) {
+func TestSubscriptionSelfPurchaseBalanceRequiresQuote(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
 	insertSubscriptionControllerUser(t, 9107)
@@ -677,11 +751,10 @@ func TestSubscriptionSelfPurchaseBalanceDoesNotRequireQuote(t *testing.T) {
 	)
 
 	require.Equal(t, http.StatusOK, purchase.Code)
-	require.Contains(t, purchase.Body.String(), `"status":"applied"`)
-	var order model.SubscriptionOrder
-	require.NoError(t, model.DB.Where("user_id = ? AND payment_method = ?", 9107, model.PaymentMethodBalance).First(&order).Error)
-	require.Equal(t, "USD", order.PaymentCurrency)
-	require.Equal(t, int64(1998), order.PaymentAmountMinor)
+	require.Contains(t, purchase.Body.String(), "quote_id")
+	var count int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9107).Count(&count).Error)
+	require.Zero(t, count)
 }
 
 func TestSubscriptionSelfPurchaseRejectsSameSecondPlanPriceChange(t *testing.T) {

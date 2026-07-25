@@ -971,7 +971,14 @@ func supersedeReplaceablePendingStripeCheckouts(ctx context.Context, userID int,
 		if query.Error != nil {
 			return nil, query.Error
 		}
-		if query.RowsAffected == 0 || order.Status != common.TopUpStatusPending || strings.TrimSpace(order.ProviderSessionId) == "" {
+		if query.RowsAffected == 0 || order.Status != common.TopUpStatusPending {
+			continue
+		}
+		if strings.TrimSpace(order.ProviderSessionId) == "" {
+			if err := supersedePendingStripeCheckoutLocally(&intent, &order); err != nil {
+				return nil, err
+			}
+			superseded = append(superseded, supersededStripeCheckout{IntentID: intent.Id, TradeNo: order.TradeNo})
 			continue
 		}
 		if err := expireReplaceableStripeCheckout(ctx, order.ProviderSessionId); err != nil {

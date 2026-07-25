@@ -25,11 +25,14 @@ import type {
 import type { TopupInfo } from '../types'
 import {
   type WalletSelfSubscriptionData,
+  buildFlexibleQuoteRequest,
   buildFlexiblePurchaseRequest,
+  getMatchingPaymentQuote,
   getFlexiblePlanAction,
   getDisplayedPlanAction,
   getAllowedPaymentModes,
   normalizeSelfSubscriptionData,
+  requiresSignedCheckoutQuote,
 } from './subscription-plan-lifecycle'
 
 const stripeTopupInfo = {
@@ -510,21 +513,12 @@ describe('buildFlexiblePurchaseRequest', () => {
     ).toBe(1)
   })
 
-  test('adds recall claim only to Stripe recurring flexible purchases', () => {
-    expect(
-      buildFlexiblePurchaseRequest({
-        planId: 2,
-        paymentChoice: 'stripe_recurring',
-        months: 1,
-        requestId: 'request-stripe-recall',
-        recallClaim: 'signed-recall-claim',
-      })
-    ).toMatchObject({ recall_claim: 'signed-recall-claim' })
-
+  test('adds recall claim to every flexible purchase choice when supplied by the caller', () => {
     for (const paymentChoice of [
+      'stripe_recurring',
+      'alipay',
       'pix',
       'upi',
-      'alipay',
       'balance',
     ] as const) {
       expect(
@@ -535,7 +529,67 @@ describe('buildFlexiblePurchaseRequest', () => {
           requestId: `request-${paymentChoice}-recall`,
           recallClaim: 'signed-recall-claim',
         })
-      ).not.toHaveProperty('recall_claim')
+      ).toMatchObject({ recall_claim: 'signed-recall-claim' })
     }
+  })
+})
+
+describe('buildFlexibleQuoteRequest', () => {
+  test('adds recall claim to one-time and balance quote requests', () => {
+    for (const paymentChoice of ['alipay', 'pix', 'upi', 'balance'] as const) {
+      expect(
+        buildFlexibleQuoteRequest({
+          planId: 2,
+          paymentChoice,
+          months: 3,
+          requestId: `request-${paymentChoice}-quote`,
+          recallClaim: 'signed-recall-claim',
+        })
+      ).toMatchObject({ recall_claim: 'signed-recall-claim' })
+    }
+  })
+
+  test('requires future signed same-month balance quotes before purchase', () => {
+    const now = 4_000_000_000
+    const validBalanceQuote = {
+      currency: 'USD',
+      months: 3,
+      unit_price: 100,
+      total: 280,
+      original_total: 300,
+      discount_amount: 20,
+      quote_id: 'quote-balance-3',
+      expires_at: now + 60,
+    }
+
+    expect(requiresSignedCheckoutQuote('balance')).toBe(true)
+    expect(
+      getMatchingPaymentQuote('balance', { balance: validBalanceQuote }, 3, now)
+        ?.quote_id
+    ).toBe('quote-balance-3')
+    expect(
+      getMatchingPaymentQuote(
+        'balance',
+        { balance: { ...validBalanceQuote, quote_id: '' } },
+        3,
+        now
+      )
+    ).toBeUndefined()
+    expect(
+      getMatchingPaymentQuote(
+        'balance',
+        { balance: { ...validBalanceQuote, expires_at: now } },
+        3,
+        now
+      )
+    ).toBeUndefined()
+    expect(
+      getMatchingPaymentQuote(
+        'balance',
+        { balance: { ...validBalanceQuote, months: 2 } },
+        3,
+        now
+      )
+    ).toBeUndefined()
   })
 })

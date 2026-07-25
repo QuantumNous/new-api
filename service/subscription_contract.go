@@ -704,12 +704,14 @@ func rejectUnresolvedPlanChangeTx(tx *gorm.DB, userID int, allowDowngradeReplace
 	allowDowngrade := len(allowDowngradeReplacement) > 0 && allowDowngradeReplacement[0]
 	kinds := []string{
 		model.SubscriptionChangeIntentKindPurchase,
+		model.SubscriptionChangeIntentKindRepurchase,
 		model.SubscriptionChangeIntentKindUpgrade,
 		model.SubscriptionChangeIntentKindDowngrade,
 	}
 	if allowDowngrade {
 		kinds = []string{
 			model.SubscriptionChangeIntentKindPurchase,
+			model.SubscriptionChangeIntentKindRepurchase,
 			model.SubscriptionChangeIntentKindUpgrade,
 		}
 	}

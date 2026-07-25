@@ -331,6 +331,9 @@ func buildOneTimePlanCheckoutSessionParams(order *model.SubscriptionOrder, user 
 	if err := validateOneTimePlanMethodCurrency(order.PaymentMethod, quote.Currency); err != nil {
 		return nil, err
 	}
+	if err := validateOneTimePlanRecallAttributionTuple(order); err != nil {
+		return nil, err
+	}
 	method := strings.ToLower(strings.TrimSpace(order.PaymentMethod))
 	if !isOneTimePlanStripeMethod(method) {
 		return nil, errors.New("unsupported one-time Stripe payment method")
@@ -438,7 +441,7 @@ func isOneTimePlanStripeMethod(method string) bool {
 }
 
 func oneTimePlanMetadata(order *model.SubscriptionOrder, method string) map[string]string {
-	return map[string]string{
+	metadata := map[string]string{
 		"trade_no":             strings.TrimSpace(order.TradeNo),
 		"user_id":              strconv.Itoa(order.UserId),
 		"plan_id":              strconv.Itoa(order.PlanId),
@@ -452,6 +455,34 @@ func oneTimePlanMetadata(order *model.SubscriptionOrder, method string) map[stri
 		"newapi_user_id":       strconv.Itoa(order.UserId),
 		"newapi_plan_id":       strconv.Itoa(order.PlanId),
 	}
+	if order.RecallDiscountAmountMinor > 0 {
+		metadata["recall_campaign_id"] = strconv.FormatInt(order.RecallCampaignId, 10)
+		metadata["recall_recipient_id"] = strconv.FormatInt(order.RecallRecipientId, 10)
+		metadata["recall_promotion_code_id"] = strings.TrimSpace(order.RecallPromotionCodeId)
+		metadata["recall_discount_amount_minor"] = strconv.FormatInt(order.RecallDiscountAmountMinor, 10)
+	}
+	return metadata
+}
+
+func validateOneTimePlanRecallAttributionTuple(order *model.SubscriptionOrder) error {
+	if order == nil {
+		return errors.New("subscription order is required")
+	}
+	hasRecallIdentity := order.RecallCampaignId > 0 ||
+		order.RecallRecipientId > 0 ||
+		strings.TrimSpace(order.RecallPromotionCodeId) != ""
+	if order.RecallDiscountAmountMinor <= 0 {
+		if hasRecallIdentity {
+			return errors.New("one-time recall attribution tuple requires discount amount")
+		}
+		return nil
+	}
+	if order.RecallCampaignId <= 0 ||
+		order.RecallRecipientId <= 0 ||
+		strings.TrimSpace(order.RecallPromotionCodeId) == "" {
+		return errors.New("one-time recall attribution tuple is incomplete")
+	}
+	return nil
 }
 
 func oneTimePlanProductText(order *model.SubscriptionOrder) (string, string) {

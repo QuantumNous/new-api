@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/mail"
 	"strings"
 	"time"
@@ -261,6 +262,42 @@ func (s *RecallClaimService) BuildCheckoutDiscount(ctx context.Context, userID i
 	}, nil
 }
 
+func (s *RecallClaimService) BuildFirstMonthPurchaseDiscount(ctx context.Context, userID int, claim string, purchaseKind string, priceID string, currency string, unitAmountMinor int64) (*RecallPurchaseDiscount, error) {
+	if strings.TrimSpace(claim) == "" {
+		return nil, nil
+	}
+	record, view, err := s.validateClaim(ctx, userID, claim)
+	if err != nil {
+		return nil, err
+	}
+	var allowedPrices []string
+	switch purchaseKind {
+	case RecallPurchaseKindTopUp:
+		allowedPrices = view.Products.TopUpPriceIDs
+	case RecallPurchaseKindSubscription:
+		allowedPrices = view.Products.SubscriptionPriceIDs
+	default:
+		return nil, ErrRecallClaimPurchaseKind
+	}
+	if !containsRecallPriceID(allowedPrices, priceID) {
+		return nil, ErrRecallClaimWrongPrice
+	}
+	discountMinor := calculateRecallFirstMonthDiscountAmountMinor(view.Discount, currency, unitAmountMinor)
+	if discountMinor <= 0 {
+		return &RecallPurchaseDiscount{}, nil
+	}
+	promotionCodeID := strings.TrimSpace(*record.Recipient.StripePromotionCodeId)
+	if promotionCodeID == "" || view.CampaignID <= 0 || view.RecipientID <= 0 {
+		return nil, ErrRecallClaimPromotionInvalid
+	}
+	return &RecallPurchaseDiscount{
+		PromotionCodeID:     promotionCodeID,
+		CampaignID:          view.CampaignID,
+		RecipientID:         view.RecipientID,
+		DiscountAmountMinor: discountMinor,
+	}, nil
+}
+
 type recallUnsubscribePayload struct {
 	Version     int   `json:"v"`
 	UserID      int   `json:"u"`
@@ -431,4 +468,55 @@ func containsRecallPriceID(priceIDs []string, selected string) bool {
 		}
 	}
 	return false
+}
+
+func calculateRecallFirstMonthDiscountAmountMinor(discount RecallDiscountConfig, currency string, unitAmountMinor int64) int64 {
+	if unitAmountMinor <= 0 {
+		return 0
+	}
+	currency = strings.TrimSpace(currency)
+	if discount.MinimumAmount > 0 {
+		if !strings.EqualFold(strings.TrimSpace(discount.MinimumAmountCurrency), currency) || unitAmountMinor < discount.MinimumAmount {
+			return 0
+		}
+	}
+	var amount int64
+	switch strings.ToLower(strings.TrimSpace(discount.Type)) {
+	case "percent":
+		if discount.PercentOff <= 0 {
+			return 0
+		}
+		if discount.PercentOff >= 100 {
+			return unitAmountMinor
+		}
+		raw := math.Round(float64(unitAmountMinor) * discount.PercentOff / 100)
+		if raw >= float64(unitAmountMinor) {
+			return unitAmountMinor
+		}
+		amount = int64(raw)
+	case "fixed":
+		found := false
+		for optionCurrency, optionAmount := range discount.CurrencyOptions {
+			if strings.EqualFold(strings.TrimSpace(optionCurrency), currency) {
+				amount = optionAmount
+				found = true
+				break
+			}
+		}
+		if !found {
+			if !strings.EqualFold(strings.TrimSpace(discount.Currency), currency) {
+				return 0
+			}
+			amount = discount.AmountOff
+		}
+	default:
+		return 0
+	}
+	if amount < 0 {
+		return 0
+	}
+	if amount > unitAmountMinor {
+		return unitAmountMinor
+	}
+	return amount
 }

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,39 @@ func TestSubscriptionPurchaseQuoteTokenRoundTrip(t *testing.T) {
 		TotalAmountMinor: 29940,
 		PlanRevision:     1_753_268_400,
 		ExpiresAt:        1_753_269_000,
+	}
+
+	token, err := SignSubscriptionPurchaseQuoteToken(claims)
+	require.NoError(t, err)
+
+	verified, err := VerifySubscriptionPurchaseQuoteToken(
+		token,
+		time.Unix(1_753_268_500, 0),
+	)
+	require.NoError(t, err)
+	require.Equal(t, claims, verified)
+}
+
+func TestSubscriptionPurchaseQuoteTokenRoundTripWithFirstMonthDiscount(t *testing.T) {
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "subscription-quote-test-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+
+	claims := SubscriptionPurchaseQuoteTokenClaims{
+		Version:             1,
+		UserID:              17,
+		PlanID:              3,
+		PaymentChoice:       SubscriptionPaymentChoicePix,
+		Months:              3,
+		RequestID:           "purchase-request-17",
+		Currency:            "BRL",
+		UnitAmountMinor:     10000,
+		DiscountAmountMinor: 2000,
+		TotalAmountMinor:    28000,
+		RecallCampaignID:    42,
+		RecallRecipientID:   99,
+		PlanRevision:        1_753_268_400,
+		ExpiresAt:           1_753_269_000,
 	}
 
 	token, err := SignSubscriptionPurchaseQuoteToken(claims)
@@ -129,4 +163,115 @@ func TestSubscriptionPurchaseQuoteTokenRejectsInconsistentTotal(t *testing.T) {
 		ExpiresAt:        1_753_269_000,
 	})
 	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+}
+
+func TestSubscriptionPurchaseQuoteTokenRejectsDiscountInconsistentTotal(t *testing.T) {
+	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
+		Version:             1,
+		UserID:              17,
+		PlanID:              3,
+		PaymentChoice:       SubscriptionPaymentChoicePix,
+		Months:              3,
+		RequestID:           "purchase-request-17",
+		Currency:            "BRL",
+		UnitAmountMinor:     10000,
+		DiscountAmountMinor: 2000,
+		TotalAmountMinor:    30000,
+		RecallCampaignID:    42,
+		RecallRecipientID:   99,
+		PlanRevision:        1_753_268_400,
+		ExpiresAt:           1_753_269_000,
+	})
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+}
+
+func TestSubscriptionPurchaseQuoteTokenRejectsDiscountGreaterThanMonthlyUnit(t *testing.T) {
+	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
+		Version:             1,
+		UserID:              17,
+		PlanID:              3,
+		PaymentChoice:       SubscriptionPaymentChoicePix,
+		Months:              3,
+		RequestID:           "purchase-request-17",
+		Currency:            "BRL",
+		UnitAmountMinor:     10000,
+		DiscountAmountMinor: 10001,
+		TotalAmountMinor:    19999,
+		RecallCampaignID:    42,
+		RecallRecipientID:   99,
+		PlanRevision:        1_753_268_400,
+		ExpiresAt:           1_753_269_000,
+	})
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+}
+
+func TestSubscriptionPurchaseQuoteTokenRequiresRecallIDsWithDiscount(t *testing.T) {
+	base := SubscriptionPurchaseQuoteTokenClaims{
+		Version:             1,
+		UserID:              17,
+		PlanID:              3,
+		PaymentChoice:       SubscriptionPaymentChoicePix,
+		Months:              3,
+		RequestID:           "purchase-request-17",
+		Currency:            "BRL",
+		UnitAmountMinor:     10000,
+		DiscountAmountMinor: 2000,
+		TotalAmountMinor:    28000,
+		PlanRevision:        1_753_268_400,
+		ExpiresAt:           1_753_269_000,
+	}
+	_, err := SignSubscriptionPurchaseQuoteToken(base)
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+
+	base.RecallCampaignID = 42
+	_, err = SignSubscriptionPurchaseQuoteToken(base)
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+}
+
+func TestSubscriptionPurchaseQuoteTokenRejectsRecallIDsWithoutDiscount(t *testing.T) {
+	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
+		Version:          1,
+		UserID:           17,
+		PlanID:           3,
+		PaymentChoice:    SubscriptionPaymentChoicePix,
+		Months:           3,
+		RequestID:        "purchase-request-17",
+		Currency:         "BRL",
+		UnitAmountMinor:  10000,
+		TotalAmountMinor: 30000,
+		RecallCampaignID: 42,
+		PlanRevision:     1_753_268_400,
+		ExpiresAt:        1_753_269_000,
+	})
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+}
+
+func TestSubscriptionPurchaseQuoteTokenVerifiesLegacyTokenWithoutDiscountFields(t *testing.T) {
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "subscription-quote-test-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+
+	legacyPayload, err := common.Marshal(map[string]any{
+		"v":                  1,
+		"uid":                17,
+		"pid":                3,
+		"payment_choice":     SubscriptionPaymentChoicePix,
+		"months":             6,
+		"request_id":         "purchase-request-17",
+		"currency":           "BRL",
+		"unit_amount_minor":  4990,
+		"total_amount_minor": 29940,
+		"plan_revision":      1_753_268_400,
+		"expires_at":         1_753_269_000,
+	})
+	require.NoError(t, err)
+	encodedPayload := base64.RawURLEncoding.EncodeToString(legacyPayload)
+	token := encodedPayload + "." + common.GenerateHMAC(encodedPayload)
+
+	verified, err := VerifySubscriptionPurchaseQuoteToken(token, time.Unix(1_753_268_500, 0))
+	require.NoError(t, err)
+	require.Zero(t, verified.DiscountAmountMinor)
+	require.Zero(t, verified.RecallCampaignID)
+	require.Zero(t, verified.RecallRecipientID)
+	require.Equal(t, int64(29940), verified.TotalAmountMinor)
 }

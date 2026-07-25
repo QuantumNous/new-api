@@ -295,9 +295,7 @@ export function buildFlexiblePurchaseRequest(args: {
     request_id: args.requestId,
     ...(args.quoteId ? { quote_id: args.quoteId } : {}),
     ...(args.orderId ? { order_id: args.orderId } : {}),
-    ...(args.paymentChoice === 'stripe_recurring' && args.recallClaim
-      ? { recall_claim: args.recallClaim }
-      : {}),
+    ...(args.recallClaim ? { recall_claim: args.recallClaim } : {}),
     ...(args.paymentChoice !== 'balance'
       ? { ui_mode: 'embedded' as const }
       : {}),
@@ -317,12 +315,14 @@ export function buildFlexibleQuoteRequest(args: {
   paymentChoice: FlexiblePaymentChoice
   months: number
   requestId: string
+  recallClaim?: string
 }): FlexibleQuoteRequest {
   return {
     plan_id: args.planId,
     payment_choice: args.paymentChoice,
     months: normalizeFlexibleMonths(args.paymentChoice, args.months),
     request_id: args.requestId,
+    ...(args.recallClaim ? { recall_claim: args.recallClaim } : {}),
   }
 }
 
@@ -335,7 +335,11 @@ export function requiresLocalCurrencyQuote(
 export function requiresSignedCheckoutQuote(
   paymentChoice: FlexiblePaymentChoice
 ): boolean {
-  return paymentChoice === 'alipay' || requiresLocalCurrencyQuote(paymentChoice)
+  return (
+    paymentChoice === 'alipay' ||
+    paymentChoice === 'balance' ||
+    requiresLocalCurrencyQuote(paymentChoice)
+  )
 }
 
 export function getMatchingPaymentQuote(

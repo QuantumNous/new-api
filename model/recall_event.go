@@ -281,62 +281,70 @@ func RecordRecallClaimClickWithContext(ctx context.Context, recipientID int64, c
 func RecordRecallConversionWithContext(ctx context.Context, record RecallConversionRecord) (bool, error) {
 	converted := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		recipient := RecallRecipient{}
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ? AND campaign_id = ? AND user_id = ?", record.RecipientId, record.CampaignId, record.UserId).
-			First(&recipient).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil
-			}
-			return err
-		}
-		if recipient.ConvertedAt != 0 || recipient.State == RecallRecipientConverted || !isRecallClaimActiveRecipientState(recipient.State) {
-			return nil
-		}
-
-		event := RecallEvent{
-			CampaignId:    record.CampaignId,
-			RecipientId:   record.RecipientId,
-			EventType:     "conversion",
-			Source:        record.Source,
-			SourceEventId: record.SourceEventId,
-			EventData:     record.EventData,
-			CreatedAt:     record.ConvertedAt,
-		}
-		eventResult := insertRecallRunEvent(tx, &event)
-		if eventResult.Error != nil {
-			return eventResult.Error
-		}
-		if eventResult.RowsAffected == 0 {
-			return nil
-		}
-
-		result := tx.Model(&RecallRecipient{}).
-			Where("id = ? AND campaign_id = ? AND user_id = ? AND converted_at = 0 AND state IN ?", record.RecipientId, record.CampaignId, record.UserId, recallClaimActiveRecipientStates()).
-			Updates(map[string]any{
-				"state":               RecallRecipientConverted,
-				"converted_at":        record.ConvertedAt,
-				"conversion_kind":     record.Kind,
-				"conversion_trade_no": record.TradeNo,
-				"conversion_currency": record.Currency,
-				"conversion_amount":   record.Amount,
-				"discount_amount":     record.DiscountAmount,
-				"lease_owner":         "",
-				"lease_expires_at":    int64(0),
-			})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return errRecallConversionNotOwned
-		}
-		converted = true
-		return nil
+		var err error
+		converted, err = RecordRecallConversionTx(tx, record)
+		return err
 	})
 	if errors.Is(err, errRecallConversionNotOwned) {
 		return false, nil
 	}
 	return converted, err
+}
+
+func RecordRecallConversionTx(tx *gorm.DB, record RecallConversionRecord) (bool, error) {
+	if tx == nil {
+		tx = DB
+	}
+	recipient := RecallRecipient{}
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND campaign_id = ? AND user_id = ?", record.RecipientId, record.CampaignId, record.UserId).
+		First(&recipient).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if recipient.ConvertedAt != 0 || recipient.State == RecallRecipientConverted || !isRecallClaimActiveRecipientState(recipient.State) {
+		return false, nil
+	}
+
+	event := RecallEvent{
+		CampaignId:    record.CampaignId,
+		RecipientId:   record.RecipientId,
+		EventType:     "conversion",
+		Source:        record.Source,
+		SourceEventId: record.SourceEventId,
+		EventData:     record.EventData,
+		CreatedAt:     record.ConvertedAt,
+	}
+	eventResult := insertRecallRunEvent(tx, &event)
+	if eventResult.Error != nil {
+		return false, eventResult.Error
+	}
+	if eventResult.RowsAffected == 0 {
+		return false, nil
+	}
+
+	result := tx.Model(&RecallRecipient{}).
+		Where("id = ? AND campaign_id = ? AND user_id = ? AND converted_at = 0 AND state IN ?", record.RecipientId, record.CampaignId, record.UserId, recallClaimActiveRecipientStates()).
+		Updates(map[string]any{
+			"state":               RecallRecipientConverted,
+			"converted_at":        record.ConvertedAt,
+			"conversion_kind":     record.Kind,
+			"conversion_trade_no": record.TradeNo,
+			"conversion_currency": record.Currency,
+			"conversion_amount":   record.Amount,
+			"discount_amount":     record.DiscountAmount,
+			"lease_owner":         "",
+			"lease_expires_at":    int64(0),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return false, errRecallConversionNotOwned
+	}
+	return true, nil
 }
 
 func recallClaimClickOutcome(recipient RecallRecipient) RecallClaimClickOutcome {
