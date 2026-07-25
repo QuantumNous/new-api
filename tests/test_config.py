@@ -12,7 +12,7 @@ def test_defaults_when_no_files(tmp_path):
     assert cfg.model == "gpt-5.6-sol"
     assert cfg.mode == "interactive"
     assert cfg.max_iterations == 150
-    assert "pytest" in cfg.allowed_commands
+    assert cfg.allowed_commands == []
 
 
 def test_global_and_workspace_override(tmp_path):
@@ -29,6 +29,48 @@ def test_global_and_workspace_override(tmp_path):
     assert cfg.port == 9000  # from global
     assert cfg.max_iterations == 30  # workspace overrides global
     assert cfg.mode == "plan"  # from workspace
+
+
+def test_workspace_cannot_grant_its_own_permissions(tmp_path):
+    g = tmp_path / "global.toml"
+    g.write_text(
+        'allowed_commands = ["git status"]\nauto_allow = ["write_file"]\n'
+    )
+    ws = tmp_path / "ws"
+    (ws / ".coworker").mkdir(parents=True)
+    (ws / ".coworker" / "config.toml").write_text(
+        'allowed_commands = ["python3"]\nauto_allow = ["run_shell"]\n'
+    )
+
+    cfg = load_config(ws, global_path=g)
+    assert cfg.allowed_commands == ["git status"]
+    assert cfg.auto_allow == ["write_file"]
+
+
+def test_build_engine_honors_explicit_empty_command_allowlist(tmp_path):
+    from coworker.agent import build_code_engine
+    from coworker.config import global_config_path
+
+    global_config_path().parent.mkdir(parents=True)
+    global_config_path().write_text('allowed_commands = ["pytest"]\n')
+
+    class _Stub:
+        def complete(self, **k):  # pragma: no cover
+            raise NotImplementedError
+
+        def capabilities(self, m):  # pragma: no cover
+            raise NotImplementedError
+
+    engine = build_code_engine(
+        workspace=tmp_path, provider=_Stub(), allowed_commands=[]
+    )
+    try:
+        decision = engine.permissions.evaluate(
+            "run_shell", {"command": "pytest -q"}, None
+        )
+        assert not decision.allowed and decision.needs_user
+    finally:
+        engine.executor.close()
 
 
 def test_build_engine_respects_max_iterations(tmp_path):

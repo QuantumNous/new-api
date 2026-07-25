@@ -2,6 +2,9 @@
 
 Global:    <state-dir>/config.toml   (see `secrets.state_dir`; platform-native)
 Workspace: <workspace>/.coworker/config.toml   (overrides global)
+
+Permission grants are deliberately global-only. A checked-out repository is untrusted
+input and must not be able to grant its own shell commands or consequential tools.
 """
 
 from __future__ import annotations
@@ -13,28 +16,12 @@ from typing import Any, Optional
 
 from .secrets import state_dir
 
-# Commands auto-run WITHOUT an approval prompt. Deliberately limited to read-only
-# inspection: language interpreters and package managers (python/node/npm/npx) are NOT
-# here — allowlisting an interpreter allowlists arbitrary code (`python3 -c "..."`), which
-# defeats the point of approval gating. Users can still add them via config if they accept
-# that trade-off. Matching is exact-argv-prefix and rejects shell operators — see
-# PermissionEngine._command_allowed.
-DEFAULT_ALLOWED_COMMANDS = [
-    "ls",
-    "cat",
-    "pwd",
-    "echo",
-    "head",
-    "tail",
-    "grep",
-    "find",
-    "wc",
-    "git status",
-    "git diff",
-    "git log",
-    "git show",
-    "pytest",
-]
+# Commands auto-run WITHOUT an approval prompt. There is no generally safe executable:
+# nominally read-only programs can read secrets outside the workspace, expand environment
+# variables, load project-controlled config/plugins, or execute helpers (for example
+# `find -exec` and pytest collection). Keep the built-in list empty. A user may explicitly
+# opt into command prefixes in their user-owned global config, accepting that authority.
+DEFAULT_ALLOWED_COMMANDS: list[str] = []
 
 
 @dataclass
@@ -87,6 +74,11 @@ _FIELDS = {
     "cloud_relay_ws_url",
 }
 
+# These fields change what consequential actions can run without a prompt. Only the
+# user-owned global config may set them; a repository's `.coworker/config.toml` may not.
+_GLOBAL_ONLY_FIELDS = {"allowed_commands", "auto_allow"}
+_WORKSPACE_FIELDS = _FIELDS - _GLOBAL_ONLY_FIELDS
+
 
 def global_config_path() -> Path:
     return state_dir() / "config.toml"
@@ -104,17 +96,16 @@ def load_config(
     workspace: Optional[str | Path] = None, *, global_path: Optional[Path] = None
 ) -> Config:
     cfg = Config()
-    data: dict[str, Any] = {}
 
     g = Path(global_path) if global_path is not None else global_config_path()
     if g.is_file():
-        data.update(_read(g))
+        for key, value in _read(g).items():
+            if key in _FIELDS:
+                setattr(cfg, key, value)
     if workspace:
         w = Path(workspace).expanduser() / ".coworker" / "config.toml"
         if w.is_file():
-            data.update(_read(w))
-
-    for key, value in data.items():
-        if key in _FIELDS:
-            setattr(cfg, key, value)
+            for key, value in _read(w).items():
+                if key in _WORKSPACE_FIELDS:
+                    setattr(cfg, key, value)
     return cfg

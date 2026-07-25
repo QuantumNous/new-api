@@ -269,7 +269,10 @@ def build_engine(
     permissions = PermissionEngine(
         workspace_root=ws or (root_list[0].path if root_list else Path.cwd()),
         mode=mode,
-        allowed_commands=allowed_commands or config.allowed_commands,
+        # `[]` is an explicit deny-by-default override, not a request to fall back to config.
+        allowed_commands=(
+            allowed_commands if allowed_commands is not None else config.allowed_commands
+        ),
         auto_allow_tools=set(config.auto_allow),
         roots=root_list or None,
         risk_overrides=risk_overrides,
