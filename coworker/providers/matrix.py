@@ -71,6 +71,15 @@ MATRIX: dict[str, ModelEntry] = {
     "gemini:gemini-2.5-pro": ModelEntry("Gemini 2.5 Pro · Google", _AGENTIC_VISION),
     "gemini:gemini-2.5-flash": ModelEntry("Gemini 2.5 Flash · Google", _AGENTIC_VISION),
     # -- direct OpenAI-compatible vendors ----------------------------------------
+    # Muse Spark (Meta Model API, public preview 2026-07-09): multimodal + tools via
+    # their OpenAI-compat surface. Vision yes; PDFs unverified over compat — falls
+    # back via pdf_support.py like the other compat vendors.
+    "meta:muse-spark-1.1": ModelEntry(
+        "Muse Spark 1.1 · Meta",
+        ModelCapabilities(
+            tools=True, vision=True, parallel_tool_calls=True, streaming=True
+        ),
+    ),
     "zai:glm-5.2": ModelEntry("GLM-5.2 · Z AI"),
     "deepseek:deepseek-v4-flash": ModelEntry("DeepSeek V4 Flash · DeepSeek"),
     "deepseek:deepseek-v4-pro": ModelEntry("DeepSeek V4 Pro · DeepSeek"),
