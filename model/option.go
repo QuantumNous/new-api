@@ -221,6 +221,10 @@ func UpdateOption(key string, value string) error {
 	if err := validateOptionValue(key, value); err != nil {
 		return err
 	}
+	// Keep model auto-enable subordinate to auto-disable before persisting.
+	if key == "AutomaticEnableModelEnabled" && (value == "true" || value == "1") && !common.AutomaticDisableModelEnabled {
+		value = "false"
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -283,6 +287,9 @@ func updateOptionMap(key string, value string) (err error) {
 	}
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
 	common.OptionMap[key] = value
 
 	// 检查是否是模型配置 - 使用更规范的方式处理
@@ -335,7 +342,17 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticEnableChannelEnabled = boolValue
 		case "AutomaticDisableModelEnabled":
 			common.AutomaticDisableModelEnabled = boolValue
+			if !boolValue {
+				// Enable is paired with disable; keep both off together.
+				common.AutomaticEnableModelEnabled = false
+				common.OptionMap["AutomaticEnableModelEnabled"] = "false"
+			}
 		case "AutomaticEnableModelEnabled":
+			// Reject enable-without-disable so automation stays consistent.
+			if boolValue && !common.AutomaticDisableModelEnabled {
+				boolValue = false
+				common.OptionMap[key] = "false"
+			}
 			common.AutomaticEnableModelEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue

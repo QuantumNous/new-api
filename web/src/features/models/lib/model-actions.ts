@@ -352,7 +352,7 @@ export async function handleBatchEnableModelsWithChannels(
     getCount: (data) => data?.enabled ?? 0,
     successMessageKey:
       'Successfully enabled {{count}} model(s) with recovered channels',
-    emptyMessageKey: 'No disabled models with available channels found',
+    emptyMessageKey: 'No auto-disabled models with recovered channels found',
     failureMessageKey: 'Failed to batch enable models',
     catchMessageKey: 'Batch enable failed',
     queryClient,

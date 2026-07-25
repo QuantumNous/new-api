@@ -5258,12 +5258,14 @@
     "Successfully disabled {{count}} model(s) with no available channels": "已禁用 {{count}} 个无可用渠道的模型",
     "Successfully enabled {{count}} model(s) with recovered channels": "已启用 {{count}} 个渠道已恢复的模型",
     "No models with unavailable channels found": "没有发现需要禁用的无可用渠道模型",
-    "No disabled models with available channels found": "没有发现可启用的渠道已恢复模型",
+    "No disabled models with available channels found": "没有发现可启用的、由规则自动禁用且渠道已恢复的模型",
     "Failed to batch disable models": "批量禁用模型失败",
     "Failed to batch enable models": "批量启用模型失败",
     "Disable Models with No Channels?": "禁用无可用渠道的模型？",
     "Enable Models with Recovered Channels?": "启用渠道已恢复的模型？",
     "This will disable all currently enabled models that have no available channels. Continue?": "将禁用当前所有没有可用渠道的已启用模型。是否继续？",
-    "This will enable disabled models that currently have available channels. Continue?": "将启用当前已有可用渠道的已禁用模型。是否继续？"
+    "This will enable disabled models that currently have available channels. Continue?": "将仅启用此前因渠道可用性被自动禁用、且现已恢复可用渠道的模型；不会改动人工禁用的模型。是否继续？",
+    "This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?": "将仅启用此前因渠道可用性被自动禁用、且现已恢复可用渠道的模型；不会改动人工禁用的模型。是否继续？",
+    "No auto-disabled models with recovered channels found": "没有发现可启用的、由规则自动禁用且渠道已恢复的模型"
   }
 }

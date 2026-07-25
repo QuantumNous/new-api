@@ -5258,12 +5258,14 @@
     "Successfully disabled {{count}} model(s) with no available channels": "Successfully disabled {{count}} model(s) with no available channels",
     "Successfully enabled {{count}} model(s) with recovered channels": "Successfully enabled {{count}} model(s) with available channels",
     "No models with unavailable channels found": "No models with unavailable channels found",
-    "No disabled models with available channels found": "No disabled models with available channels found",
+    "No disabled models with available channels found": "No auto-disabled models with recovered channels found",
     "Failed to batch disable models": "Failed to batch disable models",
     "Failed to batch enable models": "Failed to batch enable models",
     "Disable Models with No Channels?": "Disable Models with No Channels?",
     "Enable Models with Recovered Channels?": "Enable Models with Recovered Channels?",
     "This will disable all currently enabled models that have no available channels. Continue?": "This will disable all currently enabled models that have no available channels. Continue?",
-    "This will enable disabled models that currently have available channels. Continue?": "This will enable disabled models that currently have available channels. Continue?"
+    "This will enable disabled models that currently have available channels. Continue?": "This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?",
+    "This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?": "This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?",
+    "No auto-disabled models with recovered channels found": "No auto-disabled models with recovered channels found"
   }
 }

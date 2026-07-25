@@ -93,7 +93,7 @@ export function ModelsPrimaryButtons() {
         ? {
             title: t('Enable Models with Recovered Channels?'),
             description: t(
-              'This will enable disabled models that currently have available channels. Continue?'
+              'This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?'
             ),
             confirmLabel: t('Enable'),
             variant: 'default' as const,

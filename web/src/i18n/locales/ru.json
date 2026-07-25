@@ -5250,6 +5250,19 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Batch Disable Models with No Channels": "Отключить модели без доступных каналов",
+    "Batch Enable Models with Recovered Channels": "Включить модели с восстановленными каналами",
+    "Disable Models with No Channels?": "Отключить модели без доступных каналов?",
+    "Enable Models with Recovered Channels?": "Включить модели с восстановленными каналами?",
+    "This will disable all currently enabled models that have no available channels. Continue?": "Будут отключены все включённые модели без доступных каналов. Продолжить?",
+    "This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?": "Будут включены только модели, автоматически отключённые из‑за доступности каналов, у которых каналы восстановились. Вручную отключённые модели не изменятся. Продолжить?",
+    "Successfully disabled {{count}} model(s) with no available channels": "Отключено моделей без доступных каналов: {{count}}",
+    "Successfully enabled {{count}} model(s) with recovered channels": "Включено моделей с восстановленными каналами: {{count}}",
+    "No models with unavailable channels found": "Нет моделей без доступных каналов для отключения",
+    "No disabled models with available channels found": "Нет автоматически отключённых моделей с восстановленными каналами",
+    "Auto-enabled": "Авто-вкл.",
+    "Auto-disabled": "Авто-откл.",
+    "No auto-disabled models with recovered channels found": "Нет автоматически отключённых моделей с восстановленными каналами"
   }
 }

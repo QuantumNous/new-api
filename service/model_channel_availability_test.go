@@ -358,3 +358,56 @@ func TestSyncModelChannelAvailability_FullCalibrationOnSwitch(t *testing.T) {
 	assert.Equal(t, modelStatusDisabled, m2.Status)
 	assert.False(t, m2.AutoDisabledByRule)
 }
+
+func TestSyncModelChannelAvailability_EnableRequiresDisableSwitch(t *testing.T) {
+	resetModelChannelAvailabilityFixtures(t)
+	// enable alone must not recover models
+	common.AutomaticDisableModelEnabled = false
+	common.AutomaticEnableModelEnabled = true
+
+	createChannelWithModels(t, 1, common.ChannelStatusEnabled, "gpt-4", true)
+	createMetaModel(t, 1, "gpt-4", modelStatusDisabled, model.NameRuleExact, true)
+
+	res := SyncModelChannelAvailability("enable-without-disable")
+	assert.True(t, res.Skipped)
+	assert.Equal(t, 0, res.Enabled)
+	assert.Equal(t, modelStatusDisabled, loadModel(t, 1).Status)
+
+	common.AutomaticDisableModelEnabled = true
+	res = SyncModelChannelAvailability("enable-with-disable")
+	assert.Equal(t, 1, res.Enabled)
+	assert.Equal(t, modelStatusEnabled, loadModel(t, 1).Status)
+}
+
+func TestManualEnableModelsWithChannels_OnlyAutoDisabled(t *testing.T) {
+	resetModelChannelAvailabilityFixtures(t)
+	createChannelWithModels(t, 1, common.ChannelStatusEnabled, "gpt-4,claude-3", true)
+	// auto-disabled with channels recovered
+	createMetaModel(t, 1, "gpt-4", modelStatusDisabled, model.NameRuleExact, true)
+	// manually disabled with channels available
+	createMetaModel(t, 2, "claude-3", modelStatusDisabled, model.NameRuleExact, false)
+
+	res := ManualEnableModelsWithChannels()
+	assert.Equal(t, 1, res.Enabled)
+	assert.Equal(t, modelStatusEnabled, loadModel(t, 1).Status)
+	assert.True(t, loadModel(t, 1).AutoDisabledByRule)
+	assert.Equal(t, modelStatusDisabled, loadModel(t, 2).Status)
+	assert.False(t, loadModel(t, 2).AutoDisabledByRule)
+}
+
+func TestMaybeSyncPairsEnableOffWhenDisableOff(t *testing.T) {
+	resetModelChannelAvailabilityFixtures(t)
+	common.AutomaticDisableModelEnabled = true
+	common.AutomaticEnableModelEnabled = true
+	if common.OptionMap == nil {
+		common.OptionMap = map[string]string{}
+	}
+	require.NoError(t, model.DB.Save(&model.Option{Key: "AutomaticEnableModelEnabled", Value: "true"}).Error)
+
+	MaybeSyncModelChannelAvailabilityAfterOptionChange("AutomaticDisableModelEnabled", "false")
+	assert.False(t, common.AutomaticEnableModelEnabled)
+	var opt model.Option
+	require.NoError(t, model.DB.Where("key = ?", "AutomaticEnableModelEnabled").First(&opt).Error)
+	assert.Equal(t, "false", opt.Value)
+}
+

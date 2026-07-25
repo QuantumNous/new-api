@@ -5250,6 +5250,19 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Batch Disable Models with No Channels": "Tắt model không có kênh khả dụng",
+    "Batch Enable Models with Recovered Channels": "Bật model có kênh đã khôi phục",
+    "Disable Models with No Channels?": "Tắt các model không có kênh khả dụng?",
+    "Enable Models with Recovered Channels?": "Bật các model có kênh đã khôi phục?",
+    "This will disable all currently enabled models that have no available channels. Continue?": "Thao tác sẽ tắt mọi model đang bật nhưng không có kênh khả dụng. Tiếp tục?",
+    "This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?": "Chỉ bật các model bị tắt tự động do kênh không khả dụng và hiện đã có kênh khôi phục. Model tắt thủ công sẽ không đổi. Tiếp tục?",
+    "Successfully disabled {{count}} model(s) with no available channels": "Đã tắt {{count}} model không có kênh khả dụng",
+    "Successfully enabled {{count}} model(s) with recovered channels": "Đã bật {{count}} model có kênh đã khôi phục",
+    "No models with unavailable channels found": "Không có model không có kênh khả dụng cần tắt",
+    "No disabled models with available channels found": "Không có model bị tự động tắt và đã khôi phục kênh",
+    "Auto-enabled": "Tự bật",
+    "Auto-disabled": "Tự tắt",
+    "No auto-disabled models with recovered channels found": "Không có model bị tự động tắt và đã khôi phục kênh"
   }
 }

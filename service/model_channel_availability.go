@@ -16,10 +16,11 @@ const (
 
 // ModelChannelAvailabilityResult summarizes one reconciliation pass.
 type ModelChannelAvailabilityResult struct {
-	Disabled int
-	Enabled  int
-	Skipped  bool
-	Reason   string
+	Disabled         int
+	Enabled          int
+	Skipped          bool
+	Reason           string
+	PricingRefreshed bool // true when this pass already called model.RefreshPricing
 }
 
 var modelChannelAvailabilityMu sync.Mutex
@@ -42,7 +43,8 @@ func syncModelChannelAvailability(reason string, forceFull bool) ModelChannelAva
 	result := ModelChannelAvailabilityResult{Reason: reason}
 
 	disableEnabled := common.AutomaticDisableModelEnabled
-	enableEnabled := common.AutomaticEnableModelEnabled
+	// Auto-enable is subordinate to auto-disable: turning disable off stops the whole automation set.
+	enableEnabled := common.AutomaticEnableModelEnabled && disableEnabled
 	if !disableEnabled && !enableEnabled {
 		result.Skipped = true
 		return result
@@ -114,6 +116,7 @@ func syncModelChannelAvailability(reason string, forceFull bool) ModelChannelAva
 
 	if result.Disabled > 0 || result.Enabled > 0 {
 		model.RefreshPricing()
+		result.PricingRefreshed = true
 		common.SysLog(fmt.Sprintf(
 			"model channel availability sync: reason=%s disabled=%d enabled=%d",
 			reason, result.Disabled, result.Enabled,
@@ -133,7 +136,8 @@ func loadAvailableExactModelNames() (map[string]struct{}, error) {
 		Model string
 	}
 	var rows []row
-	// Available channel = not soft-deleted (hard delete in this project) + channel enabled + ability enabled.
+	// Available = ability enabled + parent channel enabled.
+	// Scope is global across groups: model metadata status is site-wide, not per-group.
 	err := model.DB.Table("abilities").
 		Select("DISTINCT abilities.model as model").
 		Joins("JOIN channels ON abilities.channel_id = channels.id").
@@ -201,13 +205,23 @@ func ClearModelAutoDisabledByRule(ids ...int) {
 }
 
 // MaybeSyncModelChannelAvailabilityAfterOptionChange triggers full calibration when model auto switches change.
+// Turning AutomaticDisableModelEnabled off also forces AutomaticEnableModelEnabled off (paired automation).
 func MaybeSyncModelChannelAvailabilityAfterOptionChange(key string, value string) {
+	if key == "AutomaticDisableModelEnabled" && value != "true" {
+		// Keep enable subordinate to disable in runtime + persisted options.
+		common.AutomaticEnableModelEnabled = false
+		if err := model.UpdateOption("AutomaticEnableModelEnabled", "false"); err != nil {
+			common.SysError(fmt.Sprintf("failed to pair-disable AutomaticEnableModelEnabled: %v", err))
+		}
+		return
+	}
 	if key != "AutomaticDisableModelEnabled" && key != "AutomaticEnableModelEnabled" {
 		return
 	}
 	if value != "true" {
 		return
 	}
+	// Enable-only activation is a no-op unless disable is already on (gated inside sync).
 	SyncModelChannelAvailabilityFull(fmt.Sprintf("option.%s=true", key))
 }
 
@@ -217,10 +231,9 @@ func ManualDisableModelsWithoutChannels() ModelChannelAvailabilityResult {
 	return manualSyncModelChannelAvailability("manual.batch.disable.no-channels", true, false)
 }
 
-// ManualEnableModelsWithChannels forces enabling all currently disabled models
-// that have available channels, regardless of automatic option switches.
-// Auto-disabled models keep auto_disabled_by_rule=true (shown as auto-enabled).
-// Manually disabled models are enabled with auto_disabled_by_rule=false.
+// ManualEnableModelsWithChannels forces enabling models that were disabled by
+// channel-availability automation and now have available channels again.
+// Manually disabled models (auto_disabled_by_rule=false) are left untouched.
 func ManualEnableModelsWithChannels() ModelChannelAvailabilityResult {
 	return manualSyncModelChannelAvailability("manual.batch.enable.with-channels", false, true)
 }
@@ -246,7 +259,6 @@ func manualSyncModelChannelAvailability(reason string, doDisable bool, doEnable 
 	now := common.GetTimestamp()
 	disableIDs := make([]int, 0)
 	enableAutoIDs := make([]int, 0)
-	enableManualIDs := make([]int, 0)
 
 	for _, m := range models {
 		if m == nil {
@@ -257,12 +269,9 @@ func manualSyncModelChannelAvailability(reason string, doDisable bool, doEnable 
 			disableIDs = append(disableIDs, m.Id)
 			continue
 		}
-		if doEnable && m.Status == modelStatusDisabled && hasAvailable {
-			if m.AutoDisabledByRule {
-				enableAutoIDs = append(enableAutoIDs, m.Id)
-			} else {
-				enableManualIDs = append(enableManualIDs, m.Id)
-			}
+		// Only recover models previously disabled by this automation.
+		if doEnable && m.Status == modelStatusDisabled && m.AutoDisabledByRule && hasAvailable {
+			enableAutoIDs = append(enableAutoIDs, m.Id)
 		}
 	}
 
@@ -296,23 +305,9 @@ func manualSyncModelChannelAvailability(reason string, doDisable bool, doEnable 
 		}
 	}
 
-	if len(enableManualIDs) > 0 {
-		res := model.DB.Model(&model.Model{}).
-			Where("id IN ? AND status = ?", enableManualIDs, modelStatusDisabled).
-			Updates(map[string]interface{}{
-				"status":                modelStatusEnabled,
-				"auto_disabled_by_rule": false,
-				"updated_time":          now,
-			})
-		if res.Error != nil {
-			common.SysError(fmt.Sprintf("manual model channel availability enable failed: %v", res.Error))
-		} else {
-			result.Enabled += int(res.RowsAffected)
-		}
-	}
-
 	if result.Disabled > 0 || result.Enabled > 0 {
 		model.RefreshPricing()
+		result.PricingRefreshed = true
 		common.SysLog(fmt.Sprintf(
 			"manual model channel availability sync: reason=%s disabled=%d enabled=%d",
 			reason, result.Disabled, result.Enabled,

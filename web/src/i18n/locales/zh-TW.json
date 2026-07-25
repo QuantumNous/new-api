@@ -5250,6 +5250,19 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Batch Disable Models with No Channels": "停用無可用渠道的模型",
+    "Batch Enable Models with Recovered Channels": "啟用渠道已恢復的模型",
+    "Disable Models with No Channels?": "停用無可用渠道的模型？",
+    "Enable Models with Recovered Channels?": "啟用渠道已恢復的模型？",
+    "This will disable all currently enabled models that have no available channels. Continue?": "將停用目前所有沒有可用渠道的已啟用模型。是否繼續？",
+    "This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?": "僅會啟用先前因渠道可用性被自動停用、且現已恢復可用渠道的模型；不會變更手動停用的模型。是否繼續？",
+    "Successfully disabled {{count}} model(s) with no available channels": "已停用 {{count}} 個無可用渠道的模型",
+    "Successfully enabled {{count}} model(s) with recovered channels": "已啟用 {{count}} 個渠道已恢復的模型",
+    "No models with unavailable channels found": "沒有需要停用的無可用渠道模型",
+    "No disabled models with available channels found": "沒有發現可啟用的、由規則自動停用且渠道已恢復的模型",
+    "Auto-enabled": "自動啟用",
+    "Auto-disabled": "自動停用",
+    "No auto-disabled models with recovered channels found": "沒有發現可啟用的、由規則自動停用且渠道已恢復的模型"
   }
 }
