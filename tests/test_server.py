@@ -325,19 +325,22 @@ def test_ws_simple_turn(tmp_path):
 
 def test_ws_rejects_oversized_message(tmp_path):
     from coworker.server import app as app_mod
+    from coworker.attachments import MAX_ATTACHMENTS
 
     client = _client(tmp_path, [_text("should not run")])
     with client.websocket_connect("/ws/session/big") as ws:
         assert ws.receive_json()["type"] == "ready"
 
-        # Oversized text → single error frame, no turn runs.
+        # Oversized text → single input-rejected frame, no turn runs.
         ws.send_json(
             {"type": "user_message", "text": "x" * (app_mod._MAX_MESSAGE_TEXT_CHARS + 1)}
         )
         evt = ws.receive_json()
-        assert evt["type"] == "error" and "too long" in evt["data"]["error"].lower()
+        assert evt["type"] == "input_rejected"
+        assert "too long" in evt["data"]["error"].lower()
 
-        # Too many attachments → error frame.
+        # The ingress cap is the same cap the attachment builder enforces.
+        assert app_mod._MAX_ATTACHMENTS == MAX_ATTACHMENTS
         ws.send_json(
             {
                 "type": "user_message",
@@ -346,11 +349,138 @@ def test_ws_rejects_oversized_message(tmp_path):
             }
         )
         evt = ws.receive_json()
-        assert evt["type"] == "error" and "attachment" in evt["data"]["error"].lower()
+        assert evt["type"] == "input_rejected"
+        assert "attachment" in evt["data"]["error"].lower()
 
         # A normal message still works afterwards (the socket wasn't torn down).
         ws.send_json({"type": "user_message", "text": "hello"})
         assert "turn_done" in _drain(ws)
+
+
+def test_ws_rejects_malformed_payloads_without_killing_socket(tmp_path):
+    client = _client(tmp_path, [_text("normal")])
+    with client.websocket_connect("/ws/session/malformed") as ws:
+        assert ws.receive_json()["type"] == "ready"
+
+        invalid = [
+            [],
+            {"type": "user_message", "text": ["not", "text"]},
+            {"type": "user_message", "text": "x", "attachments": {}},
+            {
+                "type": "user_message",
+                "text": "x",
+                "attachments": [{"kind": "image", "data_url": "https://example.com/x"}],
+            },
+            {"type": "set_model", "model": {"unexpected": True}},
+            {"type": "unknown"},
+        ]
+        for payload in invalid:
+            ws.send_json(payload)
+            evt = ws.receive_json()
+            assert evt["type"] == "input_rejected"
+
+        ws.send_json({"type": "user_message", "text": "still works"})
+        assert "turn_done" in _drain(ws)
+
+
+def test_ws_allows_only_one_inflight_turn_per_session(tmp_path):
+    import threading
+    import time
+
+    class SlowProvider(ProviderClient):
+        def __init__(self):
+            self._lock = threading.Lock()
+            self.active = 0
+            self.max_active = 0
+
+        def complete(self, *, model, messages, tools=None, **settings):
+            with self._lock:
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+            try:
+                time.sleep(0.08)
+                return _text("done")
+            finally:
+                with self._lock:
+                    self.active -= 1
+
+        def capabilities(self, model):
+            return ModelCapabilities()
+
+    provider = SlowProvider()
+    manager = SessionManager(workspace=tmp_path, provider=provider)
+    client = TestClient(create_app(manager))
+    with client.websocket_connect("/ws/session/serialized") as ws:
+        assert ws.receive_json()["type"] == "ready"
+        ws.send_json({"type": "user_message", "text": "first"})
+        ws.send_json({"type": "user_message", "text": "second"})
+
+        types = []
+        while "turn_done" not in types:
+            types.append(ws.receive_json()["type"])
+
+    assert "input_rejected" in types
+    assert provider.max_active == 1
+    engine = manager._engines["serialized"]
+    user_messages = [m for m in engine.messages if m.get("role") == "user"]
+    assert [m["content"] for m in user_messages] == ["first"]
+
+
+def test_ws_rate_limits_inbound_frames(tmp_path):
+    from coworker.server import app as app_mod
+    from starlette.websockets import WebSocketDisconnect
+
+    client = _client(tmp_path, [])
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/session/rate") as ws:
+            assert ws.receive_json()["type"] == "ready"
+            for _ in range(app_mod._WS_RATE_LIMIT_COUNT):
+                ws.send_json({"type": "unknown"})
+                assert ws.receive_json()["type"] == "input_rejected"
+            ws.send_json({"type": "unknown"})
+            assert ws.receive_json()["type"] == "input_rejected"
+            ws.receive_json()
+
+
+def test_server_sets_explicit_websocket_frame_limit(tmp_path, monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from coworker.server import run as server_run
+
+    seen = {}
+    fake_app = object()
+
+    monkeypatch.setattr(server_run, "_ensure_ca_bundle", lambda: None)
+    monkeypatch.setattr(server_run, "_exit_when_orphaned", lambda: None)
+    monkeypatch.setattr(server_run, "build_app", lambda *args: fake_app)
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        SimpleNamespace(run=lambda app, **kwargs: seen.update(app=app, **kwargs)),
+    )
+
+    server_run.main(["--cwd", str(tmp_path), "--port", "8766"])
+
+    assert seen["app"] is fake_app
+    assert seen["ws_max_size"] == server_run._WS_MAX_FRAME_BYTES
+
+
+def test_standalone_server_token_file_is_user_only(tmp_path, monkeypatch):
+    import os
+
+    from coworker.server import run as server_run
+
+    monkeypatch.delenv("COWORKER_API_TOKEN", raising=False)
+    path = server_run._ensure_api_token(9876)
+    try:
+        assert path == tmp_path / "coworker-state" / "sidecar-9876.token"
+        assert path.read_text().strip() == os.environ["COWORKER_API_TOKEN"]
+        assert len(path.read_text().strip()) == 64
+        assert (path.stat().st_mode & 0o777) == 0o600
+    finally:
+        path.unlink(missing_ok=True)
+        os.environ.pop("COWORKER_API_TOKEN", None)
 
 
 def test_ws_error_persists_notice_and_retry_reruns(tmp_path):
@@ -422,6 +552,57 @@ def test_ws_allows_webview_origin(tmp_path):
         assert ws.receive_json()["type"] == "ready"
 
 
+def test_sidecar_token_gates_rest_and_websockets(tmp_path, monkeypatch):
+    from coworker.mcp.config import global_mcp_path
+    from starlette.websockets import WebSocketDisconnect as WSD
+
+    monkeypatch.setenv("COWORKER_API_TOKEN", "a" * 64)
+    manager = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
+    client = TestClient(create_app(manager))
+
+    assert client.get("/v1/health").json() == {"status": "ok"}
+    assert client.get("/v1/sessions").status_code == 401
+    assert client.get(
+        "/v1/sessions", headers={"X-OpenWorker-Token": "wrong"}
+    ).status_code == 401
+
+    headers = {"X-OpenWorker-Token": "a" * 64}
+    assert client.get("/v1/health", headers=headers).json()[
+        "default_workspace"
+    ] == str(tmp_path.resolve())
+    assert client.get("/v1/sessions", headers=headers).status_code == 200
+
+    rejected = client.post(
+        "/v1/mcp",
+        json={"name": "evil", "config": {"command": "sh", "args": ["-c", "id"]}},
+    )
+    assert rejected.status_code == 401
+    assert not global_mcp_path().exists()
+
+    with pytest.raises(WSD) as denied:
+        with client.websocket_connect("/ws/session/tokenless") as ws:
+            ws.receive_json()
+    assert denied.value.code == 1008
+
+    with client.websocket_connect(
+        "/ws/session/authed", subprotocols=["openworker", "a" * 64]
+    ) as ws:
+        assert ws.accepted_subprotocol == "openworker"
+        assert ws.receive_json()["type"] == "ready"
+
+    with client.websocket_connect(
+        "/ws/events", subprotocols=["openworker", "a" * 64]
+    ) as ws:
+        assert ws.accepted_subprotocol == "openworker"
+
+    # Redirect callbacks remain tokenless, then enforce their own signed state.
+    assert client.get(
+        "/auth/callback", params={"code": "x", "state": "bad"}
+    ).status_code == 400
+    assert client.get("/mcp/oauth/callback").status_code == 400
+    assert client.post("/oauth/callback", data={"app_state": "bad"}).status_code == 400
+
+
 def test_ws_approval_round_trip(tmp_path):
     client = _client(
         tmp_path,
@@ -491,6 +672,66 @@ def test_open_and_recent_workspaces(tmp_path):
     assert opened["ok"] is True
     recents = client.get("/v1/workspaces/recent").json()["workspaces"]
     assert any(w["path"] == str(proj.resolve()) for w in recents)
+
+
+def test_workspace_command_trust_controls_live_engine(tmp_path):
+    from urllib.parse import quote
+
+    proj = tmp_path / "trusted-project"
+    (proj / ".coworker").mkdir(parents=True)
+    (proj / ".coworker" / "config.toml").write_text(
+        'allowed_commands = ["pytest"]\nauto_allow = ["write_file"]\n'
+    )
+    manager = SessionManager(
+        workspace=None, data_dir=tmp_path / "data", provider=ScriptedProvider([])
+    )
+    client = TestClient(create_app(manager))
+
+    with client.websocket_connect(
+        f"/ws/session/trust?workspace={quote(str(proj))}"
+    ) as ws:
+        ready = ws.receive_json()
+        policy = ready["data"]["command_trust"]
+        assert policy["required"] is True
+        assert policy["requested_commands"] == ["pytest"]
+
+        engine = manager._engines["trust"]
+        before = engine.permissions.evaluate(
+            "run_shell", {"command": "pytest -q"}, None
+        )
+        assert not before.allowed and before.needs_user
+        # Workspace auto_allow remains ignored even after command trust.
+        assert "write_file" not in engine.permissions.auto_allow_tools
+
+        trusted = client.post(
+            "/v1/workspaces/trust",
+            json={"path": str(proj), "trusted": True},
+        ).json()
+        assert trusted["ok"] and trusted["trusted"]
+        assert engine.permissions.evaluate(
+            "run_shell", {"command": "pytest -q"}, None
+        ).allowed
+
+        listed = client.get("/v1/workspaces/trusted").json()["workspaces"]
+        assert [item["workspace"] for item in listed] == [str(proj.resolve())]
+
+        revoked = client.post(
+            "/v1/workspaces/trust",
+            json={"path": str(proj), "trusted": False},
+        ).json()
+        assert revoked["ok"] and not revoked["trusted"]
+        after = engine.permissions.evaluate(
+            "run_shell", {"command": "pytest -q"}, None
+        )
+        assert not after.allowed and after.needs_user
+
+    manager.workspace_trust.set_trusted(proj, True)
+    proj.rename(tmp_path / "moved-project")
+    assert client.post(
+        "/v1/workspaces/trust",
+        json={"path": str(proj), "trusted": False},
+    ).json()["ok"]
+    assert manager.trusted_workspaces() == []
 
 
 def test_recent_workspaces_exclude_scratch_dirs(tmp_path):

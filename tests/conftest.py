@@ -21,6 +21,7 @@ def _isolated_state_dir(tmp_path, monkeypatch):
     sign-in, which made test session creation emit REAL telemetry to prod (found 2026-07-03
     as burst noise in the ocw-connect-telemetry-events table)."""
     monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "coworker-state"))
+    monkeypatch.delenv("COWORKER_API_TOKEN", raising=False)
 
 
 @pytest_asyncio.fixture

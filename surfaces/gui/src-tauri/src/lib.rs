@@ -3,8 +3,8 @@
 //! Tauri is a thin native window over the existing React SPA. It:
 //!   1. picks a free localhost port and starts the Python `openworker-server` as a managed
 //!      sidecar on that port (so it never clashes with a hand-run server on 8765);
-//!   2. injects `window.__COWORKER_HTTP__` / `__COWORKER_WS__` before the SPA loads, so
-//!      `api.ts` talks to the sidecar (single codebase — the browser build still hits 8765);
+//!   2. injects the sidecar HTTP/WS addresses and per-launch authentication token before the
+//!      SPA loads (single codebase — the browser build still hits 8765);
 //!   3. lives in the system tray: closing the window hides it (keeps MyHelper + the scheduler
 //!      running); only tray → Quit stops the sidecar;
 //!   4. exposes native commands: folder picker, autostart (open-at-login), and keep-awake
@@ -28,6 +28,7 @@ use tauri::{
     Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_autostart::ManagerExt;
+use uuid::Uuid;
 
 /// The sidecar server child — killed on exit (orphaned servers have bitten us before).
 struct ServerProcess(Mutex<Option<Child>>);
@@ -40,6 +41,10 @@ fn free_port() -> u16 {
         .and_then(|l| l.local_addr())
         .map(|a| a.port())
         .unwrap_or(8765)
+}
+
+fn launch_token() -> String {
+    format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
 }
 
 /// Path to the server entrypoint. Resolution order:
@@ -574,11 +579,12 @@ async fn install_update(
 
 pub fn run() {
     let port = free_port();
+    let api_token = launch_token();
     let http = format!("http://127.0.0.1:{port}");
     let ws = format!("ws://127.0.0.1:{port}");
     // Debug-format yields a quoted JS string literal.
     let inject = format!(
-        "window.__COWORKER_HTTP__={http:?};window.__COWORKER_WS__={ws:?};window.__OCW_PLATFORM__={:?};",
+        "window.__COWORKER_HTTP__={http:?};window.__COWORKER_WS__={ws:?};window.__COWORKER_API_TOKEN__={api_token:?};window.__OCW_PLATFORM__={:?};",
         std::env::consts::OS
     );
 
@@ -630,6 +636,7 @@ pub fn run() {
                 // reparenting check alone leaks both processes on quit.
                 .env("COWORKER_EXIT_WITH_PARENT", "1")
                 .env("COWORKER_PARENT_PID", std::process::id().to_string())
+                .env("COWORKER_API_TOKEN", &api_token)
                 // This GUI app has no console, so a console-subsystem child would inherit
                 // invalid std handles and crash a few seconds in when uvicorn writes its logs
                 // (the "Starting coworker…" freeze on Windows). Hand it real handles: the

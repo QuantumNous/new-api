@@ -2683,6 +2683,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
+ "uuid",
 ]
 
 [[package]]

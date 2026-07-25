@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import {
   getSettings,
+  getTrustedWorkspaces,
   setOnboarded,
   setPdfSettings,
   setScratchBase,
   setSessionsPeek,
+  setWorkspaceTrusted,
   type ModelSettings,
   type PdfSettings,
+  type WorkspaceCommandTrust,
 } from "../api";
 import {
   cancelDictationModelDownload,
@@ -424,6 +427,8 @@ function AppearanceSection() {
 
       <FilesCard />
 
+      <TrustedWorkspacesCard />
+
       {desktop && (
         <div className={CARD + " p-4"}>
           <div className={FIELD_LABEL + " mb-2.5"}>Always-on</div>
@@ -458,6 +463,61 @@ function AppearanceSection() {
         <div className={FIELD_HELP}>Replays the first-run setup: model, first automation, tips.</div>
       </div>
     </section>
+  );
+}
+
+function TrustedWorkspacesCard() {
+  const [workspaces, setWorkspaces] = useState<WorkspaceCommandTrust[] | null>(null);
+
+  const refresh = () =>
+    getTrustedWorkspaces()
+      .then(setWorkspaces)
+      .catch(() => setWorkspaces([]));
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const revoke = async (path: string) => {
+    if (!window.confirm(`Revoke command trust for ${path}?`)) return;
+    await setWorkspaceTrusted(path, false);
+    refresh();
+  };
+
+  return (
+    <div className={CARD + " p-4 mb-4"} data-testid="trusted-workspaces-card">
+      <div className={FIELD_LABEL}>Trusted workspaces</div>
+      <div className={FIELD_HELP}>
+        Trusted projects may manage their command allowances in .coworker/config.toml.
+      </div>
+      {workspaces === null ? (
+        <div className="text-[12px] text-muted mt-3">Loading…</div>
+      ) : workspaces.length === 0 ? (
+        <div className="text-[12px] text-muted mt-3">No workspaces are trusted.</div>
+      ) : (
+        <div className="mt-3 divide-y divide-line">
+          {workspaces.map((workspace) => (
+            <div key={workspace.workspace} className="py-2.5 flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-[12.5px] text-ink break-all">{workspace.workspace}</div>
+                <div className="text-[11.5px] text-muted mt-0.5">
+                  {workspace.requested_commands.length
+                    ? `${workspace.requested_commands.length} project command allowance${workspace.requested_commands.length === 1 ? "" : "s"}`
+                    : "No project command allowances currently declared"}
+                  {!workspace.exists ? " · Folder unavailable" : ""}
+                </div>
+              </div>
+              <button
+                className="text-[12px] text-red-600 px-2 py-1"
+                onClick={() => void revoke(workspace.workspace)}
+              >
+                Revoke
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

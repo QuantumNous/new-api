@@ -37,6 +37,7 @@ from .tools.directories import request_directory_tool
 from .tools.plan import propose_plan_tool
 from .tools.subagent import explorer_tools
 from .web import make_web_fetch_tool, make_web_search_tool
+from .workspace_trust import WorkspaceTrustStore
 from .tools.shell import LocalExecutor
 from .tools.todo import TodoList
 
@@ -147,7 +148,8 @@ def build_engine(
     else:
         root_list = []
 
-    config = load_config(ws)
+    workspace_trusted = bool(ws and WorkspaceTrustStore().is_trusted(ws))
+    config = load_config(ws, workspace_trusted=workspace_trusted)
     executor = (
         LocalExecutor(cwd=ws) if (agent.needs_workspace and ws is not None) else None
     )
@@ -269,7 +271,10 @@ def build_engine(
     permissions = PermissionEngine(
         workspace_root=ws or (root_list[0].path if root_list else Path.cwd()),
         mode=mode,
-        allowed_commands=allowed_commands or config.allowed_commands,
+        # `[]` is an explicit deny-by-default override, not a request to fall back to config.
+        allowed_commands=(
+            allowed_commands if allowed_commands is not None else config.allowed_commands
+        ),
         auto_allow_tools=set(config.auto_allow),
         roots=root_list or None,
         risk_overrides=risk_overrides,

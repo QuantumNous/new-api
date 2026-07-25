@@ -26,6 +26,7 @@ import {
   type Persona,
   type RecentWorkspace,
   type SurfaceVisibility,
+  type WorkspaceCommandTrust,
 } from "./api";
 import type { ApprovalDecision, Attachment, Item, SessionInfo, TodoItem, WsEvent } from "./types";
 import { isProjectScoped } from "./personaScope";
@@ -54,6 +55,7 @@ import { InboxView } from "./components/InboxView";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
 import { PlanCard } from "./components/PlanCard";
+import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
 
 const newId = () =>
   (crypto as any).randomUUID ? crypto.randomUUID().slice(0, 12) : Math.random().toString(36).slice(2, 14);
@@ -145,6 +147,8 @@ export function App() {
   const [workspace, setWorkspace] = useState<string | null>(null);
   const [branch, setBranch] = useState<string | null>(null);
   const [showGate, setShowGate] = useState(false);
+  const [workspaceTrustRequest, setWorkspaceTrustRequest] =
+    useState<WorkspaceCommandTrust | null>(null);
   const [agent, setAgent] = useState("cowork");
   const [model, setModel] = useState("gpt-5.6-sol");
   const [models, setModels] = useState<string[]>([]);
@@ -558,6 +562,7 @@ export function App() {
           setConnected(true);
           if (d.model) setModel(d.model);
           if (d.mode) setMode(d.mode);
+          if (d.command_trust?.required) setWorkspaceTrustRequest(d.command_trust);
           // Cowork: adopt the server-provisioned scratch dir (only when we don't already have one).
           if (d.workspace) setWorkspace((cur) => cur || d.workspace);
           break;
@@ -693,6 +698,12 @@ export function App() {
           setItems((p) => [
             ...p,
             { kind: "notice", tone: "warn", text: "Error: " + (d.error || "unknown"), retriable: true },
+          ]);
+          break;
+        case "input_rejected":
+          setItems((p) => [
+            ...p,
+            { kind: "notice", tone: "warn", text: d.error || "That message was rejected." },
           ]);
           break;
         case "turn_done":
@@ -1615,6 +1626,12 @@ export function App() {
                 }
               : undefined
           }
+        />
+      )}
+      {workspaceTrustRequest && (
+        <WorkspaceTrustPrompt
+          request={workspaceTrustRequest}
+          onClose={() => setWorkspaceTrustRequest(null)}
         />
       )}
     </div>

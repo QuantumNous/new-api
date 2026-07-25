@@ -131,13 +131,21 @@ def test_allowlist_prefix_is_argv_boundary(tmp_path):
     assert eng.evaluate("run_shell", {"command": "lsof"}, None).needs_user
 
 
-def test_interpreters_not_auto_allowed_by_default(tmp_path):
-    # The default allowlist must not auto-run interpreters (arbitrary code execution).
+def test_shell_commands_not_auto_allowed_by_default(tmp_path):
+    # There is no generally safe executable: these examples cover code execution,
+    # environment disclosure, reads outside the workspace, and helper execution.
     from coworker.config import DEFAULT_ALLOWED_COMMANDS
 
     eng = PermissionEngine(
         workspace_root=tmp_path, allowed_commands=list(DEFAULT_ALLOWED_COMMANDS)
     )
-    for cmd in ("python3 -c 'import os'", "node -e 1", "npm run x", "npx foo"):
+    for cmd in (
+        "python3 -c 'import os'",
+        "pytest /tmp/attacker_test.py",
+        "find . -exec sh -c 'echo arbitrary' {} +",
+        "cat ~/.config/coworker/secrets.json",
+        "echo $OPENAI_API_KEY",
+        "git status",
+    ):
         d = eng.evaluate("run_shell", {"command": cmd}, None)
         assert not d.allowed and d.needs_user, cmd

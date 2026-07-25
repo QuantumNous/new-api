@@ -82,6 +82,11 @@ npm install
 npm run dev        # browser UI on the Vite dev port
 ```
 
+The standalone server creates a per-launch token at
+`<state-dir>/sidecar-8765.token`; Vite reads that user-only file when it starts.
+For direct API calls, send its value in the `X-OpenWorker-Token` header. The
+desktop app uses an in-memory launch token instead and never writes it to disk.
+
 To run the full desktop app instead of the browser UI, replace step 3 with `npm run tauri dev` (from `surfaces/gui/`) - the Tauri shell launches the window and supervises the server itself.
 
 Tests: `.venv/bin/pytest` (server), `npm test` and `npm run e2e` in `surfaces/gui` (GUI unit + hermetic end-to-end). Desktop bundles are built with `packaging/build_dmg.sh` / `packaging/build_windows.ps1`.

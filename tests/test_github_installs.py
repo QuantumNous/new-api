@@ -43,6 +43,8 @@ def client(tmp_path, monkeypatch):
 
 def _install_form(installation_id: str, *, login="octocat", account="acme") -> dict:
     """The broker's loopback POST — deliberately NO token fields (§4)."""
+    state = f"github-{installation_id}"
+    cloud._pending_managed_states[state] = cloud._now()
     return {
         "connector": "github",
         "installation_id": installation_id,
@@ -51,6 +53,7 @@ def _install_form(installation_id: str, *, login="octocat", account="acme") -> d
         "github_login": login,
         "repo_selection": "selected",
         "connection_id": f"conn_{installation_id}",
+        "app_state": state,
     }
 
 

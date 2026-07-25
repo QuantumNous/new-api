@@ -11,13 +11,16 @@ import asyncio
 import json
 import os
 import re
+import secrets
 import uuid
+from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Origins allowed to talk to the local sidecar. It binds to 127.0.0.1, but a page in the
 # user's own browser can still reach loopback — so without an origin gate, any website they
@@ -39,25 +42,25 @@ def _origin_allowed(origin: str | None) -> bool:
     return origin is None or bool(_ALLOWED_ORIGIN_RE.match(origin))
 
 
-# Caps on a single inbound `user_message` frame. The loopback socket is unauthenticated
-# (any local process can reach it), so an oversized frame is a cheap way to spike memory —
-# these bound one message's text and its attachments before we build content / start a turn.
+# Caps on inbound WebSocket traffic. The loopback socket is unauthenticated (any local
+# process can reach it), so bound frames, messages, and per-connection request rate before
+# building model content or starting a turn.
+_WS_MAX_FRAME_BYTES = 16 * 1024 * 1024
+_WS_RATE_LIMIT_COUNT = 30
+_WS_RATE_LIMIT_WINDOW_SECONDS = 10.0
 _MAX_MESSAGE_TEXT_CHARS = 200_000
-_MAX_ATTACHMENTS = 25
-_MAX_ATTACHMENTS_BYTES = 32 * 1024 * 1024  # ~32 MB total across a message's attachments
+_MAX_ATTACHMENTS_BYTES = 15_000_000  # leaves JSON overhead below the 16 MiB frame cap
 
 
-def _attachments_size(attachments: list) -> int:
-    """Approximate on-wire byte size of a message's attachments (data URLs dominate)."""
-    total = 0
-    for a in attachments:
-        if isinstance(a, str):
-            total += len(a)
-        elif isinstance(a, dict):
-            for v in a.values():
-                if isinstance(v, str):
-                    total += len(v)
-    return total
+def _json_value_size(value: Any) -> int:
+    """Conservative UTF-8 size of parsed JSON without allocating another giant string."""
+    if isinstance(value, str):
+        return len(value.encode("utf-8"))
+    if isinstance(value, dict):
+        return sum(_json_value_size(k) + _json_value_size(v) for k, v in value.items())
+    if isinstance(value, list):
+        return sum(_json_value_size(v) for v in value)
+    return 8  # numbers, booleans, null, separators
 
 
 # Brand colors for the connector badge riding the ✓ (UX-DECISIONS §30). The GUI owns the
@@ -145,7 +148,13 @@ _CONNECT_FAILED_DETAIL = (
     "Close this tab and try again from OpenWorker."
 )
 
-from ..attachments import build_user_content
+from ..attachments import (
+    MAX_ATTACHMENTS as _MAX_ATTACHMENTS,
+    MAX_IMAGE_CHARS,
+    MAX_PDF_CHARS,
+    MAX_TEXT_CHARS,
+    build_user_content,
+)
 from ..engine import ApprovalOutcome
 from ..inbox import VIS_INBOX, VIS_INLINE, args_preview
 from ..permissions import Mode
@@ -170,6 +179,48 @@ def create_app(manager: SessionManager) -> FastAPI:
         await manager.aclose()  # stop gateway + close MCP connections on shutdown
 
     app = FastAPI(title="coworker", version="0.0.0", lifespan=lifespan)
+    api_token = os.environ.get("COWORKER_API_TOKEN", "")
+    tokenless_paths = {
+        "/v1/health",
+        "/auth/callback",
+        "/mcp/oauth/callback",
+        "/oauth/callback",
+    }
+
+    def _request_authenticated(request: Request) -> bool:
+        provided = request.headers.get("x-openworker-token", "")
+        return bool(
+            api_token
+            and provided
+            and secrets.compare_digest(provided, api_token)
+        )
+
+    def _websocket_authenticated(ws: WebSocket) -> bool:
+        if not api_token:
+            return True
+        protocols = {
+            part.strip()
+            for part in ws.headers.get("sec-websocket-protocol", "").split(",")
+            if part.strip()
+        }
+        return any(secrets.compare_digest(part, api_token) for part in protocols)
+
+    @app.middleware("http")
+    async def require_sidecar_token(request: Request, call_next):
+        # Preflights carry the requested header name, not its value. CORS checks the
+        # Origin; the actual state-changing request still must authenticate.
+        if (
+            not api_token
+            or request.method == "OPTIONS"
+            or request.url.path in tokenless_paths
+            or _request_authenticated(request)
+        ):
+            return await call_next(request)
+        return JSONResponse(
+            {"error": "missing or invalid OpenWorker sidecar token"},
+            status_code=401,
+        )
+
     app.add_middleware(
         CORSMiddleware,
         # Pinned to the desktop webview + localhost (see _ALLOWED_ORIGIN_RE): stops a random
@@ -181,7 +232,9 @@ def create_app(manager: SessionManager) -> FastAPI:
     app.state.manager = manager
 
     @app.get("/v1/health")
-    def health() -> dict[str, Any]:
+    def health(request: Request) -> dict[str, Any]:
+        if api_token and not _request_authenticated(request):
+            return {"status": "ok"}
         return {
             "status": "ok",
             "default_workspace": manager.default_workspace,
@@ -514,6 +567,17 @@ def create_app(manager: SessionManager) -> FastAPI:
     def open_workspace(body: dict) -> dict[str, Any]:
         return manager.open_workspace(
             body.get("path", ""), create=bool(body.get("create"))
+        )
+
+    @app.get("/v1/workspaces/trusted")
+    def trusted_workspaces() -> dict[str, Any]:
+        return {"workspaces": manager.trusted_workspaces()}
+
+    @app.post("/v1/workspaces/trust")
+    def set_workspace_trust(body: dict) -> dict[str, Any]:
+        return manager.set_workspace_trust(
+            str((body or {}).get("path", "")),
+            trusted=bool((body or {}).get("trusted", False)),
         )
 
     @app.post("/v1/workspaces/pick")
@@ -1022,6 +1086,16 @@ def create_app(manager: SessionManager) -> FastAPI:
         form = await request.form()
         data = {k: str(v) for k, v in form.items()}
         connector = data.get("connector", "")
+        if not cloud.consume_managed_state(data.get("app_state", "")):
+            return HTMLResponse(
+                _browser_page(
+                    "Connection failed",
+                    _CONNECT_FAILED_DETAIL,
+                    ok=False,
+                    error="unknown or expired connection attempt",
+                ),
+                status_code=400,
+            )
         if data.get("error"):
             return HTMLResponse(
                 _browser_page(
@@ -1371,13 +1445,16 @@ def create_app(manager: SessionManager) -> FastAPI:
 
     @app.websocket("/ws/session/{session_id}")
     async def ws_session(ws: WebSocket, session_id: str) -> None:
+        if not _websocket_authenticated(ws):
+            await ws.close(code=1008)
+            return
         # CORS never gates WebSockets, so a cross-site page could otherwise open this socket
         # and drive the session into tool calls. Reject a disallowed browser Origin before
         # accepting the handshake (1008 = policy violation).
         if not _origin_allowed(ws.headers.get("origin")):
             await ws.close(code=1008)
             return
-        await ws.accept()
+        await ws.accept(subprotocol="openworker" if api_token else None)
         agent = ws.query_params.get("agent") or "code"
 
         # All four interactive prompts (approval / question / directory / plan) are parked as Inbox
@@ -1600,6 +1677,9 @@ def create_app(manager: SessionManager) -> FastAPI:
                         if getattr(engine, "executor", None)
                         else None
                     ),
+                    "command_trust": manager.workspace_command_trust(
+                        str(getattr(engine, "audit_context", {}).get("workspace", ""))
+                    ),
                 },
             }
         )
@@ -1618,9 +1698,8 @@ def create_app(manager: SessionManager) -> FastAPI:
         }
 
         async def run_turn(content, *, retry: bool = False) -> None:
-            manager.mark_running(
-                session_id
-            )  # busy → self-wakes steer instead of colliding
+            # The receive loop atomically claims this session before scheduling the task.
+            # Keeping the claim outside prevents two back-to-back frames from both starting.
             try:
                 events = engine.retry() if retry else engine.run(content)
                 async for event in events:
@@ -1641,10 +1720,48 @@ def create_app(manager: SessionManager) -> FastAPI:
         # This socket is now a live view of the session; background turns (channel delivery,
         # self-wake, durable resume) broadcast here too, not just locally driven run_turns.
         manager.register_session_client(session_id, ws.send_json)
+        inbound_times: deque[float] = deque()
+
+        async def reject_input(reason: str) -> None:
+            # Input validation failures are not provider failures and must not offer "Retry"
+            # or flush an in-progress assistant stream in the GUI.
+            await ws.send_json({"type": "input_rejected", "data": {"error": reason}})
+
+        async def claim_turn(*, retry: bool = False, content=None) -> None:
+            if not manager.try_mark_running(session_id):
+                await reject_input(
+                    "This session is already running a turn. Wait for it to finish or stop it."
+                )
+                return
+            asyncio.create_task(run_turn(content, retry=retry))
+
         try:
             while True:
-                message = await ws.receive_json()
+                try:
+                    message = await ws.receive_json()
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    await reject_input("Invalid WebSocket message: expected JSON.")
+                    continue
+
+                now = asyncio.get_running_loop().time()
+                while (
+                    inbound_times
+                    and now - inbound_times[0] > _WS_RATE_LIMIT_WINDOW_SECONDS
+                ):
+                    inbound_times.popleft()
+                if len(inbound_times) >= _WS_RATE_LIMIT_COUNT:
+                    await reject_input("Too many WebSocket messages; reconnect and try again.")
+                    await ws.close(code=1008)
+                    return
+                inbound_times.append(now)
+
+                if not isinstance(message, dict):
+                    await reject_input("Invalid WebSocket message: expected an object.")
+                    continue
                 kind = message.get("type")
+                if not isinstance(kind, str):
+                    await reject_input("Invalid WebSocket message: missing string type.")
+                    continue
                 if kind == "approval":
                     _resolve_pending(message.get("decision", "deny"))
                 elif kind == "directory_response":
@@ -1674,22 +1791,33 @@ def create_app(manager: SessionManager) -> FastAPI:
                 elif kind == "retry":
                     # Re-run after a provider error (engine guards on the error-notice
                     # tail, so a stray frame is a no-op that still ends with turn_done).
-                    if not manager.is_running(session_id):
-                        asyncio.create_task(run_turn(None, retry=True))
+                    await claim_turn(retry=True)
                 elif kind == "set_mode":
                     try:
                         engine.permissions.mode = Mode(message.get("mode"))
-                    except ValueError:
+                    except (TypeError, ValueError):
                         pass
                 elif kind == "set_model":
-                    await _apply_model(message.get("model"))
+                    model = message.get("model")
+                    if model is not None and not isinstance(model, str):
+                        await reject_input("Invalid model: expected a string.")
+                    else:
+                        await _apply_model(model)
                 elif kind == "user_message":
-                    text = (message.get("text") or "").strip()
-                    attachments = message.get("attachments") or []
+                    raw_text = message.get("text")
+                    if raw_text is None:
+                        raw_text = ""
+                    if not isinstance(raw_text, str):
+                        await reject_input("Invalid message text: expected a string.")
+                        continue
+                    text = raw_text.strip()
+                    raw_attachments = message.get("attachments")
+                    attachments = [] if raw_attachments is None else raw_attachments
                     # Reject an oversized frame instead of buffering it into a turn. Send a
                     # visible error so the surface can tell the user, and drop the message.
                     if not isinstance(attachments, list):
-                        attachments = []
+                        await reject_input("Invalid attachments: expected a list.")
+                        continue
                     reject = None
                     if len(text) > _MAX_MESSAGE_TEXT_CHARS:
                         reject = (
@@ -1701,18 +1829,69 @@ def create_app(manager: SessionManager) -> FastAPI:
                             f"Too many attachments ({len(attachments)}; "
                             f"limit {_MAX_ATTACHMENTS})."
                         )
-                    elif _attachments_size(attachments) > _MAX_ATTACHMENTS_BYTES:
-                        reject = "Attachments too large (limit 32 MB per message)."
+                    elif any(not isinstance(a, dict) for a in attachments):
+                        reject = "Invalid attachment: expected an object."
+                    elif _json_value_size(attachments) > _MAX_ATTACHMENTS_BYTES:
+                        reject = "Attachments too large (limit 15 MB per message)."
+                    else:
+                        for attachment in attachments:
+                            attachment_kind = attachment.get("kind")
+                            name = attachment.get("name")
+                            mime = attachment.get("mime")
+                            if attachment_kind not in {"image", "pdf", "text"}:
+                                reject = "Invalid attachment kind."
+                            elif name is not None and (
+                                not isinstance(name, str) or len(name) > 1024
+                            ):
+                                reject = "Invalid attachment name."
+                            elif mime is not None and (
+                                not isinstance(mime, str) or len(mime) > 255
+                            ):
+                                reject = "Invalid attachment MIME type."
+                            elif attachment_kind == "image":
+                                data = attachment.get("data_url")
+                                if (
+                                    not isinstance(data, str)
+                                    or not data.startswith("data:image/")
+                                    or ";base64," not in data
+                                    or len(data) > MAX_IMAGE_CHARS
+                                ):
+                                    reject = "Invalid or oversized image attachment."
+                            elif attachment_kind == "pdf":
+                                data = attachment.get("data_url")
+                                if (
+                                    not isinstance(data, str)
+                                    or not data.startswith(
+                                        "data:application/pdf;base64,"
+                                    )
+                                    or len(data) > MAX_PDF_CHARS
+                                ):
+                                    reject = "Invalid or oversized PDF attachment."
+                            else:
+                                body = attachment.get("text")
+                                if (
+                                    not isinstance(body, str)
+                                    or len(body) > MAX_TEXT_CHARS
+                                ):
+                                    reject = "Invalid or oversized text attachment."
+                            if reject is not None:
+                                break
                     if reject is not None:
-                        await ws.send_json({"type": "error", "data": {"error": reject}})
+                        await reject_input(reject)
                         continue
                     # The composer sends its visible model with every message — the FIRST
                     # one binds the session (race-proof across reconnects; see api.ts
                     # Session.userMessage), later ones may switch it (notice persisted).
-                    await _apply_model(message.get("model"))
+                    model = message.get("model")
+                    if model is not None and not isinstance(model, str):
+                        await reject_input("Invalid model: expected a string.")
+                        continue
+                    await _apply_model(model)
                     if text or attachments:
                         content = build_user_content(text, attachments)
-                        asyncio.create_task(run_turn(content))
+                        await claim_turn(content=content)
+                else:
+                    await reject_input(f"Unknown WebSocket message type: {kind}.")
         except WebSocketDisconnect:
             pass
         finally:
@@ -1723,10 +1902,13 @@ def create_app(manager: SessionManager) -> FastAPI:
         """App-wide event stream (session-independent): the GUI keeps one open for
         pushes like automation_run_started (the UX-026 toast). Read-only — inbound
         frames are ignored; the receive loop just detects disconnect."""
+        if not _websocket_authenticated(ws):
+            await ws.close(code=1008)
+            return
         if not _origin_allowed(ws.headers.get("origin")):
             await ws.close(code=1008)
             return
-        await ws.accept()
+        await ws.accept(subprotocol="openworker" if api_token else None)
         manager.register_event_client(ws.send_json)
         try:
             while True:

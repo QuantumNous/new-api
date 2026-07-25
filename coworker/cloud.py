@@ -56,6 +56,8 @@ PROVIDER_FOR_CONNECTOR = {
 # outlives the sidecar process simply has to be restarted.
 _pending_logins: dict[str, dict[str, float | str]] = {}
 _PENDING_TTL = 600
+_pending_managed_states: dict[str, float] = {}
+_MANAGED_STATE_TTL = 600
 
 
 def _b64url(raw: bytes) -> str:
@@ -382,11 +384,20 @@ def begin_managed_connect(
         return {"ok": False, "error": f"cloud unreachable: {type(exc).__name__}"}
     if resp.status_code != 200:
         return {"ok": False, "error": f"start failed ({resp.status_code})"}
+    _pending_managed_states[app_state] = _now()
     return {
         "ok": True,
         "authorize_url": resp.json()["authorize_url"],
         "app_state": app_state,
     }
+
+
+def consume_managed_state(state: str) -> bool:
+    """Consume one recent managed-OAuth callback state exactly once."""
+    if not state:
+        return False
+    created = _pending_managed_states.pop(state, None)
+    return created is not None and created >= _now() - _MANAGED_STATE_TTL
 
 
 def managed_profile_from_callback(form: dict[str, str]) -> dict[str, Any]:

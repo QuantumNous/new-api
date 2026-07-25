@@ -2,11 +2,11 @@
 // /v1/providers to catch integration drift between the GUI's expectations and the backend's
 // responses. Skips cleanly when the backend is down, so it's safe to run anytime. No creds needed.
 import { expect, test } from "@playwright/test";
-import { BACKEND } from "./helpers";
+import { backendFetch } from "./helpers";
 
 async function backendUp(): Promise<boolean> {
   try {
-    const res = await fetch(`${BACKEND}/v1/health`);
+    const res = await backendFetch("/v1/health");
     return res.ok;
   } catch {
     return false;
@@ -15,7 +15,7 @@ async function backendUp(): Promise<boolean> {
 
 test("health reports ok with the fields the GUI reads", async () => {
   test.skip(!(await backendUp()), "backend not running on :8765");
-  const s = await (await fetch(`${BACKEND}/v1/health`)).json();
+  const s = await (await backendFetch("/v1/health")).json();
   expect(s.status).toBe("ok");
   // The GUI's boot reads these three off /v1/health.
   expect(s).toHaveProperty("model");
@@ -24,7 +24,7 @@ test("health reports ok with the fields the GUI reads", async () => {
 
 test("providers list has the shape the Settings pane expects", async () => {
   test.skip(!(await backendUp()), "backend not running on :8765");
-  const providers = await (await fetch(`${BACKEND}/v1/providers`)).json();
+  const providers = await (await backendFetch("/v1/providers")).json();
   expect(Array.isArray(providers)).toBe(true);
   expect(providers.length).toBeGreaterThan(0);
   // Each descriptor carries what ManageTabs renders: name/title/needs_key/fields/configured.

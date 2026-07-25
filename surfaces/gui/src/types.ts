@@ -15,6 +15,7 @@ export type EventType =
   | "iteration_end"
   | "turn_end"
   | "error"
+  | "input_rejected"
   | "interrupted"
   | "model_changed"
   | "turn_done";

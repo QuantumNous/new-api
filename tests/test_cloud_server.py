@@ -9,6 +9,12 @@ from fastapi.testclient import TestClient
 from coworker.server import SessionManager, create_app
 
 
+def _allow_managed_state(state: str = "s") -> None:
+    from coworker import cloud
+
+    cloud._pending_managed_states[state] = cloud._now()
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
@@ -38,6 +44,7 @@ def test_connect_managed_requires_sign_in(client):
 
 
 def test_oauth_callback_writes_profile_and_returns_page(client):
+    _allow_managed_state()
     resp = client.post(
         "/oauth/callback",
         data={
@@ -72,9 +79,10 @@ def test_oauth_callback_writes_profile_and_returns_page(client):
 
 
 def test_oauth_callback_error_shows_failure_page(client):
+    _allow_managed_state()
     resp = client.post(
         "/oauth/callback",
-        data={"connector": "gmail", "error": "access_denied"},
+        data={"connector": "gmail", "error": "access_denied", "app_state": "s"},
     )
     assert resp.status_code == 400
     assert "access_denied" in resp.text
@@ -83,12 +91,29 @@ def test_oauth_callback_error_shows_failure_page(client):
 
 def test_oauth_callback_rejects_unmanaged_connector(client):
     # telegram is manual-only (github gained a managed path with the App relay)
+    _allow_managed_state()
     resp = client.post(
         "/oauth/callback",
-        data={"connector": "telegram", "access_token": "x"},
+        data={"connector": "telegram", "access_token": "x", "app_state": "s"},
     )
     assert resp.status_code == 400
     assert client.manager.secrets.get("telegram:default") is None
+
+
+def test_oauth_callback_rejects_unknown_and_replayed_state(client):
+    form = {
+        "provider": "google",
+        "connector": "gmail",
+        "access_token": "token",
+        "account": "a@b.c",
+        "app_state": "once",
+    }
+    assert client.post("/oauth/callback", data=form).status_code == 400
+    assert client.manager.secrets.get("gmail:default") is None
+
+    _allow_managed_state("once")
+    assert client.post("/oauth/callback", data=form).status_code == 200
+    assert client.post("/oauth/callback", data=form).status_code == 400
 
 
 def test_auth_callback_rejects_unknown_state(client):
