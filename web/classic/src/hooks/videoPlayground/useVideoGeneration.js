@@ -41,6 +41,8 @@ import {
   VIDEO_HISTORY_LIMIT,
   VIDEO_CONV_TURN_LIMIT,
   VIDEO_INTERPOLATION_TARGET_FPS,
+  VIDEO_PIPELINE_SR_RATIO,
+  isPipelineTargetSize,
   VIDEO_POLL_INTERVAL_MS,
   VIDEO_POLL_MAX_TIMES,
   parseVideoModelConfig,
@@ -363,6 +365,17 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     return set;
   }, [videoConfig]);
 
+  // 1080P 流水线的超分模型：运营配置里声明了「视频超分」能力的模型
+  // （即原超分 tab 的模型来源；未配置则流水线不启用，1080P 原样直发）。
+  const pipelineSRModel = useMemo(() => {
+    const entry = Object.entries(videoConfig.models || {}).find(([, cfg]) =>
+      (Array.isArray(cfg?.capabilities) ? cfg.capabilities : []).includes(
+        VIDEO_SR_CAPABILITY,
+      ),
+    );
+    return entry ? entry[0] : '';
+  }, [videoConfig]);
+
   const videoGroups = useMemo(() => {
     const set = new Set();
     videoModelSet.forEach((model) => {
@@ -549,6 +562,67 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     setGenerating(false);
   }, []);
 
+  // submitPipelineSR 定义在 pollOnce 之前但要调度它，经 ref 间接引用
+  const pollOnceRef = useRef(null);
+
+  // 查找会话内消息（读取流水线状态用）
+  const findConvMessage = useCallback((convId, msgId) => {
+    const conv = conversationsRef.current.find((c) => c.id === convId);
+    return conv?.messages?.find((m) => m.id === msgId) || null;
+  }, []);
+
+  // 1080P 流水线 stage2：用 task:<id> 引用 stage1 产物提交超分任务，
+  // 成功则把轮询槽切到新任务继续轮询。失败返回 false，由调用方降级展示低档位成品。
+  const submitPipelineSR = useCallback(
+    async (convId, msgId, stage1TaskId, pipeline) => {
+      try {
+        const res = await API.post(
+          VIDEO_API_ENDPOINTS.VIDEO_GENERATIONS,
+          {
+            model: pipeline.srModel,
+            group: pipeline.group || undefined,
+            prompt: '',
+            metadata: {
+              task_type: 'sr',
+              video: `task:${stage1TaskId}`,
+              sr_ratio: VIDEO_PIPELINE_SR_RATIO,
+              ...(pipeline.interpolation
+                ? { target_fps: VIDEO_INTERPOLATION_TARGET_FPS }
+                : {}),
+            },
+          },
+          { skipErrorHandler: true },
+        );
+        const data = res.data || {};
+        const inner = data.data || {};
+        const srTaskId = data.id || data.task_id || inner.task_id || inner.id;
+        if (!srTaskId) {
+          throw new Error(data.message || data.error?.message || 'submit sr failed');
+        }
+        patchConvMessage(convId, msgId, {
+          taskId: srTaskId,
+          srTaskId,
+          stage: 'upscaling',
+          status: VIDEO_STATUS.IN_PROGRESS,
+          progress: 0,
+        });
+        const cur = activePollRef.current;
+        if (cur && !cur.canceled) {
+          cur.taskId = srTaskId;
+          cur.timer = setTimeout(
+            () => pollOnceRef.current(convId, msgId, srTaskId, 1),
+            VIDEO_POLL_INTERVAL_MS,
+          );
+        }
+        return true;
+      } catch (e) {
+        showError(t('超分任务提交失败，已展示原始分辨率结果'));
+        return false;
+      }
+    },
+    [patchConvMessage, t],
+  );
+
   const pollOnce = useCallback(
     async (convId, msgId, taskId, count) => {
       const active = activePollRef.current;
@@ -567,6 +641,19 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         );
 
         if (status === VIDEO_STATUS.COMPLETED) {
+          // 1080P 流水线：stage1（生成段）完成 → 不落终态，自动提交超分段。
+          // 页面中途关闭再回来时，恢复轮询到这里同样会续走超分段。
+          const msg = findConvMessage(convId, msgId);
+          if (msg?.pipeline && msg.stage !== 'upscaling') {
+            const switched = await submitPipelineSR(
+              convId,
+              msgId,
+              taskId,
+              msg.pipeline,
+            );
+            if (switched) return;
+            // 超分提交失败：降级展示低档位成品（已生成的产物不浪费）
+          }
           patchConvMessage(convId, msgId, {
             status: VIDEO_STATUS.COMPLETED,
             progress: 100,
@@ -617,8 +704,9 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         VIDEO_POLL_INTERVAL_MS,
       );
     },
-    [patchConvMessage, finishPoll, t],
+    [patchConvMessage, finishPoll, t, findConvMessage, submitPipelineSR],
   );
+  pollOnceRef.current = pollOnce;
 
   // 为某个仍在进行中的任务（重新）启动轮询：刷新页面或切走再回来时用，
   // 避免进度冻结在最后一次写入的值。已在轮询同一任务则跳过。
@@ -912,7 +1000,31 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         // 尺寸/分辨率仅文生视频、且该值仍在当前模型允许集内才下发（对齐宽高比的闸门，
         // 避免切到未配尺寸的模型时把残留旧值误发）；其余模式输出跟随上传输入，不发 size。
         const videoSizeVal = normalizeVideoSize(params.size);
-        if (!followsInput && availableSizes.includes(videoSizeVal)) {
+        // 1080P 两段流水线（前端编排）：stage1 先按低档位生成（插帧后移到超分段），
+        // 完成后在 pollOnce 里自动提交 sr 任务。模型没配低档位则不启用、原样直发。
+        let pipeline = null;
+        if (
+          !isSR &&
+          !isDub &&
+          pipelineSRModel &&
+          !followsInput &&
+          isPipelineTargetSize(videoSizeVal) &&
+          availableSizes.includes(videoSizeVal)
+        ) {
+          const lowSize =
+            availableSizes.find((s) => /480/.test(s)) ||
+            availableSizes.find((s) => !isPipelineTargetSize(s));
+          if (lowSize) {
+            pipeline = {
+              targetSize: videoSizeVal,
+              srModel: pipelineSRModel,
+              group: params.group,
+              interpolation: !!inputs.interpolation,
+            };
+            body.size = normalizeVideoSize(lowSize);
+          }
+        }
+        if (!pipeline && !followsInput && availableSizes.includes(videoSizeVal)) {
           body.size = videoSizeVal;
         }
         // 超分/配乐输出时长跟随源视频,不发时长字段(配置面板也不展示时长框)。
@@ -939,8 +1051,8 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           };
         }
         // 插帧(默认关):按提交时的开关状态透传 target_fps(引擎 RIFE 帧率翻倍)。
-        // 超分/配乐不适用(SR 引擎侧明确不插帧)。
-        if (inputs.interpolation && !isSR && !isDub) {
+        // 超分/配乐不适用;1080P 流水线时插帧后移到超分段,stage1 不发。
+        if (inputs.interpolation && !isSR && !isDub && !pipeline) {
           body.metadata = {
             ...(body.metadata || {}),
             target_fps: VIDEO_INTERPOLATION_TARGET_FPS,
@@ -1050,7 +1162,12 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           setGenerating(false);
           return;
         }
-        patchConvMessage(convId, asstId, { taskId, status, progress });
+        patchConvMessage(convId, asstId, {
+          taskId,
+          status,
+          progress,
+          ...(pipeline ? { pipeline, stage: 'generating' } : {}),
+        });
         activePollRef.current = {
           convId,
           msgId: asstId,
@@ -1089,6 +1206,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       taskType,
       availableSizes,
       availableAspectRatios,
+      pipelineSRModel,
       t,
     ],
   );

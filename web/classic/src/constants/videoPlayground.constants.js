@@ -228,6 +228,12 @@ export const VIDEO_CONV_TURN_LIMIT = 10; // 单段对话生成次数上限
 // 统一按 32 下发;超分(sr)引擎侧不插帧,不适用。
 export const VIDEO_INTERPOLATION_TARGET_FPS = 32;
 
+// 1080P 两段流水线（前端编排）：选中 1080P 档位时 stage1 先按低档位生成，
+// 完成后自动提交 sr 任务（metadata.video 用 task:<id> 引用 stage1 产物）。
+// 480P(854x480) → 1080P 需要 2.25 倍超分。
+export const VIDEO_PIPELINE_SR_RATIO = 2.25;
+export const isPipelineTargetSize = (s) => /1080/i.test(s || '');
+
 export const VIDEO_POLL_INTERVAL_MS = 4000;
 export const VIDEO_POLL_MAX_TIMES = 90; // 约 6 分钟后超时
 
