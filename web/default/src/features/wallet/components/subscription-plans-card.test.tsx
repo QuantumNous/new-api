@@ -26,6 +26,8 @@ import type {
   PlanRecord,
   SubscriptionPaymentQuote,
 } from '@/features/subscriptions/types'
+import { RecallClaimProvider } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
+import type { RecallClaimView } from '../types'
 import {
   buildFlexiblePurchaseRequest,
   buildFlexibleQuoteRequest,
@@ -81,6 +83,7 @@ function plan(id: number, title: string, price: number): PlanRecord {
       window_5h_amount: price * 100,
       window_week_amount: price * 250,
       media_credits_monthly: price,
+      stripe_price_id: `price_${title.trim().toLowerCase()}`,
       payment_modes: ['stripe_recurring', 'balance_one_period'],
     },
   }
@@ -142,6 +145,46 @@ function renderWalletCard(selfData = normalizeSelfSubscriptionData(undefined)) {
         initialLoading={false}
         userQuota={12345}
       />
+    </I18nextProvider>
+  )
+}
+
+const subscriptionRecallClaim: RecallClaimView = {
+  campaign_id: 17,
+  recipient_id: 29,
+  campaign_name: 'Come back offer',
+  promotion_code_masked: 'FKSE****34',
+  expires_at: 4_100_000_000,
+  discount: {
+    type: 'percent',
+    percent_off: 20,
+    amount_off: 0,
+    currency: '',
+    minimum_amount: 0,
+    minimum_amount_currency: '',
+    coupon_redeem_by: 4_100_000_000,
+  },
+  products: {
+    topup_price_ids: [],
+    subscription_price_ids: ['price_go'],
+  },
+  redeemed: false,
+}
+
+function renderWalletCardWithRecall(
+  recallView: RecallClaimView = subscriptionRecallClaim
+) {
+  return renderToStaticMarkup(
+    <I18nextProvider i18n={testI18n}>
+      <RecallClaimProvider claim='signed-recall-claim' view={recallView}>
+        <SubscriptionPlansCard
+          topupInfo={topupInfo}
+          initialPlans={plans}
+          initialSelfData={normalizeSelfSubscriptionData(undefined)}
+          initialLoading={false}
+          userQuota={12345}
+        />
+      </RecallClaimProvider>
     </I18nextProvider>
   )
 }
@@ -504,6 +547,42 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('Downgrade next period')
     expect(html).not.toContain('next period')
   })
+
+  test('shows a recall subscription discount only on eligible Stripe plans', () => {
+    const html = renderWalletCardWithRecall()
+    const goStart = html.indexOf('Go')
+    const proStart = html.indexOf('Pro', goStart)
+    const maxStart = html.indexOf('Max', proStart)
+    const goSlice = html.slice(goStart, proStart)
+    const proSlice = html.slice(proStart, maxStart)
+    const maxSlice = html.slice(maxStart)
+
+    expect(goSlice).toContain('20% OFF')
+    expect(goSlice).toContain('line-through')
+    expect(goSlice).toContain('$10')
+    expect(goSlice).toContain('$8')
+    expect(goSlice.indexOf('20% OFF')).toBeLessThan(
+      goSlice.indexOf('Recommended')
+    )
+    expect(proSlice).not.toContain('20% OFF')
+    expect(maxSlice).not.toContain('20% OFF')
+  })
+
+  test('shows a fixed recall discount as an exact currency reduction', () => {
+    const html = renderWalletCardWithRecall({
+      ...subscriptionRecallClaim,
+      discount: {
+        ...subscriptionRecallClaim.discount,
+        type: 'fixed',
+        percent_off: 0,
+        amount_off: 200,
+        currency: 'USD',
+      },
+    })
+
+    expect(html).toContain('2.00 USD OFF')
+    expect(html).not.toContain('$2 USD OFF')
+  })
 })
 
 describe('PlanPurchaseDialog payment choices', () => {
@@ -819,6 +898,55 @@ describe('PlanPurchaseDialog payment choices', () => {
       expect(continueButton, choice).toBeDefined()
       expect(continueButton, choice).not.toContain('disabled=""')
     }
+  })
+
+  test('shows recall discount totals only for Stripe recurring', () => {
+    const stripeHtml = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlanPurchaseDialogContent
+          plan={plans[0]}
+          currentPlanId={0}
+          paymentAvailability={{}}
+          selectedPaymentChoice='stripe_recurring'
+          months={1}
+          recallDiscount={{
+            type: 'percent',
+            originalAmount: 10,
+            discountAmount: 2,
+            discountedAmount: 8,
+            currency: 'USD',
+          }}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />
+      </I18nextProvider>
+    )
+    const pixHtml = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlanPurchaseDialogContent
+          plan={plans[0]}
+          currentPlanId={0}
+          paymentAvailability={{}}
+          selectedPaymentChoice='pix'
+          months={3}
+          recallDiscount={{
+            type: 'percent',
+            originalAmount: 10,
+            discountAmount: 2,
+            discountedAmount: 8,
+            currency: 'USD',
+          }}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />
+      </I18nextProvider>
+    )
+
+    expect(stripeHtml).toContain('line-through')
+    expect(stripeHtml).toContain('$10')
+    expect(stripeHtml).toContain('$8')
+    expect(pixHtml).not.toContain('line-through')
+    expect(pixHtml).not.toContain('$8')
   })
 
   test('treats invalid local quotes as unavailable without a USD fallback', () => {

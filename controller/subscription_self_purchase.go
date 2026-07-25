@@ -33,6 +33,7 @@ type SubscriptionSelfPurchaseRequest struct {
 	RequestID     string `json:"request_id"`
 	QuoteID       string `json:"quote_id"`
 	UIMode        string `json:"ui_mode"`
+	RecallClaim   string `json:"recall_claim"`
 }
 
 type SubscriptionSelfPurchaseQuoteResponse struct {
@@ -176,6 +177,7 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		RequestID:     req.RequestID,
 		VerifiedQuote: subscriptionPurchaseQuoteFromClaims(claims, requiresQuote),
 		UIMode:        req.UIMode,
+		RecallClaim:   req.RecallClaim,
 	})
 	if err != nil {
 		common.ApiError(c, err)

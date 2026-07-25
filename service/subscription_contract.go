@@ -35,6 +35,7 @@ type ChangePlanCommand struct {
 	PaymentMode string
 	RequestID   string
 	UIMode      string
+	RecallClaim string
 }
 
 type ChangePlanResult struct {
@@ -508,6 +509,20 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 		}
 	}
 	if checkoutInput != nil {
+		if cmd.RecallClaim != "" {
+			discount, err := GetRecallRuntime().Claims.BuildCheckoutDiscount(
+				context.Background(),
+				cmd.UserID,
+				cmd.RecallClaim,
+				RecallPurchaseKindSubscription,
+				checkoutInput.PriceID,
+			)
+			if err != nil {
+				_ = TerminatePendingStripePurchase(context.Background(), checkoutInput.TradeNo, model.SubscriptionChangeIntentStatusFailed)
+				return nil, err
+			}
+			checkoutInput.RecallDiscount = discount
+		}
 		checkout, err := stripeSubscriptionCheckoutCreator(context.Background(), *checkoutInput)
 		if err != nil {
 			_ = TerminatePendingStripePurchase(context.Background(), checkoutInput.TradeNo, model.SubscriptionChangeIntentStatusFailed)
@@ -584,6 +599,7 @@ func (cmd *ChangePlanCommand) normalize() {
 	cmd.PaymentMode = strings.TrimSpace(cmd.PaymentMode)
 	cmd.RequestID = strings.TrimSpace(cmd.RequestID)
 	cmd.UIMode = strings.ToLower(strings.TrimSpace(cmd.UIMode))
+	cmd.RecallClaim = strings.TrimSpace(cmd.RecallClaim)
 }
 
 func (cmd ChangePlanCommand) validate() error {
