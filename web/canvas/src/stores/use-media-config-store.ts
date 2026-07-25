@@ -216,12 +216,18 @@ export function groupsForModel(store: Pick<MediaConfigStore, "groups" | "modelGr
     return groups.filter((group) => allow.has(group.value) || group.value === "auto");
 }
 
-/** 能力 X 节点的模型下拉:可用模型 ∩ 该能力所属模态配置中声明了该能力标签的模型 */
+/** 能力 X 节点的模型下拉:可用模型 ∩ 该能力所属模态配置中声明了该能力标签的模型。
+ * 能力改名后旧标签仍匹配(spec.legacyLabels,如「首尾帧」→「关键帧」),与 classic 的
+ * LEGACY_ALIASES 行为一致,免得旧配置在 Canvas 消失。 */
 export function modelsForCapability(store: Pick<MediaConfigStore, "configs" | "availableModels">, spec: CapabilitySpec): string[] {
     const { configs, availableModels } = store;
     if (!configs) return [];
     const bucket = configs.models[spec.modality] || {};
-    return availableModels.filter((model) => (bucket[model]?.capabilities || []).includes(spec.label));
+    const accepted = [spec.label, ...(spec.legacyLabels || [])];
+    return availableModels.filter((model) => {
+        const caps = bucket[model]?.capabilities || [];
+        return accepted.some((label) => caps.includes(label));
+    });
 }
 
 /** 某模型在某模态下的参数白名单(模型未配置时回退该模态 default 段) */

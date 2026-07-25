@@ -14,7 +14,7 @@ export const VIDEO_API_ENDPOINTS = {
 export const VIDEO_CAPABILITIES = [
   '文生视频',
   '图生视频',
-  '首尾帧',
+  '关键帧',
   '数字人',
   '视频超分',
   '视频编辑',
@@ -37,17 +37,31 @@ export const VIDEO_PROMPT_PRESETS = [
 // mode 键与 VideoModel 的 tab itemKey 一致:text2video/image2video/flf2v/s2v/sr/vace。
 export const VIDEO_EXAMPLES = {
   text2video: VIDEO_PROMPT_PRESETS,
+  // 图生视频(Bernini r2v):参考图(1~3 张)生成视频 —— 参考图定义主体/服装/道具/
+  // 场景等元素,由提示词组合成片(非首帧约束;首帧约束在「关键帧」模式)。
   image2video: [
     {
-      label: '图生视频',
+      label: '图生视频(参考图)',
+      prompt:
+        '以参考图中的少女与灵蛇为主体,生成一段电影质感短片:少女立于雾气缭绕的竹林中,灵蛇盘绕身侧缓缓游动,光斑浮动,镜头缓缓环绕拍摄。',
+      files: {
+        refImages: [
+          '/playground-samples/images/vace-ref-girl.png',
+          '/playground-samples/images/vace-ref-snake.png',
+        ],
+      },
+    },
+  ],
+  // 关键帧(wan2.2 i2v):仅首帧 → i2v;首帧+尾帧 → flf2v(提交时按输入派生)。
+  flf2v: [
+    {
+      label: '仅首帧(i2v)',
       prompt:
         '画面中的人物微微转头并露出微笑,发丝随微风轻轻飘动,背景虚化的光斑缓慢晃动,镜头缓缓向前推进。',
       files: { firstFrame: '/playground-samples/images/wan-i2v-first.jpg' },
     },
-  ],
-  flf2v: [
     {
-      label: '首尾帧',
+      label: '首帧+尾帧(flf2v)',
       prompt:
         '镜头从首帧场景平滑过渡到尾帧,运动连贯自然,光影随时间流畅变化,电影级插帧质感。',
       files: {
@@ -74,8 +88,11 @@ export const VIDEO_EXAMPLES = {
       files: { sourceVideo: '/playground-samples/video/seedvr2-lowres.mp4' },
     },
   ],
-  // 视频编辑(Bernini):三种玩法由输入组合自动分流——
-  //   仅源视频 → v2v(纯提示词编辑)、源视频+参考图 → rv2v、仅参考图 → r2v(参考图生视频)。
+  // 视频编辑(Bernini):至少上传 1 个源视频,玩法由输入组合自动分流——
+  //   1 视频 → v2v(纯提示词编辑)、1 视频+参考图 → rv2v、2 视频 → mv2v(多源编辑)。
+  //   ads2v(广告植入)与 mv2v 输入相同(引擎侧 system prompt/guidance 不同),自动
+  //   分流分不出,只能由示例的 params.taskType 显式指定。仅参考图的 r2v 已迁到
+  //   「图生视频」模式,本模式必须有视频。
   vace: [
     {
       label: '视频编辑(纯提示词 · v2v)',
@@ -95,14 +112,22 @@ export const VIDEO_EXAMPLES = {
       },
     },
     {
-      label: '参考图生视频(r2v)',
+      label: '双视频编辑(mv2v)',
       prompt:
-        '以参考图中的少女与灵蛇为主体,生成一段电影质感短片:少女立于雾气缭绕的竹林中,灵蛇盘绕身侧缓缓游动,光斑浮动,镜头缓缓环绕拍摄。',
+        '把第二个视频的画面风格与色调迁移到第一个视频上,保持第一个视频的主体动作与镜头运动不变,过渡自然。',
       files: {
-        refImages: [
-          '/playground-samples/images/vace-ref-girl.png',
-          '/playground-samples/images/vace-ref-snake.png',
-        ],
+        srcVideo: '/playground-samples/video/vace-source.mp4',
+        srcVideo2: '/playground-samples/video/seedvr2-lowres.mp4',
+      },
+    },
+    {
+      label: '广告植入(ads2v)',
+      prompt:
+        '把第二个视频的内容自然植入到第一个视频画面中的屏幕/展示位上,透视、光影与遮挡关系正确,融合无痕。',
+      params: { taskType: 'ads2v' },
+      files: {
+        srcVideo: '/playground-samples/video/vace-source.mp4',
+        srcVideo2: '/playground-samples/video/seedvr2-lowres.mp4',
       },
     },
   ],
@@ -145,7 +170,9 @@ export const VIDEO_PAGE_CAPABILITY = '文生视频';
 // 通过 mode 区分。门面 task_type 对应:s2v→数字人(音频驱动人像说话,行业通称)、
 // sr→视频超分、vace→视频编辑。
 export const VIDEO_I2V_CAPABILITY = '图生视频';
-export const VIDEO_FLF2V_CAPABILITY = '首尾帧';
+// 2026-07「首尾帧」改名「关键帧」:wan2.2 i2v,仅首帧(i2v)或首+尾帧(flf2v)都可,
+// task_type 提交时按输入派生。旧标签走 LEGACY_ALIASES 兼容。
+export const VIDEO_FLF2V_CAPABILITY = '关键帧';
 export const VIDEO_S2V_CAPABILITY = '数字人';
 export const VIDEO_SR_CAPABILITY = '视频超分';
 export const VIDEO_VACE_CAPABILITY = '视频编辑';
@@ -158,6 +185,7 @@ export const VIDEO_CAPABILITY_LEGACY_ALIASES = {
   [VIDEO_S2V_CAPABILITY]: '音频驱动',
   [VIDEO_SR_CAPABILITY]: '视频转视频',
   [VIDEO_VACE_CAPABILITY]: '参考生视频',
+  [VIDEO_FLF2V_CAPABILITY]: '首尾帧',
 };
 
 // 视频模型「策略类别」：不同类上游对尺寸/时长参数的要求不同。

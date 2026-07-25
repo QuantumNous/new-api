@@ -54,12 +54,15 @@ import (
 // 一并物化到 input_refs(image + audio)。见 materializeS2VInputs。
 // sr(超分,SeedVR2):源视频 metadata.video 物化到 input_refs.video,倍率 metadata.sr_ratio
 // 随 metadata 透传(门面按 config 目标尺寸封顶)。见 materializeSRInputs。
-// v2v/rv2v/r2v(视频编辑,Bernini,顶替下线的 wan2.2-VACE):按输入组合区分——v2v 仅源
-// 视频 metadata.src_video、rv2v 源视频 + 参考图 metadata.src_ref_images、r2v 仅参考图。
+// v2v/rv2v/r2v/mv2v/ads2v(视频编辑/图生视频,Bernini,顶替下线的 wan2.2-VACE):按输入
+// 组合区分——v2v 单源视频 metadata.src_video、rv2v 源视频+参考图 metadata.src_ref_images、
+// r2v 仅参考图(体验区「图生视频」)、mv2v 双源视频多源编辑、ads2v 双源视频广告植入
+// (与 mv2v 同输入,引擎侧 system prompt/guidance 不同,只能显式指定)。
 // 物化到 input_refs,见 materializeBerniniInputs。
 var validTaskTypes = map[string]bool{
 	"t2i": true, "i2i": true, "t2v": true, "i2v": true, "flf2v": true,
 	"tts": true, "s2v": true, "sr": true, "v2v": true, "rv2v": true, "r2v": true,
+	"mv2v": true, "ads2v": true,
 	// 视频配乐(LTX-2.3 v2a):输入视频 + 可选 prompt → 原画面逐帧不动 + AI 音轨的
 	// mp4。2026-07 契约改判:v2a 原属 AudioX(出 .wav 纯音频),该产品线下线,
 	// v2a 现为「视频→配好音的视频」任务形态(可挂多模型,LTX-2.3 首发);tv2a
@@ -232,7 +235,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	// task_type 白名单校验(§N2):它可能来自 metadata,非法值既会让 NFS 写盘路径异常,
 	// 也会被门面拒;就地本地 400,不进后续物化 / 提交。
 	if !validTaskTypes[taskType] {
-		return nil, localBadRequest(fmt.Errorf("不支持的 task_type: %q(允许:t2i/i2i/t2v/i2v/flf2v/tts/s2v/sr/v2a/v2v/rv2v/r2v/t2m/cover/repaint/t2a/v2m/tv2m/svs)", taskType))
+		return nil, localBadRequest(fmt.Errorf("不支持的 task_type: %q(允许:t2i/i2i/t2v/i2v/flf2v/tts/s2v/sr/v2a/v2v/rv2v/r2v/mv2v/ads2v/t2m/cover/repaint/t2a/v2m/tv2m/svs)", taskType))
 	}
 	// SoulX svs 的文本仅占位(引擎按 prompt_audio/target_audio 生成歌声),但引擎 input 需非空、
 	// 且真机验证过的请求带 "soulx-singer" 标签。ValidateBasicTaskRequest 已豁免 svs 的空 prompt,
@@ -311,8 +314,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	case "sr":
 		// 超分:源视频(metadata.video);倍率 sr_ratio 随 metadata 透传,不物化。
 		refs, err = materializeSRInputs(c, info, taskType, modelName, req)
-	case "v2v", "rv2v", "r2v":
-		// 视频编辑(Bernini):v2v 仅源视频 / rv2v 源视频+参考图 / r2v 仅参考图。
+	case "v2v", "rv2v", "r2v", "mv2v", "ads2v":
+		// Bernini:v2v 单源视频 / rv2v 源视频+参考图 / r2v 仅参考图(图生视频)/
+		// mv2v·ads2v 双源视频(多源编辑 / 广告植入)。
 		refs, err = materializeBerniniInputs(c, info, taskType, modelName, req)
 	case "t2m", "cover", "repaint":
 		// 音乐生成:t2m 无输入;cover 需参考音频(metadata.reference_audio);
@@ -558,36 +562,46 @@ func materializeDubInputs(c *gin.Context, info *relaycommon.RelayInfo, taskType,
 	return m.Refs(), nil
 }
 
-// materializeBerniniInputs 物化视频编辑(Bernini,顶替下线的 VACE)的输入。Bernini 把
-// 编辑能力拆成三个 task_type,按输入组合区分(与前端体验区自动分流规则一致):
-//   - v2v :纯提示词编辑,须有源视频(metadata.src_video),参考图忽略;
-//   - rv2v:源视频 + 参考图(metadata.src_ref_images,单串或数组,≤MaxImageRefs),两者必填;
-//   - r2v :参考图生视频,须有参考图、且无源视频。
+// materializeBerniniInputs 物化 Bernini 视频玩法(视频编辑 + 图生视频)的输入。按输入
+// 组合区分(与前端体验区自动分流规则一致):
+//   - v2v  :纯提示词编辑,须有且只有 1 个源视频(metadata.src_video),参考图忽略;
+//   - rv2v :1 个源视频 + 参考图(metadata.src_ref_images,单串或数组,≤MaxImageRefs);
+//   - r2v  :参考图生视频(体验区「图生视频」),1~maxR2VRefImages 张参考图、无源视频;
+//   - mv2v :双源视频多源编辑(metadata.src_video 为 2 元数组/逗号串),无参考图;
+//   - ads2v:双源视频广告植入 —— 输入与 mv2v 相同(引擎侧 system prompt/guidance
+//     不同),自动分流分不出,只能显式 task_type(预置示例带)。
 //
-// 门面把 src_video/src_ref_images 原样(无 _path 后缀)映射给 Bernini 引擎。Bernini 无
-// mask/MV2V 玩法,故不再处理 src_mask。
+// 门面把 src_video/src_ref_images 原样(无 _path 后缀)映射给 Bernini 引擎;多值字段
+// 逗号拼接(门面 _MULTI_INPUT_FIELDS,src_video ≤2)。Bernini 无 mask,不处理 src_mask。
 func materializeBerniniInputs(c *gin.Context, info *relaycommon.RelayInfo, taskType, modelName string, req relaycommon.TaskSubmitReq) (map[string][]string, error) {
-	srcVideo := metadataString(req.Metadata, "src_video")
+	srcVideos := metadataStringList(req.Metadata, "src_video")
 	refImages := metadataStringList(req.Metadata, "src_ref_images")
 	if len(refImages) > nfsinput.MaxImageRefs {
 		return nil, fmt.Errorf("模型 %s 的 metadata.src_ref_images 最多 %d 张,收到 %d 张", modelName, nfsinput.MaxImageRefs, len(refImages))
 	}
+	if len(srcVideos) > maxBerniniSrcVideos {
+		return nil, fmt.Errorf("模型 %s 的 metadata.src_video 最多 %d 个视频,收到 %d 个", modelName, maxBerniniSrcVideos, len(srcVideos))
+	}
 	// 按 task_type 精确校验输入(前端已按输入组合分流,这里是服务端兜底,防直连绕过)。
 	switch taskType {
 	case "v2v":
-		if srcVideo == "" {
-			return nil, fmt.Errorf("模型 %s 的任务类型 v2v(视频编辑)需要源视频:请在 metadata.src_video 提供视频 URL 或 base64", modelName)
+		if len(srcVideos) != 1 {
+			return nil, fmt.Errorf("模型 %s 的任务类型 v2v(视频编辑)需要且只需要 1 个源视频(metadata.src_video);两个视频请用 mv2v/ads2v", modelName)
 		}
 	case "rv2v":
-		if srcVideo == "" || len(refImages) == 0 {
-			return nil, fmt.Errorf("模型 %s 的任务类型 rv2v(参考视频编辑)需要源视频(metadata.src_video)和参考图(metadata.src_ref_images)各至少一个", modelName)
+		if len(srcVideos) != 1 || len(refImages) == 0 {
+			return nil, fmt.Errorf("模型 %s 的任务类型 rv2v(参考视频编辑)需要 1 个源视频(metadata.src_video)和至少 1 张参考图(metadata.src_ref_images)", modelName)
 		}
 	case "r2v":
-		if len(refImages) == 0 {
-			return nil, fmt.Errorf("模型 %s 的任务类型 r2v(参考图生视频)需要参考图:请在 metadata.src_ref_images 提供 1~%d 张图", modelName, nfsinput.MaxImageRefs)
+		if len(refImages) == 0 || len(refImages) > maxR2VRefImages {
+			return nil, fmt.Errorf("模型 %s 的任务类型 r2v(图生视频)需要 1~%d 张参考图(metadata.src_ref_images)", modelName, maxR2VRefImages)
 		}
-		if srcVideo != "" {
-			return nil, fmt.Errorf("模型 %s 的任务类型 r2v(参考图生视频)不接受源视频;含源视频的编辑请用 v2v/rv2v", modelName)
+		if len(srcVideos) != 0 {
+			return nil, fmt.Errorf("模型 %s 的任务类型 r2v(图生视频)不接受源视频;含源视频的编辑请用 v2v/rv2v", modelName)
+		}
+	case "mv2v", "ads2v":
+		if len(srcVideos) != 2 {
+			return nil, fmt.Errorf("模型 %s 的任务类型 %s 需要恰好 2 个源视频(metadata.src_video 数组);单视频编辑请用 v2v/rv2v", modelName, taskType)
 		}
 	default:
 		return nil, fmt.Errorf("模型 %s 的视频编辑任务类型 %s 不支持", modelName, taskType)
@@ -596,14 +610,15 @@ func materializeBerniniInputs(c *gin.Context, info *relaycommon.RelayInfo, taskT
 	ctx := c.Request.Context()
 
 	// 先写全部输入 → 再提交,任一路失败回滚已写文件避免孤儿。
-	if srcVideo != "" {
-		if err := m.AddString(ctx, nfsinput.FieldSrcVideo, 0, false, srcVideo); err != nil {
+	multiVideo := len(srcVideos) > 1
+	for i, v := range srcVideos {
+		if err := m.AddString(ctx, nfsinput.FieldSrcVideo, i, multiVideo, v); err != nil {
 			m.Cleanup()
 			return nil, err
 		}
 	}
-	// v2v 只用源视频(参考图忽略);rv2v/r2v 物化参考图。
-	if taskType != "v2v" {
+	// v2v/mv2v/ads2v 只用源视频(参考图忽略);rv2v/r2v 物化参考图。
+	if taskType == "rv2v" || taskType == "r2v" {
 		for i, img := range refImages {
 			if err := m.AddString(ctx, nfsinput.FieldSrcRefImages, i, true, img); err != nil {
 				m.Cleanup()
@@ -613,6 +628,14 @@ func materializeBerniniInputs(c *gin.Context, info *relaycommon.RelayInfo, taskT
 	}
 	return m.Refs(), nil
 }
+
+// Bernini 输入基数上限(服务端兜底,与门面/产品约定对齐):
+// maxBerniniSrcVideos 与门面 _MAX_INPUT_VIDEOS 一致(mv2v/ads2v 双视频);
+// maxR2VRefImages 是「图生视频」产品档位(验证报告:5 张可控、8 张难控,产品定 3)。
+const (
+	maxBerniniSrcVideos = 2
+	maxR2VRefImages     = 3
+)
 
 // inputGroupID 取本次请求的 input-group id:优先 info.PublicTaskID,空则新 uuid。
 func inputGroupID(info *relaycommon.RelayInfo) string {

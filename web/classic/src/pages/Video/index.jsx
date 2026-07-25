@@ -57,6 +57,7 @@ export const VideoPlaygroundBody = ({ mode }) => {
         <VideoConfigPanel
           needsImage={needsImage}
           followsInput={followsInput}
+          isI2V={isI2V}
           isFLF2V={isFLF2V}
           isS2V={isS2V}
           isSR={isSR}

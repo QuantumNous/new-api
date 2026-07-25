@@ -58,6 +58,9 @@ export type CapabilitySpec = {
     key: string;
     /** 中文能力标签,与 constant/model_capability.go 严格一致(协议键) */
     label: string;
+    /** 该能力改名前的旧标签:已按旧标签配置的模型仍匹配到本节点(对齐 classic 的
+     * VIDEO_CAPABILITY_LEGACY_ALIASES,否则旧配置在 Canvas 消失直到手动重打标) */
+    legacyLabels?: string[];
     modality: CapabilityModality;
     /** 产物节点媒体类型 */
     output: CanvasNodeType;
@@ -121,12 +124,16 @@ export const CAPABILITIES: CapabilitySpec[] = [
         ],
     },
     {
+        // 图生视频(2026-07 改判 Bernini r2v):参考图(1~3 张)组合主体/服装/道具/场景
+        // 生成视频(非首帧约束;首帧约束在「关键帧」)。显式 task_type=r2v(Bernini
+        // 模型名推断恒 v2v)。key 沿用 "i2v"(稳定标识,不破坏已保存画布)。
         key: "i2v",
         label: "图生视频",
         modality: "video",
         output: CanvasNodeType.Video,
         channel: "task",
-        inputs: [PROMPT_SLOT, { key: "images", kind: "image", required: true, role: "首帧图片" }],
+        taskType: "r2v",
+        inputs: [PROMPT_SLOT, { key: "metadata.src_ref_images", kind: "image", required: true, max: 3, role: "参考图(1~3 张)" }],
         params: [
             { key: "seconds", label: "时长(秒)", type: "select", options: "durations" },
             { key: "metadata.seed", label: "随机种子", type: "number", placeholder: "留空随机" },
@@ -134,16 +141,22 @@ export const CAPABILITIES: CapabilitySpec[] = [
         ],
     },
     {
+        // 关键帧(原「首尾帧」,wan2.2 i2v):仅首帧→i2v、首+尾帧→flf2v,按连接的帧数
+        // 派生 task_type 显式下发(同一 i2v 实例,模型名推断分不出)。key 沿用 "flf2v"。
         key: "flf2v",
-        label: "首尾帧",
+        label: "关键帧",
+        legacyLabels: ["首尾帧"],
         modality: "video",
         output: CanvasNodeType.Video,
         channel: "task",
-        inputs: [PROMPT_SLOT, { key: "images", kind: "image", required: true, max: 2, role: "首帧+尾帧(按连线顺序)" }],
+        inputs: [PROMPT_SLOT, { key: "images", kind: "image", required: true, max: 2, role: "首帧(+可选尾帧,按连线顺序)" }],
         params: [
             { key: "seconds", label: "时长(秒)", type: "select", options: "durations" },
             { key: "metadata.seed", label: "随机种子", type: "number", placeholder: "留空随机" },
         ],
+        postProcess: ({ slots, metadata }) => {
+            metadata.task_type = (slots["images"] || []).length >= 2 ? "flf2v" : "i2v";
+        },
     },
     {
         key: "s2v",
@@ -178,22 +191,23 @@ export const CAPABILITIES: CapabilitySpec[] = [
         modality: "video",
         output: CanvasNodeType.Video,
         channel: "task",
-        // 默认 v2v;真实 task_type 由 postProcess 按输入分流(源视频/参考图组合)。
+        // 默认 v2v;真实 task_type 由 postProcess 按输入分流(源视频数/参考图组合)。
         taskType: "v2v",
         inputs: [
             PROMPT_SLOT,
-            // 后端约束(materializeBerniniInputs):源视频/参考图至少其一——r2v 仅参考图也是合法模式
-            { key: "metadata.src_video", kind: "video", required: false, role: "源视频" },
+            // 后端约束(materializeBerniniInputs):≥1 源视频(仅参考图的 r2v 已迁到
+            // 「图生视频」);2 视频=mv2v 多源编辑(ads2v 广告植入输入相同,引擎侧
+            // 配方不同,画布不提供自动分流,直连 API 可显式指定)。
+            { key: "metadata.src_video", kind: "video", required: true, max: 2, role: "源视频(1~2 个)" },
             { key: "metadata.src_ref_images", kind: "image", required: false, max: 5, role: "参考图" },
         ],
         params: [{ key: "metadata.seed", label: "随机种子", type: "number", placeholder: "留空随机" }],
-        atLeastOne: { keys: ["metadata.src_video", "metadata.src_ref_images"], message: "视频编辑至少需要连接 源视频 或 参考图 之一" },
-        // Bernini 按输入自动分流玩法:有源视频且无参考图=v2v、源视频+参考图=rv2v、仅参考图=r2v
+        // Bernini 按输入自动分流玩法:1 视频无参考图=v2v、1 视频+参考图=rv2v、2 视频=mv2v
         //(与 classic 体验区 useVideoGeneration 的分流规则一致)。
         postProcess: ({ slots, metadata }) => {
-            const hasSrcVideo = (slots["metadata.src_video"] || []).length > 0;
+            const nVideos = (slots["metadata.src_video"] || []).length;
             const hasRefs = (slots["metadata.src_ref_images"] || []).length > 0;
-            metadata.task_type = hasSrcVideo ? (hasRefs ? "rv2v" : "v2v") : "r2v";
+            metadata.task_type = nVideos >= 2 ? "mv2v" : hasRefs ? "rv2v" : "v2v";
         },
     },
     // ── 音频:四个能力共用 task_type=tts,按能力标签筛出的模型集合区分引擎(§3.1) ──
