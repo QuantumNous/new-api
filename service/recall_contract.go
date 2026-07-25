@@ -156,12 +156,8 @@ func normalizeRecallCampaignType(value string) (string, error) {
 	}
 }
 
-func normalizedRecallCampaignTypeForOutput(value string) string {
-	campaignType, err := normalizeRecallCampaignType(value)
-	if err != nil {
-		return model.RecallCampaignTypePromotion
-	}
-	return campaignType
+func normalizedRecallCampaignTypeForOutput(value string) (string, error) {
+	return normalizeRecallCampaignType(value)
 }
 
 type RecallClaimView struct {

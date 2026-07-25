@@ -156,7 +156,11 @@ func (s *RecallCampaignService) List(ctx context.Context, page *common.PageInfo,
 		if err != nil {
 			return nil, 0, err
 		}
-		summaries = append(summaries, recallCampaignSummary(campaigns[i], recipientTotal))
+		summary, err := recallCampaignSummary(campaigns[i], recipientTotal)
+		if err != nil {
+			return nil, 0, err
+		}
+		summaries = append(summaries, summary)
 	}
 	return summaries, total, nil
 }
@@ -177,8 +181,12 @@ func (s *RecallCampaignService) GetDetail(ctx context.Context, id int64) (Recall
 	if err != nil {
 		return RecallCampaignDetail{}, err
 	}
+	summary, err := recallCampaignSummary(*campaign, recipientTotal)
+	if err != nil {
+		return RecallCampaignDetail{}, err
+	}
 	return RecallCampaignDetail{
-		RecallCampaignSummary: recallCampaignSummary(*campaign, recipientTotal),
+		RecallCampaignSummary: summary,
 		Draft:                 draft,
 	}, nil
 }
@@ -430,13 +438,20 @@ func (s *RecallCampaignService) ValidateStripe(ctx context.Context, draft Recall
 	if err != nil {
 		return RecallStripePreview{}, err
 	}
+	if normalized.CampaignType == model.RecallCampaignTypeContentOnly {
+		return RecallStripePreview{}, nil
+	}
 	return s.validateStripe(ctx, normalized)
 }
 
-func recallCampaignSummary(campaign model.RecallCampaign, recipientTotal int64) RecallCampaignSummary {
+func recallCampaignSummary(campaign model.RecallCampaign, recipientTotal int64) (RecallCampaignSummary, error) {
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return RecallCampaignSummary{}, err
+	}
 	return RecallCampaignSummary{
 		Id:                    campaign.Id,
-		CampaignType:          normalizedRecallCampaignTypeForOutput(campaign.CampaignType),
+		CampaignType:          campaignType,
 		Name:                  campaign.Name,
 		Status:                campaign.Status,
 		AudienceTemplate:      campaign.AudienceTemplate,
@@ -455,7 +470,7 @@ func recallCampaignSummary(campaign model.RecallCampaign, recipientTotal int64) 
 		ActivatedAt:           campaign.ActivatedAt,
 		CompletedAt:           campaign.CompletedAt,
 		RecipientTotal:        recipientTotal,
-	}
+	}, nil
 }
 
 func recallRecipientView(recipient model.RecallRecipient, messages []RecallMessageView) RecallRecipientView {
@@ -653,30 +668,33 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 	return model.GetRecallCampaignByIDWithContext(ctx, id)
 }
 
-func (s *RecallCampaignService) Preview(ctx context.Context, id int64, sampleSize int) (RecallAudiencePreview, RecallStripePreview, error) {
+func (s *RecallCampaignService) Preview(ctx context.Context, id int64, sampleSize int) (RecallAudiencePreview, *RecallStripePreview, error) {
 	if err := validateRecallCampaignContext(ctx); err != nil {
-		return RecallAudiencePreview{}, RecallStripePreview{}, err
+		return RecallAudiencePreview{}, nil, err
 	}
 	if id <= 0 {
-		return RecallAudiencePreview{}, RecallStripePreview{}, fmt.Errorf("recall campaign ID must be positive")
+		return RecallAudiencePreview{}, nil, fmt.Errorf("recall campaign ID must be positive")
 	}
 	campaign, err := model.GetRecallCampaignByIDWithContext(ctx, id)
 	if err != nil {
-		return RecallAudiencePreview{}, RecallStripePreview{}, err
+		return RecallAudiencePreview{}, nil, err
 	}
 	draft, err := recallCampaignDraftFromModel(campaign)
 	if err != nil {
-		return RecallAudiencePreview{}, RecallStripePreview{}, err
+		return RecallAudiencePreview{}, nil, err
 	}
 	audiencePreview, err := s.audience.Preview(ctx, draft, sampleSize, s.now())
 	if err != nil {
-		return RecallAudiencePreview{}, RecallStripePreview{}, err
+		return RecallAudiencePreview{}, nil, err
+	}
+	if draft.CampaignType == model.RecallCampaignTypeContentOnly {
+		return audiencePreview, nil, nil
 	}
 	stripePreview, err := s.validateStripe(ctx, draft)
 	if err != nil {
-		return RecallAudiencePreview{}, RecallStripePreview{}, err
+		return RecallAudiencePreview{}, nil, err
 	}
-	return audiencePreview, stripePreview, nil
+	return audiencePreview, &stripePreview, nil
 }
 
 func (s *RecallCampaignService) validateStripe(ctx context.Context, draft RecallCampaignDraft) (RecallStripePreview, error) {
@@ -737,35 +755,39 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 	if err != nil {
 		return err
 	}
-	resolved, err := s.stripe.ValidateAndResolveProducts(ctx, draft.Products)
-	if err != nil {
-		return err
+	couponID := ""
+	if draft.CampaignType == model.RecallCampaignTypePromotion {
+		resolved, err := s.stripe.ValidateAndResolveProducts(ctx, draft.Products)
+		if err != nil {
+			return err
+		}
+		draft.Products.TopUpPriceIDs = resolved.TopUpPriceIDs
+		draft.Products.SubscriptionPriceIDs = resolved.SubscriptionPriceIDs
+		draft.Products, err = resolveRecallProductDisplaySnapshots(ctx, draft.Products)
+		if err != nil {
+			return err
+		}
+		coupon, discount, err := s.stripe.EnsureCoupon(
+			ctx,
+			campaign.Id,
+			campaign.ConfigRevision,
+			draft.CouponSource,
+			draft.ExistingCouponID,
+			draft.Discount,
+			resolved,
+			draft.EnrollmentLimit,
+		)
+		if err != nil {
+			return err
+		}
+		couponID = coupon.ID
+		draft.Discount = discount
+		if draft.ExecutionMode == "scheduled_once" && draft.Discount.CouponRedeemBy > 0 &&
+			draft.Schedule.ScheduledAt >= draft.Discount.CouponRedeemBy {
+			return fmt.Errorf("scheduled recall campaign must run before the Stripe Coupon redeem-by time")
+		}
 	}
-	draft.Products.TopUpPriceIDs = resolved.TopUpPriceIDs
-	draft.Products.SubscriptionPriceIDs = resolved.SubscriptionPriceIDs
-	draft.Products, err = resolveRecallProductDisplaySnapshots(ctx, draft.Products)
-	if err != nil {
-		return err
-	}
-	coupon, discount, err := s.stripe.EnsureCoupon(
-		ctx,
-		campaign.Id,
-		campaign.ConfigRevision,
-		draft.CouponSource,
-		draft.ExistingCouponID,
-		draft.Discount,
-		resolved,
-		draft.EnrollmentLimit,
-	)
-	if err != nil {
-		return err
-	}
-	draft.Discount = discount
-	if draft.ExecutionMode == "scheduled_once" && draft.Discount.CouponRedeemBy > 0 &&
-		draft.Schedule.ScheduledAt >= draft.Discount.CouponRedeemBy {
-		return fmt.Errorf("scheduled recall campaign must run before the Stripe Coupon redeem-by time")
-	}
-	fields, err := recallCampaignActivationFields(draft, coupon.ID, activationNow.Unix())
+	fields, err := recallCampaignActivationFields(draft, couponID, activationNow.Unix())
 	if err != nil {
 		return err
 	}
@@ -805,7 +827,7 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 		if err != nil {
 			return err
 		}
-		if draft.Discount.CouponRedeemBy > 0 && nextRun.Unix() >= draft.Discount.CouponRedeemBy {
+		if draft.CampaignType == model.RecallCampaignTypePromotion && draft.Discount.CouponRedeemBy > 0 && nextRun.Unix() >= draft.Discount.CouponRedeemBy {
 			return fmt.Errorf("recurring recall campaign must first run before the Stripe Coupon redeem-by time")
 		}
 		fields["next_run_at"] = nextRun.Unix()
@@ -1096,15 +1118,17 @@ func (s *RecallCampaignService) commitCampaignRun(
 	if err != nil {
 		return false, err
 	}
-	expiresAt := runAt.Add(time.Duration(campaign.PromotionValidSeconds) * time.Second).Unix()
-	if draft.Discount.CouponRedeemBy > 0 && draft.Discount.CouponRedeemBy < expiresAt {
-		expiresAt = draft.Discount.CouponRedeemBy
-	}
-	if expiresAt <= runAt.Unix() {
-		return false, fmt.Errorf("recall promotion expiry must be after its campaign run")
-	}
-	for i := range recipients {
-		recipients[i].PromotionExpiresAt = expiresAt
+	if draft.CampaignType == model.RecallCampaignTypePromotion {
+		expiresAt := runAt.Add(time.Duration(campaign.PromotionValidSeconds) * time.Second).Unix()
+		if draft.Discount.CouponRedeemBy > 0 && draft.Discount.CouponRedeemBy < expiresAt {
+			expiresAt = draft.Discount.CouponRedeemBy
+		}
+		if expiresAt <= runAt.Unix() {
+			return false, fmt.Errorf("recall promotion expiry must be after its campaign run")
+		}
+		for i := range recipients {
+			recipients[i].PromotionExpiresAt = expiresAt
+		}
 	}
 	eventData, err := common.Marshal(map[string]any{
 		"eligible_total": len(recipients),
@@ -1280,6 +1304,30 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 		return RecallCampaignDraft{}, fmt.Errorf("unsupported recall execution mode %q", draft.ExecutionMode)
 	}
 
+	if draft.CampaignType == model.RecallCampaignTypePromotion {
+		var err error
+		draft, err = validateAndNormalizeRecallPromotionDraft(draft, now)
+		if err != nil {
+			return RecallCampaignDraft{}, err
+		}
+	} else {
+		draft = normalizeRecallInactivePromotionDraft(draft)
+	}
+	if draft.EnrollmentLimit < 1 || draft.EnrollmentLimit > 100000 {
+		return RecallCampaignDraft{}, fmt.Errorf("recall enrollment limit must be between 1 and 100000")
+	}
+	if draft.WorkerConcurrency < 1 || draft.WorkerConcurrency > 20 {
+		return RecallCampaignDraft{}, fmt.Errorf("recall worker concurrency must be between 1 and 20")
+	}
+	emails, err := normalizeRecallEmailStages(draft.CampaignType, draft.Emails)
+	if err != nil {
+		return RecallCampaignDraft{}, err
+	}
+	draft.Emails = emails
+	return draft, nil
+}
+
+func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now time.Time) (RecallCampaignDraft, error) {
 	draft.CouponSource = strings.ToLower(strings.TrimSpace(draft.CouponSource))
 	draft.ExistingCouponID = strings.TrimSpace(draft.ExistingCouponID)
 	switch draft.CouponSource {
@@ -1321,18 +1369,20 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 	if draft.PromotionValidSeconds <= 0 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall promotion validity must be positive")
 	}
-	if draft.EnrollmentLimit < 1 || draft.EnrollmentLimit > 100000 {
-		return RecallCampaignDraft{}, fmt.Errorf("recall enrollment limit must be between 1 and 100000")
-	}
-	if draft.WorkerConcurrency < 1 || draft.WorkerConcurrency > 20 {
-		return RecallCampaignDraft{}, fmt.Errorf("recall worker concurrency must be between 1 and 20")
-	}
-	emails, err := normalizeRecallEmailStages(draft.CampaignType, draft.Emails)
-	if err != nil {
-		return RecallCampaignDraft{}, err
-	}
-	draft.Emails = emails
 	return draft, nil
+}
+
+func normalizeRecallInactivePromotionDraft(draft RecallCampaignDraft) RecallCampaignDraft {
+	draft.CouponSource = strings.ToLower(strings.TrimSpace(draft.CouponSource))
+	draft.ExistingCouponID = strings.TrimSpace(draft.ExistingCouponID)
+	draft.Discount.Type = strings.ToLower(strings.TrimSpace(draft.Discount.Type))
+	draft.Discount.Currency = strings.ToLower(strings.TrimSpace(draft.Discount.Currency))
+	draft.Discount.MinimumAmountCurrency = strings.ToLower(strings.TrimSpace(draft.Discount.MinimumAmountCurrency))
+	draft.Products.TopUpPriceIDs = normalizeRecallStripeIDs(draft.Products.TopUpPriceIDs)
+	draft.Products.SubscriptionPriceIDs = normalizeRecallStripeIDs(draft.Products.SubscriptionPriceIDs)
+	draft.Products.TopUpDisplaySnapshots = nil
+	draft.Products.SubscriptionDisplaySnapshots = nil
+	return draft
 }
 
 func applyRecallEmailSubjectFallbacks(stages []RecallEmailStage, campaignName string) {
@@ -1675,7 +1725,7 @@ func recallCampaignModelFromDraft(draft RecallCampaignDraft, actorID int) (*mode
 		ScheduledAt:           draft.Schedule.ScheduledAt,
 		RecurrenceConfig:      recurrenceJSON,
 		CouponSource:          draft.CouponSource,
-		StripeCouponId:        draft.ExistingCouponID,
+		StripeCouponId:        recallCampaignDraftStripeCouponID(draft),
 		DiscountConfig:        string(discountJSON),
 		ProductScope:          string(productJSON),
 		PromotionValidSeconds: draft.PromotionValidSeconds,
@@ -1686,12 +1736,19 @@ func recallCampaignModelFromDraft(draft RecallCampaignDraft, actorID int) (*mode
 	}, nil
 }
 
+func recallCampaignDraftStripeCouponID(draft RecallCampaignDraft) string {
+	if draft.CampaignType == model.RecallCampaignTypePromotion && draft.CouponSource == "existing" {
+		return draft.ExistingCouponID
+	}
+	return ""
+}
+
 func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaignDraft, error) {
 	if campaign == nil {
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign is nil")
 	}
 	draft := RecallCampaignDraft{
-		CampaignType:          normalizedRecallCampaignTypeForOutput(campaign.CampaignType),
+		CampaignType:          "",
 		Name:                  campaign.Name,
 		AudienceTemplate:      campaign.AudienceTemplate,
 		ExecutionMode:         campaign.ExecutionMode,
@@ -1703,6 +1760,11 @@ func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaig
 	if campaign.CouponSource == "existing" {
 		draft.ExistingCouponID = campaign.StripeCouponId
 	}
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return RecallCampaignDraft{}, err
+	}
+	draft.CampaignType = campaignType
 	if err := common.Unmarshal([]byte(campaign.AudienceConfig), &draft.Audience); err != nil {
 		return RecallCampaignDraft{}, fmt.Errorf("decode recall audience config: %w", err)
 	}
@@ -1727,6 +1789,7 @@ func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaig
 }
 
 type recallImmutableCampaignDraft struct {
+	CampaignType          string
 	AudienceTemplate      string
 	Audience              RecallAudienceConfig
 	ExecutionMode         string
@@ -1747,6 +1810,11 @@ type recallImmutableEmailStage struct {
 }
 
 func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCampaignDraft {
+	if campaignType, err := normalizeRecallCampaignType(draft.CampaignType); err == nil {
+		draft.CampaignType = campaignType
+	} else {
+		draft.CampaignType = strings.ToLower(strings.TrimSpace(draft.CampaignType))
+	}
 	draft.AudienceTemplate = strings.ToLower(strings.TrimSpace(draft.AudienceTemplate))
 	draft.Audience = normalizeRecallAudienceConfig(draft.Audience)
 	draft.ExecutionMode = strings.ToLower(strings.TrimSpace(draft.ExecutionMode))
@@ -1780,6 +1848,7 @@ func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCamp
 		emailStages[i] = recallImmutableEmailStage{StageNo: stage.StageNo, DelaySeconds: stage.DelaySeconds}
 	}
 	return recallImmutableCampaignDraft{
+		CampaignType:          draft.CampaignType,
 		AudienceTemplate:      draft.AudienceTemplate,
 		Audience:              draft.Audience,
 		ExecutionMode:         draft.ExecutionMode,

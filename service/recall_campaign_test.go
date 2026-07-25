@@ -409,6 +409,75 @@ func TestRecallCampaignReadPaginationIsNormalizedAndBounded(t *testing.T) {
 	}
 }
 
+func TestRecallCampaignContentOnlyDraftPreviewAndManualActivationSkipStripe(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0)
+	createRecallCampaignEligibleUser(t, db, now, "content-only")
+	calls := recallCampaignStripeCalls{}
+	stripeService := NewRecallStripeService(&recallStripeFakeClient{
+		getCouponFn: func(context.Context, string) (*stripe.Coupon, error) {
+			t.Fatal("content-only preview or activation called Stripe coupon lookup")
+			return nil, nil
+		},
+		getPriceFn: func(context.Context, string) (*stripe.Price, error) {
+			t.Fatal("content-only preview or activation resolved Stripe products")
+			return nil, nil
+		},
+		createCouponFn: func(context.Context, *stripe.CouponParams) (*stripe.Coupon, error) {
+			t.Fatal("content-only activation created a Stripe Coupon")
+			return nil, nil
+		},
+	})
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), stripeService)
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.CampaignType = model.RecallCampaignTypeContentOnly
+	draft.CouponSource = ""
+	draft.Discount = RecallDiscountConfig{}
+	draft.Products = RecallProductScope{}
+	draft.PromotionValidSeconds = 0
+	draft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "News", BodyText: "Plain update"}
+
+	campaign, err := service.SaveDraft(context.Background(), 17, draft)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignTypeContentOnly, campaign.CampaignType)
+	require.Empty(t, campaign.StripeCouponId)
+
+	audience, stripePreview, err := service.Preview(context.Background(), campaign.Id, 10)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, audience.EligibleTotal)
+	require.Nil(t, stripePreview)
+
+	require.NoError(t, service.Activate(context.Background(), 17, campaign.Id))
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignRunning, stored.Status)
+	require.Empty(t, stored.StripeCouponId)
+	require.Zero(t, calls.createCoupon)
+}
+
+func TestRecallCampaignUnknownStoredTypeFailsClosed(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 17, validRecallCampaignDraft(now))
+	require.NoError(t, err)
+	require.NoError(t, db.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Update("campaign_type", "mystery").Error)
+
+	page := common.PageInfo{Page: 1, PageSize: 10}
+	_, _, err = service.List(context.Background(), &page, "")
+	require.ErrorContains(t, err, `unsupported recall campaign type "mystery"`)
+
+	_, err = service.GetDetail(context.Background(), campaign.Id)
+	require.ErrorContains(t, err, `unsupported recall campaign type "mystery"`)
+
+	_, _, err = service.Preview(context.Background(), campaign.Id, 10)
+	require.ErrorContains(t, err, `unsupported recall campaign type "mystery"`)
+}
+
 func TestRecallCampaignExportRejectsRowAndByteOverflow(t *testing.T) {
 	db := setupRecallCampaignTestDB(t)
 	campaign := model.RecallCampaign{
@@ -1278,6 +1347,7 @@ func TestRecallCampaignPreviewIsReadOnly(t *testing.T) {
 
 	require.NoError(t, err)
 	require.EqualValues(t, 1, audience.EligibleTotal)
+	require.NotNil(t, stripePreview)
 	require.Equal(t, []string{"prod_topup"}, stripePreview.ProductIDs)
 	require.Equal(t, 1, calls.getPrice)
 	require.Zero(t, calls.createCoupon)
@@ -1309,6 +1379,7 @@ func TestRecallCampaignPreviewValidatesExistingCouponWithGET(t *testing.T) {
 	_, preview, err := service.Preview(context.Background(), campaign.Id, 1)
 
 	require.NoError(t, err)
+	require.NotNil(t, preview)
 	require.Equal(t, "coupon_existing", preview.CouponID)
 	require.Equal(t, 1, calls.getCoupon)
 	require.Zero(t, calls.createCoupon)
