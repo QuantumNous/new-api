@@ -5260,6 +5260,10 @@
     "No models with unavailable channels found": "No models with unavailable channels found",
     "No disabled models with available channels found": "No disabled models with available channels found",
     "Failed to batch disable models": "Failed to batch disable models",
-    "Failed to batch enable models": "Failed to batch enable models"
+    "Failed to batch enable models": "Failed to batch enable models",
+    "Disable Models with No Channels?": "Disable Models with No Channels?",
+    "Enable Models with Recovered Channels?": "Enable Models with Recovered Channels?",
+    "This will disable all currently enabled models that have no available channels. Continue?": "This will disable all currently enabled models that have no available channels. Continue?",
+    "This will enable disabled models that currently have available channels. Continue?": "This will enable disabled models that currently have available channels. Continue?"
   }
 }

@@ -1099,7 +1099,8 @@ func UpdateChannel(c *gin.Context) {
 	}
 	model.InitChannelCache()
 	// Recalibrate when models list may have changed; always safe and idempotent.
-	if channel.Models != originChannel.Models || channel.Status != originChannel.Status {
+	// Channel status changes are handled by UpdateChannelStatus / BatchUpdateChannelStatus.
+	if channel.Models != originChannel.Models {
 		service.SyncModelChannelAvailability("channel.update")
 	}
 	if proxyChanged {
