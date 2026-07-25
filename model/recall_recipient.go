@@ -958,6 +958,9 @@ func ListRecallCandidateFactsWithContext(ctx context.Context, query RecallCandid
 		userQuery = userQuery.
 			Where("created_at >= ? AND created_at <= ?", query.RegistrationStartAt, query.RegistrationEndAt).
 			Where("request_count = ?", 0)
+	case "registration_time_range":
+		userQuery = userQuery.
+			Where("created_at >= ? AND created_at <= ?", query.RegistrationStartAt, query.RegistrationEndAt)
 	case "specified_users":
 		ids := normalizeRecallCandidateUserIDs(query.SpecifiedUserIDs)
 		emails := normalizeRecallCandidateEmails(query.SpecifiedEmails)
@@ -1015,6 +1018,9 @@ func ListRecallCandidateFactsWithContext(ctx context.Context, query RecallCandid
 		}
 	}
 	if len(userIDs) == 0 {
+		return facts, nil
+	}
+	if query.Template == "registration_time_range" {
 		return facts, nil
 	}
 

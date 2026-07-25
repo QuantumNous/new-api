@@ -30,12 +30,15 @@ export const audienceTemplateDescriptionKeys: Record<
     'Targets previous subscribers whose subscription is no longer active and expired long enough ago.',
   registered_only:
     'Targets users who registered within a selected registration date range.',
+  registration_time_range:
+    'Targets users registered within the selected time range, regardless of API usage, payment, or subscription status.',
   specified_users:
     'Targets explicitly selected users by user ID or email address.',
 }
 
 export const recallCampaignEditorCopyKeys = [
   'Registered only',
+  'Registration time range',
   'Specified users',
   'Registration start',
   'Registration end',

@@ -166,6 +166,51 @@ describe('recallCampaignDraftSchema', () => {
     expect(recallCampaignDraftSchema.safeParse(valid).success).toBe(true)
   })
 
+  test('validates registration_time_range using only the registration range', () => {
+    const missing = makeDraft()
+    missing.audience_template = 'registration_time_range'
+    const missingResult = recallCampaignDraftSchema.safeParse(missing)
+    expect(missingResult.success).toBe(false)
+    if (!missingResult.success) {
+      expect(missingResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['audience_config', 'registration_start_at'],
+        })
+      )
+      expect(missingResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['audience_config', 'registration_end_at'],
+        })
+      )
+    }
+
+    const reversed = makeDraft()
+    reversed.audience_template = 'registration_time_range'
+    reversed.audience_config.registration_start_at = 200
+    reversed.audience_config.registration_end_at = 100
+    const reversedResult = recallCampaignDraftSchema.safeParse(reversed)
+    expect(reversedResult.success).toBe(false)
+    if (!reversedResult.success) {
+      expect(reversedResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['audience_config', 'registration_end_at'],
+          message: 'Registration end must be on or after start',
+        })
+      )
+    }
+
+    const valid = makeDraft()
+    valid.audience_template = 'registration_time_range'
+    valid.audience_config.registration_start_at = 100
+    valid.audience_config.registration_end_at = 200
+    valid.audience_config.registration_age_days = -1
+    valid.audience_config.min_request_count = -1
+    valid.audience_config.min_paid_amount = -1
+    valid.audience_config.groups = ['stale-group']
+    valid.audience_config.group_mode = ''
+    expect(recallCampaignDraftSchema.safeParse(valid).success).toBe(true)
+  })
+
   test('validates specified_users active IDs and emails', () => {
     const empty = makeDraft()
     empty.audience_template = 'specified_users'

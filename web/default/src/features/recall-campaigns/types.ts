@@ -3,6 +3,7 @@ export type RecallAudienceTemplate =
   | 'lapsed_payer'
   | 'expired_subscription'
   | 'registered_only'
+  | 'registration_time_range'
   | 'specified_users'
 
 export type RecallExecutionMode = 'manual' | 'scheduled_once' | 'recurring'

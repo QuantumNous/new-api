@@ -180,6 +180,79 @@ func TestListRecallCandidateFactsNewAudiencePredicates(t *testing.T) {
 	require.Contains(t, userSQL[0], "LIMIT")
 }
 
+func TestListRecallCandidateFactsRegistrationTimeRangeIncludesUsedAndPaidUsers(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	require.NoError(t, DB.AutoMigrate(&TopUp{}, &SubscriptionOrder{}, &UserSubscription{}))
+
+	const startAt int64 = 1_000
+	const endAt int64 = 2_000
+	before := createRecallRepositoryCandidateUser(t, "range_before", startAt-1, 0)
+	start := createRecallRepositoryCandidateUser(t, "range_start", startAt, 0)
+	used := createRecallRepositoryCandidateUser(t, "range_used", startAt+100, 9)
+	paid := createRecallRepositoryCandidateUser(t, "range_paid", startAt+200, 1)
+	end := createRecallRepositoryCandidateUser(t, "range_end", endAt, 3)
+	after := createRecallRepositoryCandidateUser(t, "range_after", endAt+1, 0)
+	require.NoError(t, DB.Create(&TopUp{
+		UserId:          paid.Id,
+		Money:           10,
+		TradeNo:         "registration-range-paid-topup",
+		PaymentProvider: PaymentProviderPaddle,
+		CompleteTime:    startAt + 300,
+		Status:          common.TopUpStatusSuccess,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionOrder{
+		UserId:          used.Id,
+		Money:           20,
+		TradeNo:         "registration-range-used-subscription",
+		PaymentProvider: PaymentProviderStripe,
+		CompleteTime:    startAt + 400,
+		Status:          common.TopUpStatusSuccess,
+	}).Error)
+	require.NoError(t, DB.Create(&UserSubscription{
+		UserId:  used.Id,
+		PlanId:  1,
+		EndTime: endAt + 10_000,
+		Status:  "active",
+	}).Error)
+
+	var userSQL []string
+	paymentFactQueries := 0
+	callbackName := "recall_candidate_registration_range_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		switch tx.Statement.Table {
+		case "users":
+			userSQL = append(userSQL, tx.Statement.SQL.String())
+		case "top_ups", "subscription_orders", "user_subscriptions":
+			paymentFactQueries++
+		}
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Query().Remove(callbackName) })
+
+	facts, err := ListRecallCandidateFacts(RecallCandidateQuery{
+		Template:            "registration_time_range",
+		Now:                 endAt,
+		RegistrationStartAt: startAt,
+		RegistrationEndAt:   endAt,
+		AfterUserID:         before.Id,
+		Limit:               10,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []int{start.Id, used.Id, paid.Id, end.Id}, recallRepositoryUserIDs(facts))
+	require.NotContains(t, recallRepositoryUserIDs(facts), before.Id)
+	require.NotContains(t, recallRepositoryUserIDs(facts), after.Id)
+	for _, fact := range facts {
+		require.False(t, fact.HasPayment, "registration_time_range should not load payment facts")
+		require.Zero(t, fact.SubscriptionCount, "registration_time_range should not load subscription facts")
+	}
+	require.Len(t, userSQL, 1)
+	require.Contains(t, userSQL[0], "created_at >= ?")
+	require.Contains(t, userSQL[0], "created_at <= ?")
+	require.NotContains(t, userSQL[0], "request_count = ?")
+	require.Contains(t, userSQL[0], "id > ?")
+	require.Zero(t, paymentFactQueries)
+}
+
 func TestListRecallCandidateFactsSpecifiedUnion(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 	require.NoError(t, DB.AutoMigrate(&TopUp{}, &SubscriptionOrder{}, &UserSubscription{}))

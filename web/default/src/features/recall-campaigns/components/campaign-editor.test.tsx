@@ -612,7 +612,7 @@ afterAll(() => {
 })
 
 describe('CampaignEditor audience rules', () => {
-  test('offers all five audience template values with source descriptions', () => {
+  test('offers all six audience template values with source descriptions', () => {
     const html = renderEditor('first_purchase')
 
     for (const [value, label] of [
@@ -620,6 +620,7 @@ describe('CampaignEditor audience rules', () => {
       ['lapsed_payer', 'Lapsed payer'],
       ['expired_subscription', 'Expired subscription'],
       ['registered_only', 'Registered only'],
+      ['registration_time_range', 'Registration time range'],
       ['specified_users', 'Specified users'],
     ] as const) {
       expect(html).toContain(`value="${value}"`)
@@ -750,6 +751,8 @@ describe('CampaignEditor audience rules', () => {
 
     expect(html).toContain('for="recall-registration-start-at"')
     expect(html).toContain('for="recall-registration-end-at"')
+    expect(html).toContain('aria-labelledby="recall-registration-range-label"')
+    expect(html).toContain('Registration time range')
     expect(html).toContain('type="datetime-local"')
     expect(html).toContain('value="2031-01-02T03:04"')
     expect(html).toContain('value="2031-01-03T03:04"')
@@ -762,6 +765,23 @@ describe('CampaignEditor audience rules', () => {
     expect(html).not.toContain('Payment providers (comma separated)')
   })
 
+  test('registration-time-range shows only the shared registration range controls', () => {
+    const template = 'registration_time_range' as RecallAudienceTemplate
+    let html = ''
+
+    expect(() => {
+      html = renderEditor(template)
+    }).not.toThrow()
+    expect(html).toContain('Registration time range')
+    expect(html).toContain('aria-labelledby="recall-registration-range-label"')
+    expect(html).toContain('name="audience_config.registration_start_at"')
+    expect(html).toContain('name="audience_config.registration_end_at"')
+    expect(html).not.toContain('Group mode')
+    expect(html).not.toContain('Require verified email')
+    expect(html).not.toContain('Payment providers (comma separated)')
+    expectAudienceThresholds(html, [])
+  })
+
   test('disables native validation so registered-only empty dates reach schema errors', () => {
     const html = renderEditor('registered_only')
 
@@ -772,7 +792,7 @@ describe('CampaignEditor audience rules', () => {
     expect(html).toContain('name="audience_config.registration_end_at"')
   })
 
-  test('wires registration datetime edits to submitted Unix seconds', async () => {
+  test('keeps both registration datetimes after blur and submits Unix seconds', async () => {
     const draft = makeDraft('registered_only')
     const { root, container } = renderEditorDom(draft)
 
@@ -784,6 +804,21 @@ describe('CampaignEditor audience rules', () => {
         },
         type: 'change',
       } as React.ChangeEvent<HTMLInputElement>)
+    })
+    React.act(() => {
+      latestInputProps['recall-registration-start-at'].onBlur?.({
+        target: {
+          name: 'audience_config.registration_start_at',
+          value: '2031-01-02T03:04',
+        },
+        type: 'blur',
+      } as React.FocusEvent<HTMLInputElement>)
+    })
+    expect(latestInputProps['recall-registration-start-at'].value).toBe(
+      '2031-01-02T03:04'
+    )
+
+    React.act(() => {
       latestInputProps['recall-registration-end-at'].onChange?.({
         target: {
           name: 'audience_config.registration_end_at',
@@ -792,6 +827,18 @@ describe('CampaignEditor audience rules', () => {
         type: 'change',
       } as React.ChangeEvent<HTMLInputElement>)
     })
+    React.act(() => {
+      latestInputProps['recall-registration-end-at'].onBlur?.({
+        target: {
+          name: 'audience_config.registration_end_at',
+          value: '2031-01-03T03:04',
+        },
+        type: 'blur',
+      } as React.FocusEvent<HTMLInputElement>)
+    })
+    expect(latestInputProps['recall-registration-end-at'].value).toBe(
+      '2031-01-03T03:04'
+    )
     await submit(container)
 
     expect(createMutation).toHaveBeenCalledTimes(1)
