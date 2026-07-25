@@ -56,6 +56,8 @@ import type { AuthFormProps } from '@/features/auth/types'
 export function UserAuthForm({
   className,
   redirectTo,
+  visibleRedirectTo,
+  recallRedirectNonce,
   ...props
 }: AuthFormProps) {
   const { t } = useTranslation()
@@ -139,7 +141,7 @@ export function UserAuthForm({
 
       if (res.success) {
         if (res.data?.require_2fa) {
-          redirectTo2FA()
+          redirectTo2FA(visibleRedirectTo, recallRedirectNonce)
           return
         }
 

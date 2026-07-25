@@ -67,6 +67,21 @@ describe('buildStripePaymentRequest', () => {
     expect(request.save_card).toBe(true)
     expect(request.stripe_currency).toBe('USD')
   })
+
+  test('includes a recall claim only when one is provided', () => {
+    const claimedRequest = buildStripePaymentRequest({
+      amount: 20,
+      redirectUrls,
+      recallClaim: 'signed-claim-value',
+    })
+    const regularRequest = buildStripePaymentRequest({
+      amount: 20,
+      redirectUrls,
+    })
+
+    expect(claimedRequest.recall_claim).toBe('signed-claim-value')
+    expect(regularRequest).not.toHaveProperty('recall_claim')
+  })
 })
 
 describe('resolveStripeCheckoutOpening', () => {

@@ -41,6 +41,7 @@ interface BuildStripePaymentRequestParams {
   invoiceProfile?: InvoiceProfile
   /** Ask the server for an embedded Checkout session (client_secret) instead of a hosted link */
   preferEmbeddedCheckout?: boolean
+  recallClaim?: string
 }
 
 export function buildStripePaymentRequest({
@@ -52,6 +53,7 @@ export function buildStripePaymentRequest({
   invoiceRequested,
   invoiceProfile,
   preferEmbeddedCheckout,
+  recallClaim,
 }: BuildStripePaymentRequestParams): PaymentRequest {
   const request: PaymentRequest = {
     amount,
@@ -72,6 +74,10 @@ export function buildStripePaymentRequest({
   if (invoiceRequested && invoiceProfile) {
     request.invoice_requested = true
     request.invoice_profile = invoiceProfile
+  }
+
+  if (recallClaim) {
+    request.recall_claim = recallClaim
   }
 
   return request

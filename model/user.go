@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const UserNameMaxLength = 20
@@ -32,6 +34,7 @@ type User struct {
 	Role                    int            `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status                  int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email                   string         `json:"email" gorm:"index" validate:"max=50"`
+	EmailVerifiedAt         int64          `json:"email_verified_at" gorm:"default:0;column:email_verified_at;index"`
 	EmailDomain             string         `json:"-" gorm:"type:varchar(253);column:email_domain;index"`
 	GitHubId                string         `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId               string         `json:"discord_id" gorm:"column:discord_id;index"`
@@ -276,6 +279,75 @@ func GetRecallCandidates(minCalls int, maxQuota int, limit int) ([]*User, error)
 	return users, err
 }
 
+type RecallAudienceUserLookup struct {
+	Keyword  string
+	PageSize int
+	IDs      []int
+}
+
+func ListRecallAudienceUserOptionsWithContext(ctx context.Context, lookup RecallAudienceUserLookup) ([]*User, error) {
+	keyword := strings.TrimSpace(lookup.Keyword)
+	ids, err := normalizeRecallAudienceUserIDs(lookup.IDs)
+	if err != nil {
+		return nil, err
+	}
+	if keyword == "" && len(ids) == 0 {
+		return []*User{}, nil
+	}
+	if keyword != "" && len(ids) > 0 {
+		return nil, errors.New("recall audience user lookup requires exactly one mode")
+	}
+
+	query := DB.WithContext(ctx).Model(&User{}).Select("id", "username", "display_name", "email", "status")
+	if len(ids) > 0 {
+		var users []*User
+		err = query.Where("id IN ?", ids).Order("id ASC").Find(&users).Error
+		return users, err
+	}
+
+	pageSize := lookup.PageSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+	pattern := recallAudienceUserLikePattern(keyword)
+	var users []*User
+	err = query.
+		Where("(username LIKE ? ESCAPE '!' OR display_name LIKE ? ESCAPE '!' OR email LIKE ? ESCAPE '!')", pattern, pattern, pattern).
+		Order("id ASC").
+		Limit(pageSize).
+		Find(&users).Error
+	return users, err
+}
+
+func normalizeRecallAudienceUserIDs(ids []int) ([]int, error) {
+	if len(ids) > 500 {
+		return nil, errors.New("recall audience user lookup supports at most 500 ids")
+	}
+	seen := make(map[int]struct{}, len(ids))
+	deduped := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, errors.New("recall audience user lookup ids must be positive")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		deduped = append(deduped, id)
+	}
+	return deduped, nil
+}
+
+func recallAudienceUserLikePattern(keyword string) string {
+	escaped := strings.ReplaceAll(keyword, "!", "!!")
+	escaped = strings.ReplaceAll(escaped, "%", "!%")
+	escaped = strings.ReplaceAll(escaped, "_", "!_")
+	return "%" + escaped + "%"
+}
+
 func SearchUsers(keyword string, group string, role *int, status *int, language string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
@@ -371,6 +443,44 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 		err = DB.Omit("password").First(&user, "id = ?", id).Error
 	}
 	return &user, err
+}
+
+func GetUserByIdWithContext(ctx context.Context, id int) (*User, error) {
+	if id <= 0 {
+		return nil, errors.New("id is empty")
+	}
+	user := &User{}
+	if err := DB.WithContext(ctx).Omit("password").First(user, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func SetUserStripeCustomerIfEmptyOrMatches(userID int, expected string, replacement string) (bool, error) {
+	return SetUserStripeCustomerIfEmptyOrMatchesWithContext(context.Background(), userID, expected, replacement)
+}
+
+func SetUserStripeCustomerIfEmptyOrMatchesWithContext(ctx context.Context, userID int, expected string, replacement string) (bool, error) {
+	if userID <= 0 {
+		return false, errors.New("user ID must be positive")
+	}
+	replacement = strings.TrimSpace(replacement)
+	if replacement == "" {
+		return false, errors.New("Stripe Customer ID must not be empty")
+	}
+	result := DB.WithContext(ctx).Model(&User{}).
+		Where("id = ? AND (stripe_customer IS NULL OR stripe_customer = '' OR stripe_customer = ?)", userID, expected).
+		Update("stripe_customer", replacement)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return false, nil
+	}
+	if err := invalidateUserCache(userID); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 func GetUserIdByAffCode(affCode string) (int, error) {
@@ -587,6 +697,22 @@ func (user *User) Update(updatePassword bool) error {
 		}
 	}
 	newUser := *user
+	if newUser.Setting != "" {
+		err = DB.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(user, user.Id).Error; err != nil {
+				return err
+			}
+			newUser.Setting, err = preserveRecallMarketingOptOut(user.Setting, newUser.Setting)
+			if err != nil {
+				return err
+			}
+			return tx.Model(user).Updates(newUser).Error
+		})
+		if err != nil {
+			return err
+		}
+		return invalidateUserCache(user.Id)
+	}
 	DB.First(&user, user.Id)
 	if err = DB.Model(user).Updates(newUser).Error; err != nil {
 		return err
@@ -594,6 +720,23 @@ func (user *User) Update(updatePassword bool) error {
 
 	// Update cache
 	return updateUserCache(*user)
+}
+
+func preserveRecallMarketingOptOut(currentSetting string, pendingSetting string) (string, error) {
+	current := dto.UserSetting{}
+	if currentSetting == "" || json.Unmarshal([]byte(currentSetting), &current) != nil || !current.RecallMarketingOptOut {
+		return pendingSetting, nil
+	}
+	pending := dto.UserSetting{}
+	if err := json.Unmarshal([]byte(pendingSetting), &pending); err != nil {
+		return "", err
+	}
+	pending.RecallMarketingOptOut = true
+	settingJSON, err := json.Marshal(pending)
+	if err != nil {
+		return "", err
+	}
+	return string(settingJSON), nil
 }
 
 func (user *User) Edit(updatePassword bool) error {
@@ -646,7 +789,14 @@ func (user *User) ClearBinding(bindingType string) error {
 		return errors.New("invalid binding type")
 	}
 
-	if err := DB.Model(&User{}).Where("id = ?", user.Id).Update(column, "").Error; err != nil {
+	update := DB.Model(&User{}).Where("id = ?", user.Id)
+	var err error
+	if bindingType == "email" {
+		err = update.Updates(map[string]any{"email": "", "email_verified_at": 0}).Error
+	} else {
+		err = update.Update(column, "").Error
+	}
+	if err != nil {
 		return err
 	}
 

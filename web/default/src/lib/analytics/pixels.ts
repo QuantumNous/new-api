@@ -33,6 +33,7 @@ For commercial licensing, please contact support@quantumnous.com
  * Loading is lazy: nothing is injected until a page-view or conversion call,
  * and script failures never surface to the UI (ad blockers are common).
  */
+import { isRecallClaimAnalyticsBlocked } from './recall-claim'
 
 type QueueFn = (...args: unknown[]) => void
 
@@ -73,6 +74,10 @@ let tiktokLoaded = false
 let metaLoaded = false
 let xLoaded = false
 
+export function shouldInitializePixelsForURL(rawURL: string): boolean {
+  return !isRecallClaimAnalyticsBlocked(rawURL)
+}
+
 function injectScript(src: string): void {
   const s = document.createElement('script')
   s.async = true
@@ -84,7 +89,13 @@ function injectScript(src: string): void {
 
 /** Lazily bootstrap the TikTok pixel (ttq) exactly once. */
 function ensureTiktok(): void {
-  if (!TIKTOK_PIXEL_ID || typeof window === 'undefined' || tiktokLoaded) return
+  if (
+    !TIKTOK_PIXEL_ID ||
+    typeof window === 'undefined' ||
+    tiktokLoaded ||
+    !shouldInitializePixelsForURL(window.location?.href || '')
+  )
+    return
   tiktokLoaded = true
   try {
     window.TiktokAnalyticsObject = 'ttq'
@@ -127,7 +138,13 @@ function ensureTiktok(): void {
 
 /** Lazily bootstrap the Meta pixel (fbq) exactly once. */
 function ensureMeta(): void {
-  if (!META_PIXEL_ID || typeof window === 'undefined' || metaLoaded) return
+  if (
+    !META_PIXEL_ID ||
+    typeof window === 'undefined' ||
+    metaLoaded ||
+    !shouldInitializePixelsForURL(window.location?.href || '')
+  )
+    return
   metaLoaded = true
   try {
     if (!window.fbq) {
@@ -152,7 +169,13 @@ function ensureMeta(): void {
 
 /** Lazily bootstrap the X pixel (twq) exactly once. */
 function ensureX(): void {
-  if (!X_PIXEL_ID || typeof window === 'undefined' || xLoaded) return
+  if (
+    !X_PIXEL_ID ||
+    typeof window === 'undefined' ||
+    xLoaded ||
+    !shouldInitializePixelsForURL(window.location?.href || '')
+  )
+    return
   xLoaded = true
   try {
     if (!window.twq) {
@@ -188,6 +211,7 @@ export function isAnyPixelEnabled(): boolean {
  * No-op for networks without an id.
  */
 export function ensurePixelsLoaded(): void {
+  if (isRecallClaimAnalyticsBlocked()) return
   ensureTiktok()
   ensureMeta()
   ensureX()
@@ -199,6 +223,7 @@ export function ensurePixelsLoaded(): void {
  * paths (password sign-up + OAuth first-login). Best-effort: never throws.
  */
 export function trackPixelsSignup(): void {
+  if (isRecallClaimAnalyticsBlocked()) return
   ensurePixelsLoaded()
   try {
     if (TIKTOK_PIXEL_ID) window.ttq?.track('CompleteRegistration')
@@ -216,6 +241,7 @@ export function trackPixelsSignup(): void {
  * on revenue. Best-effort: never throws.
  */
 export function trackPixelsTopup(valueUSD?: number): void {
+  if (isRecallClaimAnalyticsBlocked()) return
   ensurePixelsLoaded()
   const hasValue = typeof valueUSD === 'number' && valueUSD > 0
   try {

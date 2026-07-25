@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { create } from 'zustand'
 import { resetMixpanelIdentity } from '@/lib/analytics/mixpanel'
+import { clearPendingPostLoginRedirect } from '@/features/auth/lib/storage'
 
 export type UserPermissions = {
   sidebar_settings?: boolean
@@ -62,11 +63,15 @@ type AuthUserUpdate =
   | null
   | ((currentUser: AuthUser | null) => AuthUser | null)
 
+type AuthResetOptions = {
+  preservePendingPostLoginRedirect?: boolean
+}
+
 interface AuthState {
   auth: {
     user: AuthUser | null
     setUser: (user: AuthUserUpdate) => void
-    reset: () => void
+    reset: (options?: AuthResetOptions) => void
   }
 }
 
@@ -107,10 +112,13 @@ export const useAuthStore = create<AuthState>()((set) => {
           }
           return { ...state, auth: { ...state.auth, user } }
         }),
-      reset: () =>
+      reset: (options) =>
         set((state) => {
           if (typeof window !== 'undefined') {
             window.localStorage.removeItem('user')
+          }
+          if (!options?.preservePendingPostLoginRedirect) {
+            clearPendingPostLoginRedirect()
           }
           resetMixpanelIdentity()
           return {

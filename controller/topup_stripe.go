@@ -50,6 +50,7 @@ type StripePayRequest struct {
 	// StripeCurrency opts into the supported Stripe top-up package flow.
 	// Stripe Checkout chooses presentment currency from customer location.
 	StripeCurrency string `json:"stripe_currency,omitempty"`
+	RecallClaim    string `json:"recall_claim,omitempty"`
 	// SuccessURL is the optional custom URL to redirect after successful payment.
 	// If empty, defaults to the server's console log page.
 	SuccessURL string `json:"success_url,omitempty"`
@@ -497,7 +498,28 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	embedded := strings.EqualFold(strings.TrimSpace(req.UIMode), "embedded") &&
 		strings.TrimSpace(setting.StripePublishableKey) != ""
 
-	checkoutSession, err := genStripeLink(referenceId, checkoutCustomerId, checkoutEmail, checkout, req.SuccessURL, req.CancelURL, invoiceRequested, req.SaveCard, embedded, stripeCheckoutSubmitMessage(normalizedAmount, bonusAmount))
+	var recallDiscount *service.RecallCheckoutDiscount
+	if strings.TrimSpace(req.RecallClaim) != "" {
+		recallDiscount, err = service.GetRecallRuntime().Claims.BuildCheckoutDiscount(
+			c.Request.Context(),
+			id,
+			req.RecallClaim,
+			service.RecallPurchaseKindTopUp,
+			checkout.PriceId,
+		)
+		if err != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe top-up recall claim rejected user_id=%d trade_no=%s price_id=%s error=%q", id, referenceId, checkout.PriceId, err.Error()))
+			topUp.Status = common.TopUpStatusFailed
+			_ = topUp.Update()
+			if invoiceRequested {
+				_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable)})
+			return
+		}
+	}
+
+	checkoutSession, err := genStripeLink(referenceId, checkoutCustomerId, checkoutEmail, checkout, req.SuccessURL, req.CancelURL, invoiceRequested, req.SaveCard, embedded, stripeCheckoutSubmitMessage(normalizedAmount, bonusAmount), recallDiscount)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建 Checkout Session 失败 user_id=%d trade_no=%s amount=%d error=%q", id, referenceId, req.Amount, err.Error()))
 		topUp.Status = common.TopUpStatusFailed
@@ -887,7 +909,8 @@ func sessionCompleted(ctx context.Context, event stripe.Event, callerIp string) 
 	}
 
 	paymentStatus := event.GetObjectValue("payment_status")
-	if paymentStatus != "paid" {
+	if paymentStatus != string(stripe.CheckoutSessionPaymentStatusPaid) &&
+		paymentStatus != string(stripe.CheckoutSessionPaymentStatusNoPaymentRequired) {
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe Checkout 支付未完成，等待异步结果 trade_no=%s payment_status=%s client_ip=%s", referenceId, paymentStatus, callerIp))
 		return nil
 	}
@@ -993,12 +1016,7 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		UnlockOrder(referenceId)
 		alertStripePaymentProcessingFailure(ctx, event, referenceId, customerId, err)
 	}()
-	payload := map[string]any{
-		"customer":     customerId,
-		"amount_total": event.GetObjectValue("amount_total"),
-		"currency":     strings.ToUpper(event.GetObjectValue("currency")),
-		"event_type":   string(event.Type),
-	}
+	payload := stripeSubscriptionProviderPayload(event, referenceId, customerId)
 	if order := model.GetSubscriptionOrderByTradeNo(referenceId); order != nil {
 		snapshot, snapshotErr := stripeSubscriptionSnapshotFromCheckoutSession(event, order)
 		if snapshotErr != nil {
@@ -1006,6 +1024,7 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		}
 		if _, err := model.CompleteSubscriptionOrderWithProviderBinding(referenceId, common.GetJsonString(payload), model.PaymentProviderStripe, model.PaymentMethodStripe, snapshot); err == nil {
 			syncStripePaymentInvoice(ctx, event, referenceId, customerId)
+			attributeRecallAfterStripeFulfillment(ctx, event, referenceId, order.UserId)
 			logger.LogInfo(ctx, fmt.Sprintf("Stripe subscription order processed trade_no=%s event_type=%s client_ip=%s", referenceId, string(event.Type), callerIp))
 			return nil
 		} else {
@@ -1014,7 +1033,12 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		}
 	}
 	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), model.PaymentProviderStripe, ""); err == nil {
+		order := model.GetSubscriptionOrderByTradeNo(referenceId)
+		if order == nil || order.PaymentProvider != model.PaymentProviderStripe || order.Status != common.TopUpStatusSuccess {
+			return errors.New("Stripe subscription order did not reach successful state")
+		}
 		syncStripePaymentInvoice(ctx, event, referenceId, customerId)
+		attributeRecallAfterStripeFulfillment(ctx, event, referenceId, order.UserId)
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe 订阅订单处理成功 trade_no=%s event_type=%s client_ip=%s", referenceId, string(event.Type), callerIp))
 		return nil
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
@@ -1032,8 +1056,16 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		logger.LogError(ctx, fmt.Sprintf("Stripe 充值处理失败 trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
 		return err
 	}
+	topUp := model.GetTopUpByTradeNo(referenceId)
+	if topUp == nil || topUp.PaymentProvider != model.PaymentProviderStripe || topUp.Status != common.TopUpStatusSuccess {
+		return errors.New("Stripe top-up did not reach successful state")
+	}
+	if checkoutSessionID := strings.TrimSpace(stripeEventObjectValue(event, "id")); checkoutSessionID != "" {
+		if backfillErr := model.BackfillStripeCheckoutSessionID(referenceId, topUp.UserId, checkoutSessionID); backfillErr != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("Stripe Checkout Session backfill failed trade_no=%s", referenceId))
+		}
+	}
 	if recharged {
-		topUp := model.GetTopUpByTradeNo(referenceId)
 		sendPaymentSuccessGA(ctx, topUp)
 		// For save-card (onboarding promo) top-ups this performs the actual card binding:
 		// it verifies via the Stripe API that the customer really has a saved card before
@@ -1053,7 +1085,7 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 				}
 			})
 		}
-	} else if topUp := model.GetTopUpByTradeNo(referenceId); topUp != nil && topUp.SaveCard &&
+	} else if topUp.SaveCard &&
 		topUp.Status == common.TopUpStatusSuccess {
 		// Webhook redelivery/replay of an already-fulfilled save-card order doubles as the
 		// retry lever for card binding. Always re-run the backfill (it is idempotent, one
@@ -1064,9 +1096,48 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 	}
 
 	syncStripePaymentInvoice(ctx, event, referenceId, customerId)
+	attributeRecallAfterStripeFulfillment(ctx, event, referenceId, topUp.UserId)
 	snapshot := stripePaymentSnapshotFromEvent(event)
 	logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值成功 trade_no=%s amount_total=%.2f currency=%s event_type=%s client_ip=%s", referenceId, snapshot.Money, snapshot.Currency, string(event.Type), callerIp))
 	return nil
+}
+
+func stripeSubscriptionProviderPayload(event stripe.Event, tradeNo string, customerID string) map[string]any {
+	payload := map[string]any{
+		"source_event_id":     strings.TrimSpace(event.ID),
+		"checkout_session_id": strings.TrimSpace(stripeEventObjectValue(event, "id")),
+		"trade_no":            strings.TrimSpace(tradeNo),
+		"customer":            strings.TrimSpace(customerID),
+		"event_type":          string(event.Type),
+		"amount_total":        event.GetObjectValue("amount_total"),
+		"currency":            strings.ToUpper(strings.TrimSpace(stripeEventObjectValue(event, "currency"))),
+	}
+	if fact, err := service.ParseRecallPayment(event, tradeNo, 0); err == nil {
+		payload["checkout_session_id"] = fact.CheckoutSessionID
+		payload["discount_amount"] = fact.DiscountAmount
+		if fact.ClaimCampaignID > 0 {
+			payload["recall_campaign_id"] = fact.ClaimCampaignID
+		}
+		if fact.ClaimRecipientID > 0 {
+			payload["recall_recipient_id"] = fact.ClaimRecipientID
+		}
+	}
+	return payload
+}
+
+func attributeRecallAfterStripeFulfillment(ctx context.Context, event stripe.Event, tradeNo string, userID int) {
+	runtime := service.GetRecallRuntime()
+	if runtime == nil || runtime.Attribution == nil {
+		return
+	}
+	fact, err := service.ParseRecallPayment(event, tradeNo, userID)
+	if err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe recall attribution parse failed trade_no=%s", tradeNo))
+		return
+	}
+	if err := runtime.Attribution.Attribute(ctx, fact); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe recall attribution failed trade_no=%s", tradeNo))
+	}
 }
 
 var stripeCheckoutPaymentContractFromEvent = getStripeCheckoutPaymentContractFromEvent
@@ -2444,7 +2515,7 @@ func ensureStripeCustomerTaxID(ctx context.Context, customerId string, fields mo
 //   - cancelURL: custom URL to redirect when payment is canceled (empty for default)
 //
 // Returns the checkout session URL or an error if the session creation fails.
-func genStripeLink(referenceId string, customerId string, email string, checkout *stripeTopUpCheckout, successURL string, cancelURL string, invoiceRequested bool, saveCard bool, embedded bool, submitMessage string) (*stripe.CheckoutSession, error) {
+func genStripeLink(referenceId string, customerId string, email string, checkout *stripeTopUpCheckout, successURL string, cancelURL string, invoiceRequested bool, saveCard bool, embedded bool, submitMessage string, recall *service.RecallCheckoutDiscount) (*stripe.CheckoutSession, error) {
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
 		return nil, fmt.Errorf("无效的Stripe API密钥")
 	}
@@ -2462,7 +2533,7 @@ func genStripeLink(referenceId string, customerId string, email string, checkout
 		cancelURL = consolePaymentReturnPath("/console/topup")
 	}
 
-	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, checkout.PaymentCurrency, successURL, cancelURL, invoiceRequested, saveCard, embedded, submitMessage)
+	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, checkout.PaymentCurrency, successURL, cancelURL, invoiceRequested, saveCard, embedded, submitMessage, recall)
 
 	result, err := session.New(params)
 	if err != nil {
@@ -2571,17 +2642,22 @@ func stripeCheckoutSubmitMessage(amount int64, bonusAmount int64) string {
 	return fmt.Sprintf("$%d in credits will be added to your account immediately after payment.", amount)
 }
 
-func buildStripeCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, quantity int64, currency string, successURL string, cancelURL string, invoiceRequested bool, saveCard bool, embedded bool, submitMessage string) *stripe.CheckoutSessionParams {
-	// Promotion codes are deliberately NOT enabled: an empty "Add promotion code" field
-	// on a top-up checkout reads as "everyone else has a discount you don't", which
-	// undercuts the advertised top-up bonus. Bonuses are granted server-side after
-	// payment (configuredTopUpAmounts), not via Stripe coupons.
+func buildStripeCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, quantity int64, currency string, successURL string, cancelURL string, invoiceRequested bool, saveCard bool, embedded bool, submitMessage string, recall *service.RecallCheckoutDiscount) *stripe.CheckoutSessionParams {
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			buildStripeTopUpLineItem(priceId, quantity),
 		},
 		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
+	}
+	if recall != nil {
+		params.Discounts = []*stripe.CheckoutSessionDiscountParams{{
+			PromotionCode: stripe.String(recall.PromotionCodeID),
+		}}
+		params.Metadata = map[string]string{
+			"recall_campaign_id":  strconv.FormatInt(recall.CampaignID, 10),
+			"recall_recipient_id": strconv.FormatInt(recall.RecipientID, 10),
+		}
 	}
 
 	if embedded {

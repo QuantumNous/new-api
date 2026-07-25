@@ -26,6 +26,7 @@ declare module 'axios' {
     skipBusinessError?: boolean
     skipErrorHandler?: boolean
     disableDuplicate?: boolean
+    preservePendingPostLoginRedirectOn401?: boolean
   }
 }
 
@@ -102,7 +103,13 @@ api.interceptors.response.use(
 
     if (status === 401) {
       try {
-        useAuthStore.getState().auth.reset()
+        useAuthStore
+          .getState()
+          .auth.reset(
+            error?.config?.preservePendingPostLoginRedirectOn401
+              ? { preservePendingPostLoginRedirect: true }
+              : undefined
+          )
       } catch {
         /* empty */
       }

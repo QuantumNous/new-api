@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -612,6 +613,16 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 	return &order
 }
 
+func StripeCheckoutSessionIDFromProviderPayload(providerPayload string) string {
+	var payload struct {
+		CheckoutSessionId string `json:"checkout_session_id"`
+	}
+	if err := common.Unmarshal([]byte(providerPayload), &payload); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(payload.CheckoutSessionId)
+}
+
 // User subscription instance
 type UserSubscription struct {
 	Id                int     `json:"id"`
@@ -770,6 +781,64 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 
 func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
 	return getSubscriptionPlanByIdTx(nil, id)
+}
+
+func ListRecallStripeSubscriptionPrices() ([]string, error) {
+	return ListRecallStripeSubscriptionPricesWithContext(context.Background())
+}
+
+func ListRecallStripeSubscriptionPricesWithContext(ctx context.Context) ([]string, error) {
+	var configured []string
+	if err := DB.WithContext(ctx).
+		Model(&SubscriptionPlan{}).
+		Where("enabled = ?", true).
+		Order("id ASC").
+		Pluck("stripe_price_id", &configured).Error; err != nil {
+		return nil, err
+	}
+
+	prices := make([]string, 0, len(configured))
+	seen := make(map[string]struct{}, len(configured))
+	for _, configuredPrice := range configured {
+		priceID := strings.TrimSpace(configuredPrice)
+		if priceID == "" {
+			continue
+		}
+		if _, exists := seen[priceID]; exists {
+			continue
+		}
+		seen[priceID] = struct{}{}
+		prices = append(prices, priceID)
+	}
+	return prices, nil
+}
+
+func ListRecallSubscriptionPlansByStripePriceIDsWithContext(ctx context.Context, rawPriceIDs []string) ([]SubscriptionPlan, error) {
+	priceIDs := make([]string, 0, len(rawPriceIDs))
+	seen := make(map[string]struct{}, len(rawPriceIDs))
+	for _, rawPriceID := range rawPriceIDs {
+		priceID := strings.TrimSpace(rawPriceID)
+		if priceID == "" {
+			continue
+		}
+		if _, exists := seen[priceID]; exists {
+			continue
+		}
+		seen[priceID] = struct{}{}
+		priceIDs = append(priceIDs, priceID)
+	}
+	if len(priceIDs) == 0 {
+		return []SubscriptionPlan{}, nil
+	}
+
+	var plans []SubscriptionPlan
+	if err := DB.WithContext(ctx).
+		Select("title", "price_amount", "currency", "stripe_price_id").
+		Where("stripe_price_id IN ?", priceIDs).
+		Find(&plans).Error; err != nil {
+		return nil, err
+	}
+	return plans, nil
 }
 
 func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {

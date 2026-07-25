@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
 import { afterEach, describe, test } from 'node:test'
+import * as gtag from './gtag'
 import { getGAMeasurementIdentifiers } from './gtag'
 
 const originalDocument = globalThis.document
@@ -39,5 +40,33 @@ describe('getGAMeasurementIdentifiers', () => {
     })
 
     assert.doesNotThrow(() => getGAMeasurementIdentifiers())
+  })
+})
+
+describe('recall claim analytics isolation', () => {
+  test('blocks Google initialization for direct and nested recall claim URLs', () => {
+    assert.equal(typeof gtag.shouldInitializeGtagForURL, 'function')
+    assert.equal(
+      gtag.shouldInitializeGtagForURL?.(
+        'https://console.example.com/sign-up?recall_claim=signed-secret'
+      ),
+      false
+    )
+    assert.equal(
+      gtag.shouldInitializeGtagForURL?.(
+        'https://console.example.com/sign-in?redirect=%2Fconsole%2Ftopup%3Frecall_claim%3Dsigned-secret'
+      ),
+      false
+    )
+  })
+
+  test('keeps Google initialization enabled for ordinary auth URLs', () => {
+    assert.equal(typeof gtag.shouldInitializeGtagForURL, 'function')
+    assert.equal(
+      gtag.shouldInitializeGtagForURL?.(
+        'https://console.example.com/sign-in?redirect=%2Fkeys'
+      ),
+      true
+    )
   })
 })

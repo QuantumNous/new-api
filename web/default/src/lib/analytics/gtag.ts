@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 /**
  * Lightweight Google Ads / GA4 conversion tracking helper.
  *
@@ -31,6 +30,7 @@ For commercial licensing, please contact support@quantumnous.com
  *   VITE_GADS_TOPUP_SEND_TO    e.g. "AW-10867983435/dRnJCMP0vb4cEMuIob4o"
  *                              — full send_to for the top-up (purchase) conversion
  */
+import { isRecallClaimAnalyticsBlocked } from './recall-claim'
 
 type GtagFn = (...args: unknown[]) => void
 
@@ -68,13 +68,21 @@ export function isGtagEnabled(): boolean {
   return Boolean(CONVERSION_ID)
 }
 
+export function shouldInitializeGtagForURL(rawURL: string): boolean {
+  return !isRecallClaimAnalyticsBlocked(rawURL)
+}
+
 /**
  * Lazily inject gtag.js exactly once. Safe to call repeatedly.
  * Resolves immediately (and as a no-op) when tracking is disabled or when
  * running outside the browser.
  */
 export function ensureGtagLoaded(): Promise<void> {
-  if (!CONVERSION_ID || typeof window === 'undefined') {
+  if (
+    !CONVERSION_ID ||
+    typeof window === 'undefined' ||
+    !shouldInitializeGtagForURL(window.location?.href || '')
+  ) {
     return Promise.resolve()
   }
   if (loaderPromise) return loaderPromise
@@ -106,8 +114,10 @@ export function ensureGtagLoaded(): Promise<void> {
  * signup send_to are configured. Best-effort: failures never throw.
  */
 export function trackSignupConversion(): void {
-  if (!CONVERSION_ID || !SIGNUP_SEND_TO) return
+  if (!CONVERSION_ID || !SIGNUP_SEND_TO || isRecallClaimAnalyticsBlocked())
+    return
   void ensureGtagLoaded().then(() => {
+    if (isRecallClaimAnalyticsBlocked()) return
     try {
       window.gtag?.('event', 'conversion', {
         send_to: SIGNUP_SEND_TO,
@@ -126,8 +136,10 @@ export function trackSignupConversion(): void {
  * can optimize on revenue. Best-effort: failures never throw.
  */
 export function trackTopupConversion(valueUSD?: number): void {
-  if (!CONVERSION_ID || !TOPUP_SEND_TO) return
+  if (!CONVERSION_ID || !TOPUP_SEND_TO || isRecallClaimAnalyticsBlocked())
+    return
   void ensureGtagLoaded().then(() => {
+    if (isRecallClaimAnalyticsBlocked()) return
     try {
       window.gtag?.('event', 'conversion', {
         send_to: TOPUP_SEND_TO,
@@ -151,8 +163,9 @@ export function trackAdsFunnelEvent(
   eventName: string,
   params: GtagEventParams = {}
 ): void {
-  if (!CONVERSION_ID) return
+  if (!CONVERSION_ID || isRecallClaimAnalyticsBlocked()) return
   void ensureGtagLoaded().then(() => {
+    if (isRecallClaimAnalyticsBlocked()) return
     try {
       window.gtag?.('event', eventName, {
         send_to: CONVERSION_ID,

@@ -17,13 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
-import i18n from 'i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { useSystemConfigStore } from '@/stores/system-config-store'
-import { useOnboardingStore } from '@/stores/onboarding-store'
-import { identifyMixpanelUser } from '@/lib/analytics/mixpanel'
-import { getSelf } from '@/lib/api'
-import type { User } from '@/features/users/types'
 import { getLanguagePreferenceCookie } from '@/i18n/language-preference-cookie'
 import {
   applyInterfaceLanguage,
@@ -31,7 +24,16 @@ import {
   persistUserLanguageCookie,
   syncUserLanguagePreferenceToDatabase,
 } from '@/i18n/user-language-preference'
+import i18n from 'i18next'
+import { useAuthStore } from '@/stores/auth-store'
+import { useOnboardingStore } from '@/stores/onboarding-store'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+import { identifyMixpanelUser } from '@/lib/analytics/mixpanel'
+import { getSelf } from '@/lib/api'
+import type { User } from '@/features/users/types'
 import {
+  buildAuthContinuationSearch,
+  consumePendingPostLoginRedirect,
   consumePendingOnboarding,
   isSafeInternalPath,
   saveUserId,
@@ -106,7 +108,10 @@ export function useAuthRedirect() {
     // path before navigating to avoid an open-redirect. Treat an invalid redirect as "no
     // redirect" everywhere (not just for navigation) so it can't suppress the onboarding
     // dialog while silently consuming the pending-onboarding flag.
-    const safeRedirectTo = isSafeInternalPath(redirectTo) ? redirectTo : undefined
+    const safeRedirectTo = isSafeInternalPath(redirectTo)
+      ? redirectTo
+      : undefined
+    consumePendingPostLoginRedirect()
     const targetPath = safeRedirectTo || '/dashboard'
     if (!safeRedirectTo && pendingOnboarding) {
       const cardBindEnabled =
@@ -144,18 +149,34 @@ export function useAuthRedirect() {
   /**
    * Redirect to 2FA page
    */
-  const redirectTo2FA = () => {
-    navigate({ to: '/otp', replace: true })
+  const redirectTo2FA = (
+    visibleRedirectTo?: string,
+    recallRedirectNonce?: string
+  ) => {
+    navigate({
+      to: '/otp',
+      search: buildAuthContinuationSearch(
+        visibleRedirectTo,
+        recallRedirectNonce
+      ),
+      replace: true,
+    })
   }
 
   /**
    * Redirect to login page, preserving an optional post-login destination so flows
    * like "Get API Key" (sign-up → sign-in → /keys) land on the intended tab.
    */
-  const redirectToLogin = (redirectTo?: string) => {
+  const redirectToLogin = (
+    visibleRedirectTo?: string,
+    recallRedirectNonce?: string
+  ) => {
     navigate({
       to: '/sign-in',
-      search: redirectTo ? { redirect: redirectTo } : undefined,
+      search: buildAuthContinuationSearch(
+        visibleRedirectTo,
+        recallRedirectNonce
+      ),
       replace: true,
     })
   }

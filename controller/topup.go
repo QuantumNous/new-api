@@ -25,6 +25,7 @@ import (
 func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
 	enablePaddle := isPaddleTopUpEnabled()
+	amountOptions := operation_setting.GetPaymentSetting().AmountOptions
 
 	// 获取支付方式
 	payMethods := buildTopUpPayMethods(operation_setting.PayMethods, enablePaddle)
@@ -159,7 +160,8 @@ func GetTopUpInfo(c *gin.Context) {
 			}
 			return ""
 		}(),
-		"amount_options": operation_setting.GetPaymentSetting().AmountOptions,
+		"amount_options":   amountOptions,
+		"stripe_price_ids": buildStripeTopUpPriceIDs(amountOptions),
 		// Pure subscription mode keeps wallet top-ups at face value. Legacy
 		// discount/bonus settings remain readable by old admin code but are not
 		// advertised or applied to new top-ups.
@@ -173,6 +175,17 @@ func GetTopUpInfo(c *gin.Context) {
 		"client_region": opsIPCountry(c.ClientIP()),
 	}
 	common.ApiSuccess(c, data)
+}
+
+func buildStripeTopUpPriceIDs(amountOptions []int) map[int]string {
+	priceIDs := make(map[int]string, len(amountOptions))
+	for _, amount := range amountOptions {
+		priceID := strings.TrimSpace(setting.StripeTopUpPriceIDForAmount(int64(amount)))
+		if priceID != "" {
+			priceIDs[amount] = priceID
+		}
+	}
+	return priceIDs
 }
 
 func buildTopUpPayMethods(payMethods []map[string]string, enablePaddle bool) []map[string]string {

@@ -57,6 +57,21 @@ workflow_dispatch deploy_target=console/router/both
 - 如果代码改动同时影响 console/router，两边都要发布并验证；不要只看一个域名。
 - router 承载 LLM API/relay 真实流量，只有 review 明确要求时才 approve `deploy router`。
 
+### Recall identity migration maintenance window
+
+This release's `recall_recipients.recipient_identity` schema swap is not safe for normal mixed-version rolling deployment. You must deploy both Go targets, `newapi-console` and `newapi-router`, with the same image during one maintenance window.
+
+Runbook:
+
+1. In the admin console, set `recall_campaign_setting.enabled=false` before approving production deploys.
+2. Wait at least 60 seconds and confirm Recall is drained: no new campaigns are running and no active recipient/message lease remains.
+3. Approve/deploy `newapi-console` first. This master service performs startup migration, backfills `recipient_identity`, creates `idx_recall_campaign_identity`, and removes `idx_recall_campaign_user`.
+4. Verify the migration result before deploying router: no empty `recipient_identity` values remain, the new unique index exists, and the legacy unique index has been removed.
+5. Approve/deploy `newapi-router` with the same image.
+6. Confirm no old revision is serving Recall-capable traffic, then re-enable Recall in the admin console.
+
+Do not roll back to an old binary while Recall is enabled after this migration. If there is a fault, keep Recall disabled and roll forward with a fixed image; old binaries do not write `recipient_identity` and can conflict with the migrated schema.
+
 ### Website 发布流程
 
 `website/**` 变更走 `.github/workflows/gcp-deploy-website.yml`，部署 `newapi-web`，容器端口 4000。验证重点是 SSR、canonical、sitemap、pricing/blog 等公开页面。

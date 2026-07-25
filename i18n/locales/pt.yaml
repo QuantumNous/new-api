@@ -178,6 +178,7 @@ payment.webhook_not_configured: "O webhook não está configurado"
 payment.price_id_not_configured: "StripePriceId não está configurado para este plano"
 payment.creem_not_configured: "CreemProductId não está configurado para este plano"
 payment.compliance_required: "Os recursos de pagamento, resgate, assinatura e recompensa por convite estão desabilitados. O administrador deve confirmar os termos de conformidade antes de habilitá-los."
+payment.recall_claim_unavailable: "Este desconto é inválido, expirou ou não está disponível para esta compra."
 
 # Topup messages
 topup.not_provided: "Número do pedido de pagamento não fornecido"

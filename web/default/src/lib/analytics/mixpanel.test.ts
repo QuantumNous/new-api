@@ -19,11 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { afterEach, describe, test } from 'node:test'
 import {
+  containsRecallClaimInURL,
   ensureMixpanelLoaded,
   getMixpanelConsentStatus,
   grantMixpanelConsent,
   identifyMixpanelUser,
+  sanitizeMixpanelPageSearch,
   shouldEnableMixpanel,
+  suspendMixpanelForRecallClaim,
 } from './mixpanel'
 
 const originalWindow = globalThis.window
@@ -149,10 +152,7 @@ describe('mixpanel consent gate', () => {
           identify: () => undefined,
           people: {
             set: (
-              properties: Record<
-                string,
-                string | number | boolean | undefined
-              >
+              properties: Record<string, string | number | boolean | undefined>
             ) => {
               peopleProperties = properties
             },
@@ -177,5 +177,71 @@ describe('mixpanel consent gate', () => {
 
     assert.equal(peopleProperties.$email, 'alice@example.com')
     assert.equal(peopleProperties.email, 'alice@example.com')
+  })
+})
+
+describe('sanitizeMixpanelPageSearch', () => {
+  test('removes recall claims while retaining unrelated query parameters', () => {
+    assert.equal(
+      sanitizeMixpanelPageSearch(
+        '?recall_claim=signed-secret&show_history=true&currency=USD'
+      ),
+      '?show_history=true&currency=USD'
+    )
+  })
+
+  test('omits search when the recall claim was the only parameter', () => {
+    assert.equal(sanitizeMixpanelPageSearch('?recall_claim=signed-secret'), '')
+  })
+})
+
+describe('recall claim analytics isolation', () => {
+  test('detects direct and sign-in redirect recall claim URLs', () => {
+    assert.equal(
+      containsRecallClaimInURL(
+        'https://console.example.com/wallet?recall_claim=signed-secret'
+      ),
+      true
+    )
+    assert.equal(
+      containsRecallClaimInURL(
+        'https://console.example.com/sign-in?redirect=%2Fwallet%3Frecall_claim%3Dsigned-secret'
+      ),
+      true
+    )
+    assert.equal(
+      containsRecallClaimInURL(
+        'https://console.example.com/wallet?show_history=true'
+      ),
+      false
+    )
+  })
+
+  test('stops automatic capture before a recall claim URL is committed', () => {
+    let config: Record<string, string | number | boolean | undefined> = {}
+    let stopped = false
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        mixpanel: {
+          set_config: (
+            next: Record<string, string | number | boolean | undefined>
+          ) => {
+            config = next
+          },
+          stop_session_recording: () => {
+            stopped = true
+          },
+        },
+      },
+    })
+
+    suspendMixpanelForRecallClaim(
+      'https://console.example.com/wallet?recall_claim=signed-secret'
+    )
+
+    assert.equal(config.autocapture, false)
+    assert.equal(config.record_sessions_percent, 0)
+    assert.equal(stopped, true)
   })
 })

@@ -34,7 +34,8 @@ const walletSearchSchema = z.object({
     .union([z.boolean(), z.string(), z.number()])
     .optional()
     .transform(
-      (value) => value === true || value === 'true' || value === '1' || value === 1
+      (value) =>
+        value === true || value === 'true' || value === '1' || value === 1
     ),
   [PADDLE_ORDER_SEARCH_PARAM]: z.string().optional(),
   [PADDLE_TRANSACTION_SEARCH_PARAM]: z.string().optional(),
@@ -42,6 +43,7 @@ const walletSearchSchema = z.object({
   currency: z.string().optional(),
   amount_minor: z.union([z.string(), z.number()]).optional(),
   stripe_lookup_key: z.string().optional(),
+  recall_claim: z.string().optional(),
 })
 
 export const Route = createFileRoute('/_authenticated/wallet/')({
@@ -59,6 +61,7 @@ function RouteComponent() {
       initialShowHistory={search.show_history && !paddleTransactionId}
       cardJustBound={search.card_bound}
       initialCheckoutSearch={normalizeWalletCheckoutSearch(search)}
+      initialRecallClaim={search.recall_claim}
     />
   )
 }

@@ -199,6 +199,35 @@ func AttachPaddleGatewayTradeNo(tradeNo string, userId int, gatewayTradeNo strin
 	return ErrTopUpStatusInvalid
 }
 
+func BackfillStripeCheckoutSessionID(tradeNo string, userID int, checkoutSessionID string) error {
+	tradeNo = strings.TrimSpace(tradeNo)
+	checkoutSessionID = strings.TrimSpace(checkoutSessionID)
+	if tradeNo == "" || userID <= 0 || checkoutSessionID == "" {
+		return errors.New("invalid Stripe Checkout Session backfill")
+	}
+	result := DB.Model(&TopUp{}).
+		Where("trade_no = ? AND user_id = ? AND payment_provider = ? AND status = ? AND (gateway_trade_no = ? OR gateway_trade_no = ?)",
+			tradeNo, userID, PaymentProviderStripe, common.TopUpStatusSuccess, "", checkoutSessionID).
+		Update("gateway_trade_no", checkoutSessionID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		return nil
+	}
+	topUp, err := GetTopUpByTradeNoWithError(tradeNo)
+	if err != nil {
+		return err
+	}
+	if topUp.UserId != userID || topUp.PaymentProvider != PaymentProviderStripe || topUp.Status != common.TopUpStatusSuccess {
+		return ErrTopUpStatusInvalid
+	}
+	if strings.TrimSpace(topUp.GatewayTradeNo) == checkoutSessionID {
+		return nil
+	}
+	return errors.New("Stripe Checkout Session ID conflicts with persisted order")
+}
+
 func Recharge(referenceId string, customerId string, callerIp string) (bool, error) {
 	return RechargeWithPaymentSnapshot(referenceId, customerId, callerIp, PaymentSnapshot{})
 }

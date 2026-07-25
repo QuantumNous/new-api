@@ -308,6 +308,7 @@ func Register(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
 		}
+		user.EmailVerifiedAt = common.GetTimestamp()
 	}
 	exist, err := model.CheckUserExistOrDeleted(user.Username, user.Email)
 	if err != nil {
@@ -322,12 +323,13 @@ func Register(c *gin.Context) {
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
-		Username:       user.Username,
-		Password:       user.Password,
-		DisplayName:    user.Username,
-		InviterId:      inviterId,
-		Role:           common.RoleCommonUser, // 明确设置角色为普通用户
-		AdsAttribution: sanitizeAdsAttribution(user.AdsAttribution),
+		Username:        user.Username,
+		Password:        user.Password,
+		DisplayName:     user.Username,
+		InviterId:       inviterId,
+		Role:            common.RoleCommonUser, // 明确设置角色为普通用户
+		AdsAttribution:  sanitizeAdsAttribution(user.AdsAttribution),
+		EmailVerifiedAt: user.EmailVerifiedAt,
 	}
 	if language, ok := dto.NormalizeUserLanguagePreference(i18n.GetLangFromContext(c)); ok {
 		cleanUser.SetSetting(dto.UserSetting{Language: language})
@@ -1334,6 +1336,7 @@ func EmailBind(c *gin.Context) {
 		return
 	}
 	user.Email = email
+	user.EmailVerifiedAt = common.GetTimestamp()
 	// no need to check if this email already taken, because we have used verification code to check it
 	err = user.Update(false)
 	if err != nil {
@@ -1536,14 +1539,12 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	// 构建设置
-	settings := dto.UserSetting{
-		NotifyType:                       req.QuotaWarningType,
-		QuotaWarningThreshold:            req.QuotaWarningThreshold,
-		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
-		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
-		RecordIpLog:                      req.RecordIpLog,
-		Language:                         existingSettings.Language,
-	}
+	settings := existingSettings
+	settings.NotifyType = req.QuotaWarningType
+	settings.QuotaWarningThreshold = req.QuotaWarningThreshold
+	settings.UpstreamModelUpdateNotifyEnabled = upstreamModelUpdateNotifyEnabled
+	settings.AcceptUnsetRatioModel = req.AcceptUnsetModelRatioModel
+	settings.RecordIpLog = req.RecordIpLog
 
 	// 如果是webhook类型,添加webhook相关设置
 	if req.QuotaWarningType == dto.NotifyTypeWebhook {

@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
+import { resumeMixpanelAfterRecallClaim } from '@/lib/analytics/mixpanel'
 import { trackTopupOnce } from '@/lib/analytics/topup-tracking'
 import { getSelf } from '@/lib/api'
 import { formatQuota } from '@/lib/format'
@@ -38,7 +39,9 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { TitledCard } from '@/components/ui/titled-card'
 import { SectionPageLayout } from '@/components/layout'
+import { consumePendingPostLoginRedirect } from '@/features/auth/lib/storage'
 import { getCardStatus } from '@/features/onboarding/api'
+import { RecallClaimProvider } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
 import { getPaddleTopUpStatus, isApiSuccess, resumeStripeTopup } from './api'
 import { BillingHistoryPanel } from './components/dialogs/billing-history-dialog'
 import { StripeEmbeddedCheckoutDialog } from './components/dialogs/stripe-embedded-checkout-dialog'
@@ -64,13 +67,26 @@ import {
   type WalletCheckoutSearch,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
-import type { UserWalletData, PresetAmount, TopupRecord } from './types'
+import {
+  getTopupStripePriceId,
+  isRecallPriceEligible,
+  normalizeRecallClaim,
+  removeRecallClaimFromSearch,
+  validateRecallClaim,
+} from './lib/recall-claim'
+import type {
+  UserWalletData,
+  PresetAmount,
+  RecallClaimView,
+  TopupRecord,
+} from './types'
 
 interface WalletProps {
   initialShowHistory?: boolean
   initialPaddleOrderId?: string
   initialPaddleTransactionId?: string
   initialCheckoutSearch?: WalletCheckoutSearch
+  initialRecallClaim?: string
   cardJustBound?: boolean
 }
 
@@ -85,8 +101,17 @@ type PaddleStatusPollParams = {
   orderId?: string
 }
 
+type RecallClaimStatus =
+  | 'idle'
+  | 'loading'
+  | 'active'
+  | 'expired'
+  | 'invalid'
+  | 'unavailable'
+
 const PADDLE_STATUS_POLL_INTERVAL_MS = 2000
 const PADDLE_STATUS_POLL_ATTEMPTS = 15
+const MAX_TIMEOUT_MS = 2_147_483_647
 const WALLET_CHECKOUT_SEARCH_PARAMS = [
   'amount',
   'currency',
@@ -122,6 +147,14 @@ function waitForPaddleStatusPollInterval(): Promise<void> {
 
 export function Wallet(props: WalletProps) {
   const { t } = useTranslation()
+  const [recallClaim] = useState(() =>
+    normalizeRecallClaim(props.initialRecallClaim)
+  )
+  const [recallClaimStatus, setRecallClaimStatus] = useState<RecallClaimStatus>(
+    recallClaim ? 'loading' : 'idle'
+  )
+  const [recallClaimView, setRecallClaimView] =
+    useState<RecallClaimView | null>(null)
   const [user, setUser] = useState<UserWalletData | null>(null)
   const [userLoading, setUserLoading] = useState(true)
   const [topupAmount, setTopupAmount] = useState(0)
@@ -294,6 +327,84 @@ export function Wallet(props: WalletProps) {
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
+
+  useEffect(() => {
+    if (!props.initialRecallClaim) {
+      return
+    }
+
+    const url = new URL(window.location.href)
+    const sanitizedSearch = removeRecallClaimFromSearch(url.search)
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${url.pathname}${sanitizedSearch}${url.hash}`
+    )
+    consumePendingPostLoginRedirect()
+    resumeMixpanelAfterRecallClaim()
+  }, [props.initialRecallClaim])
+
+  useEffect(() => {
+    if (!recallClaim) {
+      return
+    }
+
+    let cancelled = false
+
+    void validateRecallClaim({ claim: recallClaim })
+      .then((response) => {
+        if (cancelled) {
+          return
+        }
+        if (response.success && response.data) {
+          setRecallClaimView(response.data)
+          setRecallClaimStatus('active')
+          return
+        }
+
+        const message = response.message?.toLowerCase() || ''
+        consumePendingPostLoginRedirect()
+        setRecallClaimStatus(
+          message.includes('expired') ? 'expired' : 'invalid'
+        )
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRecallClaimStatus('unavailable')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [recallClaim])
+
+  useEffect(() => {
+    if (recallClaimStatus !== 'active' || !recallClaimView) {
+      return
+    }
+
+    let timeoutId: number | undefined
+    const expireClaimWhenDue = () => {
+      const remainingMs = recallClaimView.expires_at * 1000 - Date.now()
+      if (remainingMs <= 0) {
+        consumePendingPostLoginRedirect()
+        setRecallClaimStatus('expired')
+        return
+      }
+      timeoutId = window.setTimeout(
+        expireClaimWhenDue,
+        Math.min(remainingMs, MAX_TIMEOUT_MS)
+      )
+    }
+    timeoutId = window.setTimeout(expireClaimWhenDue, 0)
+
+    return () => {
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [recallClaimStatus, recallClaimView])
 
   useEffect(() => {
     if (props.initialShowHistory) {
@@ -659,9 +770,42 @@ export function Wallet(props: WalletProps) {
         return
       }
 
+      const stripePriceId = getTopupStripePriceId(
+        topupInfo?.stripe_price_ids,
+        preset.value
+      )
+      const recallEligible =
+        recallClaimStatus === 'active' &&
+        recallClaim &&
+        isRecallPriceEligible(recallClaimView, stripePriceId, 'topup')
+      let validatedRecallClaim: string | undefined
+      if (recallEligible) {
+        try {
+          const response = await validateRecallClaim({
+            claim: recallClaim,
+            price_id: stripePriceId,
+            purchase_kind: 'topup',
+          })
+          if (!response.success || !response.data) {
+            setRecallClaimStatus(
+              response.message?.toLowerCase().includes('expired')
+                ? 'expired'
+                : 'invalid'
+            )
+            return
+          }
+          setRecallClaimView(response.data)
+          validatedRecallClaim = recallClaim
+        } catch {
+          setRecallClaimStatus('unavailable')
+          return
+        }
+      }
+
       const success = await processPayment(preset.value, 'stripe', {
         stripeCurrency: checkoutCurrency,
         preferEmbeddedCheckout: true,
+        recallClaim: validatedRecallClaim,
       })
       if (success) {
         await fetchUser()
@@ -682,6 +826,30 @@ export function Wallet(props: WalletProps) {
     },
     [closeEmbeddedCheckout]
   )
+
+  let recallDiscountLabel = ''
+  if (recallClaimView?.discount.percent_off) {
+    recallDiscountLabel = t('{{percent}}% off', {
+      percent: recallClaimView.discount.percent_off,
+    })
+  } else if (recallClaimView) {
+    recallDiscountLabel = t('{{amount}} {{currency}} off', {
+      amount: (recallClaimView.discount.amount_off / 100).toFixed(2),
+      currency: recallClaimView.discount.currency.toUpperCase(),
+    })
+  }
+  const recallEligibleProductLabel = recallClaimView
+    ? [
+        recallClaimView.products.topup_price_ids.length
+          ? t('eligible wallet top-up packages')
+          : '',
+        recallClaimView.products.subscription_price_ids.length
+          ? t('eligible subscription plans')
+          : '',
+      ]
+        .filter(Boolean)
+        .join(', ')
+    : ''
 
   const handleRechargeHistoryAvailability = useCallback(
     (available: boolean) => setHasRechargeHistory(available),
@@ -713,12 +881,79 @@ export function Wallet(props: WalletProps) {
               </Alert>
             ) : null}
 
-            <SubscriptionPlansCard
-              topupInfo={topupInfo}
-              userQuota={user?.quota}
-              onPurchaseSuccess={fetchUser}
-              onOpenStripeCheckout={openStripeCheckout}
-            />
+            {recallClaimStatus === 'loading' ? (
+              <Alert>
+                <AlertTitle>{t('Checking your recall offer')}</AlertTitle>
+                <AlertDescription>
+                  {t('Verifying this offer for your account...')}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {recallClaimStatus === 'active' && recallClaimView ? (
+              <Alert>
+                <AlertTitle>{recallClaimView.campaign_name}</AlertTitle>
+                <AlertDescription>
+                  {t(
+                    '{{discount}}. Applies to {{products}}. Expires {{expiresAt}}.',
+                    {
+                      discount: recallDiscountLabel,
+                      products: recallEligibleProductLabel,
+                      expiresAt: new Date(
+                        recallClaimView.expires_at * 1000
+                      ).toLocaleString(),
+                    }
+                  )}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {recallClaimStatus === 'expired' ? (
+              <Alert variant='destructive'>
+                <AlertTitle>{t('This recall offer has expired')}</AlertTitle>
+                <AlertDescription>
+                  {t('This discount can no longer be used.')}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {recallClaimStatus === 'invalid' ? (
+              <Alert variant='destructive'>
+                <AlertTitle>{t('This recall offer is invalid')}</AlertTitle>
+                <AlertDescription>
+                  {t(
+                    'This link cannot be used for your account or is no longer available.'
+                  )}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {recallClaimStatus === 'unavailable' ? (
+              <Alert variant='destructive'>
+                <AlertTitle>
+                  {t('Unable to verify this recall offer')}
+                </AlertTitle>
+                <AlertDescription>
+                  {t('Please refresh the page and try again.')}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            <RecallClaimProvider
+              claim={recallClaimStatus === 'active' ? recallClaim : undefined}
+              view={
+                recallClaimStatus === 'active'
+                  ? recallClaimView || undefined
+                  : undefined
+              }
+            >
+              <SubscriptionPlansCard
+                topupInfo={topupInfo}
+                userQuota={user?.quota}
+                onPurchaseSuccess={fetchUser}
+                onOpenStripeCheckout={openStripeCheckout}
+              />
+            </RecallClaimProvider>
 
             <TitledCard
               title={t('Top-ups')}
@@ -735,9 +970,7 @@ export function Wallet(props: WalletProps) {
                   {t('Top up')}
                 </Button>
               }
-              contentClassName={
-                hasRechargeHistory ? 'space-y-4' : 'hidden'
-              }
+              contentClassName={hasRechargeHistory ? 'space-y-4' : 'hidden'}
             >
               <div
                 id='wallet-billing-history'

@@ -82,6 +82,34 @@ func performWeChatAuthRequest(t *testing.T, code string) *httptest.ResponseRecor
 	return recorder
 }
 
+func performEmailBindRequest(t *testing.T, userID int, body []byte) *httptest.ResponseRecorder {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("email-bind-session-test"))))
+	router.GET("/test/session", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set("id", userID)
+		require.NoError(t, session.Save())
+		c.Status(http.StatusNoContent)
+	})
+	router.POST("/api/oauth/email/bind", EmailBind)
+
+	sessionRecorder := httptest.NewRecorder()
+	router.ServeHTTP(sessionRecorder, httptest.NewRequest(http.MethodGet, "/test/session", nil))
+	require.NotEmpty(t, sessionRecorder.Result().Cookies())
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/oauth/email/bind", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	for _, sessionCookie := range sessionRecorder.Result().Cookies() {
+		request.AddCookie(sessionCookie)
+	}
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
 func TestRegisterPersistsSharedCookieLanguage(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 
@@ -120,10 +148,11 @@ func TestRegisterPersistsSharedCookieLanguage(t *testing.T) {
 	var user model.User
 	require.NoError(t, db.First(&user, "username = ?", "cookie-language-user").Error)
 	require.Equal(t, "ja", user.GetSetting().Language)
+	require.Zero(t, user.EmailVerifiedAt, "registration without a validated code must remain unverified")
 }
 
 func TestRegisterWithEmailVerificationAutoLogsInNewUser(t *testing.T) {
-	setupModelListControllerTestDB(t)
+	db := setupModelListControllerTestDB(t)
 
 	originalRegisterEnabled := common.RegisterEnabled
 	originalPasswordRegisterEnabled := common.PasswordRegisterEnabled
@@ -159,6 +188,34 @@ func TestRegisterWithEmailVerificationAutoLogsInNewUser(t *testing.T) {
 	require.NotZero(t, payload.Data.ID)
 	require.Equal(t, "verified-user", payload.Data.Username)
 	require.True(t, payload.Data.IsNewUser)
+	var user model.User
+	require.NoError(t, db.First(&user, payload.Data.ID).Error)
+	require.NotZero(t, user.EmailVerifiedAt)
+}
+
+func TestEmailVerifiedTimestampSetWhenEmailBindSucceeds(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	user := model.User{Username: "email-bind-user", Password: "hashed", Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&user).Error)
+
+	common.RegisterVerificationCodeWithKey("bound@example.com", "654321", common.EmailVerificationPurpose)
+	body, err := common.Marshal(map[string]any{
+		"email": "bound@example.com",
+		"code":  "654321",
+	})
+	require.NoError(t, err)
+	recorder := performEmailBindRequest(t, user.Id, body)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	var fresh model.User
+	require.NoError(t, db.First(&fresh, user.Id).Error)
+	require.Equal(t, "bound@example.com", fresh.Email)
+	require.NotZero(t, fresh.EmailVerifiedAt)
 }
 
 func TestRegisterAcceptsMatchingRegistrationEmailGrantWithoutCode(t *testing.T) {

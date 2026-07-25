@@ -149,6 +149,9 @@ func main() {
 	// the durable product outbox into the shared Ads Agent attribution service.
 	service.StartAdsAttributionDeliveryTask()
 
+	// Stripe user win-back campaign scheduler (master node, default-off)
+	service.StartRecallCampaignTasks()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)

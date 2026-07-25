@@ -44,6 +44,7 @@ interface MultiSelectProps {
   options: Option[]
   selected: string[]
   onChange: (values: string[]) => void
+  onSearchChange?: (value: string) => void
   placeholder?: string
   className?: string
   allowCreate?: boolean
@@ -101,6 +102,7 @@ function splitDraft(value: string): { completed: string[]; draft: string } {
  */
 export function MultiSelect(props: MultiSelectProps) {
   const { t } = useTranslation()
+  const { onSearchChange } = props
   const placeholder = props.placeholder ?? t('Select items...')
 
   // Anchor the popup to the chips container so its width tracks the entire
@@ -124,6 +126,11 @@ export function MultiSelect(props: MultiSelectProps) {
     }
     return map
   }, [props.options])
+
+  const itemToStringLabel = React.useCallback(
+    (itemValue: string) => labelMap.get(itemValue) ?? itemValue,
+    [labelMap]
+  )
 
   const trimmedInput = inputValue.trim()
   const inputMatchesExisting =
@@ -172,6 +179,7 @@ export function MultiSelect(props: MultiSelectProps) {
   )
 
   const handleInputValueChange = (value: string) => {
+    onSearchChange?.(value)
     if (!props.allowCreate) {
       setInputValue(value)
       return
@@ -180,6 +188,7 @@ export function MultiSelect(props: MultiSelectProps) {
     if (parsed.completed.length > 0) {
       addValues(parsed.completed)
       setInputValue(parsed.draft)
+      onSearchChange?.(parsed.draft)
       return
     }
     setInputValue(value)
@@ -192,6 +201,7 @@ export function MultiSelect(props: MultiSelectProps) {
     // feel snappier and matches popular chip-style multiselects.
     if (next.length > props.selected.length) {
       setInputValue('')
+      onSearchChange?.('')
     }
   }
 
@@ -209,6 +219,7 @@ export function MultiSelect(props: MultiSelectProps) {
         event.preventDefault()
         addValues([trimmedInput])
         setInputValue('')
+        onSearchChange?.('')
       }
     }
   }
@@ -219,6 +230,7 @@ export function MultiSelect(props: MultiSelectProps) {
       items={items}
       value={props.selected}
       onValueChange={handleValueChange}
+      itemToStringLabel={itemToStringLabel}
       inputValue={inputValue}
       onInputValueChange={handleInputValueChange}
       open={open}

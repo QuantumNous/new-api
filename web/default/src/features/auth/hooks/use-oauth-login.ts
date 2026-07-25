@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import type { AxiosRequestConfig } from 'axios'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { api } from '@/lib/api'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
+import { api } from '@/lib/api'
 import { getOAuthState } from '../api'
 import {
   buildGitHubOAuthUrl,
@@ -31,11 +31,79 @@ import {
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
 } from '../lib/oauth'
-import { savePendingPostLoginRedirect } from '../lib/storage'
+import {
+  clearPendingPostLoginRedirect,
+  preparePendingPostLoginRedirectForOAuth,
+} from '../lib/storage'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
 
 type LogoutRequestConfig = AxiosRequestConfig & {
   skipErrorHandler?: boolean
+  preservePendingPostLoginRedirectOn401?: boolean
+}
+
+export async function runOAuthRedirectPreflight(
+  resetSession: () => Promise<void>,
+  getState: () => Promise<string | null>,
+  buildURL: (state: string) => string
+): Promise<string | null> {
+  return runOAuthRedirectPreflightUntil(resetSession, getState, buildURL)
+}
+
+export class OAuthRedirectPreflightTimeoutError extends Error {
+  constructor() {
+    super('OAuth redirect preflight timed out')
+    this.name = 'OAuthRedirectPreflightTimeoutError'
+  }
+}
+
+export async function runOAuthRedirectPreflightWithTimeout(
+  resetSession: () => Promise<void>,
+  getState: () => Promise<string | null>,
+  buildURL: (state: string) => string,
+  timeoutMs: number
+): Promise<string | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new OAuthRedirectPreflightTimeoutError()),
+      timeoutMs
+    )
+  })
+
+  try {
+    return await runOAuthRedirectPreflightUntil(
+      resetSession,
+      getState,
+      buildURL,
+      deadline
+    )
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
+async function runOAuthRedirectPreflightUntil(
+  resetSession: () => Promise<void>,
+  getState: () => Promise<string | null>,
+  buildURL: (state: string) => string,
+  deadline?: Promise<never>
+): Promise<string | null> {
+  const waitFor = <T>(operation: Promise<T>) =>
+    deadline ? Promise.race([operation, deadline]) : operation
+
+  try {
+    await waitFor(resetSession())
+    const state = await waitFor(getState())
+    if (!state) {
+      clearPendingPostLoginRedirect()
+      return null
+    }
+    return buildURL(state)
+  } catch (error) {
+    clearPendingPostLoginRedirect()
+    throw error
+  }
 }
 
 function trackOAuthStart(provider: string) {
@@ -45,8 +113,12 @@ function trackOAuthStart(provider: string) {
   // back in the callback. Pass the current value through every time so a stale entry from
   // an earlier, abandoned attempt is cleared when this login has no redirect intent.
   try {
-    savePendingPostLoginRedirect(
-      new URLSearchParams(window.location.search).get('redirect')
+    const search = new URLSearchParams(window.location.search)
+    const visibleRedirect = search.get('redirect')
+    const recallRedirectNonce = search.get('recall_redirect')
+    preparePendingPostLoginRedirectForOAuth(
+      visibleRedirect,
+      recallRedirectNonce
     )
   } catch {
     /* ignore storage failures */
@@ -81,26 +153,18 @@ export function useOAuthLogin(status: SystemStatus | null) {
     t('Continue with GitHub')
   )
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false)
-  const githubTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { auth } = useAuthStore()
-
-  useEffect(() => {
-    return () => {
-      if (githubTimeoutRef.current) {
-        clearTimeout(githubTimeoutRef.current)
-      }
-    }
-  }, [])
 
   const resetSession = async () => {
     try {
-      auth.reset()
+      auth.reset({ preservePendingPostLoginRedirect: true })
     } catch (_error) {
       // ignore store reset errors
     }
     try {
       await api.get('/api/user/logout', {
         skipErrorHandler: true,
+        preservePendingPostLoginRedirectOn401: true,
       } as LogoutRequestConfig)
     } catch (_error) {
       // ignore logout errors
@@ -116,39 +180,33 @@ export function useOAuthLogin(status: SystemStatus | null) {
     setGithubButtonDisabled(true)
     setGithubButtonText(t('Redirecting to GitHub...'))
 
-    if (githubTimeoutRef.current) {
-      clearTimeout(githubTimeoutRef.current)
-    }
-
-    githubTimeoutRef.current = setTimeout(() => {
-      setIsLoading(false)
-      setGithubButtonText(
-        t('Request timed out, please refresh and restart GitHub login')
-      )
-      setGithubButtonDisabled(true)
-    }, 20000)
-
     try {
-      await resetSession()
-      const state = await getOAuthState()
-      if (!state) {
+      const url = await runOAuthRedirectPreflightWithTimeout(
+        resetSession,
+        getOAuthState,
+        (state) => buildGitHubOAuthUrl(status.github_client_id!, state),
+        20000
+      )
+      if (!url) {
         toast.error(t('Failed to initialize OAuth'))
-        if (githubTimeoutRef.current) {
-          clearTimeout(githubTimeoutRef.current)
-        }
         setIsLoading(false)
         setGithubButtonText(t('Continue with GitHub'))
         setGithubButtonDisabled(false)
         return
       }
 
-      const url = buildGitHubOAuthUrl(status.github_client_id, state)
       window.open(url, '_self')
-    } catch (_error) {
-      toast.error(t('Failed to start GitHub login'))
-      if (githubTimeoutRef.current) {
-        clearTimeout(githubTimeoutRef.current)
+    } catch (error) {
+      clearPendingPostLoginRedirect()
+      if (error instanceof OAuthRedirectPreflightTimeoutError) {
+        setIsLoading(false)
+        setGithubButtonText(
+          t('Request timed out, please refresh and restart GitHub login')
+        )
+        setGithubButtonDisabled(true)
+        return
       }
+      toast.error(t('Failed to start GitHub login'))
       setIsLoading(false)
       setGithubButtonText(t('Continue with GitHub'))
       setGithubButtonDisabled(false)
@@ -161,16 +219,19 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
-      await resetSession()
-      const state = await getOAuthState()
-      if (!state) {
+      const url = await runOAuthRedirectPreflight(
+        resetSession,
+        getOAuthState,
+        (state) => buildDiscordOAuthUrl(status.discord_client_id!, state)
+      )
+      if (!url) {
         toast.error(t('Failed to initialize OAuth'))
         return
       }
 
-      const url = buildDiscordOAuthUrl(status.discord_client_id, state)
       window.open(url, '_self')
     } catch (_error) {
+      clearPendingPostLoginRedirect()
       toast.error(t('Failed to start Discord login'))
     } finally {
       setIsLoading(false)
@@ -183,16 +244,19 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
-      await resetSession()
-      const state = await getOAuthState()
-      if (!state) {
+      const url = await runOAuthRedirectPreflight(
+        resetSession,
+        getOAuthState,
+        (state) => buildGoogleOAuthUrl(status.google_client_id!, state)
+      )
+      if (!url) {
         toast.error(t('Failed to initialize OAuth'))
         return
       }
 
-      const url = buildGoogleOAuthUrl(status.google_client_id, state)
       window.open(url, '_self')
     } catch (_error) {
+      clearPendingPostLoginRedirect()
       toast.error(t('Failed to start Google login'))
     } finally {
       setIsLoading(false)
@@ -205,20 +269,24 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
-      await resetSession()
-      const state = await getOAuthState()
-      if (!state) {
+      const url = await runOAuthRedirectPreflight(
+        resetSession,
+        getOAuthState,
+        (state) =>
+          buildOIDCOAuthUrl(
+            status.oidc_authorization_endpoint!,
+            status.oidc_client_id!,
+            state
+          )
+      )
+      if (!url) {
         toast.error(t('Failed to initialize OAuth'))
         return
       }
 
-      const url = buildOIDCOAuthUrl(
-        status.oidc_authorization_endpoint,
-        status.oidc_client_id,
-        state
-      )
       window.open(url, '_self')
     } catch (_error) {
+      clearPendingPostLoginRedirect()
       toast.error(t('Failed to start OIDC login'))
     } finally {
       setIsLoading(false)
@@ -231,16 +299,19 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
-      await resetSession()
-      const state = await getOAuthState()
-      if (!state) {
+      const url = await runOAuthRedirectPreflight(
+        resetSession,
+        getOAuthState,
+        (state) => buildLinuxDOOAuthUrl(status.linuxdo_client_id!, state)
+      )
+      if (!url) {
         toast.error(t('Failed to initialize OAuth'))
         return
       }
 
-      const url = buildLinuxDOOAuthUrl(status.linuxdo_client_id, state)
       window.open(url, '_self')
     } catch (_error) {
+      clearPendingPostLoginRedirect()
       toast.error(t('Failed to start LinuxDO login'))
     } finally {
       setIsLoading(false)
@@ -257,25 +328,30 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
-      await resetSession()
-      const state = await getOAuthState()
-      if (!state) {
+      const url = await runOAuthRedirectPreflight(
+        resetSession,
+        getOAuthState,
+        (state) => {
+          const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
+          const providerURL = new URL(provider.authorization_endpoint)
+          providerURL.searchParams.set('client_id', provider.client_id)
+          providerURL.searchParams.set('redirect_uri', redirectUri)
+          providerURL.searchParams.set('response_type', 'code')
+          providerURL.searchParams.set('state', state)
+          if (provider.scopes) {
+            providerURL.searchParams.set('scope', provider.scopes)
+          }
+          return providerURL.toString()
+        }
+      )
+      if (!url) {
         toast.error(t('Failed to initialize OAuth'))
         return
       }
 
-      const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
-      const url = new URL(provider.authorization_endpoint)
-      url.searchParams.set('client_id', provider.client_id)
-      url.searchParams.set('redirect_uri', redirectUri)
-      url.searchParams.set('response_type', 'code')
-      url.searchParams.set('state', state)
-      if (provider.scopes) {
-        url.searchParams.set('scope', provider.scopes)
-      }
-
-      window.open(url.toString(), '_self')
+      window.open(url, '_self')
     } catch (_error) {
+      clearPendingPostLoginRedirect()
       toast.error(
         t('Failed to start {{provider}} login', { provider: provider.name })
       )

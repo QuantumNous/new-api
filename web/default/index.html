@@ -117,47 +117,111 @@
     <!--Google Analytics-->
     <!-- Google Tag Manager -->
     <script>
-      ;(function (w, d, s, l, i) {
-        w[l] = w[l] || []
-        w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' })
-        var f = d.getElementsByTagName(s)[0],
-          j = d.createElement(s),
-          dl = l != 'dataLayer' ? '&l=' + l : ''
-        j.async = true
-        j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl
-        f.parentNode.insertBefore(j, f)
-      })(window, document, 'script', 'dataLayer', 'GTM-NKH9LPX9')
-      ;(function (w, d, s, l, i) {
-        w[l] = w[l] || []
-        w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' })
-        var f = d.getElementsByTagName(s)[0],
-          j = d.createElement(s),
-          dl = l != 'dataLayer' ? '&l=' + l : ''
-        j.async = true
-        j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl
-        f.parentNode.insertBefore(j, f)
-      })(window, document, 'script', 'dataLayer', 'GTM-5T5LPLSZ')
+      ;(function (w, d) {
+        var postLoginRedirectKey = 'auth_post_login_redirect'
+        var oauthRedirectNonceKey = 'auth_oauth_redirect_nonce'
+
+        function containsRecallClaim(rawURL, depth) {
+          if (!rawURL) return false
+          if (depth > 2) return true
+          try {
+            var url = new URL(rawURL, 'https://console.invalid')
+            if (url.searchParams.has('recall_claim')) return true
+            if (
+              url.pathname.endsWith('/recall/claim') &&
+              url.searchParams.has('claim')
+            ) {
+              return true
+            }
+            return url.searchParams
+              .getAll('redirect')
+              .some(function (redirectURL) {
+                return containsRecallClaim(redirectURL, depth + 1)
+              })
+          } catch (_error) {
+            return false
+          }
+        }
+
+        function isSafeInternalPath(path) {
+          return (
+            typeof path === 'string' &&
+            path &&
+            path.charAt(0) === '/' &&
+            path.slice(0, 2) !== '//' &&
+            path.indexOf('\\') === -1 &&
+            !/[\u0000-\u001f\u007f\s]/.test(path)
+          )
+        }
+
+        function clearPostLoginRedirect() {
+          w.sessionStorage.removeItem(postLoginRedirectKey)
+          w.sessionStorage.removeItem(oauthRedirectNonceKey)
+        }
+
+        function hasStoredRecallClaim() {
+          try {
+            var rawRecord = w.sessionStorage.getItem(postLoginRedirectKey)
+            if (!rawRecord) return false
+
+            var record
+            try {
+              record = JSON.parse(rawRecord)
+            } catch (_error) {
+              clearPostLoginRedirect()
+              return false
+            }
+
+            var now = new Date().getTime()
+            var oauthNonce = w.sessionStorage.getItem(oauthRedirectNonceKey)
+            var isExpired =
+              typeof record.createdAt !== 'number' ||
+              record.createdAt <= 0 ||
+              record.createdAt > now ||
+              now - record.createdAt > 30 * 60 * 1000
+            var isInvalid =
+              typeof record.nonce !== 'string' ||
+              !record.nonce ||
+              record.nonce.length > 128 ||
+              !isSafeInternalPath(record.rawTarget) ||
+              !isSafeInternalPath(record.sanitizedTarget) ||
+              containsRecallClaim(record.sanitizedTarget, 0) ||
+              Boolean(oauthNonce && oauthNonce !== record.nonce)
+            if (isExpired || isInvalid) {
+              clearPostLoginRedirect()
+              return false
+            }
+
+            return containsRecallClaim(record.rawTarget, 0)
+          } catch (_error) {
+            return true
+          }
+        }
+
+        if (containsRecallClaim(w.location.href, 0) || hasStoredRecallClaim())
+          return
+
+        function loadContainer(id) {
+          w.dataLayer = w.dataLayer || []
+          w.dataLayer.push({
+            'gtm.start': new Date().getTime(),
+            event: 'gtm.js',
+          })
+          var firstScript = d.getElementsByTagName('script')[0]
+          var script = d.createElement('script')
+          script.async = true
+          script.src = 'https://www.googletagmanager.com/gtm.js?id=' + id
+          firstScript.parentNode.insertBefore(script, firstScript)
+        }
+
+        loadContainer('GTM-NKH9LPX9')
+        loadContainer('GTM-5T5LPLSZ')
+      })(window, document)
     </script>
     <!-- End Google Tag Manager -->
   </head>
 
   <body>
-    <!-- Google Tag Manager (noscript) -->
-    <noscript
-      ><iframe
-        src="https://www.googletagmanager.com/ns.html?id=GTM-NKH9LPX9"
-        height="0"
-        width="0"
-        style="display: none; visibility: hidden"
-      ></iframe
-      ><iframe
-        src="https://www.googletagmanager.com/ns.html?id=GTM-5T5LPLSZ"
-        height="0"
-        width="0"
-        style="display: none; visibility: hidden"
-      ></iframe
-    ></noscript>
-    <!-- End Google Tag Manager (noscript) -->
     <div id="root"></div>
   </body>
 </html>

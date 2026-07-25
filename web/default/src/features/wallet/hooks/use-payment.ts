@@ -319,6 +319,7 @@ export function usePayment() {
           invoiceRequested: options?.invoiceRequested,
           invoiceProfile: options?.invoiceProfile,
           preferEmbeddedCheckout: options?.preferEmbeddedCheckout,
+          recallClaim: isStripe ? options?.recallClaim : undefined,
         })
 
         const response = isStripe

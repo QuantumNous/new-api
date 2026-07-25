@@ -1,9 +1,11 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -246,6 +248,9 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
+	if err := migrateRecallRecipientIdentity(); err != nil {
+		return err
+	}
 	// Migrate price_amount column from float/double to decimal for existing tables
 	migrateSubscriptionPlanPriceAmount()
 	// Migrate model_limits column from varchar to text for existing tables
@@ -258,6 +263,10 @@ func migrateDB() error {
 		&Token{},
 		&CliDeviceAuthorization{},
 		&User{},
+		&RecallCampaign{},
+		&RecallRecipient{},
+		&RecallMessage{},
+		&RecallEvent{},
 		&RegistrationDomainState{},
 		&RegistrationDomainBlock{},
 		&RegistrationDomainBlockUser{},
@@ -334,6 +343,9 @@ func migrateDB() error {
 }
 
 func migrateDBFast() error {
+	if err := migrateRecallRecipientIdentity(); err != nil {
+		return err
+	}
 
 	migrations := []struct {
 		model interface{}
@@ -343,6 +355,10 @@ func migrateDBFast() error {
 		{&Token{}, "Token"},
 		{&CliDeviceAuthorization{}, "CliDeviceAuthorization"},
 		{&User{}, "User"},
+		{&RecallCampaign{}, "RecallCampaign"},
+		{&RecallRecipient{}, "RecallRecipient"},
+		{&RecallMessage{}, "RecallMessage"},
+		{&RecallEvent{}, "RecallEvent"},
 		{&RegistrationDomainState{}, "RegistrationDomainState"},
 		{&RegistrationDomainBlock{}, "RegistrationDomainBlock"},
 		{&RegistrationDomainBlockUser{}, "RegistrationDomainBlockUser"},
@@ -413,6 +429,141 @@ func migrateDBFast() error {
 	}
 	common.SysLog("database migrated")
 	return nil
+}
+
+const recallRecipientIdentityMigrationBatchSize = 500
+
+func migrateRecallRecipientIdentity() error {
+	if DB == nil || !DB.Migrator().HasTable(&RecallRecipient{}) {
+		return nil
+	}
+	if recallRecipientIdentitySchemaSwapPending() {
+		if err := requireRecallCampaignsDisabledForIdentityMigration(); err != nil {
+			return err
+		}
+	}
+	if !DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity") {
+		if err := DB.Migrator().AddColumn(&RecallRecipient{}, "RecipientIdentity"); err != nil {
+			return fmt.Errorf("failed to add recall recipient identity column: %w", err)
+		}
+	}
+
+	type recipientIdentityRow struct {
+		Id                int64
+		UserId            int
+		EmailSnapshot     string
+		RecipientIdentity string
+	}
+	lastID := int64(0)
+	for {
+		var rows []recipientIdentityRow
+		if err := DB.Table("recall_recipients").
+			Select("id", "user_id", "email_snapshot", "recipient_identity").
+			Where("id > ? AND (recipient_identity = '' OR recipient_identity IS NULL)", lastID).
+			Order("id ASC").
+			Limit(recallRecipientIdentityMigrationBatchSize).
+			Find(&rows).Error; err != nil {
+			return fmt.Errorf("failed to load recall recipients for identity backfill: %w", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		for _, row := range rows {
+			identity := RecallRecipientIdentityForUser(row.UserId)
+			if identity == "" {
+				email, ok := normalizeRecallRecipientEmail(row.EmailSnapshot)
+				if !ok {
+					return fmt.Errorf("recall recipient %d cannot derive recipient identity", row.Id)
+				}
+				identity = RecallRecipientIdentityForEmail(email)
+			}
+			if err := DB.Table("recall_recipients").
+				Where("id = ? AND (recipient_identity = '' OR recipient_identity IS NULL)", row.Id).
+				Update("recipient_identity", identity).Error; err != nil {
+				return fmt.Errorf("failed to backfill recall recipient %d identity: %w", row.Id, err)
+			}
+			lastID = row.Id
+		}
+	}
+
+	if !DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_identity") {
+		if err := DB.Migrator().CreateIndex(&RecallRecipient{}, "idx_recall_campaign_identity"); err != nil {
+			return fmt.Errorf("failed to create recall campaign identity index: %w", err)
+		}
+	}
+	if DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_user") {
+		if err := DB.Migrator().DropIndex(&RecallRecipient{}, "idx_recall_campaign_user"); err != nil {
+			return fmt.Errorf("failed to drop legacy recall campaign user index: %w", err)
+		}
+	}
+	return nil
+}
+
+func recallRecipientIdentitySchemaSwapPending() bool {
+	return !DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity") ||
+		!DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_identity") ||
+		DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_user")
+}
+
+func requireRecallCampaignsDisabledForIdentityMigration() error {
+	if !DB.Migrator().HasTable(&Option{}) {
+		return nil
+	}
+
+	var option Option
+	err := DB.Model(&Option{}).
+		Where(&Option{Key: "recall_campaign_setting.enabled"}).
+		First(&option).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return fmt.Errorf("failed to check recall campaign migration guard: %w", err)
+	}
+
+	enabled, err := strconv.ParseBool(strings.TrimSpace(option.Value))
+	if err != nil {
+		return fmt.Errorf("recall recipient identity migration requires recall_campaign_setting.enabled=false before schema swap; invalid stored value %q", option.Value)
+	}
+	if enabled {
+		// This migration is not compatible with mixed-version Recall writers:
+		// disable Recall and drain active recipient/message leases first.
+		return fmt.Errorf("recall recipient identity migration requires recall_campaign_setting.enabled=false and drain/empty active recall recipient/message leases before schema swap")
+	}
+	hasActiveLeases, err := hasActiveRecallMigrationLeases(time.Now().Unix())
+	if err != nil {
+		return err
+	}
+	if hasActiveLeases {
+		return fmt.Errorf("recall recipient identity migration requires recall_campaign_setting.enabled=false and drain/empty active recall recipient/message leases before schema swap")
+	}
+	return nil
+}
+
+func hasActiveRecallMigrationLeases(nowUnix int64) (bool, error) {
+	for _, table := range []struct {
+		model interface{}
+		name  string
+	}{
+		{model: &RecallRecipient{}, name: "recall_recipients"},
+		{model: &RecallMessage{}, name: "recall_messages"},
+	} {
+		if !DB.Migrator().HasTable(table.model) ||
+			!DB.Migrator().HasColumn(table.model, "lease_owner") ||
+			!DB.Migrator().HasColumn(table.model, "lease_expires_at") {
+			continue
+		}
+		var activeLeases int64
+		if err := DB.Model(table.model).
+			Where("lease_owner <> ? AND lease_expires_at > ?", "", nowUnix).
+			Count(&activeLeases).Error; err != nil {
+			return false, fmt.Errorf("failed to check active %s leases for recall recipient identity migration: %w", table.name, err)
+		}
+		if activeLeases > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func migrateLOGDB() error {

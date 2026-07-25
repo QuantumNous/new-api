@@ -83,6 +83,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/stripe/webhook", anonymousRequestBodyLimit, controller.StripeWebhook)
 		apiRouter.POST("/creem/webhook", anonymousRequestBodyLimit, controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", anonymousRequestBodyLimit, controller.WaffoWebhook)
+		apiRouter.GET("/recall/unsubscribe", controller.UnsubscribeRecallEmail)
 		// :env separates test vs prod URLs so the operator can register each
 		// in Pancake's matching webhook slot; handler enforces env match.
 		apiRouter.POST("/waffo-pancake/webhook/:env", anonymousRequestBodyLimit, controller.WaffoPancakeWebhook)
@@ -145,6 +146,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/paddle/status", controller.GetPaddleTopUpStatus)
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
+				selfRoute.POST("/recall/claim/validate", controller.ValidateRecallClaim)
 
 				// 2FA routes
 				selfRoute.GET("/2fa/status", controller.Get2FAStatus)
@@ -186,6 +188,29 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
 			}
+		}
+
+		recallCampaignRoute := apiRouter.Group("/recall-campaigns")
+		recallCampaignRoute.Use(middleware.AdminAuth())
+		{
+			recallCampaignRoute.GET("/", controller.ListRecallCampaigns)
+			recallCampaignRoute.POST("/", controller.CreateRecallCampaign)
+			recallCampaignRoute.POST("/stripe/validate", controller.ValidateRecallStripeConfig)
+			recallCampaignRoute.POST("/email-preview", controller.PreviewRecallEmailTemplate)
+			recallCampaignRoute.GET("/audience-users", controller.ListRecallAudienceUsers)
+			recallCampaignRoute.GET("/:id", controller.GetRecallCampaign)
+			recallCampaignRoute.PUT("/:id", controller.UpdateRecallCampaign)
+			recallCampaignRoute.POST("/:id/preview", controller.PreviewRecallCampaign)
+			recallCampaignRoute.POST("/:id/activate", controller.ActivateRecallCampaign)
+			recallCampaignRoute.POST("/:id/pause", controller.PauseRecallCampaign)
+			recallCampaignRoute.POST("/:id/resume", controller.ResumeRecallCampaign)
+			recallCampaignRoute.POST("/:id/cancel", controller.CancelRecallCampaign)
+			recallCampaignRoute.POST("/:id/complete", controller.CompleteRecallCampaign)
+			recallCampaignRoute.GET("/:id/recipients", controller.ListRecallRecipients)
+			recallCampaignRoute.GET("/:id/events", controller.ListRecallEvents)
+			recallCampaignRoute.GET("/:id/metrics", controller.GetRecallCampaignMetrics)
+			recallCampaignRoute.GET("/:id/export", controller.ExportRecallCampaign)
+			recallCampaignRoute.POST("/:id/recipients/:rid/retry", controller.RetryRecallRecipient)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

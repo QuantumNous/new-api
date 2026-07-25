@@ -17,11 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { AuthUser } from '@/stores/auth-store'
+import {
+  containsRecallClaimInURL,
+  isRecallClaimAnalyticsBlocked,
+} from './recall-claim'
 
-type MixpanelProperties = Record<
-  string,
-  string | number | boolean | undefined
->
+export { containsRecallClaimInURL } from './recall-claim'
+
+type MixpanelProperties = Record<string, string | number | boolean | undefined>
 
 type MixpanelClient = {
   init: (
@@ -34,6 +37,11 @@ type MixpanelClient = {
   }
   reset: () => void
   track: (eventName: string, properties?: MixpanelProperties) => void
+  set_config?: (
+    config: Record<string, string | number | boolean | undefined>
+  ) => void
+  start_session_recording?: () => void
+  stop_session_recording?: () => void
 }
 
 declare global {
@@ -54,6 +62,34 @@ const MIXPANEL_SCRIPT_SRC =
 
 let loaderPromise: Promise<boolean> | null = null
 let initialized = false
+
+export function suspendMixpanelForRecallClaim(rawURL: string): void {
+  if (!containsRecallClaimInURL(rawURL) || typeof window === 'undefined') {
+    return
+  }
+
+  window.mixpanel?.set_config?.({
+    autocapture: false,
+    record_sessions_percent: 0,
+  })
+  window.mixpanel?.stop_session_recording?.()
+}
+
+export function resumeMixpanelAfterRecallClaim(): void {
+  if (
+    typeof window === 'undefined' ||
+    containsRecallClaimInURL(window.location?.href || '')
+  ) {
+    return
+  }
+
+  window.mixpanel?.set_config?.({
+    autocapture: true,
+    record_sessions_percent: 100,
+  })
+  window.mixpanel?.start_session_recording?.()
+  void ensureMixpanelLoaded()
+}
 
 function getCookieConsent(): MixpanelConsentStatus {
   if (typeof document === 'undefined') return 'unknown'
@@ -81,10 +117,16 @@ export function getMixpanelConsentStatus(): MixpanelConsentStatus {
 }
 
 export function shouldEnableMixpanel(): boolean {
-  return Boolean(MIXPANEL_TOKEN) && getMixpanelConsentStatus() === 'granted'
+  return (
+    Boolean(MIXPANEL_TOKEN) &&
+    !isRecallClaimAnalyticsBlocked() &&
+    getMixpanelConsentStatus() === 'granted'
+  )
 }
 
-function persistConsent(status: Exclude<MixpanelConsentStatus, 'unknown'>): void {
+function persistConsent(
+  status: Exclude<MixpanelConsentStatus, 'unknown'>
+): void {
   if (typeof window === 'undefined') return
   window.localStorage?.setItem(MIXPANEL_CONSENT_KEY, status)
 
@@ -154,15 +196,24 @@ export function trackMixpanelEvent(
   })
 }
 
-export function trackMixpanelPageView(
-  pathname: string,
-  search = ''
-): void {
+export function trackMixpanelPageView(pathname: string, search = ''): void {
+  const sanitizedSearch = sanitizeMixpanelPageSearch(search)
   trackMixpanelEvent('page_viewed', {
     path: pathname,
-    ...(search ? { search } : {}),
+    ...(sanitizedSearch ? { search: sanitizedSearch } : {}),
     product_surface: 'console',
   })
+}
+
+export function sanitizeMixpanelPageSearch(search: string): string {
+  if (!search) {
+    return ''
+  }
+
+  const searchParams = new URLSearchParams(search)
+  searchParams.delete('recall_claim')
+  const sanitizedSearch = searchParams.toString()
+  return sanitizedSearch ? `?${sanitizedSearch}` : ''
 }
 
 export function identifyMixpanelUser(user: AuthUser | null | undefined): void {

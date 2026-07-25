@@ -46,8 +46,9 @@ import { api, getSelf } from '@/lib/api'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 import {
+  consumePendingPostLoginRedirect,
   isSafeInternalPath,
-  readPendingPostLoginRedirect,
+  peekPendingOAuthPostLoginRedirect,
 } from '@/features/auth/lib/storage'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
@@ -68,6 +69,9 @@ function OAuthCallback() {
     if (typeof window === 'undefined') return 'login'
     return window.opener ? 'bind' : 'login'
   })
+  const [pendingPostLoginRedirect] = useState(() =>
+    peekPendingOAuthPostLoginRedirect()
+  )
 
   useEffect(() => {
     ;(async () => {
@@ -105,6 +109,7 @@ function OAuthCallback() {
       }
 
       if (!search?.code) {
+        consumePendingPostLoginRedirect(pendingPostLoginRedirect?.nonce)
         toast.error(i18next.t('Missing code'))
         safeNavigate('/sign-in')
         return
@@ -242,9 +247,10 @@ function OAuthCallback() {
         // value persisted at OAuth start is the reliable source for OAuth logins. Validate
         // every candidate (search.redirect is user-controllable) through isSafeInternalPath
         // so we never navigate to an external origin after authenticating (open-redirect).
-        const stored = readPendingPostLoginRedirect()
-        const requested = target || search?.redirect || stored
+        const stored = pendingPostLoginRedirect?.target
+        const requested = target || stored || search?.redirect
         const to = isSafeInternalPath(requested) ? requested : '/dashboard'
+        consumePendingPostLoginRedirect(pendingPostLoginRedirect?.nonce)
         safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
       }
@@ -262,6 +268,7 @@ function OAuthCallback() {
           return
         }
         trackOAuthResult('error', message)
+        consumePendingPostLoginRedirect(pendingPostLoginRedirect?.nonce)
         toast.error(message)
         safeNavigate('/sign-in')
       }
@@ -336,6 +343,7 @@ function OAuthCallback() {
           }
           const failureMessage = res?.data?.message || i18next.t('OAuth failed')
           trackOAuthResult('error', failureMessage)
+          consumePendingPostLoginRedirect(pendingPostLoginRedirect?.nonce)
           toast.error(failureMessage)
           safeNavigate('/sign-in')
           return
@@ -374,7 +382,14 @@ function OAuthCallback() {
         return
       }
     })()
-  }, [mode, navigate, provider, search])
+  }, [
+    mode,
+    navigate,
+    pendingPostLoginRedirect?.nonce,
+    pendingPostLoginRedirect?.target,
+    provider,
+    search,
+  ])
 
   return <OAuthCallbackScreen provider={provider} mode={mode} />
 }

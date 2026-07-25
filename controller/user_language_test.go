@@ -78,10 +78,16 @@ func TestUpdateSelfRejectsUnsupportedLanguage(t *testing.T) {
 	require.Equal(t, "en", fresh.GetSetting().Language)
 }
 
-func TestUpdateUserSettingPreservesLanguagePreference(t *testing.T) {
+func TestUpdateUserSettingPreservesConsentAndPreferences(t *testing.T) {
 	setupUserLanguageControllerTestDB(t)
 	user := model.User{Id: 103, Username: "settings-user", Password: "hashed", Status: common.UserStatusEnabled}
-	user.SetSetting(dto.UserSetting{Language: "pt"})
+	user.SetSetting(dto.UserSetting{
+		Language:              "pt",
+		SidebarModules:        `{"console":true}`,
+		BillingPreference:     "subscription_first",
+		RecallMarketingOptOut: true,
+		WebhookSecret:         "preserve-unrelated-secret",
+	})
 	require.NoError(t, model.DB.Create(&user).Error)
 
 	ctx, recorder := newUserLanguageRequestContext(t, `{"notify_type":"email","quota_warning_threshold":1,"notification_email":"ops@example.com"}`, user.Id)
@@ -90,8 +96,13 @@ func TestUpdateUserSettingPreservesLanguagePreference(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	var fresh model.User
 	require.NoError(t, model.DB.First(&fresh, user.Id).Error)
-	require.Equal(t, "pt", fresh.GetSetting().Language)
-	require.Equal(t, dto.NotifyTypeEmail, fresh.GetSetting().NotifyType)
+	settings := fresh.GetSetting()
+	require.Equal(t, "pt", settings.Language)
+	require.Equal(t, `{"console":true}`, settings.SidebarModules)
+	require.Equal(t, "subscription_first", settings.BillingPreference)
+	require.True(t, settings.RecallMarketingOptOut)
+	require.Equal(t, "preserve-unrelated-secret", settings.WebhookSecret)
+	require.Equal(t, dto.NotifyTypeEmail, settings.NotifyType)
 }
 
 func TestSearchUsersFiltersByLanguagePreference(t *testing.T) {

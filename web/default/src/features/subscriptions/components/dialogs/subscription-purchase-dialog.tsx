@@ -16,7 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
 import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -37,17 +43,18 @@ import { Separator } from '@/components/ui/separator'
 import { Dialog } from '@/components/dialog'
 import { GroupBadge } from '@/components/group-badge'
 import {
+  isRecallPriceEligible,
+  validateRecallClaim,
+} from '@/features/wallet/lib/recall-claim'
+import type { RecallClaimView } from '@/features/wallet/types'
+import {
   paySubscriptionStripe,
   paySubscriptionCreem,
   paySubscriptionEpay,
   paySubscriptionWaffoPancake,
   paySubscriptionBalance,
 } from '../../api'
-import {
-  formatDuration,
-  formatMediaValue,
-  formatResetPeriod,
-} from '../../lib'
+import { formatDuration, formatMediaValue, formatResetPeriod } from '../../lib'
 import type { PlanRecord } from '../../types'
 
 interface PaymentMethod {
@@ -70,11 +77,33 @@ interface Props {
   onPurchaseSuccess?: () => void | Promise<void>
 }
 
+interface RecallClaimContextValue {
+  claim?: string
+  view?: RecallClaimView
+}
+
+const RecallClaimContext = createContext<RecallClaimContextValue>({})
+
+interface RecallClaimProviderProps extends RecallClaimContextValue {
+  children: ReactNode
+}
+
+export function RecallClaimProvider(props: RecallClaimProviderProps) {
+  return (
+    <RecallClaimContext.Provider
+      value={{ claim: props.claim, view: props.view }}
+    >
+      {props.children}
+    </RecallClaimContext.Provider>
+  )
+}
+
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
+  const recallClaim = useContext(RecallClaimContext)
 
   useEffect(() => {
     if (props.open && props.epayMethods && props.epayMethods.length > 0) {
@@ -88,6 +117,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
   if (!plan) return null
 
   const hasStripe = props.enableStripe && !!plan.stripe_price_id
+  const recallPlanEligible = isRecallPriceEligible(
+    recallClaim.view,
+    plan.stripe_price_id,
+    'subscription'
+  )
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
     props.enableWaffoPancake && !!plan.waffo_pancake_product_id
@@ -119,7 +153,24 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePayStripe = async () => {
     setPaying(true)
     try {
-      const res = await paySubscriptionStripe({ plan_id: plan.id })
+      let validatedRecallClaim: string | undefined
+      if (recallPlanEligible && recallClaim.claim && plan.stripe_price_id) {
+        const validation = await validateRecallClaim({
+          claim: recallClaim.claim,
+          price_id: plan.stripe_price_id,
+          purchase_kind: 'subscription',
+        })
+        if (!validation.success || !validation.data) {
+          toast.error(validation.message || t('Recall offer is unavailable'))
+          return
+        }
+        validatedRecallClaim = recallClaim.claim
+      }
+
+      const res = await paySubscriptionStripe({
+        plan_id: plan.id,
+        ...(validatedRecallClaim ? { recall_claim: validatedRecallClaim } : {}),
+      })
       if (res.message === 'success' && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Payment page opened'))
@@ -324,10 +375,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   count: Number(plan.media_credits_monthly || 0),
                 })}
                 <span className='text-muted-foreground block text-xs'>
-                  {formatMediaValue(
-                    Number(plan.media_credits_monthly || 0),
-                    t
-                  )}
+                  {formatMediaValue(Number(plan.media_credits_monthly || 0), t)}
                 </span>
               </span>
             </div>
@@ -352,6 +400,20 @@ export function SubscriptionPurchaseDialog(props: Props) {
             <AlertDescription>
               {t('Purchase limit reached')} ({props.purchaseCount}/
               {props.purchaseLimit})
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {recallClaim.view && (
+          <Alert>
+            <AlertDescription>
+              {recallPlanEligible
+                ? t(
+                    'Your recall offer applies to this plan only when you pay with Stripe. Other payment methods will not use the discount.'
+                  )
+                : t(
+                    'This plan is not eligible for your recall offer. Choose an eligible Stripe plan to use the discount.'
+                  )}
             </AlertDescription>
           </Alert>
         )}

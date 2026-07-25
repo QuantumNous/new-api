@@ -89,6 +89,36 @@ export type PaddleTopUpStatusResponse = ApiResponse<PaddleTopUpStatus>
 export type InvoiceProfileResponse = ApiResponse<InvoiceProfile | null>
 export type RequestInvoiceResponse = ApiResponse<PaymentInvoice | null>
 
+export type RecallPurchaseKind = 'topup' | 'subscription'
+
+export interface RecallDiscountConfig {
+  type: string
+  percent_off: number
+  amount_off: number
+  currency: string
+  minimum_amount: number
+  minimum_amount_currency: string
+  coupon_redeem_by: number
+}
+
+export interface RecallProductScope {
+  topup_price_ids: string[]
+  subscription_price_ids: string[]
+}
+
+export interface RecallClaimView {
+  campaign_id: number
+  recipient_id: number
+  campaign_name: string
+  promotion_code_masked: string
+  expires_at: number
+  discount: RecallDiscountConfig
+  products: RecallProductScope
+  redeemed: boolean
+}
+
+export type RecallClaimResponse = ApiResponse<RecallClaimView>
+
 export interface PaddleTopUpStatus {
   order_id: string
   transaction_id?: string
@@ -209,6 +239,8 @@ export interface TopupInfo {
   stripe_min_topup: number
   /** Preset amount options */
   amount_options: number[]
+  /** Stripe Price IDs keyed by top-up amount */
+  stripe_price_ids?: Record<number, string>
   /** Discount rates by amount */
   discount: Record<number, number>
   /** Bonus amounts by selected recharge amount */
@@ -269,6 +301,8 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+  /** One-time recall campaign claim, accepted only by Stripe endpoints */
+  recall_claim?: string
   /** Optional explicit Stripe checkout package currency override */
   stripe_currency?: 'USD' | 'JPY' | 'BRL' | 'INR'
   /** Save the card during payment (setup_future_usage) for later off-session auto-charge */
@@ -296,6 +330,8 @@ export interface PaymentOptions {
   preferEmbeddedCheckout?: boolean
   /** Optional explicit Stripe checkout package currency override */
   stripeCurrency?: 'USD' | 'JPY' | 'BRL' | 'INR'
+  /** One-time recall campaign claim, forwarded only to Stripe */
+  recallClaim?: string
 }
 
 /**

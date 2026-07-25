@@ -3,16 +3,21 @@ package controller
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -36,6 +41,16 @@ func TestNormalizeStripeTopUpAmountUsesDisplayTokens(t *testing.T) {
 
 	require.Equal(t, int64(2), normalizeStripeTopUpAmount(int64(2*common.QuotaPerUnit)))
 	require.Equal(t, int64(1), normalizeStripeTopUpAmount(1))
+}
+
+func TestStripePayRequestsBindRecallClaim(t *testing.T) {
+	var topUp StripePayRequest
+	require.NoError(t, common.Unmarshal([]byte(`{"amount":20,"recall_claim":"claim_topup"}`), &topUp))
+	require.Equal(t, "claim_topup", topUp.RecallClaim)
+
+	var subscription SubscriptionStripePayRequest
+	require.NoError(t, common.Unmarshal([]byte(`{"plan_id":7,"recall_claim":"claim_subscription"}`), &subscription))
+	require.Equal(t, "claim_subscription", subscription.RecallClaim)
 }
 
 func TestStripeMinorUnitAmount(t *testing.T) {
@@ -335,6 +350,7 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 		false,
 		false,
 		"",
+		nil,
 	)
 
 	require.NotNil(t, params.CustomerEmail)
@@ -342,6 +358,162 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 	require.Nil(t, params.AllowPromotionCodes, "promotion code field must stay hidden on checkout")
 	require.NotNil(t, params.PaymentIntentData)
 	require.Equal(t, "trade_123", params.PaymentIntentData.Metadata["trade_no"])
+}
+
+func TestStripeCheckoutSessionOrdinaryPromotionCodes(t *testing.T) {
+	params := buildStripeCheckoutSessionParams(
+		"trade_ordinary_promotion",
+		"",
+		"buyer@example.com",
+		"price_123",
+		1,
+		"USD",
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+		false,
+		"",
+		nil,
+	)
+
+	require.Nil(t, params.AllowPromotionCodes, "ordinary top-up checkouts must not show a promotion-code entry")
+	require.Empty(t, params.Discounts)
+}
+
+func TestStripeCheckoutSessionRecallPromotionCode(t *testing.T) {
+	params := buildStripeCheckoutSessionParams(
+		"trade_recall_promotion",
+		"",
+		"buyer@example.com",
+		"price_123",
+		1,
+		"USD",
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+		false,
+		"",
+		&service.RecallCheckoutDiscount{
+			PromotionCodeID: "promo_recall",
+			CampaignID:      42,
+			RecipientID:     84,
+		},
+	)
+
+	require.Nil(t, params.AllowPromotionCodes)
+	require.Len(t, params.Discounts, 1)
+	require.NotNil(t, params.Discounts[0].PromotionCode)
+	require.Equal(t, "promo_recall", *params.Discounts[0].PromotionCode)
+	require.Equal(t, "42", params.Metadata["recall_campaign_id"])
+	require.Equal(t, "84", params.Metadata["recall_recipient_id"])
+}
+
+func TestStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t *testing.T) {
+	for _, tc := range []struct {
+		language string
+		message  string
+	}{
+		{language: "en", message: "This discount is invalid or no longer available for this purchase."},
+		{language: "zh-CN", message: "此优惠无效、已过期或不适用于本次购买。"},
+	} {
+		t.Run(tc.language, func(t *testing.T) {
+			testStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t, tc.language, tc.message)
+		})
+	}
+}
+
+func testStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t *testing.T, language string, expectedMessage string) {
+	t.Helper()
+	require.NoError(t, i18n.Init())
+	backend := setupSubscriptionStripeRecordingBackend(t)
+	setupStripeFulfillmentTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.RecallCampaign{},
+		&model.RecallRecipient{},
+		&model.RecallMessage{},
+		&model.RecallEvent{},
+	))
+	enableRecallCampaignForControllerTest(t)
+
+	originalTopUpPriceIDs := setting.StripeTopUpPriceIds
+	originalDisplayType := operation_setting.GetQuotaDisplayType()
+	originalPriceAmountResolver := stripePriceAmountMinorForCheckoutCurrency
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalAmountOptions := append([]int(nil), paymentSetting.AmountOptions...)
+	setting.StripeTopUpPriceIds = `{"20":"price_topup"}`
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	paymentSetting.AmountOptions = []int{20}
+	stripePriceAmountMinorForCheckoutCurrency = func(string, string) (int64, error) {
+		return 2000, nil
+	}
+	t.Cleanup(func() {
+		setting.StripeTopUpPriceIds = originalTopUpPriceIDs
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalDisplayType
+		paymentSetting.AmountOptions = originalAmountOptions
+		stripePriceAmountMinorForCheckoutCurrency = originalPriceAmountResolver
+	})
+
+	const userID = 720001
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       userID,
+		Username: "topup_recall_user",
+		Email:    "topup-recall@example.com",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	claim := strings.Repeat("t", 48)
+	claimDigest := sha256.Sum256([]byte(claim))
+	claimHash := fmt.Sprintf("%x", claimDigest)
+	campaign := model.RecallCampaign{
+		Name:                "other top-up price",
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "first_purchase",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "automatic",
+		DiscountConfig:      `{"type":"percent","percent_off":20}`,
+		ProductScope:        `{"topup_price_ids":["price_other"],"subscription_price_ids":[]}`,
+		EmailSequenceConfig: `[]`,
+	}
+	require.NoError(t, model.DB.Create(&campaign).Error)
+	promotionCodeID := "promo_other_topup"
+	require.NoError(t, model.DB.Create(&model.RecallRecipient{
+		CampaignId:            campaign.Id,
+		UserId:                userID,
+		EligibilitySnapshot:   `{}`,
+		EmailSnapshot:         "topup-recall@example.com",
+		LanguageSnapshot:      "en",
+		State:                 model.RecallRecipientContacting,
+		StripePromotionCodeId: &promotionCodeID,
+		PromotionCode:         "FKOTHER234",
+		PromotionExpiresAt:    time.Now().Add(time.Hour).Unix(),
+		ClaimTokenHash:        &claimHash,
+	}).Error)
+
+	body, err := common.Marshal(StripePayRequest{
+		Amount:         20,
+		PaymentMethod:  model.PaymentMethodStripe,
+		StripeCurrency: "USD",
+		RecallClaim:    claim,
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/stripe/pay", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Request.Header.Set("Accept-Language", language)
+	ctx.Set("id", userID)
+
+	RequestStripePay(ctx)
+
+	require.Empty(t, backend.params, "a wrong-price recall claim must stop before Stripe Checkout creation")
+	responseBody := recorder.Body.String()
+	require.Contains(t, responseBody, `"message":"error"`)
+	require.Contains(t, responseBody, expectedMessage)
+	require.NotContains(t, responseBody, service.ErrRecallClaimWrongPrice.Error())
+	require.NotContains(t, responseBody, claim)
 }
 
 func TestStripeCheckoutSessionRequestsThreeDSecure(t *testing.T) {
@@ -358,6 +530,7 @@ func TestStripeCheckoutSessionRequestsThreeDSecure(t *testing.T) {
 		false,
 		false,
 		"",
+		nil,
 	)
 
 	require.NotNil(t, params.PaymentMethodOptions, "card options must always be set for the 3DS request")
@@ -380,6 +553,7 @@ func TestStripeCheckoutSessionRequestsThreeDSecure(t *testing.T) {
 		true,
 		false,
 		"",
+		nil,
 	)
 
 	require.NotNil(t, params.PaymentMethodOptions)
@@ -404,6 +578,7 @@ func TestStripeCheckoutSessionCarriesSubmitMessage(t *testing.T) {
 		false,
 		false,
 		"$27 in credits ($20 + $7 bonus) will be added to your account immediately after payment.",
+		nil,
 	)
 
 	require.NotNil(t, params.CustomText)
@@ -423,6 +598,7 @@ func TestStripeCheckoutSessionCarriesSubmitMessage(t *testing.T) {
 		false,
 		false,
 		"",
+		nil,
 	)
 	require.Nil(t, params.CustomText)
 }
@@ -441,6 +617,7 @@ func TestStripeCheckoutSessionEmbeddedModeUsesReturnURL(t *testing.T) {
 		false,
 		true,
 		"",
+		nil,
 	)
 
 	require.NotNil(t, params.UIMode)
@@ -463,6 +640,7 @@ func TestStripeCheckoutSessionEmbeddedModeUsesReturnURL(t *testing.T) {
 		false,
 		false,
 		"",
+		nil,
 	)
 	require.Nil(t, params.UIMode)
 	require.NotNil(t, params.SuccessURL)
@@ -589,6 +767,7 @@ func TestStripeCheckoutSessionPassesSelectedCurrency(t *testing.T) {
 		false,
 		false,
 		"",
+		nil,
 	)
 
 	require.NotNil(t, params.Currency, "non-USD selection must be sent to Stripe")
@@ -608,6 +787,7 @@ func TestStripeCheckoutSessionPassesSelectedCurrency(t *testing.T) {
 		false,
 		false,
 		"",
+		nil,
 	)
 	require.Nil(t, params.Currency)
 }
@@ -803,6 +983,322 @@ func TestFulfillOrderAcceptsDiscountedStripePaymentContract(t *testing.T) {
 	require.NotNil(t, reloaded)
 	assert.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
 	assert.Equal(t, int(200*common.QuotaPerUnit), stripeFulfillmentUserQuota(t, 902))
+}
+
+func TestSessionCompletedFulfillsNoPaymentRequiredTopUpOnce(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
+	t.Cleanup(func() {
+		stripeCheckoutPaymentContractFromEvent = originalContractFromEvent
+	})
+
+	insertStripeFulfillmentUser(t, 908)
+	topUp := &model.TopUp{
+		UserId:             908,
+		Amount:             20,
+		Money:              20,
+		PaymentCurrency:    "USD",
+		PaymentPriceId:     "price_full_discount_topup",
+		PaymentAmountMinor: 2000,
+		TradeNo:            "ref_stripe_no_payment_required_topup",
+		GatewayTradeNo:     "cs_no_payment_required_topup",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+	}
+	require.NoError(t, topUp.Insert())
+
+	contractChecks := 0
+	stripeCheckoutPaymentContractFromEvent = func(stripe.Event) (stripeCheckoutPaymentContract, error) {
+		contractChecks++
+		return stripeCheckoutPaymentContract{
+			SessionId:           topUp.GatewayTradeNo,
+			PriceId:             topUp.PaymentPriceId,
+			Quantity:            1,
+			AmountSubtotalMinor: topUp.PaymentAmountMinor,
+			AmountTotalMinor:    0,
+			Currency:            topUp.PaymentCurrency,
+		}, nil
+	}
+
+	event := stripe.Event{
+		ID:   "evt_no_payment_required_topup",
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  topUp.GatewayTradeNo,
+			"status":              "complete",
+			"mode":                string(stripe.CheckoutSessionModePayment),
+			"payment_status":      string(stripe.CheckoutSessionPaymentStatusNoPaymentRequired),
+			"amount_total":        float64(0),
+			"currency":            "usd",
+			"client_reference_id": topUp.TradeNo,
+			"customer":            "cus_no_payment_required_topup",
+		}},
+	}
+
+	require.NoError(t, sessionCompleted(context.Background(), event, "127.0.0.1"))
+	require.NoError(t, sessionCompleted(context.Background(), event, "127.0.0.1"))
+
+	reloaded := model.GetTopUpByTradeNo(topUp.TradeNo)
+	require.NotNil(t, reloaded)
+	assert.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
+	assert.Equal(t, 0.0, reloaded.Money, "the persisted payment snapshot must reflect Stripe's fully discounted total")
+	assert.Equal(t, "USD", reloaded.PaymentCurrency)
+	assert.Equal(t, int(float64(topUp.Amount)*common.QuotaPerUnit), stripeFulfillmentUserQuota(t, topUp.UserId))
+	assert.Equal(t, 1, contractChecks, "replay must not revalidate or credit an already fulfilled order")
+}
+
+func TestSessionCompletedFulfillsNoPaymentRequiredSubscriptionOnce(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	insertStripeFulfillmentUser(t, 909)
+	plan := model.SubscriptionPlan{
+		Id:            9309,
+		Title:         "Fully discounted plan",
+		PriceAmount:   29,
+		TotalAmount:   1000,
+		Currency:      "USD",
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+	}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	model.InvalidateSubscriptionPlanCache(plan.Id)
+	t.Cleanup(func() {
+		model.InvalidateSubscriptionPlanCache(plan.Id)
+	})
+	order := model.SubscriptionOrder{
+		UserId:          909,
+		PlanId:          plan.Id,
+		Money:           29,
+		TradeNo:         "ref_stripe_no_payment_required_subscription",
+		PaymentMethod:   model.PaymentMethodStripe,
+		PaymentProvider: model.PaymentProviderStripe,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, order.Insert())
+
+	event := stripe.Event{
+		ID:   "evt_no_payment_required_subscription",
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_no_payment_required_subscription",
+			"status":              "complete",
+			"mode":                string(stripe.CheckoutSessionModePayment),
+			"payment_status":      string(stripe.CheckoutSessionPaymentStatusNoPaymentRequired),
+			"amount_total":        float64(0),
+			"currency":            "usd",
+			"client_reference_id": order.TradeNo,
+			"customer":            "cus_no_payment_required_subscription",
+		}},
+	}
+
+	require.NoError(t, sessionCompleted(context.Background(), event, "127.0.0.1"))
+	require.NoError(t, sessionCompleted(context.Background(), event, "127.0.0.1"))
+
+	reloaded := model.GetSubscriptionOrderByTradeNo(order.TradeNo)
+	require.NotNil(t, reloaded)
+	assert.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal([]byte(reloaded.ProviderPayload), &payload))
+	assert.Equal(t, "0", payload["amount_total"], "the provider payload must preserve Stripe's fully discounted total for reconciliation")
+	assert.Equal(t, "USD", payload["currency"])
+	var subscriptionCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", order.UserId).Count(&subscriptionCount).Error)
+	assert.Equal(t, int64(1), subscriptionCount, "webhook replay must not provision the subscription twice")
+}
+
+type stripeWebhookRecallClient struct {
+	service.RecallStripeClient
+	getCheckoutSessionFn func(context.Context, string, ...string) (*stripe.CheckoutSession, error)
+}
+
+func (c *stripeWebhookRecallClient) GetCheckoutSession(ctx context.Context, id string, expand ...string) (*stripe.CheckoutSession, error) {
+	return c.getCheckoutSessionFn(ctx, id, expand...)
+}
+
+func TestStripeWebhookTopUpRecallAttributionAfterFulfillmentAndReplayRepair(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.RecallCampaign{}, &model.RecallRecipient{}, &model.RecallMessage{}, &model.RecallEvent{}))
+	insertStripeFulfillmentUser(t, 9201)
+	_, recipient := createStripeWebhookRecallRecipient(t, 9201, "promo_webhook_topup")
+	topUp := &model.TopUp{
+		UserId: 9201, Amount: 0, Money: 10, PaymentCurrency: "USD", PaymentPriceId: "price_webhook",
+		PaymentAmountMinor: 1000, TradeNo: "trade_webhook_topup", PaymentMethod: model.PaymentMethodStripe,
+		PaymentProvider: model.PaymentProviderStripe, CreateTime: 1_700_000_100, Status: common.TopUpStatusPending,
+	}
+	require.NoError(t, topUp.Insert())
+	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
+	stripeCheckoutPaymentContractFromEvent = func(stripe.Event) (stripeCheckoutPaymentContract, error) {
+		return stripeCheckoutPaymentContract{SessionId: "cs_webhook_topup", PriceId: "price_webhook", Quantity: 1, Currency: "USD"}, nil
+	}
+	t.Cleanup(func() { stripeCheckoutPaymentContractFromEvent = originalContractFromEvent })
+
+	failFetch := true
+	fetches := 0
+	client := &stripeWebhookRecallClient{getCheckoutSessionFn: func(_ context.Context, id string, _ ...string) (*stripe.CheckoutSession, error) {
+		fetches++
+		if failFetch {
+			return nil, errors.New("temporary Stripe attribution lookup failure")
+		}
+		return &stripe.CheckoutSession{
+			ID: id, AmountTotal: 900, Currency: stripe.CurrencyUSD,
+			Discounts:    []*stripe.CheckoutSessionDiscount{{PromotionCode: &stripe.PromotionCode{ID: "promo_webhook_topup"}}},
+			TotalDetails: &stripe.CheckoutSessionTotalDetails{AmountDiscount: 100},
+		}, nil
+	}}
+	runtime := service.GetRecallRuntime()
+	originalAttribution := runtime.Attribution
+	runtime.Attribution = service.NewRecallAttributionService(client)
+	t.Cleanup(func() { runtime.Attribution = originalAttribution })
+	event := stripeRecallWebhookEvent("evt_webhook_topup", "cs_webhook_topup", "trade_webhook_topup", 900, 100, recipient, true)
+
+	require.Error(t, fulfillOrder(context.Background(), event, topUp.TradeNo, "cus_webhook", "127.0.0.1"))
+	require.Zero(t, fetches, "attribution must not run when authoritative fulfillment fails")
+	assertStripeWebhookRecipientNotConverted(t, recipient.Id)
+
+	require.NoError(t, model.DB.Model(&model.TopUp{}).Where("trade_no = ?", topUp.TradeNo).Update("amount", int64(10)).Error)
+	require.NoError(t, fulfillOrder(context.Background(), event, topUp.TradeNo, "cus_webhook", "127.0.0.1"), "attribution failure must not fail fulfilled webhook")
+	require.Equal(t, 1, fetches)
+	quotaAfterFulfillment := stripeFulfillmentUserQuota(t, 9201)
+	require.Positive(t, quotaAfterFulfillment)
+	assertStripeWebhookRecipientNotConverted(t, recipient.Id)
+	storedTopUp := model.GetTopUpByTradeNo(topUp.TradeNo)
+	require.NotNil(t, storedTopUp)
+	require.Equal(t, "cs_webhook_topup", storedTopUp.GatewayTradeNo)
+
+	failFetch = false
+	require.NoError(t, fulfillOrder(context.Background(), event, topUp.TradeNo, "cus_webhook", "127.0.0.1"))
+	require.Equal(t, 2, fetches)
+	require.Equal(t, quotaAfterFulfillment, stripeFulfillmentUserQuota(t, 9201), "replay must not credit quota twice")
+	assertStripeWebhookRecipientConverted(t, recipient.Id, "trade_webhook_topup")
+}
+
+func TestStripeWebhookSubscriptionRecallAttributionAfterFulfillmentAndReplayRepair(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.RecallCampaign{}, &model.RecallRecipient{}, &model.RecallMessage{}, &model.RecallEvent{}))
+	originalSnapshot := stripeSubscriptionSnapshotFromCheckoutSession
+	t.Cleanup(func() { stripeSubscriptionSnapshotFromCheckoutSession = originalSnapshot })
+	stripeSubscriptionSnapshotFromCheckoutSession = func(event stripe.Event, order *model.SubscriptionOrder) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, "sub_webhook_subscription", stripeEventObjectValue(event, "subscription"))
+		require.Equal(t, "trade_webhook_subscription", order.TradeNo)
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId:  "sub_webhook_subscription",
+			ProviderCustomerId:      "cus_subscription",
+			ProviderPriceId:         "price_webhook_subscription",
+			ProviderLatestInvoiceId: "in_webhook_subscription",
+			ProviderStatus:          "active",
+			CurrentPeriodStart:      1_700_000_100,
+			CurrentPeriodEnd:        1_702_678_500,
+		}, nil
+	}
+	insertStripeFulfillmentUser(t, 9202)
+	_, recipient := createStripeWebhookRecallRecipient(t, 9202, "promo_webhook_subscription")
+	plan := model.SubscriptionPlan{
+		Id: 9302, Title: "Webhook plan", PriceAmount: 29, TotalAmount: 1000, Currency: "USD",
+		DurationUnit: model.SubscriptionDurationMonth, DurationValue: 1, Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	model.InvalidateSubscriptionPlanCache(plan.Id)
+	order := model.SubscriptionOrder{
+		UserId: 9202, PlanId: plan.Id, Money: 29, TradeNo: "trade_webhook_subscription",
+		PaymentMethod: model.PaymentMethodStripe, PaymentProvider: model.PaymentProviderStripe,
+		Status: common.TopUpStatusPending, CreateTime: 1_700_000_100,
+	}
+	require.NoError(t, order.Insert())
+
+	failFetch := true
+	client := &stripeWebhookRecallClient{getCheckoutSessionFn: func(_ context.Context, id string, _ ...string) (*stripe.CheckoutSession, error) {
+		if failFetch {
+			return nil, errors.New("temporary Stripe attribution lookup failure")
+		}
+		return &stripe.CheckoutSession{
+			ID: id, AmountTotal: 2700, Currency: stripe.CurrencyUSD,
+			Discounts:    []*stripe.CheckoutSessionDiscount{{PromotionCode: &stripe.PromotionCode{ID: "promo_webhook_subscription"}}},
+			TotalDetails: &stripe.CheckoutSessionTotalDetails{AmountDiscount: 200},
+		}, nil
+	}}
+	runtime := service.GetRecallRuntime()
+	originalAttribution := runtime.Attribution
+	runtime.Attribution = service.NewRecallAttributionService(client)
+	t.Cleanup(func() { runtime.Attribution = originalAttribution })
+	event := stripeRecallWebhookEvent("evt_webhook_subscription", "cs_webhook_subscription", order.TradeNo, 2700, 200, recipient, true)
+	event.Data.Object["subscription"] = "sub_webhook_subscription"
+
+	require.NoError(t, fulfillOrder(context.Background(), event, order.TradeNo, "cus_subscription", "127.0.0.1"))
+	assertStripeWebhookRecipientNotConverted(t, recipient.Id)
+	storedOrder := model.GetSubscriptionOrderByTradeNo(order.TradeNo)
+	require.NotNil(t, storedOrder)
+	require.Equal(t, common.TopUpStatusSuccess, storedOrder.Status)
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal([]byte(storedOrder.ProviderPayload), &payload))
+	require.Equal(t, "cus_subscription", payload["customer"])
+	require.Equal(t, "evt_webhook_subscription", payload["source_event_id"])
+	require.Equal(t, "cs_webhook_subscription", payload["checkout_session_id"])
+	var subscriptionCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", 9202).Count(&subscriptionCount).Error)
+	require.Equal(t, int64(1), subscriptionCount)
+
+	failFetch = false
+	require.NoError(t, fulfillOrder(context.Background(), event, order.TradeNo, "cus_subscription", "127.0.0.1"))
+	assertStripeWebhookRecipientConverted(t, recipient.Id, order.TradeNo)
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", 9202).Count(&subscriptionCount).Error)
+	require.Equal(t, int64(1), subscriptionCount, "subscription replay must not provision twice")
+}
+
+func createStripeWebhookRecallRecipient(t *testing.T, userID int, promotionCodeID string) (model.RecallCampaign, model.RecallRecipient) {
+	t.Helper()
+	campaign := model.RecallCampaign{
+		Name: "webhook attribution", Status: model.RecallCampaignRunning, AudienceTemplate: "first_purchase",
+		AudienceConfig: `{}`, ExecutionMode: "manual", CouponSource: "automatic", DiscountConfig: `{}`,
+		ProductScope: `{}`, EmailSequenceConfig: `[]`,
+	}
+	require.NoError(t, model.DB.Create(&campaign).Error)
+	recipient := model.RecallRecipient{
+		CampaignId: campaign.Id, UserId: userID, EligibilitySnapshot: `{}`, EmailSnapshot: "webhook@example.com",
+		LanguageSnapshot: "en", State: model.RecallRecipientContacting, StripePromotionCodeId: &promotionCodeID,
+		PromotionCode: "FKWEBHOOK234", CreatedAt: 1_700_000_000,
+	}
+	require.NoError(t, model.DB.Create(&recipient).Error)
+	return campaign, recipient
+}
+
+func stripeRecallWebhookEvent(eventID string, sessionID string, tradeNo string, amountTotal int64, discountAmount int64, recipient model.RecallRecipient, unexpanded bool) stripe.Event {
+	discounts := `[{"promotion_code":{"id":"` + *recipient.StripePromotionCodeId + `"}}]`
+	if unexpanded {
+		discounts = `[{"coupon":{"id":"coupon_webhook"}}]`
+	}
+	raw := fmt.Sprintf(`{
+		"id":"%s","client_reference_id":"%s","amount_total":%d,"currency":"usd",
+		"discounts":%s,"total_details":{"amount_discount":%d},
+		"metadata":{"recall_campaign_id":"%d","recall_recipient_id":"%d"}
+	}`, sessionID, tradeNo, amountTotal, discounts, discountAmount, recipient.CampaignId, recipient.Id)
+	return stripe.Event{
+		ID: eventID,
+		Data: &stripe.EventData{
+			Raw: []byte(raw),
+			Object: map[string]interface{}{
+				"id": sessionID, "client_reference_id": tradeNo, "amount_total": float64(amountTotal), "currency": "usd",
+			},
+		},
+	}
+}
+
+func assertStripeWebhookRecipientNotConverted(t *testing.T, recipientID int64) {
+	t.Helper()
+	stored := model.RecallRecipient{}
+	require.NoError(t, model.DB.First(&stored, recipientID).Error)
+	require.Zero(t, stored.ConvertedAt)
+	require.Equal(t, model.RecallRecipientContacting, stored.State)
+}
+
+func assertStripeWebhookRecipientConverted(t *testing.T, recipientID int64, tradeNo string) {
+	t.Helper()
+	stored := model.RecallRecipient{}
+	require.NoError(t, model.DB.First(&stored, recipientID).Error)
+	require.Equal(t, model.RecallRecipientConverted, stored.State)
+	require.Equal(t, tradeNo, stored.ConversionTradeNo)
 }
 
 func TestFulfillOrderAcceptsStripeLineItemAmountDriftWhenPriceMatches(t *testing.T) {
@@ -1229,8 +1725,11 @@ func setupStripeFulfillmentTestDB(t *testing.T) {
 	originalUsingSQLite := common.UsingSQLite
 	originalUsingPostgreSQL := common.UsingPostgreSQL
 	originalUsingMySQL := common.UsingMySQL
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "stripe-fulfillment.db")), &gorm.Config{})
 	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(2)
 	model.DB = db
 	model.LOG_DB = db
 	common.RedisEnabled = false
@@ -1238,6 +1737,7 @@ func setupStripeFulfillmentTestDB(t *testing.T) {
 	common.UsingPostgreSQL = false
 	common.UsingMySQL = false
 	t.Cleanup(func() {
+		require.NoError(t, sqlDB.Close())
 		model.DB = originalDB
 		model.LOG_DB = originalLogDB
 		common.RedisEnabled = originalRedisEnabled

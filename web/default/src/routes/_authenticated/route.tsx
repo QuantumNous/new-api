@@ -18,21 +18,30 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
+import { suspendMixpanelForRecallClaim } from '@/lib/analytics/mixpanel'
 import { getSelf } from '@/lib/api'
 import { AuthenticatedLayout } from '@/components/layout'
+import { protectRecallClaimRedirectForAuth } from '@/features/auth/lib/storage'
 
 // 内存中的验证标记，避免同一会话中重复验证
 let sessionVerified = false
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
+    suspendMixpanelForRecallClaim(location.href)
     const { auth } = useAuthStore.getState()
 
     // 如果本地没有用户信息，直接跳转登录页
     if (!auth.user) {
+      const protectedRedirect = protectRecallClaimRedirectForAuth(location.href)
       throw redirect({
         to: '/sign-in',
-        search: { redirect: location.href },
+        search: protectedRedirect
+          ? {
+              redirect: protectedRedirect.sanitizedTarget,
+              recall_redirect: protectedRedirect.nonce,
+            }
+          : { redirect: location.href },
       })
     }
 
@@ -46,9 +55,17 @@ export const Route = createFileRoute('/_authenticated')({
       } else {
         // 验证失败或 API 调用失败，清除本地缓存并跳转登录页
         auth.reset()
+        const protectedRedirect = protectRecallClaimRedirectForAuth(
+          location.href
+        )
         throw redirect({
           to: '/sign-in',
-          search: { redirect: location.href },
+          search: protectedRedirect
+            ? {
+                redirect: protectedRedirect.sanitizedTarget,
+                recall_redirect: protectedRedirect.nonce,
+              }
+            : { redirect: location.href },
         })
       }
     }

@@ -58,9 +58,17 @@ import {
 } from '@/features/auth/lib/validation'
 import type { User } from '@/features/users/types'
 
-type OtpFormProps = React.HTMLAttributes<HTMLFormElement>
+type OtpFormProps = React.HTMLAttributes<HTMLFormElement> & {
+  visibleRedirectTo?: string
+  recallRedirectNonce?: string
+}
 
-export function OtpForm({ className, ...props }: OtpFormProps) {
+export function OtpForm({
+  className,
+  visibleRedirectTo,
+  recallRedirectNonce,
+  ...props
+}: OtpFormProps) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [useBackupCode, setUseBackupCode] = useState(false)
@@ -115,7 +123,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
       }
 
       toast.success(t('Signed in'))
-      redirectToLogin() // This will redirect to dashboard via the redirect logic
+      redirectToLogin(visibleRedirectTo, recallRedirectNonce)
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('2FA verification error:', error)
@@ -133,7 +141,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
   }
 
   function handleBackToLogin() {
-    redirectToLogin()
+    redirectToLogin(visibleRedirectTo, recallRedirectNonce)
   }
 
   const isFormValid = useBackupCode

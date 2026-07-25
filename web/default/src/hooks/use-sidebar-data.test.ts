@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
 import { type TFunction } from 'i18next'
+import { filterSidebarGroups } from './use-sidebar-config'
 import { buildSidebarData } from './use-sidebar-data'
 
 const t = ((key: string) => key) as TFunction
@@ -102,6 +103,57 @@ describe('buildSidebarData', () => {
         .filter((group) => group.id !== 'admin')
         .flatMap((group) => group.items)
         .some((item) => 'url' in item && item.url === '/model-health')
+    ).toBe(false)
+  })
+  test('shows Activity Configuration by default', () => {
+    const admin = buildSidebarData(t).navGroups.find(
+      (group) => group.id === 'admin'
+    )
+    const item = admin?.items.find(
+      (item) => 'url' in item && item.url === '/recall-campaigns'
+    )
+
+    expect(item).toMatchObject({
+      title: 'Activity Configuration',
+      url: '/recall-campaigns',
+    })
+  })
+
+  test('does not expose legacy Recall Campaigns navigation copy', () => {
+    const admin = buildSidebarData(t).navGroups.find(
+      (group) => group.id === 'admin'
+    )
+
+    expect(admin?.items.some((item) => item.title === 'Recall Campaigns')).toBe(
+      false
+    )
+  })
+
+  test('hides Activity Configuration when the admin config disables it', () => {
+    const groups = filterSidebarGroups(
+      buildSidebarData(t).navGroups,
+      JSON.stringify({ admin: { enabled: true, recall_campaigns: false } }),
+      null
+    )
+    const admin = groups.find((group) => group.id === 'admin')
+    expect(
+      admin?.items.some(
+        (item) => 'url' in item && item.url === '/recall-campaigns'
+      )
+    ).toBe(false)
+  })
+
+  test('allows the user config to narrow Activity Configuration visibility', () => {
+    const groups = filterSidebarGroups(
+      buildSidebarData(t).navGroups,
+      null,
+      JSON.stringify({ admin: { enabled: true, recall_campaigns: false } })
+    )
+    const admin = groups.find((group) => group.id === 'admin')
+    expect(
+      admin?.items.some(
+        (item) => 'url' in item && item.url === '/recall-campaigns'
+      )
     ).toBe(false)
   })
 })
