@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -132,6 +132,20 @@ export function ExtendDeploymentDialog({
 
   const canSubmit = Boolean(deploymentId) && hours > 0 && !isSubmitting
 
+  let estimatedCostContent: ReactNode
+  if (isLoadingPrice || isFetchingPrice) {
+    estimatedCostContent = (
+      <span className='inline-flex items-center gap-2'>
+        <Loader2 className='h-4 w-4 animate-spin' />
+        {t('Calculating...')}
+      </span>
+    )
+  } else if (priceParams) {
+    estimatedCostContent = priceSummary || t('Not available')
+  } else {
+    estimatedCostContent = t('Not available')
+  }
+
   const onSubmit = async () => {
     if (!deploymentId) return
     const h = toInt(hours, 1)
@@ -211,16 +225,7 @@ export function ExtendDeploymentDialog({
           <div className='space-y-1'>
             <div className='text-sm font-medium'>{t('Estimated cost')}</div>
             <div className='text-muted-foreground text-sm'>
-              {isLoadingPrice || isFetchingPrice ? (
-                <span className='inline-flex items-center gap-2'>
-                  <Loader2 className='h-4 w-4 animate-spin' />
-                  {t('Calculating...')}
-                </span>
-              ) : priceParams ? (
-                priceSummary || t('Not available')
-              ) : (
-                t('Not available')
-              )}
+              {estimatedCostContent}
             </div>
             {!priceParams ? (
               <div className='text-muted-foreground text-xs'>

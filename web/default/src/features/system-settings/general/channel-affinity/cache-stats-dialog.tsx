@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -141,6 +141,37 @@ export function CacheStatsDialog(props: Props) {
     return data
   }, [stats, props.target, t])
 
+  let bodyContent: ReactNode
+  if (loading) {
+    bodyContent = (
+      <div className='text-muted-foreground py-8 text-center text-sm'>
+        {t('Loading...')}
+      </div>
+    )
+  } else if (rows.length > 0) {
+    bodyContent = (
+      <div className='space-y-2'>
+        {rows.map((row) => (
+          <div
+            key={row.key}
+            className='flex justify-between gap-4 border-b pb-1 text-sm'
+          >
+            <span className='text-muted-foreground'>{row.key}</span>
+            <span className='text-right font-medium break-all'>
+              {row.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  } else {
+    bodyContent = (
+      <div className='text-muted-foreground py-8 text-center text-sm'>
+        {t('No data available')}
+      </div>
+    )
+  }
+
   return (
     <Dialog
       open={props.open}
@@ -155,29 +186,7 @@ export function CacheStatsDialog(props: Props) {
           'Hit criteria: If cached tokens exist in usage, it counts as a hit.'
         )}
       </p>
-      {loading ? (
-        <div className='text-muted-foreground py-8 text-center text-sm'>
-          {t('Loading...')}
-        </div>
-      ) : rows.length > 0 ? (
-        <div className='space-y-2'>
-          {rows.map((row) => (
-            <div
-              key={row.key}
-              className='flex justify-between gap-4 border-b pb-1 text-sm'
-            >
-              <span className='text-muted-foreground'>{row.key}</span>
-              <span className='text-right font-medium break-all'>
-                {row.value}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className='text-muted-foreground py-8 text-center text-sm'>
-          {t('No data available')}
-        </div>
-      )}
+      {bodyContent}
     </Dialog>
   )
 }

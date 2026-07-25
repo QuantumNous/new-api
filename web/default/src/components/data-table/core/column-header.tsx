@@ -41,6 +41,16 @@ type DataTableColumnHeaderProps<TData, TValue> =
     title: React.ReactNode
   }
 
+function SortIcon(props: { sorted: false | 'asc' | 'desc' }) {
+  if (props.sorted === 'desc') {
+    return <ArrowDownIcon className='ms-2 h-4 w-4' />
+  }
+  if (props.sorted === 'asc') {
+    return <ArrowUpIcon className='ms-2 h-4 w-4' />
+  }
+  return <CaretSortIcon className='ms-2 h-4 w-4' />
+}
+
 export function DataTableColumnHeader<TData, TValue>({
   column,
   title,
@@ -64,13 +74,7 @@ export function DataTableColumnHeader<TData, TValue>({
           }
         >
           <span>{title}</span>
-          {column.getIsSorted() === 'desc' ? (
-            <ArrowDownIcon className='ms-2 h-4 w-4' />
-          ) : column.getIsSorted() === 'asc' ? (
-            <ArrowUpIcon className='ms-2 h-4 w-4' />
-          ) : (
-            <CaretSortIcon className='ms-2 h-4 w-4' />
-          )}
+          <SortIcon sorted={column.getIsSorted()} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
           <DropdownMenuItem onClick={() => column.toggleSorting(false)}>

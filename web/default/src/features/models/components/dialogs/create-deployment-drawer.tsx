@@ -100,6 +100,17 @@ function toNumber(value: unknown, fallback: number) {
   return Number.isFinite(n) ? n : fallback
 }
 
+function nameAvailabilityLabel(
+  isCheckingName: boolean,
+  nameAvailable: boolean | null | undefined,
+  t: (key: string) => string
+) {
+  if (isCheckingName) return t('Checking name...')
+  if (nameAvailable === true) return t('Name is available')
+  if (nameAvailable === false) return t('Name is not available')
+  return ''
+}
+
 export function CreateDeploymentDrawer({
   open,
   onOpenChange,
@@ -417,13 +428,11 @@ export function CreateDeploymentDrawer({
                     </FormControl>
                     {open && field.value?.trim() ? (
                       <div className='text-muted-foreground text-xs'>
-                        {isCheckingName
-                          ? t('Checking name...')
-                          : nameAvailable === true
-                            ? t('Name is available')
-                            : nameAvailable === false
-                              ? t('Name is not available')
-                              : ''}
+                        {nameAvailabilityLabel(
+                          isCheckingName,
+                          nameAvailable,
+                          t
+                        )}
                       </div>
                     ) : null}
                     <FormMessage />

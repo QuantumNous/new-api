@@ -98,13 +98,11 @@ export function parseEndpointKeys(items: PrefillGroup['items']): string[] {
       typeof items === 'string' ? JSON.parse(items || '{}') : (items as unknown)
     if (Array.isArray(parsed)) {
       return parsed
-        .map((item) =>
-          typeof item === 'string'
-            ? item
-            : typeof item?.name === 'string'
-              ? item.name
-              : ''
-        )
+        .map((item) => {
+          if (typeof item === 'string') return item
+          if (typeof item?.name === 'string') return item.name
+          return ''
+        })
         .filter(Boolean)
     }
     if (parsed && typeof parsed === 'object') {
