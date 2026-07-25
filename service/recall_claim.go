@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/mail"
 	"strings"
 	"time"
@@ -431,4 +432,55 @@ func containsRecallPriceID(priceIDs []string, selected string) bool {
 		}
 	}
 	return false
+}
+
+func calculateRecallFirstMonthDiscountAmountMinor(discount RecallDiscountConfig, currency string, unitAmountMinor int64) int64 {
+	if unitAmountMinor <= 0 {
+		return 0
+	}
+	currency = strings.TrimSpace(currency)
+	if discount.MinimumAmount > 0 {
+		if !strings.EqualFold(strings.TrimSpace(discount.MinimumAmountCurrency), currency) || unitAmountMinor < discount.MinimumAmount {
+			return 0
+		}
+	}
+	var amount int64
+	switch strings.ToLower(strings.TrimSpace(discount.Type)) {
+	case "percent":
+		if discount.PercentOff <= 0 {
+			return 0
+		}
+		if discount.PercentOff >= 100 {
+			return unitAmountMinor
+		}
+		raw := math.Round(float64(unitAmountMinor) * discount.PercentOff / 100)
+		if raw >= float64(unitAmountMinor) {
+			return unitAmountMinor
+		}
+		amount = int64(raw)
+	case "fixed":
+		found := false
+		for optionCurrency, optionAmount := range discount.CurrencyOptions {
+			if strings.EqualFold(strings.TrimSpace(optionCurrency), currency) {
+				amount = optionAmount
+				found = true
+				break
+			}
+		}
+		if !found {
+			if !strings.EqualFold(strings.TrimSpace(discount.Currency), currency) {
+				return 0
+			}
+			amount = discount.AmountOff
+		}
+	default:
+		return 0
+	}
+	if amount < 0 {
+		return 0
+	}
+	if amount > unitAmountMinor {
+		return unitAmountMinor
+	}
+	return amount
 }
