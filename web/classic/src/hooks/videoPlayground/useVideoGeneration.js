@@ -40,6 +40,7 @@ import {
   VIDEO_STATUS,
   VIDEO_HISTORY_LIMIT,
   VIDEO_CONV_TURN_LIMIT,
+  VIDEO_INTERPOLATION_TARGET_FPS,
   VIDEO_POLL_INTERVAL_MS,
   VIDEO_POLL_MAX_TIMES,
   parseVideoModelConfig,
@@ -188,6 +189,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     audioData: '', // s2v 驱动音频(base64 data-url)
     sourceVideo: '', // sr 源视频(base64 data-url)
     srRatio: 2, // sr 超分倍率(请求级,门面透传 metadata.sr_ratio)
+    interpolation: false, // 插帧开关(默认关):开启才透传 metadata.target_fps,超分/配乐不适用
     srcVideo: '', // 视频编辑(Bernini)源视频(base64 data-url)
     srcVideo2: '', // 视频编辑(Bernini)第二源视频(mv2v/ads2v 双视频,可选)
     refImages: [], // 视频编辑 rv2v / 图生视频 r2v 参考图(base64 data-url 数组)
@@ -934,6 +936,14 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           body.metadata = {
             ...(body.metadata || {}),
             negative_prompt: params.negativePrompt.trim(),
+          };
+        }
+        // 插帧(默认关):按提交时的开关状态透传 target_fps(引擎 RIFE 帧率翻倍)。
+        // 超分/配乐不适用(SR 引擎侧明确不插帧)。
+        if (inputs.interpolation && !isSR && !isDub) {
+          body.metadata = {
+            ...(body.metadata || {}),
+            target_fps: VIDEO_INTERPOLATION_TARGET_FPS,
           };
         }
         // 宽高比 → target_shape:[h,w]。纯 opt-in:仅 t2v、且该值仍在当前模型的允许集内才下发

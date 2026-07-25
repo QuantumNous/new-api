@@ -51,3 +51,7 @@ web/canvas/out
 web/canvas/.next
 web/canvas/node_modules
 web/canvas/tsconfig.tsbuildinfo
+
+# 移动端 H5 构建产物
+web/mobile/dist
+web/mobile/node_modules

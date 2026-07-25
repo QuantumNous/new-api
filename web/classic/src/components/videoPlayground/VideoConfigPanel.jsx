@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Card,
   Select,
+  Switch,
   Typography,
   Tooltip,
   InputNumber,
@@ -359,6 +360,13 @@ const VideoConfigPanel = ({
               dropdownStyle={{ width: '100%', maxWidth: '100%' }}
               className='!rounded-lg'
             />
+            {/1080/i.test(inputs.size || '') && (
+              <Typography.Text className='text-xs text-amber-600 mt-1 block'>
+                {t(
+                  '1080P 将先生成再调用超分模型提升画质：耗时更久，且会同时产生本模型与超分模型的额度/积分消耗',
+                )}
+              </Typography.Text>
+            )}
           </div>
         )}
 
@@ -468,6 +476,26 @@ const VideoConfigPanel = ({
             className='!rounded-lg'
           />
         </div>
+
+        {/* 插帧(RIFE 帧率翻倍)——超分/配乐不适用;默认关,开启才透传 target_fps */}
+        {!isSR && !isDub && (
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
+              <Typography.Text strong className='text-sm'>
+                {t('插帧')}
+              </Typography.Text>
+              <Typography.Text className='text-xs text-gray-400'>
+                ({t('帧率翻倍，生成更流畅')})
+              </Typography.Text>
+            </div>
+            <Switch
+              checked={!!inputs.interpolation}
+              onChange={(v) => onInputChange('interpolation', v)}
+              disabled={disabled}
+              size='small'
+            />
+          </div>
+        )}
       </div>
     </Card>
   );

@@ -57,6 +57,12 @@ var classicIndexPage []byte
 //go:embed all:web/canvas/out
 var canvasBuildFS embed.FS
 
+//go:embed web/mobile/dist
+var mobileBuildFS embed.FS
+
+//go:embed web/mobile/dist/index.html
+var mobileIndexPage []byte
+
 func main() {
 	startTime := time.Now()
 
@@ -232,6 +238,8 @@ func main() {
 		ClassicBuildFS:   classicBuildFS,
 		ClassicIndexPage: classicIndexPage,
 		CanvasBuildFS:    canvasBuildFS,
+		MobileBuildFS:    mobileBuildFS,
+		MobileIndexPage:  mobileIndexPage,
 	})
 	var port = os.Getenv("PORT")
 	if port == "" {
