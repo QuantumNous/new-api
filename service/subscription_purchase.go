@@ -64,6 +64,7 @@ type PrepaidTermAllocation struct {
 }
 
 var subscriptionPurchaseQuoteResolver = defaultSubscriptionPurchaseQuote
+var subscriptionPurchaseAfterQuoteValidationHook func()
 
 var ErrSubscriptionPurchaseQuoteUnavailable = errors.New("subscription purchase quote unavailable")
 
@@ -198,12 +199,19 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 			ClientSecret:     change.ClientSecret,
 		}, nil
 	}
+	if replay, found, err := replayExistingSubscriptionPurchase(cmd); err != nil {
+		return nil, err
+	} else if found {
+		return replay, nil
+	}
 	validatedQuote, err := validateAuthoritativeSubscriptionPurchaseQuote(context.Background(), cmd)
 	if err != nil {
 		return nil, err
 	}
 	cmd.VerifiedQuote = &validatedQuote
-
+	if subscriptionPurchaseAfterQuoteValidationHook != nil {
+		subscriptionPurchaseAfterQuoteValidationHook()
+	}
 	var supersededCheckouts []supersededStripeCheckout
 	if cmd.PaymentChoice == SubscriptionPaymentChoiceAlipay || cmd.PaymentChoice == SubscriptionPaymentChoicePix || cmd.PaymentChoice == SubscriptionPaymentChoiceUPI || cmd.PaymentChoice == SubscriptionPaymentChoiceBalance {
 		var err error
@@ -239,6 +247,9 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 		}
 		if cmd.PaymentChoice == SubscriptionPaymentChoiceBalance && plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
 			return errors.New("subscription plan does not allow balance payment")
+		}
+		if err := validateSubscriptionPurchaseQuoteMatchesPlan(*plan, cmd, validatedQuote); err != nil {
+			return err
 		}
 		if err := enforceMaxPurchasePerUserTx(tx, cmd.UserID, plan); err != nil {
 			return err
@@ -740,6 +751,32 @@ func quoteForSubscriptionPurchase(plan model.SubscriptionPlan, cmd PurchaseSubsc
 	return validateSubscriptionPurchaseQuoteForChoice(*cmd.VerifiedQuote, cmd.PaymentChoice, cmd.Months)
 }
 
+func replayExistingSubscriptionPurchase(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptionResult, bool, error) {
+	var result *PurchaseSubscriptionResult
+	foundReplay := false
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := subscriptionCommandLock(tx).Where("id = ?", cmd.UserID).First(&user).Error; err != nil {
+			return err
+		}
+		existing, found, err := findIntentByRequestTx(tx, cmd.UserID, cmd.RequestID)
+		if err != nil || !found {
+			return err
+		}
+		replay, err := buildPurchaseReplayResultTx(tx, cmd, existing)
+		if err != nil {
+			return err
+		}
+		result = replay
+		foundReplay = true
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return result, foundReplay, nil
+}
+
 func validateAuthoritativeSubscriptionPurchaseQuote(ctx context.Context, cmd PurchaseSubscriptionCommand) (SubscriptionPurchaseQuote, error) {
 	if cmd.VerifiedQuote == nil {
 		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote is required")
@@ -770,6 +807,19 @@ func validateAuthoritativeSubscriptionPurchaseQuote(ctx context.Context, cmd Pur
 		return SubscriptionPurchaseQuote{}, err
 	}
 	return expected, nil
+}
+
+func validateSubscriptionPurchaseQuoteMatchesPlan(plan model.SubscriptionPlan, cmd PurchaseSubscriptionCommand, quote SubscriptionPurchaseQuote) error {
+	base, err := resolveSubscriptionPurchaseQuote(plan, cmd.PaymentChoice, cmd.Months)
+	if err != nil {
+		return err
+	}
+	if base.Currency != quote.Currency ||
+		base.UnitAmountMinor != quote.UnitAmountMinor ||
+		base.OriginalTotalAmountMinor != quote.OriginalTotalAmountMinor {
+		return errors.New("subscription purchase quote mismatch")
+	}
+	return nil
 }
 
 func applyRecallFirstMonthDiscount(ctx context.Context, userID int, claim string, plan model.SubscriptionPlan, quote SubscriptionPurchaseQuote) (SubscriptionPurchaseQuote, error) {
