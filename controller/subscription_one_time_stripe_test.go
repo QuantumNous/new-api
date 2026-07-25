@@ -369,6 +369,99 @@ func TestOneTimePlanWebhookReplayFulfillsOnce(t *testing.T) {
 	require.Equal(t, 1, calls)
 }
 
+func TestOneTimePlanStripeProviderPayloadUsesCanonicalCheckoutSessionID(t *testing.T) {
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoicePix, "BRL", 4990, 1)
+	order.ProviderSessionId = "cs_one_time_payload"
+	payload := oneTimePlanStripeProviderPayload(stripe.Event{
+		ID:   "evt_one_time_payload",
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: oneTimeStripePaidSessionObject(order)},
+	})
+
+	require.Contains(t, payload, `"checkout_session_id":"cs_one_time_payload"`)
+	require.NotContains(t, payload, `"session_id"`)
+}
+
+func TestOneTimePlanPaidWebhookRetriesRecallAttributionAfterFulfillment(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.UserSubscriptionContract{},
+		&model.SubscriptionChangeIntent{},
+		&model.SubscriptionTermSegment{},
+		&model.WalletLedgerEntry{},
+		&model.RecallCampaign{},
+		&model.RecallRecipient{},
+		&model.RecallMessage{},
+		&model.RecallEvent{},
+	))
+	insertStripeFulfillmentUser(t, 508)
+	insertStripeFulfillmentSubscriptionPlan(t, 908)
+	contract := model.UserSubscriptionContract{
+		UserId:      508,
+		Status:      model.SubscriptionContractStatusEnded,
+		PaymentMode: model.SubscriptionPaymentModePrepaid,
+	}
+	require.NoError(t, model.DB.Create(&contract).Error)
+	intent := model.SubscriptionChangeIntent{
+		ContractId:  contract.Id,
+		UserId:      508,
+		RequestId:   "one-time-recall-retry",
+		Kind:        model.SubscriptionChangeIntentKindPurchase,
+		PaymentMode: model.SubscriptionPaymentModePrepaid,
+		Status:      model.SubscriptionChangeIntentStatusAwaitingPayment,
+		ToPlanId:    908,
+	}
+	require.NoError(t, model.DB.Create(&intent).Error)
+	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).Where("id = ?", contract.Id).Update("latest_change_intent_id", intent.Id).Error)
+	_, recipient := createStripeWebhookRecallRecipient(t, 508, "promo_one_time_retry")
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoicePix, "BRL", 4990, 1)
+	order.UserId = 508
+	order.PlanId = 908
+	order.TradeNo = "sub_one_time_recall_retry"
+	order.ProviderSessionId = "cs_one_time_recall_retry"
+	order.ChangeIntentId = intent.Id
+	order.PlanSnapshot = `{"plan_id":908,"title":"Stripe Subscription Plan","price_amount":9.99,"currency":"BRL","duration_unit":"month","duration_value":1,"total_amount":1000}`
+	order.RecallCampaignId = recipient.CampaignId
+	order.RecallRecipientId = recipient.Id
+	order.RecallPromotionCodeId = "promo_one_time_retry"
+	order.RecallDiscountAmountMinor = 200
+	require.NoError(t, model.DB.Create(order).Error)
+	fetchFails := true
+	fetches := 0
+	runtime := service.GetRecallRuntime()
+	originalAttribution := runtime.Attribution
+	runtime.Attribution = service.NewRecallAttributionService(&stripeWebhookRecallClient{getCheckoutSessionFn: func(_ context.Context, id string, _ ...string) (*stripe.CheckoutSession, error) {
+		fetches++
+		if fetchFails {
+			return nil, errors.New("temporary recall attribution lookup failure")
+		}
+		return &stripe.CheckoutSession{
+			ID: id, AmountTotal: 4790, Currency: stripe.CurrencyBRL,
+			Discounts:    []*stripe.CheckoutSessionDiscount{{PromotionCode: &stripe.PromotionCode{ID: "promo_one_time_retry"}}},
+			TotalDetails: &stripe.CheckoutSessionTotalDetails{AmountDiscount: 200},
+		}, nil
+	}})
+	t.Cleanup(func() { runtime.Attribution = originalAttribution })
+	event := stripeRecallWebhookEvent("evt_one_time_recall_retry", "cs_one_time_recall_retry", order.TradeNo, 4790, 200, recipient, true)
+	event.Type = stripe.EventTypeCheckoutSessionCompleted
+	event.Data.Object = oneTimeStripePaidSessionObject(order)
+
+	err := handleStripeOneTimePlanPaid(context.Background(), event, order.TradeNo, "127.0.0.1")
+
+	require.Error(t, err)
+	require.True(t, isRetryableStripeWebhookProcessingError(err))
+	require.Equal(t, 1, fetches)
+	assertStripeWebhookRecipientNotConverted(t, recipient.Id)
+	assertOneTimeRetryCounts(t, 508, order.TradeNo, common.TopUpStatusSuccess, 1, 1, 1, model.PaymentWebhookEventStatusFailed)
+
+	fetchFails = false
+	require.NoError(t, handleStripeOneTimePlanPaid(context.Background(), event, order.TradeNo, "127.0.0.1"))
+
+	require.Equal(t, 2, fetches)
+	assertStripeWebhookRecipientConverted(t, recipient.Id, order.TradeNo)
+	assertOneTimeRetryCounts(t, 508, order.TradeNo, common.TopUpStatusSuccess, 1, 1, 1, model.PaymentWebhookEventStatusProcessed)
+}
+
 func TestOneTimePlanPaidWebhookAttributesRecallAfterFulfillment(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.RecallCampaign{}, &model.RecallRecipient{}, &model.RecallMessage{}, &model.RecallEvent{}))
@@ -594,6 +687,24 @@ func oneTimeStripePaidSessionObject(order *model.SubscriptionOrder) map[string]i
 		"payment_method_types": []interface{}{order.PaymentMethod},
 		"metadata":             metadata,
 	}
+}
+
+func assertOneTimeRetryCounts(t *testing.T, userID int, tradeNo string, orderStatus string, entitlementCount int64, termCount int64, webhookCount int64, webhookStatus string) {
+	t.Helper()
+	var storedOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.Where("trade_no = ?", tradeNo).First(&storedOrder).Error)
+	require.Equal(t, orderStatus, storedOrder.Status)
+	require.Equal(t, "cs_one_time_recall_retry", model.StripeCheckoutSessionIDFromProviderPayload(storedOrder.ProviderPayload))
+	var count int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", userID).Count(&count).Error)
+	require.Equal(t, entitlementCount, count)
+	require.NoError(t, model.DB.Model(&model.SubscriptionTermSegment{}).Where("order_id = ?", storedOrder.Id).Count(&count).Error)
+	require.Equal(t, termCount, count)
+	require.NoError(t, model.DB.Model(&model.PaymentWebhookEvent{}).Where("event_id = ?", "evt_one_time_recall_retry").Count(&count).Error)
+	require.Equal(t, webhookCount, count)
+	var webhook model.PaymentWebhookEvent
+	require.NoError(t, model.DB.Where("event_id = ?", "evt_one_time_recall_retry").First(&webhook).Error)
+	require.Equal(t, webhookStatus, webhook.Status)
 }
 
 func stripeStringSliceValues(values []*string) []string {
