@@ -8,6 +8,7 @@ const FUTURE_TIMESTAMP = Math.floor(Date.now() / 1000) + 86_400
 
 function makeDraft() {
   return {
+    campaign_type: 'promotion',
     name: 'Win back inactive customers',
     audience_template: 'first_purchase',
     audience_config: {
@@ -70,6 +71,56 @@ function makeDraft() {
 }
 
 describe('recallCampaignDraftSchema', () => {
+  test('defaults legacy drafts without a campaign type to promotion', () => {
+    const draft = makeDraft()
+    delete draft.campaign_type
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.campaign_type).toBe('promotion')
+    }
+  })
+
+  test('accepts content-only drafts with hidden promotion fields empty', () => {
+    const draft = makeDraft()
+    draft.campaign_type = 'content_only'
+    draft.coupon_source = 'automatic'
+    draft.existing_coupon_id = ''
+    draft.discount_config = {
+      type: 'percent',
+      percent_off: 0,
+      amount_off: 0,
+      currency: '',
+      currency_options: {},
+      minimum_amount: 0,
+      minimum_amount_currency: '',
+      coupon_redeem_by: 0,
+    }
+    draft.product_scope = {
+      topup_price_ids: [],
+      subscription_price_ids: [],
+    }
+    draft.promotion_valid_seconds = 0
+
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+  })
+
+  test('rejects unknown campaign types', () => {
+    const draft = makeDraft()
+    draft.campaign_type = 'newsletter'
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ['campaign_type'] })
+      )
+    }
+  })
+
   test.each([
     {
       template: 'first_purchase',

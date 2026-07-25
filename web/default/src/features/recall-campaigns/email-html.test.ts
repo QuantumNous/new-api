@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import {
   RECALL_EMAIL_ACTIONS,
+  RECALL_CONTENT_ONLY_EMAIL_ACTIONS,
+  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   RECALL_EMAIL_STARTER_HTML,
   convertRecallBodyTextToHtml,
   insertRecallEmailAction,
@@ -19,11 +21,47 @@ describe('recall email HTML helpers', () => {
     ])
   })
 
+  test('exports the content-only action subset', () => {
+    expect(RECALL_CONTENT_ONLY_EMAIL_ACTIONS).toEqual([
+      '{{.RecipientName}}',
+      '{{.UnsubscribeURL}}',
+    ])
+  })
+
   test('provides editable starter HTML with required action links', () => {
     expect(RECALL_EMAIL_STARTER_HTML).not.toContain('example.com')
     expect(RECALL_EMAIL_STARTER_HTML).toContain('href="{{.ClaimURL}}"')
     expect(RECALL_EMAIL_STARTER_HTML).toContain('href="{{.UnsubscribeURL}}"')
     expect([...RECALL_EMAIL_STARTER_HTML.matchAll(/\shref="/g)]).toHaveLength(2)
+  })
+
+  test('provides editable Flatkey content-only announcement starter HTML', () => {
+    const html = RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
+
+    expect(html).toContain('<table')
+    expect(html).toContain('#f5f6f8')
+    expect(html).toContain('max-width: 680px')
+    expect(html).toContain('padding: 52px')
+    expect(html).toContain('font-size: 46px')
+    expect(html).toContain('color: #172033')
+    expect(html).toContain('font-size: 28px')
+    expect(html).toContain('color: #5d687c')
+    expect(html).toContain('font-size: 21px')
+    expect(html).toContain('line-height: 1.7')
+    expect(html).toContain('background: #eef6ff')
+    expect(html).toContain('border: 1px solid #c7e2ff')
+    expect(html).toContain('background: #0f83ee')
+    expect(html).toContain('border-radius: 8px')
+    expect(html).toContain('text-align: right')
+    expect(html).toContain('Flatkey')
+    expect(html).toContain('{{.RecipientName}}')
+    expect(html).toContain('href="https://flatkey.com"')
+    expect(html).toContain('href="{{.UnsubscribeURL}}"')
+    expect(html).not.toContain('{{.ClaimURL}}')
+    expect(html).not.toContain('{{.PromotionCodeMasked}}')
+    expect(html).not.toContain('{{.ProductSummary}}')
+    expect(html).not.toContain('{{.ExpiresAt}}')
+    expect(html).not.toContain('CR')
   })
 
   test('converts legacy text paragraphs into escaped editable HTML', () => {

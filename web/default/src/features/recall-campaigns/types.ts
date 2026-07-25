@@ -6,6 +6,7 @@ export type RecallAudienceTemplate =
   | 'registration_time_range'
   | 'specified_users'
 
+export type RecallCampaignType = 'promotion' | 'content_only'
 export type RecallExecutionMode = 'manual' | 'scheduled_once' | 'recurring'
 export type RecallCouponSource = 'automatic' | 'existing'
 export type RecallDiscountType = 'percent' | 'fixed'
@@ -90,6 +91,7 @@ export interface RecallEmailTemplate {
 }
 
 export interface RecallEmailPreviewRequest {
+  campaign_type?: RecallCampaignType
   template: RecallEmailTemplate
 }
 
@@ -106,6 +108,7 @@ export interface RecallEmailStage {
 }
 
 export interface RecallCampaignDraft {
+  campaign_type: RecallCampaignType
   name: string
   audience_template: RecallAudienceTemplate
   audience_config: RecallAudienceConfig
@@ -173,6 +176,7 @@ export interface RecallCampaignSearch {
 
 export interface RecallCampaignSummary {
   id: number
+  campaign_type: RecallCampaignType
   name: string
   status: RecallCampaignStatus
   audience_template: RecallAudienceTemplate
@@ -299,7 +303,7 @@ export interface RecallCampaignPreview {
   eligible_total: number
   sample: RecallAudienceCandidate[]
   exclusions: Record<string, number>
-  stripe: RecallStripePreview
+  stripe: RecallStripePreview | null
 }
 
 export type RecallCampaignAction =

@@ -12,6 +12,7 @@ import {
   normalizeRecallDiscountType,
   parseRecallMajorAmount,
   prepareRecallCampaignSubmitDraft,
+  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   removeRecallEmailStage,
   setRecallCampaignGroups,
   setRecallCampaignGroupMode,
@@ -42,6 +43,7 @@ function makeDraft(): RecallCampaignDraft {
 
 function makeValidDraft(): RecallCampaignDraft {
   return {
+    campaign_type: 'promotion',
     name: 'Win back inactive customers',
     audience_template: 'first_purchase',
     audience_config: {
@@ -219,6 +221,27 @@ describe('recall campaign editor normalization', () => {
     )
     expect(normalized.email_sequence[0].templates.en.body_html).toContain(
       'href="{{.ClaimURL}}"'
+    )
+  })
+
+  test('uses the content-only starter when content-only HTML is blank at submit', () => {
+    const draft = makeValidDraft()
+    draft.campaign_type = 'content_only'
+    draft.email_sequence[0].templates.en = {
+      subject: '',
+      body_text: '',
+      body_html: '',
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.email_sequence[0].templates.en).toEqual({
+      subject: 'Win back inactive customers',
+      body_text: '',
+      body_html: RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
+    })
+    expect(normalized.email_sequence[0].templates.en.body_html).not.toContain(
+      '{{.ClaimURL}}'
     )
   })
 

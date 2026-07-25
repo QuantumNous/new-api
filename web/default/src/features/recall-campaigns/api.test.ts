@@ -154,11 +154,13 @@ describe('recall campaign API contracts', () => {
     })
 
     await previewRecallEmail({
+      campaign_type: 'content_only',
       template: { subject: 'Subject', body_html: '<p>Hello</p>' },
     })
 
     expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-preview')
     expect(JSON.parse(String(capturedConfig?.data))).toEqual({
+      campaign_type: 'content_only',
       template: { subject: 'Subject', body_html: '<p>Hello</p>' },
     })
   })
