@@ -159,6 +159,9 @@ function ChatRouteComponent() {
       key={iframeSrc}
       className='h-full w-full border-0'
       allow='camera; microphone'
+      // Third-party chat UIs need scripts and their own storage to work, so the
+      // sandbox can only withhold navigating the host page away from BoxAI.
+      sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads'
       title={`Chat preset: ${preset.name}`}
     />
   )

@@ -737,33 +737,37 @@ export const PromptInput = ({
         }
         return item
       })
-    ).then((convertedFiles: FileUIPart[]) => {
-      try {
-        const result = onSubmit({ text, files: convertedFiles }, event)
+    )
+      .then((convertedFiles: FileUIPart[]) => {
+        try {
+          const result = onSubmit({ text, files: convertedFiles }, event)
 
-        // Handle both sync and async onSubmit
-        if (result instanceof Promise) {
-          result
-            .then(() => {
-              clear()
-              if (usingProvider) {
-                controller.textInput.clear()
-              }
-            })
-            .catch(() => {
-              // Don't clear on error - user may want to retry
-            })
-        } else {
-          // Sync function completed without throwing, clear attachments
-          clear()
-          if (usingProvider) {
-            controller.textInput.clear()
+          // Handle both sync and async onSubmit
+          if (result instanceof Promise) {
+            result
+              .then(() => {
+                clear()
+                if (usingProvider) {
+                  controller.textInput.clear()
+                }
+              })
+              .catch(() => {
+                // Don't clear on error - user may want to retry
+              })
+          } else {
+            // Sync function completed without throwing, clear attachments
+            clear()
+            if (usingProvider) {
+              controller.textInput.clear()
+            }
           }
+        } catch {
+          // Don't clear on error - user may want to retry
         }
-      } catch {
-        // Don't clear on error - user may want to retry
-      }
-    })
+      })
+      .catch(() => {
+        // A blob URL failed to convert; keep the composer intact so the user can retry.
+      })
   }
 
   // Render with or without local provider

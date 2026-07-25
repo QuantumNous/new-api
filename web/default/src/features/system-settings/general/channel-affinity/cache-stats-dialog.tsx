@@ -68,13 +68,13 @@ export function CacheStatsDialog(props: Props) {
         if (res.success) setStats((res.data as Record<string, unknown>) || {})
         else toast.error(res.message || t('Request failed'))
       })
-      .catch(() => {
-        if (seq !== seqRef.current) return
-        toast.error(t('Request failed'))
-      })
       .finally(() => {
         if (seq !== seqRef.current) return
         setLoading(false)
+      })
+      .catch(() => {
+        if (seq !== seqRef.current) return
+        toast.error(t('Request failed'))
       })
   }, [props.open, props.target, t])
 

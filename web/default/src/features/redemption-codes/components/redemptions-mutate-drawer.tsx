@@ -55,7 +55,7 @@ import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { addTimeToDate } from '@/lib/time'
 
 import { createRedemption, updateRedemption, getRedemption } from '../api'
-import { SUCCESS_MESSAGES } from '../constants'
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   getRedemptionFormSchema,
   type RedemptionFormValues,
@@ -91,16 +91,18 @@ export function RedemptionsMutateDrawer({
   useEffect(() => {
     if (open && isUpdate && currentRow) {
       // For update, fetch fresh data
-      getRedemption(currentRow.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformRedemptionToFormDefaults(result.data))
-        }
-      })
+      getRedemption(currentRow.id)
+        .then((result) => {
+          if (result.success && result.data) {
+            form.reset(transformRedemptionToFormDefaults(result.data))
+          }
+        })
+        .catch(() => toast.error(t(ERROR_MESSAGES.LOAD_FAILED)))
     } else if (open && !isUpdate) {
       // For create, reset to defaults
       form.reset(REDEMPTION_FORM_DEFAULT_VALUES)
     }
-  }, [open, isUpdate, currentRow, form])
+  }, [open, isUpdate, currentRow, form, t])
 
   const onSubmit = async (data: RedemptionFormValues) => {
     setIsSubmitting(true)

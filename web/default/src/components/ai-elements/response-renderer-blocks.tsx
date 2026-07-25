@@ -246,7 +246,7 @@ export function renderMathBlock(node: MathBlockNode, key: string): ReactNode {
   return (
     <div
       className='my-4 overflow-x-auto overflow-y-hidden [&_.katex-display]:my-0'
-      // KaTeX output is generated locally from math source, not raw model HTML.
+      // eslint-disable-next-line react/no-danger -- KaTeX output is generated locally from math source, not raw model HTML
       dangerouslySetInnerHTML={{ __html: html }}
       key={key}
     />
@@ -267,5 +267,11 @@ export function renderMathInline(node: MathInlineNode, key: string): ReactNode {
     )
   }
 
-  return <span dangerouslySetInnerHTML={{ __html: html }} key={key} />
+  return (
+    <span
+      // eslint-disable-next-line react/no-danger -- KaTeX output is generated locally from math source, not raw model HTML
+      dangerouslySetInnerHTML={{ __html: html }}
+      key={key}
+    />
+  )
 }

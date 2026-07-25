@@ -136,16 +136,18 @@ export function UsersMutateDrawer({
   useEffect(() => {
     if (open && isUpdate && currentRow) {
       // For update, fetch fresh data
-      getUser(currentRow.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformUserToFormDefaults(result.data))
-        }
-      })
+      getUser(currentRow.id)
+        .then((result) => {
+          if (result.success && result.data) {
+            form.reset(transformUserToFormDefaults(result.data))
+          }
+        })
+        .catch(() => toast.error(t(ERROR_MESSAGES.LOAD_FAILED)))
     } else if (open && !isUpdate) {
       // For create, reset to defaults
       form.reset(USER_FORM_DEFAULT_VALUES)
     }
-  }, [open, isUpdate, currentRow, form])
+  }, [open, isUpdate, currentRow, form, t])
 
   const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()

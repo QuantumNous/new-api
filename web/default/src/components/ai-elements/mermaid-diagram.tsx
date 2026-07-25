@@ -126,7 +126,7 @@ export function MermaidFence(props: MermaidFenceProps) {
     >
       <div
         className='flex justify-center overflow-x-auto p-4 [&_svg]:h-auto [&_svg]:max-w-full'
-        // SVG produced locally by mermaid with securityLevel: 'strict'.
+        // eslint-disable-next-line react/no-danger -- SVG produced locally by mermaid with securityLevel: 'strict'
         dangerouslySetInnerHTML={{ __html: svg }}
       />
     </CodeBlockFrame>
