@@ -10,7 +10,8 @@ Today: `openai` (the default, with an optional custom endpoint that covers Azure
 `/openai/v1` and any OpenAI-compliant gateway), `anthropic` (native Messages API via
 `AnthropicProvider`), `gemini` (native Google GenAI API via `GeminiProvider`), `bedrock`
 (models in the user's own AWS account — Claude natively, everything else via Converse),
-and `ollama` (local, OpenAI-compatible `/v1`).
+`vertex` (the user's own GCP project — Gemini and Claude natively, open-weight via the
+MaaS endpoint), and `ollama` (local, OpenAI-compatible `/v1`).
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from .base import ProviderClient
 from .bedrock_provider import BedrockProvider
 from .gemini_provider import GeminiProvider
 from .openai_provider import OpenAIProvider
+from .vertex_provider import VertexProvider
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 
@@ -142,6 +144,20 @@ def _build_bedrock(profile: dict[str, Any], secrets: Any) -> ProviderClient:
         access_key_id=get("aws_access_key_id"),
         secret_access_key=get("aws_secret_access_key"),
         session_token=get("aws_session_token"),
+    )
+
+
+def _build_vertex(profile: dict[str, Any], secrets: Any) -> ProviderClient:
+    # Blank service_account_json → Application Default Credentials, resolved at call time.
+    p = profile or {}
+
+    def get(key: str) -> Optional[str]:
+        return (p.get(key) or "").strip() or None
+
+    return VertexProvider(
+        project=get("project"),
+        location=get("location"),
+        service_account_json=get("service_account_json"),
     )
 
 
@@ -318,6 +334,40 @@ DESCRIPTORS: list[ProviderDescriptor] = [
         recommended_model="claude/anthropic.claude-sonnet-4-6-v1:0",
         blurb="Runs models inside your own AWS account. Claude uses Anthropic's native "
         "Bedrock path; every other model goes through the Converse API.",
+    ),
+    ProviderDescriptor(
+        name="vertex",
+        title="Vertex AI (Google Cloud)",
+        needs_key=True,
+        fields=[
+            ProviderField(
+                "project",
+                "GCP project ID",
+                secret=False,
+                placeholder="my-project-123",
+            ),
+            ProviderField(
+                "location",
+                "Location",
+                secret=False,
+                placeholder="us-east5",
+                help="The region your Vertex AI models are enabled in "
+                "(Claude models: us-east5 or europe-west1).",
+            ),
+            ProviderField(
+                "service_account_json",
+                "Service-account JSON (optional)",
+                secret=True,
+                required=False,
+                help="Paste the JSON key or a path to it. Leave blank to use "
+                "Application Default Credentials "
+                "(`gcloud auth application-default login`).",
+            ),
+        ],
+        build=_build_vertex,
+        recommended_model="gemini/gemini-3.6-flash",
+        blurb="Runs models inside your own Google Cloud project. Gemini and Claude use "
+        "their native APIs; open-weight models go through the Vertex MaaS endpoint.",
     ),
     # OpenAI-compatible vendors, listed as first-class providers so users don't need to know the
     # "point the OpenAI slot at a different endpoint" trick (owner call, 2026-07-04). Each keeps
@@ -539,6 +589,58 @@ def _verify_bedrock(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
     return {"ok": True}
 
 
+def _verify_vertex(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
+    """Resolve credentials (service account or ADC), mint a bearer, and list Google's
+    publisher models in the given project/location — one cheap read-only call."""
+    import httpx
+
+    from .vertex_provider import load_credentials
+
+    project = (fields.get("project") or "").strip()
+    location = (fields.get("location") or "").strip()
+    try:
+        creds = load_credentials(fields.get("service_account_json"))
+        if creds is None:
+            import google.auth
+
+            creds, _ = google.auth.default(
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+        from google.auth.transport.requests import Request
+
+        creds.refresh(Request())
+    except Exception as exc:
+        kind = exc.__class__.__name__
+        if kind == "DefaultCredentialsError":
+            return {
+                "ok": False,
+                "error": "No Google Cloud credentials found — paste a service-account "
+                "JSON, or run `gcloud auth application-default login` first.",
+            }
+        if kind in ("RefreshError", "MalformedError", "JSONDecodeError", "ValueError"):
+            return {"ok": False, "error": "Google rejected the credentials."}
+        return {"ok": False, "error": f"Couldn't load Google credentials ({kind})."}
+    try:
+        resp = httpx.get(
+            f"https://{location}-aiplatform.googleapis.com/v1/projects/{project}"
+            f"/locations/{location}/publishers/google/models",
+            headers={"Authorization": f"Bearer {creds.token}"},
+            timeout=timeout,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": f"Couldn't reach Vertex AI ({exc.__class__.__name__})."}
+    if resp.status_code < 300:
+        return {"ok": True}
+    if resp.status_code in (401, 403):
+        return {
+            "ok": False,
+            "error": "Credentials work but lack Vertex AI access in this project.",
+        }
+    if resp.status_code == 404:
+        return {"ok": False, "error": "Project or location not found on Vertex AI."}
+    return {"ok": False, "error": f"Vertex AI returned HTTP {resp.status_code}."}
+
+
 def verify_provider_key(
     name: str,
     *,
@@ -550,7 +652,7 @@ def verify_provider_key(
     """Validate a provider's credentials with one cheap, read-only call (list models) — the same
     pattern connectors use to validate tokens. Transient: callers pass the key directly so a user
     can Test before saving. Never raises; returns {ok, error?}. Multi-field cloud providers
-    (Bedrock) take their whole form via `fields`; everyone else uses api_key/base_url.
+    (Bedrock, Vertex) take their whole form via `fields`; everyone else uses api_key/base_url.
     """
     import httpx
 
@@ -558,6 +660,8 @@ def verify_provider_key(
     key = (api_key or "").strip()
     if name == "bedrock":
         return _verify_bedrock(fields or {}, timeout)
+    if name == "vertex":
+        return _verify_vertex(fields or {}, timeout)
     try:
         if name == "anthropic":
             resp = httpx.get(

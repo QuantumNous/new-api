@@ -137,6 +137,26 @@ MATRIX: dict[str, ModelEntry] = {
     "bedrock:other/mistral.mistral-large-3-v1:0": ModelEntry(
         "Mistral Large 3 · AWS Bedrock"
     ),
+    # Vertex ids carry a family segment too (gemini/ and claude/ → native paths,
+    # openweight/ → the MaaS OpenAI-compat endpoint, keeping the publisher segment).
+    "vertex:gemini/gemini-3.1-pro-preview": ModelEntry(
+        "Gemini 3.1 Pro · Vertex AI", _AGENTIC_VISION
+    ),
+    "vertex:gemini/gemini-3.6-flash": ModelEntry(
+        "Gemini 3.6 Flash · Vertex AI", _AGENTIC_VISION
+    ),
+    "vertex:claude/claude-sonnet-4-6": ModelEntry(
+        "Claude Sonnet 4.6 · Vertex AI", _AGENTIC_VISION
+    ),
+    "vertex:claude/claude-haiku-4-5": ModelEntry(
+        "Claude Haiku 4.5 · Vertex AI", _AGENTIC_VISION
+    ),
+    "vertex:openweight/meta/llama-4-maverick-17b-128e-instruct-maas": ModelEntry(
+        "Llama 4 Maverick · Vertex AI"
+    ),
+    "vertex:openweight/qwen/qwen3-coder-480b-a35b-instruct-maas": ModelEntry(
+        "Qwen3 Coder · Vertex AI"
+    ),
 }
 
 

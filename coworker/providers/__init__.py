@@ -22,6 +22,7 @@ from .registry import (
     verify_provider_key,
 )
 from .router import ProviderRouter
+from .vertex_provider import VertexProvider
 
 __all__ = [
     "AssistantTurn",
@@ -33,6 +34,7 @@ __all__ = [
     "BedrockProvider",
     "GeminiProvider",
     "OpenAIProvider",
+    "VertexProvider",
     "resolve_api_key",
     "capabilities_for",
     "ProviderRouter",

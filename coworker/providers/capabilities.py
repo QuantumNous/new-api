@@ -33,8 +33,8 @@ def capabilities_for(model: str) -> ModelCapabilities:
     # The family segment decides: Claude keeps its native capabilities; everything else
     # stays conservative until probed (Converse tool calling works across families, but
     # parallel calls and vision vary per model).
-    if provider == "bedrock":
-        if name.startswith("claude/"):
+    if provider in ("bedrock", "vertex"):
+        if name.startswith(("claude/", "gemini/")):
             return ModelCapabilities(
                 tools=True, vision=True, pdf=True, parallel_tool_calls=True, streaming=True
             )
