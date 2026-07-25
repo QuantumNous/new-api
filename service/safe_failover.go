@@ -65,12 +65,20 @@ func EvaluateSafeFailover(input SafeFailoverInput) SafeFailoverDecision {
 	}
 
 	imageLike := IsImageLikeRelay(input.RelayMode, input.ModelName)
-	if imageLike && input.ImageGuard > 0 && input.AttemptElapsed >= input.ImageGuard {
-		return SafeFailoverDecision{Reason: "image_guard_elapsed"}
-	}
 
 	if types.IsChannelError(input.Error) {
 		return SafeFailoverDecision{Retry: true, Reason: "channel_local_error"}
+	}
+
+	// An explicit upstream 5xx is a failed attempt. Continue through the
+	// remaining channel priority chain unless an earlier guard proved that the
+	// response started or the upstream accepted/charged a task.
+	if code >= 500 {
+		return SafeFailoverDecision{Retry: true, Reason: "upstream_server_error"}
+	}
+
+	if imageLike && input.ImageGuard > 0 && input.AttemptElapsed >= input.ImageGuard {
+		return SafeFailoverDecision{Reason: "image_guard_elapsed"}
 	}
 
 	if code >= 200 && code < 300 {
@@ -95,14 +103,6 @@ func EvaluateSafeFailover(input SafeFailoverInput) SafeFailoverDecision {
 		return SafeFailoverDecision{Retry: true, Reason: "channel_auth_or_mapping"}
 	case code >= 300 && code < 400:
 		return SafeFailoverDecision{Retry: true, Reason: "upstream_redirect"}
-	case code >= 500:
-		// Image providers can return 500/502/504 after accepting a task. A fast
-		// failure is not proof that no billable work started, so only a direct
-		// 503 rejection or explicit non-acceptance evidence may move channels.
-		if imageLike && code != 503 && !hasNonAcceptanceEvidence(message) {
-			return SafeFailoverDecision{Reason: "image_acceptance_ambiguous"}
-		}
-		return SafeFailoverDecision{Retry: true, Reason: "upstream_server_error"}
 	default:
 		return SafeFailoverDecision{Reason: "non_retryable_status"}
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -48,6 +49,19 @@ func TestEffectiveRelayRetryTimesSafeModeUsesExhaustiveSetting(t *testing.T) {
 	require.Equal(t, 10, effectiveRelayRetryTimes())
 }
 
+func TestInitialContextChannelIsNeverReusedForRetry(t *testing.T) {
+	info := &relaycommon.RelayInfo{}
+	retryParam := &service.RetryParam{Retry: common.GetPointer(0)}
+	require.True(t, shouldUseInitialContextChannel(info, retryParam))
+
+	retryParam.SetRetry(1)
+	require.False(t, shouldUseInitialContextChannel(info, retryParam))
+
+	info.ChannelMeta = &relaycommon.ChannelMeta{}
+	retryParam.SetRetry(0)
+	require.False(t, shouldUseInitialContextChannel(info, retryParam))
+}
+
 func TestShouldRetrySafeModeAllowsChannelErrorsUntilCandidatesExhaust(t *testing.T) {
 	setupSafeFailoverTest(t)
 	c := safeFailoverContext()
@@ -67,7 +81,7 @@ func TestShouldRetrySafeModeAllowsChannelErrorsUntilCandidatesExhaust(t *testing
 	require.False(t, shouldRetry(c, info, channelErr, 0, time.Second))
 }
 
-func TestShouldRetrySafeModeBlocksLongImageFailure(t *testing.T) {
+func TestShouldRetrySafeModeContinuesLongImageServerFailure(t *testing.T) {
 	setupSafeFailoverTest(t)
 	c := safeFailoverContext()
 	info := &relaycommon.RelayInfo{
@@ -81,7 +95,7 @@ func TestShouldRetrySafeModeBlocksLongImageFailure(t *testing.T) {
 		http.StatusBadGateway,
 	)
 
-	require.False(t, shouldRetry(c, info, upstreamErr, 1, 61*time.Second))
+	require.True(t, shouldRetry(c, info, upstreamErr, 1, 61*time.Second))
 }
 
 func TestShouldRetryLegacyModePreservesChannelErrorBehavior(t *testing.T) {

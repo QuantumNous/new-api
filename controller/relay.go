@@ -314,7 +314,7 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
-	if info.ChannelMeta == nil {
+	if shouldUseInitialContextChannel(info, retryParam) {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
 		if !autoBan {
@@ -343,6 +343,10 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		return nil, newAPIError
 	}
 	return channel, nil
+}
+
+func shouldUseInitialContextChannel(info *relaycommon.RelayInfo, retryParam *service.RetryParam) bool {
+	return info.ChannelMeta == nil && retryParam.GetRetry() == 0
 }
 
 func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.NewAPIError, retryTimes int, attemptElapsed time.Duration) bool {

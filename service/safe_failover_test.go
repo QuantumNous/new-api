@@ -40,7 +40,7 @@ func TestEvaluateSafeFailover(t *testing.T) {
 			reason: "content_safety",
 		},
 		{
-			name: "image 502 without non-acceptance evidence is blocked",
+			name: "image 502 continues to next channel",
 			input: SafeFailoverInput{
 				MaxAttempts:    1,
 				RelayMode:      relayconstant.RelayModeImagesGenerations,
@@ -48,7 +48,7 @@ func TestEvaluateSafeFailover(t *testing.T) {
 				ImageGuard:     60 * time.Second,
 				Error:          makeErr(http.StatusBadGateway, types.ErrorCodeBadResponseStatusCode, "generation unavailable"),
 			},
-			reason: "image_acceptance_ambiguous",
+			retry: true, reason: "upstream_server_error",
 		},
 		{
 			name: "image 502 with non-acceptance evidence may switch",
@@ -73,7 +73,7 @@ func TestEvaluateSafeFailover(t *testing.T) {
 			retry: true, reason: "upstream_server_error",
 		},
 		{
-			name: "long image 502 is blocked",
+			name: "long image 502 continues to next channel",
 			input: SafeFailoverInput{
 				MaxAttempts:    1,
 				ModelName:      "gemini-3-pro-image-preview",
@@ -81,7 +81,7 @@ func TestEvaluateSafeFailover(t *testing.T) {
 				ImageGuard:     60 * time.Second,
 				Error:          makeErr(http.StatusBadGateway, types.ErrorCodeBadResponseStatusCode, "generation failed"),
 			},
-			reason: "image_guard_elapsed",
+			retry: true, reason: "upstream_server_error",
 		},
 		{
 			name: "accepted image task is blocked",
