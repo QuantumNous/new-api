@@ -126,7 +126,7 @@ const VideoModel = () => {
           <TabPane tab={t('图生视频')} itemKey='image2video' />
           <TabPane tab={t('首尾帧')} itemKey='flf2v' />
           <TabPane tab={t('数字人')} itemKey='s2v' />
-          <TabPane tab={t('视频超分')} itemKey='sr' />
+          {/* 视频超分不再直接提供：超分能力经 1080P 档位的两段流水线触达（sr 模式代码保留给流水线） */}
           <TabPane tab={t('视频编辑')} itemKey='vace' />
         </Tabs>
 

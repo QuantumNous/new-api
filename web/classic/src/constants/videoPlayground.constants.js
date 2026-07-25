@@ -223,6 +223,11 @@ export const VIDEO_HISTORY_LIMIT = 10; // 对话段数上限
 export const VIDEO_CONV_TURN_LIMIT = 10; // 单段对话生成次数上限
 
 // 轮询参数
+// 插帧(RIFE 帧率翻倍):开启时随 metadata 透传 target_fps 给引擎(gpustack 门面
+// 对该字段免验证直通)。LightX2V 生成默认 16fps;Bernini RIFE v1 仅支持 16→32。
+// 统一按 32 下发;超分(sr)引擎侧不插帧,不适用。
+export const VIDEO_INTERPOLATION_TARGET_FPS = 32;
+
 export const VIDEO_POLL_INTERVAL_MS = 4000;
 export const VIDEO_POLL_MAX_TIMES = 90; // 约 6 分钟后超时
 

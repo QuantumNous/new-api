@@ -20,6 +20,8 @@ type ThemeAssets struct {
 	ClassicBuildFS   embed.FS
 	ClassicIndexPage []byte
 	CanvasBuildFS    embed.FS
+	MobileBuildFS    embed.FS
+	MobileIndexPage  []byte
 }
 
 func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
@@ -39,9 +41,9 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 		}
 		c.Header("Cache-Control", "no-cache")
 		if common.GetTheme() == "classic" {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.ClassicIndexPage)
+			c.Data(http.StatusOK, "text/html; charset=utf-8", BrandIndexHTML(assets.ClassicIndexPage))
 		} else {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.DefaultIndexPage)
+			c.Data(http.StatusOK, "text/html; charset=utf-8", BrandIndexHTML(assets.DefaultIndexPage))
 		}
 	})
 }
