@@ -13,10 +13,12 @@
 // Native passthrough: this adaptor dispatches by info.RelayFormat. Anthropic
 // inbound is forwarded to /v1/messages and handled by the native claude
 // handler (preserving thinking signatures, native content blocks, cache tokens,
-// native SSE); OpenAI inbound is forwarded to /v1/chat/completions and handled
-// by the native openai handler. There is ZERO model substitution and ZERO
-// response reshaping. Gemini inbound is not supported (VIP only covers Anthropic
-// and OpenAI).
+// native SSE); OpenAI Chat inbound is forwarded to /v1/chat/completions, while
+// OpenAI Responses inbound is forwarded to /v1/responses. Both are handled by
+// the native openai response handlers. There is ZERO model substitution;
+// Responses uses the shared typed-remarshal request pipeline and semantic SSE
+// handling rather than byte-for-byte passthrough. Gemini inbound is not supported
+// (VIP only covers Anthropic and OpenAI).
 //
 // Trust boundary note: the same upstream that hosts the LLM also dictates the
 // amount, recipient, and validity window of every signature. A compromised
@@ -47,19 +49,16 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/pkg/apicompat"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/relay/helper"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/sjson"
 )
 
 // ctxKeyPaymentSignature is the gin.Context key under which DoRequest stashes
@@ -77,10 +76,10 @@ const defaultAnthropicVersion = "2023-06-01"
 // Adaptor implements the channel.Adaptor interface for BlockRun as a VIP native
 // passthrough. It embeds BOTH the openai and claude adaptors and dispatches each
 // interface method by info.RelayFormat: Claude inbound is forwarded natively to
-// /v1/messages and handled by claudeAdaptor; everything else (OpenAI / default)
-// goes to /v1/chat/completions and is handled by openaiAdaptor. We override
+// /v1/messages and handled by claudeAdaptor; OpenAI Chat goes to
+// /v1/chat/completions; OpenAI Responses goes to /v1/responses. We override
 // GetRequestURL, SetupRequestHeader, the Convert* methods, and DoRequest so the
-// x402 payment dance and the wallet-key safety red line apply to both formats;
+// x402 payment dance and the wallet-key safety red line apply to every format;
 // only DoResponse delegates to the embedded adaptors.
 type Adaptor struct {
 	openaiAdaptor openai.Adaptor
@@ -94,10 +93,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 // GetRequestURL builds the upstream URL. Image relay modes are dispatched first
 // to their dedicated BlockRun endpoints (independent of RelayFormat). Responses
-// is bridged through BlockRun's chat-completions endpoint because BlockRun does
-// not currently expose a native /v1/responses route. The rest is VIP native
-// passthrough: Anthropic → /v1/messages, OpenAI → /v1/chat/completions, Gemini
-// rejected.
+// uses BlockRun's native /v1/responses endpoint. The rest is VIP native
+// passthrough: Anthropic → /v1/messages, OpenAI Chat → /v1/chat/completions,
+// Gemini rejected.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
@@ -106,7 +104,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		// BlockRun img2img / multi-image fusion endpoint (JSON + base64).
 		return fmt.Sprintf("%s/v1/images/image2image", info.ChannelBaseUrl), nil
 	case relayconstant.RelayModeResponses:
-		return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
+		return fmt.Sprintf("%s/v1/responses", info.ChannelBaseUrl), nil
 	case relayconstant.RelayModeResponsesCompact:
 		return "", errors.New("blockrun: responses compact API not supported")
 	}
@@ -270,32 +268,15 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if request.Model == "" {
 		return nil, errors.New("blockrun: responses model is required")
 	}
-	return blockRunResponsesRequestToChat(request)
-}
-
-func blockRunResponsesRequestToChat(request dto.OpenAIResponsesRequest) (*apicompat.ChatCompletionsRequest, error) {
-	jsonData, err := common.Marshal(request)
-	if err != nil {
-		return nil, err
-	}
-	var responsesReq apicompat.ResponsesRequest
-	if err := common.Unmarshal(jsonData, &responsesReq); err != nil {
-		return nil, err
-	}
-	chatReq, err := apicompat.ResponsesToChatCompletionsRequest(&responsesReq)
-	if err != nil {
-		return nil, err
-	}
-	if request.StreamOptions != nil {
-		chatReq.StreamOptions = &apicompat.ChatStreamOptions{
-			IncludeUsage: request.StreamOptions.IncludeUsage,
-		}
-	}
-	return chatReq, nil
+	// BlockRun's native Responses endpoint rejects stream_options, including
+	// stream_options.include_usage. Native response.completed events already carry
+	// usage, so strip the field provider-locally without affecting Chat requests.
+	request.StreamOptions = nil
+	return request, nil
 }
 
 // DoRequest performs the x402 two-trip dance. It is FORMAT-AGNOSTIC and works
-// identically for /v1/messages and /v1/chat/completions:
+// identically for /v1/messages, /v1/chat/completions, and /v1/responses:
 //
 //  1. First attempt without signature → upstream returns 402 with requirements
 //  2. Validate the requirements, sign with the wallet key (SignX402Payment)
@@ -307,6 +288,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	bodyBytes, err := cacheRequestBody(requestBody)
 	if err != nil {
 		return nil, err
+	}
+	if info.RelayMode == relayconstant.RelayModeResponses {
+		bodyBytes, err = removeBlockRunResponsesStreamOptions(bodyBytes)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	firstResp, err := channel.DoApiRequest(a, c, info, bodyReader(bodyBytes))
@@ -335,7 +322,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	// Image endpoints (sync fast path or async 202+poll) advertise a longer
 	// authorization window — the same signature must stay valid through
 	// generation, whether the request is held open or polled — so raise the
-	// window cap for them; chat keeps the default 300s window. Amount cap
+	// window cap for them; chat and Responses keep the default 300s window. Amount cap
 	// stays at the default $5.
 	var paymentB64 string
 	var signErr error
@@ -366,12 +353,24 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return resolveImageResult(c, info, retryResp, paymentB64)
 }
 
-// DoResponse delegates to the native handler for the inbound format so the
-// upstream bytes are returned without reshaping. Claude inbound → native Claude
-// SSE/JSON (thinking signatures, native content blocks, cache tokens); OpenAI
-// inbound → native OpenAI chat.completion shape. Image modes are handled first:
-// streaming images go through streamImageResponse; non-streaming images go
-// through imageJSONResponseB64 (downloads URL→base64 for whitelabelling).
+// removeBlockRunResponsesStreamOptions enforces the provider constraint at the
+// final outbound boundary, after channel parameter overrides have run. This is
+// intentionally Responses-only so BlockRun Chat keeps its existing behavior.
+func removeBlockRunResponsesStreamOptions(body []byte) ([]byte, error) {
+	cleaned, err := sjson.DeleteBytes(body, "stream_options")
+	if err != nil {
+		return nil, fmt.Errorf("blockrun: remove final responses stream_options: %w", err)
+	}
+	return cleaned, nil
+}
+
+// DoResponse delegates to the native handler for the inbound format. Claude
+// inbound → native Claude SSE/JSON (thinking signatures, native content blocks,
+// cache tokens); OpenAI Chat → native chat.completion; OpenAI Responses → native
+// Responses JSON plus semantically equivalent SSE reconstructed from event data.
+// Image modes are handled first: streaming images go through streamImageResponse;
+// non-streaming images go through imageJSONResponseB64 (downloads URL→base64 for
+// whitelabelling).
 //
 // Note on /v1/messages/count_tokens: there is no RelayMode for count_tokens in
 // relay/constant, so that path cannot route to this adaptor today — out of scope.
@@ -382,144 +381,20 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if isImageMode(info) {
 		return imageJSONResponseB64(c, resp, info)
 	}
-	// Capture the upstream response body's top-level id (chatcmpl-* / msg-*) —
+	// Capture the upstream response body's top-level id (chatcmpl-* / resp_* /
+	// msg-*) —
 	// BlockRun's "CallTransaction.id" — into the gin context so RecordConsumeLog
 	// persists it as logs.upstream_request_id for per-call reconciliation/溯源.
 	// Structure-aware (json for non-stream, first-id sniff for SSE) so it survives
 	// tool-call bodies; native passthrough and streaming SSE are unaffected.
 	captureUpstreamID(c, resp, info)
 	if info.RelayMode == relayconstant.RelayModeResponses {
-		return blockRunChatResponseToResponses(c, resp, info)
+		return a.openaiAdaptor.DoResponse(c, resp, info)
 	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		return a.claudeAdaptor.DoResponse(c, resp, info)
 	}
 	return a.openaiAdaptor.DoResponse(c, resp, info)
-}
-
-func blockRunChatResponseToResponses(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
-	if info != nil && info.IsStream {
-		return blockRunChatStreamToResponses(c, resp, info)
-	}
-	return blockRunChatJSONToResponses(c, resp, info)
-}
-
-func blockRunChatJSONToResponses(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
-	if resp == nil || resp.Body == nil {
-		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
-	}
-	defer service.CloseResponseBodyGracefully(resp)
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
-	}
-
-	var chatResp apicompat.ChatCompletionsResponse
-	if err := common.Unmarshal(body, &chatResp); err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
-	}
-
-	model := ""
-	if info != nil {
-		model = info.UpstreamModelName
-	}
-	responsesResp := apicompat.ChatCompletionsResponseToResponses(&chatResp, model)
-	responseBody, err := common.Marshal(responsesResp)
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
-	}
-
-	service.IOCopyBytesGracefully(c, resp, responseBody)
-	return chatUsageToDTO(chatResp.Usage), nil
-}
-
-func blockRunChatStreamToResponses(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
-	if resp == nil || resp.Body == nil {
-		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
-	}
-
-	model := ""
-	if info != nil {
-		model = info.UpstreamModelName
-	}
-	state := apicompat.NewChatCompletionsToResponsesStreamState(model)
-	var streamErr *types.NewAPIError
-
-	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
-		var chunk apicompat.ChatCompletionsChunk
-		if err := common.UnmarshalJsonStr(data, &chunk); err != nil {
-			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
-			sr.Error(err)
-			return
-		}
-		for _, evt := range apicompat.ChatCompletionsChunkToResponsesEvents(&chunk, state) {
-			if err := writeBlockRunResponsesEvent(c, evt); err != nil {
-				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
-				sr.Error(err)
-				return
-			}
-		}
-	})
-	if streamErr != nil {
-		return nil, streamErr
-	}
-	for _, evt := range apicompat.FinalizeChatCompletionsResponsesStream(state) {
-		if err := writeBlockRunResponsesEvent(c, evt); err != nil {
-			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
-		}
-	}
-	helper.Done(c)
-	return responsesUsageToDTO(state.Usage), nil
-}
-
-func writeBlockRunResponsesEvent(c *gin.Context, evt apicompat.ResponsesStreamEvent) error {
-	jsonData, err := common.Marshal(evt)
-	if err != nil {
-		return err
-	}
-	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", evt.Type)})
-	c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonData)})
-	return helper.FlushWriter(c)
-}
-
-func chatUsageToDTO(usage *apicompat.ChatUsage) *dto.Usage {
-	if usage == nil {
-		return &dto.Usage{}
-	}
-	out := &dto.Usage{
-		PromptTokens:     usage.PromptTokens,
-		CompletionTokens: usage.CompletionTokens,
-		TotalTokens:      usage.TotalTokens,
-	}
-	if out.TotalTokens == 0 {
-		out.TotalTokens = out.PromptTokens + out.CompletionTokens
-	}
-	if usage.PromptTokensDetails != nil {
-		out.PromptTokensDetails.CachedTokens = usage.PromptTokensDetails.CachedTokens
-	}
-	return out
-}
-
-func responsesUsageToDTO(usage *apicompat.ResponsesUsage) *dto.Usage {
-	if usage == nil {
-		return &dto.Usage{}
-	}
-	out := &dto.Usage{
-		PromptTokens:     usage.InputTokens,
-		CompletionTokens: usage.OutputTokens,
-		TotalTokens:      usage.TotalTokens,
-	}
-	if out.TotalTokens == 0 {
-		out.TotalTokens = out.PromptTokens + out.CompletionTokens
-	}
-	if usage.InputTokensDetails != nil {
-		out.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens
-	}
-	if usage.OutputTokensDetails != nil {
-		out.CompletionTokenDetails.ReasoningTokens = usage.OutputTokensDetails.ReasoningTokens
-	}
-	return out
 }
 
 func (a *Adaptor) GetModelList() []string {
