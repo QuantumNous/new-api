@@ -1,11 +1,13 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -48,6 +50,8 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
+	common.OptionMap["RelayTraceLogMode"] = relayTraceLogMode()
+	common.OptionMap["RelayTraceLogFullBodyEnabled"] = strconv.FormatBool(constant.RelayTraceLogFullBodyEnabled)
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
@@ -206,6 +210,9 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if err := validateOptionValue(key, value); err != nil {
+		return err
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -229,6 +236,11 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	for key, value := range values {
+		if err := validateOptionValue(key, value); err != nil {
+			return err
+		}
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
@@ -255,6 +267,9 @@ func UpdateOptionsBulk(values map[string]string) error {
 }
 
 func updateOptionMap(key string, value string) (err error) {
+	if err := validateOptionValue(key, value); err != nil {
+		return err
+	}
 	if key == retiredThemeOptionKey {
 		common.OptionMapRWMutex.Lock()
 		delete(common.OptionMap, key)
@@ -371,9 +386,23 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		case "RelayTraceLogFullBodyEnabled":
+			constant.RelayTraceLogFullBodyEnabled = boolValue
 		}
 	}
 	switch key {
+	case "RelayTraceLogMode":
+		switch value {
+		case "off":
+			constant.RelayTraceLogEnabled = false
+			constant.RelayTraceLogFailureOnly = false
+		case "failure":
+			constant.RelayTraceLogEnabled = true
+			constant.RelayTraceLogFailureOnly = true
+		case "all":
+			constant.RelayTraceLogEnabled = true
+			constant.RelayTraceLogFailureOnly = false
+		}
 	case "EmailDomainWhitelist":
 		common.EmailDomainWhitelist = strings.Split(value, ",")
 	case "SMTPServer":
@@ -583,6 +612,33 @@ func updateOptionMap(key string, value string) (err error) {
 		// No additional in-memory variable to update.
 	}
 	return err
+}
+
+func relayTraceLogMode() string {
+	if !constant.RelayTraceLogEnabled {
+		return "off"
+	}
+	if constant.RelayTraceLogFailureOnly {
+		return "failure"
+	}
+	return "all"
+}
+
+func validateOptionValue(key string, value string) error {
+	switch key {
+	case "RelayTraceLogMode":
+		switch value {
+		case "off", "failure", "all":
+			return nil
+		default:
+			return fmt.Errorf("invalid relay trace log mode: %s", value)
+		}
+	case "RelayTraceLogFullBodyEnabled":
+		if _, err := strconv.ParseBool(value); err != nil {
+			return fmt.Errorf("invalid relay trace full body setting: %s", value)
+		}
+	}
+	return nil
 }
 
 // handleConfigUpdate 处理分层配置更新，返回是否已处理

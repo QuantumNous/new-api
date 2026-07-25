@@ -196,6 +196,24 @@ func initConstantEnv() {
 	constant.ErrorLogEnabled = GetEnvOrDefaultBool("ERROR_LOG_ENABLED", false)
 	// 是否记录脱敏后的生图失败请求，供渠道与参数诊断使用。
 	constant.ImageFailureRequestLogEnabled = GetEnvOrDefaultBool("IMAGE_FAILURE_REQUEST_LOG_ENABLED", false)
+	// 记录下游、上游和最终响应的完整转发链路，仅用于服务端排障。
+	constant.RelayTraceLogEnabled = GetEnvOrDefaultBool("RELAY_TRACE_LOG_ENABLED", false)
+	constant.RelayTraceLogFailureOnly = GetEnvOrDefaultBool("RELAY_TRACE_LOG_FAILURES_ONLY", false)
+	constant.RelayTraceLogMaxBodyKB = GetEnvOrDefault("RELAY_TRACE_LOG_MAX_BODY_KB", 256)
+	if constant.RelayTraceLogMaxBodyKB < 1 {
+		constant.RelayTraceLogMaxBodyKB = 1
+	}
+	if constant.RelayTraceLogMaxBodyKB > 4096 {
+		constant.RelayTraceLogMaxBodyKB = 4096
+	}
+	constant.RelayTraceLogFullBodyEnabled = GetEnvOrDefaultBool("RELAY_TRACE_LOG_FULL_BODY_ENABLED", false)
+	constant.RelayTraceLogFullBodyMaxMB = GetEnvOrDefault("RELAY_TRACE_LOG_FULL_BODY_MAX_MB", 64)
+	if constant.RelayTraceLogFullBodyMaxMB < 1 {
+		constant.RelayTraceLogFullBodyMaxMB = 1
+	}
+	if constant.RelayTraceLogFullBodyMaxMB > 256 {
+		constant.RelayTraceLogFullBodyMaxMB = 256
+	}
 	// 任务轮询时查询的最大数量
 	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
 	// 异步任务超时时间（分钟），超过此时间未完成的任务将被标记为失败并退款。0 表示禁用。

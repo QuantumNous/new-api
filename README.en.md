@@ -324,6 +324,11 @@ docker run --name new-api -d --restart always \
 | `AZURE_DEFAULT_API_VERSION` | Azure API version | `2025-04-01-preview` |
 | `ERROR_LOG_ENABLED` | Error log switch | `false` |
 | `IMAGE_FAILURE_REQUEST_LOG_ENABLED` | Log sanitized failed image requests; keeps prompts and generation parameters while removing credentials, Base64, and file URIs | `false` |
+| `RELAY_TRACE_LOG_ENABLED` | Log a sanitized end-to-end trace for every relay request: downstream request/response, each upstream attempt, status, headers, and body previews | `false` |
+| `RELAY_TRACE_LOG_FAILURES_ONLY` | When relay tracing is enabled, only log 4xx/5xx downstream responses or relay errors | `false` |
+| `RELAY_TRACE_LOG_MAX_BODY_KB` | Maximum retained redacted body preview for each trace direction. Binary media is represented by size and a sample hash only | `256` |
+| `RELAY_TRACE_LOG_FULL_BODY_ENABLED` | Store complete, unredacted request and response bodies in relay traces. Enable only during short troubleshooting windows because logs can contain private data and grow quickly | `false` |
+| `RELAY_TRACE_LOG_FULL_BODY_MAX_MB` | Hard capture limit per request or response direction while complete body logging is enabled | `64` |
 | `PYROSCOPE_URL` | Pyroscope server address | - |
 | `PYROSCOPE_APP_NAME` | Pyroscope application name | `new-api` |
 | `PYROSCOPE_BASIC_AUTH_USER` | Pyroscope basic auth user | - |

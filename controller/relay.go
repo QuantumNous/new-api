@@ -66,6 +66,7 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 }
 
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
+	helper.StartRelayTrace(c, string(relayFormat))
 
 	requestId := c.GetString(common.RequestIdKey)
 	//group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
@@ -77,6 +78,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		request     dto.Request
 		relayInfo   *relaycommon.RelayInfo
 	)
+	defer func() {
+		helper.FinishRelayTrace(c, newAPIError)
+	}()
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
 		var err error
@@ -473,6 +477,16 @@ func RelayNotFound(c *gin.Context) {
 }
 
 func RelayTaskFetch(c *gin.Context) {
+	helper.StartRelayTrace(c, string(types.RelayFormatTask))
+	var taskErr *dto.TaskError
+	defer func() {
+		if taskErr != nil {
+			helper.FinishRelayTrace(c, taskErr.Error)
+			return
+		}
+		helper.FinishRelayTrace(c, nil)
+	}()
+
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{
@@ -482,12 +496,22 @@ func RelayTaskFetch(c *gin.Context) {
 		})
 		return
 	}
-	if taskErr := relay.RelayTaskFetch(c, relayInfo.RelayMode); taskErr != nil {
+	if taskErr = relay.RelayTaskFetch(c, relayInfo.RelayMode); taskErr != nil {
 		respondTaskError(c, taskErr)
 	}
 }
 
 func RelayTask(c *gin.Context) {
+	helper.StartRelayTrace(c, string(types.RelayFormatTask))
+	var taskErr *dto.TaskError
+	defer func() {
+		if taskErr != nil {
+			helper.FinishRelayTrace(c, taskErr.Error)
+			return
+		}
+		helper.FinishRelayTrace(c, nil)
+	}()
+
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{
@@ -498,13 +522,12 @@ func RelayTask(c *gin.Context) {
 		return
 	}
 
-	if taskErr := relay.ResolveOriginTask(c, relayInfo); taskErr != nil {
+	if taskErr = relay.ResolveOriginTask(c, relayInfo); taskErr != nil {
 		respondTaskError(c, taskErr)
 		return
 	}
 
 	var result *relay.TaskSubmitResult
-	var taskErr *dto.TaskError
 	defer func() {
 		if taskErr != nil && relayInfo.Billing != nil {
 			relayInfo.Billing.Refund(c)

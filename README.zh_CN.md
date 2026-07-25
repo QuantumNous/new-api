@@ -331,6 +331,11 @@ docker run --name new-api -d --restart always \
 | `AZURE_DEFAULT_API_VERSION` | Azure API 版本                                                 | `2025-04-01-preview` |
 | `ERROR_LOG_ENABLED` | 错误日志开关                                                       | `false` |
 | `IMAGE_FAILURE_REQUEST_LOG_ENABLED` | 记录脱敏后的生图失败请求；保留 Prompt/尺寸/生成参数，移除密钥、Base64 和文件 URI | `false` |
+| `RELAY_TRACE_LOG_ENABLED` | 记录每个转发请求的脱敏全链路：下游请求/响应、每次上游尝试、状态、请求头与请求体预览 | `false` |
+| `RELAY_TRACE_LOG_FAILURES_ONLY` | 启用全链路日志时，仅记录下游响应为 4xx/5xx 或转发错误的请求 | `false` |
+| `RELAY_TRACE_LOG_MAX_BODY_KB` | 每个方向保留的最大脱敏请求体预览；二进制媒体仅记录大小和样本哈希 | `256` |
+| `RELAY_TRACE_LOG_FULL_BODY_ENABLED` | 在转发追踪中记录完整、未脱敏的请求与响应正文。仅应在短时间排障时启用，因为日志可能含隐私数据且增长很快 | `false` |
+| `RELAY_TRACE_LOG_FULL_BODY_MAX_MB` | 启用完整正文记录时，每个请求或响应方向的硬捕获上限 | `64` |
 | `PYROSCOPE_URL` | Pyroscope 服务地址                                            | - |
 | `PYROSCOPE_APP_NAME` | Pyroscope 应用名                                        | `new-api` |
 | `PYROSCOPE_BASIC_AUTH_USER` | Pyroscope Basic Auth 用户名                        | - |

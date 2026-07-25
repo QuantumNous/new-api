@@ -17,6 +17,11 @@ var NotificationLimitDurationMinute int
 var GenerateDefaultToken bool
 var ErrorLogEnabled bool
 var ImageFailureRequestLogEnabled bool
+var RelayTraceLogEnabled bool
+var RelayTraceLogFailureOnly bool
+var RelayTraceLogMaxBodyKB int
+var RelayTraceLogFullBodyEnabled bool
+var RelayTraceLogFullBodyMaxMB int
 var TaskQueryLimit int
 var TaskTimeoutMinutes int
 

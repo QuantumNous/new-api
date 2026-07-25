@@ -304,12 +304,10 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
                 <div className='flex gap-2'>
                   <Select<string>
-                    items={[
-                      ...availableModels.map((model) => ({
-                        value: model,
-                        label: model,
-                      })),
-                    ]}
+                    items={availableModels.map((model) => ({
+                      value: model,
+                      label: model,
+                    }))}
                     onValueChange={(value) => {
                       if (value === null) return
                       if (!selectedModels.includes(value)) {
@@ -370,6 +368,11 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                 {t('(Optional: redirect model names)')}
               </span>
             </Label>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Requests use the left model name. This channel sends the right model name to its upstream provider.'
+              )}
+            </p>
             <Textarea
               id='model-mapping'
               value={modelMapping}

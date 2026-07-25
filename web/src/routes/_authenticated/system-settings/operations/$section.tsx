@@ -28,6 +28,13 @@ export const Route = createFileRoute(
   '/_authenticated/system-settings/operations/$section'
 )({
   beforeLoad: ({ params }) => {
+    if (params.section === 'relay-trace') {
+      throw redirect({
+        to: '/system-settings/operations/$section',
+        params: { section: 'logs' },
+      })
+    }
+
     if (params.section === 'monitoring') {
       throw redirect({
         to: '/system-settings/models/$section',
