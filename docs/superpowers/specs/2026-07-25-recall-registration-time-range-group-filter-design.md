@@ -10,7 +10,7 @@ Let an administrator narrow the existing `registration_time_range` recall audien
 - Keep the group filter optional. An empty group mode and empty group list preserve the current behavior and include every group.
 - When groups are configured, validate the same contract used by the existing recall templates: `allow` or `block`, a non-empty group list, and no blank group names.
 - Apply the existing `recallAudienceGroupAllowed` predicate during preview and snapshot selection. `allow + ["plg"]` includes only PLG users; `block + ["plg"]` excludes PLG users.
-- Continue to ignore usage, payment, subscription, and verified-email conditions for this template. Only the registration range, basic safety exclusions, and the newly optional group filter affect eligibility.
+- Continue to ignore usage, payment, and subscription conditions for this template. Reuse the existing optional verified-email control: when selected, unverified users are excluded; when cleared, they remain eligible.
 
 ## Compatibility
 
@@ -26,4 +26,4 @@ Existing saved campaigns with no group configuration keep their current audience
 - Frontend component test proves `registration_time_range` renders the existing group mode control and reveals the selector when a mode is selected.
 - Frontend schema test proves invalid group configurations are rejected for this template.
 - Backend validation test proves the same group contract is enforced.
-- Backend preview/snapshot test proves `allow + plg` excludes a non-PLG user while retaining otherwise eligible PLG users.
+- Backend preview/snapshot test proves `allow + plg` excludes a non-PLG user and the verified-email option excludes an otherwise eligible unverified PLG user.
