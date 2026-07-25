@@ -73,6 +73,15 @@ const (
 	MsgCliAuthorizationTokenCreateFail = "cli.authorization_token_create_failed"
 )
 
+// Temporary media messages
+const (
+	MsgTempMediaFileRequired     = "temp_media.file_required"
+	MsgTempMediaImageTooLarge    = "temp_media.image_too_large"
+	MsgTempMediaUnsupportedImage = "temp_media.unsupported_image"
+	MsgTempMediaNotConfigured    = "temp_media.not_configured"
+	MsgTempMediaUploadFailed     = "temp_media.upload_failed"
+)
+
 // Redemption related messages
 const (
 	MsgRedemptionNameLength        = "redemption.name_length"

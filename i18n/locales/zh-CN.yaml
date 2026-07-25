@@ -63,6 +63,13 @@ cli.authorization_code_missing: "缺少授权代码"
 cli.authorization_not_found: "未找到授权请求"
 cli.authorization_token_create_failed: "创建 CLI 令牌失败"
 
+# Temporary media messages
+temp_media.file_required: "缺少图片文件"
+temp_media.image_too_large: "图片文件过大"
+temp_media.unsupported_image: "不支持的图片类型"
+temp_media.not_configured: "临时媒体存储未配置"
+temp_media.upload_failed: "上传图片失败"
+
 # Redemption messages
 redemption.name_length: "兑换码名称长度必须在1-20之间"
 redemption.count_positive: "兑换码个数必须大于0"

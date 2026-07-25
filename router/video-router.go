@@ -22,6 +22,13 @@ func SetVideoRouter(router *gin.Engine) {
 		videoProxyRouter.GET("/videos/:task_id/content", controller.VideoProxy)
 	}
 
+	tempMediaRouter := router.Group("/v1/temp-media")
+	tempMediaRouter.Use(middleware.RouteTag("relay"))
+	tempMediaRouter.Use(middleware.TokenAuth(), middleware.UploadRateLimit())
+	{
+		tempMediaRouter.POST("/images", controller.UploadTempMediaImage)
+	}
+
 	videoV1Router := router.Group("/v1")
 	videoV1Router.Use(middleware.RouteTag("relay"))
 	videoV1Router.Use(middleware.TokenAuth(), middleware.Distribute())

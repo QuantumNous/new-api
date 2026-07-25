@@ -62,6 +62,13 @@ cli.authorization_code_missing: "Authorization code is required"
 cli.authorization_not_found: "Authorization request not found"
 cli.authorization_token_create_failed: "Failed to create CLI token"
 
+# Temporary media messages
+temp_media.file_required: "Image file is required"
+temp_media.image_too_large: "Image file is too large"
+temp_media.unsupported_image: "Unsupported image type"
+temp_media.not_configured: "Temporary media storage is not configured"
+temp_media.upload_failed: "Failed to upload image"
+
 # Redemption messages
 redemption.name_length: "Redemption code name length must be between 1-20"
 redemption.count_positive: "Redemption code count must be greater than 0"

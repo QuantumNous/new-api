@@ -90,6 +90,11 @@ func SetApiRouter(router *gin.Engine) {
 
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
+		tempMediaRoute := apiRouter.Group("/temp-media")
+		tempMediaRoute.Use(middleware.UserAuth(), middleware.UploadRateLimit())
+		{
+			tempMediaRoute.POST("/images", controller.UploadTempMediaImage)
+		}
 
 		userRoute := apiRouter.Group("/user")
 		{

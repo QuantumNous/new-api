@@ -21,6 +21,7 @@ func TestSetVideoRouterRegistersGenerationTaskRoutes(t *testing.T) {
 	for _, want := range []string{
 		http.MethodPost + " /v1/generation/tasks",
 		http.MethodGet + " /v1/generation/tasks/:task_id",
+		http.MethodPost + " /v1/temp-media/images",
 	} {
 		if !routes[want] {
 			t.Fatalf("route %s was not registered", want)

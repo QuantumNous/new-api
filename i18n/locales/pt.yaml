@@ -63,6 +63,13 @@ cli.authorization_code_missing: "Código de autorização é obrigatório"
 cli.authorization_not_found: "Solicitação de autorização não encontrada"
 cli.authorization_token_create_failed: "Falha ao criar token CLI"
 
+# Temporary media messages
+temp_media.file_required: "Arquivo de imagem é obrigatório"
+temp_media.image_too_large: "O arquivo de imagem é muito grande"
+temp_media.unsupported_image: "Tipo de imagem não compatível"
+temp_media.not_configured: "O armazenamento temporário de mídia não está configurado"
+temp_media.upload_failed: "Falha ao enviar imagem"
+
 # Redemption messages
 redemption.name_length: "O nome do código de resgate deve ter entre 1 e 20 caracteres"
 redemption.count_positive: "A quantidade de códigos de resgate deve ser maior que 0"
