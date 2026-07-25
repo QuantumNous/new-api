@@ -27,7 +27,7 @@ import type {
   SubscriptionPaymentQuote,
 } from '@/features/subscriptions/types'
 import { RecallClaimProvider } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
-import type { RecallClaimView } from '../types'
+import type { RecallClaimView, TopupInfo } from '../types'
 import {
   buildFlexiblePurchaseRequest,
   buildFlexibleQuoteRequest,
@@ -36,7 +36,6 @@ import {
   normalizeSelfSubscriptionData,
   requiresSignedCheckoutQuote,
 } from '../lib/subscription-plan-lifecycle'
-import type { TopupInfo } from '../types'
 import {
   PlanPurchaseDialogContent,
   normalizePurchaseMonths,
@@ -117,6 +116,20 @@ function alipayPaymentQuote(
     unit_price: 20,
     total: 60,
     quote_id: 'quote-alipay-3',
+    expires_at: VALID_QUOTE_EXPIRES_AT,
+    ...overrides,
+  }
+}
+
+function balancePaymentQuote(
+  overrides: Partial<SubscriptionPaymentQuote> = {}
+): SubscriptionPaymentQuote {
+  return {
+    currency: 'USD',
+    months: 3,
+    unit_price: 100,
+    total: 300,
+    quote_id: 'quote-balance-3',
     expires_at: VALID_QUOTE_EXPIRES_AT,
     ...overrides,
   }
@@ -873,10 +886,86 @@ describe('PlanPurchaseDialog payment choices', () => {
     expect(continueButton).not.toContain('disabled=""')
   })
 
-  test('keeps balance and Stripe recurring available without quotes', () => {
-    for (const [choice, months, price] of [
-      ['stripe_recurring', 1, '$20'],
-      ['balance', 3, '$60'],
+  test('keeps Stripe recurring available without quotes', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlanPurchaseDialogContent
+          plan={plans[1]}
+          currentPlanId={0}
+          paymentAvailability={{}}
+          paymentQuotes={{}}
+          selectedPaymentChoice='stripe_recurring'
+          months={1}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />
+      </I18nextProvider>
+    )
+    const continueButton = html.match(/<button[^>]*>Continue<\/button>/)?.[0]
+
+    expect(html).toContain('$20')
+    expect(continueButton).toBeDefined()
+    expect(continueButton).not.toContain('disabled=""')
+  })
+
+  test('requires a valid signed balance quote before purchase', () => {
+    for (const { name, quote } of [
+      { name: 'missing quote', quote: undefined },
+      {
+        name: 'blank signed quote token',
+        quote: balancePaymentQuote({ quote_id: '   ' }),
+      },
+      {
+        name: 'expired quote',
+        quote: balancePaymentQuote({ expires_at: 1 }),
+      },
+      {
+        name: 'quote for different months',
+        quote: balancePaymentQuote({ months: 2 }),
+      },
+    ]) {
+      const html = renderToStaticMarkup(
+        <I18nextProvider i18n={testI18n}>
+          <PlanPurchaseDialogContent
+            plan={plans[1]}
+            currentPlanId={0}
+            paymentAvailability={{}}
+            paymentQuotes={quote ? { balance: quote } : {}}
+            selectedPaymentChoice='balance'
+            months={3}
+            onOpenChange={() => undefined}
+            onConfirm={() => undefined}
+          />
+        </I18nextProvider>
+      )
+
+      expect(html, name).toContain('$60')
+      expect(html, name).toMatch(
+        /<button[^>]*disabled=""[^>]*>Continue<\/button>/
+      )
+    }
+  })
+
+  test('shows backend quote discount totals for Pix and Balance without changing unit price', () => {
+    for (const [choice, quote] of [
+      [
+        'pix',
+        localPaymentQuote('pix', {
+          unit_price: 100,
+          original_total: 300,
+          discount_amount: 20,
+          total: 280,
+        }),
+      ],
+      [
+        'balance',
+        balancePaymentQuote({
+          unit_price: 100,
+          original_total: 300,
+          discount_amount: 20,
+          total: 280,
+        }),
+      ],
     ] as const) {
       const html = renderToStaticMarkup(
         <I18nextProvider i18n={testI18n}>
@@ -884,23 +973,56 @@ describe('PlanPurchaseDialog payment choices', () => {
             plan={plans[1]}
             currentPlanId={0}
             paymentAvailability={{}}
-            paymentQuotes={{}}
+            paymentQuotes={{ [choice]: quote }}
             selectedPaymentChoice={choice}
-            months={months}
+            months={3}
             onOpenChange={() => undefined}
             onConfirm={() => undefined}
           />
         </I18nextProvider>
       )
-      const continueButton = html.match(/<button[^>]*>Continue<\/button>/)?.[0]
 
-      expect(html, choice).toContain(price)
-      expect(continueButton, choice).toBeDefined()
-      expect(continueButton, choice).not.toContain('disabled=""')
+      expect(html, choice).toContain('line-through')
+      expect(html, choice).toContain(choice === 'pix' ? '300,00' : '$300')
+      expect(html, choice).toContain(choice === 'pix' ? '280,00' : '$280')
+      expect(html, choice).toContain(choice === 'pix' ? '100,00' : '$100')
     }
   })
 
-  test('shows recall discount totals only for Stripe recurring', () => {
+  test('does not strike through totals for undiscounted quotes', () => {
+    for (const quote of [
+      balancePaymentQuote({
+        original_total: 300,
+        discount_amount: 0,
+        total: 300,
+      }),
+      balancePaymentQuote({
+        original_total: 300,
+        discount_amount: 20,
+        total: 300,
+      }),
+    ]) {
+      const html = renderToStaticMarkup(
+        <I18nextProvider i18n={testI18n}>
+          <PlanPurchaseDialogContent
+            plan={plans[1]}
+            currentPlanId={0}
+            paymentAvailability={{}}
+            paymentQuotes={{ balance: quote }}
+            selectedPaymentChoice='balance'
+            months={3}
+            onOpenChange={() => undefined}
+            onConfirm={() => undefined}
+          />
+        </I18nextProvider>
+      )
+
+      expect(html).toContain('$300')
+      expect(html).not.toContain('line-through')
+    }
+  })
+
+  test('shows local recall discount totals only for Stripe recurring', () => {
     const stripeHtml = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <PlanPurchaseDialogContent
@@ -1054,12 +1176,12 @@ describe('flexible payment quote interaction helpers', () => {
     ).not.toHaveProperty('ui_mode')
   })
 
-  test('requires signed checkout quotes only for Stripe-hosted one-time choices', () => {
+  test('requires signed checkout quotes for one-time and balance purchases', () => {
     expect(requiresSignedCheckoutQuote('alipay')).toBe(true)
     expect(requiresSignedCheckoutQuote('pix')).toBe(true)
     expect(requiresSignedCheckoutQuote('upi')).toBe(true)
+    expect(requiresSignedCheckoutQuote('balance')).toBe(true)
     expect(requiresSignedCheckoutQuote('stripe_recurring')).toBe(false)
-    expect(requiresSignedCheckoutQuote('balance')).toBe(false)
   })
 
   test('accepts only future signed same-month Alipay quotes', () => {
@@ -1104,12 +1226,14 @@ describe('flexible payment quote interaction helpers', () => {
         paymentChoice: 'pix',
         months: 3,
         requestId: 'request-1',
+        recallClaim: 'signed-recall-claim',
       })
     ).toEqual({
       plan_id: 2,
       payment_choice: 'pix',
       months: 3,
       request_id: 'request-1',
+      recall_claim: 'signed-recall-claim',
     })
 
     expect(
@@ -1120,6 +1244,18 @@ describe('flexible payment quote interaction helpers', () => {
         requestId: 'request-1',
       }).months
     ).toBe(12)
+  })
+
+  test('selecting plan-eligible fixed discounts sends recall claim for quote eligibility without local currency filtering', () => {
+    expect(
+      buildFlexibleQuoteRequest({
+        planId: 1,
+        paymentChoice: 'balance',
+        months: 3,
+        requestId: 'request-fixed-currency',
+        recallClaim: 'signed-recall-claim',
+      }).recall_claim
+    ).toBe('signed-recall-claim')
   })
 
   test('uses only the quote matching the selected local-currency months', () => {

@@ -194,6 +194,17 @@ export function PlanPurchaseDialogContent(props: PlanPurchaseDialogContentProps)
     : formatPlanPrice(totalPrice, selectedQuote?.currency)
   const stripeRecallDiscount =
     selectedChoice === 'stripe_recurring' ? props.recallDiscount : null
+  const quoteDiscount =
+    selectedChoice !== 'stripe_recurring' &&
+    selectedQuote &&
+    Number(selectedQuote.discount_amount || 0) > 0 &&
+    Number(selectedQuote.original_total || 0) > Number(selectedQuote.total)
+      ? {
+          originalTotal: Number(selectedQuote.original_total),
+          total: Number(selectedQuote.total),
+          currency: selectedQuote.currency,
+        }
+      : null
 
   return (
     <>
@@ -285,6 +296,18 @@ export function PlanPurchaseDialogContent(props: PlanPurchaseDialogContentProps)
                     stripeRecallDiscount.discountedAmount,
                     stripeRecallDiscount.currency
                   )}
+                </span>
+              </span>
+            ) : quoteDiscount ? (
+              <span className='flex items-baseline gap-2 tabular-nums'>
+                <span className='text-muted-foreground text-xs line-through'>
+                  {formatPlanPrice(
+                    quoteDiscount.originalTotal,
+                    quoteDiscount.currency
+                  )}
+                </span>
+                <span className='font-semibold'>
+                  {formatPlanPrice(quoteDiscount.total, quoteDiscount.currency)}
                 </span>
               </span>
             ) : (
