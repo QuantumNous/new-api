@@ -195,18 +195,31 @@ func (w *RecallRecipientWorker) ProcessLeased(ctx context.Context, recipientID i
 			}
 			return err
 		}
-		if _, err := w.loadRunnableCampaign(ctx, recipient.CampaignId); err != nil {
+		campaign, err := w.loadRunnableCampaign(ctx, recipient.CampaignId)
+		if err != nil {
+			return w.finishRecipientError(ctx, recipient, err)
+		}
+		campaignType, err := normalizeRecallCampaignType(campaign.CampaignType)
+		if err != nil {
 			return w.finishRecipientError(ctx, recipient, err)
 		}
 
 		var stepErr error
 		switch recipient.State {
 		case model.RecallRecipientQueued:
-			stepErr = w.ensureRecipientCustomer(ctx, recipient)
+			if campaignType == model.RecallCampaignTypeContentOnly {
+				stepErr = w.scheduleStageOne(ctx, recipient, []string{model.RecallRecipientQueued})
+			} else {
+				stepErr = w.ensureRecipientCustomer(ctx, recipient)
+			}
 		case model.RecallRecipientCustomerReady:
-			stepErr = w.ensureRecipientPromotion(ctx, recipient)
+			if campaignType == model.RecallCampaignTypeContentOnly {
+				stepErr = w.scheduleStageOne(ctx, recipient, []string{model.RecallRecipientCustomerReady})
+			} else {
+				stepErr = w.ensureRecipientPromotion(ctx, recipient)
+			}
 		case model.RecallRecipientCodeReady:
-			stepErr = w.scheduleStageOne(ctx, recipient)
+			stepErr = w.scheduleStageOne(ctx, recipient, []string{model.RecallRecipientCodeReady})
 		default:
 			_ = model.ReleaseRecallRecipientLease(recipient.Id, w.owner, recipient.LeaseExpiresAt)
 			return nil
@@ -214,7 +227,7 @@ func (w *RecallRecipientWorker) ProcessLeased(ctx context.Context, recipientID i
 		if stepErr != nil {
 			return w.finishRecipientError(ctx, recipient, stepErr)
 		}
-		if recipient.State == model.RecallRecipientCodeReady {
+		if campaignType == model.RecallCampaignTypeContentOnly || recipient.State == model.RecallRecipientCodeReady {
 			return nil
 		}
 
@@ -360,7 +373,7 @@ func (w *RecallRecipientWorker) ensureRecipientPromotion(ctx context.Context, re
 	return nil
 }
 
-func (w *RecallRecipientWorker) scheduleStageOne(ctx context.Context, recipient *model.RecallRecipient) error {
+func (w *RecallRecipientWorker) scheduleStageOne(ctx context.Context, recipient *model.RecallRecipient, fromStates []string) error {
 	campaign, err := w.loadRunnableCampaign(ctx, recipient.CampaignId)
 	if err != nil {
 		return err
@@ -387,7 +400,7 @@ func (w *RecallRecipientWorker) scheduleStageOne(ctx context.Context, recipient 
 	if scheduledAt <= 0 {
 		scheduledAt = w.now().Unix() + stage.DelaySeconds
 	}
-	won, err := model.ScheduleRecallStageOneAndAdvance(ctx, recipient.Id, w.owner, recipient.LeaseExpiresAt, model.RecallMessage{
+	won, err := model.ScheduleRecallStageOneFromStatesAndAdvance(ctx, recipient.Id, w.owner, recipient.LeaseExpiresAt, fromStates, model.RecallMessage{
 		StageNo:          1,
 		TemplateVersion:  stage.TemplateVersion,
 		TemplateSnapshot: string(templateJSON),

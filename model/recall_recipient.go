@@ -477,13 +477,20 @@ func DeferRecallRecipientLease(ctx context.Context, id int64, owner string, expe
 }
 
 func ScheduleRecallStageOneAndAdvance(ctx context.Context, recipientID int64, owner string, expectedLeaseUntil int64, message RecallMessage) (bool, error) {
+	return ScheduleRecallStageOneFromStatesAndAdvance(ctx, recipientID, owner, expectedLeaseUntil, []string{RecallRecipientCodeReady}, message)
+}
+
+func ScheduleRecallStageOneFromStatesAndAdvance(ctx context.Context, recipientID int64, owner string, expectedLeaseUntil int64, fromStates []string, message RecallMessage) (bool, error) {
 	if message.StageNo != 1 {
 		return false, fmt.Errorf("recall stage-one message must have stage number 1")
+	}
+	if len(fromStates) == 0 {
+		return false, fmt.Errorf("recall stage-one message requires at least one source state")
 	}
 	won := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		result := tx.Model(&RecallRecipient{}).
-			Where("id = ? AND lease_owner = ? AND lease_expires_at = ? AND state = ?", recipientID, owner, expectedLeaseUntil, RecallRecipientCodeReady).
+			Where("id = ? AND lease_owner = ? AND lease_expires_at = ? AND state IN ?", recipientID, owner, expectedLeaseUntil, fromStates).
 			Updates(map[string]any{
 				"state":              RecallRecipientContacting,
 				"lease_owner":        "",

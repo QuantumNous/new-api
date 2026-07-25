@@ -144,3 +144,24 @@ func TestRecallWorkerSchedulesStageOneAndContactsOnlyWithExactLease(t *testing.T
 	require.NoError(t, DB.Where("recipient_id = ? AND stage_no = 1", recipient.Id).First(&storedMessage).Error)
 	require.Nil(t, storedMessage.ClaimTokenHash)
 }
+
+func TestRecallWorkerSchedulesStageOneFromExplicitSourceState(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	recipient := RecallRecipient{CampaignId: 1, UserId: 1, EligibilitySnapshot: `{}`, EmailSnapshot: "message@example.com", LanguageSnapshot: "en", State: RecallRecipientQueued, LeaseOwner: "node-a", LeaseExpiresAt: 160}
+	require.NoError(t, DB.Create(&recipient).Error)
+	message := RecallMessage{StageNo: 1, TemplateVersion: 2, TemplateSnapshot: `{"en":{"subject":"hello"}}`, ScheduledAt: 120, State: RecallMessageScheduled}
+
+	won, err := ScheduleRecallStageOneFromStatesAndAdvance(context.Background(), recipient.Id, "node-a", 160, []string{RecallRecipientCustomerReady}, message)
+	require.NoError(t, err)
+	require.False(t, won)
+	won, err = ScheduleRecallStageOneFromStatesAndAdvance(context.Background(), recipient.Id, "node-a", 160, []string{RecallRecipientQueued}, message)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	var storedRecipient RecallRecipient
+	require.NoError(t, DB.First(&storedRecipient, recipient.Id).Error)
+	require.Equal(t, RecallRecipientContacting, storedRecipient.State)
+	var storedMessage RecallMessage
+	require.NoError(t, DB.Where("recipient_id = ? AND stage_no = 1", recipient.Id).First(&storedMessage).Error)
+	require.Nil(t, storedMessage.ClaimTokenHash)
+}
