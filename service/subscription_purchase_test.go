@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"github.com/stripe/stripe-go/v86"
 	"gorm.io/gorm"
 )
 
@@ -441,6 +442,138 @@ func TestPurchaseSubscriptionRecallOneTimeOrderPersistsAttributionFields(t *test
 	require.Equal(t, result.Order.RecallDiscountAmountMinor, stored.RecallDiscountAmountMinor)
 }
 
+func TestRejectUnresolvedPlanChangeBlocksRepurchaseEvenWhenDowngradeReplacementAllowed(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	require.NoError(t, model.DB.Create(&model.SubscriptionChangeIntent{
+		UserId:      7350,
+		RequestId:   "pending-repurchase",
+		Kind:        model.SubscriptionChangeIntentKindRepurchase,
+		PaymentMode: model.SubscriptionPaymentModePrepaid,
+		Status:      model.SubscriptionChangeIntentStatusAwaitingPayment,
+	}).Error)
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		return rejectUnresolvedPlanChangeTx(tx, 7350)
+	})
+	require.ErrorIs(t, err, ErrSubscriptionChangeInProgress)
+
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		return rejectUnresolvedPlanChangeTx(tx, 7350, true)
+	})
+	require.ErrorIs(t, err, ErrSubscriptionChangeInProgress)
+}
+
+func TestPurchaseSubscriptionRecallRepurchaseReplacesNoSessionPendingOrder(t *testing.T) {
+	setupSubscriptionRecallPurchaseTestDB(t)
+	now := time.Now().UTC()
+	fixture := createRecallClaimFixture(t, now)
+	insertPurchaseServiceUser(t, fixture.recipient.UserId, 50000)
+	plan := insertPurchaseServicePlan(t, 7540, 1, 1, 100)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription").Error)
+	require.NoError(t, model.DB.Create(&model.UserSubscriptionContract{
+		UserId:             fixture.recipient.UserId,
+		Status:             model.SubscriptionContractStatusActive,
+		PaymentMode:        model.SubscriptionPaymentModePrepaid,
+		CurrentPlanId:      plan.Id,
+		CurrentPeriodStart: now.Unix(),
+		CurrentPeriodEnd:   now.AddDate(0, 1, 0).Unix(),
+	}).Error)
+
+	first, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        3,
+		RequestID:     "recall-repurchase-no-session-first",
+		RecallClaim:   fixture.claim,
+		VerifiedQuote: discountedRecallPurchaseQuote(fixture, 1, 3, 20),
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.SubscriptionChangeIntentKindRepurchase, first.Intent.Kind)
+	require.Equal(t, int64(20), first.Order.RecallDiscountAmountMinor)
+	require.Empty(t, first.Order.ProviderSessionId)
+
+	second, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        3,
+		RequestID:     "recall-repurchase-no-session-second",
+		RecallClaim:   fixture.claim,
+		VerifiedQuote: discountedRecallPurchaseQuote(fixture, 1, 3, 20),
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.SubscriptionChangeIntentKindRepurchase, second.Intent.Kind)
+
+	assertSingleAwaitingDiscountedRepurchaseOrder(t, fixture.recipient.UserId)
+	var oldOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&oldOrder, first.Order.Id).Error)
+	require.Equal(t, common.TopUpStatusExpired, oldOrder.Status)
+	var oldIntent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&oldIntent, first.Intent.Id).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusSuperseded, oldIntent.Status)
+	require.Equal(t, second.Intent.Id, oldIntent.SupersededById)
+}
+
+func TestPurchaseSubscriptionRecallRepurchaseStillExpiresExistingCheckoutSessionBeforeReplacement(t *testing.T) {
+	setupSubscriptionRecallPurchaseTestDB(t)
+	now := time.Now().UTC()
+	fixture := createRecallClaimFixture(t, now)
+	insertPurchaseServiceUser(t, fixture.recipient.UserId, 50000)
+	plan := insertPurchaseServicePlan(t, 7541, 1, 1, 100)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription").Error)
+	require.NoError(t, model.DB.Create(&model.UserSubscriptionContract{
+		UserId:             fixture.recipient.UserId,
+		Status:             model.SubscriptionContractStatusActive,
+		PaymentMode:        model.SubscriptionPaymentModePrepaid,
+		CurrentPlanId:      plan.Id,
+		CurrentPeriodStart: now.Unix(),
+		CurrentPeriodEnd:   now.AddDate(0, 1, 0).Unix(),
+	}).Error)
+	first, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        3,
+		RequestID:     "recall-repurchase-session-first",
+		RecallClaim:   fixture.claim,
+		VerifiedQuote: discountedRecallPurchaseQuote(fixture, 1, 3, 20),
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("id = ?", first.Order.Id).Update("provider_session_id", "cs_repurchase_existing").Error)
+	expiredSessionIDs := make([]string, 0)
+	restoreStripeAccessors := ReplaceStripeCheckoutSessionAccessorsForTest(
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusOpen}, nil
+		},
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			expiredSessionIDs = append(expiredSessionIDs, sessionID)
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusExpired}, nil
+		},
+	)
+	t.Cleanup(restoreStripeAccessors)
+
+	second, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        3,
+		RequestID:     "recall-repurchase-session-second",
+		RecallClaim:   fixture.claim,
+		VerifiedQuote: discountedRecallPurchaseQuote(fixture, 1, 3, 20),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"cs_repurchase_existing"}, expiredSessionIDs)
+	require.Equal(t, model.SubscriptionChangeIntentKindRepurchase, second.Intent.Kind)
+	assertSingleAwaitingDiscountedRepurchaseOrder(t, fixture.recipient.UserId)
+	var oldOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&oldOrder, first.Order.Id).Error)
+	require.Equal(t, common.TopUpStatusExpired, oldOrder.Status)
+}
+
 func TestPurchaseSubscriptionRecallBalanceOrderConvertsAndReplayDoesNotDoubleConsume(t *testing.T) {
 	setupSubscriptionRecallPurchaseTestDB(t)
 	now := time.Now().UTC()
@@ -570,6 +703,20 @@ func discountedRecallPurchaseQuote(fixture recallClaimFixture, unitPrice float64
 	quote.RecallRecipientID = fixture.recipient.Id
 	quote.RecallPromotionCodeID = "promo_recall"
 	return quote
+}
+
+func assertSingleAwaitingDiscountedRepurchaseOrder(t *testing.T, userID int) {
+	t.Helper()
+	var pendingOrders int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).
+		Where("user_id = ? AND status = ? AND recall_discount_amount_minor > 0", userID, common.TopUpStatusPending).
+		Count(&pendingOrders).Error)
+	require.Equal(t, int64(1), pendingOrders)
+	var awaitingIntents int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).
+		Where("user_id = ? AND kind = ? AND status = ?", userID, model.SubscriptionChangeIntentKindRepurchase, model.SubscriptionChangeIntentStatusAwaitingPayment).
+		Count(&awaitingIntents).Error)
+	require.Equal(t, int64(1), awaitingIntents)
 }
 
 func TestPurchaseSubscriptionRecallRejectsTamperedDiscountedQuote(t *testing.T) {
