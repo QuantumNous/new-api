@@ -42,6 +42,30 @@ func StripeTopUpPriceIDForAmount(amount int64) string {
 	}
 }
 
+func StripeTopUpAmountsByPriceID() map[string]int64 {
+	configured := map[int64]string{
+		10:  StripePriceId,
+		20:  StripePriceId20,
+		200: StripePriceId200,
+	}
+	if strings.TrimSpace(StripeTopUpPriceIds) != "" {
+		configured = parseStripeTopUpPriceIds(StripeTopUpPriceIds)
+	}
+
+	amounts := make(map[string]int64, len(configured))
+	for amount, rawPriceID := range configured {
+		priceID := strings.TrimSpace(rawPriceID)
+		if amount <= 0 || priceID == "" {
+			continue
+		}
+		if _, exists := amounts[priceID]; exists {
+			continue
+		}
+		amounts[priceID] = amount
+	}
+	return amounts
+}
+
 func parseStripeTopUpPriceIds(raw string) map[int64]string {
 	result := map[int64]string{}
 	var parsed map[string]string

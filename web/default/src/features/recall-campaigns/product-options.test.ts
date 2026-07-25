@@ -25,12 +25,12 @@ describe('recall campaign product options', () => {
     ).toEqual([
       {
         value: 'price_topup_20',
-        label: '20 USD · price_topup_20',
+        label: '20 USD',
         unavailable: false,
       },
       {
         value: 'price_topup_200',
-        label: '200 USD · price_topup_200',
+        label: '200 USD',
         unavailable: false,
       },
     ])
@@ -76,7 +76,7 @@ describe('recall campaign product options', () => {
     ).toEqual([
       {
         value: 'price_pro_month',
-        label: 'Pro monthly · 20 USD · price_pro_month',
+        label: 'Pro monthly · 20 USD',
         unavailable: false,
       },
     ])
@@ -96,7 +96,7 @@ describe('recall campaign product options', () => {
     const configured = [
       {
         value: 'price_topup_20',
-        label: '20 USD · price_topup_20',
+        label: '20 USD',
         unavailable: false,
       },
     ]

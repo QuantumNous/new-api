@@ -277,6 +277,56 @@ func TestRecallClaimValidateEmailOnlyRejectsMismatchDisabledAndCompetingUsers(t 
 	require.Equal(t, first.Id, stored.UserId)
 }
 
+func TestRecallClaimValidateEmailOnlyDoesNotBindInvalidClaims(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*testing.T, recallClaimFixture, time.Time)
+		wantErr error
+	}{
+		{name: "expired", wantErr: ErrRecallClaimExpired, mutate: func(t *testing.T, f recallClaimFixture, now time.Time) {
+			require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", f.recipient.Id).Update("promotion_expires_at", now.Unix()).Error)
+		}},
+		{name: "converted", wantErr: ErrRecallClaimConverted, mutate: func(t *testing.T, f recallClaimFixture, _ time.Time) {
+			require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", f.recipient.Id).Updates(map[string]any{"state": model.RecallRecipientConverted, "converted_at": int64(1)}).Error)
+		}},
+		{name: "suppressed", wantErr: ErrRecallClaimSuppressed, mutate: func(t *testing.T, f recallClaimFixture, _ time.Time) {
+			require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", f.recipient.Id).Update("state", model.RecallRecipientSuppressed).Error)
+		}},
+		{name: "draft campaign", wantErr: ErrRecallClaimInactive, mutate: func(t *testing.T, f recallClaimFixture, _ time.Time) {
+			require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", f.campaign.Id).Update("status", model.RecallCampaignDraft).Error)
+		}},
+		{name: "invalid promotion", wantErr: ErrRecallClaimPromotionInvalid, mutate: func(t *testing.T, f recallClaimFixture, _ time.Time) {
+			require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", f.recipient.Id).Update("promotion_code", "").Error)
+		}},
+		{name: "invalid discount config", wantErr: ErrRecallClaimInvalidConfig, mutate: func(t *testing.T, f recallClaimFixture, _ time.Time) {
+			require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", f.campaign.Id).Update("discount_config", `{`).Error)
+		}},
+		{name: "invalid product config", wantErr: ErrRecallClaimInvalidConfig, mutate: func(t *testing.T, f recallClaimFixture, _ time.Time) {
+			require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", f.campaign.Id).Update("product_scope", `{`).Error)
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Unix(1_721_000_000, 0).UTC()
+			fixture := createRecallEmailOnlyClaimFixture(t, now, "emailonly-invalid@example.com")
+			user := model.User{Username: "email-only-invalid-" + strings.ReplaceAll(test.name, " ", "-"), AffCode: "email-only-invalid-aff-" + strings.ReplaceAll(test.name, " ", "-"), Password: "hash", Status: common.UserStatusEnabled, Email: "emailonly-invalid@example.com"}
+			require.NoError(t, db.Create(&user).Error)
+			test.mutate(t, fixture, now)
+
+			claimService := NewRecallClaimService()
+			claimService.now = func() time.Time { return now }
+			_, err := claimService.ValidateClaim(context.Background(), user.Id, fixture.claim)
+
+			require.ErrorIs(t, err, test.wantErr)
+			var stored model.RecallRecipient
+			require.NoError(t, db.First(&stored, fixture.recipient.Id).Error)
+			require.Zero(t, stored.UserId)
+		})
+	}
+}
+
 func TestRecallClaimValidateEmailOnlyMapsMissingUserButPropagatesUserLoadErrors(t *testing.T) {
 	db := setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

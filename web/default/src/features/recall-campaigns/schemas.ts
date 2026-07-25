@@ -314,7 +314,6 @@ const emailTemplateSchema = z
     subject: z
       .string()
       .trim()
-      .min(1)
       .refine((value) => Array.from(value).length <= 200, {
         message: 'Subject must be 200 characters or fewer',
       }),

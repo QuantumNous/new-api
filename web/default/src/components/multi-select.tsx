@@ -127,6 +127,11 @@ export function MultiSelect(props: MultiSelectProps) {
     return map
   }, [props.options])
 
+  const itemToStringLabel = React.useCallback(
+    (itemValue: string) => labelMap.get(itemValue) ?? itemValue,
+    [labelMap]
+  )
+
   const trimmedInput = inputValue.trim()
   const inputMatchesExisting =
     trimmedInput.length > 0 &&
@@ -225,6 +230,7 @@ export function MultiSelect(props: MultiSelectProps) {
       items={items}
       value={props.selected}
       onValueChange={handleValueChange}
+      itemToStringLabel={itemToStringLabel}
       inputValue={inputValue}
       onInputValueChange={handleInputValueChange}
       open={open}

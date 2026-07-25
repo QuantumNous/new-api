@@ -63,7 +63,7 @@ export function buildTopUpProductOptions(
     .sort((left, right) => left.amount - right.amount)
     .map(({ amount, priceID }) => ({
       value: priceID,
-      label: `${amount} USD · ${priceID}`,
+      label: `${amount} USD`,
       unavailable: false,
     }))
 
@@ -81,7 +81,7 @@ export function buildSubscriptionProductOptions(
       const priceID = plan.stripe_price_id!.trim()
       return {
         value: priceID,
-        label: `${plan.title} · ${plan.price_amount} ${plan.currency.toUpperCase()} · ${priceID}`,
+        label: `${plan.title} · ${plan.price_amount} ${plan.currency.toUpperCase()}`,
         unavailable: false,
       }
     })

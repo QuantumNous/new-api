@@ -6,7 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { previewRecallEmail } from '../api'
-import { insertRecallEmailAction, RECALL_EMAIL_ACTIONS } from '../helpers'
+import {
+  insertRecallEmailAction,
+  normalizeRecallBodyInputToHtml,
+  RECALL_EMAIL_ACTION_DESCRIPTIONS,
+  RECALL_EMAIL_ACTIONS,
+} from '../helpers'
 import type { RecallCampaignDraft } from '../types'
 
 interface CampaignEmailHtmlEditorProps {
@@ -29,6 +34,42 @@ interface RecallEmailPreviewSnapshot {
 interface RecallEmailPreviewState {
   previewHTML: string
   latestError: string
+}
+
+interface RecallEmailPreviewPreparedRequest {
+  snapshot: RecallEmailPreviewSnapshot
+  template: { subject: string; body_html: string }
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function createRecallEmailPreviewTemplate(props: {
+  subject: string
+  bodyHTML: string
+}): { subject: string; body_html: string } {
+  return {
+    subject: props.subject.trim() || 'Recall email preview',
+    body_html: normalizeRecallBodyInputToHtml(props.bodyHTML),
+  }
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export async function prepareRecallEmailPreviewRequest(props: {
+  nextRequestId: () => number
+  subject: string
+  bodyHTML: string
+  validateBody: () => Promise<boolean>
+}): Promise<RecallEmailPreviewPreparedRequest | null> {
+  if (!(await props.validateBody())) return null
+
+  const snapshot = {
+    requestId: props.nextRequestId(),
+    subject: props.subject,
+    bodyHTML: props.bodyHTML,
+  }
+  return {
+    snapshot,
+    template: createRecallEmailPreviewTemplate(snapshot),
+  }
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -144,20 +185,18 @@ export function CampaignEmailHtmlEditor(
 
   const previewEmail = async () => {
     setPreviewState(clearRecallEmailPreviewError)
-    const valid = await props.form.trigger([subjectPath, bodyPath])
-    if (!valid) return
-    const snapshot = {
-      requestId: (previewRequestIdRef.current += 1),
+    const prepared = await prepareRecallEmailPreviewRequest({
+      nextRequestId: () => (previewRequestIdRef.current += 1),
       subject: String(props.form.getValues(subjectPath) ?? ''),
       bodyHTML: String(props.form.getValues(bodyPath) ?? ''),
-    }
+      validateBody: () => props.form.trigger(bodyPath),
+    })
+    if (!prepared) return
+    const snapshot = prepared.snapshot
     latestPreviewRequestRef.current = snapshot
     try {
       const response = await previewMutation.mutateAsync({
-        template: {
-          subject: snapshot.subject,
-          body_html: snapshot.bodyHTML,
-        },
+        template: prepared.template,
       })
       if (
         shouldApplyRecallEmailPreviewResult({
@@ -192,7 +231,7 @@ export function CampaignEmailHtmlEditor(
   return (
     <div className='space-y-3'>
       <div className='space-y-2'>
-        <Label htmlFor={bodyId}>{t('Body HTML')}</Label>
+        <Label htmlFor={bodyId}>{t('Body text')}</Label>
         <Textarea
           id={bodyId}
           rows={14}
@@ -212,19 +251,43 @@ export function CampaignEmailHtmlEditor(
           </p>
         ) : null}
       </div>
-      <div className='flex flex-wrap gap-2'>
-        {RECALL_EMAIL_ACTIONS.map((action) => (
-          <Button
-            aria-label={t('Insert {{action}}', { action })}
-            disabled={props.disabled}
-            key={action}
-            type='button'
-            variant='outline'
-            onClick={() => insertAction(action)}
-          >
-            {action}
-          </Button>
-        ))}
+      <div className='space-y-2'>
+        <div>
+          <p className='text-sm font-medium'>{t('Available placeholders')}</p>
+          <p className='text-muted-foreground text-sm'>
+            {t('Click a placeholder to insert it into the body.')}
+          </p>
+        </div>
+        <div className='grid gap-2 md:grid-cols-2'>
+          {RECALL_EMAIL_ACTIONS.map((action) => (
+            <Button
+              aria-label={t('Insert {{action}}', { action })}
+              className='h-auto w-full justify-start px-3 py-2 text-left whitespace-normal'
+              disabled={props.disabled}
+              key={action}
+              type='button'
+              variant='outline'
+              onClick={() => insertAction(action)}
+            >
+              <span className='grid gap-1'>
+                <code className='text-xs'>{action}</code>
+                <span className='text-muted-foreground text-xs font-normal'>
+                  {t(RECALL_EMAIL_ACTION_DESCRIPTIONS[action])}
+                </span>
+                {action === '{{.ClaimURL}}' ||
+                action === '{{.UnsubscribeURL}}' ? (
+                  <span className='text-muted-foreground text-xs font-normal'>
+                    {t('HTML link example:')}{' '}
+                    <code>{`<a href="${action}">`}</code>
+                  </span>
+                ) : null}
+              </span>
+            </Button>
+          ))}
+        </div>
+        <p className='text-muted-foreground text-xs'>
+          {t('Preview uses sample recipient and offer data.')}
+        </p>
       </div>
       <Button
         aria-label={t('Recall email preview')}

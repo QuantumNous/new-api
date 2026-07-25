@@ -86,8 +86,22 @@ const specifiedUsersSelectorKeys = [
   'one@example.com, two@example.com',
 ] as const
 
+const recallEmailPlaceholderHelpKeys = [
+  'Available placeholders',
+  'Click a placeholder to insert it into the body.',
+  "Recipient's display name, or username when no display name is set.",
+  'Masked promotion code, for example SAVE****25.',
+  'Selected top-up amounts and subscription plan names and prices; internal product IDs are never shown.',
+  'Promotion expiration time, displayed in UTC.',
+  'Personal link that opens the top-up page and claims the offer.',
+  'Personal link that stops future recall emails for this recipient.',
+  'HTML link example:',
+  'Preview uses sample recipient and offer data.',
+] as const
+
 const recallHelpKeys = [
   'Subject must be 200 characters or fewer',
+  'Leave empty to use the campaign name.',
   'Body text must be 2000 characters or fewer',
   'Stripe does not convert fixed Coupon amounts automatically. Configure each checkout currency explicitly.',
   'Audience templates define the base audience. The rules shown below narrow it further, and built-in eligibility filters also apply. Preview the audience before activation.',
@@ -103,6 +117,7 @@ const recallHelpKeys = [
   ...exactAudienceControlKeys,
   ...dynamicAudienceTemplateValueKeys,
   ...specifiedUsersSelectorKeys,
+  ...recallEmailPlaceholderHelpKeys,
   ...translatedAudienceTemplateDescriptionKeys,
 ] as const
 

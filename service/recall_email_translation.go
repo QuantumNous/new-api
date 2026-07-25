@@ -34,10 +34,11 @@ const (
 )
 
 var (
-	recallEmailTranslationLanguages   = []string{"zh", "es", "fr", "pt", "ru", "ja", "vi"}
-	recallEmailProtectedPattern       = regexp.MustCompile(`https?://[^\s<>"']+|\{\{[^{}\r\n]+\}\}|\$\{[^{}\r\n]+\}`)
-	recallEmailSentinelPattern        = regexp.MustCompile(`__RECALL_EMAIL_PROTECTED_[0-9a-f]{32}_[0-9]{4}__`)
-	recallEmailSegmentIdentityPattern = regexp.MustCompile(`__RECALL_EMAIL_SEGMENT_[0-9a-f]{32}_S[0-9]{4}_I[0-9]{4}__`)
+	errRecallEmailTranslationNotConfigured = errors.New("recall email translation API key is empty")
+	recallEmailTranslationLanguages        = []string{"zh", "es", "fr", "pt", "ru", "ja", "vi"}
+	recallEmailProtectedPattern            = regexp.MustCompile(`https?://[^\s<>"']+|\{\{[^{}\r\n]+\}\}|\$\{[^{}\r\n]+\}`)
+	recallEmailSentinelPattern             = regexp.MustCompile(`__RECALL_EMAIL_PROTECTED_[0-9a-f]{32}_[0-9]{4}__`)
+	recallEmailSegmentIdentityPattern      = regexp.MustCompile(`__RECALL_EMAIL_SEGMENT_[0-9a-f]{32}_S[0-9]{4}_I[0-9]{4}__`)
 )
 
 type RecallEmailTranslator interface {
@@ -185,7 +186,7 @@ func (t *recallEmailTranslator) Translate(ctx context.Context, stages []RecallEm
 	}
 	translationConfig := t.currentConfig()
 	if translationConfig.apiKey == "" {
-		return nil, fmt.Errorf("recall email translation API key is empty")
+		return nil, errRecallEmailTranslationNotConfigured
 	}
 	protectedStages, err := protectRecallEmailTranslationStages(stages)
 	if err != nil {

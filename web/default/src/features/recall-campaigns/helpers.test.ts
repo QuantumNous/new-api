@@ -193,6 +193,31 @@ describe('recall campaign editor normalization', () => {
     })
   })
 
+  test('converts plain English body input from the HTML editor before submit', () => {
+    const draft = makeValidDraft()
+    draft.email_sequence[0].templates.en = {
+      subject: 'English subject',
+      body_text: '',
+      body_html: 'Plain line\n2 < 3',
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.email_sequence[0].templates.en).toMatchObject({
+      subject: 'English subject',
+      body_text: '',
+    })
+    expect(normalized.email_sequence[0].templates.en.body_html).toContain(
+      '<p>Plain line</p>'
+    )
+    expect(normalized.email_sequence[0].templates.en.body_html).toContain(
+      '<p>2 &lt; 3</p>'
+    )
+    expect(normalized.email_sequence[0].templates.en.body_html).toContain(
+      'href="{{.ClaimURL}}"'
+    )
+  })
+
   test('validates exactly one email body and preserves hidden localized HTML', () => {
     const validHtml = makeValidDraft()
     validHtml.audience_config.groups = []

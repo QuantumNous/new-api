@@ -542,7 +542,7 @@ describe('recallCampaignDraftSchema', () => {
     expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
   })
 
-  test('requires English subject and body text', () => {
+  test('requires an English template and body while allowing a fallback subject', () => {
     const missingEnglish = makeDraft()
     missingEnglish.email_sequence[0].templates = {
       fr: { subject: 'Revenez', body_text: 'Vous nous manquez.' },
@@ -554,7 +554,7 @@ describe('recallCampaignDraftSchema', () => {
     const missingSubject = makeDraft()
     missingSubject.email_sequence[0].templates.en.subject = ''
     expect(recallCampaignDraftSchema.safeParse(missingSubject).success).toBe(
-      false
+      true
     )
 
     const missingBody = makeDraft()
@@ -642,7 +642,7 @@ describe('recallCampaignActivatedUpdateSchema', () => {
 
   test('still validates activated email content', () => {
     const draft = makeDraft()
-    draft.email_sequence[0].templates.en.subject = ''
+    draft.email_sequence[0].templates.en.body_text = ''
 
     expect(recallCampaignActivatedUpdateSchema.safeParse(draft).success).toBe(
       false

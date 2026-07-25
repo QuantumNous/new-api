@@ -17,6 +17,7 @@ type ComboboxRootProps = {
   children: React.ReactNode
   inputValue: string
   items: string[]
+  itemToStringLabel?: (itemValue: string) => string
   onInputValueChange: (value: string) => void
   onValueChange: (value: string[]) => void
   value: string[]
@@ -162,5 +163,25 @@ describe('MultiSelect search notifications', () => {
 
     expect(selected).toEqual([['1']])
     expect(searches.at(-1)).toBe('')
+  })
+})
+
+describe('MultiSelect option filtering labels', () => {
+  test('provides option labels to Base UI filtering for numeric values', () => {
+    renderMultiSelect({
+      options: [
+        {
+          label: 'Ada Lovelace - ada@example.com - #1',
+          value: '1',
+        },
+      ],
+      selected: [],
+      onChange: () => undefined,
+      placeholder: 'Search users',
+    })
+
+    expect(latestComboboxProps?.itemToStringLabel?.('1')).toBe(
+      'Ada Lovelace - ada@example.com - #1'
+    )
   })
 })

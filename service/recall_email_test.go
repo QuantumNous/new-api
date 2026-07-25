@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -96,6 +97,7 @@ func TestRecallEmailRenderExecutesHTMLTemplateWithoutLegacyWrapper(t *testing.T)
 }
 
 func TestRecallEmailRenderUsesLanguageSpecificWrapperAndProductSummary(t *testing.T) {
+	setupRecallCampaignTestDB(t)
 	tests := []struct {
 		language         string
 		products         RecallProductScope
@@ -151,6 +153,12 @@ func TestRecallEmailRenderUsesLanguageSpecificWrapperAndProductSummary(t *testin
 
 	for _, testCase := range tests {
 		t.Run(testCase.language, func(t *testing.T) {
+			for range testCase.products.TopUpPriceIDs {
+				testCase.products.TopUpDisplaySnapshots = append(testCase.products.TopUpDisplaySnapshots, "10 USD")
+			}
+			for range testCase.products.SubscriptionPriceIDs {
+				testCase.products.SubscriptionDisplaySnapshots = append(testCase.products.SubscriptionDisplaySnapshots, "Pro monthly (20 USD)")
+			}
 			productJSON, err := common.Marshal(testCase.products)
 			require.NoError(t, err)
 			productSummary, err := recallEmailProductSummary(string(productJSON), testCase.language)
@@ -167,11 +175,17 @@ func TestRecallEmailRenderUsesLanguageSpecificWrapperAndProductSummary(t *testin
 				UnsubscribeURL:      "https://console.example.com/unsubscribe",
 			})
 			require.NoError(t, err)
+			expectedProductCopy := testCase.productSummary
+			if len(testCase.products.TopUpPriceIDs) > 0 {
+				expectedProductCopy = recallEmailCopyForLanguage(testCase.language).TopUps
+			} else if len(testCase.products.SubscriptionPriceIDs) > 0 {
+				expectedProductCopy = recallEmailCopyForLanguage(testCase.language).Subscriptions
+			}
 			for _, expected := range []string{
 				testCase.greeting,
 				testCase.offerCodeLabel,
 				testCase.validForLabel,
-				testCase.productSummary,
+				expectedProductCopy,
 				testCase.expiresLabel,
 				testCase.claimLabel + "</a>",
 				testCase.unsubscribeLabel + "</a>",
@@ -184,11 +198,17 @@ func TestRecallEmailRenderUsesLanguageSpecificWrapperAndProductSummary(t *testin
 }
 
 func TestRecallEmailRenderUnknownLanguageUsesEnglish(t *testing.T) {
-	productJSON, err := common.Marshal(RecallProductScope{TopUpPriceIDs: []string{"topup"}, SubscriptionPriceIDs: []string{"subscription"}})
+	setupRecallCampaignTestDB(t)
+	productJSON, err := common.Marshal(RecallProductScope{
+		TopUpPriceIDs:                []string{"topup"},
+		SubscriptionPriceIDs:         []string{"subscription"},
+		TopUpDisplaySnapshots:        []string{"10 USD"},
+		SubscriptionDisplaySnapshots: []string{"Pro monthly (20 USD)"},
+	})
 	require.NoError(t, err)
 	productSummary, err := recallEmailProductSummary(string(productJSON), "de")
 	require.NoError(t, err)
-	require.Equal(t, "Top-ups and subscriptions", productSummary)
+	require.Equal(t, "Top-ups: 10 USD; Subscriptions: Pro monthly (20 USD)", productSummary)
 
 	_, body, err := RenderRecallEmail(RecallEmailRenderInput{
 		Language:            "de",
@@ -203,9 +223,93 @@ func TestRecallEmailRenderUnknownLanguageUsesEnglish(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, body, "Hello Ada,")
 	require.Contains(t, body, "Offer code:")
-	require.Contains(t, body, "Valid for: Top-ups and subscriptions")
+	require.Contains(t, body, "Valid for: Top-ups: 10 USD; Subscriptions: Pro monthly (20 USD)")
 	require.Contains(t, body, "Claim your offer</a>")
 	require.Contains(t, body, "Unsubscribe</a>")
+}
+
+func TestRecallEmailProductSummaryUsesConfiguredAmountsAndPlanDetails(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	originalTopUpPriceIDs := setting.StripeTopUpPriceIds
+	setting.StripeTopUpPriceIds = `{"10":"price_topup_10","50":"price_topup_50"}`
+	t.Cleanup(func() {
+		setting.StripeTopUpPriceIds = originalTopUpPriceIDs
+	})
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Title:         "Pro monthly",
+		PriceAmount:   20,
+		Currency:      "USD",
+		Enabled:       true,
+		StripePriceId: "price_pro_month",
+	}).Error)
+	productJSON, err := common.Marshal(RecallProductScope{
+		TopUpPriceIDs:        []string{"price_topup_50", "price_topup_10"},
+		SubscriptionPriceIDs: []string{"price_pro_month"},
+	})
+	require.NoError(t, err)
+
+	productSummary, err := recallEmailProductSummary(string(productJSON), "en")
+	require.NoError(t, err)
+	require.Equal(t, "Top-ups: 50 USD, 10 USD; Subscriptions: Pro monthly (20 USD)", productSummary)
+	require.NotContains(t, productSummary, "price_")
+}
+
+func TestRecallEmailProductSummaryRejectsUnresolvedProductsInsteadOfSendingGenericCopy(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	originalTopUpPriceIDs := setting.StripeTopUpPriceIds
+	setting.StripeTopUpPriceIds = ""
+	t.Cleanup(func() {
+		setting.StripeTopUpPriceIds = originalTopUpPriceIDs
+	})
+	productJSON, err := common.Marshal(RecallProductScope{
+		TopUpPriceIDs:        []string{"missing_topup"},
+		SubscriptionPriceIDs: []string{"missing_subscription"},
+	})
+	require.NoError(t, err)
+
+	productSummary, err := recallEmailProductSummary(string(productJSON), "en")
+
+	require.ErrorIs(t, err, errRecallEmailProductSummaryUnavailable)
+	require.Empty(t, productSummary)
+}
+
+func TestRecallEmailProductSummaryInvalidScopeIsPermanent(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).
+		Where("id = ?", fixture.campaign.Id).
+		Update("product_scope", "{").Error)
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	require.Empty(t, *fixture.sent)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageFailed, stored.State)
+	require.Equal(t, "product_scope_invalid", stored.LastErrorCode)
+	require.Zero(t, stored.NextAttemptAt)
+}
+
+func TestRecallEmailProductSummaryDatabaseFailureIsRetryable(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	productJSON, err := common.Marshal(RecallProductScope{SubscriptionPriceIDs: []string{"price_sub"}})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).
+		Where("id = ?", fixture.campaign.Id).
+		Update("product_scope", string(productJSON)).Error)
+	callbackName := "recall_email_product_summary_database_failure"
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "subscription_plans" {
+			tx.AddError(errors.New("temporary subscription plan lookup failure"))
+		}
+	}))
+	t.Cleanup(func() { _ = model.DB.Callback().Query().Remove(callbackName) })
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	require.Empty(t, *fixture.sent)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageRetryWait, stored.State)
+	require.Equal(t, "product_summary_lookup_failed", stored.LastErrorCode)
+	require.Equal(t, recallEmailTestNow+30, stored.NextAttemptAt)
 }
 
 func TestRecallEmailTemplateForLanguageReturnsResolvedLanguage(t *testing.T) {
@@ -248,7 +352,7 @@ func TestRecallEmailZhExactTemplateUsesZhThroughout(t *testing.T) {
 	require.Equal(t, "中文主题", sent.subject)
 	require.Contains(t, sent.htmlBody, "中文正文")
 	require.Contains(t, sent.htmlBody, "您好，Ada &lt;admin&gt;！")
-	require.Contains(t, sent.htmlBody, "适用于：充值和订阅")
+	require.Contains(t, sent.htmlBody, "适用于：充值: 10 USD; 订阅: Pro monthly (20 USD)")
 	require.Contains(t, sent.htmlBody, "领取优惠</a>")
 }
 
@@ -267,7 +371,7 @@ func TestRecallEmailMissingFrTemplateUsesEnglishThroughout(t *testing.T) {
 	require.Equal(t, "English subject", sent.subject)
 	require.Contains(t, sent.htmlBody, "English body")
 	require.Contains(t, sent.htmlBody, "Hello Ada &lt;admin&gt;,")
-	require.Contains(t, sent.htmlBody, "Valid for: Top-ups and subscriptions")
+	require.Contains(t, sent.htmlBody, "Valid for: Top-ups: 10 USD; Subscriptions: Pro monthly (20 USD)")
 	require.Contains(t, sent.htmlBody, "Claim your offer</a>")
 	require.NotContains(t, sent.htmlBody, "Bonjour")
 	require.NotContains(t, sent.htmlBody, "Recharges")
@@ -293,7 +397,7 @@ func TestRecallEmailAcceptedSchedulesVersionedStagesRelativeToFirstAcceptance(t 
 	require.Equal(t, fmt.Sprintf("<recall-%d-1@notify.example.com>", fixture.recipient.Id), firstSend.messageID)
 	require.Contains(t, firstSend.htmlBody, model.MaskPromotionCode(fixture.recipient.PromotionCode))
 	require.NotContains(t, firstSend.htmlBody, fixture.recipient.PromotionCode)
-	require.Contains(t, firstSend.htmlBody, "Top-ups and subscriptions")
+	require.Contains(t, firstSend.htmlBody, "Top-ups: 10 USD; Subscriptions: Pro monthly (20 USD)")
 
 	var accepted model.RecallMessage
 	require.NoError(t, model.DB.First(&accepted, fixture.message.Id).Error)
@@ -336,6 +440,16 @@ func TestRecallEmailAcceptedSchedulesVersionedStagesRelativeToFirstAcceptance(t 
 	var stageTwoCount int64
 	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("recipient_id = ? AND stage_no = ?", fixture.recipient.Id, 2).Count(&stageTwoCount).Error)
 	require.EqualValues(t, 1, stageTwoCount)
+}
+
+func TestRecallEmailAccountBackedRecipientUsesRecipientUnsubscribeToken(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	require.Len(t, *fixture.sent, 1)
+	unsubscribeToken := recallEmailRawUnsubscribeToken(t, (*fixture.sent)[0].htmlBody)
+	requireRecallEmailUnsubscribePayload(t, unsubscribeToken, 2, 0, fixture.recipient.Id, fixture.recipient.PromotionExpiresAt)
 }
 
 func TestRecallEmailAcceptedTimestampUsesSMTPAcceptanceTime(t *testing.T) {
@@ -854,7 +968,7 @@ func TestRecallEmailRunBatchEmailOnlySendsWithSnapshotAndRecipientUnsubscribe(t 
 	require.Equal(t, "Return stage 1", sent.subject)
 	require.Contains(t, sent.htmlBody, "Hello ,")
 	require.Contains(t, sent.htmlBody, "Offer body 1")
-	require.Contains(t, sent.htmlBody, "Valid for: Top-ups and subscriptions")
+	require.Contains(t, sent.htmlBody, "Valid for: Top-ups: 10 USD; Subscriptions: Pro monthly (20 USD)")
 	require.Contains(t, sent.htmlBody, "/console/topup?recall_claim=")
 	require.Equal(t, fmt.Sprintf("<recall-%d-1@notify.example.com>", fixture.recipient.Id), sent.messageID)
 
@@ -934,7 +1048,12 @@ func newRecallEmailFixture(t *testing.T, stageCount int, sender RecallEmailSende
 	}
 	emailJSON, err := common.Marshal(stages)
 	require.NoError(t, err)
-	productJSON, err := common.Marshal(RecallProductScope{TopUpPriceIDs: []string{"price_top"}, SubscriptionPriceIDs: []string{"price_sub"}})
+	productJSON, err := common.Marshal(RecallProductScope{
+		TopUpPriceIDs:                []string{"price_top"},
+		SubscriptionPriceIDs:         []string{"price_sub"},
+		TopUpDisplaySnapshots:        []string{"10 USD"},
+		SubscriptionDisplaySnapshots: []string{"Pro monthly (20 USD)"},
+	})
 	require.NoError(t, err)
 	discountJSON, err := common.Marshal(RecallDiscountConfig{PercentOff: 20})
 	require.NoError(t, err)

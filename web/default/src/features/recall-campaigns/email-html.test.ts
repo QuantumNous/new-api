@@ -4,6 +4,7 @@ import {
   RECALL_EMAIL_STARTER_HTML,
   convertRecallBodyTextToHtml,
   insertRecallEmailAction,
+  normalizeRecallBodyInputToHtml,
 } from './email-html'
 
 describe('recall email HTML helpers', () => {
@@ -35,6 +36,22 @@ describe('recall email HTML helpers', () => {
     expect(html).toContain('&lt;&gt;&amp;&quot;&#39;')
     expect(html).toContain('{{.ClaimURL}}')
     expect(html).toContain('{{.UnsubscribeURL}}')
+  })
+
+  test('converts plain body input to escaped HTML with required action links', () => {
+    const html = normalizeRecallBodyInputToHtml('Hello\n2 < 3 & "quoted"')
+
+    expect(html).toContain('<p>Hello</p>')
+    expect(html).toContain('<p>2 &lt; 3 &amp; &quot;quoted&quot;</p>')
+    expect(html).toContain('href="{{.ClaimURL}}"')
+    expect(html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
+  test('preserves real HTML body input for existing backend validation', () => {
+    const source =
+      '<p>Hello</p><p><a href="{{.ClaimURL}}">Claim</a></p><p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>'
+
+    expect(normalizeRecallBodyInputToHtml(source)).toBe(source)
   })
 
   test('inserts recall actions at normalized selections', () => {

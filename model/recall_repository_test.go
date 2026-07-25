@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/glebarez/sqlite"
@@ -807,6 +808,178 @@ func TestListRecallCampaignRecipientKeysWithContextReturnsNonNilEmptyMaps(t *tes
 	require.Empty(t, keys.Identities)
 	require.Empty(t, keys.UserIDs)
 	require.Empty(t, keys.Emails)
+}
+
+func TestRecallRecipientMigrationRequiresDisabledCampaignsBeforeSchemaSwap(t *testing.T) {
+	originalDB := DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	DB = db
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+		DB = originalDB
+	})
+
+	require.NoError(t, DB.Exec(`CREATE TABLE recall_recipients (
+		id integer PRIMARY KEY AUTOINCREMENT,
+		campaign_id bigint NOT NULL,
+		user_id integer NOT NULL,
+		eligibility_snapshot text NOT NULL,
+		email_snapshot varchar(254) NOT NULL,
+		language_snapshot varchar(16) NOT NULL,
+		state varchar(24) NOT NULL
+	)`).Error)
+	require.NoError(t, DB.Exec(`CREATE UNIQUE INDEX idx_recall_campaign_user ON recall_recipients (campaign_id, user_id)`).Error)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	require.NoError(t, DB.Create(&Option{Key: "recall_campaign_setting.enabled", Value: "true"}).Error)
+
+	err = migrateRecallRecipientIdentity()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "recall_campaign_setting.enabled=false")
+	require.Contains(t, err.Error(), "drain")
+	require.False(t, DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity"))
+	require.True(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_user"))
+
+	require.NoError(t, DB.Model(&Option{}).Where(&Option{Key: "recall_campaign_setting.enabled"}).Update("value", "not-a-bool").Error)
+	err = migrateRecallRecipientIdentity()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid stored value")
+	require.False(t, DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity"))
+	require.True(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_user"))
+
+	require.NoError(t, DB.Model(&Option{}).Where(&Option{Key: "recall_campaign_setting.enabled"}).Update("value", "false").Error)
+	require.NoError(t, migrateRecallRecipientIdentity())
+	require.True(t, DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity"))
+	require.True(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_identity"))
+	require.False(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_user"))
+}
+
+func TestRecallRecipientMigrationRejectsActiveRecipientLeaseBeforeSchemaSwap(t *testing.T) {
+	originalDB := DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	DB = db
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+		DB = originalDB
+	})
+
+	require.NoError(t, DB.Exec(`CREATE TABLE recall_recipients (
+		id integer PRIMARY KEY AUTOINCREMENT,
+		campaign_id bigint NOT NULL,
+		user_id integer NOT NULL,
+		eligibility_snapshot text NOT NULL,
+		email_snapshot varchar(254) NOT NULL,
+		language_snapshot varchar(16) NOT NULL,
+		state varchar(24) NOT NULL,
+		lease_owner varchar(96) NOT NULL DEFAULT '',
+		lease_expires_at bigint NOT NULL DEFAULT 0
+	)`).Error)
+	require.NoError(t, DB.Exec(`CREATE UNIQUE INDEX idx_recall_campaign_user ON recall_recipients (campaign_id, user_id)`).Error)
+	require.NoError(t, DB.Exec(`INSERT INTO recall_recipients (campaign_id, user_id, eligibility_snapshot, email_snapshot, language_snapshot, state, lease_owner, lease_expires_at) VALUES
+		(73, 701, '{}', 'leased-recipient@example.com', 'en', 'queued', 'worker-a', ?)`, time.Now().Unix()+3600).Error)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	require.NoError(t, DB.Create(&Option{Key: "recall_campaign_setting.enabled", Value: "false"}).Error)
+
+	err = migrateRecallRecipientIdentity()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "active recall recipient/message leases")
+	require.False(t, DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity"))
+	require.True(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_user"))
+	require.False(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_identity"))
+}
+
+func TestRecallRecipientMigrationRejectsActiveMessageLeaseBeforeSchemaSwap(t *testing.T) {
+	originalDB := DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	DB = db
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+		DB = originalDB
+	})
+
+	require.NoError(t, DB.Exec(`CREATE TABLE recall_recipients (
+		id integer PRIMARY KEY AUTOINCREMENT,
+		campaign_id bigint NOT NULL,
+		user_id integer NOT NULL,
+		eligibility_snapshot text NOT NULL,
+		email_snapshot varchar(254) NOT NULL,
+		language_snapshot varchar(16) NOT NULL,
+		state varchar(24) NOT NULL,
+		lease_owner varchar(96) NOT NULL DEFAULT '',
+		lease_expires_at bigint NOT NULL DEFAULT 0
+	)`).Error)
+	require.NoError(t, DB.Exec(`CREATE UNIQUE INDEX idx_recall_campaign_user ON recall_recipients (campaign_id, user_id)`).Error)
+	require.NoError(t, DB.Exec(`INSERT INTO recall_recipients (campaign_id, user_id, eligibility_snapshot, email_snapshot, language_snapshot, state) VALUES
+		(74, 701, '{}', 'message-recipient@example.com', 'en', 'contacting')`).Error)
+	require.NoError(t, DB.Exec(`CREATE TABLE recall_messages (
+		id integer PRIMARY KEY AUTOINCREMENT,
+		recipient_id bigint NOT NULL,
+		stage_no integer NOT NULL,
+		template_snapshot text NOT NULL,
+		state varchar(24) NOT NULL,
+		lease_owner varchar(96) NOT NULL DEFAULT '',
+		lease_expires_at bigint NOT NULL DEFAULT 0
+	)`).Error)
+	require.NoError(t, DB.Exec(`INSERT INTO recall_messages (recipient_id, stage_no, template_snapshot, state, lease_owner, lease_expires_at) VALUES
+		(1, 1, '{}', 'leased', 'worker-a', ?)`, time.Now().Unix()+3600).Error)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	require.NoError(t, DB.Create(&Option{Key: "recall_campaign_setting.enabled", Value: "false"}).Error)
+
+	err = migrateRecallRecipientIdentity()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "active recall recipient/message leases")
+	require.False(t, DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity"))
+	require.True(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_user"))
+	require.False(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_campaign_identity"))
+}
+
+func TestMigrateDBRunsRecallIdentityGuardBeforeOtherMigrations(t *testing.T) {
+	originalDB := DB
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingMySQL := common.UsingMySQL
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	DB = db
+	common.UsingSQLite = false
+	common.UsingMySQL = true
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+		DB = originalDB
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingMySQL = originalUsingMySQL
+	})
+
+	require.NoError(t, DB.Exec(`CREATE TABLE recall_recipients (
+		id integer PRIMARY KEY AUTOINCREMENT,
+		campaign_id bigint NOT NULL,
+		user_id integer NOT NULL,
+		eligibility_snapshot text NOT NULL,
+		email_snapshot varchar(254) NOT NULL,
+		language_snapshot varchar(16) NOT NULL,
+		state varchar(24) NOT NULL
+	)`).Error)
+	require.NoError(t, DB.Exec(`CREATE UNIQUE INDEX idx_recall_campaign_user ON recall_recipients (campaign_id, user_id)`).Error)
+	require.NoError(t, DB.Exec(`CREATE TABLE tokens (
+		id integer PRIMARY KEY AUTOINCREMENT,
+		model_limits varchar(1024) NOT NULL DEFAULT ''
+	)`).Error)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	require.NoError(t, DB.Create(&Option{Key: "recall_campaign_setting.enabled", Value: "true"}).Error)
+
+	err = migrateDB()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "recall_campaign_setting.enabled=false")
+	require.False(t, DB.Migrator().HasColumn(&RecallRecipient{}, "recipient_identity"))
 }
 
 func TestRecallRecipientMigrationBackfillsIdentityAndReplacesLegacyIndex(t *testing.T) {
