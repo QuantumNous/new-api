@@ -26,16 +26,18 @@ var modelChannelAvailabilityMu sync.Mutex
 
 // SyncModelChannelAvailability reconciles model status against available channels.
 // When reason is non-empty it is logged with the enable/disable counts.
-// forceFull=true always evaluates all models; otherwise only when disable switch is on.
+// Evaluation always scans all model rows when either auto switch is enabled.
 func SyncModelChannelAvailability(reason string) ModelChannelAvailabilityResult {
 	return syncModelChannelAvailability(reason, false)
 }
 
-// SyncModelChannelAvailabilityFull runs a full calibration regardless of partial-skip heuristics.
+// SyncModelChannelAvailabilityFull runs the same reconciliation as SyncModelChannelAvailability,
+// but also emits a zero-change log line when forceFull logging is requested.
 func SyncModelChannelAvailabilityFull(reason string) ModelChannelAvailabilityResult {
 	return syncModelChannelAvailability(reason, true)
 }
 
+// forceFull only affects zero-change logging; model evaluation already scans all rows.
 func syncModelChannelAvailability(reason string, forceFull bool) ModelChannelAvailabilityResult {
 	result := ModelChannelAvailabilityResult{Reason: reason}
 
@@ -123,7 +125,6 @@ func syncModelChannelAvailability(reason string, forceFull bool) ModelChannelAva
 		))
 	}
 
-	_ = forceFull
 	return result
 }
 
@@ -282,7 +283,7 @@ func manualSyncModelChannelAvailability(reason string, doDisable bool, doEnable 
 
 	if len(enableAutoIDs) > 0 {
 		res := model.DB.Model(&model.Model{}).
-			Where("id IN ? AND status = ?", enableAutoIDs, modelStatusDisabled).
+			Where("id IN ? AND status = ? AND auto_disabled_by_rule = ?", enableAutoIDs, modelStatusDisabled, true).
 			Updates(map[string]interface{}{
 				"status":                modelStatusEnabled,
 				"auto_disabled_by_rule": true,

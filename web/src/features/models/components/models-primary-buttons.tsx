@@ -26,9 +26,11 @@ import {
   PowerOff,
   Power,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -45,10 +47,16 @@ import {
   handleBatchEnableModelsWithChannels,
 } from '../lib/model-actions'
 
+type ConfirmAction = 'disable-no-channels' | 'enable-with-channels'
+
 export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
   const queryClient = useQueryClient()
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(
+    null
+  )
+  const [confirming, setConfirming] = useState(false)
 
   const handleCreateModel = () => {
     setCurrentRow(null)
@@ -71,12 +79,40 @@ export function ModelsPrimaryButtons() {
     setOpen('create-vendor') // Will be a separate vendors management dialog
   }
 
-  const handleBatchDisableNoChannels = async () => {
-    await handleBatchDisableModelsNoChannels(queryClient)
-  }
+  const confirmDialog =
+    confirmAction === 'disable-no-channels'
+      ? {
+          title: t('Disable Models with No Channels?'),
+          description: t(
+            'This will disable all currently enabled models that have no available channels. Continue?'
+          ),
+          confirmLabel: t('Disable'),
+          variant: 'destructive' as const,
+        }
+      : confirmAction === 'enable-with-channels'
+        ? {
+            title: t('Enable Models with Recovered Channels?'),
+            description: t(
+              'This will enable disabled models that currently have available channels. Continue?'
+            ),
+            confirmLabel: t('Enable'),
+            variant: 'default' as const,
+          }
+        : null
 
-  const handleBatchEnableWithChannels = async () => {
-    await handleBatchEnableModelsWithChannels(queryClient)
+  const handleConfirm = async () => {
+    if (!confirmAction || confirming) return
+    setConfirming(true)
+    try {
+      if (confirmAction === 'disable-no-channels') {
+        await handleBatchDisableModelsNoChannels(queryClient)
+      } else {
+        await handleBatchEnableModelsWithChannels(queryClient)
+      }
+      setConfirmAction(null)
+    } finally {
+      setConfirming(false)
+    }
   }
 
   return (
@@ -125,14 +161,18 @@ export function ModelsPrimaryButtons() {
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem onClick={handleBatchDisableNoChannels}>
+          <DropdownMenuItem
+            onClick={() => setConfirmAction('disable-no-channels')}
+          >
             {t('Batch Disable Models with No Channels')}
             <DropdownMenuShortcut>
               <PowerOff className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={handleBatchEnableWithChannels}>
+          <DropdownMenuItem
+            onClick={() => setConfirmAction('enable-with-channels')}
+          >
             {t('Batch Enable Models with Recovered Channels')}
             <DropdownMenuShortcut>
               <Power className='h-4 w-4' />
@@ -140,6 +180,36 @@ export function ModelsPrimaryButtons() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => {
+          if (!open && !confirming) setConfirmAction(null)
+        }}
+        title={confirmDialog?.title ?? ''}
+        description={confirmDialog?.description}
+        contentHeight='auto'
+        footer={
+          <>
+            <Button
+              variant='outline'
+              disabled={confirming}
+              onClick={() => setConfirmAction(null)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              variant={confirmDialog?.variant ?? 'default'}
+              disabled={confirming}
+              onClick={handleConfirm}
+            >
+              {confirmDialog?.confirmLabel ?? t('Confirm')}
+            </Button>
+          </>
+        }
+      >
+        {' '}
+      </Dialog>
     </div>
   )
 }
