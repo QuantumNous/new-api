@@ -10,24 +10,32 @@ import (
 	texttemplate "text/template"
 	"text/template/parse"
 
+	"github.com/QuantumNous/new-api/model"
 	"golang.org/x/net/html"
 )
 
 const recallEmailHTMLMaxBytes = 100 * 1024
 
-var recallEmailHTMLTemplateFields = map[string]struct{}{
-	"RecipientName":       {},
-	"PromotionCodeMasked": {},
-	"ProductSummary":      {},
-	"ExpiresAt":           {},
-	"ClaimURL":            {},
-	"UnsubscribeURL":      {},
+var recallEmailFieldsByCampaignType = map[string]map[string]struct{}{
+	model.RecallCampaignTypePromotion: {
+		"RecipientName":       {},
+		"PromotionCodeMasked": {},
+		"ProductSummary":      {},
+		"ExpiresAt":           {},
+		"ClaimURL":            {},
+		"UnsubscribeURL":      {},
+	},
+	model.RecallCampaignTypeContentOnly: {
+		"RecipientName":  {},
+		"UnsubscribeURL": {},
+	},
 }
 
 type recallEmailHTMLDocument struct {
-	source string
-	root   *html.Node
-	slots  []recallEmailHTMLSlot
+	campaignType string
+	source       string
+	root         *html.Node
+	slots        []recallEmailHTMLSlot
 }
 
 type recallEmailHTMLSlot struct {
@@ -37,10 +45,18 @@ type recallEmailHTMLSlot struct {
 }
 
 func parseRecallEmailHTML(source string) (*recallEmailHTMLDocument, error) {
+	return parseRecallEmailHTMLForCampaign(model.RecallCampaignTypePromotion, source)
+}
+
+func parseRecallEmailHTMLForCampaign(campaignType string, source string) (*recallEmailHTMLDocument, error) {
+	policy, err := recallEmailHTMLPolicyForCampaign(campaignType)
+	if err != nil {
+		return nil, err
+	}
 	if len([]byte(source)) > recallEmailHTMLMaxBytes {
 		return nil, fmt.Errorf("recall email html must contain at most %d bytes", recallEmailHTMLMaxBytes)
 	}
-	if err := validateRecallEmailTemplateActions(source); err != nil {
+	if err := validateRecallEmailTemplateActions(source, policy); err != nil {
 		return nil, err
 	}
 	if err := validateRecallEmailHTMLRawTokens(source); err != nil {
@@ -50,22 +66,42 @@ func parseRecallEmailHTML(source string) (*recallEmailHTMLDocument, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse recall email html: %w", err)
 	}
-	document := &recallEmailHTMLDocument{source: source, root: root}
-	foundClaimURL := false
-	foundUnsubscribeURL := false
-	if err := walkRecallEmailHTML(root, false, false, document, &foundClaimURL, &foundUnsubscribeURL); err != nil {
+	document := &recallEmailHTMLDocument{campaignType: policy.CampaignType, source: source, root: root}
+	foundActions := make(map[string]struct{})
+	if err := walkRecallEmailHTML(root, false, false, document, foundActions); err != nil {
 		return nil, err
 	}
-	if !foundClaimURL {
-		return nil, fmt.Errorf("ClaimURL action must appear in an anchor href")
-	}
-	if !foundUnsubscribeURL {
-		return nil, fmt.Errorf("UnsubscribeURL action must appear in an anchor href")
+	for _, field := range policy.RequiredHrefFields {
+		if _, ok := foundActions[field]; !ok {
+			return nil, recallEmailHTMLHrefActionError(field)
+		}
 	}
 	return document, nil
 }
 
-func validateRecallEmailTemplateBodyContract(template RecallEmailTemplate) (RecallEmailTemplate, error) {
+func recallEmailHTMLPolicyForCampaign(campaignType string) (recallEmailHTMLPolicy, error) {
+	campaignType, err := normalizeRecallCampaignType(campaignType)
+	if err != nil {
+		return recallEmailHTMLPolicy{}, err
+	}
+	allowedFields, ok := recallEmailFieldsByCampaignType[campaignType]
+	if !ok {
+		return recallEmailHTMLPolicy{}, fmt.Errorf("unsupported recall campaign type %q", campaignType)
+	}
+	policy := recallEmailHTMLPolicy{CampaignType: campaignType, AllowedFields: allowedFields, RequiredHrefFields: []string{"UnsubscribeURL"}}
+	if campaignType == model.RecallCampaignTypePromotion {
+		policy.RequiredHrefFields = append(policy.RequiredHrefFields, "ClaimURL")
+	}
+	return policy, nil
+}
+
+type recallEmailHTMLPolicy struct {
+	CampaignType       string
+	AllowedFields      map[string]struct{}
+	RequiredHrefFields []string
+}
+
+func validateRecallEmailTemplateBodyContract(campaignType string, template RecallEmailTemplate) (RecallEmailTemplate, error) {
 	template.Subject = strings.TrimSpace(template.Subject)
 	template.BodyText = strings.TrimSpace(template.BodyText)
 	template.BodyHTML = strings.TrimSpace(template.BodyHTML)
@@ -79,7 +115,7 @@ func validateRecallEmailTemplateBodyContract(template RecallEmailTemplate) (Reca
 		return RecallEmailTemplate{}, fmt.Errorf("recall email template subject must be single line")
 	}
 	if template.BodyHTML != "" {
-		if _, err := parseRecallEmailHTML(template.BodyHTML); err != nil {
+		if _, err := parseRecallEmailHTMLForCampaign(campaignType, template.BodyHTML); err != nil {
 			return RecallEmailTemplate{}, fmt.Errorf("recall email template body html: %w", err)
 		}
 	}
@@ -119,13 +155,13 @@ func (document *recallEmailHTMLDocument) Rebuild(translations []string) (string,
 		return "", fmt.Errorf("recall email html must contain at most %d bytes", recallEmailHTMLMaxBytes)
 	}
 	output := rendered.String()
-	if _, err := parseRecallEmailHTML(output); err != nil {
+	if _, err := parseRecallEmailHTMLForCampaign(document.campaignType, output); err != nil {
 		return "", err
 	}
 	return output, nil
 }
 
-func walkRecallEmailHTML(node *html.Node, inHead bool, inStyle bool, document *recallEmailHTMLDocument, foundClaimURL *bool, foundUnsubscribeURL *bool) error {
+func walkRecallEmailHTML(node *html.Node, inHead bool, inStyle bool, document *recallEmailHTMLDocument, foundActions map[string]struct{}) error {
 	nextInHead := inHead
 	nextInStyle := inStyle
 	if node.Type == html.ElementNode {
@@ -153,9 +189,9 @@ func walkRecallEmailHTML(node *html.Node, inHead bool, inStyle bool, document *r
 			if element == "a" && key == "href" {
 				switch value {
 				case "{{.ClaimURL}}":
-					*foundClaimURL = true
+					foundActions["ClaimURL"] = struct{}{}
 				case "{{.UnsubscribeURL}}":
-					*foundUnsubscribeURL = true
+					foundActions["UnsubscribeURL"] = struct{}{}
 				}
 			}
 			if isRecallEmailHTMLTranslatableAttribute(key) && strings.TrimSpace(attr.Val) != "" {
@@ -179,7 +215,7 @@ func walkRecallEmailHTML(node *html.Node, inHead bool, inStyle bool, document *r
 		document.slots = append(document.slots, recallEmailHTMLSlot{node: node, attrIndex: -1, value: node.Data})
 	}
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		if err := walkRecallEmailHTML(child, nextInHead, nextInStyle, document, foundClaimURL, foundUnsubscribeURL); err != nil {
+		if err := walkRecallEmailHTML(child, nextInHead, nextInStyle, document, foundActions); err != nil {
 			return err
 		}
 	}
@@ -306,9 +342,13 @@ type recallEmailHTMLURLActions struct {
 
 func (actions recallEmailHTMLURLActions) err() error {
 	if actions.claim {
-		return fmt.Errorf("ClaimURL action must appear in an anchor href")
+		return recallEmailHTMLHrefActionError("ClaimURL")
 	}
-	return fmt.Errorf("UnsubscribeURL action must appear in an anchor href")
+	return recallEmailHTMLHrefActionError("UnsubscribeURL")
+}
+
+func recallEmailHTMLHrefActionError(field string) error {
+	return fmt.Errorf("%s action must appear in an anchor href", field)
 }
 
 func recallEmailHTMLURLActionsInTemplate(raw string) (recallEmailHTMLURLActions, error) {
@@ -473,7 +513,7 @@ func isRecallEmailHTMLConditionalComment(raw string) bool {
 		strings.Contains(normalized, "<![endif]")
 }
 
-func validateRecallEmailTemplateActions(source string) error {
+func validateRecallEmailTemplateActions(source string, policy recallEmailHTMLPolicy) error {
 	template, err := htmltemplate.New("recall-email-html").Option("missingkey=error").Parse(source)
 	if err != nil {
 		return fmt.Errorf("parse recall email html template: %w", err)
@@ -484,7 +524,10 @@ func validateRecallEmailTemplateActions(source string) error {
 	if template.Tree == nil || template.Tree.Root == nil {
 		return nil
 	}
-	return validateRecallEmailTemplateNode(template.Tree.Root)
+	if _, allowed := policy.AllowedFields["ClaimURL"]; !allowed && recallEmailHTMLTemplateContainsField(template.Tree.Root, "ClaimURL") {
+		return fmt.Errorf("unsupported template field %q", "ClaimURL")
+	}
+	return validateRecallEmailTemplateNode(template.Tree.Root, policy)
 }
 
 type recallEmailTemplateDefinition interface {
@@ -500,11 +543,11 @@ func validateRecallEmailTemplateDefinitions[T recallEmailTemplateDefinition](roo
 	return nil
 }
 
-func validateRecallEmailTemplateNode(node parse.Node) error {
+func validateRecallEmailTemplateNode(node parse.Node, policy recallEmailHTMLPolicy) error {
 	switch typed := node.(type) {
 	case *parse.ListNode:
 		for _, child := range typed.Nodes {
-			if err := validateRecallEmailTemplateNode(child); err != nil {
+			if err := validateRecallEmailTemplateNode(child, policy); err != nil {
 				return err
 			}
 		}
@@ -531,7 +574,7 @@ func validateRecallEmailTemplateNode(node parse.Node) error {
 		if len(field.Ident) != 1 {
 			return fmt.Errorf("unsupported template field")
 		}
-		if _, allowed := recallEmailHTMLTemplateFields[field.Ident[0]]; !allowed {
+		if _, allowed := policy.AllowedFields[field.Ident[0]]; !allowed {
 			return fmt.Errorf("unsupported template field %q", field.Ident[0])
 		}
 	case *parse.IfNode, *parse.RangeNode, *parse.WithNode, *parse.TemplateNode:
@@ -540,6 +583,34 @@ func validateRecallEmailTemplateNode(node parse.Node) error {
 		return fmt.Errorf("unsupported template command")
 	}
 	return nil
+}
+
+func recallEmailHTMLTemplateContainsField(node parse.Node, name string) bool {
+	switch typed := node.(type) {
+	case *parse.ListNode:
+		for _, child := range typed.Nodes {
+			if recallEmailHTMLTemplateContainsField(child, name) {
+				return true
+			}
+		}
+	case *parse.ActionNode:
+		return recallEmailHTMLTemplateContainsField(typed.Pipe, name)
+	case *parse.PipeNode:
+		for _, command := range typed.Cmds {
+			if recallEmailHTMLTemplateContainsField(command, name) {
+				return true
+			}
+		}
+	case *parse.CommandNode:
+		for _, arg := range typed.Args {
+			if recallEmailHTMLTemplateContainsField(arg, name) {
+				return true
+			}
+		}
+	case *parse.FieldNode:
+		return len(typed.Ident) == 1 && typed.Ident[0] == name
+	}
+	return false
 }
 
 func normalizeRecallEmailCSS(raw string) string {

@@ -1090,7 +1090,7 @@ func TestNormalizeRecallEmailTemplateRequiresExactlyOneBody(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			got, err := normalizeRecallEmailTemplate(2, "en", testCase.template)
+			got, err := normalizeRecallEmailTemplate(model.RecallCampaignTypePromotion, 2, "en", testCase.template)
 
 			if testCase.wantErr == "" {
 				require.NoError(t, err)

@@ -50,6 +50,7 @@ type recallEmailProductSummaryCacheEntry struct {
 }
 
 type RecallEmailRenderInput struct {
+	CampaignType        string
 	Language            string
 	Template            RecallEmailTemplate
 	RecipientName       string
@@ -740,6 +741,11 @@ func recallEmailCopyForLanguage(language string) recallEmailCopy {
 }
 
 func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody string, err error) {
+	campaignType, err := normalizeRecallCampaignType(input.CampaignType)
+	if err != nil {
+		return "", "", err
+	}
+	input.CampaignType = campaignType
 	if strings.ContainsAny(input.Template.Subject, "\r\n") {
 		return "", "", fmt.Errorf("recall email subject must not contain CR or LF")
 	}
@@ -760,6 +766,14 @@ func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody s
 		paragraphs = append(paragraphs, "<p>"+html.EscapeString(line)+"</p>")
 	}
 	copy := recallEmailCopyForLanguage(input.Language)
+	if input.CampaignType == model.RecallCampaignTypeContentOnly {
+		htmlBody = "<!doctype html><html><body>" +
+			"<p>" + copy.GreetingPrefix + html.EscapeString(input.RecipientName) + copy.GreetingSuffix + "</p>" +
+			strings.Join(paragraphs, "") +
+			"<p><a href=\"" + html.EscapeString(input.UnsubscribeURL) + "\">" + copy.UnsubscribeLabel + "</a></p>" +
+			"</body></html>"
+		return input.Template.Subject, htmlBody, nil
+	}
 	expires := time.Unix(input.ExpiresAt, 0).UTC().Format("2006-01-02 15:04 UTC")
 	htmlBody = "<!doctype html><html><body>" +
 		"<p>" + copy.GreetingPrefix + html.EscapeString(input.RecipientName) + copy.GreetingSuffix + "</p>" +
@@ -774,7 +788,7 @@ func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody s
 }
 
 func renderRecallEmailHTML(source string, input RecallEmailRenderInput) (string, error) {
-	if _, err := parseRecallEmailHTML(source); err != nil {
+	if _, err := parseRecallEmailHTMLForCampaign(input.CampaignType, source); err != nil {
 		return "", fmt.Errorf("recall email html: %w", err)
 	}
 	compiled, err := htmltemplate.New("recall_email_html").Option("missingkey=error").Parse(source)
