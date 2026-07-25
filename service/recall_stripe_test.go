@@ -493,17 +493,20 @@ func TestRecallStripeRejectsProductScopeConflicts(t *testing.T) {
 		require.ErrorContains(t, err, "top-up and subscription")
 	})
 
-	t.Run("unselected configured topup price shares selected product", func(t *testing.T) {
+	t.Run("unselected configured topup price may share selected subscription product", func(t *testing.T) {
 		setupRecallStripeDB(t)
 		setupRecallStripeSettings(t)
-		setting.StripeTopUpPriceIds = `{"10":"price_selected","20":"price_unselected"}`
+		setting.StripeTopUpPriceIds = `{"20":"price_unselected_topup"}`
+		require.NoError(t, model.DB.Create(&model.SubscriptionPlan{Id: 1, Title: "sub", Enabled: true, StripePriceId: "price_selected_sub"}).Error)
 		prices := map[string]*stripe.Price{
-			"price_selected":   recallStripePrice("price_selected", "prod_shared", stripe.PriceTypeOneTime),
-			"price_unselected": recallStripePrice("price_unselected", "prod_shared", stripe.PriceTypeOneTime),
+			"price_unselected_topup": recallStripePrice("price_unselected_topup", "prod_shared", stripe.PriceTypeOneTime),
+			"price_selected_sub":     recallStripePrice("price_selected_sub", "prod_shared", stripe.PriceTypeRecurring),
 		}
 		client := &recallStripeFakeClient{getPriceFn: func(_ context.Context, id string) (*stripe.Price, error) { return prices[id], nil }}
-		_, err := NewRecallStripeService(client).ValidateAndResolveProducts(context.Background(), RecallProductScope{TopUpPriceIDs: []string{"price_selected"}})
-		require.ErrorContains(t, err, "unselected configured price")
+		resolved, err := NewRecallStripeService(client).ValidateAndResolveProducts(context.Background(), RecallProductScope{SubscriptionPriceIDs: []string{"price_selected_sub"}})
+		require.NoError(t, err)
+		require.Equal(t, []string{"price_selected_sub"}, resolved.SubscriptionPriceIDs)
+		require.Equal(t, []string{"prod_shared"}, resolved.ProductIDs)
 	})
 
 	t.Run("unselected configured subscription price shares selected product", func(t *testing.T) {
