@@ -10,7 +10,7 @@ from pathlib import Path
 from ..config import load_config
 from ..permissions import Mode
 from ..secrets import state_dir
-from .app import create_app
+from .app import _WS_MAX_FRAME_BYTES, create_app
 from .manager import SessionManager
 
 
@@ -149,7 +149,9 @@ def main(argv=None) -> None:
 
     _exit_when_orphaned()
     app = build_app(args.cwd, args.model, args.mode)
-    uvicorn.run(app, host=args.host, port=args.port)
+    uvicorn.run(
+        app, host=args.host, port=args.port, ws_max_size=_WS_MAX_FRAME_BYTES
+    )
 
 
 if __name__ == "__main__":

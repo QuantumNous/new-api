@@ -325,19 +325,22 @@ def test_ws_simple_turn(tmp_path):
 
 def test_ws_rejects_oversized_message(tmp_path):
     from coworker.server import app as app_mod
+    from coworker.attachments import MAX_ATTACHMENTS
 
     client = _client(tmp_path, [_text("should not run")])
     with client.websocket_connect("/ws/session/big") as ws:
         assert ws.receive_json()["type"] == "ready"
 
-        # Oversized text → single error frame, no turn runs.
+        # Oversized text → single input-rejected frame, no turn runs.
         ws.send_json(
             {"type": "user_message", "text": "x" * (app_mod._MAX_MESSAGE_TEXT_CHARS + 1)}
         )
         evt = ws.receive_json()
-        assert evt["type"] == "error" and "too long" in evt["data"]["error"].lower()
+        assert evt["type"] == "input_rejected"
+        assert "too long" in evt["data"]["error"].lower()
 
-        # Too many attachments → error frame.
+        # The ingress cap is the same cap the attachment builder enforces.
+        assert app_mod._MAX_ATTACHMENTS == MAX_ATTACHMENTS
         ws.send_json(
             {
                 "type": "user_message",
@@ -346,11 +349,121 @@ def test_ws_rejects_oversized_message(tmp_path):
             }
         )
         evt = ws.receive_json()
-        assert evt["type"] == "error" and "attachment" in evt["data"]["error"].lower()
+        assert evt["type"] == "input_rejected"
+        assert "attachment" in evt["data"]["error"].lower()
 
         # A normal message still works afterwards (the socket wasn't torn down).
         ws.send_json({"type": "user_message", "text": "hello"})
         assert "turn_done" in _drain(ws)
+
+
+def test_ws_rejects_malformed_payloads_without_killing_socket(tmp_path):
+    client = _client(tmp_path, [_text("normal")])
+    with client.websocket_connect("/ws/session/malformed") as ws:
+        assert ws.receive_json()["type"] == "ready"
+
+        invalid = [
+            [],
+            {"type": "user_message", "text": ["not", "text"]},
+            {"type": "user_message", "text": "x", "attachments": {}},
+            {
+                "type": "user_message",
+                "text": "x",
+                "attachments": [{"kind": "image", "data_url": "https://example.com/x"}],
+            },
+            {"type": "set_model", "model": {"unexpected": True}},
+            {"type": "unknown"},
+        ]
+        for payload in invalid:
+            ws.send_json(payload)
+            evt = ws.receive_json()
+            assert evt["type"] == "input_rejected"
+
+        ws.send_json({"type": "user_message", "text": "still works"})
+        assert "turn_done" in _drain(ws)
+
+
+def test_ws_allows_only_one_inflight_turn_per_session(tmp_path):
+    import threading
+    import time
+
+    class SlowProvider(ProviderClient):
+        def __init__(self):
+            self._lock = threading.Lock()
+            self.active = 0
+            self.max_active = 0
+
+        def complete(self, *, model, messages, tools=None, **settings):
+            with self._lock:
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+            try:
+                time.sleep(0.08)
+                return _text("done")
+            finally:
+                with self._lock:
+                    self.active -= 1
+
+        def capabilities(self, model):
+            return ModelCapabilities()
+
+    provider = SlowProvider()
+    manager = SessionManager(workspace=tmp_path, provider=provider)
+    client = TestClient(create_app(manager))
+    with client.websocket_connect("/ws/session/serialized") as ws:
+        assert ws.receive_json()["type"] == "ready"
+        ws.send_json({"type": "user_message", "text": "first"})
+        ws.send_json({"type": "user_message", "text": "second"})
+
+        types = []
+        while "turn_done" not in types:
+            types.append(ws.receive_json()["type"])
+
+    assert "input_rejected" in types
+    assert provider.max_active == 1
+    engine = manager._engines["serialized"]
+    user_messages = [m for m in engine.messages if m.get("role") == "user"]
+    assert [m["content"] for m in user_messages] == ["first"]
+
+
+def test_ws_rate_limits_inbound_frames(tmp_path):
+    from coworker.server import app as app_mod
+    from starlette.websockets import WebSocketDisconnect
+
+    client = _client(tmp_path, [])
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/session/rate") as ws:
+            assert ws.receive_json()["type"] == "ready"
+            for _ in range(app_mod._WS_RATE_LIMIT_COUNT):
+                ws.send_json({"type": "unknown"})
+                assert ws.receive_json()["type"] == "input_rejected"
+            ws.send_json({"type": "unknown"})
+            assert ws.receive_json()["type"] == "input_rejected"
+            ws.receive_json()
+
+
+def test_server_sets_explicit_websocket_frame_limit(tmp_path, monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from coworker.server import run as server_run
+
+    seen = {}
+    fake_app = object()
+
+    monkeypatch.setattr(server_run, "_ensure_ca_bundle", lambda: None)
+    monkeypatch.setattr(server_run, "_exit_when_orphaned", lambda: None)
+    monkeypatch.setattr(server_run, "build_app", lambda *args: fake_app)
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        SimpleNamespace(run=lambda app, **kwargs: seen.update(app=app, **kwargs)),
+    )
+
+    server_run.main(["--cwd", str(tmp_path), "--port", "8766"])
+
+    assert seen["app"] is fake_app
+    assert seen["ws_max_size"] == server_run._WS_MAX_FRAME_BYTES
 
 
 def test_ws_error_persists_notice_and_retry_reruns(tmp_path):

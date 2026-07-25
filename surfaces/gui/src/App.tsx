@@ -695,6 +695,12 @@ export function App() {
             { kind: "notice", tone: "warn", text: "Error: " + (d.error || "unknown"), retriable: true },
           ]);
           break;
+        case "input_rejected":
+          setItems((p) => [
+            ...p,
+            { kind: "notice", tone: "warn", text: d.error || "That message was rejected." },
+          ]);
+          break;
         case "turn_done":
           setRunning(false);
           refreshSessions();

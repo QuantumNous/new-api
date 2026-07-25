@@ -2465,6 +2465,13 @@ class SessionManager:
     def mark_running(self, session_id: str) -> None:
         self._running_sessions.add(session_id)
 
+    def try_mark_running(self, session_id: str) -> bool:
+        """Atomically claim an idle session for one turn on the server event loop."""
+        if session_id in self._running_sessions:
+            return False
+        self._running_sessions.add(session_id)
+        return True
+
     def mark_idle(self, session_id: str) -> None:
         self._running_sessions.discard(session_id)
         # Every turn path (WS, background delivery, durable resume) marks idle when it
@@ -2488,15 +2495,12 @@ class SessionManager:
         by self-wake and channel-subscription delivery. `source` is the display-only MessageSource
         sidecar for connector messages (framed `message` stays the model-facing text).
         """
-        if self.is_running(session_id):
-            engine = self._engines.get(session_id)
-            if engine is not None:
-                engine.queue_steering(message, source)
-            return
         engine = self.get_engine(session_id)
         if engine is None:
             return
-        self.mark_running(session_id)
+        if not self.try_mark_running(session_id):
+            engine.queue_steering(message, source)
+            return
         try:
             async for event in engine.run(message, source=source):
                 # Stream every event to any socket viewing this session, so a background turn
