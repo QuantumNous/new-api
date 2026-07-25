@@ -381,6 +381,8 @@ def test_matrix_answers_capabilities_for_reseller_ids():
         "together:zai-org/GLM-5.2",
         "together:meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
         "fireworks:accounts/fireworks/models/kimi-k2p6",
+        "openrouter:z-ai/glm-5.2",
+        "openrouter:meta-llama/llama-4-maverick",
     ):
         caps = capabilities_for(mid)
         assert caps.tools and caps.parallel_tool_calls and caps.streaming
@@ -402,12 +404,12 @@ def test_matrix_labels_and_custom_model_fallback():
 
 
 def test_reseller_descriptors_and_matrix_stay_in_lockstep():
-    """Together/Fireworks suggested models derive from the matrix, and each descriptor's
+    """Reseller suggested models derive from the matrix, and each descriptor's
     recommended model must be one of them (set_provider's auto-add depends on it)."""
     from coworker.providers.matrix import models_for_provider
     from coworker.providers.registry import get_descriptor
 
-    for name in ("together", "fireworks"):
+    for name in ("together", "fireworks", "openrouter"):
         d = get_descriptor(name)
         assert d is not None and d.needs_key
         curated = models_for_provider(name)

@@ -11,8 +11,8 @@ falls back to the conservative heuristics in ``capabilities.py`` at their own ri
 degraded results. Ids verified against vendor/reseller catalogs on 2026-07-04; refresh the
 reseller rows when catalogs rotate (they rename on every model generation).
 
-Resellers: Together + Fireworks for now. TODO: add Groq and OpenRouter entries here AND their
-descriptors in ``registry.py`` once the current provider surface is tested — deliberately
+Resellers: Together + Fireworks + OpenRouter. TODO: add Groq entries here AND its
+descriptor in ``registry.py`` once the current provider surface is tested — deliberately
 deferred to bound how much needs verifying at once.
 """
 
@@ -111,6 +111,14 @@ MATRIX: dict[str, ModelEntry] = {
     ),
     "fireworks:accounts/fireworks/models/llama4-maverick-instruct-basic": ModelEntry(
         "Llama 4 Maverick · via Fireworks"
+    ),
+    # OpenRouter slugs are lowercase `<lab>/<model>` (checked against their catalog
+    # 2026-07-25); same labs as above, one key for all of them.
+    "openrouter:z-ai/glm-5.2": ModelEntry("GLM-5.2 · via OpenRouter"),
+    "openrouter:moonshotai/kimi-k2.6": ModelEntry("Kimi K2.6 · via OpenRouter"),
+    "openrouter:deepseek/deepseek-v4-pro": ModelEntry("DeepSeek V4 Pro · via OpenRouter"),
+    "openrouter:meta-llama/llama-4-maverick": ModelEntry(
+        "Llama 4 Maverick · via OpenRouter"
     ),
 }
 
