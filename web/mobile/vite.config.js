@@ -19,6 +19,34 @@ const SHIM_MAP = {
   ),
 };
 
+// classic 源码里的裸包导入（sse.js/localforage 等）按 Node 规则从 classic 目录向上
+// 找 node_modules——本地因 classic 装过依赖能碰巧解析，Docker 的 builder-mobile
+// 阶段只拷源码不装 classic 依赖，会直接构建失败。统一改从 mobile 根解析，
+// 本地与 CI 行为归一（mobile 的 package.json 必须包含复用链路的全部三方包）。
+function classicBareImports() {
+  return {
+    name: 'classic-bare-imports',
+    enforce: 'pre',
+    async resolveId(source, importer, options) {
+      if (!importer || !importer.includes(`${path.sep}classic${path.sep}src${path.sep}`)) {
+        return null;
+      }
+      if (
+        source.startsWith('.') ||
+        source.startsWith('/') ||
+        source.startsWith('@classic') ||
+        source.startsWith('@douyinfe') // 交给 semi-ui shim 的 alias 处理
+      ) {
+        return null;
+      }
+      return this.resolve(source, path.resolve(__dirname, 'index.html'), {
+        skipSelf: true,
+        ...options,
+      });
+    },
+  };
+}
+
 function classicShims() {
   return {
     name: 'classic-shims',
@@ -61,6 +89,7 @@ export default defineConfig({
     ],
   },
   plugins: [
+    classicBareImports(),
     classicShims(),
     {
       // 与 classic 相同：classic 的 .js 文件可能含 JSX
