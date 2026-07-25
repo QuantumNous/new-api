@@ -199,6 +199,36 @@ describe('recallCampaignDraftSchema', () => {
       )
     }
 
+    const staleGroup = makeDraft()
+    staleGroup.audience_template = 'registration_time_range'
+    staleGroup.audience_config.registration_start_at = 100
+    staleGroup.audience_config.registration_end_at = 200
+    staleGroup.audience_config.registration_age_days = -1
+    staleGroup.audience_config.min_request_count = -1
+    staleGroup.audience_config.min_paid_amount = -1
+    staleGroup.audience_config.groups = ['stale-group']
+    staleGroup.audience_config.group_mode = ''
+    const staleGroupResult = recallCampaignDraftSchema.safeParse(staleGroup)
+    expect(staleGroupResult.success).toBe(false)
+    if (!staleGroupResult.success) {
+      expect(staleGroupResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['audience_config', 'group_mode'],
+        })
+      )
+    }
+
+    const activeGroup = makeDraft()
+    activeGroup.audience_template = 'registration_time_range'
+    activeGroup.audience_config.registration_start_at = 100
+    activeGroup.audience_config.registration_end_at = 200
+    activeGroup.audience_config.registration_age_days = -1
+    activeGroup.audience_config.min_request_count = -1
+    activeGroup.audience_config.min_paid_amount = -1
+    activeGroup.audience_config.groups = ['plg']
+    activeGroup.audience_config.group_mode = 'allow'
+    expect(recallCampaignDraftSchema.safeParse(activeGroup).success).toBe(true)
+
     const valid = makeDraft()
     valid.audience_template = 'registration_time_range'
     valid.audience_config.registration_start_at = 100
@@ -206,8 +236,6 @@ describe('recallCampaignDraftSchema', () => {
     valid.audience_config.registration_age_days = -1
     valid.audience_config.min_request_count = -1
     valid.audience_config.min_paid_amount = -1
-    valid.audience_config.groups = ['stale-group']
-    valid.audience_config.group_mode = ''
     expect(recallCampaignDraftSchema.safeParse(valid).success).toBe(true)
   })
 

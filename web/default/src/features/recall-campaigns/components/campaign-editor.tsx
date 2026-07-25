@@ -330,9 +330,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const usesRegistrationRange =
     audienceTemplate === 'registered_only' ||
     audienceTemplate === 'registration_time_range'
-  const showGroupFilter =
-    audienceTemplate !== 'specified_users' &&
-    audienceTemplate !== 'registration_time_range'
+  const showGroupFilter = audienceTemplate !== 'specified_users'
   const showGroupSelector = showGroupFilter && groupMode !== ''
   const showPaymentProviders =
     audienceTemplate === 'lapsed_payer' ||
@@ -750,16 +748,14 @@ export function CampaignEditor(props: CampaignEditorProps) {
               />
             </div>
           )}
-          {audienceTemplate !== 'registration_time_range' ? (
-            <label className='flex items-center gap-2 md:col-span-3'>
-              <input
-                type='checkbox'
-                disabled={immutable}
-                {...form.register('audience_config.require_verified_email')}
-              />
-              {t('Require verified email')}
-            </label>
-          ) : null}
+          <label className='flex items-center gap-2 md:col-span-3'>
+            <input
+              type='checkbox'
+              disabled={immutable}
+              {...form.register('audience_config.require_verified_email')}
+            />
+            {t('Require verified email')}
+          </label>
         </CardContent>
       </Card>
 

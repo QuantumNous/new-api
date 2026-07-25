@@ -141,6 +141,7 @@ function validateRegistrationTimeRangeAudience(
       message: 'Registration end must be on or after start',
     })
   }
+  validateAudienceGroups(audience, context)
 }
 
 function validateRegisteredOnlyAudience(
@@ -148,7 +149,6 @@ function validateRegisteredOnlyAudience(
   context: z.RefinementCtx
 ): void {
   validateRegistrationTimeRangeAudience(audience, context)
-  validateAudienceGroups(audience, context)
 }
 
 function validateSpecifiedUsersAudience(
