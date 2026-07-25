@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  addSlackApprovalOwner,
   allowUser,
   disallowUser,
   disconnectSlackWorkspace,
   getSlackDirectory,
   getSubscriptions,
   resolveUnauthorized,
+  removeSlackApprovalOwner,
   unsubscribeChannel,
   type Connector,
   type ParkedMessage,
@@ -130,8 +132,15 @@ export function SlackDetail({ c, cloud, slack, onChanged }: DetailProps) {
             <PeopleRow
               allowed={c.allowed_users}
               names={c.allowed_user_names}
+              protectedIds={c.approval_owner_ids}
               teamId={null}
               onRemove={(u) => disallowUser("slack", u).then(changed)}
+              onChanged={changed}
+            />
+            <ApprovalOwnersRow
+              owners={c.approval_owner_ids ?? []}
+              names={c.approval_owner_names}
+              editable
               onChanged={changed}
             />
             {(c.unauthorized ?? [])
@@ -209,22 +218,41 @@ function WorkspaceGroup({
       </div>
       <div className={GRP}>
         {empty ? (
-          <div className={ROW}>
-            <span className="min-w-0 flex-1 text-[12.5px] text-muted flex items-center gap-2 flex-wrap">
-              <span>No one allowed yet — mentions of the bot show up here for your OK.</span>
-              <PersonPicker teamId={w.team_id} allowed={[]} onChanged={onChanged} />
-            </span>
-            <DisconnectBtn teamId={w.team_id} busy={busy} onClick={disconnect} />
-          </div>
+          <>
+            <div className={ROW}>
+              <span className="min-w-0 flex-1 text-[12.5px] text-muted flex items-center gap-2 flex-wrap">
+                <span>No one allowed yet — mentions of the bot show up here for your OK.</span>
+                <PersonPicker teamId={w.team_id} allowed={[]} onChanged={onChanged} />
+              </span>
+              <DisconnectBtn teamId={w.team_id} busy={busy} onClick={disconnect} />
+            </div>
+            <ApprovalOwnersRow
+              owners={w.approval_owner_ids ?? []}
+              names={w.approval_owner_names}
+              installerId={w.installer_user_id}
+              installerName={w.installer_name}
+              editable={false}
+              onChanged={onChanged}
+            />
+          </>
         ) : (
           <>
             <PeopleRow
               allowed={w.allowed_users}
               names={w.allowed_user_names}
+              protectedIds={w.approval_owner_ids}
               teamId={w.team_id}
               installerId={w.installer_user_id}
               installerName={w.installer_name}
               onRemove={(u) => disallowUser("slack", u, w.team_id).then(onChanged)}
+              onChanged={onChanged}
+            />
+            <ApprovalOwnersRow
+              owners={w.approval_owner_ids ?? []}
+              names={w.approval_owner_names}
+              installerId={w.installer_user_id}
+              installerName={w.installer_name}
+              editable={false}
               onChanged={onChanged}
             />
             {parked.map((m) => (
@@ -259,6 +287,7 @@ function DisconnectBtn({ teamId, busy, onClick }: { teamId: string; busy: boolea
 function PeopleRow({
   allowed,
   names,
+  protectedIds,
   teamId,
   installerId,
   installerName,
@@ -267,6 +296,7 @@ function PeopleRow({
 }: {
   allowed: string[];
   names?: Record<string, string | null>;
+  protectedIds?: string[];
   teamId: string | null; // null = manual flat list (directory queries as "default")
   installerId?: string; // authed_user — pre-added on managed connect (UX-027)
   installerName?: string;
@@ -296,9 +326,18 @@ function PeopleRow({
             </span>
             {label(u)}
             {u === installerId && <span className="text-[10.5px] text-faint">· you</span>}
-            <button className={XBTN} title="remove" onClick={() => onRemove(u)}>
-              ×
-            </button>
+            {protectedIds?.includes(u) ? (
+              <span
+                className="text-[10.5px] text-faint"
+                title="Remove approval-owner access before removing this person."
+              >
+                · owner
+              </span>
+            ) : (
+              <button className={XBTN} title="remove" onClick={() => onRemove(u)}>
+                ×
+              </button>
+            )}
           </span>
         ))}
         <PersonPicker teamId={teamId} allowed={allowed} onChanged={onChanged} />
@@ -314,10 +353,16 @@ function PersonPicker({
   teamId,
   allowed,
   onChanged,
+  onPick,
+  buttonLabel = "＋ Add person",
+  testId,
 }: {
   teamId: string | null;
   allowed: string[];
   onChanged: () => void;
+  onPick?: (member: SlackMember) => Promise<{ ok: boolean; error?: string }>;
+  buttonLabel?: string;
+  testId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -360,7 +405,13 @@ function PersonPicker({
   }, [open]);
 
   const pick = async (m: SlackMember) => {
-    await allowUser("slack", m.id, teamId, m.name);
+    const result = onPick
+      ? await onPick(m)
+      : await allowUser("slack", m.id, teamId, m.name);
+    if (result?.ok === false) {
+      setErr(result.error || "could not add person");
+      return;
+    }
     setOpen(false);
     setQ("");
     onChanged();
@@ -372,11 +423,11 @@ function PersonPicker({
       <button
         ref={btn}
         className="inline-flex items-center px-2 py-0.5 rounded-full border border-dashed border-line text-[12.5px] text-muted hover:text-ink hover:border-faint"
-        data-testid={`add-person-${teamId || "default"}`}
+        data-testid={testId || `add-person-${teamId || "default"}`}
         title="Pick from the workspace directory"
         onClick={toggle}
       >
-        ＋ Add person
+        {buttonLabel}
       </button>
       {open && (
         <div
@@ -429,6 +480,80 @@ function PersonPicker({
         </div>
       )}
     </span>
+  );
+}
+
+function ApprovalOwnersRow({
+  owners,
+  names,
+  installerId,
+  installerName,
+  editable,
+  onChanged,
+}: {
+  owners: string[];
+  names?: Record<string, string | null>;
+  installerId?: string;
+  installerName?: string;
+  editable: boolean;
+  onChanged: () => void;
+}) {
+  const [err, setErr] = useState<string | null>(null);
+  const label = (u: string) =>
+    names?.[u] || (u === installerId ? installerName || "You" : u);
+  const remove = async (userId: string) => {
+    const result = await removeSlackApprovalOwner(userId);
+    if (!result.ok) {
+      setErr(result.error || "could not remove approval owner");
+      return;
+    }
+    setErr(null);
+    onChanged();
+  };
+  return (
+    <div className={ROW} data-testid="slack-approval-owners">
+      <span className={LABEL}>Approvals</span>
+      <span className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
+        {owners.length === 0 && (
+          <span className="text-[12px] text-warnInk">
+            Choose at least one owner before routing Inbox approvals to Slack.
+          </span>
+        )}
+        {owners.map((u) => (
+          <span
+            key={u}
+            className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-paper border border-line text-[12.5px]"
+            title={`id ${u}`}
+            data-testid={`approval-owner-${u}`}
+          >
+            <span className="w-5 h-5 rounded-full bg-accentSoft text-accent grid place-items-center text-[9px] font-bold">
+              {initials(label(u))}
+            </span>
+            {label(u)}
+            {u === installerId && <span className="text-[10.5px] text-faint">· installer</span>}
+            {editable && (
+              <button className={XBTN} title="remove approval owner" onClick={() => remove(u)}>
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {editable && (
+          <PersonPicker
+            teamId={null}
+            allowed={owners}
+            onChanged={onChanged}
+            onPick={(m) => addSlackApprovalOwner(m.id, m.name)}
+            buttonLabel="＋ Add owner"
+            testId="add-approval-owner"
+          />
+        )}
+        {!editable && owners.length > 0 && (
+          <span className="text-[11.5px] text-faint">Set by the workspace installer.</span>
+        )}
+        {err && <span className="basis-full text-[11.5px] text-warnInk">{err}</span>}
+      </span>
+    </div>
   );
 }
 

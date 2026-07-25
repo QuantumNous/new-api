@@ -475,6 +475,31 @@ def test_connect_missing_required_field(tmp_path):
     assert res["ok"] is False and "missing" in res["error"]
 
 
+def test_manual_slack_reconnect_preserves_approval_owners(tmp_path):
+    from coworker.connectors import connect_connector
+
+    secrets = SecretStore(tmp_path / "secrets.json")
+    secrets.put(
+        "slack:default",
+        {
+            "bot_token": "xoxb-old",
+            "app_token": "xapp-old",
+            "allowed_users": ["U_OWNER"],
+            "approval_owner_ids": ["U_OWNER"],
+        },
+    )
+    result = connect_connector(
+        secrets,
+        "slack",
+        {"bot_token": "xoxb-new", "app_token": "xapp-new"},
+        validate=False,
+    )
+    assert result["ok"] is True
+    profile = secrets.get("slack:default")
+    assert profile["approval_owner_ids"] == ["U_OWNER"]
+    assert profile["allowed_users"] == ["U_OWNER"]
+
+
 def test_connect_validation_runs(tmp_path):
     from coworker.connectors import connect_connector
     from coworker.connectors.descriptors import ValidationResult, get_descriptor

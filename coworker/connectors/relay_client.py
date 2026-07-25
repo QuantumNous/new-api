@@ -358,7 +358,10 @@ class SlackRelayAdapter(BasePlatformAdapter):
                 chat_id=qualify(team_id, channel),
                 message_id=ts,
                 value=str(value),
+                user_id=user.get("id"),
                 user_name=user.get("username") or user.get("name"),
+                team_id=team_id,
+                response_url=interaction.get("response_url"),
             )
         )
 

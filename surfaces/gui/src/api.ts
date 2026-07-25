@@ -363,6 +363,8 @@ export interface SlackWorkspace {
   allowed_users: string[];
   allow_all: boolean;
   allowed_user_names?: Record<string, string | null>;
+  approval_owner_ids?: string[];
+  approval_owner_names?: Record<string, string | null>;
   // Who installed this workspace (authed_user) — pre-added to the allow-list on
   // connect (UX-027); the GUI marks their chip "you" and keys the setup card copy.
   installer_user_id?: string;
@@ -443,6 +445,8 @@ export interface Connector {
   mcp?: boolean; // MCP-backed one-click (vendor-hosted MCP + local OAuth — no cloud sign-in)
   allowed_users: string[]; // the allow-list (managed inline in the Connectors tab)
   allowed_user_names?: Record<string, string | null>; // id → display name (people directory)
+  approval_owner_ids?: string[]; // Manual Slack: humans allowed to resolve approvals
+  approval_owner_names?: Record<string, string | null>;
   recent?: RecentSender[]; // recently-seen senders on a connected two-way connector
   unauthorized?: ParkedMessage[]; // parked messages from unallowed senders (§19)
   tools: ConnectorTool[];
@@ -1581,6 +1585,32 @@ export async function disallowUser(name: string, userId: string, teamId?: string
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(teamId ? { user_id: userId, team_id: teamId } : { user_id: userId }),
+  });
+  return res.json();
+}
+
+export async function addSlackApprovalOwner(
+  userId: string,
+  displayName?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${httpBase()}/v1/connectors/slack/approval-owners/add`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: userId,
+      ...(displayName ? { name: displayName } : {}),
+    }),
+  });
+  return res.json();
+}
+
+export async function removeSlackApprovalOwner(
+  userId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${httpBase()}/v1/connectors/slack/approval-owners/remove`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
   });
   return res.json();
 }

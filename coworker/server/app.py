@@ -371,12 +371,11 @@ def create_app(manager: SessionManager) -> FastAPI:
         name = str(body.get("name", "")).strip()
         if not name:
             return {"ok": False, "error": "binding needs a `name`"}
-        manager.inbox_routing.set_binding(
+        return manager.set_inbox_binding(
             name,
             channel=body.get("channel") or None,
             target=str(body.get("target", "")),
         )
-        return {"ok": True, "bindings": manager.inbox_routing.bindings()}
 
     @app.get("/v1/sessions/{session_id}/unattended")
     def get_unattended(session_id: str) -> dict[str, Any]:
@@ -1243,6 +1242,20 @@ def create_app(manager: SessionManager) -> FastAPI:
     def connector_disallow(name: str, body: dict) -> dict[str, Any]:
         return manager.disallow_user(
             name, str(body.get("user_id", "")), str(body.get("team_id", "")) or None
+        )
+
+    @app.post("/v1/connectors/slack/approval-owners/add")
+    def slack_approval_owner_add(body: dict) -> dict[str, Any]:
+        return manager.set_slack_approval_owner(
+            str(body.get("user_id", "")),
+            add=True,
+            display_name=str(body.get("name", "")),
+        )
+
+    @app.post("/v1/connectors/slack/approval-owners/remove")
+    def slack_approval_owner_remove(body: dict) -> dict[str, Any]:
+        return manager.set_slack_approval_owner(
+            str(body.get("user_id", "")), add=False
         )
 
     # -- audit / browser observability ------------------------------------------

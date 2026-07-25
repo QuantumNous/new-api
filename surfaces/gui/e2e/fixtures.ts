@@ -357,11 +357,12 @@ export async function mockApi(page: import("@playwright/test").Page) {
     mode: "relay" as "" | "relay",
     account: "deeplearning.ai",
     allowed_users: [] as string[], // flat list (manual Socket Mode only)
+    approval_owner_ids: [] as string[],
     workspaces: [
       // T1DL mirrors a managed install: the installer (authed_user) was pre-added
       // to the allow-list on connect (UX-027) — keys the "you" chip + setup card.
-      { team_id: "T1DL", account: "deeplearning.ai", domain: "dlaiteam", allowed_users: ["U_ME"] as string[], allow_all: false, allowed_user_names: {} as Record<string, string | null>, installer_user_id: "U_ME", installer_name: "Rohit Prasad" },
-      { team_id: "T2AC", account: "acme-partners", domain: "acmehq", allowed_users: [] as string[], allow_all: false, allowed_user_names: {} as Record<string, string | null>, installer_user_id: "", installer_name: "" },
+      { team_id: "T1DL", account: "deeplearning.ai", domain: "dlaiteam", allowed_users: ["U_ME"] as string[], allow_all: false, allowed_user_names: {} as Record<string, string | null>, approval_owner_ids: ["U_ME"] as string[], approval_owner_names: { U_ME: "Rohit Prasad" } as Record<string, string | null>, installer_user_id: "U_ME", installer_name: "Rohit Prasad" },
+      { team_id: "T2AC", account: "acme-partners", domain: "acmehq", allowed_users: [] as string[], allow_all: false, allowed_user_names: {} as Record<string, string | null>, approval_owner_ids: [] as string[], approval_owner_names: {} as Record<string, string | null>, installer_user_id: "", installer_name: "" },
     ],
   };
   const slackConnector = () => ({
@@ -369,7 +370,9 @@ export async function mockApi(page: import("@playwright/test").Page) {
     auth: "bot_token", two_way: true, channels: true, available: true, brand_color: "#611f69", logo: "slack",
     fields: [], instructions: [], connected: slackState.connected,
     account: slackState.account, enabled: slackState.connected,
-    allowed_users: [...slackState.allowed_users], tools: [], managed: true,
+    allowed_users: [...slackState.allowed_users],
+    approval_owner_ids: [...slackState.approval_owner_ids],
+    tools: [], managed: true,
     managed_profile: slackState.mode === "relay", mode: slackState.mode,
     workspaces: slackState.workspaces.map((w) => ({ ...w, allowed_users: [...w.allowed_users] })),
     unauthorized: parked.map((x) => ({ ...x })),
@@ -911,6 +914,24 @@ export async function mockApi(page: import("@playwright/test").Page) {
       if (add && b.name && ws) ws.allowed_user_names[b.user_id] = b.name;
       return json({ ok: true, allowed_users: [...pool], team_id: b.team_id ?? null });
     }
+    if (p.endsWith("/v1/connectors/slack/approval-owners/add") && m === "POST") {
+      const b = req.postDataJSON();
+      if (!slackState.approval_owner_ids.includes(b.user_id))
+        slackState.approval_owner_ids.push(b.user_id);
+      if (!slackState.allowed_users.includes(b.user_id))
+        slackState.allowed_users.push(b.user_id);
+      return json({
+        ok: true,
+        approval_owner_ids: [...slackState.approval_owner_ids],
+        allowed_users: [...slackState.allowed_users],
+      });
+    }
+    if (p.endsWith("/v1/connectors/slack/approval-owners/remove") && m === "POST") {
+      const b = req.postDataJSON();
+      const i = slackState.approval_owner_ids.indexOf(b.user_id);
+      if (i >= 0) slackState.approval_owner_ids.splice(i, 1);
+      return json({ ok: true, approval_owner_ids: [...slackState.approval_owner_ids] });
+    }
     // Workspace rosters for the pickers (users.list / conversations.list, mocked).
     if (/\/v1\/connectors\/slack\/workspaces\/[^/]+\/directory$/.test(p) && m === "GET") {
       const q = (new URL(req.url()).searchParams.get("q") || "").toLowerCase();
@@ -1137,7 +1158,7 @@ export async function mockApi(page: import("@playwright/test").Page) {
       // Slack managed install = add a workspace. The real flow completes in the system
       // browser; the mock installs instantly so the page's poll picks it up.
       if (p.includes("/connectors/slack/")) {
-        slackState.workspaces.push({ team_id: "T3NEW", account: "new-workspace", allowed_users: [], allow_all: false, allowed_user_names: {} });
+        slackState.workspaces.push({ team_id: "T3NEW", account: "new-workspace", domain: "new-workspace", allowed_users: ["U_ME"], allow_all: false, allowed_user_names: { U_ME: "Rohit Prasad" }, approval_owner_ids: ["U_ME"], approval_owner_names: { U_ME: "Rohit Prasad" }, installer_user_id: "U_ME", installer_name: "Rohit Prasad" });
         slackState.connected = true;
         slackState.mode = "relay";
       }

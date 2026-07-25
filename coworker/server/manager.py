@@ -51,6 +51,7 @@ from ..connectors import (
     load_settings,
     make_adapter,
     set_experimental_enabled,
+    slack_split,
     update_connector_tools,
 )
 from ..connectors.browser_automation import (
@@ -1126,10 +1127,18 @@ class SessionManager:
                 u: self._people.get(f"{c['name']}:{u}")
                 for u in (c.get("allowed_users") or [])
             }
+            c["approval_owner_names"] = {
+                u: self._people.get(f"{c['name']}:{u}")
+                for u in (c.get("approval_owner_ids") or [])
+            }
             for w in c.get("workspaces") or []:
                 w["allowed_user_names"] = {
                     u: self._people.get(f"{c['name']}:{u}")
                     for u in (w.get("allowed_users") or [])
+                }
+                w["approval_owner_names"] = {
+                    u: self._people.get(f"{c['name']}:{u}")
+                    for u in (w.get("approval_owner_ids") or [])
                 }
         return connectors
 
@@ -1935,7 +1944,142 @@ class SessionManager:
     def disallow_user(
         self, name: str, user_id: str, team_id: Optional[str] = None
     ) -> dict[str, Any]:
+        if name == "slack" and user_id in self.slack_approval_owner_ids(team_id):
+            return {
+                "ok": False,
+                "error": "Remove this person as an approval owner first.",
+            }
         return self._set_allowed(name, user_id, team_id=team_id, add=False)
+
+    def slack_approval_owner_ids(self, team_id: Optional[str] = None) -> set[str]:
+        """Stable Slack user ids allowed to resolve consequential Inbox prompts.
+
+        Managed relay installs are installer-owned. Manual Socket Mode has no
+        human OAuth identity, so its owners are selected explicitly.
+        """
+        key = f"slack:team:{team_id}" if team_id else "slack:default"
+        profile = self.secrets.get(key) or {}
+        if team_id:
+            installer = str(profile.get("slack_user_id") or "").strip()
+            return {installer} if installer else set()
+        if profile.get("mode") == "relay":
+            return set()
+        return {
+            str(user_id).strip()
+            for user_id in (profile.get("approval_owner_ids") or [])
+            if str(user_id).strip()
+        }
+
+    def set_slack_approval_owner(
+        self, user_id: str, *, add: bool, display_name: str = ""
+    ) -> dict[str, Any]:
+        """Edit Manual Socket Mode approval owners.
+
+        Owner status implies inbound permission. Relay ownership is derived from
+        the OAuth installer and is intentionally not editable here.
+        """
+        user_id = str(user_id).strip()
+        if not user_id:
+            return {"ok": False, "error": "user_id required"}
+        profile = self.secrets.get("slack:default")
+        if not profile:
+            return {"ok": False, "error": "Slack is not connected in Manual mode."}
+        if profile.get("mode") == "relay" or profile.get("managed"):
+            return {
+                "ok": False,
+                "error": "Relay approval ownership is set by the Slack installer.",
+            }
+
+        owners = self.slack_approval_owner_ids()
+        if add:
+            owners.add(user_id)
+        else:
+            owners.discard(user_id)
+            if not owners and self._has_manual_slack_inbox_binding():
+                return {
+                    "ok": False,
+                    "error": (
+                        "Choose another approval owner before removing the last one "
+                        "while Slack Inbox routing is active."
+                    ),
+                }
+        profile["approval_owner_ids"] = sorted(owners)
+        if add:
+            allowed = set(profile.get("allowed_users") or [])
+            allowed.add(user_id)
+            profile["allowed_users"] = sorted(allowed)
+        self.secrets.put("slack:default", profile)
+        if display_name:
+            self._note_person("slack", user_id, display_name)
+        if self.gateway is not None and "slack" in self.gateway.settings:
+            self.gateway.settings["slack"].allowed_users = set(
+                profile.get("allowed_users") or []
+            )
+        return {
+            "ok": True,
+            "approval_owner_ids": sorted(owners),
+            "allowed_users": list(profile.get("allowed_users") or []),
+        }
+
+    def _has_manual_slack_inbox_binding(self) -> bool:
+        for raw in self.inbox_routing.bindings():
+            if raw.get("channel") != "slack":
+                continue
+            team_id, _ = slack_split(str(raw.get("target") or ""))
+            if team_id is None:
+                return True
+        return False
+
+    def _slack_actor_owns_item(
+        self,
+        item,
+        *,
+        actor_id: str,
+        chat_id: str,
+        team_id: Optional[str],
+    ) -> bool:
+        """Authorize a Slack resolution against both its owner and delivery binding."""
+        event_team, event_channel = slack_split(chat_id)
+        event_team = team_id or event_team
+        binding = self.inbox_routing.binding_for(item.inbox)
+        owner_team = event_team
+        if binding.channel == "slack":
+            owner_team, bound_channel = slack_split(binding.target)
+            if owner_team != event_team or bound_channel != event_channel:
+                return False
+        return bool(actor_id) and actor_id in self.slack_approval_owner_ids(owner_team)
+
+    def set_inbox_binding(
+        self, name: str, *, channel: Optional[str], target: str
+    ) -> dict[str, Any]:
+        """Persist an Inbox transport after validating its approval identity."""
+        channel = str(channel or "").strip() or None
+        target = str(target or "").strip()
+        if channel and not target:
+            return {"ok": False, "error": "Choose a destination channel."}
+        if channel == "slack":
+            settings = load_settings(self.secrets).get("slack")
+            if settings is None or not settings.enabled:
+                return {"ok": False, "error": "Slack is not connected."}
+            team_id, destination = slack_split(target)
+            if not destination:
+                return {"ok": False, "error": "Choose a destination channel."}
+            key = f"slack:team:{team_id}" if team_id else "slack:default"
+            if not self.secrets.get(key):
+                return {
+                    "ok": False,
+                    "error": "That Slack workspace is not connected.",
+                }
+            if not self.slack_approval_owner_ids(team_id):
+                return {
+                    "ok": False,
+                    "error": (
+                        "Choose at least one approval owner in Slack settings before "
+                        "routing Inbox requests there."
+                    ),
+                }
+        self.inbox_routing.set_binding(name, channel=channel, target=target)
+        return {"ok": True, "bindings": self.inbox_routing.bindings()}
 
     def _set_allowed(
         self, name: str, user_id: str, *, team_id: Optional[str] = None, add: bool
@@ -2458,6 +2602,12 @@ class SessionManager:
         binding = self.inbox_routing.binding_for(item.inbox)
         if not (binding.channel and self.gateway is not None):
             return
+        if binding.channel == "slack":
+            team_id, _ = slack_split(binding.target)
+            # Legacy bindings may predate approval ownership. Keep the item
+            # available in-app, but never mirror it to an ownerless channel.
+            if not self.slack_approval_owner_ids(team_id):
+                return
         target = f"{binding.channel}:{binding.target}"
         body = "\n".join(p for p in (item.title, item.body) if p).strip()
         buttons = buttons_for(item)
@@ -2484,10 +2634,29 @@ class SessionManager:
             return
         item_id, resolution = decoded
         item = self.inbox.get(item_id)
+        if item is None:
+            return
+        protected_kinds = {"approval", "directory", "plan"}
+        if (
+            getattr(event, "platform", "") == "slack"
+            and item.kind in protected_kinds
+        ):
+            actor_id = str(getattr(event, "user_id", "") or "")
+            if not self._slack_actor_owns_item(
+                item,
+                actor_id=actor_id,
+                chat_id=getattr(event, "chat_id", "") or "",
+                team_id=getattr(event, "team_id", None),
+            ):
+                if self.gateway is not None:
+                    await self.gateway.reject_interaction(event)
+                return
         already = item is not None and item.state != "pending"
-        await self.resolve_inbox(item_id, resolution)
+        resolved = await self.resolve_inbox(item_id, resolution)
+        if not resolved and not already:
+            return
         who = getattr(event, "user_name", None) or "someone"
-        title = item.title if item is not None else "Prompt"
+        title = item.title
         outcome = "already resolved" if already else f"“{resolution}” — by {who}"
         if self.gateway is not None and getattr(event, "message_id", None):
             try:
@@ -2508,7 +2677,26 @@ class SessionManager:
         from ..inbox_routing import resolve_from_reply
 
         text = getattr(event, "text", "") or ""
-        return resolve_from_reply(text, self.inbox.resolve) is not None
+
+        def _resolve(item_id: str, resolution: str) -> bool:
+            item = self.inbox.get(item_id)
+            if item is None:
+                return False
+            if (
+                getattr(event.source, "platform", "") == "slack"
+                and item.kind in {"approval", "directory", "plan"}
+            ):
+                actor_id = str(getattr(event.source, "user_id", "") or "")
+                if not self._slack_actor_owns_item(
+                    item,
+                    actor_id=actor_id,
+                    chat_id=getattr(event.source, "chat_id", "") or "",
+                    team_id=getattr(event.source, "team_id", None),
+                ):
+                    return False
+            return self.inbox.resolve(item_id, resolution)
+
+        return resolve_from_reply(text, _resolve) is not None
 
     # -- self-wake resumption ---------------------------------------------------
     async def resume_due_wakes(self) -> int:
