@@ -26,6 +26,7 @@ import MediaFileInput from './MediaFileInput';
 const VideoConfigPanel = ({
   needsImage = false,
   followsInput = false,
+  isI2V = false,
   isFLF2V = false,
   isS2V = false,
   isSR = false,
@@ -74,7 +75,7 @@ const VideoConfigPanel = ({
   );
 
   // 单帧槽:未锁定=可编辑上传(ImageUrlInput);锁定/历史=只读预览已上传帧。
-  const renderFrameSlot = (label, key) =>
+  const renderFrameSlot = (label, key, opts = {}) =>
     disabled ? (
       inputs[key] ? (
         renderImagePreview(label, [inputs[key]])
@@ -82,7 +83,7 @@ const VideoConfigPanel = ({
     ) : (
       <ImageUrlInput
         label={label}
-        required
+        required={!opts.optional}
         maxMB={uploadMaxMB}
         imageUrls={inputs[key] ? [inputs[key]] : []}
         imageEnabled={true}
@@ -214,9 +215,10 @@ const VideoConfigPanel = ({
                 : t('上传首帧/参考图'),
             'firstFrame',
           )}
+        {/* 关键帧:尾帧可选 —— 仅首帧走 i2v,首+尾帧走 flf2v(提交时派生)。 */}
         {isFLF2V &&
           (!disabled || inputs.lastFrame) &&
-          renderFrameSlot(t('上传尾帧'), 'lastFrame')}
+          renderFrameSlot(t('上传尾帧（可选）'), 'lastFrame', { optional: true })}
 
         {/* 数字人:驱动音频(必填) */}
         {isS2V && (!disabled || inputs.audioData) && (
@@ -266,17 +268,53 @@ const VideoConfigPanel = ({
           </>
         )}
 
-        {/* 视频编辑(Bernini):源视频 +/或 参考图,按输入自动分流 v2v/rv2v/r2v。二者至少其一。 */}
+        {/* 图生视频(Bernini r2v):参考图 1~3 张(必填),定义主体/服装/道具/场景。 */}
+        {isI2V && (
+          <>
+            {!disabled && (
+              <ImageUrlInput
+                label={t('上传参考图（必填，最多 {{count}} 张）', {
+                  count: maxRefImages,
+                })}
+                maxMB={uploadMaxMB}
+                imageUrls={inputs.refImages || []}
+                imageEnabled={true}
+                onImageUrlsChange={(v) =>
+                  onInputChange('refImages', (v || []).slice(0, maxRefImages))
+                }
+                onImageEnabledChange={() => {}}
+                disabled={false}
+              />
+            )}
+            {disabled &&
+              (inputs.refImages || []).length > 0 &&
+              renderImagePreview(t('参考图'), inputs.refImages)}
+          </>
+        )}
+
+        {/* 视频编辑(Bernini):≥1 源视频(必填),1 视频=v2v、1 视频+参考图=rv2v、
+            2 视频=mv2v(广告植入 ads2v 走示例显式指定);仅参考图的 r2v 已迁到图生视频。 */}
         {isVACE && (
           <>
             {(!disabled || inputs.srcVideo) && (
               <MediaFileInput
                 label={t('上传源视频')}
+                required
                 kind='video'
                 value={inputs.srcVideo}
                 maxMB={uploadMaxMB}
                 disabled={disabled}
                 onChange={(v) => onInputChange('srcVideo', v)}
+              />
+            )}
+            {(!disabled || inputs.srcVideo2) && (
+              <MediaFileInput
+                label={t('上传第二视频（可选，双视频=多源编辑）')}
+                kind='video'
+                value={inputs.srcVideo2}
+                maxMB={uploadMaxMB}
+                disabled={disabled}
+                onChange={(v) => onInputChange('srcVideo2', v)}
               />
             )}
             {!disabled && (

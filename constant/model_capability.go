@@ -18,7 +18,9 @@ var ImageCapabilities = []string{
 var VideoCapabilities = []string{
 	"文生视频",
 	"图生视频",
-	"首尾帧",
+	// 2026-07 由「首尾帧」改名:wan2.2 i2v 仅首帧 / 首+尾帧都可(task_type 按输入
+	// 派生 i2v/flf2v)。前端有 legacy alias 兼容旧标签配置。
+	"关键帧",
 	"数字人",
 	"视频超分",
 	"视频编辑",

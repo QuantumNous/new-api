@@ -60,7 +60,11 @@ const VIDEO_MODES = {
   // text2video 显式下发 t2v(不再靠模型名推断):Bernini 同名模型横跨 t2v 与
   // v2v/rv2v/r2v,inferTaskType 按名恒判 v2v,故这里必须显式;对其它 t2v 模型无影响。
   text2video: { capability: VIDEO_PAGE_CAPABILITY, suffix: '', taskType: 't2v' },
-  image2video: { capability: VIDEO_I2V_CAPABILITY, suffix: '_i2v' },
+  // 图生视频(2026-07 改判 Bernini r2v):参考图(1~3 张)生成视频,显式 task_type=r2v
+  // (Bernini 模型名推断恒 v2v,必须显式)。旧 wan i2v 的「首帧生视频」迁到关键帧模式。
+  image2video: { capability: VIDEO_I2V_CAPABILITY, suffix: '_i2v', taskType: 'r2v' },
+  // 关键帧(原「首尾帧」,wan2.2 i2v):仅首帧→i2v、首+尾帧→flf2v,提交时按输入派生
+  // task_type 显式下发(模型名推断分不出两者),故不设静态 taskType。
   flf2v: { capability: VIDEO_FLF2V_CAPABILITY, suffix: '_flf2v' },
   // 门面 task_type：s2v(音频生视频)/ sr(视频超分)。
   s2v: { capability: VIDEO_S2V_CAPABILITY, suffix: '_s2v', taskType: 's2v' },
@@ -69,14 +73,17 @@ const VIDEO_MODES = {
   // 的声音:音效/环境音/BGM/台词),输出=原画面 + AI 音轨的 mp4。task_type 显式 v2a。
   dub: { capability: VIDEO_DUB_CAPABILITY, suffix: '_dub', taskType: 'v2a' },
   // 「视频编辑」mode 键沿用 vace(避免动 localStorage 历史键 / 示例 key),但现驱动 Bernini:
-  // 实际 task_type 在提交时按输入自动分流为 v2v/rv2v/r2v(见下方 isVACE 提交块),故不设静态 taskType。
+  // 必须 ≥1 源视频,task_type 提交时按输入分流 v2v/rv2v/mv2v(2视频),ads2v 由示例
+  // 显式带 taskType(见 isVACE 提交块);仅参考图的 r2v 已迁到「图生视频」模式。
   vace: {
     capability: VIDEO_VACE_CAPABILITY,
     suffix: '_vace',
   },
 };
-// vace 参考图最多张数(与门面 _MAX_INPUT_IMAGES 对齐)。
+// vace 参考图最多张数(与门面 _MAX_INPUT_IMAGES 对齐);图生视频(r2v)产品档 3 张
+// (与 adaptor maxR2VRefImages 对齐)。
 const MAX_REF_IMAGES = 5;
+const MAX_R2V_REF_IMAGES = 3;
 const modeMeta = (mode) => VIDEO_MODES[mode] || VIDEO_MODES.text2video;
 const storageKeyFor = (mode) =>
   `${CONV_STORAGE_KEY_BASE}${modeMeta(mode).suffix}`;
@@ -98,7 +105,7 @@ const loadConversations = (storageKey) => {
 // 媒体以 Blob 存 IndexedDB,localStorage 只留短引用,刷新后可恢复、可续问、可回看。
 const VIDEO_MEDIA_SCHEMA = {
   convArrayFields: ['images', 'refImages'],
-  convStringFields: ['audioData', 'sourceVideo', 'srcVideo'],
+  convStringFields: ['audioData', 'sourceVideo', 'srcVideo', 'srcVideo2'],
   msgArrayFields: ['images'],
   // 生成的视频结果(原为 /v1/videos/{id}/content 实时下载):抓 Blob 缓存进 IDB,刷新后
   // 直接读、后端按保留天数清理后仍可回看。
@@ -159,8 +166,9 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
   const isSR = mode === 'sr';
   const isVACE = mode === 'vace';
   const isDub = mode === 'dub';
-  // 需要上传一张「主图」的模式:i2v/flf2v 首帧、s2v 人物图(都复用 inputs.firstFrame)。
-  const needsImage = isI2V || isFLF2V || isS2V;
+  // 需要上传一张「主图」的模式:关键帧首帧、s2v 人物图(都复用 inputs.firstFrame)。
+  // 图生视频(Bernini r2v)改用参考图 refImages,不再走 firstFrame。
+  const needsImage = isFLF2V || isS2V;
   // 输出跟随上传输入的模式(非文生视频):不展示/不下发尺寸与宽高比。
   const followsInput = mode !== 'text2video';
   const taskType = modeMeta(mode).taskType; // s2v/sr 显式下发;vace(Bernini)按输入分流(见 isVACE 提交块),其余靠模型名推断
@@ -181,7 +189,8 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     sourceVideo: '', // sr 源视频(base64 data-url)
     srRatio: 2, // sr 超分倍率(请求级,门面透传 metadata.sr_ratio)
     srcVideo: '', // 视频编辑(Bernini)源视频(base64 data-url)
-    refImages: [], // 视频编辑(Bernini)参考图(base64 data-url 数组,≤MAX_REF_IMAGES)
+    srcVideo2: '', // 视频编辑(Bernini)第二源视频(mv2v/ads2v 双视频,可选)
+    refImages: [], // 视频编辑 rv2v / 图生视频 r2v 参考图(base64 data-url 数组)
   });
   const [groups, setGroups] = useState([]);
   const [models, setModels] = useState([]);
@@ -288,7 +297,9 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           audioData: '',
           sourceVideo: '',
           srcVideo: '',
+          srcVideo2: '',
           refImages: [],
+          taskType: '',
           ...(ex.params || {}),
         };
         const entries = await Promise.all(
@@ -649,7 +660,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       const text = (prompt || '').trim();
       if ((!text && !isSR && !isDub) || generating) return;
 
-      // i2v:images=[首帧];flf2v:images=[首帧,尾帧];s2v:images=[人物图]。
+      // 关键帧:images=[首帧(,尾帧)];s2v:images=[人物图]。
       // 后续追问沿用对话首条锁定的帧图 / 媒体输入。
       let convImages = [];
       // 新增能力的媒体输入(base64),与帧图一起锁进对话、随对话复用、落盘前剥离。
@@ -658,6 +669,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         sourceVideo: '',
         srRatio: 2,
         srcVideo: '',
+        srcVideo2: '',
         refImages: [],
       };
       let convId = currentConvId;
@@ -674,17 +686,15 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
             return;
           }
           if (isFLF2V) {
+            // 关键帧:尾帧可选 —— 仅首帧走 i2v,首+尾帧走 flf2v(提交时派生)。
             const last = (inputs.lastFrame || '').trim();
-            if (!last) {
-              showError(t('首尾帧模式需上传首帧和尾帧两张图'));
-              return;
-            }
-            convImages = [first, last];
+            convImages = last ? [first, last] : [first];
           } else {
             convImages = [first];
           }
         }
-        // 数字人:必填驱动音频;超分:必填源视频;视频编辑:必填源视频或参考图之一。
+        // 数字人:必填驱动音频;超分:必填源视频;图生视频:必填参考图;
+        // 视频编辑:必填至少 1 个源视频(仅参考图的 r2v 已迁到图生视频)。
         if (isS2V && !(inputs.audioData || '').trim()) {
           showError(t('数字人需要上传驱动音频'));
           return;
@@ -697,12 +707,12 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           showError(t('视频配乐需要上传待配乐视频'));
           return;
         }
-        if (
-          isVACE &&
-          !(inputs.srcVideo || '').trim() &&
-          !(inputs.refImages || []).length
-        ) {
-          showError(t('视频编辑需要上传源视频或参考图之一'));
+        if (isI2V && !(inputs.refImages || []).filter(Boolean).length) {
+          showError(t('图生视频需要上传 1~3 张参考图'));
+          return;
+        }
+        if (isVACE && !(inputs.srcVideo || '').trim()) {
+          showError(t('视频编辑需要上传源视频(至少 1 个)'));
           return;
         }
         media = {
@@ -710,6 +720,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           sourceVideo: (inputs.sourceVideo || '').trim(),
           srRatio: inputs.srRatio,
           srcVideo: (inputs.srcVideo || '').trim(),
+          srcVideo2: (inputs.srcVideo2 || '').trim(),
           refImages: (inputs.refImages || []).filter(Boolean),
         };
         convId = genId();
@@ -722,6 +733,8 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           negativePrompt: inputs.negativePrompt,
           aspectRatio: inputs.aspectRatio,
           images: convImages,
+          // ads2v 等无法自动分流的玩法由示例 params.taskType 显式带入(落在 inputs 上)。
+          taskTypeOverride: (inputs.taskType || '').trim(),
           ...media,
         };
       } else {
@@ -751,7 +764,9 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               sourceVideo: conv.sourceVideo || '',
               srRatio: conv.srRatio != null ? conv.srRatio : 2,
               srcVideo: conv.srcVideo || '',
+              srcVideo2: conv.srcVideo2 || '',
               refImages: conv.refImages || [],
+              taskTypeOverride: conv.taskTypeOverride || '',
             }
           : {
               group: inputs.group,
@@ -775,7 +790,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       // 时缺失,提示重开对话重新上传。
       if (needsImage) {
         params.images = cleanArr(params.images);
-        const need = isFLF2V ? 2 : 1;
+        const need = 1; // 关键帧尾帧可选:首帧在即可续问(尾帧缺失时按 i2v 派生)。
         if (params.images.length < need) {
           showError(t('帧图已失效,请开启新对话并重新上传'));
           return;
@@ -784,6 +799,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       params.audioData = cleanMedia(params.audioData);
       params.sourceVideo = cleanMedia(params.sourceVideo);
       params.srcVideo = cleanMedia(params.srcVideo);
+      params.srcVideo2 = cleanMedia(params.srcVideo2);
       params.refImages = cleanArr(params.refImages);
       if (isS2V && !(params.audioData || '').trim()) {
         showError(t('驱动音频已失效,请开启新对话并重新上传'));
@@ -793,12 +809,12 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         showError(t('源视频已失效,请开启新对话并重新上传'));
         return;
       }
-      if (
-        isVACE &&
-        !(params.srcVideo || '').trim() &&
-        !(params.refImages || []).length
-      ) {
-        showError(t('源视频/参考图已失效,请开启新对话并重新上传'));
+      if (isVACE && !(params.srcVideo || '').trim()) {
+        showError(t('源视频已失效,请开启新对话并重新上传'));
+        return;
+      }
+      if (isI2V && !(params.refImages || []).length) {
+        showError(t('参考图已失效,请开启新对话并重新上传'));
         return;
       }
 
@@ -846,7 +862,9 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               sourceVideo: params.sourceVideo || '',
               srRatio: params.srRatio != null ? params.srRatio : 2,
               srcVideo: params.srcVideo || '',
+              srcVideo2: params.srcVideo2 || '',
               refImages: params.refImages || [],
+              taskTypeOverride: params.taskTypeOverride || '',
               title: displayText,
               createdAt: now,
               updatedAt: now,
@@ -880,6 +898,14 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         // task_type:数字人/超分/编辑显式下发(门面据此路由),其余靠模型名推断,不发。
         if (taskType) {
           body.metadata = { ...(body.metadata || {}), task_type: taskType };
+        }
+        // 关键帧(wan2.2 i2v):仅首帧 → i2v,首+尾帧 → flf2v。模型名推断分不出
+        // 两者(同一 i2v 实例),必须显式下发。
+        if (isFLF2V) {
+          body.metadata = {
+            ...(body.metadata || {}),
+            task_type: (params.images || []).length >= 2 ? 'flf2v' : 'i2v',
+          };
         }
         // 尺寸/分辨率仅文生视频、且该值仍在当前模型允许集内才下发（对齐宽高比的闸门，
         // 避免切到未配尺寸的模型时把残留旧值误发）；其余模式输出跟随上传输入，不发 size。
@@ -927,6 +953,14 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         if (needsImage && (params.images || []).length > 0) {
           body.images = params.images;
         }
+        // 图生视频(Bernini r2v):参考图(1~3)→ metadata.src_ref_images,
+        // 门面物化后引擎按参考图组合主体/服装/道具/场景生成视频。
+        if (isI2V && (params.refImages || []).length > 0) {
+          body.metadata = {
+            ...(body.metadata || {}),
+            src_ref_images: params.refImages,
+          };
+        }
         // 数字人:驱动音频 → metadata.audio(门面物化到 audio_path 喂 InfiniteTalk)。
         if (isS2V && (params.audioData || '').trim()) {
           body.metadata = { ...(body.metadata || {}), audio: params.audioData };
@@ -952,16 +986,25 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
             video: params.sourceVideo,
           };
         }
-        // 视频编辑(Bernini):按输入自动分流 task_type —— 有源视频且无参考图=v2v、
-        // 源视频+参考图=rv2v、仅参考图=r2v(与后端 materializeBerniniInputs 校验一致)。
-        // Bernini 无 mask/MV2V 玩法,不再下发 src_mask。
+        // 视频编辑(Bernini):必有 ≥1 源视频,按输入自动分流 task_type ——
+        // 1 视频无参考图=v2v、1 视频+参考图=rv2v、2 视频=mv2v(多源编辑)。
+        // ads2v(广告植入)与 mv2v 输入相同,自动分流分不出,由示例 params.taskType
+        // (taskTypeOverride)显式指定。仅参考图的 r2v 已迁到「图生视频」模式。
         if (isVACE) {
           const md = { ...(body.metadata || {}) };
-          const hasSrcVideo = (params.srcVideo || '').trim() !== '';
+          const v1 = (params.srcVideo || '').trim();
+          const v2 = (params.srcVideo2 || '').trim();
           const hasRefs = (params.refImages || []).length > 0;
-          if (hasSrcVideo) md.src_video = params.srcVideo;
-          if (hasRefs) md.src_ref_images = params.refImages;
-          md.task_type = hasSrcVideo ? (hasRefs ? 'rv2v' : 'v2v') : 'r2v';
+          md.src_video = v2 ? [v1, v2] : v1;
+          if (hasRefs && !v2) md.src_ref_images = params.refImages;
+          const override = (params.taskTypeOverride || '').trim();
+          // override(ads2v)只在真双视频时生效:删掉第二视频后回落自动分流,
+          // 避免残留 override 让 1 视频提交被后端「需要恰好 2 个视频」拒掉。
+          md.task_type = v2
+            ? override || 'mv2v'
+            : hasRefs
+              ? 'rv2v'
+              : 'v2v';
           body.metadata = md;
         }
         const res = await API.post(
@@ -1098,6 +1141,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         audioData: conv.audioData || '',
         sourceVideo: conv.sourceVideo || '',
         srcVideo: conv.srcVideo || '',
+        srcVideo2: conv.srcVideo2 || '',
         refImages: conv.refImages || [],
       }));
       // 若该会话最后一个任务仍在进行中，恢复轮询
@@ -1124,18 +1168,15 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
   }, []);
 
   // 必填输入缺失时发送置灰(新对话/未锁定):避免只填提示词就点发送(点了才报错且 Semi
-  // 会清空已输入的提示词)。i2v/s2v 需主图;flf2v 需首帧+尾帧;s2v 另需音频;sr 需源视频;
-  // vace 需源视频或参考图之一。
+  // 会清空已输入的提示词)。关键帧需首帧(尾帧可选);图生视频需参考图;s2v 需主图+音频;
+  // sr/dub 需源视频;vace 需 ≥1 源视频。
   const missingRequiredImage =
     !locked &&
-    ((needsImage &&
-      ((inputs.firstFrame || '').trim() === '' ||
-        (isFLF2V && (inputs.lastFrame || '').trim() === ''))) ||
+    ((needsImage && (inputs.firstFrame || '').trim() === '') ||
+      (isI2V && !(inputs.refImages || []).filter(Boolean).length) ||
       (isS2V && (inputs.audioData || '').trim() === '') ||
       ((isSR || isDub) && (inputs.sourceVideo || '').trim() === '') ||
-      (isVACE &&
-        (inputs.srcVideo || '').trim() === '' &&
-        !(inputs.refImages || []).length));
+      (isVACE && (inputs.srcVideo || '').trim() === ''));
 
   return {
     isI2V,
@@ -1146,7 +1187,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     isDub,
     needsImage,
     followsInput,
-    maxRefImages: MAX_REF_IMAGES,
+    maxRefImages: isI2V ? MAX_R2V_REF_IMAGES : MAX_REF_IMAGES,
     maxInputMB,
     inputs,
     handleInputChange,
