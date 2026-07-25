@@ -3,7 +3,8 @@ package model
 import "gorm.io/gorm/clause"
 
 // AdsSpendDaily holds one row per ads-account day: total paid-ads spend and
-// clicks across all campaigns. Dates are the ads account's timezone
+// clicks across flatkey-* campaigns (the ads account is shared with other
+// business lines, which are excluded). Dates are the ads account's timezone
 // (America/New_York), joined to the report's Pacific day buckets by date
 // string — a 3-hour edge skew day-level stats can tolerate.
 //

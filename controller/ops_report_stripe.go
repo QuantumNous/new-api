@@ -17,9 +17,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/stripe/stripe-go/v81"
-	"github.com/stripe/stripe-go/v81/charge"
-	checkoutsession "github.com/stripe/stripe-go/v81/checkout/session"
+	"github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86/charge"
+	checkoutsession "github.com/stripe/stripe-go/v86/checkout/session"
 )
 
 // Stripe payment-conversion supplement for the ops daily report (管理员 →

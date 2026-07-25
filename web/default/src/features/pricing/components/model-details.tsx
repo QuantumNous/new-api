@@ -1010,13 +1010,9 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               href='/wallet'
               className='block rounded-lg border border-emerald-500/25 bg-emerald-500/[0.07] px-3 py-2.5 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-500/[0.12] dark:text-emerald-300'
             >
-              💰{' '}
-              {t('Every top-up earns bonus credit')} ·{' '}
-              {t('up to 50% off')} →
+              💰 {t('Top up balance')} →
               <span className='text-muted-foreground mt-1 block text-xs font-normal'>
-                {t(
-                  'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.'
-                )}
+                {t('Pay face value. The same amount is added to your balance.')}
               </span>
             </a>
             {!props.hideGroupPricing && (

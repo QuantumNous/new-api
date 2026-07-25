@@ -5,7 +5,7 @@
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="fk2.css?v=719h"><style>
+<link rel="stylesheet" href="fk2.css?v=728b"><style>
 .wrap{max-width:1560px;margin:0 auto;padding:36px 48px}
 .head{display:flex;align-items:center;gap:18px;margin-bottom:8px}
 .head h2{font-size:30px;letter-spacing:-1px;font-weight:600;font-family:var(--mono)}
@@ -19,6 +19,12 @@
 .msg.a{background:#F7F7F4;font-family:var(--mono);font-size:13.5px}
 .inp{display:flex;gap:12px;margin-top:16px}
 .inp input{flex:1;height:52px;border:1.5px solid var(--line);border-radius:12px;padding:0 18px;font-size:15px}
+.inp button{min-width:112px;border:0;cursor:pointer}
+.inp button:disabled{cursor:wait;opacity:.72}
+.preview-label{display:inline-block;margin-bottom:7px;color:var(--violet-deep);font-family:var(--mono);font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.run-note{margin-top:14px;font-size:13px;color:var(--ink3)}
+.run-note strong{color:var(--ink);font-family:var(--mono)}
+.run-note.error{color:#b42318}
 .meta{display:flex;gap:22px;font-family:var(--mono);font-size:12.5px;color:var(--ink3);margin-top:14px}
 .code{background:#0F0F16;color:#D8D8E4;border-radius:14px;padding:22px;font-family:var(--mono);font-size:13.5px;line-height:1.85}
 .code .k{color:#9E8CFF}.code .s{color:#C8FF4D}.code .cm{color:#5A5A68}
@@ -52,7 +58,7 @@
 
 <nav class="nav">
   <a class="logo" href="/"><img src="assets/flatkey-mark.svg?v=4" alt="flatkey">flatkey</a>
-  <a href="/models">Models</a><a href="/docs">Docs</a><a href="/playground" class="on">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing">Pricing</a><a href="/compute" data-i18n="nav.compute">Compute</a><a href="/usecases">Use cases</a>
+  <a href="/models">Models</a><a href="/docs">Docs</a><a href="/playground" class="on">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing">Pricing</a><a href="/compute" data-i18n="nav.compute">Compute</a><a href="/usecases">Use cases</a><a href="/status">Status</a>
   <div class="sp"></div>
   <a href="/login">Sign in</a>
   <a class="btn white" href="/contact">Contact sales</a>
@@ -64,11 +70,11 @@
   <div class="grid">
     <div class="pane">
       <div class="selrow"><div class="sel mchip on" data-model="claude-opus-4-8">claude-opus-4-8</div><div class="sel mchip" data-model="doubao/doubao-seedance-2-0-260128" style="border-color:#8B5CF666;color:var(--violet-deep)" title="video · usage-based">seedance-2.0</div><div class="sel mchip" data-model="flatkey-auto" style="border-color:#B5D64A;background:#FBFFEE" title="let flatkey pick the best official model per request">try flatkey-auto</div><div class="sel" id="streamchip" style="cursor:pointer">stream ✓</div><div style="flex:1"></div><a href="/models" style="font-size:13px;font-weight:800;color:var(--violet-deep);text-decoration:none">⇄ side-by-side</a></div>
-      <div class="msg u">Write a haiku about API gateways.</div>
-      <div class="msg a">One key, many minds —<br>requests fan out through the dark,<br>tokens flow like rain.</div>
-      <div class="meta"><span>example response</span><span>41 tokens</span><span>illustrative output</span><span id="served-tag" style="color:var(--ok)">✓ routes to official Anthropic API</span></div>
-      <div class="inp"><input type="text" placeholder="Ask anything — 3 free runs, no signup"><a class="btn primary big" href="/login">Run ⏎</a></div>
-      <div style="margin-top:14px;font-size:13px;color:var(--ink3)">2 of 3 free runs left · <a href="/login" style="color:var(--violet-deep);font-weight:700">Continue with Google</a> for $2 free credit — keeps your history</div>
+      <div class="msg u" id="user-message">Write a haiku about API gateways.</div>
+      <div class="msg a" id="assistant-message"><span class="preview-label">Illustrative text preview</span><br>One key, many minds —<br>requests fan out through the dark,<br>tokens flow like rain.</div>
+      <div class="meta"><span id="method-tag">OpenAI-compatible Chat Completions</span><span id="response-kind">browser preview</span><span id="run-meta">no paid API request sent</span><span id="served-tag" style="color:var(--ok)">✓ routes to official Anthropic API</span></div>
+      <div class="inp"><input id="preview-prompt" type="text" autocomplete="off" aria-label="Playground prompt" placeholder="Ask anything — 3 free previews, no signup"><button class="btn primary big" id="run-preview" type="button" data-action="run-preview">Run ⏎</button></div>
+      <div class="run-note" id="run-note" aria-live="polite"><strong id="runs-left">3 of 3 free previews left</strong> · <a href="/login" style="color:var(--violet-deep);font-weight:700">Continue with Google</a> for $1 free credit — keeps your history</div>
     </div>
     <div class="pane">
       <div class="lang" id="langs"><div class="on" data-l="python">Python</div><div data-l="js">JavaScript</div><div data-l="curl">cURL</div><div data-l="cline">Cline</div><div data-l="cursor">Cursor</div><div data-l="chatbox">Chatbox</div></div>
@@ -103,8 +109,10 @@
 <div class="stripe"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><i class="s5"></i></div>
 <div class="pxgrid" data-seed="67" data-cell="18" data-cols="8" data-rows="3" data-n="9" style="top:100px;right:40px"></div>
 <script src="assets/pixels.js?v=719h"></script>
-<script src="assets/i18n.js?v=720e"></script>
-<script src="assets/track.js?v=716b"></script>
+<script src="assets/i18n.js?v=724b"></script>
+<script src="assets/track.js?v=721a"></script>
+<script src="assets/model-catalog.js?v=730a"></script>
+<script src="assets/playground-preview.js?v=727a"></script>
 <script>
 (function(){
   var model = "claude-opus-4-8";
@@ -115,29 +123,29 @@
   } catch (e) {}
   var lang = "python";
   var esc = function(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;");};
-  var META = {
-    "gpt-5.5": {provider:"OpenAI", price:"official $5.00 → $3.33 /M input"},
-    "claude-sonnet-4-6": {provider:"Anthropic", price:"official $3.00 → $2.00 /M input"},
-    "gpt-5.4": {provider:"OpenAI", price:"official $2.50 → $1.67 /M input"},
-    "claude-opus-4-8": {provider:"Anthropic", price:"official $5.00 → $3.33 /M input"},
-    "gpt-5.6-sol": {provider:"OpenAI", price:"official $5.00 → $3.33 /M input"},
-    "gemini-3-flash-preview": {provider:"Google", price:"official $0.07 → $0.047 /M input"},
-    "gpt-5.4-mini": {provider:"OpenAI", price:"official $0.75 → $0.50 /M input"},
-    "deepseek-v4-flash": {provider:"DeepSeek", price:"official $0.14 → $0.056 /M input"},
-    "gemini-2.5-pro": {provider:"Google", price:"official $1.125 → $0.75 /M input"},
-    "glm-5.2": {provider:"Z.ai", price:"official $1.40 → $0.56 /M input"},
-    "flatkey-auto": {provider:"flatkey", price:"no routing fee", served:"✓ routes across verified official providers"},
-    "doubao/doubao-seedance-2-0-260128": {provider:"ByteDance", price:"usage-based video pricing"}
+  var CATALOG = window.FLATKEY_MODEL_CATALOG || {};
+  var METHOD_LABELS = {
+    chat: "OpenAI-compatible Chat Completions",
+    image: "OpenAI-compatible Images API",
+    video: "Task-based Video Generation API",
+    speech: "OpenAI-compatible Audio Speech API",
+    transcription: "OpenAI-compatible Audio Transcription API",
+    realtime: "OpenAI-compatible Realtime WebSocket API",
+    embedding: "OpenAI-compatible Embeddings API"
   };
-  function providerFor(m){
-    if (/^claude/.test(m)) return "Anthropic";
-    if (/^(gpt|sora)/.test(m)) return "OpenAI";
-    if (/^(gemini|veo)/.test(m)) return "Google";
-    if (/deepseek/.test(m)) return "DeepSeek";
-    if (/^(glm|cogview)/.test(m)) return "Z.ai";
-    if (/^(qwen|wan)/.test(m)) return "Alibaba";
-    if (/(seedance|doubao)/.test(m)) return "ByteDance";
-    return "official provider";
+  function methodLabel(info){
+    if(info.kind === "image" && info.api === "chat-image") return "Chat Completions · image output";
+    return METHOD_LABELS[info.kind] || METHOD_LABELS.chat;
+  }
+  function fallbackFor(m){
+    if (/^claude/.test(m)) return {provider:"Anthropic", kind:"chat"};
+    if (/^(gpt|sora)/.test(m)) return {provider:"OpenAI", kind:"chat"};
+    if (/^(gemini|veo)/.test(m)) return {provider:"Google", kind:"chat"};
+    if (/deepseek/.test(m)) return {provider:"DeepSeek", kind:"chat"};
+    if (/^(glm|cogview)/.test(m)) return {provider:"Z.ai", kind:"chat"};
+    if (/^(qwen|wan)/.test(m)) return {provider:"Alibaba", kind:"chat"};
+    if (/(seedance|doubao)/.test(m)) return {provider:"ByteDance", kind:"video"};
+    return {provider:"official provider", kind:"chat"};
   }
   var T = {
     python: function(m){return '<span class="cm"># pip install openai — nothing flatkey-specific</span>\nfrom openai import OpenAI\n\nclient = OpenAI(\n  <span class="k">base_url</span>=<span class="s">"https://router.flatkey.ai/v1"</span>,\n  <span class="k">api_key</span>=<span class="s">"sk-fk-…"</span>, <span class="cm"># auto-fills after sign-in</span>\n)\n\nr = client.chat.completions.create(\n  <span class="k">model</span>=<span class="s">"'+m+'"</span>,\n  <span class="k">messages</span>=[{<span class="s">"role"</span>:<span class="s">"user"</span>,<span class="s">"content"</span>:<span class="s">"Hello"</span>}],\n)';},
@@ -147,12 +155,58 @@
     cursor: function(m){return '<span class="cm"># Cursor → Settings → Models → OpenAI API</span>\n<span class="k">Override base URL</span>  <span class="s">https://router.flatkey.ai/v1</span>\n<span class="k">API Key</span>            <span class="s">sk-fk-…</span>\n<span class="k">Model</span>              <span class="s">'+m+'</span>';},
     chatbox: function(m){return '<span class="cm"># Chatbox → 设置 → 模型提供方: OpenAI API 兼容</span>\n<span class="k">API 域名</span>   <span class="s">https://router.flatkey.ai</span>\n<span class="k">API 路径</span>   <span class="s">/v1/chat/completions</span>\n<span class="k">API 密钥</span>   <span class="s">sk-fk-…</span>\n<span class="k">模型</span>       <span class="s">'+m+'</span>';}
   };
+  function nonChatCode(m, info, language){
+    var safeModel = esc(m);
+    var auth = '<span class="s">"Authorization: Bearer sk-fk-…"</span>';
+    if(info.kind === "image"){
+      if(info.api === "chat-image"){
+        var imagePrompt = "Generate a cinematic mountain lake";
+        if(language === "python") return 'from openai import OpenAI\n\nclient = OpenAI(base_url=<span class="s">"https://router.flatkey.ai/v1"</span>, api_key=<span class="s">"sk-fk-…"</span>)\nr = client.chat.completions.create(\n  <span class="k">model</span>=<span class="s">"'+safeModel+'"</span>,\n  <span class="k">messages</span>=[{<span class="s">"role"</span>:<span class="s">"user"</span>,<span class="s">"content"</span>:<span class="s">"'+imagePrompt+'"</span>}]\n)\n<span class="cm"># Image is returned as a Markdown data URI in message.content.</span>';
+        if(language === "js") return 'const r = await client.chat.completions.create({\n  <span class="k">model</span>: <span class="s">"'+safeModel+'"</span>,\n  <span class="k">messages</span>: [{ role: <span class="s">"user"</span>, content: <span class="s">"'+imagePrompt+'"</span> }]\n});\n<span class="cm">// Image is returned as a Markdown data URI in message.content.</span>';
+        return 'curl https://router.flatkey.ai/v1/chat/completions \\\n++  -H '+auth+' -H <span class="s">"Content-Type: application/json"</span> \\\n++  -d <span class="s">\'{"model":"'+safeModel+'","messages":[{"role":"user","content":"'+imagePrompt+'"}]}\'</span>';
+      }
+      if(language === "python") return 'from openai import OpenAI\n\nclient = OpenAI(base_url=<span class="s">"https://router.flatkey.ai/v1"</span>, api_key=<span class="s">"sk-fk-…"</span>)\nimage = client.images.generate(\n  <span class="k">model</span>=<span class="s">"'+safeModel+'"</span>, <span class="k">prompt</span>=<span class="s">"A cinematic mountain lake"</span>\n)';
+      if(language === "js") return 'const image = await client.images.generate({\n  <span class="k">model</span>: <span class="s">"'+safeModel+'"</span>, <span class="k">prompt</span>: <span class="s">"A cinematic mountain lake"</span>\n});';
+      return 'curl https://router.flatkey.ai/v1/images/generations \\\n+  -H '+auth+' -H <span class="s">"Content-Type: application/json"</span> \\\n+  -d <span class="s">\'{"model":"'+safeModel+'","prompt":"A cinematic mountain lake"}\'</span>';
+    }
+    if(info.kind === "video"){
+      if(language === "python") return '<span class="cm"># Task-based video API: poll the returned task id</span>\nimport requests\n\nr = requests.post(<span class="s">"https://router.flatkey.ai/v1/video/generations"</span>, headers={<span class="s">"Authorization"</span>: <span class="s">"Bearer sk-fk-…"</span>}, json={\n  <span class="s">"model"</span>: <span class="s">"'+safeModel+'"</span>, <span class="s">"prompt"</span>: <span class="s">"A calm ocean at sunset"</span>\n})\ntask = r.json() <span class="cm"># GET /v1/video/generations/{task_id}</span>';
+      if(language === "js") return '<span class="cm">// Task-based video API: poll the returned task id</span>\nconst r = await fetch(<span class="s">"https://router.flatkey.ai/v1/video/generations"</span>, {\n  method: <span class="s">"POST"</span>, headers: { Authorization: <span class="s">"Bearer sk-fk-…"</span>, <span class="s">"Content-Type"</span>: <span class="s">"application/json"</span> },\n  body: JSON.stringify({ model: <span class="s">"'+safeModel+'"</span>, prompt: <span class="s">"A calm ocean at sunset"</span> })\n});\nconst task = await r.json(); <span class="cm">// GET /v1/video/generations/{task_id}</span>';
+      return 'curl https://router.flatkey.ai/v1/video/generations \\\n+  -H '+auth+' -H <span class="s">"Content-Type: application/json"</span> \\\n+  -d <span class="s">\'{"model":"'+safeModel+'","prompt":"A calm ocean at sunset"}\'</span>\n<span class="cm"># Poll GET /v1/video/generations/{task_id}</span>';
+    }
+    if(info.kind === "transcription"){
+      if(language === "python") return 'from openai import OpenAI\n\nclient = OpenAI(base_url=<span class="s">"https://router.flatkey.ai/v1"</span>, api_key=<span class="s">"sk-fk-…"</span>)\ntext = client.audio.transcriptions.create(\n  <span class="k">model</span>=<span class="s">"'+safeModel+'"</span>, <span class="k">file</span>=open(<span class="s">"audio.mp3"</span>, <span class="s">"rb"</span>)\n)';
+      if(language === "js") return 'const body = new FormData();\nbody.append(<span class="s">"model"</span>, <span class="s">"'+safeModel+'"</span>); body.append(<span class="s">"file"</span>, audioFile);\nconst r = await fetch(<span class="s">"https://router.flatkey.ai/v1/audio/transcriptions"</span>, { headers: { Authorization: <span class="s">"Bearer sk-fk-…"</span> }, body, method: <span class="s">"POST"</span> });';
+      return 'curl https://router.flatkey.ai/v1/audio/transcriptions \\\n+  -H '+auth+' -F <span class="s">"model='+safeModel+'"</span> -F <span class="s">"file=@audio.mp3"</span>';
+    }
+    if(info.kind === "speech"){
+      if(language === "python") return 'from openai import OpenAI\n\nclient = OpenAI(base_url=<span class="s">"https://router.flatkey.ai/v1"</span>, api_key=<span class="s">"sk-fk-…"</span>)\naudio = client.audio.speech.create(\n  <span class="k">model</span>=<span class="s">"'+safeModel+'"</span>, <span class="k">voice</span>=<span class="s">"alloy"</span>, <span class="k">input</span>=<span class="s">"Hello from flatkey"</span>\n)';
+      if(language === "js") return 'const audio = await client.audio.speech.create({\n  <span class="k">model</span>: <span class="s">"'+safeModel+'"</span>, <span class="k">voice</span>: <span class="s">"alloy"</span>, <span class="k">input</span>: <span class="s">"Hello from flatkey"</span>\n});';
+      return 'curl https://router.flatkey.ai/v1/audio/speech \\\n+  -H '+auth+' -H <span class="s">"Content-Type: application/json"</span> \\\n+  -d <span class="s">\'{"model":"'+safeModel+'","voice":"alloy","input":"Hello from flatkey"}\'</span>';
+    }
+    if(info.kind === "realtime") return '<span class="cm"># Realtime models use the WebSocket endpoint</span>\nwscat -c <span class="s">"wss://router.flatkey.ai/v1/realtime?model='+safeModel+'"</span> \\\n+  -H '+auth+'\n<span class="cm"># Send OpenAI Realtime events after the connection opens.</span>';
+    if(info.kind === "embedding") return 'curl https://router.flatkey.ai/v1/embeddings \\\n+  -H '+auth+' -H <span class="s">"Content-Type: application/json"</span> \\\n+  -d <span class="s">\'{"model":"'+safeModel+'","input":"Embed this text"}\'</span>';
+    return T[language](safeModel);
+  }
+  function syncLanguageTabs(info){
+    var chatOnly = ["cline", "cursor", "chatbox"];
+    document.querySelectorAll("#langs div").forEach(function(d){
+      var available = info.kind === "chat" || chatOnly.indexOf(d.dataset.l) === -1;
+      d.hidden = !available;
+      if(!available) d.classList.remove("on");
+    });
+    if(info.kind !== "chat" && chatOnly.indexOf(lang) > -1) lang = "python";
+  }
   function render(){
-    var info = META[model] || {provider:providerFor(model), price:"live pricing in Models"};
-    document.getElementById("codebox").innerHTML = T[lang](model).replace(/\n/g,"<br>").replace(/  /g,"&nbsp;&nbsp;");
+    var info = CATALOG[model] || fallbackFor(model);
+    info.price = info.price || "live pricing in Models";
+    syncLanguageTabs(info);
+    var snippet = nonChatCode(model, info, lang).replace(/\n\++(?=  -)/g,"\n");
+    document.getElementById("codebox").innerHTML = snippet.replace(/\n/g,"<br>").replace(/  /g,"&nbsp;&nbsp;");
     document.getElementById("mname").textContent = model;
     document.getElementById("provider-tag").textContent = "official · " + info.provider;
     document.getElementById("price-tag").textContent = info.price;
+    document.getElementById("method-tag").textContent = methodLabel(info);
     document.getElementById("served-tag").textContent = info.served || ("✓ routes to official " + info.provider + " API");
   }
   document.querySelectorAll("#langs div").forEach(function(d){
@@ -180,6 +234,65 @@
     x.classList.toggle("on", on);
     x.style.boxShadow = on ? "0 0 0 2px var(--violet-hi)" : "";
   });
+  var preview = window.FLATKEY_PLAYGROUND_PREVIEW;
+  var previewInput = document.getElementById("preview-prompt");
+  var previewButton = document.getElementById("run-preview");
+  var runNote = document.getElementById("run-note");
+  var runsLeft = document.getElementById("runs-left");
+  var userMessage = document.getElementById("user-message");
+  var assistantMessage = document.getElementById("assistant-message");
+  var runMeta = document.getElementById("run-meta");
+  function syncRuns(){
+    var current = preview.state(localStorage);
+    runsLeft.textContent = current.remaining + " of " + current.max + " free preview" + (current.remaining === 1 ? "" : "s") + " left";
+    previewButton.textContent = current.remaining ? "Run ⏎" : "Create free account →";
+    previewButton.disabled = false;
+  }
+  function runPreview(){
+    var current = preview.state(localStorage);
+    if(current.remaining === 0){
+      location.assign("/login");
+      return;
+    }
+    var prompt = previewInput.value.trim();
+    if(!prompt){
+      runNote.classList.add("error");
+      runsLeft.textContent = "Enter a prompt before running the preview.";
+      previewInput.focus();
+      return;
+    }
+    runNote.classList.remove("error");
+    previewButton.disabled = true;
+    previewButton.textContent = "Running…";
+    userMessage.textContent = prompt;
+    var info = CATALOG[model] || fallbackFor(model);
+    window.setTimeout(function(){
+      var result = preview.consume(localStorage);
+      var output = preview.response(model, info.kind, prompt);
+      assistantMessage.textContent = "";
+      var label = document.createElement("span");
+      label.className = "preview-label";
+      label.textContent = output.label;
+      assistantMessage.appendChild(label);
+      assistantMessage.appendChild(document.createElement("br"));
+      assistantMessage.appendChild(document.createTextNode(output.text));
+      document.getElementById("response-kind").textContent = output.label.toLowerCase();
+      runMeta.textContent = output.meta;
+      syncRuns();
+      if(result.remaining === 0) {
+        runNote.classList.remove("error");
+        runsLeft.textContent = "3 previews complete";
+      }
+    }, 450);
+  }
+  previewButton.addEventListener("click", runPreview);
+  previewInput.addEventListener("keydown", function(event){
+    if(event.key === "Enter"){
+      event.preventDefault();
+      runPreview();
+    }
+  });
+  syncRuns();
   render();
 })();
 </script>

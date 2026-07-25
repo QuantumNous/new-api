@@ -12,7 +12,7 @@
 | `flatkey.ai`、`www.flatkey.ai` | Node `newapi-web` | 官网；www 建议 301→apex |
 | `console.flatkey.ai` | Go `newapi-console` | 控制台/API，`NODE_TYPE=master` |
 | `router.flatkey.ai` | Go `newapi-router` | 大模型 API，`NODE_TYPE=slave` |
-| `new-api.app/api.*` | legacy/default `newapi` | 兼容入口，后续按日志清理 |
+| `new-api.app/api.*` | Go `newapi-console`（URL map default） | 兼容入口，未命中 host rule 时进入 console backend；legacy `newapi` 已下线 |
 
 ## 本次代码改动（已在分支 `ops/website-infra-cicd`）
 - 新模块 `deploy/gcp/modules/cloud-run-web/`：Node 专用 Cloud Run（端口 4000、无 VPC/SQL、min=1、最小权限 SA）。

@@ -49,6 +49,12 @@ describe('buildInvitationShareLinks', () => {
   const invitationUrl = 'https://console.example/sign-up?aff=code%20with%20%26'
   const message = 'Join me & save / explore?'
 
+  it('builds clipboard text with the share message before the invitation URL', () => {
+    const links = buildInvitationShareLinks(invitationUrl, message)
+
+    expect(links.clipboard).toBe(`${message}\n${invitationUrl}`)
+  })
+
   it('builds an encoded email share target', () => {
     const links = buildInvitationShareLinks(invitationUrl, message)
 

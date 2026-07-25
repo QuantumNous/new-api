@@ -93,7 +93,7 @@ func setupInvitationControllerTest(t *testing.T) (*gorm.DB, model.User) {
 	var err error
 	db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.InviteRewardEvent{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.InviteRewardEvent{}, &model.InviteSubscriptionReward{}))
 	model.DB = db
 	model.LOG_DB = db
 

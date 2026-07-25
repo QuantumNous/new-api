@@ -61,7 +61,7 @@ const invitationKeys = [
   'Share by email',
   'Share on X',
   'Share on LinkedIn',
-  'Join NewAPI with my referral link. Referral rewards are processed after your first successful top-up.',
+  'Join Flatkey with my referral link. Referral rewards are processed after your first successful top-up.',
   'How it works',
   'Share your referral link',
   'Send your unique referral link to a friend.',
@@ -97,6 +97,22 @@ const invitationKeys = [
   'This list shows active accounts registered through your referral link. Deleted accounts may not appear, so the rewards shown here may not add up to your lifetime earnings.',
   'What behavior is prohibited?',
   'Self-referrals, duplicate accounts, and other abuse are prohibited. Rewards may be withheld or revoked.',
+  // Subscription-mode (invite reward v2) keys
+  'Invite friends to subscribe: they get {{discount}} off their first month, and you receive {{reward}} in balance — unlocked {{days}} days after payment.',
+  "Unlocks {{days}} days after your friend's payment",
+  'Locked credits',
+  '{{reward}} each after their first subscription',
+  'You receive {{reward}} in balance',
+  'Your friend subscribes with {{discount}} off',
+  'They sign up with your link and get {{discount}} off the first month of any plan.',
+  '{{reward}} is added to your balance, unlocked {{days}} days after payment if there is no refund.',
+  'Referral rewards are created when your friend completes their first subscription payment, and unlock {{days}} days later if the payment is not refunded. Registration, top-ups, and API calls alone do not grant a reward.',
+  'Your friend gets {{discount}} off the first month of any plan, and you receive {{reward}} as balance.',
+  'Unlocks {{date}}',
+  'Awaiting subscription',
+  'Reward revoked',
+  "Your friend's subscription was refunded",
+  "Your friend's payment was disputed",
 ] as const
 
 const localeInvariantKeys = new Set<(typeof invitationKeys)[number]>(['FAQ'])
@@ -147,6 +163,19 @@ describe('invitation i18n', () => {
         ['{{inviterReward}}', '{{inviteeReward}}'],
       'The maximum number of successful referrals you can earn rewards for is {{count}}. Friends invited after that can still receive their reward.':
         ['{{count}}'],
+      'Invite friends to subscribe: they get {{discount}} off their first month, and you receive {{reward}} in balance — unlocked {{days}} days after payment.':
+        ['{{discount}}', '{{reward}}', '{{days}}'],
+      "Unlocks {{days}} days after your friend's payment": ['{{days}}'],
+      'Your friend subscribes with {{discount}} off': ['{{discount}}'],
+      'They sign up with your link and get {{discount}} off the first month of any plan.':
+        ['{{discount}}'],
+      '{{reward}} is added to your balance, unlocked {{days}} days after payment if there is no refund.':
+        ['{{reward}}', '{{days}}'],
+      'Referral rewards are created when your friend completes their first subscription payment, and unlock {{days}} days later if the payment is not refunded. Registration, top-ups, and API calls alone do not grant a reward.':
+        ['{{days}}'],
+      'Your friend gets {{discount}} off the first month of any plan, and you receive {{reward}} as balance.':
+        ['{{discount}}', '{{reward}}'],
+      'Unlocks {{date}}': ['{{date}}'],
     } as const
 
     for (const [locale, translations] of Object.entries(localeTranslations)) {
@@ -165,8 +194,8 @@ describe('invitation i18n', () => {
     const literalKeys = {
       'Share on X': ['X'],
       'Share on LinkedIn': ['LinkedIn'],
-      'Join NewAPI with my referral link. Referral rewards are processed after your first successful top-up.':
-        ['NewAPI'],
+      'Join Flatkey with my referral link. Referral rewards are processed after your first successful top-up.':
+        ['Flatkey'],
       'Referral rewards are granted only after your friend completes their first successful top-up. Registration, creating an API key, and making an API call do not grant a reward.':
         ['API'],
       'Referral rewards are added automatically to your API balance and used for API requests.':

@@ -208,9 +208,11 @@ export function buildApiParams(config: {
     ...(isAdmin && searchParams.channel
       ? { channel: Number(searchParams.channel) || 0 }
       : {}),
-    ...(isAdmin && searchParams.username
-      ? { username: String(searchParams.username) }
-      : {}),
+    ...(isAdmin && searchParams.userId
+      ? { user_id: Number(searchParams.userId) }
+      : isAdmin && searchParams.username
+        ? { username: String(searchParams.username) }
+        : {}),
     ...(isAdmin && searchParams.nonAdmin ? { non_admin: true } : {}),
     ...(searchParams.requestId
       ? { request_id: String(searchParams.requestId) }

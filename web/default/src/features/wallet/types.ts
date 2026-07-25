@@ -451,6 +451,40 @@ export interface BillingHistoryResponse {
   total: number
 }
 
+export type RefundableTermStatus = 'not_started' | 'refunded'
+
+/** A prepaid plan term that has not started and can return value to the wallet. */
+export interface RefundableSubscriptionTerm {
+  term_segment_id: number
+  order_id: number
+  plan_id: number
+  plan_title: string
+  start_time: number
+  end_time: number
+  remaining_days: number
+  refund_money: number
+  refund_quota: number
+  status: RefundableTermStatus
+}
+
+export interface RefundableSubscriptionTermsData {
+  items: RefundableSubscriptionTerm[]
+  total_refund_money: number
+  total_refund_quota: number
+}
+
+export interface RefundedSubscriptionTerm {
+  term_segment_id: number
+  refunded_money: number
+  refunded_quota: number
+  status: 'refunded'
+}
+
+export type RefundableSubscriptionTermsResponse =
+  ApiResponse<RefundableSubscriptionTermsData>
+export type RefundSubscriptionTermResponse =
+  ApiResponse<RefundedSubscriptionTerm>
+
 /**
  * Complete order request (admin only)
  */

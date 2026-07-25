@@ -52,6 +52,9 @@ jobs:
       - name: Audit static website
         run: node website-static/audit.mjs
 
+      - name: Regression test static website interactions
+        run: node --test website-static/tests/*.test.mjs
+
       - name: Auth to GCP (WIF)
         uses: google-github-actions/auth@v2
         with:
@@ -123,7 +126,7 @@ jobs:
         run: |
           C="https://canary---newapi-web-5qjldqffdq-uw.a.run.app"
           # canonical static pages and assets
-          for p in "" models docs playground pricing compute usecases contact status terms privacy refund-policy sla about zh/about careers zh/careers install.sh llms.txt assets/team/amazon-accelerate-team.jpg assets/team/team-dinner.jpg; do
+          for p in "" models models/gpt-5.5 models/grok-imagine-image docs playground pricing compute usecases contact status terms privacy refund-policy sla about zh/about careers zh/careers install.sh llms.txt assets/team/amazon-accelerate-team.jpg assets/team/team-dinner.jpg; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 20 "$C/$p")
             echo "/$p -> $code"; [ "$code" = "200" ] || exit 1
           done
@@ -199,7 +202,8 @@ jobs:
           # media price calibration + conversion tracking
           curl -s -m 20 "$C/" | grep -q 'md.early' || { echo "media calibration missing"; exit 1; }
           curl -s -m 20 "$C/" | grep -qE '\$0\.[0-9]+/s' && { echo "fabricated per-second price still present"; exit 1; }
-          curl -s -m 20 "$C/assets/track.js?v=716b" | grep -q 'sign_up_click' || { echo "track.js missing"; exit 1; }
+          curl -s -m 20 "$C/assets/track.js?v=721a" | grep -q 'sign_up_click' || { echo "track.js missing"; exit 1; }
+          curl -s -m 20 "$C/assets/track.js?v=721a" | grep -q 'first_landing_path' || { echo "track.js attribution missing"; exit 1; }
           # pricing honesty: no legacy fake claims may reappear
           for bad in "60–90%" "50% of list" "53% of list"; do
             curl -s -m 20 "$C/" | grep -q "$bad" && { echo "fake claim present: $bad"; exit 1; }

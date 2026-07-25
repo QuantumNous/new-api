@@ -24,6 +24,9 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
 	}
+	if rejectSubscriptionPurchasePendingMigration(c) {
+		return
+	}
 
 	var req SubscriptionCreemPayRequest
 

@@ -18,7 +18,7 @@ describe("SkagLandingPage", () => {
     expect(html).toContain("from openai import OpenAI");
     expect(html).toContain("curl");
     expect(html).toContain("/register");
-    expect(html).toContain("GPT · Gemini · Claude · DeepSeek · Seedance");
+    expect(html).toContain("GPT · Gemini · Claude · DeepSeek · Kimi · Seedance");
   });
 
   test("renders the configured price table", () => {

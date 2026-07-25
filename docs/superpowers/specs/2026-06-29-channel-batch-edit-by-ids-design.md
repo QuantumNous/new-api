@@ -220,8 +220,9 @@ export async function batchEditChannels(
 
 - **Router deploy：required**。新增 `PUT /api/channel/batch` 路由 + relay/渠道管理相关 model
   与 controller，影响渠道与 abilities 数据（router 节点按 group/model 选路依赖这些）。
-- **Other targets**：`newapi-console`、`newapi-router`、legacy `newapi` 三类 Go 节点均需部署
-  （同一 Go 二进制，都受路由注册与 abilities 重建逻辑影响）；`newapi-web` 不涉及。
+- **Other targets**：`newapi-console` 与 `newapi-router` 均需部署（同一 Go 二进制，
+  都受路由注册与 abilities 重建逻辑影响）；`newapi-web` 不涉及。Legacy `newapi` 已下线，
+  不属于部署目标。
 - **Risk / validation**：批量覆盖 models/groups 会重建 abilities，需验证选中渠道路由正确；
   生产发布前在 staging 跑一次批量编辑并确认调用结果与 abilities 一致。
 

@@ -122,7 +122,7 @@ function NavBadge({
 }) {
   return (
     <Badge
-      variant={variant === 'promotion' ? 'destructive' : variant}
+      variant={variant === 'promotion' ? 'outline' : variant}
       className={getNavBadgeClassName(variant)}
       title={typeof children === 'string' ? children : undefined}
     >

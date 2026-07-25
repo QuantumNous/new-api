@@ -49,6 +49,8 @@ describe('ModelAccessPreview', () => {
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <ModelAccessPreview
+          defaultRatio={0}
+          modelRatios={{ 'gpt-preview': 0.7 }}
           models={models}
           totalCount={3}
           scopeTitle='Ordinary'
@@ -68,12 +70,16 @@ describe('ModelAccessPreview', () => {
     expect(html).toContain('OpenAI Compatible')
     expect(html).toContain('Temporary failure')
     expect(html).toContain('aria-label="Copy to clipboard"')
+    expect(html).toContain('Exclusive ratio 0.7×')
+    expect(html).toContain('default ratio 0×')
   })
 
   test('uses neutral API key wording for an empty current-account preview', () => {
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <ModelAccessPreview
+          defaultRatio={null}
+          modelRatios={{}}
           models={[]}
           totalCount={0}
           scopeTitle='Current account scope'

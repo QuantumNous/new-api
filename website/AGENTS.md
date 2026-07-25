@@ -35,6 +35,9 @@ flatkey.ai 的**对外公开官网**：首页/营销、定价（pricing）、排
 | `APP_CONSOLE_ORIGIN` / `NEXT_PUBLIC_APP_CONSOLE_ORIGIN` | Go 控制台/API origin（如 `https://console.flatkey.ai`）；「控制台/登录」按钮、公开数据拉取（pricing/blog）、`/api/perf-metrics` 代理目标 |
 | `ROUTER_ORIGIN` / `NEXT_PUBLIC_ROUTER_ORIGIN` | Go router/API origin（如 `https://router.flatkey.ai`）；只用于模型调用示例 endpoint，不用于公开数据拉取、登录、注册或 dashboard 跳转 |
 | `SITE_ORIGIN` / `NEXT_PUBLIC_SITE_ORIGIN` | 本站对外 canonical origin（`https://flatkey.ai`）|
+| `BLOGGER_API_URL` | Blogger API origin（如 `https://blogger-api-528088078482.us-central1.run.app`）；博客列表、分类、详情读取目标 |
+| `BLOGGER_SITE_SLUG` | Blogger integration site slug（Flatkey 为 `flatkey`）|
+| `BLOGGER_ACCESS_KEY` | Blogger integration AccessKey；只用于服务端读取已发布博客，不要提交到代码 |
 
 构建时 `NEXT_PUBLIC_*` 会烤进 bundle（CI 用 build-arg 注入），服务端用的同名 env 在 Cloud Run 运行时注入。
 

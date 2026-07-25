@@ -18,11 +18,15 @@ const (
 )
 
 type invitationSummary struct {
+	RewardMode            string  `json:"reward_mode"` // "topup" (legacy) | "subscription" (v2 fixed reward on first subscription)
+	FirstSubDiscountUSD   float64 `json:"first_sub_discount_usd"`
+	UnlockDelayDays       int64   `json:"unlock_delay_days"`
 	InviterRewardUSD      float64 `json:"inviter_reward_usd"`
 	InviteeRewardUSD      float64 `json:"invitee_reward_usd"`
 	InviterRewardMaxCount int     `json:"inviter_reward_max_count"`
 	HistoryUSD            float64 `json:"history_usd"`
 	PendingRewardUSD      float64 `json:"pending_reward_usd"`
+	LockedRewardUSD       float64 `json:"locked_reward_usd"`
 	TransferableUSD       float64 `json:"transferable_usd"`
 	GrantedCount          int     `json:"granted_count"`
 	PendingCount          int64   `json:"pending_count"`
@@ -37,6 +41,7 @@ type invitationRecord struct {
 	GrantedAt      int64   `json:"granted_at"`
 	RewardUSD      float64 `json:"reward_usd"`
 	Reason         string  `json:"reason"`
+	UnlockAt       int64   `json:"unlock_at"`
 }
 
 type invitationResponse struct {
@@ -95,6 +100,7 @@ func invitationRecordsFromModel(records []model.InvitationRecord) []invitationRe
 			GrantedAt:      record.GrantedAt,
 			RewardUSD:      invitationUSDFromQuota(record.RewardQuota),
 			Reason:         record.Reason,
+			UnlockAt:       record.UnlockAt,
 		})
 	}
 	return items
@@ -152,8 +158,26 @@ func GetSelfInvitations(c *gin.Context) {
 		return
 	}
 
+	rewardMode := "topup"
+	lockedRewardUSD := 0.0
+	if common.InviteRewardSubscriptionMode {
+		rewardMode = "subscription"
+		lockedQuota, err := model.SumLockedInviteSubscriptionRewardQuota(user.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if lockedQuota > 0 && lockedQuota <= math.MaxInt {
+			lockedRewardUSD = invitationUSDFromQuota(int(lockedQuota))
+		}
+	}
+
 	common.ApiSuccess(c, invitationResponse{
 		Summary: invitationSummary{
+			RewardMode:            rewardMode,
+			FirstSubDiscountUSD:   common.InviteFirstSubDiscountUSD,
+			UnlockDelayDays:       common.InviteRewardUnlockDelaySeconds / 86400,
+			LockedRewardUSD:       lockedRewardUSD,
 			InviterRewardUSD:      invitationUSDFromQuota(common.QuotaForInviter),
 			InviteeRewardUSD:      invitationUSDFromQuota(common.QuotaForInvitee),
 			InviterRewardMaxCount: common.QuotaForInviterMaxCount,

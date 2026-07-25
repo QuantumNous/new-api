@@ -12,8 +12,10 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/dto"
+	backendI18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +41,15 @@ func setupTokenAvailableModelsContractDB(t *testing.T) {
 	common.UsingPostgreSQL = false
 	require.NoError(t, os.Setenv("SQL_DSN", "local"))
 	require.NoError(t, model.InitDB())
-	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}, &model.Ability{}))
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.User{},
+		&model.Token{},
+		&model.Channel{},
+		&model.Ability{},
+		&model.Model{},
+		&model.Vendor{},
+		&model.ModelAvailabilityState{},
+	))
 
 	priority := int64(0)
 	weight := uint(100)
@@ -74,6 +84,93 @@ func setupTokenAvailableModelsContractDB(t *testing.T) {
 			require.NoError(t, os.Unsetenv("SQL_DSN"))
 		}
 	})
+}
+
+func TestAvailableModelsReadOnlyAuthAllowsExhaustedToken(t *testing.T) {
+	setupTokenAvailableModelsContractDB(t)
+	gin.SetMode(gin.TestMode)
+
+	originalSelfUseMode := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = originalSelfUseMode
+	})
+
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       24001,
+		Username: "available-models-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Token{
+		Id:          24001,
+		UserId:      24001,
+		Key:         "availablemodelstoken",
+		Status:      common.TokenStatusExhausted,
+		RemainQuota: 0,
+		Group:       "",
+	}).Error)
+
+	engine := gin.New()
+	engine.GET("/v1/available_models", middleware.TokenAuthReadOnlyForModelList(), controller.AvailableModels)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/available_models", nil)
+	request.Header.Set("Authorization", "Bearer sk-availablemodelstoken")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Success bool               `json:"success"`
+		Object  string             `json:"object"`
+		Data    []dto.OpenAIModels `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.Equal(t, "list", payload.Object)
+	require.Len(t, payload.Data, 1)
+	require.Equal(t, "scope-model", payload.Data[0].Id)
+}
+
+func TestAvailableModelsReadOnlyAuthTranslatesTokenGroupErrors(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	setupTokenAvailableModelsContractDB(t)
+	gin.SetMode(gin.TestMode)
+
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       24002,
+		Username: "available-models-zh-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Token{
+		Id:             24002,
+		UserId:         24002,
+		Key:            "availablemodelszhtoken",
+		Status:         common.TokenStatusEnabled,
+		UnlimitedQuota: true,
+		Group:          "blocked",
+	}).Error)
+
+	engine := gin.New()
+	engine.GET("/v1/available_models", middleware.TokenAuthReadOnlyForModelList(), controller.AvailableModels)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/available_models", nil)
+	request.Header.Set("Authorization", "Bearer sk-availablemodelszhtoken")
+	request.Header.Set("Accept-Language", "zh-CN")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code)
+	var payload struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.Contains(t, payload.Error.Message, "无权访问分组 blocked")
 }
 
 func TestEnabledEmptyTokenAllowlistRemainsEnabledAndReturnsZeroAvailableModels(t *testing.T) {

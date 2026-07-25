@@ -10,7 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v86"
 )
 
 type RecallPaymentFact struct {
@@ -368,7 +368,7 @@ func recallBreakdownDiscountIdentityLoaded(discounts []*stripe.CheckoutSessionTo
 		if breakdown.Discount.PromotionCode != nil && strings.TrimSpace(breakdown.Discount.PromotionCode.ID) != "" {
 			continue
 		}
-		if breakdown.Discount.Coupon != nil && strings.TrimSpace(breakdown.Discount.Coupon.ID) != "" {
+		if breakdown.Discount.Source != nil && breakdown.Discount.Source.Coupon != nil && strings.TrimSpace(breakdown.Discount.Source.Coupon.ID) != "" {
 			continue
 		}
 		return false

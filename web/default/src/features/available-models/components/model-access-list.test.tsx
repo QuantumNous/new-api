@@ -39,10 +39,17 @@ beforeAll(async () => {
   })
 })
 
-function renderList(models: ModelAccessModel[], scopeIsEmpty: boolean) {
+function renderList(
+  models: ModelAccessModel[],
+  scopeIsEmpty: boolean,
+  modelRatios: Readonly<Record<string, number>> = {},
+  defaultRatio: number | null = null
+) {
   return renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
       <ModelAccessList
+        defaultRatio={defaultRatio}
+        modelRatios={modelRatios}
         models={models}
         scopeIsEmpty={scopeIsEmpty}
         onClearFilters={() => {}}
@@ -52,6 +59,61 @@ function renderList(models: ModelAccessModel[], scopeIsEmpty: boolean) {
 }
 
 describe('ModelAccessList', () => {
+  test('highlights explicit ratios including zero with a focusable override explanation', () => {
+    const models: ModelAccessModel[] = [
+      {
+        id: 'zero-ratio-model',
+        allowlist_match_key: 'zero-ratio-model',
+        vendor: null,
+        supported_endpoint_types: ['openai'],
+        availability_status: 'available',
+      },
+      {
+        id: 'default-only-model',
+        allowlist_match_key: 'default-only-model',
+        vendor: null,
+        supported_endpoint_types: ['openai'],
+        availability_status: 'available',
+      },
+    ]
+    const html = renderList(models, false, { 'zero-ratio-model': 0 }, 1)
+
+    expect(html).toContain('Exclusive ratio 0×')
+    expect(html).toContain('tabindex="0"')
+    expect(html).toContain('border-warning')
+    expect(html).toContain('bg-warning')
+    expect(html).toContain('text-warning-foreground')
+    expect(html).toContain(
+      'This exclusive ratio overrides the default ratio 1×; the two are not multiplied.'
+    )
+    expect(html).toContain(
+      'aria-label="Exclusive ratio 0×. This exclusive ratio overrides the default ratio 1×; the two are not multiplied."'
+    )
+    expect(html.match(/>Exclusive ratio 0×</g)).toHaveLength(1)
+  })
+
+  test('uses conditional wording for an officially unsupported configured model', () => {
+    const html = renderList(
+      [
+        {
+          id: 'retired-model',
+          allowlist_match_key: 'retired-model',
+          vendor: null,
+          supported_endpoint_types: ['openai'],
+          availability_status: 'official_unsupported',
+        },
+      ],
+      false,
+      { 'retired-model': 0.7 },
+      null
+    )
+
+    expect(html).toContain('Exclusive ratio 0.7×')
+    expect(html).toContain(
+      'If this model becomes callable again, it will use the exclusive ratio 0.7×, overriding the default ratio; the two are not multiplied.'
+    )
+  })
+
   test('renders an accessible copy action and explicit missing endpoint state', () => {
     const html = renderList(
       [

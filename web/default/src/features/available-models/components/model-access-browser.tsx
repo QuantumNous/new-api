@@ -33,6 +33,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { resolveModelRatioContext } from '../lib/model-access'
 import {
   ALL_MODEL_VENDORS,
   createModelVendorFilterState,
@@ -63,6 +64,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   const [query, setQuery] = useState('')
 
   const activeScopeId = resolveModelAccessScope(access, selectedScopeId)
+  const ratioContext = resolveModelRatioContext(access, activeScopeId)
 
   const scopeModels = useMemo(
     () => getModelAccessScopeModels(access, activeScopeId),
@@ -184,10 +186,17 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
                   </Badge>
                   {selectedScope.ratio !== null && (
                     <Badge variant='outline'>
-                      {t('Ratio')} {selectedScope.ratio}×
+                      {t('Group default ratio {{ratio}}×', {
+                        ratio: selectedScope.ratio,
+                      })}
                     </Badge>
                   )}
                 </div>
+                {selectedScope.ratio !== null && (
+                  <p className='text-muted-foreground text-xs'>
+                    {t('Applies to models without an exclusive ratio.')}
+                  </p>
+                )}
               </CardContent>
               <CardFooter>
                 <Button
@@ -275,6 +284,8 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
       </div>
 
       <ModelAccessList
+        defaultRatio={ratioContext.defaultRatio}
+        modelRatios={ratioContext.modelRatios}
         models={visibleModels}
         scopeIsEmpty={scopeModels.length === 0}
         onClearFilters={clearFilters}
@@ -300,6 +311,8 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
             </Badge>
           </div>
           <ModelAccessList
+            defaultRatio={ratioContext.defaultRatio}
+            modelRatios={ratioContext.modelRatios}
             models={visibleUnavailableModels}
             scopeIsEmpty={false}
             onClearFilters={clearFilters}

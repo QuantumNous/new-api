@@ -444,6 +444,15 @@ func prepareOptionUpdate(c *gin.Context, option *OptionUpdateRequest) bool {
 			})
 			return false
 		}
+	case "SubscriptionModelWeights":
+		err = setting.CheckSubscriptionModelWeights(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return false
+		}
 	case "ModelRequestRateLimitGroup":
 		err = setting.CheckModelRequestRateLimitGroup(option.Value.(string))
 		if err != nil {

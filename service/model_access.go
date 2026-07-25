@@ -35,21 +35,26 @@ type ModelAccessModel struct {
 }
 
 type ModelAccessScope struct {
-	ID          string   `json:"id"`
-	Label       string   `json:"label"`
-	Description string   `json:"description,omitempty"`
-	Ratio       *float64 `json:"ratio"`
-	ModelIDs    []string `json:"model_ids"`
+	ID          string             `json:"id"`
+	Label       string             `json:"label"`
+	Description string             `json:"description,omitempty"`
+	Ratio       *float64           `json:"ratio"`
+	ModelIDs    []string           `json:"model_ids"`
+	ModelRatios map[string]float64 `json:"model_ratios"`
 }
 
 type UserModelAccess struct {
-	ScopeMode          string             `json:"scope_mode"`
-	IdentityScope      *string            `json:"identity_scope"`
-	IdentityModelIDs   []string           `json:"identity_model_ids"`
-	CreateDefaultScope *string            `json:"create_default_scope"`
-	Groups             []ModelAccessScope `json:"groups"`
-	AccountModelIDs    []string           `json:"account_model_ids"`
-	Models             []ModelAccessModel `json:"models"`
+	ScopeMode            string             `json:"scope_mode"`
+	IdentityScope        *string            `json:"identity_scope"`
+	IdentityModelIDs     []string           `json:"identity_model_ids"`
+	IdentityModelRatios  map[string]float64 `json:"identity_model_ratios"`
+	IdentityDefaultRatio *float64           `json:"identity_default_ratio"`
+	CreateDefaultScope   *string            `json:"create_default_scope"`
+	Groups               []ModelAccessScope `json:"groups"`
+	AccountModelIDs      []string           `json:"account_model_ids"`
+	AccountModelRatios   map[string]float64 `json:"account_model_ratios"`
+	AccountDefaultRatio  *float64           `json:"account_default_ratio"`
+	Models               []ModelAccessModel `json:"models"`
 }
 
 type TokenModelAccessInput struct {
@@ -101,11 +106,13 @@ func ResolveTokenModelAccess(input TokenModelAccessInput) (*ResolvedTokenModelAc
 func ResolveUserModelAccess(user *model.UserBase) (*UserModelAccess, error) {
 	if user == nil {
 		return &UserModelAccess{
-			ScopeMode:        ModelAccessScopeSelectableGroup,
-			IdentityModelIDs: []string{},
-			Groups:           []ModelAccessScope{},
-			AccountModelIDs:  []string{},
-			Models:           []ModelAccessModel{},
+			ScopeMode:           ModelAccessScopeSelectableGroup,
+			IdentityModelIDs:    []string{},
+			IdentityModelRatios: map[string]float64{},
+			Groups:              []ModelAccessScope{},
+			AccountModelIDs:     []string{},
+			AccountModelRatios:  map[string]float64{},
+			Models:              []ModelAccessModel{},
 		}, nil
 	}
 
@@ -226,25 +233,31 @@ func resolveSelectableGroupModelAccess(identityGroup string, acceptUnpriced bool
 			Description: usableGroups[group],
 			Ratio:       ratio,
 			ModelIDs:    modelIDs,
+			ModelRatios: explicitGroupModelRatios(group, modelIDs),
 		})
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].ID < groups[j].ID })
 
 	identity := identityGroup
+	identityModelIDs := strict.byGroup[identityGroup]
+	identityDefaultRatio := GetUserGroupRatio(identityGroup, identityGroup)
 	defaultScope := chooseCreateDefaultScope(groups, identityGroup)
-	referenced := append([]string{}, strict.byGroup[identityGroup]...)
+	referenced := append([]string{}, identityModelIDs...)
 	for _, group := range groups {
 		referenced = append(referenced, group.ModelIDs...)
 	}
 	models := filterModelMetadata(strict.models, normalizedStrings(referenced))
 	return &UserModelAccess{
-		ScopeMode:          ModelAccessScopeSelectableGroup,
-		IdentityScope:      &identity,
-		IdentityModelIDs:   strict.byGroup[identityGroup],
-		CreateDefaultScope: defaultScope,
-		Groups:             groups,
-		AccountModelIDs:    []string{},
-		Models:             models,
+		ScopeMode:            ModelAccessScopeSelectableGroup,
+		IdentityScope:        &identity,
+		IdentityModelIDs:     identityModelIDs,
+		IdentityModelRatios:  explicitGroupModelRatios(identityGroup, identityModelIDs),
+		IdentityDefaultRatio: &identityDefaultRatio,
+		CreateDefaultScope:   defaultScope,
+		Groups:               groups,
+		AccountModelIDs:      []string{},
+		AccountModelRatios:   map[string]float64{},
+		Models:               models,
 	}, nil
 }
 
@@ -257,13 +270,30 @@ func resolveFixedAccountModelAccess(group string, acceptUnpriced bool) (*UserMod
 	if err != nil {
 		return nil, err
 	}
+	accountDefaultRatio := GetUserGroupRatio(group, group)
 	return &UserModelAccess{
-		ScopeMode:        ModelAccessScopeFixedAccount,
-		IdentityModelIDs: []string{},
-		Groups:           []ModelAccessScope{},
-		AccountModelIDs:  strict.modelIDs,
-		Models:           strict.models,
+		ScopeMode:           ModelAccessScopeFixedAccount,
+		IdentityModelIDs:    []string{},
+		IdentityModelRatios: map[string]float64{},
+		Groups:              []ModelAccessScope{},
+		AccountModelIDs:     strict.modelIDs,
+		AccountModelRatios:  explicitGroupModelRatios(group, strict.modelIDs),
+		AccountDefaultRatio: &accountDefaultRatio,
+		Models:              strict.models,
 	}, nil
+}
+
+func explicitGroupModelRatios(group string, modelIDs []string) map[string]float64 {
+	ratios := make(map[string]float64)
+	if group == "auto" {
+		return ratios
+	}
+	for _, modelID := range modelIDs {
+		if ratio, ok, _ := ratio_setting.GetGroupModelRatio(group, modelID); ok {
+			ratios[modelID] = ratio
+		}
+	}
+	return ratios
 }
 
 func resolveTokenAccessGroups(identityGroup, tokenGroup string) []string {

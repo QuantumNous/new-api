@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -21,6 +23,7 @@ func buildMaskedTokenResponse(token *model.Token) *model.Token {
 	}
 	maskedToken := *token
 	maskedToken.Key = token.GetMaskedKey()
+	maskedToken.Status = model.GetEffectiveTokenStatus(token, common.GetTimestamp())
 	return &maskedToken
 }
 
@@ -32,6 +35,11 @@ func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 	return maskedTokens
 }
 
+type tokenPageWithStats struct {
+	*common.PageInfo
+	Stats model.UserTokenStats `json:"stats"`
+}
+
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
@@ -40,27 +48,45 @@ func GetAllTokens(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	total, _ := model.CountUserTokens(userId)
-	pageInfo.SetTotal(int(total))
+	stats, err := model.GetUserTokenStats(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(stats.Total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
-	common.ApiSuccess(c, pageInfo)
+	common.ApiSuccess(c, tokenPageWithStats{PageInfo: pageInfo, Stats: stats})
 }
 
 func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	keyword := c.Query("keyword")
 	token := c.Query("token")
+	status := 0
+	if rawStatus := c.Query("status"); rawStatus != "" {
+		parsedStatus, err := strconv.Atoi(rawStatus)
+		if err != nil {
+			status = -1
+		} else {
+			status = parsedStatus
+		}
+	}
 
 	pageInfo := common.GetPageQuery(c)
 
-	tokens, total, err := model.SearchUserTokens(userId, keyword, token, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	tokens, total, err := model.SearchUserTokens(userId, keyword, token, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	stats, err := model.GetUserTokenStats(userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
-	common.ApiSuccess(c, pageInfo)
+	common.ApiSuccess(c, tokenPageWithStats{PageInfo: pageInfo, Stats: stats})
 }
 
 func GetToken(c *gin.Context) {
@@ -209,6 +235,11 @@ func buildTokenForInsert(c *gin.Context, token model.Token, key string) (model.T
 		AllowIps:           token.AllowIps,
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
+		Source:             token.Source,
+		DeviceIdHash:       token.DeviceIdHash,
+		ClientName:         token.ClientName,
+		ClientVersion:      token.ClientVersion,
+		LastUsedClientAt:   token.LastUsedClientAt,
 	}, nil
 }
 
@@ -431,6 +462,108 @@ func UpdateToken(c *gin.Context) {
 
 type TokenBatch struct {
 	Ids []int `json:"ids"`
+}
+
+type tokenBatchUpdateRequest struct {
+	Ids                       []int           `json:"ids"`
+	Group                     *string         `json:"group"`
+	RemainQuota               *int            `json:"remain_quota"`
+	UnsupportedUnlimitedQuota json.RawMessage `json:"unlimited_quota"`
+}
+
+func UpdateTokenGroupBatch(c *gin.Context) {
+	updateTokenBatch(c, true)
+}
+
+func UpdateTokenBatch(c *gin.Context) {
+	updateTokenBatch(c, false)
+}
+
+func updateTokenBatch(c *gin.Context, groupOnly bool) {
+	if !common.GetEnvOrDefaultBool("TOKEN_BATCH_GROUP_ENABLED", false) {
+		common.ApiErrorI18n(c, i18n.MsgFeatureDisabled)
+		return
+	}
+
+	request := tokenBatchUpdateRequest{}
+	if err := c.ShouldBindJSON(&request); err != nil || len(request.Ids) == 0 || len(request.Ids) > 100 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if len(request.UnsupportedUnlimitedQuota) != 0 || (request.Group == nil && request.RemainQuota == nil) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if groupOnly && (request.Group == nil || request.RemainQuota != nil) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if request.Group != nil {
+		trimmedGroup := strings.TrimSpace(*request.Group)
+		if trimmedGroup == "" {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		request.Group = &trimmedGroup
+	}
+	if request.RemainQuota != nil {
+		if *request.RemainQuota < 0 {
+			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
+			return
+		}
+		maxQuotaValue := int(1000000000 * common.QuotaPerUnit)
+		if *request.RemainQuota > maxQuotaValue {
+			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
+			return
+		}
+	}
+
+	seen := make(map[int]struct{}, len(request.Ids))
+	for _, id := range request.Ids {
+		if id <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if _, exists := seen[id]; exists {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		seen[id] = struct{}{}
+	}
+
+	userId := c.GetInt("id")
+	userGroup, err := model.GetUserGroup(userId, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if userGroup == "" || userGroup == plgGroup {
+		forcedGroup := plgGroup
+		request.Group = &forcedGroup
+	} else if request.Group != nil && !service.GroupInUserUsableGroups(userGroup, *request.Group) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	count, err := model.BatchUpdateTokens(model.BatchUpdateTokensParams{
+		Ids:         request.Ids,
+		UserId:      userId,
+		Group:       request.Group,
+		RemainQuota: request.RemainQuota,
+	})
+	if errors.Is(err, model.ErrTokenBatchInvalid) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if errors.Is(err, model.ErrTokenBatchCacheInvalidation) {
+		common.ApiErrorI18n(c, i18n.MsgTokenBatchCachePending)
+		return
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, count)
 }
 
 func DeleteTokenBatch(c *gin.Context) {

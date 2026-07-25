@@ -34,16 +34,45 @@ import type { ModelAccessModel } from '@/features/available-models'
 import { ModelAccessPreview } from '@/features/available-models/components/model-access-preview'
 
 type ApiKeyModelPreviewDrawerProps = {
+  defaultRatio: number | null
   drawerDescription: string
   drawerTitle: string
   emptyDescription: string
   emptyTitle: string
   models: ModelAccessModel[]
+  modelRatios: Readonly<Record<string, number>>
   scopeDescription?: string
   scopeKey: string
   scopeTitle: string
   summary: string
   totalCount: number
+}
+
+export function ApiKeyModelPreviewDrawerContent(
+  props: ApiKeyModelPreviewDrawerProps
+) {
+  return (
+    <>
+      <DrawerHeader>
+        <DrawerTitle>{props.drawerTitle}</DrawerTitle>
+        <DrawerDescription>{props.drawerDescription}</DrawerDescription>
+      </DrawerHeader>
+      <ScrollArea className='min-h-0 flex-1 px-4 pb-4'>
+        <ModelAccessPreview
+          defaultRatio={props.defaultRatio}
+          modelRatios={props.modelRatios}
+          models={props.models}
+          totalCount={props.totalCount}
+          scopeKey={props.scopeKey}
+          scopeTitle={props.scopeTitle}
+          scopeDescription={props.scopeDescription}
+          summary={props.summary}
+          emptyTitle={props.emptyTitle}
+          emptyDescription={props.emptyDescription}
+        />
+      </ScrollArea>
+    </>
+  )
 }
 
 export function ApiKeyModelPreviewDrawer(props: ApiKeyModelPreviewDrawerProps) {
@@ -72,22 +101,7 @@ export function ApiKeyModelPreviewDrawer(props: ApiKeyModelPreviewDrawerProps) {
           </DrawerTrigger>
           {open && (
             <DrawerContent className='h-[80vh]'>
-              <DrawerHeader>
-                <DrawerTitle>{props.drawerTitle}</DrawerTitle>
-                <DrawerDescription>{props.drawerDescription}</DrawerDescription>
-              </DrawerHeader>
-              <ScrollArea className='min-h-0 flex-1 px-4 pb-4'>
-                <ModelAccessPreview
-                  models={props.models}
-                  totalCount={props.totalCount}
-                  scopeKey={props.scopeKey}
-                  scopeTitle={props.scopeTitle}
-                  scopeDescription={props.scopeDescription}
-                  summary={props.summary}
-                  emptyTitle={props.emptyTitle}
-                  emptyDescription={props.emptyDescription}
-                />
-              </ScrollArea>
+              <ApiKeyModelPreviewDrawerContent {...props} />
             </DrawerContent>
           )}
         </Drawer>

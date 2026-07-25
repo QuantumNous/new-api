@@ -21,7 +21,7 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import {
   OFFICIAL_WEBSITE_ORIGIN,
-  localizedWebsitePath,
+  consoleWebsitePath,
   officialWebsiteUrl,
 } from '@/lib/origins'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -332,9 +332,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           // (OpenRouter-style). Otherwise fall back to the in-app root.
           return OFFICIAL_WEBSITE_ORIGIN ? (
             <a
-              href={officialWebsiteUrl(
-                localizedWebsitePath(i18n.language, '/')
-              )}
+              href={officialWebsiteUrl(consoleWebsitePath(i18n.language, '/'))}
               className={logoClassName}
             >
               {logoInner}

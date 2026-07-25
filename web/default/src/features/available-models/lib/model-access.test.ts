@@ -25,6 +25,7 @@ import {
   getUnavailableAccountModels,
   getUnavailableScopeModels,
   resolveCreateScope,
+  resolveModelRatioContext,
 } from './model-access'
 
 function buildSelectableAccess(
@@ -34,6 +35,8 @@ function buildSelectableAccess(
     scope_mode: 'selectable_group',
     identity_scope: 'identity-only',
     identity_model_ids: ['identity-model'],
+    identity_model_ratios: { 'identity-model': 0.5 },
+    identity_default_ratio: 0,
     create_default_scope: 'auto',
     groups: [
       {
@@ -41,15 +44,19 @@ function buildSelectableAccess(
         label: 'Auto',
         ratio: null,
         model_ids: ['gpt-gizmo-*', 'scope-model', 'retired-model'],
+        model_ratios: {},
       },
       {
         id: 'standard',
         label: 'Standard',
         ratio: 1,
         model_ids: ['scope-model', 'retired-model'],
+        model_ratios: { 'scope-model': 0 },
       },
     ],
     account_model_ids: [],
+    account_model_ratios: {},
+    account_default_ratio: null,
     models: [
       {
         id: 'gpt-gizmo-*',
@@ -85,6 +92,48 @@ function buildSelectableAccess(
 }
 
 describe('model access scopes', () => {
+  test('resolves model ratio contexts by exact scope and fails closed', () => {
+    const access = buildSelectableAccess()
+
+    expect(resolveModelRatioContext(access, 'standard')).toEqual({
+      modelRatios: { 'scope-model': 0 },
+      defaultRatio: 1,
+    })
+    expect(resolveModelRatioContext(access, '')).toEqual({
+      modelRatios: { 'identity-model': 0.5 },
+      defaultRatio: 0,
+    })
+    expect(resolveModelRatioContext(access, 'auto')).toEqual({
+      modelRatios: {},
+      defaultRatio: null,
+    })
+    expect(resolveModelRatioContext(access, 'removed')).toEqual({
+      modelRatios: {},
+      defaultRatio: null,
+    })
+  })
+
+  test('degrades safely when a rolling-deployment response omits ratio fields', () => {
+    const access = buildSelectableAccess()
+    const legacyAccess = {
+      ...access,
+      identity_model_ratios: undefined,
+      identity_default_ratio: undefined,
+      groups: access.groups.map(({ model_ratios: _modelRatios, ...scope }) =>
+        scope.id === 'standard' ? scope : { ...scope, model_ratios: {} }
+      ),
+    } as unknown as UserModelAccess
+
+    expect(resolveModelRatioContext(legacyAccess, '')).toEqual({
+      modelRatios: {},
+      defaultRatio: null,
+    })
+    expect(resolveModelRatioContext(legacyAccess, 'standard')).toEqual({
+      modelRatios: {},
+      defaultRatio: 1,
+    })
+  })
+
   test('resolves only selectable create scopes and falls back to the API default', () => {
     const access = buildSelectableAccess()
 
@@ -113,6 +162,8 @@ describe('model access scopes', () => {
       create_default_scope: null,
       groups: [],
       account_model_ids: ['scope-model', 'retired-model'],
+      account_model_ratios: { 'scope-model': 0.25 },
+      account_default_ratio: 0,
     })
 
     expect(resolveCreateScope(access, 'plg')).toBeNull()
@@ -129,6 +180,10 @@ describe('model access scopes', () => {
     expect(
       getUnavailableAccountModels(access).map((model) => model.id)
     ).toEqual(['retired-model'])
+    expect(resolveModelRatioContext(access, 'unknown')).toEqual({
+      modelRatios: { 'scope-model': 0.25 },
+      defaultRatio: 0,
+    })
   })
 
   test('returns the exact ordinary and auto scope collections', () => {

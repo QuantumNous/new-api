@@ -15,11 +15,11 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stripe/stripe-go/v81"
-	stripecustomer "github.com/stripe/stripe-go/v81/customer"
-	stripepaymentintent "github.com/stripe/stripe-go/v81/paymentintent"
-	stripepaymentmethod "github.com/stripe/stripe-go/v81/paymentmethod"
-	stripeprice "github.com/stripe/stripe-go/v81/price"
+	"github.com/stripe/stripe-go/v86"
+	stripecustomer "github.com/stripe/stripe-go/v86/customer"
+	stripepaymentintent "github.com/stripe/stripe-go/v86/paymentintent"
+	stripepaymentmethod "github.com/stripe/stripe-go/v86/paymentmethod"
+	stripeprice "github.com/stripe/stripe-go/v86/price"
 )
 
 // stripeCardBindReferencePrefix tags the client_reference_id so the webhook can

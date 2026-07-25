@@ -18,14 +18,62 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
 import {
+  applyPtPostSignupTopupExperiment,
   captureAdsAttribution,
   getAttributionPayload,
+  getStoredAdsAttribution,
+  isAcquisitionLandingPath,
+  isPtGooglePaidAttribution,
+  isPtPostSignupTopupExperiment,
   mergeAttributionValues,
   normalizeAttribution,
   parseAttributionPayload,
 } from './attribution'
 
 describe('attribution normalization', () => {
+  test('enrolls PT landing traffic with a Google click id in the topup experiment', () => {
+    const attribution = applyPtPostSignupTopupExperiment({
+      gclid: 'pt-google-click',
+      first_landing_path: '/pt/models/gpt-api',
+    })
+
+    expect(isPtGooglePaidAttribution(attribution)).toBe(true)
+    expect(isPtPostSignupTopupExperiment(attribution)).toBe(true)
+    expect(attribution.gclid).toBe('pt-google-click')
+  })
+
+  test('enrolls legacy PT signup links with a privacy-safe Google click id', () => {
+    const attribution = applyPtPostSignupTopupExperiment({
+      wbraid: 'pt-web-to-app-click',
+      lng: 'pt-BR',
+      landing_path: '/sign-up',
+    })
+
+    expect(isPtPostSignupTopupExperiment(attribution)).toBe(true)
+    expect(attribution.wbraid).toBe('pt-web-to-app-click')
+  })
+
+  test('does not enroll unpaid PT traffic', () => {
+    const attribution = applyPtPostSignupTopupExperiment({
+      lng: 'pt',
+      first_landing_path: '/pt',
+      utm_source: 'newsletter',
+      utm_medium: 'email',
+    })
+
+    expect(isPtPostSignupTopupExperiment(attribution)).toBe(false)
+  })
+
+  test('does not enroll paid Google traffic from another market', () => {
+    const attribution = applyPtPostSignupTopupExperiment({
+      gbraid: 'en-google-click',
+      lng: 'en',
+      first_landing_path: '/pricing',
+    })
+
+    expect(isPtPostSignupTopupExperiment(attribution)).toBe(false)
+  })
+
   test('classifies click ids as paid ads with highest priority', () => {
     const normalized = normalizeAttribution({
       gclid: 'google-click-id',
@@ -126,6 +174,33 @@ describe('attribution normalization', () => {
     expect(merged.source_type).toBe('utm')
   })
 
+  test('keeps the first paid click and landing for the 90-day attribution window', () => {
+    const merged = mergeAttributionValues(
+      {
+        gclid: 'first-click',
+        landing_path: '/pt',
+        captured_at: '2026-07-21T00:00:00.000Z',
+      },
+      {
+        gclid: 'second-click',
+        landing_path: '/pricing',
+        captured_at: '2026-07-21T01:00:00.000Z',
+      }
+    )
+
+    expect(merged.gclid).toBe('first-click')
+    expect(merged.landing_path).toBe('/pt')
+    expect(merged.first_landing_path).toBe('/pt')
+    expect(merged.first_captured_at).toBe('2026-07-21T00:00:00.000Z')
+  })
+
+  test('never treats authentication callbacks as acquisition landers', () => {
+    expect(isAcquisitionLandingPath('/oauth/google')).toBe(false)
+    expect(isAcquisitionLandingPath('/sign-in')).toBe(false)
+    expect(isAcquisitionLandingPath('/sign-up')).toBe(false)
+    expect(isAcquisitionLandingPath('/pt')).toBe(true)
+  })
+
   test('keeps direct first landing page across route changes', () => {
     const merged = mergeAttributionValues(
       {
@@ -162,6 +237,36 @@ describe('attribution normalization', () => {
     expect(parsed.medium).toBe('cpc')
     expect(parsed.campaign).toBe('signup')
     expect(parsed.keyword).toBe('flatkey api')
+  })
+
+  test('drops localStorage attribution after the 90-day expiry', () => {
+    const originalWindow = globalThis.window
+    let removed = false
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: () =>
+            JSON.stringify({
+              gclid: 'expired-click',
+              expires_at: '2000-01-01T00:00:00.000Z',
+            }),
+          removeItem: () => {
+            removed = true
+          },
+        },
+      },
+    })
+
+    try {
+      expect(getStoredAdsAttribution()).toEqual({})
+      expect(removed).toBe(true)
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+    }
   })
 
   test('stores external referrer keyword without raw query or hash', () => {

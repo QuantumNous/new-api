@@ -188,7 +188,7 @@ The same rule applies to the split production services:
 | `newapi-web` | public website | `flatkey.ai`, `www.flatkey.ai` |
 | `newapi-console` | fallback for unmatched hosts | URL map default backend |
 
-When rolling back or shifting traffic, target the specific service that serves the failing host. The legacy `newapi` service is currently disabled (`enable_legacy_runtime=false`), so a `newapi` rollback is not available unless the legacy runtime is intentionally restored first.
+When rolling back or shifting traffic, target the specific service that serves the failing host. The legacy `newapi` service is decommissioned (`enable_legacy_runtime=false`) and is not a deployment or rollback target. Restoring it requires a separately approved infrastructure recovery plan; do not treat it as an ordinary revision rollback.
 
 ---
 
@@ -258,7 +258,7 @@ Current production uses a deliberate mixed Cloudflare mode:
 | `console.flatkey.ai` | Proxied | Console is intentionally kept out of GCP `lb_domains` to avoid managed-cert rotation |
 | `router.flatkey.ai` | DNS only | Covered by GCP managed cert; avoids proxy behavior on long-lived model calls |
 | `new-api.app.flatkey.ai`, `new-api.api.flatkey.ai` | DNS only | Depth-3 names are not covered by Cloudflare Universal SSL |
-| `one.flatkey.ai` | DNS only | Legacy/compatibility entry |
+| `one.flatkey.ai` | DNS only | Compatibility entry; URL map default routes to `newapi-console` |
 
 Cloudflare's "origin IP partially exposed" warning is expected because the same GCP LB IP has both Proxied and DNS-only records.
 

@@ -303,7 +303,6 @@ Other deploy targets:
 
 - `newapi-console` required：配置 UI、日志 UI、pricing API 都在这里。
 - `newapi-web` required：官网 `/models` 和 `/pricing` 会展示受影响后的分组价格。
-- legacy `newapi`：如果仍作为 fallback API/console 服务，也需要部署。
 - Terraform / Cloudflare：不需要。
 
 上线前最低验证：

@@ -10,7 +10,15 @@ type InvitationRecord struct {
 	GrantedAt      int64  `json:"granted_at"`
 	RewardQuota    int    `json:"reward_quota"`
 	Reason         string `json:"reason"`
+	// v2 (subscription-mode) fields; zero for legacy records
+	UnlockAt int64 `json:"unlock_at"`
 }
+
+// v2 display statuses layered on top of the legacy pending/granted/blocked set
+const (
+	InvitationRecordStatusLocked  = "locked"
+	InvitationRecordStatusRevoked = "revoked"
+)
 
 type InvitationPage struct {
 	Items        []InvitationRecord
@@ -88,6 +96,10 @@ func GetInvitationPage(inviterId, offset, limit int) (*InvitationPage, error) {
 	for _, event := range events {
 		eventsByInviteeId[event.InviteeId] = event
 	}
+	subRewardsByInviteeId, err := GetInviteSubscriptionRewardsByInviteeIds(inviterId, inviteeIds)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, row := range rows {
 		record := InvitationRecord{
@@ -96,10 +108,37 @@ func GetInvitationPage(inviterId, offset, limit int) (*InvitationPage, error) {
 			RegisteredAt:   row.CreatedAt,
 			GrantedAt:      row.InviteRewardGrantedAt,
 		}
-		normalizeInvitationRecord(&record, row, eventsByInviteeId)
+		if subReward, ok := subRewardsByInviteeId[row.Id]; ok {
+			applyInviteSubscriptionReward(&record, subReward)
+		} else {
+			normalizeInvitationRecord(&record, row, eventsByInviteeId)
+		}
 		page.Items = append(page.Items, record)
 	}
 	return page, nil
+}
+
+// applyInviteSubscriptionReward overlays a v2 (subscription-mode) reward onto
+// the invitation record; v2 rows are authoritative for their invitee.
+func applyInviteSubscriptionReward(record *InvitationRecord, reward InviteSubscriptionReward) {
+	record.RewardQuota = reward.RewardQuota
+	record.UnlockAt = reward.UnlockAt
+	switch reward.Status {
+	case InviteSubRewardStatusPending:
+		record.Status = InvitationRecordStatusLocked
+	case InviteSubRewardStatusGranted:
+		record.Status = InviteRewardStatusGranted
+		record.GrantedAt = reward.GrantedAt
+	case InviteSubRewardStatusRevoked:
+		record.Status = InvitationRecordStatusRevoked
+		record.Reason = reward.Reason
+	case InviteSubRewardStatusBlocked:
+		record.Status = InviteRewardStatusBlocked
+		record.Reason = normalizeBlockedInvitationReason(reward.Reason)
+	default:
+		record.Status = InviteRewardStatusBlocked
+		record.Reason = "unavailable"
+	}
 }
 
 func normalizeInvitationRecord(record *InvitationRecord, row invitationUserRow, eventsByInviteeId map[int]InviteRewardEvent) {

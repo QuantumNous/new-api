@@ -32,6 +32,24 @@ func TestValidateUserTokenDistinguishesExhaustedQuota(t *testing.T) {
 	require.False(t, errors.Is(err, ErrTokenInvalid))
 }
 
+func TestValidateUserTokenAllowsUnlimitedExhaustedStatus(t *testing.T) {
+	truncateTables(t)
+	insertTokenForValidationTest(t, &Token{
+		UserId:         1,
+		Key:            "unlimited-exhausted-token",
+		Status:         common.TokenStatusExhausted,
+		ExpiredTime:    -1,
+		RemainQuota:    -100,
+		UnlimitedQuota: true,
+	})
+
+	token, err := ValidateUserToken("unlimited-exhausted-token")
+
+	require.NoError(t, err)
+	require.NotNil(t, token)
+	require.True(t, token.UnlimitedQuota)
+}
+
 func TestValidateUserTokenDistinguishesExpiredToken(t *testing.T) {
 	truncateTables(t)
 	insertTokenForValidationTest(t, &Token{

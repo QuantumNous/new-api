@@ -39,6 +39,17 @@ func withControllerModelAccessGroups(t *testing.T, groupRatios map[string]float6
 	})
 }
 
+func withControllerGroupModelRatios(t *testing.T, ratios map[string]map[string]float64) {
+	t.Helper()
+	original := ratio_setting.GroupModelRatio2JSONString()
+	ratioJSON, err := common.Marshal(ratios)
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(string(ratioJSON)))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(original))
+	})
+}
+
 func requestUserModelAccess(t *testing.T, userID int) (*httptest.ResponseRecorder, userModelAccessResponse) {
 	t.Helper()
 	recorder := httptest.NewRecorder()
@@ -56,10 +67,15 @@ func requestUserModelAccess(t *testing.T, userID int) (*httptest.ResponseRecorde
 func TestGetUserModelAccessOrdinaryAutoUnionAndPublicMetadata(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	withControllerModelAccessGroups(t,
-		map[string]float64{"default": 1, "vip": 2, "plg": 0.9},
+		map[string]float64{"default": 0, "vip": 2, "plg": 0.9},
 		map[string]string{"default": "Default", "vip": "VIP", "auto": "Automatic"},
 		[]string{"default", "vip"},
 	)
+	withControllerGroupModelRatios(t, map[string]map[string]float64{
+		"default": {"public-model": 0, "inaccessible-model": 8},
+		"vip":     {"vip-model": 0.6},
+		"auto":    {"shared-model": 9},
+	})
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.ModelAvailabilityState{}))
 	require.NoError(t, db.Create(&model.User{Id: 501, Username: "ordinary-model-access", Password: "password", Group: "default", Status: common.UserStatusEnabled}).Error)
@@ -77,7 +93,13 @@ func TestGetUserModelAccessOrdinaryAutoUnionAndPublicMetadata(t *testing.T) {
 	require.NotNil(t, access.IdentityScope)
 	require.Equal(t, "default", *access.IdentityScope)
 	require.Equal(t, []string{"public-model", "shared-model"}, access.IdentityModelIDs)
+	require.Equal(t, map[string]float64{"public-model": 0}, access.IdentityModelRatios)
+	require.NotNil(t, access.IdentityDefaultRatio)
+	require.Zero(t, *access.IdentityDefaultRatio)
+	require.NotContains(t, access.IdentityModelRatios, "inaccessible-model")
 	require.Empty(t, access.AccountModelIDs)
+	require.Empty(t, access.AccountModelRatios)
+	require.Nil(t, access.AccountDefaultRatio)
 	require.Equal(t, []string{"auto", "default", "vip"}, modelAccessScopeIDs(access.Groups))
 	require.NotNil(t, access.CreateDefaultScope)
 	require.Equal(t, "default", *access.CreateDefaultScope)
@@ -86,6 +108,10 @@ func TestGetUserModelAccessOrdinaryAutoUnionAndPublicMetadata(t *testing.T) {
 	for _, scope := range access.Groups {
 		if scope.ID == "auto" {
 			require.Nil(t, scope.Ratio)
+			require.Empty(t, scope.ModelRatios)
+		}
+		if scope.ID == "vip" {
+			require.Equal(t, map[string]float64{"vip-model": 0.6}, scope.ModelRatios)
 		}
 	}
 
@@ -104,23 +130,30 @@ func TestGetUserModelAccessOrdinaryAutoUnionAndPublicMetadata(t *testing.T) {
 	requireExactJSONKeys(t, raw, "success", "message", "data")
 	rawData := raw["data"].(map[string]any)
 	requireExactJSONKeys(t, rawData,
-		"scope_mode", "identity_scope", "identity_model_ids", "create_default_scope",
-		"groups", "account_model_ids", "models",
+		"scope_mode", "identity_scope", "identity_model_ids", "identity_model_ratios", "identity_default_ratio",
+		"create_default_scope", "groups", "account_model_ids", "account_model_ratios", "account_default_ratio", "models",
 	)
 	require.IsType(t, "", rawData["scope_mode"])
 	require.IsType(t, "", rawData["identity_scope"])
 	require.IsType(t, []any{}, rawData["identity_model_ids"])
+	require.IsType(t, map[string]any{}, rawData["identity_model_ratios"])
+	require.Equal(t, float64(0), rawData["identity_default_ratio"])
 	require.IsType(t, "", rawData["create_default_scope"])
 	require.IsType(t, []any{}, rawData["groups"])
 	require.IsType(t, []any{}, rawData["account_model_ids"])
+	require.IsType(t, map[string]any{}, rawData["account_model_ratios"])
+	require.Empty(t, rawData["account_model_ratios"])
+	require.Nil(t, rawData["account_default_ratio"])
 	require.IsType(t, []any{}, rawData["models"])
 	rawGroups := rawData["groups"].([]any)
 	require.NotEmpty(t, rawGroups)
-	requireExactJSONKeys(t, rawGroups[0].(map[string]any), "id", "label", "description", "ratio", "model_ids")
+	requireExactJSONKeys(t, rawGroups[0].(map[string]any), "id", "label", "description", "ratio", "model_ids", "model_ratios")
 	for _, rawGroup := range rawGroups {
 		group := rawGroup.(map[string]any)
+		require.IsType(t, map[string]any{}, group["model_ratios"])
 		if group["id"] == "auto" {
 			require.Nil(t, group["ratio"])
+			require.Empty(t, group["model_ratios"])
 		}
 	}
 	rawModels := rawData["models"].([]any)
@@ -145,10 +178,13 @@ func TestGetUserModelAccessOrdinaryAutoUnionAndPublicMetadata(t *testing.T) {
 func TestGetUserModelAccessPLGUsesPrivateFixedAccountShape(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	withControllerModelAccessGroups(t,
-		map[string]float64{"default": 1, "plg": 0.9},
+		map[string]float64{"default": 1, "plg": 0},
 		map[string]string{"default": "Default", "auto": "Automatic"},
 		[]string{"default"},
 	)
+	withControllerGroupModelRatios(t, map[string]map[string]float64{
+		"plg": {"account-model": 0.7, "private-model": 9},
+	})
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.ModelAvailabilityState{}))
 	require.NoError(t, db.Create(&model.User{Id: 502, Username: "fixed-model-access", Password: "password", Group: "plg", Status: common.UserStatusEnabled}).Error)
@@ -168,9 +204,15 @@ func TestGetUserModelAccessPLGUsesPrivateFixedAccountShape(t *testing.T) {
 	require.Equal(t, service.ModelAccessScopeFixedAccount, access.ScopeMode)
 	require.Nil(t, access.IdentityScope)
 	require.Empty(t, access.IdentityModelIDs)
+	require.Empty(t, access.IdentityModelRatios)
+	require.Nil(t, access.IdentityDefaultRatio)
 	require.Nil(t, access.CreateDefaultScope)
 	require.Empty(t, access.Groups)
 	require.Equal(t, []string{"account-model"}, access.AccountModelIDs)
+	require.Equal(t, map[string]float64{"account-model": 0.7}, access.AccountModelRatios)
+	require.NotNil(t, access.AccountDefaultRatio)
+	require.Zero(t, *access.AccountDefaultRatio)
+	require.NotContains(t, access.AccountModelRatios, "private-model")
 	require.Equal(t, []string{"account-model"}, modelAccessIDs(access.Models))
 	require.Equal(t, "Account Vendor", access.Models[0].Vendor.Name)
 	require.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAI}, access.Models[0].SupportedEndpointTypes)
@@ -180,14 +222,20 @@ func TestGetUserModelAccessPLGUsesPrivateFixedAccountShape(t *testing.T) {
 	requireExactJSONKeys(t, raw, "success", "message", "data")
 	rawData := raw["data"].(map[string]any)
 	requireExactJSONKeys(t, rawData,
-		"scope_mode", "identity_scope", "identity_model_ids", "create_default_scope",
-		"groups", "account_model_ids", "models",
+		"scope_mode", "identity_scope", "identity_model_ids", "identity_model_ratios", "identity_default_ratio",
+		"create_default_scope", "groups", "account_model_ids", "account_model_ratios", "account_default_ratio", "models",
 	)
 	require.Nil(t, rawData["identity_scope"])
 	require.Nil(t, rawData["create_default_scope"])
 	require.IsType(t, []any{}, rawData["identity_model_ids"])
+	require.IsType(t, map[string]any{}, rawData["identity_model_ratios"])
+	require.Empty(t, rawData["identity_model_ratios"])
+	require.Nil(t, rawData["identity_default_ratio"])
 	require.IsType(t, []any{}, rawData["groups"])
 	require.IsType(t, []any{}, rawData["account_model_ids"])
+	require.IsType(t, map[string]any{}, rawData["account_model_ratios"])
+	require.Equal(t, float64(0.7), rawData["account_model_ratios"].(map[string]any)["account-model"])
+	require.Equal(t, float64(0), rawData["account_default_ratio"])
 	require.IsType(t, []any{}, rawData["models"])
 	rawModel := rawData["models"].([]any)[0].(map[string]any)
 	requireExactJSONKeys(t, rawModel,

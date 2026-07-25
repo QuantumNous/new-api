@@ -1,12 +1,11 @@
 "use client";
 
-import { ArrowRight, BadgeCheck, Clock3, X } from "lucide-react";
+import { ArrowRight, BadgeCheck, Sparkles, X } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { type Locale, withIdFallback } from "@/lib/locales";
 
 const OFFER_DELAY_MS = 5_000;
-const OFFER_DURATION_SECONDS = 10 * 60;
 
 type OfferModalCopy = {
   timerLabel: string;
@@ -18,117 +17,117 @@ type OfferModalCopy = {
   fabLabel: string;
   fabValue: string;
   closeLabel: string;
-  reopenLabel: (countdown: string) => string;
+  reopenLabel: string;
 };
 
 export const OFFER_MODAL_COPY: Record<Locale, OfferModalCopy> =withIdFallback({
   en: {
-    timerLabel: "Limited offer",
-    title: "Recharge USD20, get USD5 bonus.",
-    accent: "GPT Plus x3 style value.",
-    body: "Use official-token AI for longer than a fixed monthly plan. Absolute genuine quality, backed by our OpenAI 10B-token recognition.",
+    timerLabel: "New plans",
+    title: "Plans from USD10/month.",
+    accent: "Usage worth up to 4.5x the price.",
+    body: "One subscription covers GPT, Claude, Gemini, DeepSeek, Kimi and more on official upstream tokens — monthly usage worth up to 4.5x what you pay, plus image and video credits.",
     officialTokens: "Official upstream tokens",
-    longerBalance: "Bonus balance lasts longer",
-    fabLabel: "Offer",
-    fabValue: "USD20 + USD5",
-    closeLabel: "Close limited offer",
-    reopenLabel: (countdown) => `Reopen limited offer, ${countdown} left`,
+    longerBalance: "Text, image and video in one plan",
+    fabLabel: "Plans",
+    fabValue: "from USD10/mo",
+    closeLabel: "Close plans panel",
+    reopenLabel: "Reopen plans panel",
   },
   zh: {
-    timerLabel: "限时优惠",
-    title: "充值 USD20，送 USD5。",
-    accent: "GPT Plus x3 级使用价值。",
-    body: "使用官方上游 token，比固定月费套餐用得更久。正品质量保证，并有 OpenAI 10B token 认可作为背书。",
+    timerLabel: "全新套餐",
+    title: "订阅套餐每月 $10 起。",
+    accent: "可用量最高达套餐价 4.5 倍。",
+    body: "一份订阅覆盖 GPT、Claude、Gemini、DeepSeek、Kimi 等官方上游 token——每月可用量最高达套餐价的 4.5 倍，另含图像与视频额度。",
     officialTokens: "官方上游 token",
-    longerBalance: "赠送余额可用更久",
-    fabLabel: "优惠",
-    fabValue: "USD20 + USD5",
-    closeLabel: "关闭限时优惠",
-    reopenLabel: (countdown) => `重新打开限时优惠，剩余 ${countdown}`,
+    longerBalance: "文本·图像·视频一个套餐",
+    fabLabel: "套餐",
+    fabValue: "$10/月起",
+    closeLabel: "关闭套餐面板",
+    reopenLabel: "重新打开套餐面板",
   },
   es: {
-    timerLabel: "Oferta limitada",
-    title: "Recarga USD20 y recibe USD5 extra.",
-    accent: "Valor tipo GPT Plus x3.",
-    body: "Usa IA con tokens oficiales durante más tiempo que con un plan mensual fijo. Calidad genuina garantizada, respaldada por nuestro reconocimiento de OpenAI por 10B tokens.",
+    timerLabel: "Nuevos planes",
+    title: "Planes desde USD10/mes.",
+    accent: "Uso de hasta 4.5x el precio.",
+    body: "Una suscripción cubre GPT, Claude, Gemini, DeepSeek, Kimi y más con tokens oficiales upstream: uso mensual de hasta 4.5x lo que pagas, más créditos de imagen y vídeo.",
     officialTokens: "Tokens oficiales upstream",
-    longerBalance: "El saldo extra dura más",
-    fabLabel: "Oferta",
-    fabValue: "USD20 + USD5",
-    closeLabel: "Cerrar oferta limitada",
-    reopenLabel: (countdown) => `Reabrir oferta limitada, quedan ${countdown}`,
+    longerBalance: "Texto, imagen y vídeo en un plan",
+    fabLabel: "Planes",
+    fabValue: "desde USD10/mes",
+    closeLabel: "Cerrar panel de planes",
+    reopenLabel: "Reabrir panel de planes",
   },
   fr: {
-    timerLabel: "Offre limitée",
-    title: "Rechargez USD20, recevez USD5 offerts.",
-    accent: "Valeur façon GPT Plus x3.",
-    body: "Utilisez l'IA avec des tokens officiels plus longtemps qu'avec un forfait mensuel fixe. Qualité authentique garantie, appuyée par notre reconnaissance OpenAI pour 10B tokens.",
+    timerLabel: "Nouveaux plans",
+    title: "Plans dès USD10/mois.",
+    accent: "Usage jusqu'à 4,5x le prix.",
+    body: "Un seul abonnement couvre GPT, Claude, Gemini, DeepSeek, Kimi et plus, sur tokens upstream officiels — usage mensuel valant jusqu'à 4,5x le prix, plus des crédits image et vidéo.",
     officialTokens: "Tokens upstream officiels",
-    longerBalance: "Le bonus dure plus longtemps",
-    fabLabel: "Offre",
-    fabValue: "USD20 + USD5",
-    closeLabel: "Fermer l'offre limitée",
-    reopenLabel: (countdown) => `Rouvrir l'offre limitée, ${countdown} restantes`,
+    longerBalance: "Texte, image et vidéo dans un plan",
+    fabLabel: "Plans",
+    fabValue: "dès USD10/mois",
+    closeLabel: "Fermer le panneau des plans",
+    reopenLabel: "Rouvrir le panneau des plans",
   },
   pt: {
-    timerLabel: "Oferta limitada",
-    title: "Recarregue USD20 e ganhe USD5 bônus.",
-    accent: "Valor estilo GPT Plus x3.",
-    body: "Use IA com tokens oficiais por mais tempo do que em um plano mensal fixo. Qualidade genuína garantida, com reconhecimento da OpenAI por 10B tokens.",
+    timerLabel: "Novos planos",
+    title: "Planos a partir de USD10/mês.",
+    accent: "Uso de até 4,5x o preço.",
+    body: "Uma assinatura cobre GPT, Claude, Gemini, DeepSeek, Kimi e mais, com tokens oficiais upstream — uso mensal de até 4,5x o que você paga, além de créditos de imagem e vídeo.",
     officialTokens: "Tokens oficiais upstream",
-    longerBalance: "O saldo bônus dura mais",
-    fabLabel: "Oferta",
-    fabValue: "USD20 + USD5",
-    closeLabel: "Fechar oferta limitada",
-    reopenLabel: (countdown) => `Reabrir oferta limitada, restam ${countdown}`,
+    longerBalance: "Texto, imagem e vídeo em um plano",
+    fabLabel: "Planos",
+    fabValue: "desde USD10/mês",
+    closeLabel: "Fechar painel de planos",
+    reopenLabel: "Reabrir painel de planos",
   },
   ru: {
-    timerLabel: "Ограниченное предложение",
-    title: "Пополните на USD20 и получите USD5 бонусом.",
-    accent: "Ценность в стиле GPT Plus x3.",
-    body: "Используйте ИИ на официальных upstream token дольше, чем в фиксированном месячном плане. Подлинное качество гарантировано и подтверждено признанием OpenAI за 10B tokens.",
+    timerLabel: "Новые планы",
+    title: "Планы от USD10/мес.",
+    accent: "Использование до 4,5x цены.",
+    body: "Одна подписка покрывает GPT, Claude, Gemini, DeepSeek, Kimi и другие модели на официальных upstream token — месячное использование до 4,5x цены, плюс кредиты на изображения и видео.",
     officialTokens: "Официальные upstream token",
-    longerBalance: "Бонусный баланс действует дольше",
-    fabLabel: "Оффер",
-    fabValue: "USD20 + USD5",
-    closeLabel: "Закрыть ограниченное предложение",
-    reopenLabel: (countdown) => `Открыть предложение снова, осталось ${countdown}`,
+    longerBalance: "Текст, изображения и видео в одном плане",
+    fabLabel: "Планы",
+    fabValue: "от USD10/мес",
+    closeLabel: "Закрыть панель планов",
+    reopenLabel: "Открыть панель планов снова",
   },
   ja: {
-    timerLabel: "期間限定オファー",
-    title: "USD20 チャージで USD5 ボーナス。",
-    accent: "GPT Plus x3 相当の利用価値。",
-    body: "公式 upstream token の AI を、固定月額プランより長く使えます。OpenAI の 10B token 認定に裏付けられた、本物の品質を保証します。",
+    timerLabel: "新プラン",
+    title: "プランは月額 USD10 から。",
+    accent: "利用枠は料金の最大 4.5 倍。",
+    body: "1 つのサブスクで GPT・Claude・Gemini・DeepSeek・Kimi ほかを公式 upstream token で利用可能——月間利用枠は料金の最大 4.5 倍、画像・動画クレジット付き。",
     officialTokens: "公式 upstream token",
-    longerBalance: "ボーナス残高を長く使える",
-    fabLabel: "オファー",
-    fabValue: "USD20 + USD5",
-    closeLabel: "期間限定オファーを閉じる",
-    reopenLabel: (countdown) => `期間限定オファーを再表示、残り ${countdown}`,
+    longerBalance: "テキスト・画像・動画を 1 プランで",
+    fabLabel: "プラン",
+    fabValue: "月額 USD10 から",
+    closeLabel: "プランパネルを閉じる",
+    reopenLabel: "プランパネルを再表示",
   },
   vi: {
-    timerLabel: "Ưu đãi giới hạn",
-    title: "Nạp USD20, nhận thêm USD5.",
-    accent: "Giá trị kiểu GPT Plus x3.",
-    body: "Dùng AI bằng token upstream chính thức lâu hơn so với gói tháng cố định. Chất lượng chính hãng được bảo đảm, có chứng nhận OpenAI mốc 10B token.",
+    timerLabel: "Gói mới",
+    title: "Các gói từ USD10/tháng.",
+    accent: "Mức dùng tới 4,5x giá.",
+    body: "Một gói thuê bao bao trọn GPT, Claude, Gemini, DeepSeek, Kimi và hơn thế trên token upstream chính thức — mức dùng hằng tháng tới 4,5x giá gói, kèm hạn mức ảnh và video.",
     officialTokens: "Token upstream chính thức",
-    longerBalance: "Số dư thưởng dùng lâu hơn",
-    fabLabel: "Ưu đãi",
-    fabValue: "USD20 + USD5",
-    closeLabel: "Đóng ưu đãi giới hạn",
-    reopenLabel: (countdown) => `Mở lại ưu đãi giới hạn, còn ${countdown}`,
+    longerBalance: "Văn bản, ảnh và video trong một gói",
+    fabLabel: "Gói",
+    fabValue: "từ USD10/tháng",
+    closeLabel: "Đóng bảng gói",
+    reopenLabel: "Mở lại bảng gói",
   },
   de: {
-    timerLabel: "Zeitlich begrenztes Angebot",
-    title: "USD20 aufladen, USD5 Bonus erhalten.",
-    accent: "Wert wie GPT Plus x3.",
-    body: "Nutze KI mit offiziellen Upstream-Tokens länger als mit einem festen Monatsplan. Echte Qualität garantiert, gestützt durch unsere OpenAI-Anerkennung für 10B Tokens.",
+    timerLabel: "Neue Pläne",
+    title: "Pläne ab USD10/Monat.",
+    accent: "Nutzung bis zum 4,5-Fachen des Preises.",
+    body: "Ein Abo deckt GPT, Claude, Gemini, DeepSeek, Kimi und mehr auf offiziellen Upstream-Tokens ab — monatliche Nutzung bis zum 4,5-Fachen des Preises, plus Bild- und Video-Credits.",
     officialTokens: "Offizielle Upstream-Tokens",
-    longerBalance: "Bonusguthaben hält länger",
-    fabLabel: "Angebot",
-    fabValue: "USD20 + USD5",
-    closeLabel: "Zeitlich begrenztes Angebot schließen",
-    reopenLabel: (countdown) => `Zeitlich begrenztes Angebot erneut öffnen, ${countdown} verbleibend`,
+    longerBalance: "Text, Bild und Video in einem Plan",
+    fabLabel: "Pläne",
+    fabValue: "ab USD10/Monat",
+    closeLabel: "Plan-Panel schließen",
+    reopenLabel: "Plan-Panel erneut öffnen",
   },
 });
 
@@ -136,22 +135,11 @@ export function shouldShowOfferModal(elapsedMs: number) {
   return elapsedMs >= OFFER_DELAY_MS;
 }
 
-export function getOfferCountdownSeconds(elapsedMs: number) {
-  return Math.max(0, OFFER_DURATION_SECONDS - Math.floor(elapsedMs / 1_000));
-}
-
-export function formatOfferCountdown(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
-}
-
 export function shouldShowOfferFab(state: {
   hasOfferStarted: boolean;
   isCollapsed: boolean;
-  secondsLeft: number;
 }) {
-  return state.hasOfferStarted && state.isCollapsed && state.secondsLeft > 0;
+  return state.hasOfferStarted && state.isCollapsed;
 }
 
 type Props = {
@@ -166,10 +154,8 @@ export function LpLimitedOfferModal({ ctaLabel, ctaUrl, locale }: Props) {
   const copy = OFFER_MODAL_COPY[locale] ?? OFFER_MODAL_COPY.en;
 
   const hasOfferStarted = shouldShowOfferModal(elapsedMs);
-  const secondsLeft = getOfferCountdownSeconds(Math.max(0, elapsedMs - OFFER_DELAY_MS));
-  const isVisible = hasOfferStarted && !isCollapsed && secondsLeft > 0;
-  const showFab = shouldShowOfferFab({ hasOfferStarted, isCollapsed, secondsLeft });
-  const countdown = useMemo(() => formatOfferCountdown(secondsLeft), [secondsLeft]);
+  const isVisible = hasOfferStarted && !isCollapsed;
+  const showFab = shouldShowOfferFab({ hasOfferStarted, isCollapsed });
 
   useEffect(() => {
     const startedAt = Date.now();
@@ -184,15 +170,15 @@ export function LpLimitedOfferModal({ ctaLabel, ctaUrl, locale }: Props) {
     return (
       <button
         type="button"
-        aria-label={copy.reopenLabel(countdown)}
+        aria-label={copy.reopenLabel}
         onClick={() => setIsCollapsed(false)}
-        className="fixed right-4 bottom-20 z-50 inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-3 text-left text-slate-950 shadow-[0_18px_50px_-22px_rgba(15,23,42,0.45)] transition hover:bg-slate-50 dark:border-yellow-300/40 dark:bg-slate-950 dark:text-white dark:shadow-[0_18px_50px_-22px_rgba(0,0,0,0.9)] dark:hover:bg-slate-900"
+        className="fixed right-4 bottom-20 z-50 inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-3 text-left text-slate-950 shadow-[0_18px_50px_-22px_rgba(15,23,42,0.45)] transition hover:bg-slate-50 dark:border-violet-300/40 dark:bg-slate-950 dark:text-white dark:shadow-[0_18px_50px_-22px_rgba(0,0,0,0.9)] dark:hover:bg-slate-900"
       >
-        <span className="flex size-10 items-center justify-center rounded-full bg-red-600 text-sm font-black tabular-nums">
-          {countdown}
+        <span className="flex size-10 items-center justify-center rounded-full bg-violet-600 text-sm font-black text-white">
+          4.5×
         </span>
         <span className="grid">
-          <span className="text-xs font-black tracking-[0.14em] text-red-600 uppercase dark:text-yellow-300">{copy.fabLabel}</span>
+          <span className="text-xs font-black tracking-[0.14em] text-violet-600 uppercase dark:text-violet-300">{copy.fabLabel}</span>
           <span className="text-sm font-extrabold">{copy.fabValue}</span>
         </span>
       </button>
@@ -222,12 +208,9 @@ export function LpLimitedOfferModal({ ctaLabel, ctaUrl, locale }: Props) {
 
         <div className="p-6 pr-14 md:p-7 md:pr-10">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 text-xs font-black tracking-[0.2em] text-red-600 uppercase dark:text-yellow-300">
-              <Clock3 className="size-4" />
+            <span className="inline-flex items-center gap-1.5 text-xs font-black tracking-[0.2em] text-violet-600 uppercase dark:text-violet-300">
+              <Sparkles className="size-4" />
               {copy.timerLabel}
-            </span>
-            <span className="inline-flex items-center rounded-full bg-red-600 px-3 py-1.5 text-sm font-black text-white tabular-nums">
-              {countdown}
             </span>
           </div>
 

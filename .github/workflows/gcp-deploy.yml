@@ -132,6 +132,9 @@ jobs:
       RUN_SERVICE: newapi-console
       NODE_TYPE: master
       APP_ROLE: console
+      # The production rollout is complete; keep the console capability on for
+      # every subsequent revision. Router is not the owner of this UI feature.
+      TOKEN_BATCH_GROUP_ENABLED: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -181,7 +184,7 @@ jobs:
             PADDLE_LIVE_API_KEY PADDLE_LIVE_CLIENT_TOKEN PADDLE_LIVE_WEBHOOK_SECRET \
             GA_MEASURE_PROTOCOL_API_SECRET GA_MESSUREMENT_ID \
             OFFICIAL_WEBSITE_ORIGIN APP_CONSOLE_ORIGIN COOKIE_SESSION_DOMAIN SESSION_COOKIE_SECURE \
-            NODE_TYPE APP_ROLE; do
+            NODE_TYPE APP_ROLE TOKEN_BATCH_GROUP_ENABLED; do
             value="${!name:-}"
             if [[ -n "${value}" ]]; then
               env_vars+=("${name}=${value}")

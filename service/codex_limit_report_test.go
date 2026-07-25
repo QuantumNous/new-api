@@ -139,6 +139,32 @@ func TestBuildCodexLimitReportSummarizesSuccessfulUsage(t *testing.T) {
 	}
 }
 
+func TestBuildCodexLimitReportIgnoresUnclassifiedWindows(t *testing.T) {
+	channels := []*model.Channel{
+		{Id: 11, Name: "Codex Pro", Type: constant.ChannelTypeCodex, Status: common.ChannelStatusEnabled},
+	}
+	fetcher := CodexUsageFetcherFunc(func(ctx context.Context, channel *model.Channel) (int, []byte, error) {
+		return 200, []byte(`{
+			"rate_limit": {"primary_window": {}},
+			"additional_rate_limits": [
+				{"rate_limit": {"primary_window": {"used_percent": 0}}},
+				{"rate_limit": {"primary_window": {"used_percent": 10, "limit_window_seconds": 3600}}},
+				{"rate_limit": {"primary_window": {"used_percent": 20, "limit_window_seconds": 43200}}}
+			]
+		}`), nil
+	})
+
+	row := BuildCodexLimitReport(context.Background(), channels, fetcher).Rows[0]
+	if row.BaseFiveHourWindow != nil || row.BaseWeeklyWindow != nil {
+		t.Fatalf("unclassified base window should be hidden: %#v", row)
+	}
+	for _, limit := range row.AdditionalLimits {
+		if limit.FiveHourWindow != nil || limit.WeeklyWindow != nil {
+			t.Fatalf("unclassified additional window should be hidden: %#v", limit)
+		}
+	}
+}
+
 func TestBuildCodexLimitReportMergesRangeUsageStats(t *testing.T) {
 	channels := []*model.Channel{
 		{Id: 11, Name: "Codex Pro", Type: constant.ChannelTypeCodex, Status: common.ChannelStatusEnabled},
@@ -205,8 +231,8 @@ func TestBuildCodexLimitReportClassifiesFreePlanFromRateLimitPlanType(t *testing
 	if row.BaseFiveHourWindow != nil {
 		t.Fatalf("free plan should not expose five-hour window: %#v", row.BaseFiveHourWindow)
 	}
-	if row.BaseWeeklyWindow == nil || row.BaseWeeklyWindow.UsedPercent != 64 {
-		t.Fatalf("free plan should classify primary as weekly fallback: %#v", row.BaseWeeklyWindow)
+	if row.BaseWeeklyWindow != nil {
+		t.Fatalf("unclassified free-plan window should remain hidden: %#v", row.BaseWeeklyWindow)
 	}
 }
 

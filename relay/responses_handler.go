@@ -35,20 +35,10 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 	}
 
-	var responsesReq *dto.OpenAIResponsesRequest
-	switch req := info.Request.(type) {
-	case *dto.OpenAIResponsesRequest:
-		responsesReq = req
-	case *dto.OpenAIResponsesCompactionRequest:
-		responsesReq = &dto.OpenAIResponsesRequest{
-			Model:              req.Model,
-			Input:              req.Input,
-			Instructions:       req.Instructions,
-			PreviousResponseID: req.PreviousResponseID,
-		}
-	default:
+	responsesReq, err := normalizeOpenAIResponsesRequest(info.Request)
+	if err != nil {
 		return types.NewErrorWithStatusCode(
-			fmt.Errorf("invalid request type, expected dto.OpenAIResponsesRequest or dto.OpenAIResponsesCompactionRequest, got %T", info.Request),
+			err,
 			types.ErrorCodeInvalidRequest,
 			http.StatusBadRequest,
 			types.ErrOptionWithSkipRetry(),
@@ -164,6 +154,18 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
+}
+
+func normalizeOpenAIResponsesRequest(request any) (*dto.OpenAIResponsesRequest, error) {
+	switch req := request.(type) {
+	case *dto.OpenAIResponsesRequest:
+		return req, nil
+	case *dto.OpenAIResponsesCompactionRequest:
+		normalized := dto.OpenAIResponsesRequest(*req)
+		return &normalized, nil
+	default:
+		return nil, fmt.Errorf("invalid request type, expected dto.OpenAIResponsesRequest or dto.OpenAIResponsesCompactionRequest, got %T", request)
+	}
 }
 
 func shouldPassThroughResponsesRequest(info *relaycommon.RelayInfo) bool {

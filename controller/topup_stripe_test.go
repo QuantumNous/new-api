@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -25,8 +26,8 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stripe/stripe-go/v81"
-	stripewebhook "github.com/stripe/stripe-go/v81/webhook"
+	"github.com/stripe/stripe-go/v86"
+	stripewebhook "github.com/stripe/stripe-go/v86/webhook"
 	"gorm.io/gorm"
 )
 
@@ -354,6 +355,9 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 
 	require.NotNil(t, params.CustomerEmail)
 	require.Equal(t, "buyer+location_JP@example.com", *params.CustomerEmail)
+	require.Nil(t, params.AllowPromotionCodes, "promotion code field must stay hidden on checkout")
+	require.NotNil(t, params.PaymentIntentData)
+	require.Equal(t, "trade_123", params.PaymentIntentData.Metadata["trade_no"])
 }
 
 func TestStripeCheckoutSessionOrdinaryPromotionCodes(t *testing.T) {
@@ -373,8 +377,7 @@ func TestStripeCheckoutSessionOrdinaryPromotionCodes(t *testing.T) {
 		nil,
 	)
 
-	require.NotNil(t, params.AllowPromotionCodes)
-	require.True(t, *params.AllowPromotionCodes)
+	require.Nil(t, params.AllowPromotionCodes, "ordinary top-up checkouts must not show a promotion-code entry")
 	require.Empty(t, params.Discounts)
 }
 
@@ -618,9 +621,9 @@ func TestStripeCheckoutSessionEmbeddedModeUsesReturnURL(t *testing.T) {
 	)
 
 	require.NotNil(t, params.UIMode)
-	require.Equal(t, "embedded", *params.UIMode)
+	require.Equal(t, string(stripe.CheckoutSessionUIModeEmbeddedPage), *params.UIMode)
 	require.NotNil(t, params.ReturnURL, "redirect payment methods need a landing page")
-	require.Equal(t, "https://example.com/success", *params.ReturnURL)
+	require.Equal(t, "https://example.com/success?session_id={CHECKOUT_SESSION_ID}&trade_no=trade_embedded", *params.ReturnURL)
 	require.Nil(t, params.SuccessURL, "embedded sessions reject success_url")
 	require.Nil(t, params.CancelURL, "embedded sessions reject cancel_url")
 
@@ -642,6 +645,112 @@ func TestStripeCheckoutSessionEmbeddedModeUsesReturnURL(t *testing.T) {
 	require.Nil(t, params.UIMode)
 	require.NotNil(t, params.SuccessURL)
 	require.NotNil(t, params.CancelURL)
+}
+
+func TestResumeStripeTopUpCheckoutReturnsExistingHostedSession(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalSecret := setting.StripeApiSecret
+	originalKey := stripe.Key
+	originalGetter := stripeCheckoutSessionGetter
+	t.Cleanup(func() {
+		setting.StripeApiSecret = originalSecret
+		stripe.Key = originalKey
+		stripeCheckoutSessionGetter = originalGetter
+	})
+	setting.StripeApiSecret = "sk_test_resume"
+	require.NoError(t, model.DB.Create(&model.TopUp{
+		UserId: 41, TradeNo: "resume_hosted", GatewayTradeNo: "cs_resume_hosted",
+		PaymentProvider: model.PaymentProviderStripe, Status: common.TopUpStatusPending,
+	}).Error)
+	stripeCheckoutSessionGetter = func(id string, _ *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+		require.Equal(t, "cs_resume_hosted", id)
+		return &stripe.CheckoutSession{
+			Status:        stripe.CheckoutSessionStatusOpen,
+			PaymentStatus: stripe.CheckoutSessionPaymentStatusUnpaid,
+			URL:           "https://checkout.stripe.test/resume",
+		}, nil
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/api/user/topup/:trade_no/resume", func(c *gin.Context) {
+		c.Set("id", 41)
+		ResumeStripeTopUpCheckout(c)
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/user/topup/resume_hosted/resume", nil)
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"success":true,"message":"success","data":{"pay_link":"https://checkout.stripe.test/resume"}}`, recorder.Body.String())
+}
+
+func TestResumeStripeTopUpCheckoutRejectsAnotherUsersOrderBeforeStripeLookup(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalGetter := stripeCheckoutSessionGetter
+	t.Cleanup(func() { stripeCheckoutSessionGetter = originalGetter })
+	require.NoError(t, model.DB.Create(&model.TopUp{
+		UserId: 42, TradeNo: "resume_owned", GatewayTradeNo: "cs_resume_owned",
+		PaymentProvider: model.PaymentProviderStripe, Status: common.TopUpStatusPending,
+	}).Error)
+	lookedUp := false
+	stripeCheckoutSessionGetter = func(_ string, _ *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+		lookedUp = true
+		return nil, errors.New("must not be called")
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/api/user/topup/:trade_no/resume", func(c *gin.Context) {
+		c.Set("id", 99)
+		ResumeStripeTopUpCheckout(c)
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/user/topup/resume_owned/resume", nil)
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.False(t, lookedUp)
+	require.Contains(t, recorder.Body.String(), `"success":false`)
+}
+
+func TestResumeStripeTopUpCheckoutExpiresStaleLocalOrder(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalSecret := setting.StripeApiSecret
+	originalKey := stripe.Key
+	originalGetter := stripeCheckoutSessionGetter
+	t.Cleanup(func() {
+		setting.StripeApiSecret = originalSecret
+		stripe.Key = originalKey
+		stripeCheckoutSessionGetter = originalGetter
+	})
+	setting.StripeApiSecret = "sk_test_resume"
+	require.NoError(t, model.DB.Create(&model.TopUp{
+		UserId: 43, TradeNo: "resume_expired", GatewayTradeNo: "cs_resume_expired",
+		PaymentProvider: model.PaymentProviderStripe, Status: common.TopUpStatusPending,
+	}).Error)
+	stripeCheckoutSessionGetter = func(_ string, _ *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+		return &stripe.CheckoutSession{
+			Status:        stripe.CheckoutSessionStatusOpen,
+			PaymentStatus: stripe.CheckoutSessionPaymentStatusUnpaid,
+			ExpiresAt:     time.Now().Add(-time.Minute).Unix(),
+		}, nil
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/api/user/topup/:trade_no/resume", func(c *gin.Context) {
+		c.Set("id", 43)
+		ResumeStripeTopUpCheckout(c)
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/user/topup/resume_expired/resume", nil)
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	reloaded := model.GetTopUpByTradeNo("resume_expired")
+	require.NotNil(t, reloaded)
+	require.Equal(t, common.TopUpStatusExpired, reloaded.Status)
 }
 
 func TestStripeCheckoutSessionPassesSelectedCurrency(t *testing.T) {
@@ -729,6 +838,55 @@ func TestStripePaymentSnapshotFromEventRequiresAmountAndCurrency(t *testing.T) {
 	} {
 		require.Equal(t, model.PaymentSnapshot{}, stripePaymentSnapshotFromEvent(event))
 	}
+}
+
+func TestChargeRefundedQueuesCumulativeRevenueAdjustment(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	user := &model.User{
+		Id:             905,
+		Username:       "stripe_refund_attribution",
+		Status:         common.UserStatusEnabled,
+		AdsAttribution: `{"gclid":"CLICK_REFUND_12345"}`,
+	}
+	require.NoError(t, model.DB.Create(user).Error)
+	topUp := &model.TopUp{
+		UserId:          user.Id,
+		TradeNo:         "ref_stripe_refund",
+		Money:           10,
+		PaymentCurrency: "USD",
+		PaymentProvider: model.PaymentProviderStripe,
+		CompleteTime:    1_800_000_000,
+		Status:          common.TopUpStatusSuccess,
+	}
+	require.NoError(t, model.DB.Create(topUp).Error)
+	require.NoError(t, model.EnqueueAdsPurchaseInTx(model.DB, topUp))
+
+	event := stripe.Event{
+		ID:      "evt_refund_partial",
+		Type:    stripe.EventTypeChargeRefunded,
+		Created: 1_800_000_100,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"metadata":        map[string]interface{}{"trade_no": topUp.TradeNo},
+			"currency":        "usd",
+			"amount_refunded": float64(350),
+		}},
+	}
+	require.NoError(t, chargeReversed(
+		context.Background(), event, model.InviteSubRewardReasonRefunded, "127.0.0.1",
+	))
+	require.NoError(t, chargeReversed(
+		context.Background(), event, model.InviteSubRewardReasonRefunded, "127.0.0.1",
+	), "Stripe webhook replay must be idempotent")
+
+	var refunds []model.AdsAttributionOutbox
+	require.NoError(t, model.DB.Where("event_type = ?", "refund").Find(&refunds).Error)
+	require.Len(t, refunds, 1)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(refunds[0].Payload), &payload))
+	require.Equal(t, "restatement", payload["adjustment_type"])
+	require.Equal(t, 3.5, payload["value"])
+	require.Equal(t, 6.5, payload["adjusted_value"])
+	require.Equal(t, "USD", payload["currency"])
 }
 
 func TestFulfillOrderRejectsMismatchedStripePaymentContract(t *testing.T) {
@@ -1020,6 +1178,21 @@ func TestStripeWebhookTopUpRecallAttributionAfterFulfillmentAndReplayRepair(t *t
 func TestStripeWebhookSubscriptionRecallAttributionAfterFulfillmentAndReplayRepair(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.RecallCampaign{}, &model.RecallRecipient{}, &model.RecallMessage{}, &model.RecallEvent{}))
+	originalSnapshot := stripeSubscriptionSnapshotFromCheckoutSession
+	t.Cleanup(func() { stripeSubscriptionSnapshotFromCheckoutSession = originalSnapshot })
+	stripeSubscriptionSnapshotFromCheckoutSession = func(event stripe.Event, order *model.SubscriptionOrder) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, "sub_webhook_subscription", stripeEventObjectValue(event, "subscription"))
+		require.Equal(t, "trade_webhook_subscription", order.TradeNo)
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId:  "sub_webhook_subscription",
+			ProviderCustomerId:      "cus_subscription",
+			ProviderPriceId:         "price_webhook_subscription",
+			ProviderLatestInvoiceId: "in_webhook_subscription",
+			ProviderStatus:          "active",
+			CurrentPeriodStart:      1_700_000_100,
+			CurrentPeriodEnd:        1_702_678_500,
+		}, nil
+	}
 	insertStripeFulfillmentUser(t, 9202)
 	_, recipient := createStripeWebhookRecallRecipient(t, 9202, "promo_webhook_subscription")
 	plan := model.SubscriptionPlan{
@@ -1051,6 +1224,7 @@ func TestStripeWebhookSubscriptionRecallAttributionAfterFulfillmentAndReplayRepa
 	runtime.Attribution = service.NewRecallAttributionService(client)
 	t.Cleanup(func() { runtime.Attribution = originalAttribution })
 	event := stripeRecallWebhookEvent("evt_webhook_subscription", "cs_webhook_subscription", order.TradeNo, 2700, 200, recipient, true)
+	event.Data.Object["subscription"] = "sub_webhook_subscription"
 
 	require.NoError(t, fulfillOrder(context.Background(), event, order.TradeNo, "cus_subscription", "127.0.0.1"))
 	assertStripeWebhookRecipientNotConverted(t, recipient.Id)
@@ -1548,6 +1722,9 @@ func setupStripeFulfillmentTestDB(t *testing.T) {
 	originalDB := model.DB
 	originalLogDB := model.LOG_DB
 	originalRedisEnabled := common.RedisEnabled
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingPostgreSQL := common.UsingPostgreSQL
+	originalUsingMySQL := common.UsingMySQL
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "stripe-fulfillment.db")), &gorm.Config{})
 	require.NoError(t, err)
 	sqlDB, err := db.DB()
@@ -1556,22 +1733,768 @@ func setupStripeFulfillmentTestDB(t *testing.T) {
 	model.DB = db
 	model.LOG_DB = db
 	common.RedisEnabled = false
+	common.UsingSQLite = true
+	common.UsingPostgreSQL = false
+	common.UsingMySQL = false
 	t.Cleanup(func() {
 		require.NoError(t, sqlDB.Close())
 		model.DB = originalDB
 		model.LOG_DB = originalLogDB
 		common.RedisEnabled = originalRedisEnabled
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+		common.UsingMySQL = originalUsingMySQL
 	})
 	require.NoError(t, db.AutoMigrate(
 		&model.User{},
 		&model.TopUp{},
+		&model.AdsAttributionOutbox{},
+		&model.InviteSubscriptionReward{},
 		&model.TopUpBonusClaim{},
 		&model.Log{},
 		&model.PaymentInvoice{},
 		&model.SubscriptionPlan{},
 		&model.SubscriptionOrder{},
 		&model.UserSubscription{},
+		&model.SubscriptionProviderBinding{},
+		&model.PaymentWebhookEvent{},
 	))
+}
+
+func insertStripeFulfillmentSubscriptionPlan(t *testing.T, id int) {
+	t.Helper()
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Id:            id,
+		Title:         "Stripe Subscription Plan",
+		PriceAmount:   9.99,
+		Currency:      "USD",
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		TotalAmount:   1000,
+		StripePriceId: "price_subscription",
+	}).Error)
+}
+
+func insertStripeFulfillmentSubscriptionOrder(t *testing.T, tradeNo string, userID int, planID int) {
+	t.Helper()
+	require.NoError(t, model.DB.Create(&model.SubscriptionOrder{
+		UserId:          userID,
+		PlanId:          planID,
+		Money:           9.99,
+		TradeNo:         tradeNo,
+		PaymentMethod:   model.PaymentMethodStripe,
+		PaymentProvider: model.PaymentProviderStripe,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
+	}).Error)
+}
+
+func insertStripeFulfillmentSubscriptionBinding(t *testing.T, userID int, providerSubscriptionID string, status string, cancelAtPeriodEnd bool) *model.SubscriptionProviderBinding {
+	t.Helper()
+	insertStripeFulfillmentUser(t, userID)
+	insertStripeFulfillmentSubscriptionPlan(t, 800+userID)
+	binding := &model.SubscriptionProviderBinding{
+		UserId:                 userID,
+		PlanId:                 800 + userID,
+		InitialOrderId:         1000 + userID,
+		Provider:               model.PaymentProviderStripe,
+		ProviderSubscriptionId: providerSubscriptionID,
+		ProviderCustomerId:     "cus_subscription",
+		ProviderPriceId:        "price_subscription",
+		ProviderStatus:         status,
+		CancelAtPeriodEnd:      cancelAtPeriodEnd,
+		CurrentPeriodStart:     1000,
+		CurrentPeriodEnd:       2000,
+	}
+	require.NoError(t, model.DB.Create(binding).Error)
+	require.NoError(t, model.DB.Create(&model.UserSubscription{
+		UserId:            userID,
+		PlanId:            binding.PlanId,
+		ProviderBindingId: binding.Id,
+		AmountTotal:       1000,
+		StartTime:         1000,
+		EndTime:           2000,
+		Status:            "active",
+		Source:            "order",
+	}).Error)
+	return binding
+}
+
+func TestBuildStripeSubscriptionCheckoutSessionParamsIncludesNewAPIMetadata(t *testing.T) {
+	params := buildStripeSubscriptionCheckoutSessionParams("sub_ref_metadata", "cus_123", "buyer@example.com", "price_subscription", 701, 801)
+
+	require.NotNil(t, params.ClientReferenceID)
+	require.Equal(t, "sub_ref_metadata", *params.ClientReferenceID)
+	require.Equal(t, "sub_ref_metadata", params.Metadata["newapi_trade_no"])
+	require.Equal(t, "701", params.Metadata["newapi_user_id"])
+	require.Equal(t, "801", params.Metadata["newapi_plan_id"])
+	require.NotNil(t, params.SubscriptionData)
+	require.Equal(t, "sub_ref_metadata", params.SubscriptionData.Metadata["newapi_trade_no"])
+	require.Equal(t, "701", params.SubscriptionData.Metadata["newapi_user_id"])
+	require.Equal(t, "801", params.SubscriptionData.Metadata["newapi_plan_id"])
+}
+
+func TestStripeInvoicePaidWebhookCallsPaidInvoiceReconcile(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalReconcile := reconcilePaidStripeInvoice
+	t.Cleanup(func() { reconcilePaidStripeInvoice = originalReconcile })
+	var reconciledInvoiceID string
+	reconcilePaidStripeInvoice = func(ctx context.Context, invoiceID string) (*service.PaidInvoiceReconcileResult, error) {
+		reconciledInvoiceID = invoiceID
+		return &service.PaidInvoiceReconcileResult{}, nil
+	}
+
+	event := stripe.Event{
+		ID:   "evt_invoice_paid",
+		Type: stripe.EventTypeInvoicePaid,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "in_route_paid",
+		}},
+	}
+
+	require.NoError(t, handleStripeInvoicePaid(context.Background(), event))
+	require.Equal(t, "in_route_paid", reconciledInvoiceID)
+}
+
+func TestStripeInvoicePaidDuplicateActiveLeaseRetriesWithoutReconcile(t *testing.T) {
+	testCases := []struct {
+		name   string
+		status string
+	}{
+		{name: "processing", status: model.PaymentWebhookEventStatusProcessing},
+		{name: "failed with active lease", status: model.PaymentWebhookEventStatusFailed},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupStripeFulfillmentTestDB(t)
+			originalReconcile := reconcilePaidStripeInvoice
+			t.Cleanup(func() { reconcilePaidStripeInvoice = originalReconcile })
+			called := false
+			reconcilePaidStripeInvoice = func(ctx context.Context, invoiceID string) (*service.PaidInvoiceReconcileResult, error) {
+				called = true
+				return &service.PaidInvoiceReconcileResult{}, nil
+			}
+			require.NoError(t, model.DB.Create(&model.PaymentWebhookEvent{
+				Provider:         model.PaymentProviderStripe,
+				EventId:          "evt_invoice_paid_active_" + tc.name,
+				EventType:        string(stripe.EventTypeInvoicePaid),
+				ProviderObjectId: "in_active_lease",
+				Status:           tc.status,
+				ProcessingToken:  "worker-a",
+				ProcessingUntil:  common.GetTimestamp() + 300,
+				AttemptCount:     1,
+			}).Error)
+
+			err := handleStripeInvoicePaid(context.Background(), stripe.Event{
+				ID:   "evt_invoice_paid_active_" + tc.name,
+				Type: stripe.EventTypeInvoicePaid,
+				Data: &stripe.EventData{Object: map[string]interface{}{
+					"id": "in_active_lease",
+				}},
+			})
+
+			require.Error(t, err)
+			require.False(t, called)
+		})
+	}
+}
+
+func TestStripeInvoicePaidDuplicateProcessedAckWithoutReconcile(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalReconcile := reconcilePaidStripeInvoice
+	t.Cleanup(func() { reconcilePaidStripeInvoice = originalReconcile })
+	called := false
+	reconcilePaidStripeInvoice = func(ctx context.Context, invoiceID string) (*service.PaidInvoiceReconcileResult, error) {
+		called = true
+		return &service.PaidInvoiceReconcileResult{}, nil
+	}
+	require.NoError(t, model.DB.Create(&model.PaymentWebhookEvent{
+		Provider:         model.PaymentProviderStripe,
+		EventId:          "evt_invoice_paid_processed",
+		EventType:        string(stripe.EventTypeInvoicePaid),
+		ProviderObjectId: "in_processed_duplicate",
+		Status:           model.PaymentWebhookEventStatusProcessed,
+		ProcessedAt:      common.GetTimestamp(),
+		AttemptCount:     1,
+	}).Error)
+
+	err := handleStripeInvoicePaid(context.Background(), stripe.Event{
+		ID:   "evt_invoice_paid_processed",
+		Type: stripe.EventTypeInvoicePaid,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "in_processed_duplicate",
+		}},
+	})
+
+	require.NoError(t, err)
+	require.False(t, called)
+}
+
+func TestStripeInvoicePaymentFailedWebhookCallsFailedInvoiceReconcile(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalReconcile := reconcileFailedStripeInvoice
+	t.Cleanup(func() { reconcileFailedStripeInvoice = originalReconcile })
+	var reconciledInvoiceID string
+	reconcileFailedStripeInvoice = func(ctx context.Context, invoiceID string) error {
+		reconciledInvoiceID = invoiceID
+		return nil
+	}
+
+	event := stripe.Event{
+		ID:   "evt_invoice_failed",
+		Type: stripe.EventTypeInvoicePaymentFailed,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "in_route_failed",
+		}},
+	}
+
+	require.NoError(t, handleStripeInvoicePaymentFailed(context.Background(), event))
+	require.Equal(t, "in_route_failed", reconciledInvoiceID)
+}
+
+func TestStripeWebhookRoutesInvoicePaymentFailedToRetryableReconcile(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	confirmPaymentComplianceForTest(t)
+	originalSecret := setting.StripeWebhookSecret
+	originalReconcile := reconcileFailedStripeInvoice
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalSecret
+		reconcileFailedStripeInvoice = originalReconcile
+	})
+	setting.StripeWebhookSecret = "whsec_test_invoice_failed"
+	reconcileFailedStripeInvoice = func(ctx context.Context, invoiceID string) error {
+		require.Equal(t, "in_signed_failed", invoiceID)
+		return errors.New("retry failed invoice")
+	}
+	payload := []byte(`{
+		"id": "evt_invoice_failed_signed",
+		"object": "event",
+		"type": "invoice.payment_failed",
+		"data": {
+			"object": {
+				"id": "in_signed_failed",
+				"object": "invoice"
+			}
+		}
+	}`)
+
+	recorder := performSignedStripeWebhookRequest(t, payload, setting.StripeWebhookSecret)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+	require.Equal(t, "retry", recorder.Body.String())
+}
+
+func TestStripeWebhookAcksInvoicePaidNoOpReconcile(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	confirmPaymentComplianceForTest(t)
+	originalSecret := setting.StripeWebhookSecret
+	originalReconcile := reconcilePaidStripeInvoice
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalSecret
+		reconcilePaidStripeInvoice = originalReconcile
+	})
+	setting.StripeWebhookSecret = "whsec_test_invoice_paid_noop"
+	reconcilePaidStripeInvoice = func(ctx context.Context, invoiceID string) (*service.PaidInvoiceReconcileResult, error) {
+		require.Equal(t, "in_signed_paid_noop", invoiceID)
+		return &service.PaidInvoiceReconcileResult{Applied: false}, nil
+	}
+	payload := []byte(`{
+		"id": "evt_invoice_paid_noop",
+		"object": "event",
+		"type": "invoice.paid",
+		"data": {
+			"object": {
+				"id": "in_signed_paid_noop",
+				"object": "invoice"
+			}
+		}
+	}`)
+
+	recorder := performSignedStripeWebhookRequest(t, payload, setting.StripeWebhookSecret)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+}
+
+func TestStripeWebhookAcksInvoicePaymentFailedNoOpReconcile(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	confirmPaymentComplianceForTest(t)
+	originalSecret := setting.StripeWebhookSecret
+	originalReconcile := reconcileFailedStripeInvoice
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalSecret
+		reconcileFailedStripeInvoice = originalReconcile
+	})
+	setting.StripeWebhookSecret = "whsec_test_invoice_failed_noop"
+	reconcileFailedStripeInvoice = func(ctx context.Context, invoiceID string) error {
+		require.Equal(t, "in_signed_failed_noop", invoiceID)
+		return nil
+	}
+	payload := []byte(`{
+		"id": "evt_invoice_failed_noop",
+		"object": "event",
+		"type": "invoice.payment_failed",
+		"data": {
+			"object": {
+				"id": "in_signed_failed_noop",
+				"object": "invoice"
+			}
+		}
+	}`)
+
+	recorder := performSignedStripeWebhookRequest(t, payload, setting.StripeWebhookSecret)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+}
+
+func TestStripeRecurringCheckoutCompletedUsesInvoiceReconcile(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalReconcile := reconcilePaidStripeInvoice
+	t.Cleanup(func() { reconcilePaidStripeInvoice = originalReconcile })
+	var reconciledInvoiceID string
+	reconcilePaidStripeInvoice = func(ctx context.Context, invoiceID string) (*service.PaidInvoiceReconcileResult, error) {
+		reconciledInvoiceID = invoiceID
+		return &service.PaidInvoiceReconcileResult{}, nil
+	}
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_recurring",
+			"mode":                string(stripe.CheckoutSessionModeSubscription),
+			"status":              "complete",
+			"payment_status":      "paid",
+			"client_reference_id": "sub_recurring_route",
+			"invoice":             "in_from_checkout",
+		}},
+	}
+
+	require.NoError(t, sessionCompleted(context.Background(), event, "127.0.0.1"))
+	require.Equal(t, "in_from_checkout", reconciledInvoiceID)
+}
+
+func TestStripeRecurringTerminalCheckoutUsesPendingPurchaseTerminator(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalTerminate := terminatePendingStripePurchase
+	t.Cleanup(func() { terminatePendingStripePurchase = originalTerminate })
+	var tradeNo string
+	var status string
+	terminatePendingStripePurchase = func(ctx context.Context, referenceID string, intentStatus string) error {
+		tradeNo = referenceID
+		status = intentStatus
+		return nil
+	}
+
+	expired := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionExpired,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_expired",
+			"mode":                string(stripe.CheckoutSessionModeSubscription),
+			"status":              "expired",
+			"client_reference_id": "sub_expired_route",
+		}},
+	}
+	sessionExpired(context.Background(), expired)
+	require.Equal(t, "sub_expired_route", tradeNo)
+	require.Equal(t, model.SubscriptionChangeIntentStatusExpired, status)
+
+	failed := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionAsyncPaymentFailed,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_failed",
+			"mode":                string(stripe.CheckoutSessionModeSubscription),
+			"client_reference_id": "sub_failed_route",
+		}},
+	}
+	sessionAsyncPaymentFailed(context.Background(), failed, "127.0.0.1")
+	require.Equal(t, "sub_failed_route", tradeNo)
+	require.Equal(t, model.SubscriptionChangeIntentStatusFailed, status)
+}
+
+func TestStripeRecurringTerminalCheckoutPropagatesTerminatorError(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalTerminate := terminatePendingStripePurchase
+	t.Cleanup(func() { terminatePendingStripePurchase = originalTerminate })
+	terminatePendingStripePurchase = func(ctx context.Context, referenceID string, intentStatus string) error {
+		return errors.New("terminator unavailable")
+	}
+
+	expired := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionExpired,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_expired_error",
+			"mode":                string(stripe.CheckoutSessionModeSubscription),
+			"status":              "expired",
+			"client_reference_id": "sub_expired_error",
+		}},
+	}
+	require.ErrorContains(t, sessionExpired(context.Background(), expired), "terminator unavailable")
+
+	failed := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionAsyncPaymentFailed,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_failed_error",
+			"mode":                string(stripe.CheckoutSessionModeSubscription),
+			"client_reference_id": "sub_failed_error",
+		}},
+	}
+	require.ErrorContains(t, sessionAsyncPaymentFailed(context.Background(), failed, "127.0.0.1"), "terminator unavailable")
+}
+
+func TestStripeWebhookRetriesRecurringTerminalTerminatorError(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	confirmPaymentComplianceForTest(t)
+	originalSecret := setting.StripeWebhookSecret
+	originalTerminate := terminatePendingStripePurchase
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalSecret
+		terminatePendingStripePurchase = originalTerminate
+	})
+	setting.StripeWebhookSecret = "whsec_test_recurring_terminal_retry"
+	terminatePendingStripePurchase = func(ctx context.Context, referenceID string, intentStatus string) error {
+		return errors.New("terminator unavailable")
+	}
+
+	testCases := []struct {
+		name    string
+		payload []byte
+	}{
+		{
+			name: "expired",
+			payload: []byte(`{
+				"id": "evt_recurring_expired_retry",
+				"object": "event",
+				"type": "checkout.session.expired",
+				"data": {
+					"object": {
+						"id": "cs_recurring_expired_retry",
+						"object": "checkout.session",
+						"mode": "subscription",
+						"status": "expired",
+						"client_reference_id": "sub_recurring_expired_retry"
+					}
+				}
+			}`),
+		},
+		{
+			name: "async_failed",
+			payload: []byte(`{
+				"id": "evt_recurring_async_failed_retry",
+				"object": "event",
+				"type": "checkout.session.async_payment_failed",
+				"data": {
+					"object": {
+						"id": "cs_recurring_async_failed_retry",
+						"object": "checkout.session",
+						"mode": "subscription",
+						"client_reference_id": "sub_recurring_async_failed_retry"
+					}
+				}
+			}`),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := performSignedStripeWebhookRequest(t, tc.payload, setting.StripeWebhookSecret)
+
+			require.Equal(t, http.StatusInternalServerError, recorder.Code)
+			require.Equal(t, "retry", recorder.Body.String())
+		})
+	}
+}
+
+func TestFulfillSubscriptionOrderRequiresCheckoutSubscriptionID(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	insertStripeFulfillmentUser(t, 701)
+	insertStripeFulfillmentSubscriptionPlan(t, 801)
+	insertStripeFulfillmentSubscriptionOrder(t, "sub_ref_missing_subscription", 701, 801)
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_missing_subscription",
+			"status":              "complete",
+			"payment_status":      "paid",
+			"client_reference_id": "sub_ref_missing_subscription",
+			"customer":            "cus_subscription",
+		}},
+	}
+	err := fulfillOrder(context.Background(), event, "sub_ref_missing_subscription", "cus_subscription", "127.0.0.1")
+
+	require.Error(t, err)
+	var count int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", 701).Count(&count).Error)
+	require.EqualValues(t, 0, count)
+}
+
+func TestFulfillSubscriptionOrderBindsCheckoutSubscriptionOnce(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalSnapshot := stripeSubscriptionSnapshotFromCheckoutSession
+	t.Cleanup(func() {
+		stripeSubscriptionSnapshotFromCheckoutSession = originalSnapshot
+	})
+	stripeSubscriptionSnapshotFromCheckoutSession = func(event stripe.Event, order *model.SubscriptionOrder) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, "sub_ref_bind_once", order.TradeNo)
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId:  "sub_bind_once",
+			ProviderCustomerId:      "cus_subscription",
+			ProviderPriceId:         "price_subscription",
+			ProviderLatestInvoiceId: "in_subscription",
+			ProviderStatus:          "active",
+			CurrentPeriodStart:      1000,
+			CurrentPeriodEnd:        2000,
+			Livemode:                false,
+		}, nil
+	}
+	insertStripeFulfillmentUser(t, 702)
+	insertStripeFulfillmentSubscriptionPlan(t, 802)
+	insertStripeFulfillmentSubscriptionOrder(t, "sub_ref_bind_once", 702, 802)
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_bind_once",
+			"status":              "complete",
+			"payment_status":      "paid",
+			"client_reference_id": "sub_ref_bind_once",
+			"customer":            "cus_subscription",
+			"subscription":        "sub_bind_once",
+		}},
+	}
+
+	require.NoError(t, fulfillOrder(context.Background(), event, "sub_ref_bind_once", "cus_subscription", "127.0.0.1"))
+	require.NoError(t, fulfillOrder(context.Background(), event, "sub_ref_bind_once", "cus_subscription", "127.0.0.1"))
+
+	var bindingCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("provider_subscription_id = ?", "sub_bind_once").Count(&bindingCount).Error)
+	require.EqualValues(t, 1, bindingCount)
+	var subCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", 702).Count(&subCount).Error)
+	require.EqualValues(t, 1, subCount)
+}
+
+func TestStripeSubscriptionWebhookUpdatedAppliesSnapshotOnce(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	binding := insertStripeFulfillmentSubscriptionBinding(t, 703, "sub_webhook_update", "active", false)
+	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
+	t.Cleanup(func() { stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot })
+	var calls int
+	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
+		calls++
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: "sub_webhook_update",
+			ProviderCustomerId:     "cus_subscription",
+			ProviderPriceId:        "price_subscription",
+			ProviderStatus:         "active",
+			CancelAtPeriodEnd:      true,
+			CurrentPeriodStart:     1000,
+			CurrentPeriodEnd:       2000,
+		}, nil
+	}
+	event := stripe.Event{
+		ID:   "evt_subscription_update",
+		Type: stripe.EventTypeCustomerSubscriptionUpdated,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "sub_webhook_update",
+		}},
+	}
+
+	require.NoError(t, handleStripeSubscriptionUpdated(context.Background(), event))
+	require.NoError(t, handleStripeSubscriptionUpdated(context.Background(), event))
+
+	require.Equal(t, 1, calls)
+	var updated model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&updated, binding.Id).Error)
+	require.True(t, updated.CancelAtPeriodEnd)
+}
+
+func TestStripeSubscriptionWebhookDeletedTerminatesBinding(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	binding := insertStripeFulfillmentSubscriptionBinding(t, 704, "sub_webhook_deleted", "active", false)
+	event := stripe.Event{
+		ID:   "evt_subscription_deleted",
+		Type: stripe.EventTypeCustomerSubscriptionDeleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                   "sub_webhook_deleted",
+			"customer":             "cus_subscription",
+			"status":               "canceled",
+			"current_period_start": float64(1000),
+			"current_period_end":   float64(2000),
+			"ended_at":             float64(1500),
+		}},
+	}
+
+	require.NoError(t, handleStripeSubscriptionDeleted(context.Background(), event))
+
+	var updated model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&updated, binding.Id).Error)
+	require.Equal(t, "canceled", updated.ProviderStatus)
+	var sub model.UserSubscription
+	require.NoError(t, model.DB.Where("provider_binding_id = ?", binding.Id).First(&sub).Error)
+	require.Equal(t, "cancelled", sub.Status)
+}
+
+func TestStripeSubscriptionWebhookDeletedUsesItemCurrentPeriod(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	binding := insertStripeFulfillmentSubscriptionBinding(t, 705, "sub_webhook_deleted_v86", "active", false)
+	event := stripe.Event{
+		ID:   "evt_subscription_deleted_v86",
+		Type: stripe.EventTypeCustomerSubscriptionDeleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":       "sub_webhook_deleted_v86",
+			"customer": "cus_subscription",
+			"status":   "canceled",
+			"ended_at": float64(2500),
+			"items": map[string]interface{}{
+				"data": []interface{}{
+					map[string]interface{}{
+						"id":                   "si_deleted_v86",
+						"current_period_start": float64(3000),
+						"current_period_end":   float64(4000),
+					},
+				},
+			},
+		}},
+	}
+
+	require.NoError(t, handleStripeSubscriptionDeleted(context.Background(), event))
+
+	var updated model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&updated, binding.Id).Error)
+	require.Equal(t, int64(3000), updated.CurrentPeriodStart)
+	require.Equal(t, int64(4000), updated.CurrentPeriodEnd)
+}
+
+func TestStripeSubscriptionWebhookAcknowledgesUnrelatedSignedEvent(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	confirmPaymentComplianceForTest(t)
+	originalSecret := setting.StripeWebhookSecret
+	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalSecret
+		stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot
+	})
+	setting.StripeWebhookSecret = "whsec_test_subscription_unrelated"
+	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: "sub_unrelated",
+			ProviderStatus:         "active",
+		}, nil
+	}
+	payload := []byte(`{
+		"id": "evt_subscription_unrelated",
+		"object": "event",
+		"type": "customer.subscription.updated",
+		"data": {
+			"object": {
+				"id": "sub_unrelated",
+				"object": "subscription"
+			}
+		}
+	}`)
+
+	recorder := performSignedStripeWebhookRequest(t, payload, setting.StripeWebhookSecret)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+}
+
+func TestStripeSubscriptionWebhookNewAPIMetadataMissingOrderRetries(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	confirmPaymentComplianceForTest(t)
+	originalSecret := setting.StripeWebhookSecret
+	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalSecret
+		stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot
+	})
+	setting.StripeWebhookSecret = "whsec_test_subscription_missing_order"
+	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: "sub_missing_order",
+			ProviderCustomerId:     "cus_subscription",
+			ProviderPriceId:        "price_subscription",
+			ProviderStatus:         "active",
+			CurrentPeriodStart:     1000,
+			CurrentPeriodEnd:       2000,
+		}, nil
+	}
+	payload := []byte(`{
+		"id": "evt_subscription_missing_order",
+		"object": "event",
+		"type": "customer.subscription.updated",
+		"data": {
+			"object": {
+				"id": "sub_missing_order",
+				"object": "subscription",
+				"metadata": {
+					"newapi_trade_no": "missing_subscription_order",
+					"newapi_user_id": "705",
+					"newapi_plan_id": "1505"
+				}
+			}
+		}
+	}`)
+
+	recorder := performSignedStripeWebhookRequest(t, payload, setting.StripeWebhookSecret)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+}
+
+func TestStripeSubscriptionWebhookUpdatedDoesNotReviveDeletedBinding(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	binding := insertStripeFulfillmentSubscriptionBinding(t, 706, "sub_late_update", "active", false)
+	deletedEvent := stripe.Event{
+		ID:   "evt_subscription_deleted_before_update",
+		Type: stripe.EventTypeCustomerSubscriptionDeleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":     "sub_late_update",
+			"status": "canceled",
+		}},
+	}
+	require.NoError(t, handleStripeSubscriptionDeleted(context.Background(), deletedEvent))
+
+	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
+	t.Cleanup(func() { stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot })
+	var calls int
+	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
+		calls++
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: "sub_late_update",
+			ProviderStatus:         "active",
+			CancelAtPeriodEnd:      false,
+			CurrentPeriodStart:     1000,
+			CurrentPeriodEnd:       3000,
+		}, nil
+	}
+	updatedEvent := stripe.Event{
+		ID:   "evt_subscription_late_update",
+		Type: stripe.EventTypeCustomerSubscriptionUpdated,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "sub_late_update",
+		}},
+	}
+
+	require.NoError(t, handleStripeSubscriptionUpdated(context.Background(), updatedEvent))
+
+	require.Equal(t, 1, calls)
+	var updated model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&updated, binding.Id).Error)
+	require.Equal(t, "canceled", updated.ProviderStatus)
+	require.Greater(t, updated.EndedAt, int64(0))
+}
+
+func performSignedStripeWebhookRequest(t *testing.T, payload []byte, secret string) *httptest.ResponseRecorder {
+	t.Helper()
+	signedPayload := stripewebhook.GenerateTestSignedPayload(&stripewebhook.UnsignedPayload{
+		Payload: payload,
+		Secret:  secret,
+	})
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/stripe/webhook", bytes.NewReader(signedPayload.Payload))
+	ctx.Request.Header.Set("Stripe-Signature", signedPayload.Header)
+	StripeWebhook(ctx)
+	return recorder
 }
 
 func insertStripeFulfillmentUser(t *testing.T, id int) {
@@ -1624,7 +2547,7 @@ func TestValidateStripeRedirectURLAllowsForwardedAndOriginHosts(t *testing.T) {
 	require.Error(t, validateStripeRedirectURL(ctx, "https://evil.example/wallet"))
 }
 
-func TestGetStripePayMoneyAppliesDisplayGroupAndDiscount(t *testing.T) {
+func TestGetStripePayMoneyIgnoresRechargeGroupAndDiscount(t *testing.T) {
 	originalDisplayType := operation_setting.GetQuotaDisplayType()
 	originalUnitPrice := setting.StripeUnitPrice
 	originalTopupGroupRatio := common.TopupGroupRatio2JSONString()
@@ -1645,7 +2568,7 @@ func TestGetStripePayMoneyAppliesDisplayGroupAndDiscount(t *testing.T) {
 	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"vip":1.5}`))
 	paymentSetting.AmountDiscount = map[int]float64{int(2 * common.QuotaPerUnit): 0.5}
 
-	require.Equal(t, 3.0, getStripePayMoney(2*common.QuotaPerUnit, "vip"))
+	require.Equal(t, 4.0, getStripePayMoney(2*common.QuotaPerUnit, "vip"))
 }
 
 func TestMapStripeInvoiceStatusUsesLocalStatuses(t *testing.T) {

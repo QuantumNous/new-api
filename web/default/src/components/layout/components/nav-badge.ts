@@ -20,14 +20,12 @@ import { type NavBadgeVariant } from '../types'
 
 export function getNavBadgeClassName(variant: NavBadgeVariant) {
   if (variant === 'promotion') {
-    return 'bg-destructive text-destructive-foreground dark:bg-destructive dark:text-background group-data-[collapsible=icon]:hidden min-w-0 max-w-28 flex-1 truncate px-1 py-0 text-[10px] font-semibold tracking-tight'
+    return 'group-data-[collapsible=icon]:hidden ml-auto shrink-0 truncate border-transparent bg-transparent px-1 py-0 text-xs font-semibold text-[#6d28d9] dark:text-[#a78bfa]'
   }
 
   return 'shrink-0 px-1 py-0 text-xs'
 }
 
-export function getNavItemTitleClassName(variant?: NavBadgeVariant) {
-  return variant === 'promotion'
-    ? 'min-w-0 shrink-0 truncate'
-    : 'min-w-0 flex-1 truncate'
+export function getNavItemTitleClassName(_variant?: NavBadgeVariant) {
+  return 'min-w-0 flex-1 truncate'
 }

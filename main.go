@@ -143,6 +143,11 @@ func main() {
 
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
+	service.StartStripeSubscriptionReconciliationTask()
+
+	// Deliver paid-click signup, first-use, purchase, and refund events through
+	// the durable product outbox into the shared Ads Agent attribution service.
+	service.StartAdsAttributionDeliveryTask()
 
 	// Stripe user win-back campaign scheduler (master node, default-off)
 	service.StartRecallCampaignTasks()
@@ -164,6 +169,9 @@ func main() {
 
 	// Codex subscription model governance task
 	controller.StartCodexModelGovernanceTask()
+
+	// Invite reward v2: unlock settled subscription-invite rewards (master only)
+	model.StartInviteSubscriptionRewardUnlocker()
 
 	if common.IsMasterNode && constant.UpdateTask {
 		gopool.Go(func() {

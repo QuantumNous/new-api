@@ -304,7 +304,11 @@ export function useUsersColumns(): ColumnDef<User>[] {
                   <Link
                     to='/usage-logs/$section'
                     params={{ section: 'common' }}
-                    search={{ username: row.original.username, page: 1 }}
+                    search={{
+                      username: row.original.username,
+                      userId: row.original.id,
+                      page: 1,
+                    }}
                     target='_blank'
                     rel='noopener noreferrer'
                   />

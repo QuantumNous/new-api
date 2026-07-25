@@ -49,6 +49,8 @@ type requestPayload struct {
 	GenerateAudio         *dto.BoolValue `json:"generate_audio,omitempty"`
 	Draft                 *dto.BoolValue `json:"draft,omitempty"`
 	Tools                 []toolItem     `json:"tools,omitempty"`
+	SafetyIdentifier      string         `json:"safety_identifier,omitempty"`
+	Priority              *dto.IntValue  `json:"priority,omitempty"`
 	Resolution            string         `json:"resolution,omitempty"`
 	Ratio                 string         `json:"ratio,omitempty"`
 	Duration              *dto.IntValue  `json:"duration,omitempty"`
@@ -134,18 +136,13 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling detects whether the request carries a video input (a
-// video_url content item) and, if so, returns the model's video-input discount
-// ratio. It reuses the seedance request parsed by BindSeedanceRequest (no
-// metadata, no extra body decode).
+// EstimateBilling returns the model's relative price ratio based on output
+// resolution and whether the request carries a video_url content item.
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	// Reuse the request already parsed by BindSeedanceRequest (in
 	// ValidateRequestAndSetAction) instead of re-decoding the body.
 	seedReq, err := taskcommon.GetSeedanceRequest(c)
 	if err != nil {
-		return nil
-	}
-	if len(seedReq.Videos()) == 0 {
 		return nil
 	}
 	// The video-input discount is keyed on the upstream model name. When the
@@ -157,7 +154,8 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if modelName == "" {
 		modelName = info.OriginModelName
 	}
-	if ratio, ok := GetVideoInputRatio(modelName); ok {
+	ratio, ok := GetVideoInputRatio(modelName, seedReq.Resolution, len(seedReq.Videos()) > 0)
+	if ok && ratio != 1.0 {
 		return map[string]float64{"video_input": ratio}
 	}
 	return nil
@@ -194,6 +192,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	} else {
 		info.UpstreamModelName = body.Model
 	}
+	if body.Priority != nil && !supportsPriority(body.Model) {
+		return nil, fmt.Errorf("priority is only supported on Seedance 2.0 upstream models")
+	}
+	if info.ChannelOtherSettings.AllowSafetyIdentifier {
+		body.SafetyIdentifier = seedReq.SafetyIdentifier
+	}
 	data, err := common.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -220,6 +224,7 @@ func buildDoubaoCreateRequest(seedReq *dto.SeedanceVideoRequest, ext doubaoExten
 		GenerateAudio:         toBoolValue(seedReq.GenerateAudio),
 		ReturnLastFrame:       toBoolValue(seedReq.ReturnLastFrame),
 		CallbackURL:           seedReq.CallbackURL,
+		Priority:              toIntValue(seedReq.Priority),
 		ServiceTier:           ext.ServiceTier,
 		ExecutionExpiresAfter: ext.ExecutionExpiresAfter,
 		Draft:                 ext.Draft,

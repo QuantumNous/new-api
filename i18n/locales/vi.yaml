@@ -21,3 +21,24 @@ notify.subscription_quota_warning_title: "Hạn mức gói đăng ký của bạ
 notify.quota_warning_email: "{{.Warning}}. Hạn mức còn lại hiện tại của bạn là {{.Quota}}. Để tránh gián đoạn dịch vụ, vui lòng nạp thêm kịp thời.<br/>Liên kết nạp: <a href='{{.Link}}'>{{.Link}}</a>"
 notify.quota_warning_bark: "{{.Warning}}. Hạn mức còn lại: {{.Quota}}. Vui lòng nạp thêm kịp thời."
 notify.quota_warning_gotify: "{{.Warning}}. Hạn mức còn lại hiện tại của bạn là {{.Quota}}. Vui lòng nạp thêm kịp thời."
+
+# CLI device authorization messages
+cli.device_id_missing: "Bắt buộc có ID thiết bị"
+cli.device_metadata_too_long: "Siêu dữ liệu thiết bị CLI quá dài"
+cli.device_code_invalid: "Mã thiết bị không hợp lệ"
+cli.authorization_code_missing: "Bắt buộc có mã ủy quyền"
+cli.authorization_not_found: "Không tìm thấy yêu cầu ủy quyền"
+cli.authorization_token_create_failed: "Không thể tạo token CLI"
+
+# Subscription messages
+subscription.tier_rank_reserved: "Thứ hạng gói đăng ký đã được giữ chỗ"
+subscription.tier_rank_required: "Gói đăng ký đang bật phải đặt thứ hạng dương"
+subscription.lifecycle_fields_immutable: "Gói đăng ký này đã được tham chiếu. Hãy tắt gói hoặc tạo phiên bản mới thay vì thay đổi các trường vòng đời quan trọng."
+subscription.purchase_pending_migration: "Luồng bắt đầu mua đăng ký đang được di chuyển. Hãy làm mới và dùng luồng đăng ký mới."
+subscription.payment_mode_required: "Bắt buộc chọn chế độ thanh toán"
+subscription.request_id_required: "Bắt buộc có ID yêu cầu"
+subscription.stripe_price_requires_mode: "Stripe Price ID yêu cầu chế độ thanh toán định kỳ Stripe"
+subscription.capability.single_lifecycle: "Vòng đời đăng ký đơn đã được bật"
+subscription.capability.current_entitlement: "Quyền lợi hợp đồng hiện tại khả dụng"
+subscription.capability.recurring_binding: "Liên kết nhà cung cấp định kỳ khả dụng"
+subscription.capability.change_intent: "Trạng thái ý định thay đổi đăng ký khả dụng"

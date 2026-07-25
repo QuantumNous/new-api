@@ -69,6 +69,24 @@ const walletRechargeKeys = [
   'Stripe top-up is not enabled. Please contact administrator.',
 ] as const
 
+const walletRefundKeys = [
+  'Manage not-started terms',
+  'Refundable plan terms',
+  'Started plan terms are not refundable. Eligible refunds return to your Flatkey available balance, not the original payment method.',
+  'Total refundable balance',
+  'Refund to Flatkey balance',
+  'Refund amount',
+  'Return to Flatkey available balance',
+  'Refund term',
+  'Confirm refund to Flatkey balance',
+  'This not-started plan term will return {{amount}} to your Flatkey available balance.',
+  'This is not a refund to the original payment method.',
+  'Plan term refunded to your Flatkey available balance.',
+  'Failed to load refundable plan terms',
+  'Failed to refund plan term',
+  'Retrying...',
+] as const
+
 describe('wallet recharge i18n', () => {
   test('defines wallet recharge package keys in every interface locale', () => {
     for (const [locale, translations] of Object.entries(localeTranslations)) {
@@ -95,10 +113,53 @@ describe('wallet recharge i18n', () => {
       }
 
       for (const key of newWalletKeys) {
+        expect(translations[key], `${locale} should translate ${key}`).not.toBe(
+          key
+        )
+      }
+    }
+  })
+
+  test('keeps new wallet plan translations free of replacement question marks', () => {
+    const walletPlanKeys = [
+      'Plans & wallet',
+      'Auto-renew on',
+      'Loading local currency quote...',
+    ] as const
+
+    for (const [locale, translations] of Object.entries(localeTranslations)) {
+      for (const key of walletPlanKeys) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translations, key),
+          `${locale} is missing ${key}`
+        ).toBe(true)
+        if (locale !== 'en') {
+          expect(
+            translations[key],
+            `${locale} should translate ${key}`
+          ).not.toBe(key)
+        }
         expect(
           translations[key],
-          `${locale} should translate ${key}`
-        ).not.toBe(key)
+          `${locale} contains mojibake for ${key}`
+        ).not.toContain('?')
+      }
+    }
+  })
+
+  test('defines translated refundable-term copy in every interface locale', () => {
+    for (const [locale, translations] of Object.entries(localeTranslations)) {
+      for (const key of walletRefundKeys) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translations, key),
+          `${locale} is missing ${key}`
+        ).toBe(true)
+        if (locale !== 'en') {
+          expect(
+            translations[key],
+            `${locale} should translate ${key}`
+          ).not.toBe(key)
+        }
       }
     }
   })

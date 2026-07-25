@@ -99,6 +99,10 @@ var defaultModelRatio = map[string]float64{
 	"gpt-5-mini-2025-08-07":            0.125,
 	"gpt-5-nano":                       0.025,
 	"gpt-5-nano-2025-08-07":            0.025,
+	"gpt-5.6":                          2.5,  // $5 / 1M tokens (alias of gpt-5.6-sol)
+	"gpt-5.6-sol":                      2.5,  // $5 / 1M tokens
+	"gpt-5.6-terra":                    1.25, // $2.5 / 1M tokens
+	"gpt-5.6-luna":                     0.5,  // $1 / 1M tokens
 	//"gpt-3.5-turbo-0301":           0.75, //deprecated
 	"gpt-3.5-turbo":          0.25,
 	"gpt-3.5-turbo-0613":     0.75,
@@ -315,6 +319,11 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
+	// xAI Grok Imagine video (per-call default; calibrate later).
+	// Per-second USD rate (billed × requested seconds via EstimateBilling).
+	// Upstream cost is $0.05/s (480p) – $0.07/s (720p); these cover 720p with margin.
+	"grok-imagine-video":     0.09,
+	"grok-imagine-video-1.5": 0.11,
 }
 
 var defaultAudioRatio = map[string]float64{
@@ -523,6 +532,9 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		}
 		// gpt-5 匹配
 		if strings.HasPrefix(name, "gpt-5") {
+			if strings.HasPrefix(name, "gpt-5.6") {
+				return 6, true
+			}
 			if strings.HasPrefix(name, "gpt-5.5") {
 				return 6, true
 			}

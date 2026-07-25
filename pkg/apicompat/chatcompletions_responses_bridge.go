@@ -432,9 +432,10 @@ func ChatUsageToResponsesUsage(usage *ChatUsage) *ResponsesUsage {
 	if out.TotalTokens == 0 {
 		out.TotalTokens = out.InputTokens + out.OutputTokens
 	}
-	if usage.PromptTokensDetails != nil && usage.PromptTokensDetails.CachedTokens > 0 {
+	if usage.PromptTokensDetails != nil && (usage.PromptTokensDetails.CachedTokens > 0 || usage.PromptTokensDetails.CacheWriteTokens > 0) {
 		out.InputTokensDetails = &ResponsesInputTokensDetails{
-			CachedTokens: usage.PromptTokensDetails.CachedTokens,
+			CachedTokens:     usage.PromptTokensDetails.CachedTokens,
+			CacheWriteTokens: usage.PromptTokensDetails.CacheWriteTokens,
 		}
 	}
 	return out

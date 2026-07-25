@@ -40,7 +40,6 @@ require (
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
-	github.com/stripe/stripe-go/v81 v81.4.0
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	github.com/thanhpk/randstr v1.0.6
 	github.com/tidwall/gjson v1.18.0
@@ -65,6 +64,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/ethereum/go-ethereum v1.14.12
 	github.com/phuslu/iploc v1.0.20260701
+	github.com/stripe/stripe-go/v86 v86.1.1
 	github.com/waffo-com/waffo-pancake-sdk-go v0.3.1
 	gorm.io/hints v1.1.2
 )

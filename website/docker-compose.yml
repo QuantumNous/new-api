@@ -8,6 +8,8 @@ services:
         ROUTER_ORIGIN: ${ROUTER_ORIGIN:-https://router.flatkey.ai}
         SITE_ORIGIN: ${SITE_ORIGIN:-https://flatkey.ai}
         COOKIE_SESSION_DOMAIN: ${COOKIE_SESSION_DOMAIN:-}
+        BLOGGER_API_URL: ${BLOGGER_API_URL:-https://blogger-api-528088078482.us-central1.run.app}
+        BLOGGER_SITE_SLUG: ${BLOGGER_SITE_SLUG:-flatkey}
     image: flatkey-website:local
     container_name: flatkey-website
     restart: unless-stopped
@@ -24,6 +26,8 @@ services:
       NEXT_PUBLIC_APP_CONSOLE_ORIGIN: ${APP_CONSOLE_ORIGIN:-https://console.flatkey.ai}
       NEXT_PUBLIC_ROUTER_ORIGIN: ${ROUTER_ORIGIN:-https://router.flatkey.ai}
       NEXT_PUBLIC_SITE_ORIGIN: ${SITE_ORIGIN:-https://flatkey.ai}
+      BLOGGER_API_URL: ${BLOGGER_API_URL:-https://blogger-api-528088078482.us-central1.run.app}
+      BLOGGER_SITE_SLUG: ${BLOGGER_SITE_SLUG:-flatkey}
     cpus: 1
     mem_limit: 512m
     memswap_limit: 1536m

@@ -23,7 +23,7 @@ const CurrentComplianceTermsVersion = "v1"
 
 // 默认配置
 var paymentSetting = PaymentSetting{
-	AmountOptions:     []int{10, 20, 50, 100, 200, 1000},
+	AmountOptions:     []int{20, 50, 100, 200},
 	AmountDiscount:    map[int]float64{},
 	AmountBonus:       map[int]int64{},
 	AmountBonusLimit:  map[int]int{},

@@ -1,57 +1,42 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-// Single brand standard (matches the official website / website-static lockup):
-// the gradient "flatkey-mark" tile + a single-color "flatkey" wordmark (no ".ai")
-// in Public Sans Bold, lowercase. Color is #1E1B4B on light, near-white on dark.
-const FLATKEY_LOCKUP_LIGHT = "/flatkey-lockup-light.svg";
-const FLATKEY_LOCKUP_DARK = "/flatkey-lockup-dark.svg";
+// Shared responsive brand standard used by website-static and the console:
+// mark + lowercase "flatkey" in Public Sans Bold, with no ".ai" suffix.
 const FLATKEY_MARK = "/flatkey-mark.svg";
 
-const WORDMARK_FONT_FAMILY = "'Public Sans', Inter, 'SF Pro Display', Arial, sans-serif";
+const WORDMARK_FONT_FAMILY = "'Public Sans', Inter, -apple-system, sans-serif";
 
 type FlatkeyBrandLogoProps = {
   alt?: string;
   className?: string;
-  imageClassName?: string;
-  variant?: "lockup" | "full";
 };
 
 export function FlatkeyBrandLogo({
   alt = "flatkey",
   className,
-  imageClassName,
-  variant = "lockup",
 }: FlatkeyBrandLogoProps) {
-  const imageClass = cn("h-full w-full object-contain", imageClassName);
-
-  if (variant === "full") {
-    return (
-      <span className={cn("relative block overflow-hidden", className)}>
-        <Image
-          src={FLATKEY_LOCKUP_LIGHT}
-          alt={alt}
-          width={250}
-          height={64}
-          className={cn(imageClass, "block dark:hidden")}
-        />
-        <Image
-          src={FLATKEY_LOCKUP_DARK}
-          alt={alt}
-          width={250}
-          height={64}
-          className={cn(imageClass, "hidden dark:block")}
-        />
-      </span>
-    );
-  }
-
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <Image src={FLATKEY_MARK} alt="" aria-hidden width={32} height={32} className="h-8 w-8 shrink-0" />
+    <span
+      data-flatkey-brand="lockup"
+      aria-label={alt}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-[9px] min-[901px]:gap-2 min-[1481px]:gap-[9px]",
+        className
+      )}
+    >
+      <Image
+        src={FLATKEY_MARK}
+        alt=""
+        aria-hidden
+        width={40}
+        height={40}
+        className="h-[38px] w-[38px] shrink-0 min-[901px]:h-9 min-[901px]:w-9 min-[1481px]:h-10 min-[1481px]:w-10"
+      />
       <span
-        className="text-[20px] leading-none font-bold text-[#1E1B4B] dark:text-slate-50"
-        style={{ fontFamily: WORDMARK_FONT_FAMILY, letterSpacing: "-0.04em" }}
+        data-flatkey-wordmark="true"
+        className="text-[30px] leading-none font-bold text-[#0B0B0F] min-[901px]:text-[28px] min-[1481px]:text-[32px] dark:text-[#F5F5F2] max-[420px]:hidden"
+        style={{ fontFamily: WORDMARK_FONT_FAMILY, letterSpacing: "-0.043em" }}
       >
         flatkey
       </span>

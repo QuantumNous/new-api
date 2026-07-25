@@ -14,18 +14,20 @@ import (
 //
 // Reference: POST /api/v3/contents/generations/tasks (Volcengine Ark).
 type SeedanceVideoRequest struct {
-	Model           string                `json:"model"`
-	Content         []SeedanceContentItem `json:"content"`
-	Resolution      string                `json:"resolution,omitempty"`
-	Ratio           string                `json:"ratio,omitempty"`
-	Duration        *int                  `json:"duration,omitempty"`
-	Frames          *int                  `json:"frames,omitempty"`
-	Seed            *int                  `json:"seed,omitempty"`
-	Watermark       *bool                 `json:"watermark,omitempty"`
-	CameraFixed     *bool                 `json:"camera_fixed,omitempty"`
-	GenerateAudio   *bool                 `json:"generate_audio,omitempty"`
-	ReturnLastFrame *bool                 `json:"return_last_frame,omitempty"`
-	CallbackURL     string                `json:"callback_url,omitempty"`
+	Model            string                `json:"model"`
+	Content          []SeedanceContentItem `json:"content"`
+	Resolution       string                `json:"resolution,omitempty"`
+	Ratio            string                `json:"ratio,omitempty"`
+	Duration         *int                  `json:"duration,omitempty"`
+	Frames           *int                  `json:"frames,omitempty"`
+	Seed             *int                  `json:"seed,omitempty"`
+	Watermark        *bool                 `json:"watermark,omitempty"`
+	CameraFixed      *bool                 `json:"camera_fixed,omitempty"`
+	GenerateAudio    *bool                 `json:"generate_audio,omitempty"`
+	ReturnLastFrame  *bool                 `json:"return_last_frame,omitempty"`
+	CallbackURL      string                `json:"callback_url,omitempty"`
+	SafetyIdentifier string                `json:"safety_identifier,omitempty"`
+	Priority         *int                  `json:"priority,omitempty"`
 }
 
 // Seedance content[] item types.

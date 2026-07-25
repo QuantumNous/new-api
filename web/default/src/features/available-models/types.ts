@@ -40,15 +40,25 @@ export type ModelAccessScope = {
   description?: string
   ratio: number | null
   model_ids: string[]
+  model_ratios: Record<string, number>
+}
+
+export type ModelRatioContext = {
+  defaultRatio: number | null
+  modelRatios: Readonly<Record<string, number>>
 }
 
 export type UserModelAccess = {
   scope_mode: ModelAccessScopeMode
   identity_scope: string | null
   identity_model_ids: string[]
+  identity_model_ratios: Record<string, number>
+  identity_default_ratio: number | null
   create_default_scope: string | null
   groups: ModelAccessScope[]
   account_model_ids: string[]
+  account_model_ratios: Record<string, number>
+  account_default_ratio: number | null
   models: ModelAccessModel[]
 }
 

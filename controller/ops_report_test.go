@@ -6,6 +6,20 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
+func TestParseOpsAttributionPrefersFirstValidLanding(t *testing.T) {
+	agg := &opsUserAgg{user: &model.OpsPlgUser{AdsAttribution: `{"utm_campaign":"pt","first_landing_path":"/pt","landing_path":"/oauth/google"}`}}
+	parseOpsAttribution(agg)
+	if agg.landing != "/pt" {
+		t.Fatalf("landing = %q, want /pt", agg.landing)
+	}
+
+	agg = &opsUserAgg{user: &model.OpsPlgUser{AdsAttribution: `{"landing_path":"/oauth/google"}`}}
+	parseOpsAttribution(agg)
+	if agg.landing != "" {
+		t.Fatalf("OAuth callback must not be reported as a lander, got %q", agg.landing)
+	}
+}
+
 func opsTestAgg(id int, createdAt int64, campaign, keyword, matchType, landing string, apiKeyCount int) *opsUserAgg {
 	return &opsUserAgg{
 		user:      &model.OpsPlgUser{Id: id, CreatedAt: createdAt},
@@ -101,5 +115,40 @@ func TestOpsStripeMajorAmount(t *testing.T) {
 	}
 	if got := opsStripeMajorAmount("KRW", 5000); got != 5000 {
 		t.Errorf("KRW should be case-insensitive zero-decimal, got %v", got)
+	}
+}
+
+func TestOpsSubscriptionOrdersAsTopUps(t *testing.T) {
+	orders := []*model.OpsSubscriptionOrder{
+		// USD plan purchase: valued at charged money via the USD fast path.
+		{UserId: 1, Money: 30, Status: "success", CreateTime: 100, PaymentCurrency: "USD", PaymentProvider: "stripe", PlanUSD: 30},
+		// Local-currency plan (Pix BRL pricing): money holds BRL, USD value
+		// must come from the plan's USD list price via BonusTier.
+		{UserId: 2, Money: 49.9, Status: "success", CreateTime: 200, PaymentCurrency: "BRL", PaymentProvider: "stripe", PlanUSD: 10},
+		// Invitee first-subscription discount reduces the USD valuation.
+		{UserId: 3, Money: 24.95, Status: "success", CreateTime: 300, PaymentCurrency: "BRL", PaymentProvider: "epay", PlanUSD: 10, DiscountUSD: 5},
+	}
+	converted := opsSubscriptionOrdersAsTopUps(orders)
+	if len(converted) != 3 {
+		t.Fatalf("expected 3 converted rows, got %d", len(converted))
+	}
+	if usd, ok := opsTopUpUSD(converted[0]); !ok || usd != 30 {
+		t.Errorf("USD subscription order should value at charged money, got %v ok=%v", usd, ok)
+	}
+	if usd, ok := opsTopUpUSD(converted[1]); !ok || usd != 10 {
+		t.Errorf("BRL subscription order should value at plan USD price, got %v ok=%v", usd, ok)
+	}
+	if usd, ok := opsTopUpUSD(converted[2]); !ok || usd != 5 {
+		t.Errorf("discounted subscription order should value at plan minus discount, got %v ok=%v", usd, ok)
+	}
+	if converted[1].PaymentCurrency != "BRL" {
+		t.Errorf("original currency must survive for the payer-table badges, got %q", converted[1].PaymentCurrency)
+	}
+	// Converted rows must never masquerade as stripe_auto: they carry payment
+	// intent in the funnel exactly like user-initiated top-ups.
+	for i, c := range converted {
+		if c.PaymentProvider == model.PaymentProviderStripeAuto {
+			t.Errorf("row %d must not be stripe_auto", i)
+		}
 	}
 }

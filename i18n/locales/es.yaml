@@ -21,3 +21,24 @@ notify.subscription_quota_warning_title: "Su cuota de suscripción se está agot
 notify.quota_warning_email: "{{.Warning}}. Su cuota restante actual es {{.Quota}}. Para evitar interrupciones del servicio, recargue a tiempo.<br/>Enlace de recarga: <a href='{{.Link}}'>{{.Link}}</a>"
 notify.quota_warning_bark: "{{.Warning}}. Cuota restante: {{.Quota}}. Recargue a tiempo."
 notify.quota_warning_gotify: "{{.Warning}}. Su cuota restante actual es {{.Quota}}. Recargue a tiempo."
+
+# CLI device authorization messages
+cli.device_id_missing: "El ID del dispositivo es obligatorio"
+cli.device_metadata_too_long: "Los metadatos del dispositivo CLI son demasiado largos"
+cli.device_code_invalid: "Código de dispositivo no válido"
+cli.authorization_code_missing: "El código de autorización es obligatorio"
+cli.authorization_not_found: "No se encontró la solicitud de autorización"
+cli.authorization_token_create_failed: "No se pudo crear el token CLI"
+
+# Subscription messages
+subscription.tier_rank_reserved: "El rango del plan de suscripción ya está reservado"
+subscription.tier_rank_required: "Los planes de suscripción habilitados deben definir un rango positivo"
+subscription.lifecycle_fields_immutable: "Este plan de suscripción ya está referenciado. Deshabilítelo o cree una nueva versión en lugar de cambiar campos críticos del ciclo de vida."
+subscription.purchase_pending_migration: "El inicio de compra de suscripción está en migración. Actualice y use el nuevo flujo de suscripción."
+subscription.payment_mode_required: "El modo de pago es obligatorio"
+subscription.request_id_required: "El ID de solicitud es obligatorio"
+subscription.stripe_price_requires_mode: "El Stripe Price ID requiere el modo de pago recurrente de Stripe"
+subscription.capability.single_lifecycle: "El ciclo de vida de suscripción única está habilitado"
+subscription.capability.current_entitlement: "El derecho actual del contrato está disponible"
+subscription.capability.recurring_binding: "La vinculación recurrente del proveedor está disponible"
+subscription.capability.change_intent: "El estado de intención de cambio de suscripción está disponible"

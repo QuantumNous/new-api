@@ -49,6 +49,19 @@ token.expired: "Este token expirou"
 token.exhausted: "Este token não tem cota suficiente"
 token.status_unavailable: "O status deste token está indisponível"
 token.db_error: "Token inválido: erro de consulta ao banco de dados, entre em contato com o administrador"
+token.batch_group_cache_sync_pending: "Os grupos de tokens foram atualizados, mas a sincronização do cache está pendente. Repita a mesma solicitação."
+token.client_ip_invalid: "Não foi possível analisar o endereço IP do cliente"
+token.ip_not_allowed: "Seu IP não tem permissão para usar este token"
+token.group_no_permission: "Sem permissão para acessar o grupo {{.Group}}"
+token.group_deprecated: "O grupo {{.Group}} está obsoleto"
+
+# CLI device authorization messages
+cli.device_id_missing: "ID do dispositivo é obrigatório"
+cli.device_metadata_too_long: "Os metadados do dispositivo CLI são muito longos"
+cli.device_code_invalid: "Código do dispositivo inválido"
+cli.authorization_code_missing: "Código de autorização é obrigatório"
+cli.authorization_not_found: "Solicitação de autorização não encontrada"
+cli.authorization_token_create_failed: "Falha ao criar token CLI"
 
 # Redemption messages
 redemption.name_length: "O nome do código de resgate deve ter entre 1 e 20 caracteres"
@@ -120,8 +133,13 @@ quota.user_insufficient: "Cota de usuário insuficiente, cota restante: {{.Quota
 quota.topup_hint: "Adicione créditos em {{.URL}} para continuar."
 quota.pre_consume_failed: "Falha na pré-dedução de cota, cota restante do usuário: {{.Remaining}}, cota de pré-dedução necessária: {{.Required}}"
 quota.subscription_insufficient: "Cota de assinatura insuficiente ou nenhuma assinatura configurada: {{.Detail}}"
+quota.subscription_window_5h_exceeded: "A janela de uso de 5 horas do seu plano está cheia. A capacidade é liberada conforme o uso antigo expira (cerca de {{.Minutes}} minutos para a próxima liberação). Adicione saldo para continuar sem esperar."
+quota.subscription_window_week_exceeded: "A janela de uso semanal do seu plano está cheia. Ela reinicia em cerca de {{.Hours}} horas. Adicione saldo para continuar sem esperar."
 quota.token_insufficient: "Cota do token insuficiente, cota restante do token: {{.Remain}}, cota necessária: {{.Required}}"
 quota.user_insufficient_need: "Cota de usuário insuficiente, cota do usuário: {{.Quota}}, cota necessária: {{.Required}}"
+
+# Log messages
+log.invalid_user_id: "ID de usuário inválido"
 
 # Subscription messages
 subscription.not_enabled: "O plano de assinatura não está habilitado"
@@ -135,6 +153,18 @@ subscription.reset_cycle_gt_zero: "O ciclo de redefinição personalizado deve s
 subscription.purchase_max: "O limite de compra deste plano foi atingido"
 subscription.invalid_id: "ID de assinatura inválido"
 subscription.invalid_user_id: "ID de usuário inválido"
+subscription.invalid_recurring_id: "ID de assinatura recorrente inválido"
+subscription.tier_rank_reserved: "A classificação do plano de assinatura já está reservada"
+subscription.tier_rank_required: "Planos de assinatura habilitados devem definir uma classificação positiva"
+subscription.lifecycle_fields_immutable: "Este plano de assinatura já está referenciado. Desabilite-o ou crie uma nova versão em vez de alterar campos críticos do ciclo de vida."
+subscription.purchase_pending_migration: "O início da compra da assinatura está em migração. Atualize e use o novo fluxo de assinatura."
+subscription.payment_mode_required: "O modo de pagamento é obrigatório"
+subscription.request_id_required: "O ID da solicitação é obrigatório"
+subscription.stripe_price_requires_mode: "O Stripe Price ID requer o modo de pagamento recorrente do Stripe"
+subscription.capability.single_lifecycle: "O ciclo de vida de assinatura única está habilitado"
+subscription.capability.current_entitlement: "O direito atual do contrato está disponível"
+subscription.capability.recurring_binding: "A vinculação recorrente do provedor está disponível"
+subscription.capability.change_intent: "O status da intenção de alteração da assinatura está disponível"
 
 # Payment messages
 payment.not_configured: "As informações de pagamento não foram configuradas pelo administrador"
@@ -241,6 +271,10 @@ deployment.not_found: "Detalhes do contêiner não encontrados"
 performance.disk_cache_cleared: "O cache de disco inativo foi limpo"
 performance.stats_reset: "As estatísticas foram redefinidas"
 performance.gc_executed: "GC foi executado"
+
+# Model health messages
+model_health.invalid_hours: "O período em horas deve ser 24, 168 ou 720"
+model_health.model_required: "O modelo é obrigatório"
 
 # Ability messages
 ability.db_corrupted: "A consistência do banco de dados foi comprometida"

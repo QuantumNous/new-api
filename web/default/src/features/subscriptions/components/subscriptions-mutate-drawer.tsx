@@ -22,7 +22,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -51,6 +53,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import {
   SideDrawerSection,
   sideDrawerContentClassName,
@@ -83,6 +86,42 @@ interface Props {
   currentRow?: PlanRecord
 }
 
+type PlanPaymentMode =
+  | 'stripe_recurring'
+  | 'balance_one_period'
+  | 'external_one_period'
+
+type LifecyclePlan = PlanRecord['plan'] & {
+  tier_rank?: number | null
+  lifecycle_referenced?: boolean
+  has_lifecycle_references?: boolean
+  referenced?: boolean
+}
+
+const PAYMENT_MODE_OPTIONS: { value: PlanPaymentMode; labelKey: string }[] = [
+  { value: 'stripe_recurring', labelKey: 'Stripe recurring' },
+  { value: 'balance_one_period', labelKey: 'Balance one period' },
+  { value: 'external_one_period', labelKey: 'External one period' },
+]
+
+function getLifecyclePlan(
+  plan: PlanRecord['plan'] | undefined
+): LifecyclePlan | undefined {
+  return plan as LifecyclePlan | undefined
+}
+
+function getInitialPaymentModes(
+  plan: LifecyclePlan | undefined
+): PlanPaymentMode[] {
+  const modes = new Set<PlanPaymentMode>()
+  if (plan?.stripe_price_id) modes.add('stripe_recurring')
+  if (plan?.allow_balance_pay !== false) modes.add('balance_one_period')
+  if (plan?.creem_product_id || plan?.waffo_pancake_product_id) {
+    modes.add('external_one_period')
+  }
+  return Array.from(modes)
+}
+
 export function SubscriptionsMutateDrawer({
   open,
   onOpenChange,
@@ -94,9 +133,18 @@ export function SubscriptionsMutateDrawer({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [groupOptions, setGroupOptions] = useState<string[]>([])
   const [creatingPancakeProduct, setCreatingPancakeProduct] = useState(false)
+  const [tierRank, setTierRank] = useState('')
+  const [tierRankError, setTierRankError] = useState('')
+  const [paymentModes, setPaymentModes] = useState<PlanPaymentMode[]>([])
   const [pancakeProducts, setPancakeProducts] = useState<
     { id: string; name: string; status: string }[]
   >([])
+  const lifecyclePlan = getLifecyclePlan(currentRow?.plan)
+  const hasLifecycleReferences = Boolean(
+    lifecyclePlan?.lifecycle_referenced ||
+    lifecyclePlan?.has_lifecycle_references ||
+    lifecyclePlan?.referenced
+  )
 
   const schema = getPlanFormSchema(t)
   const form = useForm<PlanFormValues>({
@@ -108,9 +156,19 @@ export function SubscriptionsMutateDrawer({
     if (open) {
       if (currentRow?.plan) {
         form.reset(planToFormValues(currentRow.plan))
+        const nextPlan = getLifecyclePlan(currentRow.plan)
+        setTierRank(
+          nextPlan?.tier_rank && nextPlan.tier_rank > 0
+            ? String(nextPlan.tier_rank)
+            : ''
+        )
+        setPaymentModes(getInitialPaymentModes(nextPlan))
       } else {
         form.reset(PLAN_FORM_DEFAULTS)
+        setTierRank('')
+        setPaymentModes(['balance_one_period'])
       }
+      setTierRankError('')
       getGroups()
         .then((res) => {
           if (res.success) setGroupOptions(res.data || [])
@@ -146,10 +204,45 @@ export function SubscriptionsMutateDrawer({
     watchedTitle.trim().length > 0 &&
     Number(watchedPrice ?? 0) > 0
 
+  const togglePaymentMode = (mode: PlanPaymentMode, checked: boolean) => {
+    setPaymentModes((prev) => {
+      if (checked) return Array.from(new Set([...prev, mode]))
+      return prev.filter((item) => item !== mode)
+    })
+  }
+
   const onSubmit = async (values: PlanFormValues) => {
+    const normalizedTierRank = Number(tierRank)
+    if (
+      values.enabled &&
+      (!Number.isInteger(normalizedTierRank) || normalizedTierRank <= 0)
+    ) {
+      setTierRankError(t('Tier rank must be a positive integer'))
+      return
+    }
+    if (
+      paymentModes.includes('stripe_recurring') &&
+      !values.stripe_price_id?.trim()
+    ) {
+      toast.error(t('Stripe recurring payment mode requires Stripe Price ID.'))
+      return
+    }
+    if (
+      values.stripe_price_id?.trim() &&
+      !paymentModes.includes('stripe_recurring')
+    ) {
+      toast.error(t('Stripe Price ID requires Stripe recurring payment mode.'))
+      return
+    }
+    setTierRankError('')
     setIsSubmitting(true)
     try {
       const payload = formValuesToPlanPayload(values)
+      const nextPlan = payload.plan as Partial<LifecyclePlan>
+      nextPlan.tier_rank =
+        Number.isInteger(normalizedTierRank) && normalizedTierRank > 0
+          ? normalizedTierRank
+          : null
       if (isEdit && currentRow?.plan?.id) {
         const res = await updatePlan(currentRow.plan.id, payload)
         if (res.success) {
@@ -342,6 +435,7 @@ export function SubscriptionsMutateDrawer({
                           {...field}
                           type='number'
                           min={0}
+                          disabled={hasLifecycleReferences}
                           onChange={(e) =>
                             field.onChange(parseFloat(e.target.value) || 0)
                           }
@@ -350,6 +444,121 @@ export function SubscriptionsMutateDrawer({
                       <FormDescription>
                         {t(
                           '0 means unlimited. The value is converted to quota units when saved.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='pix_price_brl'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Pix monthly price (BRL)')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          step='0.000001'
+                          min={0}
+                          value={field.value || ''}
+                          onChange={(e) => field.onChange(e.target.value)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='upi_price_inr'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('UPI monthly price (INR)')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          step='0.000001'
+                          min={0}
+                          value={field.value || ''}
+                          onChange={(e) => field.onChange(e.target.value)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <FormItem>
+                  <FormLabel>{t('Tier Rank')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      value={tierRank}
+                      type='number'
+                      min={1}
+                      step={1}
+                      disabled={hasLifecycleReferences}
+                      onChange={(e) => setTierRank(e.target.value)}
+                    />
+                  </FormControl>
+                  {tierRankError ? (
+                    <p className='text-destructive text-sm'>{tierRankError}</p>
+                  ) : null}
+                </FormItem>
+
+                <FormField
+                  control={form.control}
+                  name='window_5h_amount'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('5-hour window limit')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          onChange={(e) =>
+                            field.onChange(parseFloat(e.target.value) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          '0 disables this window limit. The value is converted to quota units when saved.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='window_week_amount'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('7-day window limit')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          onChange={(e) =>
+                            field.onChange(parseFloat(e.target.value) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          '0 disables this window limit. The value is converted to quota units when saved.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -374,6 +583,7 @@ export function SubscriptionsMutateDrawer({
                           field.onChange(v === '__none__' ? '' : v)
                         }
                         value={field.value || ''}
+                        disabled={hasLifecycleReferences}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -422,6 +632,111 @@ export function SubscriptionsMutateDrawer({
                   )}
                 />
               </div>
+
+              {/* 面向用户的价值展示字段（纯展示，不参与计费） */}
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
+                <FormField
+                  control={form.control}
+                  name='model_count'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Model count')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value, 10) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('0 shows "All models"')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='concurrency'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Concurrency')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value, 10) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>{t('0 hides it')}</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='media_credits_monthly'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Media credits per month')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value, 10) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Credits for image & video generation. 0 hides it.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='feature_lines'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Value highlights')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        rows={4}
+                        placeholder={t('One value per line')}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'One bullet per line, shown on the plan card as selling points.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {hasLifecycleReferences ? (
+                <Alert>
+                  <AlertDescription>
+                    {t(
+                      'This plan already has lifecycle references. Disable it or create a new version instead of changing lifecycle-critical fields.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
 
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                 <FormField
@@ -505,6 +820,7 @@ export function SubscriptionsMutateDrawer({
                         ]}
                         onValueChange={field.onChange}
                         value={field.value}
+                        disabled={hasLifecycleReferences}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -538,6 +854,7 @@ export function SubscriptionsMutateDrawer({
                             {...field}
                             type='number'
                             min={1}
+                            disabled={hasLifecycleReferences}
                             onChange={(e) =>
                               field.onChange(parseInt(e.target.value, 10) || 0)
                             }
@@ -559,6 +876,7 @@ export function SubscriptionsMutateDrawer({
                             {...field}
                             type='number'
                             min={1}
+                            disabled={hasLifecycleReferences}
                             onChange={(e) =>
                               field.onChange(parseInt(e.target.value, 10) || 0)
                             }
@@ -627,7 +945,9 @@ export function SubscriptionsMutateDrawer({
                           {...field}
                           type='number'
                           min={0}
-                          disabled={resetPeriod !== 'custom'}
+                          disabled={
+                            resetPeriod !== 'custom' || hasLifecycleReferences
+                          }
                           onChange={(e) =>
                             field.onChange(parseInt(e.target.value, 10) || 0)
                           }
@@ -654,12 +974,41 @@ export function SubscriptionsMutateDrawer({
                   <FormItem>
                     <FormLabel>{t('Stripe Price ID')}</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder='price_...' />
+                      <Input
+                        {...field}
+                        placeholder='price_...'
+                        disabled={hasLifecycleReferences}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              <FormItem>
+                <FormLabel>{t('Payment Modes')}</FormLabel>
+                <div className='grid gap-2 sm:grid-cols-3'>
+                  {PAYMENT_MODE_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className='border-input flex items-center gap-2 rounded-md border px-3 py-2 text-sm'
+                    >
+                      <Checkbox
+                        checked={paymentModes.includes(option.value)}
+                        disabled={hasLifecycleReferences}
+                        onCheckedChange={(checked) =>
+                          togglePaymentMode(option.value, checked === true)
+                        }
+                      />
+                      <span>{t(option.labelKey)}</span>
+                    </label>
+                  ))}
+                </div>
+                <FormDescription>
+                  {t('Stripe recurring payment mode requires Stripe Price ID.')}{' '}
+                  {t('Stripe Price ID requires Stripe recurring payment mode.')}
+                </FormDescription>
+              </FormItem>
 
               <FormField
                 control={form.control}

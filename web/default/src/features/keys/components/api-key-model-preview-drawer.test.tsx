@@ -20,7 +20,11 @@ import { beforeAll, describe, expect, test } from 'bun:test'
 import { createInstance } from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
-import { ApiKeyModelPreviewDrawer } from './api-key-model-preview-drawer'
+import { Drawer } from '@/components/ui/drawer'
+import {
+  ApiKeyModelPreviewDrawer,
+  ApiKeyModelPreviewDrawerContent,
+} from './api-key-model-preview-drawer'
 
 const testI18n = createInstance()
 
@@ -38,6 +42,8 @@ describe('ApiKeyModelPreviewDrawer', () => {
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <ApiKeyModelPreviewDrawer
+          defaultRatio={0}
+          modelRatios={{}}
           drawerDescription='This preview shows the models the new API key can call with the current settings.'
           drawerTitle='Models available to the new API key'
           emptyDescription='Review the new API key and model access settings.'
@@ -68,6 +74,8 @@ describe('ApiKeyModelPreviewDrawer', () => {
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <ApiKeyModelPreviewDrawer
+          defaultRatio={1}
+          modelRatios={{}}
           drawerDescription='This preview follows the current API key and model access settings.'
           drawerTitle='Models available to this API key'
           emptyDescription='Review the API key and model access settings.'
@@ -84,6 +92,42 @@ describe('ApiKeyModelPreviewDrawer', () => {
     expect(html).toContain('Effective 0 / 4 in account')
     expect(html).toContain(
       'This preview follows the current API key and model access settings.'
+    )
+  })
+
+  test('passes an explicit zero ratio through the opened mobile preview', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <Drawer open>
+          <ApiKeyModelPreviewDrawerContent
+            defaultRatio={1}
+            modelRatios={{ 'mobile-model': 0 }}
+            drawerDescription='This preview shows the models the new API key can call with the current settings.'
+            drawerTitle='Models available to the new API key'
+            emptyDescription='Review the new API key and model access settings.'
+            emptyTitle='No models available to the new API key'
+            models={[
+              {
+                id: 'mobile-model',
+                allowlist_match_key: 'mobile-model',
+                vendor: null,
+                supported_endpoint_types: ['openai'],
+                availability_status: 'available',
+              },
+            ]}
+            totalCount={1}
+            scopeKey='standard'
+            scopeTitle='Standard'
+            summary='1 model available'
+          />
+        </Drawer>
+      </I18nextProvider>
+    )
+
+    expect(html).toContain('Models available to the new API key')
+    expect(html).toContain('Exclusive ratio 0×')
+    expect(html).toContain(
+      'This exclusive ratio overrides the default ratio 1×; the two are not multiplied.'
     )
   })
 })

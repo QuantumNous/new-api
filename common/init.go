@@ -128,6 +128,10 @@ func InitEnv() {
 	SearchRateLimitEnable = GetEnvOrDefaultBool("SEARCH_RATE_LIMIT_ENABLE", true)
 	SearchRateLimitNum = GetEnvOrDefault("SEARCH_RATE_LIMIT", 10)
 	SearchRateLimitDuration = int64(GetEnvOrDefault("SEARCH_RATE_LIMIT_DURATION", 60))
+
+	SubscriptionPaymentRateLimitEnable = GetEnvOrDefaultBool("SUBSCRIPTION_PAYMENT_RATE_LIMIT_ENABLE", true)
+	SubscriptionPaymentRateLimitNum = GetEnvOrDefault("SUBSCRIPTION_PAYMENT_RATE_LIMIT", 120)
+	SubscriptionPaymentRateLimitDuration = int64(GetEnvOrDefault("SUBSCRIPTION_PAYMENT_RATE_LIMIT_DURATION", 20*60))
 	initConstantEnv()
 }
 

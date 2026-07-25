@@ -37,15 +37,27 @@ export function InvitationRewardSummary(props: InvitationRewardSummaryProps) {
   const sameReward =
     props.summary.inviter_reward_usd === props.summary.invitee_reward_usd
 
-  const rewardCopy = sameReward
-    ? t(
-        'Invite friends to sign up and complete their first top-up, and you both receive {{reward}} in API credits.',
-        { reward: inviterReward }
-      )
-    : t(
-        'Invite friends to sign up and complete their first top-up. You receive {{inviterReward}} and your friend receives {{inviteeReward}} in API credits.',
-        { inviterReward, inviteeReward }
-      )
+  let rewardCopy: string
+  if (props.summary.reward_mode === 'subscription') {
+    rewardCopy = t(
+      'Invite friends to subscribe: they get {{discount}} off their first month, and you receive {{reward}} in balance — unlocked {{days}} days after payment.',
+      {
+        discount: formatInvitationUSD(props.summary.first_sub_discount_usd),
+        reward: inviterReward,
+        days: props.summary.unlock_delay_days,
+      }
+    )
+  } else if (sameReward) {
+    rewardCopy = t(
+      'Invite friends to sign up and complete their first top-up, and you both receive {{reward}} in API credits.',
+      { reward: inviterReward }
+    )
+  } else {
+    rewardCopy = t(
+      'Invite friends to sign up and complete their first top-up. You receive {{inviterReward}} and your friend receives {{inviteeReward}} in API credits.',
+      { inviterReward, inviteeReward }
+    )
+  }
 
   const rewardLimit = props.summary.inviter_reward_max_count
   let limitCopy: string

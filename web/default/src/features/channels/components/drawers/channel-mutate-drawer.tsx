@@ -121,6 +121,7 @@ import {
   ERROR_MESSAGES,
   FIELD_DESCRIPTIONS,
   FIELD_PLACEHOLDERS,
+  CREATE_MODEL_FETCHABLE_TYPES,
   MODEL_FETCHABLE_TYPES,
 } from '../../constants'
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
@@ -740,8 +741,11 @@ export function ChannelMutateDrawer({
   // Handle fetching models from upstream
   const handleFetchModels = useCallback(async () => {
     const type = form.getValues('type')
+    const fetchableTypes = isEditing
+      ? MODEL_FETCHABLE_TYPES
+      : CREATE_MODEL_FETCHABLE_TYPES
 
-    if (!MODEL_FETCHABLE_TYPES.has(type)) {
+    if (!fetchableTypes.has(type)) {
       toast.error(t('This channel type does not support fetching models'))
       return
     }
@@ -2264,7 +2268,10 @@ export function ChannelMutateDrawer({
                               />
                               {t('Fill All Models')}
                             </Button>
-                            {MODEL_FETCHABLE_TYPES.has(currentType) && (
+                            {(isEditing
+                              ? MODEL_FETCHABLE_TYPES
+                              : CREATE_MODEL_FETCHABLE_TYPES
+                            ).has(currentType) && (
                               <Button
                                 type='button'
                                 variant='outline'
@@ -2927,7 +2934,9 @@ export function ChannelMutateDrawer({
                         title={t('Channel Extra Settings')}
                         icon={<Settings className='h-4 w-4' />}
                       />
-                      {(currentType === 1 || currentType === 14) && (
+                      {(currentType === 1 ||
+                        currentType === 14 ||
+                        currentType === 57) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <SubHeading
                             title={t('Field passthrough controls')}

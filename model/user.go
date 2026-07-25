@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
@@ -634,7 +635,10 @@ func (user *User) insertWithTx(tx *gorm.DB, inviterId int, registrationIP string
 		return result.Error
 	}
 
-	return claimRegistrationIPNewUserBonusInTx(tx, user)
+	if err := claimRegistrationIPNewUserBonusInTx(tx, user); err != nil {
+		return err
+	}
+	return EnqueueAdsSignupInTx(tx, user)
 }
 
 // InsertWithTx inserts a new user within an existing transaction.
@@ -666,6 +670,13 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 
 	if user.NewUserBonusGiven && user.Quota > 0 {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(user.Quota)))
+	}
+
+	// 纯套餐模式：注册成功（风控通过）后自动发放 Free 套餐。发放失败不阻断注册。
+	if setting.FreePlanOnSignupEnabled && user.Role <= common.RoleCommonUser {
+		if err := GrantFreePlanToUser(user.Id); err != nil {
+			common.SysError(fmt.Sprintf("failed to grant free plan to user %d: %s", user.Id, err.Error()))
+		}
 	}
 }
 
@@ -1173,6 +1184,50 @@ func decreaseUserQuota(id int, quota int) (err error) {
 		return err
 	}
 	return err
+}
+
+// PreConsumeUserQuota atomically debits quota from a user IFF they have at
+// least that much, using a single conditional UPDATE. Returns ok=false (no
+// error) when the balance is insufficient.
+//
+// Multi-node safety (Rule 11): correctness lives entirely in the DB. The
+// `quota >= ?` guard is evaluated inside the same UPDATE that performs the
+// decrement, so two nodes racing to charge the same wallet can never overdraw —
+// at most one conditional write succeeds when funds are tight. No process-local
+// balance state is consulted. The Redis quota cache is best-effort synced after
+// a committed debit (same pattern as DecreaseUserQuota).
+func PreConsumeUserQuota(id int, quota int) (ok bool, err error) {
+	if quota < 0 {
+		return false, errors.New("quota 不能为负数！")
+	}
+	if quota == 0 {
+		return true, nil
+	}
+	result := DB.Model(&User{}).
+		Where("id = ? AND quota >= ?", id, quota).
+		Update("quota", gorm.Expr("quota - ?", quota))
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return false, nil
+	}
+	gopool.Go(func() {
+		if err := cacheDecrUserQuota(id, int64(quota)); err != nil {
+			common.SysLog("failed to sync user quota cache after pre-consume: " + err.Error())
+		}
+	})
+	return true, nil
+}
+
+// RefundUserQuota credits quota back to a user (e.g. when provisioning fails
+// after a pre-charge, or on early stop settlement). Thin wrapper over the
+// DB-backed increase path so the refund is durable and cache-synced.
+func RefundUserQuota(id int, quota int) error {
+	if quota <= 0 {
+		return nil
+	}
+	return IncreaseUserQuota(id, quota, true)
 }
 
 func DeltaUpdateUserQuota(id int, delta int) (err error) {

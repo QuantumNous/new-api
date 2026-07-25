@@ -1,7 +1,6 @@
 package dto
 
 import (
-	"encoding/json"
 	"strings"
 
 	"github.com/QuantumNous/new-api/types"
@@ -9,12 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type OpenAIResponsesCompactionRequest struct {
-	Model              string          `json:"model"`
-	Input              json.RawMessage `json:"input,omitempty"`
-	Instructions       json.RawMessage `json:"instructions,omitempty"`
-	PreviousResponseID string          `json:"previous_response_id,omitempty"`
-}
+// OpenAIResponsesCompactionRequest intentionally shares the complete field
+// layout of OpenAIResponsesRequest. Compact has different stream semantics,
+// but maintaining a second partial DTO silently drops newly supported
+// Responses fields during request binding before the Codex adaptor can apply
+// its endpoint-specific allow/deny rules.
+type OpenAIResponsesCompactionRequest OpenAIResponsesRequest
 
 func (r *OpenAIResponsesCompactionRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var parts []string

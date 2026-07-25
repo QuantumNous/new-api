@@ -45,12 +45,23 @@ interface InvitationRecordsCardProps {
   onPageChange: (page: number) => void
 }
 
-function getStatusPresentation(status: InvitationStatus) {
+function getStatusPresentation(
+  status: InvitationStatus,
+  subscriptionMode: boolean
+) {
   if (status === 'granted') {
     return { label: 'Reward granted', variant: 'default' as const }
   }
   if (status === 'pending') {
-    return { label: 'Awaiting top-up', variant: 'secondary' as const }
+    return subscriptionMode
+      ? { label: 'Awaiting subscription', variant: 'secondary' as const }
+      : { label: 'Awaiting top-up', variant: 'secondary' as const }
+  }
+  if (status === 'locked') {
+    return { label: 'Locked', variant: 'secondary' as const }
+  }
+  if (status === 'revoked') {
+    return { label: 'Reward revoked', variant: 'destructive' as const }
   }
   return { label: 'Reward unavailable', variant: 'destructive' as const }
 }
@@ -60,6 +71,8 @@ function getReasonLabel(reason: InvitationReason): string {
     inviter_limit_reached: 'You reached the referral reward limit',
     inviter_missing: 'Reward unavailable',
     unavailable: 'Reward unavailable',
+    refunded: "Your friend's subscription was refunded",
+    disputed: "Your friend's payment was disputed",
   }
   return reason ? labels[reason] : ''
 }
@@ -141,7 +154,10 @@ export function InvitationRecordsCard({
             </TableHeader>
             <TableBody>
               {data.items.map((record) => {
-                const status = getStatusPresentation(record.status)
+                const status = getStatusPresentation(
+                  record.status,
+                  data.summary?.reward_mode === 'subscription'
+                )
                 const reason = getReasonLabel(record.reason)
                 return (
                   <TableRow key={record.id}>
@@ -153,6 +169,13 @@ export function InvitationRecordsCard({
                     </TableCell>
                     <TableCell>
                       <Badge variant={status.variant}>{t(status.label)}</Badge>
+                      {record.status === 'locked' && record.unlock_at > 0 ? (
+                        <p className='text-muted-foreground mt-1 text-xs'>
+                          {t('Unlocks {{date}}', {
+                            date: formatTimestamp(record.unlock_at),
+                          })}
+                        </p>
+                      ) : null}
                       {reason ? (
                         <p className='text-muted-foreground mt-1 text-xs'>
                           {t(reason)}

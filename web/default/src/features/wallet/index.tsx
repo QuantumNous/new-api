@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { PartyPopper } from 'lucide-react'
+import { PartyPopper, Wallet2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
@@ -25,6 +25,7 @@ import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { resumeMixpanelAfterRecallClaim } from '@/lib/analytics/mixpanel'
 import { trackTopupOnce } from '@/lib/analytics/topup-tracking'
 import { getSelf } from '@/lib/api'
+import { formatQuota } from '@/lib/format'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,17 +36,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Separator } from '@/components/ui/separator'
 import { TitledCard } from '@/components/ui/titled-card'
 import { SectionPageLayout } from '@/components/layout'
 import { consumePendingPostLoginRedirect } from '@/features/auth/lib/storage'
 import { getCardStatus } from '@/features/onboarding/api'
 import { RecallClaimProvider } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
-import { getPaddleTopUpStatus, isApiSuccess } from './api'
+import { getPaddleTopUpStatus, isApiSuccess, resumeStripeTopup } from './api'
 import { BillingHistoryPanel } from './components/dialogs/billing-history-dialog'
 import { StripeEmbeddedCheckoutDialog } from './components/dialogs/stripe-embedded-checkout-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
-import { WalletStatsCard } from './components/wallet-stats-card'
 import {
   PADDLE_ORDER_SEARCH_PARAM,
   PADDLE_TRANSACTION_SEARCH_PARAM,
@@ -73,7 +74,12 @@ import {
   removeRecallClaimFromSearch,
   validateRecallClaim,
 } from './lib/recall-claim'
-import type { UserWalletData, PresetAmount, RecallClaimView } from './types'
+import type {
+  UserWalletData,
+  PresetAmount,
+  RecallClaimView,
+  TopupRecord,
+} from './types'
 
 interface WalletProps {
   initialShowHistory?: boolean
@@ -175,7 +181,8 @@ export function Wallet(props: WalletProps) {
   const [paymentLoadingAmount, setPaymentLoadingAmount] = useState<
     number | null
   >(null)
-  const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const [topupDialogOpen, setTopupDialogOpen] = useState(false)
+  const [hasRechargeHistory, setHasRechargeHistory] = useState(false)
   const [paddleCheckoutNotice, setPaddleCheckoutNotice] =
     useState<PaddleCheckoutNotice | null>(null)
   const handledPaddleTransactionRef = useRef<string | null>(null)
@@ -198,7 +205,27 @@ export function Wallet(props: WalletProps) {
     processPayment,
     embeddedCheckout,
     closeEmbeddedCheckout,
+    openStripeCheckout,
+    openStripeCheckoutResponse,
   } = usePayment()
+
+  const handleResumeStripeCheckout = useCallback(
+    async (record: TopupRecord) => {
+      try {
+        const response = await resumeStripeTopup(record.trade_no)
+        if (!isApiSuccess(response)) {
+          toast.error(t('Payment request failed'))
+          return
+        }
+        if (!openStripeCheckoutResponse(response)) {
+          toast.error(t('Payment request failed'))
+        }
+      } catch (_error) {
+        toast.error(t('Payment request failed'))
+      }
+    },
+    [openStripeCheckoutResponse, t]
+  )
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -401,10 +428,9 @@ export function Wallet(props: WalletProps) {
     // Clean the query param immediately so a refresh doesn't re-trigger this.
     window.history.replaceState({}, '', window.location.pathname)
 
-    // The card-binding bonus is granted by an async Stripe webhook, which may not
-    // have arrived yet at the moment we land back here. Poll the card status until
-    // the binding is confirmed, then show success and refresh; otherwise tell the
-    // user it's still processing.
+    // Card binding is confirmed by an async Stripe webhook, which may not have
+    // arrived yet when we land back here. Poll until the binding is confirmed,
+    // then refresh the user state; otherwise explain that confirmation is pending.
     const POLL_ATTEMPTS = 6
     const POLL_INTERVAL_MS = 2000
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -431,7 +457,6 @@ export function Wallet(props: WalletProps) {
             toast.dismiss(pendingToast)
             await refreshAuthUser()
             await fetchUser()
-            // Celebratory confirmation that the bonus has landed.
             setCardBoundDialogOpen(true)
             return
           }
@@ -440,14 +465,10 @@ export function Wallet(props: WalletProps) {
         }
         await sleep(POLL_INTERVAL_MS)
       }
-      // Webhook hasn't landed in time; reassure the user instead of claiming success.
+      // Webhook hasn't landed in time; avoid claiming success prematurely.
       trackAdsFunnelEvent('flatkey_cardbind_pending')
       toast.dismiss(pendingToast)
-      toast.info(
-        t(
-          'Recharge successful. Your bonus is being credited. Refresh in a moment.'
-        )
-      )
+      toast.info(t('Confirming your card binding…'))
       await refreshAuthUser()
       await fetchUser()
     }
@@ -795,13 +816,6 @@ export function Wallet(props: WalletProps) {
     }
   }
 
-  const handleSubscriptionAvailabilityChange = useCallback(
-    (available: boolean) => {
-      setShowSubscriptionPanel(available)
-    },
-    []
-  )
-
   // Stable so the embedded Stripe Checkout effect (which depends on this
   // callback) does not re-run and remount the form on every wallet re-render.
   const handleEmbeddedCheckoutOpenChange = useCallback(
@@ -837,10 +851,25 @@ export function Wallet(props: WalletProps) {
         .join(', ')
     : ''
 
+  const handleRechargeHistoryAvailability = useCallback(
+    (available: boolean) => setHasRechargeHistory(available),
+    []
+  )
+
   return (
     <>
       <SectionPageLayout>
-        <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          <span className='mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3'>
+            <span>{t('Plans & wallet')}</span>
+            <span className='text-muted-foreground inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium'>
+              <span>{t('Available balance')}:</span>
+              <span className='font-mono tabular-nums'>
+                {userLoading ? '-' : formatQuota(user?.quota ?? 0)}
+              </span>
+            </span>
+          </span>
+        </SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
             {paddleCheckoutNotice ? (
@@ -910,68 +939,93 @@ export function Wallet(props: WalletProps) {
               </Alert>
             ) : null}
 
-            <WalletStatsCard user={user} loading={userLoading} />
-
-            <div
-              className={
-                showSubscriptionPanel
-                  ? 'grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] xl:items-start'
-                  : 'grid gap-4'
+            <RecallClaimProvider
+              claim={recallClaimStatus === 'active' ? recallClaim : undefined}
+              view={
+                recallClaimStatus === 'active'
+                  ? recallClaimView || undefined
+                  : undefined
               }
             >
-              <div id='wallet-top-up-packages' className='scroll-mt-4'>
-                <RechargeFormCard
-                  topupInfo={topupInfo}
-                  presetAmounts={presetAmounts}
-                  selectedPreset={selectedPreset}
-                  onSelectPreset={handleSelectPreset}
-                  onStripeTopUp={handleStripeTopUp}
-                  paymentLoadingAmount={
-                    processing ? paymentLoadingAmount : null
-                  }
-                  loading={topupLoading}
-                  checkoutCurrency={checkoutCurrency}
-                  onCheckoutCurrencyChange={handleCheckoutCurrencyChange}
-                  showCurrencySelector={
-                    shouldShowCurrencySelector(topupInfo?.client_region) ||
-                    normalizeStripeCheckoutCurrency(
-                      props.initialCheckoutSearch?.currency
-                    ) != null
-                  }
+              <SubscriptionPlansCard
+                topupInfo={topupInfo}
+                userQuota={user?.quota}
+                onPurchaseSuccess={fetchUser}
+                onOpenStripeCheckout={openStripeCheckout}
+              />
+            </RecallClaimProvider>
+
+            <TitledCard
+              title={t('Top-ups')}
+              description={t(
+                'Plan usage is used first. Wallet balance is used automatically after the plan runs out.'
+              )}
+              icon={<Wallet2 className='h-4 w-4' />}
+              iconClassName='bg-[#f0ebfa] text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'
+              action={
+                <Button
+                  className='bg-[#070707] text-white hover:bg-[#4c1d95] dark:bg-white dark:text-black'
+                  onClick={() => setTopupDialogOpen(true)}
+                >
+                  {t('Top up')}
+                </Button>
+              }
+              contentClassName={hasRechargeHistory ? 'space-y-4' : 'hidden'}
+            >
+              <div
+                id='wallet-billing-history'
+                className={hasRechargeHistory ? 'scroll-mt-4' : 'hidden'}
+              >
+                {hasRechargeHistory && <Separator className='mb-4' />}
+                {hasRechargeHistory && (
+                  <div className='mb-3'>
+                    <h3 className='text-sm font-semibold'>
+                      {t('Recharge History')}
+                    </h3>
+                    <p className='text-muted-foreground mt-0.5 text-xs'>
+                      {t('View your top-up records and payment receipts.')}
+                    </p>
+                  </div>
+                )}
+                <BillingHistoryPanel
+                  scrollAreaClassName='max-h-none pr-0 sm:pr-0'
+                  onAvailabilityChange={handleRechargeHistoryAvailability}
+                  onResumeStripeCheckout={handleResumeStripeCheckout}
+                  onRefundSuccess={fetchUser}
                 />
               </div>
-
-              <RecallClaimProvider
-                claim={recallClaimStatus === 'active' ? recallClaim : undefined}
-                view={
-                  recallClaimStatus === 'active'
-                    ? recallClaimView || undefined
-                    : undefined
-                }
-              >
-                <SubscriptionPlansCard
-                  topupInfo={topupInfo}
-                  onAvailabilityChange={handleSubscriptionAvailabilityChange}
-                  userQuota={user?.quota}
-                  onPurchaseSuccess={fetchUser}
-                />
-              </RecallClaimProvider>
-            </div>
-
-            <div id='wallet-billing-history' className='scroll-mt-4'>
-              <TitledCard
-                title={t('Billing History')}
-                description={t(
-                  'View your topup transaction records and payment history'
-                )}
-                contentClassName='space-y-3'
-              >
-                <BillingHistoryPanel scrollAreaClassName='max-h-none pr-0 sm:pr-0' />
-              </TitledCard>
-            </div>
+            </TitledCard>
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
+
+      <Dialog open={topupDialogOpen} onOpenChange={setTopupDialogOpen}>
+        <DialogContent className='sm:max-w-lg' showCloseButton>
+          <DialogHeader>
+            <DialogTitle>{t('Top up balance')}</DialogTitle>
+            <DialogDescription>
+              {t('Pay face value. The same amount is added to your balance.')}
+            </DialogDescription>
+          </DialogHeader>
+          <RechargeFormCard
+            topupInfo={topupInfo}
+            presetAmounts={presetAmounts}
+            selectedPreset={selectedPreset}
+            onSelectPreset={handleSelectPreset}
+            onStripeTopUp={handleStripeTopUp}
+            paymentLoadingAmount={processing ? paymentLoadingAmount : null}
+            loading={topupLoading}
+            checkoutCurrency={checkoutCurrency}
+            onCheckoutCurrencyChange={handleCheckoutCurrencyChange}
+            showCurrencySelector={
+              shouldShowCurrencySelector(topupInfo?.client_region) ||
+              normalizeStripeCheckoutCurrency(
+                props.initialCheckoutSearch?.currency
+              ) != null
+            }
+          />
+        </DialogContent>
+      </Dialog>
 
       <StripeEmbeddedCheckoutDialog
         session={embeddedCheckout}
@@ -985,11 +1039,8 @@ export function Wallet(props: WalletProps) {
               <PartyPopper className='text-primary size-7' aria-hidden='true' />
             </div>
             <DialogTitle className='text-xl'>
-              {t('Recharge successful')}
+              {t('Binding successful!')}
             </DialogTitle>
-            <DialogDescription>
-              {t('Your bonus has been credited to your wallet. Enjoy!')}
-            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button

@@ -20,24 +20,24 @@ import { describe, expect, test } from 'bun:test'
 import { getNavBadgeClassName, getNavItemTitleClassName } from './nav-badge'
 
 describe('getNavBadgeClassName', () => {
-  test('keeps red promotion badges compact and readable in dark mode', () => {
+  test('renders promotion badges as plain right-aligned violet text', () => {
     const className = getNavBadgeClassName('promotion')
     const classTokens = className.split(' ')
 
-    expect(className).toContain('bg-destructive')
-    expect(className).toContain('dark:bg-destructive')
-    expect(className).toContain('dark:text-background')
-    expect(className).toContain('max-w-28')
+    expect(className).toContain('bg-transparent')
+    expect(className).toContain('border-transparent')
+    expect(className).toContain('text-[#6d28d9]')
+    expect(className).toContain('dark:text-[#a78bfa]')
     expect(className).toContain('truncate')
     expect(className).toContain('group-data-[collapsible=icon]:hidden')
-    expect(classTokens).toContain('flex-1')
-    expect(classTokens).not.toContain('shrink')
+    expect(classTokens).toContain('ml-auto')
+    expect(classTokens).toContain('shrink-0')
   })
 
-  test('keeps the navigation title ahead of the promotion badge', () => {
+  test('keeps the navigation title flexible ahead of the text badge', () => {
     const classTokens = getNavItemTitleClassName('promotion').split(' ')
 
-    expect(classTokens).toContain('shrink-0')
-    expect(classTokens).not.toContain('flex-1')
+    expect(classTokens).toContain('flex-1')
+    expect(classTokens).toContain('truncate')
   })
 })

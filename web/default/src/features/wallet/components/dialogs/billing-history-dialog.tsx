@@ -26,12 +26,18 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  CalendarClock,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { trackSuccessfulTopups } from '@/lib/analytics/topup-tracking'
-import { formatCurrencyFromUSD } from '@/lib/currency'
-import { formatNumber } from '@/lib/format'
+import {
+  formatBillingCurrencyFromUSD,
+  formatCurrencyFromUSD,
+} from '@/lib/currency'
+import { formatNumber, formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import {
@@ -58,10 +64,10 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
-import type { StatusVariant } from '@/components/status-badge'
+import { StatusBadge, type StatusVariant } from '@/components/status-badge'
 import { getInvoiceProfile, isApiSuccess } from '../../api'
 import { useBillingHistory } from '../../hooks/use-billing-history'
+import { useRefundableTerms } from '../../hooks/use-refundable-terms'
 import {
   getStatusConfig,
   getPaymentMethodName,
@@ -77,7 +83,12 @@ import {
   isPaddlePayment,
   isStripePayment,
 } from '../../lib/payment'
-import type { InvoiceProfile, TopupRecord } from '../../types'
+import type {
+  InvoiceProfile,
+  RefundableSubscriptionTerm,
+  RefundableSubscriptionTermsData,
+  TopupRecord,
+} from '../../types'
 
 interface BillingHistoryDialogProps {
   open: boolean
@@ -86,6 +97,112 @@ interface BillingHistoryDialogProps {
 
 interface BillingHistoryPanelProps {
   scrollAreaClassName?: string
+  onAvailabilityChange?: (available: boolean) => void
+  onResumeStripeCheckout?: (record: TopupRecord) => Promise<void>
+  onRefundSuccess?: () => void | Promise<void>
+}
+
+interface RefundableTermsContentProps {
+  data: RefundableSubscriptionTermsData
+  refundingTermId: number | null
+  onRequestRefund: (term: RefundableSubscriptionTerm) => void
+}
+
+interface RefundableTermsManagerProps {
+  data: RefundableSubscriptionTermsData
+  refundingTermId: number | null
+  onConfirmRefund: (term: RefundableSubscriptionTerm) => Promise<boolean>
+}
+
+interface RefundableTermConfirmationDetailsProps {
+  term: RefundableSubscriptionTerm
+}
+
+interface RefundableTermsLoadErrorProps {
+  retrying: boolean
+  onRetry: () => void
+}
+
+interface BillingHistoryAvailabilityInput {
+  billingTotal: number
+  refundableTermCount: number
+  refundableTermsError: boolean
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function isBillingHistoryPanelAvailable({
+  billingTotal,
+  refundableTermCount,
+  refundableTermsError,
+}: BillingHistoryAvailabilityInput): boolean {
+  return billingTotal > 0 || refundableTermCount > 0 || refundableTermsError
+}
+
+function formatRefundMoney(amount: number): string {
+  return formatBillingCurrencyFromUSD(amount, {
+    digitsLarge: 2,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
+}
+
+export function RefundableTermConfirmationDetails({
+  term,
+}: RefundableTermConfirmationDetailsProps) {
+  const { t } = useTranslation()
+
+  return (
+    <dl className='bg-muted/30 grid gap-3 rounded-md border p-3 text-sm sm:grid-cols-2'>
+      <div className='space-y-1'>
+        <dt className='text-muted-foreground text-xs'>{t('Refund amount')}</dt>
+        <dd className='font-mono font-semibold tabular-nums'>
+          {formatRefundMoney(term.refund_money)}
+        </dd>
+      </div>
+      <div className='space-y-1'>
+        <dt className='text-muted-foreground text-xs'>
+          {t('Return to Flatkey available balance')}
+        </dt>
+        <dd className='font-mono font-semibold tabular-nums'>
+          {formatQuota(term.refund_quota)}
+        </dd>
+      </div>
+    </dl>
+  )
+}
+
+export function RefundableTermsLoadError({
+  retrying,
+  onRetry,
+}: RefundableTermsLoadErrorProps) {
+  const { t } = useTranslation()
+
+  return (
+    <div
+      className='border-destructive/30 bg-destructive/5 flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between'
+      role='alert'
+    >
+      <div className='flex min-w-0 items-center gap-2 text-sm'>
+        <AlertCircle className='text-destructive h-4 w-4 shrink-0' />
+        <span>{t('Failed to load refundable plan terms')}</span>
+      </div>
+      <Button
+        type='button'
+        size='sm'
+        variant='outline'
+        className='shrink-0'
+        disabled={retrying}
+        onClick={onRetry}
+      >
+        {retrying ? (
+          <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+        ) : (
+          <RefreshCw className='mr-1.5 h-3.5 w-3.5' />
+        )}
+        {retrying ? t('Retrying...') : t('Retry')}
+      </Button>
+    </div>
+  )
 }
 
 function isPendingPaddleRecord(record: TopupRecord): boolean {
@@ -107,6 +224,27 @@ function isPaidStripeRecord(record: TopupRecord): boolean {
   return (
     isStripePayment(record.payment_method?.trim().toLowerCase() ?? '') ||
     isStripePayment(record.payment_provider?.trim().toLowerCase() ?? '')
+  )
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function isPendingStripeRecord(record: TopupRecord): boolean {
+  if (record.status !== 'pending' || !record.gateway_trade_no?.trim()) {
+    return false
+  }
+  return (
+    isStripePayment(record.payment_method?.trim().toLowerCase() ?? '') ||
+    isStripePayment(record.payment_provider?.trim().toLowerCase() ?? '')
+  )
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function isSubscriptionRecord(record: TopupRecord): boolean {
+  return (
+    record.trade_no.startsWith('sub_ref_') ||
+    record.trade_no.startsWith('SUBBAL') ||
+    record.trade_no.startsWith('SUBPUR') ||
+    record.trade_no.startsWith('SUBSTR')
   )
 }
 
@@ -175,7 +313,209 @@ function getInvoiceStatusVariant(status?: string): StatusVariant {
   return 'neutral'
 }
 
+export function RefundableTermsContent({
+  data,
+  refundingTermId,
+  onRequestRefund,
+}: RefundableTermsContentProps) {
+  const { t } = useTranslation()
+
+  return (
+    <div className='space-y-3'>
+      <div className='bg-muted/40 text-muted-foreground rounded-md border px-3 py-2 text-xs leading-relaxed'>
+        {t(
+          'Started plan terms are not refundable. Eligible refunds return to your Flatkey available balance, not the original payment method.'
+        )}
+      </div>
+
+      <div className='flex items-center justify-between gap-3 text-sm'>
+        <span className='text-muted-foreground'>
+          {t('Total refundable balance')}
+        </span>
+        <span className='font-mono font-semibold tabular-nums'>
+          {formatQuota(data.total_refund_quota)}
+        </span>
+      </div>
+
+      <div className='space-y-2'>
+        {data.items.map((term) => {
+          const isRefunding = refundingTermId === term.term_segment_id
+          return (
+            <div
+              key={term.term_segment_id}
+              className='rounded-md border p-3'
+              data-wallet-refundable-term={term.term_segment_id}
+            >
+              <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                <div className='min-w-0 flex-1'>
+                  <h4 className='truncate text-sm font-semibold'>
+                    {term.plan_title}
+                  </h4>
+                  <dl className='mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-xs sm:grid-cols-3 lg:grid-cols-5'>
+                    <div className='space-y-1'>
+                      <dt className='text-muted-foreground'>
+                        {t('Start date')}
+                      </dt>
+                      <dd className='font-medium tabular-nums'>
+                        {formatTimestamp(term.start_time)}
+                      </dd>
+                    </div>
+                    <div className='space-y-1'>
+                      <dt className='text-muted-foreground'>{t('End date')}</dt>
+                      <dd className='font-medium tabular-nums'>
+                        {formatTimestamp(term.end_time)}
+                      </dd>
+                    </div>
+                    <div className='space-y-1'>
+                      <dt className='text-muted-foreground'>
+                        {t('Remaining days')}
+                      </dt>
+                      <dd className='font-medium tabular-nums'>
+                        {t('{{count}} days', { count: term.remaining_days })}
+                      </dd>
+                    </div>
+                    <div className='space-y-1'>
+                      <dt className='text-muted-foreground'>
+                        {t('Refund amount')}
+                      </dt>
+                      <dd className='font-mono font-semibold tabular-nums'>
+                        {formatRefundMoney(term.refund_money)}
+                      </dd>
+                    </div>
+                    <div className='space-y-1'>
+                      <dt className='text-muted-foreground'>
+                        {t('Return to Flatkey available balance')}
+                      </dt>
+                      <dd className='font-mono font-semibold tabular-nums'>
+                        {formatQuota(term.refund_quota)}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <Button
+                  size='sm'
+                  variant='outline'
+                  className='shrink-0'
+                  disabled={refundingTermId !== null}
+                  onClick={() => onRequestRefund(term)}
+                >
+                  {isRefunding && (
+                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                  )}
+                  {isRefunding ? t('Processing...') : t('Refund term')}
+                </Button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function RefundableTermsManager({
+  data,
+  refundingTermId,
+  onConfirmRefund,
+}: RefundableTermsManagerProps) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [confirmTerm, setConfirmTerm] =
+    useState<RefundableSubscriptionTerm | null>(null)
+
+  if (data.items.length === 0) {
+    return null
+  }
+
+  const handleConfirmRefund = async (): Promise<void> => {
+    if (!confirmTerm || refundingTermId !== null) {
+      return
+    }
+    const success = await onConfirmRefund(confirmTerm)
+    if (success) {
+      setConfirmTerm(null)
+    }
+  }
+
+  return (
+    <>
+      <div className='flex justify-end'>
+        <Button
+          variant='ghost'
+          size='sm'
+          className='text-muted-foreground h-8 px-2 text-xs'
+          onClick={() => setOpen(true)}
+        >
+          <CalendarClock className='mr-1.5 h-3.5 w-3.5' />
+          {t('Manage not-started terms')}
+        </Button>
+      </div>
+
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && refundingTermId !== null) return
+          setOpen(nextOpen)
+        }}
+        title={t('Refundable plan terms')}
+        description={t(
+          'Started plan terms are not refundable. Eligible refunds return to your Flatkey available balance, not the original payment method.'
+        )}
+        contentClassName='sm:max-w-3xl'
+        bodyClassName='space-y-3'
+        showCloseButton
+      >
+        <RefundableTermsContent
+          data={data}
+          refundingTermId={refundingTermId}
+          onRequestRefund={setConfirmTerm}
+        />
+      </Dialog>
+
+      <AlertDialog
+        open={!!confirmTerm}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && refundingTermId === null) setConfirmTerm(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('Confirm refund to Flatkey balance')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('This is not a refund to the original payment method.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {confirmTerm ? (
+            <RefundableTermConfirmationDetails term={confirmTerm} />
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={refundingTermId !== null}>
+              {t('Cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={refundingTermId !== null}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleConfirmRefund()
+              }}
+            >
+              {refundingTermId !== null && (
+                <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+              )}
+              {refundingTermId !== null ? t('Processing...') : t('Refund term')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
 export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
+  const { onAvailabilityChange, scrollAreaClassName } = props
   const { t } = useTranslation()
   const {
     records,
@@ -192,7 +532,23 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
     handleSearch,
     handleCompleteOrder,
     handleRequestInvoice,
+    refresh: refreshBillingHistory,
   } = useBillingHistory()
+  const {
+    data: refundableTerms,
+    loading: refundableTermsLoading,
+    error: refundableTermsError,
+    retrying: refundableTermsRetrying,
+    refundingTermId,
+    retry: retryRefundableTerms,
+    refundTerm,
+  } = useRefundableTerms()
+
+  const billingHistoryAvailable = isBillingHistoryPanelAvailable({
+    billingTotal: total,
+    refundableTermCount: refundableTerms.items.length,
+    refundableTermsError,
+  })
 
   // Fire the top-up (purchase) conversion for any freshly-succeeded top-up that
   // lands here — covers redirect-back providers (Stripe/epay) the inline Paddle
@@ -202,7 +558,18 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
     if (records.length) trackSuccessfulTopups(records)
   }, [records])
 
+  useEffect(() => {
+    if (loading || refundableTermsLoading) return
+    onAvailabilityChange?.(billingHistoryAvailable)
+  }, [
+    billingHistoryAvailable,
+    loading,
+    onAvailabilityChange,
+    refundableTermsLoading,
+  ])
+
   const [confirmTradeNo, setConfirmTradeNo] = useState<string | null>(null)
+  const [resumingTradeNo, setResumingTradeNo] = useState<string | null>(null)
   const [invoiceTradeNo, setInvoiceTradeNo] = useState<string | null>(null)
   const [invoiceProfile, setInvoiceProfile] = useState<InvoiceProfile>(
     EMPTY_INVOICE_PROFILE
@@ -257,6 +624,17 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
     }
   }, [invoiceTradeNo, t])
 
+  if (!loading && !refundableTermsLoading && !billingHistoryAvailable) {
+    return null
+  }
+
+  const handleConfirmTermRefund = (
+    term: RefundableSubscriptionTerm
+  ): Promise<boolean> =>
+    refundTerm(term.term_segment_id, async () => {
+      await Promise.all([refreshBillingHistory(), props.onRefundSuccess?.()])
+    })
+
   const updateInvoiceField = (
     field: keyof InvoiceProfile,
     value: string
@@ -300,9 +678,34 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
     )
   }
 
+  const handleReopenStripeCheckout = async (
+    record: TopupRecord
+  ): Promise<void> => {
+    if (!props.onResumeStripeCheckout || resumingTradeNo) return
+    setResumingTradeNo(record.trade_no)
+    try {
+      await props.onResumeStripeCheckout(record)
+    } finally {
+      setResumingTradeNo(null)
+    }
+  }
+
   return (
     <>
       <div className='min-h-0 space-y-3'>
+        {refundableTermsError ? (
+          <RefundableTermsLoadError
+            retrying={refundableTermsRetrying}
+            onRetry={() => void retryRefundableTerms()}
+          />
+        ) : (
+          <RefundableTermsManager
+            data={refundableTerms}
+            refundingTermId={refundingTermId}
+            onConfirmRefund={handleConfirmTermRefund}
+          />
+        )}
+
         {/* Search and Filter Bar */}
         <div className='flex items-center gap-2'>
           <div className='relative flex-1'>
@@ -344,7 +747,7 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
         <ScrollArea
           className={cn(
             'max-h-[min(54vh,520px)] pr-3 sm:pr-4',
-            props.scrollAreaClassName
+            scrollAreaClassName
           )}
         >
           {loading ? (
@@ -384,6 +787,9 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
                 const canReopenPaddleCheckout =
                   isPendingPaddleRecord(record) &&
                   getPaddleGatewayTradeNo(record) !== ''
+                const canReopenStripeCheckout =
+                  !!props.onResumeStripeCheckout &&
+                  isPendingStripeRecord(record)
                 const invoice = record.invoice
                 const hasInvoice = invoice?.invoice_requested === true
                 const invoiceUrl = invoice?.stripe_invoice_url?.trim()
@@ -394,10 +800,14 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
                   (!hasExistingInvoice(record) || canRetryInvoice(record))
                 const showActions =
                   canReopenPaddleCheckout ||
+                  canReopenStripeCheckout ||
                   canRequestInvoice ||
                   (isAdmin && record.status === 'pending') ||
                   !!invoiceUrl ||
                   !!invoicePdf
+                // Subscription purchases are mirrored into top-up history with
+                // amount=0. Render them with a friendly title and no $0 column.
+                const subscriptionRecord = isSubscriptionRecord(record)
                 return (
                   <div
                     key={record.id}
@@ -407,9 +817,15 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
                     <div className='flex items-start justify-between gap-2'>
                       <div className='flex-1 space-y-1'>
                         <div className='flex min-w-0 items-center gap-2'>
-                          <code className='text-foreground truncate font-mono text-sm'>
-                            {record.trade_no}
-                          </code>
+                          {subscriptionRecord ? (
+                            <span className='text-foreground truncate text-sm font-semibold'>
+                              {t('Plan subscription')}
+                            </span>
+                          ) : (
+                            <code className='text-foreground truncate font-mono text-sm'>
+                              {record.trade_no}
+                            </code>
+                          )}
                           <Button
                             variant='ghost'
                             size='sm'
@@ -459,24 +875,27 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
                           {getPaymentMethodName(record.payment_method, t)}
                         </div>
                       </div>
-                      <div className='space-y-1'>
-                        <Label className='text-muted-foreground text-xs'>
-                          {t('Amount')}
-                        </Label>
-                        <div className='text-sm font-semibold'>
-                          {formatCurrencyFromUSD(record.amount, {
-                            digitsLarge: 2,
-                            digitsSmall: 2,
-                            abbreviate: false,
-                          })}
+                      {!subscriptionRecord && (
+                        <div className='space-y-1'>
+                          <Label className='text-muted-foreground text-xs'>
+                            {t('Amount')}
+                          </Label>
+                          <div className='text-sm font-semibold'>
+                            {formatCurrencyFromUSD(record.amount, {
+                              digitsLarge: 2,
+                              digitsSmall: 2,
+                              abbreviate: false,
+                            })}
+                          </div>
                         </div>
-                      </div>
+                      )}
                       <div className='space-y-1'>
                         <Label className='text-muted-foreground text-xs'>
                           {t('Payment')}
                         </Label>
-                        <div className='text-sm font-semibold text-red-600'>
-                          {formatNumber(record.money)}
+                        <div className='text-sm font-semibold'>
+                          {formatNumber(record.money)}{' '}
+                          {record.payment_currency?.trim() || 'USD'}
                         </div>
                       </div>
                       {record.bonus_amount && record.bonus_amount > 0 ? (
@@ -580,6 +999,23 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
                             onClick={() => handleReopenPaddleCheckout(record)}
                           >
                             <ExternalLink className='mr-1.5 h-3.5 w-3.5' />
+                            {t('Reopen Checkout')}
+                          </Button>
+                        )}
+                        {canReopenStripeCheckout && (
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            onClick={() =>
+                              void handleReopenStripeCheckout(record)
+                            }
+                            disabled={resumingTradeNo === record.trade_no}
+                          >
+                            {resumingTradeNo === record.trade_no ? (
+                              <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                            ) : (
+                              <ExternalLink className='mr-1.5 h-3.5 w-3.5' />
+                            )}
                             {t('Reopen Checkout')}
                           </Button>
                         )}

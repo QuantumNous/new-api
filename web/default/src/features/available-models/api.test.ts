@@ -30,9 +30,13 @@ describe('getUserModelAccess', () => {
       scope_mode: 'fixed_account' as const,
       identity_scope: null,
       identity_model_ids: [],
+      identity_model_ratios: {},
+      identity_default_ratio: null,
       create_default_scope: null,
       groups: [],
       account_model_ids: [],
+      account_model_ratios: {},
+      account_default_ratio: 0,
       models: [],
     }
     spyOn(api, 'get').mockResolvedValue({

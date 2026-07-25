@@ -88,6 +88,94 @@ func TestResolveChannelTestUserIDUsesRequestUser(t *testing.T) {
 	require.Equal(t, 2, userID)
 }
 
+func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *testing.T) {
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled},
+		{Id: 2, Status: common.ChannelStatusAutoDisabled},
+		{Id: 3, Status: common.ChannelStatusManuallyDisabled},
+	}
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery)
+	require.Len(t, selected, 1)
+	require.Equal(t, 2, selected[0].Id)
+}
+
+func TestSelectChannelsForAutomaticTestScheduledSkipsManualDisabled(t *testing.T) {
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled},
+		{Id: 2, Status: common.ChannelStatusAutoDisabled},
+		{Id: 3, Status: common.ChannelStatusManuallyDisabled},
+	}
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll)
+	require.Len(t, selected, 2)
+	require.Equal(t, 1, selected[0].Id)
+	require.Equal(t, 2, selected[1].Id)
+}
+
+func TestTestChannelsDoesNotLoadBatchWhenRunAlreadyActive(t *testing.T) {
+	testAllChannelsLock.Lock()
+	previousRunning := testAllChannelsRunning
+	testAllChannelsRunning = true
+	testAllChannelsLock.Unlock()
+	t.Cleanup(func() {
+		testAllChannelsLock.Lock()
+		testAllChannelsRunning = previousRunning
+		testAllChannelsLock.Unlock()
+	})
+
+	loaderCalled := false
+	err := testChannels(func() (int, []*model.Channel, error) {
+		loaderCalled = true
+		return 1, nil, nil
+	}, false, true)
+
+	require.EqualError(t, err, "测试已在运行中")
+	require.False(t, loaderCalled, "the channel query must not run before acquiring the run state")
+}
+
+func TestTestChannelsReleasesRunStateWhenBatchLoadFails(t *testing.T) {
+	testAllChannelsLock.Lock()
+	previousRunning := testAllChannelsRunning
+	testAllChannelsRunning = false
+	testAllChannelsLock.Unlock()
+	t.Cleanup(func() {
+		testAllChannelsLock.Lock()
+		testAllChannelsRunning = previousRunning
+		testAllChannelsLock.Unlock()
+	})
+
+	err := testChannels(func() (int, []*model.Channel, error) {
+		return 0, nil, errors.New("load failed")
+	}, false, true)
+
+	require.EqualError(t, err, "load failed")
+	testAllChannelsLock.Lock()
+	running := testAllChannelsRunning
+	testAllChannelsLock.Unlock()
+	require.False(t, running)
+}
+
+func TestTestChannelsReleasesRunStateWhenBatchLoaderPanics(t *testing.T) {
+	testAllChannelsLock.Lock()
+	previousRunning := testAllChannelsRunning
+	testAllChannelsRunning = false
+	testAllChannelsLock.Unlock()
+	t.Cleanup(func() {
+		testAllChannelsLock.Lock()
+		testAllChannelsRunning = previousRunning
+		testAllChannelsLock.Unlock()
+	})
+
+	err := testChannels(func() (int, []*model.Channel, error) {
+		panic("load panic")
+	}, false, true)
+
+	require.EqualError(t, err, "加载渠道测试批次失败: load panic")
+	testAllChannelsLock.Lock()
+	running := testAllChannelsRunning
+	testAllChannelsLock.Unlock()
+	require.False(t, running)
+}
+
 func TestNormalizeChannelTestEndpointCodexAnthropicUsesResponsesBridge(t *testing.T) {
 	channel := &model.Channel{Type: constant.ChannelTypeCodex}
 

@@ -72,6 +72,28 @@ func sampleSeedanceReq() dto.SeedanceVideoRequest {
 	}
 }
 
+func mustVideoRatio(t *testing.T, model, resolution string, hasVideo bool) float64 {
+	t.Helper()
+	ratio, ok := GetVideoInputRatio(model, resolution, hasVideo)
+	if !ok {
+		t.Fatalf("missing price table for %s", model)
+	}
+	return ratio
+}
+
+func TestGetVideoInputRatioFallsBackToSameInputTypeBasePrice(t *testing.T) {
+	const model = "doubao-seedance-2-0-fast-260128"
+	withoutVideo := mustVideoRatio(t, model, "1080p", false)
+	withVideo := mustVideoRatio(t, model, "4k", true)
+
+	if withoutVideo != 1 {
+		t.Fatalf("1080p ratio without video = %v, want 1", withoutVideo)
+	}
+	if want := 22.0 / 37.0; withVideo != want {
+		t.Fatalf("4k ratio with video = %v, want %v", withVideo, want)
+	}
+}
+
 // ---- pure mapping function ----------------------------------------------
 
 // buildDoubaoCreateRequest must pass the official content[] through to the Ark
@@ -146,6 +168,30 @@ func TestBuildDoubaoCreateRequest_Extensions(t *testing.T) {
 	}
 }
 
+func TestBuildDoubaoCreateRequest_PriorityPreservesExplicitZero(t *testing.T) {
+	req := sampleSeedanceReq()
+	req.SafetyIdentifier = "end-user-123"
+	req.Priority = ptrInt(0)
+	body := buildDoubaoCreateRequest(&req, doubaoExtensions{})
+
+	if body.SafetyIdentifier != "" {
+		t.Fatalf("safety_identifier must be gated by channel settings, got %q", body.SafetyIdentifier)
+	}
+	if body.Priority == nil || int(*body.Priority) != 0 {
+		t.Fatalf("priority = %v, want explicit zero", body.Priority)
+	}
+	data, err := common.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(data), `"safety_identifier"`) {
+		t.Fatalf("marshaled body unexpectedly contains safety_identifier: %s", data)
+	}
+	if !strings.Contains(string(data), `"priority":0`) {
+		t.Fatalf("marshaled body missing explicit priority zero: %s", data)
+	}
+}
+
 // ---- BuildRequestBody end-to-end (gin context) --------------------------
 
 // Drives BuildRequestBody through the real reusable-body decode path and
@@ -212,6 +258,97 @@ func TestBuildRequestBody_ModelMapped(t *testing.T) {
 	}
 }
 
+func TestBuildRequestBody_SafetyIdentifierRequiresChannelOptIn(t *testing.T) {
+	const body = `{
+		"model":"doubao-seedance-2-0-260128",
+		"content":[{"type":"text","text":"猫"}],
+		"safety_identifier":"end-user-123"
+	}`
+	tests := []struct {
+		name  string
+		allow bool
+		want  bool
+	}{
+		{name: "default filters", want: false},
+		{name: "explicit opt-in forwards", allow: true, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &TaskAdaptor{baseURL: "https://ark.example"}
+			c := newJSONCtx(body)
+			info := newRelayInfo()
+			info.ChannelOtherSettings.AllowSafetyIdentifier = tt.allow
+			r, err := a.BuildRequestBody(c, info)
+			if err != nil {
+				t.Fatalf("BuildRequestBody error: %v", err)
+			}
+			raw, _ := io.ReadAll(r)
+			got := strings.Contains(string(raw), `"safety_identifier":"end-user-123"`)
+			if got != tt.want {
+				t.Fatalf("safety_identifier forwarded = %v, want %v; body=%s", got, tt.want, raw)
+			}
+		})
+	}
+}
+
+func TestBuildRequestBody_PriorityValidatedAfterModelMapping(t *testing.T) {
+	tests := []struct {
+		name          string
+		clientModel   string
+		mappedModel   string
+		wantErr       bool
+		wantPriority0 bool
+	}{
+		{
+			name:          "unmapped Seedance 2.0 accepts explicit zero",
+			clientModel:   "doubao-seedance-2-0-260128",
+			wantPriority0: true,
+		},
+		{
+			name:          "alias mapped to Seedance 2.0 accepts explicit zero",
+			clientModel:   "bytedance/seedance-2.0",
+			mappedModel:   "doubao-seedance-2-0-fast-260128",
+			wantPriority0: true,
+		},
+		{
+			name:        "Seedance 2.0 client mapped to older upstream is rejected",
+			clientModel: "doubao-seedance-2-0-260128",
+			mappedModel: "doubao-seedance-1-5-pro-251215",
+			wantErr:     true,
+		},
+		{
+			name:        "unmapped older upstream is rejected",
+			clientModel: "doubao-seedance-1-5-pro-251215",
+			wantErr:     true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &TaskAdaptor{baseURL: "https://ark.example"}
+			c := newJSONCtx(`{"model":"` + tt.clientModel + `","content":[{"type":"text","text":"猫"}],"priority":0}`)
+			info := newRelayInfo()
+			if tt.mappedModel != "" {
+				info.IsModelMapped = true
+				info.UpstreamModelName = tt.mappedModel
+			}
+			r, err := a.BuildRequestBody(c, info)
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "priority is only supported") {
+					t.Fatalf("error = %v, want priority model validation error", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("BuildRequestBody error: %v", err)
+			}
+			raw, _ := io.ReadAll(r)
+			if tt.wantPriority0 && !strings.Contains(string(raw), `"priority":0`) {
+				t.Fatalf("explicit priority zero lost: %s", raw)
+			}
+		})
+	}
+}
+
 // A text+audio request (no image/video) decodes and forwards the audio item;
 // unset optionals decoded from real JSON stay omitted on re-marshal (Rule 5).
 func TestBuildRequestBody_AudioPassthroughAndOptionalsOmitted(t *testing.T) {
@@ -251,7 +388,7 @@ func TestEstimateBilling_VideoInput(t *testing.T) {
 	info.UpstreamModelName = "doubao-seedance-2-0-260128"
 
 	ratios := a.EstimateBilling(c, info)
-	want, _ := GetVideoInputRatio("doubao-seedance-2-0-260128")
+	want := mustVideoRatio(t, "doubao-seedance-2-0-260128", "", true)
 	if ratios["video_input"] != want {
 		t.Fatalf("video_input ratio = %v, want %v", ratios["video_input"], want)
 	}
@@ -271,7 +408,7 @@ func TestEstimateBilling_ReusesBoundRequest(t *testing.T) {
 		t.Fatalf("validate: %+v", terr)
 	}
 	ratios := a.EstimateBilling(c, info)
-	want, _ := GetVideoInputRatio("doubao-seedance-2-0-260128")
+	want := mustVideoRatio(t, "doubao-seedance-2-0-260128", "", true)
 	if ratios["video_input"] != want {
 		t.Fatalf("video_input = %v, want %v (via bound request)", ratios["video_input"], want)
 	}
@@ -293,14 +430,53 @@ func TestEstimateBilling_MappedModelResolvesDiscount(t *testing.T) {
 	}
 }
 
-// No video input -> no discount.
-func TestEstimateBilling_NoVideo(t *testing.T) {
+// A baseline-resolution request without video uses the configured base price,
+// so no extra ratio is returned.
+func TestEstimateBilling_BaselineWithoutVideo(t *testing.T) {
 	a := &TaskAdaptor{}
 	c := newJSONCtx(`{"model":"doubao-seedance-2-0-260128","content":[{"type":"text","text":"hi"}]}`)
 	info := newRelayInfo()
 	info.UpstreamModelName = "doubao-seedance-2-0-260128"
 	if r := a.EstimateBilling(c, info); len(r) != 0 {
 		t.Fatalf("EstimateBilling = %v, want nil for no-video request", r)
+	}
+}
+
+func TestEstimateBilling_ResolutionAndVideoPricingEndToEnd(t *testing.T) {
+	tests := []struct {
+		name       string
+		resolution string
+		hasVideo   bool
+		want       float64
+		wantRatio  bool
+	}{
+		{name: "720p no video", resolution: "720p", want: 1},
+		{name: "720p video", resolution: "720p", hasVideo: true, want: 28.0 / 46.0, wantRatio: true},
+		{name: "1080p no video", resolution: "1080P", want: 51.0 / 46.0, wantRatio: true},
+		{name: "1080p video", resolution: " 1080p ", hasVideo: true, want: 31.0 / 46.0, wantRatio: true},
+		{name: "4k no video", resolution: "4K", want: 26.0 / 46.0, wantRatio: true},
+		{name: "4k video", resolution: " 4k ", hasVideo: true, want: 16.0 / 46.0, wantRatio: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := `[{"type":"text","text":"hi"}]`
+			if tt.hasVideo {
+				content = `[{"type":"text","text":"hi"},{"type":"video_url","video_url":{"url":"https://x/v.mp4"},"role":"reference_video"}]`
+			}
+			c := newJSONCtx(`{"model":"doubao-seedance-2-0-260128","resolution":"` + tt.resolution + `","content":` + content + `}`)
+			info := newRelayInfo()
+			info.UpstreamModelName = "doubao-seedance-2-0-260128"
+			got := (&TaskAdaptor{}).EstimateBilling(c, info)
+			if !tt.wantRatio {
+				if len(got) != 0 {
+					t.Fatalf("EstimateBilling = %v, want no ratio for baseline", got)
+				}
+				return
+			}
+			if got["video_input"] != tt.want {
+				t.Fatalf("video_input ratio = %v, want %v", got["video_input"], tt.want)
+			}
+		})
 	}
 }
 

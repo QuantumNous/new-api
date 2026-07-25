@@ -121,6 +121,23 @@ type TaskBillingContext struct {
 	OtherRatios          map[string]float64 `json:"other_ratios,omitempty"`            // 附加倍率（时长、分辨率等）
 	OriginModelName      string             `json:"origin_model_name,omitempty"`       // 模型名称，必须为OriginModelName
 	PerCallBilling       bool               `json:"per_call_billing,omitempty"`        // 按次计费：跳过轮询阶段的差额结算
+	// SubscriptionWeight 订阅计费的模型权重快照（任务提交时刻）。task.Quota 存的
+	// 是未加权 list 额度，而订阅池按加权额扣减——异步退款/差额结算必须按此权重
+	// 换算，否则退错额（权重 >1 的模型会少退/少补）。0 视为 1.0（旧数据兼容）。
+	SubscriptionWeight float64 `json:"subscription_weight,omitempty"`
+	// SubscriptionWindow 订阅窗口计数台账快照（原始 Redis key → 持有量）。
+	// 异步退款/负向差额按原 key 归还，避免窗口计数永久虚高或退到错误的桶。
+	SubscriptionWindow *TaskSubscriptionWindow `json:"subscription_window,omitempty"`
+}
+
+// TaskSubscriptionWindow 是任务提交时订阅窗口守卫的可序列化快照。
+type TaskSubscriptionWindow struct {
+	SubId      int              `json:"sub_id"`
+	SubStart   int64            `json:"sub_start"`
+	Limit5h    int64            `json:"limit_5h"`
+	LimitWeek  int64            `json:"limit_week"`
+	BucketHeld map[string]int64 `json:"bucket_held,omitempty"` // 5h 桶 key → 持有量
+	WeekHeld   map[string]int64 `json:"week_held,omitempty"`   // 周 key → 持有量
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）

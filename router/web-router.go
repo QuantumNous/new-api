@@ -54,6 +54,9 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	router.GET("/robots.txt", controller.GetRobotsTxt)
 	router.GET("/llms.txt", controller.GetLLMsTxt)
 	router.GET("/sitemap.xml", controller.GetSitemapXML)
+	router.GET("/console/subscription", func(c *gin.Context) {
+		c.Redirect(http.StatusTemporaryRedirect, "/wallet")
+	})
 	router.Use(static.Serve("/", themeFS))
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")

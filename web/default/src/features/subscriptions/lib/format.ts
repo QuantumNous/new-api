@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 import dayjs from '@/lib/dayjs'
+import { formatQuota } from '@/lib/format'
 import type { SubscriptionPlan } from '../types'
 
 export function formatDuration(
@@ -63,4 +64,71 @@ export function formatResetPeriod(
 export function formatTimestamp(ts: number): string {
   if (!ts) return '-'
   return dayjs(ts * 1000).format('YYYY-MM-DD HH:mm:ss')
+}
+
+// 套餐可用模型数量文案：0 = 回退为「全部模型」
+export function formatModelCount(
+  plan: Partial<SubscriptionPlan>,
+  t: TFunction
+): string {
+  const count = Number(plan?.model_count || 0)
+  if (count > 0) return t('{{count}} models', { count })
+  return t('All models')
+}
+
+// 套餐并发规格；RPM 不再作为套餐差异或限制展示。
+export function formatSpeedSpecs(
+  plan: Partial<SubscriptionPlan>,
+  t: TFunction
+): string[] {
+  const specs: string[] = []
+  const concurrency = Number(plan?.concurrency || 0)
+  if (concurrency > 0)
+    specs.push(t('{{count}} concurrent', { count: concurrency }))
+  return specs
+}
+
+// 三层用量窗口摘要（加权美元），未配置的窗口省略
+export function formatWindowSummary(
+  plan: Partial<SubscriptionPlan>,
+  t: TFunction
+): string {
+  const parts: string[] = []
+  const w5h = Number(plan?.window_5h_amount || 0)
+  const wWeek = Number(plan?.window_week_amount || 0)
+  if (w5h > 0) parts.push(`${formatQuota(w5h)}/5h`)
+  if (wWeek > 0) parts.push(`${formatQuota(wWeek)}/${t('week')}`)
+  return parts.join(' · ')
+}
+
+// admin 录入的价值卖点：按换行拆分、去空行
+export function parseFeatureLines(plan: Partial<SubscriptionPlan>): string[] {
+  const raw = plan?.feature_lines || ''
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+}
+
+// 300 credits ≈ 100 images / 75s standard video — anchored on the standard
+// tier of the public media price table (image 3 credits, video 4 credits/s).
+const IMAGE_CREDITS_PER_UNIT = 3
+const VIDEO_CREDITS_PER_SECOND = 4
+
+export function formatMediaValue(credits: number, t: TFunction): string {
+  let images = Math.floor(credits / IMAGE_CREDITS_PER_UNIT)
+  if (images >= 200) {
+    images = Math.floor(images / 100) * 100
+  }
+  const seconds = Math.floor(credits / VIDEO_CREDITS_PER_SECOND)
+  if (seconds >= 120) {
+    return t('≈ {{images}} images or {{minutes}} min of video', {
+      images,
+      minutes: Math.floor(seconds / 60),
+    })
+  }
+  return t('≈ {{images}} images or {{seconds}}s of video', {
+    images,
+    seconds,
+  })
 }

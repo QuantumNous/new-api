@@ -5,7 +5,7 @@
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="fk2.css?v=719h"><style>
+<link rel="stylesheet" href="fk2.css?v=728b"><style>
 body{display:grid;grid-template-columns:1.05fr .95fr;grid-template-rows:auto 1fr;min-height:100vh;background:linear-gradient(180deg,#FFFFFF,#F7F5FD)}
 .left{padding:48px 64px 56px;display:flex;flex-direction:column;position:relative}
 .right{display:flex;align-items:flex-start;justify-content:center;padding-top:120px}
@@ -46,7 +46,7 @@ body{display:grid;grid-template-columns:1.05fr .95fr;grid-template-rows:auto 1fr
 
 <nav class="nav" style="grid-column:1/-1">
   <a class="logo" href="/"><img src="assets/flatkey-mark.svg?v=4" alt="flatkey">flatkey</a>
-  <a href="/models">Models</a><a href="/docs">Docs</a><a href="/playground">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing">Pricing</a><a href="/compute" data-i18n="nav.compute">Compute</a><a href="/usecases">Use cases</a>
+  <a href="/models">Models</a><a href="/docs">Docs</a><a href="/playground">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing">Pricing</a><a href="/compute" data-i18n="nav.compute">Compute</a><a href="/usecases">Use cases</a><a href="/status">Status</a>
   <div class="sp"></div>
   <a href="/login">Sign in</a>
   <a class="btn black" href="/login">Start free →</a>
@@ -68,16 +68,18 @@ body{display:grid;grid-template-columns:1.05fr .95fr;grid-template-rows:auto 1fr
     <form action="https://formsubmit.co/mguozhen@gmail.com" method="POST">
       <input type="hidden" name="_subject" value="[flatkey] Contact sales lead">
       <input type="hidden" name="_captcha" value="false">
-      <input type="hidden" name="_next" value="https://flatkey.11agents.ai/contact?sent=1">
+      <input type="hidden" name="_cc" value="skao@solvea.cx,boyuan.gao@shulex-tech.com,support@flatkey.ai">
+      <input type="hidden" name="_next" value="https://flatkey.ai/contact?sent=1">
       <div class="slot"><input type="text" name="name" required data-i18n-ph="ct.ph1" placeholder="Full name"><input name="email" type="email" required data-i18n-ph="ct.ph2" placeholder="Work email"></div>
-      <div class="slot"><input type="text" name="company" required data-i18n-ph="ct.ph3" placeholder="Company"><input type="text" name="volume" data-i18n-ph="ct.ph4" placeholder="Monthly token volume (est.)"></div>
+      <div class="slot"><input type="text" name="company" required data-i18n-ph="ct.ph3" placeholder="Company"><input type="tel" name="phone" data-i18n-ph="ct.ph6" placeholder="Phone number"></div>
+      <div class="slot" style="grid-template-columns:1fr"><input type="text" name="volume" data-i18n-ph="ct.ph4" placeholder="Monthly token volume (est.)"></div>
       <div class="slot" style="grid-template-columns:1fr"><textarea name="message" rows="4" required data-i18n-ph="ct.ph5" placeholder="What are you running? (agents, RAG, coding tools…)" style="border:1.5px solid var(--line);border-radius:8px;padding:12px 14px;font-size:14px;font-family:var(--sans);color:var(--ink);resize:vertical"></textarea></div>
       <button type="submit" class="act dark" style="width:100%;border:none;font-family:var(--sans)" data-i18n="ct.send">Send — we reply within 1 business day →</button>
     </form>
     <a class="act" href="mailto:support@flatkey.ai" style="margin-top:2px" data-i18n="ct.mail">Email support@flatkey.ai</a>
     <a class="act" href="https://discord.gg/VrbZFDXj5g" style="background:#5865F2;color:#fff;box-shadow:none" data-i18n="ct.dc">Join our Discord</a>
     <a class="act" href="https://www.linkedin.com/company/flatkey/" style="background:#0A66C2;color:#fff;box-shadow:none" data-i18n="ct.li">Follow on LinkedIn</a>
-    <p class="fine" data-i18n="ct.fine">Prefer async? Email works too.<br>Already building? <a href="/login" style="color:var(--violet-deep);font-weight:650">Start free with $2 credit →</a></p>
+    <p class="fine" data-i18n="ct.fine">Prefer async? Email works too.<br>Already building? <a href="/login" style="color:var(--violet-deep);font-weight:650">Start free with $1 credit →</a></p>
     <p class="fine" id="sentmsg" style="display:none;color:var(--green);font-weight:700" data-i18n="ct.sent">✓ Sent. We will reply within 1 business day.</p>
   </div>
   <script>if(location.search.includes("sent=1"))document.getElementById("sentmsg").style.display="block";</script>
@@ -107,7 +109,7 @@ body{display:grid;grid-template-columns:1.05fr .95fr;grid-template-rows:auto 1fr
 </footer>
 <div class="stripe"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><i class="s5"></i></div>
 <script src="assets/pixels.js?v=719h"></script>
-<script src="assets/i18n.js?v=720e"></script>
-<script src="assets/track.js?v=716b"></script>
+<script src="assets/i18n.js?v=724b"></script>
+<script src="assets/track.js?v=721a"></script>
 <script src="assets/site-shell.js?v=720a"></script>
 </body></html>

@@ -41,7 +41,6 @@ import { motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { TopupBonusBanner } from './topup-bonus-banner'
 import { getUserModels } from '@/lib/api'
 import { MOTION_TRANSITION } from '@/lib/motion'
 import { ROLE } from '@/lib/roles'
@@ -769,7 +768,6 @@ export function OverviewDashboard() {
 
   return (
     <div className='flex flex-col gap-4'>
-      <TopupBonusBanner />
       {setupGuideExpanded ? (
         <CardStaggerContainer className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]'>
           <CardStaggerItem className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>

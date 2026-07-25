@@ -226,7 +226,7 @@ The clean `origin/main` baseline on 2026-07-10 has unrelated full-suite failures
 ## Deployment And Operations
 
 - Auto-migration adds the new tables and `users.email_domain` column on console startup.
-- This feature changes registration and admin-console behavior, so deploy `newapi-console` and the legacy `newapi` service where registration endpoints are served.
+- This feature changes registration and admin-console behavior, so deploy `newapi-console`, which owns the registration endpoints. The legacy `newapi` service is decommissioned and is not a deployment target.
 - Router deployment is not required unless the production topology imports the modified shared initialization/model migration path into router nodes. Confirm the final dependency diff before release.
 - Deploy first with domain risk disabled, verify migrations and the admin panel, configure trusted domains, then enable the rule.
 - Monitor block incidents and registration errors after activation. The primary rollback is disabling `domain_risk_enabled`; active incidents remain available for explicit recovery.

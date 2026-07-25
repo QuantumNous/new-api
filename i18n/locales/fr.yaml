@@ -21,3 +21,24 @@ notify.subscription_quota_warning_title: "Votre quota d'abonnement est bientôt 
 notify.quota_warning_email: "{{.Warning}}. Votre quota restant actuel est de {{.Quota}}. Pour éviter toute interruption de service, veuillez recharger à temps.<br/>Lien de recharge : <a href='{{.Link}}'>{{.Link}}</a>"
 notify.quota_warning_bark: "{{.Warning}}. Quota restant : {{.Quota}}. Veuillez recharger à temps."
 notify.quota_warning_gotify: "{{.Warning}}. Votre quota restant actuel est de {{.Quota}}. Veuillez recharger à temps."
+
+# CLI device authorization messages
+cli.device_id_missing: "L'ID de l'appareil est requis"
+cli.device_metadata_too_long: "Les métadonnées de l'appareil CLI sont trop longues"
+cli.device_code_invalid: "Code d'appareil invalide"
+cli.authorization_code_missing: "Le code d'autorisation est requis"
+cli.authorization_not_found: "Demande d'autorisation introuvable"
+cli.authorization_token_create_failed: "Échec de la création du jeton CLI"
+
+# Subscription messages
+subscription.tier_rank_reserved: "Le rang du forfait d'abonnement est déjà réservé"
+subscription.tier_rank_required: "Les forfaits d'abonnement activés doivent définir un rang positif"
+subscription.lifecycle_fields_immutable: "Ce forfait d'abonnement est déjà référencé. Désactivez-le ou créez une nouvelle version au lieu de modifier les champs critiques du cycle de vie."
+subscription.purchase_pending_migration: "Le lancement de l'achat d'abonnement est en cours de migration. Actualisez et utilisez le nouveau flux d'abonnement."
+subscription.payment_mode_required: "Le mode de paiement est obligatoire"
+subscription.request_id_required: "L'ID de requête est obligatoire"
+subscription.stripe_price_requires_mode: "Le Stripe Price ID nécessite le mode de paiement récurrent Stripe"
+subscription.capability.single_lifecycle: "Le cycle de vie d'abonnement unique est activé"
+subscription.capability.current_entitlement: "Le droit contractuel actuel est disponible"
+subscription.capability.recurring_binding: "La liaison récurrente du fournisseur est disponible"
+subscription.capability.change_intent: "L'état de l'intention de changement d'abonnement est disponible"

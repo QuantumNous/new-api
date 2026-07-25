@@ -13,6 +13,11 @@ type ChannelSettings struct {
 	// 单模型在临时渠道上的累计消耗超过阈值后会预警到管理后台，驱动供应链侧寻找更便宜的
 	// 直连资源替换。逻辑：用真实消耗证明市场需求成立，再优化成本。
 	Temporary bool `json:"temporary,omitempty"`
+	// WhitelabelUpstream 标记该渠道为「白标渠道」——自建算力上跑开源模型的渠道。
+	// 开启后，OpenAI 兼容响应会抹除上游指纹（如 system_fingerprint=fp_ollama）并把
+	// model 字段强制回填为客户端请求的模型名，避免向客户泄漏底层引擎/供应商。默认关闭，
+	// 对所有既有渠道零行为变更。
+	WhitelabelUpstream bool `json:"whitelabel_upstream,omitempty"`
 }
 
 type VertexKeyType string

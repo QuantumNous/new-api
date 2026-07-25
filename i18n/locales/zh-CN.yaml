@@ -49,6 +49,19 @@ token.expired: "该令牌已过期"
 token.exhausted: "该令牌额度不足"
 token.status_unavailable: "该令牌状态不可用"
 token.db_error: "无效的令牌，数据库查询出错，请联系管理员"
+token.batch_group_cache_sync_pending: "令牌分组已更新，但缓存同步尚未完成，请使用相同请求重试。"
+token.client_ip_invalid: "无法解析客户端 IP 地址"
+token.ip_not_allowed: "此令牌不允许您的 IP 访问"
+token.group_no_permission: "无权访问分组 {{.Group}}"
+token.group_deprecated: "分组 {{.Group}} 已废弃"
+
+# CLI device authorization messages
+cli.device_id_missing: "缺少设备 ID"
+cli.device_metadata_too_long: "CLI 设备信息过长"
+cli.device_code_invalid: "无效的设备代码"
+cli.authorization_code_missing: "缺少授权代码"
+cli.authorization_not_found: "未找到授权请求"
+cli.authorization_token_create_failed: "创建 CLI 令牌失败"
 
 # Redemption messages
 redemption.name_length: "兑换码名称长度必须在1-20之间"
@@ -120,8 +133,13 @@ quota.user_insufficient: "用户额度不足, 剩余额度: {{.Quota}}"
 quota.topup_hint: "前往 {{.URL}} 充值后即可继续。"
 quota.pre_consume_failed: "预扣费额度失败, 用户剩余额度: {{.Remaining}}, 需要预扣费额度: {{.Required}}"
 quota.subscription_insufficient: "订阅额度不足或未配置订阅: {{.Detail}}"
+quota.subscription_window_5h_exceeded: "套餐 5 小时用量窗口已用满，约 {{.Minutes}} 分钟后释放部分额度；充值余额可立即继续使用。"
+quota.subscription_window_week_exceeded: "套餐本周用量窗口已用满，约 {{.Hours}} 小时后刷新；充值余额可立即继续使用。"
 quota.token_insufficient: "令牌额度不足, 令牌剩余额度: {{.Remain}}, 需要额度: {{.Required}}"
 quota.user_insufficient_need: "用户额度不足, 用户额度: {{.Quota}}, 需要额度: {{.Required}}"
+
+# Log messages
+log.invalid_user_id: "无效的用户ID"
 
 # Subscription messages
 subscription.not_enabled: "套餐未启用"
@@ -135,6 +153,18 @@ subscription.reset_cycle_gt_zero: "自定义重置周期需大于0秒"
 subscription.purchase_max: "已达到该套餐购买上限"
 subscription.invalid_id: "无效的订阅ID"
 subscription.invalid_user_id: "无效的用户ID"
+subscription.invalid_recurring_id: "无效的周期订阅ID"
+subscription.tier_rank_reserved: "订阅等级已被占用"
+subscription.tier_rank_required: "启用的订阅计划必须设置正整数等级"
+subscription.lifecycle_fields_immutable: "该订阅计划已被引用。请禁用或创建新版本，不要修改生命周期关键字段。"
+subscription.purchase_pending_migration: "订阅购买入口正在迁移中。请刷新后使用新的订阅流程。"
+subscription.payment_mode_required: "必须选择支付模式"
+subscription.request_id_required: "请求 ID 必填"
+subscription.stripe_price_requires_mode: "Stripe Price ID 需要启用 Stripe 周期支付模式"
+subscription.capability.single_lifecycle: "单订阅生命周期已启用"
+subscription.capability.current_entitlement: "可查看当前合约权益"
+subscription.capability.recurring_binding: "可查看周期支付绑定"
+subscription.capability.change_intent: "可查看订阅变更意图状态"
 
 # Payment messages
 payment.not_configured: "当前管理员未配置支付信息"
@@ -241,6 +271,10 @@ deployment.not_found: "未找到容器详情"
 performance.disk_cache_cleared: "不活跃的磁盘缓存已清理"
 performance.stats_reset: "统计信息已重置"
 performance.gc_executed: "GC 已执行"
+
+# Model health messages
+model_health.invalid_hours: "查询时长必须为 24、168 或 720 小时"
+model_health.model_required: "必须指定模型"
 
 # Ability messages
 ability.db_corrupted: "数据库一致性被破坏"

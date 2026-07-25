@@ -48,6 +48,19 @@ token.expired: "This token has expired"
 token.exhausted: "This token has insufficient quota"
 token.status_unavailable: "This token status is unavailable"
 token.db_error: "Invalid token, database query error, please contact administrator"
+token.batch_group_cache_sync_pending: "Token groups were updated, but cache synchronization is pending. Retry the same request."
+token.client_ip_invalid: "Unable to parse client IP address"
+token.ip_not_allowed: "Your IP is not allowed by this token"
+token.group_no_permission: "No permission to access group {{.Group}}"
+token.group_deprecated: "Group {{.Group}} is deprecated"
+
+# CLI device authorization messages
+cli.device_id_missing: "Device ID is required"
+cli.device_metadata_too_long: "CLI device metadata is too long"
+cli.device_code_invalid: "Invalid device code"
+cli.authorization_code_missing: "Authorization code is required"
+cli.authorization_not_found: "Authorization request not found"
+cli.authorization_token_create_failed: "Failed to create CLI token"
 
 # Redemption messages
 redemption.name_length: "Redemption code name length must be between 1-20"
@@ -119,8 +132,13 @@ quota.user_insufficient: "Insufficient user quota, remaining quota: {{.Quota}}"
 quota.topup_hint: "Add credits at {{.URL}} to keep going."
 quota.pre_consume_failed: "Failed to pre-deduct quota, user remaining quota: {{.Remaining}}, required pre-deduct quota: {{.Required}}"
 quota.subscription_insufficient: "Insufficient subscription quota or no subscription configured: {{.Detail}}"
+quota.subscription_window_5h_exceeded: "Your plan's 5-hour usage window is full. Capacity frees up as older usage ages out (about {{.Minutes}} minutes to the next release). Top up balance to continue without waiting."
+quota.subscription_window_week_exceeded: "Your plan's weekly usage window is full. It resets in about {{.Hours}} hours. Top up balance to continue without waiting."
 quota.token_insufficient: "Token quota is not enough, token remaining quota: {{.Remain}}, required quota: {{.Required}}"
 quota.user_insufficient_need: "User quota is not enough, user quota: {{.Quota}}, required quota: {{.Required}}"
+
+# Log messages
+log.invalid_user_id: "Invalid user ID"
 
 # Subscription messages
 subscription.not_enabled: "Subscription plan is not enabled"
@@ -134,6 +152,18 @@ subscription.reset_cycle_gt_zero: "Custom reset cycle must be greater than 0 sec
 subscription.purchase_max: "Purchase limit for this plan has been reached"
 subscription.invalid_id: "Invalid subscription ID"
 subscription.invalid_user_id: "Invalid user ID"
+subscription.invalid_recurring_id: "Invalid recurring subscription ID"
+subscription.tier_rank_reserved: "Subscription tier rank is already reserved"
+subscription.tier_rank_required: "Enabled subscription plans must set a positive tier rank"
+subscription.lifecycle_fields_immutable: "This subscription plan is already referenced. Disable it or create a new version instead of changing lifecycle-critical fields."
+subscription.purchase_pending_migration: "Subscription purchase initiation is pending migration. Please refresh and use the new subscription flow."
+subscription.payment_mode_required: "Payment mode is required"
+subscription.request_id_required: "Request ID is required"
+subscription.stripe_price_requires_mode: "Stripe Price ID requires Stripe recurring payment mode"
+subscription.capability.single_lifecycle: "Single subscription lifecycle is enabled"
+subscription.capability.current_entitlement: "Current contract entitlement is available"
+subscription.capability.recurring_binding: "Recurring provider binding is available"
+subscription.capability.change_intent: "Subscription change intent status is available"
 
 # Payment messages
 payment.not_configured: "Payment information has not been configured by administrator"
@@ -240,6 +270,10 @@ deployment.not_found: "Container details not found"
 performance.disk_cache_cleared: "Inactive disk cache has been cleared"
 performance.stats_reset: "Statistics have been reset"
 performance.gc_executed: "GC has been executed"
+
+# Model health messages
+model_health.invalid_hours: "Hours must be one of 24, 168, or 720"
+model_health.model_required: "Model is required"
 
 # Ability messages
 ability.db_corrupted: "Database consistency has been compromised"

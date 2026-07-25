@@ -696,6 +696,15 @@ func RelayTask(c *gin.Context) {
 			OriginModelName:      relayInfo.OriginModelName,
 			PerCallBilling:       common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 		}
+		// 订阅计费：快照模型权重与窗口台账，供轮询阶段的退款/差额结算
+		// 按加权额调整池扣量并补偿原始窗口计数（task.Quota 本身是未加权额）。
+		if relayInfo.BillingSource == service.BillingSourceSubscription {
+			if bs, ok := relayInfo.Billing.(*service.BillingSession); ok && bs != nil {
+				weight, window := bs.SubscriptionTaskSnapshot()
+				task.PrivateData.BillingContext.SubscriptionWeight = weight
+				task.PrivateData.BillingContext.SubscriptionWindow = window
+			}
+		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action

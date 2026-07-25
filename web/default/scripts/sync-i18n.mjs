@@ -26,6 +26,8 @@ const OBFUSCATED_KEYS = []
 
 const BRAND_AND_LITERAL_KEYS = new Set([
   'AI Proxy',
+  'API Base',
+  'Serverless',
   'AIGC2D',
   'Alipay',
   'Anthropic',
@@ -74,6 +76,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Pancake',
   'Passkey',
   'Perplexity',
+  'Playground',
   'Python',
   'QuantumNous',
   'Quota:',

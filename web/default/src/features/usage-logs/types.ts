@@ -266,6 +266,7 @@ export interface GetLogsParams {
   page_size?: number
   type?: number
   username?: string
+  user_id?: number
   token_name?: string
   model_name?: string
   start_timestamp?: number
@@ -291,6 +292,7 @@ export interface GetLogsResponse {
 export interface GetLogStatsParams {
   type?: number
   username?: string
+  user_id?: number
   token_name?: string
   model_name?: string
   start_timestamp?: number

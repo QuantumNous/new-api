@@ -54,7 +54,7 @@ import {
   paySubscriptionWaffoPancake,
   paySubscriptionBalance,
 } from '../../api'
-import { formatDuration, formatResetPeriod } from '../../lib'
+import { formatDuration, formatMediaValue, formatResetPeriod } from '../../lib'
 import type { PlanRecord } from '../../types'
 
 interface PaymentMethod {
@@ -350,15 +350,36 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <span className='text-sm'>{formatResetPeriod(plan, t)}</span>
             </div>
           )}
+          {/* Plan quota is an estimated max usage value, not a wallet top-up —
+              mirror the plan card's two-category framing. */}
           <div className='flex items-center justify-between'>
             <span className='text-muted-foreground text-sm'>
-              {t('Received amount')}
+              {t('Text models')}
             </span>
             <span className='flex items-center gap-1 text-sm'>
               <Package className='h-3.5 w-3.5' />
-              {totalAmount > 0 ? formatQuota(totalAmount) : t('Unlimited')}
+              {totalAmount > 0
+                ? t('Up to {{value}} in model usage', {
+                    value: formatQuota(totalAmount),
+                  })
+                : t('Unlimited')}
             </span>
           </div>
+          {Number(plan.media_credits_monthly || 0) > 0 && (
+            <div className='flex items-start justify-between gap-3'>
+              <span className='text-muted-foreground text-sm'>
+                {t('Image & video models')}
+              </span>
+              <span className='text-right text-sm'>
+                {t('{{count}} media credits / month', {
+                  count: Number(plan.media_credits_monthly || 0),
+                })}
+                <span className='text-muted-foreground block text-xs'>
+                  {formatMediaValue(Number(plan.media_credits_monthly || 0), t)}
+                </span>
+              </span>
+            </div>
+          )}
           {plan.upgrade_group && (
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-sm'>
@@ -397,56 +418,42 @@ export function SubscriptionPurchaseDialog(props: Props) {
           </Alert>
         )}
 
-        <div className='flex flex-col gap-2 rounded-md border p-3'>
-          <div className='flex items-center justify-between gap-2 text-xs'>
-            <span className='text-muted-foreground'>{t('Required')}</span>
-            <span>{formatQuota(balanceCost)}</span>
-          </div>
-          <div className='flex items-center justify-between gap-2 text-xs'>
-            <span className='text-muted-foreground'>{t('Available')}</span>
-            <span>{formatQuota(userQuota)}</span>
-          </div>
-          {!allowBalancePay ? (
-            <Alert variant='destructive'>
-              <AlertDescription>
-                {t('This plan does not allow balance redemption')}
-              </AlertDescription>
-            </Alert>
-          ) : (
-            insufficientBalance && (
-              <Alert variant='destructive'>
-                <AlertDescription>{t('Insufficient balance')}</AlertDescription>
-              </Alert>
-            )
-          )}
+        {/* Card payment is the primary path; balance redemption only surfaces
+            as a secondary option when the wallet can actually cover the plan. */}
+        {hasStripe && (
           <Button
-            variant='outline'
-            onClick={handlePayBalance}
-            disabled={
-              paying || limitReached || !allowBalancePay || insufficientBalance
-            }
+            className='w-full'
+            size='lg'
+            onClick={handlePayStripe}
+            disabled={paying || limitReached}
           >
-            {t('Pay with Balance')}
+            {t('Pay with card (Stripe)')}
           </Button>
-        </div>
+        )}
 
-        {hasAnyPayment && (
+        {allowBalancePay && !insufficientBalance && (
+          <div className='flex flex-col gap-2 rounded-md border p-3'>
+            <div className='flex items-center justify-between gap-2 text-xs'>
+              <span className='text-muted-foreground'>{t('Available')}</span>
+              <span>{formatQuota(userQuota)}</span>
+            </div>
+            <Button
+              variant='outline'
+              onClick={handlePayBalance}
+              disabled={paying || limitReached}
+            >
+              {t('Pay with Balance')}
+            </Button>
+          </div>
+        )}
+
+        {hasAnyPayment && (hasCreem || hasWaffoPancake || hasEpay) && (
           <div className='space-y-3'>
             <p className='text-muted-foreground text-xs'>
               {t('Select payment method')}
             </p>
-            {(hasStripe || hasCreem || hasWaffoPancake) && (
+            {(hasCreem || hasWaffoPancake) && (
               <div className='grid grid-cols-2 gap-2 sm:flex'>
-                {hasStripe && (
-                  <Button
-                    variant='outline'
-                    className='flex-1'
-                    onClick={handlePayStripe}
-                    disabled={paying || limitReached}
-                  >
-                    Stripe
-                  </Button>
-                )}
                 {hasCreem && (
                   <Button
                     variant='outline'

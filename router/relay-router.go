@@ -21,7 +21,7 @@ func SetRelayRouter(router *gin.Engine) {
 	// https://platform.openai.com/docs/api-reference/introduction
 	availableModelsRouter := router.Group("/v1/available_models")
 	availableModelsRouter.Use(middleware.RouteTag("relay"))
-	availableModelsRouter.Use(middleware.TokenAuth())
+	availableModelsRouter.Use(middleware.TokenAuthReadOnlyForModelList())
 	{
 		availableModelsRouter.GET("", controller.AvailableModels)
 	}
@@ -49,6 +49,14 @@ func SetRelayRouter(router *gin.Engine) {
 				controller.RetrieveModel(c, constant.ChannelTypeOpenAI)
 			}
 		})
+	}
+
+	flatkeyUtilityRouter := router.Group("/v1")
+	flatkeyUtilityRouter.Use(middleware.RouteTag("relay"))
+	flatkeyUtilityRouter.Use(middleware.TokenAuthReadOnly())
+	{
+		flatkeyUtilityRouter.GET("/status", controller.GetFlatkeyStatus)
+		flatkeyUtilityRouter.GET("/credits", controller.GetFlatkeyCredits)
 	}
 
 	geminiRouter := router.Group("/v1beta/models")

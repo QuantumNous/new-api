@@ -36,12 +36,28 @@ function buildAccess(): UserModelAccess {
     scope_mode: 'selectable_group',
     identity_scope: 'identity',
     identity_model_ids: [],
+    identity_model_ratios: {},
+    identity_default_ratio: 1,
     create_default_scope: 'default',
     groups: [
-      { id: 'default', label: 'Default', ratio: 1, model_ids: [] },
-      { id: 'premium', label: 'Premium', ratio: 2, model_ids: [] },
+      {
+        id: 'default',
+        label: 'Default',
+        ratio: 1,
+        model_ids: [],
+        model_ratios: {},
+      },
+      {
+        id: 'premium',
+        label: 'Premium',
+        ratio: 2,
+        model_ids: [],
+        model_ratios: {},
+      },
     ],
     account_model_ids: [],
+    account_model_ratios: {},
+    account_default_ratio: null,
     models: [],
   }
 }

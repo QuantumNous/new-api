@@ -56,6 +56,21 @@ const (
 	MsgTokenExhausted            = "token.exhausted"
 	MsgTokenStatusUnavailable    = "token.status_unavailable"
 	MsgTokenDbError              = "token.db_error"
+	MsgTokenBatchCachePending    = "token.batch_group_cache_sync_pending"
+	MsgTokenClientIPInvalid      = "token.client_ip_invalid"
+	MsgTokenIPNotAllowed         = "token.ip_not_allowed"
+	MsgTokenGroupNoPermission    = "token.group_no_permission"
+	MsgTokenGroupDeprecated      = "token.group_deprecated"
+)
+
+// CLI device authorization messages
+const (
+	MsgCliDeviceIdMissing              = "cli.device_id_missing"
+	MsgCliDeviceMetadataTooLong        = "cli.device_metadata_too_long"
+	MsgCliDeviceCodeInvalid            = "cli.device_code_invalid"
+	MsgCliAuthorizationCodeMissing     = "cli.authorization_code_missing"
+	MsgCliAuthorizationNotFound        = "cli.authorization_not_found"
+	MsgCliAuthorizationTokenCreateFail = "cli.authorization_token_create_failed"
 )
 
 // Redemption related messages
@@ -133,6 +148,11 @@ const (
 	MsgQuotaInviterRewardLimitInvalid = "quota.inviter_reward_limit_invalid"
 )
 
+// Log related messages
+const (
+	MsgLogInvalidUserId = "log.invalid_user_id"
+)
+
 // Subscription related messages
 const (
 	MsgSubscriptionNotEnabled       = "subscription.not_enabled"
@@ -146,6 +166,7 @@ const (
 	MsgSubscriptionPurchaseMax      = "subscription.purchase_max"
 	MsgSubscriptionInvalidId        = "subscription.invalid_id"
 	MsgSubscriptionInvalidUserId    = "subscription.invalid_user_id"
+	MsgSubscriptionInvalidRecurring = "subscription.invalid_recurring_id"
 )
 
 // Payment related messages
@@ -278,6 +299,12 @@ const (
 	MsgPerfDiskCacheCleared = "performance.disk_cache_cleared"
 	MsgPerfStatsReset       = "performance.stats_reset"
 	MsgPerfGcExecuted       = "performance.gc_executed"
+)
+
+// Model health related messages
+const (
+	MsgModelHealthInvalidHours  = "model_health.invalid_hours"
+	MsgModelHealthModelRequired = "model_health.model_required"
 )
 
 // Ability related messages

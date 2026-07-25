@@ -304,6 +304,9 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 		if err != nil {
 			return err
 		}
+		if err := EnqueueAdsPurchaseInTx(tx, topUp); err != nil {
+			return err
+		}
 
 		var rewardErr error
 		rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
@@ -355,14 +358,14 @@ func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, tota
 	cutoff := topUpQueryCutoff()
 
 	// Get total count within transaction
-	err = tx.Model(&TopUp{}).Where("user_id = ? AND create_time >= ?", userId, cutoff).Count(&total).Error
+	err = tx.Model(&TopUp{}).Where("user_id = ? AND create_time >= ? AND (amount > 0 OR money > 0)", userId, cutoff).Count(&total).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
 	// Get paginated topups within same transaction
-	err = tx.Preload("Invoice").Where("user_id = ? AND create_time >= ?", userId, cutoff).Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error
+	err = tx.Preload("Invoice").Where("user_id = ? AND create_time >= ? AND (amount > 0 OR money > 0)", userId, cutoff).Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -421,7 +424,7 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 		}
 	}()
 
-	query := tx.Model(&TopUp{}).Where("user_id = ? AND create_time >= ?", userId, topUpQueryCutoff())
+	query := tx.Model(&TopUp{}).Where("user_id = ? AND create_time >= ? AND (amount > 0 OR money > 0)", userId, topUpQueryCutoff())
 	if keyword != "" {
 		pattern, perr := sanitizeLikePattern(keyword)
 		if perr != nil {

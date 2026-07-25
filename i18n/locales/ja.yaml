@@ -21,3 +21,24 @@ notify.subscription_quota_warning_title: "サブスクリプションの残高�
 notify.quota_warning_email: "{{.Warning}}。現在の残高は {{.Quota}} です。サービスの中断を避けるため、お早めにチャージしてください。<br/>チャージリンク：<a href='{{.Link}}'>{{.Link}}</a>"
 notify.quota_warning_bark: "{{.Warning}}。残高：{{.Quota}}。お早めにチャージしてください。"
 notify.quota_warning_gotify: "{{.Warning}}。現在の残高は {{.Quota}} です。お早めにチャージしてください。"
+
+# CLI device authorization messages
+cli.device_id_missing: "デバイス ID は必須です"
+cli.device_metadata_too_long: "CLI デバイスのメタデータが長すぎます"
+cli.device_code_invalid: "無効なデバイスコードです"
+cli.authorization_code_missing: "認証コードは必須です"
+cli.authorization_not_found: "認証リクエストが見つかりません"
+cli.authorization_token_create_failed: "CLI トークンの作成に失敗しました"
+
+# Subscription messages
+subscription.tier_rank_reserved: "サブスクリプションプランのランクはすでに予約されています"
+subscription.tier_rank_required: "有効なサブスクリプションプランには正のランクが必要です"
+subscription.lifecycle_fields_immutable: "このサブスクリプションプランはすでに参照されています。ライフサイクル重要フィールドを変更せず、無効化するか新しいバージョンを作成してください。"
+subscription.purchase_pending_migration: "サブスクリプション購入開始は移行中です。更新して新しいサブスクリプションフローを使用してください。"
+subscription.payment_mode_required: "支払いモードは必須です"
+subscription.request_id_required: "リクエスト ID は必須です"
+subscription.stripe_price_requires_mode: "Stripe Price ID には Stripe の定期支払いモードが必要です"
+subscription.capability.single_lifecycle: "単一サブスクリプションライフサイクルが有効です"
+subscription.capability.current_entitlement: "現在の契約エンタイトルメントを利用できます"
+subscription.capability.recurring_binding: "定期プロバイダー連携を利用できます"
+subscription.capability.change_intent: "サブスクリプション変更意図の状態を利用できます"

@@ -1,12 +1,19 @@
 package controller
 
 import (
+	"net/http"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
+
+type flatkeyCreditsResponse struct {
+	Remaining float64 `json:"remaining"`
+	Used      float64 `json:"used"`
+}
 
 func GetSubscription(c *gin.Context) {
 	var remainQuota int
@@ -66,6 +73,54 @@ func GetSubscription(c *gin.Context) {
 	}
 	c.JSON(200, subscription)
 	return
+}
+
+func GetFlatkeyStatus(c *gin.Context) {
+	credits, err := getFlatkeyCredits(c.GetInt("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"status":    "ok",
+		"remaining": credits.Remaining,
+		"used":      credits.Used,
+	})
+}
+
+func GetFlatkeyCredits(c *gin.Context) {
+	credits, err := getFlatkeyCredits(c.GetInt("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, credits)
+}
+
+func getFlatkeyCredits(userId int) (flatkeyCreditsResponse, error) {
+	remainingQuota, err := model.GetUserQuota(userId, false)
+	if err != nil {
+		return flatkeyCreditsResponse{}, err
+	}
+	usedQuota, err := model.GetUserUsedQuota(userId)
+	if err != nil {
+		return flatkeyCreditsResponse{}, err
+	}
+	return flatkeyCreditsResponse{
+		Remaining: quotaToFlatkeyCreditsAmount(remainingQuota),
+		Used:      quotaToFlatkeyCreditsAmount(usedQuota),
+	}, nil
+}
+
+func quotaToFlatkeyCreditsAmount(quota int) float64 {
+	amount := float64(quota)
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		return amount
+	}
+	if common.QuotaPerUnit <= 0 {
+		return 0
+	}
+	return amount / common.QuotaPerUnit * operation_setting.GetUsdToCurrencyRate(operation_setting.USDExchangeRate)
 }
 
 func GetUsage(c *gin.Context) {

@@ -5,16 +5,20 @@
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="fk2.css?v=719h"><style>
+<link rel="stylesheet" href="fk2.css?v=728b"><style>
 .wrap{max-width:1560px;margin:0 auto;padding:52px 48px}
 .search{display:flex;gap:14px;margin:26px 0 18px}
 .search input{flex:1;height:56px;border:1.5px solid var(--line);border-radius:14px;padding:0 22px;font-size:16.5px;background:#fff;color:var(--ink3)}
 .chips{display:flex;gap:10px;margin-bottom:30px;flex-wrap:wrap}
-.chip{padding:9px 16px;border-radius:999px;border:1.5px solid var(--line);font-size:13.5px;font-weight:700;color:var(--ink2);background:#fff}
+.chip{padding:9px 16px;border-radius:999px;border:1.5px solid var(--line);font:inherit;font-size:13.5px;font-weight:700;color:var(--ink2);background:#fff;cursor:pointer}
 .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chip:focus-visible{outline:3px solid var(--violet-hi);outline-offset:2px}
+.result-status{min-height:20px;margin:-8px 0 18px;font-family:var(--mono);font-size:12px;color:var(--ink3)}
 .hl{background:linear-gradient(90deg,#F4F1FF,#FDFFF2);border:1.5px solid #E4DEFF;border-radius:18px;padding:20px 26px;display:flex;gap:34px;align-items:center;margin-bottom:34px}
 .hl b{font-size:15px}
-td .m b{display:block;font-size:15px;font-weight:750}
+td .m{display:flex;align-items:center;gap:10px}
+.m img.plogo{width:18px;height:18px;flex:none}
+.m b{display:block;font-size:15px;font-weight:750}
 td .m span{font-size:12.5px;color:var(--ink3);font-family:var(--mono)}
 .hbar{display:inline-flex;gap:2.5px}
 .hbar i{width:5px;height:16px;border-radius:2px;background:var(--ok);display:inline-block}
@@ -22,6 +26,8 @@ td .m span{font-size:12.5px;color:var(--ink3);font-family:var(--mono)}
 .off{font-family:var(--mono);color:var(--ink3);text-decoration:line-through;font-size:12.5px;display:block}
 .ours{font-family:var(--mono);font-weight:800;color:var(--violet-deep);font-size:14.5px}
 .try{font-size:13px;font-weight:800;color:var(--violet-deep);text-decoration:none}
+.model-link{color:inherit;text-decoration:none}
+.model-link:hover,.try:hover{text-decoration:underline;text-underline-offset:3px}
 tr:hover td{background:#FBFAFF}
 table{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.1)}
 th{background:#fff}
@@ -38,12 +44,12 @@ td{padding:9px 14px}
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-5T5LPLSZ');</script>
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-NKH9LPX9');</script>
 <!-- End Google Tag Manager -->
-<meta name="description" content="Live catalog of 160+ official models on flatkey — GPT, Claude, Gemini, Seedance 2.5 video and realtime audio — with transparent per-token pricing and hourly health checks.">
+<meta name="description" content="Live catalog of 328+ official models on flatkey — GPT, Claude, Gemini, Seedance 2.5 video and realtime audio — with transparent per-token pricing and hourly health checks.">
 <link rel="canonical" href="https://flatkey.ai/models">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="flatkey.ai">
 <meta property="og:title" content="flatkey — Models">
-<meta property="og:description" content="Live catalog of 160+ official models on flatkey — GPT, Claude, Gemini, Seedance 2.5 video and realtime audio — with transparent per-token pricing and hourly health checks.">
+<meta property="og:description" content="Live catalog of 328+ official models on flatkey — GPT, Claude, Gemini, Seedance 2.5 video and realtime audio — with transparent per-token pricing and hourly health checks.">
 <meta property="og:url" content="https://flatkey.ai/models">
 <meta property="og:image" content="https://flatkey.ai/assets/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -51,38 +57,42 @@ td{padding:9px 14px}
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@flatkey101">
 <meta name="twitter:title" content="flatkey — Models">
-<meta name="twitter:description" content="Live catalog of 160+ official models on flatkey — GPT, Claude, Gemini, Seedance 2.5 video and realtime audio — with transparent per-token pricing and hourly health checks.">
+<meta name="twitter:description" content="Live catalog of 328+ official models on flatkey — GPT, Claude, Gemini, Seedance 2.5 video and realtime audio — with transparent per-token pricing and hourly health checks.">
 <meta name="twitter:image" content="https://flatkey.ai/assets/og-image.png">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage", "name": "flatkey — Models", "description": "Live catalog of 160+ official models on flatkey — GPT, Claude, Gemini, Seedance 2.5 video and realtime audio — with transparent per-token pricing and hourly health checks.", "url": "https://flatkey.ai/models"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage", "name": "flatkey — Models", "description": "Live catalog of 328+ official models on flatkey — GPT, Claude, Gemini, Seedance 2.5 video and realtime audio — with transparent per-token pricing and hourly health checks.", "url": "https://flatkey.ai/models"}</script>
 </head><body>
 <noscript><iframe title="Google Tag Manager" src="https://www.googletagmanager.com/ns.html?id=GTM-5T5LPLSZ" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <nav class="nav">
   <a class="logo" href="/"><img src="assets/flatkey-mark.svg?v=4" alt="flatkey">flatkey</a>
-  <a href="/models" class="on">Models</a><a href="/docs">Docs</a><a href="/playground">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing">Pricing</a><a href="/compute" data-i18n="nav.compute">Compute</a><a href="/usecases">Use cases</a>
+  <a href="/models" class="on">Models</a><a href="/docs">Docs</a><a href="/playground">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing">Pricing</a><a href="/compute" data-i18n="nav.compute">Compute</a><a href="/usecases">Use cases</a><a href="/status">Status</a>
   <div class="sp"></div>
   <a href="/login">Sign in</a>
   <a class="btn white" href="/contact">Contact sales</a>
   <a class="btn black" href="/login">Start free →</a>
 </nav>
 <div class="wrap">
-  <h2 class="display" data-i18n="mo.h2">160+ official models. Priced in the open.</h2>
+  <h2 class="display" data-i18n="mo.h2">328+ official models. Priced in the open.</h2>
   <div class="search"><input type="search" id="msearch" data-i18n-ph="mo.search" placeholder="Search models, providers, capabilities…  ( ⌘K )"></div>
-  <div class="chips"><div class="chip on">All</div><div class="chip">Chat / Agents</div><div class="chip">Coding</div><div class="chip">Reasoning</div><div class="chip">Vision</div><div class="chip">Image · Video</div><div class="chip">Embeddings</div><div class="chip">≤ $1 / M tokens</div><div class="chip">China models</div></div>
+  <div class="chips" role="group" aria-label="Filter models by capability">
+    <button class="chip on" type="button" data-filter="all" aria-pressed="true">All</button><button class="chip" type="button" data-filter="chat" aria-pressed="false">Chat / Agents</button><button class="chip" type="button" data-filter="coding" aria-pressed="false">Coding</button><button class="chip" type="button" data-filter="reasoning" aria-pressed="false">Reasoning</button><button class="chip" type="button" data-filter="vision" aria-pressed="false">Vision</button><button class="chip" type="button" data-filter="image-video" aria-pressed="false">Image · Video</button><button class="chip" type="button" data-filter="under-1" aria-pressed="false">≤ $1 / M tokens</button><button class="chip" type="button" data-filter="china" aria-pressed="false">China models</button>
+  </div>
+  <p class="result-status" id="model-result-status" aria-live="polite"></p>
   <div class="hl"><div><b data-i18n="mo.hlb">Model authenticity, audited.</b><br><span style="font-size:13.5px;color:var(--ink2)" data-i18n="mo.hlp">Every model is probed hourly against its official API fingerprint. Public log — because "cheap gateways" that silently swap models are why you can't trust cheap gateways.</span></div><div style="flex:1"></div><a class="try" href="/status" data-i18n="mo.hll">View audit log →</a></div>
   <table>
-    <tr><th>Model</th><th>Provider</th><th>Health · 30d</th><th>Avg latency</th><th>Official</th><th>flatkey self-serve (after bonus)</th><th></th></tr>
-    <tr><td><div class="m"><b>gpt-5.5</b><span>openai</span></div></td><td class="mono">OpenAI</td><td><span class="ours" style="color:var(--green)">96.5%</span></td><td class="mono">3.90s</td><td><span class="off">$5.00/M</span></td><td><span class="ours">$3.33/M</span></td><td><a class="try" href="/playground?model=gpt-5.5">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>claude-sonnet-4-6</b><span>anthropic</span></div></td><td class="mono">Anthropic</td><td><span class="ours" style="color:var(--green)">98.2%</span></td><td class="mono">4.23s</td><td><span class="off">$3.00/M</span></td><td><span class="ours">$2.00/M</span></td><td><a class="try" href="/playground?model=claude-sonnet-4-6">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>gpt-5.4</b><span>openai</span></div></td><td class="mono">OpenAI</td><td><span class="ours" style="color:var(--green)">99.8%</span></td><td class="mono">2.94s</td><td><span class="off">$2.50/M</span></td><td><span class="ours">$1.67/M</span></td><td><a class="try" href="/playground?model=gpt-5.4">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>claude-opus-4-8</b><span>anthropic</span></div></td><td class="mono">Anthropic</td><td><span class="ours" style="color:#B45309">93.8%</span></td><td class="mono">4.37s</td><td><span class="off">$5.00/M</span></td><td><span class="ours">$3.33/M</span></td><td><a class="try" href="/playground?model=claude-opus-4-8">Try ↗</a></td></tr>
-    <tr style="background:var(--violet-tint)"><td><div class="m"><b>seedance-2.5</b><span>bytedance · video · t2v + i2v</span></div></td><td class="mono">ByteDance</td><td><span class="ours" style="color:var(--violet-deep)" data-i18n="md.early">Early access</span></td><td class="mono">1080p</td><td><span class="off">—</span></td><td><span class="ours" data-i18n="md.early">Early access</span></td><td><a class="try" href="/playground?model=seedance-2.5">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>gpt-5.6-sol</b><span>openai</span></div></td><td class="mono">OpenAI</td><td><span class="ours" style="color:var(--green)">99.1%</span></td><td class="mono">13.89s</td><td><span class="off">$5.00/M</span></td><td><span class="ours">$3.33/M</span></td><td><a class="try" href="/playground?model=gpt-5.6-sol">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>gemini-3-flash-preview</b><span>google</span></div></td><td class="mono">Google</td><td><span class="ours" style="color:var(--green)">98.9%</span></td><td class="mono">9.38s</td><td><span class="off">$0.07/M</span></td><td><span class="ours">$0.047/M</span></td><td><a class="try" href="/playground?model=gemini-3-flash-preview">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>gpt-5.4-mini</b><span>openai</span></div></td><td class="mono">OpenAI</td><td><span class="ours" style="color:var(--green)">99.7%</span></td><td class="mono">3.12s</td><td><span class="off">$0.75/M</span></td><td><span class="ours">$0.50/M</span></td><td><a class="try" href="/playground?model=gpt-5.4-mini">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>deepseek-v4-flash</b><span>deepseek</span></div></td><td class="mono">DeepSeek</td><td><span class="ours" style="color:var(--green)">99.4%</span></td><td class="mono">5.03s</td><td><span class="off">$0.14/M</span></td><td><span class="ours">$0.056/M</span></td><td><a class="try" href="/playground?model=deepseek-v4-flash">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>gemini-2.5-pro</b><span>google</span></div></td><td class="mono">Google</td><td><span class="ours" style="color:var(--green)">99.7%</span></td><td class="mono">16.74s</td><td><span class="off">$1.125/M</span></td><td><span class="ours">$0.75/M</span></td><td><a class="try" href="/playground?model=gemini-2.5-pro">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>glm-5.2</b><span>z.ai</span></div></td><td class="mono">Z.ai</td><td><span class="ours" style="color:var(--green)">96.6%</span></td><td class="mono">5.74s</td><td><span class="off">$1.40/M</span></td><td><span class="ours">$0.56/M</span></td><td><a class="try" href="/playground?model=glm-5.2">Try ↗</a></td></tr>
+    <tr><th>Model</th><th>Provider</th><th>Health · 30d</th><th>Avg latency</th><th>Base price</th><th>flatkey self-serve</th><th></th></tr>
+    <tr data-pricing-model="gpt-5.5"><td><div class="m"><img class="plogo" src="assets/logos/openai.svg" alt=""><div><b>gpt-5.5</b><span>openai</span></div></div></td><td class="mono">OpenAI</td><td><span class="ours" style="color:var(--green)">96.5%</span></td><td class="mono">3.90s</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=gpt-5.5">Try ↗</a></td></tr>
+    <tr data-pricing-model="claude-sonnet-4-6"><td><div class="m"><img class="plogo" src="assets/logos/claude.svg" alt=""><div><b>claude-sonnet-4-6</b><span>anthropic</span></div></div></td><td class="mono">Anthropic</td><td><span class="ours" style="color:var(--green)">98.2%</span></td><td class="mono">4.23s</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=claude-sonnet-4-6">Try ↗</a></td></tr>
+    <tr data-pricing-model="claude-opus-5"><td><div class="m"><img class="plogo" src="assets/logos/claude.svg" alt=""><div><b>claude-opus-5</b><span>anthropic</span></div></div></td><td class="mono">Anthropic</td><td><span class="ours" style="color:var(--violet-deep)">New</span></td><td class="mono">&mdash;</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=claude-opus-5">Try ↗</a></td></tr>
+    <tr data-pricing-model="gpt-5.4"><td><div class="m"><img class="plogo" src="assets/logos/openai.svg" alt=""><div><b>gpt-5.4</b><span>openai</span></div></div></td><td class="mono">OpenAI</td><td><span class="ours" style="color:var(--green)">99.8%</span></td><td class="mono">2.94s</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=gpt-5.4">Try ↗</a></td></tr>
+    <tr data-pricing-model="claude-opus-4-8"><td><div class="m"><img class="plogo" src="assets/logos/claude.svg" alt=""><div><b>claude-opus-4-8</b><span>anthropic</span></div></div></td><td class="mono">Anthropic</td><td><span class="ours" style="color:#B45309">93.8%</span></td><td class="mono">4.37s</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=claude-opus-4-8">Try ↗</a></td></tr>
+    <tr style="background:var(--violet-tint)" data-pricing-model="seedance-2.5"><td><div class="m"><img class="plogo" src="assets/logos/bytedance.svg" alt=""><div><b>seedance-2.5</b><span>bytedance · video · t2v + i2v</span></div></div></td><td class="mono">ByteDance</td><td><span class="ours" style="color:var(--violet-deep)" data-i18n="md.early">Early access</span></td><td class="mono">1080p</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=seedance-2.5">Try ↗</a></td></tr>
+    <tr data-pricing-model="gpt-5.6-sol"><td><div class="m"><img class="plogo" src="assets/logos/openai.svg" alt=""><div><b>gpt-5.6-sol</b><span>openai</span></div></div></td><td class="mono">OpenAI</td><td><span class="ours" style="color:var(--green)">99.1%</span></td><td class="mono">13.89s</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=gpt-5.6-sol">Try ↗</a></td></tr>
+    <tr data-pricing-model="gemini-3-flash-preview"><td><div class="m"><img class="plogo" src="assets/logos/googlegemini.svg" alt=""><div><b>gemini-3-flash-preview</b><span>google</span></div></div></td><td class="mono">Google</td><td><span class="ours" style="color:var(--green)">98.9%</span></td><td class="mono">9.38s</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=gemini-3-flash-preview">Try ↗</a></td></tr>
+    <tr data-pricing-model="gpt-5.4-mini"><td><div class="m"><img class="plogo" src="assets/logos/openai.svg" alt=""><div><b>gpt-5.4-mini</b><span>openai</span></div></div></td><td class="mono">OpenAI</td><td><span class="ours" style="color:var(--green)">99.7%</span></td><td class="mono">3.12s</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=gpt-5.4-mini">Try ↗</a></td></tr>
+    <tr data-pricing-model="deepseek-v4-flash"><td><div class="m"><img class="plogo" src="assets/logos/deepseek.svg" alt=""><div><b>deepseek-v4-flash</b><span>deepseek</span></div></div></td><td class="mono">DeepSeek</td><td><span class="ours" style="color:var(--green)">99.4%</span></td><td class="mono">5.03s</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=deepseek-v4-flash">Try ↗</a></td></tr>
+    <tr data-pricing-model="gemini-2.5-pro"><td><div class="m"><img class="plogo" src="assets/logos/googlegemini.svg" alt=""><div><b>gemini-2.5-pro</b><span>google</span></div></div></td><td class="mono">Google</td><td><span class="ours" style="color:var(--green)">99.7%</span></td><td class="mono">16.74s</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=gemini-2.5-pro">Try ↗</a></td></tr>
+    <tr data-pricing-model="glm-5.2"><td><div class="m"><img class="plogo" src="assets/logos/zai.svg" alt=""><div><b>glm-5.2</b><span>z.ai</span></div></div></td><td class="mono">Z.ai</td><td><span class="ours" style="color:var(--green)">96.6%</span></td><td class="mono">5.74s</td><td><span class="off" data-price="configured">Loading pricing…</span></td><td><span class="ours" data-price="plg">Loading pricing…</span></td><td><a class="try" href="/playground?model=glm-5.2">Try ↗</a></td></tr>
   </table>
 </div>
 
@@ -92,14 +102,27 @@ td{padding:9px 14px}
   <p style="font-size:13.5px;color:var(--ink3);margin-bottom:18px" data-i18n="mo.vidsub">Metered per second of generated video, same prepaid balance</p>
   <table>
     <tr><th>Model</th><th>Provider</th><th>Type</th><th>Resolution</th><th>flatkey</th><th></th></tr>
-    <tr style="background:#FBFAFF"><td><div class="m"><b>seedance-2.5</b><span>bytedance · FEATURED</span></div></td><td class="mono">ByteDance</td><td class="mono">t2v + i2v</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.early">Early access</span></td><td><a class="try" href="/playground?model=seedance-2.5">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>seedance-2.0-i2v</b><span>bytedance</span></div></td><td class="mono">ByteDance</td><td class="mono">i2v</td><td class="mono">720p</td><td><span class="ours" data-i18n="md.usage">Usage-based</span></td><td><a class="try" href="/playground?model=seedance-2.0-i2v">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>veo-3.1</b><span>google</span></div></td><td class="mono">Google</td><td class="mono">t2v + audio</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=veo-3.1">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>sora-2</b><span>openai</span></div></td><td class="mono">OpenAI</td><td class="mono">t2v</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=sora-2">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>kling-2.5-pro</b><span>kuaishou</span></div></td><td class="mono">Kuaishou</td><td class="mono">i2v</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=kling-2.5-pro">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>wan-2.7</b><span>alibaba</span></div></td><td class="mono">Alibaba</td><td class="mono">t2v</td><td class="mono">720p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=wan-2.7">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>hailuo-02</b><span>minimax</span></div></td><td class="mono">MiniMax</td><td class="mono">i2v</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=hailuo-02">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>pixverse-v6</b><span>pixverse</span></div></td><td class="mono">PixVerse</td><td class="mono">t2v</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=pixverse-v6">Try ↗</a></td></tr>
+    <tr style="background:#FBFAFF"><td><div class="m"><img class="plogo" src="assets/logos/bytedance.svg" alt=""><div><b>seedance-2.5</b><span>bytedance · FEATURED</span></div></div></td><td class="mono">ByteDance</td><td class="mono">t2v + i2v</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.early">Early access</span></td><td><a class="try" href="/playground?model=seedance-2.5">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/bytedance.svg" alt=""><div><b>seedance-2.0-i2v</b><span>bytedance</span></div></div></td><td class="mono">ByteDance</td><td class="mono">i2v</td><td class="mono">720p</td><td><span class="ours" data-i18n="md.usage">Usage-based</span></td><td><a class="try" href="/playground?model=seedance-2.0-i2v">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/googlegemini.svg" alt=""><div><b>veo-3.1</b><span>google</span></div></div></td><td class="mono">Google</td><td class="mono">t2v + audio</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=veo-3.1">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/openai.svg" alt=""><div><b>sora-2</b><span>openai</span></div></div></td><td class="mono">OpenAI</td><td class="mono">t2v</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=sora-2">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/kuaishou.svg" alt=""><div><b>kling-2.5-pro</b><span>kuaishou</span></div></div></td><td class="mono">Kuaishou</td><td class="mono">i2v</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=kling-2.5-pro">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/alibabacloud.svg" alt=""><div><b>wan-2.7</b><span>alibaba</span></div></div></td><td class="mono">Alibaba</td><td class="mono">t2v</td><td class="mono">720p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=wan-2.7">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/minimax.svg" alt=""><div><b>hailuo-02</b><span>minimax</span></div></div></td><td class="mono">MiniMax</td><td class="mono">i2v</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=hailuo-02">Try ↗</a></td></tr>
+    <tr><td><div class="m"><div><b>pixverse-v6</b><span>pixverse</span></div></div></td><td class="mono">PixVerse</td><td class="mono">t2v</td><td class="mono">1080p</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=pixverse-v6">Try ↗</a></td></tr>
+  </table>
+</div>
+<div class="wrap" style="padding-top:8px">
+  <h2 class="display" style="font-size:32px;margin:26px 0 6px">Image models · <span style="color:var(--violet)">available now</span></h2>
+  <p style="font-size:13.5px;color:var(--ink3);margin-bottom:18px">Prompt-to-image generation on the same Flatkey API key and prepaid balance</p>
+  <table>
+    <tr><th>Model</th><th>Provider</th><th>Type</th><th>flatkey</th><th>Status</th><th></th></tr>
+    <tr style="background:#FBFAFF"><td><div class="m"><img class="plogo" src="assets/logos/openai.svg" alt=""><div><b>gpt-image-2</b><span>openai</span></div></div></td><td class="mono">OpenAI</td><td class="mono">Images API</td><td><span class="ours">See live pricing</span></td><td><span class="ours" style="color:var(--green)">Available</span></td><td><a class="try" href="/playground?model=gpt-image-2">View →</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/googlegemini.svg" alt=""><div><b>gemini-2.5-flash-image</b><span>google</span></div></div></td><td class="mono">Google</td><td class="mono">chat → image</td><td><span class="ours">See live pricing</span></td><td><span class="ours" style="color:var(--green)">Available</span></td><td><a class="try" href="/playground?model=gemini-2.5-flash-image">View →</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/googlegemini.svg" alt=""><div><b>gemini-3-pro-image</b><span>google</span></div></div></td><td class="mono">Google</td><td class="mono">chat → image</td><td><span class="ours">See live pricing</span></td><td><span class="ours" style="color:var(--green)">Available</span></td><td><a class="try" href="/playground?model=gemini-3-pro-image">View →</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/googlegemini.svg" alt=""><div><b>gemini-3.1-flash-image</b><span>google</span></div></div></td><td class="mono">Google</td><td class="mono">chat → image</td><td><span class="ours">See live pricing</span></td><td><span class="ours" style="color:var(--green)">Available</span></td><td><a class="try" href="/playground?model=gemini-3.1-flash-image">View →</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/googlegemini.svg" alt=""><div><b>gemini-3.1-flash-lite-image</b><span>google</span></div></div></td><td class="mono">Google</td><td class="mono">chat → image</td><td><span class="ours">See live pricing</span></td><td><span class="ours" style="color:var(--green)">Available</span></td><td><a class="try" href="/playground?model=gemini-3.1-flash-lite-image">View →</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/googlegemini.svg" alt=""><div><b>nano-banana-pro-preview</b><span>google</span></div></div></td><td class="mono">Google</td><td class="mono">chat → image</td><td><span class="ours">See live pricing</span></td><td><span class="ours" style="color:var(--green)">Available</span></td><td><a class="try" href="/playground?model=nano-banana-pro-preview">View →</a></td></tr>
   </table>
 </div>
 <div class="wrap" style="padding-top:8px">
@@ -107,13 +130,13 @@ td{padding:9px 14px}
   <p style="font-size:13.5px;color:var(--ink3);margin-bottom:18px" data-i18n="mo.audsub">Realtime voice, TTS and transcription — per minute or per 1K characters</p>
   <table>
     <tr><th>Model</th><th>Provider</th><th>Type</th><th>flatkey</th><th></th></tr>
-    <tr><td><div class="m"><b>gpt-realtime</b><span>openai</span></div></td><td class="mono">OpenAI</td><td class="mono">speech ⇄ speech</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=gpt-realtime">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>whisper-v4</b><span>openai</span></div></td><td class="mono">OpenAI</td><td class="mono">transcription</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=whisper-v4">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>elevenlabs-v3-turbo</b><span>elevenlabs</span></div></td><td class="mono">ElevenLabs</td><td class="mono">tts</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=elevenlabs-v3-turbo">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>minimax-speech-2.6</b><span>minimax</span></div></td><td class="mono">MiniMax</td><td class="mono">tts</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=minimax-speech-2.6">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>cosyvoice-3</b><span>alibaba</span></div></td><td class="mono">Alibaba</td><td class="mono">tts</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=cosyvoice-3">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>seed-tts-2</b><span>bytedance</span></div></td><td class="mono">ByteDance</td><td class="mono">tts</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=seed-tts-2">Try ↗</a></td></tr>
-    <tr><td><div class="m"><b>gemini-2.5-flash-tts</b><span>google</span></div></td><td class="mono">Google</td><td class="mono">native audio</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=gemini-2.5-flash-tts">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/openai.svg" alt=""><div><b>gpt-realtime</b><span>openai</span></div></div></td><td class="mono">OpenAI</td><td class="mono">speech ⇄ speech</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=gpt-realtime">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/openai.svg" alt=""><div><b>whisper-v4</b><span>openai</span></div></div></td><td class="mono">OpenAI</td><td class="mono">transcription</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=whisper-v4">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/elevenlabs.svg" alt=""><div><b>elevenlabs-v3-turbo</b><span>elevenlabs</span></div></div></td><td class="mono">ElevenLabs</td><td class="mono">tts</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=elevenlabs-v3-turbo">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/minimax.svg" alt=""><div><b>minimax-speech-2.6</b><span>minimax</span></div></div></td><td class="mono">MiniMax</td><td class="mono">tts</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=minimax-speech-2.6">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/alibabacloud.svg" alt=""><div><b>cosyvoice-3</b><span>alibaba</span></div></div></td><td class="mono">Alibaba</td><td class="mono">tts</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=cosyvoice-3">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/bytedance.svg" alt=""><div><b>seed-tts-2</b><span>bytedance</span></div></div></td><td class="mono">ByteDance</td><td class="mono">tts</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=seed-tts-2">Try ↗</a></td></tr>
+    <tr><td><div class="m"><img class="plogo" src="assets/logos/googlegemini.svg" alt=""><div><b>gemini-2.5-flash-tts</b><span>google</span></div></div></td><td class="mono">Google</td><td class="mono">native audio</td><td><span class="ours" data-i18n="md.soon">Coming soon</span></td><td><a class="try" href="/playground?model=gemini-2.5-flash-tts">Try ↗</a></td></tr>
   </table>
 </div>
 <div class="wrap" style="padding-top:8px">
@@ -155,19 +178,72 @@ td{padding:9px 14px}
 <div class="stripe"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><i class="s5"></i></div>
 <div class="pxgrid model-pixels" data-seed="61" data-cell="20" data-cols="9" data-rows="3" data-n="10" style="top:104px;right:44px"></div>
 <script src="assets/pixels.js?v=719h"></script>
-<script src="assets/i18n.js?v=720e"></script>
-<script src="assets/track.js?v=716b"></script>
+<script src="assets/i18n.js?v=724b"></script>
+<script src="assets/track.js?v=721a"></script>
+<script src="assets/model-catalog.js?v=730a"></script>
+<script src="assets/model-pricing.js?v=729a"></script>
 <script>
 (function(){
   var inp = document.getElementById("msearch");
-  if(!inp) return;
-  inp.addEventListener("input", function(){
+  var catalog = window.FLATKEY_MODEL_CATALOG || {};
+  var chips = Array.prototype.slice.call(document.querySelectorAll(".chip[data-filter]"));
+  var rows = Array.prototype.slice.call(document.querySelectorAll("table tr")).filter(function(tr){ return tr.querySelector("td"); });
+  var status = document.getElementById("model-result-status");
+  var activeFilter = "all";
+  if(!inp || !chips.length || !rows.length) return;
+
+  function modelForRow(tr){
+    var label = tr.querySelector(".m b");
+    return label ? label.textContent.trim() : "";
+  }
+  rows.forEach(function(tr){
+    var model = modelForRow(tr);
+    if(!catalog[model]) return;
+    var label = tr.querySelector(".m b");
+    var detail = document.createElement("a");
+    detail.className = "model-link";
+    detail.href = "/models/" + encodeURIComponent(model);
+    label.replaceWith(detail);
+    detail.appendChild(label);
+    var action = tr.querySelector("a.try[href^='/playground?model=']");
+    if(action){
+      action.href = detail.href;
+      action.textContent = "View →";
+      action.setAttribute("aria-label", "View " + model + " details and API examples");
+    }
+  });
+  function update(){
     var q = inp.value.trim().toLowerCase();
-    document.querySelectorAll("table tr").forEach(function(tr){
-      if(!tr.querySelector("td")) return;
-      tr.style.display = !q || tr.textContent.toLowerCase().indexOf(q) > -1 ? "" : "none";
+    var visible = 0;
+    rows.forEach(function(tr){
+      var model = modelForRow(tr);
+      var meta = catalog[model] || {tags:[]};
+      var categoryMatch = activeFilter === "all" || meta.tags.indexOf(activeFilter) > -1;
+      var searchMatch = !q || tr.textContent.toLowerCase().indexOf(q) > -1 || model.toLowerCase().indexOf(q) > -1;
+      var show = categoryMatch && searchMatch;
+      tr.hidden = !show;
+      if(show) visible += 1;
+    });
+    Array.prototype.slice.call(document.querySelectorAll("table")).forEach(function(table, index){
+      if(index === 0) return;
+      var section = table.closest(".wrap");
+      if(section) section.hidden = !Array.prototype.some.call(table.querySelectorAll("tr"), function(tr){ return tr.querySelector("td") && !tr.hidden; });
+    });
+    status.textContent = visible ? "Showing " + visible + " model" + (visible === 1 ? "" : "s") + (activeFilter === "all" ? "" : " in this category") + "." : "No models match this filter yet.";
+  }
+  chips.forEach(function(chip){
+    chip.addEventListener("click", function(){
+      activeFilter = chip.dataset.filter;
+      chips.forEach(function(item){
+        var on = item === chip;
+        item.classList.toggle("on", on);
+        item.setAttribute("aria-pressed", String(on));
+      });
+      update();
     });
   });
+  inp.addEventListener("input", update);
+  update();
 })();
 </script>
 <script src="assets/site-shell.js?v=720a"></script>

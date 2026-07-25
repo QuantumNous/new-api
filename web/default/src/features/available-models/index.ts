@@ -25,6 +25,7 @@ export {
   getUnavailableAccountModels,
   getUnavailableScopeModels,
   isCallableModel,
+  resolveModelRatioContext,
   resolveCreateScope,
 } from './lib/model-access'
 export {
@@ -44,6 +45,7 @@ export type {
   ModelAccessModel,
   ModelAccessScope,
   ModelAccessScopeMode,
+  ModelRatioContext,
   ModelAccessVendor,
   TokenModelAccessConfig,
   UserModelAccess,

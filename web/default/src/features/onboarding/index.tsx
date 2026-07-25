@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Gift, Loader2, Zap } from 'lucide-react'
-import { useTranslation, Trans } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useOnboardingStore } from '@/stores/onboarding-store'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
@@ -162,10 +162,6 @@ export function Onboarding() {
         {/* Eyebrow — symmetric horizontal padding keeps the centered text clear of the
             absolutely-positioned close (X) button, which otherwise overlaps long
             translations (PT/ES/JP) on the first line. */}
-        <p className='text-muted-foreground px-8 text-center text-xs font-medium'>
-          🎟 {t('Every top-up earns bonus credit')}
-        </p>
-
         {/* Glowing gift icon */}
         <div
           className='mx-auto flex size-16 items-center justify-center rounded-2xl bg-[#C6F24E]'
@@ -176,15 +172,10 @@ export function Onboarding() {
 
         {/* Headline */}
         <h2 className='text-center text-2xl leading-tight font-extrabold tracking-tight'>
-          <Trans
-            i18nKey='Top up & get <hl>bonus credit</hl> — every time'
-            components={{ hl: <span className='text-[#FF2D78]' /> }}
-          />
+          {t('Top up balance')}
         </h2>
         <p className='text-muted-foreground text-center text-sm'>
-          {t(
-            'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.'
-          )}
+          {t('Pay face value. The same amount is added to your balance.')}
         </p>
 
         {/* Tier cards */}

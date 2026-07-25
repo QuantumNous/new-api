@@ -19,10 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import type { AuthUser } from '@/stores/auth-store'
 
 /**
- * Single source of truth for "should the new-user card-bind promo banner / onboarding be
- * offered to this user". Used by CardBindBanner (to render), TopupBonusBanner (to suppress
- * itself when the card-bind banner is showing), and the OAuth onboarding trigger — so the
- * three never drift apart.
+ * Determine whether new-user card-bind onboarding may be offered. Keep this eligibility
+ * contract centralized when wiring card-bind UI and authentication flows.
  *
  * Eligible when the feature is enabled and the user hasn't already bound a card.
  */

@@ -24,17 +24,17 @@ export const OFFICIAL_WEBSITE_ORIGIN = normalizeOrigin(
   import.meta.env.VITE_OFFICIAL_WEBSITE_ORIGIN as string | undefined
 )
 
+export const OFFICIAL_DOCUMENTATION_URL = 'https://docs.flatkey.ai/'
+
 /**
- * Locale-prefixed website path: the console UI language maps to the website's
- * /{locale} routes (English lives at the root). Keeps the language choice
- * when hopping console → website.
+ * Official-site paths stay canonical across console languages. The console
+ * locale changes navigation labels, not the website destination.
  */
-export function localizedWebsitePath(
-  language: string | undefined,
+export function consoleWebsitePath(
+  _language: string | undefined,
   path: string
 ): string {
-  const lang = (language || 'en').split('-')[0]
-  return lang && lang !== 'en' ? `/${lang}${path === '/' ? '' : path}` : path
+  return path
 }
 
 export function officialWebsiteUrl(

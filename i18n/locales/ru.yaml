@@ -21,3 +21,24 @@ notify.subscription_quota_warning_title: "Квота вашей подписки
 notify.quota_warning_email: "{{.Warning}}. Ваш текущий остаток квоты: {{.Quota}}. Чтобы избежать прерывания обслуживания, пополните вовремя.<br/>Ссылка для пополнения: <a href='{{.Link}}'>{{.Link}}</a>"
 notify.quota_warning_bark: "{{.Warning}}. Остаток квоты: {{.Quota}}. Пополните вовремя."
 notify.quota_warning_gotify: "{{.Warning}}. Ваш текущий остаток квоты: {{.Quota}}. Пополните вовремя."
+
+# CLI device authorization messages
+cli.device_id_missing: "Требуется ID устройства"
+cli.device_metadata_too_long: "Метаданные CLI-устройства слишком длинные"
+cli.device_code_invalid: "Недействительный код устройства"
+cli.authorization_code_missing: "Требуется код авторизации"
+cli.authorization_not_found: "Запрос авторизации не найден"
+cli.authorization_token_create_failed: "Не удалось создать CLI-токен"
+
+# Subscription messages
+subscription.tier_rank_reserved: "Ранг плана подписки уже зарезервирован"
+subscription.tier_rank_required: "Включенные планы подписки должны иметь положительный ранг"
+subscription.lifecycle_fields_immutable: "Этот план подписки уже используется. Отключите его или создайте новую версию вместо изменения критичных полей жизненного цикла."
+subscription.purchase_pending_migration: "Запуск покупки подписки находится в миграции. Обновите страницу и используйте новый поток подписки."
+subscription.payment_mode_required: "Требуется режим оплаты"
+subscription.request_id_required: "Требуется ID запроса"
+subscription.stripe_price_requires_mode: "Stripe Price ID требует режим регулярной оплаты Stripe"
+subscription.capability.single_lifecycle: "Единый жизненный цикл подписки включен"
+subscription.capability.current_entitlement: "Текущее право по контракту доступно"
+subscription.capability.recurring_binding: "Регулярная привязка провайдера доступна"
+subscription.capability.change_intent: "Статус намерения изменения подписки доступен"

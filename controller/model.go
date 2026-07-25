@@ -337,6 +337,7 @@ func AvailableModels(c *gin.Context) {
 			Object:                 "model",
 			Created:                1626777600,
 			OwnedBy:                owner,
+			Type:                   availableModelType(accessModel.ID, accessModel.SupportedEndpointTypes),
 			SupportedEndpointTypes: accessModel.SupportedEndpointTypes,
 		})
 	}
@@ -346,6 +347,42 @@ func AvailableModels(c *gin.Context) {
 		"data":    availableModels,
 		"object":  "list",
 	})
+}
+
+func availableModelType(modelID string, endpointTypes []constant.EndpointType) string {
+	for _, endpointType := range endpointTypes {
+		switch endpointType {
+		case constant.EndpointTypeOpenAIVideo:
+			return "video"
+		case constant.EndpointTypeImageGeneration:
+			return "image"
+		case constant.EndpointTypeJinaRerank:
+			return "text"
+		}
+	}
+	normalized := strings.ToLower(modelID)
+	switch {
+	case strings.Contains(normalized, "seedance") ||
+		strings.Contains(normalized, "veo") ||
+		strings.Contains(normalized, "sora") ||
+		strings.Contains(normalized, "video"):
+		return "video"
+	case strings.Contains(normalized, "image") ||
+		strings.Contains(normalized, "imagen") ||
+		strings.Contains(normalized, "nano-banana"):
+		return "image"
+	case strings.Contains(normalized, "tts") ||
+		strings.Contains(normalized, "audio") ||
+		strings.Contains(normalized, "voice") ||
+		strings.Contains(normalized, "speech") ||
+		strings.Contains(normalized, "eleven") ||
+		strings.Contains(normalized, "elevenlabs") ||
+		strings.Contains(normalized, "music") ||
+		strings.Contains(normalized, "sound-generation"):
+		return "audio"
+	default:
+		return "text"
+	}
 }
 
 func ChannelListModels(c *gin.Context) {

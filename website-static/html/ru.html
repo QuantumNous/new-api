@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/fk2.css?v=719h"><style>
+<link rel="stylesheet" href="/fk2.css?v=728b"><style>
 /* ---------- hero ---------- */
 .hero{background:linear-gradient(180deg,#FFFFFF 0%,#F7F5FD 100%);border-bottom:1px solid var(--line)}
 .heroGrid{max-width:1240px;margin:0 auto;padding:56px 40px 52px;display:grid;grid-template-columns:minmax(0,1fr) 560px;gap:48px;align-items:start}
@@ -146,82 +146,20 @@ p.d{font-size:17.5px;line-height:1.65;color:#C9C9CF;margin-top:20px;max-width:62
   <a class="btn black" href="/login" data-i18n="nav.start" data-orig="Start free →">Начать бесплатно →</a>
 </nav>
 
-<header class="hero">
-<div class="pxgrid" data-seed="11" data-cell="22" data-cols="16" data-rows="3" data-n="15" style="top: 0px; right: 30px; width: 352px; height: 66px;"></div>
+<header class="hero heroUnified">
+<div class="pxgrid" data-seed="11" data-cell="22" data-cols="16" data-rows="3" data-n="15" style="top:0;right:30px"></div>
   <div class="heroGrid">
-    <div>
-      <span class="eyebrow" data-i18n="hero.eyebrow" data-orig="OFFICIAL APIS ONLY · VERIFIED HOURLY">ТОЛЬКО ОФИЦИАЛЬНЫЕ API · ПРОВЕРКА КАЖДЫЙ ЧАС</span>
-      <h1 class="display" data-i18n="hero.h1" data-orig="Every official model.&lt;br&gt;One key.&lt;br&gt;&lt;span class=&quot;price&quot;&gt;More AI, less cost.&lt;/span&gt;">Все официальные модели.<br>Один ключ.<br><span class="price">More AI, less cost.</span></h1>
-      <p class="sub" data-i18n="hero.sub" data-orig="GPT, Claude, Gemini, DeepSeek, GLM — and Seedance 2.5 video — routed to the real, official endpoints with public per-model multipliers you can audit. Change one line, keep your SDK.">flatkey направляет ваши запросы по одному ключу в официальные API GPT, Claude, Gemini, DeepSeek, GLM — и видео Seedance 2.5: настоящие модели, без подмен. Китайские модели от 60% официальной цены; каждое пополнение даёт 15–50% бонуса ($200 → $100 бесплатно). Одна строка кода — SDK прежний.</p>
-      <div class="code">gpt&nbsp;&nbsp;&nbsp; = OpenAI(<span class="k">base_url</span>=<span class="s">"https://router.flatkey.ai/v1"</span>, <span class="k">api_key</span>=<span class="s">"sk-fk-…"</span>)
-claude = Anthropic(<span class="k">base_url</span>=<span class="s">"https://router.flatkey.ai"</span>, <span class="k">api_key</span>=<span class="s">"sk-fk-…"</span>)</div>
-      <div class="ctas">
-        <a class="btn black big" href="/login" data-i18n="hero.cta1" data-orig="Start building — free $2 credit">Начать — $2 в подарок</a>
-        <a class="btn white big" href="/playground" data-i18n="hero.cta2" data-orig="Try in Playground, no signup">Playground без регистрации</a>
-      </div>
-      <p class="proofline" data-i18n="hero.proof" data-orig="&lt;b class=&quot;num&quot;&gt;46B&lt;/b&gt; tokens/month · &lt;b class=&quot;num&quot;&gt;4K+&lt;/b&gt; paying users · &lt;b class=&quot;num&quot;&gt;100+&lt;/b&gt; enterprises in production · &lt;b class=&quot;num&quot;&gt;0&lt;/b&gt; model swaps — &lt;a href=&quot;#trust&quot; style=&quot;color:var(--violet-deep);font-weight:600&quot;&gt;public audit log ↗&lt;/a&gt;"><b class="num">46B</b> токенов/мес · <b class="num">4K+</b> платящих пользователей · <b class="num">100+</b> компаний в проде · <b class="num">0</b> подмен моделей — <a href="#trust" style="color:var(--violet-deep);font-weight:600">публичный журнал аудита ↗</a></p>
-    </div>
-    <div>
-      <div class="board">
-        <h4>LIVE MODEL BOARD<span class="g">ALL VERIFIED HOURLY ✓ · REAL 30-DAY TRAFFIC</span></h4>
-        <div class="bauto"><div class="ico">A</div><div><b>flatkey-auto</b> <span class="d">picks the best official model per request</span></div><span class="fee">no routing fee</span></div>
-        <div class="brow"><b>gpt-5.5</b><span class="prov">openai</span><span class="hdot" title="96.5% success · 30-day real traffic"></span><span class="pr"><s>$5.00</s><span class="now">$3.33</span><span class="un">/M in</span></span></div>
-        <div class="brow"><b>claude-sonnet-4-6</b><span class="prov">anthropic</span><span class="hdot" title="98.2% success · 30-day real traffic"></span><span class="pr"><s>$3.00</s><span class="now">$2.00</span><span class="un">/M in</span></span></div>
-        <div class="brow"><b>gpt-5.4</b><span class="prov">openai</span><span class="hdot" title="99.8% success · 30-day real traffic"></span><span class="pr"><s>$3.33</s><span class="now">$1.67</span><span class="un">/M in</span></span></div>
-        <div class="brow"><b>claude-opus-4-8</b><span class="prov">anthropic</span><span class="hdot" title="93.8% success · 30-day real traffic"></span><span class="pr"><s>$5.00</s><span class="now">$3.33</span><span class="un">/M in</span></span></div>
-        <div class="brow"><b>deepseek-v4-flash</b><span class="prov">deepseek</span><span class="hdot" title="99.4% success · 30-day real traffic"></span><span class="pr"><s>$0.14</s><span class="now">$0.056</span><span class="un">/M in</span></span></div>
-        <div class="brow"><b>glm-5.2</b><span class="prov">z.ai</span><span class="hdot" title="96.6% success · 30-day real traffic"></span><span class="pr"><s>$1.40</s><span class="now">$0.56</span><span class="un">/M in</span></span></div>
-        <div class="brow" style="background:var(--violet-tint);border-radius:10px;margin:4px 14px 2px;padding-left:12px;padding-right:12px;border-bottom:none"><b>seedance-2.5</b><span class="prov">bytedance</span><span style="font-family:var(--mono);font-size:9.5px;background:#fff;color:var(--violet-deep);border-radius:999px;padding:2px 8px;font-weight:600">VIDEO · NEW</span><span class="hdot" title="early access · official bytedance"></span><span class="pr"><span class="now" style="font-size:12.5px" data-i18n="md.early" data-orig="Early access">Ранний доступ</span></span></div>
-        <div class="boardfoot"><a href="/models" data-i18n="board.foot" data-orig="See all 160+ models &amp;amp; live health →">Все 160+ моделей и их здоровье →</a></div>
-      </div>
+    <div class="heroCopy">
+      <span class="eyebrow" data-i18n="hero.eyebrow">300+ ОФИЦИАЛЬНЫХ МОДЕЛЕЙ · ВСЕ ОСНОВНЫЕ API-ПРОТОКОЛЫ</span>
+      <h1 class="display" data-i18n="hero.h1">Один ключ.<br><span class="price">Больше ИИ, меньше затрат.</span></h1>
+      <p class="sub" data-i18n="hero.sub">Один ключ для официальных API GPT, Claude, Seedance, DeepSeek, Kimi, GLM, Gemini и других моделей, плюс вычислительные мощности для развертывания моделей с открытым кодом; цены — от 50% официальных.</p>
+      <div class="heroCtas">
+        <a class="btn big heroPrimary" href="/login" data-i18n="hero.cta1">Получить API-ключ</a>
+        <a class="btn big heroSecondary" href="/models" data-i18n="hero.cta2">Выбрать модели</a>
       </div>
     </div>
-  
+  </div>
 </header>
-
-<section class="proof">
-<div class="pxgrid" data-seed="23" data-cell="16" data-cols="6" data-rows="4" data-n="9" style="top: 4px; right: 10px; width: 96px; height: 64px;"></div>
-  <div class="proofGrid">
-    <div>
-      <span class="tagline" data-i18n="proof.t1" data-orig="FREE START">БЕСПЛАТНЫЙ СТАРТ</span>
-      <h3 data-i18n="proof.h1" data-orig="$2 credit + &lt;span&gt;3 runs before signup&lt;/span&gt;">$2 кредита + <span>3 запуска до регистрации</span></h3>
-      <p data-i18n="proof.p1" data-orig="Together and Segmind killed their free tiers; Novita is down to $0.50. flatkey still lets you run real models before you even sign in.">Together и Segmind убрали бесплатные тарифы; у Novita осталось $0.50. flatkey даёт запускать настоящие модели ещё до входа.</p>
-    </div>
-    <div>
-      <span class="tagline" data-i18n="proof.t2" data-orig="SMART ROUTING">УМНАЯ МАРШРУТИЗАЦИЯ</span>
-      <h3 data-i18n="proof.h2" data-orig="flatkey-auto, &lt;span&gt;no routing fee&lt;/span&gt;">flatkey-auto, <span>без комиссии за роутинг</span></h3>
-      <p data-i18n="proof.p2" data-orig="One model name; the gateway picks the best official model per request — task-aware, health-aware, always the lowest multiplier that meets quality.">Одно имя модели; шлюз сам выбирает лучшую официальную модель под запрос — с учётом задачи и здоровья, всегда по минимальному множителю.</p>
-    </div>
-    <div>
-      <span class="tagline" data-i18n="proof.t3" data-orig="TRUST · ZERO QUANTIZATION">ДОВЕРИЕ · НОЛЬ КВАНТИЗАЦИИ</span>
-      <h3 data-i18n="proof.h3" data-orig="Official APIs, &lt;span&gt;audited hourly&lt;/span&gt;">Официальные API, <span>аудит каждый час</span></h3>
-      <p data-i18n="proof.p3" data-orig="No fp8 re-serves, no silent swaps. Every model probed against its official fingerprint, on a public log — 160+ models probed, every hour, on the record.">Никаких fp8-пересборок и тихих подмен. Каждая модель сверяется с официальным отпечатком, журнал публичен — 160+ моделей, каждый час.</p>
-    </div>
-    <div>
-      <span class="tagline" data-i18n="proof.t4" data-orig="PAY LOCAL">ЛОКАЛЬНАЯ ОПЛАТА</span>
-      <h3 data-i18n="proof.h4" data-orig="Pix, UPI, Alipay — &lt;span&gt;your currency&lt;/span&gt;">Pix, UPI, Alipay — <span>ваша валюта</span></h3>
-      <p data-i18n="proof.p4" data-orig="Prices in BRL, INR or CNY at checkout, 3DS-secured. Plus Anthropic-shaped API: point Claude Code or Cline at one base_url and go.">Цены в BRL, INR или CNY на кассе, защита 3DS. Плюс Anthropic-совместимый API: направьте Claude Code или Cline на один base_url.</p>
-    </div>
-  </div>
-</section>
-
-<section class="compare">
-<div class="pxgrid" data-seed="31" data-cell="20" data-cols="10" data-rows="3" data-n="11" style="top: 2px; right: 36px; width: 200px; height: 60px;"></div>
-  <div class="compareIn">
-    <div class="head">
-      <h2 class="display" data-i18n="cmp.h2" data-orig="Claude at 67% of list.&lt;br&gt;Everyone else charges full price.">Claude за 67% официальной цены.<br>Остальные берут полную.</h2>
-      <p class="sub" style="max-width:380px" data-i18n="cmp.sub" data-orig="Claude Opus 4.8, $ per 1M input tokens after top-up bonus, measured across gateways on 2026-07-14.">Claude Opus 4.8, $ за 1M входных токенов после бонуса, замер 2026-07-14.</p>
-    </div>
-    <div class="bars">
-      <div class="bar"><span class="who">Anthropic official</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="amt">$5.00</span></div>
-      <div class="bar"><span class="who">WaveSpeed</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="amt">$5.00</span></div>
-      <div class="bar"><span class="who">Replicate</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="amt">$5.00</span></div>
-      <div class="bar"><span class="who">Nonelinear</span><div class="track"><div class="fill" style="width:98%"></div></div><span class="amt">$4.90</span></div>
-      <div class="bar fk"><span class="who">flatkey</span><div class="track"><div class="fill" style="width:53%"></div></div><span class="amt">$2.67</span></div>
-    </div>
-    <p class="footnote" data-i18n="cmp.foot" data-orig="Together, Novita and Segmind don’t carry official Claude at all. flatkey self-serve: every top-up earns 15–50% bonus credit — Claude from ⅔ of list, national-lab models down to 40% — and enterprise interfaces price below self-serve.">Together, Novita и Segmind вообще не продают официальный Claude. flatkey: каждое пополнение даёт 15–50% бонуса — Claude от ⅔ официальной цены, китайские модели от 40%.</p>
-  </div>
-</section>
 
 <section class="rel" id="reliability">
 <div class="pxgrid" data-seed="139" data-cell="18" data-cols="8" data-rows="3" data-n="9" style="top: 20px; right: 38px; width: 144px; height: 54px;"></div>
@@ -267,7 +205,7 @@ claude = Anthropic(<span class="k">base_url</span>=<span class="s">"https://rout
       </div>
       <div class="wcard">
         <h3 data-i18n="why.c2h" data-orig="Official endpoints, verified hourly">Официальные эндпоинты, проверка каждый час</h3>
-        <p data-i18n="why.c2p" data-orig="Every request hits the real lab API — no fp8 re-serves, no silent swaps. 160+ models probed against official fingerprints, on a public log.">Каждый запрос попадает в настоящий API лаборатории — без fp8-пересборок и тихих подмен. 160+ моделей сверяются с официальными отпечатками, журнал публичен.</p>
+        <p data-i18n="why.c2p" data-orig="Every request hits the real lab API — no fp8 re-serves, no silent swaps. 300+ models probed against official fingerprints, on a public log.">Каждый запрос попадает в настоящий API лаборатории — без fp8-пересборок и тихих подмен. 300+ моделей сверяются с официальными отпечатками, журнал публичен.</p>
         <div class="labs">
           <div class="lab" style="background:#0E8A6C">G<span>OpenAI</span></div>
           <div class="lab" style="background:#B45309">C<span>Anthropic</span></div>
@@ -309,10 +247,11 @@ client.chat.completions.create(
     <p class="d" data-i18n="trust.p" data-orig="Every hour, every model is probed against its official API fingerprint — logits, tokenizer, refusal shape. The log is public. Cheap gateways ask for trust; flatkey shows receipts.">Каждый час каждая модель сверяется с официальным отпечатком API — логиты, токенизатор, форма отказов. Журнал публичен. Дешёвые шлюзы просят доверия; flatkey показывает чеки.</p>
     <div class="rows">
       <div><span class="t">14:00</span><b>claude-opus-4-8</b> fingerprint ✓ · official anthropic · 388ms<span class="ok">PASS</span></div>
+      <div><span class="t">LIVE</span><b>claude-opus-5</b> fingerprint ✓ · official anthropic<span class="ok">PASS</span></div>
       <div><span class="t">14:00</span><b>gpt-5.5</b> fingerprint ✓ · official openai · 412ms<span class="ok">PASS</span></div>
       <div><span class="t">14:00</span><b>glm-5.2</b> fingerprint ✓ · official zhipu · 241ms<span class="ok">PASS</span></div>
       <div><span class="t">14:00</span><b>seedance-2.0</b> fingerprint ✓ · official bytedance · video<span class="ok">PASS</span></div>
-      <div><span class="t">13:00</span>160+ models probed hourly · 30-day log public<span class="ok">PASS</span></div>
+      <div><span class="t">13:00</span>300+ models probed hourly · 30-day log public<span class="ok">PASS</span></div>
     </div>
   </div>
   <div class="vtag"><span class="p">▶</span>BACKGROUND VIDEO · hourly-probe radar · 12s loop</div>
@@ -343,13 +282,13 @@ client.chat.completions.create(
 <section class="v" id="models">
   <div class="pxgrid" data-seed="47" data-cell="24" data-cols="10" data-rows="5" data-n="16" data-colors="#7C3AED66,#8B5CF64D,#A78BFA59" data-accent="#22C55E" style="right: 60px; bottom: 56px; z-index: 1; width: 240px; height: 120px;"></div>
   <div class="bgv wall">
-    <div class="lane"><div class="tile"><b>gpt-5.5</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · openai · 1M</span><span class="pr">$3.33/M · 67% of list</span></div><div class="tile"><b>claude-opus-4-8</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · anthropic · 500K</span><span class="pr">$3.33/M · 67% of list</span></div><div class="tile"><b>gemini-3.2-pro</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · google · 2M</span><span class="pr">$1.50/M</span></div><div class="tile"><b>deepseek-v4</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · deepseek · 256K</span><span class="pr">$0.17/M</span></div><div class="tile"><b>qwen3-max</b><span>alibaba</span><span class="pr">$0.72/M</span></div><div class="tile"><b>glm-5.2</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · zhipu · 200K</span><span class="pr">$0.56/M</span></div><div class="tile"><b>gpt-5.5</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · openai · 1M</span><span class="pr">$3.33/M · 67% of list</span></div><div class="tile"><b>claude-opus-4-8</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · anthropic · 500K</span><span class="pr">$3.33/M · 67% of list</span></div><div class="tile"><b>gemini-3.2-pro</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · google · 2M</span><span class="pr">$1.50/M</span></div><div class="tile"><b>deepseek-v4</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · deepseek · 256K</span><span class="pr">$0.17/M</span></div><div class="tile"><b>qwen3-max</b><span>alibaba</span><span class="pr">$0.72/M</span></div><div class="tile"><b>glm-5.2</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · zhipu · 200K</span><span class="pr">$0.56/M</span></div></div>
+    <div class="lane"><div class="tile"><b>gpt-5.5</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · openai · 1M</span><span class="pr">$3.33/M · 67% of list</span></div><div class="tile"><b>claude-opus-4-8</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · anthropic · 500K</span><span class="pr">$3.33/M · 67% of list</span></div><div class="tile"><b>claude-opus-5</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · anthropic · 1M</span><span class="pr">$4.50/M · 90% of list</span></div><div class="tile"><b>gemini-3.2-pro</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · google · 2M</span><span class="pr">$1.50/M</span></div><div class="tile"><b>deepseek-v4</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · deepseek · 256K</span><span class="pr">$0.17/M</span></div><div class="tile"><b>qwen3-max</b><span>alibaba</span><span class="pr">$0.72/M</span></div><div class="tile"><b>glm-5.2</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · zhipu · 200K</span><span class="pr">$0.56/M</span></div><div class="tile"><b>gpt-5.5</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · openai · 1M</span><span class="pr">$3.33/M · 67% of list</span></div><div class="tile"><b>claude-opus-4-8</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · anthropic · 500K</span><span class="pr">$3.33/M · 67% of list</span></div><div class="tile"><b>claude-opus-5</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · anthropic · 1M</span><span class="pr">$4.50/M · 90% of list</span></div><div class="tile"><b>gemini-3.2-pro</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · google · 2M</span><span class="pr">$1.50/M</span></div><div class="tile"><b>deepseek-v4</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · deepseek · 256K</span><span class="pr">$0.17/M</span></div><div class="tile"><b>qwen3-max</b><span>alibaba</span><span class="pr">$0.72/M</span></div><div class="tile"><b>glm-5.2</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · zhipu · 200K</span><span class="pr">$0.56/M</span></div></div>
     <div class="lane r"><div class="tile" style="border-color:#8B5CF666"><b style="color:#B7A3F0">seedance-2.5</b><span>bytedance · video · t2v + i2v</span><span class="pr" data-i18n="md.early" data-orig="Early access">Ранний доступ</span></div><div class="tile"><b>glm-5.2</b><span>z.ai</span><span class="pr">$0.56/M</span></div><div class="tile"><b>claude-sonnet-5</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · anthropic · 1M</span><span class="pr">$1.33/M</span></div><div class="tile"><b>gpt-5.4-mini</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · openai · 400K</span><span class="pr">$0.50/M</span></div><div class="tile"><b>gemini-3-flash</b><span>google</span><span class="pr">$0.047/M</span></div><div class="tile"><b>deepseek-v4-flash</b><span>deepseek</span><span class="pr">$0.056/M</span></div><div class="tile"><b>qwen3.7-max</b><span>alibaba</span><span class="pr">$1.00/M</span></div><div class="tile" style="border-color:#8B5CF666"><b style="color:#B7A3F0">seedance-2.5</b><span>bytedance · video · t2v + i2v</span><span class="pr" data-i18n="md.early" data-orig="Early access">Ранний доступ</span></div><div class="tile"><b>glm-5.2</b><span>z.ai</span><span class="pr">$0.56/M</span></div><div class="tile"><b>claude-sonnet-5</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · anthropic · 1M</span><span class="pr">$1.33/M</span></div><div class="tile"><b>gpt-5.4-mini</b><span><i style="font-style:normal;color:var(--green)">✓ verified</i> · openai · 400K</span><span class="pr">$0.50/M</span></div><div class="tile"><b>gemini-3-flash</b><span>google</span><span class="pr">$0.047/M</span></div><div class="tile"><b>deepseek-v4-flash</b><span>deepseek</span><span class="pr">$0.056/M</span></div><div class="tile"><b>qwen3.7-max</b><span>alibaba</span><span class="pr">$1.00/M</span></div></div>
     <div class="lane"><div class="tile" style="border-color:#8B5CF666"><b style="color:#B7A3F0">flatkey-auto</b><span>routes itself</span><span class="pr">no routing fee</span></div><div class="tile"><b>minimax-m3</b><span>minimax</span><span class="pr">$0.18/M</span></div><div class="tile"><b>grok-4.2</b><span>xai</span><span class="pr">$1.80/M</span></div><div class="tile"><b>step-3.7-flash</b><span>stepfun</span><span class="pr">$0.16/M</span></div><div class="tile"><b>hunyuan-2.0</b><span>tencent</span><span class="pr">$0.40/M</span></div><div class="tile"><b>mimo-v2.5</b><span>xiaomi</span><span class="pr">$0.01/M</span></div><div class="tile" style="border-color:#8B5CF666"><b style="color:#B7A3F0">flatkey-auto</b><span>routes itself</span><span class="pr">no routing fee</span></div><div class="tile"><b>minimax-m3</b><span>minimax</span><span class="pr">$0.18/M</span></div><div class="tile"><b>grok-4.2</b><span>xai</span><span class="pr">$1.80/M</span></div><div class="tile"><b>step-3.7-flash</b><span>stepfun</span><span class="pr">$0.16/M</span></div><div class="tile"><b>hunyuan-2.0</b><span>tencent</span><span class="pr">$0.40/M</span></div><div class="tile"><b>mimo-v2.5</b><span>xiaomi</span><span class="pr">$0.01/M</span></div></div>
   </div>
   <div class="shade"></div>
   <div class="in">
-    <div class="kick" data-i18n="mdl.kick" data-orig="MODELS · 160+ OFFICIAL MODELS, ONE KEY">МОДЕЛИ · 160+ ОФИЦИАЛЬНЫХ, ОДИН КЛЮЧ</div>
+    <div class="kick" data-i18n="mdl.kick" data-orig="MODELS · 300+ OFFICIAL MODELS, ONE KEY">МОДЕЛИ · 300+ ОФИЦИАЛЬНЫХ, ОДИН КЛЮЧ</div>
     <h2 class="big" data-i18n="mdl.h2" data-orig="Every frontier lab&lt;em&gt;.&lt;/em&gt;&lt;br&gt;One key.">Каждая передовая лаборатория<em>.</em><br>Один ключ.</h2>
     <p class="d" data-i18n="mdl.p" data-orig="OpenAI, Anthropic, Google, DeepSeek, Alibaba, Zhipu, Moonshot, ByteDance… new models live within 24h of official release — always the real endpoints, never quantized re-serves.">OpenAI, Anthropic, Google, DeepSeek, Alibaba, Zhipu, Moonshot, ByteDance… новые модели — в течение 24ч после релиза, всегда настоящие эндпоинты.</p>
     
@@ -511,7 +450,7 @@ client.chat.completions.create(
 <div class="stripe"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><i class="s5"></i></div>
 <script src="/assets/pixels.js?v=719h"></script>
 <script>try{localStorage.setItem("fk-lang","ru")}catch(e){}</script>
-<script src="/assets/i18n.js?v=720e"></script>
-<script src="/assets/track.js?v=716b"></script>
+<script src="/assets/i18n.js?v=724b"></script>
+<script src="/assets/track.js?v=721a"></script>
 <script src="assets/site-shell.js?v=720a"></script>
 </body></html>

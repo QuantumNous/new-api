@@ -13,6 +13,8 @@
 
 Go app workflow 构建同一份 Go 镜像；生产部署必须经过 `production` Environment 审批。push 到 `main` 后会在同一个 run 里挂出 `deploy console` 和 `deploy router` 两个审批 job；有权限的人 approve 哪个，哪个才会真正部署。不要把 website 变更放到 Go workflow，也不要在 `web/default` 里恢复公开网站页面。
 
+Legacy monolithic `newapi` 已下线（`enable_legacy_runtime=false`），不属于日常发布或回滚目标。生产 Go 服务只发布 `newapi-console` 和 `newapi-router`；URL map 未命中 host rule 时回退到 `newapi-console`。
+
 ## 日常发布
 
 ### 触发方式

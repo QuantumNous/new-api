@@ -55,6 +55,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { MultiSelect } from '@/components/multi-select'
+import { OperationDocumentationLink } from '@/components/operation-documentation-link'
 import { resolveCreateScope } from '@/features/available-models'
 import { ModelAccessPreview } from '@/features/available-models/components/model-access-preview'
 import { createApiKey, updateApiKey, getApiKey } from '../api'
@@ -457,12 +458,15 @@ export function ApiKeysMutateDrawer({
 
     return (
       <ModelAccessPreview
+        defaultRatio={modelAccessState.defaultRatio}
+        modelRatios={modelAccessState.modelRatios}
         models={modelAccessState.effectiveModels}
         totalCount={modelAccessState.scopeModels.length}
         scopeKey={selectedGroup || previewScopeTitle}
         scopeTitle={previewScopeTitle}
         scopeDescription={previewScopeDescription}
         summary={previewSummary}
+        headerAction={<OperationDocumentationLink size='xs' />}
         emptyTitle={previewCopy ? t(previewCopy.emptyTitleKey) : undefined}
         emptyDescription={
           previewCopy ? t(previewCopy.emptyDescriptionKey) : undefined
@@ -480,6 +484,8 @@ export function ApiKeysMutateDrawer({
     }
     return (
       <ApiKeyModelPreviewDrawer
+        defaultRatio={modelAccessState.defaultRatio}
+        modelRatios={modelAccessState.modelRatios}
         models={modelAccessState.effectiveModels}
         totalCount={modelAccessState.scopeModels.length}
         scopeKey={selectedGroup || previewScopeTitle}

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export interface InvitationShareLinks {
+  clipboard: string
   email: string
   x: string
   linkedin: string
@@ -43,6 +44,7 @@ export function buildInvitationShareLinks(
   const encodedMessage = encodeURIComponent(message)
 
   return {
+    clipboard: `${message}\n${url}`,
     email: `mailto:?subject=${encodedMessage}&body=${encodedMessage}%0A${encodedUrl}`,
     x: `https://twitter.com/intent/tweet?text=${encodedMessage}&url=${encodedUrl}`,
     linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,

@@ -183,12 +183,17 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["QuotaForInviterMaxCount"] = strconv.Itoa(common.QuotaForInviterMaxCount)
+	common.OptionMap["InviteRewardSubscriptionModeEnabled"] = strconv.FormatBool(common.InviteRewardSubscriptionMode)
+	common.OptionMap["InviteRewardUnlockDelaySeconds"] = strconv.FormatInt(common.InviteRewardUnlockDelaySeconds, 10)
+	common.OptionMap["InviteFirstSubDiscountUSD"] = strconv.FormatFloat(common.InviteFirstSubDiscountUSD, 'f', -1, 64)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
 	common.OptionMap["ModelRequestRateLimitDurationMinutes"] = strconv.Itoa(setting.ModelRequestRateLimitDurationMinutes)
 	common.OptionMap["ModelRequestRateLimitSuccessCount"] = strconv.Itoa(setting.ModelRequestRateLimitSuccessCount)
 	common.OptionMap["ModelRequestRateLimitGroup"] = setting.ModelRequestRateLimitGroup2JSONString()
+	common.OptionMap["SubscriptionModelWeights"] = setting.SubscriptionModelWeights2JSONString()
+	common.OptionMap["FreePlanOnSignupEnabled"] = strconv.FormatBool(setting.FreePlanOnSignupEnabled)
 	common.OptionMap["ModelRatio"] = ratio_setting.ModelRatio2JSONString()
 	common.OptionMap["ModelPrice"] = ratio_setting.ModelPrice2JSONString()
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
@@ -635,10 +640,14 @@ func applyOptionMapValue(key string, value string) (err error) {
 			common.RegisterEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
 			common.EmailDomainRestrictionEnabled = boolValue
+		case "FreePlanOnSignupEnabled":
+			setting.FreePlanOnSignupEnabled = boolValue
 		case "EmailAliasRestrictionEnabled":
 			common.EmailAliasRestrictionEnabled = boolValue
 		case "AutomaticDisableChannelEnabled":
 			common.AutomaticDisableChannelEnabled = boolValue
+		case "InviteRewardSubscriptionModeEnabled":
+			common.InviteRewardSubscriptionMode = boolValue
 		case "AutomaticEnableChannelEnabled":
 			common.AutomaticEnableChannelEnabled = boolValue
 		case "LogConsumeEnabled":
@@ -874,6 +883,14 @@ func applyOptionMapValue(key string, value string) (err error) {
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
 	case "QuotaForInviterMaxCount":
 		common.QuotaForInviterMaxCount = inviterRewardMaxCount
+	case "InviteRewardUnlockDelaySeconds":
+		if parsed, err := strconv.ParseInt(value, 10, 64); err == nil && parsed >= 0 {
+			common.InviteRewardUnlockDelaySeconds = parsed
+		}
+	case "InviteFirstSubDiscountUSD":
+		if parsed, err := strconv.ParseFloat(value, 64); err == nil && parsed >= 0 {
+			common.InviteFirstSubDiscountUSD = parsed
+		}
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":
@@ -886,6 +903,8 @@ func applyOptionMapValue(key string, value string) (err error) {
 		setting.ModelRequestRateLimitSuccessCount, _ = strconv.Atoi(value)
 	case "ModelRequestRateLimitGroup":
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
+	case "SubscriptionModelWeights":
+		err = setting.UpdateSubscriptionModelWeightsByJSONString(value)
 	case "RetryTimes":
 		common.RetryTimes, _ = strconv.Atoi(value)
 	case "DataExportInterval":

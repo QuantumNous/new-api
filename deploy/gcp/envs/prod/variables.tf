@@ -20,7 +20,7 @@ variable "service_name" {
 
 variable "enable_legacy_runtime" {
   type        = bool
-  description = "Keep the legacy monolithic newapi Cloud Run service/resources alive. Flip to false only when ready to destroy legacy newapi."
+  description = "Recovery-only toggle for the decommissioned monolithic newapi runtime. Production keeps this false; enabling it requires a separately approved restoration plan."
   default     = true
 }
 

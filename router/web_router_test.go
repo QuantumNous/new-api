@@ -95,6 +95,26 @@ func TestPublicWWWRedirectPolicyIgnoresOtherHosts(t *testing.T) {
 	}
 }
 
+func TestSetWebRouterRedirectsLegacyConsoleSubscriptionPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	SetWebRouter(engine, ThemeAssets{
+		DefaultIndexPage: []byte(`<!doctype html><html><head></head><body></body></html>`),
+		ClassicIndexPage: []byte(`<!doctype html><html><head></head><body></body></html>`),
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "https://flatkey.ai/console/subscription", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Location"); got != "/wallet" {
+		t.Fatalf("Location=%q, want /wallet", got)
+	}
+}
+
 func TestPublicSearchIndexPolicyAddsNoindexForNonCanonicalHost(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()

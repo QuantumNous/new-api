@@ -30,32 +30,51 @@ import { ModelAccessPreview } from '@/features/available-models/components/model
 
 type ApiKeyModelScopeSheetProps = {
   apiKeyName: string
+  defaultRatio: number | null
   models: ModelAccessModel[]
+  modelRatios: Readonly<Record<string, number>>
   totalCount: number
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function ApiKeyModelScopeSheet(props: ApiKeyModelScopeSheetProps) {
+type ApiKeyModelScopeSheetContentProps = Omit<
+  ApiKeyModelScopeSheetProps,
+  'open' | 'onOpenChange'
+>
+
+export function ApiKeyModelScopeSheetContent(
+  props: ApiKeyModelScopeSheetContentProps
+) {
   const { t } = useTranslation()
 
   return (
+    <>
+      <SheetHeader>
+        <SheetTitle>{t('Callable model scope')}</SheetTitle>
+        <SheetDescription>
+          {props.apiKeyName} ·{' '}
+          {t('{{count}} callable models', { count: props.models.length })}
+        </SheetDescription>
+      </SheetHeader>
+      <ScrollArea className='min-h-0 flex-1 px-4 pb-4'>
+        <ModelAccessPreview
+          defaultRatio={props.defaultRatio}
+          modelRatios={props.modelRatios}
+          models={props.models}
+          totalCount={props.totalCount}
+          scopeTitle={props.apiKeyName}
+        />
+      </ScrollArea>
+    </>
+  )
+}
+
+export function ApiKeyModelScopeSheet(props: ApiKeyModelScopeSheetProps) {
+  return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
       <SheetContent className='w-full sm:max-w-2xl'>
-        <SheetHeader>
-          <SheetTitle>{t('Callable model scope')}</SheetTitle>
-          <SheetDescription>
-            {props.apiKeyName} ·{' '}
-            {t('{{count}} callable models', { count: props.models.length })}
-          </SheetDescription>
-        </SheetHeader>
-        <ScrollArea className='min-h-0 flex-1 px-4 pb-4'>
-          <ModelAccessPreview
-            models={props.models}
-            totalCount={props.totalCount}
-            scopeTitle={props.apiKeyName}
-          />
-        </ScrollArea>
+        <ApiKeyModelScopeSheetContent {...props} />
       </SheetContent>
     </Sheet>
   )

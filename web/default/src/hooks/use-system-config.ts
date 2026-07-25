@@ -47,6 +47,8 @@ interface StatusApiResponse {
     server_address?: string
     enable_stripe_card_bind?: boolean
     stripe_new_user_bonus_amount?: number
+    invite_reward_mode?: string
+    invite_reward_badge_usd?: number
     display_in_currency?: boolean
     quota_display_type?: CurrencyDisplayType
     quota_per_unit?: number
@@ -110,6 +112,9 @@ export function mapStatusDataToConfig(
     serverAddress: data.server_address,
     enableStripeCardBind: data.enable_stripe_card_bind,
     stripeNewUserBonusAmount: data.stripe_new_user_bonus_amount,
+    inviteRewardMode:
+      data.invite_reward_mode === 'subscription' ? 'subscription' : 'topup',
+    inviteRewardBadgeUsd: data.invite_reward_badge_usd,
     playgroundDefaultModel: data.playground_default_model?.trim() || undefined,
     currency,
   }

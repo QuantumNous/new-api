@@ -147,12 +147,16 @@ type opsAdsSearchResponse struct {
 	NextPageToken string `json:"nextPageToken"`
 }
 
-// opsFetchAdsSpendDaily pulls account-level daily totals for the last
-// opsAdsSyncDays report-timezone days. Google Ads segments.date is the ads
-// account's timezone — America/New_York for this account — while the report
-// buckets Pacific days, so rows join by date string with a 3-hour edge skew
-// (spend between 9pm and midnight PT lands on the next date). Acceptable for
-// day-level trend stats; exact alignment would need hourly segmentation.
+// opsFetchAdsSpendDaily pulls flatkey-campaign daily totals for the last
+// opsAdsSyncDays report-timezone days. The ads account is shared with other
+// business lines (voc.ai, solvea.cx), so rows are filtered to flatkey-*
+// campaigns and summed per day — this keeps the report's ads columns on the
+// same scope as the registrations they sit next to (and as the 广告日报
+// board). Google Ads segments.date is the ads account's timezone —
+// America/New_York for this account — while the report buckets Pacific days,
+// so rows join by date string with a 3-hour edge skew (spend between 9pm and
+// midnight PT lands on the next date). Acceptable for day-level trend stats;
+// exact alignment would need hourly segmentation.
 func opsFetchAdsSpendDaily(creds opsAdsCreds) ([]*model.AdsSpendDaily, error) {
 	client := &http.Client{Timeout: opsAdsHTTPTimeout}
 	accessToken, err := opsAdsAccessToken(creds, client)
@@ -163,13 +167,15 @@ func opsFetchAdsSpendDaily(creds opsAdsCreds) ([]*model.AdsSpendDaily, error) {
 	start := end.AddDate(0, 0, -(opsAdsSyncDays - 1))
 	query := fmt.Sprintf(`SELECT segments.date, metrics.cost_micros, metrics.clicks,
 		metrics.impressions, metrics.conversions
-		FROM customer WHERE segments.date BETWEEN '%s' AND '%s'`,
+		FROM campaign WHERE campaign.name LIKE 'flatkey-%%'
+		AND segments.date BETWEEN '%s' AND '%s'`,
 		start.Format("2006-01-02"), end.Format("2006-01-02"))
 	endpoint := fmt.Sprintf("https://googleads.googleapis.com/%s/customers/%s/googleAds:search",
 		creds.apiVersion, creds.customerId)
 
 	now := time.Now().Unix()
-	var rows []*model.AdsSpendDaily
+	// one result row per campaign per day — aggregate to day totals
+	byDate := map[string]*model.AdsSpendDaily{}
 	pageToken := ""
 	for {
 		payload := map[string]string{"query": query}
@@ -211,22 +217,36 @@ func opsFetchAdsSpendDaily(creds opsAdsCreds) ([]*model.AdsSpendDaily, error) {
 			if r.Segments.Date == "" {
 				continue
 			}
+			row, ok := byDate[r.Segments.Date]
+			if !ok {
+				row = &model.AdsSpendDaily{Date: r.Segments.Date, UpdatedAt: now}
+				byDate[r.Segments.Date] = row
+			}
 			costMicros, _ := strconv.ParseInt(r.Metrics.CostMicros, 10, 64)
 			clicks, _ := strconv.Atoi(r.Metrics.Clicks)
 			impressions, _ := strconv.Atoi(r.Metrics.Impressions)
-			rows = append(rows, &model.AdsSpendDaily{
-				Date:        r.Segments.Date,
-				CostUSD:     float64(costMicros) / 1e6,
-				Clicks:      clicks,
-				Impressions: impressions,
-				Conversions: r.Metrics.Conversions,
-				UpdatedAt:   now,
-			})
+			row.CostUSD += float64(costMicros) / 1e6
+			row.Clicks += clicks
+			row.Impressions += impressions
+			row.Conversions += r.Metrics.Conversions
 		}
 		pageToken = page.NextPageToken
 		if pageToken == "" {
 			break
 		}
+	}
+	// emit a row for every day in the window, zero-filled when no flatkey
+	// campaign had activity — otherwise stale rows from before the flatkey
+	// scoping (account-wide totals) would survive in ads_spend_daily on days
+	// the filtered query no longer returns
+	rows := make([]*model.AdsSpendDaily, 0, opsAdsSyncDays)
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+		date := d.Format("2006-01-02")
+		row, ok := byDate[date]
+		if !ok {
+			row = &model.AdsSpendDaily{Date: date, UpdatedAt: now}
+		}
+		rows = append(rows, row)
 	}
 	return rows, nil
 }

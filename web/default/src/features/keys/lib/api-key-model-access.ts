@@ -21,6 +21,7 @@ import {
   getEffectiveTokenModels,
   getScopeModels,
   isCallableModel,
+  resolveModelRatioContext,
   type ModelAccessModel,
   type ModelAccessScope,
   type UserModelAccess,
@@ -35,10 +36,12 @@ export type ApiKeyModelAllowlistOption = {
 export type ApiKeyModelAccessState = {
   currentAccountScope: boolean
   effectiveModels: ModelAccessModel[]
+  defaultRatio: number | null
   fixedScope: boolean
   invalidAllowlistItems: string[]
   scope: ModelAccessScope | null
   scopeModels: ModelAccessModel[]
+  modelRatios: Readonly<Record<string, number>>
 }
 
 export type ApiKeyModelPreviewCopy = {
@@ -108,14 +111,17 @@ export function getApiKeyModelAccessState(
     model_limits_enabled: modelLimitsEnabled,
     model_limits: normalizedModelLimits,
   })
+  const ratioContext = resolveModelRatioContext(access, group)
 
   return {
     currentAccountScope,
+    defaultRatio: ratioContext.defaultRatio,
     effectiveModels,
     fixedScope,
     invalidAllowlistItems,
     scope,
     scopeModels,
+    modelRatios: ratioContext.modelRatios,
   }
 }
 

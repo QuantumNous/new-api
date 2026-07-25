@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetStatusIncludesPlaygroundDefaultModel(t *testing.T) {
@@ -89,4 +90,25 @@ func TestGetStatusIncludesConfiguredInviterRewardUSD(t *testing.T) {
 	if response.Data.InviterRewardUSD != 6.5 {
 		t.Fatalf("inviter_reward_usd = %v, want 6.5", response.Data.InviterRewardUSD)
 	}
+}
+
+func TestGetStatusIncludesTokenBatchGroupCapability(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/status", nil)
+
+	GetStatus(ctx)
+
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			TokenBatchGroupEnabled bool `json:"token_batch_group_enabled"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.DecodeJson(recorder.Body, &response))
+	require.True(t, response.Success)
+	require.True(t, response.Data.TokenBatchGroupEnabled)
 }

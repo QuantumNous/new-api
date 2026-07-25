@@ -107,6 +107,12 @@ func tryGrantInviteRewardInTx(tx *gorm.DB, inviteeId int, triggerTokenId int, tr
 }
 
 func TryGrantInviteRewardAfterTopUpSucceeded(inviteeId int, triggerTopUpId int) error {
+	if common.InviteRewardSubscriptionMode {
+		// v2: the reward comes from the invitee's first subscription payment,
+		// not the first top-up. Leave the invitee pending so the subscription
+		// trigger can still fire.
+		return nil
+	}
 	if inviteeId == 0 {
 		return errors.New("inviteeId 为空！")
 	}

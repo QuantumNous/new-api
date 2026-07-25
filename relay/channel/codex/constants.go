@@ -11,7 +11,8 @@ var baseModelList = []string{
 	"gpt-5", "gpt-5-codex", "gpt-5-codex-mini",
 	"gpt-5.1", "gpt-5.1-codex", "gpt-5.1-codex-max", "gpt-5.1-codex-mini",
 	"gpt-5.2", "gpt-5.2-codex", "gpt-5.3-codex", "gpt-5.3-codex-spark",
-	"gpt-5.4",
+	"gpt-5.4", "gpt-5.4-mini", "gpt-5.5",
+	"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
 }
 
 // 图像模型:codex 后端只有一套原生图像能力,model 名仅作标签;对外暴露 gpt-image-2。
@@ -32,10 +33,7 @@ func IsCodexImageModel(model string) bool {
 }
 
 func withCompactModelSuffix(models []string) []string {
-	out := make([]string, 0, len(models)*2)
-	out = append(out, models...)
-	out = append(out, lo.Map(models, func(model string, _ int) string {
-		return ratio_setting.WithCompactModelSuffix(model)
-	})...)
-	return lo.Uniq(out)
+	return lo.Filter(ratio_setting.WithCompactModelVariants(models), func(model string, _ int) bool {
+		return model != ratio_setting.WithCompactModelSuffix("codex-auto-review")
+	})
 }

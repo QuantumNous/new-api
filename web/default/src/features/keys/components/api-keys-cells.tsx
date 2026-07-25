@@ -215,7 +215,9 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
       </Button>
       <ApiKeyModelScopeSheet
         apiKeyName={apiKey.name}
+        defaultRatio={summary.defaultRatio}
         models={summary.effectiveModels}
+        modelRatios={summary.modelRatios}
         totalCount={summary.totalModels.length}
         open={scopeOpen}
         onOpenChange={setScopeOpen}

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadStripe, type StripeEmbeddedCheckout } from '@stripe/stripe-js'
 import { Gift, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -28,6 +28,9 @@ export interface StripeEmbeddedCheckoutSession {
   clientSecret: string
   publishableKey: string
   summary: StripeTopupSummary | null
+  title?: string
+  description?: string
+  fallbackUrl?: string
 }
 
 interface StripeEmbeddedCheckoutDialogProps {
@@ -51,8 +54,10 @@ export function StripeEmbeddedCheckoutDialog({
     <Dialog
       open={Boolean(session)}
       onOpenChange={onOpenChange}
-      title={t('Complete your top-up')}
-      description={t('Payment is processed securely by Stripe.')}
+      title={session?.title ?? t('Complete your top-up')}
+      description={
+        session?.description ?? t('Payment is processed securely by Stripe.')
+      }
       contentClassName='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-[480px]'
       contentHeight='auto'
       bodyClassName='p-0'
@@ -81,6 +86,13 @@ function EmbeddedCheckoutFrame({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [mounting, setMounting] = useState(true)
 
+  const openFallback = useCallback(() => {
+    if (!session.fallbackUrl) return false
+    window.location.assign(session.fallbackUrl)
+    toast.success(t('Redirecting to payment page...'))
+    return true
+  }, [session.fallbackUrl, t])
+
   useEffect(() => {
     let cancelled = false
     let checkout: StripeEmbeddedCheckout | null = null
@@ -102,6 +114,7 @@ function EmbeddedCheckoutFrame({
         embedded.mount(containerRef.current)
       } catch (_error) {
         if (!cancelled) {
+          if (openFallback()) return
           toast.error(t('Failed to load the payment form, please try again'))
           onOpenChange(false)
         }
@@ -118,7 +131,7 @@ function EmbeddedCheckoutFrame({
       cancelled = true
       checkout?.destroy()
     }
-  }, [session, onOpenChange, t])
+  }, [session, onOpenChange, openFallback, t])
 
   const summary = session.summary
   const showBonusBanner = Boolean(summary?.show_amounts && summary.bonus_amount > 0)

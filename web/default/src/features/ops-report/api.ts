@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type {
-  AdsPilotReport,
+  AdsDailyReport,
   ApiResponse,
   OpsReportData,
   OpsStripeReport,
@@ -30,8 +30,10 @@ export const opsReportQueryKeys = {
   all: ['ops-report'] as const,
   report: (days: number, dauScope: OpsDauScope) =>
     [...opsReportQueryKeys.all, days, dauScope] as const,
-  stripe: (days: number) => [...opsReportQueryKeys.all, 'stripe', days] as const,
-  ads: (days: number) => [...opsReportQueryKeys.all, 'ads', days] as const,
+  stripe: (days: number) =>
+    [...opsReportQueryKeys.all, 'stripe', days] as const,
+  adsDaily: (days: number) =>
+    [...opsReportQueryKeys.all, 'ads-daily', days] as const,
 }
 
 export async function getOpsReport(
@@ -53,26 +55,11 @@ export async function getOpsStripeReport(
   return res.data
 }
 
-export async function getOpsAdsReport(
+export async function getOpsAdsDailyReport(
   days: number
-): Promise<ApiResponse<AdsPilotReport>> {
-  const res = await api.get('/api/data/ops_report_ads', {
+): Promise<ApiResponse<AdsDailyReport>> {
+  const res = await api.get('/api/data/ops_report_ads_daily', {
     params: { days },
   })
-  return res.data
-}
-
-export async function decideAdsPilotProposal(
-  id: number,
-  decision: 'approve' | 'reject'
-): Promise<ApiResponse> {
-  const res = await api.post(`/api/ads_pilot/proposals/${id}/decide`, {
-    decision,
-  })
-  return res.data
-}
-
-export async function ackAdsPilotInsight(id: number): Promise<ApiResponse> {
-  const res = await api.post(`/api/ads_pilot/insights/${id}/ack`, {})
   return res.data
 }

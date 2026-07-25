@@ -15,6 +15,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCalculateTextQuotaSummaryBillsOpenAICacheWriteTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	relayInfo := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "gpt-5.6",
+		PriceData: types.PriceData{
+			ModelRatio:         1,
+			CompletionRatio:    2,
+			CacheRatio:         0.1,
+			CacheCreationRatio: 1.25,
+			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+
+	usage := &dto.Usage{
+		PromptTokens:     3619,
+		CompletionTokens: 36,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         2921,
+			CachedCreationTokens: 3000,
+			CacheWriteTokens:     3616,
+		},
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	require.Equal(t, 3616, summary.CacheCreationTokens)
+	// max(3619-2921-3616, 0) + 2921*0.1 + 3616*1.25 + 36*2 = 4884.1
+	require.Equal(t, 4884, summary.Quota)
+}
+
 func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

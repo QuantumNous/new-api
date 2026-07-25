@@ -21,11 +21,35 @@ import type { TFunction } from 'i18next'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 import type { SubscriptionPlan, PlanPayload } from '../types'
 
+const maxLocalPrice = 9999.999999
+
+const localPriceSchema = (t: TFunction) =>
+  z
+    .string()
+    .trim()
+    .refine((value) => value === '' || Number(value) > 0, {
+      message: t('Local price must be greater than zero'),
+    })
+    .refine((value) => value === '' || Number(value) <= maxLocalPrice, {
+      message: t('Local price cannot exceed 9999.999999'),
+    })
+
+function localPriceToFormValue(value: number | null | undefined): string {
+  return value == null ? '' : String(value)
+}
+
+function localPriceToPayload(value: string | null | undefined): number | null {
+  const normalized = String(value ?? '').trim()
+  return normalized === '' ? null : Number(normalized)
+}
+
 export function getPlanFormSchema(t: TFunction) {
   return z.object({
     title: z.string().min(1, t('Please enter plan title')),
     subtitle: z.string().optional(),
     price_amount: z.coerce.number().min(0, t('Please enter amount')),
+    pix_price_brl: localPriceSchema(t),
+    upi_price_inr: localPriceSchema(t),
     duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
     duration_value: z.coerce.number().min(1),
     custom_seconds: z.coerce.number().min(0).optional(),
@@ -46,6 +70,13 @@ export function getPlanFormSchema(t: TFunction) {
     stripe_price_id: z.string().optional(),
     creem_product_id: z.string().optional(),
     waffo_pancake_product_id: z.string().optional(),
+    model_count: z.coerce.number().min(0).optional(),
+    rpm: z.coerce.number().min(0).optional(),
+    concurrency: z.coerce.number().min(0).optional(),
+    media_credits_monthly: z.coerce.number().min(0).optional(),
+    window_5h_amount: z.coerce.number().min(0).optional(),
+    window_week_amount: z.coerce.number().min(0).optional(),
+    feature_lines: z.string().optional(),
   })
 }
 
@@ -55,6 +86,8 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   title: '',
   subtitle: '',
   price_amount: 0,
+  pix_price_brl: '',
+  upi_price_inr: '',
   duration_unit: 'month',
   duration_value: 1,
   custom_seconds: 0,
@@ -69,6 +102,13 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   stripe_price_id: '',
   creem_product_id: '',
   waffo_pancake_product_id: '',
+  model_count: 0,
+  rpm: 0,
+  concurrency: 0,
+  media_credits_monthly: 0,
+  window_5h_amount: 0,
+  window_week_amount: 0,
+  feature_lines: '',
 }
 
 export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
@@ -76,6 +116,8 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     title: plan.title || '',
     subtitle: plan.subtitle || '',
     price_amount: Number(plan.price_amount || 0),
+    pix_price_brl: localPriceToFormValue(plan.pix_price_brl),
+    upi_price_inr: localPriceToFormValue(plan.upi_price_inr),
     duration_unit: plan.duration_unit || 'month',
     duration_value: Number(plan.duration_value || 1),
     custom_seconds: Number(plan.custom_seconds || 0),
@@ -90,6 +132,15 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     stripe_price_id: plan.stripe_price_id || '',
     creem_product_id: plan.creem_product_id || '',
     waffo_pancake_product_id: plan.waffo_pancake_product_id || '',
+    model_count: Number(plan.model_count || 0),
+    rpm: 0,
+    concurrency: Number(plan.concurrency || 0),
+    media_credits_monthly: Number(plan.media_credits_monthly || 0),
+    window_5h_amount: quotaUnitsToDollars(Number(plan.window_5h_amount || 0)),
+    window_week_amount: quotaUnitsToDollars(
+      Number(plan.window_week_amount || 0)
+    ),
+    feature_lines: plan.feature_lines || '',
   }
 }
 
@@ -99,6 +150,8 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       ...values,
       price_amount: Number(values.price_amount || 0),
       currency: 'USD',
+      pix_price_brl: localPriceToPayload(values.pix_price_brl),
+      upi_price_inr: localPriceToPayload(values.upi_price_inr),
       duration_value: Number(values.duration_value || 0),
       custom_seconds: Number(values.custom_seconds || 0),
       quota_reset_period: values.quota_reset_period || 'never',
@@ -110,6 +163,17 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       max_purchase_per_user: Number(values.max_purchase_per_user || 0),
       total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
       upgrade_group: values.upgrade_group || '',
+      model_count: Number(values.model_count || 0),
+      rpm: 0,
+      concurrency: Number(values.concurrency || 0),
+      media_credits_monthly: Number(values.media_credits_monthly || 0),
+      window_5h_amount: parseQuotaFromDollars(
+        Number(values.window_5h_amount || 0)
+      ),
+      window_week_amount: parseQuotaFromDollars(
+        Number(values.window_week_amount || 0)
+      ),
+      feature_lines: values.feature_lines || '',
     },
   }
 }

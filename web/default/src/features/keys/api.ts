@@ -17,6 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import {
+  buildBatchEditApiKeysPayload,
+  type BatchEditApiKeysPayload,
+} from './lib/api-key-batch-group'
 import type {
   ApiKey,
   ApiResponse,
@@ -44,10 +48,11 @@ export async function getApiKeys(
 export async function searchApiKeys(
   params: SearchApiKeysParams
 ): Promise<GetApiKeysResponse> {
-  const { keyword = '', token = '', p, size } = params
+  const { keyword = '', token = '', status, p, size } = params
   const queryParams = new URLSearchParams()
   if (keyword) queryParams.set('keyword', keyword)
   if (token) queryParams.set('token', token)
+  if (status != null) queryParams.set('status', String(status))
   if (p != null) queryParams.set('p', String(p))
   if (size != null) queryParams.set('size', String(size))
   const res = await api.get(`/api/token/search?${queryParams.toString()}`)
@@ -94,6 +99,19 @@ export async function batchDeleteApiKeys(
   ids: number[]
 ): Promise<ApiResponse<number>> {
   const res = await api.post('/api/token/batch', { ids })
+  return res.data
+}
+
+export async function batchEditApiKeys(
+  payload: BatchEditApiKeysPayload
+): Promise<ApiResponse<number>> {
+  const res = await api.put(
+    '/api/token/batch',
+    buildBatchEditApiKeysPayload(payload.ids, {
+      group: payload.group,
+      remain_quota: payload.remain_quota,
+    })
+  )
   return res.data
 }
 

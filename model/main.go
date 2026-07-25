@@ -261,6 +261,7 @@ func migrateDB() error {
 	err := DB.AutoMigrate(
 		&Channel{},
 		&Token{},
+		&CliDeviceAuthorization{},
 		&User{},
 		&RecallCampaign{},
 		&RecallRecipient{},
@@ -271,6 +272,7 @@ func migrateDB() error {
 		&RegistrationDomainBlockUser{},
 		&NewUserBonusClaim{},
 		&InviteRewardEvent{},
+		&InviteSubscriptionReward{},
 		&PasskeyCredential{},
 		&Option{},
 		&Redemption{},
@@ -279,6 +281,7 @@ func migrateDB() error {
 		&LogRequestSample{},
 		&Midjourney{},
 		&TopUp{},
+		&AdsAttributionOutbox{},
 		&StripeBonusClaim{},
 		&TopUpBonusClaim{},
 		&UserInvoiceProfile{},
@@ -295,7 +298,15 @@ func migrateDB() error {
 		&Checkin{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
+		&SubscriptionProviderBinding{},
+		&PaymentWebhookEvent{},
 		&SubscriptionPreConsumeRecord{},
+		&FreePlanGrant{},
+		&UserSubscriptionContract{},
+		&SubscriptionChangeIntent{},
+		&SubscriptionTierRankReservation{},
+		&SubscriptionTermSegment{},
+		&WalletLedgerEntry{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
@@ -305,7 +316,11 @@ func migrateDB() error {
 		&CodexModelGovernanceProbeState{},
 		&CodexModelGovernanceAlertCooldownRecord{},
 		&TemporaryChannelModelSpend{},
+		&ComputeNode{},
 		&AdsSpendDaily{},
+		&AdsDailyKeyword{},
+		&AdsDailyCreative{},
+		&AdsDailyLanding{},
 		&AdsPilotCampaignDaily{},
 		&AdsPilotInsight{},
 		&AdsPilotAction{},
@@ -338,6 +353,7 @@ func migrateDBFast() error {
 	}{
 		{&Channel{}, "Channel"},
 		{&Token{}, "Token"},
+		{&CliDeviceAuthorization{}, "CliDeviceAuthorization"},
 		{&User{}, "User"},
 		{&RecallCampaign{}, "RecallCampaign"},
 		{&RecallRecipient{}, "RecallRecipient"},
@@ -348,6 +364,7 @@ func migrateDBFast() error {
 		{&RegistrationDomainBlockUser{}, "RegistrationDomainBlockUser"},
 		{&NewUserBonusClaim{}, "NewUserBonusClaim"},
 		{&InviteRewardEvent{}, "InviteRewardEvent"},
+		{&InviteSubscriptionReward{}, "InviteSubscriptionReward"},
 		{&PasskeyCredential{}, "PasskeyCredential"},
 		{&Option{}, "Option"},
 		{&Redemption{}, "Redemption"},
@@ -356,6 +373,7 @@ func migrateDBFast() error {
 		{&LogRequestSample{}, "LogRequestSample"},
 		{&Midjourney{}, "Midjourney"},
 		{&TopUp{}, "TopUp"},
+		{&AdsAttributionOutbox{}, "AdsAttributionOutbox"},
 		{&UserInvoiceProfile{}, "UserInvoiceProfile"},
 		{&PaymentInvoice{}, "PaymentInvoice"},
 		{&QuotaData{}, "QuotaData"},
@@ -370,7 +388,15 @@ func migrateDBFast() error {
 		{&Checkin{}, "Checkin"},
 		{&SubscriptionOrder{}, "SubscriptionOrder"},
 		{&UserSubscription{}, "UserSubscription"},
+		{&SubscriptionProviderBinding{}, "SubscriptionProviderBinding"},
+		{&PaymentWebhookEvent{}, "PaymentWebhookEvent"},
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
+		{&FreePlanGrant{}, "FreePlanGrant"},
+		{&UserSubscriptionContract{}, "UserSubscriptionContract"},
+		{&SubscriptionChangeIntent{}, "SubscriptionChangeIntent"},
+		{&SubscriptionTierRankReservation{}, "SubscriptionTierRankReservation"},
+		{&SubscriptionTermSegment{}, "SubscriptionTermSegment"},
+		{&WalletLedgerEntry{}, "WalletLedgerEntry"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
@@ -380,6 +406,7 @@ func migrateDBFast() error {
 		{&CodexModelGovernanceProbeState{}, "CodexModelGovernanceProbeState"},
 		{&CodexModelGovernanceAlertCooldownRecord{}, "CodexModelGovernanceAlertCooldownRecord"},
 		{&TemporaryChannelModelSpend{}, "TemporaryChannelModelSpend"},
+		{&ComputeNode{}, "ComputeNode"},
 	}
 	// GORM also migrates associations, so parallel AutoMigrate calls can race
 	// when related models share a table dependency.
@@ -564,11 +591,14 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`subtitle`" + ` varchar(255) DEFAULT '',
 ` + "`price_amount`" + ` decimal(10,6) NOT NULL,
 ` + "`currency`" + ` varchar(8) NOT NULL DEFAULT 'USD',
+` + "`pix_price_brl`" + ` decimal(10,6),
+` + "`upi_price_inr`" + ` decimal(10,6),
 ` + "`duration_unit`" + ` varchar(16) NOT NULL DEFAULT 'month',
 ` + "`duration_value`" + ` integer NOT NULL DEFAULT 1,
 ` + "`custom_seconds`" + ` bigint NOT NULL DEFAULT 0,
 ` + "`enabled`" + ` numeric DEFAULT 1,
 ` + "`sort_order`" + ` integer DEFAULT 0,
+` + "`tier_rank`" + ` integer,
 ` + "`allow_balance_pay`" + ` numeric DEFAULT 1,
 ` + "`stripe_price_id`" + ` varchar(128) DEFAULT '',
 ` + "`creem_product_id`" + ` varchar(128) DEFAULT '',
@@ -576,13 +606,24 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`max_purchase_per_user`" + ` integer DEFAULT 0,
 ` + "`upgrade_group`" + ` varchar(64) DEFAULT '',
 ` + "`total_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`window_5h_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`window_week_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`media_credits_monthly`" + ` bigint NOT NULL DEFAULT 0,
 ` + "`quota_reset_period`" + ` varchar(16) DEFAULT 'never',
 ` + "`quota_reset_custom_seconds`" + ` bigint DEFAULT 0,
+` + "`model_count`" + ` integer NOT NULL DEFAULT 0,
+` + "`rpm`" + ` integer NOT NULL DEFAULT 0,
+` + "`concurrency`" + ` integer NOT NULL DEFAULT 0,
+` + "`feature_lines`" + ` text DEFAULT '',
 ` + "`created_at`" + ` bigint,
 ` + "`updated_at`" + ` bigint,
+` + "`seed_key`" + ` varchar(32),
 PRIMARY KEY (` + "`id`" + `)
 )`
-		return DB.Exec(createSQL).Error
+		if err := DB.Exec(createSQL).Error; err != nil {
+			return err
+		}
+		return DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS `idx_subscription_plans_seed_key` ON `" + tableName + "`(`seed_key`)").Error
 	}
 	var cols []struct {
 		Name string `gorm:"column:name"`
@@ -599,11 +640,14 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "subtitle", DDL: "`subtitle` varchar(255) DEFAULT ''"},
 		{Name: "price_amount", DDL: "`price_amount` decimal(10,6) NOT NULL"},
 		{Name: "currency", DDL: "`currency` varchar(8) NOT NULL DEFAULT 'USD'"},
+		{Name: "pix_price_brl", DDL: "`pix_price_brl` decimal(10,6)"},
+		{Name: "upi_price_inr", DDL: "`upi_price_inr` decimal(10,6)"},
 		{Name: "duration_unit", DDL: "`duration_unit` varchar(16) NOT NULL DEFAULT 'month'"},
 		{Name: "duration_value", DDL: "`duration_value` integer NOT NULL DEFAULT 1"},
 		{Name: "custom_seconds", DDL: "`custom_seconds` bigint NOT NULL DEFAULT 0"},
 		{Name: "enabled", DDL: "`enabled` numeric DEFAULT 1"},
 		{Name: "sort_order", DDL: "`sort_order` integer DEFAULT 0"},
+		{Name: "tier_rank", DDL: "`tier_rank` integer"},
 		{Name: "allow_balance_pay", DDL: "`allow_balance_pay` numeric DEFAULT 1"},
 		{Name: "stripe_price_id", DDL: "`stripe_price_id` varchar(128) DEFAULT ''"},
 		{Name: "creem_product_id", DDL: "`creem_product_id` varchar(128) DEFAULT ''"},
@@ -611,10 +655,18 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "max_purchase_per_user", DDL: "`max_purchase_per_user` integer DEFAULT 0"},
 		{Name: "upgrade_group", DDL: "`upgrade_group` varchar(64) DEFAULT ''"},
 		{Name: "total_amount", DDL: "`total_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "window_5h_amount", DDL: "`window_5h_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "window_week_amount", DDL: "`window_week_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "media_credits_monthly", DDL: "`media_credits_monthly` bigint NOT NULL DEFAULT 0"},
 		{Name: "quota_reset_period", DDL: "`quota_reset_period` varchar(16) DEFAULT 'never'"},
 		{Name: "quota_reset_custom_seconds", DDL: "`quota_reset_custom_seconds` bigint DEFAULT 0"},
+		{Name: "model_count", DDL: "`model_count` integer NOT NULL DEFAULT 0"},
+		{Name: "rpm", DDL: "`rpm` integer NOT NULL DEFAULT 0"},
+		{Name: "concurrency", DDL: "`concurrency` integer NOT NULL DEFAULT 0"},
+		{Name: "feature_lines", DDL: "`feature_lines` text DEFAULT ''"},
 		{Name: "created_at", DDL: "`created_at` bigint"},
 		{Name: "updated_at", DDL: "`updated_at` bigint"},
+		{Name: "seed_key", DDL: "`seed_key` varchar(32)"},
 	}
 	for _, col := range required {
 		if _, ok := existing[col.Name]; ok {
@@ -624,7 +676,7 @@ PRIMARY KEY (` + "`id`" + `)
 			return err
 		}
 	}
-	return nil
+	return DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS `idx_subscription_plans_seed_key` ON `" + tableName + "`(`seed_key`)").Error
 }
 
 // migrateTokenModelLimitsToText migrates model_limits column from varchar(1024) to text

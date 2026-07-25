@@ -32,6 +32,8 @@ function buildAccess(
     scope_mode: 'selectable_group',
     identity_scope: 'identity',
     identity_model_ids: ['identity-model'],
+    identity_model_ratios: { 'identity-model': 0.5 },
+    identity_default_ratio: 0,
     create_default_scope: 'ordinary',
     groups: [
       {
@@ -44,15 +46,19 @@ function buildAccess(
           'retired-variant',
           'retired-model',
         ],
+        model_ratios: { 'scope-model': 0, 'scope-variant': 0.75 },
       },
       {
         id: 'auto',
         label: 'Auto',
         ratio: null,
         model_ids: ['scope-model', 'other-model'],
+        model_ratios: {},
       },
     ],
     account_model_ids: [],
+    account_model_ratios: {},
+    account_default_ratio: null,
     models: [
       {
         id: 'scope-model',
@@ -122,6 +128,11 @@ describe('API key model access state', () => {
       'scope-model',
       'scope-variant',
     ])
+    expect(state.modelRatios).toEqual({
+      'scope-model': 0,
+      'scope-variant': 0.75,
+    })
+    expect(state.defaultRatio).toBe(1)
   })
 
   test('uses fixed account models for PLG-like accounts without exposing a scope', () => {
@@ -131,6 +142,8 @@ describe('API key model access state', () => {
         groups: [],
         identity_model_ids: [],
         account_model_ids: ['other-model'],
+        account_model_ratios: { 'other-model': 0.25 },
+        account_default_ratio: 0,
       }),
       'plg',
       false,
@@ -143,6 +156,8 @@ describe('API key model access state', () => {
     expect(state.effectiveModels.map((model) => model.id)).toEqual([
       'other-model',
     ])
+    expect(state.modelRatios).toEqual({ 'other-model': 0.25 })
+    expect(state.defaultRatio).toBe(0)
   })
 
   test('uses identity models when a selectable account has no groups', () => {
@@ -158,6 +173,8 @@ describe('API key model access state', () => {
     expect(state.effectiveModels.map((model) => model.id)).toEqual([
       'identity-model',
     ])
+    expect(state.modelRatios).toEqual({ 'identity-model': 0.5 })
+    expect(state.defaultRatio).toBe(0)
   })
 
   test('fails closed for a non-empty unknown group when no groups are selectable', () => {
@@ -173,6 +190,8 @@ describe('API key model access state', () => {
     expect(state.scope).toBeNull()
     expect(state.scopeModels).toEqual([])
     expect(state.effectiveModels).toEqual([])
+    expect(state.modelRatios).toEqual({})
+    expect(state.defaultRatio).toBeNull()
   })
 
   test('uses the current account title for a legacy empty saved group', () => {
@@ -218,6 +237,10 @@ describe('API key model access state', () => {
       'scope-model',
       'scope-variant',
     ])
+    expect(state.modelRatios).toEqual({
+      'scope-model': 0,
+      'scope-variant': 0.75,
+    })
   })
 
   test('treats an enabled empty allowlist as zero effective models', () => {
@@ -225,6 +248,21 @@ describe('API key model access state', () => {
 
     expect(state.scopeModels).toHaveLength(2)
     expect(state.effectiveModels).toEqual([])
+    expect(state.modelRatios).toEqual({
+      'scope-model': 0,
+      'scope-variant': 0.75,
+    })
+  })
+
+  test('keeps auto ratio context empty instead of falling back to identity', () => {
+    const state = getApiKeyModelAccessState(buildAccess(), 'auto', false, [])
+
+    expect(state.effectiveModels.map((model) => model.id)).toEqual([
+      'scope-model',
+      'other-model',
+    ])
+    expect(state.modelRatios).toEqual({})
+    expect(state.defaultRatio).toBeNull()
   })
 
   test('excludes officially unsupported models from scope totals and allowlists', () => {

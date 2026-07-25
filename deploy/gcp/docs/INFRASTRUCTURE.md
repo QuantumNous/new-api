@@ -335,7 +335,7 @@ gcloud logging read \
 2. **Cloud SQL 单区域**：节省成本但不是 HA。升级为 `REGIONAL` 需要单独规划。
 3. **Memorystore Basic 单实例**：Redis 不是 HA。
 4. **Cloud Run ingress 暂为 ALL**：`*.run.app` 直连仍可达。锁到 `INTERNAL_LOAD_BALANCER` 前要确认 CI/CD 健康检查路径和回滚路径。
-5. **legacy `newapi` 已关闭**：`enable_legacy_runtime=false`，URL map default backend 当前指向 `newapi-console-backend`。回滚 host_rule 不再等价于回到 legacy 服务。
+5. **legacy `newapi` 已下线**：`enable_legacy_runtime=false`，不再是发布或回滚目标；URL map default backend 当前指向 `newapi-console-backend`。回滚 host_rule 只会进入 console backend，不会回到 legacy 服务。
 6. **Cloudflare 混合模式**：`console`/website Proxied，`router` DNS-only。不要为了消除 Cloudflare warning 直接切换 proxy 模式；先评估 TLS 与证书覆盖。
 
 ## 升级路径
@@ -346,4 +346,4 @@ gcloud logging read \
 | Redis 加 HA | tier 改 `STANDARD_HA` | 需要规划重建/迁移 |
 | 开启 Cloud Armor WAF | 新 `google_compute_security_policy`，绑 backend service | 通常不停机，规则误伤风险 |
 | 锁 Cloud Run ingress 到 LB only | `cloud_run_ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"` | 通常不停机，但会影响 `*.run.app` 直连 |
-| 恢复 legacy `newapi` | `enable_legacy_runtime=true` 并重新规划 default backend | 高风险，必须先看 LB 日志和镜像/env 一致性 |
+| 紧急恢复已下线的 legacy `newapi` | 单独审批恢复方案后设置 `enable_legacy_runtime=true`，并重新规划 default backend | 高风险，不属于常规发布/回滚；必须先核对 LB 日志和镜像/env 一致性 |

@@ -18,9 +18,16 @@ interface RewardStepsCardProps {
 
 export function RewardStepsCard(props: RewardStepsCardProps) {
   const { t } = useTranslation()
+  const subscriptionMode = props.summary?.reward_mode === 'subscription'
   let rewardTitle: string | null = null
   if (props.summary !== null) {
-    if (props.summary.inviter_reward_usd === props.summary.invitee_reward_usd) {
+    if (subscriptionMode) {
+      rewardTitle = t('You receive {{reward}} in balance', {
+        reward: formatInvitationUSD(props.summary.inviter_reward_usd),
+      })
+    } else if (
+      props.summary.inviter_reward_usd === props.summary.invitee_reward_usd
+    ) {
       rewardTitle = t('Both receive {{reward}}', {
         reward: formatInvitationUSD(props.summary.inviter_reward_usd),
       })
@@ -34,24 +41,58 @@ export function RewardStepsCard(props: RewardStepsCardProps) {
       )
     }
   }
-  const steps = [
-    {
-      title: t('Share your referral link'),
-      description: t('Send your unique referral link to a friend.'),
-    },
-    {
-      title: t('Your friend signs up and tops up'),
-      description: t(
-        'They create their account using your referral link and complete their first successful top-up.'
-      ),
-    },
-    {
-      title: rewardTitle,
-      description: t(
-        'Rewards are added automatically to both API balances and used for API requests.'
-      ),
-    },
-  ]
+  const steps = subscriptionMode
+    ? [
+        {
+          title: t('Share your referral link'),
+          description: t('Send your unique referral link to a friend.'),
+        },
+        {
+          title: t('Your friend subscribes with {{discount}} off', {
+            discount: formatInvitationUSD(
+              props.summary?.first_sub_discount_usd ?? 5
+            ),
+          }),
+          description: t(
+            'They sign up with your link and get {{discount}} off the first month of any plan.',
+            {
+              discount: formatInvitationUSD(
+                props.summary?.first_sub_discount_usd ?? 5
+              ),
+            }
+          ),
+        },
+        {
+          title: rewardTitle,
+          description: t(
+            '{{reward}} is added to your balance, unlocked {{days}} days after payment if there is no refund.',
+            {
+              reward: formatInvitationUSD(
+                props.summary?.inviter_reward_usd ?? 0
+              ),
+              days: props.summary?.unlock_delay_days ?? 7,
+            }
+          ),
+        },
+      ]
+    : [
+        {
+          title: t('Share your referral link'),
+          description: t('Send your unique referral link to a friend.'),
+        },
+        {
+          title: t('Your friend signs up and tops up'),
+          description: t(
+            'They create their account using your referral link and complete their first successful top-up.'
+          ),
+        },
+        {
+          title: rewardTitle,
+          description: t(
+            'Rewards are added automatically to both API balances and used for API requests.'
+          ),
+        },
+      ]
 
   return (
     <TitledCard title={t('How it works')}>

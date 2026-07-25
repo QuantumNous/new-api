@@ -59,6 +59,189 @@
     }
   ],
   "paths": {
+    "/api/subscription/plans": {
+      "get": {
+        "summary": "List subscription plans",
+        "deprecated": false,
+        "description": "Returns enabled subscription plans annotated with tier_rank and the user's relation to the current plan: current, upgrade, downgrade, or unavailable.",
+        "tags": [
+          "Subscription"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionPlanListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/self": {
+      "get": {
+        "summary": "Get current user's subscription state",
+        "deprecated": false,
+        "description": "Returns the canonical local subscription contract, entitlement/current period/quota, pending change, capabilities, migration state, and legacy subscription buckets kept during migration. Provider subscription, customer, price, invoice, and schedule IDs are not exposed.",
+        "tags": [
+          "Subscription"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SubscriptionSelfResponse"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/self/change-plan": {
+      "post": {
+        "summary": "Change current user's subscription plan",
+        "deprecated": false,
+        "description": "Creates or replays a local subscription change intent for a purchase, upgrade, or downgrade. The response exposes only local contract and intent IDs plus checkout/invoice URLs when required; provider subscription/customer/price IDs are never returned.",
+        "tags": [
+          "Subscription"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeSubscriptionPlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success or validation error in the standard API envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeSubscriptionPlanResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/self/recurring/{binding_id}/cancel": {
+      "post": {
+        "summary": "Cancel recurring subscription auto-renewal",
+        "deprecated": false,
+        "description": "Cancels a precise Stripe recurring binding at period end using the local binding ID.",
+        "tags": [
+          "Subscription"
+        ],
+        "parameters": [
+          {
+            "name": "binding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringSubscriptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/self/recurring/{binding_id}/resume": {
+      "post": {
+        "summary": "Resume recurring subscription auto-renewal",
+        "deprecated": false,
+        "description": "Resumes auto-renewal for a precise Stripe recurring binding using the local binding ID.",
+        "tags": [
+          "Subscription"
+        ],
+        "parameters": [
+          {
+            "name": "binding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringSubscriptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          }
+        ]
+      }
+    },
     "/api/setup": {
       "get": {
         "summary": "获取初始化状态",
@@ -3568,6 +3751,174 @@
             "Combination1243": []
           }
         ]
+      },
+      "put": {
+        "summary": "批量编辑令牌",
+        "deprecated": false,
+        "description": "🔐 需要登录（User权限）。仅当 TOKEN_BATCH_GROUP_ENABLED=true 时可用；默认关闭。请求必须包含 1-100 个互不重复的正整数令牌 ID，并至少提供 group 或 remain_quota。group 会应用到全部所选令牌；remain_quota 会分别应用到每个有限额度令牌，无限额度令牌保持不变。所有令牌必须属于当前用户。PLG 用户不能选择分组，服务端会保持其令牌为 plg 分组。",
+        "tags": [
+          "令牌管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "group"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "remain_quota"
+                    ]
+                  }
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "可选的目标分组；服务端会去除首尾空白。PLG 用户不能选择该字段。"
+                  },
+                  "remain_quota": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "可选的每令牌可用额度（内部 quota 单位）。该值分别覆盖每个有限额度令牌；无限额度令牌不参与额度更新。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "统一响应封装。成功时 data 是已处理的所选令牌数量；功能关闭、参数非法、令牌缺失/越权或缓存同步失败时 success=false 并返回稳定的本地化 message。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/token/batch/group": {
+      "put": {
+        "summary": "批量修改令牌分组",
+        "deprecated": false,
+        "description": "🔐 需要登录（User权限）。仅当 TOKEN_BATCH_GROUP_ENABLED=true 时可用；默认关闭。请求必须包含 1-100 个互不重复的正整数令牌 ID 和非空 group。所有令牌必须属于当前用户。",
+        "tags": [
+          "令牌管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids",
+                  "group"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "目标分组；服务端会去除首尾空白。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "统一响应封装。成功时 data 是更新的令牌数量；功能关闭、参数非法、令牌缺失/越权或缓存同步失败时 success=false 并返回稳定的本地化 message。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
       }
     },
     "/api/usage/token/": {
@@ -4961,6 +5312,507 @@
             "type": "string"
           },
           "data": {}
+        }
+      },
+      "SubscriptionProviderBindingSummary": {
+        "type": "object",
+        "description": "Sanitized local provider binding metadata. Does not include the provider subscription ID.",
+        "properties": {
+          "binding_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_status": {
+            "type": "string"
+          },
+          "cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "current_period_end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SubscriptionSummary": {
+        "type": "object",
+        "properties": {
+          "subscription": {
+            "type": "object"
+          },
+          "provider_binding": {
+            "$ref": "#/components/schemas/SubscriptionProviderBindingSummary"
+          }
+        },
+        "required": [
+          "subscription"
+        ]
+      },
+      "SubscriptionPlanListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionPlanItem"
+            }
+          }
+        }
+      },
+      "SubscriptionPlanItem": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "object",
+            "description": "Sanitized subscription plan record. Provider price/product IDs are not exposed.",
+            "properties": {
+              "payment_modes": {
+                "type": "array",
+                "description": "Payment modes supported by this plan, derived from server-side provider and balance-payment configuration.",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "stripe_recurring",
+                    "balance_one_period"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "payment_modes"
+            ]
+          },
+          "tier_rank": {
+            "type": "integer",
+            "nullable": true
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "current",
+              "upgrade",
+              "downgrade",
+              "unavailable"
+            ]
+          }
+        },
+        "required": [
+          "plan",
+          "relation"
+        ]
+      },
+      "SubscriptionSelfResponse": {
+        "type": "object",
+        "properties": {
+          "billing_preference": {
+            "type": "string"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/SubscriptionContract"
+          },
+          "current_entitlement": {
+            "$ref": "#/components/schemas/SubscriptionEntitlement"
+          },
+          "current_period": {
+            "$ref": "#/components/schemas/SubscriptionCurrentPeriod"
+          },
+          "quota": {
+            "$ref": "#/components/schemas/SubscriptionQuota"
+          },
+          "pending_change": {
+            "$ref": "#/components/schemas/SubscriptionPendingChange"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/SubscriptionCapabilities"
+          },
+          "migration": {
+            "$ref": "#/components/schemas/SubscriptionMigration"
+          },
+          "subscriptions": {
+            "type": "array",
+            "description": "Legacy active subscription bucket retained during migration.",
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionSummary"
+            }
+          },
+          "all_subscriptions": {
+            "type": "array",
+            "description": "Legacy all-subscriptions bucket retained during migration.",
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionSummary"
+            }
+          },
+          "recurring_subscriptions": {
+            "type": "array",
+            "description": "Legacy manageable recurring bindings bucket retained during migration.",
+            "items": {
+              "$ref": "#/components/schemas/RecurringSubscription"
+            }
+          }
+        },
+        "required": [
+          "billing_preference",
+          "current_period",
+          "quota",
+          "capabilities",
+          "migration",
+          "subscriptions",
+          "all_subscriptions",
+          "recurring_subscriptions"
+        ]
+      },
+      "SubscriptionContract": {
+        "type": "object",
+        "description": "Canonical local subscription contract. Contains local IDs only.",
+        "properties": {
+          "contract_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "grace",
+              "ended",
+              "needs_attention"
+            ]
+          },
+          "payment_mode": {
+            "type": "string",
+            "enum": [
+              "stripe_recurring",
+              "balance_one_period",
+              "external_one_period"
+            ]
+          },
+          "current_plan_id": {
+            "type": "integer"
+          },
+          "current_entitlement_id": {
+            "type": "integer"
+          },
+          "current_provider_binding_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "latest_change_intent_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pending_plan_id": {
+            "type": "integer"
+          },
+          "pending_effective_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "change_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SubscriptionEntitlement": {
+        "type": "object",
+        "description": "Current local entitlement and quota-bearing subscription row.",
+        "properties": {
+          "entitlement_id": {
+            "type": "integer"
+          },
+          "plan_id": {
+            "type": "integer"
+          },
+          "provider_binding_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "payment_mode": {
+            "type": "string"
+          },
+          "start_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "access_end_time": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SubscriptionCurrentPeriod": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "grace_period_end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SubscriptionQuota": {
+        "type": "object",
+        "properties": {
+          "amount_total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "amount_used": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "amount_remaining": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unlimited": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SubscriptionPendingChange": {
+        "type": "object",
+        "description": "Pending local change intent. Contains local intent and binding IDs only.",
+        "properties": {
+          "intent_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "purchase",
+              "upgrade",
+              "downgrade",
+              "cancel",
+              "resume",
+              "terminate"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "from_plan_id": {
+            "type": "integer"
+          },
+          "to_plan_id": {
+            "type": "integer"
+          },
+          "provider_binding_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "effective_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payment_mode": {
+            "type": "string"
+          }
+        }
+      },
+      "SubscriptionCapabilities": {
+        "type": "object",
+        "properties": {
+          "can_change_plan": {
+            "type": "boolean"
+          },
+          "can_use_stripe_recurring": {
+            "type": "boolean"
+          },
+          "can_use_balance_one_period": {
+            "type": "boolean"
+          },
+          "can_cancel": {
+            "type": "boolean"
+          },
+          "can_resume": {
+            "type": "boolean"
+          },
+          "requires_support": {
+            "type": "boolean"
+          },
+          "has_pending_intent": {
+            "type": "boolean"
+          },
+          "is_grace": {
+            "type": "boolean"
+          },
+          "is_cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "has_migration_conflict": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SubscriptionMigration": {
+        "type": "object",
+        "properties": {
+          "requires_admin_review": {
+            "type": "boolean"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ChangeSubscriptionPlanRequest": {
+        "type": "object",
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "payment_mode": {
+            "type": "string",
+            "enum": [
+              "stripe_recurring",
+              "balance_one_period"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Canonical UUID idempotency key generated by the client."
+          }
+        },
+        "required": [
+          "plan_id",
+          "payment_mode",
+          "request_id"
+        ]
+      },
+      "ChangeSubscriptionPlanResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "applied",
+                  "scheduled",
+                  "checkout_required",
+                  "payment_action_required"
+                ]
+              },
+              "contract": {
+                "$ref": "#/components/schemas/SubscriptionContract"
+              },
+              "intent": {
+                "$ref": "#/components/schemas/SubscriptionPendingChange"
+              },
+              "checkout_url": {
+                "type": "string"
+              },
+              "hosted_invoice_url": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "RecurringSubscription": {
+        "type": "object",
+        "description": "User-manageable recurring subscription binding keyed by local binding_id.",
+        "properties": {
+          "binding_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "plan_id": {
+            "type": "integer"
+          },
+          "provider_status": {
+            "type": "string"
+          },
+          "cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "current_period_start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "current_period_end": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "grace_period_end": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "can_cancel": {
+            "type": "boolean"
+          },
+          "can_resume": {
+            "type": "boolean"
+          },
+          "requires_support": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "binding_id",
+          "provider",
+          "plan_id",
+          "provider_status",
+          "cancel_at_period_end",
+          "current_period_start",
+          "current_period_end",
+          "grace_period_end",
+          "can_cancel",
+          "can_resume",
+          "requires_support"
+        ]
+      },
+      "RecurringSubscriptionResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RecurringSubscription"
+          }
         }
       },
       "PageInfo": {

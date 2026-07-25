@@ -33,6 +33,8 @@ function buildAccess(
     scope_mode: 'selectable_group',
     identity_scope: 'identity',
     identity_model_ids: ['identity-model'],
+    identity_model_ratios: { 'identity-model': 0.5 },
+    identity_default_ratio: 0,
     create_default_scope: 'auto',
     groups: [
       {
@@ -40,15 +42,19 @@ function buildAccess(
         label: 'Standard',
         ratio: 1,
         model_ids: ['standard-model', 'wildcard-model-*', 'retired-model'],
+        model_ratios: { 'standard-model': 0, 'wildcard-model-*': 0.7 },
       },
       {
         id: 'auto',
         label: 'Auto',
         ratio: null,
         model_ids: ['standard-model', 'auto-model'],
+        model_ratios: {},
       },
     ],
     account_model_ids: [],
+    account_model_ratios: {},
+    account_default_ratio: null,
     models: [
       {
         id: 'standard-model',
@@ -122,11 +128,18 @@ describe('API key model scope summary', () => {
     )
 
     expect(ordinary.labelKind).toBe('all-group')
+    expect(ordinary.modelRatios).toEqual({
+      'standard-model': 0,
+      'wildcard-model-*': 0.7,
+    })
+    expect(ordinary.defaultRatio).toBe(1)
     expect(ordinary.totalModels.map((model) => model.id)).toEqual([
       'standard-model',
       'wildcard-model-*',
     ])
     expect(auto.labelKind).toBe('all-group')
+    expect(auto.modelRatios).toEqual({})
+    expect(auto.defaultRatio).toBeNull()
     expect(auto.totalModels.map((model) => model.id)).toEqual([
       'standard-model',
       'auto-model',
@@ -143,6 +156,8 @@ describe('API key model scope summary', () => {
     expect(summary.effectiveModels.map((model) => model.id)).toEqual([
       'identity-model',
     ])
+    expect(summary.modelRatios).toEqual({ 'identity-model': 0.5 })
+    expect(summary.defaultRatio).toBe(0)
   })
 
   test('uses the account summary and hides groups for identity-only access', () => {
@@ -180,6 +195,8 @@ describe('API key model scope summary', () => {
       create_default_scope: null,
       groups: [],
       account_model_ids: ['standard-model', 'auto-model'],
+      account_model_ratios: { 'standard-model': 0.25 },
+      account_default_ratio: 0,
     })
     const summary = getApiKeyModelScopeSummary(
       access,
@@ -191,6 +208,8 @@ describe('API key model scope summary', () => {
       'standard-model',
       'auto-model',
     ])
+    expect(summary.modelRatios).toEqual({ 'standard-model': 0.25 })
+    expect(summary.defaultRatio).toBe(0)
     expect(shouldShowApiKeyGroupColumn(access, false)).toBeFalse()
     expect(isCurrentAccountModelScope(access, 'plg')).toBeTrue()
   })
@@ -225,6 +244,11 @@ describe('API key model scope summary', () => {
     expect(on.effectiveModels.map((model) => model.id)).toEqual([
       'wildcard-model-*',
     ])
+    expect(on.modelRatios).toEqual({
+      'standard-model': 0,
+      'wildcard-model-*': 0.7,
+    })
+    expect(on.defaultRatio).toBe(1)
     expect(enabledEmpty.labelKind).toBe('empty')
     expect(enabledEmpty.effectiveModels).toEqual([])
     expect(enabledEmpty.totalModels).toHaveLength(2)

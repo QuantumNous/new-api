@@ -82,6 +82,40 @@ func TestStreamScannerHandler_NilInputs(t *testing.T) {
 	StreamScannerHandler(c, &http.Response{Body: io.NopCloser(strings.NewReader(""))}, info, nil)
 }
 
+func TestStreamScannerHandlerCopiesCodexResponseHeadersOnlyForCodex(t *testing.T) {
+	tests := []struct {
+		name             string
+		apiType          int
+		wantCodexHeaders bool
+	}{
+		{name: "codex", apiType: constant.APITypeCodex, wantCodexHeaders: true},
+		{name: "openai", apiType: constant.APITypeOpenAI, wantCodexHeaders: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c, resp, info := setupStreamTest(t, strings.NewReader(""))
+			info.ApiType = test.apiType
+			resp.Header = http.Header{
+				"X-Reasoning-Included": []string{"true"},
+				"X-Codex-Turn-State":   []string{"turn-state"},
+				"X-Unrelated":          []string{"must-not-copy"},
+			}
+
+			StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+			if test.wantCodexHeaders {
+				assert.Equal(t, "true", c.Writer.Header().Get("X-Reasoning-Included"))
+				assert.Equal(t, "turn-state", c.Writer.Header().Get("X-Codex-Turn-State"))
+			} else {
+				assert.Empty(t, c.Writer.Header().Get("X-Reasoning-Included"))
+				assert.Empty(t, c.Writer.Header().Get("X-Codex-Turn-State"))
+			}
+			assert.Empty(t, c.Writer.Header().Get("X-Unrelated"))
+		})
+	}
+}
+
 func TestNewStreamScanner_AllowsLargeStreamLine(t *testing.T) {
 	oldBufferMB := constant.StreamScannerMaxBufferMB
 	constant.StreamScannerMaxBufferMB = 1

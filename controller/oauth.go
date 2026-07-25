@@ -167,6 +167,15 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
+	// OAuth attribution/state are one-shot values. setupLogin saves the session
+	// below, so deleting them here prevents a later login in the same browser
+	// from inheriting a previous user's acquisition data.
+	session.Delete("oauth_state")
+	session.Delete("ads_attribution")
+	session.Delete("aff")
+	session.Delete("ga_client_id")
+	session.Delete("ga_session_id")
+
 	// 9. Setup login. Pass isNewUser so the frontend can trigger first-login onboarding for
 	// OAuth registrations (mirrors password registration's route-level Playground first-run contract).
 	setupLogin(user, c, isNewUser)

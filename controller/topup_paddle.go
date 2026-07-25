@@ -445,20 +445,8 @@ func getPaddlePayMoney(amount int64, group string) float64 {
 		dAmount = dAmount.Div(decimal.NewFromFloat(common.QuotaPerUnit))
 	}
 
-	topupGroupRatio := common.GetTopupGroupRatio(group)
-	if topupGroupRatio == 0 {
-		topupGroupRatio = 1
-	}
-
-	discount := 1.0
-	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok && ds > 0 {
-		discount = ds
-	}
-
 	return dAmount.
 		Mul(decimal.NewFromFloat(setting.PaddleUnitPrice)).
-		Mul(decimal.NewFromFloat(topupGroupRatio)).
-		Mul(decimal.NewFromFloat(discount)).
 		InexactFloat64()
 }
 

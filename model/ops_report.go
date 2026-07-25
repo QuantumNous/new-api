@@ -31,6 +31,7 @@ func opsDayBucketExpr(dayStarts []int64) string {
 // user_id index, which keeps every query an index lookup instead of a scan.
 
 const opsReportChunkSize = 500
+const opsExternalAPIKeyLogPredicate = "token_id > 0 AND token_name NOT LIKE 'playground%'"
 
 type OpsPlgUser struct {
 	Id             int    `json:"id"`
@@ -138,12 +139,12 @@ func GetOpsUserLogStats(userIds []int) ([]*OpsUserLogStats, error) {
 			SELECT user_id,
 			       COALESCE(MIN(CASE WHEN token_name LIKE 'playground%%' THEN created_at END), 0) AS first_playground_at,
 			       COALESCE(SUM(CASE WHEN token_name LIKE 'playground%%' THEN 1 ELSE 0 END), 0) AS playground_count,
-			       COALESCE(MIN(CASE WHEN token_id > 0 THEN created_at END), 0) AS first_api_key_at,
-			       COALESCE(SUM(CASE WHEN token_id > 0 THEN 1 ELSE 0 END), 0) AS api_key_count,
+			       COALESCE(MIN(CASE WHEN %s THEN created_at END), 0) AS first_api_key_at,
+			       COALESCE(SUM(CASE WHEN %s THEN 1 ELSE 0 END), 0) AS api_key_count,
 			       COALESCE(MAX(created_at), 0) AS last_request_at
 			FROM logs%s
 			WHERE type = ? AND user_id IN ?
-			GROUP BY user_id`, logsForceIndexHint())
+			GROUP BY user_id`, opsExternalAPIKeyLogPredicate, opsExternalAPIKeyLogPredicate, logsForceIndexHint())
 		if err := LOG_DB.Raw(sql, LogTypeConsume, chunk).Scan(&batch).Error; err != nil {
 			return nil, err
 		}
@@ -172,8 +173,8 @@ func GetOpsKeyDailyUsage(userIds []int, dayStarts []int64) ([]*OpsKeyDaily, erro
 			       COUNT(*) AS req_count,
 			       COALESCE(SUM(quota), 0) AS quota
 			FROM logs%s
-			WHERE type = ? AND token_id > 0 AND created_at >= ? AND user_id IN ?
-			GROUP BY user_id, %s`, dayExpr, logsForceIndexHint(), dayExpr)
+			WHERE type = ? AND %s AND created_at >= ? AND user_id IN ?
+			GROUP BY user_id, %s`, dayExpr, logsForceIndexHint(), opsExternalAPIKeyLogPredicate, dayExpr)
 		if err := LOG_DB.Raw(sql, LogTypeConsume, startTs, chunk).Scan(&batch).Error; err != nil {
 			return nil, err
 		}
@@ -242,6 +243,46 @@ func GetOpsTopUps() ([]*OpsTopUp, error) {
 		ORDER BY t.create_time`, commonGroupCol)
 	err := DB.Raw(sql, "plg").Scan(&topUps).Error
 	return topUps, err
+}
+
+// OpsSubscriptionOrder carries one plg subscription order plus the USD list
+// price of its plan, so the ops report can fold plan purchases into the
+// top-up-based revenue aggregates.
+type OpsSubscriptionOrder struct {
+	UserId          int     `json:"user_id"`
+	Money           float64 `json:"money"`
+	Status          string  `json:"status"`
+	CreateTime      int64   `json:"create_time"`
+	PaymentCurrency string  `json:"payment_currency"`
+	PaymentProvider string  `json:"payment_provider"`
+	PlanUSD         float64 `json:"plan_usd"`
+	DiscountUSD     float64 `json:"discount_usd"`
+}
+
+// GetOpsSubscriptionOrders returns the plg subscription orders that the
+// top-up-based revenue aggregates cannot see, i.e. everything EXCEPT:
+//   - balance-paid orders: a balance purchase spends money that was already
+//     counted when the balance was topped up — counting the plan order again
+//     would double the revenue;
+//   - orders mirrored into top_ups (same trade_no) by
+//     SyncSubscriptionOrderTopUpHistory — the one-time checkout purchase path
+//     mirrors its orders there, so GetOpsTopUps already counts them.
+//
+// In practice this leaves the Stripe-recurring orders (subscription create /
+// upgrade invoices), which are never mirrored.
+func GetOpsSubscriptionOrders() ([]*OpsSubscriptionOrder, error) {
+	var orders []*OpsSubscriptionOrder
+	sql := fmt.Sprintf(`
+		SELECT o.user_id, o.money, o.status, o.create_time, o.payment_currency, o.payment_provider,
+		       COALESCE(p.price_amount, 0) AS plan_usd, o.discount_usd
+		FROM subscription_orders o
+		INNER JOIN users u ON u.id = o.user_id
+		LEFT JOIN subscription_plans p ON p.id = o.plan_id
+		LEFT JOIN top_ups t ON t.trade_no = o.trade_no
+		WHERE u.%s = ? AND o.payment_provider <> ? AND t.id IS NULL
+		ORDER BY o.create_time`, commonGroupCol)
+	err := DB.Raw(sql, "plg", PaymentProviderBalance).Scan(&orders).Error
+	return orders, err
 }
 
 type OpsTopUpTradeUser struct {

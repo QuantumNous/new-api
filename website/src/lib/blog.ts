@@ -3,8 +3,9 @@ import { DEFAULT_LOCALE, localizePath, stripLocale, type Locale, withIdFallback 
 import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 
 const API_BASE_URL = APP_CONSOLE_ORIGIN;
-const BLOGGER_API_URL = "https://blogger-api-5qjldqffdq-uc.a.run.app";
-const BLOGGER_SITE_SLUG = "flatkey";
+const BLOGGER_API_URL =
+  process.env.BLOGGER_API_URL?.trim() || "https://blogger-api-528088078482.us-central1.run.app";
+const BLOGGER_SITE_SLUG = process.env.BLOGGER_SITE_SLUG?.trim() || "flatkey";
 const BLOGGER_ACCESS_KEY = process.env.BLOGGER_ACCESS_KEY?.trim() ?? "";
 const BLOG_REVALIDATE_SECONDS = 300;
 const BLOGGER_PAGE_SIZE = 100;

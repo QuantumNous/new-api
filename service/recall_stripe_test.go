@@ -14,7 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
-	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v86"
 	"gorm.io/gorm"
 )
 
@@ -28,6 +28,13 @@ type recallStripeFakeClient struct {
 	getPromotionCodeFn    func(context.Context, string) (*stripe.PromotionCode, error)
 	getPriceFn            func(context.Context, string) (*stripe.Price, error)
 	getCheckoutSessionFn  func(context.Context, string, ...string) (*stripe.CheckoutSession, error)
+}
+
+func recallTestCouponPromotion(couponID string) *stripe.PromotionCodePromotion {
+	return &stripe.PromotionCodePromotion{
+		Coupon: &stripe.Coupon{ID: couponID},
+		Type:   stripe.PromotionCodePromotionTypeCoupon,
+	}
 }
 
 type recallStripeRecordingBackend struct {
@@ -878,7 +885,8 @@ func TestRecallStripePromotionParamsAndRetries(t *testing.T) {
 		promotion, err := service.CreateRecipientPromotion(context.Background(), campaign, requestRecipient, user, coupon, discount)
 		require.NoError(t, err)
 		require.Equal(t, "promo_11_22", promotion.ID)
-		require.Equal(t, "coupon_11", *captured.Coupon)
+		require.NotNil(t, captured.Promotion)
+		require.Equal(t, "coupon_11", *captured.Promotion.Coupon)
 		require.Equal(t, "cus_7", *captured.Customer)
 		require.Equal(t, int64(1_900_000_000), *captured.ExpiresAt)
 		require.Equal(t, int64(1), *captured.MaxRedemptions)
@@ -1000,7 +1008,7 @@ func TestRecallStripeExistingPromotionIsReconciledWithoutCreate(t *testing.T) {
 		PromotionCode: "FKABC234", PromotionExpiresAt: 1_900_000_000,
 	}
 	existing := &stripe.PromotionCode{
-		ID: "promo_existing", Active: true, Code: "FKABC234", Coupon: &stripe.Coupon{ID: "coupon"}, Customer: &stripe.Customer{ID: "cus_3"},
+		ID: "promo_existing", Active: true, Code: "FKABC234", Promotion: recallTestCouponPromotion("coupon"), Customer: &stripe.Customer{ID: "cus_3"},
 		ExpiresAt: 1_900_000_000, MaxRedemptions: 1, Restrictions: &stripe.PromotionCodeRestrictions{},
 	}
 	created := false
@@ -1025,7 +1033,7 @@ func TestValidateExistingRecallPromotionEmailOnlyRequiresCustomerlessPromotion(t
 		Id: 2, UserId: 0, PromotionCode: "FKABC234", PromotionExpiresAt: 1_900_000_000,
 	}
 	existing := &stripe.PromotionCode{
-		ID: "promo_existing", Active: true, Code: "FKABC234", Coupon: &stripe.Coupon{ID: "coupon"},
+		ID: "promo_existing", Active: true, Code: "FKABC234", Promotion: recallTestCouponPromotion("coupon"),
 		ExpiresAt: 1_900_000_000, MaxRedemptions: 1, Restrictions: &stripe.PromotionCodeRestrictions{},
 	}
 
@@ -1043,7 +1051,7 @@ func TestRecallStripeExistingPromotionRequiresExactRestrictions(t *testing.T) {
 	recipient := model.RecallRecipient{PromotionCode: "FKABC234"}
 	validPromotion := func() *stripe.PromotionCode {
 		return &stripe.PromotionCode{
-			ID: "promo_existing", Active: true, Code: "FKABC234", Coupon: &stripe.Coupon{ID: "coupon"}, Customer: &stripe.Customer{ID: "cus_3"},
+			ID: "promo_existing", Active: true, Code: "FKABC234", Promotion: recallTestCouponPromotion("coupon"), Customer: &stripe.Customer{ID: "cus_3"},
 			ExpiresAt: 1_900_000_000, MaxRedemptions: 1,
 		}
 	}

@@ -64,11 +64,11 @@ export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
           <h1 className="mt-5 text-[clamp(1.9rem,4.2vw,2.9rem)] leading-[1.12] font-bold tracking-tight">
             {t("The same {{model}},", { model: config.displayName })}{" "}
             <span className="bg-gradient-to-r from-violet-600 via-fuchsia-500 to-indigo-500 bg-clip-text text-transparent dark:from-violet-200 dark:via-fuchsia-300 dark:to-indigo-300">
-              {t("up to 50% off")}
+              {t("from $10/month")}
             </span>
           </h1>
           <p className="text-muted-foreground mt-4 max-w-2xl text-base leading-7">
-            {t("Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.", {
+            {t("Same {{official}} upstream, same quality — plans from $10/month include every frontier model, with monthly usage worth up to 4.5× the price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.", {
               official: config.officialName,
             })}
           </p>
@@ -79,32 +79,32 @@ export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
           <div className="mt-7 grid grid-cols-1 overflow-hidden rounded-2xl border border-violet-500/16 bg-white/74 shadow-[0_24px_80px_-56px_rgba(91,33,182,0.86)] backdrop-blur-sm sm:grid-cols-[1fr_auto_1fr] dark:border-violet-300/14 dark:bg-white/[0.04]">
             <div className="p-6">
               <div className="text-muted-foreground mb-3 text-xs font-semibold tracking-wide uppercase">
-                {t("{{official}} official", { official: config.officialName })}
+                {t("You pay")}
               </div>
-              <div className="text-4xl font-extrabold tracking-tight text-red-500/60 line-through">
-                {config.officialPrice}
+              <div className="text-4xl font-extrabold tracking-tight">
+                $10
               </div>
               <div className="text-muted-foreground mt-1 text-[13px]">
-                {t(config.priceUnit)}
+                {t("per month on the Go plan")}
               </div>
             </div>
             <div className="text-muted-foreground hidden items-center justify-center px-3 text-sm font-bold sm:flex">
-              VS
+              →
             </div>
             <div className="bg-emerald-500/[0.06] p-6">
               <div className="text-muted-foreground mb-3 text-xs font-semibold tracking-wide uppercase">
-                {t("flatkey · effective price with top-up bonus")}
+                {t("You get")}
               </div>
               <div className="text-4xl font-extrabold tracking-tight text-emerald-600">
-                {config.flatkeyPrice}
+                $45
               </div>
               <div className="text-muted-foreground mt-1 text-[13px]">
-                {t(config.priceUnit)}
+                {t("of monthly model usage — 4.5× the price")}
               </div>
             </div>
           </div>
           <div className="mt-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-3 text-center text-base font-extrabold text-white shadow-[0_18px_40px_-24px_rgba(5,150,105,0.8)]">
-            {t("↓ Top up $200, get $300 — stretch your token budget 1.5×")}
+            {t("↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price")}
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.15fr_0.85fr]">
@@ -281,24 +281,32 @@ export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
             <div>
               <div className="flex items-center gap-2 text-[17px] font-extrabold">
                 <BadgeCheck className="size-4 text-violet-600" />
-                {t("Every top-up")} <span className="text-violet-600">{t("earns bonus credit")}</span>
+                {t("One subscription")} <span className="text-violet-600">{t("covers every model")}</span>
               </div>
               <div className="text-muted-foreground mt-1 text-[13px]">
-                {t("Pay to unlock · credited instantly · not a free-signup giveaway")}
+                {t("Text, image and video in one plan · overage billed as you go · cancel anytime")}
               </div>
             </div>
             <div className="flex gap-2.5">
               <div className="rounded-xl border border-violet-500/18 bg-white/70 px-4 py-3 text-center dark:bg-white/[0.04]">
                 <b className="block font-mono text-[15px] font-extrabold text-violet-700 dark:text-violet-200">
-                  {t("Top up $10 get $3")}
+                  {t("Go — $10/mo, up to $45 usage")}
                 </b>
                 <small className="text-muted-foreground text-[11px]">
                   {t("Starter / individual")}
                 </small>
               </div>
+              <div className="rounded-xl border border-violet-500/28 bg-violet-500/[0.07] px-4 py-3 text-center dark:bg-white/[0.04]">
+                <b className="block font-mono text-[15px] font-extrabold text-violet-700 dark:text-violet-200">
+                  {t("Pro — $30/mo, up to $90 usage")}
+                </b>
+                <small className="text-muted-foreground text-[11px]">
+                  {t("Most popular")}
+                </small>
+              </div>
               <div className="rounded-xl border border-violet-500/18 bg-white/70 px-4 py-3 text-center dark:bg-white/[0.04]">
                 <b className="block font-mono text-[15px] font-extrabold text-violet-700 dark:text-violet-200">
-                  {t("Top up $200 get $100")}
+                  {t("Max — $100/mo, up to $300 usage")}
                 </b>
                 <small className="text-muted-foreground text-[11px]">
                   {t("Team / high-volume")}
@@ -306,11 +314,10 @@ export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
               </div>
             </div>
             <a
-              href={signInHref}
-              onClick={onRunClick}
+              href="/pricing"
               className="ml-auto rounded-xl bg-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] hover:bg-violet-500"
             >
-              {t("Sign in to claim →")}
+              {t("See plans →")}
             </a>
           </div>
         </div>

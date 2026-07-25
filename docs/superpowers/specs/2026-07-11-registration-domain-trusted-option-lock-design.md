@@ -42,4 +42,4 @@ Keep the existing SQLite behavioral tests for release and restoration. No new de
 
 ## Deployment Scope
 
-This changes an admin recovery path served by the Go console application. It does not change relay or model invocation behavior, so router deployment is not required based on this diff. Validate in staging before deploying the console/legacy Go service to production.
+This changes an admin recovery path served by the Go console application. It does not change relay or model invocation behavior, so router deployment is not required based on this diff. Validate in staging before deploying `newapi-console` to production; the legacy `newapi` service is decommissioned and is not a deployment target.

@@ -45,6 +45,7 @@ const usageLogsSearchSchema = z.object({
   channel: z.string().optional().catch(''),
   group: z.string().optional().catch(''),
   username: z.string().optional().catch(''),
+  userId: z.number().optional().catch(undefined),
   requestId: z.string().optional().catch(''),
   upstreamRequestId: z.string().optional().catch(''),
   nonAdmin: z.boolean().optional().catch(false),

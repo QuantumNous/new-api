@@ -241,6 +241,20 @@ curl https://你的服务/v1/video/generations \
 - **白标约束**：`metadata.url` 返回代理路径 `/v1/videos/{task_id}/content`，**绝不暴露 blockrun.ai 真实地址**；真实地址留在 `task.Data`，由 `controller.VideoProxy` 经 `ExtractUpstreamVideoURL` 在服务端取回；失败信息经 `ScrubBrandedText` 脱敏（品牌词含 `blockrun`/`flatkey`/`bytedance` 等）
 - **取视频**：`/v1/videos/{task_id}/content` **全局匿名**可取（见 §7）；服务端拉取 blockrun.ai 直链时不带鉴权头（该直链为公开/预签名地址）
 
+### 6.10 xAI Grok Imagine 视频（白标渠道）
+
+- **渠道类型**：`XaiGrokVideo`(108) — `relay/channel/task/xaigrok/adaptor.go`
+- **默认 BaseURL**：`https://api.x.ai`（走 xAI 开发者 API，非订阅）
+- **上游提交**：`POST {baseURL}/v1/videos/generations`，body `{"model":"grok-imagine-video-1.5","prompt":"...","image":{"url":"..."},"duration":6}` → `{"request_id":"..."}`
+- **上游查询**：`GET {baseURL}/v1/videos/{request_id}` → `{"status":"pending|done|failed|expired","video":{"url":"..."}}`
+- **鉴权**：`Authorization: Bearer <key>`
+- **模型**：`grok-imagine-video`、`grok-imagine-video-1.5`
+- **请求字段**：`prompt`（必填）→prompt；`image`/`images[0]`/`input_reference`（图生视频）→ 上游 `image.url`（含 SSRF 校验 `ValidateRemoteMediaURL`）；`duration`/`seconds`（秒，1–15，超范围直接 400）→duration
+- **上游状态映射**：`done`/`completed`/`succeeded`→completed，`failed`/`expired`/`cancelled`→failed，其余→in_progress
+- **计费**：**按秒**——`ModelPrice` 为每秒 USD 单价（`grok-imagine-video` 0.09、`grok-imagine-video-1.5` 0.11），`EstimateBilling` 返回 `{"seconds": 时长}`，最终额度 = 单价 × 秒数 × 组倍率；客户端省略时长时按 5 秒预扣（`defaultBillingSeconds`）。上游成本 $0.05/s（480p）–$0.07/s（720p）
+- **白标约束**：`metadata.url` 返回代理路径 `/v1/videos/{task_id}/content`，**绝不暴露 `vidgen.x.ai` 真实地址**；真实地址留在 `task.Data`，由 `controller.VideoProxy` 经 `ExtractUpstreamVideoURL` 服务端取回；失败信息经 `ScrubBrandedText` 脱敏（品牌词含 `xai`/`grok`/`x.ai`/`vidgen.x.ai`）；公开任务 ID 为 `task_xxxx`，不透传上游 `request_id`
+- **取视频**：`/v1/videos/{task_id}/content` **全局匿名**可取（见 §7）；服务端拉取 `vidgen.x.ai` 直链时不带鉴权头（该直链为公开/预签名地址，已实测 HTTP 200 免鉴权）
+
 ---
 
 ## 7. 视频代理下载（`GET /v1/videos/{task_id}/content`）

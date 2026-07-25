@@ -23,7 +23,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { CircleCheck, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
+import {
+  getAdsAttributionPayload,
+  isPtPostSignupTopupExperiment,
+  parseAttributionPayload,
+} from '@/lib/analytics/attribution'
 import {
   trackAdsFunnelEvent,
   trackSignupConversion,
@@ -284,13 +288,17 @@ export function SignUpForm({
 
     setIsLoading(true)
     try {
+      const adsAttribution = getAdsAttributionPayload()
+      const shouldShowPtTopupOnboarding = isPtPostSignupTopupExperiment(
+        parseAttributionPayload(adsAttribution)
+      )
       const res = await register({
         username: data.username,
         password: data.password,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
-        ads_attribution: getAdsAttributionPayload() || undefined,
+        ads_attribution: adsAttribution || undefined,
         turnstile: turnstileToken,
       })
 
@@ -309,16 +317,12 @@ export function SignUpForm({
           product_surface: 'console',
           has_email: Boolean(data.email),
         })
-        // Auto-logged-in (session cookie set by setupLogin). Activation-first: land
-        // them in the Playground first-run so they make their first API call with
-        // zero config. We intentionally do NOT arm the card-bind promo dialog here —
-        // top-up is surfaced later via the low-balance banner, once the user has
-        // experienced value. Registration-time redirects intentionally do not win
-        // over this new-user activation path.
+        // PT paid-search registrations are the single funnel experiment running
+        // today. All other users keep the activation-first Playground path.
         toast.success(t('Account created!'))
         await handleLoginSuccess(
           res.data as { id?: number } | null,
-          '/playground?first=1'
+          shouldShowPtTopupOnboarding ? '/onboarding' : '/playground?first=1'
         )
       } else {
         trackAdsFunnelEvent('flatkey_signup_error', {

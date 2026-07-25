@@ -19,7 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
-	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v86"
 	"gorm.io/gorm"
 )
 
@@ -53,10 +53,10 @@ func setupSubscriptionStripeRecordingBackend(t *testing.T) *subscriptionStripeRe
 func TestSubscriptionStripeOrdinaryPromotionCodes(t *testing.T) {
 	backend := setupSubscriptionStripeRecordingBackend(t)
 
-	link, err := genStripeSubscriptionLink("sub_ref_ordinary", "", "buyer@example.com", "price_subscription", nil)
+	checkoutSession, err := genStripeSubscriptionLink("sub_ref_ordinary", "", "buyer@example.com", "price_subscription", 7, 11, 0, nil)
 
 	require.NoError(t, err)
-	require.Equal(t, "https://checkout.stripe.test/subscription", link)
+	require.Equal(t, "https://checkout.stripe.test/subscription", checkoutSession.URL)
 	require.Len(t, backend.params, 1)
 	params := backend.params[0]
 	require.NotNil(t, params.AllowPromotionCodes)
@@ -67,14 +67,14 @@ func TestSubscriptionStripeOrdinaryPromotionCodes(t *testing.T) {
 func TestSubscriptionStripeRecallPromotionCode(t *testing.T) {
 	backend := setupSubscriptionStripeRecordingBackend(t)
 
-	link, err := genStripeSubscriptionLink("sub_ref_recall", "cus_123", "buyer@example.com", "price_subscription", &service.RecallCheckoutDiscount{
+	checkoutSession, err := genStripeSubscriptionLink("sub_ref_recall", "cus_123", "buyer@example.com", "price_subscription", 7, 11, 0, &service.RecallCheckoutDiscount{
 		PromotionCodeID: "promo_subscription_recall",
 		CampaignID:      42,
 		RecipientID:     84,
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, "https://checkout.stripe.test/subscription", link)
+	require.Equal(t, "https://checkout.stripe.test/subscription", checkoutSession.URL)
 	require.Len(t, backend.params, 1)
 	params := backend.params[0]
 	require.Nil(t, params.AllowPromotionCodes)

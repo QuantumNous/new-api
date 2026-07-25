@@ -19,8 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
-import { localizedWebsitePath, officialWebsiteUrl } from '@/lib/origins'
-import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
+import {
+  type HeaderNavModules,
+  parseHeaderNavModulesFromStatus,
+} from '@/lib/nav-modules'
+import {
+  OFFICIAL_DOCUMENTATION_URL,
+  consoleWebsitePath,
+  officialWebsiteUrl,
+} from '@/lib/origins'
 import { useStatus } from '@/hooks/use-status'
 
 export type TopNavLink = {
@@ -29,6 +36,69 @@ export type TopNavLink = {
   disabled?: boolean
   requiresAuth?: boolean
   external?: boolean
+}
+
+type BuildTopNavLinksOptions = {
+  translate: (key: string) => string
+  language?: string
+  modules: HeaderNavModules
+  isAuthed: boolean
+}
+
+export function buildTopNavLinks(
+  options: BuildTopNavLinksOptions
+): TopNavLink[] {
+  const links: TopNavLink[] = []
+  const websitePath = (path: string) =>
+    consoleWebsitePath(options.language, path)
+  const websiteLink = (title: string, path: string): TopNavLink => {
+    const href = officialWebsiteUrl(websitePath(path))
+    return { title, href, external: href.startsWith('http') }
+  }
+
+  // Keep the console-specific Home and Blog entries, then follow the official
+  // website's primary navigation order.
+  links.push(websiteLink(options.translate('Home'), '/'))
+  links.push(websiteLink(options.translate('Blog'), '/blog'))
+  links.push(websiteLink(options.translate('Models'), '/models'))
+  links.push({
+    title: options.translate('Docs'),
+    href: OFFICIAL_DOCUMENTATION_URL,
+    external: true,
+  })
+  links.push(
+    websiteLink(
+      options.translate('Playground (website navigation)'),
+      '/playground'
+    )
+  )
+
+  const rankings = options.modules.rankings
+  if (rankings.enabled) {
+    const href = officialWebsiteUrl(websitePath('/models#leaderboard'))
+    links.push({
+      title: options.translate('Rankings'),
+      href,
+      requiresAuth: rankings.requireAuth && !options.isAuthed,
+      external: href.startsWith('http'),
+    })
+  }
+
+  const pricing = options.modules.pricing
+  if (pricing.enabled) {
+    const href = officialWebsiteUrl(websitePath('/pricing'))
+    links.push({
+      title: options.translate('Pricing (website navigation)'),
+      href,
+      requiresAuth: pricing.requireAuth && !options.isAuthed,
+      external: href.startsWith('http'),
+    })
+  }
+
+  links.push(websiteLink(options.translate('Compute'), '/compute'))
+  links.push(websiteLink(options.translate('Use cases'), '/usecases'))
+
+  return links
 }
 
 /**
@@ -40,9 +110,9 @@ export type TopNavLink = {
  *   pricing: { enabled: true, requireAuth: false },
  *   rankings: { enabled: true, requireAuth: false }
  * }
- * Pricing and Rankings link to the official website pages (OFFICIAL_WEBSITE_ORIGIN)
- * — the website /rankings now serves the same daily-updated data pipeline. The
- * /docs and /about routes are no longer surfaced here.
+ * Website entries resolve through OFFICIAL_WEBSITE_ORIGIN, while Docs uses
+ * the standalone documentation site. Pricing and Rankings retain their
+ * existing enable/require-auth controls.
  */
 export function useTopNavLinks(): TopNavLink[] {
   const { t, i18n } = useTranslation()
@@ -56,54 +126,10 @@ export function useTopNavLinks(): TopNavLink[] {
     )
   }, [status])
 
-  const isAuthed = !!auth?.user
-
-  const links: TopNavLink[] = []
-
-  // Mirror the official website header (Home, Blog, Pricing, Models,
-  // Rankings, Contact us) so public console pages align with the site.
-  // Carry the console UI language as the website locale path prefix so the
-  // language choice survives the hop (English lives at the root path).
-  const localizedPath = (path: string) =>
-    localizedWebsitePath(i18n.language, path)
-  const websiteLink = (title: string, path: string): TopNavLink => {
-    const href = officialWebsiteUrl(localizedPath(path))
-    return { title, href, external: href.startsWith('http') }
-  }
-
-  links.push(websiteLink(t('Home'), '/'))
-  links.push(websiteLink(t('Blog'), '/blog'))
-
-  // Pricing — official website page, not the in-console pricing route
-  const pricing = modules?.pricing
-  if (pricing && typeof pricing === 'object' && pricing.enabled) {
-    const requiresAuth = pricing.requireAuth && !isAuthed
-    const href = officialWebsiteUrl(localizedPath('/pricing'))
-    links.push({
-      title: t('Pricing'),
-      href,
-      requiresAuth,
-      external: href.startsWith('http'),
-    })
-  }
-
-  links.push(websiteLink(t('Models'), '/models'))
-
-  // Rankings — official website page; it now serves the same daily-updated
-  // data pipeline, and it is the single public rankings surface.
-  const rankings = modules?.rankings
-  if (rankings && typeof rankings === 'object' && rankings.enabled) {
-    const requiresAuth = rankings.requireAuth && !isAuthed
-    const href = officialWebsiteUrl(localizedPath('/rankings'))
-    links.push({
-      title: t('Rankings'),
-      href,
-      requiresAuth,
-      external: href.startsWith('http'),
-    })
-  }
-
-  links.push(websiteLink(t('Contact us'), '/contact'))
-
-  return links
+  return buildTopNavLinks({
+    translate: t,
+    language: i18n.language,
+    modules,
+    isAuthed: !!auth?.user,
+  })
 }

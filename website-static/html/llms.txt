@@ -2,6 +2,32 @@
 
 flatkey.ai is a unified AI API gateway, model routing, billing, and operations platform.
 
+## API Protocols
+
+- Router base URL: https://router.flatkey.ai
+- OpenAI-compatible Chat Completions: POST https://router.flatkey.ai/v1/chat/completions
+- OpenAI-compatible Responses: POST https://router.flatkey.ai/v1/responses
+- Anthropic Messages: POST https://router.flatkey.ai/v1/messages
+- Gemini native generateContent: POST https://router.flatkey.ai/v1beta/models/{model}:generateContent
+- Asynchronous video generation: POST https://router.flatkey.ai/v1/videos
+
+## Gemini Image Models
+
+- nano-banana-pro-preview supports both Gemini native generateContent and OpenAI-compatible Chat Completions.
+- With Gemini native generateContent, generated images are returned in candidates[].content.parts[].inlineData.
+- With Chat Completions, generated images are returned in choices[0].message.content as Markdown data URIs.
+- These Gemini image-model paths currently do not use /v1/images/generations; do not infer lack of Gemini support from that endpoint.
+
+## Seedance Video Models
+
+- Seedance models use the official multimodal content[] request format.
+- Create a video task with POST https://router.flatkey.ai/v1/videos.
+- Poll task status with GET https://router.flatkey.ai/v1/videos/{task_id}.
+- Download completed video content with GET https://router.flatkey.ai/v1/videos/{task_id}/content.
+- Use GET /v1/models to discover the Seedance model IDs currently available to your account.
+- Documentation: https://docs.flatkey.ai/api-reference/seedance-video-generation
+- Chinese documentation: https://docs.flatkey.ai/zh/api-reference/seedance-video-generation
+
 ## Core Pages
 
 - Home: https://flatkey.ai/

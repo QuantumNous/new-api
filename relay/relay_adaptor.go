@@ -49,6 +49,7 @@ import (
 	tasktechmobi "github.com/QuantumNous/new-api/relay/channel/task/techmobi"
 	taskvertex "github.com/QuantumNous/new-api/relay/channel/task/vertex"
 	taskVidu "github.com/QuantumNous/new-api/relay/channel/task/vidu"
+	taskxaigrok "github.com/QuantumNous/new-api/relay/channel/task/xaigrok"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
@@ -186,6 +187,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &tasktechmobi.TaskAdaptor{}
 		case constant.ChannelTypeBytePlus:
 			return &taskbyteplus.TaskAdaptor{}
+		case constant.ChannelTypeXaiGrokVideo:
+			return &taskxaigrok.TaskAdaptor{}
 		}
 	}
 	return nil

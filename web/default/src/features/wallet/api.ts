@@ -39,6 +39,8 @@ import type {
   InvoiceProfile,
   InvoiceProfileResponse,
   RequestInvoiceResponse,
+  RefundableSubscriptionTermsResponse,
+  RefundSubscriptionTermResponse,
 } from './types'
 
 // ============================================================================
@@ -108,6 +110,18 @@ export async function requestStripePayment(
   const res = await api.post('/api/user/stripe/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
+  return res.data
+}
+
+/** Reopen the existing Stripe session for a pending top-up. */
+export async function resumeStripeTopup(
+  tradeNo: string
+): Promise<StripePaymentResponse> {
+  const res = await api.post(
+    `/api/user/topup/${encodeURIComponent(tradeNo)}/resume`,
+    {},
+    { skipBusinessError: true } as Record<string, unknown>
+  )
   return res.data
 }
 
@@ -254,6 +268,30 @@ export async function getUserBillingHistory(
     params.append('keyword', keyword)
   }
   const res = await api.get(`/api/user/topup/self?${params.toString()}`)
+  return res.data
+}
+
+/** Get prepaid plan terms that have not started and can be refunded. */
+export async function getRefundableSubscriptionTerms(): Promise<RefundableSubscriptionTermsResponse> {
+  const res = await api.get('/api/subscription/self/refundable-terms', {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/** Return one not-started prepaid plan term to the current user's wallet. */
+export async function refundSubscriptionTerm(
+  termSegmentId: number
+): Promise<RefundSubscriptionTermResponse> {
+  const res = await api.post(
+    `/api/subscription/self/refundable-terms/${encodeURIComponent(String(termSegmentId))}/refund`,
+    {},
+    {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    } as Record<string, unknown>
+  )
   return res.data
 }
 

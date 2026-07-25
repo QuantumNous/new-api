@@ -393,6 +393,14 @@ export const MODEL_FETCHABLE_TYPES = new Set([
   104,
 ])
 
+// Codex model discovery is intentionally limited to the root-protected
+// create-channel flow. Saved-channel discovery and automatic upstream checks
+// are excluded because they would operate on stored OAuth credentials.
+export const CREATE_MODEL_FETCHABLE_TYPES = new Set([
+  ...MODEL_FETCHABLE_TYPES,
+  57,
+])
+
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   15: 'Format: APIKey|SecretKey',
   18: 'Format: APPID|APISecret|APIKey',

@@ -27,6 +27,11 @@ For commercial licensing, please contact support@quantumnous.com
  * with no FOUT once the variable is fetched. */
 @import '@fontsource-variable/lora';
 
+/* Brand Latin face for the whole console: Space Grotesk variable
+ * (300–700). Latin-only — CJK glyphs fall through to the system stack
+ * declared after it in --font-sans. */
+@import '@fontsource-variable/space-grotesk';
+
 @import './theme.css';
 @import './theme-presets.css';
 
@@ -952,4 +957,15 @@ For commercial licensing, please contact support@quantumnous.com
   100% {
     opacity: 1;
   }
+}
+
+/* The console shell owns all scrolling (Main / SidebarInset inner
+ * containers). Lock the document while the shell is mounted so macOS
+ * wheel overscroll can't drag the sticky header away from the
+ * fixed-positioned sidebar — they visibly shear apart otherwise.
+ * Public pages (sign-in, etc.) render without the shell and keep
+ * normal document scrolling. */
+body:has([data-slot='sidebar-wrapper']) {
+  overflow: hidden;
+  overscroll-behavior: none;
 }

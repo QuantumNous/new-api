@@ -105,7 +105,7 @@ const BRAZIL: MarketLandingCopy = {
     body: "Os modelos gratuitos você já roda no OpenCode com DeepSeek. O que trava você são Opus, GPT-5 e Sora. Aqui você paga esses com Pix, a até metade do preço oficial.",
   },
   models: {
-    title: "160+ modelos, uma chave",
+    title: "300+ modelos, uma chave",
     subtitle: "Do gratuito ao topo de linha — escolha por tarefa, pague por uso.",
     items: [
       { name: "Claude Opus / Sonnet", note: "os “dos sonhos”, agora com Pix" },
@@ -195,7 +195,7 @@ const INDIA: MarketLandingCopy = {
     body: "You already run the cheap models. What blocks you is Claude Opus, GPT-5 and Sora. Pay for those with UPI, at up to 50% off official — no card, no rejection.",
   },
   models: {
-    title: "160+ models, one key",
+    title: "300+ models, one key",
     subtitle: "From free-tier cheap to frontier — pick per task, pay per use.",
     items: [
       { name: "Claude Opus / Sonnet", note: "top-tier coding, now on UPI" },
@@ -284,7 +284,7 @@ const INDONESIA: MarketLandingCopy = {
     body: "Model gratis sudah bisa kamu pakai. Yang bikin mentok itu Claude Opus, GPT-5, dan Sora. Bayar itu semua pakai QRIS, sampai 50% lebih murah dari harga resmi.",
   },
   models: {
-    title: "160+ model, satu key",
+    title: "300+ model, satu key",
     subtitle: "Dari yang murah sampai frontier — pilih per tugas, bayar per pakai.",
     items: [
       { name: "Claude Opus / Sonnet", note: "coding kelas atas, kini via QRIS" },

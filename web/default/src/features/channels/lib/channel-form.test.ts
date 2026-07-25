@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import type { Channel } from '../types'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
   channelFormSchema,
@@ -6,7 +7,6 @@ import {
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
 } from './channel-form'
-import type { Channel } from '../types'
 
 const baseChannel: Channel = {
   id: 1,
@@ -46,6 +46,12 @@ const baseChannel: Channel = {
     multi_key_mode: 'random',
   },
   settings: '{}',
+}
+
+const codexFormValues = {
+  ...CHANNEL_FORM_DEFAULT_VALUES,
+  type: 57,
+  allow_service_tier: true,
 }
 
 describe('channel max concurrency form mapping', () => {
@@ -90,5 +96,23 @@ describe('channel max concurrency form mapping', () => {
     })
 
     expect(result.success).toBe(false)
+  })
+})
+
+describe('Codex OAuth service tier settings', () => {
+  test('keeps allow_service_tier in create payloads', () => {
+    const payload = transformFormDataToCreatePayload(codexFormValues)
+
+    expect(JSON.parse(payload.channel.settings || '{}')).toMatchObject({
+      allow_service_tier: true,
+    })
+  })
+
+  test('keeps allow_service_tier in update payloads', () => {
+    const payload = transformFormDataToUpdatePayload(codexFormValues, 123)
+
+    expect(JSON.parse(payload.settings || '{}')).toMatchObject({
+      allow_service_tier: true,
+    })
   })
 })

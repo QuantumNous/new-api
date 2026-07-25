@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -86,10 +87,48 @@ func taskIsSubscription(task *model.Task) bool {
 	return task.PrivateData.BillingSource == BillingSourceSubscription && task.PrivateData.SubscriptionId > 0
 }
 
+// taskSubscriptionWeighted 把 list 等值额度换算为订阅池扣量（与
+// SubscriptionFunding.weighted 同语义：向上取整、负数对称）。任务提交时
+// 快照的权重存在 BillingContext.SubscriptionWeight；0 视为 1.0（旧数据）。
+func taskSubscriptionWeighted(task *model.Task, n int64) int64 {
+	w := 1.0
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.SubscriptionWeight > 0 {
+		w = bc.SubscriptionWeight
+	}
+	if n == 0 || w == 1 {
+		return n
+	}
+	if n >= 0 {
+		return int64(math.Ceil(float64(n) * w))
+	}
+	return -int64(math.Ceil(float64(-n) * w))
+}
+
 // taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
+// 订阅来源按「加权后总量之差」换算池扣量——对 delta 单独 ceil 会累计舍入
+// （如 weight=1.5、预扣 1 已计 2，实际 2 应总计 3，按增量 ceil 会补 2 变 4）；
+// 以 task.Quota（调整前的未加权总量）为基准做差杜绝该误差。窗口计数同步补偿
+// （负向按台账退回原始 Redis key，正向记入当前窗口）。
 func taskAdjustFunding(task *model.Task, delta int) error {
 	if taskIsSubscription(task) {
-		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
+		currentQuota := int64(task.Quota)
+		targetQuota := currentQuota + int64(delta)
+		if targetQuota < 0 {
+			targetQuota = 0
+		}
+		weightedDelta := taskSubscriptionWeighted(task, targetQuota) - taskSubscriptionWeighted(task, currentQuota)
+		if weightedDelta == 0 {
+			return nil
+		}
+		if err := model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, weightedDelta); err != nil {
+			return err
+		}
+		if bc := task.PrivateData.BillingContext; bc != nil && bc.SubscriptionWindow != nil {
+			if _, err := AdjustSubscriptionWindowFromSnapshot(bc.SubscriptionWindow, weightedDelta); err != nil {
+				common.SysLog(fmt.Sprintf("task %s subscription window compensation failed (tolerated): %v", task.TaskID, err))
+			}
+		}
+		return nil
 	}
 	if delta > 0 {
 		return model.DecreaseUserQuota(task.UserId, delta, false)

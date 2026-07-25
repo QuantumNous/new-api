@@ -334,6 +334,16 @@ describe('InvitationView', () => {
       /<a[^>]*aria-label="Share on LinkedIn"[^>]*target="_blank"[^>]*rel="noreferrer noopener"[^>]*>\s*<svg[^>]*>/
     )
   })
+
+  test('uses Flatkey in the referral share message', () => {
+    const html = renderView()
+    const message = encodeURIComponent(
+      'Join Flatkey with my referral link. Referral rewards are processed after your first successful top-up.'
+    )
+
+    expect(html).toContain(message)
+    expect(html).not.toContain('Join%20NewAPI%20with%20my%20referral%20link')
+  })
 })
 
 describe('USD formatting', () => {

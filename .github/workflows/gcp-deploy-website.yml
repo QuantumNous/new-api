@@ -29,6 +29,8 @@ env:
   ROUTER_ORIGIN:      ${{ vars.WEBSITE_ROUTER_ORIGIN }}        # https://router.flatkey.ai
   SITE_ORIGIN:        ${{ vars.WEBSITE_SITE_ORIGIN }}          # https://flatkey.ai
   COOKIE_SESSION_DOMAIN: ${{ secrets.COOKIE_SESSION_DOMAIN || '.flatkey.ai' }}
+  BLOGGER_API_URL:    ${{ vars.BLOGGER_API_URL || 'https://blogger-api-528088078482.us-central1.run.app' }}
+  BLOGGER_SITE_SLUG:  ${{ vars.BLOGGER_SITE_SLUG || 'flatkey' }}
   BLOGGER_ACCESS_KEY: ${{ secrets.BLOGGER_ACCESS_KEY }}
 
 jobs:
@@ -82,6 +84,8 @@ jobs:
             ROUTER_ORIGIN=${{ env.ROUTER_ORIGIN }}
             SITE_ORIGIN=${{ env.SITE_ORIGIN }}
             COOKIE_SESSION_DOMAIN=${{ env.COOKIE_SESSION_DOMAIN }}
+            BLOGGER_API_URL=${{ env.BLOGGER_API_URL }}
+            BLOGGER_SITE_SLUG=${{ env.BLOGGER_SITE_SLUG }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/website:main-latest
@@ -124,6 +128,12 @@ jobs:
           fi
           if [[ -n "${BLOGGER_ACCESS_KEY}" ]]; then
             env_kvs+=("BLOGGER_ACCESS_KEY=${BLOGGER_ACCESS_KEY}")
+          fi
+          if [[ -n "${BLOGGER_API_URL}" ]]; then
+            env_kvs+=("BLOGGER_API_URL=${BLOGGER_API_URL}")
+          fi
+          if [[ -n "${BLOGGER_SITE_SLUG}" ]]; then
+            env_kvs+=("BLOGGER_SITE_SLUG=${BLOGGER_SITE_SLUG}")
           fi
           env_args=()
           if [[ ${#env_kvs[@]} -gt 0 ]]; then

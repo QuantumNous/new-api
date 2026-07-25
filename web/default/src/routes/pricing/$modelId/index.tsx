@@ -22,7 +22,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
 import {
   OFFICIAL_WEBSITE_ORIGIN,
-  localizedWebsitePath,
+  consoleWebsitePath,
   officialWebsiteUrl,
 } from '@/lib/origins'
 import { ModelDetails } from '@/features/pricing/components/model-details'
@@ -38,7 +38,7 @@ export const Route = createFileRoute('/pricing/$modelId/')({
     if (OFFICIAL_WEBSITE_ORIGIN) {
       const path = `/models/${encodeURIComponent(params.modelId)}`
       window.location.replace(
-        officialWebsiteUrl(localizedWebsitePath(i18n.language, path))
+        officialWebsiteUrl(consoleWebsitePath(i18n.language, path))
       )
       await new Promise(() => {})
     }

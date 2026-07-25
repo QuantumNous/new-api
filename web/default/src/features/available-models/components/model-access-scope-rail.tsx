@@ -100,10 +100,17 @@ export function ModelAccessScopeRail({
                     </Badge>
                     {scope.ratio !== null && (
                       <Badge variant='outline'>
-                        {t('Ratio')} {scope.ratio}×
+                        {t('Group default ratio {{ratio}}×', {
+                          ratio: scope.ratio,
+                        })}
                       </Badge>
                     )}
                   </div>
+                  {scope.ratio !== null && (
+                    <p className='text-muted-foreground text-xs'>
+                      {t('Applies to models without an exclusive ratio.')}
+                    </p>
+                  )}
                 </CardContent>
               </Label>
               <CardFooter>

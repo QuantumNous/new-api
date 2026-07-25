@@ -1030,6 +1030,27 @@ func FetchModels(c *gin.Context) {
 
 	// remove line breaks and extra spaces.
 	key := strings.TrimSpace(req.Key)
+	if req.Type == constant.ChannelTypeCodex {
+		channel := &model.Channel{
+			Type:    req.Type,
+			Key:     key,
+			BaseURL: &baseURL,
+		}
+		models, err := service.FetchCodexChannelModels(channel)
+		if err != nil {
+			common.SysError(fmt.Sprintf("fetch Codex models failed: %v", err))
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": i18n.T(c, i18n.MsgModelGetFailed),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    models,
+		})
+		return
+	}
 	key = strings.Split(key, "\n")[0]
 
 	if req.Type == constant.ChannelTypeOllama {

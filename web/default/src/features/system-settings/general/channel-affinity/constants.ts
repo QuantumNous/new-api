@@ -21,9 +21,20 @@ import type { AffinityRule } from './types'
 const CODEX_CLI_HEADER_PASSTHROUGH_HEADERS = [
   'Originator',
   'Session_id',
+  'Thread_id',
+  'Session-Id',
+  'Thread-Id',
+  'X-Client-Request-Id',
   'User-Agent',
   'X-Codex-Beta-Features',
+  'X-Codex-Turn-State',
   'X-Codex-Turn-Metadata',
+  'X-Codex-Window-Id',
+  'X-Codex-Parent-Thread-Id',
+  'X-OpenAI-Subagent',
+  'X-OpenAI-Memgen-Request',
+  'X-ResponsesAPI-Include-Timing-Metrics',
+  'X-OpenAI-Internal-Codex-Responses-Lite',
 ]
 
 const CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS = [

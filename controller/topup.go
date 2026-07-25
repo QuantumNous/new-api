@@ -32,6 +32,18 @@ func GetTopUpInfo(c *gin.Context) {
 	if !complianceConfirmed {
 		payMethods = []map[string]string{}
 	}
+	// PayMethods 携带 epay 档位（含代码默认的 支付宝/微信/自定义 占位）。epay 网关
+	// 未配置时这些方式点了也走不通，不下发；其余网关（Stripe/Creem/Paddle）各有
+	// 独立开关，Paddle 条目已由 buildTopUpPayMethods 按 enablePaddle 过滤。
+	if !isEpayTopUpEnabled() {
+		kept := make([]map[string]string, 0, len(payMethods))
+		for _, method := range payMethods {
+			if strings.TrimSpace(method["type"]) == model.PaymentMethodPaddle {
+				kept = append(kept, method)
+			}
+		}
+		payMethods = kept
+	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
 	if isStripeTopUpEnabled() {
@@ -150,19 +162,14 @@ func GetTopUpInfo(c *gin.Context) {
 		}(),
 		"amount_options":   amountOptions,
 		"stripe_price_ids": buildStripeTopUpPriceIDs(amountOptions),
-		"discount":         operation_setting.GetPaymentSetting().AmountDiscount,
-		// 仅下发当前用户组可享的赠送档位，避免「看得到拿不到」（实际是否发放仍以支付回调时后端判定为准）。
-		"bonus":       visibleTopUpBonusForUser(c, operation_setting.GetPaymentSetting().AmountBonus),
-		"bonus_limit": operation_setting.GetPaymentSetting().AmountBonusLimit,
-		"bonus_remaining": func() map[int]int {
-			remaining, err := model.GetTopUpBonusRemaining(c.GetInt("id"))
-			if err != nil {
-				logger.LogError(c.Request.Context(), "获取充值赠送剩余次数失败: "+err.Error())
-				return map[int]int{}
-			}
-			return remaining
-		}(),
-		"topup_link": common.TopUpLink,
+		// Pure subscription mode keeps wallet top-ups at face value. Legacy
+		// discount/bonus settings remain readable by old admin code but are not
+		// advertised or applied to new top-ups.
+		"discount":        map[int]float64{},
+		"bonus":           map[int]int64{},
+		"bonus_limit":     map[int]int{},
+		"bonus_remaining": map[int]int{},
+		"topup_link":      common.TopUpLink,
 		// ISO country of the caller IP; drives the wallet checkout-currency
 		// selector (only shown to regions with a local payment method benefit).
 		"client_region": opsIPCountry(c.ClientIP()),
@@ -252,18 +259,7 @@ func normalizeTopUpBonusAmount(amount int64) int64 {
 }
 
 func configuredTopUpBonusAmount(requestAmount int64, group string) int64 {
-	if requestAmount <= 0 {
-		return 0
-	}
-	bonus, ok := operation_setting.GetPaymentSetting().AmountBonus[int(requestAmount)]
-	if !ok {
-		return 0
-	}
-	// opt-in 白名单：该档位未授权当前用户组则不发赠送（后端为发钱的唯一权威）。
-	if !topUpBonusGroupAllowed(int(requestAmount), group) {
-		return 0
-	}
-	return normalizeTopUpBonusAmount(bonus)
+	return 0
 }
 
 // TopUpBonusGroupAll 是用户组白名单中的保留关键字，表示「所有用户组都可享」。
@@ -337,23 +333,8 @@ func getPayMoney(amount int64, group string) float64 {
 		dAmount = dAmount.Div(dQuotaPerUnit)
 	}
 
-	topupGroupRatio := common.GetTopupGroupRatio(group)
-	if topupGroupRatio == 0 {
-		topupGroupRatio = 1
-	}
-
-	dTopupGroupRatio := decimal.NewFromFloat(topupGroupRatio)
 	dPrice := decimal.NewFromFloat(operation_setting.Price)
-	// apply optional preset discount by the original request amount (if configured), default 1.0
-	discount := 1.0
-	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok {
-		if ds > 0 {
-			discount = ds
-		}
-	}
-	dDiscount := decimal.NewFromFloat(discount)
-
-	payMoney := dAmount.Mul(dPrice).Mul(dTopupGroupRatio).Mul(dDiscount)
+	payMoney := dAmount.Mul(dPrice)
 
 	return payMoney.InexactFloat64()
 }

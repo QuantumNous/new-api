@@ -105,12 +105,13 @@ func ensureInstructionsField(req *apicompat.ResponsesRequest) (map[string]any, e
 // dto 独有字段（Conversation/ContextManagement/Truncation/MaxToolCalls/Prompt/...），
 // 同时还会因 dto.Instructions 是 json.RawMessage 而上游 apicompat 是 string 而炸掉。
 //
-// preserveSampling=true 时（compact 路径）保留 Temperature/TopP/MaxOutputTokens，
-// 但仍会移除 user/metadata/stream_options 等 Codex 后端禁字段。
+// isCompact=true 时额外移除 compact 端点实测不接受的 sampling/tool-limit 字段。
+// prompt_cache_options 在 responses 与 compact 两条 Codex 路径都会被真实上游拒绝，
+// 因此仅在 Codex adaptor 层过滤；DTO 仍保留该字段供其他 provider 使用。
 //
 // 注：本函数不修改 store/stream。store 由调用方决定（compact 删除整个键），
 // stream 在非 compact 路径必须保留客户端原意图。
-func applyCodexConstraintsToMap(body map[string]any, info *relaycommon.RelayInfo, preserveSampling bool) {
+func applyCodexConstraintsToMap(body map[string]any, info *relaycommon.RelayInfo, isCompact bool) {
 	if body == nil {
 		return
 	}
@@ -119,19 +120,20 @@ func applyCodexConstraintsToMap(body map[string]any, info *relaycommon.RelayInfo
 	bannedAlways := []string{
 		"frequency_penalty", "presence_penalty",
 		"user", "metadata", "stream_options",
-		"prompt_cache_retention", "safety_identifier",
+		"prompt_cache_options", "prompt_cache_retention", "safety_identifier",
 	}
 	for _, k := range bannedAlways {
 		delete(body, k)
 	}
-	if !preserveSampling {
-		// chat bridge / 非 compact /v1/responses 都不接受 sampling 字段。
-		for _, k := range []string{
-			"max_output_tokens", "max_completion_tokens",
-			"temperature", "top_p",
-		} {
-			delete(body, k)
-		}
+	unsupported := []string{
+		"max_output_tokens", "max_completion_tokens",
+		"temperature", "top_p",
+	}
+	if isCompact {
+		unsupported = append(unsupported, "max_tool_calls", "top_logprobs")
+	}
+	for _, k := range unsupported {
+		delete(body, k)
 	}
 
 	// 2) instructions 注入（与 applyCodexConstraints 行为对齐）。
@@ -429,11 +431,13 @@ func buildUsage(u *apicompat.ResponsesUsage) any {
 	}
 	if u.InputTokensDetails != nil {
 		out.PromptTokensDetails = dto.InputTokenDetails{
-			CachedTokens: u.InputTokensDetails.CachedTokens,
+			CachedTokens:     u.InputTokensDetails.CachedTokens,
+			CacheWriteTokens: u.InputTokensDetails.CacheWriteTokens,
 		}
 		// 同步指针字段，方便下游 reasoning/responses 链路读取
 		out.InputTokensDetails = &dto.InputTokenDetails{
-			CachedTokens: u.InputTokensDetails.CachedTokens,
+			CachedTokens:     u.InputTokensDetails.CachedTokens,
+			CacheWriteTokens: u.InputTokensDetails.CacheWriteTokens,
 		}
 		if u.InputTokensDetails.CachedTokens > 0 {
 			out.PromptCacheHitTokens = u.InputTokensDetails.CachedTokens

@@ -1,18 +1,29 @@
-<!doctype html><html lang="en-US"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>flatkey — Top up</title>
+<!doctype html><html lang="en-US"><head><meta charset="utf-8"><base href="/">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>flatkey — Pricing</title>
 <link rel="icon" type="image/png" sizes="64x64" href="assets/favicon-64.png?v=3">
 <link rel="icon" type="image/svg+xml" href="assets/flatkey-mark.svg?v=4">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="fk2.css?v=719h"><style>
+<link rel="stylesheet" href="fk2.css?v=728b"><style>
 .wrap{max-width:1180px;margin:0 auto;padding:60px 48px}
 .tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin:38px 0 26px}
 .tier{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:26px 24px;position:relative}
 .tier.hot{border-color:var(--violet);box-shadow:0 16px 48px rgba(109,92,255,.14)}
 .tier .badge{position:absolute;top:-13px;left:22px;background:var(--violet);color:#fff;font-size:11.5px;font-weight:800;padding:5px 12px;border-radius:999px}
+.tier{display:flex;flex-direction:column}
 .tier b{font-size:34px;letter-spacing:-1.4px;font-weight:600}
-.tier .bonus{color:#15803D;font-weight:800;font-size:13.5px;background:#EDFBEF;border-radius:8px;padding:4px 10px;display:inline-block;margin:10px 0}
+.tier p b{font-size:inherit;letter-spacing:0;font-weight:750}
+.tier .tname{font-family:var(--disp);font-size:21px;letter-spacing:-.5px;font-weight:700;color:var(--ink)}
+.tier .taud{font-size:12.5px;color:var(--ink3);margin:3px 0 14px;line-height:1.45;min-height:36px}
+.tier .per{font-size:15px;color:var(--ink3);font-weight:600;margin-left:2px}
+.tier .tcustom{font-size:28px}
+.tval{background:var(--violet-tint);border-radius:12px;padding:14px 15px;margin:14px 0 16px}
+.tglabel{font-family:var(--mono);font-size:10px;letter-spacing:.8px;color:var(--ink3);font-weight:700;display:block;margin-bottom:4px;text-transform:uppercase}
+.tgmain{color:var(--violet-deep);font-weight:800;font-size:14.5px;letter-spacing:-.2px}
+.tgsub{font-size:12px;color:var(--ink2);margin-top:3px;line-height:1.5}
+.tdiv{border-top:1px dashed #D8D0F2;margin:12px 0}
+.tcta{margin-top:auto;text-align:center;display:block}
 .tier p{font-size:13px;color:var(--ink2);line-height:1.6}
 .pay{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:26px;display:flex;align-items:center;gap:18px}
 .pm{display:flex;align-items:center;gap:9px;border:1.5px solid var(--line);border-radius:12px;padding:12px 18px;font-weight:750;font-size:14px}
@@ -23,55 +34,91 @@
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-5T5LPLSZ');</script>
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-NKH9LPX9');</script>
 <!-- End Google Tag Manager -->
-<meta name="description" content="flatkey pricing — national-lab models from 60% of list, top-up bonuses stacking to 50% off, enterprise rates below self-serve.">
+<meta name="description" content="flatkey pricing — Go $10, Pro $30 and Max $100 monthly plans covering all 328+ models, a signed SLA behind every call, enterprise rates below self-serve.">
 <link rel="canonical" href="https://flatkey.ai/pricing">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="flatkey.ai">
-<meta property="og:title" content="flatkey — Top up">
-<meta property="og:description" content="flatkey pricing — national-lab models from 60% of list, top-up bonuses stacking to 50% off, enterprise rates below self-serve.">
+<meta property="og:title" content="flatkey — Pricing">
+<meta property="og:description" content="flatkey pricing — Go $10, Pro $30 and Max $100 monthly plans covering all 328+ models, a signed SLA behind every call, enterprise rates below self-serve.">
 <meta property="og:url" content="https://flatkey.ai/pricing">
 <meta property="og:image" content="https://flatkey.ai/assets/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@flatkey101">
-<meta name="twitter:title" content="flatkey — Top up">
-<meta name="twitter:description" content="flatkey pricing — national-lab models from 60% of list, top-up bonuses stacking to 50% off, enterprise rates below self-serve.">
+<meta name="twitter:title" content="flatkey — Pricing">
+<meta name="twitter:description" content="flatkey pricing — Go $10, Pro $30 and Max $100 monthly plans covering all 328+ models, a signed SLA behind every call, enterprise rates below self-serve.">
 <meta name="twitter:image" content="https://flatkey.ai/assets/og-image.png">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage", "name": "flatkey — Top up", "description": "flatkey pricing — national-lab models from 60% of list, top-up bonuses stacking to 50% off, enterprise rates below self-serve.", "url": "https://flatkey.ai/pricing"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage", "name": "flatkey — Pricing", "description": "flatkey pricing — Go $10, Pro $30 and Max $100 monthly plans covering all 328+ models, a signed SLA behind every call, enterprise rates below self-serve.", "url": "https://flatkey.ai/pricing"}</script>
 </head><body>
 <noscript><iframe title="Google Tag Manager" src="https://www.googletagmanager.com/ns.html?id=GTM-5T5LPLSZ" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <nav class="nav">
   <a class="logo" href="/"><img src="assets/flatkey-mark.svg?v=4" alt="flatkey">flatkey</a>
-  <a href="/models">Models</a><a href="/docs">Docs</a><a href="/playground">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing" class="on">Pricing</a><a href="/compute" data-i18n="nav.compute">Compute</a><a href="/usecases">Use cases</a>
+  <a href="/models">Models</a><a href="/docs">Docs</a><a href="/playground">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing" class="on">Pricing</a><a href="/compute" data-i18n="nav.compute">Compute</a><a href="/usecases">Use cases</a><a href="/status">Status</a>
   <div class="sp"></div>
   <a href="/login">Sign in</a>
   <a class="btn white" href="/contact">Contact sales</a>
   <a class="btn black" href="/login">Start free →</a>
 </nav>
 <div class="wrap">
-  <h2 class="display" data-i18n="pr.h2">Self-serve pricing.<br>Every top-up earns bonus credit.</h2>
-  <p class="sub" style="margin-top:16px"><span data-i18n="pr.sub">Self-serve (PLG) tier: national-lab models from 60% of list, bonus stacks to an effective 50%. <b>Enterprise interfaces price below self-serve</b> — committed volume, custom routing discounts.</span></p>
+  <h2 class="display" data-i18n="pr.h2">One subscription.<br>Every model included.</h2>
+  <p class="sub" style="margin-top:16px"><span data-i18n="pr.sub">Go, Pro and Max include all 328+ models — GPT, Claude, Gemini, DeepSeek, Kimi, GLM, plus Seedance image &amp; video. New users get $1 free credit. <b>Enterprise interfaces price below self-serve</b> — committed volume, custom routing discounts.</span></p>
   <div class="tiers">
-    <div class="tier hot"><div class="badge">MOST POPULAR</div><div class="curr">≈ R$55,00</div><b>$10</b><div class="bonus">+ $3 free bonus</div><p data-i18n="tu.p1">Pay $10, get $13 in credit. No contract — add balance, create a key, copy the base_url, test your first request.</p></div>
-    <div class="tier"><div class="curr">≈ R$110</div><b>$20</b><div class="bonus">+ $8 free bonus</div><p data-i18n="tu.p2">Pay $20, get $28 in credit. Best for trying real API workloads. Bonus credit on every top-up.</p></div>
-    <div class="tier"><div class="curr">≈ R$1.100</div><b>$200</b><div class="bonus">+ $100 free bonus</div><p data-i18n="tu.p3">Pay $200, get $300 in credit. Best value for production, team workflows and sustained traffic — effective 50% of official.</p></div>
-    <div class="tier"><div class="curr">B2B</div><b>Enterprise</b><div class="bonus" style="background:var(--violet-tint);color:var(--violet-deep)">Custom</div><p data-i18n="pr.ent">Prices <b>below the self-serve tier</b>: committed-volume discounts, custom routing, invoicing and procurement. <a href="/contact" style="color:var(--violet-deep);font-weight:650">Contact sales →</a></p></div>
+    <div class="tier hot"><div class="badge">MOST POPULAR</div><div class="curr" data-i18n="tu.cur1"></div><div class="tname">Go</div><div class="taud" data-i18n="tu.aud1">For individuals &amp; light daily use</div><div><b>$10</b><span class="per">/mo</span></div>
+      <div class="tval">
+        <span class="tglabel" data-i18n="tu.gtext">Text models</span>
+        <div class="tgmain" data-i18n="tu.tm1">Up to $45 model usage / mo</div>
+        <div class="tgsub" data-i18n="tu.tw1">Short-term caps: $10 / 5h · $22 / 7d</div>
+        <div class="tdiv"></div>
+        <span class="tglabel" data-i18n="tu.gmedia">Image · video models</span>
+        <div class="tgmain" data-i18n="tu.mc1">300 media credits / mo</div>
+        <div class="tgsub" data-i18n="tu.mv1">≈ 100 images, or 75s of video</div>
+      </div>
+      <a class="btn primary tcta" href="https://console.flatkey.ai/sign-up?redirect=%2Fwallet%3Fplan%3Dgo%26intent%3Dsubscribe" data-i18n="tu.cta">Subscribe →</a>
+    </div>
+    <div class="tier"><div class="curr" data-i18n="tu.cur2"></div><div class="tname">Pro</div><div class="taud" data-i18n="tu.aud2">For daily development &amp; high-frequency requests</div><div><b>$30</b><span class="per">/mo</span></div>
+      <div class="tval">
+        <span class="tglabel" data-i18n="tu.gtext">Text models</span>
+        <div class="tgmain" data-i18n="tu.tm2">Up to $90 model usage / mo</div>
+        <div class="tgsub" data-i18n="tu.tw2">Short-term caps: $18 / 5h · $45 / 7d</div>
+        <div class="tdiv"></div>
+        <span class="tglabel" data-i18n="tu.gmedia">Image · video models</span>
+        <div class="tgmain" data-i18n="tu.mc2">1,200 media credits / mo</div>
+        <div class="tgsub" data-i18n="tu.mv2">≈ 400 images, or 5 min of video</div>
+      </div>
+      <a class="btn white tcta" href="https://console.flatkey.ai/sign-up?redirect=%2Fwallet%3Fplan%3Dpro%26intent%3Dsubscribe" data-i18n="tu.cta">Subscribe →</a>
+    </div>
+    <div class="tier"><div class="curr" data-i18n="tu.cur3"></div><div class="tname">Max</div><div class="taud" data-i18n="tu.aud3">For teams &amp; heavy workloads</div><div><b>$100</b><span class="per">/mo</span></div>
+      <div class="tval">
+        <span class="tglabel" data-i18n="tu.gtext">Text models</span>
+        <div class="tgmain" data-i18n="tu.tm3">Up to $300 model usage / mo</div>
+        <div class="tgsub" data-i18n="tu.tw3">Short-term caps: $60 / 5h · $150 / 7d</div>
+        <div class="tdiv"></div>
+        <span class="tglabel" data-i18n="tu.gmedia">Image · video models</span>
+        <div class="tgmain" data-i18n="tu.mc3">5,000 media credits / mo</div>
+        <div class="tgsub" data-i18n="tu.mv3">≈ 1,600 images, or 20 min of video</div>
+      </div>
+      <a class="btn white tcta" href="https://console.flatkey.ai/sign-up?redirect=%2Fwallet%3Fplan%3Dmax%26intent%3Dsubscribe" data-i18n="tu.cta">Subscribe →</a>
+    </div>
+    <div class="tier"><div class="curr">B2B</div><div class="tname">Enterprise</div><div class="taud" data-i18n="tu.aud4">Committed volume &amp; procurement</div><div><b class="tcustom">Custom</b></div>
+      <div class="tval"><p style="margin:0" data-i18n="pr.ent">Custom pricing <b>below the self-serve tiers</b> — committed-volume discounts, custom routing, invoicing and procurement.</p></div>
+      <a class="btn black tcta" href="/contact" data-i18n="tu.ctae">Contact sales →</a>
+    </div>
   </div>
   <div class="pay">
     <span style="font-weight:800;font-size:14.5px">Pay with</span>
     <div class="pm on">Card · 3DS</div><div class="pm">Pix · BRL</div><div class="pm">UPI · INR</div><div class="pm">Alipay</div><div class="pm">USDC</div>
-    <div style="flex:1"></div><a class="btn primary big" href="/login" id="topbtn">Top up $10 → sign in to pay</a>
+    <div style="flex:1"></div><a class="btn primary big" href="https://console.flatkey.ai/sign-up?redirect=%2Fwallet%3Fplan%3Dgo%26intent%3Dsubscribe" id="topbtn">Subscribe Go $10/mo → sign in</a>
   </div>
-  <p class="local">Stripe Checkout · Adaptive Pricing (BRL/INR/CNY/EUR) · bank transfer &amp; invoicing via <u>Enterprise billing</u> · bonus credited instantly, never expires</p>
+  <p class="local">Stripe Checkout · Adaptive Pricing (BRL/INR/CNY/EUR) · bank transfer &amp; invoicing via <u>Enterprise billing</u> · cancel anytime — past your monthly allowance, keep going pay-as-you-go on the same key · new users start with $1 free credit</p>
 
   <div style="margin-top:44px">
     <h3 id="faq" style="font-family:var(--disp);font-size:24px;letter-spacing:-.8px;font-weight:700;margin-bottom:18px" data-i18n="tu.faqh">Pricing FAQ</h3>
     <div class="faq">
-      <details open><summary data-i18n="tu.q1">How does the top-up bonus work?</summary><p data-i18n="tu.a1">Every top-up earns bonus credit, forever: +$3 on $10, +$8 on $20, +$100 on $200. The bonus lands in your balance instantly and is spent like normal credit. Models are also national-lab models from 60% of list, flagships at official list — stacked with the bonus, as low as 40% of list on national-lab models.</p></details>
-      <details><summary data-i18n="tu.q2">Is this a monthly subscription?</summary><p data-i18n="tu.a2">No. The self-serve plans are prepaid top-ups. Balance is consumed only when API requests use models.</p></details>
-      <details><summary data-i18n="tu.q3">Which models can use the same balance?</summary><p data-i18n="tu.a3">One balance can route across GPT, Claude, Gemini, DeepSeek, image, audio and video models through one OpenAI-compatible gateway.</p></details>
+      <details open><summary data-i18n="tu.q1">What does a plan include?</summary><p data-i18n="tu.a1">A monthly model-usage allowance — up to $45 on Go, $90 on Pro, $300 on Max — spendable across all 328+ models, plus media credits for image and video generation. Short 5-hour and 7-day windows keep the service fast for everyone.</p></details>
+      <details><summary data-i18n="tu.q2">Is this a monthly subscription?</summary><p data-i18n="tu.a2">Yes. Plans renew monthly and you can cancel anytime. If you use up the monthly allowance, you can keep going on a pay-as-you-go balance with the same key.</p></details>
+      <details><summary data-i18n="tu.q3">Which models does a plan cover?</summary><p data-i18n="tu.a3">Every plan covers GPT, Claude, Gemini, DeepSeek and the image, audio and video models — all through one OpenAI-compatible gateway.</p></details>
       <details><summary data-i18n="tu.q4">Can I see how the balance is consumed?</summary><p data-i18n="tu.a4">Yes. Usage is metered by model, token type and request logs, so teams can review spend and control cost.</p></details>
       <details><summary data-i18n="tu.q5">When should I choose Enterprise?</summary><p data-i18n="tu.a5">Choose Enterprise for larger monthly usage, invoicing, procurement, custom routing discounts, or team-level controls.</p></details>
     </div>
@@ -103,19 +150,19 @@
 <div class="stripe"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><i class="s5"></i></div>
 <div class="pxgrid" data-seed="79" data-cell="20" data-cols="8" data-rows="4" data-n="11" style="top:110px;right:56px"></div>
 <script src="assets/pixels.js?v=719h"></script>
-<script src="assets/i18n.js?v=720e"></script>
-<script src="assets/track.js?v=716b"></script>
+<script src="assets/i18n.js?v=724b"></script>
+<script src="assets/track.js?v=721a"></script>
 <script>
 (function(){
-  var amts = ["$10","$20","$200","Enterprise"];
+  var amts = ["Go $10/mo","Pro $30/mo","Max $100/mo","Enterprise"];
   document.querySelectorAll(".tier").forEach(function(t, i){
     t.style.cursor = "pointer";
     t.addEventListener("click", function(){
       document.querySelectorAll(".tier").forEach(function(x){ x.style.borderColor = "var(--line)"; x.style.boxShadow = "none"; });
       t.style.borderColor = "var(--violet)"; t.style.boxShadow = "0 16px 48px rgba(109,92,255,.14)";
       var b = document.getElementById("topbtn");
-      if(amts[i] === "Enterprise"){ b.textContent = "Contact sales →"; b.href = "/contact"; }
-      else { b.textContent = "Top up " + amts[i] + " → sign in to pay"; b.href = "/login"; }
+      if(amts[i] === "Enterprise"){ b.textContent = "Contact sales →"; b.href = "contact.html"; }
+      else { var plans=["go","pro","max"]; b.textContent = "Subscribe " + amts[i] + " → sign in"; b.href = "https://console.flatkey.ai/sign-up?redirect=" + encodeURIComponent("/wallet?plan=" + plans[i] + "&intent=subscribe"); }
     });
   });
   document.querySelectorAll(".pm").forEach(function(p){

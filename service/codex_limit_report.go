@@ -247,23 +247,10 @@ func resolveCodexLimitWindows(planType string, primary *CodexLimitWindow, second
 			}
 		}
 	}
-
 	if strings.EqualFold(strings.TrimSpace(planType), "free") {
-		if weekly == nil {
-			weekly = firstWindow(primary, secondary)
-		}
-		return nil, weekly
+		fiveHour = nil
 	}
 
-	if fiveHour == nil && weekly == nil {
-		return primary, secondary
-	}
-	if fiveHour == nil {
-		fiveHour = firstDifferentWindow(windows, weekly)
-	}
-	if weekly == nil {
-		weekly = firstDifferentWindow(windows, fiveHour)
-	}
 	return fiveHour, weekly
 }
 
@@ -271,28 +258,14 @@ func classifyCodexLimitWindow(window *CodexLimitWindow) string {
 	if window == nil || window.LimitWindowSeconds <= 0 {
 		return ""
 	}
-	if window.LimitWindowSeconds >= 24*60*60 {
+	switch window.LimitWindowSeconds {
+	case 5 * 60 * 60:
+		return "five_hour"
+	case 7 * 24 * 60 * 60:
 		return "weekly"
+	default:
+		return ""
 	}
-	return "five_hour"
-}
-
-func firstWindow(windows ...*CodexLimitWindow) *CodexLimitWindow {
-	for _, window := range windows {
-		if window != nil {
-			return window
-		}
-	}
-	return nil
-}
-
-func firstDifferentWindow(windows []*CodexLimitWindow, existing *CodexLimitWindow) *CodexLimitWindow {
-	for _, window := range windows {
-		if window != nil && window != existing {
-			return window
-		}
-	}
-	return nil
 }
 
 func firstNonEmpty(values ...string) string {

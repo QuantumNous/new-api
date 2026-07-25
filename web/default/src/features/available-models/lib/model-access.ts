@@ -18,9 +18,45 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type {
   ModelAccessModel,
+  ModelRatioContext,
   TokenModelAccessConfig,
   UserModelAccess,
 } from '../types'
+
+const EMPTY_MODEL_RATIOS: Readonly<Record<string, number>> = Object.freeze({})
+
+export function resolveModelRatioContext(
+  access: UserModelAccess,
+  scopeId: string | null | undefined
+): ModelRatioContext {
+  if (access.scope_mode === 'fixed_account') {
+    return {
+      modelRatios: access.account_model_ratios ?? EMPTY_MODEL_RATIOS,
+      defaultRatio: access.account_default_ratio ?? null,
+    }
+  }
+
+  if (!scopeId) {
+    return {
+      modelRatios: access.identity_model_ratios ?? EMPTY_MODEL_RATIOS,
+      defaultRatio: access.identity_default_ratio ?? null,
+    }
+  }
+
+  if (scopeId === 'auto') {
+    return { modelRatios: EMPTY_MODEL_RATIOS, defaultRatio: null }
+  }
+
+  const scope = access.groups.find((candidate) => candidate.id === scopeId)
+  if (!scope) {
+    return { modelRatios: EMPTY_MODEL_RATIOS, defaultRatio: null }
+  }
+
+  return {
+    modelRatios: scope.model_ratios ?? EMPTY_MODEL_RATIOS,
+    defaultRatio: scope.ratio,
+  }
+}
 
 function getModelsById(
   access: UserModelAccess,

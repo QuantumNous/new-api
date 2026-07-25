@@ -83,7 +83,7 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
           )}
           <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-x-4'>
             <div className='min-w-0 flex-1'>
-              <h2 className='truncate text-base font-bold tracking-tight sm:text-lg'>
+              <h2 className='truncate text-xl font-bold tracking-tight sm:text-2xl'>
                 {title}
               </h2>
             </div>

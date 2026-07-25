@@ -190,111 +190,94 @@ export interface OpsStripeReport {
   capped: boolean
 }
 
-// --- AdPilot (广告投放) board ---
+// --- Ads Daily (广告日报) board ---
 
-export interface AdsPilotCampaignDaily {
+export type AdsDailyKeywordChange =
+  | ''
+  | 'added'
+  | 'removed'
+  | 'bid_changed'
+  | 'status_changed'
+
+export interface AdsDailyKeywordRow {
+  ad_group_id: string
+  criterion_id: string
+  campaign_name: string
+  ad_group_name: string
+  keyword: string
+  match_type: string
+  status: string
+  cpc_bid_usd: number
+  cost_usd: number
+  clicks: number
+  impressions: number
+  conversions: number
+  change: AdsDailyKeywordChange
+  prev_bid_usd: number
+  prev_status: string
+}
+
+export type AdsDailyCreativeChange =
+  | ''
+  | 'added'
+  | 'removed'
+  | 'content_changed'
+  | 'status_changed'
+
+export interface AdsDailyCreativeRow {
+  ad_id: string
+  campaign_name: string
+  ad_group_name: string
+  ad_type: string
+  status: string
+  headlines: string[] | null
+  descriptions: string[] | null
+  image_urls: string[] | null
+  final_urls: string[] | null
+  path1: string
+  path2: string
+  cost_usd: number
+  clicks: number
+  impressions: number
+  conversions: number
+  change: AdsDailyCreativeChange
+}
+
+export interface AdsDailyLandingRow {
+  url: string
+  cost_usd: number
+  clicks: number
+  impressions: number
+  conversions: number
+  change: '' | 'added' | 'removed'
+}
+
+export interface AdsDailyChangeSummary {
+  keywords_added: number
+  keywords_removed: number
+  bid_changes: number
+  status_changes: number
+  creative_changes: number
+  landing_changes: number
+}
+
+export interface AdsDailyDay {
   date: string
-  campaign_id: string
-  campaign_name: string
   cost_usd: number
   clicks: number
   impressions: number
   conversions: number
-  signups: number
-  intents: number
-  paid_count: number
-  paid_usd: number
-  waste_usd: number
-  updated_at: number
+  snapshot: boolean
+  keywords: AdsDailyKeywordRow[] | null
+  creatives: AdsDailyCreativeRow[] | null
+  landings: AdsDailyLandingRow[] | null
+  changes: AdsDailyChangeSummary
 }
 
-export interface AdsPilotCampaignSummary {
-  campaign_id: string
-  campaign_name: string
-  cost_usd: number
-  clicks: number
-  impressions: number
-  conversions: number
-  signups: number
-  intents: number
-  paid_count: number
-  paid_usd: number
-  waste_usd: number
-}
-
-export type AdsPilotSeverity = 'info' | 'warn' | 'alert'
-
-export interface AdsPilotInsight {
-  id: number
-  created_at: number
-  severity: AdsPilotSeverity
-  rule: string
-  campaign_id: string
-  campaign_name: string
-  title: string
-  detail: string
-  dedup_key: string
-  status: 'open' | 'acked'
-  acked_by: number
-  acked_at: number
-}
-
-export interface AdsPilotAction {
-  id: number
-  created_at: number
-  rule: string
-  action_type: string
-  campaign_id: string
-  campaign_name: string
-  target: string
-  params: string
-  mode: 'auto' | 'approved'
-  status: 'done' | 'failed' | 'reverted'
-  revert_info: string
-}
-
-export type AdsPilotProposalStatus =
-  | 'pending'
-  | 'approved'
-  | 'rejected'
-  | 'executed'
-  | 'failed'
-
-export interface AdsPilotProposal {
-  id: number
-  created_at: number
-  rule: string
-  kind: 'budget' | 'bidding' | 'keyword' | 'copy'
-  campaign_id: string
-  campaign_name: string
-  title: string
-  detail: string
-  expected_impact: string
-  dedup_key: string
-  status: AdsPilotProposalStatus
-  decided_by: number
-  decided_at: number
-  executed_at: number
-  result: string
-}
-
-export interface AdsPilotMeta {
-  id: number
-  last_sync_at: number
-  last_push_at: number
-  last_error: string
-  conv_upload_fresh_at: number
-  kill_switch: boolean
-}
-
-export interface AdsPilotReport {
+export interface AdsDailyReport {
   generated_at: number
   days: number
-  meta: AdsPilotMeta | null
-  stale: boolean
-  campaigns: AdsPilotCampaignSummary[] | null
-  daily: AdsPilotCampaignDaily[] | null
-  insights: AdsPilotInsight[] | null
-  actions: AdsPilotAction[] | null
-  proposals: AdsPilotProposal[] | null
+  last_sync_at: number
+  configured: boolean
+  days_list: AdsDailyDay[] | null
 }

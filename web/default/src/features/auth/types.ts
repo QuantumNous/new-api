@@ -84,6 +84,14 @@ export interface ApiResponse {
   data?: unknown
 }
 
+export interface CliDeviceAuthorization {
+  status: 'pending' | 'approved' | 'denied' | 'expired'
+  client_name?: string
+  client_version?: string
+  expires_at?: number
+  approved_at?: number
+}
+
 export interface RegistrationEmailVerificationResponse extends ApiResponse {
   data?: {
     verified?: boolean
@@ -142,6 +150,7 @@ export interface SystemStatus {
     register_enabled?: boolean
     password_login_enabled?: boolean
     password_register_enabled?: boolean
+    token_batch_group_enabled?: boolean
     custom_oauth_providers?: CustomOAuthProviderInfo[]
     [key: string]: unknown
   }
@@ -189,6 +198,7 @@ export interface SystemStatus {
   register_enabled?: boolean
   password_login_enabled?: boolean
   password_register_enabled?: boolean
+  token_batch_group_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
   [key: string]: unknown
 }

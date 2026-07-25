@@ -20,13 +20,14 @@ import (
 )
 
 type modelAccessTestSettings struct {
-	modelRatios string
-	modelPrices string
-	groupRatios string
-	usable      string
-	autoGroups  string
-	billing     map[string]string
-	selfUse     bool
+	modelRatios      string
+	modelPrices      string
+	groupRatios      string
+	groupModelRatios string
+	usable           string
+	autoGroups       string
+	billing          map[string]string
+	selfUse          bool
 }
 
 func setupServiceModelAccessDB(t *testing.T) (*gorm.DB, *atomic.Int64) {
@@ -42,13 +43,14 @@ func setupServiceModelAccessDB(t *testing.T) (*gorm.DB, *atomic.Int64) {
 	originalDSN, hadDSN := os.LookupEnv("SQL_DSN")
 
 	settings := modelAccessTestSettings{
-		modelRatios: ratio_setting.ModelRatio2JSONString(),
-		modelPrices: ratio_setting.ModelPrice2JSONString(),
-		groupRatios: ratio_setting.GroupRatio2JSONString(),
-		usable:      setting.UserUsableGroups2JSONString(),
-		autoGroups:  setting.AutoGroups2JsonString(),
-		billing:     map[string]string{},
-		selfUse:     operation_setting.SelfUseModeEnabled,
+		modelRatios:      ratio_setting.ModelRatio2JSONString(),
+		modelPrices:      ratio_setting.ModelPrice2JSONString(),
+		groupRatios:      ratio_setting.GroupRatio2JSONString(),
+		groupModelRatios: ratio_setting.GroupModelRatio2JSONString(),
+		usable:           setting.UserUsableGroups2JSONString(),
+		autoGroups:       setting.AutoGroups2JsonString(),
+		billing:          map[string]string{},
+		selfUse:          operation_setting.SelfUseModeEnabled,
 	}
 	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
 		if strings.HasPrefix(key, "billing_setting.") {
@@ -71,6 +73,7 @@ func setupServiceModelAccessDB(t *testing.T) (*gorm.DB, *atomic.Int64) {
 	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
 	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
 	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":2,"plg":0.9}`))
+	require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(`{}`))
 	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP","auto":"Auto"}`))
 	require.NoError(t, setting.UpdateAutoGroupsByJsonString(`["default","vip"]`))
 	operation_setting.SelfUseModeEnabled = false
@@ -87,6 +90,7 @@ func setupServiceModelAccessDB(t *testing.T) (*gorm.DB, *atomic.Int64) {
 		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(settings.modelRatios))
 		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(settings.modelPrices))
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(settings.groupRatios))
+		require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(settings.groupModelRatios))
 		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(settings.usable))
 		require.NoError(t, setting.UpdateAutoGroupsByJsonString(settings.autoGroups))
 		require.NoError(t, config.GlobalConfig.LoadFromDB(settings.billing))
@@ -235,27 +239,81 @@ func TestResolveStrictModelAccessBillingVisibilityVendorAndStableDedup(t *testin
 
 func TestResolveUserModelAccessIdentityOnlyAndPLG(t *testing.T) {
 	db, _ := setupServiceModelAccessDB(t)
-	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"plg":0.9}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"plg":0}`))
+	require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(`{
+		"private":{"gpt-4-gizmo-*":0,"private-inaccessible":8},
+		"plg":{"plg-only":0.7,"plg-inaccessible":9}
+	}`))
 	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{}`))
-	seedModelAccessScope(t, db, 301, "private", constant.ChannelTypeOpenAI, "identity-only")
+	seedModelAccessScope(t, db, 301, "private", constant.ChannelTypeOpenAI, "gpt-4-gizmo-customer", "identity-only")
 	seedModelAccessScope(t, db, 302, "plg", constant.ChannelTypeOpenAI, "plg-only")
-	setModelAccessBilling(t, map[string]float64{"identity-only": 1, "plg-only": 1}, nil, nil)
+	setModelAccessBilling(t, map[string]float64{"gpt-4-gizmo-*": 1, "identity-only": 1, "plg-only": 1}, nil, nil)
 
 	identity, err := ResolveUserModelAccess(&model.UserBase{Id: 1, Group: "private"})
 	require.NoError(t, err)
 	require.Equal(t, ModelAccessScopeSelectableGroup, identity.ScopeMode)
 	require.Equal(t, "private", *identity.IdentityScope)
-	require.Equal(t, []string{"identity-only"}, identity.IdentityModelIDs)
+	require.Equal(t, []string{"gpt-4-gizmo-customer", "identity-only"}, identity.IdentityModelIDs)
+	require.Equal(t, map[string]float64{"gpt-4-gizmo-customer": 0}, identity.IdentityModelRatios)
+	require.NotNil(t, identity.IdentityDefaultRatio)
+	require.Equal(t, 1.0, *identity.IdentityDefaultRatio)
+	require.Empty(t, identity.AccountModelRatios)
+	require.Nil(t, identity.AccountDefaultRatio)
 	require.Empty(t, identity.Groups, "identity scope must not be injected into selectable groups")
 	require.Nil(t, identity.CreateDefaultScope)
-	require.Equal(t, []string{"identity-only"}, modelAccessModelIDs(identity.Models))
+	require.Equal(t, []string{"gpt-4-gizmo-customer", "identity-only"}, modelAccessModelIDs(identity.Models))
+	require.NotContains(t, identity.IdentityModelRatios, "private-inaccessible")
 
 	plg, err := ResolveUserModelAccess(&model.UserBase{Id: 2, Group: "plg"})
 	require.NoError(t, err)
 	require.Equal(t, ModelAccessScopeFixedAccount, plg.ScopeMode)
 	require.Nil(t, plg.IdentityScope)
+	require.Empty(t, plg.IdentityModelRatios)
+	require.Nil(t, plg.IdentityDefaultRatio)
 	require.Empty(t, plg.Groups)
 	require.Equal(t, []string{"plg-only"}, plg.AccountModelIDs)
+	require.Equal(t, map[string]float64{"plg-only": 0.7}, plg.AccountModelRatios)
+	require.NotNil(t, plg.AccountDefaultRatio)
+	require.Zero(t, *plg.AccountDefaultRatio)
+	require.NotContains(t, plg.AccountModelRatios, "plg-inaccessible")
+}
+
+func TestResolveUserModelAccessSelectableRatiosAreScopeLocalAndAutoIsEmpty(t *testing.T) {
+	db, _ := setupServiceModelAccessDB(t)
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":0,"vip":2,"plg":0.9}`))
+	require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(`{
+		"default":{"shared":0.4},
+		"vip":{"vip-only":0.6,"inaccessible":7},
+		"auto":{"shared":9}
+	}`))
+	seedModelAccessScope(t, db, 321, "default", constant.ChannelTypeOpenAI, "shared")
+	seedModelAccessScope(t, db, 322, "vip", constant.ChannelTypeOpenAI, "shared", "vip-only")
+	setModelAccessBilling(t, map[string]float64{"shared": 1, "vip-only": 1}, nil, nil)
+
+	access, err := ResolveUserModelAccess(&model.UserBase{Id: 3, Group: "default"})
+	require.NoError(t, err)
+	require.Equal(t, map[string]float64{"shared": 0.4}, access.IdentityModelRatios)
+	require.Zero(t, *access.IdentityDefaultRatio)
+	require.Empty(t, access.AccountModelRatios)
+	require.Nil(t, access.AccountDefaultRatio)
+
+	byID := make(map[string]ModelAccessScope, len(access.Groups))
+	for _, scope := range access.Groups {
+		byID[scope.ID] = scope
+	}
+	require.Equal(t, map[string]float64{"shared": 0.4}, byID["default"].ModelRatios)
+	require.Equal(t, map[string]float64{"vip-only": 0.6}, byID["vip"].ModelRatios)
+	require.NotContains(t, byID["vip"].ModelRatios, "inaccessible")
+	require.Empty(t, byID["auto"].ModelRatios)
+	require.Nil(t, byID["auto"].Ratio)
+	require.Empty(t, explicitGroupModelRatios("removed", []string{"shared"}))
+
+	nilAccess, err := ResolveUserModelAccess(nil)
+	require.NoError(t, err)
+	require.NotNil(t, nilAccess.IdentityModelRatios)
+	require.NotNil(t, nilAccess.AccountModelRatios)
+	require.Nil(t, nilAccess.IdentityDefaultRatio)
+	require.Nil(t, nilAccess.AccountDefaultRatio)
 }
 
 func TestResolveUserModelAccessEmptyIdentityMatchesLegacyPLGAccountWithoutLeakingGroup(t *testing.T) {

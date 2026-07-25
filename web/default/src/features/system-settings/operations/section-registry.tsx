@@ -59,6 +59,8 @@ const OPERATIONS_SECTIONS = [
             settings['monitor_setting.auto_test_channel_enabled'],
           'monitor_setting.auto_test_channel_minutes':
             settings['monitor_setting.auto_test_channel_minutes'],
+          'monitor_setting.channel_test_mode':
+            settings['monitor_setting.channel_test_mode'],
           'monitor_setting.auto_test_channel_allowed_types':
             settings['monitor_setting.auto_test_channel_allowed_types'],
           'monitor_setting.auto_test_channel_ignored_types':
@@ -90,9 +92,7 @@ const OPERATIONS_SECTIONS = [
           'codex_model_governance_setting.official_source_urls':
             settings['codex_model_governance_setting.official_source_urls'],
           'codex_model_governance_setting.official_lifecycle_terms':
-            settings[
-              'codex_model_governance_setting.official_lifecycle_terms'
-            ],
+            settings['codex_model_governance_setting.official_lifecycle_terms'],
           'codex_model_governance_setting.alert_cooldown_minutes':
             settings['codex_model_governance_setting.alert_cooldown_minutes'],
         }}

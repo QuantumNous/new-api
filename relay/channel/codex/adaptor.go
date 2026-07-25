@@ -113,7 +113,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		return nil, err
 	}
 
-	// compact 保留 sampling；非 compact 仍按 Codex 后端要求剥除。
+	// 按真实 Codex 后端约束过滤字段；compact 还会移除其端点不接受的 tool-limit 字段。
 	applyCodexConstraintsToMap(body, info, isCompact)
 
 	if isCompact {

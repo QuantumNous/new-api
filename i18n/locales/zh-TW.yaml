@@ -49,6 +49,19 @@ token.expired: "該令牌已過期"
 token.exhausted: "該令牌額度不足"
 token.status_unavailable: "該令牌狀態不可用"
 token.db_error: "無效的令牌，資料庫查詢出錯，請聯繫管理員"
+token.batch_group_cache_sync_pending: "令牌分組已更新，但快取同步尚未完成，請使用相同請求重試。"
+token.client_ip_invalid: "無法解析客戶端 IP 位址"
+token.ip_not_allowed: "此令牌不允許您的 IP 存取"
+token.group_no_permission: "無權存取分組 {{.Group}}"
+token.group_deprecated: "分組 {{.Group}} 已停用"
+
+# CLI device authorization messages
+cli.device_id_missing: "缺少裝置 ID"
+cli.device_metadata_too_long: "CLI 裝置資訊過長"
+cli.device_code_invalid: "無效的裝置代碼"
+cli.authorization_code_missing: "缺少授權代碼"
+cli.authorization_not_found: "找不到授權請求"
+cli.authorization_token_create_failed: "建立 CLI 令牌失敗"
 
 # Redemption messages
 redemption.name_length: "兌換碼名稱長度必須在1-20之間"
@@ -120,8 +133,13 @@ quota.user_insufficient: "用戶額度不足, 剩餘額度: {{.Quota}}"
 quota.topup_hint: "前往 {{.URL}} 儲值後即可繼續。"
 quota.pre_consume_failed: "預扣費額度失敗, 用戶剩餘額度: {{.Remaining}}, 需要預扣費額度: {{.Required}}"
 quota.subscription_insufficient: "訂閱額度不足或未配置訂閱: {{.Detail}}"
+quota.subscription_window_5h_exceeded: "方案 5 小時用量視窗已用滿，約 {{.Minutes}} 分鐘後釋放部分額度；儲值餘額可立即繼續使用。"
+quota.subscription_window_week_exceeded: "方案本週用量視窗已用滿，約 {{.Hours}} 小時後重置；儲值餘額可立即繼續使用。"
 quota.token_insufficient: "令牌額度不足, 令牌剩餘額度: {{.Remain}}, 需要額度: {{.Required}}"
 quota.user_insufficient_need: "用戶額度不足, 用戶額度: {{.Quota}}, 需要額度: {{.Required}}"
+
+# Log messages
+log.invalid_user_id: "無效的使用者ID"
 
 # Subscription messages
 subscription.not_enabled: "訂閱方案未啟用"
@@ -135,6 +153,18 @@ subscription.reset_cycle_gt_zero: "自訂重置週期需大於0秒"
 subscription.purchase_max: "已達到該訂閱方案購買上限"
 subscription.invalid_id: "無效的訂閱ID"
 subscription.invalid_user_id: "無效的使用者ID"
+subscription.invalid_recurring_id: "無效的週期訂閱ID"
+subscription.tier_rank_reserved: "訂閱等級已被占用"
+subscription.tier_rank_required: "啟用的訂閱方案必須設定正整數等級"
+subscription.lifecycle_fields_immutable: "此訂閱方案已被引用。請停用或建立新版本，不要修改生命週期關鍵欄位。"
+subscription.purchase_pending_migration: "訂閱購買入口正在遷移中。請重新整理後使用新的訂閱流程。"
+subscription.payment_mode_required: "必須選擇付款模式"
+subscription.request_id_required: "請求 ID 必填"
+subscription.stripe_price_requires_mode: "Stripe Price ID 需要啟用 Stripe 週期付款模式"
+subscription.capability.single_lifecycle: "單一訂閱生命週期已啟用"
+subscription.capability.current_entitlement: "可檢視目前合約權益"
+subscription.capability.recurring_binding: "可檢視週期付款綁定"
+subscription.capability.change_intent: "可檢視訂閱變更意圖狀態"
 
 # Payment messages
 payment.not_configured: "當前管理員未設定支付資訊"
@@ -241,6 +271,10 @@ deployment.not_found: "未找到容器詳情"
 performance.disk_cache_cleared: "不活躍的磁碟快取已清理"
 performance.stats_reset: "統計資訊已重置"
 performance.gc_executed: "GC 已執行"
+
+# Model health messages
+model_health.invalid_hours: "查詢時長必須為 24、168 或 720 小時"
+model_health.model_required: "必須指定模型"
 
 # Ability messages
 ability.db_corrupted: "資料庫一致性被破壞"

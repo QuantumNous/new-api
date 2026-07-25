@@ -17,18 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -44,7 +34,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   sideDrawerContentClassName,
   sideDrawerFormClassName,
@@ -52,21 +41,51 @@ import {
 } from '@/components/drawer-layout'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
-import {
-  getAdminPlans,
-  getUserSubscriptions,
-  createUserSubscription,
-  invalidateUserSubscription,
-  deleteUserSubscription,
-} from '../../api'
+import { getAdminPlans, getUserSubscriptions } from '../../api'
 import { formatTimestamp } from '../../lib'
-import type { PlanRecord, UserSubscriptionRecord } from '../../types'
+import type {
+  AdminUserSubscriptionsResponse,
+  PlanRecord,
+  SubscriptionEntitlement,
+  SubscriptionPendingChangeDTO,
+  UserSubscriptionRecord,
+} from '../../types'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   user: { id: number; username?: string } | null
   onSuccess?: () => void
+}
+
+function formatCurrentEntitlementLabel(
+  entitlement: SubscriptionEntitlement | null | undefined,
+  planTitleMap: Map<number, string>
+) {
+  if (!entitlement) return ''
+  const planId = entitlement.plan_id
+  const title = planTitleMap.get(planId) || `#${planId}`
+  return `${title} / #${entitlement.entitlement_id}`
+}
+
+function formatPendingIntentLabel(
+  intent: SubscriptionPendingChangeDTO | null | undefined
+) {
+  if (!intent) return ''
+  const parts = [
+    intent.kind,
+    intent.status,
+    intent.to_plan_id ? `#${intent.to_plan_id}` : undefined,
+  ].filter(Boolean)
+  return parts.join(' / ') || `#${intent.intent_id}`
+}
+
+function formatMigrationConflictLabel(
+  migration: AdminUserSubscriptionsResponse['migration'] | undefined,
+  t: (key: string) => string
+) {
+  if (!migration?.requires_admin_review) return '-'
+  return migration.reason || migration.classification || t('Detected')
 }
 
 function SubscriptionStatusBadge(props: {
@@ -105,14 +124,10 @@ function SubscriptionStatusBadge(props: {
 export function UserSubscriptionsDialog(props: Props) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
-  const [creating, setCreating] = useState(false)
   const [plans, setPlans] = useState<PlanRecord[]>([])
-  const [subs, setSubs] = useState<UserSubscriptionRecord[]>([])
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('')
-  const [confirmAction, setConfirmAction] = useState<{
-    type: 'invalidate' | 'delete'
-    subId: number
-  } | null>(null)
+  const [adminLifecycle, setAdminLifecycle] =
+    useState<AdminUserSubscriptionsResponse | null>(null)
+  const userId = props.user?.id
 
   const planTitleMap = useMemo(() => {
     const map = new Map<number, string>()
@@ -123,75 +138,44 @@ export function UserSubscriptionsDialog(props: Props) {
   }, [plans])
 
   const loadData = useCallback(async () => {
-    if (!props.user?.id) return
+    if (!userId) return
     setLoading(true)
     try {
       const [plansRes, subsRes] = await Promise.all([
         getAdminPlans(),
-        getUserSubscriptions(props.user.id),
+        getUserSubscriptions(userId),
       ])
       if (plansRes.success) setPlans(plansRes.data || [])
-      if (subsRes.success) setSubs(subsRes.data || [])
+      if (subsRes.success) setAdminLifecycle(subsRes.data || null)
     } catch {
       toast.error(t('Loading failed'))
     } finally {
       setLoading(false)
     }
-  }, [props.user?.id, t])
+  }, [userId, t])
 
   useEffect(() => {
-    if (props.open && props.user?.id) {
-      setSelectedPlanId('')
-      loadData()
-    }
-  }, [props.open, props.user?.id, loadData])
-
-  const handleCreate = async () => {
-    if (!props.user?.id || !selectedPlanId) {
-      toast.error(t('Please select a subscription plan'))
-      return
-    }
-    setCreating(true)
-    try {
-      const res = await createUserSubscription(props.user.id, {
-        plan_id: Number(selectedPlanId),
+    if (props.open && userId) {
+      queueMicrotask(() => {
+        void loadData()
       })
-      if (res.success) {
-        toast.success(res.data?.message || t('Added successfully'))
-        setSelectedPlanId('')
-        await loadData()
-        props.onSuccess?.()
-      }
-    } catch {
-      toast.error(t('Request failed'))
-    } finally {
-      setCreating(false)
     }
-  }
+  }, [props.open, userId, loadData])
 
-  const handleConfirmAction = async () => {
-    if (!confirmAction) return
-    try {
-      if (confirmAction.type === 'invalidate') {
-        const res = await invalidateUserSubscription(confirmAction.subId)
-        if (res.success) {
-          toast.success(res.data?.message || t('Has been invalidated'))
-          await loadData()
-          props.onSuccess?.()
-        }
-      } else {
-        const res = await deleteUserSubscription(confirmAction.subId)
-        if (res.success) {
-          toast.success(t('Deleted'))
-          await loadData()
-          props.onSuccess?.()
-        }
-      }
-    } catch {
-      toast.error(t('Operation failed'))
-    } finally {
-      setConfirmAction(null)
-    }
+  const history = adminLifecycle?.history || []
+  const currentEntitlement = adminLifecycle?.current_entitlement
+  const currentBinding = adminLifecycle?.current_binding
+  const pendingChange = adminLifecycle?.pending_change
+  const currentPeriodStart = adminLifecycle?.current_period.start || 0
+  const currentPeriodEnd = adminLifecycle?.current_period.end || 0
+  const gracePeriodEnd = adminLifecycle?.current_period.grace_period_end || 0
+  const quotaAmountTotal = adminLifecycle?.quota.amount_total
+  const quotaAmountUsed = adminLifecycle?.quota.amount_used
+  const quotaAmountRemaining = adminLifecycle?.quota.amount_remaining
+  const quotaUnlimited = adminLifecycle?.quota.unlimited
+  let quotaUnlimitedLabel = '-'
+  if (quotaUnlimited !== undefined) {
+    quotaUnlimitedLabel = quotaUnlimited ? t('Yes') : t('No')
   }
 
   return (
@@ -206,43 +190,90 @@ export function UserSubscriptionsDialog(props: Props) {
           </SheetHeader>
 
           <div className={sideDrawerFormClassName()}>
-            <div className='flex gap-2'>
-              <Select
-                items={[
-                  ...plans.map((p) => ({
-                    value: String(p.plan.id),
-                    label: (
-                      <>
-                        {p.plan.title}($
-                        {Number(p.plan.price_amount || 0).toFixed(2)})
-                      </>
-                    ),
-                  })),
-                ]}
-                value={selectedPlanId}
-                onValueChange={(v) => v !== null && setSelectedPlanId(v)}
-              >
-                <SelectTrigger className='flex-1'>
-                  <SelectValue placeholder={t('Select subscription plan')} />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {plans.map((p) => (
-                      <SelectItem key={p.plan.id} value={String(p.plan.id)}>
-                        {p.plan.title} ($
-                        {Number(p.plan.price_amount || 0).toFixed(2)})
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={handleCreate}
-                disabled={creating || !selectedPlanId}
-              >
-                <Plus className='mr-1 h-4 w-4' />
-                {t('Add subscription')}
-              </Button>
+            <div className='grid gap-3 rounded-md border p-3 text-sm sm:grid-cols-2'>
+              <div>
+                <div className='text-muted-foreground'>
+                  {t('Current Entitlement')}
+                </div>
+                <div className='font-medium'>
+                  {currentEntitlement
+                    ? formatCurrentEntitlementLabel(
+                        currentEntitlement,
+                        planTitleMap
+                      )
+                    : t('No current entitlement')}
+                </div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>
+                  {t('Binding State')}
+                </div>
+                <div className='font-medium'>
+                  {currentBinding
+                    ? `${currentBinding.provider}: ${currentBinding.provider_status || '-'}`
+                    : '-'}
+                </div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>
+                  {t('Pending Intent')}
+                </div>
+                <div className='font-medium'>
+                  {pendingChange
+                    ? formatPendingIntentLabel(pendingChange)
+                    : t('No pending intent')}
+                </div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>{t('Start')}</div>
+                <div className='font-medium'>
+                  {currentPeriodStart > 0
+                    ? formatTimestamp(currentPeriodStart)
+                    : '-'}
+                </div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>{t('End')}</div>
+                <div className='font-medium'>
+                  {currentPeriodEnd > 0
+                    ? formatTimestamp(currentPeriodEnd)
+                    : '-'}
+                </div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>{t('Grace Period')}</div>
+                <div className='font-medium'>
+                  {gracePeriodEnd > 0 ? formatTimestamp(gracePeriodEnd) : '-'}
+                </div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>{t('Total Quota')}</div>
+                <div className='font-medium'>{quotaAmountTotal ?? '-'}</div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>{t('Used')}</div>
+                <div className='font-medium'>{quotaAmountUsed ?? '-'}</div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>{t('Remaining')}</div>
+                <div className='font-medium'>{quotaAmountRemaining ?? '-'}</div>
+              </div>
+              <div>
+                <div className='text-muted-foreground'>{t('Unlimited')}</div>
+                <div className='font-medium'>{quotaUnlimitedLabel}</div>
+              </div>
+              <div className='sm:col-span-2'>
+                <div className='text-muted-foreground'>
+                  {t('Migration Conflict')}
+                </div>
+                <div className='font-medium'>
+                  {formatMigrationConflictLabel(adminLifecycle?.migration, t)}
+                </div>
+              </div>
+            </div>
+
+            <div className='text-muted-foreground text-sm font-medium'>
+              {t('Read-only History')}
             </div>
 
             <div className='rounded-md border'>
@@ -252,9 +283,9 @@ export function UserSubscriptionsDialog(props: Props) {
                     <TableHead>ID</TableHead>
                     <TableHead>{t('Plan')}</TableHead>
                     <TableHead>{t('Status')}</TableHead>
+                    <TableHead>{t('Provider')}</TableHead>
                     <TableHead>{t('Validity')}</TableHead>
                     <TableHead>{t('Total Quota')}</TableHead>
-                    <TableHead className='text-right'>{t('Actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -264,7 +295,7 @@ export function UserSubscriptionsDialog(props: Props) {
                         {t('Loading...')}
                       </TableCell>
                     </TableRow>
-                  ) : subs.length === 0 ? (
+                  ) : history.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={6}
@@ -274,14 +305,12 @@ export function UserSubscriptionsDialog(props: Props) {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    subs.map((record) => {
+                    history.map((record) => {
                       const sub = record.subscription
-                      const now = Date.now() / 1000
-                      const isExpired =
-                        (sub.end_time || 0) > 0 && sub.end_time < now
-                      const isActive = sub.status === 'active' && !isExpired
                       const total = Number(sub.amount_total || 0)
                       const used = Number(sub.amount_used || 0)
+                      const binding = record.provider_binding
+                      const isStripeRecurring = binding?.provider === 'stripe'
 
                       return (
                         <TableRow key={sub.id}>
@@ -303,6 +332,29 @@ export function UserSubscriptionsDialog(props: Props) {
                             <SubscriptionStatusBadge sub={sub} t={t} />
                           </TableCell>
                           <TableCell>
+                            {binding ? (
+                              <div className='space-y-1 text-sm'>
+                                <StatusBadge
+                                  label={
+                                    isStripeRecurring
+                                      ? t('Stripe recurring')
+                                      : binding.provider
+                                  }
+                                  variant='info'
+                                  copyable={false}
+                                />
+                                <div className='text-muted-foreground'>
+                                  {binding.provider_status || '-'}
+                                  {binding.cancel_at_period_end
+                                    ? ` / ${t('Cancels at period end')}`
+                                    : ''}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className='text-muted-foreground'>-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <div className='text-sm'>
                               <div>
                                 {t('Start')}: {formatTimestamp(sub.start_time)}
@@ -315,35 +367,6 @@ export function UserSubscriptionsDialog(props: Props) {
                           <TableCell>
                             {total > 0 ? `${used}/${total}` : t('Unlimited')}
                           </TableCell>
-                          <TableCell className='text-right'>
-                            <div className='flex justify-end gap-1'>
-                              <Button
-                                size='sm'
-                                variant='outline'
-                                disabled={!isActive}
-                                onClick={() =>
-                                  setConfirmAction({
-                                    type: 'invalidate',
-                                    subId: sub.id,
-                                  })
-                                }
-                              >
-                                {t('Invalidate')}
-                              </Button>
-                              <Button
-                                size='sm'
-                                variant='destructive'
-                                onClick={() =>
-                                  setConfirmAction({
-                                    type: 'delete',
-                                    subId: sub.id,
-                                  })
-                                }
-                              >
-                                {t('Delete')}
-                              </Button>
-                            </div>
-                          </TableCell>
                         </TableRow>
                       )
                     })
@@ -354,29 +377,6 @@ export function UserSubscriptionsDialog(props: Props) {
           </div>
         </SheetContent>
       </Sheet>
-
-      {confirmAction && (
-        <ConfirmDialog
-          open
-          onOpenChange={(v) => !v && setConfirmAction(null)}
-          title={
-            confirmAction.type === 'invalidate'
-              ? t('Confirm invalidate')
-              : t('Confirm delete')
-          }
-          desc={
-            confirmAction.type === 'invalidate'
-              ? t(
-                  'After invalidating, this subscription will be immediately deactivated. Historical records are not affected. Continue?'
-                )
-              : t(
-                  'Deleting will permanently remove this subscription record (including benefit details). Continue?'
-                )
-          }
-          handleConfirm={handleConfirmAction}
-          destructive={confirmAction.type === 'delete'}
-        />
-      )}
     </>
   )
 }

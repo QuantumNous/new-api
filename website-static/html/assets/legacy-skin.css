@@ -22,9 +22,45 @@ a[class*="text-purple"],a[class*="text-violet"],[class*="text-purple-6"],[class*
 header.fixed>div{max-width:100% !important;padding:0 20px !important}
 header.fixed nav{min-height:88px;background:rgba(255,255,255,.95);backdrop-filter:blur(8px);border-bottom:1px solid #ECEAF3}
 main{margin-top:24px}
-/* logo: bigger mark + ink wordmark (mark file itself is overridden to the v2 pixel key) */
-header.fixed nav a.group img{width:40px !important;height:40px !important}
-header.fixed nav a.group span[style]{font-size:29px !important;font-weight:700 !important;color:#0B0B0F !important;letter-spacing:-1.4px}
+/* Shared responsive brand lockup. Keep the legacy SSR text intact for React
+   hydration, but replace its visible rendering with the canonical "flatkey"
+   wordmark through CSS. The mark file itself is overridden to the v2 pixel key. */
+header.fixed nav a.group>span:first-child>span{gap:8px !important}
+header.fixed nav a.group img{
+  width:36px !important;
+  height:36px !important;
+  content:url("/assets/flatkey-mark.svg?v=4") !important;
+}
+header.fixed nav a.group span[style]{
+  font-size:0 !important;
+  font-weight:700 !important;
+  color:#0B0B0F !important;
+  letter-spacing:0 !important;
+  line-height:1 !important;
+}
+header.fixed nav a.group span[style]::after{
+  content:"flatkey";
+  font-family:"Public Sans",Inter,-apple-system,sans-serif;
+  font-size:28px;
+  font-weight:700;
+  color:#0B0B0F;
+  letter-spacing:-1.204px;
+  line-height:1;
+}
+html.dark header.fixed nav a.group span[style]::after{color:#F5F5F2}
+@media (max-width:900px){
+  header.fixed nav a.group>span:first-child>span{gap:9px !important}
+  header.fixed nav a.group img{width:38px !important;height:38px !important}
+  header.fixed nav a.group span[style]::after{font-size:30px;letter-spacing:-1.29px}
+}
+@media (max-width:420px){
+  header.fixed nav a.group span[style]{display:none !important}
+}
+@media (min-width:1481px){
+  header.fixed nav a.group>span:first-child>span{gap:9px !important}
+  header.fixed nav a.group img{width:40px !important;height:40px !important}
+  header.fixed nav a.group span[style]::after{font-size:32px;letter-spacing:-1.376px}
+}
 /* center links */
 header.fixed nav div[class~="sm:flex"]>a{font-size:14.5px !important;font-weight:600 !important;color:#43434C !important}
 header.fixed nav div[class~="sm:flex"]>a:hover{color:#0B0B0F !important}

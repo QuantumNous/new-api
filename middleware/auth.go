@@ -301,6 +301,95 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 	}
 }
 
+func TokenAuthReadOnlyForModelList() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		if strings.Contains(c.Request.URL.Path, "/v1/models") {
+			if anthropicKey := c.Request.Header.Get("x-api-key"); anthropicKey != "" {
+				c.Request.Header.Set("Authorization", "Bearer "+anthropicKey)
+			}
+		}
+		if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models") ||
+			strings.HasPrefix(c.Request.URL.Path, "/v1beta/openai/models") ||
+			strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
+			if skKey := c.Query("key"); skKey != "" {
+				c.Request.Header.Set("Authorization", "Bearer "+skKey)
+			}
+			if xGoogKey := c.Request.Header.Get("x-goog-api-key"); xGoogKey != "" {
+				c.Request.Header.Set("Authorization", "Bearer "+xGoogKey)
+			}
+		}
+
+		key := c.Request.Header.Get("Authorization")
+		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
+			key = strings.TrimSpace(key[7:])
+		}
+		if key == "" {
+			abortWithOpenAiMessage(c, http.StatusUnauthorized, common.TranslateMessage(c, i18n.MsgTokenNotProvided), types.ErrorCodeInvalidRequest)
+			return
+		}
+		key = strings.TrimPrefix(key, "sk-")
+		parts := strings.Split(key, "-")
+		key = parts[0]
+
+		token, err := model.GetTokenByKey(key, false)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				abortWithOpenAiMessage(c, http.StatusUnauthorized, common.TranslateMessage(c, i18n.MsgTokenInvalid), types.ErrorCodeInvalidRequest)
+			} else {
+				common.SysLog("TokenAuthReadOnlyForModelList GetTokenByKey database error: " + err.Error())
+				abortWithOpenAiMessage(c, http.StatusInternalServerError, common.TranslateMessage(c, i18n.MsgDatabaseError))
+			}
+			return
+		}
+
+		allowIps := token.GetIpLimits()
+		if len(allowIps) > 0 {
+			clientIp := c.ClientIP()
+			ip := net.ParseIP(clientIp)
+			if ip == nil {
+				abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgTokenClientIPInvalid))
+				return
+			}
+			if !common.IsIpInCIDRList(ip, allowIps) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgTokenIPNotAllowed), types.ErrorCodeAccessDenied)
+				return
+			}
+		}
+
+		userCache, err := model.GetUserCache(token.UserId)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("TokenAuthReadOnlyForModelList GetUserCache error for user %d: %v", token.UserId, err))
+			abortWithOpenAiMessage(c, http.StatusInternalServerError, common.TranslateMessage(c, i18n.MsgDatabaseError))
+			return
+		}
+		if userCache.Status != common.UserStatusEnabled {
+			abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgAuthUserBanned))
+			return
+		}
+
+		userCache.WriteContext(c)
+		userGroup, tokenGroup, contextToken := resolveTokenGroupsForUser(userCache, token)
+		common.SetContextKey(c, constant.ContextKeyUserGroup, userGroup)
+		if tokenGroup != "" {
+			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
+				abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgTokenGroupNoPermission, map[string]any{"Group": tokenGroup}))
+				return
+			}
+			if !ratio_setting.ContainsGroupRatio(tokenGroup) && tokenGroup != "auto" {
+				abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgTokenGroupDeprecated, map[string]any{"Group": tokenGroup}))
+				return
+			}
+			userGroup = tokenGroup
+		}
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
+
+		if err := SetupContextForToken(c, &contextToken, parts...); err != nil {
+			return
+		}
+		c.Next()
+	}
+}
+
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		// 先检测是否为ws
@@ -370,6 +459,7 @@ func TokenAuth() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusInternalServerError,
 					common.TranslateMessage(c, i18n.MsgDatabaseError))
 			} else {
+				logTokenAuthFailure(c, token, err)
 				statusCode, message, code := tokenAuthErrorResponse(c, err)
 				abortWithOpenAiMessage(c, statusCode, message, code...)
 			}
@@ -435,6 +525,22 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		c.Next()
 	}
+}
+
+func logTokenAuthFailure(c *gin.Context, token *model.Token, err error) {
+	if token == nil {
+		return
+	}
+	logger.LogError(c.Request.Context(), fmt.Sprintf(
+		"token auth failed: user_id=%d token_id=%d token_name=%q status=%d remain_quota=%s unlimited_quota=%t error=%s",
+		token.UserId,
+		token.Id,
+		token.Name,
+		token.Status,
+		logger.FormatQuota(token.RemainQuota),
+		token.UnlimitedQuota,
+		err.Error(),
+	))
 }
 
 func tokenAuthErrorResponse(c *gin.Context, err error) (int, string, []types.ErrorCode) {

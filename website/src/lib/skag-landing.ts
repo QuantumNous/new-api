@@ -41,7 +41,7 @@ export type SkagLandingConfig = {
   };
 };
 
-export const SKAG_COVERAGE_LINE = "GPT · Gemini · Claude · DeepSeek · Seedance";
+export const SKAG_COVERAGE_LINE = "GPT · Gemini · Claude · DeepSeek · Kimi · Seedance";
 export const SKAG_TRUST_LINE = `${SKAG_COVERAGE_LINE} — one key, one invoice · no credit card to start`;
 
 const SHARED_FAQ: SkagLandingConfig["faq"] = [
@@ -53,7 +53,7 @@ const SHARED_FAQ: SkagLandingConfig["faq"] = [
   {
     question: "How is billing handled across models?",
     answer:
-      "One prepaid balance covers every model. Usage analytics and a single invoice keep spend bounded before you scale.",
+      "One plan covers every model. Usage analytics and a single invoice keep spend bounded before you scale.",
   },
 ];
 
@@ -78,7 +78,7 @@ const GPT_API_ALTERNATIVE: SkagLandingConfig = {
   features: [
     {
       title: "Same models, cheaper tokens",
-      body: "GPT models priced at roughly two-thirds of official, with top-up bonuses stacking further savings on every request.",
+      body: "GPT models priced at roughly two-thirds of official — included in every flatkey plan from $10/month.",
     },
     {
       title: "One-line migration",
@@ -90,7 +90,7 @@ const GPT_API_ALTERNATIVE: SkagLandingConfig = {
     },
     {
       title: "Unified billing",
-      body: "One prepaid balance, usage analytics, and a single invoice across all providers instead of five separate bills.",
+      body: "One subscription, usage analytics, and a single invoice across all providers instead of five separate bills.",
     },
   ],
   faq: SHARED_FAQ,
@@ -112,6 +112,7 @@ const CHINESE_AI: SkagLandingConfig = {
   ctaLabel: "Get your API key",
   pricingTitle: "Output price vs official",
   priceRows: [
+    { label: "Kimi K3 / 1M tokens", flatkey: "$1.20", official: "$3.00" },
     { label: "DeepSeek V4 Flash / 1M tokens", flatkey: "$0.07", official: "$0.14" },
     { label: "Qwen 3.7 Plus / 1M tokens", flatkey: "$0.24", official: "$0.40" },
     { label: "GLM 5.2 / 1M tokens", flatkey: "$0.56", official: "$1.40" },
@@ -225,7 +226,7 @@ const GATEWAY: SkagLandingConfig = {
     },
     {
       title: "Usage analytics",
-      body: "Per-key and per-model usage, live spend tracking, and prepaid limits keep costs visible and bounded.",
+      body: "Per-key and per-model usage, live spend tracking, and plan limits keep costs visible and bounded.",
     },
     {
       title: "Single invoice",

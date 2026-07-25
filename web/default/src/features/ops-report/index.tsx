@@ -20,7 +20,6 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import { useTranslation } from 'react-i18next'
-import { officialWebsiteUrl } from '@/lib/origins'
 import { useTheme } from '@/context/theme-provider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,21 +35,18 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
+import { AdsDailyTab } from './ads-daily-tab'
 import {
-  getOpsAdsReport,
+  getOpsAdsDailyReport,
   getOpsReport,
   getOpsStripeReport,
   opsReportQueryKeys,
   type OpsDauScope,
 } from './api'
-import { AdsPilotTab } from './ads-pilot-tab'
 import type {
-  OpsCampaignRow,
   OpsDailyRow,
   OpsDauRow,
   OpsFunnelRow,
-  OpsKeywordRow,
-  OpsNameCount,
   OpsPayerRow,
   OpsRegisteredUserRow,
   OpsPaymentRow,
@@ -64,8 +60,7 @@ const DAY_OPTIONS = [7, 30, 60, 90]
 const TAB_VALUES = [
   'registrations',
   'users',
-  'campaigns',
-  'ads',
+  'ads-daily',
   'funnel',
   'payment',
   'stripe',
@@ -176,61 +171,11 @@ const formatTimestamp = (timestamp: number): string => {
   })
 }
 
-// Landing paths are captured on both the public website (flatkey.ai, always
-// locale-prefixed or "/") and the console SPA (everything else).
-const landingUrl = (path: string): string =>
-  path === '/' || /^\/[a-z]{2}(\/|$)/.test(path)
-    ? officialWebsiteUrl(path)
-    : `${window.location.origin}${path}`
-
-const MATCH_TYPE_LABELS: Record<string, string> = {
-  e: 'Exact',
-  p: 'Phrase',
-  b: 'Broad',
-}
-
 const STRIPE_STATUS_LABELS: Record<string, string> = {
   paid: 'Paid OK',
   failed: 'Card Failed',
   no_action: 'Opened, No Action',
   setup: 'Card Binding',
-}
-
-function LandingLinks({ pages }: { pages: OpsNameCount[] | null }) {
-  if (!pages?.length) return <>-</>
-  return (
-    <div className='flex flex-col gap-0.5'>
-      {pages.map((p) => (
-        <a
-          key={p.name}
-          href={landingUrl(p.name)}
-          target='_blank'
-          rel='noreferrer'
-          className='text-primary whitespace-nowrap hover:underline'
-        >
-          {p.name}{' '}
-          <span className='text-muted-foreground text-xs'>({p.count})</span>
-        </a>
-      ))}
-    </div>
-  )
-}
-
-function TrendSparkline({ trend }: { trend: number[] | null }) {
-  if (!trend?.length) return <>-</>
-  const max = Math.max(...trend)
-  if (max === 0) return <>-</>
-  return (
-    <div className='flex h-8 items-end gap-px' title={trend.join(', ')}>
-      {trend.map((v, i) => (
-        <div
-          key={i}
-          className='bg-primary/70 w-1 rounded-t-xs'
-          style={{ height: `${v > 0 ? Math.max((v / max) * 100, 8) : 2}%` }}
-        />
-      ))}
-    </div>
-  )
 }
 
 function FunnelCells({ row }: { row: OpsFunnelRow }) {
@@ -332,105 +277,6 @@ function DailyFunnelTable({ rows }: { rows: OpsDailyRow[] }) {
               </TableCell>
               <TableCell className='text-right'>
                 {row.ads_clicks > 0 ? row.ads_clicks : '-'}
-              </TableCell>
-              <FunnelCells row={row} />
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-function CampaignTable({ rows }: { rows: OpsCampaignRow[] }) {
-  const { t } = useTranslation()
-  return (
-    <div className='overflow-x-auto'>
-      <Table className={TABLE_GRID}>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('Campaign')}</TableHead>
-            <TableHead className='text-right'>{t('Registrations')}</TableHead>
-            <TableHead className='text-right'>{t('Real Browse')}</TableHead>
-            <TableHead className='text-right'>{t('Key Users')}</TableHead>
-            <TableHead className='text-right'>{t('Payment Intent')}</TableHead>
-            <TableHead className='text-right'>{t('Paid Users')}</TableHead>
-            <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
-            <TableHead>{t('Top Keywords')}</TableHead>
-            <TableHead>{t('Match Types')}</TableHead>
-            <TableHead>{t('Registration Trend')}</TableHead>
-            <TableHead>{t('Languages')}</TableHead>
-            <TableHead>{t('Landing Pages')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.key}>
-              <TableCell className='whitespace-nowrap'>{row.key}</TableCell>
-              <TableCell className='text-right'>{row.registrations}</TableCell>
-              <TableCell className='text-right'>
-                {row.real_browse}{' '}
-                <span className='text-muted-foreground text-xs'>
-                  ({pct(row.real_browse, row.registrations)})
-                </span>
-              </TableCell>
-              <TableCell className='text-right'>
-                {row.key_users}{' '}
-                <span className='text-muted-foreground text-xs'>
-                  ({pct(row.key_users, row.registrations)})
-                </span>
-              </TableCell>
-              <TableCell className='text-right'>{row.pay_intent}</TableCell>
-              <TableCell className='text-right'>{row.paid}</TableCell>
-              <TableCell className='text-right'>{usd(row.paid_usd)}</TableCell>
-              <TableCell className='max-w-64'>
-                <div className='flex flex-wrap gap-1'>
-                  {(row.keywords ?? []).map((k) => (
-                    <Badge key={k} variant='secondary'>
-                      {k}
-                    </Badge>
-                  ))}
-                </div>
-              </TableCell>
-              <TableCell>
-                <div className='flex flex-wrap gap-1'>
-                  {(row.match_types ?? []).map((m) => (
-                    <Badge key={m.name} variant='outline'>
-                      {t(MATCH_TYPE_LABELS[m.name] ?? m.name)} {m.count}
-                    </Badge>
-                  ))}
-                  {!row.match_types?.length && '-'}
-                </div>
-              </TableCell>
-              <TableCell>
-                <TrendSparkline trend={row.trend} />
-              </TableCell>
-              <TableCell>{(row.languages ?? []).join(', ') || '-'}</TableCell>
-              <TableCell>
-                <LandingLinks pages={row.landing_pages} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-function KeywordTable({ rows }: { rows: OpsKeywordRow[] }) {
-  const { t } = useTranslation()
-  return (
-    <div className='overflow-x-auto'>
-      <Table className={TABLE_GRID}>
-        <FunnelHeader firstColumn={t('Keyword')} />
-        <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.key}>
-              <TableCell className='whitespace-nowrap'>
-                {row.key}{' '}
-                <span className='text-muted-foreground text-xs'>
-                  {(row.campaigns ?? []).join(', ')}
-                </span>
               </TableCell>
               <FunnelCells row={row} />
             </TableRow>
@@ -1032,15 +878,15 @@ export function OpsReport() {
   })
   const stripeReport = stripeQuery.data?.data
 
-  // AdPilot board data is pushed to the DB by the ops machine; cheap to read
-  // but only needed on its own tab.
-  const adsQuery = useQuery({
-    queryKey: opsReportQueryKeys.ads(days),
-    queryFn: () => getOpsAdsReport(days),
-    enabled: tab === 'ads',
+  // Ads Daily data is synced from the Google Ads API server-side on first
+  // load (then TTL-cached); fetch lazily so the main report never waits on it.
+  const adsDailyQuery = useQuery({
+    queryKey: opsReportQueryKeys.adsDaily(days),
+    queryFn: () => getOpsAdsDailyReport(days),
+    enabled: tab === 'ads-daily',
     retry: false,
   })
-  const adsReport = adsQuery.data?.data
+  const adsDailyReport = adsDailyQuery.data?.data
 
   return (
     <SectionPageLayout>
@@ -1080,8 +926,7 @@ export function OpsReport() {
                   {t('Daily Registrations')}
                 </TabsTrigger>
                 <TabsTrigger value='users'>{t('Registered Users')}</TabsTrigger>
-                <TabsTrigger value='campaigns'>{t('Ad Campaigns')}</TabsTrigger>
-                <TabsTrigger value='ads'>{t('Ads Automation')}</TabsTrigger>
+                <TabsTrigger value='ads-daily'>{t('Ads Daily')}</TabsTrigger>
                 <TabsTrigger value='funnel'>
                   {t('Registration Funnel (Weekly)')}
                 </TabsTrigger>
@@ -1139,36 +984,15 @@ export function OpsReport() {
                 </Card>
               </TabsContent>
 
-              <TabsContent value='campaigns' className='space-y-4'>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t('Ad Campaigns')}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <CampaignTable rows={report.campaign_funnel} />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t('Keyword Funnel (Top 50)')}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <KeywordTable rows={report.keyword_funnel ?? []} />
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value='ads'>
-                {adsQuery.isLoading ? (
+              <TabsContent value='ads-daily'>
+                {adsDailyQuery.isLoading ? (
                   <Skeleton className='h-40 w-full' />
-                ) : adsReport ? (
-                  <AdsPilotTab report={adsReport} days={days} />
+                ) : adsDailyReport ? (
+                  <AdsDailyTab report={adsDailyReport} />
                 ) : (
                   <Card>
                     <CardContent className='text-muted-foreground pt-6 text-sm'>
-                      {adsQuery.isError
-                        ? t('Failed to load ads data.')
-                        : t('No ads data yet — waiting for the first pipeline push.')}
+                      {t('Failed to load ads data.')}
                     </CardContent>
                   </Card>
                 )}
