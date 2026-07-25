@@ -22,6 +22,14 @@ import type {
   RecallPurchaseKind,
 } from '../types'
 
+export type RecallPriceDiscount = {
+  type: string
+  originalAmount: number
+  discountAmount: number
+  discountedAmount: number
+  currency: string
+}
+
 export function normalizeRecallClaim(value: unknown): string | undefined {
   if (typeof value !== 'string') {
     return undefined
@@ -60,6 +68,86 @@ export function isRecallPriceEligible(
       ? claim.products.topup_price_ids
       : claim.products.subscription_price_ids
   return eligiblePriceIds.includes(priceId)
+}
+
+function amountToMinor(amountMajor: number): number {
+  if (!Number.isFinite(amountMajor) || amountMajor <= 0) return 0
+  return Math.round(amountMajor * 100)
+}
+
+function minorToAmount(amountMinor: number): number {
+  return Math.round(amountMinor) / 100
+}
+
+function getFixedDiscountMinor(
+  claim: RecallClaimView,
+  currency: string
+): number | null {
+  const requestedCurrency = currency.toUpperCase()
+  const options = claim.discount.currency_options ?? {}
+  const optionAmount =
+    options[requestedCurrency] ?? options[requestedCurrency.toLowerCase()]
+  if (typeof optionAmount === 'number') {
+    return Math.max(0, Math.round(optionAmount))
+  }
+  if (claim.discount.currency.toUpperCase() !== requestedCurrency) return null
+  return Math.max(0, Math.round(claim.discount.amount_off || 0))
+}
+
+export function getRecallPriceDiscount(
+  claim: RecallClaimView | null | undefined,
+  priceId: string | undefined,
+  purchaseKind: RecallPurchaseKind,
+  amountMajor: number,
+  currency: string,
+  nowSeconds = Math.floor(Date.now() / 1000)
+): RecallPriceDiscount | null {
+  const normalizedCurrency = currency.trim().toUpperCase()
+  if (
+    !isRecallPriceEligible(claim, priceId, purchaseKind, nowSeconds) ||
+    !claim ||
+    !normalizedCurrency
+  ) {
+    return null
+  }
+
+  const priceMinor = amountToMinor(amountMajor)
+  if (priceMinor <= 0) return null
+
+  const minimumAmount = Math.max(
+    0,
+    Math.round(claim.discount.minimum_amount || 0)
+  )
+  if (minimumAmount > 0) {
+    if (
+      claim.discount.minimum_amount_currency.toUpperCase() !==
+      normalizedCurrency
+    ) {
+      return null
+    }
+    if (priceMinor < minimumAmount) return null
+  }
+
+  let discountMinor = 0
+  if (claim.discount.type === 'percent') {
+    discountMinor = Math.round(
+      (priceMinor * Math.max(0, claim.discount.percent_off || 0)) / 100
+    )
+  } else {
+    const fixedMinor = getFixedDiscountMinor(claim, normalizedCurrency)
+    if (fixedMinor === null) return null
+    discountMinor = fixedMinor
+  }
+  discountMinor = Math.min(priceMinor, Math.max(0, discountMinor))
+  if (discountMinor <= 0) return null
+
+  return {
+    type: claim.discount.type,
+    originalAmount: minorToAmount(priceMinor),
+    discountAmount: minorToAmount(discountMinor),
+    discountedAmount: minorToAmount(priceMinor - discountMinor),
+    currency: normalizedCurrency,
+  }
 }
 
 export async function validateRecallClaim(input: {

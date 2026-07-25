@@ -2,8 +2,11 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -324,6 +327,84 @@ func TestSubscriptionSelfPurchaseCreatesOneTimeStripeCheckoutAndReplaysURL(t *te
 	require.Equal(t, float64(899), topUps[0].Money)
 	require.Equal(t, common.TopUpStatusPending, topUps[0].Status)
 	require.Equal(t, "cs_test_self_purchase", topUps[0].GatewayTradeNo)
+}
+
+func TestSubscriptionSelfPurchaseStripeRecurringForwardsRecallClaimToCheckout(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.TopUp{},
+		&model.RecallCampaign{},
+		&model.RecallRecipient{},
+		&model.RecallMessage{},
+		&model.RecallEvent{},
+	))
+	setRecallControllerEnabled(t, true)
+	insertSubscriptionControllerUser(t, 9117)
+	plan := insertSubscriptionSelfPurchasePlan(t, 9217)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription").Error)
+	discountJSON, err := common.Marshal(service.RecallDiscountConfig{Type: "percent", PercentOff: 20})
+	require.NoError(t, err)
+	productsJSON, err := common.Marshal(service.RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}})
+	require.NoError(t, err)
+	campaign := model.RecallCampaign{
+		Name: "self purchase recall", Status: model.RecallCampaignRunning, AudienceTemplate: "first_purchase",
+		AudienceConfig: `{}`, ExecutionMode: "manual", CouponSource: "automatic",
+		DiscountConfig: string(discountJSON), ProductScope: string(productsJSON), EmailSequenceConfig: `[]`,
+	}
+	require.NoError(t, model.DB.Create(&campaign).Error)
+	promotionID := "promo_self_purchase_recall"
+	recipient := model.RecallRecipient{
+		CampaignId: campaign.Id, UserId: 9117, EligibilitySnapshot: `{}`, EmailSnapshot: "self-recall@example.com",
+		LanguageSnapshot: "en", State: model.RecallRecipientContacting,
+		StripePromotionCodeId: &promotionID, PromotionCode: "FKSELF234", PromotionExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}
+	require.NoError(t, model.DB.Create(&recipient).Error)
+	claim := strings.Repeat("r", 48)
+	claimDigest := sha256.Sum256([]byte(claim))
+	claimHash := hex.EncodeToString(claimDigest[:])
+	require.NoError(t, model.DB.Create(&model.RecallMessage{
+		RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 1, TemplateSnapshot: `{}`,
+		State: model.RecallMessageAccepted, ClaimTokenHash: &claimHash,
+	}).Error)
+
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	originalSecret := setting.StripeApiSecret
+	originalKey := stripe.Key
+	var form url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/checkout/sessions", r.URL.Path)
+		require.NoError(t, r.ParseForm())
+		form = r.PostForm
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"cs_self_recall","object":"checkout.session","url":"https://checkout.example/self-recall"}`))
+	}))
+	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
+		URL:               stripe.String(server.URL),
+		HTTPClient:        server.Client(),
+		MaxNetworkRetries: stripe.Int64(0),
+		LeveledLogger:     &stripe.LeveledLogger{Level: stripe.LevelNull},
+	}))
+	setting.StripeApiSecret = "sk_test_self_recall"
+	t.Cleanup(func() {
+		server.Close()
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		setting.StripeApiSecret = originalSecret
+		stripe.Key = originalKey
+	})
+
+	purchase := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9217,"payment_choice":"stripe_recurring","months":1,"request_id":"self-recall","recall_claim":"`+claim+`"}`,
+		PurchaseSubscriptionSelf,
+		9117,
+	)
+
+	require.Equal(t, http.StatusOK, purchase.Code)
+	require.Contains(t, purchase.Body.String(), "https://checkout.example/self-recall")
+	require.Equal(t, "promo_self_purchase_recall", form.Get("discounts[0][promotion_code]"))
+	require.Equal(t, strconv.FormatInt(campaign.Id, 10), form.Get("metadata[recall_campaign_id]"))
+	require.Equal(t, strconv.FormatInt(recipient.Id, 10), form.Get("subscription_data[metadata][recall_recipient_id]"))
 }
 
 func TestSubscriptionSelfOneTimeReplayRejectsSessionWithoutURLOrClientSecret(t *testing.T) {

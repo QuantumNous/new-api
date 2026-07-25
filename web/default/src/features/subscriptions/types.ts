@@ -186,6 +186,7 @@ export interface FlexiblePurchaseRequest {
   request_id: string
   quote_id?: string
   order_id?: string
+  recall_claim?: string
   ui_mode?: 'embedded'
 }
 

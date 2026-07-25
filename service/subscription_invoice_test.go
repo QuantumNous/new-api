@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -61,6 +62,57 @@ func TestGetStripeInvoiceForReconcileExpandsDahliaInvoiceShape(t *testing.T) {
 	}, expandValues)
 	require.NotContains(t, expandValues, "lines.data.price")
 	require.NotContains(t, expandValues, "subscription")
+}
+
+func TestCreateStripeSubscriptionCheckoutAppliesRecallDiscountAndMetadata(t *testing.T) {
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	originalSecret := setting.StripeApiSecret
+	originalKey := stripe.Key
+	var form url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/v1/checkout/sessions", r.URL.Path)
+		require.NoError(t, r.ParseForm())
+		form = r.PostForm
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"cs_recall_subscription","object":"checkout.session","url":"https://checkout.example/recall"}`))
+	}))
+	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
+		URL:               stripe.String(server.URL),
+		HTTPClient:        server.Client(),
+		MaxNetworkRetries: stripe.Int64(0),
+		LeveledLogger:     &stripe.LeveledLogger{Level: stripe.LevelNull},
+	}))
+	setting.StripeApiSecret = "sk_test_subscription_recall"
+	t.Cleanup(func() {
+		server.Close()
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		setting.StripeApiSecret = originalSecret
+		stripe.Key = originalKey
+	})
+
+	session, err := createStripeSubscriptionCheckout(context.Background(), StripeSubscriptionCheckoutInput{
+		TradeNo:        "sub_recall_checkout",
+		UserID:         8109,
+		PlanID:         8209,
+		ContractID:     8309,
+		ChangeIntentID: 8409,
+		Email:          "recall@example.com",
+		PriceID:        "price_recall_subscription",
+		RecallDiscount: &RecallCheckoutDiscount{
+			PromotionCodeID: "promo_subscription_recall",
+			CampaignID:      8509,
+			RecipientID:     8609,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "cs_recall_subscription", session.ID)
+	require.Equal(t, "promo_subscription_recall", form.Get("discounts[0][promotion_code]"))
+	require.Equal(t, "8509", form.Get("metadata[recall_campaign_id]"))
+	require.Equal(t, "8609", form.Get("metadata[recall_recipient_id]"))
+	require.Equal(t, "8509", form.Get("subscription_data[metadata][recall_campaign_id]"))
+	require.Equal(t, "8609", form.Get("subscription_data[metadata][recall_recipient_id]"))
 }
 
 func setupSubscriptionInvoiceServiceTestDB(t *testing.T) {

@@ -283,6 +283,7 @@ export function buildFlexiblePurchaseRequest(args: {
   requestId: string
   quoteId?: string
   orderId?: string
+  recallClaim?: string
 }): FlexiblePurchaseRequest {
   return {
     plan_id: args.planId,
@@ -294,6 +295,9 @@ export function buildFlexiblePurchaseRequest(args: {
     request_id: args.requestId,
     ...(args.quoteId ? { quote_id: args.quoteId } : {}),
     ...(args.orderId ? { order_id: args.orderId } : {}),
+    ...(args.paymentChoice === 'stripe_recurring' && args.recallClaim
+      ? { recall_claim: args.recallClaim }
+      : {}),
     ...(args.paymentChoice !== 'balance'
       ? { ui_mode: 'embedded' as const }
       : {}),

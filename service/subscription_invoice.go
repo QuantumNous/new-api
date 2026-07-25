@@ -32,6 +32,7 @@ type StripeSubscriptionCheckoutInput struct {
 	PriceID        string
 	IdempotencyKey string
 	Presentation   StripeCheckoutPresentation
+	RecallDiscount *RecallCheckoutDiscount
 }
 
 type StripeSubscriptionCheckoutSession struct {
@@ -179,6 +180,10 @@ func createStripeSubscriptionCheckout(ctx context.Context, input StripeSubscript
 	}
 	stripe.Key = setting.StripeApiSecret
 	metadata := stripeSubscriptionAuthoritativeMetadata(input.TradeNo, input.UserID, input.PlanID, input.ContractID, input.ChangeIntentID)
+	if input.RecallDiscount != nil {
+		metadata["recall_campaign_id"] = strconv.FormatInt(input.RecallDiscount.CampaignID, 10)
+		metadata["recall_recipient_id"] = strconv.FormatInt(input.RecallDiscount.RecipientID, 10)
+	}
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(input.TradeNo),
 		SuccessURL:        stripe.String(consoleSubscriptionReturnPath()),
@@ -194,6 +199,11 @@ func createStripeSubscriptionCheckout(ctx context.Context, input StripeSubscript
 		SubscriptionData: &stripe.CheckoutSessionSubscriptionDataParams{
 			Metadata: metadata,
 		},
+	}
+	if input.RecallDiscount != nil && strings.TrimSpace(input.RecallDiscount.PromotionCodeID) != "" {
+		params.Discounts = []*stripe.CheckoutSessionDiscountParams{
+			{PromotionCode: stripe.String(strings.TrimSpace(input.RecallDiscount.PromotionCodeID))},
+		}
 	}
 	ApplyStripeCheckoutPresentation(params, input.Presentation, input.TradeNo)
 	if strings.TrimSpace(input.CustomerID) != "" {

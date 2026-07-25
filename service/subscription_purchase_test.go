@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -165,6 +166,55 @@ func TestPurchaseSubscriptionStripeRecurringReturnsCheckoutURL(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ChangePlanStatusCheckoutRequired, result.Status)
 	require.Equal(t, "https://checkout.stripe.test/purchase-subscription", result.CheckoutURL)
+}
+
+func TestPurchaseSubscriptionStripeRecurringResolvesRecallPromotionCode(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.SubscriptionProviderBinding{},
+		&model.UserSubscriptionContract{},
+		&model.SubscriptionChangeIntent{},
+		&model.SubscriptionTermSegment{},
+		&model.WalletLedgerEntry{},
+	))
+	setRecallCampaignEnabled(t, true)
+	now := time.Now().UTC()
+	fixture := createRecallClaimFixture(t, now)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       fixture.recipient.UserId,
+		Username: "purchase_recall_user",
+		Status:   common.UserStatusEnabled,
+		Group:    "plg",
+		AffCode:  "purchase_recall_aff",
+	}).Error)
+	plan := insertPurchaseServicePlan(t, 7425, 1, 19.99, 100)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription").Error)
+
+	originalCreator := stripeSubscriptionCheckoutCreator
+	t.Cleanup(func() { stripeSubscriptionCheckoutCreator = originalCreator })
+	stripeSubscriptionCheckoutCreator = func(_ context.Context, input StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		require.NotNil(t, input.RecallDiscount)
+		require.Equal(t, "promo_recall", input.RecallDiscount.PromotionCodeID)
+		require.Equal(t, fixture.campaign.Id, input.RecallDiscount.CampaignID)
+		require.Equal(t, fixture.recipient.Id, input.RecallDiscount.RecipientID)
+		return &StripeSubscriptionCheckoutSession{
+			ID:  "cs_purchase_recall",
+			URL: "https://checkout.stripe.test/purchase-recall",
+		}, nil
+	}
+
+	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RequestID:     "stripe-purchase-recall",
+		RecallClaim:   fixture.claim,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ChangePlanStatusCheckoutRequired, result.Status)
 }
 
 func TestPurchaseSubscriptionStripeRecurringPropagatesClientSecret(t *testing.T) {
