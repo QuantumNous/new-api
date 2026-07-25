@@ -402,21 +402,53 @@ var defaultModelPrice = map[string]float64{
 	"doubao-seedream-4-0-250828": 0.03,  // image gen (≈imagen-3)
 	"doubao-seedream-5.0":        0.03,  // image gen ¥0.22/img
 	"doubao-seedream-4.5":        0.034, // image gen ¥0.25/img
-	"doubao-seedance-2-0-260128": 0.15,  // video gen (≈veo fast); official ¥46/M tokens (pure gen) — family anchor
-	"doubao-seedance-2.0":        0.15,  // video gen
-	"doubao-seedance-2.0-fast":   0.10,  // video gen (fast tier); official ¥37/M tokens
-	// Seedance family ratios below scale off the 2.0 anchor (0.15 ≙ ¥46/M) by official Ark pricing.
-	"doubao-seedance-2-0-fast-260128": 0.10,  // video gen, dated fast tier (= doubao-seedance-2.0-fast)
-	"doubao-seedance-1-5-pro-251215":  0.08,  // video gen, est. ~¥25/M tokens (between 1.0-pro and 2.0)
-	"doubao-seedance-1-0-pro-250528":  0.05,  // video gen, ¥15/M tokens (¥0.015/1K)
-	"doubao-seedance-1-0-lite-t2v":    0.035, // video gen, ¥10/M tokens
-	"doubao-seedance-1-0-lite-i2v":    0.035, // video gen, ¥10/M tokens
-	"kling-v2-master":                 0.4,   // video gen (≈veo)
-	"kling-v2-6":                      0.4,   // video gen
-	"kling-v3":                        0.4,   // video gen
-	"gemini-3-pro-image":              0.134, // Nano Banana image $0.134/img (1K-2K)
-	"gemini-3.1-flash-image":          0.045, // image $0.045/img
-	"grok-imagine-image":              0.02,  // image $0.02/img
+	// ── Seedance video: PER-CALL prices in USD (this map is defaultModelPrice) ──
+	// Repriced 2026-07-25 from MEASURED Ark usage, because the previous values
+	// were derived from the ¥/M-token unit price as if this map held per-token
+	// RATIOS. It does not: `quota = modelPrice * QuotaPerUnit` (see
+	// relay/helper/price.go ModelPriceHelperPerCall), i.e. one flat charge per
+	// call, and the task path keeps it (BaseBilling.AdjustBillingOnComplete
+	// returns 0). dall-e-3 = 0.04 in this same map matches OpenAI's real $0.04
+	// per image, which pins the unit.
+	//
+	// Measured basis: a 5s 1080p Seedance-2.0 clip = 108,900 completion tokens
+	// (real task usage). Cost = tokens x ¥/M ÷ 7.3 CNY/USD. Prices below are
+	// that cost x ~1.45 (≈31% gross margin) rounded to a clean figure.
+	//
+	// ⚠️ EXPOSURE: a flat per-call price against a per-token upstream loses money
+	// as clips get longer — a 10s clip costs ~2x but still bills once. These
+	// values are safe for the ~5s default; if long clips become common, move
+	// Seedance to defaultModelRatio (Ark bills per token and ParseTaskResult
+	// already records usage) instead of raising the flat price again.
+	"doubao-seedance-2-0-260128":      1.0,  // ¥46/M → 5s cost ≈ $0.69
+	"doubao-seedance-2.0":             1.0,  // alias of the above
+	"doubao-seedance-2.0-fast":        0.8,  // ¥37/M → 5s cost ≈ $0.55
+	"doubao-seedance-2-0-fast-260128": 0.8,  // dated fast tier (= doubao-seedance-2.0-fast)
+	"doubao-seedance-1-5-pro-251215":  0.55, // est. ~¥25/M → 5s cost ≈ $0.37
+	"doubao-seedance-1-0-pro-250528":  0.33, // ¥15/M → 5s cost ≈ $0.22
+	"doubao-seedance-1-0-lite-t2v":    0.22, // ¥10/M → 5s cost ≈ $0.15
+	"doubao-seedance-1-0-lite-i2v":    0.22, // ¥10/M → 5s cost ≈ $0.15
+	// Ark dispatches DATED ids (`GET /api/v3/models`); the undated forms above are
+	// DeepRouter-side aliases. Without these rows a real Ark call on a dated id
+	// hits "价格未配置". Verified present on a live Ark account 2026-07-25.
+	"doubao-seedance-1-0-lite-t2v-250428": 0.22, // dated = doubao-seedance-1-0-lite-t2v
+	"doubao-seedance-1-0-lite-i2v-250428": 0.22, // dated = doubao-seedance-1-0-lite-i2v
+	// ⚠️ ESTIMATES — official ¥/M not published for these tiers; priced BELOW the
+	// tier above and ABOVE the tier below, so an error direction over-charges
+	// rather than loses money. Confirm against the Ark price page before launch.
+	"doubao-seedance-2-0-mini-260615":     0.5,  // est. mini tier (< 2.0-fast $0.8)
+	"doubao-seedance-1-0-pro-fast-251015": 0.25, // est. fast tier of 1.0-pro ($0.33)
+	// Seedream image prices were derived from ¥/IMAGE (not ¥/M tokens), so their
+	// unit was already right — these rows only add the ids Ark actually dispatches.
+	"doubao-seedream-4-5-251128":     0.034, // dated = doubao-seedream-4.5 (¥0.25/img)
+	"doubao-seedream-5-0-260128":     0.03,  // dated = doubao-seedream-5.0 (¥0.22/img)
+	"doubao-seedream-5-0-pro-260628": 0.05,  // ⚠️ est. pro tier (> 5.0 $0.03)
+	"kling-v2-master":                0.4,   // video gen (≈veo)
+	"kling-v2-6":                     0.4,   // video gen
+	"kling-v3":                       0.4,   // video gen
+	"gemini-3-pro-image":             0.134, // Nano Banana image $0.134/img (1K-2K)
+	"gemini-3.1-flash-image":         0.045, // image $0.045/img
+	"grok-imagine-image":             0.02,  // image $0.02/img
 }
 
 var defaultAudioRatio = map[string]float64{

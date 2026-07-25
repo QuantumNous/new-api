@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-07-25
+
+- 修复 Seedance 视频定价严重低估:`defaultModelPrice` 是**按次美元价**(`quota = modelPrice * QuotaPerUnit`,task 路径 `BaseBilling.AdjustBillingOnComplete` 返回 0 保持预扣,同表 `dall-e-3 = 0.04` 对应 OpenAI 真实 $0.04/张可锚定单位),但此前 Seedance 的值是拿「官方 ¥/百万 token 单价」当按 token 倍率等比缩放得出的,单位错位。按**实测用量**(5 秒 1080P Seedance 2.0 = 108,900 completion tokens)重算:2.0 成本 ≈ $0.69 → 定价 $1.0;2.0-fast $0.8;1.5-pro $0.55;1.0-pro $0.33;1.0-lite t2v/i2v $0.22(约 31% 毛利)。同时在注释中记录敞口:按次固定价对按 token 计费的上游在长视频上仍会亏,若长片成为主流应改走 `defaultModelRatio`(`ParseTaskResult` 已记录 usage tokens,天然支持)并补齐 Ark 实际下发的**带日期 id**(此前仓库里只有 `doubao-seedream-5.0` 这类点号别名,真实调用会撞「价格未配置」):新增 `seedance-1-0-lite-{t2v,i2v}-250428`、`seedance-2-0-mini-260615`(估)、`seedance-1-0-pro-fast-251015`(估)、`seedream-{4-5-251128,5-0-260128,5-0-pro-260628}`;估算项在注释中标注并按"宁高不低"取值。Seedream 图像价原本按 ¥/张 折算,单位无误,仅补 id(`setting/ratio_setting/model_ratio.go`)
+
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-07-24

@@ -1,6 +1,6 @@
 # PRD — 火山引擎 / Seedance 可用性补齐 (volcengine-seedance-readiness)
 
-**Status**: ship
+**Status**: ship(定价后续修正见 §7)
 **Owner**: Claude (background job, 2026-07-24)
 **Refs**: `docs/PRD.md`(网关产品 PRD), `docs/pricing-catalog-2026h1-prd.md`(定价目录)
 
@@ -77,3 +77,26 @@
   (`AuthenticationError`,带 Ark request id),提交失败后预扣费正确退回。
 - 真实 key 打通留待运营方在管理后台配置渠道 Key 后复验
   (或 `seed.py` + `VOLCENGINE_API_KEY`)。
+
+## 7. 定价修正(2026-07-25)
+
+§3 的倍率折算**方法错了**。`defaultModelPrice` 是按次美元价,不是按 token 倍率
+(`ModelPriceHelperPerCall`:`quota = modelPrice * QuotaPerUnit`;task 完成时
+`BaseBilling.AdjustBillingOnComplete` 返回 0,保持预扣额度不按 token 重算)。
+同一张表里 `dall-e-3 = 0.04` 正好等于 OpenAI 官方 $0.04/张,可确认单位。
+
+用真实调用校准(火山方舟实测:5 秒 1080P Seedance 2.0 = 108,900 completion
+tokens),按 ¥/百万 单价换算成本后加约 31% 毛利:
+
+| 模型 | 官方 ¥/M | 5s 成本 | 新定价(按次 USD) | 原值 |
+|---|---|---|---|---|
+| doubao-seedance-2-0-260128 | 46 | $0.69 | **1.0** | 0.15 |
+| doubao-seedance-2-0-fast-260128 | 37 | $0.55 | **0.8** | 0.10 |
+| doubao-seedance-1-5-pro-251215 | ~25(估) | $0.37 | **0.55** | 0.08 |
+| doubao-seedance-1-0-pro-250528 | 15 | $0.22 | **0.33** | 0.05 |
+| doubao-seedance-1-0-lite-t2v / -i2v | 10 | $0.15 | **0.22** | 0.035 |
+
+**遗留敞口**:按次固定价 vs 上游按 token 计费,时长越长毛利越薄(10 秒成本翻倍
+但仍只收一次)。上述定价对默认 ~5 秒安全。若长视频成为主流,正确做法是把
+Seedance 从 `defaultModelPrice` 移到 `defaultModelRatio` 走按 token 结算——
+`ParseTaskResult` 已把 usage tokens 写入 CompletionTokens/TotalTokens,天然支持。
