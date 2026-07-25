@@ -119,14 +119,20 @@ MessageHandler = Callable[[MessageEvent], Awaitable[None]]
 
 @dataclass
 class InteractionEvent:
-    """A button click on an interactive prompt. `value` is the opaque button value (see
-    `interactions.decode`); `user_name` is who clicked, for the message update."""
+    """A button click on an interactive prompt.
+
+    Stable actor/workspace ids are security inputs; display names are presentation only.
+    `response_url` is Slack's short-lived reply capability for a private rejection notice.
+    """
 
     platform: str
     chat_id: str
     message_id: Optional[str]  # the clicked message's id/ts (to update it)
     value: str
+    user_id: Optional[str] = None
     user_name: Optional[str] = None
+    team_id: Optional[str] = None
+    response_url: Optional[str] = None
 
 
 InteractionHandler = Callable[[InteractionEvent], Awaitable[None]]

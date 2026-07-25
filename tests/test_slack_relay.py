@@ -261,9 +261,10 @@ async def test_relay_interactivity_maps_to_interaction():
         "kind": "interactivity",
         "team_id": "T2",
         "interaction": {
-            "user": {"username": "bob"},
+            "user": {"id": "U2", "username": "bob"},
             "channel": {"id": "C7"},
             "message": {"ts": "9.9"},
+            "response_url": "https://hooks.slack.com/actions/abc",
             "actions": [{"value": "approve:42"}],
         },
     }
@@ -282,6 +283,9 @@ async def test_relay_interactivity_maps_to_interaction():
 
     assert len(seen) == 1
     assert seen[0].chat_id == "T2/C7" and seen[0].value == "approve:42"
+    assert seen[0].user_id == "U2"
+    assert seen[0].team_id == "T2"
+    assert seen[0].response_url == "https://hooks.slack.com/actions/abc"
 
 
 async def test_relay_revoked_drops_team():

@@ -60,6 +60,15 @@ def test_slack_blocks_shape():
 
 def test_interaction_click_resolves_item(tmp_path):
     mgr = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
+    mgr.secrets.put(
+        "slack:default",
+        {
+            "bot_token": "xoxb-test",
+            "app_token": "xapp-test",
+            "allowed_users": ["U_BOB"],
+            "approval_owner_ids": ["U_BOB"],
+        },
+    )
     item = mgr.inbox.add_approval("sX", "Run `write_file`?")
 
     resolved: list = []
@@ -79,6 +88,7 @@ def test_interaction_click_resolves_item(tmp_path):
                 chat_id="C1",
                 message_id="111.2",
                 value=encode(item.id, "allow"),
+                user_id="U_BOB",
                 user_name="bob",
             )
         )

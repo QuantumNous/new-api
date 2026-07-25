@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  getConnectors,
   getDmRoute,
   getInboxRouting,
   getRecentChannels,
@@ -11,6 +12,7 @@ import {
   subscribeChannel,
   unsubscribeChannel,
   type RecentChannel,
+  type Connector,
   type Subscription,
   type UnroutedItem,
 } from "../api";
@@ -53,11 +55,14 @@ export function InboxConfigure() {
 // the "default" route (sessions fall back to it); pick a channel separate from any you subscribe to.
 function InboxRoutingCard() {
   const [recent, setRecent] = useState<RecentChannel[]>([]);
+  const [connectors, setConnectors] = useState<Connector[]>([]);
   const [target, setTarget] = useState(""); // current default-binding address, e.g. "slack:C0123"
   const [draft, setDraft] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const load = () => {
     getRecentChannels().then(setRecent).catch(() => setRecent([]));
+    getConnectors().then(setConnectors).catch(() => setConnectors([]));
     getInboxRouting()
       .then((bs) => {
         const def = bs.find((b) => b.name === "default");
@@ -76,14 +81,42 @@ function InboxRoutingCard() {
     if (!addr) return;
     // "slack:C0123" → channel="slack", target="C0123"; a bare id assumes slack.
     const [platform, id] = addr.includes(":") ? addr.split(":", 2) : ["slack", addr];
-    await setInboxBinding("default", platform, id);
+    const result = await setInboxBinding("default", platform, id);
+    if (!result.ok) {
+      setError(result.error || "Could not update Inbox routing.");
+      return;
+    }
+    setError(null);
     setDraft("");
     load();
   };
   const clear = async () => {
-    await setInboxBinding("default", null, "");
+    const result = await setInboxBinding("default", null, "");
+    if (!result.ok) {
+      setError(result.error || "Could not clear Inbox routing.");
+      return;
+    }
+    setError(null);
     load();
   };
+
+  const draftAddr = draft.trim();
+  const [draftPlatform, draftTarget] = draftAddr.includes(":")
+    ? draftAddr.split(":", 2)
+    : ["slack", draftAddr];
+  const slack = connectors.find((c) => c.name === "slack");
+  const teamId =
+    draftPlatform === "slack" && draftTarget.includes("/")
+      ? draftTarget.split("/", 1)[0]
+      : null;
+  const owners =
+    draftPlatform !== "slack"
+      ? []
+      : teamId
+        ? slack?.workspaces?.find((w) => w.team_id === teamId)?.approval_owner_ids ?? []
+        : slack?.approval_owner_ids ?? [];
+  const missingSlackOwner =
+    draftPlatform === "slack" && draftTarget.length > 0 && owners.length === 0;
 
   // Show the channel's NAME when the recent list knows it (raw address as the fallback/tooltip).
   const known = recent.find((c) => c.channel === target)?.name;
@@ -103,7 +136,11 @@ function InboxRoutingCard() {
           <Icon name="plug" size={16} />
         </span>
         <ChannelPicker value={draft} onChange={setDraft} recent={recent} onSubmit={save} />
-        <button className={BTN_ACCENT_SM} disabled={!draft.trim()} onClick={save}>
+        <button
+          className={BTN_ACCENT_SM}
+          disabled={!draft.trim() || missingSlackOwner}
+          onClick={save}
+        >
           Set
         </button>
         {target && (
@@ -112,6 +149,12 @@ function InboxRoutingCard() {
           </button>
         )}
       </div>
+      {missingSlackOwner && (
+        <p className="text-[11.5px] text-warnInk mt-2">
+          Choose an approval owner under Integrations → Slack before routing approvals here.
+        </p>
+      )}
+      {error && <p className="text-[11.5px] text-warnInk mt-2">{error}</p>}
     </div>
   );
 }
