@@ -539,6 +539,7 @@ func TestRecallCampaignSaveAndUpdateDraftAllowNewAudienceTemplates(t *testing.T)
 		audience RecallAudienceConfig
 	}{
 		{template: "registered_only", audience: RecallAudienceConfig{RegistrationStartAt: 100, RegistrationEndAt: 200}},
+		{template: "registration_time_range", audience: RecallAudienceConfig{RegistrationStartAt: 100, RegistrationEndAt: 200}},
 		{template: "specified_users", audience: RecallAudienceConfig{SpecifiedUserIDs: []int{7}}},
 	}
 	for _, test := range tests {
@@ -556,6 +557,10 @@ func TestRecallCampaignSaveAndUpdateDraftAllowNewAudienceTemplates(t *testing.T)
 			require.NoError(t, err)
 			require.Equal(t, draft.Name, updated.Name)
 			require.Equal(t, test.template, updated.AudienceTemplate)
+			var stored RecallAudienceConfig
+			require.NoError(t, common.Unmarshal([]byte(updated.AudienceConfig), &stored))
+			require.Equal(t, test.audience.RegistrationStartAt, stored.RegistrationStartAt)
+			require.Equal(t, test.audience.RegistrationEndAt, stored.RegistrationEndAt)
 		})
 	}
 }

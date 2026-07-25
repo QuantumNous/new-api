@@ -141,6 +141,10 @@ func TestValidateRecallAudienceNewTemplates(t *testing.T) {
 		{"registered_only", RecallAudienceConfig{RegistrationEndAt: 200}, "registration time range"},
 		{"registered_only", RecallAudienceConfig{RegistrationStartAt: 100}, "registration time range"},
 		{"registered_only", RecallAudienceConfig{RegistrationStartAt: 200, RegistrationEndAt: 100}, "registration time range"},
+		{"registration_time_range", RecallAudienceConfig{RegistrationStartAt: 100, RegistrationEndAt: 200}, ""},
+		{"registration_time_range", RecallAudienceConfig{RegistrationEndAt: 200}, "registration time range"},
+		{"registration_time_range", RecallAudienceConfig{RegistrationStartAt: 100}, "registration time range"},
+		{"registration_time_range", RecallAudienceConfig{RegistrationStartAt: 200, RegistrationEndAt: 100}, "registration time range"},
 		{"specified_users", RecallAudienceConfig{SpecifiedUserIDs: []int{7}}, ""},
 		{"specified_users", RecallAudienceConfig{SpecifiedEmails: []string{"ops@example.com"}}, ""},
 		{"specified_users", RecallAudienceConfig{}, "at least one"},
@@ -186,6 +190,11 @@ func TestValidateRecallAudienceNewTemplatesIgnoreInactiveLegacyFields(t *testing
 	registeredOnly.RegistrationEndAt = 200
 	require.NoError(t, ValidateRecallAudience("registered_only", registeredOnly))
 
+	registrationRange := staleLegacy
+	registrationRange.RegistrationStartAt = 100
+	registrationRange.RegistrationEndAt = 200
+	require.NoError(t, ValidateRecallAudience("registration_time_range", registrationRange))
+
 	specifiedUsers := staleLegacy
 	specifiedUsers.Groups = []string{"plg"}
 	specifiedUsers.GroupMode = "unsupported"
@@ -224,6 +233,7 @@ func TestValidateRecallAudienceNewTemplatesRespectActiveGroupFields(t *testing.T
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Error(t, ValidateRecallAudience("registered_only", test.cfg))
+			require.NoError(t, ValidateRecallAudience("registration_time_range", test.cfg))
 		})
 	}
 }
@@ -314,6 +324,149 @@ func TestRecallAudienceRegisteredOnlySelectsInclusiveUnusedRegistrations(t *test
 	require.EqualValues(t, 1, preview.Exclusions["payment_exists"])
 	require.Zero(t, preview.Exclusions["recent_api_activity"], "registered_only must not use stale LastAPICallAgeDays")
 	require.NotContains(t, []int{preview.Sample[0].UserID, preview.Sample[1].UserID}, used.Id)
+}
+
+func TestRecallAudienceRegistrationTimeRangeIncludesActivityAndPaymentHistory(t *testing.T) {
+	mainDB, logDB := setupRecallAudienceTestDBs(t)
+	const now int64 = 2_000_000_000
+	const startAt int64 = now - 10_000
+	const endAt int64 = now - 1_000
+	plain := createRecallAudienceUser(t, mainDB, now, "range_plain", func(user *model.User) {
+		user.CreatedAt = startAt
+		user.RequestCount = 0
+	})
+	used := createRecallAudienceUser(t, mainDB, now, "range_used", func(user *model.User) {
+		user.CreatedAt = startAt + 1
+		user.RequestCount = 99
+	})
+	paidTopup := createRecallAudienceUser(t, mainDB, now, "range_paid_topup", func(user *model.User) {
+		user.CreatedAt = startAt + 2
+		user.RequestCount = 3
+	})
+	paidSubscription := createRecallAudienceUser(t, mainDB, now, "range_paid_subscription", func(user *model.User) {
+		user.CreatedAt = startAt + 3
+		user.RequestCount = 4
+	})
+	activeSubscription := createRecallAudienceUser(t, mainDB, now, "range_active_subscription", func(user *model.User) {
+		user.CreatedAt = startAt + 4
+		user.RequestCount = 5
+	})
+	expiredSubscription := createRecallAudienceUser(t, mainDB, now, "range_expired_subscription", func(user *model.User) {
+		user.CreatedAt = startAt + 5
+		user.RequestCount = 6
+	})
+	otherGroup := createRecallAudienceUser(t, mainDB, now, "range_other_group", func(user *model.User) {
+		user.CreatedAt = startAt + 6
+		user.Group = "enterprise"
+	})
+	unverified := createRecallAudienceUser(t, mainDB, now, "range_unverified", func(user *model.User) {
+		user.CreatedAt = startAt + 7
+		user.EmailVerifiedAt = 0
+	})
+	end := createRecallAudienceUser(t, mainDB, now, "range_end", func(user *model.User) {
+		user.CreatedAt = endAt
+		user.RequestCount = 7
+	})
+	createRecallAudienceUser(t, mainDB, now, "range_before", func(user *model.User) {
+		user.CreatedAt = startAt - 1
+	})
+	createRecallAudienceUser(t, mainDB, now, "range_after", func(user *model.User) {
+		user.CreatedAt = endAt + 1
+	})
+	disabled := createRecallAudienceUser(t, mainDB, now, "range_disabled", func(user *model.User) {
+		user.CreatedAt = startAt + 8
+		user.Status = common.UserStatusDisabled
+	})
+	invalid := createRecallAudienceUser(t, mainDB, now, "range_invalid", func(user *model.User) {
+		user.CreatedAt = startAt + 9
+		user.Email = "not-an-email"
+	})
+	optOutJSON, err := common.Marshal(dto.UserSetting{RecallMarketingOptOut: true})
+	require.NoError(t, err)
+	optedOut := createRecallAudienceUser(t, mainDB, now, "range_opted_out", func(user *model.User) {
+		user.CreatedAt = startAt + 10
+		user.Setting = string(optOutJSON)
+	})
+	require.NoError(t, mainDB.Create(&model.TopUp{
+		UserId:          paidTopup.Id,
+		Money:           25,
+		TradeNo:         "range-paid-topup",
+		PaymentProvider: model.PaymentProviderPaddle,
+		CompleteTime:    startAt + 20,
+		Status:          common.TopUpStatusSuccess,
+	}).Error)
+	require.NoError(t, mainDB.Create(&model.SubscriptionOrder{
+		UserId:          paidSubscription.Id,
+		Money:           50,
+		TradeNo:         "range-paid-subscription",
+		PaymentProvider: model.PaymentProviderStripe,
+		CompleteTime:    startAt + 30,
+		Status:          common.TopUpStatusSuccess,
+	}).Error)
+	require.NoError(t, mainDB.Create(&model.UserSubscription{
+		UserId: activeSubscription.Id, PlanId: 1, EndTime: now + 86400, Status: "active",
+	}).Error)
+	require.NoError(t, mainDB.Create(&model.UserSubscription{
+		UserId: expiredSubscription.Id, PlanId: 2, EndTime: now - 86400, Status: "expired",
+	}).Error)
+	require.NoError(t, logDB.Create(&model.Log{UserId: used.Id, Type: model.LogTypeConsume, CreatedAt: now - 60}).Error)
+
+	selector := NewRecallAudienceSelector()
+	selector.MainBatchSize = 3
+	draft := RecallCampaignDraft{
+		AudienceTemplate: "registration_time_range",
+		Audience: RecallAudienceConfig{
+			RegistrationStartAt:     startAt,
+			RegistrationEndAt:       endAt,
+			MinRequestCount:         99,
+			MaxQuota:                0,
+			MinPaidAmount:           999,
+			LastPaymentAgeDays:      999,
+			LastAPICallAgeDays:      30,
+			SubscriptionExpiredDays: 999,
+			MinSubscriptionAmount:   999,
+			MinSubscriptionCount:    999,
+			PaymentProviders:        []string{model.PaymentProviderStripe},
+			Groups:                  []string{"plg"},
+			GroupMode:               "allow",
+			RequireVerifiedEmail:    true,
+		},
+	}
+	preview, err := selector.Preview(context.Background(), draft, 20, time.Unix(now, 0))
+	require.NoError(t, err)
+	recipients, exclusions, err := selector.Snapshot(context.Background(), draft, 20, time.Unix(now, 0))
+	require.NoError(t, err)
+
+	wantUserIDs := []int{
+		plain.Id, used.Id, paidTopup.Id, paidSubscription.Id, activeSubscription.Id,
+		expiredSubscription.Id, otherGroup.Id, unverified.Id, end.Id,
+	}
+	gotPreviewIDs := make([]int, len(preview.Sample))
+	for i := range preview.Sample {
+		gotPreviewIDs[i] = preview.Sample[i].UserID
+	}
+	gotRecipientIDs := make([]int, len(recipients))
+	for i := range recipients {
+		gotRecipientIDs[i] = recipients[i].UserId
+		var snapshot map[string]any
+		require.NoError(t, common.Unmarshal([]byte(recipients[i].EligibilitySnapshot), &snapshot))
+		require.Equal(t, "registration_time_range", snapshot["template"])
+	}
+	require.EqualValues(t, len(wantUserIDs), preview.EligibleTotal)
+	require.Equal(t, wantUserIDs, gotPreviewIDs)
+	require.Equal(t, wantUserIDs, gotRecipientIDs)
+	require.EqualValues(t, 1, exclusions["disabled"])
+	require.EqualValues(t, 1, exclusions["invalid_email"])
+	require.EqualValues(t, 1, exclusions["opted_out"])
+	require.Zero(t, exclusions["unverified_email"], "registration_time_range must include unverified users")
+	require.Zero(t, exclusions["group_filtered"], "registration_time_range must include any group")
+	require.Zero(t, exclusions["recent_api_activity"], "registration_time_range must not use stale LastAPICallAgeDays")
+	require.Zero(t, exclusions["payment_exists"], "registration_time_range must include paid users")
+	require.Zero(t, exclusions["active_subscription"], "registration_time_range must include active subscriptions")
+	require.Zero(t, exclusions["threshold_not_met"], "registration_time_range must ignore behavioral thresholds")
+	require.NotContains(t, gotPreviewIDs, disabled.Id)
+	require.NotContains(t, gotPreviewIDs, invalid.Id)
+	require.NotContains(t, gotPreviewIDs, optedOut.Id)
 }
 
 func TestRecallAudienceSpecifiedUsersUsesExactUnionAndSafetyExclusions(t *testing.T) {

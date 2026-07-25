@@ -39,15 +39,24 @@ func ValidateRecallAudience(template string, cfg RecallAudienceConfig) error {
 	case "first_purchase", "lapsed_payer", "expired_subscription":
 		return validateRecallLegacyAudienceConfig(cfg)
 	case "registered_only":
-		if cfg.RegistrationStartAt <= 0 || cfg.RegistrationEndAt <= 0 || cfg.RegistrationEndAt < cfg.RegistrationStartAt {
-			return fmt.Errorf("recall audience registration time range must have positive start and end with end at or after start")
+		if err := validateRecallAudienceRegistrationTimeRange(cfg); err != nil {
+			return err
 		}
 		return validateRecallAudienceGroups(cfg)
+	case "registration_time_range":
+		return validateRecallAudienceRegistrationTimeRange(cfg)
 	case "specified_users":
 		return validateRecallSpecifiedAudience(cfg)
 	default:
 		return fmt.Errorf("unknown recall audience template %q", template)
 	}
+}
+
+func validateRecallAudienceRegistrationTimeRange(cfg RecallAudienceConfig) error {
+	if cfg.RegistrationStartAt <= 0 || cfg.RegistrationEndAt <= 0 || cfg.RegistrationEndAt < cfg.RegistrationStartAt {
+		return fmt.Errorf("recall audience registration time range must have positive start and end with end at or after start")
+	}
+	return nil
 }
 
 func validateRecallLegacyAudienceConfig(cfg RecallAudienceConfig) error {
@@ -371,10 +380,11 @@ func recallAudienceCandidate(draft RecallCampaignDraft, fact model.RecallCandida
 	if setting.RecallMarketingOptOut {
 		return recallAudienceSelection{}, "opted_out", nil
 	}
-	if draft.Audience.RequireVerifiedEmail && user.EmailVerifiedAt <= 0 {
+	if draft.AudienceTemplate != "registration_time_range" && draft.Audience.RequireVerifiedEmail && user.EmailVerifiedAt <= 0 {
 		return recallAudienceSelection{}, "unverified_email", nil
 	}
-	if draft.AudienceTemplate != "specified_users" && !recallAudienceGroupAllowed(user.Group, draft.Audience.Groups, draft.Audience.GroupMode) {
+	if draft.AudienceTemplate != "specified_users" && draft.AudienceTemplate != "registration_time_range" &&
+		!recallAudienceGroupAllowed(user.Group, draft.Audience.Groups, draft.Audience.GroupMode) {
 		return recallAudienceSelection{}, "group_filtered", nil
 	}
 	if reason := recallTemplateExclusion(draft, fact, now); reason != "" {
@@ -441,6 +451,14 @@ func recallTemplateExclusion(draft RecallCampaignDraft, fact model.RecallCandida
 		if fact.User.CreatedAt < cfg.RegistrationStartAt ||
 			fact.User.CreatedAt > cfg.RegistrationEndAt ||
 			fact.User.RequestCount != 0 {
+			return "threshold_not_met"
+		}
+	case "registration_time_range":
+		if fact.User.CreatedAt < cfg.RegistrationStartAt ||
+			fact.User.CreatedAt > cfg.RegistrationEndAt ||
+			cfg.RegistrationStartAt <= 0 ||
+			cfg.RegistrationEndAt <= 0 ||
+			cfg.RegistrationEndAt < cfg.RegistrationStartAt {
 			return "threshold_not_met"
 		}
 	}
