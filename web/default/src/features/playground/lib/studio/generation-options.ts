@@ -54,7 +54,4 @@ export function videoSizeLabel(size: string): string {
   return `${resolutionLabel(size)} · ${aspectFromSize(size)}`
 }
 
-export {
-  imageQualityLabelKey,
-  imageSizeLabel,
-} from './image-request-schema'
+export { imageQualityLabelKey, imageSizeLabel } from './image-request-schema'

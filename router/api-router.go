@@ -67,6 +67,16 @@ func SetApiRouter(router *gin.Engine) {
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
 
+		// Desktop client device authorization (RFC 8628 style)
+		deviceRoute := apiRouter.Group("/device")
+		{
+			deviceRoute.POST("/code", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.RequestDeviceAuthCode)
+			deviceRoute.POST("/token", anonymousRequestBodyLimit, controller.PollDeviceAuthToken)
+			deviceRoute.POST("/refresh", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.RefreshDeviceAuthToken)
+			deviceRoute.GET("/info", middleware.UserAuth(), controller.GetDeviceAuthInfo)
+			deviceRoute.POST("/approve", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.ApproveDeviceAuth)
+		}
+
 		userRoute := apiRouter.Group("/user")
 		{
 			userRoute.POST("/register", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, middleware.TurnstileCheck(), controller.Register)
@@ -403,6 +413,14 @@ func SetApiRouter(router *gin.Engine) {
 			playgroundDataRoute.DELETE("/voices/:id", controller.DeletePlaygroundVoice)
 
 			playgroundDataRoute.GET("/skill", controller.GetPlaygroundSkill)
+			playgroundDataRoute.GET("/inspiration/library", controller.GetInspirationLibrary)
+			playgroundDataRoute.PUT("/inspiration/templates/:id/favorite", controller.PutInspirationFavorite)
+			playgroundDataRoute.DELETE("/inspiration/templates/:id/favorite", controller.DeleteInspirationFavorite)
+			playgroundDataRoute.POST("/inspiration/collections", controller.CreateInspirationCollection)
+			playgroundDataRoute.PATCH("/inspiration/collections/:id", controller.UpdateInspirationCollection)
+			playgroundDataRoute.DELETE("/inspiration/collections/:id", controller.DeleteInspirationCollection)
+			playgroundDataRoute.PUT("/inspiration/collections/:id/templates/:templateId", controller.PutInspirationCollectionTemplate)
+			playgroundDataRoute.DELETE("/inspiration/collections/:id/templates/:templateId", controller.DeleteInspirationCollectionTemplate)
 		}
 		// Inspiration can be read by authenticated users (seeded public content)
 		playgroundPublic := apiRouter.Group("/playground")
@@ -411,10 +429,34 @@ func SetApiRouter(router *gin.Engine) {
 			playgroundPublic.POST("/upload-sessions/:token/file", middleware.UploadRateLimit(), controller.UploadPlaygroundUploadSessionFile)
 			playgroundPublic.GET("/inspiration/categories", controller.ListInspirationCategories)
 			playgroundPublic.GET("/inspiration/templates", controller.ListInspirationTemplates)
+			playgroundPublic.GET("/inspiration/templates/:slug", controller.GetInspirationTemplate)
+			playgroundPublic.POST("/inspiration/events", middleware.TryUserAuth(), controller.RecordInspirationEvents)
 			playgroundPublic.GET("/agents", controller.ListPlaygroundAgents)
 			playgroundPublic.POST("/inspiration/templates/:id/use", middleware.UserAuth(), controller.UseInspirationTemplate)
 			// skill download also available without auth for docs convenience
 			playgroundPublic.GET("/skill.md", controller.GetPlaygroundSkill)
+		}
+
+		inspirationAdmin := apiRouter.Group("/playground/inspiration/admin")
+		inspirationAdmin.Use(middleware.AdminAuth())
+		{
+			inspirationAdmin.GET("/categories", controller.AdminListInspirationCategories)
+			inspirationAdmin.POST("/categories", controller.AdminCreateInspirationCategory)
+			inspirationAdmin.PATCH("/categories/:id", controller.AdminUpdateInspirationCategory)
+			inspirationAdmin.POST("/categories/:id/archive", controller.AdminArchiveInspirationCategory)
+			inspirationAdmin.GET("/templates", controller.AdminListInspirationTemplates)
+			inspirationAdmin.POST("/templates", controller.AdminCreateInspirationTemplate)
+			inspirationAdmin.GET("/templates/:id", controller.AdminGetInspirationTemplate)
+			inspirationAdmin.PATCH("/templates/:id", controller.AdminUpdateInspirationTemplate)
+			inspirationAdmin.POST("/templates/:id/draft", controller.AdminCreateInspirationDraft)
+			inspirationAdmin.PATCH("/templates/:id/draft/:versionId", controller.AdminUpdateInspirationDraft)
+			inspirationAdmin.POST("/templates/:id/publish", controller.AdminPublishInspirationDraft)
+			inspirationAdmin.POST("/templates/:id/versions/:versionId/activate", controller.AdminActivateInspirationVersion)
+			inspirationAdmin.POST("/templates/:id/archive", controller.AdminSetInspirationTemplateArchived)
+			inspirationAdmin.POST("/templates/:id/restore", func(c *gin.Context) {
+				c.Request.URL.RawQuery = "restore=true"
+				controller.AdminSetInspirationTemplateArchived(c)
+			})
 		}
 
 		vendorRoute := apiRouter.Group("/vendors")

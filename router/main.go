@@ -7,12 +7,16 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetRouter(router *gin.Engine, assets ThemeAssets) {
+	// Published at the well-known path so the desktop connector broker can
+	// discover the desktop token signing key without extra configuration.
+	router.GET("/.well-known/jwks.json", middleware.RouteTag("api"), controller.GetDesktopJWKS)
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)

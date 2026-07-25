@@ -379,6 +379,16 @@ const (
 	MsgDistributorInvalidParseModel       = "distributor.invalid_request_parse_model"
 )
 
+// Desktop device authorization related messages
+const (
+	MsgDeviceAuthDisabled     = "device_auth.disabled"
+	MsgDeviceAuthNotFound     = "device_auth.not_found"
+	MsgDeviceAuthExpired      = "device_auth.expired"
+	MsgDeviceAuthAlreadyUsed  = "device_auth.already_used"
+	MsgDeviceAuthTokenLimit   = "device_auth.token_limit"
+	MsgDeviceAuthCreateFailed = "device_auth.create_failed"
+)
+
 // Custom OAuth provider related messages
 const (
 	MsgCustomOAuthNotFound          = "custom_oauth.not_found"

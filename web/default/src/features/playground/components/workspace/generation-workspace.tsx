@@ -25,10 +25,7 @@ import { isPlaygroundImageModel } from '../../lib/studio/image-request-schema'
 import type { StudioModality } from '../../types'
 import type { MediaReference } from '../composer/attachments/media-reference-slot'
 import { GenerationComposer } from '../composer/generation-composer'
-import {
-  GenerationErrorState,
-  GenerationProgress,
-} from './generation-progress'
+import { GenerationErrorState, GenerationProgress } from './generation-progress'
 import {
   GenerationImageCard,
   GenerationMediaResult,
@@ -337,49 +334,43 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
                 </GenerationMediaResult>
               )}
 
-            {props.modality === 'video' &&
-              studio.video &&
-              videoTask.failed && (
-                <GenerationErrorState
-                  message={
-                    videoTask.failReason || t('Video generation failed.')
-                  }
-                  onRetry={() => submit(lastPrompt)}
-                  retryDisabled={!lastPrompt}
-                />
-              )}
+            {props.modality === 'video' && studio.video && videoTask.failed && (
+              <GenerationErrorState
+                message={videoTask.failReason || t('Video generation failed.')}
+                onRetry={() => submit(lastPrompt)}
+                retryDisabled={!lastPrompt}
+              />
+            )}
 
-            {!showProgress &&
-              props.modality === 'audio' &&
-              studio.audioUrl && (
-                <GenerationMediaResult className='max-w-md'>
-                  <div className='border-border/80 bg-muted/40 space-y-4 rounded-2xl border p-5 shadow-sm'>
-                    <div className='from-primary/10 via-muted/40 to-muted/20 rounded-xl bg-gradient-to-br px-4 py-6'>
-                      <audio
-                        controls
-                        autoPlay
-                        className='w-full'
-                        src={studio.audioUrl}
-                      >
-                        {t('Your browser does not support audio playback.')}
-                      </audio>
-                    </div>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      className='border-border bg-muted/50 text-foreground'
-                      disabled={downloading === 'speech'}
-                      onClick={() =>
-                        void downloadMedia(studio.audioUrl, 'speech', 'audio')
-                      }
+            {!showProgress && props.modality === 'audio' && studio.audioUrl && (
+              <GenerationMediaResult className='max-w-md'>
+                <div className='border-border/80 bg-muted/40 space-y-4 rounded-2xl border p-5 shadow-sm'>
+                  <div className='from-primary/10 via-muted/40 to-muted/20 rounded-xl bg-gradient-to-br px-4 py-6'>
+                    <audio
+                      controls
+                      autoPlay
+                      className='w-full'
+                      src={studio.audioUrl}
                     >
-                      {downloadIcon('speech')}
-                      {downloadLabel('speech', t('Download audio'))}
-                    </Button>
+                      {t('Your browser does not support audio playback.')}
+                    </audio>
                   </div>
-                </GenerationMediaResult>
-              )}
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='border-border bg-muted/50 text-foreground'
+                    disabled={downloading === 'speech'}
+                    onClick={() =>
+                      void downloadMedia(studio.audioUrl, 'speech', 'audio')
+                    }
+                  >
+                    {downloadIcon('speech')}
+                    {downloadLabel('speech', t('Download audio'))}
+                  </Button>
+                </div>
+              </GenerationMediaResult>
+            )}
 
             {error && !showProgress && (
               <GenerationErrorState

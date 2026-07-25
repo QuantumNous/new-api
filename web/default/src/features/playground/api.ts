@@ -19,8 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import { api, getCommonHeaders } from '@/lib/api'
 
 import { API_ENDPOINTS } from './constants'
-import { buildImageGenerationRequestBody } from './lib/studio/image-request-schema'
+import type {
+  InspirationCollection,
+  InspirationEventType,
+  InspirationLibrary,
+  InspirationRecipe,
+} from './inspiration/types'
 import { parseRequestErrorDetails } from './lib/streaming/request-error-utils'
+import { buildImageGenerationRequestBody } from './lib/studio/image-request-schema'
 import type { ApiAgent } from './lib/workbench/agents-data'
 import type {
   ChatCompletionRequest,
@@ -764,17 +770,6 @@ export type ApiInspirationCategory = {
   name: string
 }
 
-export type ApiInspirationTemplate = {
-  id: number
-  category_id: number
-  slug: string
-  title: string
-  prompt: string
-  modality: string
-  cover_url?: string
-  use_count?: number
-}
-
 export async function listInspirationCategories(): Promise<
   ApiInspirationCategory[]
 > {
@@ -793,29 +788,110 @@ export async function listInspirationTemplates(params?: {
   category?: string
   modality?: string
   page_size?: number
-}): Promise<ApiInspirationTemplate[]> {
-  try {
-    const res = await api.get(API_ENDPOINTS.INSPIRATION_TEMPLATES, {
-      params: { page_size: 50, ...params },
-      skipErrorHandler: true,
-    } as Record<string, unknown>)
-    if (!res.data?.success) return []
-    return (res.data.data?.items ??
-      res.data.data ??
-      []) as ApiInspirationTemplate[]
-  } catch {
-    return []
+}): Promise<InspirationRecipe[]> {
+  const res = await api.get(API_ENDPOINTS.INSPIRATION_TEMPLATES, {
+    params: { page_size: 50, ...params },
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  if (!res.data?.success) {
+    throw new Error(res.data?.message || 'Could not load recipes')
+  }
+  return ((res.data.data?.items ?? []) as InspirationRecipe[]).map(
+    normalizeInspirationRecipe
+  )
+}
+
+export async function getInspirationTemplate(
+  slug: string
+): Promise<InspirationRecipe> {
+  const res = await api.get(`${API_ENDPOINTS.INSPIRATION_TEMPLATES}/${slug}`, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  if (!res.data?.success) {
+    throw new Error(res.data?.message || 'Could not load recipe')
+  }
+  return normalizeInspirationRecipe(res.data.data as InspirationRecipe)
+}
+
+function normalizeInspirationRecipe(
+  recipe: InspirationRecipe
+): InspirationRecipe {
+  return {
+    ...recipe,
+    tags: Array.isArray(recipe.tags) ? recipe.tags : [],
+    variables: Array.isArray(recipe.variables) ? recipe.variables : [],
+    examples: Array.isArray(recipe.examples) ? recipe.examples : [],
+    parameters:
+      recipe.parameters && typeof recipe.parameters === 'object'
+        ? recipe.parameters
+        : {},
+    model_policy: {
+      recommended: Array.isArray(recipe.model_policy?.recommended)
+        ? recipe.model_policy.recommended
+        : [],
+      compatible: Array.isArray(recipe.model_policy?.compatible)
+        ? recipe.model_policy.compatible
+        : [],
+    },
+    covers: recipe.covers ?? { small: '', medium: '', large: '' },
   }
 }
 
-export async function recordInspirationTemplateUse(id: number): Promise<void> {
+export async function recordInspirationEvents(
+  recipe: InspirationRecipe,
+  type: InspirationEventType
+): Promise<void> {
   try {
-    await api.post(`${API_ENDPOINTS.INSPIRATION_TEMPLATES}/${id}/use`, {}, {
-      skipErrorHandler: true,
-    } as Record<string, unknown>)
+    await api.post(
+      '/api/playground/inspiration/events',
+      {
+        events: [
+          {
+            event_id: crypto.randomUUID(),
+            template_id: recipe.id,
+            version_id: recipe.version_id,
+            type,
+          },
+        ],
+      },
+      { skipErrorHandler: true } as Record<string, unknown>
+    )
   } catch {
-    // best-effort counter
+    /* analytics never blocks UX */
   }
+}
+
+export async function getInspirationLibrary(): Promise<InspirationLibrary> {
+  const res = await api.get('/api/playground/inspiration/library')
+  return res.data.data as InspirationLibrary
+}
+
+export async function setInspirationFavorite(
+  templateId: number,
+  favorite: boolean
+): Promise<void> {
+  const method = favorite ? api.put : api.delete
+  await method(`/api/playground/inspiration/templates/${templateId}/favorite`)
+}
+
+export async function createInspirationCollection(
+  name: string
+): Promise<InspirationCollection> {
+  const res = await api.post('/api/playground/inspiration/collections', {
+    name,
+  })
+  return res.data.data as InspirationCollection
+}
+
+export async function setInspirationCollectionTemplate(
+  collectionId: number,
+  templateId: number,
+  saved: boolean
+): Promise<void> {
+  const method = saved ? api.put : api.delete
+  await method(
+    `/api/playground/inspiration/collections/${collectionId}/templates/${templateId}`
+  )
 }
 
 export async function listPlaygroundAgents(): Promise<ApiAgent[]> {

@@ -50,6 +50,7 @@ func GetStatus(c *gin.Context) {
 	passkeySetting := system_setting.GetPasskeySettings()
 	legalSetting := system_setting.GetLegalSettings()
 	brandingSetting := system_setting.GetBrandingSettings()
+	desktopSetting := system_setting.GetDesktopSettings()
 
 	data := gin.H{
 		"version":                     common.Version,
@@ -98,6 +99,9 @@ func GetStatus(c *gin.Context) {
 		"password_login_enabled":        common.PasswordLoginEnabled,
 		"password_register_enabled":     common.PasswordRegisterEnabled,
 		"default_use_auto_group":        setting.DefaultUseAutoGroup,
+		"desktop_enabled":               desktopSetting.Enabled,
+		"desktop_download_url":          desktopSetting.DownloadURL,
+		"desktop_min_version":           desktopSetting.MinVersion,
 
 		"usd_exchange_rate": operation_setting.USDExchangeRate,
 		"price":             operation_setting.Price,

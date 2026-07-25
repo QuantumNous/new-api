@@ -157,7 +157,9 @@ export function useStudio() {
         await queryClient.invalidateQueries({
           queryKey: ['playground', 'task-history'],
         })
-        await queryClient.invalidateQueries({ queryKey: ['playground', 'runs'] })
+        await queryClient.invalidateQueries({
+          queryKey: ['playground', 'runs'],
+        })
       })()
     },
   })

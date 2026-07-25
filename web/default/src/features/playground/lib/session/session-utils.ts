@@ -87,8 +87,8 @@ export function createStudioSession(
   const ts = now()
   const hasContent = Boolean(
     input?.lastPrompt?.trim() ||
-      (input?.previewUrls && input.previewUrls.length > 0) ||
-      (input?.runs && input.runs.length > 0)
+    (input?.previewUrls && input.previewUrls.length > 0) ||
+    (input?.runs && input.runs.length > 0)
   )
   return {
     id: input?.id ?? createSessionId(),
@@ -178,8 +178,8 @@ export function hasSessionContent(session: PlaygroundSession): boolean {
   }
   return Boolean(
     session.lastPrompt?.trim() ||
-      (session.previewUrls && session.previewUrls.length > 0) ||
-      (session.runs && session.runs.length > 0)
+    (session.previewUrls && session.previewUrls.length > 0) ||
+    (session.runs && session.runs.length > 0)
   )
 }
 

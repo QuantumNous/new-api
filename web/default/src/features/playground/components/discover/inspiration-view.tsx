@@ -7,17 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { useQuery } from '@tanstack/react-query'
-import {
-  Download,
-  History,
-  ImageIcon,
-  Images,
-  Loader2,
-  MessageSquare,
-  Music2,
-  Video,
-  type LucideIcon,
-} from 'lucide-react'
+import { Download, History, Images, Loader2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -30,63 +20,27 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-import {
-  listInspirationCategories,
-  listInspirationTemplates,
-  listPlaygroundTasks,
-  recordInspirationTemplateUse,
-} from '../../api'
+import { listPlaygroundTasks } from '../../api'
 import { downloadGeneratedMedia } from '../../lib/download-generated-media'
-import {
-  INSPIRATION_CATEGORIES,
-  INSPIRATION_TEMPLATES,
-  type InspirationTemplate,
-} from '../../lib/workbench/inspiration-data'
-import {
-  MODALITY_COLORS,
-  modalityLabelKey,
-} from '../../lib/workbench/modality-styles'
+import { modalityLabelKey } from '../../lib/workbench/modality-styles'
 import type {
   InspirationWork,
   RecentPrompt,
 } from '../../lib/workbench/workbench-prefs'
 import type { StudioModality } from '../../types'
+import { InspirationGallery } from './inspiration-gallery'
 
 type InspirationView = 'square' | 'works' | 'usage'
 
 type InspirationViewProps = {
   myWorks: InspirationWork[]
   recentPrompts: RecentPrompt[]
-  onApplyTemplate: (template: InspirationTemplate) => void
   onApplyPrompt: (prompt: string, modality: StudioModality) => void
+  isAuthenticated: boolean
+  availableModels: Array<{ name: string; modality: string }>
+  onRequireAuth: () => void
   onRemoveWork?: (id: string) => void
   className?: string
-}
-
-const TEMPLATE_COVER_ACCENTS: Record<
-  StudioModality,
-  { gradient: string; Icon: LucideIcon; iconColor: string }
-> = {
-  chat: {
-    gradient: 'from-primary/25 via-chart-2/15 to-transparent',
-    Icon: MessageSquare,
-    iconColor: 'text-primary',
-  },
-  image: {
-    gradient: 'from-chart-3/30 via-chart-4/20 to-transparent',
-    Icon: ImageIcon,
-    iconColor: 'text-chart-3',
-  },
-  video: {
-    gradient: 'from-warning/30 via-chart-1/15 to-transparent',
-    Icon: Video,
-    iconColor: 'text-warning',
-  },
-  audio: {
-    gradient: 'from-success/30 via-chart-5/15 to-transparent',
-    Icon: Music2,
-    iconColor: 'text-success',
-  },
 }
 
 function mediaToolLabel(
@@ -109,89 +63,12 @@ function mediaToolLabel(
 export function InspirationView(props: InspirationViewProps) {
   const { t } = useTranslation()
   const [view, setView] = useState<InspirationView>('square')
-  const [category, setCategory] = useState<string>('all')
   const [downloadingWorkId, setDownloadingWorkId] = useState('')
-  const [modalityFilter, setModalityFilter] = useState<
-    'all' | 'image' | 'video' | 'chat'
-  >('all')
-
-  const apiCategories = useQuery({
-    queryKey: ['playground', 'inspiration', 'categories'],
-    queryFn: listInspirationCategories,
-    staleTime: 60_000,
-  })
-  const apiTemplates = useQuery({
-    queryKey: [
-      'playground',
-      'inspiration',
-      'templates',
-      category,
-      modalityFilter,
-    ],
-    queryFn: () =>
-      listInspirationTemplates({
-        category: category === 'all' ? undefined : category,
-        modality: modalityFilter === 'all' ? undefined : modalityFilter,
-        page_size: 50,
-      }),
-    staleTime: 60_000,
-  })
   const serverWorks = useQuery({
     queryKey: ['playground', 'runs'],
     queryFn: listPlaygroundTasks,
     enabled: view === 'works',
   })
-
-  const categories = useMemo(() => {
-    if (apiCategories.data && apiCategories.data.length > 0) {
-      return [
-        { id: 'all' as const, labelKey: 'All' },
-        ...apiCategories.data.map((c) => ({
-          id: c.slug as InspirationTemplate['category'] | 'all',
-          labelKey: c.name,
-        })),
-      ]
-    }
-    return INSPIRATION_CATEGORIES
-  }, [apiCategories.data])
-
-  const templates = useMemo(() => {
-    if (apiTemplates.data && apiTemplates.data.length > 0) {
-      return apiTemplates.data
-        .filter((item) => {
-          if (modalityFilter !== 'all' && item.modality !== modalityFilter) {
-            return false
-          }
-          return true
-        })
-        .map(
-          (item): InspirationTemplate => ({
-            id: String(item.id),
-            titleKey: item.title,
-            prompt: item.prompt,
-            modality: item.modality as InspirationTemplate['modality'],
-            category: 'all',
-            tagKeys: [],
-            coverUrl: item.cover_url,
-          })
-        )
-    }
-    return INSPIRATION_TEMPLATES.filter((item) => {
-      if (category !== 'all' && item.category !== category) return false
-      if (modalityFilter !== 'all' && item.modality !== modalityFilter) {
-        return false
-      }
-      return true
-    })
-  }, [apiTemplates.data, category, modalityFilter])
-
-  const applyTemplate = (template: InspirationTemplate) => {
-    const numericId = Number(template.id)
-    if (Number.isFinite(numericId) && numericId > 0) {
-      void recordInspirationTemplateUse(numericId)
-    }
-    props.onApplyTemplate(template)
-  }
 
   const downloadWork = async (work: InspirationWork) => {
     if (!work.previewUrl || work.modality === 'chat') return
@@ -234,13 +111,17 @@ export function InspirationView(props: InspirationViewProps) {
       )}
     >
       <PageTransition className='space-y-4'>
-        <div>
-          <h1 className='text-foreground text-2xl font-semibold'>
-            {t('Inspiration')}
-          </h1>
-          <p className='text-muted-foreground mt-1 text-sm'>
-            {t('Templates, saved works, and recent prompts for faster starts.')}
-          </p>
+        <div className='flex flex-col justify-between gap-4 sm:flex-row sm:items-end'>
+          <div>
+            <h1 className='text-foreground text-2xl font-semibold tracking-tight'>
+              {t('Inspiration')}
+            </h1>
+            <p className='text-muted-foreground mt-1 text-sm'>
+              {t(
+                'Templates, saved works, and recent prompts for faster starts.'
+              )}
+            </p>
+          </div>
         </div>
 
         <div
@@ -274,117 +155,11 @@ export function InspirationView(props: InspirationViewProps) {
         </div>
 
         {view === 'square' && (
-          <>
-            <div
-              className='flex flex-wrap gap-1'
-              role='group'
-              aria-label={t('Categories')}
-            >
-              {categories.map((item) => (
-                <button
-                  key={item.id}
-                  type='button'
-                  aria-pressed={category === item.id}
-                  onClick={() => setCategory(item.id)}
-                  className={cn(
-                    'focus-visible:ring-ring rounded-full px-2 py-0.5 text-[10px] transition-colors outline-none focus-visible:ring-2',
-                    category === item.id
-                      ? 'bg-primary/15 text-primary'
-                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground/80'
-                  )}
-                >
-                  {t(item.labelKey)}
-                </button>
-              ))}
-            </div>
-            <div className='flex gap-1'>
-              {(['all', 'image', 'video', 'chat'] as const).map((item) => (
-                <button
-                  key={item}
-                  type='button'
-                  aria-pressed={modalityFilter === item}
-                  onClick={() => setModalityFilter(item)}
-                  className={cn(
-                    'rounded-md px-2 py-0.5 text-[10px] transition-colors',
-                    modalityFilter === item
-                      ? 'bg-primary/15 text-primary'
-                      : 'text-muted-foreground hover:text-foreground/80'
-                  )}
-                >
-                  {t(
-                    item === 'all'
-                      ? 'All'
-                      : item[0].toUpperCase() + item.slice(1)
-                  )}
-                </button>
-              ))}
-            </div>
-            <CardStaggerContainer
-              key={`${category}-${modalityFilter}`}
-              className='grid gap-2 sm:grid-cols-2 lg:grid-cols-3'
-            >
-              {templates.map((template) => {
-                const cover =
-                  TEMPLATE_COVER_ACCENTS[template.modality as StudioModality] ??
-                  TEMPLATE_COVER_ACCENTS.chat
-                const CoverIcon = cover.Icon
-                return (
-                  <CardStaggerItem key={template.id}>
-                    <button
-                      type='button'
-                      onClick={() => applyTemplate(template)}
-                      className='border-border bg-muted/40 hover:border-primary/30 hover:bg-primary/5 focus-visible:ring-ring w-full overflow-hidden rounded-xl border text-left transition-all outline-none hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0'
-                    >
-                      {template.coverUrl ? (
-                        <img
-                          src={template.coverUrl}
-                          alt={t(template.titleKey)}
-                          loading='lazy'
-                          className='aspect-video w-full object-cover'
-                        />
-                      ) : (
-                        <div
-                          className={cn(
-                            'flex aspect-video w-full items-center justify-center bg-gradient-to-br',
-                            cover.gradient
-                          )}
-                          aria-hidden='true'
-                        >
-                          <CoverIcon
-                            className={cn('size-7', cover.iconColor)}
-                          />
-                        </div>
-                      )}
-                      <div className='p-3'>
-                        <div className='flex items-center justify-between gap-2'>
-                          <span className='text-foreground truncate text-sm font-medium'>
-                            {t(template.titleKey)}
-                          </span>
-                          <span
-                            className={cn(
-                              'shrink-0 rounded border px-1.5 py-0.5 text-[10px]',
-                              MODALITY_COLORS[
-                                template.modality as StudioModality
-                              ]?.tag ?? MODALITY_COLORS.chat.tag
-                            )}
-                          >
-                            {t(
-                              modalityLabelKey(
-                                template.modality as StudioModality
-                              )
-                            )}
-                          </span>
-                        </div>
-                        <p className='text-muted-foreground mt-1.5 line-clamp-2 text-[11px]'>
-                          {template.prompt}
-                        </p>
-                      </div>
-                    </button>
-                  </CardStaggerItem>
-                )
-              })}
-            </CardStaggerContainer>
-          </>
+          <InspirationGallery
+            isAuthenticated={props.isAuthenticated}
+            availableModels={props.availableModels}
+            onRequireAuth={props.onRequireAuth}
+          />
         )}
 
         {view === 'works' && (

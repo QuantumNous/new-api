@@ -326,6 +326,14 @@ distributor.no_available_channel: "No available channel for model {{.Model}} und
 distributor.invalid_midjourney_request: "Invalid Midjourney request: {{.Error}}"
 distributor.invalid_request_parse_model: "Invalid request, unable to parse model"
 
+# Desktop device authorization messages
+device_auth.disabled: "Desktop sign-in is not enabled"
+device_auth.not_found: "This sign-in code is invalid"
+device_auth.expired: "This sign-in code has expired, please retry from the desktop app"
+device_auth.already_used: "This sign-in code has already been handled"
+device_auth.token_limit: "Token limit reached, please delete an unused token and retry"
+device_auth.create_failed: "Failed to create the desktop API key"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "Custom OAuth provider not found"
 custom_oauth.slug_empty: "Slug cannot be empty"

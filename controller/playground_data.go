@@ -1204,17 +1204,6 @@ func CreatePlaygroundRun(c *gin.Context) {
 	common.ApiSuccess(c, run)
 }
 
-// ---------- Inspiration ----------
-
-func ListInspirationCategories(c *gin.Context) {
-	items, err := model.ListInspirationCategories()
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	common.ApiSuccess(c, items)
-}
-
 func ListPlaygroundAgents(c *gin.Context) {
 	items, err := model.ListPlaygroundAgents()
 	if err != nil {
@@ -1222,30 +1211,6 @@ func ListPlaygroundAgents(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, items)
-}
-
-func ListInspirationTemplates(c *gin.Context) {
-	pageInfo := common.GetPageQuery(c)
-	category := strings.TrimSpace(c.Query("category"))
-	modality := strings.TrimSpace(c.Query("modality"))
-	items, total, err := model.ListInspirationTemplates(category, modality, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(items)
-	common.ApiSuccess(c, pageInfo)
-}
-
-func UseInspirationTemplate(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiErrorMsg(c, "invalid id")
-		return
-	}
-	_ = model.IncrementInspirationUseCount(id)
-	common.ApiSuccess(c, nil)
 }
 
 // ---------- Voices ----------

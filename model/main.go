@@ -310,6 +310,10 @@ func migrateDB() error {
 		&PlaygroundVoice{},
 		&InspirationCategory{},
 		&InspirationTemplate{},
+		&InspirationTemplateVersion{},
+		&InspirationCollection{},
+		&InspirationSave{},
+		&InspirationEvent{},
 		&PlaygroundAgent{},
 		&PlaygroundUploadSession{},
 	)
@@ -325,8 +329,8 @@ func migrateDB() error {
 			return err
 		}
 	}
-	if err := SeedInspirationIfEmpty(); err != nil {
-		common.SysLog("seed inspiration failed: " + err.Error())
+	if err := SyncInspirationCatalog(); err != nil {
+		common.SysLog("sync inspiration catalog failed: " + err.Error())
 	}
 	if err := SeedPlaygroundAgentsIfEmpty(); err != nil {
 		common.SysLog("seed playground agents failed: " + err.Error())
@@ -381,6 +385,10 @@ func migrateDBFast() error {
 		{&PlaygroundVoice{}, "PlaygroundVoice"},
 		{&InspirationCategory{}, "InspirationCategory"},
 		{&InspirationTemplate{}, "InspirationTemplate"},
+		{&InspirationTemplateVersion{}, "InspirationTemplateVersion"},
+		{&InspirationCollection{}, "InspirationCollection"},
+		{&InspirationSave{}, "InspirationSave"},
+		{&InspirationEvent{}, "InspirationEvent"},
 		{&PlaygroundAgent{}, "PlaygroundAgent"},
 		{&PlaygroundUploadSession{}, "PlaygroundUploadSession"},
 	}
@@ -416,8 +424,8 @@ func migrateDBFast() error {
 			return err
 		}
 	}
-	if err := SeedInspirationIfEmpty(); err != nil {
-		common.SysLog("seed inspiration failed: " + err.Error())
+	if err := SyncInspirationCatalog(); err != nil {
+		common.SysLog("sync inspiration catalog failed: " + err.Error())
 	}
 	if err := SeedPlaygroundAgentsIfEmpty(); err != nil {
 		common.SysLog("seed playground agents failed: " + err.Error())

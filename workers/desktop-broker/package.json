@@ -1,0 +1,26 @@
+{
+  "name": "boxai-desktop-broker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:local": "wrangler d1 execute boxai-desktop-broker --local --file=schema.sql",
+    "db:remote": "wrangler d1 execute boxai-desktop-broker --remote --file=schema.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.5.40",
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "typescript": "^5.5.3",
+    "vitest": "2.1.9",
+    "wrangler": "^3.99.0"
+  },
+  "allowScripts": {
+    "esbuild@0.17.19": true,
+    "esbuild@0.21.5": true,
+    "workerd@1.20241230.0": true,
+    "workerd@1.20250718.0": true
+  }
+}

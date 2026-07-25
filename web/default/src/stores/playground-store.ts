@@ -90,6 +90,18 @@ export type PlaygroundGenerationStatus = {
   pendingCount: number
 }
 
+export type AppliedRecipe = {
+  id: number
+  versionId: number
+  title: string
+  model: string
+  modality: StudioModality
+}
+export type RecipeApplication = AppliedRecipe & {
+  prompt: string
+  parameters: Record<string, unknown>
+}
+
 interface PlaygroundStoreState extends PersistedPlaygroundState {
   // Ephemeral (not persisted)
   view: PlaygroundView
@@ -97,6 +109,7 @@ interface PlaygroundStoreState extends PersistedPlaygroundState {
   groups: GroupOption[]
   prefill: PlaygroundPrefill | null
   generation: PlaygroundGenerationStatus
+  appliedRecipe: AppliedRecipe | null
 
   setView: (view: PlaygroundView) => void
   setWorkspaceMode: (mode: PlaygroundWorkspaceMode) => void
@@ -144,7 +157,9 @@ interface PlaygroundStoreState extends PersistedPlaygroundState {
   deleteSession: (sessionId: string) => void
   renameSession: (sessionId: string, title: string) => void
   updateActiveSession: (
-    patch: Partial<PlaygroundSession> | ((prev: PlaygroundSession) => PlaygroundSession)
+    patch:
+      | Partial<PlaygroundSession>
+      | ((prev: PlaygroundSession) => PlaygroundSession)
   ) => void
   setSessionDraft: (sessionId: string, draft: string) => void
   setModels: (models: ModelOption[]) => void
@@ -155,6 +170,8 @@ interface PlaygroundStoreState extends PersistedPlaygroundState {
   beginGeneration: (modality: StudioModality) => void
   endGeneration: () => void
   resetWorkbenchPrefs: () => void
+  applyRecipe: (recipe: RecipeApplication) => void
+  clearAppliedRecipe: () => void
 }
 
 function withActiveSessionUpdate(
@@ -302,6 +319,7 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
       groups: [],
       prefill: null,
       generation: { activeModality: null, pendingCount: 0 },
+      appliedRecipe: null,
 
       setView: (view) => set({ view }),
       setWorkspaceMode: (workspaceMode) => set({ workspaceMode }),
@@ -380,10 +398,7 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
                 isDraft: false,
               } as PlaygroundSession
             }
-            sessions = upsertSession(
-              sessions,
-              touchSession(nextSession)
-            )
+            sessions = upsertSession(sessions, touchSession(nextSession))
           }
 
           return {
@@ -397,6 +412,8 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
             view: 'workspace',
             sessions,
             activeSessionByModality,
+            appliedRecipe:
+              state.appliedRecipe?.model === model ? state.appliedRecipe : null,
           }
         }),
       selectDuo: () => set({ workspaceMode: 'duo', view: 'workspace' }),
@@ -561,6 +578,7 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
               ...state.activeSessionByModality,
               [target]: draft.id,
             },
+            appliedRecipe: null,
           }
         }),
       openSession: (sessionId) =>
@@ -681,6 +699,85 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
           recentPrompts: [],
           myWorks: [],
         }),
+      applyRecipe: (recipe) =>
+        set((state) => {
+          const draft = createEmptySession(
+            recipe.modality,
+            recipe.model,
+            state.config.group
+          )
+          const chatPatch: Partial<PlaygroundConfig> = {}
+          const enabled: Partial<ParameterEnabled> = {}
+          const chatKeys = [
+            'temperature',
+            'top_p',
+            'max_tokens',
+            'frequency_penalty',
+            'presence_penalty',
+            'seed',
+          ] as const
+          for (const key of chatKeys) {
+            const value = recipe.parameters[key]
+            if (typeof value === 'number') {
+              chatPatch[key] = value
+              enabled[key] = true
+            }
+          }
+          const studioPatch: Partial<StudioSettings> = {}
+          let studioMappings: Array<[string, keyof StudioSettings]> = []
+          if (recipe.modality === 'image') {
+            studioMappings = [
+              ['n', 'imageCount'],
+              ['size', 'imageSize'],
+              ['quality', 'imageQuality'],
+            ]
+          } else if (recipe.modality === 'video') {
+            studioMappings = [
+              ['size', 'videoSize'],
+              ['duration', 'videoDuration'],
+            ]
+          } else if (recipe.modality === 'audio') {
+            studioMappings = [
+              ['voice', 'voice'],
+              ['speed', 'speed'],
+              ['format', 'audioFormat'],
+            ]
+          }
+          for (const [source, target] of studioMappings) {
+            const value = recipe.parameters[source]
+            if (typeof value === 'string' || typeof value === 'number') {
+              Object.assign(studioPatch, { [target]: value })
+            }
+          }
+          return {
+            activeModality: recipe.modality,
+            workspaceMode: 'model',
+            view: 'workspace',
+            config: { ...state.config, ...chatPatch, model: recipe.model },
+            parameterEnabled: { ...state.parameterEnabled, ...enabled },
+            studioSettings: normalizeStudioSettings({
+              ...state.studioSettings,
+              ...studioPatch,
+            }),
+            sessions: upsertSession(state.sessions, draft),
+            activeSessionByModality: {
+              ...state.activeSessionByModality,
+              [recipe.modality]: draft.id,
+            },
+            prefill: {
+              prompt: recipe.prompt,
+              nonce: (state.prefill?.nonce ?? 0) + 1,
+            },
+            appliedRecipe: {
+              id: recipe.id,
+              versionId: recipe.versionId,
+              title: recipe.title,
+              model: recipe.model,
+              modality: recipe.modality,
+            },
+          }
+        }),
+      clearAppliedRecipe: () => set({ appliedRecipe: null }),
     }),
     {
       name: PLAYGROUND_STORE_STORAGE_KEY,

@@ -1,0 +1,32 @@
+name = "boxai-desktop-broker"
+main = "src/index.ts"
+compatibility_date = "2024-12-30"
+# Only the test pool needs it (@cloudflare/vitest-pool-workers refuses to run without), but the
+# flag has to match between test and production or the two runtimes diverge.
+compatibility_flags = ["nodejs_compat"]
+account_id = "4379d21a3d3eadc0e37d63abff091f31"
+
+# Custom domain rather than a route pattern: wrangler then owns the DNS record and the edge cert
+# for api-desktop.you-box.com, so the desktop's hardcoded base URL needs no manual DNS step.
+[[routes]]
+pattern = "api-desktop.you-box.com"
+custom_domain = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "boxai-desktop-broker"
+database_id = "243e7ccb-0be4-45f6-a829-705eccdf70bb"
+
+[vars]
+HUB_BASE_URL = "https://you-box.com"
+BROKER_BASE_URL = "https://api-desktop.you-box.com"
+JWT_ISSUER = "https://you-box.com"
+JWT_AUDIENCE = "https://you-box.com/desktop"
+GITHUB_APP_SLUG = "boxai-agent"
+
+# Secrets (wrangler secret put …): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SLACK_CLIENT_ID,
+# SLACK_CLIENT_SECRET, NOTION_CLIENT_ID, NOTION_CLIENT_SECRET, GITHUB_CLIENT_ID,
+# GITHUB_CLIENT_SECRET, GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY.
+
+[observability]
+enabled = true

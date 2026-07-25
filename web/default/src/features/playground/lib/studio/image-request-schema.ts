@@ -30,12 +30,7 @@ export const GPT_IMAGE_SIZES = [
 ] as const
 
 /** Official GPT Image / gpt-image-2 quality enum (not DALL·E standard/hd). */
-export const GPT_IMAGE_QUALITIES = [
-  'auto',
-  'low',
-  'medium',
-  'high',
-] as const
+export const GPT_IMAGE_QUALITIES = ['auto', 'low', 'medium', 'high'] as const
 
 export const GPT_IMAGE_COUNTS = [1, 2, 3, 4] as const
 

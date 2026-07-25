@@ -327,6 +327,14 @@ distributor.no_available_channel: "分组 {{.Group}} 下模型 {{.Model}} 无可
 distributor.invalid_midjourney_request: "无效的midjourney请求，{{.Error}}"
 distributor.invalid_request_parse_model: "无效的请求，无法解析模型"
 
+# Desktop device authorization messages
+device_auth.disabled: "桌面端登录未启用"
+device_auth.not_found: "该登录码无效"
+device_auth.expired: "该登录码已过期，请在桌面端重新发起登录"
+device_auth.already_used: "该登录码已被处理"
+device_auth.token_limit: "令牌数量已达上限，请删除不用的令牌后重试"
+device_auth.create_failed: "创建桌面端 API 密钥失败"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "自定义 OAuth 提供商不存在"
 custom_oauth.slug_empty: "标识符不能为空"

@@ -24,6 +24,8 @@ import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as DocsSlugRouteImport } from './routes/docs/$slug'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
 import { Route as ConsoleLogRouteImport } from './routes/console/log'
+import { Route as AuthenticatedInspirationAdminRouteImport } from './routes/_authenticated/inspiration-admin'
+import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
 import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authenticated/chat2link'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
@@ -146,6 +148,17 @@ const ConsoleLogRoute = ConsoleLogRouteImport.update({
   id: '/console/log',
   path: '/console/log',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedInspirationAdminRoute =
+  AuthenticatedInspirationAdminRouteImport.update({
+    id: '/inspiration-admin',
+    path: '/inspiration-admin',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDeviceRoute = AuthenticatedDeviceRouteImport.update({
+  id: '/device',
+  path: '/device',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedChat2linkRoute = AuthenticatedChat2linkRouteImport.update({
   id: '/chat2link',
@@ -442,6 +455,8 @@ export interface FileRoutesByFullPath {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/device': typeof AuthenticatedDeviceRoute
+  '/inspiration-admin': typeof AuthenticatedInspirationAdminRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/docs/$slug': typeof DocsSlugRoute
@@ -505,6 +520,8 @@ export interface FileRoutesByTo {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/device': typeof AuthenticatedDeviceRoute
+  '/inspiration-admin': typeof AuthenticatedInspirationAdminRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/docs/$slug': typeof DocsSlugRoute
@@ -572,6 +589,8 @@ export interface FileRoutesById {
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
+  '/_authenticated/device': typeof AuthenticatedDeviceRoute
+  '/_authenticated/inspiration-admin': typeof AuthenticatedInspirationAdminRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/docs/$slug': typeof DocsSlugRoute
@@ -638,6 +657,8 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/chat2link'
+    | '/device'
+    | '/inspiration-admin'
     | '/console/log'
     | '/console/topup'
     | '/docs/$slug'
@@ -701,6 +722,8 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/chat2link'
+    | '/device'
+    | '/inspiration-admin'
     | '/console/log'
     | '/console/topup'
     | '/docs/$slug'
@@ -767,6 +790,8 @@ export interface FileRouteTypes {
     | '/(errors)/500'
     | '/(errors)/503'
     | '/_authenticated/chat2link'
+    | '/_authenticated/device'
+    | '/_authenticated/inspiration-admin'
     | '/console/log'
     | '/console/topup'
     | '/docs/$slug'
@@ -944,6 +969,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/console/log'
       preLoaderRoute: typeof ConsoleLogRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/inspiration-admin': {
+      id: '/_authenticated/inspiration-admin'
+      path: '/inspiration-admin'
+      fullPath: '/inspiration-admin'
+      preLoaderRoute: typeof AuthenticatedInspirationAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/device': {
+      id: '/_authenticated/device'
+      path: '/device'
+      fullPath: '/device'
+      preLoaderRoute: typeof AuthenticatedDeviceRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/chat2link': {
       id: '/_authenticated/chat2link'
@@ -1377,6 +1416,8 @@ const AuthenticatedSystemSettingsRouteRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
+  AuthenticatedDeviceRoute: typeof AuthenticatedDeviceRoute
+  AuthenticatedInspirationAdminRoute: typeof AuthenticatedInspirationAdminRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -1401,6 +1442,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSystemSettingsRouteRoute:
     AuthenticatedSystemSettingsRouteRouteWithChildren,
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,
+  AuthenticatedDeviceRoute: AuthenticatedDeviceRoute,
+  AuthenticatedInspirationAdminRoute: AuthenticatedInspirationAdminRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,

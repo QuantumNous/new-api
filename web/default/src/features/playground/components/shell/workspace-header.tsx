@@ -142,7 +142,7 @@ export function WorkspaceHeader(props: WorkspaceHeaderProps) {
         <button
           type='button'
           onClick={props.onOpenCatalog}
-          className='focus-visible:ring-ring hover:bg-muted/50 active:bg-muted flex min-h-9 min-w-0 items-center gap-1.5 rounded-xl py-1 pr-1.5 pl-0.5 text-left outline-none transition-colors focus-visible:ring-2'
+          className='focus-visible:ring-ring hover:bg-muted/50 active:bg-muted flex min-h-9 min-w-0 items-center gap-1.5 rounded-xl py-1 pr-1.5 pl-0.5 text-left transition-colors outline-none focus-visible:ring-2'
           aria-label={t('Open catalog')}
         >
           {modelInfo}
@@ -169,9 +169,7 @@ export function WorkspaceHeader(props: WorkspaceHeaderProps) {
             size='icon'
             variant='ghost'
             className='text-muted-foreground hover:text-foreground size-9 touch-manipulation sm:size-8'
-            aria-label={
-              modality === 'chat' ? t('New chat') : t('New project')
-            }
+            aria-label={modality === 'chat' ? t('New chat') : t('New project')}
             onClick={props.onNewSession}
           >
             <Plus className='size-4' />

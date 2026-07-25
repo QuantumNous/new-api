@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { SlidersHorizontal } from 'lucide-react'
+import { SlidersHorizontal, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -78,7 +78,6 @@ import {
 import { isPlaygroundImageModel } from './lib/studio/image-request-schema'
 import { getModelModality } from './lib/studio/model-modality'
 import type { AgentCard } from './lib/workbench/agents-data'
-import type { InspirationTemplate } from './lib/workbench/inspiration-data'
 import type { ChatAttachment, PlaygroundConfig, StudioModality } from './types'
 
 export function Playground() {
@@ -136,6 +135,10 @@ export function Playground() {
   const setGroups = usePlaygroundStore((state) => state.setGroups)
   const patchConfig = usePlaygroundStore((state) => state.updateConfig)
   const clearMessages = usePlaygroundStore((state) => state.clearMessages)
+  const appliedRecipe = usePlaygroundStore((state) => state.appliedRecipe)
+  const clearAppliedRecipe = usePlaygroundStore(
+    (state) => state.clearAppliedRecipe
+  )
 
   useSessionCloudSync(isAuthenticated)
   const updateConfig = useCallback(
@@ -574,16 +577,6 @@ export function Playground() {
     [selectModelByModality]
   )
 
-  const handleApplyTemplate = useCallback(
-    (template: InspirationTemplate) => {
-      selectModelByModality(
-        template.modality as StudioModality,
-        template.prompt
-      )
-    },
-    [selectModelByModality]
-  )
-
   const handleApplyPrompt = useCallback(
     (prompt: string, modality: StudioModality) => {
       selectModelByModality(modality, prompt)
@@ -694,9 +687,18 @@ export function Playground() {
         <InspirationView
           myWorks={myWorks}
           recentPrompts={recentPrompts}
-          onApplyTemplate={handleApplyTemplate}
           onApplyPrompt={handleApplyPrompt}
           onRemoveWork={removeMyWork}
+          isAuthenticated={isAuthenticated}
+          onRequireAuth={() => setSignInDialogOpen(true)}
+          availableModels={playgroundModels
+            .filter((model) =>
+              models.some((item) => item.value === model.model_name)
+            )
+            .map((model) => ({
+              name: model.model_name,
+              modality: getModelModality(model),
+            }))}
         />
       )}
 
@@ -766,6 +768,22 @@ export function Playground() {
             />
           </div>
           <div className='playground-composer-dock mx-auto w-full max-w-4xl shrink-0 space-y-2 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:px-3 sm:pb-3 md:px-3 md:pb-4'>
+            {appliedRecipe && (
+              <div className='bg-muted text-muted-foreground flex w-fit items-center gap-2 rounded-full px-3 py-1 text-xs'>
+                <span>
+                  {t('Applied from {{title}}', { title: appliedRecipe.title })}
+                </span>
+                <Button
+                  type='button'
+                  size='icon-sm'
+                  variant='ghost'
+                  aria-label={t('Dismiss')}
+                  onClick={clearAppliedRecipe}
+                >
+                  <X className='size-3' />
+                </Button>
+              </div>
+            )}
             <ChatComposer
               disabled={isGenerating || isRouting}
               isGenerating={isGenerating}
@@ -780,12 +798,30 @@ export function Playground() {
       )}
 
       {showWorkspace && !duoActive && activeModality !== 'chat' && (
-        <GenerationWorkspace
-          modality={activeModality}
-          pricingModel={selectedCatalogModel}
-          canSubmit={requireAuthentication}
-          studio={studio}
-        />
+        <div className='flex min-h-0 flex-1 flex-col'>
+          {appliedRecipe && (
+            <div className='bg-muted text-muted-foreground mx-3 mt-2 flex w-fit items-center gap-2 rounded-full px-3 py-1 text-xs'>
+              <span>
+                {t('Applied from {{title}}', { title: appliedRecipe.title })}
+              </span>
+              <Button
+                type='button'
+                size='icon-sm'
+                variant='ghost'
+                aria-label={t('Dismiss')}
+                onClick={clearAppliedRecipe}
+              >
+                <X className='size-3' />
+              </Button>
+            </div>
+          )}
+          <GenerationWorkspace
+            modality={activeModality}
+            pricingModel={selectedCatalogModel}
+            canSubmit={requireAuthentication}
+            studio={studio}
+          />
+        </div>
       )}
 
       <Sheet open={settingsSheetOpen} onOpenChange={setSettingsSheetOpen}>

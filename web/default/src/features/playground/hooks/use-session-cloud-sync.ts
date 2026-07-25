@@ -55,13 +55,19 @@ function toServerMessages(
   messages: Message[]
 ): ServerConversationMessageInput[] {
   return messages
-    .filter((message) => message.from === 'user' || message.from === 'assistant')
-    .filter((message) => message.status !== 'loading' && message.status !== 'streaming')
+    .filter(
+      (message) => message.from === 'user' || message.from === 'assistant'
+    )
+    .filter(
+      (message) =>
+        message.status !== 'loading' && message.status !== 'streaming'
+    )
     .map((message) => {
       const tool: ToolPayload = {}
       if (message.managedTool) tool.managedTool = message.managedTool
       if (message.sources?.length) tool.sources = message.sources
-      if (message.modelChangeFrom) tool.modelChangeFrom = message.modelChangeFrom
+      if (message.modelChangeFrom)
+        tool.modelChangeFrom = message.modelChangeFrom
       if (message.modelChangeTo) tool.modelChangeTo = message.modelChangeTo
       if (message.reasoning) tool.reasoning = message.reasoning
       const hasTool = Object.keys(tool).length > 0

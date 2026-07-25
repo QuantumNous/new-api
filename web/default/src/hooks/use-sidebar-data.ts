@@ -25,6 +25,7 @@ import {
   HeartPulse,
   Key,
   LayoutDashboard,
+  Lightbulb,
   ListTodo,
   Radio,
   ServerCog,
@@ -144,6 +145,11 @@ export function useSidebarData(): SidebarData {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,
+          },
+          {
+            title: t('Inspiration templates'),
+            url: '/inspiration-admin',
+            icon: Lightbulb,
           },
           {
             title: t('Users'),

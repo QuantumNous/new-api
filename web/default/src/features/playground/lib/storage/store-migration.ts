@@ -24,7 +24,6 @@ import type {
   StudioModality,
   StudioSettings,
 } from '../../types'
-import { normalizeImageGenerationSettings } from '../studio/image-request-schema'
 import type {
   ActiveSessionByModality,
   PlaygroundSession,
@@ -41,6 +40,7 @@ import {
   getInitialParameterEnabled,
   getInitialPlaygroundConfig,
 } from '../state/playground-state-utils'
+import { normalizeImageGenerationSettings } from '../studio/image-request-schema'
 import {
   MAX_MY_WORKS,
   MAX_PINNED_MODELS,
@@ -153,7 +153,8 @@ export function preparePersistedPlaygroundState(
       runs: session.runs?.slice(-40).map((run) => ({
         ...run,
         resultUrl:
-          run.resultUrl?.startsWith('data:') || run.resultUrl?.startsWith('blob:')
+          run.resultUrl?.startsWith('data:') ||
+          run.resultUrl?.startsWith('blob:')
             ? undefined
             : run.resultUrl,
       })),
@@ -527,12 +528,15 @@ function normalizeSessionsField(
   return pruneSessions(sessions)
 }
 
-function normalizeActiveSessionMap(
-  value: unknown
-): ActiveSessionByModality {
+function normalizeActiveSessionMap(value: unknown): ActiveSessionByModality {
   if (!isRecord(value)) return {}
   const result: ActiveSessionByModality = {}
-  for (const modality of ['chat', 'image', 'video', 'audio'] as SessionModality[]) {
+  for (const modality of [
+    'chat',
+    'image',
+    'video',
+    'audio',
+  ] as SessionModality[]) {
     const id = value[modality]
     if (typeof id === 'string' || id === null) {
       result[modality] = id
@@ -651,14 +655,20 @@ export function loadPersistedPlaygroundState(): PersistedPlaygroundState {
 
   // Ensure the active modality always has a session pointer.
   if (!activeSessionByModality[activeModality]) {
-    const existing = sessions.find((session) => session.modality === activeModality)
+    const existing = sessions.find(
+      (session) => session.modality === activeModality
+    )
     if (existing) {
       activeSessionByModality = {
         ...activeSessionByModality,
         [activeModality]: existing.id,
       }
     } else {
-      const draft = createEmptySession(activeModality, config.model, config.group)
+      const draft = createEmptySession(
+        activeModality,
+        config.model,
+        config.group
+      )
       sessions = upsertSession(sessions, draft)
       activeSessionByModality = {
         ...activeSessionByModality,

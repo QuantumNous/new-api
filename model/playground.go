@@ -1,7 +1,6 @@
 package model
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -31,9 +30,9 @@ func (PlaygroundAsset) TableName() string { return "playground_assets" }
 // PlaygroundConversation is a cloud-synced chat or duo session.
 // Kind: "chat" (default) | "duo". Empty kind is treated as chat for legacy rows.
 type PlaygroundConversation struct {
-	Id        int    `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserId    int    `json:"user_id" gorm:"not null;index"`
-	Title     string `json:"title" gorm:"type:varchar(255)"`
+	Id     int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	UserId int    `json:"user_id" gorm:"not null;index"`
+	Title  string `json:"title" gorm:"type:varchar(255)"`
 	// Engine selected for the *next* turn (not per-turn history).
 	Model string `json:"model" gorm:"type:varchar(191)"`
 	Group string `json:"group" gorm:"type:varchar(50)"`
@@ -77,12 +76,12 @@ func (PlaygroundMessage) TableName() string { return "playground_messages" }
 // PlaygroundProject is a cloud-synced Studio work item (image/video/audio).
 // Runs are immutable children linked via ProjectId on PlaygroundRun.
 type PlaygroundProject struct {
-	Id        int    `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserId    int    `json:"user_id" gorm:"not null;index"`
-	Modality  string `json:"modality" gorm:"type:varchar(20);not null;index"` // image | video | audio
-	Title     string `json:"title" gorm:"type:varchar(255)"`
-	Model     string `json:"model" gorm:"type:varchar(191)"`
-	Group     string `json:"group" gorm:"type:varchar(50)"`
+	Id       int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	UserId   int    `json:"user_id" gorm:"not null;index"`
+	Modality string `json:"modality" gorm:"type:varchar(20);not null;index"` // image | video | audio
+	Title    string `json:"title" gorm:"type:varchar(255)"`
+	Model    string `json:"model" gorm:"type:varchar(191)"`
+	Group    string `json:"group" gorm:"type:varchar(50)"`
 	// ClientKey is the local session id used for idempotent create/merge.
 	ClientKey   string `json:"client_key" gorm:"type:varchar(64);index"`
 	LastPrompt  string `json:"last_prompt" gorm:"type:text"`
@@ -110,7 +109,7 @@ func (PlaygroundPersona) TableName() string { return "playground_personas" }
 type PlaygroundRun struct {
 	Id        int    `json:"id" gorm:"primaryKey;autoIncrement"`
 	UserId    int    `json:"user_id" gorm:"not null;index"`
-	ProjectId int    `json:"project_id" gorm:"index"` // 0 = unscoped / legacy "My works"
+	ProjectId int    `json:"project_id" gorm:"index"`                         // 0 = unscoped / legacy "My works"
 	Modality  string `json:"modality" gorm:"type:varchar(20);not null;index"` // image | video | audio | chat
 	Model     string `json:"model" gorm:"type:varchar(191)"`
 	Prompt    string `json:"prompt" gorm:"type:text"`
@@ -191,27 +190,37 @@ func (PlaygroundVoice) TableName() string { return "playground_voices" }
 
 // InspirationCategory groups inspiration templates.
 type InspirationCategory struct {
-	Id        int    `json:"id" gorm:"primaryKey;autoIncrement"`
-	Slug      string `json:"slug" gorm:"type:varchar(64);uniqueIndex;not null"`
-	Name      string `json:"name" gorm:"type:varchar(128);not null"`
-	SortOrder int    `json:"sort_order"`
-	CreatedAt int64  `json:"created_at" gorm:"bigint"`
+	Id          int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	Slug        string `json:"slug" gorm:"type:varchar(64);uniqueIndex;not null"`
+	Name        string `json:"name" gorm:"type:varchar(128);not null"`
+	Description string `json:"description" gorm:"type:text"`
+	Status      string `json:"status" gorm:"type:varchar(16);index"`
+	SortOrder   int    `json:"sort_order"`
+	CreatedAt   int64  `json:"created_at" gorm:"bigint"`
 }
 
 func (InspirationCategory) TableName() string { return "inspiration_categories" }
 
 // InspirationTemplate is a prompt template for the inspiration square.
 type InspirationTemplate struct {
-	Id         int    `json:"id" gorm:"primaryKey;autoIncrement"`
-	CategoryId int    `json:"category_id" gorm:"index"`
-	Slug       string `json:"slug" gorm:"type:varchar(64);uniqueIndex;not null"`
-	Title      string `json:"title" gorm:"type:varchar(255);not null"`
-	Prompt     string `json:"prompt" gorm:"type:text;not null"`
-	Modality   string `json:"modality" gorm:"type:varchar(20);not null;index"` // image | video | chat | audio
-	CoverURL   string `json:"cover_url" gorm:"type:varchar(1024)"`
-	UseCount   int    `json:"use_count"`
-	SortOrder  int    `json:"sort_order"`
-	CreatedAt  int64  `json:"created_at" gorm:"bigint"`
+	Id                 int     `json:"id" gorm:"primaryKey;autoIncrement"`
+	CategoryId         int     `json:"category_id" gorm:"index"`
+	Slug               string  `json:"slug" gorm:"type:varchar(64);uniqueIndex;not null"`
+	Title              string  `json:"title" gorm:"type:varchar(255);not null"`
+	Prompt             string  `json:"prompt" gorm:"type:text;not null"`
+	Modality           string  `json:"modality" gorm:"type:varchar(20);not null;index"` // image | video | chat | audio
+	CoverURL           string  `json:"cover_url" gorm:"type:varchar(1024)"`
+	UseCount           int     `json:"use_count"`
+	SortOrder          int     `json:"sort_order"`
+	CreatedAt          int64   `json:"created_at" gorm:"bigint"`
+	Description        string  `json:"description" gorm:"type:text"`
+	Status             string  `json:"status" gorm:"type:varchar(16);index"`
+	Source             string  `json:"source" gorm:"type:varchar(16);index"`
+	Featured           bool    `json:"featured"`
+	PublishedVersionId *int    `json:"published_version_id" gorm:"index"`
+	DraftVersionId     *int    `json:"draft_version_id" gorm:"index"`
+	TagsJSON           *string `json:"-" gorm:"type:text"`
+	UpdatedAt          *int64  `json:"updated_at" gorm:"bigint;autoUpdateTime:false"`
 }
 
 func (InspirationTemplate) TableName() string { return "inspiration_templates" }
@@ -688,85 +697,6 @@ func DeletePlaygroundVoice(id, userId int) error {
 	if res.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
-	return nil
-}
-
-// --- Inspiration helpers ---
-
-func ListInspirationCategories() ([]InspirationCategory, error) {
-	var items []InspirationCategory
-	err := DB.Order("sort_order ASC, id ASC").Find(&items).Error
-	return items, err
-}
-
-func ListInspirationTemplates(categorySlug, modality string, offset, limit int) ([]InspirationTemplate, int64, error) {
-	q := DB.Model(&InspirationTemplate{})
-	if categorySlug != "" && categorySlug != "all" {
-		var cat InspirationCategory
-		if err := DB.Where("slug = ?", categorySlug).First(&cat).Error; err == nil {
-			q = q.Where("category_id = ?", cat.Id)
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, 0, err
-		}
-	}
-	if modality != "" && modality != "all" {
-		q = q.Where("modality = ?", modality)
-	}
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	var items []InspirationTemplate
-	err := q.Order("sort_order ASC, id DESC").Offset(offset).Limit(limit).Find(&items).Error
-	return items, total, err
-}
-
-func IncrementInspirationUseCount(id int) error {
-	return DB.Model(&InspirationTemplate{}).Where("id = ?", id).
-		UpdateColumn("use_count", gorm.Expr("use_count + 1")).Error
-}
-
-// SeedInspirationIfEmpty inserts default categories/templates when tables are empty.
-func SeedInspirationIfEmpty() error {
-	var count int64
-	if err := DB.Model(&InspirationCategory{}).Count(&count).Error; err != nil {
-		return err
-	}
-	if count > 0 {
-		return nil
-	}
-	now := time.Now().Unix()
-	cats := []InspirationCategory{
-		{Slug: "product", Name: "Product", SortOrder: 1, CreatedAt: now},
-		{Slug: "portrait", Name: "Portrait", SortOrder: 2, CreatedAt: now},
-		{Slug: "landscape", Name: "Landscape", SortOrder: 3, CreatedAt: now},
-		{Slug: "creative", Name: "Creative", SortOrder: 4, CreatedAt: now},
-		{Slug: "video", Name: "Video", SortOrder: 5, CreatedAt: now},
-		{Slug: "writing", Name: "Writing", SortOrder: 6, CreatedAt: now},
-	}
-	for i := range cats {
-		if err := DB.Create(&cats[i]).Error; err != nil {
-			return err
-		}
-	}
-	catBySlug := map[string]int{}
-	for _, c := range cats {
-		catBySlug[c.Slug] = c.Id
-	}
-	templates := []InspirationTemplate{
-		{CategoryId: catBySlug["product"], Slug: "studio-product", Title: "Studio product shot", Prompt: "Studio product photo on a clean background, soft lighting, high detail", Modality: "image", SortOrder: 1, CreatedAt: now},
-		{CategoryId: catBySlug["portrait"], Slug: "cinematic-portrait", Title: "Cinematic portrait", Prompt: "Cinematic portrait with shallow depth of field, natural light, film grain", Modality: "image", SortOrder: 2, CreatedAt: now},
-		{CategoryId: catBySlug["landscape"], Slug: "golden-hour", Title: "Golden hour landscape", Prompt: "Wide landscape at golden hour, dramatic sky, ultra detailed", Modality: "image", SortOrder: 3, CreatedAt: now},
-		{CategoryId: catBySlug["creative"], Slug: "surreal-scene", Title: "Surreal scene", Prompt: "Surreal dreamlike scene, vibrant colors, imaginative composition", Modality: "image", SortOrder: 4, CreatedAt: now},
-		{CategoryId: catBySlug["video"], Slug: "product-orbit", Title: "Product orbit video", Prompt: "Slow orbit around a product on a pedestal, cinematic lighting", Modality: "video", SortOrder: 5, CreatedAt: now},
-		{CategoryId: catBySlug["writing"], Slug: "product-copy", Title: "Product copywriter", Prompt: "Write concise product marketing copy for a premium consumer gadget.", Modality: "chat", SortOrder: 6, CreatedAt: now},
-	}
-	for i := range templates {
-		if err := DB.Create(&templates[i]).Error; err != nil {
-			return err
-		}
-	}
-	common.SysLog(fmt.Sprintf("seeded %d inspiration templates", len(templates)))
 	return nil
 }
 
