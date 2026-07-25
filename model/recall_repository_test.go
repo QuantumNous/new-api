@@ -93,6 +93,48 @@ func newRecallRepositoryCampaign(name string) RecallCampaign {
 	}
 }
 
+func TestRecallCampaignTypeDefaultsAndBackfill(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	legacy := newRecallRepositoryCampaign("legacy campaign type")
+	legacy.CampaignType = ""
+	require.NoError(t, CreateRecallCampaign(&legacy))
+	require.Equal(t, RecallCampaignTypePromotion, legacy.CampaignType)
+
+	explicit := newRecallRepositoryCampaign("content only campaign type")
+	explicit.CampaignType = RecallCampaignTypeContentOnly
+	require.NoError(t, CreateRecallCampaign(&explicit))
+	storedExplicit, err := GetRecallCampaignByID(explicit.Id)
+	require.NoError(t, err)
+	require.Equal(t, RecallCampaignTypeContentOnly, storedExplicit.CampaignType)
+
+	require.NoError(t, DB.Model(&RecallCampaign{}).
+		Where("id = ?", legacy.Id).
+		Update("campaign_type", "").Error)
+	require.NoError(t, migrateRecallCampaignTypes())
+	require.NoError(t, migrateRecallCampaignTypes())
+
+	storedLegacy, err := GetRecallCampaignByID(legacy.Id)
+	require.NoError(t, err)
+	require.Equal(t, RecallCampaignTypePromotion, storedLegacy.CampaignType)
+}
+
+func TestRecallCampaignDraftUpdatePersistsCampaignType(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	campaign := newRecallRepositoryCampaign("draft campaign type")
+	require.NoError(t, CreateRecallCampaign(&campaign))
+	campaign.CampaignType = RecallCampaignTypeContentOnly
+
+	won, err := UpdateRecallCampaignDraftWithContext(context.Background(), &campaign)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	stored, err := GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, RecallCampaignTypeContentOnly, stored.CampaignType)
+}
+
 func createRecallRepositoryCandidateUser(t *testing.T, suffix string, createdAt int64, requestCount int) User {
 	t.Helper()
 	user := User{

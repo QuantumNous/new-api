@@ -9,6 +9,9 @@ import (
 )
 
 const (
+	RecallCampaignTypePromotion   = "promotion"
+	RecallCampaignTypeContentOnly = "content_only"
+
 	RecallCampaignDraft     = "draft"
 	RecallCampaignScheduled = "scheduled"
 	RecallCampaignRunning   = "running"
@@ -20,6 +23,7 @@ const (
 
 type RecallCampaign struct {
 	Id                    int64  `json:"id" gorm:"primaryKey"`
+	CampaignType          string `json:"campaign_type" gorm:"type:varchar(32);not null;default:promotion"`
 	Name                  string `json:"name" gorm:"type:varchar(128);not null"`
 	Status                string `json:"status" gorm:"type:varchar(24);not null;index"`
 	AudienceTemplate      string `json:"audience_template" gorm:"type:varchar(32);not null"`
@@ -49,7 +53,14 @@ func CreateRecallCampaign(campaign *RecallCampaign) error {
 }
 
 func CreateRecallCampaignWithContext(ctx context.Context, campaign *RecallCampaign) error {
+	normalizeRecallCampaignTypeDefault(campaign)
 	return DB.WithContext(ctx).Create(campaign).Error
+}
+
+func normalizeRecallCampaignTypeDefault(campaign *RecallCampaign) {
+	if campaign != nil && strings.TrimSpace(campaign.CampaignType) == "" {
+		campaign.CampaignType = RecallCampaignTypePromotion
+	}
 }
 
 func GetRecallCampaignByID(id int64) (*RecallCampaign, error) {
@@ -106,6 +117,7 @@ func UpdateRecallCampaignDraftWithContext(ctx context.Context, campaign *RecallC
 	result := DB.WithContext(ctx).Model(&RecallCampaign{}).
 		Where("id = ? AND status = ? AND config_revision = ?", campaign.Id, RecallCampaignDraft, campaign.ConfigRevision).
 		Updates(map[string]any{
+			"campaign_type":     campaign.CampaignType,
 			"name":              campaign.Name,
 			"audience_template": campaign.AudienceTemplate,
 			"audience_config":   campaign.AudienceConfig,

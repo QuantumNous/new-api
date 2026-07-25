@@ -330,6 +330,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := migrateRecallCampaignTypes(); err != nil {
+		return err
+	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -415,6 +418,9 @@ func migrateDBFast() error {
 			return fmt.Errorf("failed to migrate %s: %v", m.name, err)
 		}
 	}
+	if err := migrateRecallCampaignTypes(); err != nil {
+		return err
+	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -497,6 +503,20 @@ func migrateRecallRecipientIdentity() error {
 		}
 	}
 	return nil
+}
+
+func migrateRecallCampaignTypes() error {
+	if DB == nil || !DB.Migrator().HasTable(&RecallCampaign{}) {
+		return nil
+	}
+	if !DB.Migrator().HasColumn(&RecallCampaign{}, "campaign_type") {
+		if err := DB.Migrator().AddColumn(&RecallCampaign{}, "CampaignType"); err != nil {
+			return fmt.Errorf("failed to add recall campaign type column: %w", err)
+		}
+	}
+	return DB.Model(&RecallCampaign{}).
+		Where("campaign_type IS NULL OR TRIM(campaign_type) = ''").
+		Update("campaign_type", RecallCampaignTypePromotion).Error
 }
 
 func recallRecipientIdentitySchemaSwapPending() bool {
