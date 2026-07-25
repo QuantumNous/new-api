@@ -23,7 +23,7 @@ import (
 
 const (
 	recallEmailTranslationDefaultMaxBytes = int64(256 * 1024)
-	recallEmailTranslationDefaultTimeout  = 30 * time.Second
+	recallEmailTranslationDefaultTimeout  = 5 * time.Minute
 	recallEmailTranslationMaxAttempts     = 3
 	recallEmailTranslationMaxRetryAfter   = 2 * time.Second
 	recallEmailSubjectMaxRunes            = 200
