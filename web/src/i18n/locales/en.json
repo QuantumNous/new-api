@@ -2012,7 +2012,7 @@
     "Format: APIKey-AppId, e.g., fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041": "Format: APIKey-AppId, e.g., fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041",
     "Format: APIKey|SecretKey": "Format: APIKey|SecretKey",
     "Format: APPID|APISecret|APIKey": "Format: APPID|APISecret|APIKey",
-    "Format: AppId|SecretId|SecretKey": "Format: AppId|SecretId|SecretKey",
+    "Format: TokenHub API Key, or legacy AppId|SecretId|SecretKey": "Format: TokenHub API Key, or legacy AppId|SecretId|SecretKey",
     "Forward requests directly to upstream providers without any post-processing.": "Forward requests directly to upstream providers without any post-processing.",
     "Frames per second": "Frames per second",
     "Free": "Free",
