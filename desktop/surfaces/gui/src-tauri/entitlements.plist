@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened-runtime entitlements applied when code-signing the app and its binaries.
+     disable-library-validation is required by the PyInstaller onefile sidecar: it extracts
+     the Python shared library (signed by python.org, a different Team ID) at runtime, which
+     library validation would otherwise refuse to load. Accepted by notarization. -->
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <!-- Voice input (§37): hardened-runtime processes need this entitlement to capture the
+         microphone — without it the SIGNED app is denied by macOS even though dev builds work
+         (Info.plist's NSMicrophoneUsageDescription is only the prompt text, not the grant). -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+  </dict>
+</plist>

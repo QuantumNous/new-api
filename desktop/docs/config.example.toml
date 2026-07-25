@@ -1,0 +1,24 @@
+# coworker config — copy to one of:
+#   ~/.config/coworker/config.toml          (global)
+#   <your-project>/.coworker/config.toml    (per-workspace, overrides global)
+#
+# All keys are optional; unset keys fall back to built-in defaults.
+
+model = "gpt-5.5"            # default model id (override per session in the UI/CLI)
+mode = "interactive"         # plan | interactive | auto | custom
+max_iterations = 12          # max model<->tool iterations per turn before stopping
+
+# Commands auto-allowed without an approval prompt (prefix match).
+allowed_commands = [
+  "ls", "cat", "pwd", "grep", "find",
+  "git status", "git diff", "git log",
+  "python3", "pytest", "node", "npm",
+]
+
+# In "custom" permission mode, these tools are auto-approved (everything else still
+# asks). e.g. auto-accept file edits but keep asking before running shell commands.
+auto_allow = ["write_file", "replace_in_file", "apply_patch", "apply_unified_diff"]
+
+# Server (openworker-server) bind address.
+host = "127.0.0.1"
+port = 8765

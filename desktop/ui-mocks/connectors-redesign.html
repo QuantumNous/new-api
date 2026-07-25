@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenCoworker — Connectors redesign (v2, quiet)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: ['selector', '[data-theme="dark"]'],
+    theme: { extend: {
+      colors: {
+        paper:'var(--paper)', panel:'var(--panel)', ink:'var(--ink)', muted:'var(--muted)',
+        faint:'var(--faint)', line:'var(--line)', lineStrong:'var(--line-strong)',
+        accent:'var(--accent)', accentSoft:'var(--accent-soft)', ok:'var(--ok)',
+        warnInk:'var(--warn-ink)', warnSoft:'var(--warn-soft)', danger:'var(--danger)',
+      },
+      fontFamily: { sans:['-apple-system','BlinkMacSystemFont','Segoe UI','Inter','system-ui','sans-serif'],
+                    mono:['SF Mono','Menlo','monospace'] },
+    }},
+  };
+</script>
+<style>
+  :root{
+    --paper:#f5f5f7; --panel:#ffffff; --ink:#1d1d1f; --muted:#6e6e73; --faint:#aeaeb2;
+    --line:#e8e8ed; --line-strong:#d2d2d7; --accent:#2563eb; --accent-soft:#e9f0fd;
+    --ok:#34a853; --ok-dot:#34c759; --warn-ink:#b45309; --warn-soft:#fef3c7; --danger:#ff3b30;
+  }
+  html[data-theme="dark"]{
+    --paper:#1c1c1e; --panel:#2c2c2e; --ink:#f5f5f7; --muted:#98989d; --faint:#636366;
+    --line:#3a3a3c; --line-strong:#48484a; --accent:#4c8dff; --accent-soft:#1c2a44;
+    --ok:#30d158; --ok-dot:#30d158; --warn-ink:#ffd60a; --warn-soft:#3a2f0b; --danger:#ff453a;
+  }
+  body{ background:var(--paper); color:var(--ink); -webkit-font-smoothing:antialiased; }
+  [data-brand="slack"]    { --brand:#611f69; --brand-soft:#f4ecf5; }
+  [data-brand="teams"]    { --brand:#5059c9; --brand-soft:#eceefb; }
+  [data-brand="hubspot"]  { --brand:#ff7a59; --brand-soft:#fff0ec; }
+  [data-brand="telegram"] { --brand:#229ed9; --brand-soft:#e6f4fb; }
+  [data-brand="gmail"]    { --brand:#ea4335; --brand-soft:#fdecea; }
+  [data-brand="github"]   { --brand:#1f2328; --brand-soft:#eef0f2; }
+  [data-brand="browser"]  { --brand:#6b7280; --brand-soft:#eef0f2; }
+  [data-brand="linear"]   { --brand:#5e6ad2; --brand-soft:#eef0fb; }
+  html[data-theme="dark"] [data-brand]{ --brand-soft:color-mix(in srgb, var(--brand) 18%, var(--panel)); }
+  html[data-theme="dark"] [data-brand="github"]{ --brand:#f5f5f7; }
+
+  /* macOS System-Settings grammar: grouped inset lists on gray paper */
+  .grp{ background:var(--panel); border-radius:12px; overflow:hidden;
+        box-shadow:0 0 0 0.5px var(--line-strong), 0 1px 2px rgba(0,0,0,.04); }
+  .row{ display:flex; align-items:center; gap:12px; padding:11px 16px; min-height:44px; }
+  .row + .row, .grp > * + *{ border-top:0.5px solid var(--line); }
+  .grp-h{ font-size:12px; font-weight:600; color:var(--muted); padding:0 16px; margin:22px 0 7px; }
+  .foot{ font-size:12px; color:var(--faint); padding:7px 16px 0; }
+  .badge{ width:34px; height:34px; border-radius:8px; background:var(--brand-soft); color:var(--brand);
+          display:grid; place-items:center; font-weight:700; font-size:15px; flex:none; }
+  .badge-sm{ width:24px; height:24px; border-radius:6px; background:var(--brand-soft); color:var(--brand);
+          display:grid; place-items:center; font-weight:700; font-size:12px; flex:none; }
+  .dot{ width:8px; height:8px; border-radius:9999px; flex:none; }
+  .pill{ font-size:12.5px; font-weight:500; padding:5px 12px; border-radius:9999px; flex:none; }
+  .pill-accent{ background:var(--accent); color:#fff; }
+  .pill-quiet{ background:color-mix(in srgb, var(--ink) 6%, transparent); color:var(--accent); }
+  .pill-line{ box-shadow:inset 0 0 0 1px var(--line-strong); color:var(--ink); }
+  .tag{ font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:5px; flex:none; }
+  .tag-accent{ background:var(--accent-soft); color:var(--accent); }
+  .tag-warn{ background:var(--warn-soft); color:var(--warn-ink); }
+  .tag-quiet{ background:color-mix(in srgb, var(--ink) 5%, transparent); color:var(--muted); }
+  .chev{ color:var(--faint); font-size:15px; flex:none; }
+  details > summary{ list-style:none; cursor:pointer; }
+  details > summary::-webkit-details-marker{ display:none; }
+  details[open] .dchev{ transform:rotate(90deg); }
+  .dchev{ transition:transform .15s; display:inline-block; color:var(--faint); }
+  .x{ color:var(--faint); font-size:15px; line-height:1; } .x:hover{ color:var(--danger); }
+  input[type="checkbox"]{ accent-color:var(--accent); width:15px; height:15px; }
+</style>
+</head>
+<body class="font-sans text-[13.5px]">
+
+<!-- review-only switcher -->
+<div class="flex items-center gap-3 px-4 h-11 bg-panel border-b border-line text-[12.5px]">
+  <span class="font-semibold tracking-tight">Connectors redesign · v2</span><span class="text-faint">static mock</span>
+  <div class="ml-2 inline-flex rounded-lg p-0.5 bg-paper">
+    <button data-view="list" class="view-tab px-3 py-1 rounded-md font-medium">Connectors</button>
+    <button data-view="slack" class="view-tab px-3 py-1 rounded-md font-medium">Slack</button>
+    <button data-view="gmail" class="view-tab px-3 py-1 rounded-md font-medium">Gmail</button>
+    <button data-view="hubspot" class="view-tab px-3 py-1 rounded-md font-medium">HubSpot</button>
+    <button data-view="teams" class="view-tab px-3 py-1 rounded-md font-medium">Teams</button>
+  </div>
+  <button id="themeBtn" class="ml-auto px-2.5 py-1 rounded-md bg-paper">◐</button>
+</div>
+
+<div class="flex" style="height:calc(100vh - 44px)">
+
+  <!-- app sidebar (abbreviated, real width) -->
+  <aside class="w-[264px] shrink-0 bg-panel border-r border-line flex flex-col">
+    <div class="px-3.5 pt-3.5 pb-2 flex items-center gap-2">
+      <div class="w-6 h-6 rounded-md bg-accent/15 grid place-items-center text-accent">✓</div>
+      <div class="font-semibold tracking-tight">OpenCoworker</div>
+    </div>
+    <div class="px-3 pb-2"><button class="w-full px-3 py-2 rounded-lg bg-accent text-white text-[13px] font-medium text-left">＋ New session</button></div>
+    <div class="flex-1 overflow-y-auto px-2.5 mt-2 space-y-0.5 text-[13px]">
+      <div class="px-1.5 text-[10.5px] uppercase tracking-[0.07em] text-faint font-semibold mb-1">Recent</div>
+      <button class="w-full px-2 py-2 rounded-lg hover:bg-paper text-left">hi<span class="block text-[11px] text-muted">Coworker</span></button>
+      <button class="w-full px-2 py-2 rounded-lg hover:bg-paper text-left">Q1 sales analysis<span class="block text-[11px] text-muted">Coworker</span></button>
+    </div>
+    <div class="px-2.5 py-2 border-t border-line">
+      <button class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-paper text-[13px] font-medium">⌘ Integrations</button>
+    </div>
+  </aside>
+
+  <!-- integrations sub-nav (no per-connector items) -->
+  <nav class="w-[208px] shrink-0 border-r border-line bg-panel/40 px-3 py-4 text-[13px]">
+    <div class="px-2 text-[13.5px] font-semibold mb-3">Integrations</div>
+    <button class="w-full text-left px-2.5 py-2 rounded-lg bg-paper text-accent font-medium">Connectors</button>
+    <button class="w-full text-left px-2.5 py-2 rounded-lg text-muted hover:bg-paper">Messaging routing</button>
+    <button class="w-full text-left px-2.5 py-2 rounded-lg text-muted hover:bg-paper">Activity</button>
+    <button class="w-full text-left px-2.5 py-2 rounded-lg text-muted hover:bg-paper">MCP servers</button>
+  </nav>
+
+  <div class="flex-1 min-w-0 overflow-y-auto">
+    <div class="max-w-3xl mx-auto px-8 py-8">
+
+      <!-- ============ A · CONNECTORS ============ -->
+      <section id="v-list">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="text-[22px] font-semibold tracking-tight">Connectors</h2>
+          <input placeholder="Search" class="w-44 px-3.5 py-1.5 rounded-full bg-panel text-[13px] outline-none shadow-[0_0_0_0.5px_var(--line-strong)] focus:shadow-[0_0_0_1.5px_var(--accent)]" />
+        </div>
+
+        <div class="grp-h">Connected</div>
+        <div class="grp">
+          <button data-goto="slack" class="row w-full text-left hover:bg-paper/50" data-brand="slack">
+            <span class="badge">#</span>
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">Slack</span>
+              <span class="block text-[12px] text-muted">2 workspaces · relay</span>
+            </span>
+            <span class="dot" style="background:var(--ok-dot)"></span>
+            <span class="chev">›</span>
+          </button>
+          <button data-goto="gmail" class="row w-full text-left hover:bg-paper/50" data-brand="gmail">
+            <span class="badge">✉</span>
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">Gmail</span>
+              <span class="block text-[12px] text-muted">2 accounts</span>
+            </span>
+            <span class="tag tag-warn">Reauthorize</span>
+            <span class="chev">›</span>
+          </button>
+          <button data-goto="hubspot" class="row w-full text-left hover:bg-paper/50" data-brand="hubspot">
+            <span class="badge">H</span>
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">HubSpot</span>
+              <span class="block text-[12px] text-muted">2 accounts · writes ask first</span>
+            </span>
+            <span class="dot" style="background:var(--ok-dot)"></span>
+            <span class="chev">›</span>
+          </button>
+          <button class="row w-full text-left hover:bg-paper/50" data-brand="browser">
+            <span class="badge">◍</span>
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">Browser</span>
+              <span class="block text-[12px] text-muted">Built in</span>
+            </span>
+            <span class="dot" style="background:var(--ok-dot)"></span>
+            <span class="chev">›</span>
+          </button>
+        </div>
+
+        <div class="grp-h">Available</div>
+        <div class="grp">
+          <div class="row" data-brand="teams">
+            <span class="badge">T</span>
+            <span class="min-w-0 flex-1 font-medium">Microsoft Teams</span>
+            <button data-goto="teams" class="pill pill-quiet">Connect</button>
+          </div>
+          <div class="row" data-brand="telegram">
+            <span class="badge">✈</span>
+            <span class="min-w-0 flex-1 font-medium">Telegram</span>
+            <button class="pill pill-quiet">Connect</button>
+          </div>
+          <div class="row" data-brand="github">
+            <span class="badge">◆</span>
+            <span class="min-w-0 flex-1 font-medium">GitHub</span>
+            <button class="pill pill-quiet">Connect</button>
+          </div>
+          <div class="row" data-brand="linear">
+            <span class="badge">L</span>
+            <span class="min-w-0 flex-1 font-medium">Linear</span>
+            <button class="pill pill-quiet">Connect</button>
+          </div>
+        </div>
+        <div class="foot">18 more · <button class="text-muted hover:text-ink">show all</button></div>
+
+        <div class="grp mt-6">
+          <div class="row">
+            <span class="dot" style="background:var(--ok-dot)"></span>
+            <span class="min-w-0 flex-1 text-[12.5px] text-muted">Signed in as <span class="text-ink font-medium">rohit@opencoworker.app</span></span>
+            <button class="text-[12.5px] text-muted hover:text-ink">Sign out</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ B · SLACK ============ -->
+      <section id="v-slack" class="hidden" data-brand="slack">
+        <button data-goto="list" class="text-[13px] text-accent mb-3">‹ Connectors</button>
+        <div class="flex items-center gap-3.5">
+          <span class="badge" style="width:44px;height:44px;font-size:19px;border-radius:10px">#</span>
+          <div class="min-w-0 flex-1">
+            <h2 class="text-[22px] font-semibold tracking-tight leading-tight">Slack</h2>
+            <div class="text-[12.5px] text-muted flex items-center gap-1.5">
+              <span class="dot" style="background:var(--ok-dot)"></span> Live · relay · sign-in · tokens
+            </div>
+          </div>
+          <button data-modal="slack" class="pill pill-accent">＋ Add workspace</button>
+        </div>
+
+        <div class="grp-h">deeplearning.ai <span class="font-normal text-faint">· T05F1LGKR2X</span></div>
+        <div class="grp">
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-24 shrink-0">People</span>
+            <span class="flex flex-wrap gap-1.5 flex-1">
+              <span class="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-paper text-[12.5px]">
+                <span class="w-5 h-5 rounded-full bg-accentSoft text-accent grid place-items-center text-[9px] font-bold">RP</span>
+                Rohit Prasad <button class="x">×</button>
+              </span>
+              <span class="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-paper text-[12.5px]">
+                <span class="w-5 h-5 rounded-full bg-accentSoft text-accent grid place-items-center text-[9px] font-bold">AN</span>
+                Andrew Ng <button class="x">×</button>
+              </span>
+            </span>
+          </div>
+          <div class="row bg-warnSoft/25">
+            <span class="text-[12.5px] text-muted w-24 shrink-0">Waiting</span>
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">Maya Lin</span> <span class="text-muted">in #ocw-test · 2m</span>
+              <span class="block text-[12.5px] text-muted truncate">“hey ocw, can you summarize this thread?”</span>
+            </span>
+            <button class="pill pill-accent !py-1">Allow & deliver</button>
+            <button class="pill pill-line !py-1">Allow</button>
+            <button class="x px-1">×</button>
+          </div>
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-24 shrink-0">Listening</span>
+            <span class="min-w-0 flex-1 space-y-1">
+              <span class="flex items-center gap-2"><span class="font-medium">Ops · incident watch</span><span class="text-faint">←</span><span class="text-muted">#incidents</span><button class="x ml-auto">×</button></span>
+              <span class="flex items-center gap-2"><span class="font-medium">hi</span><span class="text-faint">←</span><span class="text-muted">#ocw-test · DMs</span><button class="x ml-auto">×</button></span>
+            </span>
+          </div>
+          <div class="row">
+            <span class="flex-1"></span>
+            <button class="text-[12.5px] text-danger/90 hover:text-danger" title="Stops relaying to this computer. @ocw stays in Slack.">Disconnect workspace</button>
+          </div>
+        </div>
+
+        <div class="grp-h">acme-partners <span class="font-normal text-faint">· T09ZZ88XX77</span></div>
+        <div class="grp">
+          <div class="row">
+            <span class="min-w-0 flex-1 text-[12.5px] text-muted">No one allowed yet — mentions of @ocw show up here for your OK.</span>
+            <button class="text-[12.5px] text-danger/90 hover:text-danger">Disconnect workspace</button>
+          </div>
+        </div>
+
+        <div class="grp mt-6">
+          <details>
+            <summary class="row hover:bg-paper/50">
+              <span class="text-[12.5px] text-muted w-24 shrink-0 flex items-center gap-1.5"><span class="dchev">›</span> Tools</span>
+              <span class="min-w-0 flex-1 text-[12.5px] text-muted">2 of 2 enabled</span>
+            </summary>
+            <label class="row">
+              <input type="checkbox" checked />
+              <span class="min-w-0 flex-1"><span class="font-medium">Send messages</span></span>
+              <span class="tag tag-warn">asks first</span>
+            </label>
+            <label class="row">
+              <input type="checkbox" checked />
+              <span class="min-w-0 flex-1"><span class="font-medium">Read channel history</span></span>
+              <span class="tag tag-quiet">read</span>
+            </label>
+          </details>
+        </div>
+
+        <div class="foot">Names come from Slack automatically. IDs show on hover.</div>
+      </section>
+
+      <!-- ============ C · GMAIL ============ -->
+      <section id="v-gmail" class="hidden" data-brand="gmail">
+        <button data-goto="list" class="text-[13px] text-accent mb-3">‹ Connectors</button>
+        <div class="flex items-center gap-3.5">
+          <span class="badge" style="width:44px;height:44px;font-size:19px;border-radius:10px">✉</span>
+          <div class="min-w-0 flex-1">
+            <h2 class="text-[22px] font-semibold tracking-tight leading-tight">Gmail</h2>
+            <div class="text-[12.5px] text-muted flex items-center gap-1.5">
+              <span class="dot bg-warnInk"></span> team@dl.ai needs reauthorizing
+            </div>
+          </div>
+          <button class="pill pill-accent">＋ Add account</button>
+        </div>
+
+        <div class="grp-h">Accounts</div>
+        <div class="grp">
+          <div class="row">
+            <span class="badge-sm">✉</span>
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">rohit@dl.ai</span> <span class="tag tag-accent ml-1">Default</span>
+              <span class="block text-[12px] text-muted">Read · draft · send</span>
+            </span>
+            <span class="dot" style="background:var(--ok-dot)"></span>
+            <button class="x px-1" title="Disconnect">×</button>
+          </div>
+          <div class="row">
+            <span class="badge-sm">✉</span>
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">team@dl.ai</span>
+              <span class="block text-[12px] text-warnInk">Google revoked access — sign in again</span>
+            </span>
+            <button class="pill pill-accent !py-1">Reauthorize</button>
+            <button class="x px-1" title="Disconnect">×</button>
+          </div>
+        </div>
+        <div class="foot">Agents use the Default account unless a session picks another. Every tool call shows the account it ran as.</div>
+
+        <div class="grp-h">Never show agents</div>
+        <div class="grp">
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-24 shrink-0">Senders</span>
+            <span class="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-paper text-[12px] font-mono">finance@dl.ai <button class="x">×</button></span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-paper text-[12px] font-mono">@payroll.dl.ai <button class="x">×</button></span>
+              <button class="text-[12px] text-accent">+ Add</button>
+            </span>
+          </div>
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-24 shrink-0">Labels</span>
+            <span class="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-paper text-[12px]">Confidential <button class="x">×</button></span>
+              <button class="text-[12px] text-accent">+ Add</button>
+            </span>
+          </div>
+        </div>
+        <div class="foot">These emails don't exist as far as agents can tell — no sender, no subject, no “redacted” marker. When a search skips some, you see the count on the tool card; agents don't.</div>
+
+        <div class="grp mt-6">
+          <details>
+            <summary class="row hover:bg-paper/50">
+              <span class="text-[12.5px] text-muted w-24 shrink-0 flex items-center gap-1.5"><span class="dchev">›</span> Tools</span>
+              <span class="min-w-0 flex-1 text-[12.5px] text-muted">3 of 4 enabled</span>
+            </summary>
+            <label class="row">
+              <input type="checkbox" checked />
+              <span class="min-w-0 flex-1"><span class="font-medium">Search & read mail</span></span>
+              <span class="tag tag-quiet">read</span>
+            </label>
+            <label class="row">
+              <input type="checkbox" checked />
+              <span class="min-w-0 flex-1"><span class="font-medium">Summarize threads</span></span>
+              <span class="tag tag-quiet">read</span>
+            </label>
+            <label class="row">
+              <input type="checkbox" checked />
+              <span class="min-w-0 flex-1"><span class="font-medium">Create drafts</span></span>
+              <span class="tag tag-warn">asks first</span>
+            </label>
+            <label class="row">
+              <input type="checkbox" />
+              <span class="min-w-0 flex-1"><span class="font-medium">Send email</span></span>
+              <span class="tag tag-warn">asks first</span>
+            </label>
+          </details>
+        </div>
+      </section>
+
+      <!-- ============ D · HUBSPOT ============ -->
+      <section id="v-hubspot" class="hidden" data-brand="hubspot">
+        <button data-goto="list" class="text-[13px] text-accent mb-3">‹ Connectors</button>
+        <div class="flex items-center gap-3.5">
+          <span class="badge" style="width:44px;height:44px;font-size:19px;border-radius:10px">H</span>
+          <div class="min-w-0 flex-1">
+            <h2 class="text-[22px] font-semibold tracking-tight leading-tight">HubSpot</h2>
+            <div class="text-[12.5px] text-muted flex items-center gap-1.5">
+              <span class="dot" style="background:var(--ok-dot)"></span> Live · 2 accounts
+            </div>
+          </div>
+          <button data-modal="hubspot" class="pill pill-accent">＋ Add account</button>
+        </div>
+
+        <div class="grp-h">Accounts</div>
+        <div class="grp">
+          <div class="row">
+            <span class="badge-sm">H</span>
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">DeepLearning.AI</span> <span class="tag tag-accent ml-1">Default</span>
+              <span class="block text-[12px] text-muted">Sales Hub Pro · used 20m ago</span>
+            </span>
+            <span class="dot" style="background:var(--ok-dot)"></span>
+            <button class="x px-1" title="Disconnect">×</button>
+          </div>
+          <div class="row">
+            <span class="badge-sm">H</span>
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">DLAI Sandbox</span> <span class="tag tag-warn ml-1">Sandbox</span>
+              <span class="block text-[12px] text-muted">Writes skip approval here</span>
+            </span>
+            <span class="dot" style="background:var(--ok-dot)"></span>
+            <button class="x px-1" title="Disconnect">×</button>
+          </div>
+        </div>
+
+        <div class="grp-h">Access & privacy</div>
+        <div class="grp">
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-28 shrink-0">Access</span>
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">Read & write</span> <span class="text-muted">· as rohit@dl.ai</span>
+              <span class="block text-[12px] text-muted">Agents see only what this HubSpot user can see — narrow it with HubSpot permission sets.</span>
+            </span>
+          </div>
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-28 shrink-0">Hidden fields</span>
+            <span class="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-paper text-[12px] font-mono">salary <button class="x">×</button></span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-paper text-[12px] font-mono">ssn <button class="x">×</button></span>
+              <button class="text-[12px] text-accent">+ Add</button>
+            </span>
+            <span class="text-[12px] text-faint">never shown to models</span>
+          </div>
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-28 shrink-0">Audit</span>
+            <span class="min-w-0 flex-1 text-[12.5px]">Every call is logged with session, tool and record.</span>
+            <button class="text-[12.5px] text-accent">View activity ›</button>
+          </div>
+          <details>
+            <summary class="row hover:bg-paper/50">
+              <span class="text-[12.5px] text-muted w-28 shrink-0 flex items-center gap-1.5"><span class="dchev">›</span> Tools</span>
+              <span class="min-w-0 flex-1 text-[12.5px] text-muted">3 of 5 enabled</span>
+            </summary>
+            <label class="row">
+              <input type="checkbox" checked />
+              <span class="min-w-0 flex-1"><span class="font-medium">Search & read CRM</span></span>
+              <span class="tag tag-quiet">read</span>
+            </label>
+            <label class="row">
+              <input type="checkbox" checked />
+              <span class="min-w-0 flex-1"><span class="font-medium">Log notes & tasks</span></span>
+              <span class="tag tag-warn">asks first</span>
+            </label>
+            <label class="row">
+              <input type="checkbox" checked />
+              <span class="min-w-0 flex-1"><span class="font-medium">Create & update records</span></span>
+              <span class="tag tag-warn">asks first</span>
+            </label>
+            <label class="row">
+              <input type="checkbox" />
+              <span class="min-w-0 flex-1"><span class="font-medium">Send email via HubSpot</span></span>
+              <span class="tag tag-warn">asks first</span>
+            </label>
+            <div class="row opacity-50">
+              <input type="checkbox" disabled />
+              <span class="min-w-0 flex-1"><span class="font-medium">Delete records</span></span>
+              <span class="tag tag-quiet">never</span>
+            </div>
+          </details>
+        </div>
+        <div class="foot">Approvals name the account they'll write to — a sandbox test can't quietly hit production.</div>
+
+      </section>
+
+      <!-- ============ E · TEAMS (corrected consent model) ============ -->
+      <section id="v-teams" class="hidden" data-brand="teams">
+        <button data-goto="list" class="text-[13px] text-accent mb-3">‹ Connectors</button>
+        <div class="flex items-center gap-3.5">
+          <span class="badge" style="width:44px;height:44px;font-size:19px;border-radius:10px">T</span>
+          <div class="min-w-0 flex-1">
+            <h2 class="text-[22px] font-semibold tracking-tight leading-tight">Microsoft Teams <span class="tag tag-warn align-middle">Concept</span></h2>
+            <div class="text-[12.5px] text-muted flex items-center gap-1.5">
+              <span class="dot" style="background:var(--ok-dot)"></span> Live · 1 organization
+            </div>
+          </div>
+          <button class="pill pill-accent">＋ Add to Teams</button>
+        </div>
+
+        <div class="grp-h">DeepLearning.AI <span class="font-normal text-faint">· tenant 72f9…4a1c</span></div>
+        <div class="grp">
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-24 shrink-0">People</span>
+            <span class="flex-1">
+              <span class="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-paper text-[12.5px]">
+                <span class="w-5 h-5 rounded-full bg-accentSoft text-accent grid place-items-center text-[9px] font-bold">RP</span>
+                Rohit Prasad <button class="x">×</button>
+              </span>
+            </span>
+          </div>
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-24 shrink-0">Listening</span>
+            <span class="min-w-0 flex-1 flex items-center gap-2"><span class="font-medium">hi</span><span class="text-faint">←</span><span class="text-muted">Chat with @ocw</span><button class="x ml-auto">×</button></span>
+          </div>
+          <div class="row">
+            <span class="flex-1"></span>
+            <button class="text-[12.5px] text-danger/90 hover:text-danger">Disconnect organization</button>
+          </div>
+        </div>
+
+        <div class="grp-h">How connecting works</div>
+        <div class="grp">
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-24 shrink-0">Chats</span>
+            <span class="flex-1 text-[12.5px]">Add @ocw yourself — no admin needed.</span>
+          </div>
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-24 shrink-0">Channels</span>
+            <span class="flex-1 text-[12.5px]">Any <span class="font-medium">team owner</span> adds it to their team and consents for that team only.</span>
+          </div>
+          <div class="row">
+            <span class="text-[12.5px] text-muted w-24 shrink-0">Blocked?</span>
+            <span class="flex-1 text-[12.5px]">If your org blocks new apps, Teams shows <span class="font-medium">Request approval</span> — it asks your IT admin for you, once for the whole org.</span>
+          </div>
+        </div>
+        <div class="foot">Relay-only: Teams bots need a public endpoint, so there's no manual mode.</div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============ Add-connection modals (one entry point: the header button) ============ -->
+<div id="modal-backdrop" class="hidden fixed inset-0 z-40" style="background:rgba(0,0,0,.32)"></div>
+
+<div id="modal-slack" data-brand="slack" class="hidden fixed z-50 left-1/2 top-[16%] -translate-x-1/2 w-[480px] bg-panel rounded-2xl shadow-2xl" style="box-shadow:0 0 0 0.5px var(--line-strong), 0 24px 60px rgba(0,0,0,.25)">
+  <div class="flex items-center gap-3 px-5 pt-5">
+    <span class="badge">#</span>
+    <div class="flex-1 font-semibold text-[16px] tracking-tight">Add a workspace</div>
+    <button class="modal-close x text-[18px]">×</button>
+  </div>
+  <div class="px-5 pt-4">
+    <div class="inline-flex rounded-full p-0.5 bg-paper text-[12.5px] font-medium">
+      <button data-pane="one" class="seg px-3.5 py-1 rounded-full">One click</button>
+      <button data-pane="manual" class="seg px-3.5 py-1 rounded-full">Manual</button>
+    </div>
+  </div>
+  <div data-pane-body="one" class="px-5 py-4 space-y-3">
+    <p class="text-[13px] text-muted">Opens Slack in your browser — approve @ocw for the workspace. No tokens, works for any number of workspaces.</p>
+    <button class="pill pill-accent w-full !py-2 text-center">Add to Slack</button>
+    <p class="text-[12px] text-faint text-center">Recommended · messages relay through OpenCoworker Cloud, tokens stay on this computer</p>
+  </div>
+  <div data-pane-body="manual" class="hidden px-5 py-4 space-y-3">
+    <ol class="list-decimal pl-4 text-[13px] text-muted space-y-1">
+      <li>Create an app at api.slack.com/apps</li>
+      <li>Enable <span class="font-mono text-[12px]">Socket Mode</span>, add bot scopes, install it</li>
+      <li>Paste both tokens</li>
+    </ol>
+    <input type="password" placeholder="Bot token · xoxb-…" class="w-full px-3 py-2 rounded-lg bg-paper text-[13px] outline-none shadow-[0_0_0_0.5px_var(--line-strong)] focus:shadow-[0_0_0_1.5px_var(--accent)]" />
+    <input type="password" placeholder="App token · xapp-…" class="w-full px-3 py-2 rounded-lg bg-paper text-[13px] outline-none shadow-[0_0_0_0.5px_var(--line-strong)] focus:shadow-[0_0_0_1.5px_var(--accent)]" />
+    <button class="pill pill-accent w-full !py-2 text-center">Connect</button>
+    <p class="text-[12px] text-warnInk text-center">One mode at a time — this pauses your relay workspaces.</p>
+  </div>
+</div>
+
+<div id="modal-hubspot" data-brand="hubspot" class="hidden fixed z-50 left-1/2 top-[16%] -translate-x-1/2 w-[480px] bg-panel rounded-2xl" style="box-shadow:0 0 0 0.5px var(--line-strong), 0 24px 60px rgba(0,0,0,.25)">
+  <div class="flex items-center gap-3 px-5 pt-5">
+    <span class="badge">H</span>
+    <div class="flex-1 font-semibold text-[16px] tracking-tight">Add a HubSpot account</div>
+    <button class="modal-close x text-[18px]">×</button>
+  </div>
+  <div class="px-5 pt-4">
+    <div class="inline-flex rounded-full p-0.5 bg-paper text-[12.5px] font-medium">
+      <button data-pane="one" class="seg px-3.5 py-1 rounded-full">One click</button>
+      <button data-pane="manual" class="seg px-3.5 py-1 rounded-full">Manual</button>
+    </div>
+  </div>
+  <div data-pane-body="one" class="px-5 py-4 space-y-3">
+    <p class="text-[13px] text-muted">Opens HubSpot in your browser — pick which account (portal) to grant. Repeat for each portal.</p>
+    <div class="flex items-center justify-center gap-5 text-[13px]">
+      <label class="flex items-center gap-1.5"><input type="radio" name="hs-access" checked /> Read-only</label>
+      <label class="flex items-center gap-1.5"><input type="radio" name="hs-access" /> Read & write</label>
+    </div>
+    <button class="pill pill-accent w-full !py-2 text-center">Connect HubSpot</button>
+    <p class="text-[12px] text-faint text-center">Recommended · read-only can never modify your CRM</p>
+  </div>
+  <div data-pane-body="manual" class="hidden px-5 py-4 space-y-3">
+    <ol class="list-decimal pl-4 text-[13px] text-muted space-y-1">
+      <li>HubSpot → Settings → Integrations → <span class="font-mono text-[12px]">Private Apps</span></li>
+      <li>Create one with the scopes agents should have</li>
+      <li>Paste the token</li>
+    </ol>
+    <input type="password" placeholder="pat-na1-…" class="w-full px-3 py-2 rounded-lg bg-paper text-[13px] outline-none shadow-[0_0_0_0.5px_var(--line-strong)] focus:shadow-[0_0_0_1.5px_var(--accent)]" />
+    <button class="pill pill-accent w-full !py-2 text-center">Connect</button>
+    <p class="text-[12px] text-faint text-center">Works without cloud sign-in</p>
+  </div>
+</div>
+
+<script>
+  const views = { list:'v-list', slack:'v-slack', gmail:'v-gmail', hubspot:'v-hubspot', teams:'v-teams' };
+  const tabs = document.querySelectorAll('.view-tab');
+  function show(name){
+    Object.entries(views).forEach(([k,id]) => document.getElementById(id).classList.toggle('hidden', k!==name));
+    tabs.forEach(t => {
+      const on = t.dataset.view===name;
+      t.classList.toggle('bg-panel',on); t.classList.toggle('shadow-sm',on);
+      t.classList.toggle('text-ink',on); t.classList.toggle('text-muted',!on);
+    });
+  }
+  tabs.forEach(t => t.addEventListener('click', () => show(t.dataset.view)));
+  document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); show(b.dataset.goto); }));
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    document.documentElement.dataset.theme = document.documentElement.dataset.theme==='dark' ? 'light' : 'dark';
+  });
+
+  // add-connection modals: header button → sheet with a One click | Manual switcher
+  const backdrop = document.getElementById('modal-backdrop');
+  function closeModals(){
+    backdrop.classList.add('hidden');
+    document.querySelectorAll('[id^="modal-"]').forEach(m => m.id!=='modal-backdrop' && m.classList.add('hidden'));
+  }
+  function openModal(name){
+    closeModals();
+    backdrop.classList.remove('hidden');
+    const m = document.getElementById('modal-'+name);
+    m.classList.remove('hidden');
+    setPane(m, 'one');
+  }
+  function setPane(modal, pane){
+    modal.querySelectorAll('[data-pane-body]').forEach(p => p.classList.toggle('hidden', p.dataset.paneBody!==pane));
+    modal.querySelectorAll('.seg').forEach(s => {
+      const on = s.dataset.pane===pane;
+      s.classList.toggle('bg-panel',on); s.classList.toggle('shadow-sm',on);
+      s.classList.toggle('text-ink',on); s.classList.toggle('text-muted',!on);
+    });
+  }
+  document.querySelectorAll('[data-modal]').forEach(b => b.addEventListener('click', () => openModal(b.dataset.modal)));
+  document.querySelectorAll('.seg').forEach(s => s.addEventListener('click', () => setPane(s.closest('[id^="modal-"]'), s.dataset.pane)));
+  document.querySelectorAll('.modal-close').forEach(b => b.addEventListener('click', closeModals));
+  backdrop.addEventListener('click', closeModals);
+  document.addEventListener('keydown', e => e.key==='Escape' && closeModals());
+
+  show('list');
+</script>
+</body>
+</html>

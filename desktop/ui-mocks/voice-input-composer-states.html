@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>§37 — Voice input composer states</title>
+<style>
+  :root{
+    --paper:#f6f5f2;--panel:#fff;--line:#e4e2dc;--ink:#2c2c2a;--muted:#6f6e68;
+    --faint:#a3a19a;--accent:#3670b2;--accentSoft:#e7f0fa;--danger:#bd4f4f;
+    --dangerSoft:#f9e8e7;--shadow:0 8px 26px rgba(33,31,25,.08);
+  }
+  @media(prefers-color-scheme:dark){:root{
+    --paper:#181817;--panel:#292928;--line:#41403c;--ink:#f0eee9;--muted:#b0ada5;
+    --faint:#77756f;--accent:#75aade;--accentSoft:#293b4e;--danger:#ee8580;
+    --dangerSoft:#442a2a;--shadow:0 10px 30px rgba(0,0,0,.28);
+  }}
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--paper);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:22px}
+  button{font:inherit;color:inherit}
+  .intro{max-width:900px;margin:0 auto 16px;color:var(--muted);font-size:13px}
+  .intro b{color:var(--ink)}.intro ul{margin:7px 0 0 18px;display:grid;gap:3px}
+  .sequence{max-width:900px;margin:auto;display:flex;align-items:center;gap:6px;color:var(--faint);font-size:11.5px;margin-bottom:20px}
+  .sequence span{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 9px;color:var(--muted)}
+  .sequence i{font-style:normal}
+  .state{max-width:900px;margin:0 auto 25px}
+  .state-head{display:flex;align-items:baseline;gap:9px;margin:0 4px 8px}
+  .num{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--accentSoft);color:var(--accent);font-size:11.5px;font-weight:700}
+  h2{font-size:13px;font-weight:650}.explain{font-size:11.5px;color:var(--faint);margin-left:auto}
+  .composer{background:var(--panel);border:1px solid var(--line);border-radius:17px;padding:14px 15px 10px;box-shadow:var(--shadow);min-height:132px;display:flex;flex-direction:column}
+  .draft{font-size:15px;line-height:1.5;min-height:64px;outline:0}.placeholder{color:var(--faint)}
+  .provisional{color:var(--muted);position:relative;display:inline-block}
+  .provisional:after{content:"";position:absolute;left:0;right:0;bottom:-2px;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scan 1.15s ease-in-out infinite}
+  @keyframes scan{0%{transform:scaleX(.12);opacity:.25}50%{transform:scaleX(1);opacity:1}100%{transform:scaleX(.12);opacity:.25}}
+  .caret{display:inline-block;width:1px;height:18px;background:var(--ink);vertical-align:-3px;animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .row{display:flex;align-items:center;gap:7px;min-height:34px}
+  .icon-btn{width:30px;height:30px;border:0;background:transparent;border-radius:8px;display:grid;place-items:center;color:var(--muted);position:relative;cursor:pointer}
+  .icon-btn:hover{background:var(--paper);color:var(--ink)}
+  .plus{font-size:21px;font-weight:300}.mode{border:0;background:transparent;color:var(--muted);padding:6px 8px;border-radius:8px;font-size:12.5px}.mode:hover{background:var(--paper);color:var(--ink)}
+  .model{font-size:12px;color:var(--muted);padding:5px 7px}.spacer{flex:1}
+  .send{border:0;background:var(--ink);color:var(--panel);width:31px;height:31px;border-radius:50%;display:grid;place-items:center;font-size:18px}
+  .send.idle{background:var(--paper);color:var(--faint)}.send.protected{background:var(--paper);color:var(--faint);cursor:default}
+  .mic svg,.busy svg{width:17px;height:17px;display:block}.mic{color:var(--accent)}
+  .mic.recording{background:var(--dangerSoft);color:var(--danger)}
+  .busy{background:var(--accentSoft);color:var(--accent)}
+  .busy:after{content:"";position:absolute;inset:-3px;border:1.5px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .listening-row{gap:10px}.wave-line{height:1px;border-top:1px dashed var(--line);flex:1;position:relative;display:flex;align-items:center;justify-content:flex-end}
+  .wave{height:31px;display:flex;gap:2px;align-items:center;padding-left:10px;background:var(--panel)}
+  .wave i{display:block;width:2px;background:var(--accent);border-radius:2px;animation:wave .72s ease-in-out infinite alternate}
+  .wave i:nth-child(2n){animation-delay:-.28s}.wave i:nth-child(3n){animation-delay:-.5s}.wave i:nth-child(5n){animation-delay:-.12s}
+  @keyframes wave{from{height:5px;opacity:.55}to{height:29px;opacity:1}}
+  .timer{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px}
+  .stop{width:31px;height:31px;border:0;border-radius:50%;background:var(--dangerSoft);display:grid;place-items:center;color:var(--danger)}
+  .stop:before{content:"";width:8px;height:8px;background:currentColor;border-radius:2px}
+  .busy-copy{font-size:11.5px;color:var(--accent);margin-right:2px}
+  .foot{max-width:900px;margin:4px auto 0;color:var(--faint);font-size:11.5px;border-top:1px solid var(--line);padding-top:12px}
+  @media(max-width:680px){body{padding:12px}.explain{display:none}.sequence{flex-wrap:wrap}.model{display:none}.composer{min-height:120px}.wave{padding-left:4px}.wave i:nth-child(n+14){display:none}}
+</style>
+</head>
+<body>
+<div class="intro">
+  <b>§37 — four composer states for local voice input.</b> The references establish the useful rhythm; this mock translates it into OpenCoworker’s existing composer controls.
+  <ul>
+    <li>The live waveform means <b>the microphone is listening</b>, not that inference is already complete.</li>
+    <li>Transcribing is intentionally quiet because it will often last less than a second.</li>
+    <li>The transcript always lands as a normal editable draft. Nothing sends automatically.</li>
+    <li><b>Conversation invariant:</b> these are mid-conversation states, so no model name or model picker appears in the composer. OpenCoworker fixes the model after the first turn; the model picker exists only on a fresh conversation and the fixed model is shown in the conversation header.</li>
+  </ul>
+</div>
+<div class="sequence"><span>Ready</span><i>→ click mic →</i><span>Listening</span><i>→ stop →</i><span>Transcribing</span><i>→</i><span>Draft inserted</span></div>
+
+<section class="state">
+  <div class="state-head"><span class="num">1</span><h2>Ready at rest</h2><span class="explain">Voice Input is configured; mic is available in the normal row.</span></div>
+  <div class="composer">
+    <div class="draft placeholder">Ask OpenCoworker anything…</div>
+    <div class="row">
+      <button class="icon-btn plus" aria-label="Attach">＋</button><button class="mode">Ask for approval⌄</button>
+      <span class="spacer"></span>
+      <button class="icon-btn mic" aria-label="Start voice input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="3" width="8" height="13" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg>
+      </button><button class="send idle" aria-label="Send">↑</button>
+    </div>
+  </div>
+</section>
+
+<section class="state">
+  <div class="state-head"><span class="num">2</span><h2>Listening</h2><span class="explain">Waveform + elapsed time confirm capture; Stop is unmistakable.</span></div>
+  <div class="composer">
+    <div class="draft placeholder">Speak now…</div>
+    <div class="row listening-row">
+      <button class="icon-btn plus" aria-label="Attach">＋</button>
+      <div class="wave-line" aria-hidden="true"><div class="wave">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </div></div>
+      <span class="timer">0:05</span><button class="stop" aria-label="Stop recording"></button><button class="send idle" aria-label="Send" disabled>↑</button>
+    </div>
+  </div>
+</section>
+
+<section class="state">
+  <div class="state-head"><span class="num">3</span><h2>Transcribing</h2><span class="explain">Usually fleeting; provisional text can appear, but Send waits.</span></div>
+  <div class="composer" aria-busy="true">
+    <div class="draft"><span class="provisional">Hey, what’s going on?</span></div>
+    <div class="row">
+      <button class="icon-btn plus" aria-label="Attach">＋</button><button class="mode">Ask for approval⌄</button>
+      <span class="spacer"></span><span class="busy-copy" role="status" aria-live="polite">Transcribing…</span>
+      <button class="icon-btn busy" aria-label="Transcribing" aria-disabled="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="3" width="8" height="13" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg>
+      </button><button class="send protected" aria-label="Send unavailable while transcribing" disabled>↑</button>
+    </div>
+  </div>
+</section>
+
+<section class="state">
+  <div class="state-head"><span class="num">4</span><h2>Draft inserted</h2><span class="explain">Ordinary editable text; mic resets; the user edits or sends.</span></div>
+  <div class="composer">
+    <div class="draft" contenteditable="true" role="textbox" aria-label="Message draft">Hey, what’s going on?<span class="caret" aria-hidden="true"></span></div>
+    <div class="row">
+      <button class="icon-btn plus" aria-label="Attach">＋</button><button class="mode">Ask for approval⌄</button>
+      <span class="spacer"></span>
+      <button class="icon-btn mic" aria-label="Start voice input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="3" width="8" height="13" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg>
+      </button><button class="send" aria-label="Send">↑</button>
+    </div>
+  </div>
+</section>
+
+<div class="foot"><b>Do not add a model control to these states.</b> The listening waveform is visual feedback only; the accessible state is announced separately. Existing draft text is preserved and the final transcript appends at the cursor/end according to the composer insertion rule.</div>
+</body>
+</html>

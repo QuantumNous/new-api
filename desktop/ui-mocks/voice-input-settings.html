@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>§37 — Voice input setup lives in Settings</title>
+<style>
+  :root{
+    --paper:#f6f5f2;--panel:#fff;--panel2:#fbfaf8;--line:#e4e2dc;--line2:#d5d2ca;
+    --ink:#2c2c2a;--muted:#6f6e68;--faint:#a3a19a;--accent:#3670b2;--accentSoft:#e7f0fa;
+    --ok:#2e7d4f;--okSoft:#e5f2e9;--warn:#9b6418;--warnSoft:#f8ecd9;--danger:#b34c4c;
+  }
+  @media(prefers-color-scheme:dark){:root{
+    --paper:#191918;--panel:#232322;--panel2:#1f1f1e;--line:#383733;--line2:#484640;
+    --ink:#e8e6e1;--muted:#aaa79f;--faint:#74726c;--accent:#71a8df;--accentSoft:#253649;
+    --ok:#67bd8b;--okSoft:#20372a;--warn:#ddb066;--warnSoft:#3b301d;--danger:#df7b7b;
+  }}
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--paper);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:20px}
+  button{font:inherit;color:inherit}
+  .caption{max-width:1120px;margin:0 auto 14px;color:var(--muted);font-size:13px}
+  .caption b{color:var(--ink)}
+  .stage{max-width:1120px;min-height:720px;margin:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:grid;grid-template-columns:210px 1fr;box-shadow:0 12px 34px rgba(30,30,25,.06)}
+  .nav{background:color-mix(in srgb,var(--panel) 65%,var(--paper));border-right:1px solid var(--line);padding:18px 12px}
+  .brand{font-weight:650;font-size:13.5px;padding:0 10px 12px;display:flex;gap:8px;align-items:center}
+  .nav button{width:100%;border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:8px;color:var(--muted);display:flex;gap:9px;align-items:center;font-size:13px}
+  .nav button.active{background:var(--paper);color:var(--accent);font-weight:600}
+  .ico{width:18px;text-align:center;font-size:14px}
+  main{overflow:auto;padding:26px 32px 32px}.main-inner{max-width:760px;margin:auto}
+  h1{font-size:21px;line-height:1.2;margin-bottom:5px}.sub{color:var(--muted);font-size:13px;margin-bottom:20px;max-width:650px}
+  .states{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:16px}
+  .states button{border:0;background:transparent;color:var(--muted);padding:6px 11px;border-radius:7px;font-size:12px;cursor:pointer}
+  .states button.active{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .screen{display:none}.screen.active{display:block}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;margin-bottom:13px;overflow:hidden}
+  .row{padding:14px 16px;display:flex;align-items:center;gap:12px}.row+.row{border-top:1px solid var(--line)}
+  .row-main{min-width:0;flex:1}.title{font-weight:620;font-size:13.5px}.help{font-size:12px;color:var(--muted);margin-top:2px}.small{font-size:11.5px;color:var(--faint)}
+  .status{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 8px;font-size:11.5px;white-space:nowrap;background:var(--okSoft);color:var(--ok)}
+  .status.neutral{background:var(--paper);color:var(--muted);border:1px solid var(--line)}.status.warn{background:var(--warnSoft);color:var(--warn)}
+  .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .modelmark{width:36px;height:36px;border-radius:10px;background:var(--accentSoft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:15px}
+  .btn{border:1px solid var(--line2);background:var(--panel);padding:7px 11px;border-radius:8px;font-size:12px;cursor:pointer;white-space:nowrap}
+  .btn.primary{border-color:var(--accent);color:var(--accent);font-weight:600}.btn.primary:hover{background:var(--accentSoft)}
+  .btn.quiet{border:0;color:var(--faint);background:transparent}.btn.danger{border:0;color:var(--danger);background:transparent}
+  .privacy{display:flex;gap:9px;padding:11px 14px;background:var(--okSoft);color:var(--ok);border-radius:10px;margin-bottom:13px;font-size:12.5px}
+  .progress{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin:8px 0 4px}.progress span{display:block;height:100%;width:59%;background:var(--accent);border-radius:99px}
+  .reqs{padding:13px 16px;background:var(--panel2);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}
+  .req{font-size:12px;color:var(--muted)}.req b{display:block;color:var(--ink);font-size:12px;margin-bottom:2px}
+  .testbox{padding:14px 16px;border-top:1px solid var(--line);background:var(--panel2)}
+  .quote{margin-top:9px;padding:10px 12px;border:1px solid var(--line);background:var(--panel);border-radius:9px;font-size:13px}
+  .composer-demo{margin-top:22px}.composer-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:7px}
+  .composer{border:1px solid var(--line);background:var(--panel);border-radius:15px;padding:12px 13px 8px;box-shadow:0 2px 8px rgba(20,20,15,.05)}
+  .placeholder{color:var(--faint);font-size:13px;min-height:40px}.controls{display:flex;align-items:center;gap:7px}
+  .round{border:0;background:transparent;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--muted);position:relative}
+  .mic.locked{color:var(--faint);background:var(--paper);cursor:pointer}.mic.ready{color:var(--accent);cursor:pointer}.spacer{flex:1}.send{background:var(--paper);color:var(--faint)}
+  .tip{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:6px 8px;border-radius:7px;font-size:11px;white-space:nowrap;opacity:0;pointer-events:none;transition:.12s}
+  .mic.locked:hover .tip,.mic.locked:focus .tip{opacity:1}.note{font-size:11.5px;color:var(--faint);margin-top:7px}
+  .note a{color:var(--accent);text-decoration:none;margin-left:5px}.note a:hover{text-decoration:underline}
+  @media(max-width:760px){body{padding:8px}.stage{grid-template-columns:1fr}.nav{display:none}main{padding:20px 14px}.reqs{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="caption"><b>§37 — Voice input is prepared before it appears ready.</b> Use the state switcher to review the complete setup contract. The mock follows the current Settings shell and composer control language; it is self-contained, supports dark mode, and fetches no assets.</div>
+<div class="stage">
+  <nav class="nav">
+    <div class="brand"><span>⚙</span> Settings</div>
+    <button><span class="ico">☼</span>Appearance</button>
+    <button><span class="ico">□</span>Files</button>
+    <button><span class="ico">⌘</span>Models</button>
+    <button class="active"><span class="ico">◉</span>Voice input</button>
+    <button><span class="ico">✦</span>Personas</button>
+  </nav>
+  <main><div class="main-inner">
+    <h1>Voice input</h1>
+    <div class="sub">Speak naturally in the composer. Your recording is transcribed on this device and is never sent to a speech service.</div>
+    <div class="states" role="tablist" aria-label="Mock states">
+      <button class="active" data-state="setup">Not set up</button>
+      <button data-state="downloading">Downloading</button>
+      <button data-state="ready">Ready</button>
+    </div>
+
+    <section class="screen active" data-screen="setup">
+      <div class="privacy"><span>⌂</span><span><b>Private by design.</b> Audio and transcripts stay on this computer.</span></div>
+      <div class="card">
+        <div class="row"><div class="row-main"><div class="title">This Mac is supported</div><div class="help">macOS 14.6 · Apple M1 · 16 GB memory</div></div><span class="status"><span class="dot"></span>Compatible</span></div>
+        <div class="reqs">
+          <div class="req"><b>Mac</b>macOS 12+ · Apple Silicon (M1 or newer)</div>
+          <div class="req"><b>Windows</b>Windows 10 22H2 or 11 · x64 processor</div>
+          <div class="req"><b>Memory</b>8 GB recommended</div>
+          <div class="req"><b>Processor</b>4 CPU cores recommended</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row"><span class="modelmark">W</span><div class="row-main"><div class="title">Whisper Base · English</div><div class="help">Fast local transcription for short prompts</div><div class="small">Download size 142 MiB · installed only for Voice input</div></div><button class="btn primary">Download model</button></div>
+      </div>
+      <div class="card"><div class="row"><div class="row-main"><div class="title">Microphone test</div><div class="help">Available after the model is downloaded and verified.</div></div><span class="status neutral">Waiting for model</span></div></div>
+    </section>
+
+    <section class="screen" data-screen="downloading">
+      <div class="card">
+        <div class="row"><span class="modelmark">W</span><div class="row-main"><div class="title">Downloading Whisper Base · English</div><div class="progress"><span></span></div><div class="small">84 MiB of 142 MiB · about 18 seconds remaining</div></div><button class="btn quiet">Cancel</button></div>
+        <div class="row"><div class="row-main"><div class="title">What happens next</div><div class="help">OpenCoworker verifies the model, then asks you to test the microphone. You can leave Settings while this downloads.</div></div><span class="status warn"><span class="dot"></span>Not ready</span></div>
+      </div>
+      <div class="card"><div class="row"><div class="row-main"><div class="title">Your device remains compatible</div><div class="help">macOS 14.6 · Apple M1 · 16 GB memory</div></div><span class="status"><span class="dot"></span>Compatible</span></div></div>
+    </section>
+
+    <section class="screen" data-screen="ready">
+      <div class="privacy"><span>✓</span><span><b>Voice input is ready.</b> Transcription runs locally on this computer.</span></div>
+      <div class="card">
+        <div class="row"><span class="modelmark">W</span><div class="row-main"><div class="title">Whisper Base · English</div><div class="help">Installed and verified · 142 MiB</div></div><span class="status"><span class="dot"></span>Ready</span><button class="btn danger">Delete model</button></div>
+        <div class="testbox"><div class="title">Microphone test passed</div><div class="help">Your microphone and local transcription engine are working.</div><div class="quote">“This is a test of voice input in OpenCoworker.”</div><button class="btn" style="margin-top:10px">Test again</button></div>
+      </div>
+      <div class="card"><div class="row"><div class="row-main"><div class="title">This Mac</div><div class="help">macOS 14.6 · Apple M1 · 16 GB memory</div></div><span class="status"><span class="dot"></span>Compatible</span></div></div>
+    </section>
+
+    <div class="composer-demo">
+      <div class="composer-label">Composer behavior in this state</div>
+      <div class="composer">
+        <div class="placeholder">Ask OpenCoworker anything…</div>
+        <div class="controls"><button class="round">＋</button><button class="round">⌁</button><button class="round mic locked" aria-disabled="true">♩<span class="tip">Configure Voice Input in Settings</span></button><span class="small mic-copy">Voice input needs setup</span><span class="spacer"></span><button class="round send">↑</button></div>
+      </div>
+      <div class="note">Before Ready, the muted mic remains focusable and opens this Settings section. After Ready it becomes the normal record/stop control. <a href="voice-input-composer-states.html">Open the four composer states →</a></div>
+    </div>
+  </div></main>
+</div>
+<script>
+  const stateButtons=[...document.querySelectorAll('[data-state]')];
+  const screens=[...document.querySelectorAll('[data-screen]')];
+  const mic=document.querySelector('.mic');
+  const micCopy=document.querySelector('.mic-copy');
+  stateButtons.forEach(button=>button.addEventListener('click',()=>{
+    const state=button.dataset.state;
+    stateButtons.forEach(item=>item.classList.toggle('active',item===button));
+    screens.forEach(screen=>screen.classList.toggle('active',screen.dataset.screen===state));
+    const ready=state==='ready';
+    mic.classList.toggle('locked',!ready);mic.classList.toggle('ready',ready);
+    mic.setAttribute('aria-disabled',String(!ready));
+    micCopy.textContent=ready?'Voice input ready':state==='downloading'?'Voice model is downloading':'Voice input needs setup';
+  }));
+</script>
+</body>
+</html>

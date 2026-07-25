@@ -1,0 +1,17 @@
+[package]
+name = "ocw-stt"
+version = "0.1.0"
+description = "Local, offline speech-to-text engine for OpenWorker hosts"
+edition = "2021"
+rust-version = "1.77"
+license = "MIT"
+
+[dependencies]
+cpal = "0.15.3"
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+ureq = "2.12"
+# Keep the v1 engine compatible with macOS releases that predate newer Metal
+# APIs. We can add an opt-in Metal build once the packaged app has a verified
+# minimum macOS target.
+whisper-rs = "0.16"

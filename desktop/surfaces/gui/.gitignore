@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+
+# Playwright
+/test-results/
+/playwright-report/
+/e2e/_dbg.png

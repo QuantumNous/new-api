@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the bundle's Info.plist by Tauri. These usage strings appear inside the macOS
+     permission prompts (Desktop/Documents/Downloads/Photos), so a prompt the user didn't expect
+     at least explains itself — the agent's tool runs are what touch these folders, and only when
+     a task needs them. -->
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>OpenWorker records only while you use the composer microphone to turn your spoken prompt into editable text. Audio is transcribed locally and is not uploaded.</string>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>A task you run may need to read or save files on your Desktop. OpenWorker never scans this folder on its own.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>A task you run may need to read or save files in Documents. OpenWorker never scans this folder on its own.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>A task you run may need to read or save files in Downloads. OpenWorker never scans this folder on its own.</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>A task you run may need to read an image from your photo library. OpenWorker never scans your photos on its own.</string>
+</dict>
+</plist>
