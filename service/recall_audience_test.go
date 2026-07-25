@@ -609,7 +609,7 @@ func TestRecallAudienceContractsUseStableJSONNames(t *testing.T) {
 	var draftJSON map[string]any
 	require.NoError(t, common.Unmarshal(raw, &draftJSON))
 	require.ElementsMatch(t, []string{
-		"name", "audience_template", "audience_config", "execution_mode", "schedule",
+		"campaign_type", "name", "audience_template", "audience_config", "execution_mode", "schedule",
 		"coupon_source", "existing_coupon_id", "discount_config", "product_scope",
 		"promotion_valid_seconds", "enrollment_limit", "worker_concurrency", "email_sequence",
 	}, recallAudienceJSONKeys(draftJSON))

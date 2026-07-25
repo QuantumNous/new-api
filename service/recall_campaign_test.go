@@ -455,6 +455,13 @@ func TestRecallCampaignContentOnlyDraftPreviewAndManualActivationSkipStripe(t *t
 	require.Equal(t, model.RecallCampaignRunning, stored.Status)
 	require.Empty(t, stored.StripeCouponId)
 	require.Zero(t, calls.createCoupon)
+	exported, err := service.Export(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	require.Contains(t, string(exported), "campaign_type,recipient_id,user_id,state")
+	require.Contains(t, string(exported), model.RecallCampaignTypeContentOnly+",")
+	var runEvent model.RecallEvent
+	require.NoError(t, db.Where("campaign_id = ? AND event_type = ?", campaign.Id, "campaign_run").First(&runEvent).Error)
+	require.Contains(t, runEvent.EventData, `"campaign_type":"content_only"`)
 }
 
 func TestRecallCampaignUnknownStoredTypeFailsClosed(t *testing.T) {
@@ -475,6 +482,9 @@ func TestRecallCampaignUnknownStoredTypeFailsClosed(t *testing.T) {
 	require.ErrorContains(t, err, `unsupported recall campaign type "mystery"`)
 
 	_, _, err = service.Preview(context.Background(), campaign.Id, 10)
+	require.ErrorContains(t, err, `unsupported recall campaign type "mystery"`)
+
+	_, err = service.Export(context.Background(), campaign.Id)
 	require.ErrorContains(t, err, `unsupported recall campaign type "mystery"`)
 }
 
@@ -2189,6 +2199,22 @@ func TestRecallCampaignRetryTreatsOnlyExpiredSendingAsAcknowledgedUncertainty(t 
 	service := NewRecallCampaignService(nil, nil)
 	service.now = func() time.Time { return now }
 
+	campaign := model.RecallCampaign{
+		Id:                  51,
+		CampaignType:        model.RecallCampaignTypePromotion,
+		Name:                "retry campaign",
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "first_purchase",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "automatic",
+		DiscountConfig:      `{}`,
+		ProductScope:        `{}`,
+		EmailSequenceConfig: `[]`,
+		EnrollmentLimit:     100,
+		WorkerConcurrency:   2,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
 	recipients := []model.RecallRecipient{
 		{CampaignId: 51, UserId: 951, EligibilitySnapshot: `{}`, EmailSnapshot: "expired-sending@example.com", LanguageSnapshot: "en", State: model.RecallRecipientContacting},
 		{CampaignId: 51, UserId: 952, EligibilitySnapshot: `{}`, EmailSnapshot: "active-sending@example.com", LanguageSnapshot: "en", State: model.RecallRecipientContacting},

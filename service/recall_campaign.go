@@ -246,6 +246,14 @@ func (s *RecallCampaignService) RetryRecipient(ctx context.Context, actorID int,
 	if actorID <= 0 || campaignID <= 0 || recipientID <= 0 {
 		return fmt.Errorf("recall campaign actor, campaign, and recipient IDs must be positive")
 	}
+	campaign, err := model.GetRecallCampaignByIDWithContext(ctx, campaignID)
+	if err != nil {
+		return err
+	}
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return err
+	}
 	recipient, err := model.GetRecallRecipientByCampaignWithContext(ctx, campaignID, recipientID)
 	if err != nil {
 		return err
@@ -267,6 +275,7 @@ func (s *RecallCampaignService) RetryRecipient(ctx context.Context, actorID int,
 			EventData: recallAdminEventData(actorID, map[string]any{
 				"action":           "retry",
 				"target":           "recipient",
+				"campaign_type":    campaignType,
 				"previous_state":   recipient.State,
 				"previous_updated": recipient.UpdatedAt,
 				"next_state":       nextState,
@@ -321,6 +330,7 @@ func (s *RecallCampaignService) RetryRecipient(ctx context.Context, actorID int,
 	eventFields := map[string]any{
 		"action":                    "retry",
 		"target":                    "message",
+		"campaign_type":             campaignType,
 		"message_id":                selected.Id,
 		"previous_state":            selected.State,
 		"previous_attempt_count":    selected.AttemptCount,
@@ -359,7 +369,12 @@ func (s *RecallCampaignService) Export(ctx context.Context, id int64) ([]byte, e
 	if id <= 0 {
 		return nil, fmt.Errorf("recall campaign ID must be positive")
 	}
-	if _, err := model.GetRecallCampaignByIDWithContext(ctx, id); err != nil {
+	campaign, err := model.GetRecallCampaignByIDWithContext(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
 		return nil, err
 	}
 	snapshot, err := model.GetRecallRecipientExportSnapshotWithContext(ctx, id)
@@ -371,7 +386,7 @@ func (s *RecallCampaignService) Export(ctx context.Context, id int64) ([]byte, e
 	}
 	buffer := recallExportBuffer{maxBytes: s.exportMaxBytes}
 	writer := csv.NewWriter(&buffer)
-	if err := writer.Write([]string{"recipient_id", "user_id", "state", "promotion_code_masked", "conversion_kind", "currency", "conversion_amount", "discount_amount", "converted_at"}); err != nil {
+	if err := writer.Write([]string{"campaign_type", "recipient_id", "user_id", "state", "promotion_code_masked", "conversion_kind", "currency", "conversion_amount", "discount_amount", "converted_at"}); err != nil {
 		return nil, err
 	}
 	afterID := int64(0)
@@ -388,6 +403,7 @@ func (s *RecallCampaignService) Export(ctx context.Context, id int64) ([]byte, e
 				return nil, err
 			}
 			row := []string{
+				campaignType,
 				strconv.FormatInt(recipients[i].Id, 10),
 				strconv.Itoa(recipients[i].UserId),
 				recipients[i].State,
@@ -872,6 +888,10 @@ func (s *RecallCampaignService) Cancel(ctx context.Context, actorID int, id int6
 	if campaign.Status == model.RecallCampaignCompleted {
 		return fmt.Errorf("completed recall campaign %d cannot be cancelled", id)
 	}
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return err
+	}
 	now := s.now().Unix()
 	event := model.RecallEvent{
 		CampaignId:    id,
@@ -880,6 +900,7 @@ func (s *RecallCampaignService) Cancel(ctx context.Context, actorID int, id int6
 		SourceEventId: recallAdminSourceEventID(ctx, "cancel", fmt.Sprintf("actor:%d:campaign:%d:state:%s:updated:%d", actorID, id, campaign.Status, campaign.UpdatedAt)),
 		EventData: recallAdminEventData(actorID, map[string]any{
 			"action":         "cancel",
+			"campaign_type":  campaignType,
 			"previous_state": campaign.Status,
 		}),
 		CreatedAt: now,
@@ -917,6 +938,10 @@ func (s *RecallCampaignService) Complete(ctx context.Context, actorID int, id in
 	if !containsRecallCampaignStatus(from, campaign.Status) {
 		return fmt.Errorf("recall campaign %d cannot transition from %s to %s", id, campaign.Status, model.RecallCampaignCompleted)
 	}
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return err
+	}
 	now := s.now().Unix()
 	event := model.RecallEvent{
 		CampaignId:    id,
@@ -925,6 +950,7 @@ func (s *RecallCampaignService) Complete(ctx context.Context, actorID int, id in
 		SourceEventId: recallAdminSourceEventID(ctx, "complete", fmt.Sprintf("actor:%d:campaign:%d:state:%s:updated:%d", actorID, id, campaign.Status, campaign.UpdatedAt)),
 		EventData: recallAdminEventData(actorID, map[string]any{
 			"action":         "complete",
+			"campaign_type":  campaignType,
 			"previous_state": campaign.Status,
 		}),
 		CreatedAt: now,
@@ -1131,6 +1157,7 @@ func (s *RecallCampaignService) commitCampaignRun(
 		}
 	}
 	eventData, err := common.Marshal(map[string]any{
+		"campaign_type":  draft.CampaignType,
 		"eligible_total": len(recipients),
 		"exclusions":     exclusions,
 	})

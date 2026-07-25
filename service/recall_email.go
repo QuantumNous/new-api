@@ -24,6 +24,7 @@ const (
 	recallEmailLeaseSeconds           = int64(60)
 	recallEmailMaxAttempts            = 5
 	recallEmailProductSummaryCacheTTL = 5 * time.Minute
+	recallEmailUnsubscribeTTL         = 90 * 24 * time.Hour
 )
 
 var (
@@ -250,6 +251,10 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	if expectedLeaseUntil <= now {
 		return ErrRecallEmailLeaseLost
 	}
+	campaignType, err := normalizeRecallCampaignType(item.Campaign.CampaignType)
+	if err != nil {
+		return w.finishPreAcceptError(ctx, item, "campaign_type_invalid", false)
+	}
 	stopReason, err := w.recallEmailStopReason(ctx, item, recentlyActive, now)
 	if err != nil {
 		return err
@@ -302,12 +307,28 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 		return w.finishPreAcceptError(ctx, item, "next_stage_invalid", false)
 	}
 
-	rawClaim, err := w.claims.IssueClaim(ctx, item.Message.Id, w.owner, expectedLeaseUntil)
-	if err != nil {
-		if errors.Is(err, ErrRecallClaimLeaseLost) {
-			return ErrRecallEmailLeaseLost
+	claimURL := ""
+	productSummary := ""
+	if campaignType == model.RecallCampaignTypePromotion {
+		rawClaim, err := w.claims.IssueClaim(ctx, item.Message.Id, w.owner, expectedLeaseUntil)
+		if err != nil {
+			if errors.Is(err, ErrRecallClaimLeaseLost) {
+				return ErrRecallEmailLeaseLost
+			}
+			return w.finishPreAcceptError(ctx, item, "claim_issue_failed", true)
 		}
-		return w.finishPreAcceptError(ctx, item, "claim_issue_failed", true)
+		baseOrigin := strings.TrimRight(strings.TrimSpace(topUpBaseOrigin()), "/")
+		claimURL = baseOrigin + "/console/topup?recall_claim=" + url.QueryEscape(rawClaim)
+		productSummary, err = w.recallEmailProductSummary(ctx, item.Campaign.ProductScope, item.Recipient.LanguageSnapshot)
+		if err != nil {
+			if errors.Is(err, errRecallEmailProductScopeInvalid) {
+				return w.finishPreAcceptError(ctx, item, "product_scope_invalid", false)
+			}
+			if errors.Is(err, errRecallEmailProductSummaryUnavailable) {
+				return w.finishPreAcceptError(ctx, item, "product_summary_unavailable", false)
+			}
+			return w.finishPreAcceptError(ctx, item, "product_summary_lookup_failed", true)
+		}
 	}
 	unsubscribeToken, err := w.createUnsubscribeToken(item)
 	if err != nil {
@@ -318,23 +339,25 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 		return w.finishPreAcceptError(ctx, item, "template_invalid", false)
 	}
 	baseOrigin := strings.TrimRight(strings.TrimSpace(topUpBaseOrigin()), "/")
-	claimURL := baseOrigin + "/console/topup?recall_claim=" + url.QueryEscape(rawClaim)
 	unsubscribeURL := baseOrigin + "/api/recall/unsubscribe?token=" + url.QueryEscape(unsubscribeToken)
-	productSummary, err := w.recallEmailProductSummary(ctx, item.Campaign.ProductScope, resolvedLanguage)
-	if err != nil {
-		if errors.Is(err, errRecallEmailProductScopeInvalid) {
-			return w.finishPreAcceptError(ctx, item, "product_scope_invalid", false)
+	if campaignType == model.RecallCampaignTypePromotion && resolvedLanguage != item.Recipient.LanguageSnapshot {
+		productSummary, err = w.recallEmailProductSummary(ctx, item.Campaign.ProductScope, resolvedLanguage)
+		if err != nil {
+			if errors.Is(err, errRecallEmailProductScopeInvalid) {
+				return w.finishPreAcceptError(ctx, item, "product_scope_invalid", false)
+			}
+			if errors.Is(err, errRecallEmailProductSummaryUnavailable) {
+				return w.finishPreAcceptError(ctx, item, "product_summary_unavailable", false)
+			}
+			return w.finishPreAcceptError(ctx, item, "product_summary_lookup_failed", true)
 		}
-		if errors.Is(err, errRecallEmailProductSummaryUnavailable) {
-			return w.finishPreAcceptError(ctx, item, "product_summary_unavailable", false)
-		}
-		return w.finishPreAcceptError(ctx, item, "product_summary_lookup_failed", true)
 	}
 	recipientName := strings.TrimSpace(item.User.DisplayName)
 	if recipientName == "" {
 		recipientName = strings.TrimSpace(item.User.Username)
 	}
 	subject, htmlBody, err := RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:        campaignType,
 		Language:            resolvedLanguage,
 		Template:            template,
 		RecipientName:       recipientName,
@@ -450,6 +473,9 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 
 func (w *RecallEmailWorker) createUnsubscribeToken(item *model.RecallEmailWorkItem) (string, error) {
 	expiresAt := time.Unix(item.Recipient.PromotionExpiresAt, 0)
+	if item.Campaign.CampaignType == model.RecallCampaignTypeContentOnly && item.Recipient.PromotionExpiresAt <= 0 {
+		expiresAt = w.now().Add(recallEmailUnsubscribeTTL)
+	}
 	return w.claims.CreateRecipientUnsubscribeToken(item.Recipient.Id, expiresAt)
 }
 
@@ -472,11 +498,19 @@ func (w *RecallEmailWorker) recallEmailStopReason(ctx context.Context, item *mod
 	if item.Recipient.State == model.RecallRecipientSuppressed {
 		return "recipient_suppressed", nil
 	}
-	if item.Recipient.PromotionExpiresAt <= now {
-		return "promotion_expired", nil
+	campaignType, err := normalizeRecallCampaignType(item.Campaign.CampaignType)
+	if err != nil {
+		return "campaign_type_invalid", nil
 	}
-	if item.Recipient.StripePromotionCodeId == nil || strings.TrimSpace(*item.Recipient.StripePromotionCodeId) == "" || strings.TrimSpace(item.Recipient.PromotionCode) == "" {
-		return "promotion_unavailable", nil
+	if campaignType == model.RecallCampaignTypePromotion {
+		if item.Recipient.PromotionExpiresAt <= now {
+			return "promotion_expired", nil
+		}
+		if item.Recipient.StripePromotionCodeId == nil || strings.TrimSpace(*item.Recipient.StripePromotionCodeId) == "" || strings.TrimSpace(item.Recipient.PromotionCode) == "" {
+			return "promotion_unavailable", nil
+		}
+	} else if item.Recipient.PromotionExpiresAt > 0 && item.Recipient.PromotionExpiresAt <= now {
+		return "activity_expired", nil
 	}
 	snapshotEmail, snapshotOK := recallAudienceEmail(item.Recipient.EmailSnapshot)
 	if !snapshotOK || snapshotEmail == "" {

@@ -197,8 +197,14 @@ func (s *RecallAttributionService) Attribute(ctx context.Context, fact RecallPay
 			return err
 		}
 		if found {
-			recipient = matched
-			kind = model.RecallConversionDirect
+			promotion, err := recallAttributionRecipientIsPromotion(ctx, matched)
+			if err != nil {
+				return err
+			}
+			if promotion {
+				recipient = matched
+				kind = model.RecallConversionDirect
+			}
 		}
 	}
 	if recipient == nil && fact.ClaimCampaignID > 0 && fact.ClaimRecipientID > 0 {
@@ -207,11 +213,17 @@ func (s *RecallAttributionService) Attribute(ctx context.Context, fact RecallPay
 			return err
 		}
 		if found {
-			recipient = matched
-			if fact.hasDiscount {
-				kind = model.RecallConversionAssisted
-			} else {
-				kind = model.RecallConversionNoCoupon
+			promotion, err := recallAttributionRecipientIsPromotion(ctx, matched)
+			if err != nil {
+				return err
+			}
+			if promotion {
+				recipient = matched
+				if fact.hasDiscount {
+					kind = model.RecallConversionAssisted
+				} else {
+					kind = model.RecallConversionNoCoupon
+				}
 			}
 		}
 	}
@@ -252,6 +264,21 @@ func (s *RecallAttributionService) Attribute(ctx context.Context, fact RecallPay
 		ConvertedAt:    s.now().Unix(),
 	})
 	return err
+}
+
+func recallAttributionRecipientIsPromotion(ctx context.Context, recipient *model.RecallRecipient) (bool, error) {
+	if recipient == nil {
+		return false, nil
+	}
+	campaign, err := model.GetRecallCampaignByIDWithContext(ctx, recipient.CampaignId)
+	if err != nil {
+		return false, err
+	}
+	campaignType, err := normalizeRecallCampaignType(campaign.CampaignType)
+	if err != nil {
+		return false, err
+	}
+	return campaignType == model.RecallCampaignTypePromotion, nil
 }
 
 func (s *RecallAttributionService) ReconcileBatch(ctx context.Context, limit int) (int, error) {
