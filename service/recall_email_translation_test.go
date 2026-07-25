@@ -26,13 +26,14 @@ func TestRecallEmailTranslatorTranslatesMultipleStagesInOneStructuredRequest(t *
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		require.Equal(t, http.MethodPost, r.Method)
-		require.Equal(t, "/custom/responses", r.URL.Path)
+		require.Equal(t, "/custom/chat/completions", r.URL.Path)
 		require.Equal(t, "Bearer sk-translation", r.Header.Get("Authorization"))
 
 		var request map[string]any
 		require.NoError(t, common.DecodeJson(r.Body, &request))
 		require.Equal(t, "gpt-translation", request["model"])
-		require.EqualValues(t, 32768, request["max_output_tokens"])
+		require.EqualValues(t, 32768, request["max_completion_tokens"])
+		require.Equal(t, false, request["stream"])
 		requestJSON, err := common.Marshal(request)
 		require.NoError(t, err)
 		requestText := string(requestJSON)
@@ -503,7 +504,7 @@ func TestRecallEmailTranslatorRejectsOversizeAndMalformedResponses(t *testing.T)
 	}{
 		{name: "oversize", maxBytes: 16, body: strings.Repeat("x", 17)},
 		{name: "malformed envelope", maxBytes: 1024, body: `{not-json`},
-		{name: "malformed output", maxBytes: 1024, body: `{"output_text":"not-json"}`},
+		{name: "malformed output", maxBytes: 1024, body: `{"choices":[{"message":{"content":"not-json"}}]}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -898,7 +899,7 @@ func recallEmailTranslationRequestStrings(value any) []string {
 
 func recallEmailTranslationRequestStages(t *testing.T, request map[string]any) []map[string]any {
 	t.Helper()
-	input, ok := request["input"].([]any)
+	input, ok := request["messages"].([]any)
 	require.True(t, ok)
 	for _, item := range input {
 		message, ok := item.(map[string]any)
@@ -992,7 +993,11 @@ func recallEmailTranslationHTTPPayload(t *testing.T, result map[string]any) []by
 	t.Helper()
 	resultJSON, err := common.Marshal(result)
 	require.NoError(t, err)
-	payload, err := common.Marshal(map[string]any{"output_text": string(resultJSON)})
+	payload, err := common.Marshal(map[string]any{
+		"choices": []any{map[string]any{
+			"message": map[string]any{"content": string(resultJSON)},
+		}},
+	})
 	require.NoError(t, err)
 	return payload
 }

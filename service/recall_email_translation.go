@@ -79,30 +79,30 @@ type recallEmailTranslationMessage struct {
 }
 
 type recallEmailTranslationRequest struct {
-	Model           string                          `json:"model"`
-	Input           []recallEmailTranslationMessage `json:"input"`
-	Text            recallEmailTranslationText      `json:"text"`
-	MaxOutputTokens int                             `json:"max_output_tokens"`
+	Model               string                               `json:"model"`
+	Messages            []recallEmailTranslationMessage      `json:"messages"`
+	ResponseFormat      recallEmailTranslationResponseFormat `json:"response_format"`
+	Stream              bool                                 `json:"stream"`
+	MaxCompletionTokens int                                  `json:"max_completion_tokens"`
 }
 
-type recallEmailTranslationText struct {
-	Format recallEmailTranslationFormat `json:"format"`
+type recallEmailTranslationResponseFormat struct {
+	Type       string                       `json:"type"`
+	JSONSchema recallEmailTranslationFormat `json:"json_schema"`
 }
 
 type recallEmailTranslationFormat struct {
-	Type   string         `json:"type"`
 	Name   string         `json:"name"`
 	Schema map[string]any `json:"schema"`
 	Strict bool           `json:"strict"`
 }
 
 type recallEmailTranslationEnvelope struct {
-	OutputText string `json:"output_text"`
-	Output     []struct {
-		Content []struct {
-			Text string `json:"text"`
-		} `json:"content"`
-	} `json:"output"`
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
@@ -433,7 +433,7 @@ func buildRecallEmailTranslationRequest(modelName string, stages []recallEmailPr
 	stagesJSON, _ := common.Marshal(stages)
 	return recallEmailTranslationRequest{
 		Model: modelName,
-		Input: []recallEmailTranslationMessage{
+		Messages: []recallEmailTranslationMessage{
 			{Role: "system", Content: strings.Join([]string{
 				"Translate recall marketing email templates from English into Simplified Chinese, Spanish, French, Portuguese, Russian, Japanese, and Vietnamese.",
 				"Each stage contains only a subject and ordered body_segments array of visible text; no HTML, URLs, CSS, images, or markup are provided.",
@@ -443,10 +443,14 @@ func buildRecallEmailTranslationRequest(modelName string, stages []recallEmailPr
 			}, " ")},
 			{Role: "user", Content: "Translate every stage and target language in this JSON:\n" + string(stagesJSON)},
 		},
-		Text: recallEmailTranslationText{Format: recallEmailTranslationFormat{
-			Type: "json_schema", Name: "recall_email_translations", Schema: buildRecallEmailTranslationSchema(), Strict: true,
-		}},
-		MaxOutputTokens: recallEmailTranslationMaxOutputTokens,
+		ResponseFormat: recallEmailTranslationResponseFormat{
+			Type: "json_schema",
+			JSONSchema: recallEmailTranslationFormat{
+				Name: "recall_email_translations", Schema: buildRecallEmailTranslationSchema(), Strict: true,
+			},
+		},
+		Stream:              false,
+		MaxCompletionTokens: recallEmailTranslationMaxOutputTokens,
 	}
 }
 
@@ -493,18 +497,11 @@ func parseRecallEmailTranslationResponse(raw []byte) (recallEmailTranslationResu
 	if envelope.Error != nil {
 		return recallEmailTranslationResult{}, fmt.Errorf("recall email translation provider returned an error")
 	}
-	outputText := strings.TrimSpace(envelope.OutputText)
-	if outputText == "" {
-		for _, output := range envelope.Output {
-			for _, content := range output.Content {
-				if strings.TrimSpace(content.Text) != "" {
-					outputText = strings.TrimSpace(content.Text)
-					break
-				}
-			}
-			if outputText != "" {
-				break
-			}
+	outputText := ""
+	for _, choice := range envelope.Choices {
+		if strings.TrimSpace(choice.Message.Content) != "" {
+			outputText = strings.TrimSpace(choice.Message.Content)
+			break
 		}
 	}
 	if outputText == "" {
@@ -695,10 +692,11 @@ func restoreRecallEmailProtectedValue(value string, protected []recallEmailProte
 
 func recallEmailTranslationEndpoint(baseURL string) string {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	if strings.HasSuffix(baseURL, "/responses") {
+	if strings.HasSuffix(baseURL, "/chat/completions") {
 		return baseURL
 	}
-	return baseURL + "/responses"
+	baseURL = strings.TrimSuffix(baseURL, "/responses")
+	return baseURL + "/chat/completions"
 }
 
 func recallEmailTranslationRetryableStatus(status int) bool {
