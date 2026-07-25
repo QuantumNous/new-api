@@ -3,6 +3,7 @@
   global.FLATKEY_MODEL_CATALOG = Object.freeze({
     "gpt-5.5": { provider: "OpenAI", price: "official $5.00 → $3.33 /M input", kind: "chat", tags: ["chat", "coding", "reasoning", "vision"] },
     "claude-sonnet-4-6": { provider: "Anthropic", price: "official $3.00 → $2.00 /M input", kind: "chat", tags: ["chat", "coding", "reasoning", "vision"] },
+    "claude-opus-5": { provider: "Anthropic", price: "official $5.00 → $4.50 /M input", kind: "chat", tags: ["chat", "coding", "reasoning", "vision"] },
     "gpt-5.4": { provider: "OpenAI", price: "official $2.50 → $1.67 /M input", kind: "chat", tags: ["chat", "coding", "reasoning", "vision"] },
     "claude-opus-4-8": { provider: "Anthropic", price: "official $5.00 → $3.33 /M input", kind: "chat", tags: ["chat", "coding", "reasoning", "vision"] },
     "gpt-5.6-sol": { provider: "OpenAI", price: "official $5.00 → $3.33 /M input", kind: "chat", tags: ["chat", "coding", "reasoning", "vision"] },

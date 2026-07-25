@@ -13,6 +13,52 @@ function catalog() {
   return window.FLATKEY_MODEL_CATALOG;
 }
 
+function renderDetail(model) {
+  const window = {};
+  vm.runInNewContext(read("../html/assets/model-catalog.js"), { window });
+  const root = { innerHTML: "" };
+  const codeBox = { textContent: "" };
+  const canonical = { href: "" };
+  const description = { content: "" };
+  const buttons = [
+    { getAttribute() { return "curl"; }, addEventListener() {}, classList: { toggle() {} } },
+    { getAttribute() { return "python"; }, addEventListener() {}, classList: { toggle() {} } },
+    { getAttribute() { return "javascript"; }, addEventListener() {}, classList: { toggle() {} } },
+  ];
+  const document = {
+    title: "",
+    getElementById(id) { return id === "model-detail" ? root : codeBox; },
+    querySelector(selector) {
+      if (selector === 'link[rel="canonical"]') return canonical;
+      if (selector === 'meta[name="description"]') return description;
+      if (selector === ".copy-code") return { addEventListener() {} };
+      return null;
+    },
+    querySelectorAll(selector) { return selector === "[data-code]" ? buttons : []; },
+  };
+
+  vm.runInNewContext(read("../html/assets/model-detail.js"), {
+    window,
+    document,
+    location: { pathname: `/models/${model}` },
+    navigator: {},
+    setTimeout() {},
+  });
+  return { root, codeBox, canonical, description, title: document.title };
+}
+
+test("claude-opus-5 is registered for the public detail page", () => {
+  const model = catalog()["claude-opus-5"];
+
+  assert.ok(model);
+  assert.equal(model.provider, "Anthropic");
+  assert.equal(model.kind, "chat");
+  assert.equal(model.price, "official $5.00 → $4.50 /M input");
+  for (const tag of ["chat", "coding", "reasoning", "vision"]) {
+    assert.ok(model.tags.includes(tag), `claude-opus-5 must include ${tag}`);
+  }
+});
+
 test("the public image catalog exactly matches the six callable platform models", () => {
   const models = catalog();
   const html = read("../html/models.html");
@@ -73,4 +119,17 @@ test("detail examples use the production endpoint for every modality", () => {
   assert.match(detail, /api === "chat-image"/);
   assert.match(detail, /Generated image is returned as a Markdown data URI/);
   assert.match(nginx, /location ~ \^\/models\/\[a-zA-Z0-9\._-\]\+\/\?\$/);
+});
+
+test("claude-opus-5 uses the generic chat detail route", () => {
+  const detail = renderDetail("claude-opus-5");
+
+  assert.match(detail.title, /^claude-opus-5 API/);
+  assert.equal(detail.canonical.href, "https://flatkey.ai/models/claude-opus-5");
+  assert.match(detail.root.innerHTML, /Availability<\/span><strong class="status live">Available<\/strong>/);
+  assert.match(detail.root.innerHTML, /Provider<\/span><strong>Anthropic<\/strong>/);
+  assert.match(detail.root.innerHTML, /Flatkey price<\/span><strong>official \$5\.00 → \$4\.50 \/M input<\/strong>/);
+  assert.match(detail.root.innerHTML, /Try in Playground/);
+  assert.match(detail.codeBox.textContent, /\/v1\/chat\/completions/);
+  assert.match(detail.codeBox.textContent, /"model":"claude-opus-5"/);
 });

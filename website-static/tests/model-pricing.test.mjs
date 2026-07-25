@@ -146,5 +146,18 @@ test("models page loads the versioned pricing asset and has no static numeric pr
   assert.match(html, /assets\/model-pricing\.js\?v=729a/);
   const primaryTable = html.match(/<table>([\s\S]*?)<\/table>/)?.[1] ?? "";
   assert.doesNotMatch(primaryTable, /<span class="(?:off|ours)">\$\d/);
-  assert.equal((primaryTable.match(/data-pricing-model=/g) ?? []).length, 11);
+  assert.equal((primaryTable.match(/data-pricing-model=/g) ?? []).length, 12);
+});
+
+test("claude-opus-5 primary row uses live API price cells", () => {
+  const html = readFileSync(new URL("../html/models.html", import.meta.url), "utf8");
+  const row = html.match(/<tr\b[^>]*data-pricing-model="claude-opus-5"[\s\S]*?<\/tr>/)?.[0] ?? "";
+
+  assert.match(row, /assets\/logos\/claude\.svg/);
+  assert.match(row, /<b>claude-opus-5<\/b>/);
+  assert.match(row, /<td class="mono">Anthropic<\/td>/);
+  assert.match(row, /data-price="configured">Loading pricing/);
+  assert.match(row, /data-price="plg">Loading pricing/);
+  assert.match(row, /href="\/playground\?model=claude-opus-5"/);
+  assert.doesNotMatch(row, /93\.8%|4\.37s|\$3\.33/);
 });

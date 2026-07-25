@@ -52,7 +52,7 @@ test("required capability filters are interactive and return registered models",
 test("Playground renders the API method that matches the selected model modality", () => {
   const html = read("../html/playground.html");
 
-  assert.match(html, /assets\/model-catalog\.js\?v=727b/);
+  assert.match(html, /assets\/model-catalog\.js\?v=730a/);
   assert.match(html, /OpenAI-compatible Chat Completions/);
   assert.match(html, /OpenAI-compatible Images API/);
   assert.match(html, /Task-based Video Generation API/);
@@ -68,6 +68,28 @@ test("Playground renders the API method that matches the selected model modality
     html.includes('replace(/\\n\\++(?=  -)/g,"\\n")'),
     "rendered cURL snippets must strip stray diff markers",
   );
+});
+
+test("model catalog asset references use the same cache-busting version", () => {
+  const pages = ["models.html", "model.html", "playground.html"];
+  const versions = pages.map((page) => {
+    const html = read(`../html/${page}`);
+    const match = html.match(/(?:\/)?assets\/model-catalog\.js\?v=([a-z0-9]+)/);
+    assert.ok(match, `${page} must load the shared model catalog`);
+    return match[1];
+  });
+
+  assert.deepEqual(new Set(versions), new Set(["730a"]));
+});
+
+test("Playground can preselect claude-opus-5 from the shared catalog", () => {
+  const models = catalog();
+  const html = read("../html/playground.html");
+
+  assert.equal(models["claude-opus-5"].provider, "Anthropic");
+  assert.match(html, /new URLSearchParams\(location\.search\)\.get\("model"\)/);
+  assert.match(html, /CATALOG\[model\] \|\| fallbackFor\(model\)/);
+  assert.match(html, /document\.getElementById\("price-tag"\)\.textContent = info\.price/);
 });
 
 test("the public Playground allows three persistent previews before sign-up", () => {
