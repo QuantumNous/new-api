@@ -1827,6 +1827,7 @@ export function ParamOverrideEditorDialog(
                 onChange={setLegacyValue}
                 placeholder={JSON.stringify(LEGACY_TEMPLATE, null, 2)}
                 heightClassName='h-72 min-h-72 max-h-72'
+                ariaLabel={t('Legacy Format (JSON Object)')}
               />
               <p className='text-muted-foreground mt-2 text-xs'>
                 {t(
@@ -2043,6 +2044,7 @@ export function ParamOverrideEditorDialog(
               placeholder={JSON.stringify(OPERATION_TEMPLATE, null, 2)}
               heightClassName='h-[420px] min-h-[420px] max-h-[420px]'
               aria-invalid={Boolean(jsonError)}
+              ariaLabel={t('Advanced text editing')}
             />
             <p className='text-muted-foreground mt-2 text-xs'>
               {t('Edit JSON text directly. Format will be validated on save.')}

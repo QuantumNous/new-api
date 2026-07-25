@@ -719,6 +719,7 @@ export function AdvancedCustomEditorDialog({
             )}
             heightClassName='h-[420px] min-h-[420px] max-h-[420px]'
             aria-invalid={Boolean(jsonError)}
+            ariaLabel={t('Advanced text editing')}
           />
           <p className='text-muted-foreground mt-2 text-xs'>
             {t('Edit JSON text directly. Format will be validated on save.')}

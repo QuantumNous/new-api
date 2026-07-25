@@ -64,6 +64,11 @@ For commercial licensing, please contact support@quantumnous.com
     white-space: pre !important;
   }
 
+  .json-code-editor-lines {
+    background: var(--background);
+    z-index: 1;
+  }
+
   .json-code-editor-highlight .yace-tok--str {
     color: var(--chart-5);
   }

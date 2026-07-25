@@ -661,8 +661,11 @@ export function ChannelAffinitySection(props: Props) {
           />
         ) : (
           <div className='grid gap-1.5'>
-            <Label>{t('Rules JSON')}</Label>
+            <Label htmlFor='channel-affinity-rules-json'>
+              {t('Rules JSON')}
+            </Label>
             <JsonCodeEditor
+              id='channel-affinity-rules-json'
               value={jsonText}
               onChange={setJsonText}
               heightClassName='h-[300px] min-h-[300px] max-h-[300px]'

@@ -333,6 +333,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
             disabled={props.disabled}
             className={jsonError ? 'border-destructive' : undefined}
             aria-invalid={Boolean(jsonError)}
+            ariaLabel={t('Model Mapping')}
           />
         </TabsContent>
       </Tabs>

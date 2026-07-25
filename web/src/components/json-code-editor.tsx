@@ -54,6 +54,7 @@ export type JsonCodeEditorProps = Omit<
   disabled?: boolean
   heightClassName?: string
   placeholder?: string
+  ariaLabel?: string
   'data-form-root'?: string
 }
 
@@ -66,6 +67,7 @@ export function JsonCodeEditor({
   disabled,
   heightClassName = 'h-56 min-h-56 max-h-56',
   placeholder,
+  ariaLabel,
   className,
   id,
   'aria-describedby': ariaDescribedBy,
@@ -133,16 +135,13 @@ export function JsonCodeEditor({
     const lineNumberLayer = [...mountNode.querySelectorAll('pre')].find(
       (preLayer) => preLayer !== editor.pre
     )
-    if (!lineNumberLayer) {
-      editor.destroy()
-      editorRef.current = null
-      return
-    }
-    const scrollSynchronizer = createScrollLayerSynchronizer(editor.textarea, {
-      contentLayer: editor.pre,
-      lineNumberLayer,
-    })
-    const syncScrollLayers = () => scrollSynchronizer.sync()
+    const scrollSynchronizer = lineNumberLayer
+      ? createScrollLayerSynchronizer(editor.textarea, {
+          contentLayer: editor.pre,
+          lineNumberLayer,
+        })
+      : null
+    const syncScrollLayers = () => scrollSynchronizer?.sync()
     const handleBlur = () => latestOnBlurRef.current?.()
 
     editor.onUpdate(handleUpdate)
@@ -156,7 +155,11 @@ export function JsonCodeEditor({
     })
     editor.textarea.classList.add('json-code-editor-textarea')
     editor.pre.classList.add('json-code-editor-highlight')
-    lineNumberLayer.classList.add('json-code-editor-lines')
+    editor.pre.setAttribute('aria-hidden', 'true')
+    if (lineNumberLayer) {
+      lineNumberLayer.classList.add('json-code-editor-lines')
+      lineNumberLayer.setAttribute('aria-hidden', 'true')
+    }
     updateCursorLocation()
 
     return () => {
@@ -198,7 +201,12 @@ export function JsonCodeEditor({
     editor.textarea.disabled = Boolean(disabled)
     editor.textarea.id = id ?? ''
     editor.textarea.name = name ?? ''
-    editor.textarea.setAttribute('aria-label', t('JSON'))
+
+    if (ariaLabel) {
+      editor.textarea.setAttribute('aria-label', ariaLabel)
+    } else {
+      editor.textarea.removeAttribute('aria-label')
+    }
 
     if (dataFormRoot) {
       editor.textarea.setAttribute('data-form-root', String(dataFormRoot))
@@ -226,13 +234,13 @@ export function JsonCodeEditor({
   }, [
     ariaDescribedBy,
     ariaInvalid,
+    ariaLabel,
     disabled,
     dataFormRoot,
     id,
     jsonStatus.isValid,
     name,
     placeholder,
-    t,
   ])
 
   const formatJson = () => {

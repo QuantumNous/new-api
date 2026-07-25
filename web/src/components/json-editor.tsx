@@ -291,6 +291,7 @@ export function JsonEditor({
             template ? JSON.stringify(template, null, 2) : '{"key": "value"}'
           }
           disabled={disabled}
+          ariaLabel={t('JSON')}
         />
       )}
     </div>

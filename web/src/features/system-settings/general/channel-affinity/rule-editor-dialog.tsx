@@ -438,8 +438,11 @@ export function RuleEditorDialog(props: Props) {
             </div>
 
             <div className='grid gap-1.5'>
-              <Label>{t('Parameter Override Template (JSON)')}</Label>
+              <Label htmlFor='channel-affinity-param-override-template'>
+                {t('Parameter Override Template (JSON)')}
+              </Label>
               <JsonCodeEditor
+                id='channel-affinity-param-override-template'
                 value={form.watch('param_override_template_json') || ''}
                 onChange={(value) =>
                   form.setValue('param_override_template_json', value, {
