@@ -10,9 +10,8 @@ import (
 )
 
 // TestGetRequestURL_NativePassthroughByFormat covers the VIP native passthrough
-// dispatch: Anthropic inbound goes to /v1/messages, OpenAI Chat (and default)
-// goes to /v1/chat/completions, Responses goes to /v1/responses, and Gemini
-// inbound is rejected.
+// dispatch: Anthropic inbound goes to /v1/messages, OpenAI (and default) inbound
+// goes to /v1/chat/completions, and Gemini inbound is rejected.
 func TestGetRequestURL_NativePassthroughByFormat(t *testing.T) {
 	a := &Adaptor{}
 	cases := []struct {
@@ -56,14 +55,14 @@ func TestGetRequestURL_NativePassthroughByFormat(t *testing.T) {
 			want: "https://blockrun.ai/api/v1/chat/completions",
 		},
 		{
-			name: "responses relay mode → native /v1/responses",
+			name: "responses relay mode → /v1/chat/completions compatibility bridge",
 			info: &relaycommon.RelayInfo{
 				RequestURLPath: "/v1/responses",
 				RelayMode:      relayconstant.RelayModeResponses,
 				RelayFormat:    types.RelayFormatOpenAI,
 				ChannelMeta:    &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
 			},
-			want: "https://blockrun.ai/api/v1/responses",
+			want: "https://blockrun.ai/api/v1/chat/completions",
 		},
 		{
 			// Spec decision #2: an OpenAI-format request naming a Claude model
