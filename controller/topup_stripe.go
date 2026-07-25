@@ -1218,6 +1218,7 @@ func handleStripeOneTimePlanPaid(ctx context.Context, event stripe.Event, refere
 		return permanentStripeWebhookProcessingError(err)
 	}
 	if err == nil {
+		attributeRecallAfterStripeFulfillment(ctx, event, referenceId, order.UserId)
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe one-time subscription order processed trade_no=%s event_type=%s client_ip=%s", referenceId, string(event.Type), callerIp))
 	}
 	return err
@@ -1252,6 +1253,9 @@ func isOneTimePlanStripeOrder(order *model.SubscriptionOrder) bool {
 
 func validateOneTimePlanStripeSessionEvent(event stripe.Event, order *model.SubscriptionOrder) error {
 	if err := validateOneTimePlanStripeSessionIdentity(event, order); err != nil {
+		return err
+	}
+	if err := validateOneTimePlanRecallAttributionTuple(order); err != nil {
 		return err
 	}
 	if event.GetObjectValue("mode") != string(stripe.CheckoutSessionModePayment) {
@@ -1292,6 +1296,30 @@ func validateOneTimePlanStripeSessionEvent(event stripe.Event, order *model.Subs
 		}
 		if item.foldCase {
 			actual = strings.ToLower(actual)
+		}
+		if actual != item.expected {
+			return fmt.Errorf("Stripe one-time checkout metadata %s mismatch", item.key)
+		}
+	}
+	recallMetadata := []struct {
+		key      string
+		expected string
+	}{
+		{key: "recall_campaign_id", expected: strconv.FormatInt(order.RecallCampaignId, 10)},
+		{key: "recall_recipient_id", expected: strconv.FormatInt(order.RecallRecipientId, 10)},
+		{key: "recall_promotion_code_id", expected: strings.TrimSpace(order.RecallPromotionCodeId)},
+		{key: "recall_discount_amount_minor", expected: strconv.FormatInt(order.RecallDiscountAmountMinor, 10)},
+	}
+	for _, item := range recallMetadata {
+		actual := strings.TrimSpace(stripeEventObjectValue(event, "metadata", item.key))
+		if order.RecallDiscountAmountMinor <= 0 {
+			if actual != "" {
+				return fmt.Errorf("Stripe one-time checkout metadata %s is unexpected", item.key)
+			}
+			continue
+		}
+		if actual == "" {
+			return fmt.Errorf("Stripe one-time checkout metadata %s is missing", item.key)
 		}
 		if actual != item.expected {
 			return fmt.Errorf("Stripe one-time checkout metadata %s mismatch", item.key)

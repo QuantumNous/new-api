@@ -99,6 +99,49 @@ func TestBuildOneTimePlanCheckoutRecallMetadataUsesDiscountedOrderWithoutRawClai
 	}
 }
 
+func TestBuildOneTimePlanCheckoutRejectsIncompleteRecallAttributionTuple(t *testing.T) {
+	testCases := []struct {
+		name   string
+		mutate func(*model.SubscriptionOrder)
+	}{
+		{name: "discount missing campaign", mutate: func(order *model.SubscriptionOrder) {
+			order.RecallRecipientId = 82
+			order.RecallPromotionCodeId = "promo_local"
+			order.RecallDiscountAmountMinor = 20
+		}},
+		{name: "discount missing recipient", mutate: func(order *model.SubscriptionOrder) {
+			order.RecallCampaignId = 41
+			order.RecallPromotionCodeId = "promo_local"
+			order.RecallDiscountAmountMinor = 20
+		}},
+		{name: "discount missing promotion", mutate: func(order *model.SubscriptionOrder) {
+			order.RecallCampaignId = 41
+			order.RecallRecipientId = 82
+			order.RecallDiscountAmountMinor = 20
+		}},
+		{name: "zero discount with campaign", mutate: func(order *model.SubscriptionOrder) {
+			order.RecallCampaignId = 41
+		}},
+		{name: "zero discount with recipient", mutate: func(order *model.SubscriptionOrder) {
+			order.RecallRecipientId = 82
+		}},
+		{name: "zero discount with promotion", mutate: func(order *model.SubscriptionOrder) {
+			order.RecallPromotionCodeId = "promo_local"
+		}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoiceAlipay, "USD", 280, 3)
+			tc.mutate(order)
+
+			_, err := buildOneTimePlanCheckoutSessionParams(order, &model.User{Id: 501, Email: "buyer@example.com"})
+
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "recall attribution tuple")
+		})
+	}
+}
+
 func TestBuildOneTimePlanCheckoutEmbeddedUsesReturnURLWithoutHostedURLs(t *testing.T) {
 	originalPublishableKey := setting.StripePublishableKey
 	setting.StripePublishableKey = "pk_test_embedded"
@@ -236,6 +279,72 @@ func TestOneTimePlanWebhookRequiresCheckoutMetadata(t *testing.T) {
 	require.Contains(t, err.Error(), "metadata change_intent_id")
 }
 
+func TestOneTimePlanWebhookRequiresRecallMetadataForDiscountedOrder(t *testing.T) {
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoicePix, "BRL", 4990, 1)
+	order.ProviderSessionId = "cs_expected"
+	order.RecallCampaignId = 41
+	order.RecallRecipientId = 82
+	order.RecallPromotionCodeId = "promo_local"
+	order.RecallDiscountAmountMinor = 20
+	object := oneTimeStripePaidSessionObject(order)
+	metadata := object["metadata"].(map[string]interface{})
+	delete(metadata, "recall_campaign_id")
+
+	err := validateOneTimePlanStripeSessionEvent(stripe.Event{Type: stripe.EventTypeCheckoutSessionCompleted, Data: &stripe.EventData{Object: object}}, order)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "metadata recall_campaign_id")
+
+	object = oneTimeStripePaidSessionObject(order)
+	object["metadata"].(map[string]interface{})["recall_discount_amount_minor"] = "21"
+	err = validateOneTimePlanStripeSessionEvent(stripe.Event{Type: stripe.EventTypeCheckoutSessionCompleted, Data: &stripe.EventData{Object: object}}, order)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "metadata recall_discount_amount_minor")
+}
+
+func TestOneTimePlanWebhookRejectsRecallMetadataForUndiscountedOrder(t *testing.T) {
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoicePix, "BRL", 4990, 1)
+	order.ProviderSessionId = "cs_expected"
+	object := oneTimeStripePaidSessionObject(order)
+	object["metadata"].(map[string]interface{})["recall_campaign_id"] = "41"
+
+	err := validateOneTimePlanStripeSessionEvent(stripe.Event{Type: stripe.EventTypeCheckoutSessionCompleted, Data: &stripe.EventData{Object: object}}, order)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "metadata recall_campaign_id")
+}
+
+func TestOneTimePlanPaidWebhookDoesNotFulfillRecallMetadataMismatch(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	insertStripeFulfillmentUser(t, 506)
+	insertStripeFulfillmentSubscriptionPlan(t, 906)
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoicePix, "BRL", 4990, 1)
+	order.UserId = 506
+	order.PlanId = 906
+	order.TradeNo = "sub_one_time_recall_metadata_mismatch"
+	order.ProviderSessionId = "cs_one_time_recall_metadata_mismatch"
+	order.RecallCampaignId = 41
+	order.RecallRecipientId = 82
+	order.RecallPromotionCodeId = "promo_local"
+	order.RecallDiscountAmountMinor = 20
+	require.NoError(t, model.DB.Create(order).Error)
+	originalFulfill := fulfillOneTimeStripeSubscriptionPurchase
+	t.Cleanup(func() { fulfillOneTimeStripeSubscriptionPurchase = originalFulfill })
+	fulfillCalls := 0
+	fulfillOneTimeStripeSubscriptionPurchase = func(ctx context.Context, tradeNo string, providerPayload string) (*service.PurchaseSubscriptionResult, error) {
+		fulfillCalls++
+		return &service.PurchaseSubscriptionResult{}, nil
+	}
+	object := oneTimeStripePaidSessionObject(order)
+	object["metadata"].(map[string]interface{})["recall_recipient_id"] = "83"
+
+	err := handleStripeOneTimePlanPaid(context.Background(), stripe.Event{ID: "evt_one_time_recall_metadata_mismatch", Type: stripe.EventTypeCheckoutSessionCompleted, Data: &stripe.EventData{Object: object}}, order.TradeNo, "127.0.0.1")
+
+	require.Error(t, err)
+	require.False(t, isRetryableStripeWebhookProcessingError(err))
+	require.Zero(t, fulfillCalls)
+}
+
 func TestOneTimePlanWebhookReplayFulfillsOnce(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	insertStripeFulfillmentUser(t, 501)
@@ -258,6 +367,47 @@ func TestOneTimePlanWebhookReplayFulfillsOnce(t *testing.T) {
 	require.NoError(t, handleStripeOneTimePlanPaid(context.Background(), event, order.TradeNo, "127.0.0.1"))
 
 	require.Equal(t, 1, calls)
+}
+
+func TestOneTimePlanPaidWebhookAttributesRecallAfterFulfillment(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.RecallCampaign{}, &model.RecallRecipient{}, &model.RecallMessage{}, &model.RecallEvent{}))
+	insertStripeFulfillmentUser(t, 507)
+	insertStripeFulfillmentSubscriptionPlan(t, 907)
+	_, recipient := createStripeWebhookRecallRecipient(t, 507, "promo_one_time_webhook")
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoicePix, "BRL", 4990, 1)
+	order.UserId = 507
+	order.PlanId = 907
+	order.TradeNo = "sub_one_time_recall_attribute"
+	order.ProviderSessionId = "cs_one_time_recall_attribute"
+	order.RecallCampaignId = recipient.CampaignId
+	order.RecallRecipientId = recipient.Id
+	order.RecallPromotionCodeId = "promo_one_time_webhook"
+	order.RecallDiscountAmountMinor = 200
+	require.NoError(t, model.DB.Create(order).Error)
+	originalFulfill := fulfillOneTimeStripeSubscriptionPurchase
+	t.Cleanup(func() { fulfillOneTimeStripeSubscriptionPurchase = originalFulfill })
+	fulfillOneTimeStripeSubscriptionPurchase = func(ctx context.Context, tradeNo string, providerPayload string) (*service.PurchaseSubscriptionResult, error) {
+		require.Equal(t, order.TradeNo, tradeNo)
+		return &service.PurchaseSubscriptionResult{}, nil
+	}
+	runtime := service.GetRecallRuntime()
+	originalAttribution := runtime.Attribution
+	runtime.Attribution = service.NewRecallAttributionService(&stripeWebhookRecallClient{getCheckoutSessionFn: func(_ context.Context, id string, _ ...string) (*stripe.CheckoutSession, error) {
+		return &stripe.CheckoutSession{
+			ID: id, AmountTotal: 4790, Currency: stripe.CurrencyBRL,
+			Discounts:    []*stripe.CheckoutSessionDiscount{{PromotionCode: &stripe.PromotionCode{ID: "promo_one_time_webhook"}}},
+			TotalDetails: &stripe.CheckoutSessionTotalDetails{AmountDiscount: 200},
+		}, nil
+	}})
+	t.Cleanup(func() { runtime.Attribution = originalAttribution })
+	event := stripeRecallWebhookEvent("evt_one_time_recall_attribute", "cs_one_time_recall_attribute", order.TradeNo, 4790, 200, recipient, true)
+	event.Type = stripe.EventTypeCheckoutSessionCompleted
+	event.Data.Object = oneTimeStripePaidSessionObject(order)
+
+	require.NoError(t, handleStripeOneTimePlanPaid(context.Background(), event, order.TradeNo, "127.0.0.1"))
+
+	assertStripeWebhookRecipientConverted(t, recipient.Id, order.TradeNo)
 }
 
 func TestOneTimePlanAsyncPaymentSucceededFulfillsPendingOrder(t *testing.T) {
@@ -417,6 +567,21 @@ func TestOneTimePlanPaidWebhookDoesNotFulfillSupersededCheckout(t *testing.T) {
 
 func oneTimeStripePaidSessionObject(order *model.SubscriptionOrder) map[string]interface{} {
 	quote, _ := oneTimePlanQuoteFromOrder(order)
+	metadata := map[string]interface{}{
+		"trade_no":         order.TradeNo,
+		"user_id":          strconv.Itoa(order.UserId),
+		"plan_id":          strconv.Itoa(order.PlanId),
+		"change_intent_id": strconv.FormatInt(order.ChangeIntentId, 10),
+		"purchase_intent":  order.PurchaseIntent,
+		"payment_method":   order.PaymentMethod,
+		"purchase_months":  strconv.Itoa(order.PurchaseMonths),
+	}
+	if order.RecallDiscountAmountMinor > 0 {
+		metadata["recall_campaign_id"] = strconv.FormatInt(order.RecallCampaignId, 10)
+		metadata["recall_recipient_id"] = strconv.FormatInt(order.RecallRecipientId, 10)
+		metadata["recall_promotion_code_id"] = strings.TrimSpace(order.RecallPromotionCodeId)
+		metadata["recall_discount_amount_minor"] = strconv.FormatInt(order.RecallDiscountAmountMinor, 10)
+	}
 	return map[string]interface{}{
 		"id":                   order.ProviderSessionId,
 		"mode":                 string(stripe.CheckoutSessionModePayment),
@@ -427,15 +592,7 @@ func oneTimeStripePaidSessionObject(order *model.SubscriptionOrder) map[string]i
 		"currency":             strings.ToLower(quote.Currency),
 		"livemode":             false,
 		"payment_method_types": []interface{}{order.PaymentMethod},
-		"metadata": map[string]interface{}{
-			"trade_no":         order.TradeNo,
-			"user_id":          strconv.Itoa(order.UserId),
-			"plan_id":          strconv.Itoa(order.PlanId),
-			"change_intent_id": strconv.FormatInt(order.ChangeIntentId, 10),
-			"purchase_intent":  order.PurchaseIntent,
-			"payment_method":   order.PaymentMethod,
-			"purchase_months":  strconv.Itoa(order.PurchaseMonths),
-		},
+		"metadata":             metadata,
 	}
 }
 
