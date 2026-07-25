@@ -43,6 +43,24 @@ const APPS = [
   },
 ]
 
+function AppIcon(props: { icon: (typeof APPS)[number]['icon']; name: string }) {
+  if (props.icon === 'cherry') {
+    return <CherryStudio.Color size={18} className='shrink-0' />
+  }
+  if (props.icon === 'cc') {
+    return (
+      <span className='flex size-5 items-center justify-center rounded-md bg-blue-500/10 text-[9px] font-bold text-blue-600 dark:text-blue-400'>
+        CC
+      </span>
+    )
+  }
+  return (
+    <span className='bg-muted text-muted-foreground flex size-5 items-center justify-center rounded-md text-[10px] font-bold'>
+      {props.name.charAt(0)}
+    </span>
+  )
+}
+
 export function SupportedApps() {
   const { t } = useTranslation()
 
@@ -66,17 +84,7 @@ export function SupportedApps() {
               rel='noopener noreferrer'
               className='border-border/50 bg-background/80 text-foreground/80 hover:border-border hover:text-foreground inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium shadow-xs backdrop-blur-sm transition-all hover:scale-[1.02]'
             >
-              {app.icon === 'cherry' ? (
-                <CherryStudio.Color size={18} className='shrink-0' />
-              ) : app.icon === 'cc' ? (
-                <span className='flex size-5 items-center justify-center rounded-md bg-blue-500/10 text-[9px] font-bold text-blue-600 dark:text-blue-400'>
-                  CC
-                </span>
-              ) : (
-                <span className='bg-muted text-muted-foreground flex size-5 items-center justify-center rounded-md text-[10px] font-bold'>
-                  {app.name.charAt(0)}
-                </span>
-              )}
+              <AppIcon icon={app.icon} name={app.name} />
               {app.name}
             </a>
           ))}

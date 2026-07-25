@@ -323,13 +323,12 @@ export function SignUpForm({
                 }
                 onClick={handleSendVerificationCode}
               >
-                {isActive ? (
-                  t('Resend ({{seconds}}s)', { seconds: secondsLeft })
-                ) : isSendingCode ? (
+                {isActive &&
+                  t('Resend ({{seconds}}s)', { seconds: secondsLeft })}
+                {!isActive && isSendingCode && (
                   <Loader2 className='h-4 w-4 animate-spin' />
-                ) : (
-                  t('Send code')
                 )}
+                {!isActive && !isSendingCode && t('Send code')}
               </Button>
             </div>
           </>

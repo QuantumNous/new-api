@@ -109,13 +109,11 @@ export function JsonCodeEditor({
         const lines = selectedBlock.split('\n')
         const nextBlock = event.shiftKey
           ? lines
-              .map((line) =>
-                line.startsWith('  ')
-                  ? line.slice(2)
-                  : line.startsWith('\t')
-                    ? line.slice(1)
-                    : line
-              )
+              .map((line) => {
+                if (line.startsWith('  ')) return line.slice(2)
+                if (line.startsWith('\t')) return line.slice(1)
+                return line
+              })
               .join('\n')
           : lines.map((line) => `  ${line}`).join('\n')
         const nextValue =

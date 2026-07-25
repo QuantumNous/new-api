@@ -56,6 +56,14 @@ export function DataTablePagination<TData>({
   const totalPages = table.getPageCount()
   const totalRows = table.getRowCount()
   const pageNumbers = getPageNumbers(currentPage, totalPages)
+  let ellipsisCount = 0
+  const pageEntries = pageNumbers.map((pageNumber) => ({
+    pageNumber,
+    key:
+      pageNumber === '...'
+        ? `ellipsis-${++ellipsisCount}`
+        : `page-${pageNumber}`,
+  }))
 
   return (
     <div
@@ -118,27 +126,31 @@ export function DataTablePagination<TData>({
             <ChevronLeftIcon className='h-4 w-4' />
           </Button>
 
-          {pageNumbers.map((pageNumber, index) => (
-            <div key={`${pageNumber}-${index}`} className='flex items-center'>
-              {pageNumber === '...' ? (
+          {pageEntries.map((entry) => (
+            <div key={entry.key} className='flex items-center'>
+              {entry.pageNumber === '...' ? (
                 <span className='text-muted-foreground/60 px-0.5 text-sm @lg/pagination:px-1'>
                   ...
                 </span>
               ) : (
                 <Button
-                  variant={currentPage === pageNumber ? 'default' : 'outline'}
+                  variant={
+                    currentPage === entry.pageNumber ? 'default' : 'outline'
+                  }
                   className={cn(
                     'h-8 min-w-8 px-2 tabular-nums',
-                    currentPage === pageNumber
+                    currentPage === entry.pageNumber
                       ? 'font-semibold'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
-                  onClick={() => table.setPageIndex((pageNumber as number) - 1)}
+                  onClick={() =>
+                    table.setPageIndex((entry.pageNumber as number) - 1)
+                  }
                 >
                   <span className='sr-only'>
-                    {t('Go to page {{page}}', { page: pageNumber })}
+                    {t('Go to page {{page}}', { page: entry.pageNumber })}
                   </span>
-                  {pageNumber}
+                  {entry.pageNumber}
                 </Button>
               )}
             </div>

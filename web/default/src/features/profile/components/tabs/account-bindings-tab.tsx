@@ -58,6 +58,12 @@ interface AccountBindingsTabProps {
 
 type DialogKey = 'email' | 'wechat' | 'telegram'
 
+function bindingActionLabel(binding: BindingItem): string {
+  if (!binding.isBound) return 'Bind'
+  if (binding.id === 'email') return 'Change'
+  return 'Bound'
+}
+
 export function AccountBindingsTab({
   profile,
   onUpdate,
@@ -298,11 +304,7 @@ export function AccountBindingsTab({
               onClick={binding.onBind}
               disabled={binding.isBound && binding.id !== 'email'}
             >
-              {binding.isBound
-                ? binding.id === 'email'
-                  ? t('Change')
-                  : t('Bound')
-                : t('Bind')}
+              {t(bindingActionLabel(binding))}
             </Button>
           </div>
         ))}

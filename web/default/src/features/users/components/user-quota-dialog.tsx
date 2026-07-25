@@ -31,6 +31,12 @@ import { cn } from '@/lib/utils'
 import { adjustUserQuota } from '../api'
 import type { QuotaAdjustMode } from '../types'
 
+const QUOTA_ADJUST_MODE_LABEL: Record<QuotaAdjustMode, string> = {
+  add: 'Add',
+  subtract: 'Subtract',
+  override: 'Override',
+}
+
 interface UserQuotaDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -149,11 +155,7 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
                   setAmount('')
                 }}
               >
-                {m === 'add'
-                  ? t('Add')
-                  : m === 'subtract'
-                    ? t('Subtract')
-                    : t('Override')}
+                {t(QUOTA_ADJUST_MODE_LABEL[m])}
               </Button>
             ))}
           </div>

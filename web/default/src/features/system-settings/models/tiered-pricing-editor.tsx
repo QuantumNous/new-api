@@ -557,6 +557,11 @@ function VisualTierCard({
 }: VisualTierCardProps) {
   const { t } = useTranslation()
   const cacheMode = getTierCacheMode(tier)
+  const conditionEntries = tier.conditions.map((condition, conditionIndex) => ({
+    condition,
+    conditionIndex,
+    key: `tier-condition-${conditionIndex}`,
+  }))
 
   const handleConditionChange = (
     conditionIndex: number,
@@ -665,12 +670,14 @@ function VisualTierCard({
             {t('Always matches (default tier).')}
           </p>
         ) : (
-          tier.conditions.map((condition, conditionIndex) => (
+          conditionEntries.map((entry) => (
             <ConditionRow
-              key={conditionIndex}
-              condition={condition}
-              onChange={(next) => handleConditionChange(conditionIndex, next)}
-              onRemove={() => handleConditionRemove(conditionIndex)}
+              key={entry.key}
+              condition={entry.condition}
+              onChange={(next) =>
+                handleConditionChange(entry.conditionIndex, next)
+              }
+              onRemove={() => handleConditionRemove(entry.conditionIndex)}
             />
           ))
         )}
@@ -780,6 +787,11 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
     () => normalizeVisualConfig(visualConfig),
     [visualConfig]
   )
+  const tierEntries = config.tiers.map((tier, index) => ({
+    tier,
+    index,
+    key: `visual-tier-${index}`,
+  }))
 
   const handleTierChange = (index: number, next: VisualTier) => {
     const tiers = [...config.tiers]
@@ -847,15 +859,15 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
           'Each tier supports up to 2 conditions. The last tier without conditions is the fallback.'
         )}
       </p>
-      {config.tiers.map((tier, index) => (
+      {tierEntries.map((entry) => (
         <VisualTierCard
-          key={index}
-          tier={tier}
-          index={index}
+          key={entry.key}
+          tier={entry.tier}
+          index={entry.index}
           total={config.tiers.length}
-          onChange={(next) => handleTierChange(index, next)}
-          onRemove={() => handleRemoveTier(index)}
-          onAddCondition={() => handleAddCondition(index)}
+          onChange={(next) => handleTierChange(entry.index, next)}
+          onRemove={() => handleRemoveTier(entry.index)}
+          onAddCondition={() => handleAddCondition(entry.index)}
         />
       ))}
       <Button
@@ -967,12 +979,12 @@ function RuleConditionRow({
         return timeFunc
     }
   }
-  const sourceLabel =
-    condition.source === SOURCE_PARAM
-      ? t('Body param')
-      : condition.source === SOURCE_HEADER
-        ? t('Header')
-        : t('Time')
+  let sourceLabel = t('Time')
+  if (condition.source === SOURCE_PARAM) {
+    sourceLabel = t('Body param')
+  } else if (condition.source === SOURCE_HEADER) {
+    sourceLabel = t('Header')
+  }
 
   const handleSourceChange = (source: string) => {
     if (source === SOURCE_TIME) {
@@ -1194,6 +1206,13 @@ function RuleGroupCard({
   onRemove,
 }: RuleGroupCardProps) {
   const { t } = useTranslation()
+  const conditionEntries = group.conditions.map(
+    (condition, conditionIndex) => ({
+      condition,
+      conditionIndex,
+      key: `rule-condition-${conditionIndex}`,
+    })
+  )
 
   const handleConditionChange = (
     conditionIndex: number,
@@ -1233,16 +1252,18 @@ function RuleGroupCard({
       </div>
 
       <div className='space-y-2'>
-        {group.conditions.map((condition, conditionIndex) => (
+        {conditionEntries.map((entry) => (
           <RuleConditionRow
-            key={conditionIndex}
-            condition={condition}
-            onChange={(next) => handleConditionChange(conditionIndex, next)}
+            key={entry.key}
+            condition={entry.condition}
+            onChange={(next) =>
+              handleConditionChange(entry.conditionIndex, next)
+            }
             onRemove={() =>
               onChange({
                 ...group,
                 conditions: group.conditions.filter(
-                  (_, i) => i !== conditionIndex
+                  (_, i) => i !== entry.conditionIndex
                 ),
               })
             }
@@ -1643,6 +1664,13 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
   const [requestRuleGroups, setRequestRuleGroups] = useState<
     RequestRuleGroup[]
   >(() => tryParseRequestRuleExpr(currentRequestRuleExpr) || [])
+  const requestRuleGroupEntries = requestRuleGroups.map(
+    (group, groupIndex) => ({
+      group,
+      groupIndex,
+      key: `request-rule-group-${groupIndex}`,
+    })
+  )
   const initRef = useRef(false)
 
   useEffect(() => {
@@ -1842,19 +1870,21 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
               </Alert>
             ) : (
               <>
-                {requestRuleGroups.map((group, groupIndex) => (
+                {requestRuleGroupEntries.map((entry) => (
                   <RuleGroupCard
-                    key={groupIndex}
-                    group={group}
-                    index={groupIndex}
+                    key={entry.key}
+                    group={entry.group}
+                    index={entry.groupIndex}
                     onChange={(next) => {
                       const updated = [...requestRuleGroups]
-                      updated[groupIndex] = next
+                      updated[entry.groupIndex] = next
                       handleRuleGroupsChange(updated)
                     }}
                     onRemove={() =>
                       handleRuleGroupsChange(
-                        requestRuleGroups.filter((_, i) => i !== groupIndex)
+                        requestRuleGroups.filter(
+                          (_, i) => i !== entry.groupIndex
+                        )
                       )
                     }
                   />

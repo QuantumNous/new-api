@@ -123,6 +123,13 @@ export function EmailBindDialog({
     }
   }
 
+  let sendCodeLabel = t('Send')
+  if (isActive) {
+    sendCodeLabel = `${secondsLeft}s`
+  } else if (sendingCode) {
+    sendCodeLabel = t('Sending...')
+  }
+
   return (
     <Dialog
       open={open}
@@ -189,11 +196,7 @@ export function EmailBindDialog({
               onClick={handleSendCode}
               disabled={sendingCode || isActive || !email}
             >
-              {isActive
-                ? `${secondsLeft}s`
-                : sendingCode
-                  ? t('Sending...')
-                  : t('Send')}
+              {sendCodeLabel}
             </Button>
           </div>
         </div>

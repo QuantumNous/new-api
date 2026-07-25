@@ -76,9 +76,9 @@ export function NavLinkList({
 }: NavLinkListProps) {
   return (
     <>
-      {links.map((link, index) => (
+      {links.map((link) => (
         <NavLinkItem
-          key={index}
+          key={link.href}
           link={link}
           className={cn(className, itemClassName)}
         />
