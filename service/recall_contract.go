@@ -70,6 +70,7 @@ type RecallDiscountConfig struct {
 type RecallProductScope struct {
 	TopUpPriceIDs                []string `json:"topup_price_ids"`
 	SubscriptionPriceIDs         []string `json:"subscription_price_ids"`
+	SubscriptionPlanIDs          []int    `json:"subscription_plan_ids,omitempty"`
 	TopUpDisplaySnapshots        []string `json:"topup_display_snapshots,omitempty"`
 	SubscriptionDisplaySnapshots []string `json:"subscription_display_snapshots,omitempty"`
 }

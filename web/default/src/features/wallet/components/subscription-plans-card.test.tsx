@@ -83,7 +83,6 @@ function plan(id: number, title: string, price: number): PlanRecord {
       window_5h_amount: price * 100,
       window_week_amount: price * 250,
       media_credits_monthly: price,
-      stripe_price_id: `price_${title.trim().toLowerCase()}`,
       payment_modes: ['stripe_recurring', 'balance_one_period'],
     },
   }
@@ -167,6 +166,7 @@ const subscriptionRecallClaim: RecallClaimView = {
   products: {
     topup_price_ids: [],
     subscription_price_ids: ['price_go'],
+    subscription_plan_ids: [1],
   },
   redeemed: false,
 }

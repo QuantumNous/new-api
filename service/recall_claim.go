@@ -164,6 +164,11 @@ func (s *RecallClaimService) validateClaim(ctx context.Context, userID int, clai
 	if err := common.Unmarshal([]byte(record.Campaign.ProductScope), &products); err != nil {
 		return nil, nil, fmt.Errorf("%w: products", ErrRecallClaimInvalidConfig)
 	}
+	subscriptionPlanIDs, err := resolveRecallSubscriptionPlanIDs(ctx, products.SubscriptionPriceIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	products.SubscriptionPlanIDs = subscriptionPlanIDs
 	if bindNeeded {
 		bound, _, err := model.BindRecallRecipientUserWithContext(ctx, record.Recipient.Id, userID, bindRecipientEmail)
 		if err != nil {
@@ -197,6 +202,36 @@ func (s *RecallClaimService) validateClaim(ctx context.Context, userID int, clai
 		Redeemed:            false,
 	}
 	return record, view, nil
+}
+
+func resolveRecallSubscriptionPlanIDs(ctx context.Context, rawPriceIDs []string) ([]int, error) {
+	priceIDs := normalizeRecallStripeIDs(rawPriceIDs)
+	if len(priceIDs) == 0 {
+		return []int{}, nil
+	}
+	plans, err := model.ListRecallSubscriptionPlansByStripePriceIDsWithContext(ctx, priceIDs)
+	if err != nil {
+		return nil, err
+	}
+	planIDsByPriceID := make(map[string][]int, len(plans))
+	for _, plan := range plans {
+		priceID := strings.TrimSpace(plan.StripePriceId)
+		if priceID != "" && plan.Id > 0 && plan.Enabled {
+			planIDsByPriceID[priceID] = append(planIDsByPriceID[priceID], plan.Id)
+		}
+	}
+	planIDs := make([]int, 0, len(plans))
+	seen := make(map[int]struct{}, len(priceIDs))
+	for _, priceID := range priceIDs {
+		for _, planID := range planIDsByPriceID[priceID] {
+			if _, exists := seen[planID]; exists {
+				continue
+			}
+			seen[planID] = struct{}{}
+			planIDs = append(planIDs, planID)
+		}
+	}
+	return planIDs, nil
 }
 
 func (s *RecallClaimService) BuildCheckoutDiscount(ctx context.Context, userID int, claim string, purchaseKind string, priceID string) (*RecallCheckoutDiscount, error) {
