@@ -862,6 +862,11 @@ button.btn.danger { color: var(--accent); }
   padding: 7px 10px; color: var(--ink); font: inherit; font-size: 13px; outline: none;
 }
 .mlist-add input:focus { border-color: var(--accent); }
+.mlist-add select {
+  background: var(--panel); border: 1px solid var(--line-strong); border-radius: 8px;
+  padding: 7px 8px; color: var(--ink); font: inherit; font-size: 13px; outline: none;
+}
+.mlist-add select:focus { border-color: var(--accent); }
 
 /* .mcp-error is used by ScheduledView; the MCP servers list itself is Tailwind-styled inline
    (ManageTabs McpTab/McpRow/AddForm). */

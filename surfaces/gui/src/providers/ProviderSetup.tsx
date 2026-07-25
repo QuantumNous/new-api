@@ -20,6 +20,7 @@ export const KEY_HELP: Record<string, { url: string; label: string }> = {
   anthropic: { url: "https://console.anthropic.com/settings/keys", label: "console.anthropic.com" },
   openai: { url: "https://platform.openai.com/api-keys", label: "platform.openai.com" },
   gemini: { url: "https://aistudio.google.com/apikey", label: "aistudio.google.com" },
+  openrouter: { url: "https://openrouter.ai/keys", label: "openrouter.ai" },
   fireworks: { url: "https://fireworks.ai/account/api-keys", label: "fireworks.ai" },
   together: { url: "https://api.together.xyz/settings/api-keys", label: "together.xyz" },
   zai: { url: "https://z.ai/manage-apikey/apikey-list", label: "z.ai" },
@@ -250,7 +251,11 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     // The in-field saved state (§39): green border + pill INSIDE the key box — shown
     // for stored credentials and fresh test-passes alike; typing clears it.
     savedState: (credentialed && !dirty) || verify.state === "ok",
-    secretFilled: (info?.fields || []).every((f) => !f.secret || (fields[f.key] || "").trim()),
+    // Only REQUIRED secrets gate the Test button — cloud providers (Bedrock, Vertex)
+    // have optional key fields whose credentials may live in ~/.aws or ADC instead.
+    secretFilled: (info?.fields || []).every(
+      (f) => !f.secret || !f.required || (fields[f.key] || "").trim(),
+    ),
     openProvider,
     backToGallery,
     runTestAndSave,
@@ -335,16 +340,18 @@ export function ProviderForm({
         // A keyed provider's base_url is an expert option — it renders BELOW the key-help
         // line as its own advanced section (owner nit 2026-07-19), not inside the loop.
         if (f.key === "base_url" && keyed) return null;
-        const testable =
-          (f.secret && f.key === (info?.fields || []).find((x) => x.secret)?.key) ||
-          (!keyed && f.key === (info?.fields || [])[0]?.key);
+        // Test lives next to the required secret (the API key) when there is one; cloud
+        // providers whose secrets are all optional (Bedrock, Vertex) test from the first
+        // field instead — their credentials may be ambient (~/.aws, ADC).
+        const requiredSecret = (info?.fields || []).find((x) => x.secret && x.required);
+        const testable = requiredSecret ? f.key === requiredSecret.key : f.key === (info?.fields || [])[0]?.key;
         return (
           <div key={f.key}>
             <label className={label}>{f.label}</label>
             <div className="flex gap-2">
               <div className="relative flex-1 min-w-0">
                 <input
-                  className={input + (ps.savedState && f.secret ? " border-ok pr-32" : " border-line")}
+                  className={input + (ps.savedState && testable ? " border-ok pr-32" : " border-line")}
                   type={f.secret ? "password" : "text"}
                   placeholder={f.secret && ps.credentialed && !ps.dirty ? "••••••••" : f.placeholder}
                   value={ps.fields[f.key] || ""}
@@ -361,20 +368,12 @@ export function ProviderForm({
                   </span>
                 )}
                 {/* §39: state lives IN the field — no status lines below. */}
-                {ps.savedState && f.secret && (
+                {ps.savedState && testable && (
                   <span
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
                     data-testid={`${tp}-saved-pill`}
                   >
-                    ✓ Tested &amp; saved
-                  </span>
-                )}
-                {ps.savedState && !f.secret && testable && (
-                  <span
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
-                    data-testid={`${tp}-saved-pill`}
-                  >
-                    ✓ Detected
+                    {info?.needs_key ? <>✓ Tested &amp; saved</> : <>✓ Detected</>}
                   </span>
                 )}
               </div>
@@ -382,14 +381,14 @@ export function ProviderForm({
                 <button
                   className="px-4 rounded-lg border border-line text-[13px] font-medium text-ink hover:border-lineStrong shrink-0 disabled:opacity-40"
                   onClick={() => ps.runTestAndSave()}
-                  disabled={ps.verify.state === "testing" || (f.secret && !ps.secretFilled && !ps.credentialed)}
+                  disabled={ps.verify.state === "testing" || (!ps.secretFilled && !ps.credentialed)}
                   data-testid={`${tp}-test`}
                 >
                   {ps.verify.state === "testing" ? "…" : info?.needs_key ? "Test" : "Detect"}
                 </button>
               )}
             </div>
-            {f.help && !f.secret && <p className="text-[11.5px] text-faint mt-1">{f.help}</p>}
+            {f.help && <p className="text-[11.5px] text-faint mt-1">{f.help}</p>}
           </div>
         );
       })}
