@@ -159,8 +159,11 @@ function ChatRouteComponent() {
       key={iframeSrc}
       className='h-full w-full border-0'
       allow='camera; microphone'
-      // Third-party chat UIs need scripts and their own storage to work, so the
-      // sandbox can only withhold navigating the host page away from BoxAI.
+      // Presets are admin-configured, and the third-party chat UIs they point
+      // at need scripts plus their own storage to work at all. Pairing those
+      // two defeats most of the sandbox, so what it still buys us is keeping
+      // the frame from navigating the host page away from BoxAI.
+      // eslint-disable-next-line react/iframe-missing-sandbox
       sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads'
       title={`Chat preset: ${preset.name}`}
     />

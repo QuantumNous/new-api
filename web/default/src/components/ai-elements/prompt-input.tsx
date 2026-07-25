@@ -1045,20 +1045,26 @@ export const PromptInputSubmit = ({
   )
 }
 
+interface SpeechRecognitionEventMap {
+  start: Event
+  end: Event
+  result: SpeechRecognitionEvent
+  error: SpeechRecognitionErrorEvent
+}
+
 interface SpeechRecognition extends EventTarget {
   continuous: boolean
   interimResults: boolean
   lang: string
   start(): void
   stop(): void
-  onstart: ((this: SpeechRecognition, ev: Event) => void) | null
-  onend: ((this: SpeechRecognition, ev: Event) => void) | null
-  onresult:
-    | ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => void)
-    | null
-  onerror:
-    | ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => void)
-    | null
+  addEventListener<K extends keyof SpeechRecognitionEventMap>(
+    type: K,
+    listener: (
+      this: SpeechRecognition,
+      ev: SpeechRecognitionEventMap[K]
+    ) => void
+  ): void
 }
 
 interface SpeechRecognitionEvent extends Event {
@@ -1128,15 +1134,15 @@ export const PromptInputSpeechButton = ({
       speechRecognition.interimResults = true
       speechRecognition.lang = 'en-US'
 
-      speechRecognition.onstart = () => {
+      speechRecognition.addEventListener('start', () => {
         setIsListening(true)
-      }
+      })
 
-      speechRecognition.onend = () => {
+      speechRecognition.addEventListener('end', () => {
         setIsListening(false)
-      }
+      })
 
-      speechRecognition.onresult = (event) => {
+      speechRecognition.addEventListener('result', (event) => {
         let finalTranscript = ''
 
         // eslint-disable-next-line unicorn/prefer-spread -- SpeechRecognitionResultList is array-like, not iterable
@@ -1158,13 +1164,13 @@ export const PromptInputSpeechButton = ({
           textarea.dispatchEvent(new Event('input', { bubbles: true }))
           onTranscriptionChange?.(newValue)
         }
-      }
+      })
 
-      speechRecognition.onerror = (event) => {
+      speechRecognition.addEventListener('error', (event) => {
         // eslint-disable-next-line no-console
         console.error('Speech recognition error:', event.error)
         setIsListening(false)
-      }
+      })
 
       recognitionRef.current = speechRecognition
       // eslint-disable-next-line react-hooks/set-state-in-effect
