@@ -466,6 +466,23 @@ def test_server_sets_explicit_websocket_frame_limit(tmp_path, monkeypatch):
     assert seen["ws_max_size"] == server_run._WS_MAX_FRAME_BYTES
 
 
+def test_standalone_server_token_file_is_user_only(tmp_path, monkeypatch):
+    import os
+
+    from coworker.server import run as server_run
+
+    monkeypatch.delenv("COWORKER_API_TOKEN", raising=False)
+    path = server_run._ensure_api_token(9876)
+    try:
+        assert path == tmp_path / "coworker-state" / "sidecar-9876.token"
+        assert path.read_text().strip() == os.environ["COWORKER_API_TOKEN"]
+        assert len(path.read_text().strip()) == 64
+        assert (path.stat().st_mode & 0o777) == 0o600
+    finally:
+        path.unlink(missing_ok=True)
+        os.environ.pop("COWORKER_API_TOKEN", None)
+
+
 def test_ws_error_persists_notice_and_retry_reruns(tmp_path):
     class FlakyProvider(ProviderClient):
         def __init__(self):
@@ -533,6 +550,57 @@ def test_ws_allows_webview_origin(tmp_path):
         "/ws/session/x", headers={"Origin": "http://tauri.localhost"}
     ) as ws:
         assert ws.receive_json()["type"] == "ready"
+
+
+def test_sidecar_token_gates_rest_and_websockets(tmp_path, monkeypatch):
+    from coworker.mcp.config import global_mcp_path
+    from starlette.websockets import WebSocketDisconnect as WSD
+
+    monkeypatch.setenv("COWORKER_API_TOKEN", "a" * 64)
+    manager = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
+    client = TestClient(create_app(manager))
+
+    assert client.get("/v1/health").json() == {"status": "ok"}
+    assert client.get("/v1/sessions").status_code == 401
+    assert client.get(
+        "/v1/sessions", headers={"X-OpenWorker-Token": "wrong"}
+    ).status_code == 401
+
+    headers = {"X-OpenWorker-Token": "a" * 64}
+    assert client.get("/v1/health", headers=headers).json()[
+        "default_workspace"
+    ] == str(tmp_path.resolve())
+    assert client.get("/v1/sessions", headers=headers).status_code == 200
+
+    rejected = client.post(
+        "/v1/mcp",
+        json={"name": "evil", "config": {"command": "sh", "args": ["-c", "id"]}},
+    )
+    assert rejected.status_code == 401
+    assert not global_mcp_path().exists()
+
+    with pytest.raises(WSD) as denied:
+        with client.websocket_connect("/ws/session/tokenless") as ws:
+            ws.receive_json()
+    assert denied.value.code == 1008
+
+    with client.websocket_connect(
+        "/ws/session/authed", subprotocols=["openworker", "a" * 64]
+    ) as ws:
+        assert ws.accepted_subprotocol == "openworker"
+        assert ws.receive_json()["type"] == "ready"
+
+    with client.websocket_connect(
+        "/ws/events", subprotocols=["openworker", "a" * 64]
+    ) as ws:
+        assert ws.accepted_subprotocol == "openworker"
+
+    # Redirect callbacks remain tokenless, then enforce their own signed state.
+    assert client.get(
+        "/auth/callback", params={"code": "x", "state": "bad"}
+    ).status_code == 400
+    assert client.get("/mcp/oauth/callback").status_code == 400
+    assert client.post("/oauth/callback", data={"app_state": "bad"}).status_code == 400
 
 
 def test_ws_approval_round_trip(tmp_path):

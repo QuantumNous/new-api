@@ -1,5 +1,7 @@
 import type { SessionInfo, WsEvent } from "./types";
 
+declare const __COWORKER_DEV_TOKEN__: string;
+
 // Endpoint resolution order: runtime-injected globals (Tauri sets `window.__COWORKER_HTTP__`
 // for its dynamically-chosen sidecar port) → Vite env → the 127.0.0.1:8765 dev default. This
 // keeps a single codebase: browser `npm run dev` hits 8765; the desktop shell hits its sidecar.
@@ -11,6 +13,29 @@ const wsBase = (): string =>
   (globalThis as any).__COWORKER_WS__ ||
   (import.meta as any).env?.VITE_COWORKER_WS ||
   "ws://127.0.0.1:8765";
+const apiToken = (): string =>
+  (globalThis as any).__COWORKER_API_TOKEN__ ||
+  (import.meta as any).env?.VITE_COWORKER_API_TOKEN ||
+  (typeof __COWORKER_DEV_TOKEN__ === "string" ? __COWORKER_DEV_TOKEN__ : "");
+
+// All local REST calls pass through this module, so a module-local wrapper applies launch
+// authentication without asking every endpoint helper to remember the security header.
+const fetch = (
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> => {
+  const headers = new Headers(init.headers);
+  const token = apiToken();
+  if (token) headers.set("X-OpenWorker-Token", token);
+  return globalThis.fetch(input, { ...init, headers });
+};
+
+const openWebSocket = (url: string): WebSocket => {
+  const token = apiToken();
+  return token
+    ? new WebSocket(url, ["openworker", token])
+    : new WebSocket(url);
+};
 
 export interface Health {
   status: string;
@@ -1388,7 +1413,7 @@ export function connectEvents(
   let closed = false;
   const open = () => {
     if (closed) return;
-    ws = new WebSocket(`${wsBase()}/ws/events`);
+    ws = openWebSocket(`${wsBase()}/ws/events`);
     ws.onmessage = (e) => {
       try {
         onEvent(JSON.parse(e.data));
@@ -1715,7 +1740,7 @@ export class Session {
 
   constructor(sessionId: string, workspace: string, agent: string, handlers: Handlers) {
     const q = `?workspace=${encodeURIComponent(workspace)}&agent=${encodeURIComponent(agent)}`;
-    this.ws = new WebSocket(`${wsBase()}/ws/session/${sessionId}${q}`);
+    this.ws = openWebSocket(`${wsBase()}/ws/session/${sessionId}${q}`);
     this.ws.onmessage = (e) => handlers.onEvent(JSON.parse(e.data));
     this.ws.onopen = () => {
       this.flush();

@@ -201,6 +201,9 @@ def client(tmp_path, monkeypatch):
 
 
 def test_managed_callback_lands_in_portal_profile(client):
+    import coworker.cloud as cloud
+
+    cloud._pending_managed_states["s"] = cloud._now()
     resp = client.post(
         "/oauth/callback",
         data={

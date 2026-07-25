@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from coworker import cloud
 from coworker.server import SessionManager, create_app
 
 
@@ -25,6 +26,8 @@ def client(tmp_path, monkeypatch):
 
 
 def _install_form(team_id: str) -> dict:
+    state = f"slack-{team_id}"
+    cloud._pending_managed_states[state] = cloud._now()
     return {
         "connector": "slack",
         "team_id": team_id,
@@ -33,6 +36,7 @@ def _install_form(team_id: str) -> dict:
         "account": f"Workspace {team_id}",
         "team_domain": f"dom-{team_id.lower()}",
         "connection_id": f"conn_{team_id}",
+        "app_state": state,
     }
 
 

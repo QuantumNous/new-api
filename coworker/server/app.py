@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import re
+import secrets
 import uuid
 from collections import deque
 from contextlib import asynccontextmanager
@@ -19,6 +20,7 @@ from typing import Any, Optional
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Origins allowed to talk to the local sidecar. It binds to 127.0.0.1, but a page in the
 # user's own browser can still reach loopback — so without an origin gate, any website they
@@ -177,6 +179,48 @@ def create_app(manager: SessionManager) -> FastAPI:
         await manager.aclose()  # stop gateway + close MCP connections on shutdown
 
     app = FastAPI(title="coworker", version="0.0.0", lifespan=lifespan)
+    api_token = os.environ.get("COWORKER_API_TOKEN", "")
+    tokenless_paths = {
+        "/v1/health",
+        "/auth/callback",
+        "/mcp/oauth/callback",
+        "/oauth/callback",
+    }
+
+    def _request_authenticated(request: Request) -> bool:
+        provided = request.headers.get("x-openworker-token", "")
+        return bool(
+            api_token
+            and provided
+            and secrets.compare_digest(provided, api_token)
+        )
+
+    def _websocket_authenticated(ws: WebSocket) -> bool:
+        if not api_token:
+            return True
+        protocols = {
+            part.strip()
+            for part in ws.headers.get("sec-websocket-protocol", "").split(",")
+            if part.strip()
+        }
+        return any(secrets.compare_digest(part, api_token) for part in protocols)
+
+    @app.middleware("http")
+    async def require_sidecar_token(request: Request, call_next):
+        # Preflights carry the requested header name, not its value. CORS checks the
+        # Origin; the actual state-changing request still must authenticate.
+        if (
+            not api_token
+            or request.method == "OPTIONS"
+            or request.url.path in tokenless_paths
+            or _request_authenticated(request)
+        ):
+            return await call_next(request)
+        return JSONResponse(
+            {"error": "missing or invalid OpenWorker sidecar token"},
+            status_code=401,
+        )
+
     app.add_middleware(
         CORSMiddleware,
         # Pinned to the desktop webview + localhost (see _ALLOWED_ORIGIN_RE): stops a random
@@ -188,7 +232,9 @@ def create_app(manager: SessionManager) -> FastAPI:
     app.state.manager = manager
 
     @app.get("/v1/health")
-    def health() -> dict[str, Any]:
+    def health(request: Request) -> dict[str, Any]:
+        if api_token and not _request_authenticated(request):
+            return {"status": "ok"}
         return {
             "status": "ok",
             "default_workspace": manager.default_workspace,
@@ -1040,6 +1086,16 @@ def create_app(manager: SessionManager) -> FastAPI:
         form = await request.form()
         data = {k: str(v) for k, v in form.items()}
         connector = data.get("connector", "")
+        if not cloud.consume_managed_state(data.get("app_state", "")):
+            return HTMLResponse(
+                _browser_page(
+                    "Connection failed",
+                    _CONNECT_FAILED_DETAIL,
+                    ok=False,
+                    error="unknown or expired connection attempt",
+                ),
+                status_code=400,
+            )
         if data.get("error"):
             return HTMLResponse(
                 _browser_page(
@@ -1389,13 +1445,16 @@ def create_app(manager: SessionManager) -> FastAPI:
 
     @app.websocket("/ws/session/{session_id}")
     async def ws_session(ws: WebSocket, session_id: str) -> None:
+        if not _websocket_authenticated(ws):
+            await ws.close(code=1008)
+            return
         # CORS never gates WebSockets, so a cross-site page could otherwise open this socket
         # and drive the session into tool calls. Reject a disallowed browser Origin before
         # accepting the handshake (1008 = policy violation).
         if not _origin_allowed(ws.headers.get("origin")):
             await ws.close(code=1008)
             return
-        await ws.accept()
+        await ws.accept(subprotocol="openworker" if api_token else None)
         agent = ws.query_params.get("agent") or "code"
 
         # All four interactive prompts (approval / question / directory / plan) are parked as Inbox
@@ -1843,10 +1902,13 @@ def create_app(manager: SessionManager) -> FastAPI:
         """App-wide event stream (session-independent): the GUI keeps one open for
         pushes like automation_run_started (the UX-026 toast). Read-only — inbound
         frames are ignored; the receive loop just detects disconnect."""
+        if not _websocket_authenticated(ws):
+            await ws.close(code=1008)
+            return
         if not _origin_allowed(ws.headers.get("origin")):
             await ws.close(code=1008)
             return
-        await ws.accept()
+        await ws.accept(subprotocol="openworker" if api_token else None)
         manager.register_event_client(ws.send_json)
         try:
             while True:
