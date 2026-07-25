@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { FieldPath, UseFormReturn } from 'react-hook-form'
 import { useMutation } from '@tanstack/react-query'
+import type { InterfaceLanguageCode } from '@/i18n/languages'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -17,6 +18,7 @@ import type { RecallCampaignDraft } from '../types'
 interface CampaignEmailHtmlEditorProps {
   form: UseFormReturn<RecallCampaignDraft>
   index: number
+  locale: InterfaceLanguageCode
   disabled: boolean
 }
 
@@ -139,12 +141,12 @@ export function CampaignEmailHtmlEditor(
     latestError: '',
   })
   const subjectPath =
-    `email_sequence.${props.index}.templates.en.subject` as FieldPath<RecallCampaignDraft>
+    `email_sequence.${props.index}.templates.${props.locale}.subject` as FieldPath<RecallCampaignDraft>
   const bodyPath =
-    `email_sequence.${props.index}.templates.en.body_html` as FieldPath<RecallCampaignDraft>
+    `email_sequence.${props.index}.templates.${props.locale}.body_html` as FieldPath<RecallCampaignDraft>
   const legacyBodyPath =
-    `email_sequence.${props.index}.templates.en.body_text` as FieldPath<RecallCampaignDraft>
-  const bodyId = `recall-email-${props.index}-body-html`
+    `email_sequence.${props.index}.templates.${props.locale}.body_text` as FieldPath<RecallCampaignDraft>
+  const bodyId = `recall-email-${props.index}-${props.locale}-body-html`
   const bodyErrorId = `${bodyId}-error`
   const bodyRegistration = props.form.register(bodyPath)
   const bodyError = props.form.getFieldState(

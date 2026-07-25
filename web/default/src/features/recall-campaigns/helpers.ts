@@ -131,7 +131,6 @@ export function prepareRecallCampaignSubmitDraft(
       ...stage,
       templates: Object.fromEntries(
         Object.entries(stage.templates).map(([locale, template]) => {
-          if (locale !== 'en') return [locale, { ...template }]
           const bodyHtml = template.body_html?.trim()
           if (bodyHtml) {
             return [
@@ -147,15 +146,21 @@ export function prepareRecallCampaignSubmitDraft(
             ]
           }
           const bodyText = template.body_text?.trim()
+          let normalizedBodyHTML = ''
+          if (bodyText) {
+            normalizedBodyHTML = convertRecallBodyTextToHtml(
+              template.body_text ?? ''
+            )
+          } else if (locale === 'en') {
+            normalizedBodyHTML = RECALL_EMAIL_STARTER_HTML
+          }
           return [
             locale,
             {
               ...template,
               subject: template.subject.trim() || draft.name.trim(),
               body_text: '',
-              body_html: bodyText
-                ? convertRecallBodyTextToHtml(template.body_text ?? '')
-                : RECALL_EMAIL_STARTER_HTML,
+              body_html: normalizedBodyHTML,
             },
           ]
         })

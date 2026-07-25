@@ -125,7 +125,7 @@ function makeRecipient(
 }
 
 describe('recall campaign editor normalization', () => {
-  test('normalizes legacy English text to HTML without changing hidden translations', () => {
+  test('normalizes every localized template to editable HTML', () => {
     const draft = makeValidDraft()
     draft.email_sequence[0].templates = {
       en: { subject: 'English subject', body_text: 'English body' },
@@ -145,12 +145,14 @@ describe('recall campaign editor normalization', () => {
     expect(normalized.email_sequence[0].templates.en.body_html).toContain(
       '<p>English body</p>'
     )
-    expect(normalized.email_sequence[0].templates.fr).toEqual(
-      draft.email_sequence[0].templates.fr
-    )
+    expect(normalized.email_sequence[0].templates.fr).toEqual({
+      subject: 'Localized subject',
+      body_text: '',
+      body_html: '<p>Localized HTML</p>',
+    })
   })
 
-  test('clones hidden localized templates when preserving their values', () => {
+  test('clones localized templates while normalizing their values', () => {
     const draft = makeValidDraft()
     draft.email_sequence[0].templates = {
       en: { subject: 'English subject', body_text: 'English body' },
@@ -163,9 +165,11 @@ describe('recall campaign editor normalization', () => {
 
     const normalized = prepareRecallCampaignSubmitDraft(draft)
 
-    expect(normalized.email_sequence[0].templates.fr).toEqual(
-      draft.email_sequence[0].templates.fr
-    )
+    expect(normalized.email_sequence[0].templates.fr).toEqual({
+      subject: 'Localized subject',
+      body_text: '',
+      body_html: '<p>Localized HTML</p>',
+    })
     expect(normalized.email_sequence[0].templates.fr).not.toBe(
       draft.email_sequence[0].templates.fr
     )
@@ -361,10 +365,13 @@ describe('recall campaign editor normalization', () => {
     expect(normalized.email_sequence[0].templates.en.body_html).toContain(
       '<p>English body</p>'
     )
-    expect(normalized.email_sequence[0].templates.fr).toEqual({
+    expect(normalized.email_sequence[0].templates.fr).toMatchObject({
       subject: 'Sujet français',
-      body_text: 'Corps français',
+      body_text: '',
     })
+    expect(normalized.email_sequence[0].templates.fr.body_html).toContain(
+      '<p>Corps français</p>'
+    )
   })
 
   test('clears groups when no group filter is selected', () => {

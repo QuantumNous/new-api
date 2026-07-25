@@ -117,6 +117,19 @@ func requireRecallCampaignCanonicalLanguages(t *testing.T, stages []RecallEmailS
 	}
 }
 
+func recallCampaignManualLocaleTemplates() map[string]RecallEmailTemplate {
+	templates := map[string]RecallEmailTemplate{
+		" EN ": {Subject: "Come back", BodyText: "A Stripe offer is waiting."},
+	}
+	for _, language := range recallEmailTranslationLanguages {
+		templates[language] = RecallEmailTemplate{
+			Subject:  language + " subject",
+			BodyText: language + " body",
+		}
+	}
+	return templates
+}
+
 func setupRecallCampaignTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/recall-campaign.db"), &gorm.Config{})
@@ -776,7 +789,7 @@ func TestRecallCampaignSaveDraftRejectsInvalidTranslatedHTMLBeforePersistence(t 
 	require.Zero(t, count)
 }
 
-func TestRecallCampaignSaveDraftIgnoresClientSubmittedNonEnglishTemplates(t *testing.T) {
+func TestRecallCampaignSaveDraftPreservesCompleteManualLocalesWithoutTranslation(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
 	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
@@ -784,24 +797,60 @@ func TestRecallCampaignSaveDraftIgnoresClientSubmittedNonEnglishTemplates(t *tes
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
 	draft := validRecallCampaignDraft(now)
-	draft.Emails[0].Templates = map[string]RecallEmailTemplate{
-		" EN ": {Subject: "Come back", BodyText: "A Stripe offer is waiting."},
-		"fr":   {Subject: "", BodyText: "forged"},
-		"xx":   {Subject: "forged\r\nheader", BodyText: strings.Repeat("x", recallEmailBodyMaxRunes+1)},
-	}
+	draft.Emails[0].Templates = recallCampaignManualLocaleTemplates()
 
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 
 	require.NoError(t, err)
-	require.Equal(t, 1, translator.callCount())
-	require.Equal(t, map[string]RecallEmailTemplate{
-		"en": {Subject: "Come back", BodyText: "A Stripe offer is waiting."},
-	}, translator.calls[0][0].Templates)
+	require.Zero(t, translator.callCount())
 	var stages []RecallEmailStage
 	require.NoError(t, common.Unmarshal([]byte(campaign.EmailSequenceConfig), &stages))
 	requireRecallCampaignCanonicalLanguages(t, stages)
-	require.Equal(t, "fr:Come back", stages[0].Templates["fr"].Subject)
-	require.NotEqual(t, "forged", stages[0].Templates["fr"].BodyText)
+	require.Equal(t, "Come back", stages[0].Templates["en"].Subject)
+	require.Equal(t, "fr subject", stages[0].Templates["fr"].Subject)
+	require.Equal(t, "vi body", stages[0].Templates["vi"].BodyText)
+}
+
+func TestRecallCampaignSaveDraftRejectsIncompleteOrUnknownManualLocales(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, &recallCampaignFakeEmailTranslator{})
+	service.now = func() time.Time { return now }
+
+	tests := []struct {
+		name      string
+		templates map[string]RecallEmailTemplate
+		wantError string
+	}{
+		{
+			name: "incomplete",
+			templates: map[string]RecallEmailTemplate{
+				"en": {Subject: "Come back", BodyText: "A Stripe offer is waiting."},
+				"fr": {Subject: "Sujet", BodyText: "Corps"},
+			},
+			wantError: "manual locales must contain either only en or all eight supported languages",
+		},
+		{
+			name: "unknown",
+			templates: map[string]RecallEmailTemplate{
+				"en": {Subject: "Come back", BodyText: "A Stripe offer is waiting."},
+				"de": {Subject: "Betreff", BodyText: "Text"},
+			},
+			wantError: "manual locales must contain either only en or all eight supported languages",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			draft.Emails[0].Templates = test.templates
+
+			campaign, err := service.SaveDraft(context.Background(), 7, draft)
+
+			require.ErrorContains(t, err, test.wantError)
+			require.Nil(t, campaign)
+		})
+	}
 }
 
 func TestRecallCampaignActivatedTranslatedEmailUpdateIncrementsVersionOnce(t *testing.T) {
