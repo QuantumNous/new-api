@@ -56,6 +56,14 @@ func EvaluateSafeFailover(input SafeFailoverInput) SafeFailoverDecision {
 		return SafeFailoverDecision{Reason: "upstream_accepted"}
 	}
 
+	// A transport failure has no usable upstream HTTP response. Evaluate it
+	// before the image elapsed-time guard so long-running image calls that end
+	// in do_request_failed can still move to the next eligible channel.
+	code := input.Error.StatusCode
+	if input.Error.GetErrorCode() == types.ErrorCodeDoRequestFailed || code < 100 || code > 599 {
+		return SafeFailoverDecision{Retry: true, Reason: "transport_failure"}
+	}
+
 	imageLike := IsImageLikeRelay(input.RelayMode, input.ModelName)
 	if imageLike && input.ImageGuard > 0 && input.AttemptElapsed >= input.ImageGuard {
 		return SafeFailoverDecision{Reason: "image_guard_elapsed"}
@@ -65,15 +73,8 @@ func EvaluateSafeFailover(input SafeFailoverInput) SafeFailoverDecision {
 		return SafeFailoverDecision{Retry: true, Reason: "channel_local_error"}
 	}
 
-	code := input.Error.StatusCode
 	if code >= 200 && code < 300 {
 		return SafeFailoverDecision{Reason: "success_status"}
-	}
-
-	// Transport failures have no valid HTTP response and are safe to move once
-	// while the request context is still alive.
-	if input.Error.GetErrorCode() == types.ErrorCodeDoRequestFailed || code < 100 || code > 599 {
-		return SafeFailoverDecision{Retry: true, Reason: "transport_failure"}
 	}
 
 	switch {

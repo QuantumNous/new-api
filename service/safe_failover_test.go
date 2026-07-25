@@ -119,6 +119,17 @@ func TestEvaluateSafeFailover(t *testing.T) {
 			retry: true, reason: "transport_failure",
 		},
 		{
+			name: "long image transport failure still switches",
+			input: SafeFailoverInput{
+				MaxAttempts:    0,
+				ModelName:      "gpt-image-2",
+				AttemptElapsed: 605 * time.Second,
+				ImageGuard:     60 * time.Second,
+				Error:          makeErr(http.StatusInternalServerError, types.ErrorCodeDoRequestFailed, "do request failed"),
+			},
+			retry: true, reason: "transport_failure",
+		},
+		{
 			name: "400 does not fan out",
 			input: SafeFailoverInput{
 				MaxAttempts: 1,
