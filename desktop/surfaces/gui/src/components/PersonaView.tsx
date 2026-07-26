@@ -204,7 +204,7 @@ export function PersonaView({
             <section>
               <div className={`${SEC_H} mb-1`}>{t("New sessions get by default")}</div>
               <p className="text-[12.5px] text-muted mb-2.5">
-                {t("When you start a")} {shortPersonaName(detail.name, personaId)} {t("session these are enabled automatically. You can still mute any of them per session.")}
+                {t("When you start a {{name}} session these are enabled automatically. You can still mute any of them per session.", { name: shortPersonaName(detail.name, personaId) })}
               </p>
               <div className="space-y-1.5">
                 {detail.default_connections.map((c) => (

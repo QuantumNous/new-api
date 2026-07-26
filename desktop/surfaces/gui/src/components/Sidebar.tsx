@@ -28,13 +28,14 @@ import { SearchModal } from "./SearchModal";
 import { baseName } from "../paths";
 import { showPersonas } from "../flags";
 import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 
 // Session surfaces shown as accordions, in display order. The surfaced personas drive this list
 // (so third-party / Ops personas appear); the hardcoded set is the fallback before personas load.
-const SURFACES: { key: string; label: string; icon: IconName; cls: string }[] = [
-  { key: "cowork", label: "Coworker", icon: "diamond", cls: "ico-cowork" },
-  { key: "chat", label: "Chat", icon: "chat", cls: "ico-chat" },
-  { key: "code", label: "Code", icon: "code", cls: "ico-code" },
+const SURFACE_DEFS: { key: string; labelKey: string; icon: IconName; cls: string }[] = [
+  { key: "cowork", labelKey: "Coworker", icon: "diamond", cls: "ico-cowork" },
+  { key: "chat", labelKey: "Chat", icon: "chat", cls: "ico-chat" },
+  { key: "code", labelKey: "Code", icon: "code", cls: "ico-code" },
 ];
 
 const surfaceFromPersona = (p: Persona) => ({
@@ -51,7 +52,7 @@ function AttnBadge({ n }: { n: number }) {
   return (
     <span
       className="text-[10px] font-semibold text-ink bg-faint/30 rounded-full px-1.5 leading-[15px] shrink-0"
-      title={`${n} awaiting your attention`}
+      title={i18n.t("{{count}} awaiting your attention", { count: n })}
     >
       {n > 99 ? "99+" : n}
     </span>
@@ -66,7 +67,11 @@ function UnseenBadge({ n, failed }: { n: number; failed?: boolean }) {
   return (
     <span
       className="text-[10px] font-semibold text-ink bg-faint/30 rounded-full px-1.5 leading-[15px] shrink-0"
-      title={failed ? `${n} new run${n > 1 ? "s" : ""} — the latest failed` : `${n} new run${n > 1 ? "s" : ""}`}
+      title={
+        failed
+          ? i18n.t("{{count}} new runs — the latest failed", { count: n })
+          : i18n.t("{{count}} new runs", { count: n })
+      }
     >
       {n > 99 ? "99+" : n}
     </span>
@@ -76,14 +81,13 @@ function UnseenBadge({ n, failed }: { n: number; failed?: boolean }) {
 // Liveness = working (in-flight turn) / sleeping (a self-wake is pending). A count-less dot that
 // never bubbles — it says "this is alive", not "this needs you".
 function LiveDot({ state }: { state?: "working" | "sleeping" | "idle" }) {
-  const { t } = useTranslation();
   if (state !== "working" && state !== "sleeping") return null;
   return state === "working" ? (
-    <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" title={t("Working now")} />
+    <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" title={i18n.t("Working now")} />
   ) : (
     <span
       className="w-1.5 h-1.5 rounded-full bg-faint/60 shrink-0"
-      title={t("Sleeping (will wake itself)")}
+      title={i18n.t("Sleeping (will wake itself)")}
     />
   );
 }
@@ -96,7 +100,7 @@ function OriginIcon({ s }: { s: SessionInfo }) {
     <ConnectorIcon
       connector={{ logo: "slack", brand_color: "#611f69" }}
       size={12}
-      title={s.origin_label || "From Slack"}
+      title={s.origin_label || i18n.t("From Slack")}
     />
   );
 }
@@ -137,10 +141,12 @@ interface Props {
   // Scheduled-band row click: open the Automations surface ON that automation (UX-023).
   onOpenAutomation: (id: string) => void;
   onOpenIntegrations: () => void;
+  onOpenSkills: () => void;
   onOpenAudit: () => void;
   onOpenInbox: () => void;
   scheduledActive: boolean;
   integrationsActive: boolean;
+  skillsActive: boolean;
   auditActive: boolean;
   inboxActive: boolean;
   // Collapse controls (⌘B / hover-peek). `onCollapse` docks/undocks; `onPeekLeave` hides the
@@ -174,6 +180,12 @@ const compactAge = (iso?: string | null): string => {
 
 export function Sidebar(props: Props) {
   const { t } = useTranslation();
+  const fallbackSurfaces = SURFACE_DEFS.map((s) => ({
+    key: s.key,
+    label: t(s.labelKey),
+    icon: s.icon,
+    cls: s.cls,
+  }));
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [appMenuOpen, setAppMenuOpen] = useState(false);
   // The account row (§26): cloud sign-in status drives the avatar/name/dot; refreshed on
@@ -478,14 +490,14 @@ export function Sidebar(props: Props) {
               style={{ top: rowMenu!.top, left: rowMenu!.left }}
               role="menu"
             >
-              {item("row-menu-rename", "pencil", "Rename", () => {
+              {item("row-menu-rename", "pencil", t("Rename"), () => {
                 setEditingId(s.session_id);
                 setEditValue(title);
               })}
-              {item("row-menu-pin", "pin", s.pinned ? "Unpin" : "Pin", () =>
+              {item("row-menu-pin", "pin", s.pinned ? t("Unpin") : t("Pin"), () =>
                 props.onTogglePin(s.session_id, !s.pinned),
               )}
-              {item("row-menu-archive", "archive", s.archived ? "Unarchive" : "Archive", () =>
+              {item("row-menu-archive", "archive", s.archived ? t("Unarchive") : t("Archive"), () =>
                 props.onArchiveSession(s.session_id, !s.archived),
               )}
               <div className="h-px bg-line my-1 mx-2" />
@@ -731,7 +743,7 @@ export function Sidebar(props: Props) {
             <div className="px-2 pt-1 pb-1 text-[10.5px] uppercase tracking-[0.06em] text-faint font-semibold">
               {t("Group by")}
             </div>
-            {([["grouped", "Persona"], ["flat", "Chronological"]] as ["flat" | "grouped", string][]).map(
+            {([["grouped", t("Persona")], ["flat", t("Chronological")]] as ["flat" | "grouped", string][]).map(
               ([key, label]) => (
                 <button
                   key={key}
@@ -837,7 +849,7 @@ export function Sidebar(props: Props) {
           .filter((p) => (p.enabled && p.surfaced) || agentsWithSessions.has(p.id))
           .sort((a, b) => Number(b.default) - Number(a.default)) // default leads
           .map(surfaceFromPersona)
-      : SURFACES.filter(
+      : fallbackSurfaces.filter(
           (s) => s.key === "cowork" || props.surfaces[s.key as keyof SurfaceVisibility],
         )
   ).filter((s) => personaVisible(s.key));
@@ -927,7 +939,7 @@ export function Sidebar(props: Props) {
                               className="px-2 py-1 text-[12px] text-faint hover:text-muted"
                               onClick={() => setProjShowAll((s) => toggleSet(s, proj))}
                             >
-                              {t("Show more (")}{list.length - peek})
+                              {t("Show more ({{n}})", { n: list.length - peek })}
                             </button>
                           )}
                         </div>
@@ -958,7 +970,7 @@ export function Sidebar(props: Props) {
                     className="px-2 py-1 text-[12px] text-faint hover:text-muted"
                     onClick={() => setPersonaShowAll((s) => toggleSet(s, browseKey))}
                   >
-                    {t("Show more (")}{mine.filter(matches).length - peek})
+                    {t("Show more ({{n}})", { n: mine.filter(matches).length - peek })}
                   </button>
                 )}
               </>
@@ -973,7 +985,7 @@ export function Sidebar(props: Props) {
               onClick={() => setShowArchived((v) => !v)}
             >
               <Icon name={showArchived ? "chevronDown" : "chevronRight"} size={13} className="shrink-0" />
-              {t("Archived (")}{archived.length})
+              {t("Archived ({{n}})", { n: archived.length })}
             </button>
             {showArchived && (
               <div className="space-y-0.5 mt-0.5">{archived.filter(matches).map((s) => sessionRow(s))}</div>
@@ -998,8 +1010,8 @@ export function Sidebar(props: Props) {
         {props.onCollapse && (
           <button
             className="nav-pin-btn w-7 h-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-paper shrink-0"
-            title={props.collapsed ? "Dock sidebar (⌘B)" : "Collapse sidebar (⌘B)"}
-            aria-label={props.collapsed ? "Dock sidebar" : "Collapse sidebar"}
+            title={props.collapsed ? t("Dock sidebar (⌘B)") : t("Collapse sidebar (⌘B)")}
+            aria-label={props.collapsed ? t("Dock sidebar") : t("Collapse sidebar")}
             onClick={props.onCollapse}
           >
             <Icon name="sidebar" size={16} />
@@ -1173,26 +1185,27 @@ export function Sidebar(props: Props) {
                 )}
                 {appMenuItem(
                   "inbox",
-                  "Inbox",
+                  t("Inbox"),
                   props.onOpenInbox,
                   props.inboxActive,
                   <AttnBadge n={totalAttention} />,
                 )}
-                {appMenuItem("plug", "Connectors", props.onOpenIntegrations, props.integrationsActive)}
+                {appMenuItem("plug", t("Connectors"), props.onOpenIntegrations, props.integrationsActive)}
+                {appMenuItem("file", t("Skills"), props.onOpenSkills, props.skillsActive)}
                 <div className="h-px bg-line my-1 mx-2" />
                 {appMenuItem(
                   "gear",
-                  "Settings",
+                  t("Settings"),
                   props.onManage,
                   false,
                   <span className="text-[11px] text-faint">⌘ ,</span>,
                 )}
-                {appMenuItem("clock", "Automations", props.onOpenScheduled, props.scheduledActive)}
-                {appMenuItem("audit", "Activity", props.onOpenAudit, props.auditActive)}
+                {appMenuItem("clock", t("Automations"), props.onOpenScheduled, props.scheduledActive)}
+                {appMenuItem("audit", t("Activity"), props.onOpenAudit, props.auditActive)}
                 {cloud?.signed_in && (
                   <>
                     <div className="h-px bg-line my-1 mx-2" />
-                    {appMenuItem("signOut", "Sign out", async () => {
+                    {appMenuItem("signOut", t("Sign out"), async () => {
                       await cloudLogout().catch(() => {});
                       announceCloudChanged();
                     })}

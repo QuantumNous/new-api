@@ -183,8 +183,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
                 data-testid={`persona-disable-warning-${p.id}`}
               >
                 <span className="min-w-0">
-                  {t("Disabling archives its")} {liveCount(p.id)} conversation
-                  {liveCount(p.id) === 1 ? "" : "s"} {t("— they stay available under “Show archived”.")}
+                  {t("Disabling archives its {{count}} conversations — they stay available under “Show archived”.", { count: liveCount(p.id) })}
                 </span>
                 <button
                   className="text-[12px] px-2.5 py-1.5 rounded-lg bg-accent text-white shrink-0"

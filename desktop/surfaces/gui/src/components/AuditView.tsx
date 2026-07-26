@@ -37,7 +37,7 @@ export function AuditView() {
         <div className="max-w-4xl mx-auto px-7 py-6">
           <PanelHead
             title={t("Activity")}
-            sub="Recent connector and browser tool activity. Arguments are sanitized before storage."
+            sub={t("Recent connector and browser tool activity. Arguments are sanitized before storage.")}
           />
 
           <div className="flex items-center gap-2 flex-wrap mb-4">

@@ -110,7 +110,7 @@ export function SettingsView({
             <section>
               <PanelHead
                 title={t("Models")}
-                sub="Providers and the models offered in the composer's picker. Keys are stored only on this computer."
+                sub={t("Providers and the models offered in the composer's picker. Keys are stored only on this computer.")}
               />
               <ModelsTab />
               {/* Token savings is model-spend behavior, so it lives here (UX-021),
@@ -259,7 +259,7 @@ function VoiceInputSection() {
     <section>
       <PanelHead
         title={t("Voice input")}
-        sub="Speak naturally in the composer. Recordings and transcripts stay on this device."
+        sub={t("Speak naturally in the composer. Recordings and transcripts stay on this device.")}
       />
 
       {!desktop ? (
@@ -360,7 +360,7 @@ function PersonasSection({ onOpenPersona }: { onOpenPersona?: (id: string) => vo
     <section>
       <PanelHead
         title={t("Personas")}
-        sub="Which coworkers are enabled and shown in the picker, plus installing new persona bundles."
+        sub={t("Which coworkers are enabled and shown in the picker, plus installing new persona bundles.")}
       />
       <PersonasTab key={galleryBump} onOpenPersona={onOpenPersona} />
       <button

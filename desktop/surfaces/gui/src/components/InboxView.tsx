@@ -24,10 +24,10 @@ const ICON_FOR: Record<string, "diamond" | "chat" | "code"> = {
   code: "code",
 };
 
-const KIND_TABS: { key: string; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "approval", label: "Approvals" },
-  { key: "question", label: "Questions" },
+const KIND_TAB_KEYS: { key: string; labelKey: string }[] = [
+  { key: "all", labelKey: "All" },
+  { key: "approval", labelKey: "Approvals" },
+  { key: "question", labelKey: "Questions" },
 ];
 
 const CHIP = (active: boolean) =>
@@ -124,7 +124,7 @@ export function InboxView({
     return (
       <button
         className="inbox-session-chip"
-        title={exists ? `Open “${label}”` : "Session unavailable"}
+        title={exists ? t('Open “{{label}}”', { label }) : t("Session unavailable")}
         disabled={!exists}
         onClick={() =>
           exists && onOpenSession(it.session_id, it.session_workspace || "", it.session_agent || "cowork")
@@ -148,7 +148,7 @@ export function InboxView({
         <div className="max-w-4xl mx-auto px-7 py-6">
           <PanelHead
             title={t("Inbox")}
-            sub="Approvals, questions, and notifications from your coworkers — including sessions running unattended."
+            sub={t("Approvals, questions, and notifications from your coworkers — including sessions running unattended.")}
           />
 
           <div className="flex gap-5 border-b border-line mb-4">
@@ -214,9 +214,13 @@ export function InboxView({
               </div>
 
               <div className="flex items-center gap-2 flex-wrap mb-4" data-testid="inbox-filters">
-                {KIND_TABS.map((t) => (
-                  <button key={t.key} className={CHIP(kind === t.key)} onClick={() => setKind(t.key)}>
-                    {t.label}
+                {KIND_TAB_KEYS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    className={CHIP(kind === tab.key)}
+                    onClick={() => setKind(tab.key)}
+                  >
+                    {t(tab.labelKey)}
                   </button>
                 ))}
                 {personasWithItems.length > 1 && (
@@ -243,7 +247,9 @@ export function InboxView({
 
               {visible.length === 0 ? (
                 <div className="manage-empty">
-                  {items.length === 0 ? "Nothing pending." : "Nothing pending for this filter."}
+                  {items.length === 0
+                    ? t("Nothing pending.")
+                    : t("Nothing pending for this filter.")}
                 </div>
               ) : null}
 

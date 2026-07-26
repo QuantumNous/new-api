@@ -201,6 +201,8 @@ export function App() {
   const [surface, setSurface] = useState<
     "session" | "scheduled" | "integrations" | "audit" | "inbox" | "persona" | "settings"
   >("session");
+  // Deep-link into Integrations sub-nav (connectors | skills | mcp).
+  const [integrationsTab, setIntegrationsTab] = useState<"connectors" | "skills" | "mcp">("connectors");
   // A remembered Scheduled-detail target must not outlive the surface (see the
   // scheduledOpenId comment above): nav re-entry lands on the list, never a
   // possibly-deleted automation's dead detail.
@@ -1266,11 +1268,19 @@ export function App() {
           setScheduledOpenId(id);
           setSurface("scheduled");
         }}
-        onOpenIntegrations={() => setSurface("integrations")}
+        onOpenIntegrations={() => {
+          setIntegrationsTab("connectors");
+          setSurface("integrations");
+        }}
+        onOpenSkills={() => {
+          setIntegrationsTab("skills");
+          setSurface("integrations");
+        }}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
         scheduledActive={surface === "scheduled"}
-        integrationsActive={surface === "integrations"}
+        integrationsActive={surface === "integrations" && integrationsTab !== "skills"}
+        skillsActive={surface === "integrations" && integrationsTab === "skills"}
         auditActive={surface === "audit"}
         inboxActive={surface === "inbox"}
         collapsed={navCollapsed}
@@ -1284,7 +1294,7 @@ export function App() {
           initialOpenId={scheduledOpenId}
         />
       ) : surface === "integrations" ? (
-        <IntegrationsView />
+        <IntegrationsView initialTab={integrationsTab} />
       ) : surface === "settings" ? (
         <SettingsView
           key={settingsTab}

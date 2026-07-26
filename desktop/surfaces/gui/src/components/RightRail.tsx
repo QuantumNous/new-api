@@ -388,7 +388,7 @@ function ArtifactViewer({
         ) : content.kind === "office" ? (
           <div className="artifact-open-prompt">
             <Icon name="panelOpen" size={28} />
-            <p>{t("This")} {/\.pptx?$/i.test(artifact.name) ? "PowerPoint" : "Word"} {t("file can’t be previewed here.")}</p>
+            <p>{t("This {{kind}} file can’t be previewed here.", { kind: /\.pptx?$/i.test(artifact.name) ? "PowerPoint" : "Word" })}</p>
             <button className="btn sm" onClick={() => revealArtifact(sessionId, artifact.path, "open")}>
               {t("Open in default app")}
             </button>

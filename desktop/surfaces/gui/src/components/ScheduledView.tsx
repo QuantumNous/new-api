@@ -125,7 +125,7 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
     <Shell>
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
-          <PanelHead title={t("Automations")} sub="Recurring tasks BoxAI Desktop runs on a schedule." />
+          <PanelHead title={t("Automations")} sub={t("Recurring tasks BoxAI Desktop runs on a schedule.")} />
         </div>
         <button
           className="text-[12.5px] px-3 py-1.5 rounded-lg border border-lineStrong bg-panel hover:border-accent hover:text-accent shrink-0"

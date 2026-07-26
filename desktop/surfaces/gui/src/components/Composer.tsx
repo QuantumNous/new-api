@@ -20,10 +20,23 @@ import {
 // polished enough to ship, and Custom (config.toml auto-allow rules) is a power-user mode
 // with no in-app explanation. The server still honors both — a session already in one of
 // those modes keeps working; the picker just doesn't offer them.
-const PERMISSION_OPTIONS: Option[] = [
-  { value: "discuss", label: "Discuss", description: "Chat and explore — no edits or commands" },
-  { value: "interactive", label: "Ask for approval", description: "Ask before edits and commands" },
-  { value: "auto", label: "Full access", description: "Run everything without asking" },
+// Labels are English source keys resolved with t() at render (ModeMenu).
+const PERMISSION_OPTION_DEFS: { value: string; labelKey: string; descriptionKey: string }[] = [
+  {
+    value: "discuss",
+    labelKey: "Discuss",
+    descriptionKey: "Chat and explore — no edits or commands",
+  },
+  {
+    value: "interactive",
+    labelKey: "Ask for approval",
+    descriptionKey: "Ask before edits and commands",
+  },
+  {
+    value: "auto",
+    labelKey: "Full access",
+    descriptionKey: "Run everything without asking",
+  },
 ];
 
 // No hardcoded model fallback: until the server supplies the list (a few seconds after a
@@ -392,7 +405,7 @@ export function Composer(props: Props) {
         <textarea
           ref={textareaRef}
           className="w-full block px-3.5 pt-3.5 pb-1.5 text-[14.5px]"
-          placeholder={props.placeholder || "Ask the coworker…  (drop or paste files)"}
+          placeholder={props.placeholder || t("Ask the coworker…  (drop or paste files)")}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKey}
@@ -416,11 +429,11 @@ export function Composer(props: Props) {
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setAttachMenuOpen(false)} />
                 <div className="absolute z-40 bottom-full mb-1 left-0 min-w-[180px] rounded-xl border border-line bg-panel shadow-2xl py-1.5">
-                  {attachItem("image", "Photo or image", () => pickFiles("image/*"))}
-                  {attachItem("file", "PDF", () => pickFiles("application/pdf,.pdf"))}
+                  {attachItem("image", t("Photo or image"), () => pickFiles("image/*"))}
+                  {attachItem("file", t("PDF"), () => pickFiles("application/pdf,.pdf"))}
                   {attachItem(
                     "fileCode",
-                    "Other files",
+                    t("Other files"),
                     () => pickFiles("text/*,.md,.csv,.json,.yaml,.yml,.log,.py,.ts,.tsx,.js,.rs,.go,.toml"),
                   )}
                 </div>
@@ -504,12 +517,18 @@ export function Composer(props: Props) {
               title={
                 dictationBusy ||
                 (dictation?.recording
-                  ? "Stop recording and transcribe"
+                  ? t("Stop recording and transcribe")
                   : voiceReady
-                    ? "Start local voice dictation"
-                    : "Configure Voice Input in Settings")
+                    ? t("Start local voice dictation")
+                    : t("Configure Voice Input in Settings"))
               }
-              aria-label={dictation?.recording ? "Stop dictation" : voiceReady ? "Start dictation" : "Configure Voice Input in Settings"}
+              aria-label={
+                dictation?.recording
+                  ? t("Stop dictation")
+                  : voiceReady
+                    ? t("Start dictation")
+                    : t("Configure Voice Input in Settings")
+              }
               aria-disabled={!voiceReady && !dictation?.recording}
             >
               <Icon name={dictation?.recording ? "stop" : "mic"} size={16} />
@@ -531,7 +550,7 @@ export function Composer(props: Props) {
               }
               onClick={submit}
               disabled={!props.connected || !!dictation?.recording || !!dictationBusy}
-              title={needsModel ? "Connect a model to send" : undefined}
+              title={needsModel ? t("Connect a model to send") : undefined}
               aria-label={t("Send")}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -564,7 +583,12 @@ function ModeMenu({
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const current = PERMISSION_OPTIONS.find((o) => o.value === mode);
+  const options: Option[] = PERMISSION_OPTION_DEFS.map((o) => ({
+    value: o.value,
+    label: t(o.labelKey),
+    description: t(o.descriptionKey),
+  }));
+  const current = options.find((o) => o.value === mode);
   return (
     <div className="relative">
       {/* Borderless, and it names the CHOSEN mode (owner ask 2026-07-11, competitor composer
@@ -577,8 +601,8 @@ function ModeMenu({
         aria-expanded={open}
         aria-label={t("Mode")}
         title={
-          `Mode: ${current?.label || mode}` +
-          (unattended ? " · approvals go to the Inbox" : "")
+          t("Mode: {{label}}", { label: current?.label || mode }) +
+          (unattended ? t(" · approvals go to the Inbox") : "")
         }
       >
         {current?.label || mode}
@@ -592,7 +616,7 @@ function ModeMenu({
             role="menu"
             data-testid="mode-menu"
           >
-            {PERMISSION_OPTIONS.map((o) => (
+            {options.map((o) => (
               <button
                 key={o.value}
                 className="w-full flex flex-col items-start px-2.5 py-1.5 rounded-lg text-left hover:bg-paper"

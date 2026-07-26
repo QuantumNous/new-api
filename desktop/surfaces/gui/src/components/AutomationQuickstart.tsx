@@ -553,7 +553,7 @@ export function AutomationQuickstart({
                 </label>
               ) : picked.conns.length > 0 ? (
                 <p className="text-[12.5px] text-muted mt-3">
-                  {t("This automation only")} <b className="text-ink">reads</b> {t("on schedule — reading never needs approval.")}
+                  {t("This automation only")} <b className="text-ink">{t("reads")}</b> {t("on schedule — reading never needs approval.")}
                 </p>
               ) : null}
             </div>

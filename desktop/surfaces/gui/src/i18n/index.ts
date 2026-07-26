@@ -40,6 +40,12 @@ i18n
   });
 
 export function setLanguage(code: string) {
+  // Explicit cache so language survives even if detector caches are empty (tests / SSR).
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem("coworker.lang", code);
+  } catch {
+    /* ignore */
+  }
   void i18n.changeLanguage(code);
 }
 

@@ -1,5 +1,12 @@
-// i18n:check — every t("…") key used in src/ must exist in each locale file, and each
-// locale must not carry stale keys. Keys are English source strings (see src/i18n/index.ts).
+// i18n:check — locale parity for extracted keys only.
+//
+// Guarantee: every t("…") / i18n.t("…") double-quoted key used under src/ exists in each
+// locale JSON, and each locale has no stale keys. Keys are English source strings
+// (see src/i18n/index.ts). English needs no resource file (key === fallback).
+//
+// This does NOT prove the UI is fully translated: hardcoded JSX text, template-literal
+// keys, single-quoted t('…'), and identity translations (value === key) are out of scope.
+// Hybrid/broken catalog values are also not detected — review catalogs manually for those.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
