@@ -306,9 +306,18 @@ func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
 	return response.TotalAvailable, nil
 }
 
+func openRouterBalanceToken(channel *model.Channel) string {
+	// OpenRouter requires a Management Key for /api/v1/credits. Prefer the
+	// optional settings field; fall back to channel.Key for legacy channels.
+	if token := channel.GetOtherSettings().GetOpenRouterManagementKey(); token != "" {
+		return token
+	}
+	return channel.Key
+}
+
 func updateChannelOpenRouterBalance(channel *model.Channel) (float64, error) {
 	url := "https://openrouter.ai/api/v1/credits"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(openRouterBalanceToken(channel)))
 	if err != nil {
 		return 0, err
 	}

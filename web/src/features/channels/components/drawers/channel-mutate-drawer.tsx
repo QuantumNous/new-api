@@ -278,6 +278,8 @@ const SENSITIVE_FORM_FIELDS = [
   'setting',
   'advanced_custom',
   'is_enterprise_account',
+  'openrouter_management_key',
+  'openrouter_management_key_configured',
   'vertex_key_type',
   'aws_key_type',
   'azure_responses_version',
@@ -615,6 +617,9 @@ export function ChannelMutateDrawer({
   const canRevealChannelKey = currentUser?.role === ROLE.SUPER_ADMIN
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
   const [channelKey, setChannelKey] = useState<string | null>(null)
+  const [openrouterManagementKey, setOpenrouterManagementKey] = useState<
+    string | null
+  >(null)
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
@@ -693,9 +698,11 @@ export function ChannelMutateDrawer({
   useEffect(() => {
     if (!open) {
       setChannelKey(null)
+      setOpenrouterManagementKey(null)
       setIsChannelKeyLoading(false)
     } else if (channelId) {
       setChannelKey(null)
+      setOpenrouterManagementKey(null)
     }
   }, [open, channelId])
 
@@ -1357,6 +1364,12 @@ export function ChannelMutateDrawer({
 
         const keyValue = res.data?.key ?? ''
         setChannelKey(keyValue)
+        const managementKeyValue = res.data?.openrouter_management_key
+        if (typeof managementKeyValue === 'string' && managementKeyValue) {
+          setOpenrouterManagementKey(managementKeyValue)
+        } else {
+          setOpenrouterManagementKey(null)
+        }
         toast.success(t('Channel key unlocked'))
         return res
       } finally {
@@ -3067,6 +3080,152 @@ export function ChannelMutateDrawer({
                                   )
                                 }}
                               />
+
+                              {/* OpenRouter Management Key — peer to API Key under Authentication */}
+                              {currentType === 20 && (
+                                <div className='border-border/60 flex flex-col gap-3 border-t pt-4'>
+                                  <div className='flex items-center gap-2'>
+                                    <KeyRound
+                                      className='text-muted-foreground h-3.5 w-3.5'
+                                      aria-hidden='true'
+                                    />
+                                    <h4 className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
+                                      {t('Management')}
+                                    </h4>
+                                  </div>
+                                  <FormField
+                                    control={form.control}
+                                    name='openrouter_management_key'
+                                    render={({ field }) => {
+                                      const managementKeyConfigured = Boolean(
+                                        form.watch(
+                                          'openrouter_management_key_configured'
+                                        )
+                                      )
+                                      let managementKeyPlaceholder = t(
+                                        'Optional — used only for balance / credits queries'
+                                      )
+                                      if (
+                                        isEditing &&
+                                        managementKeyConfigured
+                                      ) {
+                                        managementKeyPlaceholder = t(
+                                          'Leave empty to keep existing key'
+                                        )
+                                      }
+                                      return (
+                                        <FormItem>
+                                          <FormLabel>
+                                            {t('OpenRouter Management Key')}
+                                          </FormLabel>
+                                          <FormControl>
+                                            <Input
+                                              type='password'
+                                              autoComplete='new-password'
+                                              placeholder={
+                                                managementKeyPlaceholder
+                                              }
+                                              {...field}
+                                            />
+                                          </FormControl>
+                                          <FormDescription>
+                                            {isEditing
+                                              ? t(
+                                                  'Enter new key to update, or leave empty to keep current key'
+                                                )
+                                              : t(
+                                                  'OpenRouter requires a Management Key for account balance. Inference still uses the channel API Key. Do not put the Management Key in the channel key field.'
+                                                )}
+                                          </FormDescription>
+                                          {isEditing &&
+                                            canRevealChannelKey && (
+                                              <div className='border-border/60 mt-4 flex flex-col gap-3 border-y border-dashed py-4'>
+                                                <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                                                  <div>
+                                                    <p className='text-sm font-medium'>
+                                                      {t(
+                                                        'Current management key'
+                                                      )}
+                                                    </p>
+                                                    <p className='text-muted-foreground text-xs'>
+                                                      {form.watch(
+                                                        'openrouter_management_key_configured'
+                                                      )
+                                                        ? t(
+                                                            'Verification required to reveal the saved key.'
+                                                          )
+                                                        : t(
+                                                            'No management key configured yet.'
+                                                          )}
+                                                    </p>
+                                                  </div>
+                                                  <div className='flex items-center gap-2'>
+                                                    <Button
+                                                      type='button'
+                                                      variant='outline'
+                                                      size='sm'
+                                                      onClick={handleRevealKey}
+                                                      disabled={
+                                                        isChannelKeyLoading ||
+                                                        verificationState.loading ||
+                                                        !form.watch(
+                                                          'openrouter_management_key_configured'
+                                                        )
+                                                      }
+                                                    >
+                                                      {isChannelKeyLoading ||
+                                                      verificationState.loading ? (
+                                                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                                      ) : (
+                                                        <Eye className='mr-2 h-4 w-4' />
+                                                      )}
+                                                      {t('Reveal key')}
+                                                    </Button>
+                                                    <Button
+                                                      type='button'
+                                                      variant='ghost'
+                                                      size='sm'
+                                                      onClick={async () => {
+                                                        if (
+                                                          openrouterManagementKey
+                                                        ) {
+                                                          await copyToClipboard(
+                                                            openrouterManagementKey
+                                                          )
+                                                        }
+                                                      }}
+                                                      disabled={
+                                                        !openrouterManagementKey
+                                                      }
+                                                    >
+                                                      <Copy className='mr-2 h-4 w-4' />
+                                                      {t('Copy')}
+                                                    </Button>
+                                                  </div>
+                                                </div>
+                                                <Input
+                                                  readOnly
+                                                  aria-label={t(
+                                                    'Current management key'
+                                                  )}
+                                                  value={
+                                                    openrouterManagementKey ??
+                                                    ''
+                                                  }
+                                                  placeholder={t(
+                                                    'Hidden — verify to reveal'
+                                                  )}
+                                                  className='font-mono'
+                                                />
+                                              </div>
+                                            )}
+                                          <FormMessage />
+                                        </FormItem>
+                                      )
+                                    }}
+                                  />
+                                </div>
+                              )}
 
                               {currentType === 57 && (
                                 <div className='border-border/60 flex flex-col gap-3 border-y py-4'>

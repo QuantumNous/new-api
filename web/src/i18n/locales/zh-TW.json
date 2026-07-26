@@ -2029,7 +2029,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相關項目",
     "footer.defaultCopyright": "版權所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
+    "footer.newapi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "對於 2025 年 5 月 10 日之後新增的渠道，在部署時無需從模型名稱中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "對於私有部署，格式為：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "強制返回語法合法的 JSON",
@@ -5215,6 +5215,12 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Management": "管理",
+    "OpenRouter Management Key": "OpenRouter 管理金鑰",
+    "Optional — used only for balance / credits queries": "可選 — 僅用於餘額 / credits 查詢",
+    "OpenRouter requires a Management Key for account balance. Inference still uses the channel API Key. Do not put the Management Key in the channel key field.": "OpenRouter 查詢帳戶餘額需要 Management Key；推理仍使用管道 API Key。請勿把 Management Key 填進管道金鑰欄位。",
+    "Current management key": "目前管理金鑰",
+    "No management key configured yet.": "尚未設定管理金鑰。"
   }
 }

@@ -92,6 +92,8 @@ export interface ChannelOtherSettings {
   azure_responses_version?: string
   vertex_key_type?: 'json' | 'api_key'
   openrouter_enterprise?: boolean
+  /** Masked on list/get; plaintext only when user submits a new value. */
+  openrouter_management_key?: string
   aws_key_type?: 'ak_sk' | 'api_key'
   allow_service_tier?: boolean
   disable_store?: boolean

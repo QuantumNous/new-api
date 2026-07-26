@@ -37,6 +37,7 @@ type ChannelOtherSettings struct {
 	AzureResponsesVersion                 string                `json:"azure_responses_version,omitempty"`
 	VertexKeyType                         VertexKeyType         `json:"vertex_key_type,omitempty"` // "json" or "api_key"
 	OpenRouterEnterprise                  *bool                 `json:"openrouter_enterprise,omitempty"`
+	OpenRouterManagementKey               string                `json:"openrouter_management_key,omitempty"` // OpenRouter Management Key，仅用于余额查询（/credits）
 	ClaudeBetaQuery                       bool                  `json:"claude_beta_query,omitempty"`          // Claude 渠道是否强制追加 ?beta=true
 	AllowServiceTier                      bool                  `json:"allow_service_tier,omitempty"`         // 是否允许 service_tier 透传（默认过滤以避免额外计费）
 	AllowInferenceGeo                     bool                  `json:"allow_inference_geo,omitempty"`        // 是否允许 inference_geo 透传（仅 Claude，默认过滤以满足数据驻留合规
@@ -60,6 +61,20 @@ func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 		return false
 	}
 	return *s.OpenRouterEnterprise
+}
+
+// GetOpenRouterManagementKey returns the trimmed management key used only for
+// OpenRouter account credit queries. Empty means fall back to channel.Key.
+func (s ChannelOtherSettings) GetOpenRouterManagementKey() string {
+	return strings.TrimSpace(s.OpenRouterManagementKey)
+}
+
+// OpenRouterManagementKeyMasked is the placeholder returned by list/get APIs.
+const OpenRouterManagementKeyMasked = "********"
+
+func IsOpenRouterManagementKeyMasked(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	return trimmed == "" || trimmed == OpenRouterManagementKeyMasked
 }
 
 const (
