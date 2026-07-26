@@ -75,6 +75,10 @@ function syncRunning() {
 
 onMounted(async () => {
   if (!canvasEl.value) return
+  // The panel is display:none below lg — instantiating the engine there would
+  // run an animation loop over a 0×0 canvas. Skip until a real layout exists.
+  if (!panelEl.value || panelEl.value.getBoundingClientRect().width === 0)
+    return
   try {
     const { AuthScene } = await import('@/canvas/AuthScene')
     if (disposed || !canvasEl.value) return

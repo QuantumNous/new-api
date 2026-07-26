@@ -23,7 +23,7 @@ interface StarSpec {
 }
 
 // 布局约束：HTML 文案区占 y≈0.42~0.62（slogan/标题/tagline）与 y>0.88（ticker），
-// 所以星座压缩在 y≤0.36，钥匙落在右侧 x≈0.78 的空档（标题左对齐、右侧留白）。
+// 星座压缩在 y≤0.36 的上空带；钥匙落在文案块下方 y≈0.72 的留白区。
 const STARS: StarSpec[] = [
   {
     id: 'claude',
