@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -122,6 +123,7 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 		return nil, err
 	}
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
+	abilities = filterAbilitiesByAPIType(abilities, requestPath)
 	channel := Channel{}
 	if len(abilities) > 0 {
 		// Randomly choose one
@@ -144,6 +146,56 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
+}
+
+// filterAbilitiesByAPIType prefers abilities whose channel's native API type
+// matches the client request format inferred from requestPath. When no
+// matching ability exists, returns the input slice unchanged so the original
+// priority/weight selection still applies.
+func filterAbilitiesByAPIType(abilities []Ability, requestPath string) []Ability {
+	if requestPath == "" || len(abilities) <= 1 {
+		return abilities
+	}
+	relayFormat := types.InferRelayFormatFromPath(requestPath)
+	if relayFormat == "" {
+		return abilities
+	}
+	expectedAPIType, ok := types.RelayFormatToAPIType(relayFormat)
+	if !ok {
+		return abilities
+	}
+
+	seen := make(map[int]struct{}, len(abilities))
+	channelIds := make([]int, 0, len(abilities))
+	for _, ab := range abilities {
+		if _, ok := seen[ab.ChannelId]; ok {
+			continue
+		}
+		seen[ab.ChannelId] = struct{}{}
+		channelIds = append(channelIds, ab.ChannelId)
+	}
+
+	var channels []*Channel
+	if err := DB.Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
+		return abilities
+	}
+	apiTypeById := make(map[int]int, len(channels))
+	for _, ch := range channels {
+		if t, ok := common.ChannelType2APIType(ch.Type); ok {
+			apiTypeById[ch.Id] = t
+		}
+	}
+
+	matched := make([]Ability, 0, len(abilities))
+	for _, ab := range abilities {
+		if apiType, ok := apiTypeById[ab.ChannelId]; ok && apiType == expectedAPIType {
+			matched = append(matched, ab)
+		}
+	}
+	if len(matched) == 0 {
+		return abilities
+	}
+	return matched
 }
 
 // filterAbilitiesByRequestPathAndModel restricts candidates by request path and
