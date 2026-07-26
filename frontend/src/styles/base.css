@@ -103,6 +103,82 @@ a {
   letter-spacing: 0.01em;
 }
 
+/* ===== 手绘风格工具类 ===== */
+
+/* 不均匀圆角 — 模拟手持绘制微妙歪斜 */
+.sketch-sm { border-radius: var(--sketch-border-radius-sm) !important; }
+.sketch-md { border-radius: var(--sketch-border-radius-md) !important; }
+.sketch-lg { border-radius: var(--sketch-border-radius-lg) !important; }
+
+/* 刷痕高亮：文字下方倾斜色块，用于标题关键词 */
+.brush-highlight {
+  position: relative;
+  display: inline-block;
+}
+.brush-highlight::after {
+  content: '';
+  position: absolute;
+  bottom: 1px;
+  left: -3px;
+  right: -3px;
+  height: 38%;
+  background: var(--brush-highlight-bg);
+  transform: skewX(-5deg);
+  z-index: -1;
+  border-radius: 2px;
+}
+
+/* 手账格线背景 — 用于 journal 型卡片内容区 */
+.grid-paper {
+  background-image:
+    linear-gradient(var(--dec-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--dec-grid-line) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* 分组标题「金线双侧 + 宽字距」 */
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.section-heading::before {
+  content: '';
+  flex: 0 0 18px;
+  height: 1px;
+  background: var(--dec-gold-line);
+}
+.section-heading::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--dec-gold-line);
+}
+
+/* 印章水印 — 极低透明度，fixed 旋转叠在卡片背景 */
+.stamp-watermark {
+  position: relative;
+  overflow: hidden;
+}
+.stamp-watermark::before {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  width: 72px;
+  height: 72px;
+  border: 3px solid var(--dec-stamp);
+  border-radius: 4px 6px 4px 5px / 5px 4px 6px 4px;
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

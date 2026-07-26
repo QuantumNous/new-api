@@ -46,12 +46,13 @@ const inputAttrs = computed(() => {
       :autocomplete="autocomplete"
       :readonly="readonly"
       v-bind="inputAttrs"
-      class="h-11 w-full rounded-xl border border-[var(--border-subtle)] pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-colors focus:border-[var(--border-strong)] focus-ring"
+      class="h-11 w-full border-0 border-b-[1.5px] bg-transparent pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-[border-color] focus:outline-none focus:border-[var(--accent)]"
+      style="border-color: var(--border-default)"
       :class="[
-        $slots.icon ? 'pl-10' : 'pl-4',
+        $slots.icon ? 'pl-10' : 'pl-1',
         readonly
-          ? 'cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-secondary)]'
-          : 'bg-[var(--surface-solid)]',
+          ? 'cursor-not-allowed opacity-60'
+          : '',
       ]"
     />
   </div>

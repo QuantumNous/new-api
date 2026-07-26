@@ -10,8 +10,6 @@ const props = defineProps<{
   items: TabItem[]
 }>()
 
-// Left/Right arrows move selection (and focus) between tabs — the ARIA
-// tabs keyboard pattern.
 function onKeydown(e: KeyboardEvent, index: number) {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
   e.preventDefault()
@@ -46,12 +44,28 @@ function onKeydown(e: KeyboardEvent, index: number) {
       @click="model = item.key"
       @keydown="onKeydown($event, i)"
     >
-      {{ item.label }}
+      <!-- brush-highlight on active label -->
+      <span
+        :class="model === item.key ? 'brush-highlight' : ''"
+        style="position: relative; z-index: 0"
+      >{{ item.label }}</span>
+
+      <!-- Active indicator: tapered brush-stroke bar (wider center, thin ends) -->
       <span
         v-if="model === item.key"
-        class="absolute inset-x-0 -bottom-px h-0.5 rounded-full"
-        style="background: var(--accent)"
+        class="active-bar absolute inset-x-0 -bottom-px"
+        aria-hidden="true"
       />
     </button>
   </div>
 </template>
+
+<style scoped>
+.active-bar {
+  height: 2.5px;
+  background: var(--accent);
+  border-radius: 9999px;
+  /* Clip-path creates a tapered "brush stroke": wide in the middle, thin at ends */
+  clip-path: inset(0 8% round 9999px);
+}
+</style>

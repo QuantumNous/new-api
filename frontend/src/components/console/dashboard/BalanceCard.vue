@@ -71,7 +71,7 @@ const runwayDays = computed(() => {
 </script>
 
 <template>
-  <ConsoleCard stretch>
+  <ConsoleCard variant="sketch" stretch>
     <!-- Top row: label + health indicator -->
     <div class="flex items-center justify-between gap-3">
       <p class="text-sm text-[var(--text-tertiary)]">
@@ -82,9 +82,9 @@ const runwayDays = computed(() => {
       </StatusChip>
     </div>
 
-    <!-- Balance number -->
+    <!-- Balance number: mono font for ledger feel -->
     <div class="mt-3 flex items-center gap-2.5">
-      <p class="text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+      <p class="font-mono text-3xl font-bold tracking-tight text-[var(--text-primary)]">
         {{ display }}
       </p>
       <button
@@ -102,6 +102,8 @@ const runwayDays = computed(() => {
           fill="none"
           stroke="currentColor"
           stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         >
           <path
             d="M3 3l18 18M10.5 10.7a3 3 0 0 0 4.2 4.2M7.4 7.6C4.8 9.3 3 12 3 12s3.5 6 9 6c1.6 0 3-.4 4.3-1M12 6c5.5 0 9 6 9 6s-.6 1.1-1.8 2.3"
@@ -116,6 +118,8 @@ const runwayDays = computed(() => {
           fill="none"
           stroke="currentColor"
           stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         >
           <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" />
           <circle cx="12" cy="12" r="3" />
@@ -133,10 +137,7 @@ const runwayDays = computed(() => {
       </template>
     </p>
 
-    <!--
-      Usage bar. The remaining amount is the headline above, so this row carries
-      only what the headline does not: how much has gone, and today's slice.
-    -->
+    <!-- Usage bar: hand-drawn brush-stroke style -->
     <div v-if="usedQuota > 0 && !compact" class="mt-4">
       <div
         class="mb-1.5 flex items-baseline justify-between gap-3 text-xs text-[var(--text-tertiary)]"
@@ -147,44 +148,51 @@ const runwayDays = computed(() => {
             formatQuota(usedQuota)
           }}</span>
         </span>
-        <span class="tabular-nums">{{ usedPercent }}%</span>
+        <span class="font-mono tabular-nums">{{ usedPercent }}%</span>
       </div>
-      <div class="h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+      <!-- Thicker bar with irregular radius for brush-stroke feel -->
+      <div
+        class="h-2 overflow-hidden bg-[var(--surface-muted)]"
+        style="border-radius: 3px 2px 4px 2px / 2px 3px 2px 4px"
+      >
         <div
-          class="h-full rounded-full transition-[width] duration-700"
+          class="h-full transition-[width] duration-700"
+          style="border-radius: 3px 1px 3px 2px / 2px 2px 3px 1px"
           :style="{ width: `${usedPercent}%`, background: meterColor }"
         />
       </div>
     </div>
 
-    <!--
-      Today against the recent average, side by side: the runway line above is
-      derived from this average, so stating it makes that estimate checkable
-      instead of asking the reader to take it on faith.
-    -->
+    <!-- Today vs. average spend grid -->
     <div
       v-if="!compact && (todayQuota !== undefined || dailyBurn !== undefined)"
       class="mt-4 grid grid-cols-2 gap-3"
     >
-      <div class="rounded-xl bg-[var(--surface-muted)] px-3 py-2.5">
+      <div
+        class="px-3 py-2.5"
+        style="background:var(--surface-muted);border-radius:var(--sketch-border-radius-sm)"
+      >
         <p class="text-[11px] text-[var(--text-tertiary)]">
           {{ t('dashboard.todaySpend') }}
         </p>
-        <p class="mt-0.5 font-bold tabular-nums text-[var(--text-primary)]">
+        <p class="mt-0.5 font-mono font-bold tabular-nums text-[var(--text-primary)]">
           {{ todayQuota === undefined ? '--' : formatQuota(todayQuota) }}
         </p>
       </div>
-      <div class="rounded-xl bg-[var(--surface-muted)] px-3 py-2.5">
+      <div
+        class="px-3 py-2.5"
+        style="background:var(--surface-muted);border-radius:var(--sketch-border-radius-sm)"
+      >
         <p class="text-[11px] text-[var(--text-tertiary)]">
           {{ t('dashboard.balanceHint.avgBurn') }}
         </p>
-        <p class="mt-0.5 font-bold tabular-nums text-[var(--text-primary)]">
+        <p class="mt-0.5 font-mono font-bold tabular-nums text-[var(--text-primary)]">
           {{ dailyBurn === undefined ? '--' : formatQuota(dailyBurn) }}
         </p>
       </div>
     </div>
 
-    <!-- Action buttons — pinned to the bottom edge when the row runs taller -->
+    <!-- Action buttons -->
     <div class="mt-auto grid grid-cols-2 gap-3 pt-5">
       <ConsoleButton @click="router.push({ name: 'wallet' })">
         <svg
@@ -194,6 +202,8 @@ const runwayDays = computed(() => {
           fill="none"
           stroke="currentColor"
           stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         >
           <rect x="3" y="6" width="18" height="13" rx="2" />
           <path d="M3 10h18M8 15h4" />
@@ -211,6 +221,8 @@ const runwayDays = computed(() => {
           fill="none"
           stroke="currentColor"
           stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         >
           <path
             d="M4 9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V9Z"

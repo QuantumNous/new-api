@@ -460,11 +460,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="data-table-shell">
-    <!-- Visual header is outside the vertical scroll viewport, so the native
-         scrollbar track begins exactly below it. -->
+        <!-- Visual header: wider tracking + gold-line bottom border for ledger feel -->
     <div
       ref="headerClipRef"
-      class="data-table-header-clip overflow-hidden border-b border-[var(--border-default)] bg-[var(--surface-table-header)]"
+      class="data-table-header-clip overflow-hidden border-b bg-[var(--surface-table-header)]"
+      style="border-color: var(--dec-gold-line)"
       :style="headerClipStyle"
       @scroll="onHeaderScroll"
     >
@@ -497,7 +497,8 @@ onBeforeUnmount(() => {
             <td
               v-for="col in columns"
               :key="col.key"
-              class="px-3 py-3 font-medium"
+              class="px-3 py-3 font-semibold tracking-[0.12em] uppercase"
+              style="font-size:10px;font-family:var(--font-display);color:var(--text-tertiary)"
               :class="alignClass(col.align)"
             >
               <slot :name="`header-${col.key}`" :column="col">
@@ -576,7 +577,8 @@ onBeforeUnmount(() => {
             </tr>
             <tr
               v-else
-              class="border-b border-[var(--border-subtle)] transition-colors last:border-0 hover:bg-[var(--surface-muted)]"
+              class="border-b border-dashed transition-colors last:border-0 hover:bg-[var(--surface-muted)]"
+              style="border-color: var(--dec-grid-line)"
               :class="[
                 rowInteractive ? 'cursor-pointer select-none' : undefined,
                 rowClass?.(row),

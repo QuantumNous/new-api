@@ -160,16 +160,23 @@ onBeforeUnmount(() => {
         <div
           ref="panel"
           tabindex="-1"
-          class="relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] animate-scale-in focus:outline-none"
+          class="relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden border border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper animate-scale-in focus:outline-none"
+          style="border-radius: var(--sketch-border-radius-lg); box-shadow: var(--card-sketch-shadow)"
           :class="widths[size]"
         >
+          <!-- Decorative gold-line top accent -->
+          <div
+            class="shrink-0 h-px w-full"
+            style="background: linear-gradient(90deg, transparent 10%, var(--dec-gold-line) 40%, var(--dec-gold-line) 60%, transparent 90%)"
+            aria-hidden="true"
+          />
           <header
             v-if="title || subtitle"
-            class="shrink-0 px-6 pt-6 text-center"
+            class="shrink-0 px-6 pt-5 text-center"
           >
             <h2
               :id="titleId"
-              class="text-xl font-bold text-[var(--text-primary)]"
+              class="display-title text-xl font-bold text-[var(--text-primary)]"
             >
               {{ title }}
             </h2>

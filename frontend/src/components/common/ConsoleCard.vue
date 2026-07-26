@@ -15,25 +15,32 @@ const props = withDefaults(
      * `ink` renders the deep ledger-ink surface (dark in both themes) and
      * re-scopes the text/border tokens so existing children adapt untouched.
      * Reserve it for one or two hero-level cards per page.
+     *
+     * `sketch` renders a hand-drawn feel: irregular border-radius + layered
+     * pencil-pressure shadow. Use for KPI callouts or accent cards.
      */
-    variant?: 'default' | 'ink'
+    variant?: 'default' | 'ink' | 'sketch'
   }>(),
   { title: '', padded: true, stretch: false, variant: 'default' }
 )
 
 const ink = computed(() => props.variant === 'ink')
+const sketch = computed(() => props.variant === 'sketch')
 </script>
 
 <template>
   <section
-    class="rounded-2xl border shadow-[var(--card-shadow)]"
+    class="border"
     :class="[
       ink
-        ? 'border-transparent bg-[var(--surface-footer)]'
-        : 'border-[var(--border-subtle)] bg-[var(--surface-solid)]',
+        ? 'border-transparent bg-[var(--surface-footer)] grid-paper'
+        : sketch
+          ? 'border-[var(--border-default)] bg-[var(--surface-solid)] stamp-watermark'
+          : 'border-[var(--border-subtle)] bg-[var(--surface-solid)]',
+      sketch ? 'sketch-lg' : 'rounded-2xl',
       { 'flex h-full flex-col': stretch },
     ]"
-    :style="
+    :style="[
       ink
         ? {
             '--text-primary': 'var(--footer-text-primary)',
@@ -43,18 +50,30 @@ const ink = computed(() => props.variant === 'ink')
             '--border-default': 'var(--footer-border)',
             '--surface-muted': 'rgba(244, 242, 232, 0.08)',
             '--accent-text': 'var(--footer-accent)',
+            boxShadow: 'var(--card-shadow)',
           }
-        : undefined
-    "
+        : sketch
+          ? { boxShadow: 'var(--card-sketch-shadow)' }
+          : { boxShadow: 'var(--card-shadow)' },
+    ]"
   >
     <header
       v-if="title || $slots.action"
       class="flex items-center justify-between gap-3 px-5 pt-4"
       :class="{ 'pb-1': !padded }"
     >
-      <h2 class="text-sm font-semibold text-[var(--text-primary)]">
-        {{ title }}
-      </h2>
+      <!-- sketch variant: accent left-bar decoration on title -->
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span
+          v-if="sketch"
+          class="shrink-0 w-0.5 h-4 rounded-full"
+          style="background: var(--accent)"
+          aria-hidden="true"
+        />
+        <h2 class="text-sm font-semibold text-[var(--text-primary)] truncate">
+          {{ title }}
+        </h2>
+      </div>
       <slot name="action" />
     </header>
     <div :class="[padded ? 'p-5' : '', stretch ? 'flex grow flex-col' : '']">

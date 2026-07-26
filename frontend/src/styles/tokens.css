@@ -164,6 +164,24 @@
   --brand-scan: var(--accent);
   --brand-soft: var(--accent-soft);
   --foreground: var(--text-primary);
+
+  /* ===== 手绘装饰令牌 — Desert Ledger（日间） ===== */
+  --sketch-border-radius-sm: 6px 8px 7px 5px / 5px 6px 8px 7px;
+  --sketch-border-radius-md: 10px 13px 11px 12px / 11px 10px 13px 10px;
+  --sketch-border-radius-lg: 16px 18px 15px 17px / 15px 17px 16px 18px;
+  --sketch-border-width: 1.5px;
+  --card-sketch-shadow:
+    2px 3px 0 rgba(56, 55, 43, 0.10),
+    0 8px 24px rgba(56, 55, 43, 0.09);
+  --card-sketch-shadow-hover:
+    3px 4px 0 rgba(56, 55, 43, 0.14),
+    0 14px 36px rgba(56, 55, 43, 0.14);
+  --dec-stamp: rgba(157, 48, 23, 0.18);
+  --dec-gold-line: rgba(192, 139, 87, 0.32);
+  --dec-leaf: rgba(127, 164, 99, 0.26);
+  --dec-grid-line: rgba(56, 55, 43, 0.055);
+  --surface-warm-tile: #fdf6e3;
+  --brush-highlight-bg: var(--accent-soft);
 }
 
 html.dark {
@@ -309,4 +327,18 @@ html.dark {
   --brand-scan: var(--accent);
   --brand-soft: var(--accent-soft);
   --foreground: var(--text-primary);
+
+  /* ===== 手绘装饰令牌 — One Night（夜间覆盖） ===== */
+  --card-sketch-shadow:
+    2px 3px 0 rgba(0, 4, 16, 0.28),
+    0 8px 24px rgba(0, 4, 16, 0.36);
+  --card-sketch-shadow-hover:
+    3px 4px 0 rgba(0, 4, 16, 0.38),
+    0 14px 36px rgba(0, 4, 16, 0.48);
+  --dec-stamp: rgba(226, 188, 85, 0.16);
+  --dec-gold-line: rgba(226, 188, 85, 0.28);
+  --dec-leaf: rgba(142, 200, 170, 0.24);
+  --dec-grid-line: rgba(152, 164, 192, 0.07);
+  --surface-warm-tile: rgba(226, 188, 85, 0.07);
+  --brush-highlight-bg: var(--accent-soft);
 }

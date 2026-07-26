@@ -23,15 +23,11 @@ const app = useAppStore()
 
 const searchOpen = ref(false)
 
-// The handler accepts both metaKey and ctrlKey; the visible hint shows the
-// platform's conventional chord.
 const isApplePlatform = /Mac|iPhone|iPad|iPod/.test(
   window.navigator.platform || window.navigator.userAgent
 )
 const searchShortcut = isApplePlatform ? '⌘K' : 'Ctrl+K'
 
-// Mobile strip carries top-level groups only; console sub-nav lives in
-// the ConsoleNavStrip inside the layout.
 const mobileItems = [
   { name: 'activities', labelKey: 'nav.activities', route: 'activity' },
   { name: 'dashboard', labelKey: 'nav.dashboard', route: 'dashboard' },
@@ -58,12 +54,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
 
 <template>
   <header
-    class="sticky top-0 z-[60] border-b border-[var(--border-subtle)] bg-[var(--surface-raised)] backdrop-blur-xl"
+    class="topbar-header sticky top-0 z-[60] bg-[var(--surface-raised)] backdrop-blur-xl"
   >
     <nav
       class="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-1.5 px-3 sm:gap-3 sm:px-6 lg:px-8"
     >
-      <!-- brand (mobile only; on desktop the sidebar header owns the brand) -->
+      <!-- brand (mobile only) -->
       <div class="flex min-w-0 items-center gap-2.5 lg:hidden">
         <RouterLink
           :to="{ name: 'dashboard' }"
@@ -75,9 +71,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
             alt=""
             aria-hidden="true"
             class="h-8 w-8 shrink-0 object-contain"
+            style="filter: drop-shadow(0 1px 2px rgba(56,55,43,0.18))"
           />
           <span
-            class="hidden whitespace-nowrap text-lg font-bold tracking-tight text-[var(--text-primary)] sm:inline"
+            class="display-title hidden whitespace-nowrap text-lg font-bold tracking-tight text-[var(--text-primary)] sm:inline"
             >{{ app.systemName }}</span
           >
         </RouterLink>
@@ -90,12 +87,14 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
 
       <!-- right actions -->
       <div class="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
+        <!-- search: underline-style hand-drawn feel -->
         <button
           type="button"
-          class="flex items-center gap-2 rounded-full bg-[var(--surface-muted)] py-2 pl-3.5 pr-3 text-sm text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)] focus-ring"
+          class="search-trigger flex items-center gap-2 rounded-xl bg-[var(--surface-muted)] py-2 pl-3.5 pr-3 text-sm text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)] focus-ring"
           :aria-label="t('nav.search')"
           @click="searchOpen = true"
         >
+          <!-- hand-drawn magnifier SVG: rounded linecap, slightly asymmetric -->
           <svg
             width="15"
             height="15"
@@ -103,6 +102,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
             fill="none"
             stroke="currentColor"
             stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
           >
             <circle cx="11" cy="11" r="7" />
             <path d="m20 20-3.5-3.5" />
@@ -124,7 +125,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
       </div>
     </nav>
 
-    <!-- mobile nav strip -->
+    <!-- mobile nav strip: active pill gets micro-tilt + sketch radius -->
     <div
       class="flex gap-1 overflow-x-auto border-t border-[var(--border-subtle)] px-3 py-2 lg:hidden"
     >
@@ -132,7 +133,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
         v-for="item in mobileItems"
         :key="item.name"
         :to="{ name: item.route }"
-        class="shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors"
+        class="mobile-pill shrink-0 px-3.5 py-1.5 text-xs font-medium transition-all"
+        :class="activeName === item.name ? 'active' : ''"
         :style="
           activeName === item.name
             ? 'background:var(--accent);color:var(--accent-contrast)'
@@ -147,3 +149,21 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
     <CommandPaletteModal :open="searchOpen" @close="searchOpen = false" />
   </header>
 </template>
+
+<style scoped>
+/* Gradient bottom border: fades in from center, giving a brush-stroke horizon */
+.topbar-header {
+  border-bottom: 1px solid transparent;
+  background-clip: padding-box;
+  box-shadow: 0 1px 0 var(--dec-gold-line);
+}
+
+/* Active mobile pill: hand-drawn irregular radius + micro-rotation */
+.mobile-pill {
+  border-radius: 9999px;
+}
+.mobile-pill.active {
+  border-radius: var(--sketch-border-radius-sm);
+  transform: rotate(-0.4deg);
+}
+</style>

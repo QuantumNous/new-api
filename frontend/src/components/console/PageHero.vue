@@ -23,11 +23,15 @@ withDefaults(
     <!-- title row -->
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="min-w-0">
-        <h1 class="display-title text-4xl font-bold text-[var(--text-primary)]">
+        <h1 class="display-title text-4xl font-bold text-[var(--text-primary)] lg:text-5xl leading-tight">
           {{ title }}
-          <span v-if="titleAccent" class="text-[var(--accent-text)]">
-            &amp; {{ titleAccent }}</span
+          <!-- accent phrase wrapped in brush-highlight for a painted underline -->
+          <span
+            v-if="titleAccent"
+            class="brush-highlight text-[var(--accent-text)]"
           >
+            &amp;&thinsp;{{ titleAccent }}
+          </span>
         </h1>
         <!-- hero metric slot (wallet balance, etc.) -->
         <slot />

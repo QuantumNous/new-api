@@ -16,8 +16,6 @@ const app = useAppStore()
 
 const collapsed = useSidebarCollapsed()
 
-// Auto-collapse on the activity page for a wider content canvas — once per
-// session, so re-entering the page doesn't undo a manual expand.
 const AUTO_COLLAPSE_KEY = 'ren2hub_activity_auto_collapsed'
 watch(
   () => route.name,
@@ -35,8 +33,6 @@ watch(
 )
 
 const activeName = computed(() => {
-  // Detail routes declare their parent nav item via meta.nav (e.g. ticket-detail
-  // → tickets); fall back to an exact route-name match otherwise.
   const matches = (routeName: string) =>
     routeName === route.name || routeName === route.meta.nav
   for (const group of consoleNavGroups) {
@@ -50,10 +46,6 @@ const activeName = computed(() => {
   return null
 })
 
-/**
- * Enabled nav entries render as RouterLink (real links: middle-click, a11y
- * semantics); disabled placeholders stay non-interactive buttons.
- */
 function navComponent(item: { route?: string; disabled?: boolean }) {
   return !item.disabled && item.route ? RouterLink : 'button'
 }
@@ -63,10 +55,10 @@ defineExpose({ collapsed })
 
 <template>
   <aside
-    class="sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-[var(--border-subtle)] bg-[var(--surface-solid)] transition-[width] duration-[250ms] lg:flex"
+    class="sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper transition-[width] duration-[250ms] lg:flex"
     :style="{ width: collapsed ? '64px' : '220px' }"
   >
-    <!-- brand header (aligns with topbar height) -->
+    <!-- brand header: serif typeface for hand-crafted feel -->
     <RouterLink
       :to="{ name: 'dashboard' }"
       class="flex h-16 shrink-0 items-center border-b border-[var(--border-subtle)] transition-all"
@@ -78,10 +70,11 @@ defineExpose({ collapsed })
         alt=""
         aria-hidden="true"
         class="h-7 w-7 shrink-0 object-contain"
+        style="filter: drop-shadow(0 1px 2px rgba(56,55,43,0.18))"
       />
       <span
         v-if="!collapsed"
-        class="truncate text-lg font-bold tracking-tight text-[var(--text-primary)]"
+        class="display-title truncate text-lg font-bold tracking-tight text-[var(--text-primary)]"
       >
         {{ app.systemName }}
       </span>
@@ -96,25 +89,15 @@ defineExpose({ collapsed })
         :key="group.key"
         :class="['px-3', { 'mb-5': !collapsed }]"
       >
-        <!-- group label: hand-drawn rust-red tick + neutral text -->
+        <!-- group label: hand-drawn rust-red tick + wide-tracking text -->
         <div v-if="!collapsed" class="mb-1 flex items-center gap-2 px-3 py-0.5">
-          <svg
-            width="7"
-            height="15"
-            viewBox="0 0 7 15"
-            fill="none"
-            class="shrink-0 text-[var(--status-danger)]"
-            aria-hidden="true"
-          >
-            <path
-              d="M3.9 1.4C3.1 3.8 3.4 6.4 3.5 8.9c0 1.5.1 3-.2 4.5"
-              stroke="currentColor"
-              stroke-width="2.1"
-              stroke-linecap="round"
-            />
-          </svg>
+          <!-- bamboo-node style: a cluster of short horizontal rules -->
+          <div class="flex flex-col gap-[3px] shrink-0" aria-hidden="true">
+            <span class="block h-px w-3 rounded-full" style="background:var(--status-danger);opacity:0.7" />
+            <span class="block h-px w-2 rounded-full" style="background:var(--status-danger);opacity:0.45" />
+          </div>
           <span
-            class="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]"
+            class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-tertiary)]"
           >
             {{ t(group.labelKey) }}
           </span>
@@ -134,7 +117,7 @@ defineExpose({ collapsed })
                   ? 'cursor-not-allowed opacity-40'
                   : activeName === item.name
                     ? ''
-                    : 'hover:bg-[var(--surface-muted)]',
+                    : 'hover:bg-[var(--surface-warm-tile)]',
                 collapsed ? 'justify-center' : '',
               ]"
               :style="
@@ -152,10 +135,11 @@ defineExpose({ collapsed })
               "
               :aria-current="activeName === item.name ? 'page' : undefined"
             >
-              <!-- active indicator bar -->
+              <!-- active indicator: wider brush-stroke bar with rounded caps -->
               <span
                 v-if="activeName === item.name && !collapsed"
-                class="absolute left-0 h-5 w-0.5 rounded-r-full bg-[var(--accent)]"
+                class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
+                style="background:var(--accent)"
                 aria-hidden="true"
               />
 
@@ -166,6 +150,8 @@ defineExpose({ collapsed })
                 fill="none"
                 stroke="currentColor"
                 stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
                 :class="
                   activeName === item.name ? 'text-[var(--accent-text)]' : ''
                 "
@@ -205,7 +191,7 @@ defineExpose({ collapsed })
             :class="[
               item.disabled
                 ? 'cursor-not-allowed opacity-40'
-                : 'hover:bg-[var(--surface-muted)]',
+                : 'hover:bg-[var(--surface-warm-tile)]',
               collapsed ? 'justify-center' : '',
             ]"
             style="color: var(--text-tertiary)"
@@ -225,6 +211,8 @@ defineExpose({ collapsed })
               fill="none"
               stroke="currentColor"
               stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
             >
               <path :d="item.icon" />
             </svg>
@@ -238,7 +226,7 @@ defineExpose({ collapsed })
       <!-- collapse toggle -->
       <button
         type="button"
-        class="mt-2 flex h-9 w-full items-center gap-3 rounded-xl px-3 text-xs font-medium text-[var(--text-tertiary)] transition-all hover:bg-[var(--surface-muted)] focus-ring"
+        class="mt-2 flex h-9 w-full items-center gap-3 rounded-xl px-3 text-xs font-medium text-[var(--text-tertiary)] transition-all hover:bg-[var(--surface-warm-tile)] focus-ring"
         :class="collapsed ? 'justify-center' : ''"
         :aria-label="collapsed ? t('nav.expand') : t('nav.collapse')"
         @click="collapsed = !collapsed"
@@ -250,6 +238,8 @@ defineExpose({ collapsed })
           fill="none"
           stroke="currentColor"
           stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
           class="shrink-0 text-[var(--status-danger-text)] transition-transform duration-[250ms]"
           :class="collapsed ? 'rotate-180' : ''"
         >
