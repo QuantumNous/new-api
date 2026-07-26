@@ -43,6 +43,8 @@ import {
   VIDEO_INTERPOLATION_TARGET_FPS,
   VIDEO_PIPELINE_SR_RATIO,
   isPipelineTargetSize,
+  findCapabilityModelIn,
+  DUB_PIPELINE_MODES,
   VIDEO_POLL_INTERVAL_MS,
   VIDEO_POLL_MAX_TIMES,
   parseVideoModelConfig,
@@ -132,21 +134,49 @@ const genId = () => `vid-${Date.now()}-${idSeq++}`;
 // videoUrl 为空」的消息用 taskId 重建直连 URL:内存里始终非空,persist 落的是可重建的直连
 // URL(isDirectUrl 原样保留),localStorage 自愈;已损坏的历史数据加载即恢复。identity 保持:
 // 无改动的 conv/message 原样返回,不破坏 hydrate 的引用比对。
+// 旧版（两段流水线）持久化的 pipeline 结构为 { srModel, interpolation, ... }，
+// 新版（N 段）为 { upscale:{srModel,interpolation}, dub }。加载时归一，否则旧版
+// 遗留的进行中 1080P 任务在新版恢复时，stage1 完成后取不到下一段而停在 480P。
+// 无需迁移（新结构/无 pipeline）时返回原引用，保持 identity 不触发多余克隆。
+const migratePipeline = (pipeline) => {
+  if (!pipeline || 'upscale' in pipeline || 'dub' in pipeline) return pipeline;
+  if (pipeline.srModel) {
+    return {
+      group: pipeline.group,
+      upscale: {
+        srModel: pipeline.srModel,
+        interpolation: !!pipeline.interpolation,
+      },
+      dub: null,
+    };
+  }
+  return pipeline;
+};
+
+// 加载漏斗：重建 completed 视频的空 videoUrl + 迁移旧结构 pipeline（初始态与
+// hydrate 两条路径都经此，一处覆盖所有 m.pipeline 读取点）。identity 保持：
+// 无改动的 conv/message 原样返回，不破坏 hydrate 的引用比对。
 const ensureVideoUrls = (list) => {
   if (!Array.isArray(list)) return list;
   return list.map((conv) => {
     let changed = false;
     const messages = (conv.messages || []).map((m) => {
-      if (
-        m.role === 'assistant' &&
-        m.status === VIDEO_STATUS.COMPLETED &&
-        m.taskId &&
-        !m.videoUrl
-      ) {
+      let nm = m;
+      const migrated = migratePipeline(m.pipeline);
+      if (migrated !== m.pipeline) {
+        nm = { ...nm, pipeline: migrated };
         changed = true;
-        return { ...m, videoUrl: buildVideoContentUrl(m.taskId) };
       }
-      return m;
+      if (
+        nm.role === 'assistant' &&
+        nm.status === VIDEO_STATUS.COMPLETED &&
+        nm.taskId &&
+        !nm.videoUrl
+      ) {
+        nm = { ...nm, videoUrl: buildVideoContentUrl(nm.taskId) };
+        changed = true;
+      }
+      return nm;
     });
     return changed ? { ...conv, messages } : conv;
   });
@@ -192,6 +222,8 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     sourceVideo: '', // sr 源视频(base64 data-url)
     srRatio: 2, // sr 超分倍率(请求级,门面透传 metadata.sr_ratio)
     interpolation: false, // 插帧开关(默认关):开启才透传 metadata.target_fps,超分/配乐不适用
+    dubbing: false, // 配音开关(默认关):开启则生成后接 v2a 配音段(文生/图生/视频编辑)
+    dubPrompt: '', // 配音提示词(可选):开配音后可描述想要的声音,非空才随配音段下发
     srcVideo: '', // 视频编辑(Bernini)源视频(base64 data-url)
     srcVideo2: '', // 视频编辑(Bernini)第二源视频(mv2v/ads2v 双视频,可选)
     refImages: [], // 视频编辑 rv2v / 图生视频 r2v 参考图(base64 data-url 数组)
@@ -200,6 +232,9 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
   const [models, setModels] = useState([]);
   // 来自 /api/pricing：model -> enable_groups[]（用于分组过滤）
   const [modelGroupsMap, setModelGroupsMap] = useState(new Map());
+  // 当前选中分组下后端权威可用模型全集（未按能力过滤）：判定配音/超分模型
+  // 对该分组是否可用，与生成模型同一套来源（GetUserModels）。
+  const [groupUsableModels, setGroupUsableModels] = useState([]);
 
   // 初值:同步剥掉未 hydrate 的 idb-media: 引用(避免首帧断图/裸引用误发后端);
   // 保留初始 conv 对象引用,mount 后 hydrate 完成再按引用逐条合并(不整体覆盖)。
@@ -365,16 +400,19 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     return set;
   }, [videoConfig]);
 
-  // 1080P 流水线的超分模型：运营配置里声明了「视频超分」能力的模型
-  // （即原超分 tab 的模型来源；未配置则流水线不启用，1080P 原样直发）。
-  const pipelineSRModel = useMemo(() => {
-    const entry = Object.entries(videoConfig.models || {}).find(([, cfg]) =>
-      (Array.isArray(cfg?.capabilities) ? cfg.capabilities : []).includes(
-        VIDEO_SR_CAPABILITY,
+  // 配音开关是否可用：当前模式支持配音流水线 + 选中分组的可用模型里有「视频配乐」
+  // 能力模型（从分组可用列表按能力挑，兼容多配音模型按分组分别启用）。超分/配音的
+  // 具体模型在提交时从 params.group 的权威可用列表按能力挑，见 generate。
+  const dubAvailable = useMemo(
+    () =>
+      DUB_PIPELINE_MODES.includes(mode) &&
+      !!findCapabilityModelIn(
+        videoConfig,
+        groupUsableModels,
+        VIDEO_DUB_CAPABILITY,
       ),
-    );
-    return entry ? entry[0] : '';
-  }, [videoConfig]);
+    [mode, videoConfig, groupUsableModels],
+  );
 
   const videoGroups = useMemo(() => {
     const set = new Set();
@@ -425,6 +463,15 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       setInputs((prev) => ({ ...prev, aspectRatio: next }));
     }
   }, [availableAspectRatios, inputs.aspectRatio, locked]);
+
+  // 配音开关不再可用（切到无配音模型的分组/模式）时关掉残留的 on 状态，
+  // 避免开关隐藏后 inputs.dubbing 仍为 true 导致的困惑（锁定的会话不动）。
+  useEffect(() => {
+    if (locked) return;
+    if (!dubAvailable && inputs.dubbing) {
+      setInputs((prev) => ({ ...prev, dubbing: false }));
+    }
+  }, [dubAvailable, inputs.dubbing, locked]);
 
   const loadPricing = useCallback(async () => {
     try {
@@ -480,6 +527,8 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       // 变化数次):过期响应直接丢弃,否则旧分组的空结果会最后到达并覆盖正确的模型列表。
       if (requestedGroup !== groupRef.current) return;
       let list = Array.isArray(data) ? data : [];
+      // 存该分组可用模型全集（未按能力过滤）供配音/超分开关的分组可用性判定
+      setGroupUsableModels(list);
       list = list.filter((m) => videoModelSet.has(m));
       const { modelOptions, selectedModel } = processModelsData(
         list,
@@ -562,7 +611,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     setGenerating(false);
   }, []);
 
-  // submitPipelineSR 定义在 pollOnce 之前但要调度它，经 ref 间接引用
+  // submitPipelineStage 定义在 pollOnce 之前但要调度它，经 ref 间接引用
   const pollOnceRef = useRef(null);
 
   // 查找会话内消息（读取流水线状态用）
@@ -571,52 +620,79 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     return conv?.messages?.find((m) => m.id === msgId) || null;
   }, []);
 
-  // 1080P 流水线 stage2：用 task:<id> 引用 stage1 产物提交超分任务，
-  // 成功则把轮询槽切到新任务继续轮询。失败返回 false，由调用方降级展示低档位成品。
-  const submitPipelineSR = useCallback(
-    async (convId, msgId, stage1TaskId, pipeline) => {
+  // 流水线阶段顺序：生成 → [超分] → [配音]。返回当前 stage 之后应跑的下一段，
+  // 无则 null（结束落终态）。
+  const nextPipelineStage = (stage, pipeline) => {
+    if (!pipeline) return null;
+    if (stage === 'generating') {
+      if (pipeline.upscale) return 'upscaling';
+      if (pipeline.dub) return 'dubbing';
+    } else if (stage === 'upscaling') {
+      if (pipeline.dub) return 'dubbing';
+    }
+    return null;
+  };
+
+  // 提交流水线的某一后置阶段（超分/配音）：用 task:<id> 引用上一段产物，
+  // 成功则把轮询槽切到新任务继续轮询。失败返回 false，由调用方降级展示上一段成品。
+  const submitPipelineStage = useCallback(
+    async (convId, msgId, prevTaskId, pipeline, stage) => {
+      // 超分段：sr_ratio + 可选插帧 target_fps；配音段：v2a，透传源视频。
+      const metadata =
+        stage === 'upscaling'
+          ? {
+              task_type: 'sr',
+              video: `task:${prevTaskId}`,
+              sr_ratio: VIDEO_PIPELINE_SR_RATIO,
+              ...(pipeline.upscale?.interpolation
+                ? { target_fps: VIDEO_INTERPOLATION_TARGET_FPS }
+                : {}),
+            }
+          : { task_type: 'v2a', video: `task:${prevTaskId}` };
+      const model =
+        stage === 'upscaling' ? pipeline.upscale?.srModel : pipeline.dub?.dubModel;
+      // 配音提示词可选：用户填了才作为 v2a 的 prompt 下发（描述想要的声音）；
+      // 留空=让模型按画面自由配环境音。超分段无提示词。
+      const stagePrompt =
+        stage === 'dubbing' ? pipeline.dub?.dubPrompt || '' : '';
+      const failMsg =
+        stage === 'upscaling'
+          ? t('超分任务提交失败，已展示原始分辨率结果')
+          : t('配音任务提交失败，已展示无配音成品');
       try {
         const res = await API.post(
           VIDEO_API_ENDPOINTS.VIDEO_GENERATIONS,
           {
-            model: pipeline.srModel,
+            model,
             group: pipeline.group || undefined,
-            prompt: '',
-            metadata: {
-              task_type: 'sr',
-              video: `task:${stage1TaskId}`,
-              sr_ratio: VIDEO_PIPELINE_SR_RATIO,
-              ...(pipeline.interpolation
-                ? { target_fps: VIDEO_INTERPOLATION_TARGET_FPS }
-                : {}),
-            },
+            prompt: stagePrompt,
+            metadata,
           },
           { skipErrorHandler: true },
         );
         const data = res.data || {};
         const inner = data.data || {};
-        const srTaskId = data.id || data.task_id || inner.task_id || inner.id;
-        if (!srTaskId) {
-          throw new Error(data.message || data.error?.message || 'submit sr failed');
+        const nextTaskId = data.id || data.task_id || inner.task_id || inner.id;
+        if (!nextTaskId) {
+          throw new Error(data.message || data.error?.message || 'submit stage failed');
         }
         patchConvMessage(convId, msgId, {
-          taskId: srTaskId,
-          srTaskId,
-          stage: 'upscaling',
+          taskId: nextTaskId,
+          stage,
           status: VIDEO_STATUS.IN_PROGRESS,
           progress: 0,
         });
         const cur = activePollRef.current;
         if (cur && !cur.canceled) {
-          cur.taskId = srTaskId;
+          cur.taskId = nextTaskId;
           cur.timer = setTimeout(
-            () => pollOnceRef.current(convId, msgId, srTaskId, 1),
+            () => pollOnceRef.current(convId, msgId, nextTaskId, 1),
             VIDEO_POLL_INTERVAL_MS,
           );
         }
         return true;
       } catch (e) {
-        showError(t('超分任务提交失败，已展示原始分辨率结果'));
+        showError(failMsg);
         return false;
       }
     },
@@ -641,18 +717,20 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         );
 
         if (status === VIDEO_STATUS.COMPLETED) {
-          // 1080P 流水线：stage1（生成段）完成 → 不落终态，自动提交超分段。
-          // 页面中途关闭再回来时，恢复轮询到这里同样会续走超分段。
+          // 流水线：当前段完成 → 若还有后置段（超分/配音）则不落终态、自动提交下一段。
+          // 页面中途关闭再回来时，恢复轮询到这里同样会按 stage 续走剩余段。
           const msg = findConvMessage(convId, msgId);
-          if (msg?.pipeline && msg.stage !== 'upscaling') {
-            const switched = await submitPipelineSR(
+          const next = nextPipelineStage(msg?.stage, msg?.pipeline);
+          if (next) {
+            const switched = await submitPipelineStage(
               convId,
               msgId,
               taskId,
               msg.pipeline,
+              next,
             );
             if (switched) return;
-            // 超分提交失败：降级展示低档位成品（已生成的产物不浪费）
+            // 下一段提交失败：降级展示当前段成品（已生成的产物不浪费）
           }
           patchConvMessage(convId, msgId, {
             status: VIDEO_STATUS.COMPLETED,
@@ -704,7 +782,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         VIDEO_POLL_INTERVAL_MS,
       );
     },
-    [patchConvMessage, finishPoll, t, findConvMessage, submitPipelineSR],
+    [patchConvMessage, finishPoll, t, findConvMessage, submitPipelineStage],
   );
   pollOnceRef.current = pollOnce;
 
@@ -794,7 +872,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           return;
         }
         if (isDub && !(inputs.sourceVideo || '').trim()) {
-          showError(t('视频配乐需要上传待配乐视频'));
+          showError(t('视频配音需要上传待配音视频'));
           return;
         }
         if (isI2V && !(inputs.refImages || []).filter(Boolean).length) {
@@ -825,6 +903,10 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           images: convImages,
           // ads2v 等无法自动分流的玩法由示例 params.taskType 显式带入(落在 inputs 上)。
           taskTypeOverride: (inputs.taskType || '').trim(),
+          // 插帧/配音随会话锁定：续会话或刷新后按会话原设置而非当前开关判定流水线。
+          interpolation: !!inputs.interpolation,
+          dubbing: !!inputs.dubbing,
+          dubPrompt: (inputs.dubPrompt || '').trim(),
           ...media,
         };
       } else {
@@ -857,6 +939,9 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               srcVideo2: conv.srcVideo2 || '',
               refImages: conv.refImages || [],
               taskTypeOverride: conv.taskTypeOverride || '',
+              interpolation: !!conv.interpolation,
+              dubbing: !!conv.dubbing,
+              dubPrompt: conv.dubPrompt || '',
             }
           : {
               group: inputs.group,
@@ -867,6 +952,9 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               negativePrompt: inputs.negativePrompt,
               aspectRatio: inputs.aspectRatio,
               images: convImages,
+              interpolation: !!inputs.interpolation,
+              dubbing: !!inputs.dubbing,
+              dubPrompt: (inputs.dubPrompt || '').trim(),
               ...media,
             };
       }
@@ -911,7 +999,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       const reqId = genId();
       const now = new Date().toISOString();
       // 超分无提示词/配乐提示词可选:空提示词时会话气泡/历史标题用固定文案占位。
-      const displayText = text || t(isDub ? '视频配乐' : '视频超分');
+      const displayText = text || t(isDub ? '视频配音' : '视频超分');
       const userMsg = {
         id: `${reqId}-u`,
         role: 'user',
@@ -955,6 +1043,10 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               srcVideo2: params.srcVideo2 || '',
               refImages: params.refImages || [],
               taskTypeOverride: params.taskTypeOverride || '',
+              // 插帧/配音随会话锁定：刷新/续会话按此判定流水线，不受当前开关影响。
+              interpolation: !!params.interpolation,
+              dubbing: !!params.dubbing,
+              dubPrompt: params.dubPrompt || '',
               title: displayText,
               createdAt: now,
               updatedAt: now,
@@ -1000,31 +1092,62 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         // 尺寸/分辨率仅文生视频、且该值仍在当前模型允许集内才下发（对齐宽高比的闸门，
         // 避免切到未配尺寸的模型时把残留旧值误发）；其余模式输出跟随上传输入，不发 size。
         const videoSizeVal = normalizeVideoSize(params.size);
-        // 1080P 两段流水线（前端编排）：stage1 先按低档位生成（插帧后移到超分段），
-        // 完成后在 pollOnce 里自动提交 sr 任务。模型没配低档位则不启用、原样直发。
-        let pipeline = null;
-        if (
+        // 流水线（前端编排）：生成 →[超分]→[配音]。后置段用 task:<id> 引用上一段产物，
+        // 在 pollOnce 里自动提交。超分（仅文生视频 1080P，stage1 降 480P）与配音
+        // （文生/图生/视频编辑，开关开启）可各自独立启用，也可叠加成三段。
+        // 后置段模型是否可用统一查后端「该分组可用模型」列表（GetUserModels：auto→
+        // GetUserAutoGroup、显式→该组已启用模型），与生成模型同一套判定，缓存命中即时。
+        // 超分段：仅文生视频选 1080P、模型配了 480P 档位时可能启用。
+        const srLowSize = availableSizes.find((s) => /480/.test(s));
+        const maybeUpscale =
           !isSR &&
           !isDub &&
-          pipelineSRModel &&
           !followsInput &&
           isPipelineTargetSize(videoSizeVal) &&
-          availableSizes.includes(videoSizeVal)
-        ) {
-          const lowSize =
-            availableSizes.find((s) => /480/.test(s)) ||
-            availableSizes.find((s) => !isPipelineTargetSize(s));
-          if (lowSize) {
-            pipeline = {
-              targetSize: videoSizeVal,
-              srModel: pipelineSRModel,
-              group: params.group,
-              interpolation: !!inputs.interpolation,
-            };
-            body.size = normalizeVideoSize(lowSize);
+          availableSizes.includes(videoSizeVal) &&
+          !!srLowSize;
+        // 配音段：文生/图生/视频编辑，会话配音开关开时可能启用。
+        // 读 params.dubbing（随会话锁定）而非当前开关，续会话/刷新后仍按原设置。
+        const maybeDub =
+          !isSR && !isDub && !!params.dubbing && DUB_PIPELINE_MODES.includes(mode);
+
+        // 从 params.group 的权威可用模型列表按能力挑超分/配音模型（既保证对该分组
+        // 可用又匹配能力，兼容多同能力模型分组分别启用）。仅在可能用到时才拉列表。
+        let usableModels = [];
+        if (maybeUpscale || maybeDub) {
+          try {
+            const { success, data } = await getUserModelsCached(params.group);
+            usableModels = success && Array.isArray(data) ? data : [];
+          } catch (e) {
+            usableModels = [];
           }
         }
-        if (!pipeline && !followsInput && availableSizes.includes(videoSizeVal)) {
+        const srModel = maybeUpscale
+          ? findCapabilityModelIn(videoConfig, usableModels, VIDEO_SR_CAPABILITY)
+          : '';
+        const dubModel = maybeDub
+          ? findCapabilityModelIn(videoConfig, usableModels, VIDEO_DUB_CAPABILITY)
+          : '';
+        const wantUpscale = maybeUpscale && !!srModel;
+        const wantDub = maybeDub && !!dubModel;
+
+        let pipeline = null;
+        if (wantUpscale || wantDub) {
+          pipeline = {
+            group: params.group,
+            upscale: wantUpscale
+              ? { srModel, interpolation: !!params.interpolation }
+              : null,
+            dub: wantDub
+              ? { dubModel, dubPrompt: (params.dubPrompt || '').trim() }
+              : null,
+          };
+          // 有超分段 → stage1 降 480P；无超分段（仅配音）→ stage1 按选中尺寸正常生成。
+          if (wantUpscale) {
+            body.size = normalizeVideoSize(srLowSize);
+          }
+        }
+        if (!wantUpscale && !followsInput && availableSizes.includes(videoSizeVal)) {
           body.size = videoSizeVal;
         }
         // 超分/配乐输出时长跟随源视频,不发时长字段(配置面板也不展示时长框)。
@@ -1051,8 +1174,9 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           };
         }
         // 插帧(默认关):按提交时的开关状态透传 target_fps(引擎 RIFE 帧率翻倍)。
-        // 超分/配乐不适用;1080P 流水线时插帧后移到超分段,stage1 不发。
-        if (inputs.interpolation && !isSR && !isDub && !pipeline) {
+        // 超分/配乐不适用;有超分段时插帧后移到超分段(stage1 不发),仅配音段无超分
+        // 时插帧仍作用于生成任务。
+        if (params.interpolation && !isSR && !isDub && !pipeline?.upscale) {
           body.metadata = {
             ...(body.metadata || {}),
             target_fps: VIDEO_INTERPOLATION_TARGET_FPS,
@@ -1206,7 +1330,8 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       taskType,
       availableSizes,
       availableAspectRatios,
-      pipelineSRModel,
+      videoConfig,
+      mode,
       t,
     ],
   );
@@ -1271,6 +1396,10 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         srcVideo: conv.srcVideo || '',
         srcVideo2: conv.srcVideo2 || '',
         refImages: conv.refImages || [],
+        // 恢复插帧/配音开关显示（锁定态下只读展示，续会话仍读 params 里的会话值）
+        interpolation: !!conv.interpolation,
+        dubbing: !!conv.dubbing,
+        dubPrompt: conv.dubPrompt || '',
       }));
       // 若该会话最后一个任务仍在进行中，恢复轮询
       const assts = (conv.messages || []).filter((m) => m.role === 'assistant');
@@ -1315,6 +1444,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     isDub,
     needsImage,
     followsInput,
+    dubAvailable,
     maxRefImages: isI2V ? MAX_R2V_REF_IMAGES : MAX_REF_IMAGES,
     maxInputMB,
     inputs,

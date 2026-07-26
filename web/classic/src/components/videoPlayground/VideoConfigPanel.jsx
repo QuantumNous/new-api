@@ -33,6 +33,7 @@ const VideoConfigPanel = ({
   isSR = false,
   isDub = false,
   isVACE = false,
+  dubAvailable = false,
   maxRefImages = 5,
   maxInputMB = 0,
   inputs,
@@ -238,7 +239,7 @@ const VideoConfigPanel = ({
         {(isSR || isDub) && (!disabled || inputs.sourceVideo) && (
           <>
             <MediaFileInput
-              label={t(isDub ? '上传待配乐视频' : '上传源视频')}
+              label={t(isDub ? '上传待配音视频' : '上传源视频')}
               required
               kind='video'
               value={inputs.sourceVideo}
@@ -495,6 +496,41 @@ const VideoConfigPanel = ({
               size='small'
             />
           </div>
+        )}
+
+        {/* 配音(v2a/LTX-2.3)——默认关;开启则生成后自动为成片配上 AI 音轨 */}
+        {dubAvailable && (
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
+              <Typography.Text strong className='text-sm'>
+                {t('配音')}
+              </Typography.Text>
+              <Typography.Text className='text-xs text-gray-400'>
+                ({t('生成后自动配音，耗时更久，额外消耗配音模型额度')})
+              </Typography.Text>
+            </div>
+            <Switch
+              checked={!!inputs.dubbing}
+              onChange={(v) => onInputChange('dubbing', v)}
+              disabled={disabled}
+              size='small'
+            />
+          </div>
+        )}
+
+        {/* 配音提示词（可选）：开配音后可描述想要的声音；留空则模型按画面自由配音 */}
+        {dubAvailable && inputs.dubbing && (
+          <TextArea
+            placeholder={t(
+              '配音提示词（可选）：描述想要的声音，如「舒缓的钢琴背景乐」；留空则按画面自动配音',
+            )}
+            value={inputs.dubPrompt || ''}
+            onChange={(value) => onInputChange('dubPrompt', value)}
+            disabled={disabled}
+            autosize={{ minRows: 2, maxRows: 4 }}
+            maxCount={500}
+            className='!rounded-lg'
+          />
         )}
       </div>
     </Card>

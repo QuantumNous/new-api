@@ -18,9 +18,9 @@ export const VIDEO_CAPABILITIES = [
   '数字人',
   '视频超分',
   '视频编辑',
-  // 视频配乐(task_type=v2a):原画面逐帧不动 + AI 音轨,LTX-2.3 首发,可挂多模型。
+  // 视频配音(task_type=v2a):原画面逐帧不动 + AI 音轨,LTX-2.3 首发,可挂多模型。
   // 2026-07 从音乐词表迁入(AudioX 视频生音下线);体验区入口在「语音模型」页。
-  '视频配乐',
+  '视频配音',
 ];
 
 // 提示词预设:点击对应按钮清空输入框并填入该提示词(体验区快速试玩,仅文生视频展示)。
@@ -93,22 +93,23 @@ export const VIDEO_EXAMPLES = {
   //   ads2v(广告植入)与 mv2v 输入相同(引擎侧 system prompt/guidance 不同),自动
   //   分流分不出,只能由示例的 params.taskType 显式指定。仅参考图的 r2v 已迁到
   //   「图生视频」模式,本模式必须有视频。
+  // 示例素材取自 Bernini 官方 testcases（v2v/rv2v/ads2v），提示词按其真实用例翻译。
   vace: [
     {
       label: '视频编辑(纯提示词 · v2v)',
       prompt:
-        '保持人物动作与镜头运动不变,将整段画面转为中国水墨丹青风格:背景大面积留白,笔触淡雅,墨色随动作晕染流动,层次分明。',
+        '把画面中站在深色反光地面上的白色人形机器人替换成一只造型流畅的机械狗,位置与比例不变:未来感四足金属狗,白色外壳、黑色关节细节、微微发光的眼睛,金属腿部有关节。保持原有运动节奏做出相称的机械动作,地面上的阴影与倒影自然一致,深色影棚背景、灯光与镜头构图均保持不变。',
       files: {
-        srcVideo: '/playground-samples/video/vace-source.mp4',
+        srcVideo: '/playground-samples/video/bernini-v2v-robot.mp4',
       },
     },
     {
       label: '参考图视频编辑(rv2v)',
       prompt:
-        '参考图中人物的相貌与服饰,替换源视频里的主体,保持原有动作、光影与镜头运动一致,细节自然融合。',
+        '把人物的外层衬衫替换成参考图中的衬衫,保留里面的打底衫不变;身姿、镜头构图、光影、裤子、发型、肤色与整体动作全部保持原样。人物仍站在同样的浅灰影棚背景前,里面仍是黄白横条纹打底衫,外层换成带细竖条纹的白色立领衬衫、黑色纽扣、左胸口袋,穿在身上有自然的布料垂坠与随动,其余场景元素不变。',
       files: {
-        srcVideo: '/playground-samples/video/vace-source.mp4',
-        refImages: ['/playground-samples/images/vace-ref-girl.png'],
+        srcVideo: '/playground-samples/video/bernini-rv2v-person.mp4',
+        refImages: ['/playground-samples/images/bernini-rv2v-shirt.jpg'],
       },
     },
     {
@@ -116,18 +117,18 @@ export const VIDEO_EXAMPLES = {
       prompt:
         '把第二个视频的画面风格与色调迁移到第一个视频上,保持第一个视频的主体动作与镜头运动不变,过渡自然。',
       files: {
-        srcVideo: '/playground-samples/video/vace-source.mp4',
-        srcVideo2: '/playground-samples/video/seedvr2-lowres.mp4',
+        srcVideo: '/playground-samples/video/bernini-v2v-robot.mp4',
+        srcVideo2: '/playground-samples/video/bernini-mv2v-hiker.mp4',
       },
     },
     {
       label: '广告植入(ads2v)',
       prompt:
-        '把第二个视频的内容自然植入到第一个视频画面中的屏幕/展示位上,透视、光影与遮挡关系正确,融合无痕。',
+        '把第二个视频自然地叠加显示在第一个视频画面里的电脑屏幕上,透视、光影与遮挡关系正确,融合无痕。',
       params: { taskType: 'ads2v' },
       files: {
-        srcVideo: '/playground-samples/video/vace-source.mp4',
-        srcVideo2: '/playground-samples/video/seedvr2-lowres.mp4',
+        srcVideo: '/playground-samples/video/bernini-ads-scene.mp4',
+        srcVideo2: '/playground-samples/video/bernini-ads-content.mp4',
       },
     },
   ],
@@ -176,8 +177,9 @@ export const VIDEO_FLF2V_CAPABILITY = '关键帧';
 export const VIDEO_S2V_CAPABILITY = '数字人';
 export const VIDEO_SR_CAPABILITY = '视频超分';
 export const VIDEO_VACE_CAPABILITY = '视频编辑';
-// 视频配乐(dub → 门面 task_type=v2a):上传视频 + 声音描述,产物=配好音的视频。
-export const VIDEO_DUB_CAPABILITY = '视频配乐';
+// 视频配音(dub → 门面 task_type=v2a):上传视频 + 声音描述,产物=配好音的视频。
+// 2026-07 由「视频配乐」改名为「视频配音」;旧配置靠下方 legacy alias 兼容。
+export const VIDEO_DUB_CAPABILITY = '视频配音';
 
 // 能力标签重命名的向后兼容:重命名前已在「视频模型配置」里用旧标签配过的模型,仍能匹配
 // 到新 Tab(否则那些模型会从体验区消失,直到手动改配置)。key=新标签,value=旧标签。
@@ -186,6 +188,7 @@ export const VIDEO_CAPABILITY_LEGACY_ALIASES = {
   [VIDEO_SR_CAPABILITY]: '视频转视频',
   [VIDEO_VACE_CAPABILITY]: '参考生视频',
   [VIDEO_FLF2V_CAPABILITY]: '首尾帧',
+  [VIDEO_DUB_CAPABILITY]: '视频配乐',
 };
 
 // 视频模型「策略类别」：不同类上游对尺寸/时长参数的要求不同。
@@ -233,6 +236,24 @@ export const VIDEO_INTERPOLATION_TARGET_FPS = 32;
 // 480P(854x480) → 1080P 需要 2.25 倍超分。
 export const VIDEO_PIPELINE_SR_RATIO = 2.25;
 export const isPipelineTargetSize = (s) => /1080/i.test(s || '');
+
+// 从给定「可用模型列表」中取首个声明了指定能力的模型名（超分/配音流水线模型识别）。
+// 按分组可用列表挑而非全局取首个：多模型同能力、按分组分别启用时，避免钉死在
+// 对当前分组不可用的那个。list 空/未传时返回 ''（无可用能力模型）。
+export const findCapabilityModelIn = (videoConfig, list, capability) => {
+  const models = videoConfig?.models || {};
+  const legacy = VIDEO_CAPABILITY_LEGACY_ALIASES[capability];
+  return (
+    (list || []).find((m) => {
+      const caps = models[m]?.capabilities;
+      if (!Array.isArray(caps)) return false;
+      return caps.includes(capability) || (legacy && caps.includes(legacy));
+    }) || ''
+  );
+};
+
+// 支持「配音」流水线的体验区模式（生成后接 v2a 配音段）：文生/图生/视频编辑。
+export const DUB_PIPELINE_MODES = ['text2video', 'image2video', 'vace'];
 
 export const VIDEO_POLL_INTERVAL_MS = 4000;
 export const VIDEO_POLL_MAX_TIMES = 90; // 约 6 分钟后超时

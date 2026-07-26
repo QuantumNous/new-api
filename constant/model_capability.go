@@ -24,10 +24,11 @@ var VideoCapabilities = []string{
 	"数字人",
 	"视频超分",
 	"视频编辑",
-	// 视频配乐 -> 门面 task_type=v2a(视频→配好音的视频,LTX-2.3 首发,可挂多模型)。
+	// 视频配音 -> 门面 task_type=v2a(视频→配好音的视频,LTX-2.3 首发,可挂多模型)。
 	// 2026-07 从音乐词表迁入:AudioX 视频配乐(出 .wav)下线,该标签现属视频大类
 	// (产物是视频);存量 AudioX 模型配置若还挂着此标签,需在管理端摘除。
-	"视频配乐",
+	// 2026-07 由「视频配乐」改名「视频配音」,旧配置靠前端 legacy alias 兼容。
+	"视频配音",
 }
 
 // AudioCapabilities 四个语音(TTS)能力标签,区分 IndexTTS-2 的情感合成与 vLLM-Omni
