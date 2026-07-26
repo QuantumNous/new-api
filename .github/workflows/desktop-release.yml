@@ -1,0 +1,149 @@
+# Desktop release builds: macOS (.dmg, arm64) and Windows (.msi + NSIS .exe).
+name: Desktop Release
+
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+    working-directory: desktop
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest # Apple Silicon
+            slug: macos-arm64
+          - os: windows-latest
+            slug: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/surfaces/gui/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: desktop/surfaces/gui/src-tauri
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up the sidecar venv (.venv)
+        run: |
+          python -m venv .venv
+          if [ "$RUNNER_OS" = "Windows" ]; then VPY=.venv/Scripts/python; else VPY=.venv/bin/python; fi
+          "$VPY" -m pip install --upgrade pip
+          "$VPY" -m pip install -e . pyinstaller typer tzdata
+          "$VPY" -c "import aisuite, coworker"
+
+      - name: npm ci
+        working-directory: desktop/surfaces/gui
+        run: npm ci
+
+      - name: Build .dmg (macOS)
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_API_KEY APPLE_API_ISSUER; do
+            [ -n "$(eval echo "\${$v:-}")" ] || unset "$v"
+          done
+          if [ -n "${APPLE_API_KEY_CONTENT:-}" ]; then
+            echo "$APPLE_API_KEY_CONTENT" | base64 -d > "$RUNNER_TEMP/AuthKey.p8"
+            export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          fi
+          unset APPLE_API_KEY_CONTENT
+          bash packaging/build_dmg.sh
+
+      - name: Build .msi + NSIS .exe (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: ./packaging/build_windows.ps1
+
+      - name: Stage artifacts (versioned + stable names)
+        run: |
+          mkdir -p out
+          BUNDLE=surfaces/gui/src-tauri/target/release/bundle
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp "$BUNDLE"/nsis/*.exe out/
+            cp "$BUNDLE"/nsis/*.exe out/BoxAI-Desktop-windows-setup.exe
+            cp "$BUNDLE"/msi/*.msi out/
+            cp "$BUNDLE"/msi/*.msi out/BoxAI-Desktop-windows.msi
+            SIG=$(ls "$BUNDLE"/nsis/*.exe.sig 2>/dev/null | head -1 || true)
+            [ -n "$SIG" ] && cp "$SIG" out/BoxAI-Desktop-windows-setup.exe.sig
+          else
+            cp "$BUNDLE"/dmg/*.dmg out/
+            cp "$BUNDLE"/dmg/*.dmg out/BoxAI-Desktop-${{ matrix.slug }}.dmg
+            if [ -f "$BUNDLE/macos/BoxAI Desktop.app.tar.gz" ]; then
+              cp "$BUNDLE/macos/BoxAI Desktop.app.tar.gz" out/BoxAI-Desktop-${{ matrix.slug }}.app.tar.gz
+              cp "$BUNDLE/macos/BoxAI Desktop.app.tar.gz.sig" out/BoxAI-Desktop-${{ matrix.slug }}.app.tar.gz.sig
+            fi
+          fi
+          ls -la out
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.slug }}
+          path: desktop/out/*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: desktop/dist
+          merge-multiple: true
+
+      - name: Compose the auto-update manifest (latest.json)
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#desktop-v}"
+          CONF_VERSION=$(python3 -c "import json; print(json.load(open('surfaces/gui/src-tauri/tauri.conf.json'))['version'])")
+          if [ "$VERSION" != "$CONF_VERSION" ]; then
+            echo "::error::tag $TAG != tauri.conf.json version $CONF_VERSION — bump the config before tagging"
+            exit 1
+          fi
+          if ls dist/*.sig >/dev/null 2>&1; then
+            python3 packaging/make_update_manifest.py \
+              --version "$VERSION" --tag "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --dist dist --out dist/latest.json \
+              --notes "BoxAI Desktop $VERSION"
+          else
+            echo "::warning::no updater signatures in dist/ — release ships WITHOUT auto-update manifest"
+          fi
+
+      - uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        with:
+          draft: true
+          files: desktop/dist/*
+          generate_release_notes: true

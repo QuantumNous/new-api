@@ -5,6 +5,7 @@ on:
     tags:
       - '*'
       - '!nightly*'
+      - '!desktop-v*'
   workflow_dispatch:
     inputs:
       tag:

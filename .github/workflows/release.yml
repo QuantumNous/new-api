@@ -12,6 +12,7 @@ on:
     tags:
       - '*'
       - '!*-alpha*'
+      - '!desktop-v*'
 
 jobs:
   linux:
