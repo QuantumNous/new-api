@@ -136,7 +136,7 @@ func RecordLog(userId int, logType int, content string) {
 	}
 }
 
-func RecordCheckinLog(userId int, content string, callerIp string, durationMs int64, captchaDisplayCount int, captchaAnswer string, captchaFirstSeenAt int64, captchaCreatedAt int64, captchaSubmittedAt int64, clientSubmittedAt int64, captchaKeyInputs []CheckinCaptchaKeyInput) {
+func RecordCheckinLog(userId int, content string, callerIp string, riskDetail string, durationMs int64, captchaDisplayCount int, captchaAnswer string, captchaFirstSeenAt int64, captchaCreatedAt int64, captchaSubmittedAt int64, clientSubmittedAt int64, captchaKeyInputs []CheckinCaptchaKeyInput) {
 	username, _ := GetUsernameById(userId, false)
 	if durationMs < 0 {
 		durationMs = 0
@@ -178,10 +178,13 @@ func RecordCheckinLog(userId int, content string, callerIp string, durationMs in
 		PromptTokens: captchaDisplayCount,
 		UseTime:      useTimeSeconds,
 		Ip:           callerIp,
-		Other: common.MapToJsonStr(map[string]interface{}{
-			"admin_info": adminInfo,
-		}),
 	}
+	if riskDetail != "" {
+		adminInfo["risk_detail"] = riskDetail
+	}
+	log.Other = common.MapToJsonStr(map[string]interface{}{
+		"admin_info": adminInfo,
+	})
 	if err := LOG_DB.Create(log).Error; err != nil {
 		common.SysLog("failed to record checkin log: " + err.Error())
 	}
@@ -298,6 +301,10 @@ type RecordConsumeLogParams struct {
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
+	// 记录用户活跃 IP（用于 IP 信息聚合展示）
+	if userId > 0 {
+		PublishActiveIP(userId, c.ClientIP())
+	}
 	if !common.LogConsumeEnabled {
 		return
 	}

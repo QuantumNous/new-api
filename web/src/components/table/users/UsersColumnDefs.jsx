@@ -428,6 +428,14 @@ export const getUsersColumns = ({
       },
     },
     {
+      title: t('标签'),
+      dataIndex: 'tag',
+      render: (text, record) => {
+        if (!text) return <span>-</span>;
+        return <Tag color='red' shape='circle' size='small'>{text}</Tag>;
+      },
+    },
+    {
       title: t('IP信息'),
       dataIndex: 'register_ip',
       render: (text, record) => renderIpInfo(text, record, t),

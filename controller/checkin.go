@@ -46,14 +46,19 @@ func GetCheckinStatus(c *gin.Context) {
 		return
 	}
 
+	respData := gin.H{
+		"enabled":   setting.Enabled,
+		"min_quota": setting.MinQuota,
+		"max_quota": setting.MaxQuota,
+		"stats":     stats,
+	}
+	if user, err := model.GetUserById(userId, false); err == nil && user.Tag != "" {
+		respData["tag"] = user.Tag
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"data": gin.H{
-			"enabled":   setting.Enabled,
-			"min_quota": setting.MinQuota,
-			"max_quota": setting.MaxQuota,
-			"stats":     stats,
-		},
+		"data":    respData,
 	})
 }
 
@@ -110,7 +115,7 @@ func DoCheckin(c *gin.Context) {
 	req.CaptchaKeyInputs = sanitizeCheckinCaptchaKeyInputs(req.CaptchaKeyInputs)
 
 	userId := c.GetInt("id")
-	checkin, err := model.UserCheckin(userId)
+	checkin, riskDetail, err := model.UserCheckin(userId, c.ClientIP())
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -122,6 +127,7 @@ func DoCheckin(c *gin.Context) {
 		userId,
 		fmt.Sprintf("用户签到，获得额度 %s", logger.LogQuota(checkin.QuotaAwarded)),
 		c.ClientIP(),
+		riskDetail,
 		durationMs,
 		req.CaptchaDisplayCount,
 		req.CaptchaAnswer,
@@ -132,13 +138,19 @@ func DoCheckin(c *gin.Context) {
 		req.CaptchaKeyInputs,
 	)
 	validDays := operation_setting.GetCheckinValidDays()
+	respData := gin.H{
+		"quota_awarded": checkin.QuotaAwarded,
+		"checkin_date":  checkin.CheckinDate,
+		"valid_days":    validDays,
+	}
+	// 如果命中风控，返回标签
+	if riskDetail != "" {
+		respData["tag"] = "签到高风险"
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": fmt.Sprintf("签到成功，签到额度有效期 %d 天，不使用会过期", validDays),
-		"data": gin.H{
-			"quota_awarded": checkin.QuotaAwarded,
-			"checkin_date":  checkin.CheckinDate,
-			"valid_days":    validDays},
+		"data":    respData,
 	})
 }
 

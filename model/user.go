@@ -60,6 +60,7 @@ type User struct {
 	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
+	Tag              string         `json:"tag" gorm:"type:varchar(255);default:''"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 }
 
@@ -234,7 +235,7 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, ip string, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, ip string, tag string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -282,6 +283,11 @@ func SearchUsers(keyword string, group string, ip string, startIdx int, num int)
 	// IP 过滤
 	if ip != "" {
 		query = query.Where("register_ip LIKE ?", "%"+ip+"%")
+	}
+
+	// Tag 精确过滤
+	if tag != "" {
+		query = query.Where("tag = ?", tag)
 	}
 
 	// 获取总数
@@ -493,6 +499,7 @@ func (user *User) Edit(updatePassword bool) error {
 		"group":        newUser.Group,
 		"base_level":   newUser.Group,
 		"remark":       newUser.Remark,
+		"tag":          newUser.Tag,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password

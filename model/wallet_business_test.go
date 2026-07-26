@@ -21,7 +21,7 @@ func TestCheckinAwardsFreeWallet(t *testing.T) {
 	userId := createTestUser(t, "default", "default")
 	before := common.GetTimestamp()
 
-	checkin, err := UserCheckin(userId)
+	checkin, _, err := UserCheckin(userId, "")
 	if err != nil {
 		t.Fatalf("checkin: %v", err)
 	}

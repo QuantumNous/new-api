@@ -48,6 +48,7 @@ export const useUsersData = () => {
     searchKeyword: '',
     searchGroup: '',
     searchIP: '',
+    searchTag: '',
   };
 
   // Form API reference
@@ -60,6 +61,7 @@ export const useUsersData = () => {
       searchKeyword: formValues.searchKeyword || '',
       searchGroup: formValues.searchGroup || '',
       searchIP: formValues.searchIP || '',
+      searchTag: formValues.searchTag || '',
     };
   };
 
@@ -87,30 +89,32 @@ export const useUsersData = () => {
     setLoading(false);
   };
 
-  // Search users with keyword, group, and IP
+  // Search users with keyword, group, IP, and tag
   const searchUsers = async (
     startIdx,
     pageSize,
     searchKeyword = null,
     searchGroup = null,
     searchIP = null,
+    searchTag = null,
   ) => {
     // If no parameters passed, get values from form
-    if (searchKeyword === null || searchGroup === null || searchIP === null) {
+    if (searchKeyword === null || searchGroup === null || searchIP === null || searchTag === null) {
       const formValues = getFormValues();
       searchKeyword = formValues.searchKeyword;
       searchGroup = formValues.searchGroup;
       searchIP = formValues.searchIP;
+      searchTag = formValues.searchTag;
     }
 
-    if (searchKeyword === '' && searchGroup === '' && searchIP === '') {
+    if (searchKeyword === '' && searchGroup === '' && searchIP === '' && searchTag === '') {
       // If all fields are blank, load all users instead
       await loadUsers(startIdx, pageSize);
       return;
     }
     setSearching(true);
     const res = await API.get(
-      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&ip=${searchIP}&p=${startIdx}&page_size=${pageSize}`,
+      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&ip=${searchIP}&tag=${searchTag}&p=${startIdx}&page_size=${pageSize}`,
     );
     const { success, message, data } = res.data;
     if (success) {
@@ -195,11 +199,11 @@ export const useUsersData = () => {
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    const { searchKeyword, searchGroup, searchIP } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '' && searchIP === '') {
+    const { searchKeyword, searchGroup, searchIP, searchTag } = getFormValues();
+    if (searchKeyword === '' && searchGroup === '' && searchIP === '' && searchTag === '') {
       loadUsers(page, pageSize).then();
     } else {
-      searchUsers(page, pageSize, searchKeyword, searchGroup, searchIP).then();
+      searchUsers(page, pageSize, searchKeyword, searchGroup, searchIP, searchTag).then();
     }
   };
 
@@ -230,11 +234,11 @@ export const useUsersData = () => {
 
   // Refresh data
   const refresh = async (page = activePage) => {
-    const { searchKeyword, searchGroup, searchIP } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '' && searchIP === '') {
+    const { searchKeyword, searchGroup, searchIP, searchTag } = getFormValues();
+    if (searchKeyword === '' && searchGroup === '' && searchIP === '' && searchTag === '') {
       await loadUsers(page, pageSize);
     } else {
-      await searchUsers(page, pageSize, searchKeyword, searchGroup, searchIP);
+      await searchUsers(page, pageSize, searchKeyword, searchGroup, searchIP, searchTag);
     }
   };
 

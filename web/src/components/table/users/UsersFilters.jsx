@@ -81,6 +81,16 @@ const UsersFilters = ({
             size='small'
           />
         </div>
+        <div className='relative w-full md:w-40'>
+          <Form.Input
+            field='searchTag'
+            prefix={<IconSearch />}
+            placeholder={t('搜索标签')}
+            showClear
+            pure
+            size='small'
+          />
+        </div>
         <div className='w-full md:w-48'>
           <Form.Select
             field='searchGroup'

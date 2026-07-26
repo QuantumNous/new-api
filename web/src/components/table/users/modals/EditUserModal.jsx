@@ -96,6 +96,7 @@ const EditUserModal = (props) => {
     quota_amount: 0,
     group: 'default',
     remark: '',
+    tag: '',
   });
 
   const fetchGroups = async () => {
@@ -340,6 +341,15 @@ const EditUserModal = (props) => {
                         field='remark'
                         label={t('备注')}
                         placeholder={t('请输入备注（仅管理员可见）')}
+                        showClear
+                      />
+                    </Col>
+
+                    <Col span={24}>
+                      <Form.Input
+                        field='tag'
+                        label={t('标签')}
+                        placeholder={t('请输入标签')}
                         showClear
                       />
                     </Col>

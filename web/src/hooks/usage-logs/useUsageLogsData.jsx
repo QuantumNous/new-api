@@ -884,6 +884,12 @@ export const useLogsData = () => {
             value: renderCheckinCaptchaKeyInputs(adminInfo.captcha_key_inputs),
           },
         );
+        if (adminInfo.risk_detail) {
+          expandDataLocal.push({
+            key: t('风控详情'),
+            value: adminInfo.risk_detail,
+          });
+        }
       }
       expandDatesLocal[logs[i].key] = expandDataLocal;
     }
