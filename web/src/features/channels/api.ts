@@ -25,6 +25,8 @@ import type {
   BatchSetTagParams,
   Channel,
   ChannelBalanceResponse,
+  ChannelHealthCheckBatchItem,
+  ChannelHealthCheckBatchResponse,
   ChannelOpsResponse,
   ChannelTestResponse,
   CopyChannelParams,
@@ -94,6 +96,20 @@ export async function searchChannels(
   params: SearchChannelsParams
 ): Promise<SearchChannelsResponse> {
   const res = await api.get('/api/channel/search', { params })
+  return res.data
+}
+
+/**
+ * Narrow batch update for settings.health_check and/or auto_ban.
+ */
+export async function batchUpdateChannelHealthCheck(
+  items: ChannelHealthCheckBatchItem[]
+): Promise<ChannelHealthCheckBatchResponse> {
+  const res = await api.put(
+    '/api/channel/health_check/batch',
+    { items },
+    channelActionConfig()
+  )
   return res.data
 }
 

@@ -92,6 +92,7 @@ import {
   channelsQueryKeys,
   formatResponseTime,
   handleTestChannel,
+  parseChannelOtherSettings,
 } from '../../lib'
 import type {
   Channel,
@@ -99,6 +100,21 @@ import type {
   SearchChannelsResponse,
 } from '../../types'
 import { useChannels } from '../channels-provider'
+
+function defaultEndpointTypeFromChannel(channel: Channel): string {
+  const endpointType =
+    parseChannelOtherSettings(channel.settings).health_check?.endpoint_type?.trim()
+  return endpointType || 'auto'
+}
+
+function defaultStreamFromChannel(channel: Channel): boolean {
+  const stream = parseChannelOtherSettings(channel.settings).health_check?.stream
+  if (stream !== undefined) {
+    return stream
+  }
+  // Match automatic health-check follow semantics: Codex defaults to stream.
+  return channel.type === 57
+}
 
 type ChannelTestDialogProps = {
   open: boolean
@@ -332,8 +348,12 @@ function ChannelTestDialogContent({
   const batchProgressToastIdRef = useRef<ReturnType<
     typeof toast.loading
   > | null>(null)
-  const [endpointType, setEndpointType] = useState('auto')
-  const [isStreamTest, setIsStreamTest] = useState(false)
+  const [endpointType, setEndpointType] = useState(() =>
+    defaultEndpointTypeFromChannel(currentRow)
+  )
+  const [isStreamTest, setIsStreamTest] = useState(() =>
+    defaultStreamFromChannel(currentRow)
+  )
   const [searchTerm, setSearchTerm] = useState('')
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -399,8 +419,8 @@ function ChannelTestDialogContent({
 
   const resetState = useCallback(() => {
     batchStopRequestedRef.current = true
-    setEndpointType('auto')
-    setIsStreamTest(false)
+    setEndpointType(defaultEndpointTypeFromChannel(currentRow))
+    setIsStreamTest(defaultStreamFromChannel(currentRow))
     setSearchTerm('')
     setTestResults({})
     setRowSelection({})
@@ -413,7 +433,7 @@ function ChannelTestDialogContent({
     setIsDeletingFailed(false)
     setFailureDetails(null)
     setPagination({ pageIndex: 0, pageSize: 30 })
-  }, [])
+  }, [currentRow])
 
   const streamDisabled = STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
   const effectiveStreamTest = !streamDisabled && isStreamTest
