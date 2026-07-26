@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useUserDisplay } from '@/hooks/use-user-display'
+import { formatDateTimeObject } from '@/lib/time'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -44,7 +45,7 @@ import {
 const routeApi = getRouteApi('/_authenticated/desktop/authorize')
 
 export function DesktopAuthorizationPage() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const requestId = routeApi.useSearch().request
   const user = useAuthStore((state) => state.auth.user)
   const userDisplay = useUserDisplay(user)
@@ -131,7 +132,7 @@ export function DesktopAuthorizationPage() {
                     <dt className='text-muted-foreground'>{t('Expires at')}</dt>
                     <dd className='flex items-center gap-1.5 font-medium'>
                       <Clock className='size-4' aria-hidden='true' />
-                      {expiresAt?.toLocaleString(i18n.language)}
+                      {expiresAt ? formatDateTimeObject(expiresAt) : null}
                     </dd>
                   </div>
                   <div>
