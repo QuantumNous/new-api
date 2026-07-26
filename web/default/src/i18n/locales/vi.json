@@ -6049,10 +6049,6 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
-<<<<<<< Updated upstream
-    "Zoom in": "Phóng to",
-    "Zoom out": "Thu nhỏ"
-=======
     "Add shot": "Thêm cảnh quay",
     "Add your first shot to start the storyboard": "Thêm cảnh quay đầu tiên để bắt đầu storyboard",
     "Added to the canvas": "Đã thêm vào canvas",
@@ -6143,6 +6139,5 @@
     "Rename canvas": "Đổi tên canvas",
     "This file type cannot be added to the canvas": "Loại tệp này không thể thêm vào canvas",
     "Failed to upload the file": "Tải tệp lên thất bại"
->>>>>>> Stashed changes
   }
 }

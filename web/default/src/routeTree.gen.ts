@@ -78,7 +78,6 @@ import { Route as AuthenticatedSystemSettingsModelsSectionRouteImport } from './
 import { Route as AuthenticatedSystemSettingsContentSectionRouteImport } from './routes/_authenticated/system-settings/content/$section'
 import { Route as AuthenticatedSystemSettingsBillingSectionRouteImport } from './routes/_authenticated/system-settings/billing/$section'
 import { Route as AuthenticatedSystemSettingsAuthSectionRouteImport } from './routes/_authenticated/system-settings/auth/$section'
-import { Route as AuthenticatedInspirationProjectsProjectIdRouteImport } from './routes/_authenticated/inspiration/projects/$projectId'
 
 const UserAgreementRoute = UserAgreementRouteImport.update({
   id: '/user-agreement',
@@ -458,12 +457,6 @@ const AuthenticatedSystemSettingsAuthSectionRoute =
     path: '/auth/$section',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
-const AuthenticatedInspirationProjectsProjectIdRoute =
-  AuthenticatedInspirationProjectsProjectIdRouteImport.update({
-    id: '/inspiration/projects/$projectId',
-    path: '/inspiration/projects/$projectId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -519,7 +512,6 @@ export interface FileRoutesByFullPath {
   '/wallet/': typeof AuthenticatedWalletIndexRoute
   '/workbench/': typeof AuthenticatedWorkbenchIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
-  '/inspiration/projects/$projectId': typeof AuthenticatedInspirationProjectsProjectIdRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -588,7 +580,6 @@ export interface FileRoutesByTo {
   '/wallet': typeof AuthenticatedWalletIndexRoute
   '/workbench': typeof AuthenticatedWorkbenchIndexRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
-  '/inspiration/projects/$projectId': typeof AuthenticatedInspirationProjectsProjectIdRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -661,7 +652,6 @@ export interface FileRoutesById {
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
   '/_authenticated/workbench/': typeof AuthenticatedWorkbenchIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
-  '/_authenticated/inspiration/projects/$projectId': typeof AuthenticatedInspirationProjectsProjectIdRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/_authenticated/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -733,7 +723,6 @@ export interface FileRouteTypes {
     | '/wallet/'
     | '/workbench/'
     | '/pricing/$modelId/'
-    | '/inspiration/projects/$projectId'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
     | '/system-settings/content/$section'
@@ -802,7 +791,6 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/workbench'
     | '/pricing/$modelId'
-    | '/inspiration/projects/$projectId'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
     | '/system-settings/content/$section'
@@ -874,7 +862,6 @@ export interface FileRouteTypes {
     | '/_authenticated/wallet/'
     | '/_authenticated/workbench/'
     | '/pricing/$modelId/'
-    | '/_authenticated/inspiration/projects/$projectId'
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/billing/$section'
     | '/_authenticated/system-settings/content/$section'
@@ -1400,13 +1387,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemSettingsAuthSectionRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
-    '/_authenticated/inspiration/projects/$projectId': {
-      id: '/_authenticated/inspiration/projects/$projectId'
-      path: '/inspiration/projects/$projectId'
-      fullPath: '/inspiration/projects/$projectId'
-      preLoaderRoute: typeof AuthenticatedInspirationProjectsProjectIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
   }
 }
 
@@ -1518,11 +1498,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
-<<<<<<< Updated upstream
-  AuthenticatedInspirationProjectsProjectIdRoute: typeof AuthenticatedInspirationProjectsProjectIdRoute
-=======
   AuthenticatedWorkbenchIndexRoute: typeof AuthenticatedWorkbenchIndexRoute
->>>>>>> Stashed changes
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1552,12 +1528,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
-<<<<<<< Updated upstream
-  AuthenticatedInspirationProjectsProjectIdRoute:
-    AuthenticatedInspirationProjectsProjectIdRoute,
-=======
   AuthenticatedWorkbenchIndexRoute: AuthenticatedWorkbenchIndexRoute,
->>>>>>> Stashed changes
 }
 
 const AuthenticatedRouteRouteWithChildren =

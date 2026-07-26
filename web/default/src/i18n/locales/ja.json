@@ -6049,10 +6049,6 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム",
-<<<<<<< Updated upstream
-    "Zoom in": "拡大",
-    "Zoom out": "縮小"
-=======
     "Add shot": "ショットを追加",
     "Add your first shot to start the storyboard": "最初のショットを追加して絵コンテを開始します",
     "Added to the canvas": "キャンバスに追加しました",
@@ -6143,6 +6139,5 @@
     "Rename canvas": "キャンバス名を変更",
     "This file type cannot be added to the canvas": "このファイル形式はキャンバスに追加できません",
     "Failed to upload the file": "ファイルのアップロードに失敗しました"
->>>>>>> Stashed changes
   }
 }

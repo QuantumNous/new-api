@@ -631,20 +631,6 @@ export function Playground() {
     >
       {view === 'agents' && <AgentsView />}
 
-<<<<<<< Updated upstream
-      {view === 'inspiration' && (
-        <InspirationView
-          myWorks={myWorks}
-          recentPrompts={recentPrompts}
-          onApplyPrompt={handleApplyPrompt}
-          onRemoveWork={removeMyWork}
-          isAuthenticated={isAuthenticated}
-          onRequireAuth={() => setSignInDialogOpen(true)}
-        />
-      )}
-
-=======
->>>>>>> Stashed changes
       {showWorkspace && (
         <WorkspaceHeader
           model={config.model}

@@ -6049,10 +6049,6 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
-<<<<<<< Updated upstream
-    "Zoom in": "Zoomer",
-    "Zoom out": "Dézoomer"
-=======
     "Add shot": "Ajouter un plan",
     "Add your first shot to start the storyboard": "Ajoutez votre premier plan pour commencer le storyboard",
     "Added to the canvas": "Ajouté au canevas",
@@ -6143,6 +6139,5 @@
     "Rename canvas": "Renommer le canevas",
     "This file type cannot be added to the canvas": "Ce type de fichier ne peut pas être ajouté au canevas",
     "Failed to upload the file": "Échec du téléversement du fichier"
->>>>>>> Stashed changes
   }
 }

@@ -6049,10 +6049,6 @@
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
     "Zoom": "缩放",
-<<<<<<< Updated upstream
-    "Zoom in": "放大",
-    "Zoom out": "缩小"
-=======
     "Add shot": "添加镜头",
     "Add your first shot to start the storyboard": "添加第一个镜头以开始分镜",
     "Added to the canvas": "已添加到画布",
@@ -6143,6 +6139,5 @@
     "Rename canvas": "重命名画布",
     "This file type cannot be added to the canvas": "该文件类型无法添加到画布",
     "Failed to upload the file": "文件上传失败"
->>>>>>> Stashed changes
   }
 }

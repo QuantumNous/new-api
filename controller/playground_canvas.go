@@ -2,107 +2,214 @@ package controller
 
 import (
 	"errors"
-	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-func CreatePlaygroundCanvasProject(c *gin.Context) {
-	var body struct {
-		TemplateId int            `json:"template_id"`
-		Title      string         `json:"title"`
-		Prompt     string         `json:"prompt"`
-		Values     map[string]any `json:"values"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil || body.TemplateId <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid template_id"})
-		return
-	}
-	project, err := service.CreatePlaygroundCanvasProject(c.GetInt("id"), body.TemplateId, body.Title, body.Prompt, body.Values)
-	if err != nil {
-		playgroundCanvasError(c, err)
-		return
-	}
-	c.JSON(http.StatusCreated, gin.H{"success": true, "message": "", "data": project})
-}
+const playgroundCanvasDocMaxBytes = 2_000_000
 
 func ListPlaygroundCanvasProjects(c *gin.Context) {
-	projects, err := service.ListPlaygroundCanvasProjects(c.GetInt("id"))
+	userId := c.GetInt("id")
+	page := 0
+	if v := strings.TrimSpace(c.Query("p")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			page = n
+		}
+	}
+	pageSize := 50
+	if v := strings.TrimSpace(c.Query("page_size")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			pageSize = n
+		}
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	offset := page * pageSize
+	items, total, err := model.ListPlaygroundCanvasProjects(userId, offset, pageSize)
 	if err != nil {
-		playgroundCanvasError(c, err)
+		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, projects)
+	common.ApiSuccess(c, gin.H{"projects": items, "total": total})
+}
+
+func CreatePlaygroundCanvasProject(c *gin.Context) {
+	userId := c.GetInt("id")
+	var body struct {
+		Title string `json:"title"`
+		Doc   string `json:"doc"`
+		Cover string `json:"cover"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(body.Doc) > playgroundCanvasDocMaxBytes {
+		common.ApiErrorMsg(c, "canvas document is too large")
+		return
+	}
+	title := strings.TrimSpace(body.Title)
+	if title == "" {
+		title = "Untitled canvas"
+	}
+	title = truncateRunes(title, 120)
+	p := &model.PlaygroundCanvasProject{
+		UserId: userId,
+		Title:  title,
+		Doc:    body.Doc,
+		Cover:  truncateRunes(strings.TrimSpace(body.Cover), 500),
+	}
+	if err := model.CreatePlaygroundCanvasProject(p); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, p)
 }
 
 func GetPlaygroundCanvasProject(c *gin.Context) {
+	userId := c.GetInt("id")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
-		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "project not found"})
+		common.ApiErrorMsg(c, "invalid id")
 		return
 	}
-	project, err := service.GetPlaygroundCanvasProject(c.GetInt("id"), id)
+	p, err := model.GetPlaygroundCanvasProject(id, userId)
 	if err != nil {
-		playgroundCanvasError(c, err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "canvas project not found")
+			return
+		}
+		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, project)
+	common.ApiSuccess(c, p)
 }
 
 func UpdatePlaygroundCanvasProject(c *gin.Context) {
+	userId := c.GetInt("id")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
-		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "project not found"})
+		common.ApiErrorMsg(c, "invalid id")
 		return
 	}
 	var body struct {
-		Revision        int    `json:"revision"`
-		SnapshotVersion int    `json:"snapshot_version"`
-		Title           string `json:"title"`
-		Snapshot        any    `json:"snapshot"`
+		Title         *string `json:"title"`
+		Doc           *string `json:"doc"`
+		Cover         *string `json:"cover"`
+		BaseUpdatedAt int64   `json:"base_updated_at"`
 	}
-	if err = c.ShouldBindJSON(&body); err != nil || body.Snapshot == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid canvas project"})
+	if err := c.ShouldBindJSON(&body); err != nil {
+		common.ApiError(c, err)
 		return
 	}
-	project, err := service.UpdatePlaygroundCanvasProject(c.GetInt("id"), id, body.Revision, body.SnapshotVersion, body.Title, body.Snapshot)
+	updates := map[string]any{}
+	if body.Title != nil {
+		title := strings.TrimSpace(*body.Title)
+		if title == "" {
+			title = "Untitled canvas"
+		}
+		updates["title"] = truncateRunes(title, 120)
+	}
+	if body.Cover != nil {
+		updates["cover"] = truncateRunes(strings.TrimSpace(*body.Cover), 500)
+	}
+	if body.Doc != nil {
+		if len(*body.Doc) > playgroundCanvasDocMaxBytes {
+			common.ApiErrorMsg(c, "canvas document is too large")
+			return
+		}
+		updates["doc"] = *body.Doc
+	}
+	if len(updates) == 0 {
+		common.ApiErrorMsg(c, "nothing to update")
+		return
+	}
+	if body.Doc != nil {
+		if previous, err := model.GetPlaygroundCanvasProject(id, userId); err == nil {
+			if snapErr := model.SnapshotPlaygroundCanvasProject(previous); snapErr != nil {
+				common.SysError("failed to snapshot canvas project: " + snapErr.Error())
+			}
+		}
+	}
+	newUpdatedAt, err := model.UpdatePlaygroundCanvasProject(id, userId, body.BaseUpdatedAt, updates)
 	if err != nil {
-		playgroundCanvasError(c, err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if _, getErr := model.GetPlaygroundCanvasProject(id, userId); getErr != nil {
+				if errors.Is(getErr, gorm.ErrRecordNotFound) {
+					common.ApiErrorMsg(c, "canvas project not found")
+					return
+				}
+				common.ApiError(c, getErr)
+				return
+			}
+			common.ApiErrorMsg(c, "canvas project was modified elsewhere")
+			return
+		}
+		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, project)
+	common.ApiSuccess(c, gin.H{"updated_at": newUpdatedAt})
+}
+
+func ListPlaygroundCanvasVersions(c *gin.Context) {
+	userId := c.GetInt("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		common.ApiErrorMsg(c, "invalid id")
+		return
+	}
+	versions, err := model.ListPlaygroundCanvasVersions(id, userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"versions": versions})
+}
+
+func GetPlaygroundCanvasVersion(c *gin.Context) {
+	userId := c.GetInt("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		common.ApiErrorMsg(c, "invalid id")
+		return
+	}
+	versionId, err := strconv.Atoi(c.Param("versionId"))
+	if err != nil || versionId <= 0 {
+		common.ApiErrorMsg(c, "invalid version id")
+		return
+	}
+	version, err := model.GetPlaygroundCanvasVersion(versionId, id, userId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "canvas version not found")
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, version)
 }
 
 func DeletePlaygroundCanvasProject(c *gin.Context) {
+	userId := c.GetInt("id")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
-		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "project not found"})
+		common.ApiErrorMsg(c, "invalid id")
 		return
 	}
-	if err = model.DeletePlaygroundCanvasProject(id, c.GetInt("id")); err != nil {
-		playgroundCanvasError(c, err)
+	if err := model.DeletePlaygroundCanvasProject(id, userId); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "canvas project not found")
+			return
+		}
+		common.ApiError(c, err)
 		return
 	}
 	common.ApiSuccess(c, nil)
-}
-
-func playgroundCanvasError(c *gin.Context, err error) {
-	var conflict *service.PlaygroundCanvasConflict
-	switch {
-	case errors.As(err, &conflict):
-		c.JSON(http.StatusConflict, gin.H{"success": false, "message": conflict.Error(), "data": gin.H{"current_revision": conflict.CurrentRevision}})
-	case errors.Is(err, gorm.ErrRecordNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "project not found"})
-	case errors.Is(err, service.ErrPlaygroundCanvasSnapshotTooLarge):
-		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"success": false, "message": err.Error()})
-	case errors.Is(err, service.ErrPlaygroundCanvasUnsupportedSnapshot):
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
-	}
 }
