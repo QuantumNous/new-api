@@ -62,6 +62,68 @@ const (
 // imageBlockingSem 图片阻塞路径信号量(§D)。缓冲满 → 直接快速 429 skip-retry。
 var imageBlockingSem = make(chan struct{}, imageBlockingConcurrency)
 
+// 慢图片模型的按模型轮询预算。
+//
+// 上面那组常量的前提是「图片快、视频慢」:z-image ~8s、qwen-image-edit ~40s,所以 25s
+// 的 QUEUED 容忍是个有用的快速失败信号,5 分钟上限也绰绰有余。HunyuanImage-3.0 打破了
+// 这个前提——4×A100 上端到端约 110s(AR think/recaption ~90s + 8 步 DiT ~12s,见
+// vllm-omni docs/实验报告/vLLM-Omni-HunyuanImage3-A100-NF4-实验与优化复盘.md §11.2),
+// 而且它的真实并发是 1(两 stage 各 max_num_seqs=1,再加跨引擎互斥)。用默认预算的后果:
+//   - 第 2 个并发请求排队 ~110s ≫ 25s,必被 skip-retry「系统繁忙」;
+//   - 排到第 3 个约 330s,撞穿 3+100×3=303s 的轮询上限。
+//
+// 冷启更极端:两引擎 init+sleep 合计约 260s,期间任何请求都会先撞 QUEUED 超时。
+//
+// 不直接把上面的常量调大,因为那会让 z-image / qwen-image-edit 也容忍数分钟排队,
+// 反压就废了。这里按模型名子串命中一组更宽的预算,语义与 gpustack 侧
+// lightx2v_model_queue_wait_seconds 的匹配方式一致(大小写不敏感子串)。
+//
+// 三个值都可用环境变量热调,不必重新出包。注意 gpustack 门面侧的准入
+// (lightx2v_model_queue_wait_seconds)是独立的第二道卡口,两边都要放开才生效。
+var (
+	// slowImageModels 逗号分隔的模型名子串;命中任一即用 slow 预算。
+	slowImageModels = common.GetEnvOrDefaultString(
+		"GPUSTACKPLUS_SLOW_IMAGE_MODELS", "hunyuan-image-3,hunyuanimage-3")
+	// slowImageQueuedWaitSeconds 慢模型的 QUEUED 滞留容忍:要能覆盖前面一个在跑的
+	// 请求(~110s)加余量,又不至于让客户端无限期挂着。
+	slowImageQueuedWaitSeconds = common.GetEnvOrDefault(
+		"GPUSTACKPLUS_SLOW_IMAGE_QUEUED_WAIT_SECONDS", 240)
+	// slowImagePollMaxSteps 慢模型的总轮询步数:3s 起轮 + 每 3s 一次,200 步约 10 分钟,
+	// 覆盖「排队一个 + 自己跑」的 ~220s 并给冷启留余量。
+	slowImagePollMaxSteps = common.GetEnvOrDefault(
+		"GPUSTACKPLUS_SLOW_IMAGE_POLL_MAX_STEPS", 200)
+)
+
+// imagePollBudget 一次阻塞轮询的时间预算。
+type imagePollBudget struct {
+	queuedWait time.Duration
+	maxSteps   int
+}
+
+// pollBudgetFor 按模型名挑轮询预算:命中慢模型清单用宽预算,否则用默认(快)预算。
+// 空模型名走默认,保持既有行为。
+func pollBudgetFor(modelName string) imagePollBudget {
+	budget := imagePollBudget{queuedWait: maxQueuedWait, maxSteps: pollMaxSteps}
+	name := strings.ToLower(strings.TrimSpace(modelName))
+	if name == "" {
+		return budget
+	}
+	for _, key := range strings.Split(slowImageModels, ",") {
+		key = strings.ToLower(strings.TrimSpace(key))
+		if key == "" || !strings.Contains(name, key) {
+			continue
+		}
+		if slowImageQueuedWaitSeconds > 0 {
+			budget.queuedWait = time.Duration(slowImageQueuedWaitSeconds) * time.Second
+		}
+		if slowImagePollMaxSteps > 0 {
+			budget.maxSteps = slowImagePollMaxSteps
+		}
+		return budget
+	}
+	return budget
+}
+
 // busyRetryErr 反压/繁忙类快速失败:400/429 且 skip-retry,避免 new-api 渠道重试放大反压。
 // 计费为纯后置(image_handler.PostTextConsumeQuota 在 DoResponse 成功之后),这些失败路径
 // 走不到计费,一分不扣(见设计文档 §A0)。
@@ -399,7 +461,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	// 3) 阻塞轮询直到完成/失败(带 QUEUED 超时兜底 + 断开感知 + 超时/断开尽力 cancel)。
-	st, pErr := a.pollUntilDone(c, sr.TaskID)
+	//    预算按模型挑:慢模型(HunyuanImage-3.0 级 ~110s)不能用快模型的 25s/303s 卡口。
+	st, pErr := a.pollUntilDone(c, sr.TaskID,
+		pollBudgetFor(firstNonEmpty(info.UpstreamModelName, info.OriginModelName)))
 	if pErr != nil {
 		if be, ok := pErr.(*types.NewAPIError); ok {
 			return nil, be
@@ -433,12 +497,15 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 // pollUntilDone 轮询门面 GET /v1/videos/{id} 直到 done/failed/canceled 或超时。
 // 反压加固(§A2/B/C):
-//   - QUEUED 滞留超 maxQueuedWait(仍未 ASSIGNED/RUNNING)→ skip-retry「系统繁忙」+ 尽力 cancel;
+//   - QUEUED 滞留超 budget.queuedWait(仍未 ASSIGNED/RUNNING)→ skip-retry「系统繁忙」+ 尽力 cancel;
 //   - 每轮等待用 select 监听 ctx.Done():客户端断开 → 停轮 + 尽力 cancel;
-//   - 撞 5 分钟上限 → 尽力 cancel。
+//   - 撞 budget.maxSteps 上限 → 尽力 cancel。
+//
+// budget 由 pollBudgetFor(模型名) 决定:快模型用默认常量,慢模型(如 HunyuanImage-3.0)
+// 用更宽的预算,避免 110s 级模型被 25s 的 QUEUED 卡口误判为繁忙。
 //
 // 返回 *types.NewAPIError 时上层直接透传(保留 skip-retry / 状态码)。
-func (a *Adaptor) pollUntilDone(c *gin.Context, taskID string) (*statusResponse, error) {
+func (a *Adaptor) pollUntilDone(c *gin.Context, taskID string, budget imagePollBudget) (*statusResponse, error) {
 	ctx := c.Request.Context()
 	client := service.GetHttpClient()
 	uri := fmt.Sprintf("%s/v1/videos/%s", a.baseURL, taskID)
@@ -450,7 +517,7 @@ func (a *Adaptor) pollUntilDone(c *gin.Context, taskID string) (*statusResponse,
 		a.cancelTask(context.Background(), taskID)
 		return nil, errClientGone()
 	}
-	for step := 0; step < pollMaxSteps; step++ {
+	for step := 0; step < budget.maxSteps; step++ {
 		st, err := a.fetchStatus(ctx, client, uri)
 		if err != nil {
 			if !sleepOrDone(ctx, pollInterval) {
@@ -469,7 +536,7 @@ func (a *Adaptor) pollUntilDone(c *gin.Context, taskID string) (*statusResponse,
 			enteredRunning = true
 		default:
 			// queued/pending/submitted/未知:仍在排队,受 QUEUED 超时兜底约束(§A2)。
-			if !enteredRunning && time.Since(queuedSince) > maxQueuedWait {
+			if !enteredRunning && time.Since(queuedSince) > budget.queuedWait {
 				a.cancelTask(context.Background(), taskID)
 				return nil, busyRetryErr("系统繁忙,请稍后再试", http.StatusTooManyRequests)
 			}
@@ -479,7 +546,7 @@ func (a *Adaptor) pollUntilDone(c *gin.Context, taskID string) (*statusResponse,
 			return nil, errClientGone()
 		}
 	}
-	// 撞 5 分钟上限:尽力 cancel,不留孤儿输出、不空烧 GPU。返回 skip-retry(§C)——
+	// 撞轮询上限:尽力 cancel,不留孤儿输出、不空烧 GPU。返回 skip-retry(§C)——
 	// 否则 DoResponse 会把它包成可重试 500,relay 立刻再提交一个 GPU 任务,放大反压。
 	a.cancelTask(context.Background(), taskID)
 	return nil, busyRetryErr("生图超时,请稍后再试", http.StatusGatewayTimeout)
