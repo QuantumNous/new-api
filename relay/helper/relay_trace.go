@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -217,7 +218,7 @@ func FinishRelayTrace(c *gin.Context, err error) {
 			"body":    trace.writer.capture.snapshot(c.Writer.Header().Get("Content-Type")),
 		},
 	}
-	if err != nil {
+	if hasRelayTraceError(err) {
 		payload["error"] = sanitizeRelayTraceString(err.Error())
 	}
 	data, marshalErr := common.Marshal(payload)
@@ -229,7 +230,20 @@ func FinishRelayTrace(c *gin.Context, err error) {
 }
 
 func shouldLogRelayTrace(status int, err error) bool {
-	return !constant.RelayTraceLogFailureOnly || err != nil || status >= http.StatusBadRequest
+	return !constant.RelayTraceLogFailureOnly || hasRelayTraceError(err) || status >= http.StatusBadRequest
+}
+
+func hasRelayTraceError(err error) bool {
+	if err == nil {
+		return false
+	}
+	value := reflect.ValueOf(err)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return !value.IsNil()
+	default:
+		return true
+	}
 }
 
 func (t *relayTrace) snapshotAttempts() []any {

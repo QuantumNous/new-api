@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -113,6 +114,18 @@ func TestShouldLogRelayTraceInFailureOnlyMode(t *testing.T) {
 	})
 
 	assert.False(t, shouldLogRelayTrace(http.StatusOK, nil))
+	var typedNilError *types.NewAPIError
+	assert.False(t, shouldLogRelayTrace(http.StatusOK, typedNilError))
 	assert.True(t, shouldLogRelayTrace(http.StatusBadRequest, nil))
 	assert.True(t, shouldLogRelayTrace(http.StatusOK, assert.AnError))
+}
+
+func TestShouldLogRelayTraceInAllMode(t *testing.T) {
+	oldFailureOnly := constant.RelayTraceLogFailureOnly
+	constant.RelayTraceLogFailureOnly = false
+	t.Cleanup(func() {
+		constant.RelayTraceLogFailureOnly = oldFailureOnly
+	})
+
+	assert.True(t, shouldLogRelayTrace(http.StatusOK, nil))
 }
