@@ -216,11 +216,11 @@ export const AUDIO_MODES = {
     needsInstructions: true,
     instructionsRequired: true,
   },
-  // 视频配乐(LTX-2.3,task_type=v2a):入口挂在语音页,但输入(上传视频)与产物
+  // 视频配音(LTX-2.3,task_type=v2a):入口挂在语音页,但输入(上传视频)与产物
   // (配好音的视频)是视频形态 —— 页面渲染走 VideoPlaygroundBody(mode='dub',见
   // pages/Audio/index.jsx 分支),不经 useAudioGeneration,本表仅提供 tab 文案。
   dub: {
-    capability: '视频配乐',
+    capability: '视频配音',
   },
 };
 

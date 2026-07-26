@@ -51,14 +51,32 @@ const downloadVideo = async (url, t) => {
   }
 };
 
-// 生成中：精简阶段（文字不缩略）+ 进度。1080P 流水线多一个「超分」阶段。
-const VideoProgress = ({ status, progress, stage, t }) => {
-  const upscaling = stage === 'upscaling';
-  const current =
-    status === VIDEO_STATUS.QUEUED && !upscaling ? 0 : upscaling ? 2 : 1;
-  const stages = stage
-    ? [t('排队中'), t('生成中'), t('画质增强'), t('完成')]
-    : [t('排队中'), t('生成中'), t('完成')];
+// 生成中：精简阶段（文字不缩略）+ 进度。流水线按 pipeline 动态插入
+// 「画质增强」（超分）/「配音」阶段：生成 →[画质增强]→[配音]→ 完成。
+const VideoProgress = ({ status, progress, stage, pipeline, t }) => {
+  const hasUpscale = !!pipeline?.upscale;
+  const hasDub = !!pipeline?.dub;
+  const stages = [t('排队中'), t('生成中')];
+  const stageKeys = ['queued', 'generating'];
+  if (hasUpscale) {
+    stages.push(t('画质增强'));
+    stageKeys.push('upscaling');
+  }
+  if (hasDub) {
+    stages.push(t('配音'));
+    stageKeys.push('dubbing');
+  }
+  stages.push(t('完成'));
+  stageKeys.push('done');
+  const curKey =
+    stage === 'upscaling'
+      ? 'upscaling'
+      : stage === 'dubbing'
+        ? 'dubbing'
+        : status === VIDEO_STATUS.QUEUED
+          ? 'queued'
+          : 'generating';
+  const current = stageKeys.indexOf(curKey);
   const hasPercent = typeof progress === 'number' && progress > 0;
   return (
     <div
@@ -120,9 +138,11 @@ const VideoProgress = ({ status, progress, stage, t }) => {
             <Spin size='small' />
             {stage === 'upscaling'
               ? t('画质增强中（超分）…')
-              : status === VIDEO_STATUS.QUEUED
-                ? t('任务排队中…')
-                : t('生成中…')}
+              : stage === 'dubbing'
+                ? t('配音中…')
+                : status === VIDEO_STATUS.QUEUED
+                  ? t('任务排队中…')
+                  : t('生成中…')}
           </div>
         )}
       </div>
@@ -175,7 +195,7 @@ const VideoChatArea = ({
             ? t('欢迎使用 AI 视频超分，请在左侧上传源视频后点击下方按钮')
             : isDub
               ? t(
-                  '欢迎使用 AI 视频配乐，请在左侧上传待配乐视频，并在下方描述想要的声音（音效/环境音/背景音乐/台词，画面将逐帧保持不变）',
+                  '欢迎使用 AI 视频配音，请在左侧上传待配音视频，并在下方描述想要的声音（音效/环境音/背景音乐/台词，画面将逐帧保持不变）',
                 )
               : t('欢迎使用 AI 视频生成，请在下方输入您的提示词'),
         },
@@ -314,6 +334,7 @@ const VideoChatArea = ({
           status={m.status}
           progress={m.progress}
           stage={m.stage}
+          pipeline={m.pipeline}
           t={t}
         />
       );

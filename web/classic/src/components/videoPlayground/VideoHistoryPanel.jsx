@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, Button, Typography, Tag } from '@douyinfe/semi-ui';
-import { Plus, Trash2, History } from 'lucide-react';
+import { Plus, Trash2, History, Music, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   VIDEO_STATUS,
@@ -34,6 +34,63 @@ const statusMeta = (status, progress, t) => {
     default:
       return { color: 'blue', text: t('排队中') };
   }
+};
+
+// 收集该会话上传过的输入媒体（帧图/参考图/源视频/驱动音频），供历史项缩略预览。
+// hydrate 前为空引用（已 strip 成 ''），过滤掉；hydrate 完成后为可播放的 objectURL/data-url。
+const collectInputMedia = (conv) => {
+  const out = [];
+  (conv.images || []).forEach((u) => u && out.push({ type: 'image', url: u }));
+  (conv.refImages || []).forEach(
+    (u) => u && out.push({ type: 'image', url: u }),
+  );
+  [conv.sourceVideo, conv.srcVideo, conv.srcVideo2].forEach(
+    (u) => u && out.push({ type: 'video', url: u }),
+  );
+  if (conv.audioData) out.push({ type: 'audio', url: conv.audioData });
+  return out;
+};
+
+const InputMediaStrip = ({ media }) => {
+  if (!media.length) return null;
+  const shown = media.slice(0, 4);
+  return (
+    <div className='flex items-center gap-1.5 mt-2'>
+      {shown.map((m, i) => (
+        <div
+          key={i}
+          className='rounded overflow-hidden bg-gray-100 flex items-center justify-center relative'
+          style={{ width: 40, height: 40, flexShrink: 0 }}
+        >
+          {m.type === 'image' ? (
+            <img src={m.url} alt='' className='w-full h-full object-cover' />
+          ) : m.type === 'video' ? (
+            <>
+              <video
+                src={m.url}
+                muted
+                playsInline
+                preload='metadata'
+                className='w-full h-full object-cover pointer-events-none'
+              />
+              <Play
+                size={12}
+                className='absolute text-white opacity-90'
+                fill='currentColor'
+              />
+            </>
+          ) : (
+            <Music size={16} className='text-gray-400' />
+          )}
+        </div>
+      ))}
+      {media.length > shown.length && (
+        <span className='text-xs text-gray-400'>
+          +{media.length - shown.length}
+        </span>
+      )}
+    </div>
+  );
 };
 
 const convSummary = (conv) => {
@@ -144,6 +201,7 @@ const VideoHistoryPanel = ({
                 >
                   {summary.title}
                 </Typography.Text>
+                <InputMediaStrip media={collectInputMedia(item)} />
                 <div className='flex items-center justify-between mt-2'>
                   <Tag size='small' color={meta.color} shape='circle'>
                     {meta.text}

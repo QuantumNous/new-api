@@ -7,6 +7,7 @@ import {
   NavBar,
   ProgressCircle,
   SpinLoading,
+  TextArea,
 } from 'antd-mobile';
 import { AddOutline } from 'antd-mobile-icons';
 
@@ -37,6 +38,7 @@ const VideoBody = ({ mode }) => {
     availableSizes,
     availableDurations,
     availableAspectRatios,
+    dubAvailable,
     messages,
     generating,
     turnLimitReached,
@@ -113,9 +115,11 @@ const VideoBody = ({ mode }) => {
           <div>
             {m.stage === 'upscaling'
               ? '画质增强中（超分）…'
-              : m.status === 'queued'
-                ? '排队中…'
-                : '生成中…'}
+              : m.stage === 'dubbing'
+                ? '配音中…'
+                : m.status === 'queued'
+                  ? '排队中…'
+                  : '生成中…'}
           </div>
           {m.pollTimedOut && (
             <Button
@@ -174,7 +178,7 @@ const VideoBody = ({ mode }) => {
           },
         ]}
       />
-      {/* 插帧开关：默认关，开启后提交时透传 target_fps（帧率翻倍更流畅） */}
+      {/* 插帧/配音开关：默认关。插帧透传 target_fps；配音开启则生成后自动接 v2a 配音段 */}
       <div className='m-config-bar' style={{ paddingTop: 0, borderBottom: '0.5px solid rgba(17,24,39,0.06)' }}>
         <div
           className={`m-config-chip${inputs.interpolation ? ' active' : ''}`}
@@ -185,7 +189,28 @@ const VideoBody = ({ mode }) => {
         >
           插帧：{inputs.interpolation ? '开' : '关'} · 帧率翻倍更流畅
         </div>
+        {dubAvailable && (
+          <div
+            className={`m-config-chip${inputs.dubbing ? ' active' : ''}`}
+            onClick={() =>
+              !generating && handleInputChange('dubbing', !inputs.dubbing)
+            }
+          >
+            配音：{inputs.dubbing ? '开' : '关'} · 生成后自动配音
+          </div>
+        )}
       </div>
+      {dubAvailable && inputs.dubbing && (
+        <div style={{ padding: '8px 12px 0' }}>
+          <TextArea
+            placeholder='配音提示词（可选）：描述想要的声音，留空则按画面自动配音'
+            value={inputs.dubPrompt || ''}
+            onChange={(v) => handleInputChange('dubPrompt', v)}
+            rows={2}
+            maxLength={500}
+          />
+        </div>
+      )}
       {/1080/i.test(inputs.size || '') && (
         <div
           style={{
