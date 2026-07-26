@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { announceCloudChanged, cloudLogin, waitForCloudSignIn } from "../../api";
+import { useTranslation } from "react-i18next";
 
 // The signed-out state of every one-click pane: a REAL sign-in button, not a
 // hint pointing at another page. Sign-in completes in the system browser; this
@@ -39,12 +40,13 @@ export function CloudSignInInline({ blurb }: { blurb?: string }) {
 // Rendering the sign-in prompt here told signed-in users they weren't (FB-013) —
 // pending must look like pending.
 export function CloudStatusPending() {
+  const { t } = useTranslation();
   return (
     <div
       className="text-[12px] text-faint py-2 text-center"
       data-testid="cloud-status-pending"
     >
-      Checking BoxAI sign-in…
+      {t("Checking BoxAI sign-in…")}
     </div>
   );
 }

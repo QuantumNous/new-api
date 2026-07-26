@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { addModel, getSettings, removeModel, setDefaultModel } from "../api";
+import { useTranslation } from "react-i18next";
 
 // One provider's models as a checklist: tick = shown in the composer's model picker (the
 // curated list), the black "default" badge marks the model new sessions use, and hovering any
@@ -22,6 +23,7 @@ export function ModelChecklist({
   labels?: Record<string, string>; // curated display names (full id → label); raw id when absent
   onChanged: (next: { models: string[]; model: string }) => void;
 }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState("");
 
   const provOf = (id: string) => {
@@ -83,7 +85,7 @@ export function ModelChecklist({
               <span className="mlist-default">default</span>
             ) : (
               <button className="mlist-make" onClick={() => makeDefault(id)}>
-                Make default
+                {t("Make default")}
               </button>
             )}
           </div>
@@ -91,7 +93,7 @@ export function ModelChecklist({
       })}
       <div className="mlist-add">
         <input
-          placeholder="Add another model…"
+          placeholder={t("Add another model…")}
           value={draft}
           spellCheck={false}
           autoComplete="off"
@@ -99,7 +101,7 @@ export function ModelChecklist({
           onKeyDown={(e) => e.key === "Enter" && add()}
         />
         <button className="btn-primary sm" onClick={add} disabled={!draft.trim()}>
-          Add
+          {t("Add")}
         </button>
       </div>
     </div>

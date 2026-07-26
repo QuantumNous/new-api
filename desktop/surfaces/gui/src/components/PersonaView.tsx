@@ -22,6 +22,7 @@ import { Icon } from "./Icon";
 import { PersonaGlyph } from "./personaIcon";
 import { Toggle } from "./Toggle";
 import { indexConnectors, labelFor, visualFor, type ConnectorMap } from "../connectors/visuals";
+import { useTranslation } from "react-i18next";
 
 // Shared section-heading + tag + button utility strings (mock parity).
 const SEC_H = "text-[11px] uppercase tracking-[0.05em] text-faint font-semibold";
@@ -41,6 +42,7 @@ export function PersonaView({
   onBack?: () => void;
   onOpenIntegrations?: () => void;
 }) {
+  const { t } = useTranslation();
   const [detail, setDetail] = useState<PersonaDetail | null>(null);
   const [byName, setByName] = useState<ConnectorMap>({});
   const [error, setError] = useState<string | null>(null);
@@ -83,12 +85,12 @@ export function PersonaView({
             className="inline-flex items-center gap-1 text-[12.5px] text-muted hover:text-ink"
             onClick={onBack}
           >
-            <Icon name="arrowLeft" size={15} /> Back
+            <Icon name="arrowLeft" size={15} /> {t("Back")}
           </button>
           <span className="text-faint">·</span>
         </>
       )}
-      <span className="text-[13px] font-semibold">Persona</span>
+      <span className="text-[13px] font-semibold">{t("Persona")}</span>
     </div>
   );
 
@@ -119,14 +121,14 @@ export function PersonaView({
             </div>
             <div className="ml-auto flex items-center gap-2">
               <span className="text-[12px] text-muted">{detail.enabled ? "Enabled" : "Disabled"}</span>
-              <Toggle checked={detail.enabled} onChange={toggleEnabled} title="Enable this persona" />
+              <Toggle checked={detail.enabled} onChange={toggleEnabled} title={t("Enable this persona")} />
             </div>
           </header>
 
           {/* about */}
           {detail.description && (
             <section>
-              <div className={`${SEC_H} mb-1.5`}>About</div>
+              <div className={`${SEC_H} mb-1.5`}>{t("About")}</div>
               <p className="text-[14px] leading-relaxed text-ink/90">{detail.description}</p>
             </section>
           )}
@@ -134,7 +136,7 @@ export function PersonaView({
           {/* tools */}
           {detail.tools.length > 0 && (
             <section>
-              <div className={`${SEC_H} mb-2`}>Built-in capabilities</div>
+              <div className={`${SEC_H} mb-2`}>{t("Built-in capabilities")}</div>
               <div className="flex flex-wrap gap-1.5">
                 {detail.tools.map((t) => (
                   <span
@@ -151,10 +153,9 @@ export function PersonaView({
           {/* connections for full benefit (manifest recommends) */}
           {detail.recommends.length > 0 && (
             <section>
-              <div className={`${SEC_H} mb-1`}>Connections for full benefit</div>
+              <div className={`${SEC_H} mb-1`}>{t("Connections for full benefit")}</div>
               <p className="text-[12.5px] text-muted mb-2.5">
-                Declared by the persona — wire {shortPersonaName(detail.name, personaId)} into these
-                to unlock its full workflow.
+                {t("Declared by the persona — wire")} {shortPersonaName(detail.name, personaId)} {t("into these to unlock its full workflow.")}
               </p>
               <div className="rounded-xl2 border border-line overflow-hidden">
                 {detail.recommends.map((r, i) => {
@@ -171,7 +172,7 @@ export function PersonaView({
                         <div className="flex items-center gap-2">
                           <span className="text-[13px] font-medium">{labelFor(r.ref, byName)}</span>
                           {isMcp ? (
-                            <span className={TAG_MCP}>MCP</span>
+                            <span className={TAG_MCP}>{t("MCP")}</span>
                           ) : r.tier === "core" ? (
                             <span className={TAG_CORE}>core</span>
                           ) : null}
@@ -201,10 +202,9 @@ export function PersonaView({
           {/* persona-default connections (persona → session default) */}
           {detail.default_connections.length > 0 && (
             <section>
-              <div className={`${SEC_H} mb-1`}>New sessions get by default</div>
+              <div className={`${SEC_H} mb-1`}>{t("New sessions get by default")}</div>
               <p className="text-[12.5px] text-muted mb-2.5">
-                When you start a {shortPersonaName(detail.name, personaId)} session these are enabled
-                automatically. You can still mute any of them per session.
+                {t("When you start a")} {shortPersonaName(detail.name, personaId)} {t("session these are enabled automatically. You can still mute any of them per session.")}
               </p>
               <div className="space-y-1.5">
                 {detail.default_connections.map((c) => (
@@ -219,7 +219,7 @@ export function PersonaView({
                     <div className="flex-1 text-[13px] font-medium">
                       {labelFor(c.connector, byName)}
                       {!c.connected && (
-                        <span className="text-[11px] text-faint font-normal"> · connect to enable</span>
+                        <span className="text-[11px] text-faint font-normal"> {t("· connect to enable")}</span>
                       )}
                     </div>
                     <Toggle
@@ -238,7 +238,7 @@ export function PersonaView({
           <section className="flex flex-wrap gap-x-8 gap-y-2 text-[12.5px]">
             {detail.recommended_models.length > 0 && (
               <div>
-                <span className="text-faint">Models</span> ·{" "}
+                <span className="text-faint">{t("Models")}</span> ·{" "}
                 {detail.recommended_models.map((m, i) => (
                   <span key={m}>
                     <span className="font-mono">{m}</span>
@@ -249,12 +249,12 @@ export function PersonaView({
             )}
             {detail.default_permission_mode && (
               <div>
-                <span className="text-faint">Default mode</span> · {detail.default_permission_mode}
+                <span className="text-faint">{t("Default mode")}</span> · {detail.default_permission_mode}
               </div>
             )}
             {detail.workspace && (
               <div>
-                <span className="text-faint">Workspace</span> · {detail.workspace}
+                <span className="text-faint">{t("Workspace")}</span> · {detail.workspace}
               </div>
             )}
           </section>

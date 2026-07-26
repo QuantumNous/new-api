@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ApprovalDecision, Item } from "../types";
 import { humanizeApprovalTitle, type HumanLine } from "../humanize";
 import { Icon } from "./Icon";
+import { useTranslation } from "react-i18next";
 
 export function shortArgs(args: any): string {
   if (!args || typeof args !== "object") return "";
@@ -83,6 +84,7 @@ const PREVIEW_LINES = 5;
 const PREVIEW_CHARS = 420;
 
 export function PreviewBlock({ text, mono = true }: { text: string; mono?: boolean }) {
+  const { t } = useTranslation();
   const [all, setAll] = useState(false);
   const lines = text.split("\n");
   const clipped = lines.length > PREVIEW_LINES || text.length > PREVIEW_CHARS;
@@ -97,10 +99,10 @@ export function PreviewBlock({ text, mono = true }: { text: string; mono?: boole
       {clipped && (
         <button className="approval-prev-more" onClick={() => setAll((v) => !v)}>
           {all
-            ? "show less"
+            ? t("show less")
             : lines.length > PREVIEW_LINES
-              ? `show all ${lines.length} lines`
-              : "show the full message"}
+              ? t("show all {{count}} lines", { count: lines.length })
+              : t("show the full message")}
         </button>
       )}
     </div>
@@ -131,6 +133,7 @@ function Buttons({
   runTask?: { id: string; title: string } | null;
   primaryLabel: string;
 }) {
+  const { t } = useTranslation();
   const connector = item.category === "connector";
   const offerStanding = !!(runTask && item.standingTarget);
   return (
@@ -144,7 +147,7 @@ function Buttons({
           title={`Always allow ${item.name} → ${item.standingTarget} for “${runTask?.title || "this automation"}” — revoke any time on its Automations page`}
           onClick={() => onApprove("always_task")}
         >
-          Allow every time
+          {t("Allow every time")}
         </button>
       )}
       {/* In a run context the task-persistent grant replaces the session-scoped one —
@@ -158,17 +161,17 @@ function Buttons({
           title={`Always allow ${TOOL_VERBS[item.name]?.toLowerCase() || item.name} for this session`}
           onClick={() => onApprove("always_tool")}
         >
-          Always allow
+          {t("Always allow")}
         </button>
       )}
       {item.name === "run_shell" && (
         <button className="btn" onClick={() => onApprove("always_command")}>
-          Always allow this command
+          {t("Always allow this command")}
         </button>
       )}
       <span className="spacer" />
       <button className="btn quiet-deny" onClick={() => onApprove("deny")}>
-        Deny
+        {t("Deny")}
       </button>
     </div>
   );
@@ -187,6 +190,7 @@ export function ApprovalCard({
   runTask?: { id: string; title: string } | null;
   compact?: boolean;
 }) {
+  const { t } = useTranslation();
   const [peek, setPeek] = useState(false);
   const title = humanizeApprovalTitle(item.name, item.args);
   const scope = scopeNote(item.name, item.args, item.category);
@@ -278,7 +282,7 @@ export function ApprovalCard({
       {reason && <div className="approval-reason">{reason}</div>}
 
       {item.resolved ? (
-        <div className="resolved">Approved: {item.resolved.replace("_", " ")}</div>
+        <div className="resolved">{t("Approved:")} {item.resolved.replace("_", " ")}</div>
       ) : (
         <Buttons item={item} onApprove={onApprove} runTask={runTask} primaryLabel="Allow once" />
       )}

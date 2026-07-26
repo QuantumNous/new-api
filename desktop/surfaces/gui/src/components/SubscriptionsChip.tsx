@@ -8,6 +8,7 @@ import {
   type RecentChannel,
 } from "../api";
 import { Icon } from "./Icon";
+import { useTranslation } from "react-i18next";
 
 // A workspace roster hit for the typeahead: type a channel NAME, we resolve the
 // id (conversations.list, cached on the desktop) and compose the address.
@@ -38,6 +39,7 @@ export function ChannelPicker({
   // human name (+ workspace) wherever they show the target (§25 consent line, summaries).
   onPickName?: (address: string, name: string, workspace?: string) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -143,7 +145,7 @@ export function ChannelPicker({
       <input
         ref={inputRef}
         className="chan-input w-full"
-        placeholder="slack:C0123 or channel link"
+        placeholder={t("slack:C0123 or channel link")}
         value={display}
         title={value || undefined}
         onChange={(e) => {
@@ -205,7 +207,7 @@ export function ChannelPicker({
               className="px-3 py-1.5 text-[12px] text-faint"
               data-testid="roster-searching"
             >
-              searching your workspace’s channels…
+              {t("searching your workspace’s channels…")}
             </div>
           )}
           {/* Live workspace-roster hits: type the NAME, we resolved the id. */}
@@ -235,7 +237,7 @@ export function ChannelPicker({
               )}
               {!r.is_member && (
                 <span className="block text-[11px] text-warnInk">
-                  invite @ocw to this channel in Slack so it can listen
+                  {t("invite @ocw to this channel in Slack so it can listen")}
                 </span>
               )}
             </button>
@@ -257,6 +259,7 @@ export function SubscriptionsChip({
   channels: string[];
   onChanged: () => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [recent, setRecent] = useState<RecentChannel[]>([]);
   const [draft, setDraft] = useState("");
@@ -288,23 +291,23 @@ export function SubscriptionsChip({
     <div className="sub-chip-wrap" ref={ref}>
       <button
         className={"wschip sub-chip" + (open ? " active" : "")}
-        title="Channels this session listens to"
+        title={t("Channels this session listens to")}
         onClick={() => setOpen((v) => !v)}
       >
         <Icon name="plug" size={12} /> {channels.length || "+"}
       </button>
       {open && (
         <div className="sub-pop" onMouseDown={(e) => e.stopPropagation()}>
-          <div className="sub-pop-head">Channels this session listens to</div>
+          <div className="sub-pop-head">{t("Channels this session listens to")}</div>
           {channels.length === 0 ? (
-            <div className="dim sub-pop-empty">Not subscribed to any channel.</div>
+            <div className="dim sub-pop-empty">{t("Not subscribed to any channel.")}</div>
           ) : (
             channels.map((c) => {
               const nm = recent.find((r) => r.channel === c)?.name;
               return (
               <div className="sub-pop-row" key={c}>
                 <span className="sub-pop-chan" title={c}>{nm ? `#${nm}` : c}</span>
-                <button className="sub-pop-x" title="Unsubscribe" onClick={() => remove(c)}>
+                <button className="sub-pop-x" title={t("Unsubscribe")} onClick={() => remove(c)}>
                   ×
                 </button>
               </div>
@@ -314,7 +317,7 @@ export function SubscriptionsChip({
           <div className="sub-pop-add">
             <ChannelPicker value={draft} onChange={setDraft} recent={recent} onSubmit={add} />
             <button className="btn-primary sm" disabled={!draft.trim()} onClick={add}>
-              Add
+              {t("Add")}
             </button>
           </div>
         </div>

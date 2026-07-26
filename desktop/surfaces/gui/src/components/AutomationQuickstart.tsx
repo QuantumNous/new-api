@@ -13,6 +13,7 @@ import {
 import { ConnectorBadge } from "../connectors/ConnectorIcon";
 import { ChannelPicker } from "./SubscriptionsChip";
 import { SelectMenu } from "./SelectMenu";
+import { useTranslation } from "react-i18next";
 
 // The Automations quickstart (UX-DECISIONS §29): ONE template system. The former onboarding
 // recipe step (§24's role recipes) merged into the page's "Start from a template" grid — every
@@ -160,6 +161,7 @@ export function AutomationQuickstart({
     permissions?: { tool: string; target: string; access: "read" | "write" }[];
   }) => void;
 }) {
+  const { t } = useTranslation();
   const [pickedKey, setPickedKey] = useState<string | null>(null);
   const picked = TEMPLATES.find((t) => t.key === pickedKey) || null;
 
@@ -306,7 +308,7 @@ export function AutomationQuickstart({
   return (
     <div className="mb-4">
       <div className="text-[11px] uppercase tracking-[0.05em] text-faint mb-2.5">
-        Start from a template
+        {t("Start from a template")}
       </div>
       {/* Equal-height cards (owner ask 2026-07-12): 1fr rows + h-full — <button> grid items
           don't stretch like divs. */}
@@ -360,7 +362,7 @@ export function AutomationQuickstart({
           {/* §30: the card names its template — without this it starts abruptly after the grid. */}
           <div className="flex items-baseline gap-2 pb-2.5 mb-1 border-b border-line">
             <span className="text-[11px] uppercase tracking-[0.05em] text-accent font-semibold">
-              Set up
+              {t("Set up")}
             </span>
             <span className="text-[14px] font-semibold">{picked.title}</span>
             <span className="ml-auto text-[12px] text-faint max-sm:hidden">
@@ -380,7 +382,7 @@ export function AutomationQuickstart({
                     <span className="block text-[11.5px] text-faint">{why}</span>
                   </span>
                   {c?.connected ? (
-                    <span className="text-[12.5px] text-ok">✓ Connected</span>
+                    <span className="text-[12.5px] text-ok">{t("✓ Connected")}</span>
                   ) : flow ? (
                     <span className="inline-flex items-center gap-2 text-[12px] text-muted">
                       <Spinner />
@@ -394,7 +396,7 @@ export function AutomationQuickstart({
                       onClick={() => startConnect(name)}
                       data-testid={`ob-connect-${name}`}
                     >
-                      Connect
+                      {t("Connect")}
                     </button>
                   )}
                 </div>
@@ -408,16 +410,16 @@ export function AutomationQuickstart({
                     <span>↗</span>
                     <span className="flex-1 min-w-0">
                       <b className="text-ink font-medium">
-                        Finish connecting {c?.title || name} in your browser.
+                        {t("Finish connecting")} {c?.title || name} {t("in your browser.")}
                       </b>{" "}
-                      Approve it there, then come back — this page updates by itself.
+                      {t("Approve it there, then come back — this page updates by itself.")}
                     </span>
                     <button
                       className="text-faint underline hover:text-muted shrink-0"
                       onClick={() => setConnFlow(null)}
                       data-testid="ob-connect-cancel"
                     >
-                      Cancel
+                      {t("Cancel")}
                     </button>
                   </div>
                 )}
@@ -431,9 +433,9 @@ export function AutomationQuickstart({
               data-testid="ob-cloudpane"
             >
               <span className="block text-[13px] text-ink font-medium">
-                One sign-in unlocks every one-click connection
+                {t("One sign-in unlocks every one-click connection")}
               </span>
-              Connections are brokered by BoxAI — your tokens stay on this Mac.
+              {t("Connections are brokered by BoxAI — your tokens stay on this Mac.")}
               <div className="flex items-center gap-3 mt-2">
                 {signinPhase ? (
                   <>
@@ -443,13 +445,13 @@ export function AutomationQuickstart({
                     </span>
                     {signinPhase === "waiting" && (
                       <span className="text-[11.5px] text-faint">
-                        Finish signing in in your browser — this page updates by itself.{" "}
+                        {t("Finish signing in in your browser — this page updates by itself.")}{" "}
                         <button
                           className="underline hover:text-muted"
                           onClick={cancelSignin}
                           data-testid="ob-signin-cancel"
                         >
-                          Cancel
+                          {t("Cancel")}
                         </button>
                       </span>
                     )}
@@ -460,7 +462,7 @@ export function AutomationQuickstart({
                     onClick={signInThenConnect}
                     data-testid="ob-cloud-signin"
                   >
-                    Sign in to BoxAI
+                    {t("Sign in to BoxAI")}
                   </button>
                 )}
               </div>
@@ -471,7 +473,7 @@ export function AutomationQuickstart({
             <div className={picked.conns.length ? "bg-paper rounded-xl px-4 py-3.5 mt-3" : ""} data-testid="ob-recipe">
               {picked.needsRepo && (
                 <>
-                  <label className={label}>Repository</label>
+                  <label className={label}>{t("Repository")}</label>
                   <input
                     className={input}
                     placeholder="owner/repo"
@@ -483,7 +485,7 @@ export function AutomationQuickstart({
               )}
               {picked.needsChannel && (
                 <>
-                  <label className={label}>Post to channel</label>
+                  <label className={label}>{t("Post to channel")}</label>
                   <div data-testid="ob-channel">
                     <ChannelPicker
                       value={channel}
@@ -495,11 +497,11 @@ export function AutomationQuickstart({
                     />
                   </div>
                   <p className="text-[11px] text-warnInk mt-1">
-                    The bot must be a member of the channel — invite @OpenWorker in Slack if it isn't.
+                    {t("The bot must be a member of the channel — invite @OpenWorker in Slack if it isn't.")}
                   </p>
                 </>
               )}
-              <label className={label}>When</label>
+              <label className={label}>{t("When")}</label>
               <div className="flex gap-2">
                 <div className="flex-1 min-w-0">
                   <SelectMenu
@@ -512,14 +514,14 @@ export function AutomationQuickstart({
                 <input
                   className="w-28 px-3 py-2 rounded-lg border border-line bg-panel text-[13.5px] outline-none focus:border-accent"
                   type="time"
-                  aria-label="Time"
+                  aria-label={t("Time")}
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
                 />
               </div>
               {picked.deliver && (
                 <>
-                  <label className={label}>Deliver to</label>
+                  <label className={label}>{t("Deliver to")}</label>
                   <SelectMenu
                     ariaLabel="Deliver to"
                     value={deliver}
@@ -541,18 +543,17 @@ export function AutomationQuickstart({
                     data-testid="ob-consent"
                   />
                   <span>
-                    Allow this automation to post its digest to{" "}
+                    {t("Allow this automation to post its digest to")}{" "}
                     <b className="text-ink" title={channel || undefined}>
                       {channelLabel || "the channel"}
                       {channelWorkspace ? ` (${channelWorkspace})` : ""}
                     </b>{" "}
-                    without asking each time. Anything else still asks first.
+                    {t("without asking each time. Anything else still asks first.")}
                   </span>
                 </label>
               ) : picked.conns.length > 0 ? (
                 <p className="text-[12.5px] text-muted mt-3">
-                  This automation only <b className="text-ink">reads</b> on schedule — reading
-                  never needs approval.
+                  {t("This automation only")} <b className="text-ink">reads</b> {t("on schedule — reading never needs approval.")}
                 </p>
               ) : null}
             </div>
@@ -563,7 +564,7 @@ export function AutomationQuickstart({
               className="text-[12.5px] text-faint hover:text-muted"
               onClick={() => setPickedKey(null)}
             >
-              Cancel
+              {t("Cancel")}
             </button>
             {/* A silently-disabled primary reads as a bug — always name the missing piece. */}
             {gateHint && (

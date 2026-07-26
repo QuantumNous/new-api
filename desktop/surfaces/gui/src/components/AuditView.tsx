@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAudit, type AuditEvent } from "../api";
 import { PanelHead } from "./IntegrationsView";
+import { useTranslation } from "react-i18next";
 
 // Activity — connector/browser tool history, restructured onto the IntegrationsView page shell
 // (centered panel + PanelHead + cards), replacing the legacy `page-view` layout. Read-only:
@@ -10,6 +11,7 @@ const INPUT = "px-3 py-1.5 rounded-lg border border-line bg-paper text-[13px] te
 const BTN_ACCENT = "text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white shrink-0";
 
 export function AuditView() {
+  const { t } = useTranslation();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [sessionFilter, setSessionFilter] = useState("");
   const [connectorFilter, setConnectorFilter] = useState("");
@@ -34,21 +36,21 @@ export function AuditView() {
       <div className="flex-1 min-w-0 overflow-y-auto hairline-scroll">
         <div className="max-w-4xl mx-auto px-7 py-6">
           <PanelHead
-            title="Activity"
+            title={t("Activity")}
             sub="Recent connector and browser tool activity. Arguments are sanitized before storage."
           />
 
           <div className="flex items-center gap-2 flex-wrap mb-4">
-            <input className={INPUT} placeholder="session id" value={sessionFilter} onChange={(e) => setSessionFilter(e.target.value)} />
+            <input className={INPUT} placeholder={t("session id")} value={sessionFilter} onChange={(e) => setSessionFilter(e.target.value)} />
             <input className={INPUT} placeholder="connector" value={connectorFilter} onChange={(e) => setConnectorFilter(e.target.value)} />
             <input className={INPUT} placeholder="tool" value={toolFilter} onChange={(e) => setToolFilter(e.target.value)} />
             <button className={BTN_ACCENT} onClick={refresh}>
-              Filter
+              {t("Filter")}
             </button>
           </div>
 
           {events.length === 0 ? (
-            <div className={CARD + " p-4 text-[13px] text-muted"}>No audit events yet.</div>
+            <div className={CARD + " p-4 text-[13px] text-muted"}>{t("No audit events yet.")}</div>
           ) : (
             <div className="space-y-2">
               {events.map((ev) => (

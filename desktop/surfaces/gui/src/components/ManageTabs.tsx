@@ -28,6 +28,7 @@ import {
 } from "../api";
 import { CloudSignInInline, CloudStatusPending } from "./connectors/CloudSignIn";
 import { Toggle } from "./Toggle";
+import { useTranslation } from "react-i18next";
 
 // "2h ago"-style label for the providers' Last-used line (null when never used).
 const relTime = (epoch?: number | null): string | null => {
@@ -73,6 +74,7 @@ const EXAMPLE = `{
 // key…" affordance, the global composer-picker card (gallery view), and the
 // per-provider ModelChecklist / read-only model preview (form view).
 export function ModelsTab() {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<ModelSettings | null>(null);
   const [cloud, setCloud] = useState<CloudStatus | null>(null);
   const refreshSettings = () => getSettings().then(setSettings).catch(() => setSettings(null));
@@ -84,24 +86,24 @@ export function ModelsTab() {
     refresh();
   }, []);
 
-  if (!settings) return <div className="text-[13px] text-muted">Loading…</div>;
+  if (!settings) return <div className="text-[13px] text-muted">{t("Loading…")}</div>;
   return (
     <div className="space-y-5">
       <div className={CARD + " p-4"} data-testid="boxai-model-access">
         <div className="flex items-center justify-between gap-3">
-          <div><div className="text-[14px] font-semibold">BoxAI</div><div className="text-[12px] text-muted">{cloud?.signed_in ? `Signed in${cloud.account ? ` as ${cloud.account}` : ""}` : "Sign in to access your account models"}</div></div>
-          {cloud?.signed_in ? <button className={BTN_BORDERED} onClick={refresh}>Sync models</button> : <CloudSignInInline blurb="Your BoxAI login provides model access. Custom keys and endpoints are disabled." />}
+          <div><div className="text-[14px] font-semibold">{t("BoxAI")}</div><div className="text-[12px] text-muted">{cloud?.signed_in ? `Signed in${cloud.account ? ` as ${cloud.account}` : ""}` : "Sign in to access your account models"}</div></div>
+          {cloud?.signed_in ? <button className={BTN_BORDERED} onClick={refresh}>{t("Sync models")}</button> : <CloudSignInInline blurb="Your BoxAI login provides model access. Custom keys and endpoints are disabled." />}
         </div>
       </div>
       {cloud?.signed_in && (
         <div>
-          <div className={SEC_H + " mb-2"}>Account models</div>
+          <div className={SEC_H + " mb-2"}>{t("Account models")}</div>
           <div className="space-y-1">
             {settings.models.map((model) => (
               <div key={model} className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2">
                 <span className="text-[13px]">{model}</span>
                 {model === settings.model ? (
-                  <span className="text-[11px] rounded-full bg-ink text-panel px-2 py-0.5">Default</span>
+                  <span className="text-[11px] rounded-full bg-ink text-panel px-2 py-0.5">{t("Default")}</span>
                 ) : (
                   <button
                     className={BTN_BORDERED}
@@ -111,7 +113,7 @@ export function ModelsTab() {
                       });
                     }}
                   >
-                    Make default
+                    {t("Make default")}
                   </button>
                 )}
               </div>
@@ -135,6 +137,7 @@ const MCP_PRESETS: { name: string; label: string; blurb: string; config: Record<
 ];
 
 export function McpTab() {
+  const { t } = useTranslation();
   const [servers, setServers] = useState<McpServer[]>([]);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,22 +168,21 @@ export function McpTab() {
   return (
     <div className="space-y-3">
       <p className="text-[12.5px] text-muted leading-relaxed">
-        External tool servers (stdio or HTTP), shared across all agents. Enabled servers' tools are
-        permission-gated. Changes apply to new sessions —{" "}
+        {t("External tool servers (stdio or HTTP), shared across all agents. Enabled servers' tools are permission-gated. Changes apply to new sessions —")}{" "}
         <button
           className="text-accent font-medium hover:underline"
           onClick={() => reloadMcp().then(refresh)}
         >
-          reload now
+          {t("reload now")}
         </button>
         .
       </p>
 
       {servers.length === 0 && !adding ? (
         <div className={CARD + " p-4 text-[13px] text-muted"}>
-          No MCP servers configured.{" "}
+          {t("No MCP servers configured.")}{" "}
           <button className="text-accent font-medium" onClick={() => setAdding(true)}>
-            Add a server
+            {t("Add a server")}
           </button>
         </div>
       ) : (
@@ -212,7 +214,7 @@ export function McpTab() {
               refresh();
             }}
           >
-            Connect
+            {t("Connect")}
           </button>
         </div>
       ))}
@@ -232,7 +234,7 @@ export function McpTab() {
         />
       ) : servers.length > 0 ? (
         <button className={BTN_ACCENT} onClick={() => setAdding(true)}>
-          + Add server
+          {t("+ Add server")}
         </button>
       ) : null}
       {error && <div className="text-[12.5px] text-danger">{error}</div>}
@@ -251,6 +253,7 @@ function McpRow({
   onRemove: () => void;
   onRefresh: () => void;
 }) {
+  const { t } = useTranslation();
   const [tools, setTools] = useState<{ name: string; description: string }[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [toolErr, setToolErr] = useState<string | null>(null);
@@ -282,7 +285,7 @@ function McpRow({
   return (
     <div className={CARD + " p-3.5"}>
       <div className="flex items-center gap-3">
-        <Toggle checked={server.enabled} onChange={onToggle} title="Enable this server" />
+        <Toggle checked={server.enabled} onChange={onToggle} title={t("Enable this server")} />
         <div className="flex-1 min-w-0">
           <div className="text-[14px] font-medium">{server.name}</div>
           <div className="text-[11.5px] text-faint">
@@ -295,17 +298,17 @@ function McpRow({
         {isOauth &&
           (server.status === "needs_auth" ? (
             <button className={BTN_ACCENT} onClick={signIn} data-testid={`mcp-signin-${server.name}`}>
-              Sign in
+              {t("Sign in")}
             </button>
           ) : authorizing ? (
-            <span className="text-[12px] text-muted shrink-0">waiting for browser…</span>
+            <span className="text-[12px] text-muted shrink-0">{t("waiting for browser…")}</span>
           ) : server.status === "connected" ? (
             <button
               className="text-[12px] text-muted hover:text-ink shrink-0"
               onClick={signOut}
               data-testid={`mcp-signout-${server.name}`}
             >
-              sign out
+              {t("sign out")}
             </button>
           ) : null)}
         <button
@@ -325,7 +328,7 @@ function McpRow({
       {toolErr && <div className="text-[12.5px] text-danger mt-1.5">{toolErr}</div>}
       {tools && (
         <div className="mt-2.5 pt-2.5 border-t border-line flex flex-wrap gap-1.5">
-          {tools.length === 0 && <div className="text-[12px] text-faint">No tools.</div>}
+          {tools.length === 0 && <div className="text-[12px] text-faint">{t("No tools.")}</div>}
           {tools.map((t) => (
             <span
               key={t.name}
@@ -350,6 +353,7 @@ function AddForm({
   onAdded: () => void;
   onError: (e: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const [text, setText] = useState(EXAMPLE);
 
   const save = async () => {
@@ -379,7 +383,7 @@ function AddForm({
 
   return (
     <div className="space-y-2">
-      <div className="text-[12.5px] text-muted">Paste server JSON (name → config):</div>
+      <div className="text-[12.5px] text-muted">{t("Paste server JSON (name → config):")}</div>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -389,7 +393,7 @@ function AddForm({
       />
       <div className="flex items-center gap-3">
         <button className={BTN_ACCENT} onClick={save}>
-          Add
+          {t("Add")}
         </button>
         <button className="text-[12.5px] text-muted hover:text-ink" onClick={onCancel}>
           cancel
@@ -419,6 +423,7 @@ export function UnauthorizedBlock({
   onChanged: () => void;
   teamId?: string;
 }) {
+  const { t } = useTranslation();
   const items = (c.unauthorized ?? []).filter(
     (m) => teamId === undefined || m.team_id === teamId,
   );
@@ -433,7 +438,7 @@ export function UnauthorizedBlock({
       data-testid={teamId ? `unauthorized-${c.name}-${teamId}` : `unauthorized-${c.name}`}
     >
       <div className={SEC_H + " mb-2"}>
-        Messages from senders you haven't allowed · {items.length}
+        {t("Messages from senders you haven't allowed ·")} {items.length}
       </div>
       <div className="space-y-2">
         {items.map((m) => (
@@ -448,26 +453,26 @@ export function UnauthorizedBlock({
               <button
                 className="text-[11.5px] px-2 py-1 rounded-md bg-accent text-white"
                 data-testid={`parked-allow-deliver-${m.id}`}
-                title="Add the sender to the allow-list and deliver this message now"
+                title={t("Add the sender to the allow-list and deliver this message now")}
                 onClick={() => act(m.id, "allow_deliver")}
               >
-                Allow & deliver
+                {t("Allow & deliver")}
               </button>
               <button
                 className={BTN_BORDERED}
                 data-testid={`parked-allow-${m.id}`}
-                title="Add the sender to the allow-list; this message is discarded"
+                title={t("Add the sender to the allow-list; this message is discarded")}
                 onClick={() => act(m.id, "allow")}
               >
-                Allow only
+                {t("Allow only")}
               </button>
               <button
                 className="text-[11.5px] px-2 py-1 rounded-md text-faint hover:text-danger"
                 data-testid={`parked-dismiss-${m.id}`}
-                title="Throw this message away"
+                title={t("Throw this message away")}
                 onClick={() => act(m.id, "dismiss")}
               >
-                Dismiss
+                {t("Dismiss")}
               </button>
             </div>
           </div>
@@ -481,6 +486,7 @@ export function UnauthorizedBlock({
 // Channel-subscriptions table (Integrations ▸ Messaging routing). Subscribing happens from a
 // session's Sources ▸ Channels panel; here the owner can see and revoke.
 export function ListeningSessionsBlock({ c }: { c: Connector }) {
+  const { t } = useTranslation();
   const [subs, setSubs] = useState<Subscription[] | null>(null);
   const load = () => getSubscriptions().then(setSubs).catch(() => setSubs([]));
   useEffect(() => {
@@ -491,10 +497,10 @@ export function ListeningSessionsBlock({ c }: { c: Connector }) {
   const mine = (subs ?? []).filter((s) => platformOf(s.channel) === c.name);
   return (
     <div className="border-t border-line px-3.5 py-3" data-testid={`listening-${c.name}`}>
-      <div className={SEC_H + " mb-2"}>Sessions listening to {c.title} channels · {mine.length}</div>
+      <div className={SEC_H + " mb-2"}>{t("Sessions listening to")} {c.title} {t("channels ·")} {mine.length}</div>
       {mine.length === 0 ? (
         <div className="text-[12px] text-faint">
-          None yet — open a session's Sources ▸ Channels to subscribe it to a channel.
+          {t("None yet — open a session's Sources ▸ Channels to subscribe it to a channel.")}
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -509,7 +515,7 @@ export function ListeningSessionsBlock({ c }: { c: Connector }) {
               </span>
               <button
                 className="ml-auto text-faint hover:text-danger shrink-0"
-                title="Unsubscribe this session"
+                title={t("Unsubscribe this session")}
                 onClick={async () => {
                   await unsubscribeChannel(s.session_id, s.channel);
                   load();
@@ -542,6 +548,7 @@ export function AllowlistBlock({
   allowed?: string[];
   allowedNames?: Record<string, string | null>;
 }) {
+  const { t } = useTranslation();
   const allowedUsers = allowed ?? c.allowed_users;
   const names = allowedNames ?? c.allowed_user_names;
   const recent = (c.recent ?? []).filter(
@@ -552,10 +559,10 @@ export function AllowlistBlock({
   return (
     <div className="border-t border-line px-3.5 py-3 grid grid-cols-2 gap-5">
       <div>
-        <div className={SEC_H + " mb-2"}>Allowed to message</div>
+        <div className={SEC_H + " mb-2"}>{t("Allowed to message")}</div>
         <div className="flex flex-wrap gap-1.5">
           {allowedUsers.length === 0 && (
-            <span className="text-[12px] text-faint">nobody yet — Allow a recent sender →</span>
+            <span className="text-[12px] text-faint">{t("nobody yet — Allow a recent sender →")}</span>
           )}
           {allowedUsers.map((u) => (
             <span
@@ -582,9 +589,9 @@ export function AllowlistBlock({
         </div>
       </div>
       <div>
-        <div className={SEC_H + " mb-2"}>Recent senders</div>
+        <div className={SEC_H + " mb-2"}>{t("Recent senders")}</div>
         {unknownRecent.length === 0 ? (
-          <div className="text-[12px] text-faint">None yet. Message the bot once and it'll show here.</div>
+          <div className="text-[12px] text-faint">{t("None yet. Message the bot once and it'll show here.")}</div>
         ) : (
           <div className="space-y-1.5">
             {unknownRecent.map((r) => (
@@ -602,7 +609,7 @@ export function AllowlistBlock({
                     onChanged();
                   }}
                 >
-                  Allow
+                  {t("Allow")}
                 </button>
               </div>
             ))}
@@ -614,6 +621,7 @@ export function AllowlistBlock({
 }
 
 export function ConnectorTools({ c, onChanged }: { c: Connector; onChanged: () => void }) {
+  const { t } = useTranslation();
   const toggle = async (toolName: string, enabled: boolean) => {
     await updateConnectorTools(c.name, { [toolName]: enabled });
     onChanged();
@@ -621,12 +629,12 @@ export function ConnectorTools({ c, onChanged }: { c: Connector; onChanged: () =
   if (!c.tools?.length)
     return (
       <div className="border-t border-line px-3.5 py-3 text-[12.5px] text-muted">
-        No tools for this connector yet.
+        {t("No tools for this connector yet.")}
       </div>
     );
   return (
     <div className="border-t border-line px-3.5 py-3">
-      <div className={SEC_H + " mb-2"}>Tools exposed to BoxAI Desktop</div>
+      <div className={SEC_H + " mb-2"}>{t("Tools exposed to BoxAI Desktop")}</div>
       <div className="space-y-1.5">
         {c.tools.map((tool) => (
           <label
@@ -642,7 +650,7 @@ export function ConnectorTools({ c, onChanged }: { c: Connector; onChanged: () =
             <span className="min-w-0">
               <span className="block text-[13px]">{tool.label}</span>
               <span className="block text-[11.5px] text-faint">
-                {tool.name} · {tool.kind} · asks approval
+                {tool.name} · {tool.kind} {t("· asks approval")}
               </span>
               <span className="block text-[11.5px] text-faint">{tool.description}</span>
             </span>
@@ -668,6 +676,7 @@ export function ConnectSetup({
   // pill, so don't render the managed block again here.
   manualOnly?: boolean;
 }) {
+  const { t } = useTranslation();
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false); // managed flow: browser is open
@@ -709,7 +718,7 @@ export function ConnectSetup({
             {waiting ? "Check your browser…" : `Connect ${c.title} with one click`}
           </button>
           {c.fields.length > 0 && (
-            <div className="text-[11.5px] text-faint">or connect manually:</div>
+            <div className="text-[11.5px] text-faint">{t("or connect manually:")}</div>
           )}
         </div>
       )}
@@ -722,11 +731,11 @@ export function ConnectSetup({
               <button className={BTN_ACCENT + " opacity-50"} disabled data-testid="managed-coming-soon">
                 {`Connect ${c.title} with one click`}
                 <span className="ml-2 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-white/25">
-                  Coming soon
+                  {t("Coming soon")}
                 </span>
               </button>
               <div className="text-[11.5px] text-faint">
-                One-click sign-in is coming soon — connect manually below for now:
+                {t("One-click sign-in is coming soon — connect manually below for now:")}
               </div>
             </>
           ) : cloud?.signed_in ? (
@@ -743,7 +752,7 @@ export function ConnectSetup({
             <CloudStatusPending />
           )}
           {!c.managed_paused && cloud?.signed_in && (
-            <div className="text-[11.5px] text-faint">or connect manually:</div>
+            <div className="text-[11.5px] text-faint">{t("or connect manually:")}</div>
           )}
         </div>
       )}
@@ -758,7 +767,7 @@ export function ConnectSetup({
         <label className="conn-field" key={f.key}>
           <span className="conn-field-label">
             {f.label}
-            {!f.required && <em> (optional)</em>}
+            {!f.required && <em> {t("(optional)")}</em>}
           </span>
           <input
             type={f.secret ? "password" : "text"}

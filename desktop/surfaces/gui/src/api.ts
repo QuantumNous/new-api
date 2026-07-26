@@ -282,6 +282,110 @@ export async function signoutMcp(name: string): Promise<{ ok: boolean }> {
   return res.json();
 }
 
+// -- skills (SKILL.md instruction packs) --------------------------------------
+export interface SkillInfo {
+  name: string;
+  description: string;
+  source: "builtin" | "global" | "workspace" | string;
+  path?: string;
+  enabled: boolean;
+  overrides?: string | null;
+}
+
+export interface SkillDetail {
+  ok: boolean;
+  error?: string;
+  name?: string;
+  description?: string;
+  instructions?: string;
+  source?: string;
+  path?: string;
+  enabled?: boolean;
+  resources: string[];
+}
+
+export interface RecommendedSkill {
+  name: string;
+  title: string;
+  description: string;
+  url: string;
+  subdir: string;
+  license: string;
+  installed: boolean;
+}
+
+export interface MarketSkill {
+  id: string;
+  name: string;
+  skill_id: string;
+  source: string;
+  installs: number;
+}
+
+export async function getSkills(workspace?: string): Promise<SkillInfo[]> {
+  const q = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
+  const res = await fetch(`${httpBase()}/v1/skills${q}`);
+  return (await res.json()).skills ?? [];
+}
+
+export async function getSkillDetail(name: string, workspace?: string): Promise<SkillDetail> {
+  const q = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
+  const res = await fetch(`${httpBase()}/v1/skills/${encodeURIComponent(name)}${q}`);
+  const d = await res.json();
+  return { resources: [], ...d };
+}
+
+export async function getRecommendedSkills(workspace?: string): Promise<RecommendedSkill[]> {
+  const q = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
+  const res = await fetch(`${httpBase()}/v1/skills/recommended${q}`);
+  return (await res.json()).skills ?? [];
+}
+
+export async function searchSkillsMarket(
+  q: string,
+  limit = 10,
+): Promise<{ ok: boolean; error?: string; skills: MarketSkill[] }> {
+  const res = await fetch(
+    `${httpBase()}/v1/skills/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+  );
+  return res.json();
+}
+
+export async function installSkill(body: {
+  source: "path" | "git" | "market";
+  path?: string;
+  url?: string;
+  subdir?: string;
+  id?: string;
+  overwrite?: boolean;
+}): Promise<{ ok: boolean; error?: string; name?: string; has_scripts?: boolean }> {
+  const res = await fetch(`${httpBase()}/v1/skills/install`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+export async function setSkillEnabled(
+  name: string,
+  enabled: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${httpBase()}/v1/skills/${encodeURIComponent(name)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  });
+  return res.json();
+}
+
+export async function deleteSkill(name: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${httpBase()}/v1/skills/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+  return res.json();
+}
+
 // -- connectors ---------------------------------------------------------------
 export interface ConnectorField {
   key: string;

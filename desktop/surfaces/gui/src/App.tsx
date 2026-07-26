@@ -54,6 +54,7 @@ import { InboxView } from "./components/InboxView";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
 import { PlanCard } from "./components/PlanCard";
+import { useTranslation } from "react-i18next";
 
 const newId = () =>
   (crypto as any).randomUUID ? crypto.randomUUID().slice(0, 12) : Math.random().toString(36).slice(2, 14);
@@ -142,6 +143,7 @@ function fallbackWorkspace(current: string | null, projects: RecentWorkspace[]):
 }
 
 export function App() {
+  const { t } = useTranslation();
   const [workspace, setWorkspace] = useState<string | null>(null);
   const [branch, setBranch] = useState<string | null>(null);
   const [showGate, setShowGate] = useState(false);
@@ -1087,7 +1089,7 @@ export function App() {
   // Curated labels read "Claude Opus 4.8 · Anthropic" — the provider suffix is dropdown context,
   // noise in a facts line. Fall back to the raw id without its provider prefix.
   const modelDisplay =
-    modelLabels[model]?.split(" · ")[0] ||
+    modelLabels[model]?.split("·")[0] ||
     (model.includes(":") ? model.split(":").slice(1).join(":") : model);
   // Persona name dropped for this release (owner ask 2026-07-22): personas are hidden,
   // so "Coworker" read as noise. The model (+ project folder) are the real fixed facts.
@@ -1118,7 +1120,7 @@ export function App() {
         {overlay && (
           <div className="titlebar-drag" data-tauri-drag-region>
             <span className="titlebar-brand brand-wordmark">
-              <Icon name="logo" size={13} className="mark" /> BoxAI Desktop<span className="beta-tag">BETA</span>
+              <Icon name="logo" size={13} className="mark" /> {t("BoxAI Desktop")}<span className="beta-tag">{t("BETA")}</span>
             </span>
           </div>
         )}
@@ -1134,7 +1136,7 @@ export function App() {
         </div>
         <div className="boot-text">
           {resumedExisting ? "Restoring your session…" : "Starting BoxAI Desktop…"}
-          <span className="beta-tag">BETA</span>
+          <span className="beta-tag">{t("BETA")}</span>
         </div>
       </div>
     );
@@ -1166,7 +1168,7 @@ export function App() {
         >
           <div className="flex items-center gap-2 text-[12.5px] font-semibold">
             <span className="w-[7px] h-[7px] rounded-full bg-faint toast-pulse" />
-            Automation started
+            {t("Automation started")}
           </div>
           <div className="text-[12.5px] text-muted mt-0.5 ml-[15px] truncate">
             {runToast.title} · {runToast.time} run
@@ -1180,12 +1182,12 @@ export function App() {
                 setRunToast(null);
               }}
             >
-              View run ›
+              {t("View run ›")}
             </button>
             <button
               className="text-[12px] text-faint px-0.5"
               data-testid="toast-dismiss"
-              title="Dismiss"
+              title={t("Dismiss")}
               onClick={() => setRunToast(null)}
             >
               ✕
@@ -1212,8 +1214,8 @@ export function App() {
           className="nav-reveal-btn"
           onClick={toggleNav}
           onMouseEnter={() => setNavPeek(true)}
-          title="Show sidebar (⌘B)"
-          aria-label="Show sidebar"
+          title={t("Show sidebar (⌘B)")}
+          aria-label={t("Show sidebar")}
         >
           <Icon name="sidebar" size={16} />
         </button>
@@ -1317,24 +1319,24 @@ export function App() {
                 <button
                   className="topbar-icon-btn"
                   onClick={toggleNav}
-                  aria-label="Show sidebar"
-                  title="Show sidebar (⌘B)"
+                  aria-label={t("Show sidebar")}
+                  title={t("Show sidebar (⌘B)")}
                 >
                   <Icon name="sidebar" size={16} />
                 </button>
                 <button
                   className="topbar-icon-btn"
                   onClick={() => startNewSession()}
-                  aria-label="New session"
-                  title="New session"
+                  aria-label={t("New session")}
+                  title={t("New session")}
                 >
                   <Icon name="plus" size={16} />
                 </button>
                 <button
                   className="topbar-icon-btn"
                   onClick={() => setSearchOpen(true)}
-                  aria-label="Search"
-                  title="Search"
+                  aria-label={t("Search")}
+                  title={t("Search")}
                 >
                   <Icon name="search" size={16} />
                 </button>
@@ -1370,10 +1372,10 @@ export function App() {
                 className="topbar-artifacts-btn"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => setRailHidden(false)}
-                title="Show files this conversation produced"
+                title={t("Show files this conversation produced")}
               >
                 <Icon name="file" size={14} />
-                <span>Artifacts</span>
+                <span>{t("Artifacts")}</span>
                 <span className="topbar-artifacts-count">{artifactCount}</span>
               </button>
             )}
@@ -1405,14 +1407,14 @@ export function App() {
               >
                 <Icon name="clock" size={14} className="text-accent shrink-0" />
                 <span className="truncate text-muted">
-                  Scheduled run
+                  {t("Scheduled run")}
                   {runContext?.title ? (
                     <>
                       {" — "}
                       <span className="text-ink font-medium">{runContext.title}</span>
                     </>
                   ) : null}{" "}
-                  · started by an automation
+                  {t("· started by an automation")}
                 </span>
                 <button
                   className="ml-auto shrink-0 text-accent font-medium hover:underline"
@@ -1421,7 +1423,7 @@ export function App() {
                     setSurface("scheduled");
                   }}
                 >
-                  ← Back to runs
+                  {t("← Back to runs")}
                 </button>
               </div>
             )}
@@ -1441,7 +1443,7 @@ export function App() {
                     </h1>
                     {needsWorkspace(agent) && (
                       <div className="suggestions">
-                        <div className="suggest-head">Try a task</div>
+                        <div className="suggest-head">{t("Try a task")}</div>
                         {SUGGESTIONS.map((s, i) => (
                           <div className="suggest" key={i} onClick={() => workspace && send(s.text)}>
                             <span className="ico">{s.ico}</span>
@@ -1500,7 +1502,7 @@ export function App() {
                   onClick={followLatest}
                 >
                   <Icon name="chevronDown" size={13} />
-                  Jump to latest
+                  {t("Jump to latest")}
                 </button>
               </div>
             )}
@@ -1631,11 +1633,12 @@ function lastItemIsAssistant(items: Item[]): boolean {
 }
 
 function WaitingForAgent() {
+  const { t } = useTranslation();
   return (
     <div className="waiting-transcript">
       <div className="waiting-row" aria-live="polite">
         <span className="waiting-spinner" />
-        <span>Waiting for agent...</span>
+        <span>{t("Waiting for agent...")}</span>
       </div>
     </div>
   );

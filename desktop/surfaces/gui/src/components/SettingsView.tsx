@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { SUPPORTED_LANGUAGES, setLanguage } from "../i18n";
 import {
   getSettings,
   setOnboarded,
@@ -55,13 +57,6 @@ const BTN_ACCENT = "text-[12.5px] px-3 py-2 rounded-lg bg-accent text-white shri
 const BTN_BORDERED =
   "text-[12.5px] px-3 py-2 rounded-lg border border-line bg-paper hover:border-lineStrong shrink-0";
 
-const SET_TABS: { key: SetTab; label: string; icon: "sliders" | "code" | "mic" | "sparkle" }[] = [
-  { key: "appearance", label: "General", icon: "sliders" },
-  { key: "models", label: "Models", icon: "code" },
-  { key: "voice", label: "Voice input", icon: "mic" },
-  { key: "personas", label: "Personas", icon: "sparkle" },
-];
-
 export function SettingsView({
   initialTab,
   onOpenPersona,
@@ -69,11 +64,18 @@ export function SettingsView({
   initialTab?: SetTab;
   onOpenPersona?: (id: string) => void;
 }) {
+  const { t } = useTranslation();
+  const setTabs: { key: SetTab; label: string; icon: "sliders" | "code" | "mic" | "sparkle" }[] = [
+    { key: "appearance", label: t("General"), icon: "sliders" },
+    { key: "models", label: t("Models"), icon: "code" },
+    { key: "voice", label: t("Voice input"), icon: "mic" },
+    { key: "personas", label: t("Personas"), icon: "sparkle" },
+  ];
   // Personas is flag-gated (hidden for launch) — filter the tab AND coerce a stale
   // deep-link to it (openSettings("personas") callers) so the page never opens on a
   // section with no nav entry.
   const personas = showPersonas();
-  const tabs = personas ? SET_TABS : SET_TABS.filter((t) => t.key !== "personas");
+  const tabs = personas ? setTabs : setTabs.filter((tab) => tab.key !== "personas");
   const wanted = initialTab && (personas || initialTab !== "personas") ? initialTab : "appearance";
   const [tab, setTab] = useState<SetTab>(wanted);
 
@@ -81,20 +83,20 @@ export function SettingsView({
     <main className="flex-1 min-w-0 flex bg-paper">
       <nav className="page-subnav w-[208px] shrink-0 border-r border-line bg-panel/40 px-3 py-4">
         <div className="px-2 text-[13.5px] font-semibold mb-3 flex items-center gap-2">
-          <Icon name="gear" size={16} /> Settings
+          <Icon name="gear" size={16} /> {t("Settings")}
         </div>
-        {tabs.map((t) => {
-          const active = tab === t.key;
+        {tabs.map((item) => {
+          const active = tab === item.key;
           return (
             <button
-              key={t.key}
+              key={item.key}
               className={
                 "w-full text-left px-2.5 py-2 rounded-lg text-[13px] flex items-center gap-2 " +
                 (active ? "bg-paper text-accent font-medium" : "text-muted hover:bg-paper hover:text-ink")
               }
-              onClick={() => setTab(t.key)}
+              onClick={() => setTab(item.key)}
             >
-              <Icon name={t.icon} size={15} /> {t.label}
+              <Icon name={item.icon} size={15} /> {item.label}
             </button>
           );
         })}
@@ -107,7 +109,7 @@ export function SettingsView({
           ) : tab === "models" ? (
             <section>
               <PanelHead
-                title="Models"
+                title={t("Models")}
                 sub="Providers and the models offered in the composer's picker. Keys are stored only on this computer."
               />
               <ModelsTab />
@@ -138,6 +140,7 @@ const formatBytes = (bytes: number) => {
 };
 
 function VoiceInputSection() {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<DictationStatus | null>(null);
   const [progress, setProgress] = useState<DictationDownloadProgress | null>(null);
   const [phase, setPhase] = useState<"idle" | "downloading" | "verifying" | "testing" | "transcribing">("idle");
@@ -255,23 +258,23 @@ function VoiceInputSection() {
   return (
     <section>
       <PanelHead
-        title="Voice input"
+        title={t("Voice input")}
         sub="Speak naturally in the composer. Recordings and transcripts stay on this device."
       />
 
       {!desktop ? (
-        <div className={CARD + " p-4 text-[13px] text-muted"}>Voice Input setup is available in BoxAI Desktop.</div>
+        <div className={CARD + " p-4 text-[13px] text-muted"}>{t("Voice Input setup is available in BoxAI Desktop.")}</div>
       ) : (
         <div className="space-y-4">
           <div className="rounded-xl border border-green-200 bg-green-50/70 px-4 py-3 text-[12.5px] text-green-800">
-            <span className="font-medium">Private by design.</span> Audio is held in memory only while you record and is transcribed locally.
+            <span className="font-medium">{t("Private by design.")}</span> {t("Audio is held in memory only while you record and is transcribed locally.")}
           </div>
 
           <div className={CARD}>
             <div className="p-4 flex items-start gap-3">
               <Icon name="code" size={18} className="text-accent mt-0.5" />
               <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-medium">This device</div>
+                <div className="text-[13.5px] font-medium">{t("This device")}</div>
                 <div className="text-[12px] text-muted mt-1">{status?.device_summary || "Checking compatibility…"}</div>
                 {status?.compatibility_reason && <div className="text-[12px] text-red-600 mt-1.5">{status.compatibility_reason}</div>}
               </div>
@@ -282,10 +285,10 @@ function VoiceInputSection() {
               )}
             </div>
             <div className="border-t border-line bg-paper/50 px-4 py-3 grid grid-cols-2 gap-3 text-[12px] text-muted">
-              <div><span className="block text-ink font-medium">Mac</span>macOS 12+ · Apple Silicon M1+</div>
-              <div><span className="block text-ink font-medium">Windows</span>Windows 10 22H2/11 · x64</div>
-              <div><span className="block text-ink font-medium">Memory</span>8 GB recommended</div>
-              <div><span className="block text-ink font-medium">Processor</span>4 CPU cores recommended</div>
+              <div><span className="block text-ink font-medium">{t("Mac")}</span>{t("macOS 12+ · Apple Silicon M1+")}</div>
+              <div><span className="block text-ink font-medium">{t("Windows")}</span>{t("Windows 10 22H2/11 · x64")}</div>
+              <div><span className="block text-ink font-medium">{t("Memory")}</span>{t("8 GB recommended")}</div>
+              <div><span className="block text-ink font-medium">{t("Processor")}</span>{t("4 CPU cores recommended")}</div>
             </div>
           </div>
 
@@ -293,23 +296,23 @@ function VoiceInputSection() {
             <div className="p-4 flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-accentSoft text-accent grid place-items-center font-semibold">W</div>
               <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-medium">Whisper Base · English</div>
+                <div className="text-[13.5px] font-medium">{t("Whisper Base · English")}</div>
                 <div className="text-[12px] text-muted mt-0.5">
                   {status?.model_verified ? `Installed and verified · ${formatBytes(status.model_bytes)}` : `Local voice model · ${formatBytes(status?.model_bytes || 147_964_211)}`}
                 </div>
               </div>
               {status?.model_verified ? (
                 <>
-                  <span className="text-[11.5px] px-2 py-1 rounded-full bg-green-50 text-green-700">Verified</span>
-                  <button className={BTN_BORDERED} onClick={() => void repair()}>Repair</button>
-                  <button className="text-[12px] text-red-600 px-2 py-2" onClick={() => void remove()}>Delete</button>
+                  <span className="text-[11.5px] px-2 py-1 rounded-full bg-green-50 text-green-700">{t("Verified")}</span>
+                  <button className={BTN_BORDERED} onClick={() => void repair()}>{t("Repair")}</button>
+                  <button className="text-[12px] text-red-600 px-2 py-2" onClick={() => void remove()}>{t("Delete")}</button>
                 </>
               ) : downloading ? (
-                <button className={BTN_BORDERED} onClick={() => void cancelDownload()}>Cancel</button>
+                <button className={BTN_BORDERED} onClick={() => void cancelDownload()}>{t("Cancel")}</button>
               ) : phase === "verifying" ? (
-                <span className="text-[12px] text-muted">Verifying…</span>
+                <span className="text-[12px] text-muted">{t("Verifying…")}</span>
               ) : (
-                <button className={BTN_ACCENT} disabled={!status?.supported} onClick={() => void download()}>Download model</button>
+                <button className={BTN_ACCENT} disabled={!status?.supported} onClick={() => void download()}>{t("Download model")}</button>
               )}
             </div>
             {downloading && (
@@ -324,17 +327,17 @@ function VoiceInputSection() {
             <div className="p-4 flex items-center gap-3">
               <Icon name="mic" size={18} className={ready ? "text-green-600" : "text-muted"} />
               <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-medium">Microphone test</div>
+                <div className="text-[13.5px] font-medium">{t("Microphone test")}</div>
                 <div className="text-[12px] text-muted mt-0.5">
                   {ready ? "Your microphone and local transcription engine are working." : "Record a short phrase to enable the composer microphone."}
                 </div>
               </div>
-              {ready && <span className="text-[11.5px] px-2 py-1 rounded-full bg-green-50 text-green-700">● Ready</span>}
+              {ready && <span className="text-[11.5px] px-2 py-1 rounded-full bg-green-50 text-green-700">{t("● Ready")}</span>}
               <button className={BTN_BORDERED} disabled={!status?.supported || !status?.model_verified || phase === "transcribing"} onClick={() => void toggleTest()}>
                 {status?.recording ? "Stop and check" : phase === "transcribing" ? "Transcribing…" : ready ? "Test again" : "Test microphone"}
               </button>
             </div>
-            {status?.recording && <div className="border-t border-line px-4 py-3 text-[12px] text-accent" role="status">● Listening… speak a short phrase, then stop.</div>}
+            {status?.recording && <div className="border-t border-line px-4 py-3 text-[12px] text-accent" role="status">{t("● Listening… speak a short phrase, then stop.")}</div>}
             {testTranscript && <div className="border-t border-line bg-paper/50 px-4 py-3 text-[13px]">“{testTranscript}”</div>}
           </div>
 
@@ -349,13 +352,14 @@ function VoiceInputSection() {
 // entry point to the Persona Gallery (a screen-sized modal — installs finish back
 // here, disabled pending consent; a gallery install re-mounts the list in place).
 function PersonasSection({ onOpenPersona }: { onOpenPersona?: (id: string) => void }) {
+  const { t } = useTranslation();
   const [galleryBump, setGalleryBump] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
 
   return (
     <section>
       <PanelHead
-        title="Personas"
+        title={t("Personas")}
         sub="Which coworkers are enabled and shown in the picker, plus installing new persona bundles."
       />
       <PersonasTab key={galleryBump} onOpenPersona={onOpenPersona} />
@@ -366,12 +370,12 @@ function PersonasSection({ onOpenPersona }: { onOpenPersona?: (id: string) => vo
       >
         <Icon name="sparkle" size={16} className="text-accent shrink-0" />
         <span className="min-w-0 flex-1">
-          <span className="block text-[13.5px] font-medium">Browse the Persona Gallery</span>
+          <span className="block text-[13.5px] font-medium">{t("Browse the Persona Gallery")}</span>
           <span className="block text-[12px] text-muted">
-            Curated coworkers from the BoxAI team — see what each can do before installing.
+            {t("Curated coworkers from the BoxAI team — see what each can do before installing.")}
           </span>
         </span>
-        <span className="text-[12.5px] text-accent shrink-0">Open →</span>
+        <span className="text-[12.5px] text-accent shrink-0">{t("Open →")}</span>
       </button>
       {galleryOpen && (
         <GalleryModal
@@ -385,6 +389,7 @@ function PersonasSection({ onOpenPersona }: { onOpenPersona?: (id: string) => vo
 
 // -- Appearance + app behaviour ------------------------------------------------
 function AppearanceSection() {
+  const { t } = useTranslation();
   const [theme, setTheme] = useThemePref();
   const [autostart, setAuto] = useState(false);
   const [keepAwake, setKeep] = useState(false);
@@ -406,19 +411,21 @@ function AppearanceSection() {
 
   return (
     <section>
-      <PanelHead title="General" sub="How BoxAI Desktop looks and behaves on this machine." />
+      <PanelHead title={t("General")} sub={t("How BoxAI Desktop looks and behaves on this machine.")} />
 
       <div className={CARD + " p-4 mb-4"}>
-        <div className={FIELD_LABEL}>Theme</div>
-        <div className="seg mt-2.5" role="radiogroup" aria-label="Appearance">
+        <div className={FIELD_LABEL}>{t("Theme")}</div>
+        <div className="seg mt-2.5" role="radiogroup" aria-label={t("Appearance")}>
           {(["light", "dark", "auto"] as const).map((p) => (
             <button key={p} className={p === theme ? "active" : ""} onClick={() => setTheme(p)}>
-              {p === "light" ? "Light" : p === "dark" ? "Dark" : "Auto"}
+              {p === "light" ? t("Light") : p === "dark" ? t("Dark") : t("Auto")}
             </button>
           ))}
         </div>
-        <div className={FIELD_HELP}>Auto follows your Mac&rsquo;s appearance.</div>
+        <div className={FIELD_HELP}>{t("Auto follows your Mac's appearance.")}</div>
       </div>
+
+      <LanguageCard />
 
       <SidebarCard />
 
@@ -426,19 +433,19 @@ function AppearanceSection() {
 
       {desktop && (
         <div className={CARD + " p-4"}>
-          <div className={FIELD_LABEL + " mb-2.5"}>Always-on</div>
+          <div className={FIELD_LABEL + " mb-2.5"}>{t("Always-on")}</div>
           <label className="flex items-start gap-3 py-2">
             <input type="checkbox" className="mt-0.5" checked={autostart} onChange={(e) => toggleAuto(e.target.checked)} />
             <span>
-              <span className="block text-[13px] text-ink">Open at login</span>
-              <span className="block text-[12px] text-muted">Launch BoxAI Desktop automatically when you sign in.</span>
+              <span className="block text-[13px] text-ink">{t("Open at login")}</span>
+              <span className="block text-[12px] text-muted">{t("Launch BoxAI Desktop automatically when you sign in.")}</span>
             </span>
           </label>
           <label className="flex items-start gap-3 py-2">
             <input type="checkbox" className="mt-0.5" checked={keepAwake} onChange={(e) => toggleKeep(e.target.checked)} />
             <span>
-              <span className="block text-[13px] text-ink">Keep this system awake</span>
-              <span className="block text-[12px] text-muted">Prevent idle sleep so scheduled tasks fire on time.</span>
+              <span className="block text-[13px] text-ink">{t("Keep this system awake")}</span>
+              <span className="block text-[12px] text-muted">{t("Prevent idle sleep so scheduled tasks fire on time.")}</span>
             </span>
           </label>
         </div>
@@ -448,20 +455,43 @@ function AppearanceSection() {
           every build, the browser dev shell runs the same first-run flow) and, on
           desktop, the manual update check (launch also checks automatically). */}
       <div className={CARD + " p-4 mt-4"}>
-        <div className={FIELD_LABEL + " mb-2"}>Setup &amp; updates</div>
+        <div className={FIELD_LABEL + " mb-2"}>{t("Setup & updates")}</div>
         <div className="flex items-center gap-2">
           <button className={BTN_BORDERED} onClick={runSetupAgain}>
-            Run setup again
+            {t("Run setup again")}
           </button>
           {desktop && <UpdateInline />}
         </div>
-        <div className={FIELD_HELP}>Replays the first-run setup: model, first automation, tips.</div>
+        <div className={FIELD_HELP}>{t("Replays the first-run setup: model, first automation, tips.")}</div>
       </div>
     </section>
   );
 }
 
+function LanguageCard() {
+  const { t, i18n } = useTranslation();
+  const current = (i18n.resolvedLanguage || i18n.language || "en").split("-")[0];
+  return (
+    <div className={CARD + " p-4 mb-4"}>
+      <div className={FIELD_LABEL}>{t("Language")}</div>
+      <div className="seg mt-2.5" role="radiogroup" aria-label={t("Language")}>
+        {SUPPORTED_LANGUAGES.map((lang) => (
+          <button
+            key={lang.code}
+            className={lang.code === current ? "active" : ""}
+            onClick={() => setLanguage(lang.code)}
+          >
+            {lang.label}
+          </button>
+        ))}
+      </div>
+      <div className={FIELD_HELP}>{t("Follows your system language until you pick one here.")}</div>
+    </div>
+  );
+}
+
 function UpdateInline() {
+  const { t } = useTranslation();
   const [state, setState] = useState<"idle" | "checking" | "none" | "found" | "installing" | "error">("idle");
   const [version, setVersion] = useState("");
 
@@ -493,7 +523,7 @@ function UpdateInline() {
     <span className="inline-flex items-center gap-2.5">
       {state === "found" ? (
         <button className={BTN_BORDERED} onClick={install} data-testid="settings-update-install">
-          Update to v{version} and restart
+          {t("Update to v")}{version} {t("and restart")}
         </button>
       ) : (
         <button
@@ -528,6 +558,7 @@ function UpdateInline() {
 // then this card is the user's dial: attach thresholds + the fallback for models
 // without native PDF support.
 function TokenSavingsCard() {
+  const { t } = useTranslation();
   const [pdf, setPdf] = useState<PdfSettings | null>(null);
 
   useEffect(() => {
@@ -550,36 +581,33 @@ function TokenSavingsCard() {
   if (!pdf) return null;
   return (
     <div className={CARD + " p-4 mb-4"} data-testid="token-savings-card">
-      <div className={FIELD_LABEL}>Token savings</div>
+      <div className={FIELD_LABEL}>{t("Token savings")}</div>
       <div className={FIELD_HELP}>
-        PDF attachments travel with every turn of a conversation, so large documents multiply
-        what you spend on tokens.
+        {t("PDF attachments travel with every turn of a conversation, so large documents multiply what you spend on tokens.")}
       </div>
 
-      <div className="mt-3 text-[13px] text-ink">PDFs on models without native PDF support</div>
-      <div className="seg mt-2" role="radiogroup" aria-label="PDF fallback" data-testid="pdf-fallback">
+      <div className="mt-3 text-[13px] text-ink">{t("PDFs on models without native PDF support")}</div>
+      <div className="seg mt-2" role="radiogroup" aria-label={t("PDF fallback")} data-testid="pdf-fallback">
         <button
           className={pdf.pdf_fallback === "text" ? "active" : ""}
           onClick={() => save({ pdf_fallback: "text" })}
         >
-          Extract text
+          {t("Extract text")}
         </button>
         <button
           className={pdf.pdf_fallback === "images" ? "active" : ""}
           onClick={() => save({ pdf_fallback: "images" })}
         >
-          Send page images
+          {t("Send page images")}
         </button>
       </div>
       <div className={FIELD_HELP}>
-        Claude, GPT and Gemini read PDFs natively — this only applies to models that
-        don&rsquo;t (GLM, Kimi, DeepSeek, local models…). Text extraction is cheapest; page
-        images cost more tokens and need a vision-capable model.
+        {t("Claude, GPT and Gemini read PDFs natively — this only applies to models that don't (GLM, Kimi, DeepSeek, local models…). Text extraction is cheapest; page images cost more tokens and need a vision-capable model.")}
       </div>
 
       <div className="mt-3 flex items-center gap-5">
         <label className="flex items-center gap-2.5">
-          <span className="text-[13px] text-ink">Max pages</span>
+          <span className="text-[13px] text-ink">{t("Max pages")}</span>
           <input
             type="number"
             min={1}
@@ -591,7 +619,7 @@ function TokenSavingsCard() {
           />
         </label>
         <label className="flex items-center gap-2.5">
-          <span className="text-[13px] text-ink">Max size</span>
+          <span className="text-[13px] text-ink">{t("Max size")}</span>
           <input
             type="number"
             min={1}
@@ -601,18 +629,18 @@ function TokenSavingsCard() {
             className="w-16 px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
             onChange={(e) => save({ pdf_max_mb: Math.max(1, Math.min(Number(e.target.value) || 10, 10)) })}
           />
-          <span className="text-[12.5px] text-muted">MB</span>
+          <span className="text-[12.5px] text-muted">{t("MB")}</span>
         </label>
       </div>
       <div className={FIELD_HELP}>
-        PDFs over these limits are not attached — you&rsquo;ll see a notice in the composer
-        instead.
+        {t("PDFs over these limits are not attached — you'll see a notice in the composer instead.")}
       </div>
     </div>
   );
 }
 
 function SidebarCard() {
+  const { t } = useTranslation();
   const [peek, setPeek] = useState<number | null>(null);
 
   useEffect(() => {
@@ -630,9 +658,9 @@ function SidebarCard() {
   if (peek === null) return null;
   return (
     <div className={CARD + " p-4 mb-4"}>
-      <div className={FIELD_LABEL}>Sidebar</div>
+      <div className={FIELD_LABEL}>{t("Sidebar")}</div>
       <label className="flex items-center gap-3 mt-2.5">
-        <span className="text-[13px] text-ink">Conversations shown per coworker</span>
+        <span className="text-[13px] text-ink">{t("Conversations shown per coworker")}</span>
         <input
           type="number"
           min={1}
@@ -643,7 +671,7 @@ function SidebarCard() {
         />
       </label>
       <div className={FIELD_HELP}>
-        Longer lists collapse behind &ldquo;Show more&rdquo;. Applies per coworker and per project.
+        {t("Longer lists collapse behind “Show more”. Applies per coworker and per project.")}
       </div>
     </div>
   );
@@ -652,6 +680,7 @@ function SidebarCard() {
 // -- Files (scratch location) — one card inside General (UX-021: a single option
 // doesn't earn its own tab) -----------------------------------------------------
 function FilesCard() {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<ModelSettings | null>(null);
   const [scratchDraft, setScratchDraft] = useState("");
   const [scratchMsg, setScratchMsg] = useState<string | null>(null);
@@ -687,12 +716,12 @@ function FilesCard() {
 
   return (
     <div className={CARD + " p-4 mb-4"}>
-      <div className={FIELD_LABEL}>Files</div>
+      <div className={FIELD_LABEL}>{t("Files")}</div>
         <div className="flex items-center gap-2 mt-2.5">
           <input
             className={INPUT}
             type="text"
-            placeholder="~/OpenWorker"
+            placeholder={t("~/OpenWorker")}
             value={scratchDraft}
             spellCheck={false}
             autoComplete="off"
@@ -700,17 +729,16 @@ function FilesCard() {
             onKeyDown={(e) => e.key === "Enter" && saveScratch()}
           />
           {desktop && (
-            <button className={BTN_BORDERED} onClick={browseScratch} title="Pick a folder">
-              Browse
+            <button className={BTN_BORDERED} onClick={browseScratch} title={t("Pick a folder")}>
+              {t("Browse")}
             </button>
           )}
           <button className={BTN_ACCENT} onClick={saveScratch} disabled={!scratchDraft.trim()}>
-            Save
+            {t("Save")}
           </button>
         </div>
       <div className={FIELD_HELP}>
-        Each conversation gets its own folder under this location. Existing conversations keep their current
-        folder; you can grant access to more folders inside any conversation.
+        {t("Each conversation gets its own folder under this location. Existing conversations keep their current folder; you can grant access to more folders inside any conversation.")}
       </div>
       {scratchMsg && <div className="text-[12.5px] text-muted mt-2.5">{scratchMsg}</div>}
     </div>
