@@ -6,231 +6,187 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import {
+  ArrowDownToLine,
+  CheckCircle2,
+  FileOutput,
+  Files,
+  Link2,
+  LockKeyhole,
+  ShieldCheck,
+  SquareTerminal,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
-import { Dialog } from '@/components/dialog'
-import {
-  CardStaggerContainer,
-  CardStaggerItem,
-  PageTransition,
-} from '@/components/page-transition'
+import { PageTransition } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { useStatus } from '@/hooks/use-status'
 
-import { listPlaygroundAgents } from '../../api'
-import {
-  AGENT_CARDS,
-  type AgentCard,
-  mapApiAgentToCard,
-} from '../../lib/workbench/agents-data'
+type DesktopPlatform = 'macOS' | 'Windows' | 'Linux'
 
-type AgentsViewProps = {
-  onSelectAgent: (agent: AgentCard) => void
-  className?: string
+const FEATURES = [
+  {
+    title: 'Work with local files',
+    description:
+      'Read, organize, and transform files on your computer without uploading your whole workspace.',
+    icon: Files,
+  },
+  {
+    title: 'Use the shell',
+    description:
+      'Run commands and development tools locally, with clear visibility into every action.',
+    icon: SquareTerminal,
+  },
+  {
+    title: 'Create real deliverables',
+    description:
+      'Turn a request into documents, spreadsheets, presentations, code, and other ready-to-use outputs.',
+    icon: FileOutput,
+  },
+  {
+    title: 'Connect your tools',
+    description:
+      'Bring context from supported services into one focused workspace through secure connectors.',
+    icon: Link2,
+  },
+] as const
+
+function detectPlatform(): DesktopPlatform | null {
+  if (typeof navigator === 'undefined') return null
+  const platform = `${navigator.platform} ${navigator.userAgent}`.toLowerCase()
+  if (platform.includes('mac')) return 'macOS'
+  if (platform.includes('win')) return 'Windows'
+  if (platform.includes('linux')) return 'Linux'
+  return null
 }
 
-/**
- * Full-width Agents view rendered in the workspace center when the
- * toolbar's Agents tab is active.
- */
-export function AgentsView(props: AgentsViewProps) {
+export function AgentsView() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
-  const [dialog, setDialog] = useState<'skill' | 'canvas' | null>(null)
+  const { status, loading } = useStatus()
+  const platform = detectPlatform()
+  const downloadUrl = status?.desktop_download_url?.trim()
+  const minimumVersion = status?.desktop_min_version?.trim()
 
-  const apiAgents = useQuery({
-    queryKey: ['playground', 'agents'],
-    queryFn: listPlaygroundAgents,
-    staleTime: 60_000,
-  })
-  const agents = useMemo(() => {
-    if (apiAgents.data && apiAgents.data.length > 0) {
-      return apiAgents.data.map(mapApiAgentToCard)
-    }
-    return AGENT_CARDS
-  }, [apiAgents.data])
-
-  const runAgent = (agent: AgentCard) => {
-    const action = agent.action
-    if (action.type === 'route') {
-      void navigate({ to: action.to })
-      return
-    }
-    if (action.type === 'external') {
-      window.open(action.href, '_blank', 'noopener,noreferrer')
-      return
-    }
-    if (action.type === 'dialog') {
-      if (action.dialog === 'coming-soon') {
-        toast.info(t('Coming soon'))
-        return
-      }
-      setDialog(action.dialog)
-      return
-    }
-    if (action.type === 'modality') {
-      props.onSelectAgent(agent)
-    }
-  }
+  let downloadLabel = t('Download BoxAI Desktop')
+  if (platform) downloadLabel = t('Download for {{platform}}', { platform })
+  if (loading) downloadLabel = t('Checking download availability')
+  if (!loading && !downloadUrl) downloadLabel = t('Desktop app coming soon')
 
   return (
-    <div
-      className={cn(
-        'playground-discover-hero min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 md:p-8',
-        props.className
-      )}
-    >
-      <PageTransition className='mx-auto max-w-4xl space-y-6'>
-        <div>
-          <h1 className='text-foreground text-2xl font-semibold'>
-            {t('Agents')}
-          </h1>
-          <p className='text-muted-foreground mt-1 text-sm text-pretty'>
-            {t(
-              'Scene-ready workflows and API entry points. Pick an agent to jump into the matching model workspace.'
-            )}
-          </p>
-        </div>
-        <CardStaggerContainer className='grid gap-3 sm:grid-cols-2'>
-          {agents.map((agent) => (
-            <CardStaggerItem key={agent.id}>
-              <AgentCardButton agent={agent} onClick={() => runAgent(agent)} />
-            </CardStaggerItem>
-          ))}
-        </CardStaggerContainer>
-        <SkillLanding />
-      </PageTransition>
-      <AgentDialogs dialog={dialog} onClose={() => setDialog(null)} />
-    </div>
-  )
-}
+    <div className='playground-discover-hero min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-5 md:p-8'>
+      <PageTransition className='mx-auto max-w-5xl space-y-5 md:space-y-8'>
+        <section className='border-border bg-card relative overflow-hidden rounded-2xl border px-5 py-8 shadow-sm sm:px-8 sm:py-10 md:px-12 md:py-14'>
+          <div
+            aria-hidden='true'
+            className='from-primary/20 via-primary/5 absolute -top-32 -right-24 size-80 rounded-full bg-radial to-transparent blur-2xl'
+          />
+          <div className='relative max-w-3xl'>
+            <div className='bg-primary/10 text-primary mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium'>
+              <ShieldCheck className='size-3.5' aria-hidden='true' />
+              {t('BoxAI Desktop')}
+            </div>
+            <h1 className='text-foreground text-3xl font-semibold tracking-tight text-balance sm:text-4xl md:text-5xl'>
+              {t('An AI agent that works where your work lives')}
+            </h1>
+            <p className='text-muted-foreground mt-4 max-w-2xl text-sm leading-6 text-pretty sm:text-base sm:leading-7'>
+              {t(
+                'BoxAI Desktop combines powerful models with the files, tools, and services on your computer—so you can move from an idea to a finished deliverable.'
+              )}
+            </p>
+            <div className='mt-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center'>
+              {downloadUrl ? (
+                <Button
+                  size='lg'
+                  render={
+                    <a
+                      href={downloadUrl}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                    />
+                  }
+                >
+                  <ArrowDownToLine aria-hidden='true' />
+                  {downloadLabel}
+                </Button>
+              ) : (
+                <Button size='lg' disabled aria-disabled='true'>
+                  <ArrowDownToLine aria-hidden='true' />
+                  {downloadLabel}
+                </Button>
+              )}
+              <p className='text-muted-foreground text-xs'>
+                {minimumVersion
+                  ? t('Requires version {{version}} or later', {
+                      version: minimumVersion,
+                    })
+                  : t('Downloads will appear here when available')}
+              </p>
+            </div>
+          </div>
+        </section>
 
-function AgentCardButton(props: { agent: AgentCard; onClick: () => void }) {
-  const { t } = useTranslation()
-  const Icon = props.agent.icon
-  return (
-    <button
-      type='button'
-      onClick={props.onClick}
-      className={cn(
-        'border-border from-muted/50 to-muted/20 w-full rounded-xl border bg-gradient-to-br p-4 text-left outline-none transition-all',
-        'hover:border-primary/30 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-ring focus-visible:ring-2',
-        'motion-reduce:transition-none motion-reduce:hover:translate-y-0'
-      )}
-    >
-      <div className='flex items-start gap-2.5'>
-        <span
-          className={cn(
-            'ring-border flex size-9 shrink-0 items-center justify-center rounded-lg ring-1',
-            props.agent.accentClass
-          )}
-        >
-          <Icon className='size-4' aria-hidden='true' />
-        </span>
-        <span className='min-w-0'>
-          <span className='flex items-center gap-1.5'>
-            <span className='text-foreground truncate text-sm font-medium'>
-              {t(props.agent.titleKey)}
-            </span>
-            <span className='bg-muted/50 text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px]'>
-              {t(props.agent.categoryKey)}
-            </span>
-          </span>
-          <span className='text-muted-foreground mt-0.5 line-clamp-2 text-[11px]'>
-            {t(props.agent.descriptionKey)}
-          </span>
-        </span>
-      </div>
-    </button>
-  )
-}
-
-function SkillLanding() {
-  const { t } = useTranslation()
-  return (
-    <section className='border-border from-primary/15 via-chart-3/10 to-chart-4/15 rounded-2xl border bg-gradient-to-br p-5'>
-      <h2 className='text-foreground text-lg font-semibold'>
-        {t('Zero-friction API access')}
-      </h2>
-      <p className='text-muted-foreground mt-2 max-w-2xl text-sm text-pretty'>
-        {t(
-          'Use Box AI as a unified gateway for chat, image, video, and audio models. Create an API key, pick a model from pricing, and call the OpenAI-compatible endpoints.'
-        )}
-      </p>
-      <div className='mt-4 flex flex-wrap gap-2'>
-        <Button
-          size='sm'
-          className='bg-primary text-primary-foreground hover:bg-primary/90'
-          render={<Link to='/docs' />}
-        >
-          {t('Open API docs')}
-        </Button>
-        <Button
-          size='sm'
-          variant='outline'
-          className='border-border bg-muted/50 text-foreground hover:bg-muted'
-          render={<Link to='/pricing' />}
-        >
-          {t('Model pricing')}
-        </Button>
-      </div>
-    </section>
-  )
-}
-
-function AgentDialogs(props: {
-  dialog: 'skill' | 'canvas' | null
-  onClose: () => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <>
-      <Dialog
-        open={props.dialog === 'skill'}
-        onOpenChange={(open) => !open && props.onClose()}
-        title={t('Skill kit')}
-        description={t(
-          'Download a starter SKILL.md with base URL placeholders and playground endpoint map.'
-        )}
-        footer={
-          <>
-            <Button
-              variant='outline'
-              onClick={() => {
-                window.open(
-                  '/api/playground/skill.md',
-                  '_blank',
-                  'noopener,noreferrer'
-                )
-              }}
+        <section aria-labelledby='desktop-capabilities'>
+          <div className='mb-4'>
+            <h2
+              id='desktop-capabilities'
+              className='text-foreground text-xl font-semibold'
             >
-              {t('Download SKILL.md')}
-            </Button>
-            <Button onClick={props.onClose}>{t('Got it')}</Button>
-          </>
-        }
-      >
-        <ul className='text-muted-foreground list-disc space-y-1 pl-5 text-sm'>
-          <li>{t('OpenAI-compatible chat completions')}</li>
-          <li>{t('Image, video, and speech playground relays')}</li>
-          <li>{t('Group-based routing and billing')}</li>
-        </ul>
-      </Dialog>
-      <Dialog
-        open={props.dialog === 'canvas'}
-        onOpenChange={(open) => !open && props.onClose()}
-        title={t('Infinite canvas')}
-        description={t(
-          'A freeform multi-node canvas is on the roadmap. Use the Models tab for sequential generation today.'
-        )}
-        footer={<Button onClick={props.onClose}>{t('Got it')}</Button>}
-      >
-        <span />
-      </Dialog>
-    </>
+              {t('From conversation to completed work')}
+            </h2>
+            <p className='text-muted-foreground mt-1 text-sm'>
+              {t(
+                'Give BoxAI the context and tools it needs, while you stay in control.'
+              )}
+            </p>
+          </div>
+          <div className='grid gap-3 sm:grid-cols-2'>
+            {FEATURES.map((feature) => {
+              const Icon = feature.icon
+              return (
+                <article
+                  key={feature.title}
+                  className='border-border bg-card rounded-xl border p-5 shadow-xs'
+                >
+                  <div className='bg-muted text-foreground mb-4 flex size-10 items-center justify-center rounded-lg'>
+                    <Icon className='size-5' aria-hidden='true' />
+                  </div>
+                  <h3 className='text-foreground text-sm font-semibold'>
+                    {t(feature.title)}
+                  </h3>
+                  <p className='text-muted-foreground mt-1.5 text-sm leading-6'>
+                    {t(feature.description)}
+                  </p>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className='border-border bg-card grid overflow-hidden rounded-2xl border md:grid-cols-2'>
+          <div className='border-border p-5 sm:p-7 md:border-r'>
+            <CheckCircle2 className='text-success size-6' aria-hidden='true' />
+            <h2 className='text-foreground mt-4 text-lg font-semibold'>
+              {t('Approval stays with you')}
+            </h2>
+            <p className='text-muted-foreground mt-2 text-sm leading-6'>
+              {t(
+                'Review consequential actions before they run. BoxAI shows what it plans to do and waits for your approval when it matters.'
+              )}
+            </p>
+          </div>
+          <div className='p-5 sm:p-7'>
+            <LockKeyhole className='text-primary size-6' aria-hidden='true' />
+            <h2 className='text-foreground mt-4 text-lg font-semibold'>
+              {t('Local by design')}
+            </h2>
+            <p className='text-muted-foreground mt-2 text-sm leading-6'>
+              {t(
+                'Local tools run on your device. You choose the files and connectors BoxAI can access, and you can revoke access at any time.'
+              )}
+            </p>
+          </div>
+        </section>
+      </PageTransition>
+    </div>
   )
 }

@@ -29,6 +29,15 @@ export interface ApiResponse<T = unknown> {
   data?: T
 }
 
+export interface DesktopSession {
+  id: string
+  client_name: string
+  created_at: number
+  last_refreshed_at: number
+  expires_at: number
+  revoked_at: number
+}
+
 /**
  * User profile data
  */

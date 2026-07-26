@@ -30,6 +30,7 @@ import { toast } from 'sonner'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 import { api, getSelf } from '@/lib/api'
+import { normalizeReturnTarget } from '@/lib/normalize-return-target'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
@@ -60,19 +61,17 @@ function OAuthCallback() {
   useEffect(() => {
     ;(async () => {
       const safeNavigate = (target: string) => {
-        navigate({ to: target as never, replace: true })
+        const normalizedTarget = normalizeReturnTarget(target)
+        navigate({ to: normalizedTarget as never, replace: true })
         if (typeof window !== 'undefined') {
           setTimeout(() => {
-            const normalizedTarget = target.startsWith('/')
-              ? target
-              : `/${target}`
             const currentPath =
               window.location.pathname + window.location.search
             if (
               currentPath !== normalizedTarget &&
               currentPath !== `${normalizedTarget}/`
             ) {
-              window.location.replace(target)
+              window.location.replace(normalizedTarget)
             }
           }, 100)
         }
@@ -144,7 +143,7 @@ function OAuthCallback() {
       }
 
       const redirectAfterLogin = (target?: string) => {
-        const to = target || search?.redirect || '/dashboard'
+        const to = normalizeReturnTarget(target || search?.redirect)
         safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
       }

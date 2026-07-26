@@ -21,6 +21,7 @@ import i18n from 'i18next'
 
 import type { User } from '@/features/users/types'
 import { getSelf } from '@/lib/api'
+import { normalizeReturnTarget } from '@/lib/normalize-return-target'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { saveUserId } from '../lib/storage'
@@ -88,7 +89,7 @@ export function useAuthRedirect() {
     }
 
     // Navigate to target page
-    const targetPath = redirectTo || '/dashboard'
+    const targetPath = normalizeReturnTarget(redirectTo)
     navigate({ to: targetPath, replace: true })
   }
 

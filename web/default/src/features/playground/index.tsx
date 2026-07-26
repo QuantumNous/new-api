@@ -77,7 +77,6 @@ import {
 } from './lib/managed-tools'
 import { isPlaygroundImageModel } from './lib/studio/image-request-schema'
 import { getModelModality } from './lib/studio/model-modality'
-import type { AgentCard } from './lib/workbench/agents-data'
 import type { ChatAttachment, PlaygroundConfig, StudioModality } from './types'
 
 export function Playground() {
@@ -568,15 +567,6 @@ export function Playground() {
     ]
   )
 
-  const handleAgentSelect = useCallback(
-    (agent: AgentCard) => {
-      const action = agent.action
-      if (action.type !== 'modality') return
-      selectModelByModality(action.modality, action.prompt)
-    },
-    [selectModelByModality]
-  )
-
   const handleApplyPrompt = useCallback(
     (prompt: string, modality: StudioModality) => {
       selectModelByModality(modality, prompt)
@@ -681,7 +671,7 @@ export function Playground() {
         ) : undefined
       }
     >
-      {view === 'agents' && <AgentsView onSelectAgent={handleAgentSelect} />}
+      {view === 'agents' && <AgentsView />}
 
       {view === 'inspiration' && (
         <InspirationView

@@ -26,6 +26,7 @@ import type {
   DeleteAccountRequest,
   CheckinStatusResponse,
   CheckinResponse,
+  DesktopSession,
 } from './types'
 
 // ============================================================================
@@ -85,6 +86,20 @@ export async function deleteUserAccount(
  */
 export async function generateAccessToken(): Promise<ApiResponse<string>> {
   const res = await api.get('/api/user/token')
+  return res.data
+}
+
+export async function getDesktopSessions(): Promise<
+  ApiResponse<DesktopSession[]>
+> {
+  const res = await api.get('/api/desktop/sessions')
+  return res.data
+}
+
+export async function revokeDesktopSession(id: string): Promise<ApiResponse> {
+  const res = await api.delete(
+    `/api/desktop/sessions/${encodeURIComponent(id)}`
+  )
   return res.data
 }
 

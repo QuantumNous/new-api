@@ -52,7 +52,6 @@ export const API_ENDPOINTS = {
   CHAT_MULTI: '/api/playground/chat/multi',
   INSPIRATION_CATEGORIES: '/api/playground/inspiration/categories',
   INSPIRATION_TEMPLATES: '/api/playground/inspiration/templates',
-  AGENTS: '/api/playground/agents',
   SKILL: '/api/playground/skill',
   SKILL_MD: '/api/playground/skill.md',
   VOICES: '/api/playground/voices',

@@ -25,6 +25,7 @@ import { useStatus } from '@/hooks/use-status'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
+import { DesktopSessionsCard } from './components/desktop-sessions-card'
 import { LanguagePreferencesCard } from './components/language-preferences-card'
 import { PasskeyCard } from './components/passkey-card'
 import { ProfileHeader } from './components/profile-header'
@@ -78,6 +79,7 @@ export function Profile() {
                   />
                 )}
                 {canConfigureSidebar && <SidebarModulesCard />}
+                <DesktopSessionsCard />
                 <PasskeyCard loading={loading} />
                 <TwoFACard loading={loading} />
               </div>

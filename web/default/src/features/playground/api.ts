@@ -27,7 +27,6 @@ import type {
 } from './inspiration/types'
 import { parseRequestErrorDetails } from './lib/streaming/request-error-utils'
 import { buildImageGenerationRequestBody } from './lib/studio/image-request-schema'
-import type { ApiAgent } from './lib/workbench/agents-data'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -892,18 +891,6 @@ export async function setInspirationCollectionTemplate(
   await method(
     `/api/playground/inspiration/collections/${collectionId}/templates/${templateId}`
   )
-}
-
-export async function listPlaygroundAgents(): Promise<ApiAgent[]> {
-  try {
-    const res = await api.get(API_ENDPOINTS.AGENTS, {
-      skipErrorHandler: true,
-    } as Record<string, unknown>)
-    if (!res.data?.success) return []
-    return (res.data.data ?? []) as ApiAgent[]
-  } catch {
-    return []
-  }
 }
 
 // ---- Skill ----
