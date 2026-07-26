@@ -30,20 +30,20 @@ func (s StringValue) MarshalJSON() ([]byte, error) {
 type IntValue int
 
 func (i *IntValue) UnmarshalJSON(b []byte) error {
-	var n int
-	if err := json.Unmarshal(b, &n); err == nil {
-		*i = IntValue(n)
+	var f float64
+	if err := json.Unmarshal(b, &f); err == nil {
+		*i = IntValue(int(f))
 		return nil
 	}
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
 		return err
 	}
-	v, err := strconv.Atoi(s)
+	v, err := strconv.ParseFloat(s, 64)
 	if err != nil {
 		return err
 	}
-	*i = IntValue(v)
+	*i = IntValue(int(v))
 	return nil
 }
 
