@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
+import { JsonCodeEditor } from '@/components/json-code-editor'
 import {
   Form,
   FormControl,
@@ -34,7 +35,6 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 
 import {
   SettingsForm,
@@ -248,7 +248,16 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
               <FormItem>
                 <FormLabel>{t('Safety Settings')}</FormLabel>
                 <FormControl>
-                  <Textarea rows={8} {...field} />
+                  <JsonCodeEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    textareaRef={field.ref}
+                    aria-invalid={Boolean(
+                      form.formState.errors.gemini?.safety_settings
+                    )}
+                  />
                 </FormControl>
                 <FormDescription>
                   {t(
@@ -267,7 +276,16 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
               <FormItem>
                 <FormLabel>{t('Version Overrides')}</FormLabel>
                 <FormControl>
-                  <Textarea rows={8} {...field} />
+                  <JsonCodeEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    textareaRef={field.ref}
+                    aria-invalid={Boolean(
+                      form.formState.errors.gemini?.version_settings
+                    )}
+                  />
                 </FormControl>
                 <FormDescription>
                   {t(
@@ -286,10 +304,17 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
               <FormItem>
                 <FormLabel>{t('Supported Imagine Models')}</FormLabel>
                 <FormControl>
-                  <Textarea
-                    rows={6}
+                  <JsonCodeEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    textareaRef={field.ref}
                     placeholder={imaginePlaceholder}
-                    {...field}
+                    heightClassName='h-40 min-h-40 max-h-40'
+                    aria-invalid={Boolean(
+                      form.formState.errors.gemini?.supported_imagine_models
+                    )}
                   />
                 </FormControl>
                 <FormDescription>

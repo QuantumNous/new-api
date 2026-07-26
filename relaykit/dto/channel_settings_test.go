@@ -477,3 +477,45 @@ func TestAdvancedCustomSupportedEndpointTypesForModel(t *testing.T) {
 		types.EndpointTypeAnthropic,
 	}, config.SupportedEndpointTypesForModel("other-model"))
 }
+
+func TestAdvancedCustomValidateAlphaSearchConverterPath(t *testing.T) {
+	valid := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/alpha/search",
+				UpstreamPath: "/v1/alpha/search",
+				Converter:    advancedCustomConverterNone,
+			},
+		},
+	}
+	require.NoError(t, valid.Validate())
+	assert.Equal(t, []types.EndpointType{
+		types.EndpointTypeOpenAIAlphaSearch,
+	}, valid.SupportedEndpointTypesForModel("gpt-5.1"))
+
+	nonNoneConverters := []string{
+		advancedCustomConverterClaudeMessagesToOpenAIChat,
+		advancedCustomConverterOpenAIChatToClaudeMessages,
+		advancedCustomConverterOpenAIChatToOpenAIResponses,
+		advancedCustomConverterOpenAIResponsesToOpenAIChat,
+		advancedCustomConverterOpenAIResponsesToGemini,
+		advancedCustomConverterGeminiContentToOpenAIChat,
+		advancedCustomConverterOpenAIChatToGeminiContent,
+	}
+	for _, converter := range nonNoneConverters {
+		t.Run(converter, func(t *testing.T) {
+			config := &AdvancedCustomConfig{
+				Routes: []AdvancedCustomRoute{
+					{
+						IncomingPath: "/v1/alpha/search",
+						UpstreamPath: "/v1/alpha/search",
+						Converter:    converter,
+					},
+				},
+			}
+			err := config.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "converter does not match incoming_path")
+		})
+	}
+}

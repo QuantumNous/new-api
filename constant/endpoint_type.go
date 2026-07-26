@@ -10,6 +10,7 @@ const (
 	EndpointTypeOpenAI                = types.EndpointTypeOpenAI
 	EndpointTypeOpenAIResponse        = types.EndpointTypeOpenAIResponse
 	EndpointTypeOpenAIResponseCompact = types.EndpointTypeOpenAIResponseCompact
+	EndpointTypeOpenAIAlphaSearch     = types.EndpointTypeOpenAIAlphaSearch
 	EndpointTypeAnthropic             = types.EndpointTypeAnthropic
 	EndpointTypeGemini                = types.EndpointTypeGemini
 	EndpointTypeJinaRerank            = types.EndpointTypeJinaRerank
