@@ -75,6 +75,7 @@ async function topup(): Promise<void> {
             : 'background:var(--surface-muted);color:var(--text-secondary)'
         "
         :class="{ 'hover:bg-[var(--surface-hover)]': amount !== preset }"
+        :aria-pressed="amount === preset"
         @click="amount = preset"
       >
         ${{ preset }}

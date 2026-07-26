@@ -203,6 +203,7 @@ onMounted(load)
       <EmptyState
         :title="t('models.emptyTitle')"
         :hint="t('models.emptyHint')"
+        illustration="empty-models"
       />
     </ConsoleCard>
 

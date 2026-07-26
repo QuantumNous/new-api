@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
 import { useToast } from '@/composables/useToast'
-import type { LogItem } from '@/types/console'
 
 export interface DashboardStats {
   quota: number
@@ -17,10 +16,51 @@ export interface DashboardStats {
   month_requests_delta: number
 }
 
+export interface UserLimits {
+  group: string
+  rate_limit: number // RPM ceiling, 0 = unmetered
+  current_rpm: number // observed throughput
+}
+
+export interface UserDiscounts {
+  global_ratio: number // platform-wide pricing multiplier, e.g. 0.88
+  group_ratio: number // group-specific multiplier, e.g. 0.95 for vip
+  effective_ratio: number // combined: global × group
+}
+
 export interface ModelShare {
   model: string
   ratio: number
+  /** billed spend */
   quota: number
+  /** same traffic at list price */
+  standard_quota: number
+  requests: number
+  tokens: number
+}
+
+export interface TokenTrendPoint {
+  date: string
+  input: number
+  output: number
+  cache_create: number
+  cache_read: number
+  hit_rate: number
+  actual: number
+  standard: number
+}
+
+export interface SystemMetrics {
+  cpu_percent: number
+  memory_used_gb: number
+  memory_total_gb: number
+  bandwidth_up_mbps: number
+  bandwidth_down_mbps: number
+  disk_used_gb: number
+  disk_total_gb: number
+  api_success_rate: number
+  /** Recent throughput samples, oldest → newest; the last pair is the live figure. */
+  bandwidth_series: { up: number[]; down: number[] }
 }
 
 export interface FlowPoint {
@@ -43,26 +83,34 @@ export function useDashboard() {
   const stats = ref<DashboardStats | null>(null)
   const share = ref<ModelShare[]>([])
   const flow = ref<FlowPoint[]>([])
-  const recent = ref<LogItem[]>([])
+  const tokenTrend = ref<TokenTrendPoint[]>([])
+  const system = ref<SystemMetrics | null>(null)
+  const limits = ref<UserLimits | null>(null)
+  const discounts = ref<UserDiscounts | null>(null)
 
   async function load() {
     loading.value = true
     try {
-      const [dataSelf, flowSelf, logSelf] = await Promise.all([
-        api.get<DashboardStats & { model_share: ModelShare[] }>(
-          '/api/data/self'
-        ),
+      const [dataSelf, flowSelf, tokensSelf, systemSelf] = await Promise.all([
+        api.get<
+          DashboardStats & {
+            model_share: ModelShare[]
+            limits: UserLimits
+            discounts: UserDiscounts
+          }
+        >('/api/data/self'),
         api.get<FlowPoint[]>('/api/data/flow/self'),
-        api.get<{ items: LogItem[] }>('/api/log/self', {
-          page: 1,
-          page_size: 6,
-        }),
+        api.get<TokenTrendPoint[]>('/api/data/tokens'),
+        api.get<SystemMetrics>('/api/data/system'),
       ])
-      const { model_share, ...rest } = dataSelf
+      const { model_share, limits: lim, discounts: disc, ...rest } = dataSelf
       stats.value = rest
       share.value = model_share
+      limits.value = lim
+      discounts.value = disc
       flow.value = flowSelf
-      recent.value = logSelf.items
+      tokenTrend.value = tokensSelf
+      system.value = systemSelf
     } catch (error) {
       toast.error(
         error instanceof ApiError ? error.message : t('common.failed')
@@ -72,5 +120,15 @@ export function useDashboard() {
     }
   }
 
-  return { loading, stats, share, flow, recent, load }
+  return {
+    loading,
+    stats,
+    share,
+    flow,
+    tokenTrend,
+    system,
+    limits,
+    discounts,
+    load,
+  }
 }

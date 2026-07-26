@@ -11,6 +11,7 @@ export const authApi = {
     api.post<{ message: string }>('/api/user/reset', { email }),
   logout: () => api.post('/api/user/logout'),
   self: () => api.get<UserInfo>('/api/user/self'),
+  deleteSelf: () => api.delete<{ message: string }>('/api/user/self'),
   updateProfile: (patch: UserProfilePatch) =>
     api.put<{ user: UserInfo }>('/api/user/self', patch),
 }

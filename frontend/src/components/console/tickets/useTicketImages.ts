@@ -15,9 +15,12 @@ export interface TicketImage {
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+/** Rejected-file tiles are informational; they dismiss themselves. */
+const ERROR_DISMISS_MS = 4000
 
 export function useTicketImages(maxCount = 4) {
   const images = ref<TicketImage[]>([])
+  const errorTimers = new Set<number>()
 
   function validate(file: File): string | null {
     if (!ALLOWED_TYPES.includes(file.type)) return 'tickets.upload.typeError'
@@ -25,24 +28,33 @@ export function useTicketImages(maxCount = 4) {
     return null
   }
 
-  function addFiles(files: File[]) {
-    const remaining = maxCount - images.value.length
-    if (remaining <= 0) return
+  function validCount(): number {
+    return images.value.filter((img) => !img.error).length
+  }
 
-    for (const file of files.slice(0, remaining)) {
+  function nextId(): string {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  }
+
+  function addFiles(files: File[]) {
+    for (const file of files) {
       const error = validate(file)
       if (error) {
         // Surface the rejection briefly so users understand why a file was
-        // skipped; no object URL is created for invalid files.
-        images.value.push({
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          url: '',
-          error,
-        })
+        // skipped. Error tiles never consume an upload slot and auto-dismiss;
+        // no object URL is created for invalid files.
+        const id = nextId()
+        images.value.push({ id, url: '', error })
+        const timer = window.setTimeout(() => {
+          errorTimers.delete(timer)
+          remove(id)
+        }, ERROR_DISMISS_MS)
+        errorTimers.add(timer)
         continue
       }
+      if (validCount() >= maxCount) continue
       images.value.push({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        id: nextId(),
         url: URL.createObjectURL(file),
         error: null,
       })
@@ -63,6 +75,8 @@ export function useTicketImages(maxCount = 4) {
   }
 
   function reset() {
+    for (const timer of errorTimers) window.clearTimeout(timer)
+    errorTimers.clear()
     for (const img of images.value) {
       if (img.url) URL.revokeObjectURL(img.url)
     }
@@ -70,7 +84,7 @@ export function useTicketImages(maxCount = 4) {
   }
 
   function canAddMore(): boolean {
-    return images.value.length < maxCount
+    return validCount() < maxCount
   }
 
   onScopeDispose(reset)

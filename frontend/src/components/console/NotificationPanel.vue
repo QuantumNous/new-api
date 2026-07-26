@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { onClickOutside } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 
 import { relativeTime } from '@/utils/format'
@@ -16,6 +17,8 @@ interface NotificationItem {
 const { t, locale } = useI18n()
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
+const panel = ref<HTMLElement | null>(null)
+const trigger = ref<HTMLButtonElement | null>(null)
 
 const nowSec = Math.floor(Date.now() / 1000)
 const items = ref<NotificationItem[]>([
@@ -67,33 +70,51 @@ function markAllRead() {
   items.value = items.value.map((n) => ({ ...n, unread: false }))
 }
 
-function onClickOutside(e: MouseEvent) {
-  if (root.value && !root.value.contains(e.target as Node)) open.value = false
+function close({ restoreFocus = false } = {}) {
+  if (!open.value) return
+  open.value = false
+  if (restoreFocus) nextTick(() => trigger.value?.focus())
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') open.value = false
+  if (e.key !== 'Escape') return
+  e.preventDefault()
+  close({ restoreFocus: true })
 }
 
-onMounted(() => {
-  document.addEventListener('click', onClickOutside)
-  document.addEventListener('keydown', onKeydown)
+// The Escape listener exists only while the popover is open; a closed panel
+// costs nothing. Focus moves into the panel on open and back to the trigger
+// when it leaves, matching the LogsView column-settings popover.
+watch(open, (value) => {
+  if (value) {
+    document.addEventListener('keydown', onKeydown)
+    nextTick(() => panel.value?.querySelector<HTMLElement>('button')?.focus())
+  } else {
+    document.removeEventListener('keydown', onKeydown)
+  }
 })
-onBeforeUnmount(() => {
-  document.removeEventListener('click', onClickOutside)
-  document.removeEventListener('keydown', onKeydown)
-})
+
+function onFocusout() {
+  window.requestAnimationFrame(() => {
+    if (root.value?.contains(document.activeElement)) return
+    close()
+  })
+}
+
+onClickOutside(root, () => close())
+onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <div ref="root" class="relative">
+  <div ref="root" class="relative" @focusout="onFocusout">
     <button
+      ref="trigger"
       type="button"
       class="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
       :aria-label="t('nav.notifications')"
-      aria-haspopup="menu"
+      aria-haspopup="dialog"
       :aria-expanded="open"
-      @click="open = !open"
+      @click="open ? close() : (open = true)"
     >
       <svg
         width="18"
@@ -115,6 +136,9 @@ onBeforeUnmount(() => {
 
     <div
       v-if="open"
+      ref="panel"
+      role="dialog"
+      :aria-label="t('nav.notifications')"
       class="absolute right-0 top-12 z-40 w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] shadow-[var(--overlay-shadow)] animate-scale-in"
     >
       <header class="flex items-center justify-between px-5 pt-4">
@@ -182,7 +206,7 @@ onBeforeUnmount(() => {
         <button
           type="button"
           class="h-10 w-full rounded-xl border border-[var(--border-subtle)] text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
-          @click="open = false"
+          @click="close({ restoreFocus: true })"
         >
           {{ t('nav.viewAllNotifications') }}
         </button>

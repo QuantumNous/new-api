@@ -139,6 +139,7 @@ async function save() {
                   ? 'border-color:var(--accent);background:var(--accent);color:var(--accent-contrast)'
                   : 'border-color:var(--border-subtle);background:var(--surface-solid);color:var(--text-secondary)'
               "
+              :aria-pressed="form.category === cat"
               @click="form.category = cat"
             >
               {{ t(`tickets.category.${cat}`) }}
@@ -157,6 +158,7 @@ async function save() {
                   ? 'border-color:var(--accent);background:var(--accent);color:var(--accent-contrast)'
                   : 'border-color:var(--border-subtle);background:var(--surface-solid);color:var(--text-secondary)'
               "
+              :aria-pressed="form.priority === pri"
               @click="form.priority = pri"
             >
               {{ t(`tickets.priority.${pri}`) }}

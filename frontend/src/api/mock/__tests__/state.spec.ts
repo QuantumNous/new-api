@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { writeDemoUser } from '@/api/demoStorage'
-import { tokens } from '@/api/mock/data'
+import { logs, tokens } from '@/api/mock/data'
 import { getMockDelay, resetMockState, setMockDelay } from '@/api/mock/state'
 
 const demoUser = {
@@ -30,5 +30,28 @@ describe('mock state reset', () => {
     expect(tokens[0].name).toBe(originalName)
     expect(getMockDelay()).toBe(0)
     expect(localStorage.length).toBe(0)
+  })
+
+  it('seeds stream, sync, missing-first-token and non-request log variants', () => {
+    expect(
+      logs.some(
+        (log) =>
+          log.type === 'consume' &&
+          log.request_mode === 'stream' &&
+          log.first_token_latency !== null
+      )
+    ).toBe(true)
+    expect(
+      logs.some((log) => log.type === 'consume' && log.request_mode === 'sync')
+    ).toBe(true)
+    expect(
+      logs.some(
+        (log) =>
+          log.request_mode === 'stream' && log.first_token_latency === null
+      )
+    ).toBe(true)
+    expect(
+      logs.some((log) => log.type === 'topup' && log.request_mode === null)
+    ).toBe(true)
   })
 })

@@ -1,8 +1,9 @@
-import { onScopeDispose, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/lab'
 import { ApiError } from '@/api/types'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import type {
   AssetItem,
@@ -69,28 +70,23 @@ export function useLabConversation() {
   const reportError = useLoadErrorReporter()
   const loading = ref(true)
   const conversation = ref<ChatConversation | null>(null)
-  let loadController: AbortController | null = null
-
-  onScopeDispose(() => loadController?.abort())
+  const detailRequest = useLatestRequest()
 
   async function load(id: string) {
-    loadController?.abort()
-    const controller = new AbortController()
-    loadController = controller
     loading.value = true
     conversation.value = null
-    try {
-      const data = await api.get<ChatConversation>(
-        `/api/lab/chat/conversation/${id}`,
-        undefined,
-        { signal: controller.signal }
-      )
-      if (loadController === controller) conversation.value = data
-    } catch (error) {
-      if (!controller.signal.aborted) reportError(error)
-    } finally {
-      if (loadController === controller) loading.value = false
+    const result = await detailRequest.run((signal) =>
+      api.get<ChatConversation>(`/api/lab/chat/conversation/${id}`, undefined, {
+        signal,
+      })
+    )
+    if (result.stale) return
+    loading.value = false
+    if (!result.ok) {
+      reportError(result.error)
+      return
     }
+    conversation.value = result.value
   }
 
   return { loading, conversation, load }
@@ -102,30 +98,25 @@ export function useLabStudio() {
   const loading = ref(true)
   const works = ref<StudioWork[]>([])
   const tools = ref<StudioTool[]>([])
-  let loadController: AbortController | null = null
-
-  onScopeDispose(() => loadController?.abort())
+  const listRequest = useLatestRequest()
 
   async function load(kind?: StudioKind | 'all') {
-    loadController?.abort()
-    const controller = new AbortController()
-    loadController = controller
     loading.value = true
-    try {
-      const data = await api.get<{ works: StudioWork[]; tools: StudioTool[] }>(
+    const result = await listRequest.run((signal) =>
+      api.get<{ works: StudioWork[]; tools: StudioTool[] }>(
         '/api/lab/studio',
         kind && kind !== 'all' ? { kind } : undefined,
-        { signal: controller.signal }
+        { signal }
       )
-      if (loadController === controller) {
-        works.value = data.works
-        tools.value = data.tools
-      }
-    } catch (error) {
-      if (!controller.signal.aborted) reportError(error)
-    } finally {
-      if (loadController === controller) loading.value = false
+    )
+    if (result.stale) return
+    loading.value = false
+    if (!result.ok) {
+      reportError(result.error)
+      return
     }
+    works.value = result.value.works
+    tools.value = result.value.tools
   }
 
   return { loading, works, tools, load }
@@ -137,32 +128,27 @@ export function useLabAssets() {
   const loading = ref(true)
   const items = ref<AssetItem[]>([])
   const storage = ref<StorageInfo | null>(null)
-  let loadController: AbortController | null = null
-
-  onScopeDispose(() => loadController?.abort())
+  const listRequest = useLatestRequest()
 
   async function load(kind = 'all') {
-    loadController?.abort()
-    const controller = new AbortController()
-    loadController = controller
     loading.value = true
-    try {
-      const data = await api.get<{ items: AssetItem[]; storage: StorageInfo }>(
+    const result = await listRequest.run((signal) =>
+      api.get<{ items: AssetItem[]; storage: StorageInfo }>(
         '/api/lab/assets',
         {
           kind,
         },
-        { signal: controller.signal }
+        { signal }
       )
-      if (loadController === controller) {
-        items.value = data.items
-        storage.value = data.storage
-      }
-    } catch (error) {
-      if (!controller.signal.aborted) reportError(error)
-    } finally {
-      if (loadController === controller) loading.value = false
+    )
+    if (result.stale) return
+    loading.value = false
+    if (!result.ok) {
+      reportError(result.error)
+      return
     }
+    items.value = result.value.items
+    storage.value = result.value.storage
   }
 
   return { loading, items, storage, load }

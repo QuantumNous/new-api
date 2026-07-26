@@ -11,6 +11,12 @@ export default tseslint.config(
   ...pluginVue.configs['flat/recommended'],
   eslintConfigPrettier,
   {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
     files: ['**/*.{ts,vue}'],
     languageOptions: {
       globals: globals.browser,

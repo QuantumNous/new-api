@@ -36,7 +36,7 @@ onBeforeUnmount(() => {
       <ConsoleTopbar data-console-scroll-boundary />
       <div
         data-console-scroll-zone
-        class="scroll-zone min-w-0 flex-1 overflow-y-auto"
+        class="scroll-zone texture-paper min-w-0 flex-1 overflow-y-auto"
         :class="{ scrolling: isScrolling, 'no-page-scroll': noPageScroll }"
         @scroll.passive="onScroll"
       >

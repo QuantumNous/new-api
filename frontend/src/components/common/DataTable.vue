@@ -29,14 +29,30 @@ const props = withDefaults(
     loading?: boolean
     selectable?: boolean
     selected?: Array<string | number>
+    /** Keys affected by the header checkbox. Defaults to rendered data rows. */
+    selectionKeys?: Array<string | number>
+    selectionDisabled?: boolean
+    /**
+     * Per-row selection guard. A row that fails it renders a disabled checkbox
+     * and cannot be toggled, so a selection can never contain rows the caller
+     * would have to silently drop when acting on it.
+     */
+    rowSelectable?: (row: T) => boolean
     /** Checkbox visual: default square native look, or round custom-drawn. */
     checkboxShape?: 'square' | 'round'
     /** Emit row-click on tbody rows. */
     rowClickable?: boolean
     /** Emit row-dblclick on tbody rows without making single clicks actionable. */
     rowDblclickable?: boolean
+    /** Optional per-row visual class for states such as disabled records. */
+    rowClass?: (row: T) => string | undefined
+    /** Identifies semantic group-heading rows rendered through #group-row. */
+    isGroupRow?: (row: T) => boolean
     emptyTitle?: string
     emptyHint?: string
+    /** Hand-drawn illustration name for the empty state. Tables mostly empty
+        out from filters, so the search spot is the default. */
+    emptyIllustration?: string
     /** Skeleton row count while loading. Pass the page size so the loading
         state occupies the same height as a full page and the layout doesn't
         jump when paginating. */
@@ -51,6 +67,8 @@ const props = withDefaults(
     pageSize?: number
     /** Accessible name for the independently scrollable row region. */
     scrollRegionLabel?: string
+    /** Minimum table width before the body switches to horizontal scrolling. */
+    minTableWidth?: string
     /** Visual breathing room below the table and footer, matching main py-8. */
     viewportBottomGap?: number
     /** Element whose bottom edge is the outer-to-inner scroll handoff point. */
@@ -63,14 +81,21 @@ const props = withDefaults(
     loading: false,
     selectable: false,
     selected: () => [],
+    selectionKeys: () => [],
+    selectionDisabled: false,
     checkboxShape: 'square',
     rowClickable: false,
+    rowClass: undefined,
+    rowSelectable: undefined,
+    isGroupRow: undefined,
     emptyTitle: '',
     emptyHint: '',
+    emptyIllustration: 'empty-search',
     skeletonRows: 5,
     adaptiveScroll: false,
     pageSize: 0,
     scrollRegionLabel: '',
+    minTableWidth: '720px',
     viewportBottomGap: 32,
     scrollBoundarySelector: '[data-console-scroll-boundary]',
     scrollZoneSelector: '[data-console-scroll-zone]',
@@ -83,9 +108,11 @@ const emit = defineEmits<{
   'row-dblclick': [row: T]
 }>()
 
+// `checkbox-round` lives in styles/console.css so the table, the mobile lists
+// and any future admin surface share one definition.
 const checkboxClass = computed(() =>
   props.checkboxShape === 'round'
-    ? 'data-table-checkbox-round'
+    ? 'checkbox-round'
     : 'h-4 w-4 accent-[var(--accent)]'
 )
 
@@ -93,26 +120,47 @@ const rowInteractive = computed(
   () => props.rowClickable || props.rowDblclickable
 )
 
+const dataRows = computed(() =>
+  props.isGroupRow
+    ? props.rows.filter((row) => !props.isGroupRow?.(row))
+    : props.rows
+)
+
+const effectiveSelectionKeys = computed(() =>
+  props.selectionKeys.length > 0
+    ? props.selectionKeys
+    : dataRows.value
+        .filter((row) => props.rowSelectable?.(row) ?? true)
+        .map((row) => row[props.rowKey] as string | number)
+)
+
 const allChecked = computed(
   () =>
-    props.rows.length > 0 &&
-    props.rows.every((r) =>
-      props.selected.includes(r[props.rowKey] as string | number)
-    )
+    effectiveSelectionKeys.value.length > 0 &&
+    effectiveSelectionKeys.value.every((key) => props.selected.includes(key))
 )
 
 function toggleAll() {
+  if (props.selectionDisabled) return
   if (allChecked.value) {
     emit('update:selected', [])
   } else {
-    emit(
-      'update:selected',
-      props.rows.map((r) => r[props.rowKey] as string | number)
-    )
+    emit('update:selected', [...effectiveSelectionKeys.value])
   }
 }
 
-function toggleRow(key: string | number) {
+/**
+ * A row the caller marks unselectable gets a disabled checkbox rather than a
+ * silently ignored one, so the selection can never contain a key the consumer
+ * would have to filter back out.
+ */
+function isRowSelectable(row: T): boolean {
+  return props.rowSelectable?.(row) ?? true
+}
+
+function toggleRow(row: T) {
+  if (props.selectionDisabled || !isRowSelectable(row)) return
+  const key = row[props.rowKey] as string | number
   const next = props.selected.includes(key)
     ? props.selected.filter((k) => k !== key)
     : [...props.selected, key]
@@ -128,6 +176,10 @@ function activateRowFromKeyboard(event: KeyboardEvent, row: T) {
   } else {
     emit('row-click', row)
   }
+}
+
+function dataRowNumber(row: T): number {
+  return dataRows.value.indexOf(row) + 1
 }
 
 const alignClass = (align?: string) =>
@@ -188,6 +240,8 @@ let resizeObserver: ResizeObserver | null = null
 let measureFrame = 0
 let lastScrollLeft = -1
 let stickyBottom = 0
+let pointerFocusPending = false
+let pointerFocusTimer = 0
 
 function visualViewportBottom() {
   const viewport = window.visualViewport
@@ -226,6 +280,7 @@ function onBodyFocusIn(event: FocusEvent) {
   const header = headerClipRef.value
   const target = event.target instanceof HTMLElement ? event.target : null
   if (
+    pointerFocusPending ||
     !viewport ||
     !header ||
     !target ||
@@ -249,6 +304,14 @@ function onBodyFocusIn(event: FocusEvent) {
     if (innerScrollActive.value)
       target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   })
+}
+
+function onBodyPointerDown() {
+  window.clearTimeout(pointerFocusTimer)
+  pointerFocusPending = true
+  pointerFocusTimer = window.setTimeout(() => {
+    pointerFocusPending = false
+  }, 0)
 }
 
 function measure() {
@@ -321,6 +384,20 @@ function onBodyScroll() {
   headerTable.style.transform = `translate3d(${-lastScrollLeft}px, 0, 0)`
 }
 
+function onHeaderScroll() {
+  const header = headerClipRef.value
+  const viewport = bodyViewportRef.value
+  if (!header || !viewport || header.scrollLeft === 0) return
+
+  const nextScrollLeft = Math.min(
+    Math.max(0, viewport.scrollLeft + header.scrollLeft),
+    Math.max(0, viewport.scrollWidth - viewport.clientWidth)
+  )
+  header.scrollLeft = 0
+  viewport.scrollLeft = nextScrollLeft
+  onBodyScroll()
+}
+
 async function resetBodyAndMeasure() {
   await nextTick()
   bodyViewportRef.value?.scrollTo({ top: 0 })
@@ -377,6 +454,7 @@ onBeforeUnmount(() => {
   window.visualViewport?.removeEventListener('resize', scheduleMeasure)
   window.visualViewport?.removeEventListener('scroll', scheduleMeasure)
   if (measureFrame) window.cancelAnimationFrame(measureFrame)
+  window.clearTimeout(pointerFocusTimer)
 })
 </script>
 
@@ -388,11 +466,13 @@ onBeforeUnmount(() => {
       ref="headerClipRef"
       class="data-table-header-clip overflow-hidden border-b border-[var(--border-default)] bg-[var(--surface-table-header)]"
       :style="headerClipStyle"
+      @scroll="onHeaderScroll"
     >
       <table
         ref="headerTableRef"
         role="presentation"
-        class="w-full min-w-[720px] table-fixed border-collapse text-sm will-change-transform"
+        class="w-full table-fixed border-collapse text-sm will-change-transform"
+        :style="{ minWidth: minTableWidth }"
       >
         <colgroup>
           <col v-if="selectable" style="width: 40px" />
@@ -409,6 +489,7 @@ onBeforeUnmount(() => {
                 type="checkbox"
                 :class="checkboxClass"
                 :checked="allChecked"
+                :disabled="selectionDisabled"
                 :aria-label="t('common.selectAll')"
                 @change="toggleAll"
               />
@@ -419,7 +500,9 @@ onBeforeUnmount(() => {
               class="px-3 py-3 font-medium"
               :class="alignClass(col.align)"
             >
-              <span aria-hidden="true">{{ col.label }}</span>
+              <slot :name="`header-${col.key}`" :column="col">
+                <span aria-hidden="true">{{ col.label }}</span>
+              </slot>
             </td>
           </tr>
         </thead>
@@ -438,12 +521,14 @@ onBeforeUnmount(() => {
           : undefined
       "
       :aria-busy="loading"
+      @pointerdown.capture="onBodyPointerDown"
       @focusin="onBodyFocusIn"
       @scroll="onBodyScroll"
     >
       <table
         ref="bodyTableRef"
-        class="w-full min-w-[720px] table-fixed border-collapse text-sm"
+        class="w-full table-fixed border-collapse text-sm"
+        :style="{ minWidth: minTableWidth }"
       >
         <colgroup>
           <col v-if="selectable" style="width: 40px" />
@@ -473,39 +558,66 @@ onBeforeUnmount(() => {
         </thead>
 
         <tbody v-if="!loading && rows.length > 0">
-          <tr
-            v-for="(row, index) in rows"
-            :key="String(row[rowKey])"
-            class="border-b border-[var(--border-subtle)] transition-colors last:border-0 hover:bg-[var(--surface-muted)]"
-            :class="rowInteractive ? 'cursor-pointer select-none' : undefined"
-            :tabindex="rowInteractive ? 0 : undefined"
-            @click="rowClickable && emit('row-click', row)"
-            @dblclick="
-              (rowClickable || rowDblclickable) && emit('row-dblclick', row)
-            "
-            @keydown="activateRowFromKeyboard($event, row)"
-          >
-            <td v-if="selectable" class="px-3 py-3" @click.stop @dblclick.stop>
-              <input
-                type="checkbox"
-                :class="checkboxClass"
-                :checked="selected.includes(row[rowKey] as string | number)"
-                :aria-label="t('common.selectRow', { index: index + 1 })"
-                @change="toggleRow(row[rowKey] as string | number)"
-              />
-            </td>
-            <td
-              v-for="col in columns"
-              :key="col.key"
-              :headers="columnHeaderId(col.key)"
-              class="px-3 py-3 text-[var(--text-primary)]"
-              :class="alignClass(col.align)"
+          <template v-for="(row, index) in rows" :key="String(row[rowKey])">
+            <tr
+              v-if="isGroupRow?.(row)"
+              data-table-group-row
+              class="border-b border-[var(--border-default)] bg-[var(--surface-muted)]"
             >
-              <slot :name="`cell-${col.key}`" :row="row" :index="index">
-                {{ row[col.key] }}
-              </slot>
-            </td>
-          </tr>
+              <th
+                scope="rowgroup"
+                :colspan="columns.length + (selectable ? 1 : 0)"
+                class="px-3 py-2 text-left font-medium text-[var(--text-primary)]"
+              >
+                <slot name="group-row" :row="row" :index="index">
+                  {{ row[rowKey] }}
+                </slot>
+              </th>
+            </tr>
+            <tr
+              v-else
+              class="border-b border-[var(--border-subtle)] transition-colors last:border-0 hover:bg-[var(--surface-muted)]"
+              :class="[
+                rowInteractive ? 'cursor-pointer select-none' : undefined,
+                rowClass?.(row),
+              ]"
+              :tabindex="rowInteractive ? 0 : undefined"
+              @click="rowClickable && emit('row-click', row)"
+              @dblclick="
+                (rowClickable || rowDblclickable) && emit('row-dblclick', row)
+              "
+              @keydown="activateRowFromKeyboard($event, row)"
+            >
+              <td
+                v-if="selectable"
+                class="px-3 py-3"
+                @click.stop
+                @dblclick.stop
+              >
+                <input
+                  type="checkbox"
+                  :class="checkboxClass"
+                  :checked="selected.includes(row[rowKey] as string | number)"
+                  :disabled="selectionDisabled || !isRowSelectable(row)"
+                  :aria-label="
+                    t('common.selectRow', { index: dataRowNumber(row) })
+                  "
+                  @change="toggleRow(row)"
+                />
+              </td>
+              <td
+                v-for="col in columns"
+                :key="col.key"
+                :headers="columnHeaderId(col.key)"
+                class="px-3 py-3 text-[var(--text-primary)]"
+                :class="alignClass(col.align)"
+              >
+                <slot :name="`cell-${col.key}`" :row="row" :index="index">
+                  {{ row[col.key] }}
+                </slot>
+              </td>
+            </tr>
+          </template>
         </tbody>
 
         <!-- Skeleton rows live inside the table so each matches a data row's
@@ -535,6 +647,7 @@ onBeforeUnmount(() => {
         v-if="!loading && rows.length === 0"
         :title="emptyTitle || t('common.none')"
         :hint="emptyHint"
+        :illustration="emptyIllustration"
       />
     </div>
 
@@ -595,45 +708,6 @@ onBeforeUnmount(() => {
   padding: 0;
   font-size: 0;
   line-height: 0;
-}
-
-.data-table-checkbox-round {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 1.05rem;
-  height: 1.05rem;
-  border-radius: 9999px;
-  border: 1.5px solid var(--border-default);
-  background: var(--surface-solid);
-  cursor: pointer;
-  display: inline-block;
-  vertical-align: middle;
-  position: relative;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease;
-}
-.data-table-checkbox-round:hover {
-  border-color: var(--accent);
-}
-.data-table-checkbox-round:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.data-table-checkbox-round:checked {
-  border-color: var(--accent);
-  background: var(--accent);
-}
-.data-table-checkbox-round:checked::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 45%;
-  width: 0.3rem;
-  height: 0.55rem;
-  border: solid var(--accent-contrast);
-  border-width: 0 2px 2px 0;
-  transform: translate(-50%, -50%) rotate(45deg);
 }
 
 @media print {

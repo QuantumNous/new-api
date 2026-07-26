@@ -127,6 +127,16 @@
   --scroll-thumb: rgba(192, 139, 87, 0.28);
   --scroll-thumb-hover: rgba(192, 139, 87, 0.52);
 
+  /* ===== 手账质感令牌（雅致 × 手绘装饰层） ===== */
+  /* 展示字型仅用于 hero 级标题；正文与工作区维持 sans。 */
+  --font-display:
+    'Ren2NotoSerifSC', 'Noto Serif SC', 'Source Han Serif SC', 'STZhongsong',
+    'SimSun', Georgia, serif;
+  --surface-tile: #f6e8c9;
+  --border-dashed-color: rgba(56, 55, 43, 0.24);
+  /* 静态纸纹噪点：作为 background-image 叠在页面底色上，无层级成本。 */
+  --paper-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.22 0 0 0 0 0.215 0 0 0 0 0.17 0 0 0 0.055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
   /* Legacy Tailwind colour slots are aliases to the semantic theme. */
   --color-white: 255 253 248;
   --color-black: 56 55 43;
@@ -267,6 +277,11 @@ html.dark {
   --scroll-track: #262a34;
   --scroll-thumb: #3c4258;
   --scroll-thumb-hover: #4c5470;
+
+  /* 手账质感令牌：夜间为浅色噪点与星辉金砖底。 */
+  --surface-tile: rgba(226, 188, 85, 0.12);
+  --border-dashed-color: rgba(152, 164, 192, 0.28);
+  --paper-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.87 0 0 0 0 0.89 0 0 0 0 0.94 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 
   --color-white: 222 227 240;
   --color-black: 38 42 52;

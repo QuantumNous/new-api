@@ -46,13 +46,21 @@ function onInput(e: Event) {
     return
   }
 
-  const minimum = Number.isFinite(props.min) ? props.min : undefined
+  // Only the max bound applies per keystroke. Clamping the min here would
+  // rewrite "1" to the minimum while the user is still typing "15".
   const maximum = Number.isFinite(props.max) ? props.max : undefined
-  let bounded = parsed
-  if (minimum !== undefined) bounded = Math.max(minimum, bounded)
-  if (maximum !== undefined) bounded = Math.min(maximum, bounded)
+  const bounded = maximum !== undefined ? Math.min(maximum, parsed) : parsed
   if (bounded !== parsed) input.value = String(bounded)
   model.value = bounded
+}
+
+function onBlur(e: Event) {
+  const minimum = Number.isFinite(props.min) ? props.min : undefined
+  if (minimum === undefined || model.value === null) return
+  if (model.value < minimum) {
+    model.value = minimum
+    ;(e.target as HTMLInputElement).value = String(minimum)
+  }
 }
 </script>
 
@@ -72,6 +80,7 @@ function onInput(e: Event) {
       v-bind="inputAttrs"
       class="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] pl-8 pr-4 text-sm font-semibold text-[var(--text-primary)] placeholder:font-normal placeholder:text-[var(--text-tertiary)] transition-colors focus:border-[var(--border-strong)] focus-ring"
       @input="onInput"
+      @blur="onBlur"
     />
   </div>
 </template>

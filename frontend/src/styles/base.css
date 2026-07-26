@@ -91,6 +91,18 @@ a {
   outline-offset: 2px;
 }
 
+/* 手账纸纹：静态噪点叠加在页面底色上，随主题令牌切换浅墨/浅光噪点。 */
+.texture-paper {
+  background-image: var(--paper-noise);
+  background-repeat: repeat;
+}
+
+/* 展示级标题：衬线字型，仅用于 hero 级大标题与 404 等呼吸区。 */
+.display-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

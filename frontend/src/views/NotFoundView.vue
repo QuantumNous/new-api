@@ -6,9 +6,11 @@ const { t } = useI18n()
 
 <template>
   <div
-    class="flex min-h-screen flex-col items-center justify-center gap-6 px-4"
+    class="texture-paper flex min-h-screen flex-col items-center justify-center gap-5 px-4"
   >
-    <p class="text-7xl font-bold text-[var(--accent-text)]">404</p>
+    <p class="display-title text-7xl font-bold text-[var(--accent-text)]">
+      404
+    </p>
     <p class="text-lg text-[var(--text-secondary)]">
       {{ t('notFound.title') }}
     </p>

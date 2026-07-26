@@ -1,4 +1,4 @@
-import { onScopeDispose, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
@@ -15,7 +15,9 @@ import type {
   RebateState,
   LeaderPeriod,
 } from '@/types/farm'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
+import { formatQuota } from '@/utils/format'
 
 /**
  * Farm activity state + actions. Owns all loading and mutation so
@@ -38,7 +40,7 @@ export function useFarm() {
   const leaderPeriod = ref<LeaderPeriod>('week')
   const leaderLoading = ref(false)
   const leaderEntries = ref<LeaderEntry[]>([])
-  let leaderController: AbortController | null = null
+  const leaderRequest = useLatestRequest()
 
   const rebateTiers = ref<RebateTier[]>([])
   const rebateState = ref<RebateState | null>(null)
@@ -71,26 +73,26 @@ export function useFarm() {
   }
 
   async function loadLeader(period: LeaderPeriod = leaderPeriod.value) {
-    leaderController?.abort()
-    const controller = new AbortController()
-    leaderController = controller
     leaderPeriod.value = period
     leaderLoading.value = true
-    try {
-      const data = await api.get<{
-        entries: LeaderEntry[]
-        period: LeaderPeriod
-      }>('/api/farm/leader', { period }, { signal: controller.signal })
-      if (leaderController === controller) leaderEntries.value = data.entries
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        toast.error(
-          error instanceof ApiError ? error.message : t('common.failed')
-        )
-      }
-    } finally {
-      if (leaderController === controller) leaderLoading.value = false
+    const result = await leaderRequest.run((signal) =>
+      api.get<{ entries: LeaderEntry[]; period: LeaderPeriod }>(
+        '/api/farm/leader',
+        { period },
+        { signal }
+      )
+    )
+    if (result.stale) return
+    leaderLoading.value = false
+    if (!result.ok) {
+      toast.error(
+        result.error instanceof ApiError
+          ? result.error.message
+          : t('common.failed')
+      )
+      return
     }
+    leaderEntries.value = result.value.entries
   }
 
   async function loadRebate() {
@@ -126,7 +128,7 @@ export function useFarm() {
         plot.yield_quota = 0
       }
       toast.success(
-        t('farm.plot.harvested') + ` +${(res.gained / 500000).toFixed(4)}$`
+        t('farm.plot.harvestToast', { amount: formatQuota(res.gained, 4) })
       )
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : String(e))
@@ -161,7 +163,7 @@ export function useFarm() {
       const animal = animals.value.find((a) => a.id === animalId)
       if (animal) animal.yield_ready = false
       toast.success(
-        t('farm.ranch.collect') + ` +${(res.gained / 500000).toFixed(4)}$`
+        t('farm.ranch.collectToast', { amount: formatQuota(res.gained, 4) })
       )
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : String(e))
@@ -207,8 +209,6 @@ export function useFarm() {
       acting.value = false
     }
   }
-
-  onScopeDispose(() => leaderController?.abort())
 
   return {
     loading,

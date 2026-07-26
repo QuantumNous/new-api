@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { clearDemoUser, readDemoUser, writeDemoUser } from '@/api/demoStorage'
+import { isMockApi } from '@/api/client'
 import { setUnauthorizedHandler } from '@/api/createClient'
 import { ApiError } from '@/api/types'
 import type { UserInfo, UserProfilePatch } from '@/types/auth'
@@ -16,10 +17,20 @@ export const useAuthStore = defineStore('auth', () => {
   const checked = ref(false)
 
   const isAuthenticated = computed(() => Boolean(user.value))
-  // Demo sessions are local UI state, never proof of server-side authority.
-  const isAdmin = computed(() => false)
-  const isRoot = computed(() => false)
-  const adminPermissions = computed<string[]>(() => [])
+  // The mock/demo transport intentionally surfaces the admin UI for the demo
+  // identity (whose persisted role stays pinned to 1 as an anti-escalation
+  // boundary, see demoStorage). Against the real backend these flags derive
+  // from the server-issued role and fail closed. Neither is a server-side
+  // authorization boundary.
+  const isAdmin = computed(() =>
+    isMockApi ? true : (user.value?.role ?? 0) >= 10
+  )
+  const isRoot = computed(() =>
+    isMockApi ? false : (user.value?.role ?? 0) >= 100
+  )
+  const adminPermissions = computed<string[]>(() =>
+    isMockApi ? [] : (user.value?.admin_permissions ?? [])
+  )
 
   function persist(next: UserInfo | null): void {
     user.value = next
@@ -73,6 +84,13 @@ export const useAuthStore = defineStore('auth', () => {
     persist(data.user)
   }
 
+  async function deleteAccount(): Promise<void> {
+    const api = await getAuthApi()
+    await api.deleteSelf()
+    persist(null)
+    checked.value = true
+  }
+
   setUnauthorizedHandler(() => {
     persist(null)
     checked.value = true
@@ -89,6 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     fetchSelf,
     updateProfile,
+    deleteAccount,
     persist,
   }
 })

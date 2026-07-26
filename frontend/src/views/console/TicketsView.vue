@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 
 import { api } from '@/api/console'
 import { ApiError, type PageResult } from '@/api/types'
-import type { TicketItem, TicketStatus } from '@/types/console'
+import type { TicketItem } from '@/types/console'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import DataTable, { type TableColumn } from '@/components/common/DataTable.vue'
@@ -16,7 +16,9 @@ import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
 import TicketFormModal from '@/components/console/tickets/TicketFormModal.vue'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
+import { ticketStatusTone } from '@/constants/console'
 import { relativeTime } from '@/utils/format'
 
 // The list endpoint omits the message thread from each row.
@@ -35,12 +37,6 @@ const keyword = ref('')
 const status = ref('')
 const formOpen = ref(false)
 
-const statusTone: Record<TicketStatus, 'warning' | 'info' | 'neutral'> = {
-  open: 'warning',
-  replied: 'info',
-  closed: 'neutral',
-}
-
 const statusOptions = computed(() => [
   { value: '', label: t('common.all') },
   { value: 'open', label: t('tickets.status.open') },
@@ -57,14 +53,12 @@ const columns = computed<TableColumn[]>(() => [
   { key: 'actions', label: '', width: '80px', align: 'right' },
 ])
 
+const listRequest = useLatestRequest()
+
 async function load() {
-  loadController?.abort()
-  const controller = new AbortController()
-  loadController = controller
-  const sequence = ++loadSequence
   loading.value = true
-  try {
-    const data = await api.get<PageResult<TicketRow>>(
+  const result = await listRequest.run((signal) =>
+    api.get<PageResult<TicketRow>>(
       '/api/ticket/',
       {
         page: page.value,
@@ -72,24 +66,23 @@ async function load() {
         keyword: keyword.value,
         status: status.value,
       },
-      { signal: controller.signal }
+      { signal }
     )
-    if (sequence !== loadSequence) return
-    rows.value = data.items
-    total.value = data.total
-  } catch (error) {
-    if (!controller.signal.aborted) {
-      toast.error(
-        error instanceof ApiError ? error.message : t('common.failed')
-      )
-    }
-  } finally {
-    if (sequence === loadSequence) loading.value = false
+  )
+  if (result.stale) return
+  loading.value = false
+  if (!result.ok) {
+    toast.error(
+      result.error instanceof ApiError
+        ? result.error.message
+        : t('common.failed')
+    )
+    return
   }
+  rows.value = result.value.items
+  total.value = result.value.total
 }
 
-let loadController: AbortController | null = null
-let loadSequence = 0
 let searchTimer = 0
 function reload() {
   if (page.value === 1) load()
@@ -107,10 +100,7 @@ function openDetail(id: number) {
 }
 
 onMounted(load)
-onBeforeUnmount(() => {
-  loadController?.abort()
-  window.clearTimeout(searchTimer)
-})
+onBeforeUnmount(() => window.clearTimeout(searchTimer))
 </script>
 
 <template>
@@ -163,6 +153,7 @@ onBeforeUnmount(() => {
         :scroll-region-label="t('tickets.breadcrumb.1')"
         :empty-title="t('tickets.emptyTitle')"
         :empty-hint="t('tickets.emptyHint')"
+        empty-illustration="empty-tickets"
       >
         <template #cell-title="{ row }">
           <button
@@ -179,7 +170,7 @@ onBeforeUnmount(() => {
           </span>
         </template>
         <template #cell-status="{ row }">
-          <StatusChip :tone="statusTone[(row as TicketRow).status]">
+          <StatusChip :tone="ticketStatusTone[(row as TicketRow).status]">
             {{ t(`tickets.status.${(row as TicketRow).status}`) }}
           </StatusChip>
         </template>

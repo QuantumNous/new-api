@@ -1,16 +1,41 @@
 <script setup lang="ts">
-withDefaults(
+import { computed, ref, watch } from 'vue'
+
+const props = withDefaults(
   defineProps<{
     title: string
     hint?: string
+    /**
+     * Legacy asset URL (detected by a `/`); any other value falls back to
+     * the built-in box sketch.
+     */
+    illustration?: string
   }>(),
-  { hint: '' }
+  { hint: '', illustration: '' }
+)
+
+const isUrl = computed(() => props.illustration.includes('/'))
+const imageFailed = ref(false)
+watch(
+  () => props.illustration,
+  () => {
+    imageFailed.value = false
+  }
 )
 </script>
 
 <template>
   <div class="flex flex-col items-center justify-center px-6 py-16 text-center">
+    <img
+      v-if="isUrl && !imageFailed"
+      :src="illustration"
+      alt=""
+      aria-hidden="true"
+      class="h-32 w-auto max-w-60 select-none object-contain"
+      @error="imageFailed = true"
+    />
     <svg
+      v-else
       width="120"
       height="96"
       viewBox="0 0 120 96"

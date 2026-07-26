@@ -67,12 +67,6 @@ export const consoleNavGroups: ConsoleNavGroup[] = [
         icon: 'M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6ZM3 10h18M8 15h4',
       },
       {
-        name: 'subscription',
-        labelKey: 'nav.subscription',
-        route: 'subscription',
-        icon: 'M4 9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V9ZM13 7v12',
-      },
-      {
         name: 'invoice',
         labelKey: 'nav.invoice',
         route: 'invoice',
@@ -86,6 +80,36 @@ export const consoleNavGroups: ConsoleNavGroup[] = [
         // (was overlapping the head/shoulder in the previous path).
         route: 'invite',
         icon: 'M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM19 8v6M22 11h-6',
+      },
+    ],
+  },
+  {
+    key: 'admin',
+    labelKey: 'nav.groupAdmin',
+    items: [
+      {
+        name: 'channel-management',
+        labelKey: 'nav.channelManagement',
+        route: 'channels',
+        icon: 'M4 6h16M4 12h16M4 18h16M7 3v6M17 9v6M10 15v6',
+      },
+      {
+        name: 'user-management',
+        labelKey: 'nav.userManagement',
+        route: 'users',
+        icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+      },
+      {
+        name: 'redemption-management',
+        labelKey: 'nav.redemptionManagement',
+        route: 'redemption',
+        icon: 'M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a2.5 2.5 0 0 0 0 5V16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1.5a2.5 2.5 0 0 0 0-5V8ZM13 6v2m0 8v2m0-7v2',
+      },
+      {
+        name: 'order-management',
+        labelKey: 'nav.orderManagement',
+        route: 'orders',
+        icon: 'M9 5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 3h6v4H9zM9 12h6M9 16h6',
       },
     ],
   },

@@ -34,8 +34,10 @@ export type OptionBuilder = (palette: ChartPalette) => EChartsCoreOption
 
 /**
  * Binds an ECharts instance to an element. The option is built from the
- * live semantic palette and rebuilt whenever html.dark flips (theme switch)
- * or any of `watchSources` changes (async data / interactive toggles).
+ * live semantic palette and rebuilt whenever the resolved theme flips
+ * (html[data-theme], written by useTheme) or any of `watchSources` changes
+ * (async data / interactive toggles). Sources are watched shallowly — pass
+ * wholesale-replaced refs/computeds/getters, not in-place-mutated arrays.
  */
 export function useEChart(
   el: Ref<HTMLElement | null>,
@@ -51,23 +53,46 @@ export function useEChart(
     chart.setOption(buildOption(chartPalette()), true)
   }
 
-  if (watchSources) {
-    watch(watchSources, () => render(), { deep: true })
+  /**
+   * Forwards an action to the chart, e.g. highlighting a slice when the row it
+   * corresponds to is hovered. No-ops before mount and after dispose.
+   */
+  function dispatch(action: Parameters<echarts.ECharts['dispatchAction']>[0]) {
+    chart?.dispatchAction(action)
   }
 
-  onMounted(() => {
-    if (!el.value) return
-    chart = echarts.init(el.value)
+  if (watchSources) {
+    // Shallow on purpose: every call site replaces its source wholesale, and a
+    // deep walk over full chart datasets on each change is wasted work.
+    watch(watchSources, () => render())
+  }
+
+  function attach(target: HTMLElement) {
+    if (chart) return
+    chart = echarts.init(target)
     render()
 
     resizeObserver = new ResizeObserver(() => chart?.resize())
-    resizeObserver.observe(el.value)
+    resizeObserver.observe(target)
 
+    // data-theme changes only on light/dark flips (useTheme), unlike `class`,
+    // which any route/overlay toggle can touch — observing it avoids full
+    // chart rebuilds on unrelated class churn.
     themeObserver = new MutationObserver(() => render())
     themeObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['class'],
+      attributeFilter: ['data-theme'],
     })
+  }
+
+  onMounted(() => {
+    if (el.value) attach(el.value)
+  })
+
+  // Charts behind a v-if loading skeleton mount without an element; pick it up
+  // as soon as the real container renders.
+  watch(el, (target) => {
+    if (target) attach(target)
   })
 
   onBeforeUnmount(() => {
@@ -77,5 +102,5 @@ export function useEChart(
     chart = null
   })
 
-  return { refresh: render }
+  return { refresh: render, dispatch }
 }

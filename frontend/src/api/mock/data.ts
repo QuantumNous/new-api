@@ -1,9 +1,20 @@
 import { marketSources, marketTagPool } from '@/constants/console'
+import { adminChannelTypeMeta } from '@/constants/adminChannels'
 import type { UserInfo } from '@/types/auth'
 import type {
+  AdminChannel,
+  AdminOrder,
+  AdminOrderMethod,
+  AdminOrderStatus,
+  AdminOrderType,
+  AdminRedemptionCode,
+  AdminUser,
+  AdminUserRole,
+  AdminUserStatus,
   TokenType,
   TokenChannel,
   TokenItem,
+  LogRequestMode,
   LogType,
   LogItem,
   TopupRecord,
@@ -383,16 +394,171 @@ const rand = mulberry32(20260717)
 const now = Math.floor(Date.now() / 1000)
 const DAY = 86_400
 
+// Role 100 (root) matches the admin surface this demo identity already reaches:
+// it owns the admin nav group and mutates channels. Leaving it at 1 would make
+// every row in user management unmanageable and the page undemoable.
 export const mockUser: UserInfo = {
   id: 1,
-  username: 'bigd.studio',
-  display_name: 'Bigd.Studio',
-  email: 'hello@bigd.studio',
+  username: 'ren2.demo',
+  display_name: 'Ren2 Demo',
+  email: 'demo@ren2hub.dev',
   role: 1,
   quota: 5_201_314,
   used_quota: 2_985_211,
   group: 'vip',
 }
+
+const adminChannelProviders = [
+  { type: 1, name: 'OpenAI' },
+  { type: 14, name: 'Claude' },
+  { type: 24, name: 'Gemini' },
+  { type: 43, name: 'DeepSeek' },
+  { type: 17, name: 'Qwen' },
+  { type: 48, name: 'Grok' },
+  { type: 25, name: 'Kimi' },
+  { type: 33, name: 'Bedrock' },
+  { type: 40, name: 'SiliconFlow' },
+  { type: 41, name: 'Vertex' },
+  { type: 3, name: 'Azure' },
+  { type: 57, name: 'Codex' },
+] as const
+
+const adminChannelRegions = [
+  'Virginia',
+  'Frankfurt',
+  'Tokyo',
+  'Singapore',
+  'HongKong',
+  'Sydney',
+] as const
+
+const adminChannelRatios = [0.52, 0.68, 0.75, 0.84, 0.92, 1, 1.08, 1.2]
+const adminChannelPriceRatios = [0, 0.72, 0.85, 1, 1.08, 1.2, 1.35, 1.5]
+const adminChannelCapacities = [20, 40, 60, 80, 120, 160]
+
+export const adminChannels: AdminChannel[] = Array.from(
+  { length: 32 },
+  (_, index) => {
+    const provider = adminChannelProviders[index % adminChannelProviders.length]
+    const capacityTotal =
+      adminChannelCapacities[index % adminChannelCapacities.length]
+    const responseTime = index % 9 === 0 ? 0 : 240 + ((index * 347) % 5_200)
+    const status: AdminChannel['status'] =
+      index % 11 === 0 ? 3 : index % 7 === 0 ? 2 : 1
+    const capacityUsed =
+      index % 13 === 0 ? capacityTotal : (index * 17 + 9) % (capacityTotal + 1)
+
+    return {
+      id: 412 - index * 7,
+      name: `${provider.name}-${adminChannelRegions[index % adminChannelRegions.length]}-${String(index + 1).padStart(2, '0')}`,
+      type: provider.type,
+      supplier: adminChannelTypeMeta(provider.type).supplier,
+      status,
+      priority: [0, 1, 5, 10, 20][index % 5],
+      weight: [0, 10, 25, 50, 100][(index * 3) % 5],
+      capacity_used: capacityUsed,
+      capacity_total: capacityTotal,
+      used_quota: (index + 2) * 385_000 + (index % 4) * 72_500,
+      channel_ratio:
+        adminChannelPriceRatios[index % adminChannelPriceRatios.length],
+      balance:
+        index % 10 === 0
+          ? 0
+          : Math.round((0.45 + ((index * 631) % 31_000) / 100) * 100) / 100,
+      upstream_ratio: adminChannelRatios[index % adminChannelRatios.length],
+      response_time: responseTime,
+      test_time: responseTime === 0 ? 0 : now - (index + 1) * 1_800,
+    }
+  }
+)
+
+/** handle / display-name pairs cycled by the adminUsers seed. */
+const adminUserSeeds = [
+  ['emmahart', 'Emma Hart', 'example.com'],
+  ['adamreed', 'Adam Reed', 'example.com'],
+  ['coryfrye', 'Cory Frye', 'example.net'],
+  ['mikeknox', 'Mike Knox', 'example.com'],
+  ['leonkira', 'Leon Kira', 'example.org'],
+  ['noahbell', 'Noah Bell', 'example.com'],
+  ['zhaoaiwei', '赵艾维', 'example.cn'],
+  ['liuwenqi', '刘文琪', 'example.cn'],
+  ['chenyi', '陈屹', 'example.cn'],
+  ['zhangkairui', '张凯睿', 'example.cn'],
+  ['sunlei', '孙磊', 'example.cn'],
+  ['wupeng', '吴鹏', 'example.cn'],
+  ['gracelin', 'Grace Lin', 'example.com'],
+  ['oliverwang', 'Oliver Wang', 'example.net'],
+  ['mayahsu', 'Maya Hsu', 'example.com'],
+  ['ethanlu', 'Ethan Lu', 'example.org'],
+  ['guonina', '郭妮娜', 'example.cn'],
+  ['guorui', '郭睿', 'example.cn'],
+  ['xietao', '谢涛', 'example.cn'],
+  ['fanlucy', '范露西', 'example.com'],
+] as const
+
+/**
+ * Index 0 mirrors the demo identity, so the self-row guard is reachable in the
+ * UI — it is blocked by the id check, not by rank. Index 1 is a root and 2..3
+ * are admins, which sit at or above the demo operator level and make the
+ * "cannot manage an equal-or-higher role" guard visible on the first page.
+ */
+export const adminUsers: AdminUser[] = Array.from(
+  { length: 64 },
+  (_, index) => {
+    if (index === 0) {
+      return {
+        id: mockUser.id,
+        username: mockUser.username,
+        display_name: mockUser.display_name,
+        email: mockUser.email,
+        role: mockUser.role as AdminUserRole,
+        status: 1 as AdminUserStatus,
+        quota: mockUser.quota,
+        used_quota: mockUser.used_quota,
+        request_count: 8_412,
+        invited_count: 12,
+        affiliate_quota: 486_000,
+        inviter_id: 0,
+        created_time: now - 640 * DAY,
+        last_login_time: now - 900,
+      }
+    }
+
+    const seed = adminUserSeeds[(index - 1) % adminUserSeeds.length]!
+    const [handle, displayName, domain] = seed
+    const suffix = String(1000 + ((index * 617) % 8999))
+    const role: AdminUserRole =
+      index === 1 ? 100 : index <= 3 ? 10 : index % 17 === 0 ? 0 : 1
+    const status: AdminUserStatus = index % 9 === 0 ? 2 : 1
+
+    const usedQuota = (index * 137_500 + (index % 5) * 41_000) % 9_400_000
+    const remainQuota =
+      index % 12 === 0
+        ? 0
+        : index % 7 === 0
+          ? Math.round(usedQuota * 0.04)
+          : 620_000 + ((index * 733_000) % 14_800_000)
+    const invited = index % 4 === 0 ? (index * 3) % 19 : 0
+
+    return {
+      id: 2400 - (index - 1) * 7,
+      username: `${handle}${suffix}`,
+      display_name: index % 6 === 0 ? '' : displayName,
+      email: `${handle}${suffix}@${domain}`,
+      role,
+      status,
+      quota: remainQuota,
+      used_quota: usedQuota,
+      request_count: (index * 419) % 24_000,
+      invited_count: invited,
+      affiliate_quota: invited > 0 ? invited * 21_500 : 0,
+      inviter_id: index % 3 === 0 ? 2400 - ((index * 5) % 60) * 7 : 0,
+      created_time: now - (index * 9 + 3) * DAY,
+      last_login_time:
+        index % 15 === 0 ? 0 : now - (index * 2_600 + (index % 7) * 900),
+    }
+  }
+)
 
 function randomKey() {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -621,12 +787,46 @@ export const logs: LogItem[] = Array.from({ length: 67 }, (_, i) => {
       : '—'
   const prompt = isConsume || isError ? Math.floor(rand() * 6000) + 200 : 0
   const completion = isConsume ? Math.floor(rand() * 2000) + 50 : 0
-  // latency: consume 0.5–12s, error 15–30s (timeout), others 0
+  const isRequest = isConsume || isError
+  const requestSequence = Math.floor(i / LOG_TYPES.length)
+  let requestMode: LogRequestMode | null = null
+  if (isRequest) {
+    requestMode = requestSequence % 3 === 1 ? 'sync' : 'stream'
+  }
+  // Keep most calls quick while preserving deterministic slow and minute-long rows.
+  const latencyBand = i % 10
   const latency = isConsume
-    ? Math.round((0.5 + rand() * 11.5) * 100) / 100
+    ? Math.round(
+        (latencyBand < 6
+          ? 0.5 + rand() * 8.5
+          : latencyBand < 8
+            ? 10 + rand() * 19
+            : latencyBand === 8
+              ? 30 + rand() * 25
+              : 65 + rand() * 45) * 100
+      ) / 100
     : isError
-      ? Math.round((15 + rand() * 15) * 100) / 100
+      ? Math.round((15 + rand() * 30) * 100) / 100
       : 0
+  const firstTokenLatency =
+    requestMode === 'stream' && isConsume && i % 13 !== 0
+      ? Math.round(
+          Math.min(latency, 0.25 + rand() * Math.max(0.25, latency * 0.7)) * 100
+        ) / 100
+      : null
+  const cacheProfile = isRequest ? requestSequence % 5 : -1
+  let cacheReadTokens: number | null = null
+  if (cacheProfile === 0) {
+    cacheReadTokens = Math.floor(rand() * 140_000) + 40_000
+  } else if (cacheProfile === 1 || cacheProfile === 2) {
+    cacheReadTokens = Math.floor(rand() * 42_000) + 2_000
+  }
+  let cacheWriteTokens: number | null = null
+  if (cacheProfile === 0 || cacheProfile === 2 || cacheProfile === 3) {
+    cacheWriteTokens = Math.floor(rand() * 18_000) + 300
+  }
+  const cacheTtl =
+    cacheWriteTokens === null ? null : cacheProfile % 2 === 0 ? '5m' : '1h'
   // tps: only meaningful for consume (non-zero completion)
   const tps = isConsume && latency > 0 ? Math.round(completion / latency) : 0
 
@@ -647,6 +847,9 @@ export const logs: LogItem[] = Array.from({ length: 67 }, (_, i) => {
     channel,
     prompt_tokens: prompt,
     completion_tokens: completion,
+    cache_read_tokens: cacheReadTokens,
+    cache_write_tokens: cacheWriteTokens,
+    cache_ttl: cacheTtl,
     quota:
       type === 'topup'
         ? 2_500_000
@@ -658,6 +861,8 @@ export const logs: LogItem[] = Array.from({ length: 67 }, (_, i) => {
               ? Math.floor((prompt + completion * 3) * (0.8 + rand()))
               : 0,
     latency,
+    first_token_latency: firstTokenLatency,
+    request_mode: requestMode,
     tps,
     content: contentMap[type],
     created: now - Math.floor(i * 0.7 * DAY) - Math.floor(rand() * DAY),
@@ -711,6 +916,153 @@ export const plans: Plan[] = [
     gradient: 'support',
   },
 ]
+
+/* ---------- administration orders ---------- */
+
+/**
+ * Deliberately its own PRNG instance. The shared `rand()` above is consumed in
+ * declaration order by every seed in this file, so drawing from it here would
+ * shift each downstream value (topup records, flow series, market listings) and
+ * silently rewrite data other specs already assert on.
+ */
+const orderRand = mulberry32(20260725)
+
+const ORDER_SEED_DAYS = 90
+
+/** Subscription subjects name the actual plan, so they are built per order. */
+const orderSubjects: Record<
+  Exclude<AdminOrderType, 'subscription'>,
+  readonly string[]
+> = {
+  topup: ['账户余额充值', '额度充值', '余额快捷充值'],
+  market: ['市场渠道购买', '渠道额度包', '第三方渠道接入'],
+}
+
+/** Weighted so the two domestic wallets dominate, as they do in production. */
+const orderMethodWeights: ReadonlyArray<[AdminOrderMethod, number]> = [
+  ['alipay', 0.58],
+  ['wechat', 0.24],
+  ['stripe', 0.12],
+  ['creem', 0.06],
+]
+
+const ORDER_AMOUNTS = [3.5, 5, 10, 15, 20, 30, 50] as const
+
+function orderNoSuffix(length: number): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let out = ''
+  for (let i = 0; i < length; i++) {
+    out += chars[Math.floor(orderRand() * chars.length)]
+  }
+  return out
+}
+
+function orderDateKey(epochSec: number): string {
+  const date = new Date(epochSec * 1000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`
+}
+
+function pickOrderMethod(): AdminOrderMethod {
+  const roll = orderRand()
+  let cursor = 0
+  for (const [method, weight] of orderMethodWeights) {
+    cursor += weight
+    if (roll < cursor) return method
+  }
+  return 'alipay'
+}
+
+function pickOrderSubject(
+  type: Exclude<AdminOrderType, 'subscription'>
+): string {
+  const pool = orderSubjects[type]
+  return pool[Math.floor(orderRand() * pool.length)]!
+}
+
+/** Guests (role 0) never reach checkout, so they are not payers. */
+const orderPayers = adminUsers.filter((user) => user.role >= 1)
+
+export const adminOrders: AdminOrder[] = (() => {
+  const out: AdminOrder[] = []
+  let id = 251
+
+  for (let day = 0; day < ORDER_SEED_DAYS; day++) {
+    // Volume stays at zero for the first few days and then ramps, so the 7 /
+    // 30 / 90 day ranges each render a distinct shape instead of one flat line.
+    const ramp = Math.min(1, Math.max(0, (day - 4) / 26))
+    const perDay =
+      day < 5 ? 0 : Math.round(1 + ramp * 8 + orderRand() * (2 + ramp * 6))
+    const dayStart = now - (ORDER_SEED_DAYS - 1 - day) * DAY
+
+    for (let n = 0; n < perDay; n++) {
+      const payer = orderPayers[Math.floor(orderRand() * orderPayers.length)]!
+      const typeRoll = orderRand()
+      const type: AdminOrderType =
+        typeRoll < 0.62 ? 'topup' : typeRoll < 0.88 ? 'subscription' : 'market'
+      const plan = plans[Math.floor(orderRand() * plans.length)]!
+      const amount =
+        type === 'subscription'
+          ? plan.price
+          : ORDER_AMOUNTS[Math.floor(orderRand() * ORDER_AMOUNTS.length)]!
+      // Clamped to `now`: the last day is only partly elapsed, and an order
+      // stamped in the future would pass a trailing-window filter while falling
+      // outside every daily bucket the same window builds.
+      const created = Math.min(now, dayStart + Math.floor(orderRand() * DAY))
+      // Only a recent order can still be awaiting payment — gateways expire the
+      // rest — but the rate inside that window is set high enough that the
+      // pending facet has rows to filter rather than a single lonely order.
+      const isRecent = day >= ORDER_SEED_DAYS - 3
+
+      const statusRoll = orderRand()
+      let status: AdminOrderStatus
+      if (isRecent && statusRoll < 0.35) status = 'pending'
+      else if (statusRoll < 0.79) status = 'completed'
+      else if (statusRoll < 0.86) status = 'cancelled'
+      else if (statusRoll < 0.94) status = 'expired'
+      else if (statusRoll < 0.97) status = 'refunded'
+      else status = 'completed'
+
+      const settled = status === 'completed' || status === 'refunded'
+      const prefix =
+        type === 'subscription'
+          ? `sub${plan.id}`
+          : type === 'topup'
+            ? 'top'
+            : 'mkt'
+
+      out.push({
+        id: id++,
+        order_no: `${prefix}_${orderDateKey(created)}${orderNoSuffix(8)}`,
+        user_id: payer.id,
+        username: payer.username,
+        email: payer.email,
+        amount,
+        quota: Math.round(amount * QUOTA_PER_DOLLAR),
+        type,
+        method: pickOrderMethod(),
+        status,
+        subject:
+          type === 'subscription'
+            ? `${plan.name} · ${plan.duration_days} 天`
+            : pickOrderSubject(type),
+        created,
+        // Both derived stamps are clamped for the same reason as `created`:
+        // a settlement cannot be recorded ahead of the current clock.
+        paid_at: settled
+          ? Math.min(now, created + 30 + Math.floor(orderRand() * 900))
+          : 0,
+        refunded_at:
+          status === 'refunded'
+            ? Math.min(now, created + DAY + Math.floor(orderRand() * 3 * DAY))
+            : 0,
+      })
+    }
+  }
+
+  // Newest first, matching every other admin list's default ordering.
+  return out.reverse()
+})()
 
 export const currentSubscription: CurrentSubscription = {
   plan_id: 2,
@@ -775,16 +1127,130 @@ export const flowSeries = Array.from({ length: 30 }, (_, i) => {
   }
 })
 
+/**
+ * Per-model breakdown. `quota` is what the account was actually billed;
+ * `standard_quota` is the same traffic at list price, so the overview table can
+ * show the discount side by side. Static literals on purpose — see the PRNG
+ * ordering note at the top of this file.
+ */
+/**
+ * A long tail on purpose: the overview list scrolls through every model while
+ * the donut plots only the top slice and folds the remainder into one bucket, so
+ * the seed has to be longer than that cut-off to exercise both paths. There is
+ * deliberately no literal '其他' row — that bucket is derived at render time and
+ * a hard-coded one would collide with it.
+ */
 export const modelShare = [
-  { model: 'claude-sonnet-4.5', ratio: 47.8, quota: 1_426_392 },
-  { model: 'gpt-4o', ratio: 25.2, quota: 752_213 },
-  { model: 'deepseek-v3.2', ratio: 15.5, quota: 462_708 },
-  { model: '其他', ratio: 14.8, quota: 441_612 },
-  { model: 'gemini-2.5-pro', ratio: -3.3, quota: 0 }, // normalized away below
-].filter((m) => m.ratio > 0)
-const shareTotal = modelShare.reduce((s, m) => s + m.ratio, 0)
+  {
+    model: 'claude-sonnet-4.5',
+    quota: 1_426_392,
+    standard_quota: 1_705_248,
+    requests: 3_567,
+    tokens: 888_040_000,
+  },
+  {
+    model: 'gpt-4o',
+    quota: 752_213,
+    standard_quota: 941_264,
+    requests: 1_597,
+    tokens: 115_020_000,
+  },
+  {
+    model: 'deepseek-v3.2',
+    quota: 462_708,
+    standard_quota: 528_192,
+    requests: 1_022,
+    tokens: 106_610_000,
+  },
+  {
+    model: 'claude-opus-4.6',
+    quota: 318_940,
+    standard_quota: 402_460,
+    requests: 214,
+    tokens: 41_280_000,
+  },
+  {
+    model: 'gemini-2.5-pro',
+    quota: 241_508,
+    standard_quota: 296_920,
+    requests: 486,
+    tokens: 62_740_000,
+  },
+  {
+    model: 'gpt-4o-mini',
+    quota: 138_264,
+    standard_quota: 172_830,
+    requests: 2_845,
+    tokens: 88_150_000,
+  },
+  {
+    model: 'claude-haiku-4.5',
+    quota: 96_720,
+    standard_quota: 120_900,
+    requests: 1_930,
+    tokens: 54_310_000,
+  },
+  {
+    model: 'qwen-max',
+    quota: 74_180,
+    standard_quota: 91_360,
+    requests: 612,
+    tokens: 29_870_000,
+  },
+  {
+    model: 'gemini-2.5-flash',
+    quota: 52_940,
+    standard_quota: 66_180,
+    requests: 1_408,
+    tokens: 47_620_000,
+  },
+  {
+    model: 'deepseek-r1',
+    quota: 41_306,
+    standard_quota: 52_940,
+    requests: 298,
+    tokens: 18_450_000,
+  },
+  {
+    model: 'glm-4.6',
+    quota: 28_712,
+    standard_quota: 35_890,
+    requests: 341,
+    tokens: 12_980_000,
+  },
+  {
+    model: 'kimi-k2',
+    quota: 19_480,
+    standard_quota: 24_350,
+    requests: 187,
+    tokens: 9_640_000,
+  },
+  {
+    model: 'mistral-large-3',
+    quota: 12_360,
+    standard_quota: 15_450,
+    requests: 96,
+    tokens: 5_210_000,
+  },
+  {
+    model: 'gpt-image-2',
+    quota: 8_940,
+    standard_quota: 11_180,
+    requests: 62,
+    tokens: 1_480_000,
+  },
+  {
+    model: 'text-embedding-4',
+    quota: 3_180,
+    standard_quota: 3_975,
+    requests: 1_204,
+    tokens: 24_060_000,
+  },
+].map((m) => ({ ...m, ratio: 0 }))
+
+const shareTotal = modelShare.reduce((s, m) => s + m.quota, 0)
 modelShare.forEach((m) => {
-  m.ratio = Math.round((m.ratio / shareTotal) * 1000) / 10
+  m.ratio = Math.round((m.quota / shareTotal) * 1000) / 10
 })
 
 export const dashboardStats = {
@@ -795,6 +1261,37 @@ export const dashboardStats = {
   total_requests: 18_764,
   month_quota_delta: 16.2,
   month_requests_delta: -5.8,
+}
+
+/** RPM ceiling per group. 0 means unmetered. */
+const GROUP_RPM: Record<string, number> = {
+  default: 60,
+  vip: 300,
+  svip: 0,
+}
+
+const GROUP_DISCOUNT: Record<string, number> = {
+  default: 1.0,
+  vip: 0.95,
+  svip: 0.85,
+}
+
+const GLOBAL_DISCOUNT = 0.88
+
+export function buildDashboardLimits(group: string) {
+  const rateLimit = GROUP_RPM[group] ?? GROUP_RPM.default!
+  // Unmetered groups still report observed throughput so the meter has a value.
+  const currentRpm = rateLimit === 0 ? 118 : Math.round(rateLimit * 0.47)
+  return { group, rate_limit: rateLimit, current_rpm: currentRpm }
+}
+
+export function buildDashboardDiscounts(group: string) {
+  const groupRatio = GROUP_DISCOUNT[group] ?? 1.0
+  return {
+    global_ratio: GLOBAL_DISCOUNT,
+    group_ratio: groupRatio,
+    effective_ratio: Math.round(GLOBAL_DISCOUNT * groupRatio * 1000) / 1000,
+  }
 }
 
 export const tickets: TicketItem[] = [
@@ -1679,3 +2176,209 @@ export function addInvoice(
   invoices.unshift(item)
   return item
 }
+
+/* ------------------------------------------------------------------ */
+/* admin redemption codes                                               */
+/* ------------------------------------------------------------------ */
+
+/** Deterministic 32-char hex from an integer seed. */
+function hexCode(seed: number): string {
+  // Use a simple LCG in number space (safe for our id range)
+  let v = (seed * 1664525 + 1013904223) >>> 0
+  let hex = ''
+  for (let i = 0; i < 8; i++) {
+    v = (v * 1664525 + 1013904223) >>> 0
+    hex += v.toString(16).padStart(8, '0')
+  }
+  return hex.slice(0, 32)
+}
+
+const redeemerPool = [
+  { id: 998, email: 'layubihui@qq.com' },
+  { id: 2052, email: '1850704696@qq.com' },
+  { id: 1509, email: '2722511193@qq.com' },
+  { id: 1802, email: '2402888274@qq.com' },
+  { id: 421, email: '2905519940@qq.com' },
+  { id: 1383, email: '1850704696@qq.com' },
+  { id: 1707, email: '823988151@qq.com' },
+]
+
+type RedemptionSeed = {
+  id: number
+  type: AdminRedemptionCode['type']
+  status: AdminRedemptionCode['status']
+  amount?: number
+  concurrency?: number
+  plan_id?: number
+  redeemerIndex?: number // index into redeemerPool; undefined = unused
+  daysAgo: number // created_time offset
+  usedDaysAgo?: number // used_time offset (only if status=used)
+  expiredDaysAgo?: number // if status=expired, validity window ended this many days ago
+}
+
+const redemptionSeeds: RedemptionSeed[] = [
+  {
+    id: 32,
+    type: 'quota',
+    status: 'used',
+    amount: 5,
+    redeemerIndex: 0,
+    daysAgo: 31,
+    usedDaysAgo: 31,
+  },
+  {
+    id: 31,
+    type: 'quota',
+    status: 'used',
+    amount: 1,
+    redeemerIndex: 1,
+    daysAgo: 43,
+    usedDaysAgo: 43,
+  },
+  {
+    id: 30,
+    type: 'quota',
+    status: 'used',
+    amount: 3,
+    redeemerIndex: 2,
+    daysAgo: 47,
+    usedDaysAgo: 47,
+  },
+  {
+    id: 29,
+    type: 'quota',
+    status: 'used',
+    amount: 3,
+    redeemerIndex: 3,
+    daysAgo: 47,
+    usedDaysAgo: 47,
+  },
+  {
+    id: 28,
+    type: 'quota',
+    status: 'used',
+    amount: 3,
+    redeemerIndex: 4,
+    daysAgo: 47,
+    usedDaysAgo: 47,
+  },
+  { id: 27, type: 'quota', status: 'unused', amount: 3, daysAgo: 47 },
+  { id: 26, type: 'quota', status: 'unused', amount: 3, daysAgo: 47 },
+  {
+    id: 25,
+    type: 'quota',
+    status: 'used',
+    amount: 3,
+    redeemerIndex: 5,
+    daysAgo: 47,
+    usedDaysAgo: 47,
+  },
+  {
+    id: 24,
+    type: 'quota',
+    status: 'used',
+    amount: 3,
+    redeemerIndex: 4,
+    daysAgo: 47,
+    usedDaysAgo: 47,
+  },
+  {
+    id: 23,
+    type: 'quota',
+    status: 'used',
+    amount: 1,
+    redeemerIndex: 6,
+    daysAgo: 64,
+    usedDaysAgo: 64,
+  },
+  { id: 18, type: 'quota', status: 'unused', amount: 0.2, daysAgo: 76 },
+  { id: 17, type: 'quota', status: 'disabled', amount: 10, daysAgo: 90 },
+  {
+    id: 15,
+    type: 'quota',
+    status: 'expired',
+    amount: 2,
+    daysAgo: 100,
+    expiredDaysAgo: 60,
+  },
+  {
+    id: 14,
+    type: 'concurrency',
+    status: 'used',
+    concurrency: 5,
+    redeemerIndex: 1,
+    daysAgo: 50,
+    usedDaysAgo: 45,
+  },
+  {
+    id: 13,
+    type: 'concurrency',
+    status: 'unused',
+    concurrency: 3,
+    daysAgo: 55,
+  },
+  {
+    id: 12,
+    type: 'subscription',
+    status: 'used',
+    plan_id: 2,
+    redeemerIndex: 2,
+    daysAgo: 60,
+    usedDaysAgo: 58,
+  },
+  { id: 11, type: 'subscription', status: 'unused', plan_id: 1, daysAgo: 65 },
+  {
+    id: 8,
+    type: 'invite',
+    status: 'used',
+    redeemerIndex: 0,
+    daysAgo: 120,
+    usedDaysAgo: 118,
+  },
+  { id: 7, type: 'invite', status: 'unused', daysAgo: 120 },
+  { id: 6, type: 'invite', status: 'disabled', daysAgo: 125 },
+]
+
+export const adminRedemptionCodes: AdminRedemptionCode[] = redemptionSeeds.map(
+  (seed) => {
+    const createdTime = now - seed.daysAgo * DAY
+    const redeemer =
+      seed.redeemerIndex != null ? redeemerPool[seed.redeemerIndex] : null
+    const expiredTime =
+      seed.status === 'expired' && seed.expiredDaysAgo != null
+        ? now - seed.expiredDaysAgo * DAY
+        : -1
+
+    // Display name for the row
+    const name =
+      seed.type === 'quota' && seed.amount != null
+        ? `$${seed.amount.toFixed(2)}`
+        : seed.type === 'concurrency'
+          ? `${seed.concurrency ?? 0} 并发`
+          : seed.type === 'subscription'
+            ? seed.plan_id === 2
+              ? '专业版'
+              : '轻量版'
+            : '邀请码'
+
+    return {
+      id: seed.id,
+      name,
+      code: hexCode(seed.id * 9999991 + 12345678),
+      type: seed.type,
+      status: seed.status,
+      quota:
+        seed.amount != null
+          ? Math.round(seed.amount * QUOTA_PER_DOLLAR)
+          : undefined,
+      amount: seed.amount,
+      concurrency: seed.concurrency,
+      plan_id: seed.plan_id,
+      redeemer_id: redeemer?.id ?? 0,
+      redeemer_email: redeemer?.email ?? '',
+      created_time: createdTime,
+      used_time: seed.usedDaysAgo != null ? now - seed.usedDaysAgo * DAY : 0,
+      expired_time: expiredTime,
+    }
+  }
+)

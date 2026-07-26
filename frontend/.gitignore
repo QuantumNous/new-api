@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.local
 *.tsbuildinfo
+
+# illustration pipeline artifacts (candidates + run log)
+src/assets/illustrations/_review/
+illustrations-gen.log

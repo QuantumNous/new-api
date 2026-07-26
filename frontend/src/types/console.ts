@@ -32,8 +32,218 @@ export interface TokenItem {
   created_time: number
 }
 
+export type AdminChannelStatus = 1 | 2 | 3
+
+export type AdminChannelSortBy =
+  'id' | 'name' | 'priority' | 'balance' | 'response_time'
+
+export type AdminChannelSortOrder = 'asc' | 'desc'
+
+export interface AdminChannel extends Record<string, unknown> {
+  id: number
+  name: string
+  type: number
+  supplier: string
+  status: AdminChannelStatus
+  priority: number
+  weight: number
+  capacity_used: number
+  capacity_total: number
+  used_quota: number
+  channel_ratio: number
+  balance: number
+  upstream_ratio: number
+  response_time: number
+  test_time: number
+}
+
+export interface AdminChannelCreateInput {
+  name: string
+  type: number
+  status: Extract<AdminChannelStatus, 1 | 2>
+  priority: number
+  weight: number
+  capacity_total: number
+  channel_ratio: number
+}
+
+export type AdminChannelUpdateInput = Omit<AdminChannelCreateInput, 'status'>
+
+export interface AdminChannelPage {
+  items: AdminChannel[]
+  total: number
+  page: number
+  page_size: number
+  type_counts: Record<string, number>
+}
+
+/**
+ * Mirrors the backend role ladder in `common/constants.go`:
+ * RoleGuestUser=0 · RoleCommonUser=1 · RoleAdminUser=10 · RoleRootUser=100.
+ */
+export type AdminUserRole = 0 | 1 | 10 | 100
+
+/** 1 enabled · 2 disabled — same convention as channels and tokens. */
+export type AdminUserStatus = 1 | 2
+
+export type AdminUserSortBy =
+  | 'id'
+  | 'username'
+  | 'quota'
+  | 'used_quota'
+  | 'created_time'
+  | 'last_login_time'
+
+export type AdminUserSortOrder = 'asc' | 'desc'
+
+export interface AdminUser extends Record<string, unknown> {
+  id: number
+  username: string
+  display_name: string
+  email: string
+  role: AdminUserRole
+  status: AdminUserStatus
+  quota: number
+  used_quota: number
+  request_count: number
+  invited_count: number
+  affiliate_quota: number
+  /** 0 = registered without an inviter. */
+  inviter_id: number
+  created_time: number
+  /** 0 = never signed in. */
+  last_login_time: number
+}
+
+export interface AdminUserCreateInput {
+  username: string
+  display_name: string
+  email: string
+  role: AdminUserRole
+  status: AdminUserStatus
+}
+
+/** Status is owned by the dedicated toggle route, not by the edit form. */
+export type AdminUserUpdateInput = Omit<AdminUserCreateInput, 'status'>
+
+export interface AdminUserPage {
+  items: AdminUser[]
+  total: number
+  page: number
+  page_size: number
+  role_counts: Record<string, number>
+  status_counts: Record<string, number>
+}
+
+/* ---------------- administrator orders ---------------- */
+
+/**
+ * Payment lifecycle. `completed` is the only state a refund may act on;
+ * `cancelled` and `expired` are both terminal unpaid outcomes, distinguished
+ * because one is a user action and the other a gateway timeout.
+ */
+export type AdminOrderStatus =
+  'completed' | 'pending' | 'cancelled' | 'expired' | 'refunded'
+
+/** The three sellable paths in this console: wallet, plan, marketplace. */
+export type AdminOrderType = 'topup' | 'subscription' | 'market'
+
+/**
+ * Alipay and WeChat are the two channels behind the wallet's `epay`
+ * aggregator (see TopupRecord.method). Orders record the channel the payer
+ * actually used, because that is what a revenue breakdown has to answer.
+ */
+export type AdminOrderMethod = 'alipay' | 'wechat' | 'stripe' | 'creem'
+
+export type AdminOrderSortBy = 'id' | 'amount' | 'created'
+
+export type AdminOrderSortOrder = 'asc' | 'desc'
+
+/** Trailing window the statistics tab aggregates over, in days. */
+export type AdminOrderRange = 7 | 30 | 90
+
+export interface AdminOrder extends Record<string, unknown> {
+  id: number
+  /** Gateway trade number, e.g. `sub2_20260725RHcR5xPa`. */
+  order_no: string
+  user_id: number
+  username: string
+  email: string
+  /** Amount actually paid, in USD. */
+  amount: number
+  /** Quota credited on completion. 0 for orders that never completed. */
+  quota: number
+  type: AdminOrderType
+  method: AdminOrderMethod
+  status: AdminOrderStatus
+  /** Human-readable line item, e.g. `专业版 · 30 天`. */
+  subject: string
+  created: number
+  /** 0 = never paid. */
+  paid_at: number
+  /** 0 = never refunded. */
+  refunded_at: number
+}
+
+export interface AdminOrderPage {
+  items: AdminOrder[]
+  total: number
+  page: number
+  page_size: number
+  status_counts: Record<string, number>
+  method_counts: Record<string, number>
+  type_counts: Record<string, number>
+  /** Paid revenue across the whole filtered set, not just the page. */
+  filtered_revenue: number
+}
+
+export interface AdminOrderDailyPoint {
+  /** `YYYY-MM-DD`, local time. */
+  date: string
+  revenue: number
+  orders: number
+}
+
+export interface AdminOrderMethodShare {
+  method: AdminOrderMethod
+  amount: number
+  count: number
+}
+
+export interface AdminOrderSpender {
+  user_id: number
+  username: string
+  email: string
+  amount: number
+  orders: number
+}
+
+export interface AdminOrderStats {
+  range: AdminOrderRange
+  /** Server clock when the window was aggregated. */
+  generated_at: number
+  today_revenue: number
+  today_orders: number
+  /** Revenue over the requested window, not all-time. */
+  total_revenue: number
+  total_orders: number
+  /** Mean paid order value over the window; 0 when the window has no sales. */
+  average_amount: number
+  /**
+   * Money collected and then returned. Held separately rather than netted into
+   * `total_revenue`, so a refund never silently rewrites a past day's takings.
+   */
+  refunded_total: number
+  refunded_orders: number
+  daily: AdminOrderDailyPoint[]
+  payment_share: AdminOrderMethodShare[]
+  top_spenders: AdminOrderSpender[]
+}
+
 export type LogType =
   'consume' | 'topup' | 'refund' | 'manage' | 'error' | 'system'
+
+export type LogRequestMode = 'stream' | 'sync'
 
 export interface LogItem {
   id: number
@@ -43,8 +253,14 @@ export interface LogItem {
   channel: string // 渠道名称
   prompt_tokens: number
   completion_tokens: number
+  /** Cache-token fields are optional until the production log API exposes them. */
+  cache_read_tokens?: number | null
+  cache_write_tokens?: number | null
+  cache_ttl?: string | null
   quota: number
   latency: number // 延迟（秒）
+  first_token_latency: number | null // 首字延迟（秒），仅流式请求适用
+  request_mode: LogRequestMode | null // 非请求类日志为 null
   tps: number // tokens per second (0 表示不适用)
   content: string
   created: number
@@ -376,4 +592,65 @@ export interface CurrentSubscription {
   remain_quota: number
   expire_time: number
   auto_renew: boolean
+}
+
+/* ------------------------------------------------------------------ */
+/* admin redemption codes                                               */
+/* ------------------------------------------------------------------ */
+
+/** Code type mirrors the backend redeem_type enum. */
+export type AdminRedemptionType =
+  | 'quota' // credit user balance
+  | 'concurrency' // unlock extra concurrent request slots
+  | 'subscription' // activate a plan
+  | 'invite' // act as an invite code
+
+/**
+ * Four lifecycle states:
+ *   unused   — never redeemed, within validity window
+ *   used     — redeemed by exactly one user
+ *   expired  — validity window has passed without being used
+ *   disabled — manually deactivated by an admin
+ */
+export type AdminRedemptionStatus = 'unused' | 'used' | 'expired' | 'disabled'
+
+export type AdminRedemptionSortBy = 'id' | 'created_time' | 'used_time'
+
+export type AdminRedemptionSortOrder = 'asc' | 'desc'
+
+export interface AdminRedemptionCode extends Record<string, unknown> {
+  id: number
+  name: string // display label (e.g. "$5.00", "claude", admin-set)
+  code: string // raw code string (32-char hex in mock)
+  type: AdminRedemptionType
+  status: AdminRedemptionStatus
+  // face-value fields — populated by type; others are undefined
+  quota?: number // type=quota  : internal quota units
+  amount?: number // type=quota  : display USD value
+  concurrency?: number // type=concurrency : slot count
+  plan_id?: number // type=subscription : plan id
+  // redemption record
+  redeemer_id: number // 0 = not yet redeemed
+  redeemer_email: string // '' = not yet redeemed
+  created_time: number // unix epoch seconds
+  used_time: number // 0 = not yet redeemed
+  expired_time: number // -1 = never
+}
+
+export interface AdminRedemptionPage {
+  items: AdminRedemptionCode[]
+  total: number
+  page: number
+  page_size: number
+  type_counts: Record<string, number>
+  status_counts: Record<string, number>
+}
+
+export interface AdminRedemptionCreateInput {
+  type: AdminRedemptionType
+  count: number // 1–100
+  amount?: number // type=quota (USD dollars)
+  concurrency?: number // type=concurrency
+  plan_id?: number // type=subscription
+  expired_time: number // -1 = never; future unix epoch = deadline
 }

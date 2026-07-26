@@ -22,10 +22,8 @@ withDefaults(
 
     <!-- title row -->
     <div class="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1
-          class="text-4xl font-bold tracking-tight text-[var(--text-primary)]"
-        >
+      <div class="min-w-0">
+        <h1 class="display-title text-4xl font-bold text-[var(--text-primary)]">
           {{ title }}
           <span v-if="titleAccent" class="text-[var(--accent-text)]">
             &amp; {{ titleAccent }}</span
@@ -34,8 +32,14 @@ withDefaults(
         <!-- hero metric slot (wallet balance, etc.) -->
         <slot />
       </div>
-      <!-- right-side actions slot -->
-      <slot name="actions" />
+      <div class="flex min-w-0 items-center gap-5">
+        <!-- right-side actions slot -->
+        <slot name="actions" />
+        <!-- decorative spot illustration (desktop only) -->
+        <div v-if="$slots.art" class="hidden shrink-0 lg:block">
+          <slot name="art" />
+        </div>
+      </div>
     </div>
 
     <ConsoleTabs v-if="tabs.length" v-model="tab" :items="tabs" class="mt-5" />

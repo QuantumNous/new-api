@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
-import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
+import PageHero from '@/components/console/PageHero.vue'
 import FlowChart from '@/components/console/wallet/FlowChart.vue'
 import RedeemPanel from '@/components/console/wallet/RedeemPanel.vue'
 import TopupPanel from '@/components/console/wallet/TopupPanel.vue'
 import TopupRecords from '@/components/console/wallet/TopupRecords.vue'
 import type { DashboardStats, FlowPoint } from '@/composables/useDashboard'
 import { useBalanceVisibility } from '@/composables/useDashboard'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { formatMoney, formatQuota, QUOTA_PER_DOLLAR } from '@/utils/format'
 
@@ -33,8 +34,7 @@ const flow = ref<FlowPoint[]>([])
 const refreshKey = ref(0)
 const paymentMethod = ref('epay')
 const loading = ref(false)
-let loadController: AbortController | null = null
-let loadSequence = 0
+const statsRequest = useLatestRequest()
 
 const activePanel = computed<'topup' | 'redeem'>(() =>
   route.query.panel === 'redeem' ? 'redeem' : 'topup'
@@ -87,33 +87,31 @@ const statCards = computed(() => {
 })
 
 async function loadStats(): Promise<void> {
-  loadController?.abort()
-  const controller = new AbortController()
-  loadController = controller
-  const sequence = ++loadSequence
   loading.value = true
-  try {
-    const [data, flowData] = await Promise.all([
+  const result = await statsRequest.run((signal) =>
+    Promise.all([
       api.get<WalletStats & { model_share: unknown }>(
         '/api/data/self',
         undefined,
-        { signal: controller.signal }
+        { signal }
       ),
-      api.get<FlowPoint[]>('/api/data/flow/self', undefined, {
-        signal: controller.signal,
-      }),
+      api.get<FlowPoint[]>('/api/data/flow/self', undefined, { signal }),
     ])
-    if (sequence !== loadSequence) return
-    const { model_share: _modelShare, ...walletStats } = data
-    stats.value = walletStats
-    flow.value = flowData
-  } catch (error) {
-    if (!controller.signal.aborted) {
-      toast.error(error instanceof ApiError ? error.message : String(error))
-    }
-  } finally {
-    if (sequence === loadSequence) loading.value = false
+  )
+  if (result.stale) return
+  loading.value = false
+  if (!result.ok) {
+    toast.error(
+      result.error instanceof ApiError
+        ? result.error.message
+        : String(result.error)
+    )
+    return
   }
+  const [data, flowData] = result.value
+  const { model_share: _modelShare, ...walletStats } = data
+  stats.value = walletStats
+  flow.value = flowData
 }
 
 function handlePaymentDone(): void {
@@ -122,66 +120,59 @@ function handlePaymentDone(): void {
 }
 
 onMounted(() => void loadStats())
-onBeforeUnmount(() => loadController?.abort())
 </script>
 
 <template>
   <div>
-    <PageBreadcrumb
+    <PageHero
+      :title="t('wallet.title')"
+      :title-accent="t('wallet.titleAccent')"
       :crumbs="[t('wallet.breadcrumb.0'), t('wallet.breadcrumb.1')]"
-    />
-
-    <div
-      class="mb-8 flex flex-wrap items-center justify-between gap-x-6 gap-y-3"
     >
-      <h1 class="text-4xl font-bold tracking-tight text-[var(--text-primary)]">
-        {{ t('wallet.title') }}
-        <span class="text-[var(--accent-text)]">
-          &amp; {{ t('wallet.titleAccent') }}</span
-        >
-      </h1>
-      <div class="flex items-center gap-3" :aria-busy="loading">
-        <p class="font-mono tracking-tight text-[var(--text-primary)]">
-          <span class="text-lg text-[var(--text-tertiary)]">$</span>
-          <span class="text-5xl font-bold">
-            {{ hidden ? '••••••' : stats ? balanceDollars : '—' }}
-          </span>
-          <span
-            v-if="!hidden && stats"
-            class="text-xl text-[var(--text-secondary)]"
+      <template #actions>
+        <div class="flex items-center gap-3" :aria-busy="loading">
+          <p class="font-mono tracking-tight text-[var(--text-primary)]">
+            <span class="text-lg text-[var(--text-tertiary)]">$</span>
+            <span class="text-5xl font-bold">
+              {{ hidden ? '••••••' : stats ? balanceDollars : '—' }}
+            </span>
+            <span
+              v-if="!hidden && stats"
+              class="text-xl text-[var(--text-secondary)]"
+            >
+              .{{ balanceCents }}
+            </span>
+          </p>
+          <button
+            type="button"
+            class="text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)] focus-ring"
+            :aria-label="
+              hidden ? t('wallet.showBalance') : t('wallet.hideBalance')
+            "
+            @click="toggle"
           >
-            .{{ balanceCents }}
-          </span>
-        </p>
-        <button
-          type="button"
-          class="text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)] focus-ring"
-          :aria-label="
-            hidden ? t('wallet.showBalance') : t('wallet.hideBalance')
-          "
-          @click="toggle"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            aria-hidden="true"
-          >
-            <path
-              v-if="hidden"
-              d="M3 3l18 18M10.5 10.7a3 3 0 0 0 4.2 4.2M7.4 7.6C4.8 9.3 3 12 3 12s3.5 6 9 6c1.6 0 3-.4 4.3-1M12 6c5.5 0 9 6 9 6s-.6 1.1-1.8 2.3"
-            />
-            <template v-else>
-              <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" />
-              <circle cx="12" cy="12" r="3" />
-            </template>
-          </svg>
-        </button>
-      </div>
-    </div>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <path
+                v-if="hidden"
+                d="M3 3l18 18M10.5 10.7a3 3 0 0 0 4.2 4.2M7.4 7.6C4.8 9.3 3 12 3 12s3.5 6 9 6c1.6 0 3-.4 4.3-1M12 6c5.5 0 9 6 9 6s-.6 1.1-1.8 2.3"
+              />
+              <template v-else>
+                <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" />
+                <circle cx="12" cy="12" r="3" />
+              </template>
+            </svg>
+          </button>
+        </div>
+      </template>
+    </PageHero>
 
     <ConsoleCard :padded="false" class="mb-6">
       <div

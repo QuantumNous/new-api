@@ -10,8 +10,8 @@ import '@/styles/console.css'
 
 const { t } = useI18n()
 
-const privateMode = useStorage<boolean>('renren_lab_private', false)
-const soundEnabled = useStorage<boolean>('renren_lab_sound', true)
+const privateMode = useStorage<boolean>('ren2hub_lab_private', false)
+const soundEnabled = useStorage<boolean>('ren2hub_lab_sound', true)
 </script>
 
 <template>

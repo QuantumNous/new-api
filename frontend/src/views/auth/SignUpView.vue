@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -21,17 +21,42 @@ const email = ref('')
 const password = ref('')
 const confirm = ref('')
 const loading = ref(false)
+const errors = reactive({ username: '', email: '', password: '', confirm: '' })
+
+// Mirrors the backend's minimal rules so obvious mistakes fail before the
+// request instead of as an opaque server error.
+function validate(): boolean {
+  errors.username = ''
+  errors.email = ''
+  errors.password = ''
+  errors.confirm = ''
+  let valid = true
+  if (!username.value.trim()) {
+    errors.username = t('auth.usernameRequired')
+    valid = false
+  }
+  if (!/^\S+@\S+\.\S+$/.test(email.value.trim())) {
+    errors.email = t('auth.emailInvalid')
+    valid = false
+  }
+  if (password.value.length < 8) {
+    errors.password = t('auth.passwordTooShort')
+    valid = false
+  }
+  if (password.value !== confirm.value) {
+    errors.confirm = t('auth.mismatch')
+    valid = false
+  }
+  return valid
+}
 
 async function submit() {
-  if (password.value !== confirm.value) {
-    toast.error(t('auth.mismatch'))
-    return
-  }
+  if (loading.value || !validate()) return
   loading.value = true
   try {
     await authApi.register({
-      username: username.value,
-      email: email.value,
+      username: username.value.trim(),
+      email: email.value.trim(),
       password: password.value,
     })
     toast.success(t('toast.registerSuccess'))
@@ -60,6 +85,12 @@ async function submit() {
           :placeholder="t('auth.username')"
           autocomplete="username"
         />
+        <span
+          v-if="errors.username"
+          class="mt-1.5 block text-xs text-[var(--status-danger-text)]"
+        >
+          {{ errors.username }}
+        </span>
       </FormField>
       <FormField :label="t('auth.email')">
         <TextInput
@@ -68,6 +99,12 @@ async function submit() {
           :placeholder="t('auth.email')"
           autocomplete="email"
         />
+        <span
+          v-if="errors.email"
+          class="mt-1.5 block text-xs text-[var(--status-danger-text)]"
+        >
+          {{ errors.email }}
+        </span>
       </FormField>
       <FormField :label="t('auth.newPassword')" :hint="t('auth.passwordHint')">
         <TextInput
@@ -76,6 +113,12 @@ async function submit() {
           :placeholder="t('auth.newPassword')"
           autocomplete="new-password"
         />
+        <span
+          v-if="errors.password"
+          class="mt-1.5 block text-xs text-[var(--status-danger-text)]"
+        >
+          {{ errors.password }}
+        </span>
       </FormField>
       <PasswordStrengthMeter :password="password" />
       <FormField :label="t('auth.confirmPassword')">
@@ -85,6 +128,12 @@ async function submit() {
           :placeholder="t('auth.confirmPassword')"
           autocomplete="new-password"
         />
+        <span
+          v-if="errors.confirm"
+          class="mt-1.5 block text-xs text-[var(--status-danger-text)]"
+        >
+          {{ errors.confirm }}
+        </span>
       </FormField>
 
       <ConsoleButton type="submit" size="lg" block :loading="loading">

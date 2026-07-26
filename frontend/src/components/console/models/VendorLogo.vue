@@ -52,7 +52,7 @@ const initial = computed(() => props.vendor.trim().charAt(0).toUpperCase())
       height: `${size}px`,
       background: showLogo
         ? logo?.darkSurface
-          ? '#101114'
+          ? 'var(--signal-deep)'
           : 'var(--surface-solid)'
         : swatch.bg,
       color: swatch.fg,

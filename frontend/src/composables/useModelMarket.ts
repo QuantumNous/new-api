@@ -8,10 +8,12 @@ import type { MarketModel } from '@/types/console'
 import { vendorMeta } from '@/constants/console'
 import { useToast } from '@/composables/useToast'
 
-export type MarketViewMode = 'grid' | 'list'
-export type MarketSort = 'default' | 'latency' | 'tps' | 'price' | 'health'
+// Prefixed to stay distinct from useMarketplace's same-named exports — the two
+// composables cover different catalogs (models vs merchant listings).
+export type ModelMarketViewMode = 'grid' | 'list'
+export type ModelMarketSort = 'default' | 'latency' | 'tps' | 'price' | 'health'
 
-export interface MarketCatalog {
+export interface ModelMarketCatalog {
   models: MarketModel[]
   channels: string[]
   vendors: string[]
@@ -52,19 +54,22 @@ export function useModelMarket() {
   const { t } = useI18n()
   const toast = useToast()
   const loading = ref(true)
-  const catalog = ref<MarketCatalog | null>(null)
+  const catalog = ref<ModelMarketCatalog | null>(null)
 
   const keyword = ref('')
   const channel = ref('')
   const vendor = ref('')
   const type = ref('')
-  const sort = ref<MarketSort>('default')
-  const view = useLocalStorage<MarketViewMode>('renren_models_view', 'grid')
+  const sort = ref<ModelMarketSort>('default')
+  const view = useLocalStorage<ModelMarketViewMode>(
+    'ren2hub_models_view',
+    'grid'
+  )
 
   async function load() {
     loading.value = true
     try {
-      catalog.value = await api.get<MarketCatalog>('/api/models/market')
+      catalog.value = await api.get<ModelMarketCatalog>('/api/models/market')
     } catch (error) {
       toast.error(
         error instanceof ApiError ? error.message : t('common.failed')

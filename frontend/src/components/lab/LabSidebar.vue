@@ -14,7 +14,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
-const collapsed = useStorage<boolean>('renren_lab_sidebar_collapsed', false)
+const collapsed = useStorage<boolean>('ren2hub_lab_sidebar_collapsed', false)
 
 const { conversations, load } = useLabChat()
 onMounted(() => void load())

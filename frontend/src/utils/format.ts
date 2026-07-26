@@ -38,6 +38,17 @@ export function formatDate(epochSec: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/**
+ * Local calendar date as 'YYYY-MM-DD' (DateRangePicker's wire format),
+ * offset in whole days from today.
+ */
+export function dateInputValue(offsetDays = 0): string {
+  const d = new Date()
+  d.setDate(d.getDate() + offsetDays)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 export function relativeTime(epochSec: number, locale = 'zh-CN'): string {
   const diff = Math.floor(Date.now() / 1000) - epochSec
   const zh = locale.startsWith('zh')

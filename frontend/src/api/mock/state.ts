@@ -8,10 +8,13 @@ import * as lab from './lab'
 type MutableValue = Record<string, unknown> | unknown[]
 
 export interface MockRuntime {
+  nextAdminChannelId: number
+  nextAdminUserId: number
   nextTokenId: number
   nextTicketId: number
   nextMessageId: number
   nextListingId: number
+  nextRedemptionCodeId: number
   marketSelfEarnings: number
   redeemedCodes: Set<string>
 }
@@ -44,10 +47,15 @@ function captureSnapshots(): Map<MutableValue, MutableValue> {
 const snapshots = captureSnapshots()
 
 export const mockRuntime: MockRuntime = {
+  nextAdminChannelId:
+    Math.max(0, ...data.adminChannels.map((channel) => channel.id)) + 1,
+  nextAdminUserId: Math.max(0, ...data.adminUsers.map((user) => user.id)) + 1,
   nextTokenId: 100,
   nextTicketId: 100,
   nextMessageId: 1_000,
   nextListingId: 5_000,
+  nextRedemptionCodeId:
+    Math.max(0, ...data.adminRedemptionCodes.map((c) => c.id)) + 1,
   marketSelfEarnings: 3_260_000,
   redeemedCodes: new Set<string>(),
 }
@@ -68,10 +76,16 @@ export function createMockState(): MockState {
         }
       }
       Object.assign(mockRuntime, {
+        nextAdminChannelId:
+          Math.max(0, ...data.adminChannels.map((channel) => channel.id)) + 1,
+        nextAdminUserId:
+          Math.max(0, ...data.adminUsers.map((user) => user.id)) + 1,
         nextTokenId: 100,
         nextTicketId: 100,
         nextMessageId: 1_000,
         nextListingId: 5_000,
+        nextRedemptionCodeId:
+          Math.max(0, ...data.adminRedemptionCodes.map((c) => c.id)) + 1,
         marketSelfEarnings: 3_260_000,
         redeemedCodes: new Set<string>(),
       })

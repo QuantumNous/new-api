@@ -25,11 +25,23 @@ withDefaults(
     :aria-label="t('common.breadcrumb')"
   >
     <template v-for="(crumb, i) in crumbs" :key="i">
-      <span
+      <!-- hand-drawn chevron separator -->
+      <svg
         v-if="i > 0"
-        class="h-1 w-1 shrink-0 rounded-full bg-[var(--accent)] opacity-60"
+        width="9"
+        height="10"
+        viewBox="0 0 9 10"
+        fill="none"
+        class="shrink-0 text-[var(--accent)] opacity-70"
         aria-hidden="true"
-      />
+      >
+        <path
+          d="M2.4 1.8c1.5 1 2.8 2.1 3.9 3.4C5.1 6.4 3.9 7.5 2.7 8.4"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+        />
+      </svg>
       <span
         :class="i === crumbs.length - 1 ? 'text-[var(--text-secondary)]' : ''"
       >

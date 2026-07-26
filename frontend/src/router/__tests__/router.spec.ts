@@ -30,6 +30,9 @@ describe('application router', () => {
     )
     expect(sanitizeRedirect('/lab/chat/2')).toBe('/lab/chat/2')
     expect(sanitizeRedirect('//evil.example')).toBeNull()
+    // URL parsing treats "\" as "/" in special schemes, so this is a
+    // protocol-relative escape attempt — the origin check must catch it.
+    expect(sanitizeRedirect('/\\evil.example')).toBeNull()
     expect(sanitizeRedirect('/auth/sign-in')).toBeNull()
   })
 
@@ -43,6 +46,29 @@ describe('application router', () => {
     writeDemoUser(demoUser)
     await router.push('/console/models')
     expect(router.currentRoute.value.name).toBe('models')
+  })
+
+  it('opens the administrator channel list without a permission gate', async () => {
+    writeDemoUser(demoUser)
+    await router.push('/console/channels')
+
+    expect(router.currentRoute.value.name).toBe('channels')
+    expect(router.currentRoute.value.meta).toMatchObject({
+      wide: true,
+      noPageScroll: true,
+    })
+  })
+
+  it('opens the administrator order ledger as a wide admin route', async () => {
+    writeDemoUser(demoUser)
+    await router.push('/console/orders')
+
+    expect(router.currentRoute.value.name).toBe('orders')
+    expect(router.currentRoute.value.meta).toMatchObject({
+      wide: true,
+      noPageScroll: true,
+      requiresAdmin: true,
+    })
   })
 
   it('redirects authenticated guests away from auth pages', async () => {

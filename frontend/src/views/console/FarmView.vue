@@ -113,8 +113,8 @@ onMounted(load)
         </div>
       </div>
 
-      <!-- Tab: Leaderboard -->
-      <div v-show="tab === 'leader'">
+      <!-- Tab: Leaderboard (mounted on first visit, kept alive afterwards) -->
+      <div v-if="leaderLoaded" v-show="tab === 'leader'">
         <LeaderTable
           :entries="leaderEntries"
           :period="leaderPeriod"
@@ -128,8 +128,8 @@ onMounted(load)
         />
       </div>
 
-      <!-- Tab: Rebate -->
-      <div v-show="tab === 'rebate'">
+      <!-- Tab: Rebate (mounted on first visit, kept alive afterwards) -->
+      <div v-if="rebateLoaded" v-show="tab === 'rebate'">
         <RewardTierCard
           v-if="rebateState"
           :tiers="rebateTiers"

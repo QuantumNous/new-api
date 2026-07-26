@@ -261,6 +261,7 @@ onMounted(() => {
             v-else-if="!invoices.length"
             :title="t('invoice.emptyTitle')"
             :hint="t('invoice.emptyHint')"
+            illustration="empty-invoice"
           />
 
           <!-- Record rows -->

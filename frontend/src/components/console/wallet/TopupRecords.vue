@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
@@ -8,6 +8,7 @@ import type { TopupRecord } from '@/types/console'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { formatMoney, formatTime } from '@/utils/format'
 
@@ -21,8 +22,7 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(6)
 const loading = ref(true)
-let loadController: AbortController | null = null
-let loadSequence = 0
+const listRequest = useLatestRequest()
 
 const methodLabel: Record<TopupRecord['method'], string> = {
   epay: 'E-Pay',
@@ -37,37 +37,33 @@ const statusTone = {
 } as const
 
 async function load() {
-  loadController?.abort()
-  const controller = new AbortController()
-  loadController = controller
-  const sequence = ++loadSequence
   loading.value = true
-  try {
-    const data = await api.get<PageResult<TopupRecord>>(
+  const result = await listRequest.run((signal) =>
+    api.get<PageResult<TopupRecord>>(
       '/api/user/topup/records',
       {
         page: page.value,
         page_size: pageSize.value,
       },
-      { signal: controller.signal }
+      { signal }
     )
-    if (sequence !== loadSequence) return
-    rows.value = data.items
-    total.value = data.total
-  } catch (error) {
-    if (!controller.signal.aborted) {
-      toast.error(
-        error instanceof ApiError ? error.message : t('common.failed')
-      )
-    }
-  } finally {
-    if (sequence === loadSequence) loading.value = false
+  )
+  if (result.stale) return
+  loading.value = false
+  if (!result.ok) {
+    toast.error(
+      result.error instanceof ApiError
+        ? result.error.message
+        : t('common.failed')
+    )
+    return
   }
+  rows.value = result.value.items
+  total.value = result.value.total
 }
 
 watch([page, pageSize, refreshKey], load)
 onMounted(load)
-onBeforeUnmount(() => loadController?.abort())
 </script>
 
 <template>

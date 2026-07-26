@@ -13,10 +13,10 @@ const { t } = useI18n()
     <!-- Brand panel: the deep-green anchor stays dark in both themes,
          matching the footer rule (color report §5.4). -->
     <aside
-      class="relative hidden flex-col justify-between p-10 lg:flex"
+      class="relative hidden flex-col justify-between overflow-hidden p-10 lg:flex"
       style="background: var(--surface-footer)"
     >
-      <div class="flex items-center gap-3">
+      <div class="relative z-10 flex items-center gap-3">
         <BrandMark class="h-10 w-10 rounded-xl" />
         <span
           class="text-xl font-bold"
@@ -25,7 +25,7 @@ const { t } = useI18n()
         >
       </div>
 
-      <div>
+      <div class="relative z-10">
         <p
           class="text-xs font-semibold uppercase tracking-[0.22em]"
           style="color: var(--footer-accent)"
@@ -33,7 +33,7 @@ const { t } = useI18n()
           {{ t('auth.brandSlogan') }}
         </p>
         <h2
-          class="mt-4 text-4xl font-bold leading-snug"
+          class="display-title mt-4 text-4xl font-bold leading-snug"
           style="color: var(--footer-text-primary)"
         >
           {{ t('auth.signUpSubtitle') }}
@@ -46,7 +46,7 @@ const { t } = useI18n()
         </p>
       </div>
 
-      <div class="flex gap-2" aria-hidden="true">
+      <div class="relative z-10 flex gap-2" aria-hidden="true">
         <span
           class="h-1.5 w-10 rounded-full"
           style="background: var(--footer-accent)"
@@ -63,7 +63,9 @@ const { t } = useI18n()
     </aside>
 
     <!-- form pane -->
-    <div class="relative flex items-center justify-center px-4 py-10">
+    <div
+      class="texture-paper relative flex items-center justify-center px-4 py-10"
+    >
       <div class="absolute right-5 top-5 flex items-center gap-1">
         <ThemeSwitcher variant="console" />
         <LanguageSelector variant="console" />

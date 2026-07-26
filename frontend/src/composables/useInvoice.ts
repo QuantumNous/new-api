@@ -1,9 +1,10 @@
-import { onBeforeUnmount, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
 import type { InvoiceItem } from '@/types/console'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 
 export interface InvoiceForm {
@@ -24,36 +25,35 @@ export function useInvoice() {
   const pageSize = ref(10)
   const loading = ref(false)
   const submitting = ref(false)
-  let loadController: AbortController | null = null
-  let loadSequence = 0
+  const listRequest = useLatestRequest()
 
   async function loadInvoices() {
-    loadController?.abort()
-    const controller = new AbortController()
-    loadController = controller
-    const sequence = ++loadSequence
     loading.value = true
-    try {
-      const res = await api.get<{ items: InvoiceItem[]; total: number }>(
+    const result = await listRequest.run((signal) =>
+      api.get<{ items: InvoiceItem[]; total: number }>(
         '/api/invoice/self',
         { page: page.value, page_size: pageSize.value },
-        { signal: controller.signal }
+        { signal }
       )
-      if (sequence !== loadSequence) return
-      invoices.value = res.items
-      total.value = res.total
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        toast.error(error instanceof ApiError ? error.message : String(error))
-      }
-    } finally {
-      if (sequence === loadSequence) loading.value = false
+    )
+    if (result.stale) return
+    loading.value = false
+    if (!result.ok) {
+      toast.error(
+        result.error instanceof ApiError
+          ? result.error.message
+          : String(result.error)
+      )
+      return
     }
+    invoices.value = result.value.items
+    total.value = result.value.total
   }
 
   async function submitApplication(form: InvoiceForm): Promise<boolean> {
     const titleTrimmed = form.title.trim()
     const amount = parseFloat(form.amount)
+    const email = form.email.trim()
 
     if (!titleTrimmed) {
       toast.error(t('invoice.titleRequired'))
@@ -63,6 +63,11 @@ export function useInvoice() {
       toast.error(t('invoice.amountMin'))
       return false
     }
+    // The receipt email is optional, but a filled value must be well-formed.
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+      toast.error(t('invoice.emailInvalid'))
+      return false
+    }
 
     submitting.value = true
     try {
@@ -70,7 +75,7 @@ export function useInvoice() {
         title: titleTrimmed,
         tax_id: form.tax_id.trim(),
         amount,
-        email: form.email.trim(),
+        email,
         note: form.note.trim(),
       })
       toast.success(t('invoice.submitted'))
@@ -90,8 +95,6 @@ export function useInvoice() {
     page.value = p
     void loadInvoices()
   }
-
-  onBeforeUnmount(() => loadController?.abort())
 
   return {
     invoices,

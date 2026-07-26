@@ -109,6 +109,30 @@ const router = createRouter({
           meta: { noPageScroll: true },
         },
         {
+          path: 'channels',
+          name: 'channels',
+          component: () => import('@/views/console/ChannelsView.vue'),
+          meta: { wide: true, noPageScroll: true },
+        },
+        {
+          path: 'users',
+          name: 'users',
+          component: () => import('@/views/console/UsersView.vue'),
+          meta: { wide: true, noPageScroll: true, requiresAdmin: true },
+        },
+        {
+          path: 'redemption',
+          name: 'redemption',
+          component: () => import('@/views/console/RedemptionView.vue'),
+          meta: { wide: true, noPageScroll: true, requiresAdmin: true },
+        },
+        {
+          path: 'orders',
+          name: 'orders',
+          component: () => import('@/views/console/OrdersView.vue'),
+          meta: { wide: true, noPageScroll: true, requiresAdmin: true },
+        },
+        {
           path: 'tickets',
           name: 'tickets',
           component: () => import('@/views/console/TicketsView.vue'),
@@ -124,11 +148,6 @@ const router = createRouter({
           path: 'wallet',
           name: 'wallet',
           component: () => import('@/views/console/WalletView.vue'),
-        },
-        {
-          path: 'subscription',
-          name: 'subscription',
-          component: () => import('@/views/console/SubscriptionView.vue'),
         },
         {
           path: 'invite',

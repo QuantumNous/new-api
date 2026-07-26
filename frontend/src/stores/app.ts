@@ -129,9 +129,8 @@ export const useAppStore = defineStore('app', () => {
     lastError.value = null
     modelCount.value = null
     uptimePercent.value = null
-    const controller = new AbortController()
     try {
-      status.value = (await publicApi.status(controller.signal)) || {}
+      status.value = (await publicApi.status()) || {}
       statusReachable.value = true
       applyBranding()
 
@@ -140,11 +139,9 @@ export const useAppStore = defineStore('app', () => {
         (!pricingAccess.value.requireAuth || auth.isAuthenticated)
 
       const summaries = await Promise.allSettled([
-        publicApi.notice(controller.signal),
-        canLoadPricing
-          ? publicApi.pricing(controller.signal)
-          : Promise.resolve(null),
-        publicApi.uptime(controller.signal),
+        publicApi.notice(),
+        canLoadPricing ? publicApi.pricing() : Promise.resolve(null),
+        publicApi.uptime(),
       ])
       const [noticeResult, pricingResult, uptimeResult] = summaries
 

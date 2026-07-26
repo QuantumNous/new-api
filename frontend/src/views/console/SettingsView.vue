@@ -83,7 +83,7 @@ const savingPw = ref(false)
 const twoFAEnabled = ref(false)
 const twoFAOpen = ref(false)
 const twoFACode = ref('')
-const passkeys = ref<string[]>(['MacBook Pro Touch ID'])
+const passkeys = ref<string[]>([])
 
 async function changePassword() {
   savingPw.value = true
@@ -92,7 +92,7 @@ async function changePassword() {
       old_password: oldPassword.value,
       new_password: newPassword.value,
     })
-    toast.success(t('settings.profileSaved'))
+    toast.success(t('settings.passwordChanged'))
     oldPassword.value = ''
     newPassword.value = ''
   } catch (error) {
@@ -126,11 +126,11 @@ function changeLocale(value: string) {
   setLocale(value)
 }
 
-/* ---------- bindings ---------- */
+/* ---------- bindings (demo-only: state lives in this component) ---------- */
 const providers = ref([
-  { id: 'github', name: 'GitHub', bound: true, account: 'bigd-studio' },
+  { id: 'github', name: 'GitHub', bound: true, account: 'ren2-demo' },
   { id: 'discord', name: 'Discord', bound: false, account: '' },
-  { id: 'linuxdo', name: 'LinuxDO', bound: true, account: 'bigd' },
+  { id: 'linuxdo', name: 'LinuxDO', bound: false, account: '' },
   { id: 'wechat', name: 'WeChat', bound: false, account: '' },
   { id: 'telegram', name: 'Telegram', bound: false, account: '' },
 ])
@@ -142,10 +142,18 @@ function toggleBind(p: { bound: boolean }) {
 /* ---------- danger ---------- */
 const deleteOpen = ref(false)
 const deleteConfirmText = ref('')
-function deleteAccount() {
-  if (deleteConfirmText.value !== auth.user?.username) return
-  auth.persist(null)
-  router.push({ name: 'sign-in' })
+const deleting = ref(false)
+async function deleteAccount() {
+  if (deleting.value || deleteConfirmText.value !== auth.user?.username) return
+  deleting.value = true
+  try {
+    await auth.deleteAccount()
+    await router.push({ name: 'sign-in' })
+  } catch (error) {
+    toast.error(error instanceof ApiError ? error.message : String(error))
+  } finally {
+    deleting.value = false
+  }
 }
 </script>
 
@@ -206,10 +214,7 @@ function deleteAccount() {
         <!-- panel title -->
         <div class="border-b border-[var(--border-subtle)] px-6 py-5">
           <h2 class="text-xl font-bold text-[var(--text-primary)]">
-            {{
-              t(`settings.${active}Title` as never) ||
-              menus.find((m) => m.key === active)?.label
-            }}
+            {{ t(`settings.${active}Title`) }}
           </h2>
         </div>
 
@@ -318,6 +323,11 @@ function deleteAccount() {
               <div>
                 <p class="text-sm font-semibold text-[var(--text-primary)]">
                   {{ t('settings.twoFA') }}
+                  <span
+                    class="ml-1.5 rounded bg-[var(--surface-muted)] px-1.5 py-px text-[10px] font-medium text-[var(--text-tertiary)]"
+                  >
+                    {{ t('settings.demoBadge') }}
+                  </span>
                 </p>
                 <p class="mt-0.5 text-xs text-[var(--text-tertiary)]">
                   {{ t('settings.twoFADesc') }}
@@ -336,6 +346,11 @@ function deleteAccount() {
               <div>
                 <p class="text-sm font-semibold text-[var(--text-primary)]">
                   {{ t('settings.passkeys') }}
+                  <span
+                    class="ml-1.5 rounded bg-[var(--surface-muted)] px-1.5 py-px text-[10px] font-medium text-[var(--text-tertiary)]"
+                  >
+                    {{ t('settings.demoBadge') }}
+                  </span>
                 </p>
                 <p class="mt-0.5 text-xs text-[var(--text-tertiary)]">
                   {{ t('settings.passkeysDesc') }}
@@ -399,6 +414,7 @@ function deleteAccount() {
                       ? 'background:var(--accent);color:var(--accent-contrast)'
                       : 'background:var(--surface-muted);color:var(--text-secondary)'
                   "
+                  :aria-pressed="mode === opt.value"
                   @click="mode = opt.value"
                 >
                   {{ opt.label }}
@@ -424,6 +440,9 @@ function deleteAccount() {
 
         <!-- bindings -->
         <template v-else-if="active === 'bindings'">
+          <p class="px-6 pt-4 text-xs text-[var(--text-tertiary)]">
+            {{ t('settings.demoOnly') }}
+          </p>
           <ul class="divide-y divide-[var(--border-subtle)]">
             <li
               v-for="p in providers"
@@ -531,6 +550,7 @@ function deleteAccount() {
       :title="t('settings.deleteAccount')"
       :message="t('settings.deleteAccountConfirm')"
       :confirm-text="t('common.delete')"
+      :loading="deleting"
       @confirm="deleteAccount"
       @cancel="deleteOpen = false"
     >

@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { useLocalStorage } from '@vueuse/core'
+import { refDebounced, useLocalStorage } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
@@ -33,14 +33,17 @@ export function useMarketplace() {
 
   const side = ref<MarketSide>('buy')
   const keyword = ref('')
+  // Debounced mirror driving the filter, so typing doesn't re-run the full
+  // catalog scan on every keystroke.
+  const keywordFiltered = refDebounced(keyword, 150)
   const vendor = ref('') // AI vendor name ('' = all)
   const source = ref('') // listing source/channel ('' = all)
   const types = ref<string[]>([]) // multi-select; [] = all
   const sort = ref<MarketSort>('default')
   // Merchant scale filter: exact match ('' = all).
   const scale = ref('') // '' | 'platform' | 'vendor' | 'workshop' | 'studio' | 'empire'
-  const currency = useLocalStorage<Currency>('renren_market_currency', 'CNY')
-  const view = useLocalStorage<MarketViewMode>('renren_market_view', 'list')
+  const currency = useLocalStorage<Currency>('ren2hub_market_currency', 'CNY')
+  const view = useLocalStorage<MarketViewMode>('ren2hub_market_view', 'list')
 
   async function load() {
     loading.value = true
@@ -63,7 +66,7 @@ export function useMarketplace() {
 
   const filtered = computed(() => {
     const all = catalog.value?.listings ?? []
-    const kw = keyword.value.trim().toLowerCase()
+    const kw = keywordFiltered.value.trim().toLowerCase()
     const list = all.filter((l) => {
       const merchant = merchantById.value.get(l.merchantId)
       if (kw) {

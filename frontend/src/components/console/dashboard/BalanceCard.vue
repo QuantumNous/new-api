@@ -5,16 +5,25 @@ import { useRouter } from 'vue-router'
 
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
+import StatusChip from '@/components/common/StatusChip.vue'
 import { useBalanceVisibility } from '@/composables/useDashboard'
 import { formatQuota } from '@/utils/format'
 
 const props = withDefaults(
   defineProps<{
     quota: number
-    delta?: number
+    usedQuota?: number
+    todayQuota?: number
+    /** rolling daily burn used for the runway estimate */
+    dailyBurn?: number
     compact?: boolean
   }>(),
-  { delta: undefined, compact: false }
+  {
+    usedQuota: 0,
+    todayQuota: undefined,
+    dailyBurn: undefined,
+    compact: false,
+  }
 )
 
 const { t } = useI18n()
@@ -22,23 +31,58 @@ const router = useRouter()
 const { hidden, toggle } = useBalanceVisibility()
 
 const display = computed(() =>
-  hidden.value ? '********' : formatQuota(props.quota)
+  hidden.value ? '••••••••' : formatQuota(props.quota)
 )
+
+// Usage ratio: how much of total balance has been consumed this billing period
+const totalBalance = computed(() => props.quota + props.usedQuota)
+const usedPercent = computed(() =>
+  totalBalance.value > 0
+    ? Math.min(100, Math.round((props.usedQuota / totalBalance.value) * 100))
+    : 0
+)
+const meterColor = computed(() => {
+  if (usedPercent.value >= 90) return 'var(--status-danger)'
+  if (usedPercent.value >= 70) return 'var(--status-warning)'
+  return 'var(--status-success)'
+})
+
+/** Remaining share of the balance drives the health indicator. */
+const remainPercent = computed(() => 100 - usedPercent.value)
+const health = computed(() => {
+  if (remainPercent.value < 10) {
+    return {
+      tone: 'danger' as const,
+      label: t('dashboard.balanceHint.critical'),
+    }
+  }
+  if (remainPercent.value < 30) {
+    return { tone: 'warning' as const, label: t('dashboard.balanceHint.low') }
+  }
+  return { tone: 'success' as const, label: t('dashboard.balanceHint.healthy') }
+})
+
+/** Runway in whole days; null when there is nothing to extrapolate from. */
+const runwayDays = computed(() => {
+  const burn = props.dailyBurn ?? props.todayQuota ?? 0
+  if (burn <= 0 || props.quota <= 0) return null
+  return Math.floor(props.quota / burn)
+})
 </script>
 
 <template>
-  <ConsoleCard>
-    <div class="flex items-center justify-between">
+  <ConsoleCard stretch>
+    <!-- Top row: label + health indicator -->
+    <div class="flex items-center justify-between gap-3">
       <p class="text-sm text-[var(--text-tertiary)]">
         {{ t('dashboard.totalBalance') }}
       </p>
-      <span
-        class="rounded-lg bg-[var(--surface-muted)] px-2 py-1 font-mono text-xs text-[var(--text-secondary)]"
-      >
-        sk-•••• 0918
-      </span>
+      <StatusChip v-if="!compact" :tone="health.tone">
+        {{ health.label }}
+      </StatusChip>
     </div>
 
+    <!-- Balance number -->
     <div class="mt-3 flex items-center gap-2.5">
       <p class="text-3xl font-bold tracking-tight text-[var(--text-primary)]">
         {{ display }}
@@ -49,6 +93,7 @@ const display = computed(() =>
         :aria-label="hidden ? t('common.showBalance') : t('common.hideBalance')"
         @click="toggle"
       >
+        <!-- eye-off -->
         <svg
           v-if="hidden"
           width="18"
@@ -62,6 +107,7 @@ const display = computed(() =>
             d="M3 3l18 18M10.5 10.7a3 3 0 0 0 4.2 4.2M7.4 7.6C4.8 9.3 3 12 3 12s3.5 6 9 6c1.6 0 3-.4 4.3-1M12 6c5.5 0 9 6 9 6s-.6 1.1-1.8 2.3"
           />
         </svg>
+        <!-- eye -->
         <svg
           v-else
           width="18"
@@ -75,20 +121,71 @@ const display = computed(() =>
           <circle cx="12" cy="12" r="3" />
         </svg>
       </button>
-      <span
-        v-if="delta !== undefined && !compact"
-        class="rounded-md px-1.5 py-0.5 text-xs font-semibold"
-        :style="
-          delta >= 0
-            ? 'background:var(--status-danger-soft);color:var(--status-danger-text)'
-            : 'background:var(--status-success-soft);color:var(--status-success-text)'
-        "
-      >
-        {{ delta >= 0 ? '↗' : '↘' }} {{ delta > 0 ? '+' : '' }}{{ delta }}%
-      </span>
     </div>
 
-    <div class="mt-4 grid grid-cols-2 gap-3">
+    <!-- Runway estimate -->
+    <p v-if="!compact" class="mt-1.5 text-xs text-[var(--text-tertiary)]">
+      <template v-if="runwayDays !== null">
+        {{ t('dashboard.balanceHint.runway', { days: runwayDays }) }}
+      </template>
+      <template v-else>
+        {{ t('dashboard.balanceHint.runwayUnknown') }}
+      </template>
+    </p>
+
+    <!--
+      Usage bar. The remaining amount is the headline above, so this row carries
+      only what the headline does not: how much has gone, and today's slice.
+    -->
+    <div v-if="usedQuota > 0 && !compact" class="mt-4">
+      <div
+        class="mb-1.5 flex items-baseline justify-between gap-3 text-xs text-[var(--text-tertiary)]"
+      >
+        <span>
+          {{ t('dashboard.usedQuota') }}
+          <span class="font-semibold text-[var(--text-secondary)]">{{
+            formatQuota(usedQuota)
+          }}</span>
+        </span>
+        <span class="tabular-nums">{{ usedPercent }}%</span>
+      </div>
+      <div class="h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+        <div
+          class="h-full rounded-full transition-[width] duration-700"
+          :style="{ width: `${usedPercent}%`, background: meterColor }"
+        />
+      </div>
+    </div>
+
+    <!--
+      Today against the recent average, side by side: the runway line above is
+      derived from this average, so stating it makes that estimate checkable
+      instead of asking the reader to take it on faith.
+    -->
+    <div
+      v-if="!compact && (todayQuota !== undefined || dailyBurn !== undefined)"
+      class="mt-4 grid grid-cols-2 gap-3"
+    >
+      <div class="rounded-xl bg-[var(--surface-muted)] px-3 py-2.5">
+        <p class="text-[11px] text-[var(--text-tertiary)]">
+          {{ t('dashboard.todaySpend') }}
+        </p>
+        <p class="mt-0.5 font-bold tabular-nums text-[var(--text-primary)]">
+          {{ todayQuota === undefined ? '--' : formatQuota(todayQuota) }}
+        </p>
+      </div>
+      <div class="rounded-xl bg-[var(--surface-muted)] px-3 py-2.5">
+        <p class="text-[11px] text-[var(--text-tertiary)]">
+          {{ t('dashboard.balanceHint.avgBurn') }}
+        </p>
+        <p class="mt-0.5 font-bold tabular-nums text-[var(--text-primary)]">
+          {{ dailyBurn === undefined ? '--' : formatQuota(dailyBurn) }}
+        </p>
+      </div>
+    </div>
+
+    <!-- Action buttons — pinned to the bottom edge when the row runs taller -->
+    <div class="mt-auto grid grid-cols-2 gap-3 pt-5">
       <ConsoleButton @click="router.push({ name: 'wallet' })">
         <svg
           width="15"

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useStorage } from '@vueuse/core'
 
 import { api } from '@/api/console'
 import { ApiError, type PageResult } from '@/api/types'
@@ -20,15 +19,17 @@ import IconButton from '@/components/common/IconButton.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
+import { useLatestRequest } from '@/composables/useLatestRequest'
+import { useSidebarCollapsed } from '@/composables/useSidebarCollapsed'
 import { useToast } from '@/composables/useToast'
 import { formatDate, formatQuota } from '@/utils/format'
 
 const { t } = useI18n()
 const toast = useToast()
 
-// Mirror the sidebar collapsed state (same key as ConsoleSidebar) so the
-// overlay / drawer left-edge tracks the actual sidebar width reactively.
-const sidebarCollapsed = useStorage<boolean>('renren_sidebar_collapsed', false)
+// Mirror the sidebar collapsed state so the overlay / drawer left-edge tracks
+// the actual sidebar width reactively.
+const sidebarCollapsed = useSidebarCollapsed()
 const sidebarLeft = computed(() => (sidebarCollapsed.value ? '64px' : '220px'))
 
 const rows = ref<TokenSummary[]>([])
@@ -75,36 +76,34 @@ const columns = computed<TableColumn[]>(() => [
 const typeTone = (type: TokenSummary['type']) =>
   type === 'auto' ? 'info' : 'accent'
 
-let loadController: AbortController | null = null
-let loadSequence = 0
+const listRequest = useLatestRequest()
 
 async function load() {
-  loadController?.abort()
-  const controller = new AbortController()
-  loadController = controller
-  const sequence = ++loadSequence
   loading.value = true
-  try {
-    const data = await api.get<PageResult<TokenSummary>>(
+  const result = await listRequest.run((signal) =>
+    api.get<PageResult<TokenSummary>>(
       '/api/token/',
       {
         page: page.value,
         page_size: pageSize.value,
         keyword: keyword.value,
       },
-      { signal: controller.signal }
+      { signal }
     )
-    if (sequence !== loadSequence) return
-    rows.value = data.items
-    total.value = data.total
-    selected.value = []
-  } catch (error) {
-    if (!controller.signal.aborted) {
-      toast.error(error instanceof ApiError ? error.message : String(error))
-    }
-  } finally {
-    if (sequence === loadSequence) loading.value = false
+  )
+  if (result.stale) return
+  loading.value = false
+  if (!result.ok) {
+    toast.error(
+      result.error instanceof ApiError
+        ? result.error.message
+        : String(result.error)
+    )
+    return
   }
+  rows.value = result.value.items
+  total.value = result.value.total
+  selected.value = []
 }
 
 let searchTimer = 0
@@ -209,7 +208,6 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  loadController?.abort()
   window.clearTimeout(searchTimer)
   window.clearTimeout(clickTimer)
   window.clearTimeout(clickHintTimer)
@@ -274,6 +272,7 @@ onBeforeUnmount(() => {
         row-dblclickable
         :empty-title="t('keys.emptyTitle')"
         :empty-hint="t('keys.emptyHint')"
+        empty-illustration="empty-keys"
         @row-click="onRowClick"
         @row-dblclick="onRowDblclick($event as TokenSummary)"
       >

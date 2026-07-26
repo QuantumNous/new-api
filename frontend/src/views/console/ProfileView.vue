@@ -3,43 +3,20 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
-import { api } from '@/api/console'
-import { ApiError } from '@/api/types'
 import PageHero from '@/components/console/PageHero.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
-import ConsoleButton from '@/components/common/ConsoleButton.vue'
+import { adminUserRoleTone } from '@/constants/adminUsers'
 import { useAuthStore } from '@/stores/auth'
 import { useDashboard } from '@/composables/useDashboard'
-import { useToast } from '@/composables/useToast'
-import type { CurrentSubscription } from '@/types/console'
 import { formatQuota, formatCompact, formatDate } from '@/utils/format'
 
 const { t } = useI18n()
 const router = useRouter()
-const toast = useToast()
 const auth = useAuthStore()
 const { stats, load: loadDash } = useDashboard()
 
-const sub = ref<CurrentSubscription | null>(null)
-const subscriptionLoading = ref(false)
-const subscriptionFailed = ref(false)
-
-async function loadSubscription() {
-  subscriptionLoading.value = true
-  subscriptionFailed.value = false
-  try {
-    sub.value = await api.get<CurrentSubscription>('/api/subscription/self')
-  } catch (error) {
-    subscriptionFailed.value = true
-    toast.error(error instanceof ApiError ? error.message : t('common.failed'))
-  } finally {
-    subscriptionLoading.value = false
-  }
-}
-
 onMounted(() => {
   void loadDash()
-  void loadSubscription()
 })
 
 // ── derived user fields ───────────────────────────────────
@@ -57,12 +34,8 @@ const roleName = computed(() => {
   if (role >= 10) return t('profile.roleAdmin')
   return t('profile.roleUser')
 })
-const roleChipTone = computed(() => {
-  const role = auth.user?.role ?? 0
-  if (role >= 100) return 'danger' as const
-  if (role >= 10) return 'warning' as const
-  return 'neutral' as const
-})
+// Shared with the user-management table so both read the same role ladder.
+const roleChipTone = computed(() => adminUserRoleTone(auth.user?.role ?? 0))
 
 // Join date: approx 35 days before today
 const joinDate = computed(() => {
@@ -131,11 +104,6 @@ const navItems = computed(() => [
     label: t('profile.goInvite'),
     icon: 'M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM19 8v6M22 11h-6',
     route: 'invite',
-  },
-  {
-    label: t('profile.goSubscription'),
-    icon: 'M4 9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V9ZM13 7v12',
-    route: 'subscription',
   },
   {
     label: t('profile.goKeys'),
@@ -555,94 +523,8 @@ const navItems = computed(() => [
         </article>
       </div>
 
-      <!-- RIGHT: quota + quick nav -->
+      <!-- RIGHT: quick nav -->
       <div class="space-y-5">
-        <!-- 分组与配额 -->
-        <article
-          class="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
-        >
-          <header
-            class="flex items-center gap-2.5 border-b border-[var(--border-subtle)] px-5 py-4"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--accent-text)"
-              stroke-width="1.8"
-              aria-hidden="true"
-            >
-              <path
-                d="M4 9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V9ZM13 7v12"
-              />
-            </svg>
-            <h3 class="text-sm font-semibold text-[var(--text-primary)]">
-              {{ t('profile.quotaCard') }}
-            </h3>
-          </header>
-
-          <div class="divide-y divide-[var(--border-subtle)]">
-            <div
-              v-for="row in [
-                {
-                  label: t('profile.group'),
-                  value: auth.user?.group ?? 'default',
-                },
-                {
-                  label: t('profile.remainQuota'),
-                  value: sub
-                    ? formatQuota(sub.remain_quota)
-                    : subscriptionLoading
-                      ? t('common.loading')
-                      : subscriptionFailed
-                        ? t('dashboard.unavailable')
-                        : '—',
-                },
-                { label: t('profile.concurrency'), value: '500 RPM' },
-                {
-                  label: t('profile.quotaExpiry'),
-                  value: sub
-                    ? formatDate(sub.expire_time)
-                    : subscriptionLoading
-                      ? t('common.loading')
-                      : subscriptionFailed
-                        ? t('dashboard.unavailable')
-                        : '—',
-                },
-                {
-                  label: t('profile.autoRenew'),
-                  value: sub
-                    ? sub.auto_renew
-                      ? t('profile.autoRenewOn')
-                      : t('profile.autoRenewOff')
-                    : '—',
-                },
-              ]"
-              :key="row.label"
-              class="flex items-center justify-between px-5 py-3"
-            >
-              <span class="text-xs text-[var(--text-secondary)]">{{
-                row.label
-              }}</span>
-              <span class="text-sm font-semibold text-[var(--text-primary)]">{{
-                row.value
-              }}</span>
-            </div>
-          </div>
-
-          <div class="px-5 pb-4 pt-2">
-            <ConsoleButton
-              variant="secondary"
-              size="sm"
-              block
-              @click="router.push({ name: 'subscription' })"
-            >
-              {{ t('profile.goSubscription') }}
-            </ConsoleButton>
-          </div>
-        </article>
-
         <!-- 快速导航 -->
         <article
           class="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"

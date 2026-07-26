@@ -69,4 +69,49 @@ describe('ConsoleModal', () => {
     wrapper.unmount()
     trigger.remove()
   })
+
+  it('keeps the body locked when stacked modals close out of order', async () => {
+    document.body.style.overflow = ''
+    const first = mount(ConsoleModal, {
+      attachTo: document.body,
+      props: { open: false, title: 'first' },
+    })
+    const second = mount(ConsoleModal, {
+      attachTo: document.body,
+      props: { open: false, title: 'second' },
+    })
+
+    await first.setProps({ open: true })
+    await second.setProps({ open: true })
+    await nextTick()
+    expect(document.body.style.overflow).toBe('hidden')
+
+    // Closing the *older* modal first must not unlock while the newer one is
+    // still open, and must not leave a stale "hidden" behind afterwards.
+    await first.setProps({ open: false })
+    await nextTick()
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await second.setProps({ open: false })
+    await nextTick()
+    expect(document.body.style.overflow).toBe('')
+
+    first.unmount()
+    second.unmount()
+  })
+
+  it('releases its scroll lock when unmounted while open', async () => {
+    document.body.style.overflow = ''
+    const wrapper = mount(ConsoleModal, {
+      attachTo: document.body,
+      props: { open: false, title: 'unmount-while-open' },
+    })
+
+    await wrapper.setProps({ open: true })
+    await nextTick()
+    expect(document.body.style.overflow).toBe('hidden')
+
+    wrapper.unmount()
+    expect(document.body.style.overflow).toBe('')
+  })
 })

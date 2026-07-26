@@ -1,16 +1,38 @@
-<script setup lang="ts">
+<script lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+// One shared 1s ticker for every pill on the page (module scope) — the
+// activity grid renders several countdowns and per-instance intervals add up.
+const sharedNow = ref(Math.floor(Date.now() / 1000))
+let sharedTimer: number | null = null
+let subscriberCount = 0
+
+function subscribeTicker() {
+  if (subscriberCount++ === 0) {
+    sharedNow.value = Math.floor(Date.now() / 1000)
+    sharedTimer = window.setInterval(() => {
+      sharedNow.value = Math.floor(Date.now() / 1000)
+    }, 1000)
+  }
+}
+
+function unsubscribeTicker() {
+  if (--subscriberCount === 0 && sharedTimer !== null) {
+    window.clearInterval(sharedTimer)
+    sharedTimer = null
+  }
+}
+</script>
+
+<script setup lang="ts">
 const props = defineProps<{
   end: number // epoch seconds
 }>()
 
 const { t } = useI18n()
-const now = ref(Math.floor(Date.now() / 1000))
-let timer: ReturnType<typeof setInterval> | null = null
 
-const remain = computed(() => Math.max(0, props.end - now.value))
+const remain = computed(() => Math.max(0, props.end - sharedNow.value))
 
 const parts = computed(() => {
   const s = remain.value
@@ -37,19 +59,14 @@ const label = computed(() => {
   return t('activity.countdown.untilEndShort', { time: `${hh}:${mm}:${ss}` })
 })
 
-onMounted(() => {
-  timer = setInterval(() => {
-    now.value = Math.floor(Date.now() / 1000)
-  }, 1000)
-})
-onBeforeUnmount(() => {
-  if (timer) clearInterval(timer)
-})
+onMounted(subscribeTicker)
+onBeforeUnmount(unsubscribeTicker)
 </script>
 
 <template>
   <span
     class="inline-flex items-center gap-1 rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-medium text-[var(--text-tertiary)]"
+    aria-live="off"
   >
     <svg
       width="12"

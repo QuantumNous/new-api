@@ -1,3 +1,5 @@
+import type { TicketStatus } from '@/types/console'
+
 export const MODELS = [
   'gpt-4o',
   'gpt-4o-mini',
@@ -62,6 +64,16 @@ export const marketSources = [
 
 /** Display-only FX rate; listing base prices are stored in USD. */
 export const USD_TO_CNY = 7.2
+
+/** Shared StatusChip tone per ticket status (list + detail views). */
+export const ticketStatusTone: Record<
+  TicketStatus,
+  'warning' | 'info' | 'neutral'
+> = {
+  open: 'warning',
+  replied: 'info',
+  closed: 'neutral',
+}
 
 export const marketTagPool = [
   '高并发',

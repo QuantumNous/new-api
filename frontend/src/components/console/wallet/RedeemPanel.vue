@@ -9,6 +9,7 @@ import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TextInput from '@/components/common/TextInput.vue'
 import type { TopupRecord } from '@/types/console'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { formatMoney, formatTime } from '@/utils/format'
@@ -32,8 +33,7 @@ const redeemRecords = ref<TopupRecord[]>([])
 const redeemTotal = ref(0)
 const loadingRedeem = ref(false)
 const loadError = ref<unknown | null>(null)
-let loadController: AbortController | null = null
-let loadSequence = 0
+const listRequest = useLatestRequest()
 let focusTimer: number | null = null
 
 const redeemStatusTone = {
@@ -43,29 +43,28 @@ const redeemStatusTone = {
 } as const
 
 async function loadRedeemRecords(): Promise<void> {
-  loadController?.abort()
-  const controller = new AbortController()
-  loadController = controller
-  const sequence = ++loadSequence
   loadingRedeem.value = true
   loadError.value = null
-  try {
-    const response = await api.get<PageResult<TopupRecord>>(
+  const result = await listRequest.run((signal) =>
+    api.get<PageResult<TopupRecord>>(
       '/api/user/topup/redeem/records',
       { page: 1, page_size: 5 },
-      { signal: controller.signal }
+      { signal }
     )
-    if (sequence !== loadSequence) return
-    redeemRecords.value = response.items
-    redeemTotal.value = response.total
-  } catch (error) {
-    if (sequence === loadSequence && !controller.signal.aborted) {
-      loadError.value = error
-      toast.error(error instanceof ApiError ? error.message : String(error))
-    }
-  } finally {
-    if (sequence === loadSequence) loadingRedeem.value = false
+  )
+  if (result.stale) return
+  loadingRedeem.value = false
+  if (!result.ok) {
+    loadError.value = result.error
+    toast.error(
+      result.error instanceof ApiError
+        ? result.error.message
+        : String(result.error)
+    )
+    return
   }
+  redeemRecords.value = result.value.items
+  redeemTotal.value = result.value.total
 }
 
 async function redeem(): Promise<void> {
@@ -110,8 +109,6 @@ watch(() => props.autoFocus, focusInput, { immediate: true })
 
 onMounted(() => void loadRedeemRecords())
 onBeforeUnmount(() => {
-  loadController?.abort()
-  loadSequence += 1
   if (focusTimer !== null) window.clearTimeout(focusTimer)
 })
 </script>

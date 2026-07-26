@@ -68,61 +68,76 @@ const i18n = createI18n({
   },
 })
 
-const domainLoads = new Map<MessageDomain, Promise<void>>()
+const domainLoads = new Set<MessageDomain>()
+const loadedPairs = new Set<string>()
+const inflightPairs = new Map<string, Promise<void>>()
 
+type DomainModule = Promise<{ default: Record<string, unknown> }>
+
+// Per-locale loaders so a zh-CN session only downloads zh-CN chunks. The other
+// language's messages load on demand when the user actually switches.
 const domainLoaders: Record<
   MessageDomain,
-  () => Promise<{ en: Record<string, unknown>; zhCN: Record<string, unknown> }>
+  Record<LocaleCode, () => DomainModule>
 > = {
-  auth: async () => {
-    const [en, zhCN] = await Promise.all([
-      import('./locales/en/auth'),
-      import('./locales/zh-CN/auth'),
-    ])
-    return { en: en.default, zhCN: zhCN.default }
+  auth: {
+    en: () => import('./locales/en/auth'),
+    'zh-CN': () => import('./locales/zh-CN/auth'),
   },
-  console: async () => {
-    const [en, zhCN] = await Promise.all([
-      import('./locales/en/console'),
-      import('./locales/zh-CN/console'),
-    ])
-    return { en: en.default, zhCN: zhCN.default }
+  console: {
+    en: () => import('./locales/en/console'),
+    'zh-CN': () => import('./locales/zh-CN/console'),
   },
-  lab: async () => {
-    const [en, zhCN] = await Promise.all([
-      import('./locales/en/lab'),
-      import('./locales/zh-CN/lab'),
-    ])
-    return { en: en.default, zhCN: zhCN.default }
+  lab: {
+    en: () => import('./locales/en/lab'),
+    'zh-CN': () => import('./locales/zh-CN/lab'),
   },
 }
 
-export function loadMessageDomain(domain: MessageDomain): Promise<void> {
-  const existing = domainLoads.get(domain)
+function loadDomainForLocale(
+  domain: MessageDomain,
+  locale: LocaleCode
+): Promise<void> {
+  const key = `${locale}:${domain}`
+  if (loadedPairs.has(key)) return Promise.resolve()
+  const existing = inflightPairs.get(key)
   if (existing) return existing
 
-  const request = domainLoaders[domain]()
-    .then(({ en, zhCN }) => {
-      i18n.global.mergeLocaleMessage('en', en)
-      i18n.global.mergeLocaleMessage('zh-CN', zhCN)
+  const request = domainLoaders[domain][locale]()
+    .then((mod) => {
+      i18n.global.mergeLocaleMessage(locale, mod.default)
+      loadedPairs.add(key)
+      inflightPairs.delete(key)
     })
     .catch((error: unknown) => {
-      domainLoads.delete(domain)
+      inflightPairs.delete(key)
       throw error
     })
-  domainLoads.set(domain, request)
+  inflightPairs.set(key, request)
   return request
 }
 
-export function setLocale(locale: string): void {
-  if (!isLocaleCode(locale)) return
-  i18n.global.locale.value = locale
-  document.documentElement.lang = locale
-  try {
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
-  } catch {
-    // Browser storage is optional.
-  }
+export function loadMessageDomain(domain: MessageDomain): Promise<void> {
+  domainLoads.add(domain)
+  return loadDomainForLocale(domain, getLocale())
+}
+
+export function setLocale(locale: string): Promise<void> {
+  if (!isLocaleCode(locale)) return Promise.resolve()
+  // Backfill every already-requested domain in the target language first, so
+  // the flip never renders raw keys. On a load failure the flip still happens
+  // (better a fallback string than a switch that silently does nothing).
+  return Promise.allSettled(
+    [...domainLoads].map((domain) => loadDomainForLocale(domain, locale))
+  ).then(() => {
+    i18n.global.locale.value = locale
+    document.documentElement.lang = locale
+    try {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
+    } catch {
+      // Browser storage is optional.
+    }
+  })
 }
 
 export function getLocale(): LocaleCode {

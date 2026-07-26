@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
-import type { TicketItem, TicketMessage, TicketStatus } from '@/types/console'
+import type { TicketItem, TicketMessage } from '@/types/console'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -14,7 +14,9 @@ import StatusChip from '@/components/common/StatusChip.vue'
 import TicketReplyBox from '@/components/console/tickets/TicketReplyBox.vue'
 import TicketThreadMessage from '@/components/console/tickets/TicketThreadMessage.vue'
 import TicketImageLightbox from '@/components/console/tickets/TicketImageLightbox.vue'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
+import { ticketStatusTone } from '@/constants/console'
 import { formatTime } from '@/utils/format'
 
 type TicketMeta = Omit<TicketItem, 'messages'>
@@ -32,23 +34,15 @@ const loadFailed = ref(false)
 const submitting = ref(false)
 const confirmClose = ref(false)
 const lightbox = ref({ open: false, url: '' })
-let loadController: AbortController | null = null
-let loadSequence = 0
+const detailRequest = useLatestRequest()
+// Mutations (reply / status change) have their own guard so a route change
+// mid-flight can't apply a reply to the wrong ticket.
 let mutationSequence = 0
 
 const ticketId = computed(() => Number(route.params.id))
 
-const statusTone: Record<TicketStatus, 'warning' | 'info' | 'neutral'> = {
-  open: 'warning',
-  replied: 'info',
-  closed: 'neutral',
-}
-
 async function load(id = ticketId.value) {
-  const sequence = ++loadSequence
   mutationSequence += 1
-  loadController?.abort()
-  loadController = null
   ticket.value = null
   messages.value = []
   submitting.value = false
@@ -59,29 +53,32 @@ async function load(id = ticketId.value) {
     return
   }
 
-  const controller = new AbortController()
-  loadController = controller
   loading.value = true
   notFound.value = false
   loadFailed.value = false
-  try {
-    const data = await api.get<{
+  const result = await detailRequest.run((signal) =>
+    api.get<{
       ticket: TicketMeta
       messages: TicketMessage[]
-    }>(`/api/ticket/${id}`, undefined, { signal: controller.signal })
-    if (sequence !== loadSequence) return
-    ticket.value = data.ticket
-    messages.value = data.messages
-  } catch (error) {
-    if (controller.signal.aborted || sequence !== loadSequence) return
-    if (error instanceof ApiError && error.business) notFound.value = true
-    else {
+    }>(`/api/ticket/${id}`, undefined, { signal })
+  )
+  if (result.stale) return
+  loading.value = false
+  if (!result.ok) {
+    if (result.error instanceof ApiError && result.error.business) {
+      notFound.value = true
+    } else {
       loadFailed.value = true
-      toast.error(error instanceof ApiError ? error.message : String(error))
+      toast.error(
+        result.error instanceof ApiError
+          ? result.error.message
+          : String(result.error)
+      )
     }
-  } finally {
-    if (sequence === loadSequence) loading.value = false
+    return
   }
+  ticket.value = result.value.ticket
+  messages.value = result.value.messages
 }
 
 async function sendReply(payload: { content: string; images: string[] }) {
@@ -143,8 +140,6 @@ function openLightbox(url: string) {
 }
 
 watch(ticketId, (id) => void load(id), { immediate: true })
-
-onBeforeUnmount(() => loadController?.abort())
 </script>
 
 <template>
@@ -214,7 +209,7 @@ onBeforeUnmount(() => loadController?.abort())
               <span class="font-mono text-xs text-[var(--text-tertiary)]">
                 #TK-{{ String(ticket.id).padStart(4, '0') }}
               </span>
-              <StatusChip :tone="statusTone[ticket.status]">
+              <StatusChip :tone="ticketStatusTone[ticket.status]">
                 {{ t(`tickets.status.${ticket.status}`) }}
               </StatusChip>
               <StatusChip tone="neutral">{{

@@ -1,3 +1,11 @@
+<script lang="ts">
+// Window-level paste routing (module scope): with several uploaders mounted at
+// once (e.g. the reply box behind a form modal), only the most recently
+// mounted instance consumes a paste — otherwise one Ctrl+V adds the image to
+// every uploader on the page.
+const pasteStack: symbol[] = []
+</script>
+
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -36,7 +44,10 @@ function onDrop(event: DragEvent) {
   if (files?.length) addFiles(Array.from(files))
 }
 
+const pasteToken = Symbol('ticket-image-uploader')
+
 function onPaste(event: ClipboardEvent) {
+  if (pasteStack[pasteStack.length - 1] !== pasteToken) return
   const items = event.clipboardData?.items
   if (!items) return
   const files: File[] = []
@@ -52,8 +63,13 @@ function onPaste(event: ClipboardEvent) {
   }
 }
 
-onMounted(() => window.addEventListener('paste', onPaste))
+onMounted(() => {
+  pasteStack.push(pasteToken)
+  window.addEventListener('paste', onPaste)
+})
 onBeforeUnmount(() => {
+  const index = pasteStack.indexOf(pasteToken)
+  if (index !== -1) pasteStack.splice(index, 1)
   window.removeEventListener('paste', onPaste)
   reset()
 })
@@ -82,7 +98,7 @@ onBeforeUnmount(() => {
         </div>
         <button
           type="button"
-          class="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--surface-solid)] text-[var(--text-secondary)] opacity-0 shadow transition-opacity hover:text-[var(--status-danger-text)] group-hover:opacity-100"
+          class="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--surface-solid)] text-[var(--text-secondary)] opacity-0 shadow transition-opacity hover:text-[var(--status-danger-text)] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
           :aria-label="t('tickets.upload.remove')"
           @click="remove(img.id)"
         >

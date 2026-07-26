@@ -3,8 +3,40 @@ import type { HttpMethod, RequestOptions } from '../transport'
 import { readDemoUser, writeDemoUser } from '../demoStorage'
 import type { UserInfo } from '@/types/auth'
 import { MODELS, marketSources } from '@/constants/console'
+import {
+  ADMIN_CHANNEL_SORT_FIELDS,
+  ADMIN_CHANNEL_TYPE_META,
+  adminChannelTypeMeta,
+} from '@/constants/adminChannels'
+import {
+  ADMIN_ORDER_METHODS,
+  ADMIN_ORDER_SORT_FIELDS,
+  ADMIN_ORDER_STATUSES,
+  ADMIN_ORDER_TYPES,
+  ADMIN_ORDER_DEFAULT_RANGE,
+  canRefundAdminOrder,
+  isAdminOrderRange,
+} from '@/constants/adminOrders'
+import {
+  ADMIN_USER_ROLES,
+  ADMIN_USER_SORT_FIELDS,
+  adminOperatorLevel,
+} from '@/constants/adminUsers'
 import type { PrizeRecord } from '@/types/bigame'
 import type {
+  AdminChannel,
+  AdminChannelSortBy,
+  AdminChannelSortOrder,
+  AdminOrderMethod,
+  AdminOrderRange,
+  AdminOrderSortBy,
+  AdminOrderSortOrder,
+  AdminOrderStats,
+  AdminRedemptionCode,
+  AdminUser,
+  AdminUserRole,
+  AdminUserSortBy,
+  AdminUserSortOrder,
   ListingStatus,
   LogType,
   MarketListing,
@@ -27,9 +59,15 @@ import {
   activities,
   activitySummary,
   addInvoice,
+  adminChannels,
+  adminOrders,
+  adminRedemptionCodes,
+  adminUsers,
   addMyChannel,
   currentSubscription,
   dashboardStats,
+  buildDashboardLimits,
+  buildDashboardDiscounts,
   flowSeries,
   inviteInfo,
   invoices,
@@ -264,6 +302,318 @@ function toTokenSummary(item: TokenItem): TokenSummary {
   }
 }
 
+type AdminChannelMutableField =
+  'name' | 'type' | 'priority' | 'weight' | 'capacity_total' | 'channel_ratio'
+
+const ADMIN_CHANNEL_MUTABLE_FIELDS: readonly AdminChannelMutableField[] = [
+  'name',
+  'type',
+  'priority',
+  'weight',
+  'capacity_total',
+  'channel_ratio',
+]
+
+function parseAdminChannelPatch(
+  source: Record<string, unknown>,
+  current?: AdminChannel,
+  requireAll = false
+): {
+  patch?: Partial<Pick<AdminChannel, AdminChannelMutableField>>
+  error?: string
+} {
+  if (
+    requireAll &&
+    ADMIN_CHANNEL_MUTABLE_FIELDS.some((field) => !Object.hasOwn(source, field))
+  ) {
+    return { error: '请填写完整的渠道信息' }
+  }
+
+  const patch: Partial<Pick<AdminChannel, AdminChannelMutableField>> = {}
+  if (Object.hasOwn(source, 'name')) {
+    if (typeof source.name !== 'string' || !source.name.trim()) {
+      return { error: '渠道名称不能为空' }
+    }
+    patch.name = source.name.trim()
+  }
+
+  if (Object.hasOwn(source, 'type')) {
+    if (
+      typeof source.type !== 'number' ||
+      !Number.isSafeInteger(source.type) ||
+      !Object.hasOwn(ADMIN_CHANNEL_TYPE_META, source.type)
+    ) {
+      return { error: '渠道类型格式不正确' }
+    }
+    patch.type = source.type
+  }
+
+  for (const field of ['priority', 'weight'] as const) {
+    if (!Object.hasOwn(source, field)) continue
+    const value = source[field]
+    if (
+      typeof value !== 'number' ||
+      !Number.isSafeInteger(value) ||
+      value < 0 ||
+      value > 1_000_000
+    ) {
+      return {
+        error: `${field === 'priority' ? '优先级' : '权重'}格式不正确`,
+      }
+    }
+    patch[field] = value
+  }
+
+  if (Object.hasOwn(source, 'capacity_total')) {
+    const value = source.capacity_total
+    if (
+      typeof value !== 'number' ||
+      !Number.isSafeInteger(value) ||
+      value <= 0 ||
+      value > 1_000_000 ||
+      (current !== undefined && value < current.capacity_used)
+    ) {
+      return { error: '总容量格式不正确' }
+    }
+    patch.capacity_total = value
+  }
+
+  if (Object.hasOwn(source, 'channel_ratio')) {
+    const value = source.channel_ratio
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      return { error: '渠道倍率格式不正确' }
+    }
+    patch.channel_ratio = Math.round(value * 100) / 100
+  }
+
+  return { patch }
+}
+
+type AdminUserMutableField =
+  'username' | 'display_name' | 'email' | 'role' | 'status'
+
+const ADMIN_USER_MUTABLE_FIELDS: readonly AdminUserMutableField[] = [
+  'username',
+  'display_name',
+  'email',
+  'role',
+  'status',
+]
+
+const USERNAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$/
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function parseAdminUserPatch(
+  source: Record<string, unknown>,
+  current?: AdminUser,
+  requireAll = false
+): {
+  patch?: Partial<Pick<AdminUser, AdminUserMutableField>>
+  error?: string
+} {
+  if (
+    requireAll &&
+    ADMIN_USER_MUTABLE_FIELDS.some(
+      (field) => field !== 'status' && !Object.hasOwn(source, field)
+    )
+  ) {
+    return { error: '请填写完整的用户信息' }
+  }
+
+  const patch: Partial<Pick<AdminUser, AdminUserMutableField>> = {}
+
+  if (Object.hasOwn(source, 'username')) {
+    const value = String(source.username ?? '').trim()
+    if (!USERNAME_PATTERN.test(value)) {
+      return { error: '用户名需为 3-32 位字母、数字、点、下划线或连字符' }
+    }
+    const taken = adminUsers.some(
+      (item) =>
+        item.username.toLowerCase() === value.toLowerCase() &&
+        item.id !== current?.id
+    )
+    if (taken) return { error: '用户名已被占用' }
+    patch.username = value
+  }
+
+  if (Object.hasOwn(source, 'display_name')) {
+    const value = String(source.display_name ?? '').trim()
+    if (value.length > 64) return { error: '昵称长度不能超过 64 个字符' }
+    patch.display_name = value
+  }
+
+  if (Object.hasOwn(source, 'email')) {
+    const value = String(source.email ?? '').trim()
+    if (value && !EMAIL_PATTERN.test(value)) {
+      return { error: '邮箱格式不正确' }
+    }
+    const taken =
+      value !== '' &&
+      adminUsers.some(
+        (item) =>
+          item.email.toLowerCase() === value.toLowerCase() &&
+          item.id !== current?.id
+      )
+    if (taken) return { error: '邮箱已被占用' }
+    patch.email = value
+  }
+
+  if (Object.hasOwn(source, 'role')) {
+    const value = Number(source.role)
+    if (!ADMIN_USER_ROLES.includes(value as AdminUserRole)) {
+      return { error: '用户角色格式不正确' }
+    }
+    patch.role = value as AdminUserRole
+  }
+
+  if (Object.hasOwn(source, 'status')) {
+    if (source.status !== 1 && source.status !== 2) {
+      return { error: '用户状态格式不正确' }
+    }
+    patch.status = source.status
+  }
+
+  return { patch }
+}
+
+/**
+ * The mock server's view of the caller's authority. It mirrors the auth store's
+ * `isAdmin: true` / `isRoot: false` stub through `adminOperatorLevel`, so the
+ * client-side guard and this server-side one can never disagree while both are
+ * stubs. A real backend derives this from the session instead.
+ */
+/** Local-day key for grouping orders into the revenue series. */
+function orderDayKey(epochSec: number): string {
+  const date = new Date(epochSec * 1000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+/**
+ * Revenue counts settled money only, so cancelled and expired orders never
+ * inflate it. A refunded order was genuinely collected and then returned, so it
+ * is excluded from revenue as well — `refunded_total` reports it separately
+ * rather than hiding it.
+ */
+function buildOrderStats(range: AdminOrderRange): AdminOrderStats {
+  const nowSec = Math.floor(Date.now() / 1000)
+  const dayStart = new Date()
+  dayStart.setHours(0, 0, 0, 0)
+  const todayStartSec = Math.floor(dayStart.getTime() / 1000)
+  const windowStartSec = todayStartSec - (range - 1) * 86_400
+
+  const inWindow = adminOrders.filter(
+    (order) => order.created >= windowStartSec
+  )
+  const earned = inWindow.filter((order) => order.status === 'completed')
+  const refunded = inWindow.filter((order) => order.status === 'refunded')
+
+  const revenue = earned.reduce((sum, order) => sum + order.amount, 0)
+  const todayEarned = earned.filter((order) => order.created >= todayStartSec)
+  const todayRevenue = todayEarned.reduce((sum, order) => sum + order.amount, 0)
+
+  const daily: AdminOrderStats['daily'] = []
+  const buckets = new Map<string, { revenue: number; orders: number }>()
+  for (let i = 0; i < range; i++) {
+    const key = orderDayKey(windowStartSec + i * 86_400)
+    buckets.set(key, { revenue: 0, orders: 0 })
+  }
+  earned.forEach((order) => {
+    const bucket = buckets.get(orderDayKey(order.created))
+    if (!bucket) return
+    bucket.revenue += order.amount
+    bucket.orders += 1
+  })
+  buckets.forEach((bucket, date) => {
+    daily.push({
+      date,
+      revenue: Math.round(bucket.revenue * 100) / 100,
+      orders: bucket.orders,
+    })
+  })
+
+  const methodTotals = new Map<
+    AdminOrderMethod,
+    { amount: number; count: number }
+  >()
+  earned.forEach((order) => {
+    const entry = methodTotals.get(order.method) ?? { amount: 0, count: 0 }
+    entry.amount += order.amount
+    entry.count += 1
+    methodTotals.set(order.method, entry)
+  })
+  const payment_share: AdminOrderStats['payment_share'] = [...methodTotals]
+    .map(([method, entry]) => ({
+      method,
+      amount: Math.round(entry.amount * 100) / 100,
+      count: entry.count,
+    }))
+    .sort((left, right) => right.amount - left.amount)
+
+  const spenderTotals = new Map<
+    number,
+    { email: string; username: string; amount: number; orders: number }
+  >()
+  earned.forEach((order) => {
+    const entry = spenderTotals.get(order.user_id) ?? {
+      email: order.email,
+      username: order.username,
+      amount: 0,
+      orders: 0,
+    }
+    entry.amount += order.amount
+    entry.orders += 1
+    spenderTotals.set(order.user_id, entry)
+  })
+  const top_spenders: AdminOrderStats['top_spenders'] = [...spenderTotals]
+    .map(([user_id, entry]) => ({
+      user_id,
+      email: entry.email,
+      username: entry.username,
+      amount: Math.round(entry.amount * 100) / 100,
+      orders: entry.orders,
+    }))
+    .sort((left, right) => right.amount - left.amount)
+    .slice(0, 5)
+
+  return {
+    range,
+    generated_at: nowSec,
+    today_revenue: Math.round(todayRevenue * 100) / 100,
+    today_orders: todayEarned.length,
+    total_revenue: Math.round(revenue * 100) / 100,
+    total_orders: earned.length,
+    average_amount:
+      earned.length > 0 ? Math.round((revenue / earned.length) * 100) / 100 : 0,
+    refunded_total:
+      Math.round(refunded.reduce((sum, o) => sum + o.amount, 0) * 100) / 100,
+    refunded_orders: refunded.length,
+    daily,
+    payment_share,
+    top_spenders,
+  }
+}
+
+export const DEMO_OPERATOR_LEVEL = adminOperatorLevel({
+  isAdmin: true,
+  isRoot: false,
+})
+
+/**
+ * Server-side mirror of canManageAdminUser(). The console disables these
+ * actions in the UI, but the rule must hold here too — the client is not an
+ * authorization boundary, and the real backend has to enforce the same check.
+ */
+function denyAdminUserMutation(target: AdminUser): string | null {
+  const operator = readDemoUser()
+  if (!operator) return '登录状态已失效，请重新登录'
+  if (target.id === operator.id) return '不能对自己的账号执行该操作'
+  if (target.role >= DEMO_OPERATOR_LEVEL) {
+    return '无权操作同级或更高权限的用户'
+  }
+  return null
+}
+
 export async function dispatchMock<T>(
   method: HttpMethod,
   url: string,
@@ -353,6 +703,10 @@ export async function dispatchMock<T>(
     writeDemoUser(next)
     return ok({ user: next, message: '资料已更新' }) as ApiResponse<T>
   }
+  if (path === '/api/user/self' && method === 'DELETE') {
+    // The client clears the demo session after a successful response.
+    return ok({ message: '账户已删除' }) as ApiResponse<T>
+  }
   if (path === '/api/user/self/password' && method === 'PUT') {
     if (String(body.new_password ?? '').length < 8) {
       return fail('新密码至少 8 位') as ApiResponse<T>
@@ -368,10 +722,35 @@ export async function dispatchMock<T>(
       quota: stored.quota,
       used_quota: stored.used_quota,
       model_share: modelShare,
+      limits: buildDashboardLimits(stored.group ?? 'default'),
+      discounts: buildDashboardDiscounts(stored.group ?? 'default'),
     }) as ApiResponse<T>
   }
   if (path === '/api/data/flow/self' && method === 'GET') {
     return ok(flowSeries) as ApiResponse<T>
+  }
+  if (path === '/api/data/route' && method === 'GET') {
+    const { routingChannels } = await import('./routing')
+    return ok(routingChannels) as ApiResponse<T>
+  }
+  if (path === '/api/data/stats' && method === 'GET') {
+    const { statsData, buildStatsRange } = await import('./statsData')
+    const rangeKey = String(ctx.params?.range ?? '30d')
+    if (rangeKey === 'custom') {
+      const start = String(ctx.params?.start ?? '')
+      const end = String(ctx.params?.end ?? '')
+      return ok(buildStatsRange(start, end)) as ApiResponse<T>
+    }
+    const data = statsData[rangeKey] ?? statsData['30d']
+    return ok(data) as ApiResponse<T>
+  }
+  if (path === '/api/data/tokens' && method === 'GET') {
+    const { tokenTrend } = await import('./overview')
+    return ok(tokenTrend) as ApiResponse<T>
+  }
+  if (path === '/api/data/system' && method === 'GET') {
+    const { systemMetrics } = await import('./overview')
+    return ok(systemMetrics) as ApiResponse<T>
   }
   if (path === '/api/log/self' && method === 'GET') {
     const type = String(params.type ?? '') as LogType | ''
@@ -394,6 +773,632 @@ export async function dispatchMock<T>(
       today_requests: dashboardStats.today_requests,
       today_quota: dashboardStats.today_quota,
     }) as ApiResponse<T>
+  }
+
+  /* ---------------- administrator channels ---------------- */
+  if (
+    (path === '/api/channel/' || path === '/api/channel/search') &&
+    method === 'GET'
+  ) {
+    const keyword =
+      path === '/api/channel/search'
+        ? String(params.keyword ?? '')
+            .trim()
+            .toLowerCase()
+        : ''
+    const status = String(params.status ?? '').toLowerCase()
+    const requestedType = Number(params.type)
+    const hasType =
+      params.type !== undefined && Number.isSafeInteger(requestedType)
+
+    let filtered = adminChannels.filter((channel) => {
+      if (
+        keyword &&
+        !channel.name.toLowerCase().includes(keyword) &&
+        !channel.supplier.toLowerCase().includes(keyword) &&
+        !String(channel.id).includes(keyword)
+      ) {
+        return false
+      }
+      if (status === 'enabled' && channel.status !== 1) return false
+      if (status === 'disabled' && channel.status === 1) return false
+      return true
+    })
+
+    const typeCounts: Record<string, number> = {}
+    filtered.forEach((channel) => {
+      const key = String(channel.type)
+      typeCounts[key] = (typeCounts[key] ?? 0) + 1
+    })
+
+    if (hasType) {
+      filtered = filtered.filter((channel) => channel.type === requestedType)
+    }
+
+    const rawSortBy = String(params.sort_by ?? 'id') as AdminChannelSortBy
+    const sortBy = ADMIN_CHANNEL_SORT_FIELDS.includes(rawSortBy)
+      ? rawSortBy
+      : 'id'
+    const sortOrder: AdminChannelSortOrder =
+      String(params.sort_order).toLowerCase() === 'asc' ? 'asc' : 'desc'
+    const direction = sortOrder === 'asc' ? 1 : -1
+    filtered = [...filtered].sort((left, right) => {
+      const leftValue = left[sortBy]
+      const rightValue = right[sortBy]
+      if (typeof leftValue === 'string' && typeof rightValue === 'string') {
+        return leftValue.localeCompare(rightValue) * direction
+      }
+      return (Number(leftValue) - Number(rightValue)) * direction
+    })
+
+    const requestedPage = Number(params.p ?? 1)
+    const requestedPageSize = Number(params.page_size ?? 20)
+    const page =
+      Number.isSafeInteger(requestedPage) && requestedPage > 0
+        ? requestedPage
+        : 1
+    const pageSize =
+      Number.isSafeInteger(requestedPageSize) && requestedPageSize > 0
+        ? Math.min(100, requestedPageSize)
+        : 20
+    const start = (page - 1) * pageSize
+
+    return ok({
+      items: filtered
+        .slice(start, start + pageSize)
+        .map((channel) => ({ ...channel })),
+      total: filtered.length,
+      page,
+      page_size: pageSize,
+      type_counts: typeCounts,
+    }) as ApiResponse<T>
+  }
+
+  if (path === '/api/channel/' && method === 'POST') {
+    if (body.mode !== 'single') {
+      return fail('当前仅支持新建单个渠道') as ApiResponse<T>
+    }
+    if (
+      body.channel === null ||
+      typeof body.channel !== 'object' ||
+      Array.isArray(body.channel)
+    ) {
+      return fail('渠道信息格式不正确') as ApiResponse<T>
+    }
+
+    const input = body.channel as Record<string, unknown>
+    const parsed = parseAdminChannelPatch(input, undefined, true)
+    if (!parsed.patch) return fail(parsed.error ?? '渠道信息格式不正确')
+
+    if (input.status !== 1 && input.status !== 2) {
+      return fail('渠道状态格式不正确') as ApiResponse<T>
+    }
+
+    const patch = parsed.patch as Pick<AdminChannel, AdminChannelMutableField>
+    const channel: AdminChannel = {
+      id: mockRuntime.nextAdminChannelId++,
+      name: patch.name,
+      type: patch.type,
+      supplier: adminChannelTypeMeta(patch.type).supplier,
+      status: input.status,
+      priority: patch.priority,
+      weight: patch.weight,
+      capacity_used: 0,
+      capacity_total: patch.capacity_total,
+      used_quota: 0,
+      channel_ratio: patch.channel_ratio,
+      balance: 0,
+      upstream_ratio: 1,
+      response_time: 0,
+      test_time: 0,
+    }
+    adminChannels.push(channel)
+    return ok({ ...channel }, '渠道已创建') as ApiResponse<T>
+  }
+
+  if (path === '/api/channel/' && method === 'PUT') {
+    const id = Number(body.id)
+    const channel = adminChannels.find((item) => item.id === id)
+    if (!channel) return fail('渠道不存在') as ApiResponse<T>
+
+    const parsed = parseAdminChannelPatch(body, channel)
+    if (!parsed.patch) return fail(parsed.error ?? '渠道参数格式不正确')
+    if (Object.keys(parsed.patch).length === 0) {
+      return fail('没有可更新的渠道字段') as ApiResponse<T>
+    }
+
+    Object.assign(channel, parsed.patch)
+    channel.supplier = adminChannelTypeMeta(channel.type).supplier
+    return ok({ ...channel }, '渠道参数已更新') as ApiResponse<T>
+  }
+
+  if (path === '/api/channel/batch' && method === 'POST') {
+    if (!Array.isArray(body.ids) || body.ids.length === 0) {
+      return fail('渠道 ID 列表格式不正确') as ApiResponse<T>
+    }
+    const ids = body.ids.map(Number)
+    if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      return fail('渠道 ID 列表格式不正确') as ApiResponse<T>
+    }
+    const uniqueIds = [...new Set(ids)]
+    let deleted = 0
+    for (let index = adminChannels.length - 1; index >= 0; index -= 1) {
+      if (uniqueIds.includes(adminChannels[index]!.id)) {
+        adminChannels.splice(index, 1)
+        deleted += 1
+      }
+    }
+    return ok(deleted, `已删除 ${deleted} 条渠道`) as ApiResponse<T>
+  }
+
+  if (path === '/api/channel/status/batch' && method === 'POST') {
+    if (!Array.isArray(body.ids) || body.ids.length === 0) {
+      return fail('渠道 ID 列表格式不正确') as ApiResponse<T>
+    }
+    if (body.status !== 1 && body.status !== 2) {
+      return fail('渠道状态格式不正确') as ApiResponse<T>
+    }
+    const ids = body.ids.map(Number)
+    if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      return fail('渠道 ID 列表格式不正确') as ApiResponse<T>
+    }
+    let changed = 0
+    for (const channel of adminChannels) {
+      if (ids.includes(channel.id) && channel.status !== body.status) {
+        channel.status = body.status
+        changed += 1
+      }
+    }
+    return ok(changed, `已更新 ${changed} 条渠道状态`) as ApiResponse<T>
+  }
+
+  const adminChannelDeleteMatch = path.match(/^\/api\/channel\/(\d+)$/)
+  if (adminChannelDeleteMatch && method === 'DELETE') {
+    const id = Number(adminChannelDeleteMatch[1])
+    const index = adminChannels.findIndex((item) => item.id === id)
+    if (index < 0) return fail('渠道不存在') as ApiResponse<T>
+    adminChannels.splice(index, 1)
+    return ok({ id }, '渠道已删除') as ApiResponse<T>
+  }
+
+  const adminChannelStatusMatch = path.match(/^\/api\/channel\/(\d+)\/status$/)
+  if (adminChannelStatusMatch && method === 'POST') {
+    const channel = adminChannels.find(
+      (item) => item.id === Number(adminChannelStatusMatch[1])
+    )
+    if (!channel) return fail('渠道不存在') as ApiResponse<T>
+    if (body.status !== 1 && body.status !== 2) {
+      return fail('渠道状态格式不正确') as ApiResponse<T>
+    }
+    channel.status = body.status
+    return ok(
+      { ...channel },
+      channel.status === 1 ? '渠道已启用' : '渠道已禁用'
+    ) as ApiResponse<T>
+  }
+
+  const adminChannelBalanceMatch = path.match(
+    /^\/api\/channel\/update_balance\/(\d+)$/
+  )
+  if (adminChannelBalanceMatch && method === 'GET') {
+    const channel = adminChannels.find(
+      (item) => item.id === Number(adminChannelBalanceMatch[1])
+    )
+    if (!channel) return fail('渠道不存在') as ApiResponse<T>
+    channel.balance =
+      Math.round((channel.balance + 1.25 + (channel.id % 9) * 0.37) * 100) / 100
+    const nextRatio = Math.round(channel.upstream_ratio * 100) + 7
+    channel.upstream_ratio = (nextRatio > 120 ? 52 : nextRatio) / 100
+    return ok({ ...channel }, '上游额度与倍率已同步') as ApiResponse<T>
+  }
+
+  const adminChannelTestMatch = path.match(/^\/api\/channel\/test\/(\d+)$/)
+  if (adminChannelTestMatch && method === 'GET') {
+    const channel = adminChannels.find(
+      (item) => item.id === Number(adminChannelTestMatch[1])
+    )
+    if (!channel) return fail('渠道不存在') as ApiResponse<T>
+    channel.response_time = 180 + ((channel.id * 73) % 3_900)
+    channel.test_time = Math.floor(Date.now() / 1_000)
+    return ok({ ...channel }, '渠道测试完成') as ApiResponse<T>
+  }
+
+  /* ---------------- administrator users ---------------- */
+  if (
+    (path === '/api/user/' || path === '/api/user/search') &&
+    method === 'GET'
+  ) {
+    const keyword =
+      path === '/api/user/search'
+        ? String(params.keyword ?? '')
+            .trim()
+            .toLowerCase()
+        : ''
+    const requestedRole = Number(params.role)
+    const hasRole =
+      params.role !== undefined &&
+      params.role !== '' &&
+      ADMIN_USER_ROLES.includes(requestedRole as AdminUserRole)
+    const status = String(params.status ?? '').toLowerCase()
+
+    const matched = adminUsers.filter((user) => {
+      if (!keyword) return true
+      return (
+        user.username.toLowerCase().includes(keyword) ||
+        user.display_name.toLowerCase().includes(keyword) ||
+        user.email.toLowerCase().includes(keyword) ||
+        String(user.id).includes(keyword)
+      )
+    })
+
+    // Facet counts come from the keyword-only set, so each facet shows totals
+    // that don't shift when the other facet is narrowed.
+    const roleCounts: Record<string, number> = {}
+    const statusCounts: Record<string, number> = {}
+    matched.forEach((user) => {
+      const roleKey = String(user.role)
+      const statusKey = user.status === 1 ? 'enabled' : 'disabled'
+      roleCounts[roleKey] = (roleCounts[roleKey] ?? 0) + 1
+      statusCounts[statusKey] = (statusCounts[statusKey] ?? 0) + 1
+    })
+
+    let filtered = matched.filter((user) => {
+      if (hasRole && user.role !== requestedRole) return false
+      if (status === 'enabled' && user.status !== 1) return false
+      if (status === 'disabled' && user.status !== 2) return false
+      return true
+    })
+
+    const rawSortBy = String(params.sort_by ?? 'id') as AdminUserSortBy
+    const sortBy = ADMIN_USER_SORT_FIELDS.includes(rawSortBy) ? rawSortBy : 'id'
+    const sortOrder: AdminUserSortOrder =
+      String(params.sort_order).toLowerCase() === 'asc' ? 'asc' : 'desc'
+    const direction = sortOrder === 'asc' ? 1 : -1
+    filtered = [...filtered].sort((left, right) => {
+      const leftValue = left[sortBy]
+      const rightValue = right[sortBy]
+      if (typeof leftValue === 'string' && typeof rightValue === 'string') {
+        return leftValue.localeCompare(rightValue) * direction
+      }
+      return (Number(leftValue) - Number(rightValue)) * direction
+    })
+
+    const requestedPage = Number(params.p ?? 1)
+    const requestedPageSize = Number(params.page_size ?? 20)
+    const page =
+      Number.isSafeInteger(requestedPage) && requestedPage > 0
+        ? requestedPage
+        : 1
+    const pageSize =
+      Number.isSafeInteger(requestedPageSize) && requestedPageSize > 0
+        ? Math.min(100, requestedPageSize)
+        : 20
+    const start = (page - 1) * pageSize
+
+    return ok({
+      items: filtered
+        .slice(start, start + pageSize)
+        .map((user) => ({ ...user })),
+      total: filtered.length,
+      page,
+      page_size: pageSize,
+      role_counts: roleCounts,
+      status_counts: statusCounts,
+    }) as ApiResponse<T>
+  }
+
+  if (path === '/api/user/' && method === 'POST') {
+    const parsed = parseAdminUserPatch(body, undefined, true)
+    if (!parsed.patch) return fail(parsed.error ?? '用户参数格式不正确')
+
+    const role = parsed.patch.role ?? 1
+    if (role >= DEMO_OPERATOR_LEVEL) {
+      return fail('无权创建同级或更高权限的用户') as ApiResponse<T>
+    }
+    if (adminUsers.some((item) => item.username === parsed.patch!.username)) {
+      return fail('用户名已存在') as ApiResponse<T>
+    }
+
+    // Starting balance is optional and separate from the mutable-field patch;
+    // every later change goes through /api/user/quota.
+    let initialQuota = 0
+    if (Object.hasOwn(body, 'quota')) {
+      const value = Number(body.quota)
+      if (!Number.isSafeInteger(value) || value < 0) {
+        return fail('初始额度格式不正确') as ApiResponse<T>
+      }
+      initialQuota = value
+    }
+
+    const created: AdminUser = {
+      id: mockRuntime.nextAdminUserId++,
+      username: parsed.patch.username!,
+      display_name: parsed.patch.display_name ?? '',
+      email: parsed.patch.email ?? '',
+      role,
+      status: parsed.patch.status ?? 1,
+      quota: initialQuota,
+      used_quota: 0,
+      request_count: 0,
+      invited_count: 0,
+      affiliate_quota: 0,
+      inviter_id: 0,
+      created_time: Math.floor(Date.now() / 1_000),
+      last_login_time: 0,
+    }
+    adminUsers.unshift(created)
+    return ok({ ...created }, '用户已创建') as ApiResponse<T>
+  }
+
+  if (path === '/api/user/' && method === 'PUT') {
+    const id = Number(body.id)
+    const user = adminUsers.find((item) => item.id === id)
+    if (!user) return fail('用户不存在') as ApiResponse<T>
+
+    const denied = denyAdminUserMutation(user)
+    if (denied) return fail(denied) as ApiResponse<T>
+
+    const parsed = parseAdminUserPatch(body, user)
+    if (!parsed.patch) return fail(parsed.error ?? '用户参数格式不正确')
+    if (Object.keys(parsed.patch).length === 0) {
+      return fail('没有可更新的用户字段') as ApiResponse<T>
+    }
+
+    // Promotion is bounded by the operator's own level, so an admin can never
+    // mint a peer or a superior by editing an existing row.
+    if (
+      parsed.patch.role !== undefined &&
+      parsed.patch.role >= DEMO_OPERATOR_LEVEL
+    ) {
+      return fail('无权将用户提升到同级或更高权限') as ApiResponse<T>
+    }
+    if (
+      parsed.patch.username !== undefined &&
+      adminUsers.some(
+        (item) =>
+          item.id !== user.id && item.username === parsed.patch!.username
+      )
+    ) {
+      return fail('用户名已存在') as ApiResponse<T>
+    }
+
+    Object.assign(user, parsed.patch)
+    return ok({ ...user }, '用户资料已更新') as ApiResponse<T>
+  }
+
+  if (path === '/api/user/quota' && method === 'POST') {
+    const user = adminUsers.find((item) => item.id === Number(body.id))
+    if (!user) return fail('用户不存在') as ApiResponse<T>
+
+    const denied = denyAdminUserMutation(user)
+    if (denied) return fail(denied) as ApiResponse<T>
+
+    const delta = Number(body.delta)
+    if (!Number.isSafeInteger(delta) || delta === 0) {
+      return fail('额度变更值格式不正确') as ApiResponse<T>
+    }
+    if (Math.abs(delta) > 1_000_000_000) {
+      return fail('单次额度变更不能超过 10 亿') as ApiResponse<T>
+    }
+    if (user.quota + delta < 0) {
+      return fail('扣减后的额度不能为负') as ApiResponse<T>
+    }
+
+    user.quota += delta
+    return ok(
+      { ...user },
+      delta > 0 ? '额度已增加' : '额度已扣减'
+    ) as ApiResponse<T>
+  }
+
+  if (path === '/api/user/status/batch' && method === 'POST') {
+    if (!Array.isArray(body.ids) || body.ids.length === 0) {
+      return fail('用户 ID 列表格式不正确') as ApiResponse<T>
+    }
+    if (body.status !== 1 && body.status !== 2) {
+      return fail('用户状态格式不正确') as ApiResponse<T>
+    }
+    const ids = body.ids.map(Number)
+    if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      return fail('用户 ID 列表格式不正确') as ApiResponse<T>
+    }
+
+    let changed = 0
+    for (const user of adminUsers) {
+      if (!ids.includes(user.id) || user.status === body.status) continue
+      // Unmanageable rows are skipped rather than failing the whole batch, so a
+      // stale selection can't block the operator's legitimate targets.
+      if (denyAdminUserMutation(user)) continue
+      user.status = body.status
+      changed += 1
+    }
+    return ok(changed, `已更新 ${changed} 位用户状态`) as ApiResponse<T>
+  }
+
+  if (path === '/api/user/batch' && method === 'POST') {
+    if (!Array.isArray(body.ids) || body.ids.length === 0) {
+      return fail('用户 ID 列表格式不正确') as ApiResponse<T>
+    }
+    const ids = body.ids.map(Number)
+    if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      return fail('用户 ID 列表格式不正确') as ApiResponse<T>
+    }
+    const uniqueIds = [...new Set(ids)]
+
+    let deleted = 0
+    for (let index = adminUsers.length - 1; index >= 0; index -= 1) {
+      const user = adminUsers[index]!
+      if (!uniqueIds.includes(user.id)) continue
+      if (denyAdminUserMutation(user)) continue
+      adminUsers.splice(index, 1)
+      deleted += 1
+    }
+    return ok(deleted, `已删除 ${deleted} 位用户`) as ApiResponse<T>
+  }
+
+  const adminUserStatusMatch = path.match(/^\/api\/user\/(\d+)\/status$/)
+  if (adminUserStatusMatch && method === 'POST') {
+    const user = adminUsers.find(
+      (item) => item.id === Number(adminUserStatusMatch[1])
+    )
+    if (!user) return fail('用户不存在') as ApiResponse<T>
+
+    const denied = denyAdminUserMutation(user)
+    if (denied) return fail(denied) as ApiResponse<T>
+
+    if (body.status !== 1 && body.status !== 2) {
+      return fail('用户状态格式不正确') as ApiResponse<T>
+    }
+    user.status = body.status
+    return ok(
+      { ...user },
+      user.status === 1 ? '用户已启用' : '用户已禁用'
+    ) as ApiResponse<T>
+  }
+
+  const adminUserDeleteMatch = path.match(/^\/api\/user\/(\d+)$/)
+  if (adminUserDeleteMatch && method === 'DELETE') {
+    const id = Number(adminUserDeleteMatch[1])
+    const index = adminUsers.findIndex((item) => item.id === id)
+    if (index < 0) return fail('用户不存在') as ApiResponse<T>
+
+    const denied = denyAdminUserMutation(adminUsers[index]!)
+    if (denied) return fail(denied) as ApiResponse<T>
+
+    adminUsers.splice(index, 1)
+    return ok({ id }, '用户已删除') as ApiResponse<T>
+  }
+
+  /* ---------------- administrator orders ---------------- */
+  if (
+    (path === '/api/order/' || path === '/api/order/search') &&
+    method === 'GET'
+  ) {
+    const keyword =
+      path === '/api/order/search'
+        ? String(params.keyword ?? '')
+            .trim()
+            .toLowerCase()
+        : ''
+    // Unknown filter values are ignored rather than returning an empty page, so
+    // a stale querystring degrades to "unfiltered" instead of "no results".
+    const rawStatus = String(params.status ?? '')
+    const status = oneOf(rawStatus, ADMIN_ORDER_STATUSES) ? rawStatus : ''
+    const rawMethod = String(params.method ?? '')
+    const requestedMethod = oneOf(rawMethod, ADMIN_ORDER_METHODS)
+      ? rawMethod
+      : ''
+    const rawType = String(params.type ?? '')
+    const requestedType = oneOf(rawType, ADMIN_ORDER_TYPES) ? rawType : ''
+
+    const matched = adminOrders.filter((order) => {
+      if (!keyword) return true
+      return (
+        order.order_no.toLowerCase().includes(keyword) ||
+        order.email.toLowerCase().includes(keyword) ||
+        order.username.toLowerCase().includes(keyword) ||
+        String(order.id).includes(keyword)
+      )
+    })
+
+    // Facet counts come from the keyword-only set so narrowing one facet does
+    // not move the numbers shown on the others — same contract as users.
+    const statusCounts: Record<string, number> = {}
+    const methodCounts: Record<string, number> = {}
+    const typeCounts: Record<string, number> = {}
+    matched.forEach((order) => {
+      statusCounts[order.status] = (statusCounts[order.status] ?? 0) + 1
+      methodCounts[order.method] = (methodCounts[order.method] ?? 0) + 1
+      typeCounts[order.type] = (typeCounts[order.type] ?? 0) + 1
+    })
+
+    let filtered = matched.filter((order) => {
+      if (status && order.status !== status) return false
+      if (requestedMethod && order.method !== requestedMethod) return false
+      if (requestedType && order.type !== requestedType) return false
+      return true
+    })
+
+    const rawSortBy = String(params.sort_by ?? 'created') as AdminOrderSortBy
+    const sortBy = ADMIN_ORDER_SORT_FIELDS.includes(rawSortBy)
+      ? rawSortBy
+      : 'created'
+    const sortOrder: AdminOrderSortOrder =
+      String(params.sort_order).toLowerCase() === 'asc' ? 'asc' : 'desc'
+    const direction = sortOrder === 'asc' ? 1 : -1
+    filtered = [...filtered].sort(
+      (left, right) => (left[sortBy] - right[sortBy]) * direction
+    )
+
+    // Revenue spans the whole filtered set, not the page, so the header total
+    // stays stable while paginating.
+    const filteredRevenue =
+      Math.round(
+        filtered
+          .filter((order) => order.status === 'completed')
+          .reduce((sum, order) => sum + order.amount, 0) * 100
+      ) / 100
+
+    const requestedPage = Number(params.p ?? 1)
+    const requestedPageSize = Number(params.page_size ?? 20)
+    const page =
+      Number.isSafeInteger(requestedPage) && requestedPage > 0
+        ? requestedPage
+        : 1
+    const pageSize =
+      Number.isSafeInteger(requestedPageSize) && requestedPageSize > 0
+        ? Math.min(100, requestedPageSize)
+        : 20
+    const start = (page - 1) * pageSize
+
+    return ok({
+      items: filtered
+        .slice(start, start + pageSize)
+        .map((order) => ({ ...order })),
+      total: filtered.length,
+      page,
+      page_size: pageSize,
+      status_counts: statusCounts,
+      method_counts: methodCounts,
+      type_counts: typeCounts,
+      filtered_revenue: filteredRevenue,
+    }) as ApiResponse<T>
+  }
+
+  if (path === '/api/order/stats' && method === 'GET') {
+    const range = isAdminOrderRange(params.range)
+      ? (Number(params.range) as AdminOrderRange)
+      : ADMIN_ORDER_DEFAULT_RANGE
+
+    return ok(buildOrderStats(range)) as ApiResponse<T>
+  }
+
+  const orderRefundMatch = path.match(/^\/api\/order\/(\d+)\/refund$/)
+  if (orderRefundMatch && method === 'POST') {
+    const id = Number(orderRefundMatch[1])
+    const order = adminOrders.find((item) => item.id === id)
+    if (!order) return fail('订单不存在') as ApiResponse<T>
+    if (!canRefundAdminOrder(order)) {
+      return fail('仅已完成的订单可以退款') as ApiResponse<T>
+    }
+
+    order.status = 'refunded'
+    order.refunded_at = Math.floor(Date.now() / 1000)
+
+    // Reverse the credited quota where the payer is still on file. A real
+    // refund also reverses the payment channel; this prototype only moves the
+    // ledger state and the local balance.
+    const payer = adminUsers.find((user) => user.id === order.user_id)
+    if (payer) payer.quota = Math.max(0, payer.quota - order.quota)
+    if (order.user_id === readDemoUser()?.id) {
+      const stored = readDemoUser()!
+      writeDemoUser({
+        ...stored,
+        quota: Math.max(0, stored.quota - order.quota),
+      })
+    }
+
+    return ok({ ...order }, '订单已退款') as ApiResponse<T>
   }
 
   /* ---------------- tokens (API keys) ---------------- */
@@ -1558,6 +2563,198 @@ export async function dispatchMock<T>(
     gameWallet.balance += milestone.reward
     gameWallet.total_earned += milestone.reward
     return ok({ wallet: gameWallet }) as ApiResponse<T>
+  }
+
+  /* ---------------- admin redemption codes ---------------- */
+  if (
+    (path === '/api/redemption/' || path === '/api/redemption/search') &&
+    method === 'GET'
+  ) {
+    const keyword =
+      path === '/api/redemption/search'
+        ? String(params.keyword ?? '')
+            .trim()
+            .toLowerCase()
+        : String(params.keyword ?? '')
+            .trim()
+            .toLowerCase()
+    const typeFilter = String(params.type ?? '').toLowerCase()
+    const statusFilter = String(params.status ?? '').toLowerCase()
+
+    // Compute type & status counts before secondary filters.
+    let base = adminRedemptionCodes.filter((c) => {
+      if (!keyword) return true
+      return (
+        c.code.toLowerCase().includes(keyword) ||
+        c.name.toLowerCase().includes(keyword) ||
+        c.redeemer_email.toLowerCase().includes(keyword) ||
+        String(c.id).includes(keyword)
+      )
+    })
+
+    const typeCounts: Record<string, number> = {}
+    const statusCounts: Record<string, number> = {}
+    base.forEach((c) => {
+      typeCounts[c.type] = (typeCounts[c.type] ?? 0) + 1
+      statusCounts[c.status] = (statusCounts[c.status] ?? 0) + 1
+    })
+
+    if (typeFilter) base = base.filter((c) => c.type === typeFilter)
+    if (statusFilter) base = base.filter((c) => c.status === statusFilter)
+
+    const rawSort = String(params.sort_by ?? 'id')
+    const sortBy = ['id', 'created_time', 'used_time'].includes(rawSort)
+      ? rawSort
+      : 'id'
+    const sortOrder = String(params.sort_order).toLowerCase() === 'asc' ? 1 : -1
+    const sorted = [...base].sort((a, b) => {
+      const av = a[sortBy as keyof AdminRedemptionCode] as number
+      const bv = b[sortBy as keyof AdminRedemptionCode] as number
+      return (Number(av) - Number(bv)) * sortOrder
+    })
+
+    const p = Number(params.p ?? 1)
+    const ps = Math.min(100, Number(params.page_size ?? 20))
+    const page = Number.isFinite(p) && p > 0 ? Math.floor(p) : 1
+    const pageSize = Number.isFinite(ps) && ps > 0 ? Math.floor(ps) : 20
+    const start = (page - 1) * pageSize
+
+    return ok({
+      items: sorted.slice(start, start + pageSize).map((c) => ({ ...c })),
+      total: sorted.length,
+      page,
+      page_size: pageSize,
+      type_counts: typeCounts,
+      status_counts: statusCounts,
+    }) as ApiResponse<T>
+  }
+
+  if (path === '/api/redemption/' && method === 'POST') {
+    const type = String(body.type ?? '') as AdminRedemptionCode['type']
+    if (!['quota', 'concurrency', 'subscription', 'invite'].includes(type)) {
+      return fail('无效的兑换码类型') as ApiResponse<T>
+    }
+    const count = Number(body.count ?? 1)
+    if (!Number.isSafeInteger(count) || count < 1 || count > 100) {
+      return fail('数量需在 1-100 之间') as ApiResponse<T>
+    }
+    const expiredTime = Number(body.expired_time ?? -1)
+    if (
+      !Number.isSafeInteger(expiredTime) ||
+      (expiredTime !== -1 && expiredTime <= Math.floor(Date.now() / 1000))
+    ) {
+      return fail('过期时间格式不正确') as ApiResponse<T>
+    }
+
+    let amount: number | undefined
+    let quota: number | undefined
+    let concurrency: number | undefined
+    let planId: number | undefined
+    let name: string
+
+    if (type === 'quota') {
+      const a = Number(body.amount ?? 0)
+      if (!Number.isFinite(a) || a <= 0 || a > 100_000) {
+        return fail('金额需在 $0-$100,000 之间') as ApiResponse<T>
+      }
+      amount = Math.round(a * 100) / 100
+      quota = Math.round(amount * 500_000)
+      name = `$${amount.toFixed(2)}`
+    } else if (type === 'concurrency') {
+      const n = Number(body.concurrency ?? 0)
+      if (!Number.isSafeInteger(n) || n < 1 || n > 10_000) {
+        return fail('并发数需在 1-10,000 之间') as ApiResponse<T>
+      }
+      concurrency = n
+      name = `${n} 并发`
+    } else if (type === 'subscription') {
+      const pid = Number(body.plan_id ?? 0)
+      const plan = plans.find((p) => p.id === pid)
+      if (!plan) return fail('套餐不存在') as ApiResponse<T>
+      planId = pid
+      name = plan.name
+    } else {
+      name = '邀请码'
+    }
+
+    // Generate N random hex codes.
+    const codes: string[] = []
+    const now = Math.floor(Date.now() / 1000)
+    const newItems: AdminRedemptionCode[] = Array.from(
+      { length: count },
+      () => {
+        const rawHex = Array.from({ length: 32 }, () =>
+          Math.floor(Math.random() * 16).toString(16)
+        ).join('')
+        codes.push(rawHex)
+        const item: AdminRedemptionCode = {
+          id: mockRuntime.nextRedemptionCodeId++,
+          name,
+          code: rawHex,
+          type,
+          status: 'unused',
+          quota,
+          amount,
+          concurrency,
+          plan_id: planId,
+          redeemer_id: 0,
+          redeemer_email: '',
+          created_time: now,
+          used_time: 0,
+          expired_time: expiredTime,
+        }
+        adminRedemptionCodes.unshift(item)
+        return item
+      }
+    )
+
+    return ok(
+      { codes, items: newItems.map((c) => ({ ...c })) },
+      `已生成 ${count} 个兑换码`
+    ) as ApiResponse<T>
+  }
+
+  if (path === '/api/redemption/batch' && method === 'POST') {
+    if (!Array.isArray(body.ids) || body.ids.length === 0) {
+      return fail('兑换码 ID 列表格式不正确') as ApiResponse<T>
+    }
+    const ids = body.ids.map(Number)
+    if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      return fail('兑换码 ID 列表格式不正确') as ApiResponse<T>
+    }
+    const unique = [...new Set(ids)]
+    let deleted = 0
+    for (let i = adminRedemptionCodes.length - 1; i >= 0; i--) {
+      if (unique.includes(adminRedemptionCodes[i]!.id)) {
+        adminRedemptionCodes.splice(i, 1)
+        deleted++
+      }
+    }
+    return ok(deleted, `已删除 ${deleted} 个兑换码`) as ApiResponse<T>
+  }
+
+  const redemptionIdMatch = path.match(/^\/api\/redemption\/(\d+)(\/status)?$/)
+  if (redemptionIdMatch) {
+    const id = Number(redemptionIdMatch[1])
+    const code = adminRedemptionCodes.find((c) => c.id === id)
+    if (!code) return fail('兑换码不存在') as ApiResponse<T>
+
+    if (redemptionIdMatch[2] === '/status' && method === 'POST') {
+      if (code.status === 'used' || code.status === 'expired') {
+        return fail('已使用或已过期的兑换码不可更改状态') as ApiResponse<T>
+      }
+      code.status = code.status === 'disabled' ? 'unused' : 'disabled'
+      return ok(
+        { ...code },
+        code.status === 'disabled' ? '兑换码已禁用' : '兑换码已启用'
+      ) as ApiResponse<T>
+    }
+
+    if (method === 'DELETE') {
+      const index = adminRedemptionCodes.indexOf(code)
+      adminRedemptionCodes.splice(index, 1)
+      return ok({ id }, '兑换码已删除') as ApiResponse<T>
+    }
   }
 
   throw new ApiError(`接口不存在：${method} ${path}`, { status: 404 })

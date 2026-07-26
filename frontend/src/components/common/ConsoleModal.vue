@@ -1,3 +1,28 @@
+<script lang="ts">
+// Body scroll lock is shared across stacked modals (module scope): a
+// per-instance snapshot would restore "hidden" when modals close out of order
+// and freeze the page. Only the first lock snapshots the overflow; only the
+// last unlock restores it.
+let scrollLockCount = 0
+let scrollLockOverflow = ''
+
+function lockBodyScroll(): void {
+  if (scrollLockCount === 0) {
+    scrollLockOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+  }
+  scrollLockCount++
+}
+
+function unlockBodyScroll(): void {
+  if (scrollLockCount === 0) return
+  scrollLockCount--
+  if (scrollLockCount === 0) {
+    document.body.style.overflow = scrollLockOverflow
+  }
+}
+</script>
+
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 
@@ -23,7 +48,7 @@ const subtitleId = useId()
 const dialog = ref<HTMLElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
 let previouslyFocused: HTMLElement | null = null
-let previousBodyOverflow = ''
+let holdsScrollLock = false
 
 const FOCUSABLE =
   'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
@@ -70,12 +95,23 @@ function isTopmostDialog(): boolean {
   return dialogs.item(dialogs.length - 1) === dialog.value
 }
 
+function acquireScrollLock(): void {
+  if (holdsScrollLock) return
+  holdsScrollLock = true
+  lockBodyScroll()
+}
+
+function releaseScrollLock(): void {
+  if (!holdsScrollLock) return
+  holdsScrollLock = false
+  unlockBodyScroll()
+}
+
 watch(
   () => props.open,
   (open) => {
     if (open) {
-      previousBodyOverflow = document.body.style.overflow
-      document.body.style.overflow = 'hidden'
+      acquireScrollLock()
       previouslyFocused = document.activeElement as HTMLElement | null
       window.addEventListener('keydown', onKeydown)
       // Move focus into the dialog once it has rendered.
@@ -84,7 +120,7 @@ watch(
         ;(els[0] ?? panel.value)?.focus()
       })
     } else {
-      document.body.style.overflow = previousBodyOverflow
+      releaseScrollLock()
       window.removeEventListener('keydown', onKeydown)
       const restoreTarget = previouslyFocused
       previouslyFocused = null
@@ -95,7 +131,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  document.body.style.overflow = previousBodyOverflow
+  releaseScrollLock()
   window.removeEventListener('keydown', onKeydown)
   const restoreTarget = previouslyFocused
   previouslyFocused = null

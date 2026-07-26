@@ -19,6 +19,7 @@ import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import ConsoleModal from '@/components/common/ConsoleModal.vue'
 import DataTable, { type TableColumn } from '@/components/common/DataTable.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import FilterSelect from '@/components/common/FilterSelect.vue'
 import FormField from '@/components/common/FormField.vue'
 import IconButton from '@/components/common/IconButton.vue'
@@ -26,6 +27,14 @@ import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
+import LogMobileCard from '@/components/console/log-ui/LogMobileCard.vue'
+import {
+  getLogExportValues,
+  LOG_EXPORT_HEADERS,
+} from '@/components/console/log-ui/logExport'
+import LogPerformanceCell from '@/components/console/log-ui/LogPerformanceCell.vue'
+import LogUsageCell from '@/components/console/log-ui/LogUsageCell.vue'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { formatNumber, formatQuota, formatTime } from '@/utils/format'
 
@@ -57,42 +66,24 @@ const exportType = ref('csv')
 
 type ColKey =
   | 'created'
-  | 'token_name'
-  | 'channel'
-  | 'type'
-  | 'model'
-  | 'latency'
-  | 'tps'
-  | 'tokens'
-  | 'quota'
+  | 'identity'
+  | 'route'
+  | 'performance'
+  | 'usage'
+  | 'cost'
   | 'content'
 
 const ALL_COL_KEYS: ColKey[] = [
   'created',
-  'token_name',
-  'channel',
-  'type',
-  'model',
-  'latency',
-  'tps',
-  'tokens',
-  'quota',
+  'identity',
+  'route',
+  'performance',
+  'usage',
+  'cost',
   'content',
 ]
 
-// Default: hide latency and tps to keep the table clean on first load
-const visibleCols = ref<Set<ColKey>>(
-  new Set([
-    'created',
-    'token_name',
-    'channel',
-    'type',
-    'model',
-    'tokens',
-    'quota',
-    'content',
-  ])
-)
+const visibleCols = ref<Set<ColKey>>(new Set(ALL_COL_KEYS))
 
 const colSettingsOpen = ref(false)
 const colSettingsRef = ref<HTMLElement | null>(null)
@@ -190,15 +181,12 @@ const COL_META: Record<
   ColKey,
   { labelKey: string; width?: string; align?: 'left' | 'right' | 'center' }
 > = {
-  created: { labelKey: 'logs.colTime', width: '170px' },
-  token_name: { labelKey: 'logs.colToken' },
-  channel: { labelKey: 'logs.colChannel' },
-  type: { labelKey: 'logs.colType' },
-  model: { labelKey: 'logs.colModel' },
-  latency: { labelKey: 'logs.colLatency', align: 'right' },
-  tps: { labelKey: 'logs.colTps', align: 'right' },
-  tokens: { labelKey: 'logs.colTokens', align: 'right' },
-  quota: { labelKey: 'logs.colQuota', align: 'right' },
+  created: { labelKey: 'logs.colTime', width: '140px' },
+  identity: { labelKey: 'logs.colIdentity', width: '165px' },
+  route: { labelKey: 'logs.colRoute', width: '200px' },
+  performance: { labelKey: 'logs.colPerformance', width: '250px' },
+  usage: { labelKey: 'logs.colUsage', width: '190px' },
+  cost: { labelKey: 'logs.colCost', width: '108px', align: 'right' },
   content: { labelKey: 'logs.colContent' },
 }
 
@@ -228,6 +216,19 @@ const typeTone: Record<
   system: 'info',
 }
 
+const typeLabelKey: Record<LogType, string> = {
+  consume: 'logs.typeConsume',
+  topup: 'logs.typeTopup',
+  refund: 'logs.typeRefund',
+  manage: 'logs.typeManage',
+  error: 'logs.typeError',
+  system: 'logs.typeSystem',
+}
+
+function quotaPrefix(type: LogType): string {
+  return ['topup', 'refund', 'manage', 'system'].includes(type) ? '+' : '-'
+}
+
 // ---------- data fetching ----------
 
 function currentParams() {
@@ -245,34 +246,27 @@ function currentParams() {
   }
 }
 
+const listRequest = useLatestRequest()
+
 async function load() {
-  loadController?.abort()
-  const controller = new AbortController()
-  loadController = controller
-  const sequence = ++loadSequence
   loading.value = true
-  try {
-    const data = await api.get<PageResult<LogItem>>(
-      '/api/log/self',
-      currentParams(),
-      { signal: controller.signal }
+  const result = await listRequest.run((signal) =>
+    api.get<PageResult<LogItem>>('/api/log/self', currentParams(), { signal })
+  )
+  if (result.stale) return
+  loading.value = false
+  if (!result.ok) {
+    toast.error(
+      result.error instanceof ApiError
+        ? result.error.message
+        : t('common.failed')
     )
-    if (sequence !== loadSequence) return
-    rows.value = data.items
-    total.value = data.total
-  } catch (error) {
-    if (!controller.signal.aborted) {
-      toast.error(
-        error instanceof ApiError ? error.message : t('common.failed')
-      )
-    }
-  } finally {
-    if (sequence === loadSequence) loading.value = false
+    return
   }
+  rows.value = result.value.items
+  total.value = result.value.total
 }
 
-let loadController: AbortController | null = null
-let loadSequence = 0
 let searchTimer = 0
 function reload() {
   if (page.value === 1) load()
@@ -288,55 +282,46 @@ watch([page, pageSize], load)
 // ---------- export ----------
 
 const exporting = ref(false)
+let exportController: AbortController | null = null
 
-const EXPORT_HEADERS = [
-  'time',
-  'token',
-  'type',
-  'model',
-  'channel',
-  'prompt_tokens',
-  'completion_tokens',
-  'latency',
-  'tps',
-  'quota',
-  'content',
-] as const
+const EXPORT_PAGE_SIZE = 100
+/**
+ * Hard ceiling on an export. Without it a filter matching the whole ledger
+ * fans out into thousands of sequential requests and hangs the tab; the user is
+ * told plainly when the file is truncated rather than silently getting part of
+ * the data.
+ */
+const EXPORT_MAX_ROWS = 10_000
 
-function rowValues(l: LogItem) {
-  return [
-    formatTime(l.created),
-    l.token_name,
-    l.type,
-    l.model,
-    l.channel,
-    l.prompt_tokens,
-    l.completion_tokens,
-    l.latency,
-    l.tps,
-    l.quota,
-    l.content,
-  ]
-}
+async function fetchAllLogs(
+  signal: AbortSignal
+): Promise<{ items: LogItem[]; truncated: boolean }> {
+  // page/page_size come from the export loop, not from the table's paging.
+  const { page: _page, page_size: _pageSize, ...filters } = currentParams()
 
-async function fetchAllLogs(): Promise<LogItem[]> {
-  const size = 100
-  const first = await api.get<PageResult<LogItem>>('/api/log/self', {
-    ...currentParams(),
-    page: 1,
-    page_size: size,
-  })
-  const all = [...first.items]
-  const pages = Math.ceil(first.total / size)
+  const first = await api.get<PageResult<LogItem>>(
+    '/api/log/self',
+    { ...filters, page: 1, page_size: EXPORT_PAGE_SIZE },
+    { signal }
+  )
+
+  const items = [...first.items]
+  const reachable = Math.min(first.total, EXPORT_MAX_ROWS)
+  const pages = Math.ceil(reachable / EXPORT_PAGE_SIZE)
+
   for (let p = 2; p <= pages; p++) {
-    const next = await api.get<PageResult<LogItem>>('/api/log/self', {
-      ...currentParams(),
-      page: p,
-      page_size: size,
-    })
-    all.push(...next.items)
+    const next = await api.get<PageResult<LogItem>>(
+      '/api/log/self',
+      { ...filters, page: p, page_size: EXPORT_PAGE_SIZE },
+      { signal }
+    )
+    items.push(...next.items)
   }
-  return all
+
+  return {
+    items: items.slice(0, EXPORT_MAX_ROWS),
+    truncated: first.total > EXPORT_MAX_ROWS,
+  }
 }
 
 function download(content: string, mime: string, ext: string) {
@@ -350,9 +335,12 @@ function download(content: string, mime: string, ext: string) {
 }
 
 async function doExport() {
+  exportController?.abort()
+  const controller = new AbortController()
+  exportController = controller
   exporting.value = true
   try {
-    const items = await fetchAllLogs()
+    const { items, truncated } = await fetchAllLogs(controller.signal)
     if (exportType.value === 'json') {
       download(
         JSON.stringify(items, null, 2),
@@ -365,11 +353,11 @@ async function doExport() {
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
-      const head = `<tr>${EXPORT_HEADERS.map((h) => `<th>${h}</th>`).join('')}</tr>`
+      const head = `<tr>${LOG_EXPORT_HEADERS.map((h) => `<th>${h}</th>`).join('')}</tr>`
       const body = items
         .map(
           (l) =>
-            `<tr>${rowValues(l)
+            `<tr>${getLogExportValues(l)
               .map((v) => `<td>${esc(v)}</td>`)
               .join('')}</tr>`
         )
@@ -383,16 +371,28 @@ async function doExport() {
       const csvRow = (vals: readonly unknown[]) =>
         vals.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')
       const lines = [
-        csvRow(EXPORT_HEADERS),
-        ...items.map((l) => csvRow(rowValues(l))),
+        csvRow(LOG_EXPORT_HEADERS),
+        ...items.map((l) => csvRow(getLogExportValues(l))),
       ]
       download('﻿' + lines.join('\n'), 'text/csv;charset=utf-8', 'csv')
     }
     exportOpen.value = false
-    toast.success(t('logs.exported', { count: items.length }))
+    if (truncated) {
+      toast.warning(
+        t('logs.exportTruncated', {
+          count: items.length,
+          limit: EXPORT_MAX_ROWS,
+        })
+      )
+    } else {
+      toast.success(t('logs.exported', { count: items.length }))
+    }
   } catch (error) {
+    // An unmount mid-export is a cancellation, not a failure to report.
+    if (controller.signal.aborted) return
     toast.error(error instanceof ApiError ? error.message : String(error))
   } finally {
+    if (exportController === controller) exportController = null
     exporting.value = false
   }
 }
@@ -415,7 +415,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  loadController?.abort()
+  exportController?.abort()
   window.clearTimeout(searchTimer)
   window.removeEventListener('resize', updateOpenColSettingsPanelMetrics)
   window.visualViewport?.removeEventListener(
@@ -473,155 +473,153 @@ onBeforeUnmount(() => {
       </div>
     </ConsoleCard>
 
-    <ConsoleCard :padded="false">
-      <!-- filter toolbar -->
-      <div class="flex flex-wrap items-center gap-3 p-4">
-        <SearchInput
-          v-model="keyword"
-          :placeholder="t('logs.keywordPlaceholder')"
-          :aria-label="t('logs.keywordPlaceholder')"
-          name="log-search"
-          class="w-full sm:w-56"
-        />
-        <FilterSelect
-          v-model="type"
-          :options="typeOptions"
-          :label="t('logs.typeLabel')"
-          :prefix-label="t('logs.typeLabel') + ':'"
-          class="w-full sm:w-48"
-        />
-        <DateRangePicker
-          v-model:start="startDate"
-          v-model:end="endDate"
-          class="w-full sm:w-64"
-        />
+    <!-- filter toolbar -->
+    <div
+      class="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4 shadow-[var(--card-shadow)]"
+    >
+      <SearchInput
+        v-model="keyword"
+        :placeholder="t('logs.keywordPlaceholder')"
+        :aria-label="t('logs.keywordPlaceholder')"
+        name="log-search"
+        class="w-full sm:w-56"
+      />
+      <FilterSelect
+        v-model="type"
+        :options="typeOptions"
+        :label="t('logs.typeLabel')"
+        :prefix-label="t('logs.typeLabel') + ':'"
+        class="w-full sm:w-48"
+      />
+      <DateRangePicker
+        v-model:start="startDate"
+        v-model:end="endDate"
+        class="w-full sm:w-64"
+      />
+      <div class="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto">
         <div
-          class="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto"
+          ref="colSettingsRef"
+          class="relative hidden lg:block"
+          @keydown="onColSettingsKeydown"
+          @focusout="onColSettingsFocusout"
         >
-          <div
-            ref="colSettingsRef"
-            class="relative"
-            @keydown="onColSettingsKeydown"
-            @focusout="onColSettingsFocusout"
+          <IconButton
+            ref="colSettingsTriggerRef"
+            :label="t('logs.colSettings')"
+            class="h-11 w-11 border border-[var(--border-default)] sm:h-8 sm:w-8"
+            :class="
+              colSettingsOpen
+                ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-text)]'
+                : 'bg-[var(--surface-solid)] text-[var(--text-secondary)]'
+            "
+            aria-haspopup="dialog"
+            :aria-expanded="colSettingsOpen"
+            :aria-controls="colSettingsPanelId"
+            @click="toggleColSettings"
           >
-            <IconButton
-              ref="colSettingsTriggerRef"
-              :label="t('logs.colSettings')"
-              class="h-11 w-11 border border-[var(--border-default)] sm:h-8 sm:w-8"
-              :class="
-                colSettingsOpen
-                  ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-text)]'
-                  : 'bg-[var(--surface-solid)] text-[var(--text-secondary)]'
-              "
-              aria-haspopup="dialog"
-              :aria-expanded="colSettingsOpen"
-              :aria-controls="colSettingsPanelId"
-              @click="toggleColSettings"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-                focusable="false"
-              >
-                <path d="M4 6h3m4 0h9M4 12h9m4 0h3M4 18h4m4 0h8" />
-                <circle cx="9" cy="6" r="2" />
-                <circle cx="15" cy="12" r="2" />
-                <circle cx="10" cy="18" r="2" />
-              </svg>
-            </IconButton>
-
-            <Transition name="col-panel">
-              <div
-                v-if="colSettingsOpen"
-                :id="colSettingsPanelId"
-                ref="colSettingsPanelRef"
-                class="subtle-scroll absolute right-0 top-full z-50 mt-2 w-44 overflow-y-auto rounded-xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] py-1.5 shadow-[var(--overlay-shadow)]"
-                :style="colSettingsPanelStyle"
-                role="dialog"
-                aria-modal="false"
-                :aria-labelledby="colSettingsTitleId"
-              >
-                <p
-                  :id="colSettingsTitleId"
-                  class="px-3 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]"
-                >
-                  {{ t('logs.colSettings') }}
-                </p>
-                <button
-                  v-for="key in ALL_COL_KEYS"
-                  :key="key"
-                  type="button"
-                  class="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition-colors hover:bg-[var(--surface-hover)]"
-                  :class="[
-                    visibleCols.has(key)
-                      ? 'text-[var(--text-primary)]'
-                      : 'text-[var(--text-tertiary)]',
-                    isLastVisibleCol(key)
-                      ? 'cursor-not-allowed opacity-55'
-                      : '',
-                  ]"
-                  :aria-pressed="visibleCols.has(key)"
-                  :aria-disabled="isLastVisibleCol(key)"
-                  :title="
-                    isLastVisibleCol(key) ? t('logs.keepOneColumn') : undefined
-                  "
-                  @click="toggleCol(key)"
-                >
-                  <span
-                    class="flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors"
-                    :class="
-                      visibleCols.has(key)
-                        ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
-                        : 'border-[var(--border-default)] bg-transparent'
-                    "
-                    aria-hidden="true"
-                  >
-                    <svg
-                      v-if="visibleCols.has(key)"
-                      width="9"
-                      height="9"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <polyline points="2,6 5,9 10,3" />
-                    </svg>
-                  </span>
-                  <span class="truncate">{{ t(COL_META[key].labelKey) }}</span>
-                </button>
-              </div>
-            </Transition>
-          </div>
-
-          <ConsoleButton variant="secondary" @click="exportOpen = true">
             <svg
-              width="15"
-              height="15"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
               aria-hidden="true"
+              focusable="false"
             >
-              <path
-                d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
-              />
+              <path d="M4 6h3m4 0h9M4 12h9m4 0h3M4 18h4m4 0h8" />
+              <circle cx="9" cy="6" r="2" />
+              <circle cx="15" cy="12" r="2" />
+              <circle cx="10" cy="18" r="2" />
             </svg>
-            {{ t('common.export') }}
-          </ConsoleButton>
-        </div>
-      </div>
+          </IconButton>
 
+          <Transition name="col-panel">
+            <div
+              v-if="colSettingsOpen"
+              :id="colSettingsPanelId"
+              ref="colSettingsPanelRef"
+              class="subtle-scroll absolute right-0 top-full z-50 mt-2 w-44 overflow-y-auto rounded-xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] py-1.5 shadow-[var(--overlay-shadow)]"
+              :style="colSettingsPanelStyle"
+              role="dialog"
+              aria-modal="false"
+              :aria-labelledby="colSettingsTitleId"
+            >
+              <p
+                :id="colSettingsTitleId"
+                class="px-3 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]"
+              >
+                {{ t('logs.colSettings') }}
+              </p>
+              <button
+                v-for="key in ALL_COL_KEYS"
+                :key="key"
+                type="button"
+                class="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition-colors hover:bg-[var(--surface-hover)]"
+                :class="[
+                  visibleCols.has(key)
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-tertiary)]',
+                  isLastVisibleCol(key) ? 'cursor-not-allowed opacity-55' : '',
+                ]"
+                :aria-pressed="visibleCols.has(key)"
+                :aria-disabled="isLastVisibleCol(key)"
+                :title="
+                  isLastVisibleCol(key) ? t('logs.keepOneColumn') : undefined
+                "
+                @click="toggleCol(key)"
+              >
+                <span
+                  class="flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors"
+                  :class="
+                    visibleCols.has(key)
+                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
+                      : 'border-[var(--border-default)] bg-transparent'
+                  "
+                  aria-hidden="true"
+                >
+                  <svg
+                    v-if="visibleCols.has(key)"
+                    width="9"
+                    height="9"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="2,6 5,9 10,3" />
+                  </svg>
+                </span>
+                <span class="truncate">{{ t(COL_META[key].labelKey) }}</span>
+              </button>
+            </div>
+          </Transition>
+        </div>
+
+        <ConsoleButton variant="secondary" @click="exportOpen = true">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path
+              d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
+            />
+          </svg>
+          {{ t('common.export') }}
+        </ConsoleButton>
+      </div>
+    </div>
+
+    <ConsoleCard class="hidden lg:block" :padded="false">
       <DataTable
         :columns="columns"
         :rows="rows"
@@ -630,91 +628,66 @@ onBeforeUnmount(() => {
         :skeleton-rows="pageSize"
         adaptive-scroll
         :page-size="pageSize"
+        min-table-width="1180px"
         :scroll-region-label="t('logs.breadcrumb.1')"
         :empty-title="t('logs.emptyTitle')"
         :empty-hint="t('logs.emptyHint')"
+        empty-illustration="empty-logs"
       >
         <template #cell-created="{ row }">
-          <span class="text-xs text-[var(--text-tertiary)]">{{
-            formatTime((row as LogItem).created)
-          }}</span>
-        </template>
-        <template #cell-token_name="{ row }">
-          <span
-            class="max-w-[140px] truncate font-mono text-xs text-[var(--text-secondary)]"
-            >{{ (row as LogItem).token_name }}</span
-          >
-        </template>
-        <template #cell-channel="{ row }">
-          <span class="text-xs text-[var(--text-secondary)]">{{
-            (row as LogItem).channel
-          }}</span>
-        </template>
-        <template #cell-type="{ row }">
-          <StatusChip :tone="typeTone[(row as LogItem).type]">
-            {{
-              t(
-                `logs.type${(row as LogItem).type[0].toUpperCase()}${(row as LogItem).type.slice(1)}`
-              )
-            }}
-          </StatusChip>
-        </template>
-        <template #cell-model="{ row }">
-          <span class="font-mono text-xs">{{ (row as LogItem).model }}</span>
-        </template>
-        <template #cell-latency="{ row }">
-          <span
-            class="text-xs"
-            :class="
-              (row as LogItem).latency === 0
-                ? 'text-[var(--text-tertiary)]'
-                : ''
-            "
-          >
-            {{
-              (row as LogItem).latency === 0
-                ? '—'
-                : `${(row as LogItem).latency.toFixed(2)}s`
-            }}
+          <span class="whitespace-nowrap text-xs text-[var(--text-tertiary)]">
+            {{ formatTime((row as LogItem).created) }}
           </span>
         </template>
-        <template #cell-tps="{ row }">
-          <span
-            class="text-xs"
-            :class="
-              (row as LogItem).tps === 0 ? 'text-[var(--text-tertiary)]' : ''
-            "
-          >
-            {{
-              (row as LogItem).tps === 0
-                ? '—'
-                : formatNumber((row as LogItem).tps)
-            }}
-          </span>
+        <template #cell-identity="{ row }">
+          <div class="flex min-w-0 flex-col items-start gap-1.5">
+            <span
+              class="block max-w-full truncate font-mono text-xs text-[var(--text-secondary)]"
+              :title="(row as LogItem).token_name"
+            >
+              {{ (row as LogItem).token_name }}
+            </span>
+            <StatusChip :tone="typeTone[(row as LogItem).type]">
+              {{ t(typeLabelKey[(row as LogItem).type]) }}
+            </StatusChip>
+          </div>
         </template>
-        <template #cell-tokens="{ row }">
-          <span class="text-xs">
-            {{ formatNumber((row as LogItem).prompt_tokens) }} /
-            {{ formatNumber((row as LogItem).completion_tokens) }}
-          </span>
+        <template #cell-route="{ row }">
+          <div class="min-w-0">
+            <p
+              data-log-model
+              class="truncate font-mono text-sm font-semibold leading-5 text-[var(--text-primary)]"
+              :title="(row as LogItem).model"
+            >
+              {{ (row as LogItem).model }}
+            </p>
+            <p
+              class="mt-0.5 truncate text-xs text-[var(--text-tertiary)]"
+              :title="(row as LogItem).channel"
+            >
+              {{ (row as LogItem).channel }}
+            </p>
+          </div>
         </template>
-        <template #cell-quota="{ row }">
+        <template #cell-performance="{ row }">
+          <LogPerformanceCell :log="row as LogItem" />
+        </template>
+        <template #cell-usage="{ row }">
+          <LogUsageCell :log="row as LogItem" />
+        </template>
+        <template #cell-cost="{ row }">
           <span
-            class="text-xs font-semibold"
+            data-log-cost
+            class="whitespace-nowrap text-xs font-semibold tabular-nums"
             :class="
               ['topup', 'refund', 'manage', 'system'].includes(
                 (row as LogItem).type
               )
                 ? 'text-[var(--status-success-text)]'
-                : ''
+                : 'text-[var(--text-primary)]'
             "
           >
-            {{
-              ['topup', 'refund', 'manage', 'system'].includes(
-                (row as LogItem).type
-              )
-                ? '+'
-                : '-'
+            {{ quotaPrefix((row as LogItem).type)
             }}{{ formatQuota((row as LogItem).quota) }}
           </span>
         </template>
@@ -735,6 +708,41 @@ onBeforeUnmount(() => {
         </template>
       </DataTable>
     </ConsoleCard>
+
+    <section class="lg:hidden" :aria-label="t('logs.breadcrumb.1')">
+      <div v-if="loading" class="space-y-3" aria-busy="true">
+        <div
+          v-for="index in Math.min(pageSize, 5)"
+          :key="index"
+          class="h-56 animate-pulse rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
+        />
+      </div>
+
+      <div v-else-if="rows.length" class="space-y-3">
+        <LogMobileCard v-for="row in rows" :key="row.id" :log="row" />
+      </div>
+
+      <div
+        v-else
+        class="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
+      >
+        <EmptyState
+          :title="t('logs.emptyTitle')"
+          :hint="t('logs.emptyHint')"
+          illustration="empty-logs"
+        />
+      </div>
+
+      <div
+        class="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
+      >
+        <TablePagination
+          v-model:page="page"
+          v-model:page-size="pageSize"
+          :total="total"
+        />
+      </div>
+    </section>
 
     <!-- export modal -->
     <ConsoleModal

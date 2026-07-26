@@ -192,7 +192,7 @@ function onSaved() {
   sellPanel.value?.load()
 }
 
-const availableModels = computed(() => (catalog.value ? MODELS : MODELS))
+const availableModels = MODELS
 const availableChannels = computed(() => catalog.value?.channels ?? [])
 
 onMounted(load)
@@ -341,6 +341,7 @@ onMounted(load)
         <EmptyState
           :title="t('market.emptyTitle')"
           :hint="t('market.emptyHint')"
+          illustration="empty-market"
         />
       </ConsoleCard>
 

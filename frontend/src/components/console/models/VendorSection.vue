@@ -2,13 +2,16 @@
 import { useI18n } from 'vue-i18n'
 
 import type { MarketModel } from '@/types/console'
-import type { VendorGroup, MarketViewMode } from '@/composables/useModelMarket'
+import type {
+  VendorGroup,
+  ModelMarketViewMode,
+} from '@/composables/useModelMarket'
 import ModelCard from './ModelCard.vue'
 import VendorLogo from './VendorLogo.vue'
 
 defineProps<{
   group: VendorGroup
-  view: MarketViewMode
+  view: ModelMarketViewMode
 }>()
 
 const emit = defineEmits<{
