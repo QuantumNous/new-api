@@ -20,18 +20,20 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
 import { Pricing } from '@/features/pricing'
+import { SORT_OPTION_VALUES } from '@/features/pricing/constants'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
 import { useAuthStore } from '@/stores/auth-store'
 
 const pricingSearchSchema = z.object({
   search: z.string().optional(),
-  sort: z.string().optional(),
+  sort: z.enum(SORT_OPTION_VALUES).optional().catch(undefined),
   vendor: z.string().optional(),
   group: z.string().optional(),
   quotaType: z.string().optional(),
   endpointType: z.string().optional(),
   tag: z.string().optional(),
   tokenUnit: z.enum(['M', 'K']).optional(),
+  currency: z.enum(['CNY', 'USD']).optional(),
   view: z.enum(['card', 'table']).optional().catch(undefined),
   rechargePrice: z.boolean().optional(),
 })

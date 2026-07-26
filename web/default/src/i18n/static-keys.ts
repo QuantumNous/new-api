@@ -174,6 +174,13 @@ export const STATIC_I18N_KEYS = [
   'Technical Support',
   'Professional team providing 24/7 technical support',
 
+  // Home page AI clients preview
+  'Import or configure manually',
+  'OpenAI Compatible',
+  'Task and code workspace',
+  'Terminal AI coding assistant',
+  'Command-line model workflow',
+
   // User management (interpolated keys)
   'Remaining Quota ({{currency}})',
   'Enter quota in tokens',

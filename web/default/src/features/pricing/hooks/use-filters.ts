@@ -25,7 +25,10 @@ import {
   QUOTA_TYPES,
   ENDPOINT_TYPES,
   DEFAULT_TOKEN_UNIT,
+  DEFAULT_PRICING_CURRENCY,
+  PRICING_CURRENCIES,
   VIEW_MODES,
+  type PricingCurrency,
   type ViewMode,
 } from '../constants'
 import { filterAndSortModels, extractAllTags } from '../lib/filters'
@@ -40,8 +43,8 @@ type FilterState = {
   endpointType?: string
   tag?: string
   tokenUnit?: TokenUnit
+  currency?: PricingCurrency
   view?: ViewMode
-  rechargePrice?: boolean
 }
 
 function normalizeViewMode(value: unknown): ViewMode {
@@ -62,12 +65,12 @@ export function useFilters(models: PricingModel[]) {
     endpointType: search.endpointType,
     tag: search.tag,
     tokenUnit: search.tokenUnit,
+    currency: search.currency,
     view: search.view,
-    rechargePrice: search.rechargePrice,
   }))
 
   const searchInput = filterState.search || ''
-  const sortBy = filterState.sort || SORT_OPTIONS.NAME
+  const sortBy = filterState.sort || SORT_OPTIONS.RECOMMENDED
   const vendorFilter = filterState.vendor || FILTER_ALL
   const groupFilter = filterState.group || FILTER_ALL
   const quotaTypeFilter = filterState.quotaType || QUOTA_TYPES.ALL
@@ -75,8 +78,11 @@ export function useFilters(models: PricingModel[]) {
   const tagFilter = filterState.tag || FILTER_ALL
   const tokenUnit: TokenUnit =
     filterState.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
+  const displayCurrency: PricingCurrency =
+    filterState.currency === PRICING_CURRENCIES.USD
+      ? PRICING_CURRENCIES.USD
+      : DEFAULT_PRICING_CURRENCY
   const viewMode = normalizeViewMode(filterState.view)
-  const showRechargePrice = filterState.rechargePrice === true
 
   const updateFilters = useCallback((updates: Record<string, unknown>) => {
     setFilterState((prev) => {
@@ -96,7 +102,9 @@ export function useFilters(models: PricingModel[]) {
   )
   const setSortBy = useCallback(
     (v: string) =>
-      updateFilters({ sort: v === SORT_OPTIONS.NAME ? undefined : v }),
+      updateFilters({
+        sort: v === SORT_OPTIONS.RECOMMENDED ? undefined : v,
+      }),
     [updateFilters]
   )
   const setVendorFilter = useCallback(
@@ -128,13 +136,16 @@ export function useFilters(models: PricingModel[]) {
       updateFilters({ tokenUnit: v === DEFAULT_TOKEN_UNIT ? undefined : v }),
     [updateFilters]
   )
+  const setDisplayCurrency = useCallback(
+    (value: PricingCurrency) =>
+      updateFilters({
+        currency: value === DEFAULT_PRICING_CURRENCY ? undefined : value,
+      }),
+    [updateFilters]
+  )
   const setViewMode = useCallback(
     (v: ViewMode) =>
       updateFilters({ view: v === VIEW_MODES.CARD ? undefined : v }),
-    [updateFilters]
-  )
-  const setShowRechargePrice = useCallback(
-    (v: boolean) => updateFilters({ rechargePrice: v || undefined }),
     [updateFilters]
   )
 
@@ -209,8 +220,8 @@ export function useFilters(models: PricingModel[]) {
     endpointTypeFilter,
     tagFilter,
     tokenUnit,
+    displayCurrency,
     viewMode,
-    showRechargePrice,
     setSearchInput,
     setSortBy,
     setVendorFilter,
@@ -219,8 +230,8 @@ export function useFilters(models: PricingModel[]) {
     setEndpointTypeFilter,
     setTagFilter,
     setTokenUnit,
+    setDisplayCurrency,
     setViewMode,
-    setShowRechargePrice,
     filteredModels,
     hasActiveFilters,
     activeFilterCount,

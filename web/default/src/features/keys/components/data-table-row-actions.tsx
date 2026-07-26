@@ -23,15 +23,13 @@ import {
   Power,
   PowerOff,
   ExternalLink,
-  ArrowRightLeft,
-  Copy,
-  Link,
   Loader2,
 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import ccSwitchLogo from '@/assets/home/cc-switch-logo.png'
 import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,26 +48,11 @@ import {
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
-import { encodeChannelConnectionInfo } from '@/lib/channel-connection-info'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
 import { updateApiKeyStatus } from '../api'
 import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import { apiKeySchema } from '../types'
 import { useApiKeys } from './api-keys-provider'
-
-function getServerAddress(): string {
-  try {
-    const raw = localStorage.getItem('status')
-    if (raw) {
-      const status = JSON.parse(raw)
-      if (status.server_address) return status.server_address as string
-    }
-  } catch {
-    /* empty */
-  }
-  return window.location.origin
-}
 
 type DataTableRowActionsProps<TData> = {
   row: Row<TData>
@@ -86,33 +69,24 @@ export function DataTableRowActions<TData>({
     triggerRefresh,
     setResolvedKey,
     resolveRealKey,
-    resolvedKeys,
     loadingKeys,
   } = useApiKeys()
   const isEnabled = apiKey.status === API_KEY_STATUS.ENABLED
   const { chatPresets, serverAddress } = useChatPresets()
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
-  const resolvedRealKey = resolvedKeys[apiKey.id]
   const isRealKeyLoading = Boolean(loadingKeys[apiKey.id])
 
   const hasChatPresets = chatPresets.length > 0
   const toggleLabel = isEnabled ? t('Disable') : t('Enable')
 
-  const handleMenuOpenChange = useCallback(
-    (open: boolean) => {
-      if (open && !resolvedRealKey && !isRealKeyLoading) {
-        void resolveRealKey(apiKey.id)
-      }
-    },
-    [apiKey.id, isRealKeyLoading, resolvedRealKey, resolveRealKey]
-  )
+  const handleOpenCCSwitch = useCallback(async () => {
+    const realKey = await resolveRealKey(apiKey.id)
+    if (!realKey) return
 
-  const getCachedRealKey = useCallback(() => {
-    if (resolvedRealKey) return resolvedRealKey
-    void resolveRealKey(apiKey.id)
-    toast.info(t('API key is loading, please try again in a moment'))
-    return null
-  }, [apiKey.id, resolvedRealKey, resolveRealKey, t])
+    setResolvedKey(realKey)
+    setCurrentRow(apiKey)
+    setOpen('cc-switch')
+  }, [apiKey, resolveRealKey, setCurrentRow, setOpen, setResolvedKey])
 
   const handleOpenChatPreset = useCallback(
     async (preset: ChatPreset) => {
@@ -155,10 +129,7 @@ export function DataTableRowActions<TData>({
     [resolveRealKey, apiKey.id, serverAddress, t]
   )
 
-  const handleToggleStatus = async (
-    e?: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    e?.stopPropagation()
+  const handleToggleStatus = async () => {
     const newStatus = isEnabled
       ? API_KEY_STATUS.DISABLED
       : API_KEY_STATUS.ENABLED
@@ -197,20 +168,27 @@ export function DataTableRowActions<TData>({
             <Button
               variant='ghost'
               size='icon-sm'
-              onClick={handleToggleStatus}
-              disabled={isTogglingStatus}
-              aria-label={toggleLabel}
-              className={
-                isEnabled
-                  ? 'text-destructive hover:text-destructive'
-                  : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
-              }
+              onClick={() => void handleOpenCCSwitch()}
+              disabled={isRealKeyLoading}
+              aria-label={t('Import to CC Switch')}
             />
           }
         >
-          {statusIcon}
+          {isRealKeyLoading ? (
+            <Loader2 className='size-4 animate-spin' />
+          ) : (
+            <img
+              src={ccSwitchLogo}
+              alt=''
+              width={16}
+              height={16}
+              aria-hidden='true'
+              decoding='async'
+              className='size-4 rounded-[3px] object-contain'
+            />
+          )}
         </TooltipTrigger>
-        <TooltipContent>{toggleLabel}</TooltipContent>
+        <TooltipContent>{t('Import to CC Switch')}</TooltipContent>
       </Tooltip>
 
       <Tooltip>
@@ -236,53 +214,7 @@ export function DataTableRowActions<TData>({
         ariaLabel={t('Open menu')}
         contentClassName='w-[200px]'
         modal={false}
-        onOpenChange={handleMenuOpenChange}
       >
-        <DropdownMenuItem
-          onClick={async () => {
-            const realKey = getCachedRealKey()
-            if (!realKey) return
-            const ok = await copyToClipboard(realKey)
-            if (ok) toast.success(t('Copied'))
-          }}
-        >
-          {t('Copy Key')}
-          <DropdownMenuShortcut>
-            <Copy size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={async () => {
-            const realKey = getCachedRealKey()
-            if (!realKey) return
-            const connStr = encodeChannelConnectionInfo(
-              realKey,
-              getServerAddress()
-            )
-            const ok = await copyToClipboard(connStr)
-            if (ok) toast.success(t('Copied'))
-          }}
-        >
-          {t('Copy Connection Info')}
-          <DropdownMenuShortcut>
-            <Link size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={async () => {
-            const realKey = await resolveRealKey(apiKey.id)
-            if (!realKey) return
-            setResolvedKey(realKey)
-            setCurrentRow(apiKey)
-            setOpen('cc-switch')
-          }}
-        >
-          {t('CC Switch')}
-          <DropdownMenuShortcut>
-            <ArrowRightLeft size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
         {hasChatPresets && (
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>{t('Chat')}</DropdownMenuSubTrigger>
@@ -303,6 +235,14 @@ export function DataTableRowActions<TData>({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )}
+        {hasChatPresets && <DropdownMenuSeparator />}
+        <DropdownMenuItem
+          onClick={() => void handleToggleStatus()}
+          disabled={isTogglingStatus}
+        >
+          {toggleLabel}
+          <DropdownMenuShortcut>{statusIcon}</DropdownMenuShortcut>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {

@@ -385,6 +385,20 @@ For commercial licensing, please contact support@quantumnous.com
     will-change: transform;
   }
 
+  @keyframes home-provider-marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .home-provider-marquee-track {
+    animation: home-provider-marquee 36s linear infinite;
+    will-change: transform;
+  }
+
   /* Pause animation on hover */
   .scroll-container:hover .animate-scroll-up,
   .scroll-container:hover .animate-scroll-down {
@@ -397,10 +411,19 @@ For commercial licensing, please contact support@quantumnous.com
   .animate-appear-zoom,
   .animate-scroll-up,
   .animate-scroll-down,
+  .home-provider-marquee-track,
   [data-slot='table'] tbody tr {
     animation: none !important;
     opacity: 1;
     transform: none;
+  }
+
+  .home-provider-marquee {
+    overflow-x: auto;
+  }
+
+  .home-provider-marquee-track > [aria-hidden='true'] {
+    display: none;
   }
 }
 
@@ -454,6 +477,171 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+/* Hero ribbon treatment: the supplied loop is a full-screen design capture,
+ * so it is softened and layered with accessible HTML content above it. */
+@keyframes landing-ribbon-drift {
+  0%,
+  100% {
+    transform: translate3d(-50%, 0, 0) scale(1.06);
+  }
+  50% {
+    transform: translate3d(-48%, 1.5%, 0) scale(1.1);
+  }
+}
+
+@keyframes landing-ribbon-wave {
+  0%,
+  100% {
+    transform: translate3d(-3%, 0, 0) rotate(-2deg) scaleY(0.94);
+  }
+  50% {
+    transform: translate3d(3%, 2%, 0) rotate(2deg) scaleY(1.06);
+  }
+}
+
+@keyframes landing-stardust {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.38;
+  }
+  50% {
+    transform: translate3d(1.5%, -1%, 0);
+    opacity: 0.7;
+  }
+}
+
+.landing-hero-ribbon-source {
+  width: max(1200px, 100vw);
+  filter: blur(20px) saturate(1.1);
+  opacity: 0.28;
+  transform: translate3d(-50%, 0, 0) scale(1.06);
+  animation: landing-ribbon-drift 14s ease-in-out infinite;
+  will-change: transform;
+  mix-blend-mode: multiply;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 17%,
+    #000 29%,
+    #000 70%,
+    transparent 88%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 17%,
+    #000 29%,
+    #000 70%,
+    transparent 88%,
+    transparent 100%
+  );
+}
+
+.landing-hero-ribbon-glow {
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      ellipse at 15% 52%,
+      rgb(174 246 216 / 68%) 0,
+      transparent 44%
+    ),
+    radial-gradient(
+      ellipse at 40% 42%,
+      rgb(175 224 255 / 58%) 0,
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse at 64% 55%,
+      rgb(203 191 255 / 56%) 0,
+      transparent 44%
+    ),
+    radial-gradient(
+      ellipse at 86% 44%,
+      rgb(255 201 221 / 62%) 0,
+      transparent 42%
+    );
+  filter: blur(26px);
+  opacity: 0.9;
+  animation: landing-ribbon-wave 12s ease-in-out infinite;
+  will-change: transform;
+}
+
+.landing-hero-ribbon-wave {
+  left: -8%;
+  width: 116%;
+  height: 27%;
+  border: 14px solid transparent;
+  border-radius: 50%;
+  filter: blur(8px);
+  opacity: 0.68;
+  animation: landing-ribbon-wave 11s ease-in-out infinite;
+  will-change: transform;
+}
+
+.landing-hero-ribbon-wave-mint {
+  top: 30%;
+  border-color: rgb(166 241 218 / 62%);
+  box-shadow: 0 0 24px rgb(139 227 211 / 54%);
+}
+
+.landing-hero-ribbon-wave-lavender {
+  top: 39%;
+  border-color: rgb(181 193 255 / 56%);
+  animation-delay: -3.5s;
+  box-shadow: 0 0 28px rgb(174 177 255 / 45%);
+}
+
+.landing-hero-ribbon-wave-pink {
+  top: 49%;
+  border-color: rgb(247 179 219 / 55%);
+  animation-delay: -7s;
+  box-shadow: 0 0 26px rgb(244 168 211 / 46%);
+}
+
+.landing-hero-ribbon-veil {
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--background) 48%, transparent);
+  filter: blur(18px);
+}
+
+.landing-hero-stardust {
+  background-image:
+    radial-gradient(
+      circle at 8% 30%,
+      rgb(105 183 255 / 72%) 0 1px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 18% 65%,
+      rgb(255 189 217 / 68%) 0 1px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 33% 18%,
+      rgb(168 229 205 / 74%) 0 1.5px,
+      transparent 2.5px
+    ),
+    radial-gradient(
+      circle at 54% 78%,
+      rgb(194 173 255 / 68%) 0 1px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 72% 26%,
+      rgb(255 207 170 / 70%) 0 1px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 88% 58%,
+      rgb(115 190 255 / 68%) 0 1.5px,
+      transparent 2.5px
+    );
+  animation: landing-stardust 9s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
 .landing-animate-fade-up {
   animation: landing-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -480,6 +668,26 @@ For commercial licensing, please contact support@quantumnous.com
     opacity: 1 !important;
     transform: none !important;
   }
+
+  .landing-hero-ribbon-source {
+    animation: none !important;
+    display: none;
+    transform: translate3d(-50%, 0, 0) scale(1.06) !important;
+  }
+
+  .landing-hero-ribbon-glow,
+  .landing-hero-ribbon-wave,
+  .landing-hero-stardust {
+    animation: none !important;
+  }
+}
+
+.dark .landing-hero-ribbon-source {
+  opacity: 0.16;
+}
+
+.dark .landing-hero-ribbon-glow {
+  opacity: 0.34;
 }
 
 /* Micro-interactions — Vercel-style subtle hover/active feedback */

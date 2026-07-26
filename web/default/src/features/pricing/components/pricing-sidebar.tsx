@@ -38,6 +38,7 @@ import {
   getQuotaTypeLabels,
 } from '../constants'
 import { parseTags } from '../lib/filters'
+import { formatGroupRatio } from '../lib/model-helpers'
 import type { PricingModel, PricingVendor } from '../types'
 
 type FilterOption = {
@@ -81,14 +82,6 @@ function countBy(
   predicate: (model: PricingModel) => boolean
 ): number {
   return models.reduce((count, model) => count + (predicate(model) ? 1 : 0), 0)
-}
-
-function formatGroupRatio(ratio: number | undefined): string | undefined {
-  if (ratio == null) return undefined
-  const formatted = Number.isInteger(ratio)
-    ? ratio.toString()
-    : ratio.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
-  return `x${formatted}`
 }
 
 function FilterChip(props: {

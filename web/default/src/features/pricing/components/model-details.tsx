@@ -1337,7 +1337,7 @@ export function ModelDetails() {
           priceRate={priceRate ?? 1}
           usdExchangeRate={usdExchangeRate ?? 1}
           tokenUnit={tokenUnit}
-          showRechargePrice={search.rechargePrice ?? false}
+          showRechargePrice={search.currency !== 'USD'}
           endpointMap={
             (endpointMap as Record<
               string,

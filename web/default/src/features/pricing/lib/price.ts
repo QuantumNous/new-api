@@ -16,9 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { formatCurrencyFromUSD } from '@/lib/currency'
-
-import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
+import {
+  OFFICIAL_PRICE_CNY_RATE,
+  QUOTA_TYPE_VALUES,
+  TOKEN_UNIT_DIVISORS,
+} from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
 import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
 
@@ -102,40 +104,18 @@ function hasRatio(value: number | null | undefined): boolean {
   return value !== undefined && value !== null && Number.isFinite(Number(value))
 }
 
-/**
- * Apply recharge rate to price
- *
- * priceRate represents how much users need to recharge (in the display currency)
- * to get 1 USD credit. usdExchangeRate is the real exchange rate.
- *
- * The returned value will be formatted by formatCurrencyFromUSD, which will
- * multiply by the display currency's exchange rate.
- *
- * Examples:
- *
- * 1. Display currency = USD:
- *    - Model: 1 USD
- *    - priceRate = 0.5 (recharge $0.5 to get $1 credit)
- *    - usdExchangeRate = 1
- *    - Return: 1 × 0.5 / 1 = 0.5
- *    - formatCurrencyFromUSD(0.5) → $0.5 ✓
- *
- * 2. Display currency = CNY:
- *    - Model: 1 USD
- *    - priceRate = 4 (recharge ¥4 to get $1 credit)
- *    - usdExchangeRate = 7 (real rate: 1 USD = ¥7)
- *    - Return: 1 × 4 / 7 = 0.571
- *    - formatCurrencyFromUSD(0.571) → 0.571 × 7 = ¥4 ✓
- *    - Normal price: ¥7, Recharge price: ¥4 (cheaper!)
- */
-function applyRechargeRate(
-  price: number,
-  showWithRecharge: boolean,
-  priceRate: number,
-  usdExchangeRate: number
-): number {
-  if (!showWithRecharge) return price
-  return (price * priceRate) / usdExchangeRate
+/** Format model-catalog prices using the configured 1 CNY = 1 USD credit policy. */
+export function formatPricingCurrency(
+  amount: number,
+  showInCny: boolean,
+  digitsLarge = 4,
+  digitsSmall = 6
+): string {
+  if (!Number.isFinite(amount)) return '-'
+
+  const digits = Math.abs(amount) >= 1 ? digitsLarge : digitsSmall
+  const number = amount.toFixed(digits).replace(/\.?0+$/, '')
+  return `${showInCny ? '¥' : '$'}${number}`
 }
 
 /**
@@ -145,9 +125,9 @@ export function formatPrice(
   model: PricingModel,
   type: PriceType,
   tokenUnit: TokenUnit,
-  showWithRecharge = false,
-  priceRate = 1,
-  usdExchangeRate = 1,
+  showInCny = false,
+  _priceRate = 1,
+  _usdExchangeRate = 1,
   selectedGroup?: string
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
@@ -156,20 +136,30 @@ export function formatPrice(
 
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
-  let priceInUSD = calculateTokenPrice(model, type, displayGroupRatio)
-  priceInUSD = applyRechargeRate(
-    priceInUSD,
-    showWithRecharge,
-    priceRate,
-    usdExchangeRate
-  )
-
+  const priceInUSD = calculateTokenPrice(model, type, displayGroupRatio)
   const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
-  return formatCurrencyFromUSD(price, {
-    digitsLarge: 4,
-    digitsSmall: 6,
-    abbreviate: false,
-  })
+  return formatPricingCurrency(price, showInCny)
+}
+
+/**
+ * Format the catalog base price before any group multiplier is applied.
+ *
+ * Official USD list prices use a fixed 7 CNY per USD comparison rate while
+ * the active price continues to reflect the viewer's selected group.
+ */
+export function formatOfficialPrice(
+  model: PricingModel,
+  type: PriceType,
+  tokenUnit: TokenUnit
+): string {
+  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
+    return '-'
+  }
+
+  const priceInUSD = calculateTokenPrice(model, type, 1)
+  const priceInCNY =
+    (priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]) * OFFICIAL_PRICE_CNY_RATE
+  return formatPricingCurrency(priceInCNY, true)
 }
 
 /**
@@ -180,9 +170,9 @@ export function formatGroupPrice(
   group: string,
   type: PriceType,
   tokenUnit: TokenUnit,
-  showWithRecharge = false,
-  priceRate = 1,
-  usdExchangeRate = 1,
+  showInCny = false,
+  _priceRate = 1,
+  _usdExchangeRate = 1,
   groupRatio: Record<string, number>
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
@@ -190,21 +180,9 @@ export function formatGroupPrice(
   }
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
-  let priceInUSD = calculateTokenPrice(model, type, ratio)
-
-  priceInUSD = applyRechargeRate(
-    priceInUSD,
-    showWithRecharge,
-    priceRate,
-    usdExchangeRate
-  )
-
+  const priceInUSD = calculateTokenPrice(model, type, ratio)
   const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
-  return formatCurrencyFromUSD(price, {
-    digitsLarge: 4,
-    digitsSmall: 6,
-    abbreviate: false,
-  })
+  return formatPricingCurrency(price, showInCny)
 }
 
 /**
@@ -213,9 +191,9 @@ export function formatGroupPrice(
 export function formatFixedPrice(
   model: PricingModel,
   group: string,
-  showWithRecharge = false,
-  priceRate = 1,
-  usdExchangeRate = 1,
+  showInCny = false,
+  _priceRate = 1,
+  _usdExchangeRate = 1,
   groupRatio: Record<string, number>
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
@@ -223,20 +201,8 @@ export function formatFixedPrice(
   }
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
-  let priceInUSD = (model.model_price || 0) * ratio
-
-  priceInUSD = applyRechargeRate(
-    priceInUSD,
-    showWithRecharge,
-    priceRate,
-    usdExchangeRate
-  )
-
-  return formatCurrencyFromUSD(priceInUSD, {
-    digitsLarge: 4,
-    digitsSmall: 4,
-    abbreviate: false,
-  })
+  const priceInUSD = (model.model_price || 0) * ratio
+  return formatPricingCurrency(priceInUSD, showInCny, 4, 4)
 }
 
 /**
@@ -244,9 +210,9 @@ export function formatFixedPrice(
  */
 export function formatRequestPrice(
   model: PricingModel,
-  showWithRecharge = false,
-  priceRate = 1,
-  usdExchangeRate = 1,
+  showInCny = false,
+  _priceRate = 1,
+  _usdExchangeRate = 1,
   selectedGroup?: string
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
@@ -255,18 +221,16 @@ export function formatRequestPrice(
 
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
-  let priceInUSD = (model.model_price || 0) * displayGroupRatio
+  const priceInUSD = (model.model_price || 0) * displayGroupRatio
+  return formatPricingCurrency(priceInUSD, showInCny, 4, 4)
+}
 
-  priceInUSD = applyRechargeRate(
-    priceInUSD,
-    showWithRecharge,
-    priceRate,
-    usdExchangeRate
-  )
+/** Format the catalog base request price in CNY at the fixed official rate. */
+export function formatOfficialRequestPrice(model: PricingModel): string {
+  if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
+    return '-'
+  }
 
-  return formatCurrencyFromUSD(priceInUSD, {
-    digitsLarge: 4,
-    digitsSmall: 4,
-    abbreviate: false,
-  })
+  const priceInCNY = (model.model_price || 0) * OFFICIAL_PRICE_CNY_RATE
+  return formatPricingCurrency(priceInCNY, true, 4, 4)
 }

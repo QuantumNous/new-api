@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 
 import type { PricingData } from './types'
 
@@ -25,7 +25,9 @@ import type { PricingData } from './types'
 // ----------------------------------------------------------------------------
 
 // Get model pricing data
-export async function getPricing(): Promise<PricingData> {
-  const res = await api.get('/api/pricing')
+export async function getPricing(
+  config?: ApiRequestConfig
+): Promise<PricingData> {
+  const res = await api.get('/api/pricing', config)
   return res.data
 }

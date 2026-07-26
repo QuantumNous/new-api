@@ -70,6 +70,11 @@ export type PricingModel = {
   capabilities?: ModelCapability[]
 }
 
+export type PricingDisplayModel = PricingModel & {
+  display_group: string
+  display_group_ratio: number
+}
+
 /** Input/output modalities supported by a model. */
 export type Modality = 'text' | 'image' | 'audio' | 'video' | 'file'
 

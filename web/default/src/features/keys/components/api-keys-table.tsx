@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Copy01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { Table as TanstackTable } from '@tanstack/react-table'
@@ -32,6 +34,7 @@ import {
   useDataTable,
 } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import {
   Empty,
   EmptyDescription,
@@ -41,7 +44,14 @@ import {
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { useStatus } from '@/hooks/use-status'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -188,9 +198,32 @@ function ApiKeysMobileList({
 
 export function ApiKeysTable() {
   const { t } = useTranslation()
+  const { status } = useStatus()
   const { refreshTrigger } = useApiKeys()
   const [now, setNow] = useState(() => Date.now())
   const columns = useApiKeysColumns(now)
+
+  let serverAddress = ''
+  if (
+    typeof status?.server_address === 'string' &&
+    status.server_address.trim()
+  ) {
+    serverAddress = status.server_address.trim()
+  } else if (typeof window !== 'undefined') {
+    serverAddress = window.location.origin
+  }
+  const apiBaseUrl = serverAddress
+    ? `${serverAddress.replace(/\/+$/, '')}/v1`
+    : ''
+
+  const handleCopyBaseUrl = async () => {
+    const copied = await copyToClipboard(apiBaseUrl)
+    if (copied) {
+      toast.success(t('Copied'))
+      return
+    }
+    toast.error(t('Copy failed'))
+  }
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -324,6 +357,35 @@ export function ApiKeysTable() {
             singleSelect: true,
           },
         ],
+        leftActions: (
+          <div className='flex max-w-full min-w-0 items-center gap-2'>
+            <span className='text-muted-foreground shrink-0 text-xs font-medium'>
+              {t('Base URL')}
+            </span>
+            <code
+              title={apiBaseUrl}
+              className='bg-muted/60 text-foreground max-w-[60vw] truncate rounded-md px-2 py-1 font-mono text-xs sm:max-w-md lg:max-w-xl'
+            >
+              {apiBaseUrl}
+            </code>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant='ghost'
+                    size='icon-sm'
+                    onClick={handleCopyBaseUrl}
+                    disabled={!apiBaseUrl}
+                    aria-label={t('Copy URL')}
+                  />
+                }
+              >
+                <HugeiconsIcon icon={Copy01Icon} aria-hidden='true' />
+              </TooltipTrigger>
+              <TooltipContent>{t('Copy URL')}</TooltipContent>
+            </Tooltip>
+          </div>
+        ),
       }}
       mobile={<ApiKeysMobileList table={table} isLoading={isLoading} />}
       getRowClassName={(row) =>

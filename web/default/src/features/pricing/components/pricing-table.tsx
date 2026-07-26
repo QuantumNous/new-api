@@ -28,17 +28,16 @@ import {
 } from '@/components/data-table'
 
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
-import type { PricingModel, TokenUnit } from '../types'
+import type { PricingDisplayModel, TokenUnit } from '../types'
 import { usePricingColumns } from './pricing-columns'
 
 export interface PricingTableProps {
-  models: PricingModel[]
+  models: PricingDisplayModel[]
   isLoading?: boolean
   priceRate?: number
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
-  selectedGroup?: string
   onModelClick?: (modelName: string) => void
 }
 
@@ -51,7 +50,6 @@ export function PricingTable(props: PricingTableProps) {
     usdExchangeRate = 1,
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
-    selectedGroup,
     onModelClick,
   } = props
 
@@ -65,7 +63,6 @@ export function PricingTable(props: PricingTableProps) {
     priceRate,
     usdExchangeRate,
     showRechargePrice,
-    selectedGroup,
   })
 
   const { table } = useDataTable({
@@ -81,7 +78,7 @@ export function PricingTable(props: PricingTableProps) {
   })
 
   const handleRowClick = useCallback(
-    (model: PricingModel) => {
+    (model: PricingDisplayModel) => {
       onModelClick?.(model.model_name)
     },
     [onModelClick]
@@ -99,7 +96,7 @@ export function PricingTable(props: PricingTableProps) {
         getColumnClassName={(_columnId, kind) =>
           kind === 'header' ? 'text-muted-foreground font-medium' : undefined
         }
-        renderRow={(row: Row<PricingModel>) => (
+        renderRow={(row: Row<PricingDisplayModel>) => (
           <DataTableRow
             key={row.id}
             row={row}

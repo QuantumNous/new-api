@@ -30,18 +30,21 @@ import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import {
-  getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
+  getOfficialDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
+  formatOfficialPrice,
+  formatOfficialRequestPrice,
   formatPrice,
   formatRequestPrice,
   stripTrailingZeros,
 } from '../lib/price'
-import type { PricingModel, TokenUnit } from '../types'
+import type { PricingDisplayModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
+import { PriceValueComparison } from './price-value-comparison'
 
 // ----------------------------------------------------------------------------
 // Pricing Table Columns
@@ -52,19 +55,17 @@ export interface PricingColumnsOptions {
   priceRate?: number
   usdExchangeRate?: number
   showRechargePrice?: boolean
-  selectedGroup?: string
 }
 
 export function usePricingColumns(
   options: PricingColumnsOptions = {}
-): ColumnDef<PricingModel>[] {
+): ColumnDef<PricingDisplayModel>[] {
   const { t } = useTranslation()
   const {
     tokenUnit = DEFAULT_TOKEN_UNIT,
     priceRate = 1,
     usdExchangeRate = 1,
     showRechargePrice = false,
-    selectedGroup,
   } = options
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
@@ -114,15 +115,13 @@ export function usePricingColumns(
       ),
       cell: ({ row }) => {
         const model = row.original
+        const displayGroupRatio = model.display_group_ratio
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(
-            model,
-            selectedGroup
-          ),
+          groupRatioMultiplier: displayGroupRatio,
         })
 
         if (dynamicSummary) {
@@ -151,26 +150,41 @@ export function usePricingColumns(
             )
           }
 
+          const currentValue = primaryEntries
+            .map((entry) => stripTrailingZeros(entry.formatted))
+            .join(' / ')
+          const officialDynamicSummary = getOfficialDynamicPricingSummary(
+            model,
+            tokenUnit
+          )
+          const officialEntries = new Map(
+            (officialDynamicSummary?.primaryEntries ?? []).map((entry) => [
+              entry.key,
+              stripTrailingZeros(entry.formatted),
+            ])
+          )
+          const officialValues = primaryEntries
+            .map((entry) => officialEntries.get(entry.key))
+            .filter((value): value is string => Boolean(value))
+          const officialValue =
+            officialValues.length === primaryEntries.length
+              ? officialValues.join(' / ')
+              : undefined
+
           return (
-            <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
-                {primaryEntries.map((entry, index) => (
-                  <span key={entry.key}>
-                    {index > 0 && (
-                      <span className='text-muted-foreground/40 mx-1'>/</span>
-                    )}
-                    {stripTrailingZeros(entry.formatted)}
-                  </span>
-                ))}
-              </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel} tokens
-                {dynamicSummary.tierCount > 1 &&
-                  ` · ${t('{{count}} tiers', {
-                    count: dynamicSummary.tierCount,
-                  })}`}
-              </div>
-            </div>
+            <PriceValueComparison
+              current={currentValue}
+              official={officialValue}
+              unit={
+                <>
+                  / {tokenUnitLabel} tokens
+                  {dynamicSummary.tierCount > 1 &&
+                    ` · ${t('{{count}} tiers', {
+                      count: dynamicSummary.tierCount,
+                    })}`}
+                </>
+              }
+            />
           )
         }
 
@@ -185,7 +199,7 @@ export function usePricingColumns(
               showRechargePrice,
               priceRate,
               usdExchangeRate,
-              selectedGroup
+              model.display_group
             )
           )
           const outputPrice = stripTrailingZeros(
@@ -196,21 +210,24 @@ export function usePricingColumns(
               showRechargePrice,
               priceRate,
               usdExchangeRate,
-              selectedGroup
+              model.display_group
             )
           )
+          const currentValue = `${inputPrice} / ${outputPrice}`
+          const officialInputPrice = stripTrailingZeros(
+            formatOfficialPrice(model, 'input', tokenUnit)
+          )
+          const officialOutputPrice = stripTrailingZeros(
+            formatOfficialPrice(model, 'output', tokenUnit)
+          )
+          const officialValue = `${officialInputPrice} / ${officialOutputPrice}`
 
           return (
-            <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
-                {inputPrice}
-                <span className='text-muted-foreground/40 mx-1'>/</span>
-                {outputPrice}
-              </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel} tokens
-              </div>
-            </div>
+            <PriceValueComparison
+              current={currentValue}
+              official={officialValue}
+              unit={`/ ${tokenUnitLabel} tokens`}
+            />
           )
         }
 
@@ -220,17 +237,19 @@ export function usePricingColumns(
             showRechargePrice,
             priceRate,
             usdExchangeRate,
-            selectedGroup
+            model.display_group
           )
+        )
+        const officialRequestPrice = stripTrailingZeros(
+          formatOfficialRequestPrice(model)
         )
 
         return (
-          <div className='max-w-full min-w-0'>
-            <span className='font-mono text-sm tabular-nums'>{price}</span>
-            <div className='text-muted-foreground/50 text-[10px]'>
-              / {t('request')}
-            </div>
-          </div>
+          <PriceValueComparison
+            current={price}
+            official={officialRequestPrice}
+            unit={`/ ${t('request')}`}
+          />
         )
       },
       size: 180,
@@ -243,15 +262,13 @@ export function usePricingColumns(
       header: t('Cached'),
       cell: ({ row }) => {
         const model = row.original
+        const displayGroupRatio = model.display_group_ratio
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(
-            model,
-            selectedGroup
-          ),
+          groupRatioMultiplier: displayGroupRatio,
         })
 
         if (dynamicSummary) {
@@ -270,15 +287,24 @@ export function usePricingColumns(
             return <span className='text-muted-foreground/30 text-xs'>—</span>
           }
 
+          const cachedPrice = stripTrailingZeros(cacheEntry.formatted)
+          const officialDynamicSummary = getOfficialDynamicPricingSummary(
+            model,
+            tokenUnit
+          )
+          const officialCacheEntry = officialDynamicSummary?.entries.find(
+            (entry) => entry.field === 'cacheReadPrice'
+          )
+          const officialCachedPrice = officialCacheEntry
+            ? stripTrailingZeros(officialCacheEntry.formatted)
+            : undefined
+
           return (
-            <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
-                {stripTrailingZeros(cacheEntry.formatted)}
-              </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel}
-              </div>
-            </div>
+            <PriceValueComparison
+              current={cachedPrice}
+              official={officialCachedPrice}
+              unit={`/ ${tokenUnitLabel}`}
+            />
           )
         }
 
@@ -296,19 +322,19 @@ export function usePricingColumns(
             showRechargePrice,
             priceRate,
             usdExchangeRate,
-            selectedGroup
+            model.display_group
           )
+        )
+        const officialCachedPrice = stripTrailingZeros(
+          formatOfficialPrice(model, 'cache', tokenUnit)
         )
 
         return (
-          <div className='max-w-full min-w-0'>
-            <span className='font-mono text-sm tabular-nums'>
-              {cachedPrice}
-            </span>
-            <div className='text-muted-foreground/50 text-[10px]'>
-              / {tokenUnitLabel}
-            </div>
-          </div>
+          <PriceValueComparison
+            current={cachedPrice}
+            official={officialCachedPrice}
+            unit={`/ ${tokenUnitLabel}`}
+          />
         )
       },
       size: 110,
@@ -393,19 +419,17 @@ export function usePricingColumns(
 
     // Enable Groups column
     {
-      accessorKey: 'enable_groups',
+      accessorKey: 'display_group',
       header: t('Groups'),
-      cell: ({ row }) => {
-        const groups = row.original.enable_groups || []
-        return (
-          <BadgeListCell
-            items={groups.map((group) => (
-              <GroupBadge key={group} group={group} size='sm' />
-            ))}
-            tooltipClassName='max-w-[280px] p-2'
+      cell: ({ row }) => (
+        <BadgeCell>
+          <GroupBadge
+            group={row.original.display_group}
+            ratio={row.original.display_group_ratio}
+            size='sm'
           />
-        )
-      },
+        </BadgeCell>
+      ),
       size: 130,
       enableSorting: false,
     },

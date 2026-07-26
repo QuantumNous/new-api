@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 import type { TokenUnit } from './types'
 
@@ -26,6 +26,7 @@ import type { TokenUnit } from './types'
 
 /** Sort options for pricing models */
 export const SORT_OPTIONS = {
+  RECOMMENDED: 'recommended',
   NAME: 'name',
   PRICE_LOW: 'price-low',
   PRICE_HIGH: 'price-high',
@@ -33,8 +34,23 @@ export const SORT_OPTIONS = {
 
 export type SortOption = (typeof SORT_OPTIONS)[keyof typeof SORT_OPTIONS]
 
+export const SORT_OPTION_VALUES = [
+  SORT_OPTIONS.RECOMMENDED,
+  SORT_OPTIONS.NAME,
+  SORT_OPTIONS.PRICE_LOW,
+  SORT_OPTIONS.PRICE_HIGH,
+] as const
+
+export const PROMOTED_MODEL_ORDER = [
+  'claude-fable-5',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
+] as const
+
 export function getSortLabels(t: TFunction): Record<SortOption, string> {
   return {
+    [SORT_OPTIONS.RECOMMENDED]: t('Recommended'),
     [SORT_OPTIONS.NAME]: t('Name'),
     [SORT_OPTIONS.PRICE_LOW]: t('Price: Low to High'),
     [SORT_OPTIONS.PRICE_HIGH]: t('Price: High to Low'),
@@ -132,6 +148,20 @@ export const TOKEN_UNIT_DIVISORS = {
 
 /** Default token unit for pricing display */
 export const DEFAULT_TOKEN_UNIT: TokenUnit = 'M'
+
+/** Fixed USD-to-CNY rate used for official list-price comparisons. */
+export const OFFICIAL_PRICE_CNY_RATE = 7
+
+/** Currency used by the public model catalog. Prices are displayed 1:1. */
+export const PRICING_CURRENCIES = {
+  CNY: 'CNY',
+  USD: 'USD',
+} as const
+
+export type PricingCurrency =
+  (typeof PRICING_CURRENCIES)[keyof typeof PRICING_CURRENCIES]
+
+export const DEFAULT_PRICING_CURRENCY: PricingCurrency = PRICING_CURRENCIES.CNY
 
 /** View mode options */
 export const VIEW_MODES = {
