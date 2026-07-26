@@ -504,8 +504,43 @@ def create_app(manager: SessionManager) -> FastAPI:
         )
 
     @app.get("/v1/skills")
-    def skills() -> dict[str, Any]:
-        return {"skills": manager.list_skills()}
+    def skills(workspace: str = "") -> dict[str, Any]:
+        return {"skills": manager.list_skills(workspace or None)}
+
+    @app.get("/v1/skills/search")
+    def skills_search(q: str = "", limit: int = 10) -> dict[str, Any]:
+        if not q.strip():
+            return {"ok": True, "skills": []}
+        return manager.search_skills(q.strip(), limit=max(1, min(limit, 25)))
+
+    @app.get("/v1/skills/recommended")
+    def skills_recommended(workspace: str = "") -> dict[str, Any]:
+        return manager.recommended_skills(workspace or None)
+
+    @app.post("/v1/skills/install")
+    def skills_install(body: dict) -> dict[str, Any]:
+        return manager.install_skill(body or {})
+
+    @app.post("/v1/skills/reload")
+    def skills_reload() -> dict[str, Any]:
+        # Discovery is per-engine-build; nothing is cached server-side. The endpoint
+        # exists so the GUI has an explicit refresh affordance mirroring MCP's.
+        return {"ok": True}
+
+    @app.get("/v1/skills/{name}")
+    def skill_detail(name: str, workspace: str = "") -> dict[str, Any]:
+        return manager.skill_detail(name, workspace or None)
+
+    @app.patch("/v1/skills/{name}")
+    def skill_patch(name: str, body: dict) -> dict[str, Any]:
+        body = body or {}
+        if "enabled" not in body:
+            return {"ok": False, "error": "enabled required"}
+        return manager.set_skill_enabled(name, bool(body["enabled"]))
+
+    @app.delete("/v1/skills/{name}")
+    def skill_delete(name: str) -> dict[str, Any]:
+        return manager.delete_skill(name)
 
     @app.get("/v1/workspaces/recent")
     def recent_workspaces() -> dict[str, Any]:

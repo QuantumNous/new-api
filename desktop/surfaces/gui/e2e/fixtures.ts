@@ -253,6 +253,7 @@ const PERSONA_DETAIL = {
   default_permission_mode: "interactive",
   workspace: "deliverable",
   recommends: [],
+  skills: [],
   default_connections: [],
 };
 
@@ -540,6 +541,17 @@ export async function mockApi(page: import("@playwright/test").Page) {
   const automations: any[] = [{ ...AUTOMATION }, { ...AUTOMATION_CLEAN }];
   // MCP servers (empty by default; the granola OAuth quick-add test populates it).
   const mcpServers: any[] = [];
+  // Curated one-click packs (GET /v1/skills/recommended) — downloaded on install, never bundled.
+  const RECOMMENDED_SKILLS = [
+    { name: "canvas-design", title: "Canvas design", description: "Posters and one-pagers.", url: "https://github.com/anthropics/skills/tree/abc123", subdir: "skills/canvas-design", license: "Apache-2.0" },
+    { name: "mcp-builder", title: "MCP builder", description: "Write an MCP server.", url: "https://github.com/anthropics/skills/tree/abc123", subdir: "skills/mcp-builder", license: "Apache-2.0" },
+  ];
+  // Skills — one builtin (undeletable) + one user-installed, mutable for install/toggle/delete.
+  const skills: any[] = [
+    { name: "docx-report", description: "Produce polished Word reports.", source: "builtin", path: null, enabled: true, overrides: null },
+    { name: "meeting-notes", description: "Turn raw notes into minutes.", source: "builtin", path: null, enabled: true, overrides: null },
+    { name: "release-notes", description: "Draft release notes from commits.", source: "global", path: "/Users/test/.coworker/skills/release-notes", enabled: true, overrides: null },
+  ];
   const automationRuns: any[] = AUTOMATION_RUNS.map((r) => ({ ...r }));
   // Per-session unattended flag — mutable so the composer's "Send to Inbox" toggle persists and
   // the app reads it back (which is what gates parking approvals to the Inbox vs an inline card).
@@ -1384,6 +1396,66 @@ export async function mockApi(page: import("@playwright/test").Page) {
     if (p.endsWith("/v1/settings/onboarded") && m === "POST") {
       return json({ ok: true, onboarded: !!(req.postDataJSON() || {}).value });
     }
+    // Skills — mutable so install/enable/delete round-trip through the UI. Shapes mirror
+    // /v1/skills* on the real server (SkillLoader.standard + skills.sh market).
+    if (p.endsWith("/v1/skills/install") && m === "POST") {
+      const b = req.postDataJSON() || {};
+      const name =
+        b.source === "market"
+          ? String(b.id || "").split("/").pop() || "market-skill"
+          : b.source === "git"
+            ? (b.subdir || b.url || "git-skill").split("/").filter(Boolean).pop()
+            : baseName(String(b.path || "folder-skill"));
+      if (skills.some((s) => s.name === name) && !b.overwrite)
+        return json({ ok: false, error: `a skill named '${name}' already exists` });
+      if (!skills.some((s) => s.name === name))
+        skills.push({
+          name,
+          description: `Installed from ${b.source}`,
+          source: "global",
+          path: `/Users/test/.coworker/skills/${name}`,
+          enabled: true,
+          overrides: null,
+        });
+      return json({ ok: true, name, has_scripts: b.source === "market" });
+    }
+    if (p.endsWith("/v1/skills/recommended")) {
+      const installed = new Set(skills.map((s) => s.name));
+      return json({
+        skills: RECOMMENDED_SKILLS.map((r) => ({ ...r, installed: installed.has(r.name) })),
+      });
+    }
+    if (p.endsWith("/v1/skills/search")) {
+      const q = (new URL(req.url()).searchParams.get("q") || "").toLowerCase();
+      const hits = [
+        { id: "vercel-labs/agent-skills/pdf", name: "pdf", skill_id: "pdf", source: "github.com/vercel-labs/agent-skills", installs: 1200 },
+        { id: "acme/skills/changelog", name: "changelog", skill_id: "changelog", source: "github.com/acme/skills", installs: 88 },
+      ].filter((s) => !q || s.name.includes(q));
+      return json({ ok: true, skills: hits });
+    }
+    if (/\/v1\/skills\/[^/]+$/.test(p)) {
+      const name = decodeURIComponent(p.split("/").pop()!);
+      const skill = skills.find((s) => s.name === name);
+      if (m === "PATCH") {
+        if (skill) skill.enabled = !!(req.postDataJSON() || {}).enabled;
+        return json({ ok: !!skill, name, enabled: skill?.enabled ?? false });
+      }
+      if (m === "DELETE") {
+        const i = skills.findIndex((s) => s.name === name && s.source !== "builtin");
+        if (i < 0) return json({ ok: false, error: "built-in skills cannot be deleted" });
+        skills.splice(i, 1);
+        return json({ ok: true, name });
+      }
+      if (!skill) return json({ ok: false, error: `unknown skill: ${name}` }, 404);
+      return json({
+        ok: true,
+        ...skill,
+        instructions: `# ${skill.name}\n\nDo the thing, step by step.`,
+        resources: [],
+      });
+    }
+    if (p.endsWith("/v1/skills")) return json({ skills });
+
     // MCP servers — mutable so the OAuth quick-add (granola) flow reflects through the
     // UI: add → needs_auth, connect → authorizing, next poll → connected (6 tools).
     if (p.endsWith("/v1/mcp") && m === "GET") {

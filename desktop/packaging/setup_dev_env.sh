@@ -15,7 +15,7 @@ python3 -m venv "$VENV"
 # aisuite comes in as a regular dependency (git-pinned in pyproject.toml until
 # the next PyPI release).
 "$VENV/bin/pip" install --quiet --upgrade pip
-"$VENV/bin/pip" install --quiet -e "$ROOT[messaging,dev]"
+"$VENV/bin/pip" install --quiet -e "$ROOT[messaging,dev,office]"
 
 "$VENV/bin/python" -c 'import aisuite, coworker' # fail loudly if the wiring broke
 echo "Ready: $VENV"

@@ -89,6 +89,12 @@ def test_persona_detail_endpoint(tmp_path, monkeypatch):
     assert dc["datadog"]["enabled"] is True
     assert dc["pagerduty"]["enabled"] is False
 
+    # manifest-declared skills, annotated with whether they're installed (both ship builtin)
+    assert detail["skills"] == [
+        {"name": "meeting-notes", "installed": True},
+        {"name": "weekly-report", "installed": True},
+    ]
+
     # unknown id → the app's error convention
     assert client.get("/v1/personas/nope").json() == {
         "ok": False,

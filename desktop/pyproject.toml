@@ -37,6 +37,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio", "httpx"]
+# Office deliverable production for the builtin skills (docx-report, xlsx-workbook,
+# pptx-deck, pdf-deliverable). All MIT/BSD-licensed; installed by the desktop bundles.
+office = ["python-docx>=1.1", "openpyxl>=3.1", "python-pptx>=1.0", "reportlab>=4.1"]
 # Inbound messaging listeners (outbound send_message needs only httpx, already a core dep).
 # aiohttp is slack-bolt's Socket Mode transport at runtime (and the FakeSlack test harness
 # drives the real handler) — declare it so CI installs it, not just transitively.
@@ -54,7 +57,7 @@ where = ["."]
 include = ["coworker*"]
 
 [tool.setuptools.package-data]
-coworker = ["personas/builtin/*.md"]
+coworker = ["personas/builtin/*.md", "skills/builtin/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

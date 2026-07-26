@@ -43,6 +43,7 @@ Under the hood:
 - **Produce real deliverables** - documents, spreadsheets, reports, and web pages land as files you can open and share.
 - **Work from Slack** - mention `@OpenWorker` in a channel; a session opens on your desktop, the work happens with your tools, and the answer comes back as a thread reply.
 - **Use your everyday tools** - 25+ integrations including GitHub, Slack, Jira, Notion, Linear, HubSpot, Outlook, monday.com, Gmail, and Google Calendar, plus your **terminal and local files**. Any tool reachable over [MCP](https://modelcontextprotocol.io/) plugs in too, with per-tool control.
+- **Teach it repeatable work with Skills** - SKILL.md instruction packs the coworker loads on demand, reachable from the **Skills** row in the sidebar. Office packs (Word, Excel, PowerPoint, PDF, meeting notes, weekly reports) ship built in, a short recommended list installs with one click, and anything else comes from a folder, a GitHub repo, or the in-app marketplace.
 - **Run on a schedule** - automations for recurring work: a morning brief, a weekly report, a standing watch over a channel. Runs land in the app with full transcripts.
 - **Ask before acting** - writes, sends, and shell commands are approval-gated. Unattended runs park their asks in an inbox instead of acting on their own.
 
@@ -81,6 +82,8 @@ npm run dev        # browser UI on the Vite dev port
 
 To run the full desktop app instead of the browser UI, replace step 3 with `npm run tauri dev` (from `surfaces/gui/`) - the Tauri shell launches the window and supervises the server itself.
 
+The UI ships in English, 中文, and Tiếng Việt: it follows the system language and can be changed under Settings > General > Language. Locale files are `surfaces/gui/src/i18n/locales/{zh,vi}.json` (flat JSON, English source strings as keys); `npm run i18n:check` verifies they match the strings used in the code.
+
 Tests: `.venv/bin/pytest` (server), `npm test` and `npm run e2e` in `surfaces/gui` (GUI unit + hermetic end-to-end). Desktop bundles are built with `packaging/build_dmg.sh` / `packaging/build_windows.ps1`.
 
 Desktop releases use `desktop-v<version>` tags (for example, `desktop-v0.2.0`); the tag version must match `surfaces/gui/src-tauri/tauri.conf.json`.
@@ -89,7 +92,7 @@ Desktop releases use `desktop-v<version>` tags (for example, `desktop-v0.2.0`); 
 
 | Directory | What's in it |
 |---|---|
-| `coworker/` | Python backend - agent engine, model providers, connectors, MCP client, memory, automations |
+| `coworker/` | Python backend - agent engine, model providers, connectors, MCP client, skills, memory, automations |
 | `surfaces/gui/` | Desktop app - React UI + Tauri shell that supervises the server |
 | `stt/` | Speech-to-text sidecar (Rust) for voice input |
 | `packaging/` | Installer builds (macOS DMG, Windows), auto-update manifest, dev bootstrap |

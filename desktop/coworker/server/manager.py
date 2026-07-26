@@ -538,10 +538,21 @@ class SessionManager:
             ),
             "workspace": self._workspace_kind(entry),
             "recommends": recommends,
+            "skills": self._persona_skills(manifest),
             "default_connections": self._persona_default_connections(
                 persona_id, manifest, connected
             ),
         }
+
+    def _persona_skills(self, manifest) -> list[dict[str, Any]]:
+        wanted = list(manifest.skills) if manifest else []
+        if not wanted:
+            return []
+        loader = SkillLoader.standard(
+            Path(self.default_workspace) if self.default_workspace else None
+        )
+        installed = {s.name for s in loader.list_all()}
+        return [{"name": n, "installed": n in installed} for n in wanted]
 
     def set_persona_connection(
         self, persona_id: str, connector: str, enabled: bool
@@ -3323,9 +3334,124 @@ class SessionManager:
     def list_agents(self) -> list[dict[str, Any]]:
         return _list_agents()
 
-    def list_skills(self) -> list[dict[str, Any]]:
-        loader = SkillLoader([state_dir() / "skills"])
-        return loader.catalog()
+    def list_skills(self, workspace: Optional[str] = None) -> list[dict[str, Any]]:
+        ws = self.resolve_workspace(workspace)
+        loader = SkillLoader.standard(Path(ws) if ws else None)
+        return [
+            {
+                "name": s.name,
+                "description": s.description,
+                "source": s.source,
+                "path": s.path,
+                "enabled": s.enabled,
+                "overrides": s.overrides,
+            }
+            for s in loader.list_all()
+        ]
+
+    def skill_detail(
+        self, name: str, workspace: Optional[str] = None
+    ) -> dict[str, Any]:
+        ws = self.resolve_workspace(workspace)
+        loader = SkillLoader.standard(Path(ws) if ws else None)
+        skill = loader.get_any(name)
+        if skill is None:
+            return {"ok": False, "error": f"unknown skill: {name}"}
+        resources: list[str] = []
+        if skill.path:
+            root = Path(skill.path)
+            resources = sorted(
+                str(p.relative_to(root))
+                for p in root.rglob("*")
+                if p.is_file() and p.name != "SKILL.md"
+            )[:200]
+        return {
+            "ok": True,
+            "name": skill.name,
+            "description": skill.description,
+            "instructions": skill.instructions,
+            "source": skill.source,
+            "path": skill.path,
+            "enabled": skill.enabled,
+            "resources": resources,
+        }
+
+    def install_skill(self, body: dict[str, Any]) -> dict[str, Any]:
+        from ..skills.install import (
+            SkillInstallError,
+            install_from_github,
+            install_from_market,
+            install_from_path,
+        )
+
+        source = body.get("source")
+        overwrite = bool(body.get("overwrite", False))
+        try:
+            if source == "path":
+                if not body.get("path"):
+                    return {"ok": False, "error": "path required"}
+                installed = install_from_path(body["path"], overwrite=overwrite)
+            elif source == "git":
+                if not body.get("url"):
+                    return {"ok": False, "error": "url required"}
+                installed = install_from_github(
+                    body["url"], subdir=body.get("subdir"), overwrite=overwrite
+                )
+            elif source == "market":
+                if not body.get("id"):
+                    return {"ok": False, "error": "id required"}
+                installed = install_from_market(body["id"], overwrite=overwrite)
+            else:
+                return {"ok": False, "error": "source must be path, git, or market"}
+        except SkillInstallError as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": True, **installed}
+
+    def set_skill_enabled(self, name: str, enabled: bool) -> dict[str, Any]:
+        from ..skills.prefs import set_enabled
+
+        loader = SkillLoader.standard(
+            Path(self.default_workspace) if self.default_workspace else None
+        )
+        if loader.get_any(name) is None:
+            return {"ok": False, "error": f"unknown skill: {name}"}
+        set_enabled(name, enabled)
+        return {"ok": True, "name": name, "enabled": enabled}
+
+    def delete_skill(self, name: str) -> dict[str, Any]:
+        from ..skills.install import SkillInstallError, delete_skill
+
+        loader = SkillLoader.standard(
+            Path(self.default_workspace) if self.default_workspace else None
+        )
+        skill = loader.get_any(name)
+        if skill is None:
+            return {"ok": False, "error": f"unknown skill: {name}"}
+        if skill.source != "global":
+            return {
+                "ok": False,
+                "error": f"{skill.source} skills cannot be deleted — disable instead",
+            }
+        try:
+            removed = delete_skill(name)
+        except SkillInstallError as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": removed, "name": name}
+
+    def recommended_skills(self, workspace: Optional[str] = None) -> dict[str, Any]:
+        from ..skills.recommend import annotate
+
+        ws = self.resolve_workspace(workspace)
+        loader = SkillLoader.standard(Path(ws) if ws else None)
+        return {"skills": annotate({s.name for s in loader.list_all()})}
+
+    def search_skills(self, query: str, limit: int = 10) -> dict[str, Any]:
+        from ..skills.market import MarketError, search
+
+        try:
+            return {"ok": True, "skills": search(query, limit=limit)}
+        except MarketError as exc:
+            return {"ok": False, "error": str(exc), "skills": []}
 
     def list_memory(self) -> list[dict[str, Any]]:
         return [

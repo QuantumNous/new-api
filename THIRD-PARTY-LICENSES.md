@@ -191,6 +191,37 @@ The newly imported desktop manifests under `desktop/` and all transitive depende
 | web/classic | development | npm       | `tailwindcss`                                         | `3.4.17`                             | MIT                                                |
 | web/classic | development | npm       | `typescript`                                          | `4.4.2`                              | Apache-2.0                                         |
 | web/classic | development | npm       | `vite`                                                | `5.4.11`                             | MIT                                                |
+| desktop/gui | production  | npm       | `i18next`                                             | `26.3.6`                             | MIT                                                |
+| desktop/gui | production  | npm       | `i18next-browser-languagedetector`                    | `8.2.1`                              | MIT                                                |
+| desktop/gui | production  | npm       | `react-i18next`                                       | `17.0.11`                            | MIT                                                |
+
+## Bundled Skill Content (desktop)
+
+The desktop app ships SKILL.md instruction packs under `desktop/coworker/skills/builtin/`.
+Vendored packs keep their upstream `LICENSE.txt` inside the skill folder; pins and the
+license allow-list live in `desktop/packaging/vendor_skills.py` (`--check` verifies them).
+
+| Skill            | Origin                                     | License    |
+|------------------|--------------------------------------------|------------|
+| `internal-comms` | `anthropics/skills`                        | Apache-2.0 |
+| `theme-factory`  | `anthropics/skills`                        | Apache-2.0 |
+| `skill-creator`  | `anthropics/skills`                        | Apache-2.0 |
+| `docx-report`, `xlsx-workbook`, `pptx-deck`, `pdf-deliverable`, `meeting-notes`, `weekly-report` | written for this project | same as this project |
+
+Anthropic's `docx` / `pdf` / `pptx` / `xlsx` document skills are NOT redistributable and are
+never bundled; users may install them themselves through the in-app skill marketplace.
+
+## Adapted Source Code (frontend)
+
+Files under `web/default/src/features/workbench/` adapt the infinite-canvas engine
+(viewport, node graph, connection, frame, and storyboard logic) from the projects below.
+Each adapted file keeps an attribution header. Both upstreams are AGPL-3.0, the same
+license as this project.
+
+| Area              | Upstream                                                          | License    |
+|-------------------|-------------------------------------------------------------------|------------|
+| workbench canvas  | `ddcat-ai/open-ai-canvas` (https://github.com/ddcat-ai/open-ai-canvas) | AGPL-3.0 |
+| workbench canvas  | `basketikun/infinite-canvas` (upstream of open-ai-canvas)          | AGPL-3.0   |
 
 ## License Texts
 

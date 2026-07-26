@@ -98,11 +98,7 @@ def _enabled_connector_tools(secrets: SecretStore) -> tuple[set[str], set[str]]:
     return enabled_connectors, enabled_tools
 
 
-def _skill_dirs(workspace: Optional[Path]) -> list[Path]:
-    dirs = [state_dir() / "skills"]
-    if workspace is not None:
-        dirs.append(workspace / ".coworker" / "skills")
-    return dirs
+
 
 
 def build_engine(
@@ -257,7 +253,7 @@ def build_engine(
         if block:
             instructions = f"{instructions}\n\n{block}"
 
-    skill_loader = SkillLoader(_skill_dirs(ws))
+    skill_loader = SkillLoader.standard(ws)
     registry.register_all(skill_tools(skill_loader))
     catalog = skill_catalog_text(skill_loader)
     if catalog:
