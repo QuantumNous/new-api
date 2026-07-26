@@ -699,23 +699,19 @@ def test_pick_native_folder_paths(tmp_path, monkeypatch):
     assert out["ok"] is False and "picker" in out["error"]
 
 
-def test_provider_set_and_remove_roundtrip(tmp_path):
-    """Settings ▸ Models "Remove key": DELETE /v1/providers/{name} forgets the stored
-    profile so the provider reads unconfigured again; unknown names are a clean error.
-    """
+def test_provider_rest_is_boxai_only_and_read_only(tmp_path):
     client = _client(tmp_path, [])
-    assert client.post(
-        "/v1/providers", json={"name": "zai", "fields": {"api_key": "zk-test"}}
-    ).json()["ok"]
-    prov = {p["name"]: p for p in client.get("/v1/providers").json()}
-    assert prov["zai"]["configured"] and prov["zai"]["key_set_at"]
-
-    assert client.delete("/v1/providers/zai").json()["ok"]
-    prov = {p["name"]: p for p in client.get("/v1/providers").json()}
-    assert not prov["zai"]["configured"]
-    assert not prov["zai"]["key_set_at"]
-
-    assert not client.delete("/v1/providers/nope").json()["ok"]
+    assert [p["name"] for p in client.get("/v1/providers").json()] == ["boxai"]
+    for name in ("boxai", "zai", "ollama"):
+        written = client.post(
+            "/v1/providers", json={"name": name, "fields": {"api_key": "secret"}}
+        ).json()
+        assert written["ok"] is False
+        assert client.delete(f"/v1/providers/{name}").json()["ok"] is False
+        assert client.post(
+            "/v1/providers/verify",
+            json={"name": name, "fields": {"api_key": "secret"}},
+        ).json()["ok"] is False
 
 
 def test_always_allow_grants_survive_restart(tmp_path):
@@ -768,14 +764,8 @@ def test_google_one_click_paused_but_manual_alive(tmp_path):
     assert refused["ok"] is False and "coming soon" in refused["error"]
 
 
-def test_set_provider_persists_extra_fields(tmp_path):
-    """Non-secret descriptor extras (ollama's endpoint) round-trip: saved into the
-    profile, echoed by get_providers for form prefill, cleared by an empty save."""
+def test_custom_provider_endpoint_is_rejected(tmp_path):
     manager = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
-    assert manager.set_provider("ollama", {"base_url": "http://127.0.0.1:9999"})["ok"]
-    providers = {p["name"]: p for p in manager.get_providers()}
-    assert providers["ollama"]["values"]["base_url"] == "http://127.0.0.1:9999"
-
-    manager.set_provider("ollama", {"base_url": ""})
-    providers = {p["name"]: p for p in manager.get_providers()}
-    assert "base_url" not in providers["ollama"]["values"]
+    result = manager.set_provider("ollama", {"base_url": "http://127.0.0.1:9999"})
+    assert result["ok"] is False
+    assert manager.secrets.get("provider:ollama") is None

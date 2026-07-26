@@ -9,7 +9,7 @@ async function openAutomations(page) {
   await page.goto("/");
   await page.getByTestId("account-row").click();
   await page.getByTestId("account-menu").getByRole("button", { name: "Automations", exact: true }).click();
-  await expect(page.getByText("Recurring tasks OpenWorker runs on a schedule.")).toBeVisible();
+  await expect(page.getByText("Recurring tasks BoxAI Desktop runs on a schedule.")).toBeVisible();
 }
 
 // The fixtures seed one task, so the quickstart isn't on the bare list — surface it via the

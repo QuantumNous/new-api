@@ -17,7 +17,7 @@ from typing import Any, Optional
 
 from .base import ProviderClient
 from .capabilities import capabilities_for
-from .registry import build_provider_client, get_descriptor
+from .registry import build_provider_client
 
 
 class ProviderRouter(ProviderClient):
@@ -25,11 +25,11 @@ class ProviderRouter(ProviderClient):
         self,
         secrets: Any = None,
         *,
-        default_provider: str = "openai",
+        default_provider: str = "boxai",
         on_use: Any = None,
     ) -> None:
         self._secrets = secrets
-        self._default = default_provider
+        self._default = "boxai"
         self._clients: dict[str, ProviderClient] = {}
         self._lock = threading.Lock()
         # Optional callable(provider_name) fired when a completion is dispatched — drives the
@@ -46,36 +46,24 @@ class ProviderRouter(ProviderClient):
 
     # -- routing ----------------------------------------------------------------
     def _provider_name(self, model: str) -> str:
-        """The provider for a model: the `prefix` of `prefix:rest` if it's a known provider,
-        else the default. (A colon that isn't a known provider — unlikely — falls through.)
-        """
-        if ":" in model:
-            prefix = model.split(":", 1)[0]
-            if get_descriptor(prefix) is not None:
-                return prefix
-        return self._default
+        """Every model is served by BoxAI, regardless of user-controlled prefixes."""
+        return "boxai"
 
     def _client_for(self, model: str) -> ProviderClient:
         name = self._provider_name(model)
         with self._lock:
             client = self._clients.get(name)
             if client is None:
-                profile = {}
-                if self._secrets is not None:
-                    profile = self._secrets.get(f"provider:{name}") or {}
-                client = build_provider_client(name, profile, self._secrets)
+                client = build_provider_client(name, {}, self._secrets)
                 self._clients[name] = client
             return client
 
     @staticmethod
     def _bare(model: str) -> str:
-        """Strip a KNOWN provider prefix; the underlying SDK wants the bare model name. A model
-        whose first segment isn't a provider (e.g. `qwen2.5-coder:32b` — a version tag, not a
-        prefix) is returned unchanged, so the colon isn't mistaken for a provider separator.
-        """
+        """Strip only the explicit BoxAI namespace; preserve model-owned colons."""
         if ":" in model:
             prefix, rest = model.split(":", 1)
-            if get_descriptor(prefix) is not None:
+            if prefix == "boxai":
                 return rest
         return model
 

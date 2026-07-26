@@ -292,37 +292,29 @@ COMPAT_VENDORS = {
 
 
 def test_compat_vendor_descriptors_ship_prefilled_endpoints():
-    from coworker.providers.registry import get_descriptor
+    from coworker.providers.registry import get_descriptor, provider_names
 
-    for name, endpoint in COMPAT_VENDORS.items():
-        d = get_descriptor(name)
-        assert d is not None and d.needs_key, name
-        base = next(f for f in d.fields if f.key == "base_url")
-        assert base.default == endpoint  # prefilled, editable
-        assert not base.required  # blank falls back to the default in the builder
-        assert "OpenAI-compatible" in d.blurb
-        assert d.env_key and d.recommended_model
+    assert provider_names() == ["boxai"]
+    assert all(get_descriptor(name) is None for name in COMPAT_VENDORS)
 
 
 def test_compat_builder_defaults_and_profile_override(monkeypatch):
+    import pytest
+
     from coworker.providers.registry import build_provider_client
 
-    p = build_provider_client("zai", {"api_key": "zk"}, None)
-    assert p._base_url == COMPAT_VENDORS["zai"]
-    assert p._api_key == "zk"
-
-    override = "https://open.bigmodel.cn/api/paas/v4"
-    p2 = build_provider_client("zai", {"api_key": "zk", "base_url": override}, None)
-    assert p2._base_url == override
+    with pytest.raises(RuntimeError, match="Unsupported model provider: zai"):
+        build_provider_client("zai", {"api_key": "zk"}, None)
 
 
 def test_compat_builder_env_key_fallback(monkeypatch):
+    import pytest
+
     from coworker.providers.registry import build_provider_client
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "ds-key")
-    p = build_provider_client("deepseek", {}, None)
-    assert p._api_key == "ds-key"
-    assert p._base_url == COMPAT_VENDORS["deepseek"]
+    with pytest.raises(RuntimeError, match="Unsupported model provider: deepseek"):
+        build_provider_client("deepseek", {}, None)
 
 
 def test_compat_builder_never_leaks_the_openai_key(monkeypatch):
@@ -334,7 +326,7 @@ def test_compat_builder_never_leaks_the_openai_key(monkeypatch):
 
     monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-real")
     monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="Kimi"):
+    with pytest.raises(RuntimeError, match="Unsupported model provider: kimi"):
         build_provider_client("kimi", {}, None)
 
 
@@ -353,9 +345,8 @@ def test_compat_models_route_and_get_tool_capabilities():
         "xai:grok-4.3",
         "mistral:mistral-large-latest",
     ):
-        prefix = model.split(":", 1)[0]
-        assert router._provider_name(model) == prefix
-        assert ProviderRouter._bare(model) == model.split(":", 1)[1]
+        assert router._provider_name(model) == "boxai"
+        assert ProviderRouter._bare(model) == model
         caps = capabilities_for(model)
         assert caps.tools and caps.streaming
 
@@ -364,11 +355,8 @@ def test_compat_recommended_models_are_in_the_suggested_lists():
     """set_provider only auto-adds the recommended model if it's in _suggested_models —
     keep the registry and the manager's COMPAT_MODELS table in lockstep."""
     from coworker.providers.registry import get_descriptor
-    from coworker.server.manager import SessionManager
-
     for name in COMPAT_VENDORS:
-        d = get_descriptor(name)
-        assert d.recommended_model in SessionManager.COMPAT_MODELS[name], name
+        assert get_descriptor(name) is None
 
 
 # -- curated model matrix (labels + capabilities by full routed id) -----------------
@@ -409,12 +397,11 @@ def test_reseller_descriptors_and_matrix_stay_in_lockstep():
 
     for name in ("together", "fireworks"):
         d = get_descriptor(name)
-        assert d is not None and d.needs_key
+        assert d is None
         curated = models_for_provider(name)
-        assert curated and d.recommended_model in curated
-        # full ids in the matrix must round-trip: prefix + bare == matrix key
-        base = next(f for f in d.fields if f.key == "base_url")
-        assert base.default.startswith("https://")
+        assert curated
+        # This lower-level metadata remains available to provider implementations.
+        assert all(model and ":" not in model for model in curated)
 
 
 def test_foreign_sidecars_stripped_from_outbound_messages():

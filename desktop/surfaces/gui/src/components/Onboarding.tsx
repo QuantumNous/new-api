@@ -9,7 +9,6 @@ import {
   type Connector,
 } from "../api";
 import { ConnectorBadge } from "../connectors/ConnectorIcon";
-import { ProviderCards, ProviderForm, useProviderSetup } from "../providers/ProviderSetup";
 import { Spinner } from "./AutomationQuickstart";
 
 // First-run onboarding (UX-DECISIONS §24 → §29 → §39): model → your tools → go.
@@ -40,25 +39,6 @@ const TOOLS_SOON = ["gmail", "google_calendar"];
 export function Onboarding({ onDone }: { onDone: (next?: "work" | "gallery" | "automations") => void }) {
   const [step, setStep] = useState(0);
 
-  // -- step 1: model (provider gallery ⇄ key form, shared machinery) ---------------
-  const ps = useProviderSetup();
-  const [skipConfirm, setSkipConfirm] = useState(false);
-
-  const anyReady =
-    ps.providers.some((p) => p.configured && p.needs_key) || ps.keylessOk.size > 0;
-  // In the form with typed-but-untested input, Next verifies+saves first (tester
-  // catch 2026-07-12: a manual Test-then-Continue two-step reads as a puzzle).
-  const nextFromForm = !!ps.sel && ps.dirty && ps.secretFilled;
-  const canNext = anyReady || nextFromForm;
-
-  const advance = async () => {
-    if (nextFromForm && !ps.credentialed) {
-      ps.cancelBackTimer();
-      if (!(await ps.runTestAndSave())) return;
-    }
-    setStep(1);
-  };
-
   // -- step 2: connect your everyday tools (§39 two-state page) -------------------
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [cloud, setCloud] = useState<CloudStatus | null>(null);
@@ -69,7 +49,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "gallery" | "a
   // Poll while on the tools page: sign-in AND vendor consents land out-of-band in
   // the system browser. Tighten while either is actually in flight.
   useEffect(() => {
-    if (step !== 1) return;
+    if (step > 1) return;
     const load = () => {
       getConnectors().then(setConnectors).catch(() => {});
       getCloudStatus().then(setCloud).catch(() => {});
@@ -118,50 +98,38 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "gallery" | "a
 
         {step === 0 && (
           <section data-testid="ob-step-model" className="flex-1 min-h-0 flex flex-col">
-            {/* Persistent header — stays put while the region below swaps (§39). */}
-            <h1 className="text-[19px] font-semibold">Welcome to OpenWorker<span className="beta-tag">BETA</span></h1>
+            <h1 className="text-[19px] font-semibold">Welcome to BoxAI Desktop<span className="beta-tag">BETA</span></h1>
             <p className="text-[13px] text-muted mt-0.5 mb-4">
-              Pick a model provider to get started — OpenWorker runs on your own key, and your
-              key and your data stay on this Mac.
+              Sign in with your BoxAI account to use the models available to your account.
             </p>
-
-            {!ps.sel ? (
-              /* ---- the provider GALLERY ---- */
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1" data-testid="ob-provider-gallery">
-                <ProviderCards ps={ps} tp="ob" />
-              </div>
+            <div className="flex-1 grid place-items-center">
+              {cloud?.signed_in ? (
+                <div className="rounded-xl border border-line bg-okSoft px-6 py-5 text-center" data-testid="ob-boxai-signedin">
+                  <div className="font-semibold text-ok">Signed in to BoxAI</div>
+                  {cloud.account && <div className="text-[12.5px] text-muted mt-1">{cloud.account}</div>}
+                </div>
+              ) : signinPhase ? (
+                <div className="inline-flex items-center gap-2 text-[13px] text-muted"><Spinner /> Check your browser…</div>
             ) : (
-              /* ---- one provider's key form, same box ---- */
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-                <ProviderForm ps={ps} tp="ob" />
-              </div>
-            )}
-
-            {/* Persistent footer (§39). */}
-            <div className="flex items-center gap-3 pt-5">
-              {!skipConfirm ? (
-                <button className="text-[12.5px] text-faint hover:text-muted" onClick={() => setSkipConfirm(true)}>
-                  Skip setup
-                </button>
-              ) : (
-                <span className="text-[12.5px] text-muted">
-                  Nothing works without a model —{" "}
-                  <button className="text-accent" onClick={() => finish()}>
-                    skip anyway
-                  </button>
-                </span>
+                <button className="px-6 py-2.5 rounded-full bg-ink text-panel text-[13px]" data-testid="ob-cloud-signin" onClick={async () => {
+                  setSigninPhase("opening");
+                  await cloudLogin().catch(() => {});
+                  setSigninPhase("waiting");
+                }}>Sign in with BoxAI</button>
               )}
+            </div>
+            <div className="flex items-center gap-3 pt-5">
               <button
                 className="ml-auto px-6 py-2 rounded-full bg-ink text-panel text-[13px] disabled:opacity-40"
-                disabled={!canNext || ps.verify.state === "testing"}
-                onClick={advance}
+                disabled={!cloud?.signed_in}
+                onClick={() => setStep(1)}
                 data-testid="ob-continue"
               >
-                {ps.verify.state === "testing" ? "Checking…" : "Next"}
+                Next
               </button>
             </div>
             <p className="text-[11px] text-faint mt-3">
-              Models can be enabled or hidden anytime in Settings ▸ Models.
+              Model access is managed by BoxAI; custom providers and endpoints are not supported.
             </p>
           </section>
         )}
@@ -238,7 +206,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "gallery" | "a
                   <span className="block text-[13px] font-semibold text-ink mb-0.5">
                     Sign in for one-click connections
                   </span>
-                  OpenWorker handles the OAuth for 20+ tools — no dev consoles, no pasted keys.
+                  BoxAI handles the OAuth for 20+ tools — no dev consoles, no pasted keys.
                   Tokens stay on this Mac.
                 </span>
                 {signinPhase ? (

@@ -200,7 +200,8 @@ def client(tmp_path, monkeypatch):
         yield c
 
 
-def test_managed_callback_lands_in_portal_profile(client):
+def test_managed_callback_lands_in_portal_profile(client, managed_connector_state):
+    state = managed_connector_state(client.manager.secrets, "hubspot")
     resp = client.post(
         "/oauth/callback",
         data={
@@ -214,7 +215,7 @@ def test_managed_callback_lands_in_portal_profile(client):
             "account": "Acme Inc",
             "hub_id": "424242",
             "sandbox": "1",
-            "app_state": "s",
+            "app_state": state,
         },
     )
     assert resp.status_code == 200 and "HubSpot connected" in resp.text

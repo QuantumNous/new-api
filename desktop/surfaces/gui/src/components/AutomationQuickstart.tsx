@@ -433,7 +433,7 @@ export function AutomationQuickstart({
               <span className="block text-[13px] text-ink font-medium">
                 One sign-in unlocks every one-click connection
               </span>
-              Connections are brokered by OpenWorker Cloud — your tokens stay on this Mac.
+              Connections are brokered by BoxAI — your tokens stay on this Mac.
               <div className="flex items-center gap-3 mt-2">
                 {signinPhase ? (
                   <>
@@ -460,7 +460,7 @@ export function AutomationQuickstart({
                     onClick={signInThenConnect}
                     data-testid="ob-cloud-signin"
                   >
-                    Sign in to OpenWorker Cloud
+                    Sign in to BoxAI
                   </button>
                 )}
               </div>

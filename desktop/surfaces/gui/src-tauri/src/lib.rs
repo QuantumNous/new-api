@@ -1,4 +1,4 @@
-//! OpenWorker desktop shell.
+//! BoxAI Desktop shell (with the internal OpenWorker server retained for compatibility).
 //!
 //! Tauri is a thin native window over the existing React SPA. It:
 //!   1. picks a free localhost port and starts the Python `openworker-server` as a managed
@@ -477,12 +477,9 @@ fn show_main(app: &tauri::AppHandle) {
     }
 }
 
-// --- Auto-update (tauri-plugin-updater) -------------------------------------------
-// The GUI drives updates through these commands (same invoke bridge as everything
-// else — no global plugin JS): check, background pre-download, install. Update
-// artifacts are minisign-verified against the pubkey in tauri.conf.json before
-// anything is installed; the manifest lives at the endpoints configured there
-// (download.openworker.com → GitHub Releases).
+// --- Auto-update -----------------------------------------------------------------
+// Keep the GUI command contract stable, but report no update until BoxAI provisions its own
+// Tauri signing key and manifest endpoint. The upstream OpenWorker key must not be reused.
 
 #[derive(serde::Serialize)]
 struct UpdateInfo {
@@ -491,94 +488,32 @@ struct UpdateInfo {
 }
 
 #[tauri::command]
-async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
-    use tauri_plugin_updater::UpdaterExt;
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    let update = updater.check().await.map_err(|e| e.to_string())?;
-    Ok(update.map(|u| UpdateInfo {
-        version: u.version.clone(),
-        notes: u.body.clone().unwrap_or_default(),
-    }))
-}
-
-/// Update bytes pre-fetched by `download_update`, keyed by version. The GUI kicks the
-/// download off as soon as a release is offered, so clicking "Restart to update" installs
-/// from memory instead of sitting on a multi-minute download behind a spinner.
-struct PendingUpdate(Mutex<Option<(String, Vec<u8>)>>);
-
-#[tauri::command]
-async fn download_update(
-    app: tauri::AppHandle,
-    pending: tauri::State<'_, PendingUpdate>,
-) -> Result<(), String> {
-    use tauri_plugin_updater::UpdaterExt;
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
-        return Err("no update available".into());
-    };
-    // Periodic re-checks re-invoke this for the same release — the cached bytes stand.
-    // (Guard scope stays sync: a std MutexGuard must not live across an await.)
-    {
-        let slot = pending.0.lock().unwrap();
-        if slot.as_ref().map(|(v, _)| v == &update.version).unwrap_or(false) {
-            return Ok(());
-        }
-    }
-    let bytes = update
-        .download(|_, _| {}, || {})
-        .await
-        .map_err(|e| e.to_string())?;
-    *pending.0.lock().unwrap() = Some((update.version.clone(), bytes));
-    Ok(())
-}
-
-/// Drop the pre-fetched bundle. Invoked on "Later": a dismissed release would
-/// otherwise pin tens of MB in memory for the rest of an app run that can last
-/// weeks. Changing one's mind just re-downloads.
-#[tauri::command]
-fn clear_pending_update(pending: tauri::State<'_, PendingUpdate>) {
-    *pending.0.lock().unwrap() = None;
+async fn check_for_update() -> Result<Option<UpdateInfo>, String> {
+    Ok(None)
 }
 
 #[tauri::command]
-async fn install_update(
-    app: tauri::AppHandle,
-    pending: tauri::State<'_, PendingUpdate>,
-) -> Result<(), String> {
-    use tauri_plugin_updater::UpdaterExt;
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
-        return Err("no update available".into());
-    };
-    // Pre-fetched bytes for this exact version install instantly; a stale or missing
-    // cache falls back to the original blocking download-and-install.
-    let cached = {
-        let mut slot = pending.0.lock().unwrap();
-        match slot.take() {
-            Some((v, bytes)) if v == update.version => Some(bytes),
-            _ => None,
-        }
-    };
-    match cached {
-        Some(bytes) => update.install(bytes).map_err(|e| e.to_string())?,
-        None => update
-            .download_and_install(|_, _| {}, || {})
-            .await
-            .map_err(|e| e.to_string())?,
-    }
-    // Windows never reaches here (the NSIS installer takes over and relaunches).
-    // macOS: the .app was swapped in place — restart into the new version. The tray
-    // Exit path's sidecar kill runs via RunEvent, so no orphaned openworker-server.
-    app.restart();
+async fn download_update() -> Result<(), String> {
+    Err("BoxAI Desktop automatic updates are not configured".into())
+}
+
+#[tauri::command]
+fn clear_pending_update() {}
+
+#[tauri::command]
+async fn install_update() -> Result<(), String> {
+    Err("BoxAI Desktop automatic updates are not configured".into())
 }
 
 pub fn run() {
     let port = free_port();
+    let local_token: String = rand::random::<[u8; 32]>()
+        .iter().map(|b| format!("{b:02x}")).collect();
     let http = format!("http://127.0.0.1:{port}");
     let ws = format!("ws://127.0.0.1:{port}");
     // Debug-format yields a quoted JS string literal.
     let inject = format!(
-        "window.__COWORKER_HTTP__={http:?};window.__COWORKER_WS__={ws:?};window.__OCW_PLATFORM__={:?};",
+        "window.__COWORKER_HTTP__={http:?};window.__COWORKER_WS__={ws:?};window.__BOXAI_LOCAL_TOKEN__={local_token:?};window.__OCW_PLATFORM__={:?};",
         std::env::consts::OS
     );
 
@@ -591,7 +526,8 @@ pub fn run() {
             show_main(app);
         }))
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // Auto-update intentionally remains unregistered until BoxAI provisions and configures
+        // its own Tauri updater key pair. The upstream OpenWorker key must not be reused.
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -630,6 +566,7 @@ pub fn run() {
                 // reparenting check alone leaks both processes on quit.
                 .env("COWORKER_EXIT_WITH_PARENT", "1")
                 .env("COWORKER_PARENT_PID", std::process::id().to_string())
+                .env("BOXAI_LOCAL_TOKEN", &local_token)
                 // This GUI app has no console, so a console-subsystem child would inherit
                 // invalid std handles and crash a few seconds in when uvicorn writes its logs
                 // (the "Starting coworker…" freeze on Windows). Hand it real handles: the
@@ -674,7 +611,6 @@ pub fn run() {
                 None
             };
             app.manage(KeepAwake(Mutex::new(ka)));
-            app.manage(PendingUpdate(Mutex::new(None)));
             // Voice recordings are transient; only the explicitly installed local Whisper model
             // lives in the existing application state directory.
             app.manage(Arc::new(Dictation::new(state_dir().join("models"))));
@@ -683,7 +619,7 @@ pub fn run() {
             //    Overlay title bar (macOS): traffic lights float over the edge-to-edge UI.
             let mut builder =
                 WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                    .title("OpenWorker")
+                    .title("BoxAI Desktop")
                     .inner_size(1360.0, 900.0)
                     .min_inner_size(980.0, 640.0)
                     // Let the WEBVIEW receive OS file drags: Tauri's own drag-drop handler
@@ -715,7 +651,7 @@ pub fn run() {
             });
 
             // 3. System tray: Open / Settings / Quit.
-            let open_i = MenuItem::with_id(app, "open", "Open OpenWorker", true, None::<&str>)?;
+            let open_i = MenuItem::with_id(app, "open", "Open BoxAI Desktop", true, None::<&str>)?;
             let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_i, &settings_i, &quit_i])?;
@@ -724,7 +660,7 @@ pub fn run() {
             // it for light/dark automatically — not the full-color app icon.
             let tray_icon = tauri::image::Image::new(include_bytes!("../icons/tray.rgba"), 44, 44);
             TrayIconBuilder::new()
-                .tooltip("OpenWorker")
+                .tooltip("BoxAI Desktop")
                 .icon(tray_icon)
                 .icon_as_template(true)
                 .menu(&menu)
@@ -746,7 +682,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building the OpenWorker desktop app")
+        .expect("error while building the BoxAI Desktop app")
         .run(|app, event| {
             // Also on Exit: belt-and-suspenders in case a quit path reaches teardown without
             // a preceding ExitRequested (observed with macOS Cmd+Q under the tray setup).

@@ -14,7 +14,7 @@ from coworker.providers import (
     StreamChunk,
     capabilities_for,
 )
-from coworker.providers.registry import _normalize_ollama_url, build_provider_client
+from coworker.providers.registry import _build_ollama, _normalize_ollama_url, build_provider_client
 from coworker.providers.openai_provider import _salvage_tool_calls_from_text
 
 
@@ -63,9 +63,8 @@ def test_build_ollama_client_uses_base_url(monkeypatch):
             captured.update(kwargs)
 
     monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
-    client = build_provider_client(
-        "ollama", {"base_url": "http://box:11434"}, secrets=None
-    )
+    # The implementation remains useful internally, but Ollama is no longer public registry API.
+    client = _build_ollama({"base_url": "http://box:11434"}, secrets=None)
     client._ensure_client()  # type: ignore[attr-defined]
     assert captured["base_url"] == "http://box:11434/v1"
     assert captured["api_key"] == "ollama"  # placeholder, Ollama ignores it
@@ -107,13 +106,11 @@ def test_router_routes_and_strips_prefix(monkeypatch):
     router = ProviderRouter(secrets=None)
 
     turn = router.complete(model="ollama:llama3.3", messages=[])
-    assert turn.text == "ollama"
-    assert state["latest"]["ollama"].models == [
-        "llama3.3"
-    ]  # prefix stripped before delegating
+    assert turn.text == "boxai"
+    assert state["latest"]["boxai"].models == ["ollama:llama3.3"]
 
-    router.complete(model="gpt-5.5", messages=[])  # bare → default openai
-    assert state["latest"]["openai"].models == ["gpt-5.5"]
+    router.complete(model="gpt-5.5", messages=[])
+    assert state["latest"]["boxai"].models == ["ollama:llama3.3", "gpt-5.5"]
 
 
 def test_router_caches_and_invalidates(monkeypatch):
@@ -125,7 +122,7 @@ def test_router_caches_and_invalidates(monkeypatch):
     assert first is second  # same provider → cached client reused (build called once)
     assert len(state["created"]) == 1
 
-    router.invalidate("ollama")
+    router.invalidate("boxai")
     third = router._client_for("ollama:c")
     assert third is not first  # rebuilt after invalidation
     assert len(state["created"]) == 2
@@ -133,13 +130,12 @@ def test_router_caches_and_invalidates(monkeypatch):
 
 def test_router_bare_only_strips_known_provider():
     r = ProviderRouter(secrets=None)
-    assert (
-        r._bare("ollama:qwen2.5-coder:32b") == "qwen2.5-coder:32b"
-    )  # strip provider, keep tag
+    assert r._bare("boxai:gpt-5.6-sol") == "gpt-5.6-sol"
+    assert r._bare("ollama:qwen2.5-coder:32b") == "ollama:qwen2.5-coder:32b"
     assert r._bare("gpt-5.5") == "gpt-5.5"
     # a colon that isn't a provider (version tag) must NOT be split — else OpenAI gets "32b"
     assert r._bare("qwen2.5-coder:32b") == "qwen2.5-coder:32b"
-    assert r._provider_name("qwen2.5-coder:32b") == "openai"  # unknown prefix → default
+    assert r._provider_name("qwen2.5-coder:32b") == "boxai"
 
 
 def test_router_capabilities_prefix_aware():
@@ -297,17 +293,9 @@ def test_manager_provider_config(tmp_path, monkeypatch):
     mgr = SessionManager(data_dir=tmp_path)
     assert isinstance(mgr.provider, ProviderRouter)
 
-    res = mgr.set_provider("ollama", {"base_url": "http://localhost:9999"})
-    assert res["ok"] is True
-
-    provs = {p["name"]: p for p in mgr.get_providers()}
-    assert provs["ollama"]["configured"] is True  # keyless → usable
-    assert provs["ollama"]["values"]["base_url"] == "http://localhost:9999"
-    assert provs["openai"]["needs_key"] is True
-    # never leak secret values
-    assert "api_key" not in provs["openai"].get("values", {})
-
-    assert mgr.set_provider("nope", {})["ok"] is False  # unknown provider rejected
+    assert [p["name"] for p in mgr.get_providers()] == ["boxai"]
+    for name in ("boxai", "ollama", "openai", "nope"):
+        assert mgr.set_provider(name, {"api_key": "secret"})["ok"] is False
 
 
 def test_manager_curated_models(tmp_path, monkeypatch):
@@ -326,30 +314,11 @@ def test_manager_curated_models(tmp_path, monkeypatch):
     # no provider keys → nothing but the always-selectable default
     assert mgr.get_settings()["models"] == [mgr.model]
 
-    # a provider key unlocks exactly that provider's matrix models
-    mgr.set_provider("anthropic", {"api_key": "sk-ant-test"})
-    models = mgr.get_settings()["models"]
-    assert "anthropic:claude-opus-4-8" in models
-    assert "gpt-4o" not in models  # no OpenAI seed anywhere
-
-    added = mgr.add_model("ollama:qwen2.5-coder:32b")  # keyless provider → selectable
-    assert added["ok"] and "ollama:qwen2.5-coder:32b" in added["models"]
-
-    n = len(mgr.get_settings()["models"])
-    mgr.add_model("ollama:qwen2.5-coder:32b")  # idempotent
-    assert len(mgr.get_settings()["models"]) == n
-
-    # removing a matrix model hides it persistently; re-adding unhides it
-    removed = mgr.remove_model("anthropic:claude-haiku-4-5")
-    assert "anthropic:claude-haiku-4-5" not in removed["models"]
-    mgr2 = SessionManager(data_dir=tmp_path)  # survives a restart
-    assert "anthropic:claude-haiku-4-5" not in mgr2.get_settings()["models"]
-    mgr.add_model("anthropic:claude-haiku-4-5")
-    assert "anthropic:claude-haiku-4-5" in mgr.get_settings()["models"]
-
-    # removing a custom id drops it
-    mgr.remove_model("ollama:qwen2.5-coder:32b")
+    # Legacy provider credentials and custom model IDs cannot change the public picker.
+    assert mgr.set_provider("anthropic", {"api_key": "sk-ant-test"})["ok"] is False
+    assert mgr.add_model("ollama:qwen2.5-coder:32b")["ok"] is True
     assert "ollama:qwen2.5-coder:32b" not in mgr.get_settings()["models"]
+    assert mgr.get_settings()["models"] == [mgr.model]
 
     # the active default stays selectable even if removed from the curated list
     mgr.remove_model(mgr.model)
@@ -369,8 +338,8 @@ def test_set_provider_auto_adds_recommended_when_pulled(tmp_path, monkeypatch):
         lambda name: ["qwen3-coder:30b"] if name == "ollama" else [],
     )
     res = mgr.set_provider("ollama", {"base_url": "http://localhost:11434"})
-    assert res["recommended_model"] == "qwen3-coder:30b"
-    assert "ollama:qwen3-coder:30b" in mgr.get_settings()["models"]
+    assert res["ok"] is False
+    assert mgr.get_settings()["models"] == [mgr.model]
 
 
 def test_set_provider_skips_recommended_when_not_pulled(tmp_path, monkeypatch):
@@ -387,28 +356,26 @@ def test_provider_builders(monkeypatch):
     import pytest
 
     from coworker.providers import AnthropicProvider, GeminiProvider
-    from coworker.providers.registry import build_provider_client
+    from coworker.providers.registry import _build_anthropic, _build_gemini, _build_openai
 
     # anthropic and gemini are native: key resolution deferred to first call
-    p = build_provider_client("anthropic", {"api_key": "sk-ant-x"}, None)
+    p = _build_anthropic({"api_key": "sk-ant-x"}, None)
     assert isinstance(p, AnthropicProvider) and p._api_key == "sk-ant-x"
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="Anthropic"):
-        build_provider_client("anthropic", {}, None)._ensure_client()
+        _build_anthropic({}, None)._ensure_client()
 
-    g = build_provider_client("gemini", {"api_key": "AIza-x"}, None)
+    g = _build_gemini({"api_key": "AIza-x"}, None)
     assert isinstance(g, GeminiProvider) and g._api_key == "AIza-x"
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="Gemini"):
-        build_provider_client("gemini", {}, None)._ensure_client()
+        _build_gemini({}, None)._ensure_client()
 
     # OpenAI custom endpoint (Azure /openai/v1, OpenRouter, vLLM, …) passes through
-    o = build_provider_client(
-        "openai", {"base_url": "https://my.azure.example/openai/v1"}, None
-    )
+    o = _build_openai({"base_url": "https://my.azure.example/openai/v1"}, None)
     assert o._base_url == "https://my.azure.example/openai/v1"
-    assert build_provider_client("openai", {}, None)._base_url is None
+    assert _build_openai({}, None)._base_url is None
 
 
 def test_anthropic_gemini_capabilities():
@@ -426,23 +393,10 @@ def test_anthropic_gemini_provider_config(tmp_path, monkeypatch):
 
     mgr = SessionManager(data_dir=tmp_path)
     provs = {p["name"]: p for p in mgr.get_providers()}
-    assert provs["anthropic"]["configured"] is False
-    assert provs["gemini"]["needs_key"] is True
-    assert "claude-sonnet-4-6" in provs["anthropic"]["suggested_models"]
-    assert "gemini-2.5-flash" in provs["gemini"]["suggested_models"]
-
-    res = mgr.set_provider("anthropic", {"api_key": "sk-ant-test"})
-    assert res["ok"] is True and res["recommended_model"] == "claude-fable-5"
-    provs = {p["name"]: p for p in mgr.get_providers()}
-    assert provs["anthropic"]["configured"] is True
-    assert "api_key" not in provs["anthropic"].get("values", {})  # secrets never leak
-    # the recommended model is auto-added to the curated list with its provider prefix
-    assert "anthropic:claude-fable-5" in mgr.get_settings()["models"]
-
-    # env var alone marks a provider configured
+    assert set(provs) == {"boxai"}
+    assert mgr.set_provider("anthropic", {"api_key": "sk-ant-test"})["ok"] is False
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-env")
-    provs = {p["name"]: p for p in mgr.get_providers()}
-    assert provs["gemini"]["configured"] is True
+    assert {p["name"] for p in mgr.get_providers()} == {"boxai"}
 
 
 def test_first_configured_provider_wins_default(tmp_path, monkeypatch):
@@ -456,13 +410,9 @@ def test_first_configured_provider_wins_default(tmp_path, monkeypatch):
         mgr.model == "gpt-5.6-sol"
     )  # fresh install: built-in default, openai unconfigured
 
-    # the first provider that gets a key takes over the default
-    mgr.set_provider("anthropic", {"api_key": "sk-ant-x"})
-    assert mgr.model == "anthropic:claude-fable-5"
-
-    # but a default that already works is never stolen by the next provider
-    mgr.set_provider("gemini", {"api_key": "AIza-x"})
-    assert mgr.model == "anthropic:claude-fable-5"
+    assert mgr.set_provider("anthropic", {"api_key": "sk-ant-x"})["ok"] is False
+    assert mgr.set_provider("gemini", {"api_key": "AIza-x"})["ok"] is False
+    assert mgr.model == "gpt-5.6-sol"
 
 
 def test_surface_visibility(tmp_path, monkeypatch):
@@ -497,11 +447,8 @@ def test_provider_suggested_models(tmp_path, monkeypatch):
 
     mgr = SessionManager(data_dir=tmp_path)
     provs = {p["name"]: p for p in mgr.get_providers()}
-    assert "gpt-5.5" in provs["openai"]["suggested_models"]
-    # ollama suggestions are bare names (no `ollama:` prefix); empty when unconfigured
-    sugg = provs["ollama"]["suggested_models"]
-    assert isinstance(sugg, list)
-    assert all(not m.startswith("ollama:") for m in sugg)
+    assert set(provs) == {"boxai"}
+    assert provs["boxai"]["suggested_models"] == []
 
 
 # -- last-used tracking (router on_use hook + manager persistence) ----------------
@@ -510,12 +457,11 @@ def test_provider_suggested_models(tmp_path, monkeypatch):
 def test_router_on_use_fires_with_provider_name():
     seen: list[str] = []
     router = ProviderRouter(on_use=seen.append)
-    router._clients["openai"] = OpenAIProvider(client=_FakeOAClient(content="hi"))
-    router._clients["zai"] = OpenAIProvider(client=_FakeOAClient(content="hi"))
+    router._clients["boxai"] = OpenAIProvider(client=_FakeOAClient(content="hi"))
 
     router.complete(model="gpt-5.5", messages=[])
     router.complete(model="zai:glm-5.2", messages=[])
-    assert seen == ["openai", "zai"]
+    assert seen == ["boxai", "boxai"]
 
 
 def test_router_on_use_failures_never_break_the_call():
@@ -523,7 +469,7 @@ def test_router_on_use_failures_never_break_the_call():
         raise RuntimeError("telemetry down")
 
     router = ProviderRouter(on_use=boom)
-    router._clients["openai"] = OpenAIProvider(client=_FakeOAClient(content="ok"))
+    router._clients["boxai"] = OpenAIProvider(client=_FakeOAClient(content="ok"))
     assert router.complete(model="gpt-5.5", messages=[]).text == "ok"
 
 
@@ -536,24 +482,14 @@ def test_manager_key_hygiene_stamps(tmp_path, monkeypatch):
     from coworker.server.manager import SessionManager
 
     mgr = SessionManager(data_dir=tmp_path)
-    mgr.set_provider("deepseek", {"api_key": "ds-key"})
+    assert mgr.set_provider("deepseek", {"api_key": "ds-key"})["ok"] is False
+    mgr._note_provider_use("boxai")
+    first = mgr._prefs["provider_last_used"]["boxai"]
+    mgr._note_provider_use("boxai")
+    assert mgr._prefs["provider_last_used"]["boxai"] == first
     provs = {p["name"]: p for p in mgr.get_providers()}
-    assert provs["deepseek"]["configured"] is True
-    assert provs["deepseek"]["key_set_at"] == date.today().isoformat()
-    assert provs["deepseek"]["last_used_at"] is None  # configured but never used
-
-    # Endpoint-only re-save keeps the original stamp (the key wasn't touched).
-    mgr.set_provider("deepseek", {"base_url": "https://api.deepseek.com/v1"})
-    provs = {p["name"]: p for p in mgr.get_providers()}
-    assert provs["deepseek"]["key_set_at"] == date.today().isoformat()
-
-    mgr._note_provider_use("deepseek")
-    first = mgr._prefs["provider_last_used"]["deepseek"]
-    mgr._note_provider_use("deepseek")  # within the 60s throttle window → unchanged
-    assert mgr._prefs["provider_last_used"]["deepseek"] == first
-    provs = {p["name"]: p for p in mgr.get_providers()}
-    assert provs["deepseek"]["last_used_at"] == first
+    assert provs["boxai"]["last_used_at"] == first
     # and it survives a reload (persisted to prefs.json)
     mgr2 = SessionManager(data_dir=tmp_path)
     provs2 = {p["name"]: p for p in mgr2.get_providers()}
-    assert provs2["deepseek"]["last_used_at"] == first
+    assert provs2["boxai"]["last_used_at"] == first

@@ -55,7 +55,7 @@ export function CalendarDetail({ c, cloud, slack: _slack, onChanged }: DetailPro
               ? "One-click Google sign-in is coming soon"
               : cloud?.signed_in
                 ? ""
-                : "Sign in to OpenWorker Cloud first"
+                : "Sign in to BoxAI first"
           }
         >
           {c.managed_paused ? "＋ Add account · Coming soon" : busy ? "Check your browser…" : "＋ Add account"}

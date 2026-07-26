@@ -146,7 +146,7 @@ class SessionManager:
         # shared by every engine and the `/v1/chat/completions` proxy.
         if self.provider is None:
             self.provider = ProviderRouter(
-                self.secrets, default_provider="openai", on_use=self._note_provider_use
+                self.secrets, default_provider="boxai", on_use=self._note_provider_use
             )
         self.mcp = MCPManager(secrets=self.secrets)
         # OAuth MCP servers with a sign-in in flight / their last connect error —
@@ -1317,32 +1317,24 @@ class SessionManager:
         """Descriptor + per-provider status for the Settings UI. Never returns secret values;
         non-secret field values (e.g. the Ollama base URL) ARE returned so the form can prefill.
         """
-        import os
-
         out: list[dict[str, Any]] = []
+        from ..config import load_config
+
+        auth = self.secrets.get("cloud:auth") or {}
+        expected_base_url = load_config().boxai_base_url.rstrip("/") + "/v1"
+        configured = bool(
+            auth.get("access_token")
+            and auth.get("api_key")
+            and auth.get("base_url") == expected_base_url
+        )
         for d in provider_descriptors():
-            profile = self.secrets.get(f"provider:{d.name}") or {}
-            if d.needs_key:
-                configured = bool(profile.get("api_key")) or bool(
-                    d.env_key and os.environ.get(d.env_key)
-                )
-            else:
-                configured = True  # keyless (Ollama) — usable out of the box
-            values = {
-                f.key: profile.get(f.key)
-                for f in d.fields
-                if not f.secret and profile.get(f.key)
-            }
             out.append(
                 {
                     **d.to_dict(),
                     "configured": configured,
-                    "values": values,
+                    "values": {},
                     "suggested_models": self._suggested_models(d.name),
-                    # Key hygiene for the Settings pane: when the key was saved (date, stamped
-                    # by set_provider) and when the provider last served a completion (epoch,
-                    # stamped by the router's on_use hook). Absent for env-only config.
-                    "key_set_at": profile.get("key_set_at"),
+                    "key_set_at": None,
                     "last_used_at": (self._prefs.get("provider_last_used") or {}).get(
                         d.name
                     ),
@@ -1421,72 +1413,53 @@ class SessionManager:
         """Bare model-name suggestions for the 'add model' form (datalist), per provider.
         Ollama → live `/api/tags` (best-effort); everyone else → the curated matrix,
         topped up with the compat-vendor extras the matrix doesn't vouch for."""
-        if name == "ollama":
-            return [m.split(":", 1)[-1] for m in self._ollama_models()]
-        from ..providers.matrix import models_for_provider
+        if name != "boxai":
+            return []
+        from ..config import load_config
 
-        return list(
-            dict.fromkeys(
-                [*models_for_provider(name), *self.COMPAT_MODELS.get(name, [])]
+        auth = self.secrets.get("cloud:auth") or {}
+        cached = self._prefs.get("boxai_models")
+        cached = cached if isinstance(cached, list) else []
+        if not auth.get("access_token") or not auth.get("api_key"):
+            return cached
+        base = str(auth.get("base_url") or "").strip().rstrip("/")
+        if base != load_config().boxai_base_url.rstrip("/") + "/v1":
+            return cached
+        try:
+            import httpx
+
+            response = httpx.get(
+                base + "/models",
+                headers={"Authorization": f"Bearer {auth['api_key']}"},
+                timeout=5.0,
             )
-        )
+            response.raise_for_status()
+            models = [
+                str(row["id"])
+                for row in response.json().get("data", [])
+                if isinstance(row, dict) and row.get("id")
+            ]
+            if models:
+                models = list(dict.fromkeys(models))
+                self._prefs["boxai_models"] = models
+                self._save_prefs()
+                return models
+        except Exception:
+            pass
+        return cached
 
     def set_provider(
         self, name: str, fields: Optional[dict[str, Any]]
     ) -> dict[str, Any]:
         """Store a provider's config in its `provider:<name>` SecretStore profile and rebuild
         its cached client. Merges provided fields into any existing profile."""
-        d = get_descriptor(name)
-        if d is None:
-            return {"ok": False, "error": f"unknown provider: {name}"}
-        fields = fields or {}
-        profile = dict(self.secrets.get(f"provider:{name}") or {})
-        for f in d.fields:
-            if f.key not in fields:
-                continue
-            val = fields.get(f.key)
-            if isinstance(val, str):
-                val = val.strip()
-            if val:
-                profile[f.key] = val
-            elif not f.required:
-                profile.pop(f.key, None)
-        missing = [f.label for f in d.fields if f.required and not profile.get(f.key)]
-        if missing:
-            return {"ok": False, "error": "missing: " + ", ".join(missing)}
-        # A (re)pasted key stamps its save date — Settings shows "key added <date>" so stale
-        # keys are visible. Endpoint-only saves keep the original stamp.
-        if isinstance(fields.get("api_key"), str) and fields["api_key"].strip():
-            from datetime import date
-
-            profile["key_set_at"] = date.today().isoformat()
-        self.secrets.put(f"provider:{name}", profile)
-        self._refresh_provider(name)
-        # Convenience: if the provider recommends a model and it's actually available, add it to
-        # the curated list so it shows up in the composer right after configuring the provider.
-        rec = d.recommended_model
-        added: Optional[str] = None
-        if rec and rec in self._suggested_models(name):
-            # OpenAI models stay bare (the router's default); others carry their prefix.
-            added = rec if name == "openai" else f"{name}:{rec}"
-            self.add_model(added)
-        # First working provider wins the default: if the current default model belongs to a
-        # provider with no usable config (the fresh-install gpt-5.6-sol case), switch the default to
-        # this provider's model. A default that already works is never stolen.
-        if added and not self._provider_configured(self._model_provider(self.model)):
-            self.set_default_model(added)
-        return {"ok": True, "provider": name, "recommended_model": rec}
+        return {"ok": False, "error": "Model providers are read-only. Sign in to BoxAI."}
 
     def remove_provider(self, name: str) -> dict[str, Any]:
         """Forget a provider's stored config (Settings ▸ Models "Remove key"). The whole
         `provider:<name>` profile goes — key, endpoint, key_set_at — so the provider reads
         as never configured. Curated models stay; they just gray out until a new key."""
-        d = get_descriptor(name)
-        if d is None:
-            return {"ok": False, "error": f"unknown provider: {name}"}
-        self.secrets.delete(f"provider:{name}")
-        self._refresh_provider(name)
-        return {"ok": True, "provider": name}
+        return {"ok": False, "error": "BoxAI model access is managed by your login."}
 
     def verify_provider(
         self, name: str, fields: Optional[dict[str, Any]]
@@ -1494,38 +1467,30 @@ class SessionManager:
         """Test a provider's credentials with a live read-only call, WITHOUT persisting them, so
         onboarding can offer a "Test" button. Falls back to the stored/env key when the form left
         the key blank (e.g. testing an already-configured provider)."""
-        import os
-
-        d = get_descriptor(name)
-        if d is None:
-            return {"ok": False, "error": f"unknown provider: {name}"}
-        fields = fields or {}
-        profile = self.secrets.get(f"provider:{name}") or {}
-        api_key = (fields.get("api_key") or profile.get("api_key") or "").strip()
-        if not api_key and d.env_key:
-            api_key = os.environ.get(d.env_key, "").strip()
-        base_url = (fields.get("base_url") or profile.get("base_url") or "").strip()
-        if d.needs_key and not api_key:
-            return {"ok": False, "error": "Enter an API key to test."}
-        return verify_provider_key(name, api_key=api_key, base_url=base_url)
+        configured = name == "boxai" and self._provider_configured("boxai")
+        return {
+            "ok": configured,
+            **(
+                {}
+                if configured
+                else {"error": "Only signed-in BoxAI model access is supported."}
+            ),
+        }
 
     def _model_provider(self, model: str) -> str:
-        """The provider a model string routes to (known `prefix:` or the OpenAI default)."""
-        if ":" in (model or ""):
-            prefix = model.split(":", 1)[0]
-            if get_descriptor(prefix) is not None:
-                return prefix
-        return "openai"
+        """All desktop model ids route through the authenticated BoxAI client."""
+        return "boxai"
 
     def _provider_configured(self, name: str) -> bool:
-        d = get_descriptor(name)
-        if d is None:
-            return False
-        if not d.needs_key:
-            return True  # keyless (Ollama)
-        profile = self.secrets.get(f"provider:{name}") or {}
-        return bool(profile.get("api_key")) or bool(
-            d.env_key and os.environ.get(d.env_key)
+        from ..config import load_config
+
+        auth = self.secrets.get("cloud:auth") or {}
+        return bool(
+            name == "boxai"
+            and auth.get("access_token")
+            and auth.get("api_key")
+            and auth.get("base_url")
+            == load_config().boxai_base_url.rstrip("/") + "/v1"
         )
 
     # -- settings / prefs (model API key, default model, onboarding) -------------
@@ -1611,13 +1576,7 @@ class SessionManager:
         fresh install offers nothing until a provider key exists, and then exactly that
         provider's matrix models appear. The active default is always kept selectable.
         """
-        from ..providers.matrix import MATRIX
-
-        user = self._prefs.get("models")
-        user = user if isinstance(user, list) else []
-        hidden = set(self._prefs.get("hidden_models") or [])
-        models = [m for m in [*MATRIX, *user] if m not in hidden]
-        return list(dict.fromkeys([self.model, *models]))
+        return list(dict.fromkeys([self.model, *self._suggested_models("boxai")]))
 
     def add_model(self, model: str) -> dict[str, Any]:
         """Add a model id (e.g. `gpt-4o`, `ollama:qwen2.5-coder:32b`) to the picker.
@@ -1659,39 +1618,25 @@ class SessionManager:
 
     def get_settings(self) -> dict[str, Any]:
         """Model-access + UI status. Never returns the key; `source` says where it comes from."""
-        import os
-
-        env_key = bool(os.environ.get("OPENAI_API_KEY"))
-        stored = bool((self.secrets.get("provider:openai") or {}).get("api_key"))
-        # Only surface models whose provider is actually configured — the composer picker
-        # reflects exactly what's connected. The active default is always kept selectable
-        # (it's hidden behind the "No model" state until a provider is connected anyway).
-        # Ollama is keyless, so "configured" is meaningless there — its models show only
-        # while a local Ollama answers (cached liveness probe).
-        def _selectable(m: str) -> bool:
-            provider = self._model_provider(m)
-            if provider == "ollama":
-                return self._ollama_alive()
-            return self._provider_configured(provider)
-
-        selectable = [m for m in self._curated_models() if _selectable(m)]
+        ready = self._provider_configured("boxai")
+        selectable = self._curated_models() if ready else []
+        account_models = self._prefs.get("boxai_models") or []
+        if ready and account_models and self.model not in account_models:
+            self.model = account_models[0]
+            self._prefs["default_model"] = self.model
+            self._save_prefs()
+            selectable = list(dict.fromkeys([self.model, *account_models]))
         if self.model not in selectable:
             selectable.insert(0, self.model)
-        from ..providers.matrix import model_labels
 
         return {
-            "provider": "openai",
+            "provider": "boxai",
             "model": self.model,
             "models": selectable,
-            # Curated-matrix display names ({full id → "GLM-5.2 · via Together"}) so every
-            # picker shows human labels; custom models absent here render their raw id.
-            "model_labels": model_labels(),
-            "has_key": env_key or stored,
-            # Provider-agnostic "can this default model actually run?" — true when the default
-            # model's provider is configured (any provider, not just OpenAI). Drives the GUI's
-            # "No model connected" composer chip and the onboarding Skip warning.
-            "model_ready": self._provider_configured(self._model_provider(self.model)),
-            "source": "env" if env_key else ("store" if stored else None),
+            "model_labels": {},
+            "has_key": ready,
+            "model_ready": ready,
+            "source": "cloud" if ready else None,
             "onboarded": bool(self._prefs.get("onboarded")),
             "experimental_connectors": experimental_enabled(self.secrets),
             "surfaces": self._surfaces(),
@@ -1809,21 +1754,16 @@ class SessionManager:
     def set_model_key(self, api_key: str) -> dict[str, Any]:
         """Persist the model API key to the SecretStore (0600). The new provider client is
         built lazily on the next turn, so it picks the key up without a restart."""
-        api_key = (api_key or "").strip()
-        if not api_key:
-            return {"ok": False, "error": "empty api key"}
-        # Merge, don't replace: the profile may also hold a custom endpoint (base_url).
-        profile = dict(self.secrets.get("provider:openai") or {})
-        profile.update({"type": "api_key", "api_key": api_key})
-        self.secrets.put("provider:openai", profile)
-        self._refresh_provider("openai")  # rebuild the OpenAI client with the new key
-        return {"ok": True, **self.get_settings()}
+        return {"ok": False, "error": "API keys are managed by BoxAI login."}
 
     def set_default_model(self, model: str) -> dict[str, Any]:
         """Set + persist the default model for new sessions (the UI pre-selects it)."""
         model = (model or "").strip()
         if not model:
             return {"ok": False, "error": "empty model"}
+        available = self._suggested_models("boxai")
+        if available and model not in available:
+            return {"ok": False, "error": "model is not available to this BoxAI account"}
         self.model = model
         self._prefs["default_model"] = model
         self._save_prefs()

@@ -14,7 +14,7 @@ const KEY = "ocw.slack.howitworks.collapsed";
 const DUR = 8000; // per-scene loop, ms
 const TABS = ["Mention → session", "Threads stay connected", "Allow teammates"];
 const CAPTIONS = [
-  "Mention @OpenWorker in any channel it's invited to — a session opens here, and the answer lands back in Slack as a thread.",
+  "Mention @BoxAI in any channel it's invited to — a session opens here, and the answer lands back in Slack as a thread.",
   "Mention it again inside the thread — the conversation continues in the same session, context intact. The thread is the session.",
   "Teammates aren't auto-trusted: their first mention waits for your OK, then they're on the People list.",
 ];
@@ -74,7 +74,7 @@ export function SlackHowItWorks({ workspaces }: { workspaces: SlackWorkspace[] }
     <div className="mb-5" data-testid="slack-howitworks">
       <div className="flex items-baseline gap-2.5">
         <h3 className="text-[13.5px] font-semibold tracking-tight">
-          Getting started with Slack &amp; OpenWorker
+          Getting started with Slack &amp; BoxAI
         </h3>
         <button
           className="ml-auto shrink-0 inline-flex items-center gap-1.5 text-[12px] text-muted hover:text-ink"
@@ -182,7 +182,7 @@ function SlackRail({ active }: { active: string }) {
       <div className="hiw-slnav"><span className="hiw-pres" />Priya N</div>
       <div className="hiw-slnav"><span className="hiw-pres" />Emma W</div>
       <div className="hiw-sect">Agents &amp; apps</div>
-      <div className="hiw-slnav"><span className="hiw-appav">OW</span>OpenWorker</div>
+      <div className="hiw-slnav"><span className="hiw-appav">BA</span>BoxAI</div>
     </div>
   );
 }
@@ -226,7 +226,7 @@ function OwWin({ children }: { children: React.ReactNode }) {
   return (
     <div className="hiw-win hiw-ow">
       <div className="hiw-owtop">
-        <span className="hiw-dots"><i /><i /><i /></span> OpenWorker
+        <span className="hiw-dots"><i /><i /><i /></span> BoxAI
       </div>
       <div className="hiw-owbody">{children}</div>
     </div>
@@ -236,7 +236,7 @@ function OwWin({ children }: { children: React.ReactNode }) {
 function OwRail({ hot, hotSub, glow }: { hot?: string; hotSub?: string; glow?: boolean }) {
   return (
     <div className="hiw-owrail">
-      <div className="hiw-brand">OpenWorker</div>
+      <div className="hiw-brand">BoxAI</div>
       <div className="hiw-newbtn">＋ New session</div>
       <div className="hiw-ownav">⌕ Search</div>
       <div className="hiw-ownav">◷ Automations</div>
@@ -334,7 +334,7 @@ function SceneMention({ meFirst, meInitial }: { meFirst: string; meInitial: stri
               Reading the thread… signups up 3.4×, top referrer is the press page. <i>(replying in the Slack thread)</i>
             </div>
           </div>
-          <div className="hiw-owcomposer">Message OpenWorker…</div>
+          <div className="hiw-owcomposer">Message BoxAI…</div>
         </div>
       </OwWin>
     </>
@@ -393,7 +393,7 @@ function SceneThread({ meFirst, meInitial }: { meFirst: string; meInitial: strin
       </SlackWin>
       <OwWin>
         <div className="hiw-owrail">
-          <div className="hiw-brand">OpenWorker</div>
+          <div className="hiw-brand">BoxAI</div>
           <div className="hiw-newbtn">＋ New session</div>
           <div className="hiw-ownav">⌕ Search</div>
           <div className="hiw-ownav">◷ Automations</div>
@@ -414,7 +414,7 @@ function SceneThread({ meFirst, meInitial }: { meFirst: string; meInitial: strin
               Top countries: US 41%, India 22%, Germany 9% — context kept from the whole thread.
             </div>
           </div>
-          <div className="hiw-owcomposer">Message OpenWorker…</div>
+          <div className="hiw-owcomposer">Message BoxAI…</div>
         </div>
       </OwWin>
     </>

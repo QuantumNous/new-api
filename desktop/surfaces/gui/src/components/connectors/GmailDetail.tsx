@@ -57,7 +57,7 @@ export function GmailDetail({ c, cloud, slack: _slack, onChanged }: DetailProps)
               ? "One-click Google sign-in is coming soon"
               : cloud?.signed_in
                 ? ""
-                : "Sign in to OpenWorker Cloud first"
+                : "Sign in to BoxAI first"
           }
         >
           {c.managed_paused ? "＋ Add account · Coming soon" : busy ? "Check your browser…" : "＋ Add account"}

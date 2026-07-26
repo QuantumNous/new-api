@@ -11,6 +11,8 @@ from __future__ import annotations
 import pytest
 import pytest_asyncio
 
+from coworker import cloud
+from coworker.config import load_config
 from coworker.testing.fake_slack import FakeSlack
 
 
@@ -21,6 +23,27 @@ def _isolated_state_dir(tmp_path, monkeypatch):
     sign-in, which made test session creation emit REAL telemetry to prod (found 2026-07-03
     as burst noise in the ocw-connect-telemetry-events table)."""
     monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "coworker-state"))
+
+
+@pytest.fixture
+def managed_connector_state(monkeypatch):
+    """Start a real managed-connect attempt and return its one-time callback state."""
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"authorize_url": "https://broker.test/authorize"}
+
+    monkeypatch.setattr(cloud, "fresh_access_token", lambda secrets, config: "access-token")
+    monkeypatch.setattr(cloud.httpx, "post", lambda *args, **kwargs: Response())
+
+    def begin(secrets, connector):
+        result = cloud.begin_managed_connect(secrets, load_config(), connector)
+        assert result["ok"] is True
+        return result["app_state"]
+
+    return begin
 
 
 @pytest_asyncio.fixture

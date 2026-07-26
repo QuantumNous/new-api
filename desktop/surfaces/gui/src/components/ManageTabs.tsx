@@ -10,10 +10,10 @@ import {
   disallowUser,
   getMcpServers,
   getMcpTools,
+  getCloudStatus,
   signoutMcp,
   getSettings,
   getSubscriptions,
-  removeModel,
   resolveUnauthorized,
   unsubscribeChannel,
   patchMcpServer,
@@ -25,11 +25,8 @@ import {
   type Subscription,
   type McpServer,
   type ModelSettings,
-  type ProviderInfo,
 } from "../api";
 import { CloudSignInInline, CloudStatusPending } from "./connectors/CloudSignIn";
-import { ModelChecklist } from "./ModelChecklist";
-import { ProviderCards, ProviderForm, useProviderSetup } from "../providers/ProviderSetup";
 import { Toggle } from "./Toggle";
 
 // "2h ago"-style label for the providers' Last-used line (null when never used).
@@ -77,157 +74,51 @@ const EXAMPLE = `{
 // per-provider ModelChecklist / read-only model preview (form view).
 export function ModelsTab() {
   const [settings, setSettings] = useState<ModelSettings | null>(null);
+  const [cloud, setCloud] = useState<CloudStatus | null>(null);
   const refreshSettings = () => getSettings().then(setSettings).catch(() => setSettings(null));
-  const ps = useProviderSetup({ onSaved: refreshSettings });
-  useEffect(() => {
+  const refresh = () => {
     refreshSettings();
+    getCloudStatus().then(setCloud).catch(() => setCloud(null));
+  };
+  useEffect(() => {
+    refresh();
   }, []);
 
   if (!settings) return <div className="text-[13px] text-muted">Loading…</div>;
-
-  const info = ps.info;
-  const knownNames = ps.providers.map((p) => p.name);
-
-  if (ps.sel === null) {
-    return (
-      <div>
-        <ProviderCards ps={ps} tp="set" gridClass="grid grid-cols-2 xl:grid-cols-3 gap-2.5" lastUsed />
-        <ComposerPickerCard settings={settings} providers={ps.providers} onChanged={refreshSettings} />
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <ProviderForm
-        ps={ps}
-        tp="set"
-        footer={
-          ps.credentialed ? (
-            <button
-              className="text-[12.5px] text-danger/80 hover:text-danger hover:underline underline-offset-2"
-              data-testid="set-remove-key"
-              onClick={() => {
-                if (window.confirm(`Remove the ${info?.title} key from this computer?`)) ps.removeKey();
-              }}
-            >
-              Remove key…
-            </button>
-          ) : null
-        }
-      />
-
-      {ps.sel === "openai" && settings.source === "env" && (
-        <p className="text-[12px] text-muted mt-3 leading-relaxed">
-          A key is set via <code>OPENAI_API_KEY</code> in this server's environment. You can override
-          it above; the stored key is used only when the environment variable is absent.
-        </p>
-      )}
-
-      {info?.configured ? (
-        <div className="mt-6">
-          <div className={SEC_H + " mb-1.5"}>Models</div>
-          <p className="text-[12px] text-muted mb-2.5 leading-relaxed">
-            Ticked models show in the composer's picker; the black badge marks the default for new
-            sessions.
-          </p>
-          <ModelChecklist
-            provider={ps.sel}
-            knownProviders={knownNames}
-            suggested={info?.suggested_models || []}
-            curated={settings.models}
-            defaultModel={settings.model}
-            labels={settings.model_labels}
-            onChanged={(next) => setSettings((s) => (s ? { ...s, models: next.models, model: next.model } : s))}
-          />
+    <div className="space-y-5">
+      <div className={CARD + " p-4"} data-testid="boxai-model-access">
+        <div className="flex items-center justify-between gap-3">
+          <div><div className="text-[14px] font-semibold">BoxAI</div><div className="text-[12px] text-muted">{cloud?.signed_in ? `Signed in${cloud.account ? ` as ${cloud.account}` : ""}` : "Sign in to access your account models"}</div></div>
+          {cloud?.signed_in ? <button className={BTN_BORDERED} onClick={refresh}>Sync models</button> : <CloudSignInInline blurb="Your BoxAI login provides model access. Custom keys and endpoints are disabled." />}
         </div>
-      ) : (
-        // Unconfigured providers still show their curated models as a read-only preview — what a
-        // key unlocks is part of deciding to get one at all (owner ask, 2026-07-04).
-        (info?.suggested_models?.length || 0) > 0 && (
-          <div className="mt-6" data-testid="model-preview">
-            <div className={SEC_H + " mb-1.5"}>Included models</div>
-            <p className="text-[12px] text-muted mb-2.5 leading-relaxed">
-              Curated, agent-capable models this provider serves — add your key above to enable them.
-            </p>
-            <div className="space-y-1">
-              {(info?.suggested_models || []).map((m) => {
-                const full = ps.sel === "openai" ? m : `${ps.sel}:${m}`;
-                return (
-                  <div
-                    key={m}
-                    className="px-2.5 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-muted"
-                    title={full}
-                  >
-                    {settings.model_labels?.[full] || m}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )
-      )}
-    </div>
-  );
-}
-
-// The gallery view's "In the composer's picker" card: every curated model across providers,
-// with its provider tag. Unticking removes it from the picker; adding happens from a
-// provider's card (the ModelChecklist there has the suggested list + free-type add).
-function ComposerPickerCard({
-  settings,
-  providers,
-  onChanged,
-}: {
-  settings: ModelSettings;
-  providers: ProviderInfo[];
-  onChanged: () => void;
-}) {
-  const names = providers.map((p) => p.name);
-  const provOf = (id: string) => {
-    const i = id.indexOf(":");
-    return i > 0 && names.includes(id.slice(0, i)) ? id.slice(0, i) : "openai";
-  };
-  const tag = (id: string) => {
-    const p = providers.find((x) => x.name === provOf(id));
-    return (p?.title || provOf(id)).split(" (")[0];
-  };
-  return (
-    <div className="mt-6" data-testid="composer-picker">
-      <div className={SEC_H + " mb-1.5"}>In the composer's picker</div>
-      <p className="text-[12px] text-muted mb-2.5 leading-relaxed">
-        The models offered when starting a session; the black badge marks the default. Add more
-        from a provider's card above.
-      </p>
-      <div className="mlist">
-        {settings.models.map((id) => {
-          const isDefault = id === settings.model;
-          return (
-            <div className="mlist-row" key={id}>
-              <label className="mlist-main">
-                <input
-                  type="checkbox"
-                  checked
-                  disabled={isDefault}
-                  title={isDefault ? "The default model is always shown — make another model default first" : "Remove from the picker"}
-                  onChange={() => removeModel(id).then((r) => r.ok && onChanged())}
-                />
-                <span className="mlist-name" title={id}>
-                  {settings.model_labels?.[id] || id}
-                </span>
-              </label>
-              <span className="text-[11px] text-faint mr-2 shrink-0">{tag(id)}</span>
-              {isDefault ? (
-                <span className="mlist-default">default</span>
-              ) : (
-                <button className="mlist-make" onClick={() => setDefaultModel(id).then(() => onChanged())}>
-                  Make default
-                </button>
-              )}
-            </div>
-          );
-        })}
       </div>
+      {cloud?.signed_in && (
+        <div>
+          <div className={SEC_H + " mb-2"}>Account models</div>
+          <div className="space-y-1">
+            {settings.models.map((model) => (
+              <div key={model} className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2">
+                <span className="text-[13px]">{model}</span>
+                {model === settings.model ? (
+                  <span className="text-[11px] rounded-full bg-ink text-panel px-2 py-0.5">Default</span>
+                ) : (
+                  <button
+                    className={BTN_BORDERED}
+                    onClick={() => {
+                      void setDefaultModel(model).then((result) => {
+                        if (result.ok) refreshSettings();
+                      });
+                    }}
+                  >
+                    Make default
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -735,7 +626,7 @@ export function ConnectorTools({ c, onChanged }: { c: Connector; onChanged: () =
     );
   return (
     <div className="border-t border-line px-3.5 py-3">
-      <div className={SEC_H + " mb-2"}>Tools exposed to OpenWorker</div>
+      <div className={SEC_H + " mb-2"}>Tools exposed to BoxAI Desktop</div>
       <div className="space-y-1.5">
         {c.tools.map((tool) => (
           <label

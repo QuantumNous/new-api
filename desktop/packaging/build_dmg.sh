@@ -3,7 +3,7 @@
 #
 #   1. PyInstaller-bundle the server into a standalone onedir folder (no venv at runtime).
 #   2. Stage it at binaries/sidecar/ for Tauri's `resources` slot (+ sign its Mach-Os).
-#   3. `tauri build --bundles app` → OpenWorker.app (resources are copied in).
+#   3. `tauri build --bundles app` → BoxAI Desktop.app (resources are copied in).
 #   4. Wrap the .app in a compressed .dmg via hdiutil (reliable + headless; Tauri's own
 #      bundle_dmg.sh uses Finder AppleScript and fails in non-interactive sessions).
 #
@@ -40,7 +40,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PLATFORM="$(cd "$HERE/.." && pwd)"
 GUI="$PLATFORM/surfaces/gui"
-APP="OpenWorker"
+APP="BoxAI Desktop"
 # Single source of truth for the version: tauri.conf.json (also stamps the bundle).
 VERSION="$(node -p "require('$GUI/src-tauri/tauri.conf.json').version")"
 TRIPLE="$(rustc -vV | sed -n 's/host: //p')"   # e.g. aarch64-apple-darwin
@@ -128,21 +128,13 @@ if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
 fi
 
 echo "==> [3/5] tauri build (.app)"
-# Auto-update artifacts (.app.tar.gz + minisign .sig): produced only when the updater
-# signing key is available — from the env (CI secret TAURI_SIGNING_PRIVATE_KEY), or from
-# `.ocw-updater.env` one directory above the repo (same convention as the notary env).
-# Keyless builds skip the overlay entirely so dev/fork builds keep working; keyless
-# RELEASES would strand every install without auto-update, hence the loud warning.
-UPDATER_ENV="${OCW_UPDATER_ENV:-$PLATFORM/../.ocw-updater.env}"
-if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ] && [ -f "$UPDATER_ENV" ]; then
-  # shellcheck disable=SC1090
-  source "$UPDATER_ENV"
-fi
+# Auto-update remains disabled until BoxAI provisions its own Tauri signing key and public key.
+# Never sign BoxAI artifacts with the upstream OpenWorker key.
 UPDATER_OVERLAY=()
 if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
-  UPDATER_OVERLAY=(--config '{"bundle":{"createUpdaterArtifacts":true}}')
+  echo "    WARNING: updater signing is disabled until the BoxAI public key is configured."
 else
-  echo "    WARNING: no updater signing key — building WITHOUT auto-update artifacts (not releasable)."
+  echo "    Building WITHOUT auto-update artifacts (BoxAI updater key not configured)."
 fi
 # ${arr[@]+…} guard: plain "${arr[@]}" on an EMPTY array is an "unbound variable"
 # under set -u on macOS's stock bash 3.2 — hit by keyless (fresh-clone) builds.

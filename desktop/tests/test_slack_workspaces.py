@@ -24,7 +24,7 @@ def client(tmp_path, monkeypatch):
         yield c
 
 
-def _install_form(team_id: str) -> dict:
+def _install_form(team_id: str, app_state: str = "") -> dict:
     return {
         "connector": "slack",
         "team_id": team_id,
@@ -33,6 +33,7 @@ def _install_form(team_id: str) -> dict:
         "account": f"Workspace {team_id}",
         "team_domain": f"dom-{team_id.lower()}",
         "connection_id": f"conn_{team_id}",
+        "app_state": app_state,
     }
 
 
@@ -47,7 +48,7 @@ def _no_cloud(monkeypatch):
     return calls
 
 
-def test_managed_callback_installs_and_hot_reloads(client, monkeypatch):
+def test_managed_callback_installs_and_hot_reloads(client, monkeypatch, managed_connector_state):
     refreshes = []
 
     async def _refresh():
@@ -55,7 +56,7 @@ def test_managed_callback_installs_and_hot_reloads(client, monkeypatch):
         return []
 
     monkeypatch.setattr(client.manager, "refresh_gateway", _refresh)
-    resp = client.post("/oauth/callback", data=_install_form("T1"))
+    resp = client.post("/oauth/callback", data=_install_form("T1", managed_connector_state(client.manager.secrets, "slack")))
     assert resp.status_code == 200 and "Slack connected" in resp.text
     assert client.manager.secrets.get("slack:team:T1")["bot_token"] == "xoxb-T1"
     # The broker-resolved workspace domain persists (names collide; domains don't)
@@ -71,15 +72,15 @@ def test_managed_callback_installs_and_hot_reloads(client, monkeypatch):
     assert refreshes  # new workspace's token loads without an app restart
 
     # a second workspace instals alongside, not instead
-    client.post("/oauth/callback", data=_install_form("T2"))
+    client.post("/oauth/callback", data=_install_form("T2", managed_connector_state(client.manager.secrets, "slack")))
     assert client.manager.secrets.get("slack:team:T1") is not None
     assert client.manager.secrets.get("slack:team:T2") is not None
 
 
-def test_disconnect_one_workspace_keeps_the_other(client, monkeypatch):
+def test_disconnect_one_workspace_keeps_the_other(client, monkeypatch, managed_connector_state):
     cloud_calls = _no_cloud(monkeypatch)
     for t in ("T1", "T2"):
-        client.post("/oauth/callback", data=_install_form(t))
+        client.post("/oauth/callback", data=_install_form(t, managed_connector_state(client.manager.secrets, "slack")))
 
     body = client.post("/v1/connectors/slack/workspaces/T1/disconnect").json()
     assert body["ok"] is True and body["remaining_workspaces"] == 1
@@ -92,9 +93,9 @@ def test_disconnect_one_workspace_keeps_the_other(client, monkeypatch):
     assert [w["team_id"] for w in slack["workspaces"]] == ["T2"]
 
 
-def test_disconnect_last_workspace_flips_connector_off(client, monkeypatch):
+def test_disconnect_last_workspace_flips_connector_off(client, monkeypatch, managed_connector_state):
     _no_cloud(monkeypatch)
-    client.post("/oauth/callback", data=_install_form("T1"))
+    client.post("/oauth/callback", data=_install_form("T1", managed_connector_state(client.manager.secrets, "slack")))
 
     body = client.post("/v1/connectors/slack/workspaces/T1/disconnect").json()
     assert body["ok"] is True and body["remaining_workspaces"] == 0
@@ -103,7 +104,7 @@ def test_disconnect_last_workspace_flips_connector_off(client, monkeypatch):
     assert slack["connected"] is False
 
 
-def test_last_disconnect_never_resurrects_manual_creds(client, monkeypatch):
+def test_last_disconnect_never_resurrects_manual_creds(client, monkeypatch, managed_connector_state):
     # Manual Socket Mode tokens stored BEFORE the relay switch must stay stored
     # but disabled — removing the last workspace must not start listening on them.
     _no_cloud(monkeypatch)
@@ -111,7 +112,7 @@ def test_last_disconnect_never_resurrects_manual_creds(client, monkeypatch):
         "slack:default",
         {"type": "token", "bot_token": "xoxb-manual", "app_token": "xapp-manual"},
     )
-    client.post("/oauth/callback", data=_install_form("T1"))
+    client.post("/oauth/callback", data=_install_form("T1", managed_connector_state(client.manager.secrets, "slack")))
     client.post("/v1/connectors/slack/workspaces/T1/disconnect")
 
     default = client.manager.secrets.get("slack:default")

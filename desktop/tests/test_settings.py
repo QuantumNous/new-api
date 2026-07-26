@@ -43,21 +43,18 @@ def test_settings_rest_roundtrip(tmp_path, monkeypatch):
     assert (
         before["has_key"] is False
         and before["source"] is None
-        and before["provider"] == "openai"
+        and before["provider"] == "boxai"
     )
     assert before["onboarded"] is False and before["model"] in before["models"]
 
     set_resp = client.post(
         "/v1/settings/model-key", json={"api_key": "sk-secret-xyz"}
     ).json()
-    assert (
-        set_resp["ok"] is True
-        and set_resp["has_key"] is True
-        and set_resp["source"] == "store"
-    )
+    assert set_resp["ok"] is False
+    assert "BoxAI" in set_resp["error"]
 
     after = client.get("/v1/settings").json()
-    assert after["has_key"] is True
+    assert after["has_key"] is False
     # the key value is never returned by either endpoint
     assert "sk-secret-xyz" not in str(set_resp) and "api_key" not in after
 
@@ -159,9 +156,7 @@ def test_scratch_base_setting_persists_and_drives_provisioning(tmp_path, monkeyp
     assert Path(scratch) == (base / "sess-xyz").resolve() and Path(scratch).is_dir()
 
 
-def test_ollama_models_gated_on_liveness(tmp_path, monkeypatch):
-    """`ollama:*` entries show only while a local Ollama answers — keyless must not mean
-    always-present (a stray ollama:<junk> pref would otherwise render forever)."""
+def test_ollama_models_are_never_public(tmp_path, monkeypatch):
     from coworker.server.manager import SessionManager
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -173,4 +168,4 @@ def test_ollama_models_gated_on_liveness(tmp_path, monkeypatch):
     assert "ollama:llama3.3" not in manager.get_settings()["models"]
 
     monkeypatch.setattr(SessionManager, "_ollama_alive", lambda self: True)
-    assert "ollama:llama3.3" in manager.get_settings()["models"]
+    assert "ollama:llama3.3" not in manager.get_settings()["models"]

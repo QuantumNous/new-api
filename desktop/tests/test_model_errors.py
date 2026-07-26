@@ -25,8 +25,9 @@ def test_new_flagships_in_matrix_with_labels():
 
 def test_flagships_are_the_defaults():
     assert Config().model == "gpt-5.6-sol"
-    assert get_descriptor("openai").recommended_model == "gpt-5.6-sol"
-    assert get_descriptor("anthropic").recommended_model == "claude-fable-5"
+    # BoxAI's model catalog comes from the authenticated account, not a public recommendation.
+    assert get_descriptor("boxai").recommended_model is None
+    assert get_descriptor("anthropic") is None
 
 
 # -- friendly access/quota errors --------------------------------------------------------

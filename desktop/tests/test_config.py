@@ -59,5 +59,7 @@ def test_cloud_endpoints_default_to_production():
     from coworker.config import Config
 
     cfg = Config()
-    assert cfg.cloud_base_url == "https://api.openworker.com"
+    assert cfg.boxai_base_url == "https://you-box.com"
+    assert cfg.boxai_web_base_url == "https://you-box.com"
+    assert cfg.cloud_base_url == "https://api-desktop.you-box.com"
     assert cfg.cloud_relay_ws_url.startswith("wss://")

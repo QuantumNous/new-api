@@ -453,13 +453,11 @@ def test_stream_passes_stream_flag():
 
 
 def test_registry_builds_native_anthropic_provider():
-    from coworker.providers.registry import build_provider_client
-
-    provider = build_provider_client("anthropic", {"api_key": "sk-ant-x"}, None)
+    provider = AnthropicProvider(api_key="sk-ant-x")
     assert isinstance(provider, AnthropicProvider)
     assert provider._api_key == "sk-ant-x"
-    # no key in the profile is fine at build time — resolution is deferred to first call
-    assert isinstance(build_provider_client("anthropic", {}, None), AnthropicProvider)
+    # no key is fine at construction time — resolution is deferred to first call
+    assert isinstance(AnthropicProvider(), AnthropicProvider)
 
 
 def test_resolve_api_key_env_then_secrets(monkeypatch):
@@ -641,15 +639,12 @@ def test_convert_replays_thinking_blocks_ahead_of_tool_use():
     assert assistant[1]["type"] == "tool_use"
 
 
-def test_thinking_defaults_on_with_hidden_profile_override():
-    """No user-facing setting (owner call 2026-07-23): thinking is ON by default; the
-    profile's thinking_budget stays a hidden override, 0 = off."""
-    from coworker.providers.anthropic_provider import DEFAULT_THINKING_BUDGET
-    from coworker.providers.registry import build_provider_client
-
-    assert build_provider_client("anthropic", {}, None).thinking_budget == DEFAULT_THINKING_BUDGET
-    assert build_provider_client("anthropic", {"thinking_budget": "2048"}, None).thinking_budget == 2048
-    assert build_provider_client("anthropic", {"thinking_budget": "0"}, None).thinking_budget == 0
+def test_thinking_defaults_off_with_explicit_override():
+    """The retained lower-level Anthropic implementation defaults thinking off, while
+    direct internal callers can still request a budget explicitly."""
+    assert AnthropicProvider().thinking_budget == 0
+    assert AnthropicProvider(thinking_budget=2048).thinking_budget == 2048
+    assert AnthropicProvider(thinking_budget=0).thinking_budget == 0
 
 
 def test_fable_requests_carry_server_side_fallback():

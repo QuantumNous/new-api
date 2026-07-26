@@ -448,13 +448,11 @@ def test_stream_handles_enum_like_finish_reason():
 
 
 def test_registry_builds_native_gemini_provider():
-    from coworker.providers.registry import build_provider_client
-
-    provider = build_provider_client("gemini", {"api_key": "AIza-x"}, None)
+    provider = GeminiProvider(api_key="AIza-x")
     assert isinstance(provider, GeminiProvider)
     assert provider._api_key == "AIza-x"
     # no key in the profile is fine at build time — resolution is deferred to first call
-    assert isinstance(build_provider_client("gemini", {}, None), GeminiProvider)
+    assert isinstance(GeminiProvider(), GeminiProvider)
 
 
 def test_resolve_api_key_env_then_secrets(monkeypatch):

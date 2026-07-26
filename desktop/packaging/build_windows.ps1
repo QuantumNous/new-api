@@ -82,19 +82,12 @@ Copy-Item -Recurse -Force $Src $Dst
 Write-Host "    -> $Dst"
 
 Write-Host "==> [3/3] tauri build (--bundles $Bundles)" -ForegroundColor Cyan
-# Auto-update artifacts (NSIS setup .exe + minisign .sig): produced only when the updater
-# signing key env is present (CI secret TAURI_SIGNING_PRIVATE_KEY). Keyless builds skip
-# the overlay so dev builds keep working; keyless RELEASES strand installs without
-# auto-update.
+# Auto-update is disabled until BoxAI provisions its own Tauri signing/public key pair.
 $UpdaterArgs = @()
 if ($env:TAURI_SIGNING_PRIVATE_KEY) {
-    # Pass the overlay as a FILE: inline JSON loses its quotes through the
-    # PowerShell -> npm.cmd -> cmd hop ("key must be a string", v0.1.3 run).
-    $Overlay = Join-Path ([IO.Path]::GetTempPath()) "ocw-updater-overlay.json"
-    Set-Content -Path $Overlay -Value '{"bundle":{"createUpdaterArtifacts":true}}' -Encoding ascii
-    $UpdaterArgs = @("--config", $Overlay)
+    Write-Host "    WARNING: updater signing is disabled until the BoxAI public key is configured." -ForegroundColor Yellow
 } else {
-    Write-Host "    WARNING: no updater signing key - building WITHOUT auto-update artifacts (not releasable)." -ForegroundColor Yellow
+    Write-Host "    Building WITHOUT auto-update artifacts (BoxAI updater key not configured)."
 }
 Push-Location $Gui
 try {

@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Origins allowed to talk to the local sidecar. It binds to 127.0.0.1, but a page in the
 # user's own browser can still reach loopback — so without an origin gate, any website they
@@ -72,7 +73,7 @@ def _browser_page(
     return (
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        f"<title>{_html.escape(title)} — OpenWorker</title><style>"
+        f"<title>{_html.escape(title)} — BoxAI Desktop</title><style>"
         ":root{--paper:#f6f5f2;--panel:#fff;--line:#e4e2dc;--ink:#2c2c2a;--muted:#6f6e68;"
         "--faint:#a3a19a;--accent:#3670b2;--ok:#2e7d4f;--ok-soft:#e3f2e9;--bad:#b3423a;"
         "--bad-soft:#f8e7e5}"
@@ -104,9 +105,9 @@ def _browser_page(
         "padding:7px 10px;margin-top:12px;text-align:left;word-break:break-word}"
         ".foot{font-size:10.5px;color:var(--faint)}"
         "</style></head><body>"
-        '<div class="card"><div class="mark"><i></i>OpenWorker</div>'
+        '<div class="card"><div class="mark"><i></i>BoxAI Desktop</div>'
         f"{icon}<h1>{_html.escape(title)}</h1><p>{_html.escape(detail)}</p>{err}</div>"
-        '<div class="foot">Served locally by OpenWorker on your Mac</div>'
+        '<div class="foot">Served locally by BoxAI Desktop</div>'
         "</body></html>"
     )
 
@@ -121,7 +122,7 @@ def _connector_title(name: str) -> str:
 
 _CONNECT_FAILED_DETAIL = (
     "Something went wrong finishing this connection. "
-    "Close this tab and try again from OpenWorker."
+    "Close this tab and try again from BoxAI Desktop."
 )
 
 from ..attachments import build_user_content
@@ -158,6 +159,27 @@ def create_app(manager: SessionManager) -> FastAPI:
         allow_headers=["*"],
     )
     app.state.manager = manager
+
+    local_token = os.environ.get("BOXAI_LOCAL_TOKEN", "")
+    callback_paths = {"/auth/callback", "/oauth/callback", "/mcp/oauth/callback"}
+
+    @app.middleware("http")
+    async def require_local_capability(request: Request, call_next):
+        # Browser preflight carries no capability. CORSMiddleware validates its
+        # Origin and requested headers; the actual request remains protected.
+        if local_token and request.method != "OPTIONS" and request.url.path not in callback_paths:
+            import hmac
+
+            if not hmac.compare_digest(
+                request.headers.get("authorization", ""), f"Bearer {local_token}"
+            ):
+                return JSONResponse({"detail": "unauthorized"}, status_code=401)
+        response = await call_next(request)
+        if request.url.path in callback_paths:
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
 
     @app.get("/v1/health")
     def health() -> dict[str, Any]:
@@ -624,7 +646,7 @@ def create_app(manager: SessionManager) -> FastAPI:
             return HTMLResponse(
                 _browser_page(
                     "Sign-in failed",
-                    "The service reported an error. Return to OpenWorker and try again.",
+                    "The service reported an error. Return to BoxAI Desktop and try again.",
                     ok=False,
                     error=error,
                 ),
@@ -634,7 +656,7 @@ def create_app(manager: SessionManager) -> FastAPI:
             return HTMLResponse(
                 _browser_page(
                     "Nothing waiting for this sign-in",
-                    "The sign-in may have timed out. Return to OpenWorker and start it again.",
+                    "The sign-in may have timed out. Return to BoxAI Desktop and start it again.",
                     ok=False,
                 ),
                 status_code=400,
@@ -642,7 +664,7 @@ def create_app(manager: SessionManager) -> FastAPI:
         return HTMLResponse(
             _browser_page(
                 "Connected",
-                "Sign-in complete. You can close this tab and return to OpenWorker.",
+                "Sign-in complete. You can close this tab and return to BoxAI Desktop.",
                 ok=True,
             )
         )
@@ -899,8 +921,11 @@ def create_app(manager: SessionManager) -> FastAPI:
     @app.post("/v1/cloud/logout")
     def cloud_logout() -> dict[str, Any]:
         from .. import cloud
+        from ..config import load_config
 
-        return cloud.logout(manager.secrets)
+        result = cloud.logout(manager.secrets, load_config())
+        manager._refresh_provider()
+        return result
 
     @app.get("/auth/callback")
     async def cloud_auth_callback(code: str = "", state: str = "", error: str = ""):
@@ -910,12 +935,16 @@ def create_app(manager: SessionManager) -> FastAPI:
         from ..config import load_config
 
         signin_failed_detail = (
-            "Close this tab and try signing in again from OpenWorker."
+            "Close this tab and try signing in again from BoxAI Desktop."
         )
         if error:
+            valid_error = (
+                len(error) <= 1024 and cloud.consume_login_error(state)
+            )
             return HTMLResponse(
                 _browser_page(
-                    "Sign-in failed", signin_failed_detail, ok=False, error=error
+                    "Sign-in failed", signin_failed_detail, ok=False,
+                    error=error if valid_error else "unknown or expired sign-in attempt"
                 ),
                 status_code=400,
             )
@@ -932,6 +961,7 @@ def create_app(manager: SessionManager) -> FastAPI:
                 ),
                 status_code=400,
             )
+        manager._refresh_provider()
 
         # Restore managed connections in the background: best-effort metadata work
         # that must not hold the "Signed in" page (or the GUI's signed-in flip)
@@ -951,8 +981,8 @@ def create_app(manager: SessionManager) -> FastAPI:
         return HTMLResponse(
             _browser_page(
                 "Signed in",
-                "You're signed in to OpenWorker Cloud. "
-                "You can close this tab and return to OpenWorker.",
+                "You're signed in to BoxAI. "
+                "You can close this tab and return to BoxAI Desktop.",
             )
         )
 
@@ -1001,6 +1031,12 @@ def create_app(manager: SessionManager) -> FastAPI:
         form = await request.form()
         data = {k: str(v) for k, v in form.items()}
         connector = data.get("connector", "")
+        if not cloud.consume_managed_state(data.get("app_state", "")):
+            return HTMLResponse(
+                _browser_page("Connection failed", _CONNECT_FAILED_DETAIL, ok=False,
+                              error="unknown or expired connection attempt"),
+                status_code=400,
+            )
         if data.get("error"):
             return HTMLResponse(
                 _browser_page(
@@ -1033,7 +1069,7 @@ def create_app(manager: SessionManager) -> FastAPI:
             return HTMLResponse(
                 _browser_page(
                     "GitHub connected",
-                    "You can close this tab and return to OpenWorker.",
+                    "You can close this tab and return to BoxAI Desktop.",
                     connector="github",
                 )
             )
@@ -1096,7 +1132,7 @@ def create_app(manager: SessionManager) -> FastAPI:
         return HTMLResponse(
             _browser_page(
                 f"{_connector_title(connector)} connected",
-                "You can close this tab and return to OpenWorker.",
+                "You can close this tab and return to BoxAI Desktop.",
                 connector=connector,
             )
         )
@@ -1353,10 +1389,12 @@ def create_app(manager: SessionManager) -> FastAPI:
         # CORS never gates WebSockets, so a cross-site page could otherwise open this socket
         # and drive the session into tool calls. Reject a disallowed browser Origin before
         # accepting the handshake (1008 = policy violation).
-        if not _origin_allowed(ws.headers.get("origin")):
+        protocols = [p.strip() for p in ws.headers.get("sec-websocket-protocol", "").split(",")]
+        if (not _origin_allowed(ws.headers.get("origin")) or
+                (local_token and protocols != ["boxai-local-v1", local_token])):
             await ws.close(code=1008)
             return
-        await ws.accept()
+        await ws.accept(subprotocol="boxai-local-v1" if local_token else None)
         agent = ws.query_params.get("agent") or "code"
 
         # All four interactive prompts (approval / question / directory / plan) are parked as Inbox
@@ -1682,10 +1720,12 @@ def create_app(manager: SessionManager) -> FastAPI:
         """App-wide event stream (session-independent): the GUI keeps one open for
         pushes like automation_run_started (the UX-026 toast). Read-only — inbound
         frames are ignored; the receive loop just detects disconnect."""
-        if not _origin_allowed(ws.headers.get("origin")):
+        protocols = [p.strip() for p in ws.headers.get("sec-websocket-protocol", "").split(",")]
+        if (not _origin_allowed(ws.headers.get("origin")) or
+                (local_token and protocols != ["boxai-local-v1", local_token])):
             await ws.close(code=1008)
             return
-        await ws.accept()
+        await ws.accept(subprotocol="boxai-local-v1" if local_token else None)
         manager.register_event_client(ws.send_json)
         try:
             while True:

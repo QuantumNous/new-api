@@ -16,7 +16,7 @@ test("post-connect card: personalized status line + the installer's 'you' chip",
 }) => {
   await openSlackPage(page);
   const card = page.getByTestId("slack-howitworks");
-  await expect(card).toContainText("Getting started with Slack & OpenWorker");
+  await expect(card).toContainText("Getting started with Slack & BoxAI");
   await expect(card).toContainText("deeplearning.ai connected");
   await expect(card).toContainText("you're on the People list");
   // The pre-added installer renders as a named chip marked "you" in ITS workspace.

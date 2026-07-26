@@ -11,6 +11,14 @@ const wsBase = (): string =>
   (globalThis as any).__COWORKER_WS__ ||
   (import.meta as any).env?.VITE_COWORKER_WS ||
   "ws://127.0.0.1:8765";
+const localToken = (): string => (globalThis as any).__BOXAI_LOCAL_TOKEN__ || "";
+const fetch: typeof globalThis.fetch = (input, init = {}) => {
+  const headers = new Headers(init.headers);
+  const token = localToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  return globalThis.fetch(input, { ...init, headers });
+};
+const wsProtocols = (): string[] => localToken() ? ["boxai-local-v1", localToken()] : [];
 
 export interface Health {
   status: string;
@@ -1357,7 +1365,7 @@ export function connectEvents(
   let closed = false;
   const open = () => {
     if (closed) return;
-    ws = new WebSocket(`${wsBase()}/ws/events`);
+    ws = new WebSocket(`${wsBase()}/ws/events`, wsProtocols());
     ws.onmessage = (e) => {
       try {
         onEvent(JSON.parse(e.data));
@@ -1684,7 +1692,7 @@ export class Session {
 
   constructor(sessionId: string, workspace: string, agent: string, handlers: Handlers) {
     const q = `?workspace=${encodeURIComponent(workspace)}&agent=${encodeURIComponent(agent)}`;
-    this.ws = new WebSocket(`${wsBase()}/ws/session/${sessionId}${q}`);
+    this.ws = new WebSocket(`${wsBase()}/ws/session/${sessionId}${q}`, wsProtocols());
     this.ws.onmessage = (e) => handlers.onEvent(JSON.parse(e.data));
     this.ws.onopen = () => {
       this.flush();
@@ -1771,4 +1779,3 @@ export class Session {
     this.ws.close();
   }
 }
-

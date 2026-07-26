@@ -8,7 +8,7 @@ async function openAutomations(page) {
   await page.goto("/");
   await page.getByTestId("account-row").click();
   await page.getByTestId("account-menu").getByRole("button", { name: "Automations", exact: true }).click();
-  await expect(page.getByText("Recurring tasks OpenWorker runs on a schedule.")).toBeVisible();
+  await expect(page.getByText("Recurring tasks BoxAI Desktop runs on a schedule.")).toBeVisible();
 }
 
 test("lists a scheduled task with its schedule and run count", async ({ page }) => {

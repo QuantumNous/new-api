@@ -37,7 +37,8 @@ def test_connect_managed_requires_sign_in(client):
     assert "not signed in" in body["error"]
 
 
-def test_oauth_callback_writes_profile_and_returns_page(client):
+def test_oauth_callback_writes_profile_and_returns_page(client, managed_connector_state):
+    state = managed_connector_state(client.manager.secrets, "gmail")
     resp = client.post(
         "/oauth/callback",
         data={
@@ -49,13 +50,13 @@ def test_oauth_callback_writes_profile_and_returns_page(client):
             "expires_in": "3599",
             "scope": "gmail.readonly",
             "account": "a@b.c",
-            "app_state": "s",
+            "app_state": state,
         },
     )
     assert resp.status_code == 200
     # §30: the loopback page is a branded card, Title-cased connector name.
     assert "Gmail connected" in resp.text
-    assert "Served locally by OpenWorker" in resp.text
+    assert "Served locally by BoxAI Desktop" in resp.text
 
     # Multi-account: the callback lands in gmail:account:<email>; gmail:default
     # is just the default pointer.
@@ -71,10 +72,11 @@ def test_oauth_callback_writes_profile_and_returns_page(client):
     assert [a["email"] for a in listed["gmail"]["accounts"]] == ["a@b.c"]
 
 
-def test_oauth_callback_error_shows_failure_page(client):
+def test_oauth_callback_error_shows_failure_page(client, managed_connector_state):
+    state = managed_connector_state(client.manager.secrets, "gmail")
     resp = client.post(
         "/oauth/callback",
-        data={"connector": "gmail", "error": "access_denied"},
+        data={"connector": "gmail", "error": "access_denied", "app_state": state},
     )
     assert resp.status_code == 400
     assert "access_denied" in resp.text

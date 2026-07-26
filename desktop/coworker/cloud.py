@@ -7,8 +7,8 @@ the metadata conveniences that come with it.
 
 Flows (ported from the proven `ocw_cli` reference in opencoworker-cloud):
 
-- Sign-in: Auth0 Authorization Code + PKCE. The sidecar generates the PKCE
-  pair, the browser signs in, Auth0 redirects to the sidecar's loopback
+- Sign-in: BoxAI Authorization Code + PKCE. The sidecar registers the PKCE
+  challenge, the browser signs in, and BoxAI redirects to the sidecar's loopback
   `GET /auth/callback`, and the code is exchanged here. Cloud session tokens
   live in the SecretStore under `cloud:auth`.
 - Managed connect: authenticated `POST /v1/oauth/{provider}/start` returns the
@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import os
 import secrets as _secrets
+import threading
 import time
 import urllib.parse
 from typing import Any, Optional
@@ -36,6 +38,7 @@ from .secrets import SecretStore
 
 CLOUD_AUTH_PROFILE = "cloud:auth"
 LOGIN_SCOPES = "openid profile email offline_access"
+DESKTOP_CLIENT_ID = "boxai-desktop"
 
 from . import __version__ as APP_VERSION  # noqa: E402
 
@@ -55,7 +58,9 @@ PROVIDER_FOR_CONNECTOR = {
 # Pending PKCE verifiers keyed by OAuth state; in-process only. A login that
 # outlives the sidecar process simply has to be restarted.
 _pending_logins: dict[str, dict[str, float | str]] = {}
+_pending_connector_states: dict[str, float] = {}
 _PENDING_TTL = 600
+_refresh_lock = threading.Lock()
 
 
 def _b64url(raw: bytes) -> str:
@@ -73,38 +78,38 @@ def begin_login(config: Config) -> dict[str, Any]:
     """Create a PKCE login and return the browser URL. The sidecar's
     GET /auth/callback completes it.
 
-    The redirect goes through the BROKER's stable callback, which bounces the
-    browser to our actual loopback port (carried as state's `.port` suffix —
-    Auth0 echoes state untouched). Direct loopback redirects can't work in the
-    packaged app: Auth0's allow-list rejects unregistered ports, and the
-    desktop shell binds the sidecar to a RANDOM free port. This shipped once
-    as "Firefox can't connect to 127.0.0.1:8765" right after Auth0 finished.
+    BoxAI records the exact random-port loopback redirect in the short-lived
+    authorization request. State is independent random data and never carries
+    routing information.
     """
     verifier = _b64url(_secrets.token_bytes(48))
     challenge = _b64url(hashlib.sha256(verifier.encode()).digest())
     port = os.environ.get("COWORKER_PORT") or config.port
-    state = f"{_secrets.token_urlsafe(16)}.{port}"
+    state = _secrets.token_urlsafe(32)
+    redirect_uri = f"http://127.0.0.1:{port}/auth/callback"
 
     for key, pending in list(_pending_logins.items()):  # expire stale attempts
         if float(pending["created"]) < _now() - _PENDING_TTL:
             _pending_logins.pop(key, None)
-    _pending_logins[state] = {"verifier": verifier, "created": _now()}
-
-    redirect_uri = config.cloud_base_url.rstrip("/") + "/v1/auth/callback"
+    _pending_logins[state] = {
+        "verifier": verifier, "redirect_uri": redirect_uri,
+        "state": state, "created": _now(),
+    }
+    resp = httpx.post(
+        config.boxai_base_url.rstrip("/") + "/api/desktop/authorization-requests",
+        json={"client_id": DESKTOP_CLIENT_ID, "redirect_uri": redirect_uri,
+              "code_challenge": challenge, "code_challenge_method": "S256",
+              "state": state, "client_name": "BoxAI Desktop"}, timeout=15,
+    )
+    resp.raise_for_status()
+    request_id = str(resp.json().get("id") or "")
+    if not request_id or len(request_id) > 256:
+        _pending_logins.pop(state, None)
+        raise ValueError("invalid authorization request response")
     authorize_url = (
-        f"https://{config.cloud_auth_domain}/authorize?"
-        + urllib.parse.urlencode(
-            {
-                "response_type": "code",
-                "client_id": config.cloud_client_id,
-                "redirect_uri": redirect_uri,
-                "scope": LOGIN_SCOPES,
-                "audience": config.cloud_audience,
-                "state": state,
-                "code_challenge": challenge,
-                "code_challenge_method": "S256",
-            }
-        )
+        config.boxai_web_base_url.rstrip("/")
+        + "/desktop/authorize?request="
+        + urllib.parse.quote(request_id, safe="")
     )
     return {"authorize_url": authorize_url, "state": state}
 
@@ -112,22 +117,20 @@ def begin_login(config: Config) -> dict[str, Any]:
 def complete_login(
     secrets: SecretStore, config: Config, code: str, state: str
 ) -> dict[str, Any]:
+    if not code or len(code) > 4096 or not state or len(state) > 256:
+        return {"ok": False, "error": "invalid sign-in callback"}
     pending = _pending_logins.pop(state, None)
     if pending is None or float(pending["created"]) < _now() - _PENDING_TTL:
         return {"ok": False, "error": "unknown or expired sign-in attempt"}
 
     resp = httpx.post(
-        f"https://{config.cloud_auth_domain}/oauth/token",
-        data={
+        config.boxai_base_url.rstrip("/") + "/api/desktop/token",
+        json={
             "grant_type": "authorization_code",
-            "client_id": config.cloud_client_id,
+            "client_id": DESKTOP_CLIENT_ID,
             "code": code,
             "code_verifier": pending["verifier"],
-            # MUST byte-match begin_login's authorize redirect_uri (RFC 6749 §4.1.3) — the
-            # broker bounce, not the loopback. The bounce change (eda23c9) updated only the
-            # authorize leg; the stale loopback here made Auth0 reject every exchange
-            # ("token exchange failed" on all sign-ins from 07-09 to 07-11).
-            "redirect_uri": config.cloud_base_url.rstrip("/") + "/v1/auth/callback",
+            "redirect_uri": pending["redirect_uri"],
         },
         timeout=15,
     )
@@ -135,19 +138,20 @@ def complete_login(
         return {"ok": False, "error": "token exchange failed"}
     _store_cloud_tokens(secrets, resp.json())
 
-    # Best-effort profile fetch so the GUI can show who is signed in.
-    me = fetch_me(secrets, config)
-    if me:
-        profile = secrets.get(CLOUD_AUTH_PROFILE) or {}
-        profile["account"] = me.get("user", {}).get("email") or ""
-        profile["user_id"] = me.get("user", {}).get("user_id") or ""
-        secrets.put(CLOUD_AUTH_PROFILE, profile)
     # Connection restore (sync_connections) deliberately does NOT run here: it is
     # best-effort metadata work, and doing it inline held the browser's "Signed in"
     # page + the GUI's signed-in flip hostage to an extra broker round trip (slow
     # sign-in complaint, 2026-07-16). The /auth/callback route kicks it off in the
     # background after responding.
     return {"ok": True, **status(secrets)}
+
+
+def consume_login_error(state: str) -> bool:
+    """Validate and consume an authorization error callback."""
+    if not state or len(state) > 256:
+        return False
+    pending = _pending_logins.pop(state, None)
+    return pending is not None and float(pending["created"]) >= _now() - _PENDING_TTL
 
 
 def sync_connections(secrets: SecretStore, config: Config) -> dict[str, Any]:
@@ -202,9 +206,19 @@ def sync_connections(secrets: SecretStore, config: Config) -> dict[str, Any]:
 def _store_cloud_tokens(secrets: SecretStore, token: dict) -> None:
     profile = secrets.get(CLOUD_AUTH_PROFILE) or {"type": "oauth", "enabled": True}
     profile["access_token"] = token.get("access_token", "")
+    profile["api_key"] = token.get("api_key", profile.get("api_key", ""))
+    profile["base_url"] = token.get("base_url", profile.get("base_url", ""))
     if token.get("refresh_token"):  # rotating refresh tokens: keep the newest
         profile["refresh_token"] = token["refresh_token"]
     profile["expires"] = _now() + int(token.get("expires_in") or 3600) - 60
+    # JWT claims are display hints only; signature validation remains the server's job.
+    try:
+        payload = str(profile["access_token"]).split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        profile["account"] = str(claims.get("email") or claims.get("preferred_username") or "")[:320]
+        profile["user_id"] = str(claims.get("sub") or "")[:256]
+    except (ValueError, KeyError, json.JSONDecodeError):
+        pass
     secrets.put(CLOUD_AUTH_PROFILE, profile)
 
 
@@ -217,9 +231,22 @@ def status(secrets: SecretStore) -> dict[str, Any]:
     }
 
 
-def logout(secrets: SecretStore) -> dict[str, Any]:
-    secrets.delete(CLOUD_AUTH_PROFILE)
-    return {"ok": True, "signed_in": False}
+def logout(secrets: SecretStore, config: Optional[Config] = None) -> dict[str, Any]:
+    with _refresh_lock:
+        profile = secrets.get(CLOUD_AUTH_PROFILE) or {}
+        if config and profile.get("refresh_token"):
+            try:
+                response = httpx.post(
+                    config.boxai_base_url.rstrip("/") + "/api/desktop/revoke",
+                    json={"refresh_token": profile["refresh_token"], "client_id": DESKTOP_CLIENT_ID},
+                    timeout=10,
+                )
+            except httpx.HTTPError as exc:
+                return {"ok": False, "signed_in": True, "error": f"sign-out failed: {type(exc).__name__}"}
+            if not 200 <= response.status_code < 300:
+                return {"ok": False, "signed_in": True, "error": f"sign-out failed ({response.status_code})"}
+        secrets.delete(CLOUD_AUTH_PROFILE)
+        return {"ok": True, "signed_in": False}
 
 
 def fresh_access_token(secrets: SecretStore, config: Config) -> Optional[str]:
@@ -230,36 +257,36 @@ def fresh_access_token(secrets: SecretStore, config: Config) -> Optional[str]:
         return None
     if float(profile.get("expires") or 0) > _now():
         return profile["access_token"]
-    if not profile.get("refresh_token"):
-        return None
-    resp = httpx.post(
-        f"https://{config.cloud_auth_domain}/oauth/token",
-        data={
-            "grant_type": "refresh_token",
-            "client_id": config.cloud_client_id,
-            "refresh_token": profile["refresh_token"],
-        },
-        timeout=15,
-    )
-    if resp.status_code != 200:
-        return None
-    _store_cloud_tokens(secrets, resp.json())
-    return (secrets.get(CLOUD_AUTH_PROFILE) or {}).get("access_token")
+    with _refresh_lock:
+        # Another request may have completed rotation while this one waited.
+        profile = secrets.get(CLOUD_AUTH_PROFILE) or {}
+        if not profile.get("access_token"):
+            return None
+        if float(profile.get("expires") or 0) > _now():
+            return profile["access_token"]
+        if not profile.get("refresh_token"):
+            return None
+        resp = httpx.post(
+            config.boxai_base_url.rstrip("/") + "/api/desktop/refresh",
+            json={
+                "grant_type": "refresh_token",
+                "client_id": DESKTOP_CLIENT_ID,
+                "refresh_token": profile["refresh_token"],
+            },
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return None
+        _store_cloud_tokens(secrets, resp.json())
+        return (secrets.get(CLOUD_AUTH_PROFILE) or {}).get("access_token")
 
 
 def fetch_me(secrets: SecretStore, config: Config) -> Optional[dict]:
-    token = fresh_access_token(secrets, config)
-    if not token:
+    """Compatibility accessor for callers that still expect a cloud profile response."""
+    profile = secrets.get(CLOUD_AUTH_PROFILE) or {}
+    if not fresh_access_token(secrets, config):
         return None
-    try:
-        resp = httpx.get(
-            config.cloud_base_url.rstrip("/") + "/v1/me",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=15,
-        )
-    except httpx.HTTPError:
-        return None
-    return resp.json() if resp.status_code == 200 else None
+    return {"user": {"email": profile.get("account", ""), "user_id": profile.get("user_id", "")}}
 
 
 # --- telemetry (Phase 5) ---------------------------------------------------------
@@ -361,6 +388,7 @@ def begin_managed_connect(
         return {"ok": False, "error": "not signed in", "signed_in": False}
 
     app_state = _secrets.token_urlsafe(16)
+    _pending_connector_states[app_state] = _now()
     # The broker form-POSTs the tokens back to THIS process's loopback. Use the
     # actually-bound port (published by run.py), falling back to config.port —
     # the packaged app runs the sidecar on a random port, not 8765.
@@ -387,6 +415,12 @@ def begin_managed_connect(
         "authorize_url": resp.json()["authorize_url"],
         "app_state": app_state,
     }
+
+
+def consume_managed_state(state: str) -> bool:
+    """Consume the broker callback state exactly once."""
+    created = _pending_connector_states.pop(state, None)
+    return created is not None and created >= _now() - _PENDING_TTL
 
 
 def managed_profile_from_callback(form: dict[str, str]) -> dict[str, Any]:

@@ -103,6 +103,23 @@ def _build_openai(profile: dict[str, Any], secrets: Any) -> ProviderClient:
     return OpenAIProvider(secrets=secrets, base_url=base_url)
 
 
+def _build_boxai(profile: dict[str, Any], secrets: Any) -> ProviderClient:
+    """Build the sole desktop model client from the authenticated BoxAI session."""
+    from ..config import load_config
+
+    auth = secrets.get("cloud:auth") if secrets is not None else None
+    api_key = str((auth or {}).get("api_key") or "").strip()
+    base_url = str((auth or {}).get("base_url") or "").strip().rstrip("/")
+    if not (auth or {}).get("access_token") or not api_key or not base_url:
+        raise RuntimeError("Sign in to BoxAI before using a model.")
+    expected_base_url = load_config().boxai_base_url.rstrip("/") + "/v1"
+    if base_url != expected_base_url:
+        raise RuntimeError("The BoxAI model endpoint is invalid; sign in again.")
+    # Pass both values explicitly. OpenAIProvider therefore cannot consult environment
+    # variables or any legacy provider:* SecretStore profile.
+    return OpenAIProvider(api_key=api_key, base_url=base_url)
+
+
 def _build_anthropic(profile: dict[str, Any], secrets: Any) -> ProviderClient:
     # Key resolution stays in AnthropicProvider/resolve_api_key (explicit → env → SecretStore),
     # deferred to first call so the provider can be built before a key exists.
@@ -346,6 +363,19 @@ DESCRIPTORS: list[ProviderDescriptor] = [
     ),
 ]
 
+# Desktop model access is account-bound. Keep the provider implementations above available for
+# non-production tests and source compatibility, but expose and activate only BoxAI.
+DESCRIPTORS = [
+    ProviderDescriptor(
+        name="boxai",
+        title="BoxAI",
+        needs_key=True,
+        fields=[],
+        build=_build_boxai,
+        blurb="Models available to your signed-in BoxAI account.",
+    )
+]
+
 _BY_NAME = {d.name: d for d in DESCRIPTORS}
 
 
@@ -364,8 +394,10 @@ def get_descriptor(name: str) -> Optional[ProviderDescriptor]:
 def build_provider_client(
     name: str, profile: dict[str, Any], secrets: Any
 ) -> ProviderClient:
-    """Build a `ProviderClient` for `name` from its stored profile. Unknown → OpenAI default."""
-    descriptor = _BY_NAME.get(name) or _BY_NAME["openai"]
+    """Build the BoxAI client. Unknown provider names are never allowed to fall back."""
+    descriptor = _BY_NAME.get(name)
+    if descriptor is None:
+        raise RuntimeError(f"Unsupported model provider: {name}. Sign in to BoxAI.")
     return descriptor.build(profile or {}, secrets)
 
 

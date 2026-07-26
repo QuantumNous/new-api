@@ -30,7 +30,7 @@ test("Add workspace opens the modal; signed out shows the sign-in hint, signed i
   await openSlackPage(page);
   await page.getByTestId("add-workspace-btn").click();
   const modal = page.getByTestId("add-connection-modal");
-  await expect(modal).toContainText("Sign in to OpenWorker Cloud"); // signed out
+  await expect(modal).toContainText("Sign in to BoxAI"); // signed out
   // Manual pane is right there too — both modes, one entry point
   await modal.getByTestId("modal-pane-manual").click();
   await expect(modal.getByPlaceholder("Bot token · xoxb-…")).toBeVisible();

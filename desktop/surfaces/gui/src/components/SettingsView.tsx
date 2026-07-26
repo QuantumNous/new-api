@@ -260,7 +260,7 @@ function VoiceInputSection() {
       />
 
       {!desktop ? (
-        <div className={CARD + " p-4 text-[13px] text-muted"}>Voice Input setup is available in the OpenWorker desktop app.</div>
+        <div className={CARD + " p-4 text-[13px] text-muted"}>Voice Input setup is available in BoxAI Desktop.</div>
       ) : (
         <div className="space-y-4">
           <div className="rounded-xl border border-green-200 bg-green-50/70 px-4 py-3 text-[12.5px] text-green-800">
@@ -368,7 +368,7 @@ function PersonasSection({ onOpenPersona }: { onOpenPersona?: (id: string) => vo
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-medium">Browse the Persona Gallery</span>
           <span className="block text-[12px] text-muted">
-            Curated coworkers from the OpenWorker team — see what each can do before installing.
+            Curated coworkers from the BoxAI team — see what each can do before installing.
           </span>
         </span>
         <span className="text-[12.5px] text-accent shrink-0">Open →</span>
@@ -406,7 +406,7 @@ function AppearanceSection() {
 
   return (
     <section>
-      <PanelHead title="General" sub="How OpenWorker looks and behaves on this machine." />
+      <PanelHead title="General" sub="How BoxAI Desktop looks and behaves on this machine." />
 
       <div className={CARD + " p-4 mb-4"}>
         <div className={FIELD_LABEL}>Theme</div>
@@ -431,7 +431,7 @@ function AppearanceSection() {
             <input type="checkbox" className="mt-0.5" checked={autostart} onChange={(e) => toggleAuto(e.target.checked)} />
             <span>
               <span className="block text-[13px] text-ink">Open at login</span>
-              <span className="block text-[12px] text-muted">Launch OpenWorker automatically when you sign in.</span>
+              <span className="block text-[12px] text-muted">Launch BoxAI Desktop automatically when you sign in.</span>
             </span>
           </label>
           <label className="flex items-start gap-3 py-2">
@@ -511,7 +511,7 @@ function UpdateInline() {
             ? "You're on the latest version."
             : state === "error"
               ? "Couldn't check right now — try again later."
-              : "Downloading — OpenWorker restarts by itself when it's ready."}
+              : "Downloading — BoxAI Desktop restarts by itself when it's ready."}
         </span>
       )}
     </span>

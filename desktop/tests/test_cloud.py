@@ -1,6 +1,6 @@
-"""OpenWorker Cloud integration: sign-in, managed connect callback, refresh.
+"""BoxAI account integration: sign-in, managed connect callback, refresh.
 
-Everything is offline: Auth0 and the cloud broker are stubbed at the httpx
+Everything is offline: BoxAI and the connector broker are stubbed at the httpx
 boundary. The invariants under test are the product promises — manual paste
 works signed out, managed profiles are field-compatible with manual ones, and
 manual profiles are never touched by cloud refresh.
@@ -9,7 +9,8 @@ manual profiles are never touched by cloud refresh.
 from __future__ import annotations
 
 import time
-import urllib.parse
+import base64
+import json
 
 import pytest
 
@@ -32,9 +33,9 @@ def secrets(tmp_path, monkeypatch):
 @pytest.fixture
 def config():
     return Config(
+        boxai_base_url="https://box.test",
+        boxai_web_base_url="https://web.box.test",
         cloud_base_url="https://cloud.test",
-        cloud_auth_domain="tenant.auth0.test",
-        cloud_client_id="client123",
         port=8765,
     )
 
@@ -47,65 +48,89 @@ class FakeResponse:
     def json(self):
         return self._body
 
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
+
 
 # --- sign-in -------------------------------------------------------------------
 
 
-def test_begin_login_builds_pkce_authorize_url(config, monkeypatch):
+def test_begin_login_registers_pkce_and_returns_browser_url(config, monkeypatch):
     monkeypatch.delenv("COWORKER_PORT", raising=False)
+    seen = {}
+
+    def fake_post(url, **kwargs):
+        seen["url"] = url
+        seen["body"] = kwargs["json"]
+        return FakeResponse(201, {"id": "request_1"})
+
+    monkeypatch.setattr(cloud.httpx, "post", fake_post)
     out = cloud.begin_login(config)
-    url = out["authorize_url"]
-    assert url.startswith("https://tenant.auth0.test/authorize?")
-    assert "code_challenge_method=S256" in url
-    assert "client_id=client123" in url
-    # The redirect is the BROKER's stable callback (Auth0 rejects unregistered
-    # loopback ports, and the packaged sidecar binds a random one) …
-    assert "cloud.test%2Fv1%2Fauth%2Fcallback" in url
-    assert out["state"] in url
-    # … and state carries the actual loopback port for the bounce back.
-    assert out["state"].endswith(".8765")
+    assert out["authorize_url"] == "https://web.box.test/desktop/authorize?request=request_1"
+    assert seen["url"] == "https://box.test/api/desktop/authorization-requests"
+    assert seen["body"]["client_id"] == "boxai-desktop"
+    assert seen["body"]["code_challenge_method"] == "S256"
+    assert seen["body"]["state"] == out["state"]
+    assert seen["body"]["redirect_uri"] == "http://127.0.0.1:8765/auth/callback"
+    assert not out["state"].endswith(".8765")
 
 
-def test_begin_login_state_carries_the_actually_bound_port(config, monkeypatch):
+def test_begin_login_redirect_uses_the_actually_bound_port(config, monkeypatch):
     monkeypatch.setenv("COWORKER_PORT", "52341")
+    seen = {}
+    monkeypatch.setattr(
+        cloud.httpx,
+        "post",
+        lambda url, **kwargs: (
+            seen.update(kwargs["json"]),
+            FakeResponse(201, {"id": "request_2"}),
+        )[1],
+    )
     out = cloud.begin_login(config)
-    assert out["state"].endswith(".52341")
+    assert seen["redirect_uri"] == "http://127.0.0.1:52341/auth/callback"
+    assert out["state"] == seen["state"]
 
 
 def test_complete_login_stores_tokens_and_account(secrets, config, monkeypatch):
+    header = base64.urlsafe_b64encode(b'{"alg":"none"}').decode().rstrip("=")
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"sub": "usr_1", "email": "a@b.c"}).encode()
+    ).decode().rstrip("=")
+    access_token = f"{header}.{payload}.signature"
+
+    def begin_post(url, **kwargs):
+        return FakeResponse(201, {"id": "request_3"})
+
+    monkeypatch.setattr(cloud.httpx, "post", begin_post)
     begun = cloud.begin_login(config)
     state = begun["state"]
-    # The redirect_uri the authorize leg advertised — the exchange MUST send the same one
-    # byte-for-byte (RFC 6749 §4.1.3). The 07-09 broker-bounce change updated only the
-    # authorize leg and every real sign-in failed at the exchange; this pin would have
-    # caught it.
-    authorize_redirect = urllib.parse.parse_qs(
-        urllib.parse.urlsplit(begun["authorize_url"]).query
-    )["redirect_uri"][0]
 
     def fake_post(url, **kwargs):
-        assert url == "https://tenant.auth0.test/oauth/token"
-        assert kwargs["data"]["code_verifier"]
-        assert kwargs["data"]["redirect_uri"] == authorize_redirect
+        assert url == "https://box.test/api/desktop/token"
+        assert kwargs["json"]["code_verifier"]
+        assert kwargs["json"]["redirect_uri"] == "http://127.0.0.1:8765/auth/callback"
         return FakeResponse(
-            200, {"access_token": "at1", "refresh_token": "rt1", "expires_in": 3600}
+            200,
+            {
+                "access_token": access_token,
+                "refresh_token": "rt1",
+                "api_key": "sk-relay",
+                "base_url": "https://box.test/v1",
+                "expires_in": 3600,
+            },
         )
 
-    def fake_get(url, **kwargs):
-        # Connection restore is NOT part of complete_login (it runs in the
-        # background from the /auth/callback route) — only /v1/me is hit here.
-        assert url == "https://cloud.test/v1/me"
-        return FakeResponse(200, {"user": {"email": "a@b.c", "user_id": "usr_1"}})
-
     monkeypatch.setattr(cloud.httpx, "post", fake_post)
-    monkeypatch.setattr(cloud.httpx, "get", fake_get)
 
     result = cloud.complete_login(secrets, config, "code1", state)
     assert result["ok"] and result["signed_in"]
     assert result["account"] == "a@b.c"
     profile = secrets.get(cloud.CLOUD_AUTH_PROFILE)
-    assert profile["access_token"] == "at1"
+    assert profile["access_token"] == access_token
     assert profile["refresh_token"] == "rt1"
+    assert profile["api_key"] == "sk-relay"
+    assert profile["base_url"] == "https://box.test/v1"
 
 
 def test_complete_login_rejects_unknown_state(secrets, config):
@@ -214,6 +239,39 @@ def test_logout_clears_session(secrets, config):
     secrets.put(cloud.CLOUD_AUTH_PROFILE, {"access_token": "x"})
     cloud.logout(secrets)
     assert cloud.status(secrets) == {"signed_in": False, "account": "", "user_id": ""}
+
+
+def test_logout_preserves_session_when_server_revocation_fails(secrets, config, monkeypatch):
+    secrets.put(
+        cloud.CLOUD_AUTH_PROFILE,
+        {"access_token": "at", "refresh_token": "rt", "account": "a@b.c"},
+    )
+    monkeypatch.setattr(cloud.httpx, "post", lambda *args, **kwargs: FakeResponse(503))
+
+    result = cloud.logout(secrets, config)
+
+    assert result["ok"] is False and result["signed_in"] is True
+    assert secrets.get(cloud.CLOUD_AUTH_PROFILE)["refresh_token"] == "rt"
+
+
+def test_logout_revokes_boxai_session_before_clearing(secrets, config, monkeypatch):
+    secrets.put(cloud.CLOUD_AUTH_PROFILE, {"access_token": "at", "refresh_token": "rt"})
+    seen = {}
+
+    def fake_post(url, **kwargs):
+        seen["url"] = url
+        seen["body"] = kwargs["json"]
+        return FakeResponse(204)
+
+    monkeypatch.setattr(cloud.httpx, "post", fake_post)
+    result = cloud.logout(secrets, config)
+
+    assert result["ok"] is True
+    assert seen == {
+        "url": "https://box.test/api/desktop/revoke",
+        "body": {"refresh_token": "rt", "client_id": "boxai-desktop"},
+    }
+    assert secrets.get(cloud.CLOUD_AUTH_PROFILE) is None
 
 
 # --- managed connect -------------------------------------------------------------

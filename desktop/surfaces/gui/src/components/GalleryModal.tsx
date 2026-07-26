@@ -144,7 +144,7 @@ export function GalleryModal({
         {(
           [
             ["all", "All"],
-            ["openworker", "From OpenWorker"],
+            ["openworker", "From BoxAI"],
             ["team", "From your team"],
           ] as [Source, string][]
         ).map(([key, label]) => (
@@ -411,7 +411,7 @@ export function GalleryModal({
               <div className="min-w-0 flex-1">
                 <div className="font-semibold text-[14px] mb-1">Sign in to browse the Gallery</div>
                 <div className="text-[12.5px] text-muted leading-relaxed">
-                  The Gallery is a curated set of coworkers from OpenWorker Cloud and needs a
+                  The Gallery is a curated set of coworkers from BoxAI and needs a
                   (free) cloud sign-in. Installing personas from a folder or Git URL — on the
                   Personas page — always works without an account.
                 </div>

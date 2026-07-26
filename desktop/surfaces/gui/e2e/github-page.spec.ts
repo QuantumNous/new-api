@@ -42,7 +42,7 @@ test("add installation opens the modal; signed in installs a second org", async 
   await page.getByTestId("add-installation-btn").click();
   const modal = page.getByTestId("add-connection-modal");
   await expect(modal).toContainText("@ocw-agent App"); // one-click pane
-  await expect(modal).toContainText("Sign in to OpenWorker Cloud"); // signed out
+  await expect(modal).toContainText("Sign in to BoxAI"); // signed out
   // Manual PAT pane is right there too — both modes, one entry point
   await modal.getByTestId("modal-pane-manual").click();
   await expect(modal).toContainText("Personal access token");

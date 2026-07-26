@@ -253,7 +253,7 @@ function ProgressSummary({ running, toolNames, todo }: { running: boolean; toolN
   }
   return (
     <div className="rail-muted">
-      For longer multi-step tasks, progress will appear here while OpenWorker plans, uses tools, waits for approval, and produces artifacts.
+      For longer multi-step tasks, progress will appear here while BoxAI Desktop plans, uses tools, waits for approval, and produces artifacts.
     </div>
   );
 }

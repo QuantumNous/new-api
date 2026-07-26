@@ -41,7 +41,7 @@ def client(tmp_path, monkeypatch):
         yield c
 
 
-def _install_form(installation_id: str, *, login="octocat", account="acme") -> dict:
+def _install_form(installation_id: str, *, login="octocat", account="acme", app_state="") -> dict:
     """The broker's loopback POST — deliberately NO token fields (§4)."""
     return {
         "connector": "github",
@@ -51,6 +51,7 @@ def _install_form(installation_id: str, *, login="octocat", account="acme") -> d
         "github_login": login,
         "repo_selection": "selected",
         "connection_id": f"conn_{installation_id}",
+        "app_state": app_state,
     }
 
 
@@ -67,7 +68,7 @@ def _no_cloud(monkeypatch):
 # --- install callback → profiles (mirror of the Slack workspace tests) --------
 
 
-def test_managed_callback_installs_and_hot_reloads(client, monkeypatch):
+def test_managed_callback_installs_and_hot_reloads(client, monkeypatch, managed_connector_state):
     refreshes = []
 
     async def _refresh():
@@ -75,7 +76,7 @@ def test_managed_callback_installs_and_hot_reloads(client, monkeypatch):
         return []
 
     monkeypatch.setattr(client.manager, "refresh_gateway", _refresh)
-    resp = client.post("/oauth/callback", data=_install_form("101"))
+    resp = client.post("/oauth/callback", data=_install_form("101", app_state=managed_connector_state(client.manager.secrets, "github")))
     assert resp.status_code == 200 and "GitHub connected" in resp.text
 
     profile = client.manager.secrets.get("github:install:101")
@@ -98,15 +99,15 @@ def test_managed_callback_installs_and_hot_reloads(client, monkeypatch):
     assert gh["installations"][0]["account_login"] == "acme"
 
     # a second installation lands alongside, not instead
-    client.post("/oauth/callback", data=_install_form("202", account="hooli"))
+    client.post("/oauth/callback", data=_install_form("202", account="hooli", app_state=managed_connector_state(client.manager.secrets, "github")))
     assert client.manager.secrets.get("github:install:101") is not None
     assert client.manager.secrets.get("github:install:202") is not None
 
 
-def test_disconnect_one_installation_keeps_the_other(client, monkeypatch):
+def test_disconnect_one_installation_keeps_the_other(client, monkeypatch, managed_connector_state):
     cloud_calls = _no_cloud(monkeypatch)
     for iid in ("101", "202"):
-        client.post("/oauth/callback", data=_install_form(iid))
+        client.post("/oauth/callback", data=_install_form(iid, app_state=managed_connector_state(client.manager.secrets, "github")))
 
     body = client.post("/v1/connectors/github/installations/101/disconnect").json()
     assert body["ok"] is True and body["remaining_installs"] == 1
@@ -118,14 +119,14 @@ def test_disconnect_one_installation_keeps_the_other(client, monkeypatch):
     assert [i["installation_id"] for i in gh["installations"]] == ["202"]
 
 
-def test_disconnect_last_installation_never_resurrects_manual_pat(client, monkeypatch):
+def test_disconnect_last_installation_never_resurrects_manual_pat(client, monkeypatch, managed_connector_state):
     _no_cloud(monkeypatch)
     # A manual PAT stored BEFORE the managed install must stay stored but the
     # relay must not survive the last installation's removal.
     client.manager.secrets.put(
         "github:default", {"type": "token", "token": "ghp_manual", "enabled": True}
     )
-    client.post("/oauth/callback", data=_install_form("101"))
+    client.post("/oauth/callback", data=_install_form("101", app_state=managed_connector_state(client.manager.secrets, "github")))
     body = client.post("/v1/connectors/github/installations/101/disconnect").json()
     assert body["ok"] is True and body["remaining_installs"] == 0
 

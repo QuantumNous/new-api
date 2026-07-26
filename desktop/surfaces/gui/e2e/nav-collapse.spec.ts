@@ -20,9 +20,12 @@ test("collapse hides the sidebar and reclaims the width; reveal button docks it 
   await expect(app).not.toHaveClass(/nav-collapsed/);
 });
 
-test("⌘B toggles the sidebar collapse", async ({ page }) => {
+test("desktop sidebar shortcut toggles the sidebar collapse", async ({ page }) => {
   await page.goto("/");
   const app = page.locator(".app");
+  // Wait for the application (and its shortcut listener), rather than sending the key to
+  // the transient boot splash. Meta+B does reach the page under Playwright on Linux.
+  await expect(page.locator(".sidebar")).toBeVisible();
   await page.keyboard.press("Meta+b");
   await expect(app).toHaveClass(/nav-collapsed/);
   await page.keyboard.press("Meta+b");

@@ -1002,7 +1002,7 @@ export function Sidebar(props: Props) {
             <Icon name="sidebar" size={16} />
           </button>
         )}
-        <div className="brand-wordmark text-[15px]">OpenWorker<span className="beta-tag">BETA</span></div>
+        <div className="brand-wordmark text-[15px]">BoxAI Desktop<span className="beta-tag">BETA</span></div>
       </div>
 
       {/* New session: split button — primary starts the last-used persona; ▾ picks a specific one. */}
@@ -1139,14 +1139,14 @@ export function Sidebar(props: Props) {
                 {cloud?.signed_in ? (
                   <div
                     className="px-3 py-1.5 mb-1 text-[11px] text-faint truncate border-b border-line"
-                    title={`${accountEmail} · OpenWorker Cloud`}
+                    title={`${accountEmail} · BoxAI`}
                   >
-                    {accountEmail} · OpenWorker Cloud
+                    {accountEmail} · BoxAI
                   </div>
                 ) : (
                   <>
                     <div className="px-3 py-1.5 text-[11px] text-faint border-b border-line">
-                      Not signed in — one-click connections need OpenWorker Cloud
+                      Not signed in — one-click connections need BoxAI
                     </div>
                     <button
                       className="w-full flex items-center gap-2.5 px-3 py-1.5 mb-1 text-[13px] text-left text-accent hover:bg-paper"
@@ -1164,7 +1164,7 @@ export function Sidebar(props: Props) {
                         });
                       }}
                     >
-                      <Icon name="plug" size={15} className="shrink-0" /> Sign in to OpenWorker
+                      <Icon name="plug" size={15} className="shrink-0" /> Sign in to BoxAI
                       Cloud
                     </button>
                   </>
@@ -1231,7 +1231,7 @@ export function Sidebar(props: Props) {
             {cloud?.signed_in && (
               <span
                 className="w-[7px] h-[7px] rounded-full bg-ok shrink-0"
-                title="Signed in to OpenWorker Cloud"
+                title="Signed in to BoxAI"
                 aria-hidden
               />
             )}

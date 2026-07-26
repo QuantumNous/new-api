@@ -23,7 +23,7 @@ test("Settings opens as a full page and navigates sections", async ({ page }) =>
   await expect(page.getByText("Each conversation gets its own folder")).toBeVisible();
 
   await page.getByRole("button", { name: "Models", exact: true }).click();
-  await expect(page.getByTestId("set-provider-openai")).toBeVisible();
+  await expect(page.getByTestId("boxai-model-access")).toBeVisible();
 });
 
 // The launch flag brings the Personas tab back (the gallery/persona suites rely on it).
@@ -36,56 +36,27 @@ test("Settings: Personas tab returns behind the launch flag", async ({ page }) =
   await expect(page.getByText("Add personas")).toBeVisible();
 });
 
-// UX-021: Settings ▸ Models is the shared provider gallery (§39 components). Cards wear
-// their own state (✓ Connected · used …); a vendor card opens the shared key form with the
-// prefilled endpoint behind the disclosure; unconfigured providers preview their models.
-test("Models: provider gallery states; vendor form previews models", async ({ page }) => {
+test("Models: BoxAI account is the only model access provider", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("account-row").click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Models", exact: true }).click();
 
-  // Card states from the fixtures: openai configured+used, anthropic configured, zai not.
-  await expect(page.getByTestId("set-provider-openai")).toContainText("✓ Connected · used 2h ago");
-  await expect(page.getByTestId("set-provider-anthropic")).toContainText("✓ Connected");
-  await expect(page.getByTestId("set-provider-zai")).toContainText("Not set up");
-  await expect(page.getByTestId("set-provider-ollama")).toContainText("No key needed");
-
-  // The composer-picker card lists the curated models with provider tags.
-  const picker = page.getByTestId("composer-picker");
-  await expect(picker).toContainText("In the composer's picker");
-
-  // Vendor form: blurb renders; the prefilled endpoint hides behind the disclosure.
-  await page.getByTestId("set-provider-zai").click();
-  await expect(page.getByText(/Uses Z AI's OpenAI-compatible API/)).toBeVisible();
-  await page.getByTestId("set-endpoint-link").click();
-  await expect(page.getByTestId("set-field-base_url")).toHaveValue("https://api.z.ai/api/paas/v4");
-
-  // Unconfigured providers still preview their curated models (read-only, matrix labels).
-  const preview = page.getByTestId("model-preview");
-  await expect(preview).toContainText("Included models");
-  await expect(preview).toContainText("GLM-5.2 · Z AI");
-
-  // Back to the gallery via the crumb.
-  await page.getByTestId("set-back").click();
-  await expect(page.getByTestId("set-provider-openai")).toBeVisible();
+  const access = page.getByTestId("boxai-model-access");
+  await expect(access).toContainText("BoxAI");
+  await expect(access).toContainText("Sign in to access your account models");
+  await expect(page.locator('[data-testid^="set-provider-"]')).toHaveCount(0);
+  await expect(page.getByLabel(/API key|endpoint/i)).toHaveCount(0);
 });
 
-// UX-021: a configured provider's form shows the in-field saved state and the Remove key…
-// affordance; removing reverts the card to "Not set up".
-test("Models: Remove key reverts a configured provider", async ({ page }) => {
+test("Models: sign-in launches the BoxAI browser flow", async ({ page }) => {
   await page.goto("/");
-  page.on("dialog", (d) => d.accept());
   await page.getByTestId("account-row").click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Models", exact: true }).click();
 
-  await page.getByTestId("set-provider-anthropic").click();
-  await expect(page.getByTestId("set-saved-pill")).toContainText("Tested & saved");
-  await page.getByTestId("set-remove-key").click();
-
-  // Back on the gallery, the card has forgotten its key.
-  await expect(page.getByTestId("set-provider-anthropic")).toContainText("Not set up");
+  await page.getByTestId("boxai-model-access").getByRole("button", { name: /Sign in/ }).click();
+  await expect(page.getByTestId("inline-cloud-sign-in")).toHaveText("Check your browser…");
 });
 
 // Token savings (owner ask 2026-07-17; moved under Models by UX-021): the card renders with

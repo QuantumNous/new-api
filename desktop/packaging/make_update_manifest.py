@@ -18,7 +18,8 @@ or a half-published release would mix versions. Platforms whose artifact or .sig
 missing are SKIPPED with a warning (e.g. a mac-only hotfix release), so shipped apps
 on other platforms simply see no update rather than a broken one.
 
-The desktop app finds this file through https://download.openworker.com/latest.json
+Once a BoxAI updater signing key is provisioned, the desktop app will find this file through
+https://github.com/dev-fan-sophon/boxai/releases/latest/download/latest.json.
 (branded redirect) falling back to the repo's releases/latest/download/latest.json —
 see tauri.conf.json `plugins.updater.endpoints`.
 """
