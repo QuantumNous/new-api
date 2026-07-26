@@ -105,6 +105,12 @@ const defaultBillingSettings: BillingSettings = {
   'checkin_setting.enabled': false,
   'checkin_setting.min_quota': 1000,
   'checkin_setting.max_quota': 10000,
+  'affiliate_setting.enabled': false,
+  'affiliate_setting.currency': 'USD',
+  'affiliate_setting.reward_micros': 5_000_000,
+  'affiliate_setting.minimum_topup_micros': 10_000_000,
+  'affiliate_setting.hold_seconds': 604_800,
+  'affiliate_setting.minimum_withdrawal_micros': 20_000_000,
 }
 
 export function BillingSettings() {

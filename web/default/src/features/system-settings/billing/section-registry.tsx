@@ -25,6 +25,7 @@ import { PaymentSettingsSection } from '../integrations/payment-settings-section
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { AffiliateSettingsSection } from './affiliate-settings-section'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
@@ -183,6 +184,23 @@ const BILLING_SECTIONS = [
             settings['payment_setting.compliance_terms_version'] ?? '',
           confirmedAt: settings['payment_setting.compliance_confirmed_at'] ?? 0,
           confirmedBy: settings['payment_setting.compliance_confirmed_by'] ?? 0,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'affiliate',
+    titleKey: 'Referral Cashback',
+    build: (settings: BillingSettings) => (
+      <AffiliateSettingsSection
+        defaultValues={{
+          enabled: settings['affiliate_setting.enabled'],
+          rewardMicros: settings['affiliate_setting.reward_micros'],
+          minimumTopUpMicros:
+            settings['affiliate_setting.minimum_topup_micros'],
+          holdSeconds: settings['affiliate_setting.hold_seconds'],
+          minimumWithdrawalMicros:
+            settings['affiliate_setting.minimum_withdrawal_micros'],
         }}
       />
     ),

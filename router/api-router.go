@@ -147,6 +147,28 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		affiliateRoute := apiRouter.Group("/affiliate")
+		affiliateRoute.Use(middleware.UserAuth())
+		{
+			affiliateRoute.GET("/summary", controller.GetAffiliateSummary)
+			affiliateRoute.GET("/referrals", controller.GetAffiliateReferrals)
+			affiliateRoute.GET("/commissions", controller.GetAffiliateCommissions)
+			affiliateRoute.GET("/withdrawals", controller.GetAffiliateWithdrawals)
+			affiliateRoute.POST("/withdrawals", middleware.CriticalRateLimit(), controller.CreateAffiliateWithdrawal)
+			affiliateRoute.POST("/withdrawals/:id/cancel", middleware.CriticalRateLimit(), controller.CancelAffiliateWithdrawal)
+			affiliateRoute.GET("/statements", controller.GetAffiliateStatements)
+			affiliateRoute.GET("/statements/:id", controller.GetAffiliateStatement)
+		}
+
+		affiliateAdminRoute := apiRouter.Group("/affiliate/admin")
+		affiliateAdminRoute.Use(middleware.AdminAuth())
+		{
+			affiliateAdminRoute.GET("/withdrawals", controller.AdminGetAffiliateWithdrawals)
+			affiliateAdminRoute.POST("/withdrawals/:id/approve", middleware.CriticalRateLimit(), controller.AdminApproveAffiliateWithdrawal)
+			affiliateAdminRoute.POST("/withdrawals/:id/reject", middleware.CriticalRateLimit(), controller.AdminRejectAffiliateWithdrawal)
+			affiliateAdminRoute.POST("/withdrawals/:id/paid", middleware.CriticalRateLimit(), controller.AdminMarkAffiliateWithdrawalPaid)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())

@@ -56,6 +56,16 @@ func TestMain(m *testing.M) {
 		&SystemTaskLock{},
 		&ChannelMonitor{},
 		&ChannelMonitorHistory{},
+		&AffiliateCampaign{},
+		&AffiliateCode{},
+		&ReferralRelation{},
+		&AffiliateCommission{},
+		&AffiliateAccount{},
+		&AffiliateLedger{},
+		&WithdrawalRequest{},
+		&SettlementPeriod{},
+		&AffiliateStatement{},
+		&AffiliateStatementItem{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -87,6 +97,16 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM system_tasks")
 		DB.Exec("DELETE FROM channel_monitor_histories")
 		DB.Exec("DELETE FROM channel_monitors")
+		DB.Exec("DELETE FROM affiliate_statement_items")
+		DB.Exec("DELETE FROM affiliate_statements")
+		DB.Exec("DELETE FROM settlement_periods")
+		DB.Exec("DELETE FROM withdrawal_requests")
+		DB.Exec("DELETE FROM affiliate_ledgers")
+		DB.Exec("DELETE FROM affiliate_accounts")
+		DB.Exec("DELETE FROM affiliate_commissions")
+		DB.Exec("DELETE FROM referral_relations")
+		DB.Exec("DELETE FROM affiliate_codes")
+		DB.Exec("DELETE FROM affiliate_campaigns")
 	})
 }
 

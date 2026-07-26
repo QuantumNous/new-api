@@ -31,6 +31,10 @@ import type {
   StripePaymentResponse,
   AffiliateCodeResponse,
   AffiliateTransferResponse,
+  AffiliateSummaryResponse,
+  AffiliateWithdrawalsResponse,
+  AffiliateStatementsResponse,
+  AffiliateWithdrawal,
   BillingHistoryResponse,
   CompleteOrderRequest,
   CreemPaymentRequest,
@@ -174,6 +178,44 @@ export async function requestWaffoPancakePayment(
  */
 export async function getAffiliateCode(): Promise<AffiliateCodeResponse> {
   const res = await api.get('/api/user/aff')
+  return res.data
+}
+
+export async function getAffiliateSummary(): Promise<AffiliateSummaryResponse> {
+  const res = await api.get('/api/affiliate/summary')
+  return res.data
+}
+
+export async function getAffiliateWithdrawals(): Promise<AffiliateWithdrawalsResponse> {
+  const res = await api.get('/api/affiliate/withdrawals', {
+    params: { p: 1, page_size: 50 },
+  })
+  return res.data
+}
+
+export async function getAffiliateStatements(): Promise<AffiliateStatementsResponse> {
+  const res = await api.get('/api/affiliate/statements', {
+    params: { p: 1, page_size: 24 },
+  })
+  return res.data
+}
+
+export async function createAffiliateWithdrawal(request: {
+  amount_micros: number
+  payout_method: string
+  payout_account: string
+  request_key: string
+}): Promise<ApiResponse<AffiliateWithdrawal>> {
+  const res = await api.post('/api/affiliate/withdrawals', request)
+  return res.data
+}
+
+export async function cancelAffiliateWithdrawal(
+  withdrawalId: number
+): Promise<ApiResponse<AffiliateWithdrawal>> {
+  const res = await api.post(
+    `/api/affiliate/withdrawals/${withdrawalId}/cancel`
+  )
   return res.data
 }
 
