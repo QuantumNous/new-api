@@ -1,6 +1,7 @@
 package oaichat
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
@@ -202,6 +203,141 @@ func TestStreamResponseOpenAI2ClaudeClosesTextThinkingAndToolBlocks(t *testing.T
 	assert.Equal(t, 7, finishResponses[1].Usage.BillingUsage.OpenAIUsage.PromptTokens)
 	assert.Equal(t, 3, finishResponses[1].Usage.BillingUsage.OpenAIUsage.CompletionTokens)
 	assert.Equal(t, "message_stop", finishResponses[2].Type)
+}
+
+func TestStreamResponseOpenAI2Claude_FinishReasonBeforeUsageStillEmitsToolArgs(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{
+			LastMessagesType: relaycommon.LastMessageTypeNone,
+		},
+	}
+	info.SendResponseCount = 1
+
+	first := &dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl-test",
+		Model: "glm-5.2",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+				ToolCalls: []dto.ToolCallResponse{{
+					Index: ptr(0),
+					ID:    "call_1",
+					Type:  "function",
+					Function: dto.FunctionResponse{
+						Name:      "Bash",
+						Arguments: `{"command": "ls"`,
+					},
+				}},
+			},
+		}},
+	}
+	responses := StreamResponseOpenAI2Claude(first, info)
+	require.NotEmpty(t, responses)
+
+	info.SendResponseCount = 2
+	finishReason := "tool_calls"
+	finishChunk := &dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+				ToolCalls: []dto.ToolCallResponse{{
+					Index: ptr(0),
+					Function: dto.FunctionResponse{
+						Arguments: `, "description": "done"}`,
+					},
+				}},
+			},
+			FinishReason: &finishReason,
+		}},
+	}
+	responses = StreamResponseOpenAI2Claude(finishChunk, info)
+	require.False(t, info.ClaudeConvertInfo.Done)
+
+	var partial string
+	for _, resp := range responses {
+		if resp.Type == "content_block_delta" && resp.Delta != nil && resp.Delta.Type == "input_json_delta" && resp.Delta.PartialJson != nil {
+			partial += *resp.Delta.PartialJson
+		}
+	}
+	require.Equal(t, `, "description": "done"}`, partial)
+
+	info.SendResponseCount = 3
+	usageChunk := &dto.ChatCompletionsStreamResponse{
+		Usage: &dto.Usage{
+			PromptTokens:     10,
+			CompletionTokens: 5,
+			TotalTokens:      15,
+		},
+	}
+	responses = StreamResponseOpenAI2Claude(usageChunk, info)
+	require.True(t, info.ClaudeConvertInfo.Done)
+	require.NotEmpty(t, responses)
+	last := responses[len(responses)-1]
+	require.Equal(t, "message_stop", last.Type)
+}
+
+func TestStreamResponseOpenAI2Claude_AccumulatedToolArgsAreValidJSON(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{
+			LastMessagesType: relaycommon.LastMessageTypeNone,
+		},
+	}
+	chunks := []*dto.ChatCompletionsStreamResponse{
+		{
+			Id:    "chatcmpl-test",
+			Model: "glm-5.2",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(0),
+						ID:    "call_1",
+						Type:  "function",
+						Function: dto.FunctionResponse{
+							Name:      "Bash",
+							Arguments: `{"command": "ls -la /root 2>/dev/null | head -20"`,
+						},
+					}},
+				},
+			}},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(0),
+						Function: dto.FunctionResponse{
+							Arguments: `, "description": "列出 /root 目录下的文件（前20行）"}`,
+						},
+					}},
+				},
+			}},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				FinishReason: ptr("tool_calls"),
+			}},
+		},
+		{
+			Usage: &dto.Usage{
+				PromptTokens:     10,
+				CompletionTokens: 5,
+				TotalTokens:      15,
+			},
+		},
+	}
+
+	var accumulated string
+	for i, chunk := range chunks {
+		info.SendResponseCount = i + 1
+		responses := StreamResponseOpenAI2Claude(chunk, info)
+		for _, resp := range responses {
+			if resp.Type == "content_block_delta" && resp.Delta != nil && resp.Delta.Type == "input_json_delta" && resp.Delta.PartialJson != nil {
+				accumulated += *resp.Delta.PartialJson
+			}
+		}
+	}
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(accumulated), &parsed))
+	require.Equal(t, "ls -la /root 2>/dev/null | head -20", parsed["command"])
 }
 
 func TestNormalizeCacheCreationSplit(t *testing.T) {
