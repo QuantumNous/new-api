@@ -67,14 +67,17 @@ func SetApiRouter(router *gin.Engine) {
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
 
-		// Desktop client device authorization (RFC 8628 style)
-		deviceRoute := apiRouter.Group("/device")
+		desktopRoute := apiRouter.Group("/desktop")
 		{
-			deviceRoute.POST("/code", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.RequestDeviceAuthCode)
-			deviceRoute.POST("/token", anonymousRequestBodyLimit, controller.PollDeviceAuthToken)
-			deviceRoute.POST("/refresh", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.RefreshDeviceAuthToken)
-			deviceRoute.GET("/info", middleware.UserAuth(), controller.GetDeviceAuthInfo)
-			deviceRoute.POST("/approve", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.ApproveDeviceAuth)
+			desktopRoute.POST("/authorization-requests", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.CreateDesktopAuthorization)
+			desktopRoute.GET("/authorization-requests/:id", middleware.UserSessionAuth(), controller.GetDesktopAuthorization)
+			desktopRoute.POST("/authorization-requests/:id/decision", middleware.UserSessionAuth(), middleware.CriticalRateLimit(), controller.DecideDesktopAuthorization)
+			desktopRoute.POST("/token", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ExchangeDesktopToken)
+			desktopRoute.POST("/refresh", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.RefreshDesktopToken)
+			desktopRoute.POST("/revoke", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.RevokeDesktopToken)
+			desktopRoute.GET("/session-status", controller.GetDesktopSessionStatus)
+			desktopRoute.GET("/sessions", middleware.UserSessionAuth(), controller.ListDesktopSessions)
+			desktopRoute.DELETE("/sessions/:id", middleware.UserSessionAuth(), controller.DeleteDesktopSession)
 		}
 
 		userRoute := apiRouter.Group("/user")

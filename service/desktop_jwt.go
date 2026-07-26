@@ -36,7 +36,8 @@ type DesktopClaims struct {
 	TokenType string `json:"typ"`
 	// RelayTokenId ties the session to the relay API key issued alongside it,
 	// so deleting that key in the console also kills the desktop session.
-	RelayTokenId int `json:"tid"`
+	RelayTokenId int    `json:"tid"`
+	SessionID    string `json:"sid,omitempty"`
 }
 
 type desktopSigningKey struct {
@@ -111,7 +112,7 @@ func desktopIssuer() string {
 	return strings.TrimSuffix(addr, "/")
 }
 
-func issueDesktopToken(user *model.User, relayTokenId int, tokenType string, ttl time.Duration) (string, error) {
+func issueDesktopToken(user *model.User, relayTokenId int, tokenType string, ttl time.Duration, sessionID ...string) (string, error) {
 	key, err := loadDesktopSigningKey()
 	if err != nil {
 		return "", err
@@ -131,9 +132,21 @@ func issueDesktopToken(user *model.User, relayTokenId int, tokenType string, ttl
 		TokenType:    tokenType,
 		RelayTokenId: relayTokenId,
 	}
+	claims.ID = randomJWTID()
+	if len(sessionID) > 0 {
+		claims.SessionID = sessionID[0]
+	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	token.Header["kid"] = key.kid
 	return token.SignedString(key.private)
+}
+
+func randomJWTID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return strconv.FormatInt(time.Now().UnixNano(), 36)
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 // IssueDesktopSession mints the access/refresh pair handed to the desktop app

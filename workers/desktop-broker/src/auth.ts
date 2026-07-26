@@ -1,6 +1,6 @@
-// Desktop sessions are RS256 JWTs minted by the BoxAI hub's device-authorization flow. The
-// broker verifies them at the edge against the hub's published JWKS instead of calling back
-// on every request, so a hub outage cannot take connector refresh down with it.
+// Desktop sessions are RS256 JWTs minted by BoxAI's PKCE authorization flow. Signature checks
+// reject forged tokens locally; the subsequent hub status check makes user/session/relay-token
+// revocation effective immediately rather than waiting for the access JWT to expire.
 import type { Env } from "./env";
 import { HttpError } from "./http";
 
@@ -120,7 +120,23 @@ export async function verifyToken(env: Env, token: string): Promise<Session> {
   if (claims.typ !== "access") throw new HttpError(401, "not an access token");
 
   const userId = typeof claims.sub === "string" ? claims.sub : "";
-  if (!userId) throw new HttpError(401, "token has no subject");
+  const sessionId = typeof claims.sid === "string" ? claims.sid : "";
+  const relayTokenId = typeof claims.tid === "number" ? claims.tid : 0;
+  if (!userId || !sessionId || relayTokenId <= 0) throw new HttpError(401, "token is not a desktop session");
+
+  const statusUrl = env.HUB_BASE_URL.replace(/\/+$/, "") + "/api/desktop/session-status";
+  let status: Response;
+  try {
+    status = await fetch(statusUrl, { headers: { authorization: `Bearer ${token}`, accept: "application/json" } });
+  } catch {
+    throw new HttpError(503, "session status unavailable");
+  }
+  if (status.status === 401 || status.status === 403) throw new HttpError(401, "desktop session is inactive");
+  if (!status.ok) throw new HttpError(503, "session status unavailable");
+  const live = (await status.json()) as { active?: boolean; user_id?: number; session_id?: string };
+  if (!live.active || String(live.user_id ?? "") !== userId || live.session_id !== sessionId) {
+    throw new HttpError(401, "desktop session is inactive");
+  }
   return {
     userId,
     email: typeof claims.email === "string" ? claims.email : "",

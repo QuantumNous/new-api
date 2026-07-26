@@ -8,6 +8,7 @@ import {
   makeKey,
   restoreFetch,
   serveJwks,
+  setSessionActive,
   signToken,
   type TestKey,
 } from "./helpers";
@@ -39,6 +40,12 @@ describe("session verification", () => {
     expect((await call("/v1/me")).status).toBe(401);
   });
 
+  it("rejects an otherwise valid token after its desktop session is revoked", async () => {
+    setSessionActive(false);
+    const resp = await call("/v1/me", { headers: { authorization: `Bearer ${await accessToken(key)}` } });
+    expect(resp.status).toBe(401);
+  });
+
   // Each of these is a way in for someone holding a token that is not a live desktop session for
   // this deployment.
   it.each([
@@ -47,6 +54,8 @@ describe("session verification", () => {
     ["issued for another audience", { aud: "https://hub.test/other" }],
     ["a refresh token", { typ: "refresh" }],
     ["subject-less", { sub: "" }],
+    ["session-less", { sid: "" }],
+    ["relay-token-less", { tid: 0 }],
   ])("rejects a token that is %s", async (_label, overrides) => {
     const resp = await call("/v1/me", {
       headers: { authorization: `Bearer ${await accessToken(key, overrides)}` },
@@ -90,6 +99,8 @@ describe("session verification", () => {
         sub: "42",
         email: "rohit@you-box.com",
         typ: "access",
+        sid: "desktop-session-1",
+        tid: 7,
         exp: Math.floor(Date.now() / 1000) + 600,
       })}` },
     });

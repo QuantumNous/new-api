@@ -271,6 +271,8 @@ func migrateDB() error {
 	err := DB.AutoMigrate(
 		&Channel{},
 		&Token{},
+		&DesktopAuthorization{},
+		&DesktopSession{},
 		&User{},
 		&PasskeyCredential{},
 		&Option{},

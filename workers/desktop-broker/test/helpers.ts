@@ -51,6 +51,8 @@ export async function accessToken(key: TestKey, overrides: Record<string, unknow
     email: "rohit@you-box.com",
     username: "rohit",
     typ: "access",
+    sid: "desktop-session-1",
+    tid: 7,
     exp: Math.floor(Date.now() / 1000) + 600,
     ...overrides,
   });
@@ -70,6 +72,7 @@ export function onFetch(responder: Responder): void {
 export function installFetchStub(): void {
   responders.length = 0;
   published = null;
+  sessionActive = true;
   resetJwksCache();
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input : new Request(input, init);
@@ -87,6 +90,11 @@ export function restoreFetch(): void {
 }
 
 let published: TestKey | null = null;
+let sessionActive = true;
+
+export function setSessionActive(active: boolean): void {
+  sessionActive = active;
+}
 
 /** Replaces what the hub publishes, so calling it again models a key rotation. */
 export function serveJwks(key: TestKey): void {
@@ -96,6 +104,22 @@ export function serveJwks(key: TestKey): void {
   onFetch((request) =>
     request.url === "https://hub.test/.well-known/jwks.json" && published
       ? new Response(JSON.stringify(published.jwks), { headers: { "content-type": "application/json" } })
+      : undefined,
+  );
+  onFetch((request) =>
+    request.url === "https://hub.test/api/desktop/session-status"
+      ? sessionActive
+        ? (() => {
+            const token = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+            const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))) as {
+              sub: string;
+              sid: string;
+            };
+            return new Response(JSON.stringify({ active: true, user_id: Number(payload.sub), session_id: payload.sid }), {
+              headers: { "content-type": "application/json" },
+            });
+          })()
+        : new Response(JSON.stringify({ error: "invalid_token" }), { status: 401 })
       : undefined,
   );
 }

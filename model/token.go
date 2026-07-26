@@ -523,3 +523,13 @@ func invalidateTokensCache(tokens []Token) error {
 	}
 	return firstErr
 }
+
+// InvalidateTokenCache removes one relay token from Redis after a transaction
+// changes its status. The database remains the source of truth when Redis is
+// disabled or the token has never been cached.
+func InvalidateTokenCache(key string) error {
+	if !common.RedisEnabled || key == "" {
+		return nil
+	}
+	return cacheDeleteToken(key)
+}
