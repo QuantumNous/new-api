@@ -137,6 +137,14 @@ MATRIX: dict[str, ModelEntry] = {
     "bedrock:other/mistral.mistral-large-3-v1:0": ModelEntry(
         "Mistral Large 3 · AWS Bedrock"
     ),
+    # Live-verified on Converse 2026-07-26 (complete/stream/tool round trip); asked for
+    # two tool calls it emits them one at a time, so parallel stays off.
+    "bedrock:other/nvidia.nemotron-super-3-120b": ModelEntry(
+        "Nemotron Super 3 120B · AWS Bedrock",
+        ModelCapabilities(
+            tools=True, vision=False, parallel_tool_calls=False, streaming=True
+        ),
+    ),
     # Vertex ids carry a family segment too (gemini/ and claude/ → native paths,
     # openweight/ → the MaaS OpenAI-compat endpoint, keeping the publisher segment).
     "vertex:gemini/gemini-3.1-pro-preview": ModelEntry(
