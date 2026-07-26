@@ -328,6 +328,12 @@ export type BillingSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'affiliate_setting.enabled': boolean
+  'affiliate_setting.currency': string
+  'affiliate_setting.reward_micros': number
+  'affiliate_setting.minimum_topup_micros': number
+  'affiliate_setting.hold_seconds': number
+  'affiliate_setting.minimum_withdrawal_micros': number
 }
 
 export type OperationsSettings = {

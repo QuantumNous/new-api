@@ -1,99 +1,81 @@
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
-import { useState, useEffect, useCallback } from 'react'
+import { useMemo } from 'react'
 import { toast } from 'sonner'
 
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { getSelf } from '@/lib/api'
-
-import { getAffiliateCode, transferAffiliateQuota } from '../api'
+import {
+  cancelAffiliateWithdrawal,
+  createAffiliateWithdrawal,
+  getAffiliateStatements,
+  getAffiliateSummary,
+  getAffiliateWithdrawals,
+} from '../api'
 import { generateAffiliateLink } from '../lib'
 
-// ============================================================================
-// Affiliate Hook
-// ============================================================================
+const affiliateSummaryKey = ['wallet', 'affiliate', 'summary'] as const
+const affiliateWithdrawalsKey = ['wallet', 'affiliate', 'withdrawals'] as const
+const affiliateStatementsKey = ['wallet', 'affiliate', 'statements'] as const
 
 export function useAffiliate() {
-  const [affiliateCode, setAffiliateCode] = useState<string>('')
-  const [affiliateLink, setAffiliateLink] = useState<string>('')
-  const [loading, setLoading] = useState(true)
-  const [transferring, setTransferring] = useState(false)
-  const { copyToClipboard } = useCopyToClipboard()
+  const queryClient = useQueryClient()
+  const summaryQuery = useQuery({
+    queryKey: affiliateSummaryKey,
+    queryFn: getAffiliateSummary,
+    select: (response) => response.data,
+  })
+  const withdrawalsQuery = useQuery({
+    queryKey: affiliateWithdrawalsKey,
+    queryFn: getAffiliateWithdrawals,
+    select: (response) => response.data?.items ?? [],
+  })
+  const statementsQuery = useQuery({
+    queryKey: affiliateStatementsKey,
+    queryFn: getAffiliateStatements,
+    select: (response) => response.data?.items ?? [],
+  })
 
-  // Fetch affiliate code
-  const fetchAffiliateCode = useCallback(async () => {
-    try {
-      setLoading(true)
-      const response = await getAffiliateCode()
+  const invalidateAffiliate = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: affiliateSummaryKey }),
+      queryClient.invalidateQueries({ queryKey: affiliateWithdrawalsKey }),
+    ])
+  }
 
-      if (response.success && response.data) {
-        setAffiliateCode(response.data)
-        const link = generateAffiliateLink(response.data)
-        setAffiliateLink(link)
-      }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch affiliate code:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const withdrawalMutation = useMutation({
+    mutationFn: createAffiliateWithdrawal,
+    onSuccess: async (response) => {
+      if (!response.success) return
+      toast.success(i18next.t('Withdrawal request submitted'))
+      await invalidateAffiliate()
+    },
+  })
+  const cancelMutation = useMutation({
+    mutationFn: cancelAffiliateWithdrawal,
+    onSuccess: async (response) => {
+      if (!response.success) return
+      toast.success(i18next.t('Withdrawal request cancelled'))
+      await invalidateAffiliate()
+    },
+  })
 
-  // Copy affiliate link
-  const copyAffiliateLink = useCallback(() => {
-    copyToClipboard(affiliateLink)
-  }, [affiliateLink, copyToClipboard])
-
-  // Transfer affiliate quota to balance
-  const transferQuota = useCallback(async (quota: number): Promise<boolean> => {
-    try {
-      setTransferring(true)
-      const response = await transferAffiliateQuota({ quota })
-
-      if (response.success) {
-        toast.success(response.message || i18next.t('Transfer successful'))
-        await getSelf()
-        return true
-      }
-
-      toast.error(response.message || i18next.t('Transfer failed'))
-      return false
-    } catch (_error) {
-      toast.error(i18next.t('Transfer failed'))
-      return false
-    } finally {
-      setTransferring(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchAffiliateCode()
-  }, [fetchAffiliateCode])
+  const affiliateLink = useMemo(() => {
+    const code = summaryQuery.data?.referral_code
+    return code ? generateAffiliateLink(code) : ''
+  }, [summaryQuery.data?.referral_code])
 
   return {
-    affiliateCode,
+    summary: summaryQuery.data,
+    withdrawals: withdrawalsQuery.data ?? [],
+    statements: statementsQuery.data ?? [],
     affiliateLink,
-    loading,
-    transferring,
-    copyAffiliateLink,
-    transferQuota,
-    refetch: fetchAffiliateCode,
+    loading:
+      summaryQuery.isLoading ||
+      withdrawalsQuery.isLoading ||
+      statementsQuery.isLoading,
+    submittingWithdrawal: withdrawalMutation.isPending,
+    cancellingWithdrawal: cancelMutation.isPending,
+    createWithdrawal: withdrawalMutation.mutateAsync,
+    cancelWithdrawal: cancelMutation.mutateAsync,
+    refetch: invalidateAffiliate,
   }
 }

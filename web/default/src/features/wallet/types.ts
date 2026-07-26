@@ -41,6 +41,68 @@ export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
+
+export interface AffiliateAccount {
+  pending_micros: number
+  available_micros: number
+  frozen_micros: number
+  withdrawn_micros: number
+  lifetime_earned_micros: number
+}
+
+export interface AffiliateSummary {
+  enabled: boolean
+  referral_code: string
+  currency: string
+  reward_micros: number
+  minimum_topup_micros: number
+  minimum_withdrawal_micros: number
+  hold_seconds: number
+  referral_count: number
+  qualified_count: number
+  pending_withdrawal_count: number
+  account: AffiliateAccount
+}
+
+export interface AffiliateWithdrawal {
+  id: number
+  amount_micros: number
+  currency: string
+  status: 'pending' | 'approved' | 'paid' | 'rejected' | 'cancelled'
+  payout_method: string
+  payout_account: string
+  requested_at: number
+  reviewed_at: number
+  review_note: string
+  paid_at: number
+  payment_reference: string
+}
+
+export interface AffiliateStatement {
+  id: number
+  currency: string
+  start_at: number
+  end_at: number
+  earned_micros: number
+  paid_micros: number
+  closing_pending_micros: number
+  closing_available_micros: number
+  closing_frozen_micros: number
+  closing_withdrawn_micros: number
+}
+
+export interface PaginatedData<T> {
+  items: T[]
+  total: number
+}
+
+export type AffiliateSummaryResponse = ApiResponse<AffiliateSummary>
+export type AffiliateWithdrawalsResponse = ApiResponse<
+  PaginatedData<AffiliateWithdrawal>
+>
+export type AffiliateStatementsResponse = ApiResponse<
+  PaginatedData<AffiliateStatement>
+>
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
