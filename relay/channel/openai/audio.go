@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -116,6 +117,21 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 }
 
 func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, responseFormat string) (*types.NewAPIError, *dto.Usage) {
+	if shouldStreamSTTResponse(resp, info) {
+		usage := fallbackSTTUsage(info)
+		helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+			if service.SundaySearch(data, "usage") {
+				if parsedUsage := parseSTTUsage([]byte(data)); parsedUsage != nil {
+					usage = parsedUsage
+				}
+			}
+			if err := helper.StringData(c, data); err != nil {
+				sr.Error(err)
+			}
+		})
+		return nil, usage
+	}
+
 	defer service.CloseResponseBodyGracefully(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
@@ -125,6 +141,22 @@ func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
+	if usage := parseSTTUsage(responseBody); usage != nil {
+		return nil, usage
+	}
+
+	return nil, fallbackSTTUsage(info)
+}
+
+func shouldStreamSTTResponse(resp *http.Response, info *relaycommon.RelayInfo) bool {
+	if resp == nil || info == nil || !info.IsStream {
+		return false
+	}
+	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
+	return strings.HasPrefix(contentType, "text/event-stream")
+}
+
+func parseSTTUsage(responseBody []byte) *dto.Usage {
 	var responseData struct {
 		Usage *dto.Usage `json:"usage"`
 	}
@@ -137,13 +169,18 @@ func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 			if usage.CompletionTokens == 0 {
 				usage.CompletionTokens = usage.OutputTokens
 			}
-			return nil, usage
+			return usage
 		}
 	}
+	return nil
+}
 
+func fallbackSTTUsage(info *relaycommon.RelayInfo) *dto.Usage {
 	usage := &dto.Usage{}
-	usage.PromptTokens = info.GetEstimatePromptTokens()
+	if info != nil {
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+	}
 	usage.CompletionTokens = 0
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-	return nil, usage
+	return usage
 }
