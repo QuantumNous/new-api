@@ -57,6 +57,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	if info.RelayMode == constant.RelayModeChatCompletions && info.SupportStreamOptions && info.IsStream {
+		request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+	}
 	switch info.RelayMode {
 	case constant.RelayModeCompletions:
 		return convertCf2CompletionsRequest(*request), nil
