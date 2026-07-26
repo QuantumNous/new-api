@@ -41,6 +41,7 @@ import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
+import { Route as AuthenticatedWorkbenchIndexRouteImport } from './routes/_authenticated/workbench/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
@@ -55,6 +56,7 @@ import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authentica
 import { Route as AuthenticatedGroupStatusIndexRouteImport } from './routes/_authenticated/group-status/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
+import { Route as AuthenticatedWorkbenchProjectIdRouteImport } from './routes/_authenticated/workbench/$projectId'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -238,6 +240,12 @@ const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   path: '/pricing/$modelId/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedWorkbenchIndexRoute =
+  AuthenticatedWorkbenchIndexRouteImport.update({
+    id: '/workbench/',
+    path: '/workbench/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedWalletIndexRoute =
   AuthenticatedWalletIndexRouteImport.update({
     id: '/wallet/',
@@ -318,6 +326,12 @@ const AuthenticatedChannelsIndexRoute =
   AuthenticatedChannelsIndexRouteImport.update({
     id: '/channels/',
     path: '/channels/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedWorkbenchProjectIdRoute =
+  AuthenticatedWorkbenchProjectIdRouteImport.update({
+    id: '/workbench/$projectId',
+    path: '/workbench/$projectId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedUsageLogsSectionRoute =
@@ -488,6 +502,7 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/workbench/$projectId': typeof AuthenticatedWorkbenchProjectIdRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/group-status/': typeof AuthenticatedGroupStatusIndexRoute
@@ -502,6 +517,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/workbench/': typeof AuthenticatedWorkbenchIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/inspiration/projects/$projectId': typeof AuthenticatedInspirationProjectsProjectIdRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
@@ -555,6 +571,7 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/workbench/$projectId': typeof AuthenticatedWorkbenchProjectIdRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/group-status': typeof AuthenticatedGroupStatusIndexRoute
@@ -569,6 +586,7 @@ export interface FileRoutesByTo {
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
+  '/workbench': typeof AuthenticatedWorkbenchIndexRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
   '/inspiration/projects/$projectId': typeof AuthenticatedInspirationProjectsProjectIdRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
@@ -626,6 +644,7 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/_authenticated/workbench/$projectId': typeof AuthenticatedWorkbenchProjectIdRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/group-status/': typeof AuthenticatedGroupStatusIndexRoute
@@ -640,6 +659,7 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/_authenticated/workbench/': typeof AuthenticatedWorkbenchIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/_authenticated/inspiration/projects/$projectId': typeof AuthenticatedInspirationProjectsProjectIdRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
@@ -696,6 +716,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/workbench/$projectId'
     | '/channels/'
     | '/dashboard/'
     | '/group-status/'
@@ -710,6 +731,7 @@ export interface FileRouteTypes {
     | '/usage-logs/'
     | '/users/'
     | '/wallet/'
+    | '/workbench/'
     | '/pricing/$modelId/'
     | '/inspiration/projects/$projectId'
     | '/system-settings/auth/$section'
@@ -763,6 +785,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/workbench/$projectId'
     | '/channels'
     | '/dashboard'
     | '/group-status'
@@ -777,6 +800,7 @@ export interface FileRouteTypes {
     | '/usage-logs'
     | '/users'
     | '/wallet'
+    | '/workbench'
     | '/pricing/$modelId'
     | '/inspiration/projects/$projectId'
     | '/system-settings/auth/$section'
@@ -833,6 +857,7 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
+    | '/_authenticated/workbench/$projectId'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/group-status/'
@@ -847,6 +872,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/'
     | '/_authenticated/users/'
     | '/_authenticated/wallet/'
+    | '/_authenticated/workbench/'
     | '/pricing/$modelId/'
     | '/_authenticated/inspiration/projects/$projectId'
     | '/_authenticated/system-settings/auth/$section'
@@ -1115,6 +1141,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/workbench/': {
+      id: '/_authenticated/workbench/'
+      path: '/workbench'
+      fullPath: '/workbench/'
+      preLoaderRoute: typeof AuthenticatedWorkbenchIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/wallet/': {
       id: '/_authenticated/wallet/'
       path: '/wallet'
@@ -1211,6 +1244,13 @@ declare module '@tanstack/react-router' {
       path: '/channels'
       fullPath: '/channels/'
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/workbench/$projectId': {
+      id: '/_authenticated/workbench/$projectId'
+      path: '/workbench/$projectId'
+      fullPath: '/workbench/$projectId'
+      preLoaderRoute: typeof AuthenticatedWorkbenchProjectIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/usage-logs/$section': {
@@ -1464,6 +1504,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
+  AuthenticatedWorkbenchProjectIdRoute: typeof AuthenticatedWorkbenchProjectIdRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedGroupStatusIndexRoute: typeof AuthenticatedGroupStatusIndexRoute
@@ -1477,7 +1518,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
+<<<<<<< Updated upstream
   AuthenticatedInspirationProjectsProjectIdRoute: typeof AuthenticatedInspirationProjectsProjectIdRoute
+=======
+  AuthenticatedWorkbenchIndexRoute: typeof AuthenticatedWorkbenchIndexRoute
+>>>>>>> Stashed changes
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1492,6 +1537,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
+  AuthenticatedWorkbenchProjectIdRoute: AuthenticatedWorkbenchProjectIdRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedGroupStatusIndexRoute: AuthenticatedGroupStatusIndexRoute,
@@ -1506,8 +1552,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
+<<<<<<< Updated upstream
   AuthenticatedInspirationProjectsProjectIdRoute:
     AuthenticatedInspirationProjectsProjectIdRoute,
+=======
+  AuthenticatedWorkbenchIndexRoute: AuthenticatedWorkbenchIndexRoute,
+>>>>>>> Stashed changes
 }
 
 const AuthenticatedRouteRouteWithChildren =

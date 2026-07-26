@@ -27,6 +27,7 @@ import {
   LayoutDashboard,
   Lightbulb,
   ListTodo,
+  PenTool,
   Radio,
   ServerCog,
   Settings,
@@ -91,6 +92,12 @@ export function useSidebarData(): SidebarData {
         id: 'tools',
         title: t('Tools'),
         items: [
+          {
+            title: t('Workbench'),
+            url: '/workbench',
+            activeUrls: ['/workbench'],
+            icon: PenTool,
+          },
           {
             title: t('Chat apps'),
             icon: FlaskConical,

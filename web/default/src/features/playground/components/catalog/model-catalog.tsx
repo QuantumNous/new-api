@@ -286,7 +286,12 @@ export function ModelCatalog(props: ModelCatalogProps) {
                     <span
                       className={cn(
                         'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize',
-                        MODALITY_COLORS[modelModality].tag
+                        MODALITY_COLORS[modelModality].tag,
+                        // The pin button occupies the same corner; crossfade
+                        // so the two never stack on top of each other.
+                        props.onTogglePin &&
+                          'transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0',
+                        props.onTogglePin && pinned && 'opacity-0'
                       )}
                     >
                       {t(modalityLabelKey(modelModality))}
@@ -302,10 +307,10 @@ export function ModelCatalog(props: ModelCatalogProps) {
                   <button
                     type='button'
                     className={cn(
-                      'absolute top-2 right-2 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      'absolute top-2 right-2 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:opacity-100',
                       pinned
                         ? 'text-primary'
-                        : 'text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground/80'
+                        : 'text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-foreground/80'
                     )}
                     aria-label={pinned ? t('Unpin model') : t('Pin model')}
                     aria-pressed={pinned}

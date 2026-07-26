@@ -249,6 +249,8 @@ export type ImageGenerateInput = {
   settings: StudioSettings
   /** data URL or asset content URL — resolved to data URL before relay */
   referenceImage?: string | null
+  /** extra references sent alongside the first one (multi-image edit) */
+  referenceImages?: Array<string | null | undefined>
   /** when true with reference, use /pg/images/edits */
   editMode?: boolean
   execution?: ManagedExecutionContract
@@ -258,12 +260,16 @@ export async function generateImages(
   input: ImageGenerateInput
 ): Promise<GeneratedImage[]> {
   const ref = await resolveMediaForUpstream(input.referenceImage)
+  const extraRefs = await Promise.all(
+    (input.referenceImages ?? []).map((item) => resolveMediaForUpstream(item))
+  )
   const body = buildImageGenerationRequestBody({
     model: input.model,
     group: input.group,
     prompt: input.prompt,
     settings: input.settings,
     referenceImage: ref,
+    referenceImages: extraRefs,
   })
   const endpoint =
     input.editMode && ref

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { SlidersHorizontal, X } from 'lucide-react'
+import { SlidersHorizontal } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -52,7 +52,6 @@ import { ModelCatalog } from './components/catalog/model-catalog'
 import { PlaygroundChat } from './components/chat/playground-chat'
 import { ChatComposer } from './components/composer/chat-composer'
 import { AgentsView } from './components/discover/agents-view'
-import { InspirationView } from './components/discover/inspiration-view'
 import {
   SettingsPanel,
   SettingsSections,
@@ -77,7 +76,7 @@ import {
 } from './lib/managed-tools'
 import { isPlaygroundImageModel } from './lib/studio/image-request-schema'
 import { getModelModality } from './lib/studio/model-modality'
-import type { ChatAttachment, PlaygroundConfig, StudioModality } from './types'
+import type { PlaygroundConfig, StudioModality } from './types'
 
 export function Playground() {
   const { t } = useTranslation()
@@ -119,11 +118,6 @@ export function Playground() {
   const togglePinnedModel = usePlaygroundStore(
     (state) => state.togglePinnedModel
   )
-  const myWorks = usePlaygroundStore((state) => state.myWorks)
-  const recentPrompts = usePlaygroundStore((state) => state.recentPrompts)
-  const removeMyWork = usePlaygroundStore((state) => state.removeMyWork)
-  const addMyWork = usePlaygroundStore((state) => state.addMyWork)
-  const addRecentPrompt = usePlaygroundStore((state) => state.addRecentPrompt)
   const config = usePlaygroundStore((state) => state.config)
   const parameterEnabled = usePlaygroundStore((state) => state.parameterEnabled)
   const messages = usePlaygroundStore(selectActiveChatMessages)
@@ -134,10 +128,6 @@ export function Playground() {
   const setGroups = usePlaygroundStore((state) => state.setGroups)
   const patchConfig = usePlaygroundStore((state) => state.updateConfig)
   const clearMessages = usePlaygroundStore((state) => state.clearMessages)
-  const appliedRecipe = usePlaygroundStore((state) => state.appliedRecipe)
-  const clearAppliedRecipe = usePlaygroundStore(
-    (state) => state.clearAppliedRecipe
-  )
 
   useSessionCloudSync(isAuthenticated)
   const updateConfig = useCallback(
@@ -330,15 +320,6 @@ export function Playground() {
             )
           )
           const urls = assets.map((asset) => asset.url)
-          assets.forEach((asset, index) =>
-            addMyWork({
-              title: `${text.slice(0, 48) || 'Image'} ${index + 1}`,
-              prompt: text,
-              modality: 'image',
-              model: run.tool_model,
-              previewUrl: asset.url,
-            })
-          )
           await importManagedToolRun(run.id, {
             execution_token: response.execution.execution_token,
             status: 'completed',
@@ -418,7 +399,6 @@ export function Playground() {
     },
     [
       chatTools.mode,
-      addMyWork,
       config.group,
       config.model,
       sendChat,
@@ -567,28 +547,6 @@ export function Playground() {
     ]
   )
 
-  const handleApplyPrompt = useCallback(
-    (prompt: string, modality: StudioModality) => {
-      selectModelByModality(modality, prompt)
-    },
-    [selectModelByModality]
-  )
-
-  const handleChatSend = useCallback(
-    (text: string, attachments?: ChatAttachment[]) => {
-      const ok = handleSendMessage(text, attachments)
-      if (ok) {
-        addRecentPrompt({
-          prompt: text,
-          modality: 'chat',
-          model: config.model,
-        })
-      }
-      return ok
-    },
-    [config.model, handleSendMessage, addRecentPrompt]
-  )
-
   const studioPending =
     studio.imageMutation.isPending ||
     studio.videoMutation.isPending ||
@@ -673,6 +631,7 @@ export function Playground() {
     >
       {view === 'agents' && <AgentsView />}
 
+<<<<<<< Updated upstream
       {view === 'inspiration' && (
         <InspirationView
           myWorks={myWorks}
@@ -684,6 +643,8 @@ export function Playground() {
         />
       )}
 
+=======
+>>>>>>> Stashed changes
       {showWorkspace && (
         <WorkspaceHeader
           model={config.model}
@@ -741,7 +702,7 @@ export function Playground() {
               onRegenerateMessage={handleRegenerateMessage}
               onEditMessage={handleEditMessage}
               onDeleteMessage={handleDeleteMessage}
-              onSelectPrompt={handleChatSend}
+              onSelectPrompt={handleSendMessage}
               isGenerating={isGenerating}
               editingKey={editingMessageKey}
               onCancelEdit={handleEditOpenChange}
@@ -750,29 +711,13 @@ export function Playground() {
             />
           </div>
           <div className='playground-composer-dock mx-auto w-full max-w-4xl shrink-0 space-y-2 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:px-3 sm:pb-3 md:px-3 md:pb-4'>
-            {appliedRecipe && (
-              <div className='bg-muted text-muted-foreground flex w-fit items-center gap-2 rounded-full px-3 py-1 text-xs'>
-                <span>
-                  {t('Applied from {{title}}', { title: appliedRecipe.title })}
-                </span>
-                <Button
-                  type='button'
-                  size='icon-sm'
-                  variant='ghost'
-                  aria-label={t('Dismiss')}
-                  onClick={clearAppliedRecipe}
-                >
-                  <X className='size-3' />
-                </Button>
-              </div>
-            )}
             <ChatComposer
               disabled={isGenerating || isRouting}
               isGenerating={isGenerating}
               isModelLoading={isLoadingModels}
               onClearMessages={handleClearMessages}
               onStop={stopGeneration}
-              onSubmit={handleChatSend}
+              onSubmit={handleSendMessage}
               hasMessages={messages.length > 0}
             />
           </div>
@@ -781,22 +726,6 @@ export function Playground() {
 
       {showWorkspace && !duoActive && activeModality !== 'chat' && (
         <div className='flex min-h-0 flex-1 flex-col'>
-          {appliedRecipe && (
-            <div className='bg-muted text-muted-foreground mx-3 mt-2 flex w-fit items-center gap-2 rounded-full px-3 py-1 text-xs'>
-              <span>
-                {t('Applied from {{title}}', { title: appliedRecipe.title })}
-              </span>
-              <Button
-                type='button'
-                size='icon-sm'
-                variant='ghost'
-                aria-label={t('Dismiss')}
-                onClick={clearAppliedRecipe}
-              >
-                <X className='size-3' />
-              </Button>
-            </div>
-          )}
           <GenerationWorkspace
             modality={activeModality}
             pricingModel={selectedCatalogModel}

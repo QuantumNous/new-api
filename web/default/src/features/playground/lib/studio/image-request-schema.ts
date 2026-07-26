@@ -169,6 +169,7 @@ export function buildImageGenerationRequestBody(input: {
   prompt: string
   settings: ImageGenerationSettingsInput
   referenceImage?: string | null
+  referenceImages?: Array<string | null | undefined>
 }): ImageGenerationRequestBody {
   const model = input.model.trim()
   if (!model) {
@@ -196,10 +197,13 @@ export function buildImageGenerationRequestBody(input: {
     quality: normalized.imageQuality,
   }
 
-  const ref = input.referenceImage?.trim()
-  if (ref) {
-    body.image = ref
-    body.images = [ref]
+  const references = [input.referenceImage, ...(input.referenceImages ?? [])]
+    .map((item) => item?.trim())
+    .filter((item): item is string => Boolean(item))
+  const uniqueReferences = [...new Set(references)]
+  if (uniqueReferences.length > 0) {
+    body.image = uniqueReferences[0]
+    body.images = uniqueReferences
   }
 
   return body

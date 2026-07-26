@@ -42,13 +42,9 @@ import {
 } from '../state/playground-state-utils'
 import { normalizeImageGenerationSettings } from '../studio/image-request-schema'
 import {
-  MAX_MY_WORKS,
   MAX_PINNED_MODELS,
-  MAX_RECENT_PROMPTS,
   loadWorkbenchPrefs,
   normalizeChatTools,
-  type InspirationWork,
-  type RecentPrompt,
   type WorkbenchChatTools,
 } from '../workbench/workbench-prefs'
 import { loadMessages, prepareLoadedMessages } from './storage'
@@ -99,8 +95,6 @@ export type PersistedPlaygroundState = {
   studioSettings: StudioSettings
   duo: PlaygroundDuoConfig
   pinnedModels: string[]
-  recentPrompts: RecentPrompt[]
-  myWorks: InspirationWork[]
   /**
    * @deprecated Kept only so v2 → v3 migration can import once. Runtime
    * reads go through `sessions` + `activeSessionByModality`.
@@ -183,8 +177,6 @@ export function preparePersistedPlaygroundState(
       lastSummary: state.duo.lastSummary?.slice(0, 100_000),
     },
     pinnedModels: state.pinnedModels,
-    recentPrompts: state.recentPrompts,
-    myWorks: state.myWorks,
     // Legacy field kept empty after v3 — sessions own the history.
     messages: [],
     sessions,
@@ -288,28 +280,6 @@ export function normalizeDuoConfig(value: unknown): PlaygroundDuoConfig {
         ? raw.lastSummary.slice(0, 100_000)
         : undefined,
   }
-}
-
-function isRecentPrompt(value: unknown): value is RecentPrompt {
-  if (!isRecord(value)) return false
-  return (
-    typeof value.id === 'string' &&
-    typeof value.prompt === 'string' &&
-    typeof value.modality === 'string' &&
-    typeof value.model === 'string' &&
-    typeof value.createdAt === 'number'
-  )
-}
-
-function isInspirationWork(value: unknown): value is InspirationWork {
-  if (!isRecord(value)) return false
-  return (
-    typeof value.id === 'string' &&
-    typeof value.title === 'string' &&
-    typeof value.modality === 'string' &&
-    typeof value.prompt === 'string' &&
-    typeof value.createdAt === 'number'
-  )
 }
 
 function readLegacyStudioSettings(): StudioSettings {
@@ -560,8 +530,6 @@ export function readLegacyPlaygroundState(): PersistedPlaygroundState {
     studioSettings: readLegacyStudioSettings(),
     duo: normalizeDuoConfig(prefs.duo),
     pinnedModels: prefs.pinnedModels,
-    recentPrompts: prefs.recentPrompts,
-    myWorks: prefs.myWorks,
     messages: [],
     sessions,
     activeSessionByModality,
@@ -690,12 +658,6 @@ export function loadPersistedPlaygroundState(): PersistedPlaygroundState {
     studioSettings: normalizeStudioSettings(state.studioSettings),
     duo: normalizeDuoConfig(state.duo),
     pinnedModels: stringArray(state.pinnedModels, MAX_PINNED_MODELS),
-    recentPrompts: Array.isArray(state.recentPrompts)
-      ? state.recentPrompts.filter(isRecentPrompt).slice(0, MAX_RECENT_PROMPTS)
-      : [],
-    myWorks: Array.isArray(state.myWorks)
-      ? state.myWorks.filter(isInspirationWork).slice(0, MAX_MY_WORKS)
-      : [],
     messages: [],
     sessions,
     activeSessionByModality,

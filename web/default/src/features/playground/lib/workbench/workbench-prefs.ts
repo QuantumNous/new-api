@@ -6,8 +6,6 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import type { StudioModality } from '../../types'
-
 export type WorkbenchChatTools = {
   webSearch: boolean
   mode: 'auto' | 'image' | 'video' | 'search'
@@ -24,30 +22,10 @@ export type DuoCollabState = {
   summaryModel: string
 }
 
-export type InspirationWork = {
-  id: string
-  title: string
-  modality: StudioModality
-  prompt: string
-  createdAt: number
-  model?: string
-  previewUrl?: string
-}
-
-export type RecentPrompt = {
-  id: string
-  prompt: string
-  modality: StudioModality
-  model: string
-  createdAt: number
-}
-
 export type WorkbenchPrefs = {
   pinnedModels: string[]
   chatTools: WorkbenchChatTools
   duo: DuoCollabState
-  recentPrompts: RecentPrompt[]
-  myWorks: InspirationWork[]
 }
 
 export const DEFAULT_CHAT_TOOLS: WorkbenchChatTools = {
@@ -70,14 +48,10 @@ export const DEFAULT_WORKBENCH_PREFS: WorkbenchPrefs = {
   pinnedModels: [],
   chatTools: DEFAULT_CHAT_TOOLS,
   duo: DEFAULT_DUO,
-  recentPrompts: [],
-  myWorks: [],
 }
 
 export const WORKBENCH_STORAGE_KEY = 'playground_workbench_prefs_v1'
 export const MAX_PINNED_MODELS = 40
-export const MAX_RECENT_PROMPTS = 40
-export const MAX_MY_WORKS = 60
 export const MAX_SYSTEM_PROMPT_CHARS = 8000
 
 export function clampSystemPrompt(value: string | undefined | null): string {
@@ -133,14 +107,6 @@ export function loadWorkbenchPrefs(): WorkbenchPrefs {
             ? parsed.duo.summaryModel
             : '',
       },
-      recentPrompts: Array.isArray(parsed.recentPrompts)
-        ? parsed.recentPrompts
-            .filter(isRecentPrompt)
-            .slice(0, MAX_RECENT_PROMPTS)
-        : [],
-      myWorks: Array.isArray(parsed.myWorks)
-        ? parsed.myWorks.filter(isInspirationWork).slice(0, MAX_MY_WORKS)
-        : [],
     }
   } catch {
     return structuredClone(DEFAULT_WORKBENCH_PREFS)
@@ -155,28 +121,4 @@ function clampInt(
 ): number {
   if (!Number.isFinite(value)) return fallback
   return Math.min(max, Math.max(min, Math.round(value as number)))
-}
-
-function isRecentPrompt(value: unknown): value is RecentPrompt {
-  if (!value || typeof value !== 'object') return false
-  const item = value as RecentPrompt
-  return (
-    typeof item.id === 'string' &&
-    typeof item.prompt === 'string' &&
-    typeof item.modality === 'string' &&
-    typeof item.model === 'string' &&
-    typeof item.createdAt === 'number'
-  )
-}
-
-function isInspirationWork(value: unknown): value is InspirationWork {
-  if (!value || typeof value !== 'object') return false
-  const item = value as InspirationWork
-  return (
-    typeof item.id === 'string' &&
-    typeof item.title === 'string' &&
-    typeof item.modality === 'string' &&
-    typeof item.prompt === 'string' &&
-    typeof item.createdAt === 'number'
-  )
 }

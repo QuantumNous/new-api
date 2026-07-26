@@ -68,16 +68,6 @@ function seedLegacyKeys() {
       pinnedModels: ['gpt-4o', 42],
       chatTools: { webSearch: true, maxToolLoops: 50 },
       duo: { enabled: true, answerModels: ['a', 'b'], summaryModel: 's' },
-      recentPrompts: [
-        {
-          id: 'r1',
-          prompt: 'draw a cat',
-          modality: 'image',
-          model: 'gpt-image-2',
-          createdAt: 1,
-        },
-      ],
-      myWorks: [],
     })
   )
 }
@@ -142,7 +132,6 @@ describe('loadPersistedPlaygroundState', () => {
     // Legacy duo.enabled is dropped; duo config itself carries over.
     expect(state.workspaceMode).toBe('model')
     expect(state.duo).toEqual({ answerModels: ['a', 'b'], summaryModel: 's' })
-    expect(state.recentPrompts).toHaveLength(1)
   })
 
   it('never deletes the legacy keys during migration', () => {

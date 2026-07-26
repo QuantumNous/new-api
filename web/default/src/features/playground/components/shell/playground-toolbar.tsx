@@ -6,7 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { Bot, Lightbulb, Loader2, Sparkles, Square } from 'lucide-react'
+import { Bot, Loader2, Sparkles, Square } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,7 +30,6 @@ const VIEWS: Array<{
 }> = [
   { id: 'workspace', labelKey: 'Workspace', icon: Sparkles },
   { id: 'agents', labelKey: 'Agents', icon: Bot },
-  { id: 'inspiration', labelKey: 'Inspiration', icon: Lightbulb },
 ]
 
 /**

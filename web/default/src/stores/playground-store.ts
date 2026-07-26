@@ -58,12 +58,8 @@ import {
 } from '@/features/playground/lib/storage/store-migration'
 import {
   DEFAULT_CHAT_TOOLS,
-  MAX_MY_WORKS,
   MAX_PINNED_MODELS,
-  MAX_RECENT_PROMPTS,
   normalizeChatTools,
-  type InspirationWork,
-  type RecentPrompt,
   type WorkbenchChatTools,
 } from '@/features/playground/lib/workbench/workbench-prefs'
 import type {
@@ -78,7 +74,7 @@ import type {
 
 const PERSIST_WRITE_DEBOUNCE_MS = 500
 
-export type PlaygroundView = 'workspace' | 'agents' | 'inspiration'
+export type PlaygroundView = 'workspace' | 'agents'
 
 export type PlaygroundPrefill = {
   prompt: string
@@ -90,18 +86,6 @@ export type PlaygroundGenerationStatus = {
   pendingCount: number
 }
 
-export type AppliedRecipe = {
-  id: number
-  versionId: number
-  title: string
-  model: string
-  modality: StudioModality
-}
-export type RecipeApplication = AppliedRecipe & {
-  prompt: string
-  parameters: Record<string, unknown>
-}
-
 interface PlaygroundStoreState extends PersistedPlaygroundState {
   // Ephemeral (not persisted)
   view: PlaygroundView
@@ -109,7 +93,6 @@ interface PlaygroundStoreState extends PersistedPlaygroundState {
   groups: GroupOption[]
   prefill: PlaygroundPrefill | null
   generation: PlaygroundGenerationStatus
-  appliedRecipe: AppliedRecipe | null
 
   setView: (view: PlaygroundView) => void
   setWorkspaceMode: (mode: PlaygroundWorkspaceMode) => void
@@ -141,13 +124,6 @@ interface PlaygroundStoreState extends PersistedPlaygroundState {
     lastSummary?: string
   }) => void
   togglePinnedModel: (modelName: string) => void
-  addRecentPrompt: (input: {
-    prompt: string
-    modality: StudioModality
-    model: string
-  }) => void
-  addMyWork: (work: Omit<InspirationWork, 'id' | 'createdAt'>) => void
-  removeMyWork: (id: string) => void
   /** Update messages on the active chat session. */
   setMessages: (updater: MessageStateUpdater) => void
   /** Start a fresh chat session (does not delete the previous one). */
@@ -170,8 +146,6 @@ interface PlaygroundStoreState extends PersistedPlaygroundState {
   beginGeneration: (modality: StudioModality) => void
   endGeneration: () => void
   resetWorkbenchPrefs: () => void
-  applyRecipe: (recipe: RecipeApplication) => void
-  clearAppliedRecipe: () => void
 }
 
 function withActiveSessionUpdate(
@@ -232,10 +206,6 @@ function ensureModalitySession(
     },
     session: draft,
   }
-}
-
-function generateEntryId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 // Debounced, validated persistence: reads go through the migration reader
@@ -307,8 +277,6 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
       studioSettings: { ...DEFAULT_STUDIO_SETTINGS },
       duo: { answerModels: [], summaryModel: '' },
       pinnedModels: [],
-      recentPrompts: [],
-      myWorks: [],
       messages: [],
       sessions: [],
       activeSessionByModality: {},
@@ -319,7 +287,6 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
       groups: [],
       prefill: null,
       generation: { activeModality: null, pendingCount: 0 },
-      appliedRecipe: null,
 
       setView: (view) => set({ view }),
       setWorkspaceMode: (workspaceMode) => set({ workspaceMode }),
@@ -412,8 +379,6 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
             view: 'workspace',
             sessions,
             activeSessionByModality,
-            appliedRecipe:
-              state.appliedRecipe?.model === model ? state.appliedRecipe : null,
           }
         }),
       selectDuo: () => set({ workspaceMode: 'duo', view: 'workspace' }),
@@ -480,37 +445,6 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
               : [modelName, ...state.pinnedModels].slice(0, MAX_PINNED_MODELS),
           }
         }),
-      addRecentPrompt: (input) => {
-        const prompt = input.prompt.trim()
-        if (!prompt) return
-        const entry: RecentPrompt = {
-          id: generateEntryId(),
-          prompt,
-          modality: input.modality,
-          model: input.model,
-          createdAt: Date.now(),
-        }
-        set((state) => ({
-          recentPrompts: [
-            entry,
-            ...state.recentPrompts.filter((item) => item.prompt !== prompt),
-          ].slice(0, MAX_RECENT_PROMPTS),
-        }))
-      },
-      addMyWork: (work) => {
-        const entry: InspirationWork = {
-          ...work,
-          id: generateEntryId(),
-          createdAt: Date.now(),
-        }
-        set((state) => ({
-          myWorks: [entry, ...state.myWorks].slice(0, MAX_MY_WORKS),
-        }))
-      },
-      removeMyWork: (id) =>
-        set((state) => ({
-          myWorks: state.myWorks.filter((item) => item.id !== id),
-        })),
       setMessages: (updater) =>
         set((state) => {
           const current = getActiveSession(
@@ -578,7 +512,6 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
               ...state.activeSessionByModality,
               [target]: draft.id,
             },
-            appliedRecipe: null,
           }
         }),
       openSession: (sessionId) =>
@@ -696,88 +629,7 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
           pinnedModels: [],
           chatTools: { ...DEFAULT_CHAT_TOOLS },
           duo: { answerModels: [], summaryModel: '' },
-          recentPrompts: [],
-          myWorks: [],
         }),
-      applyRecipe: (recipe) =>
-        set((state) => {
-          const draft = createEmptySession(
-            recipe.modality,
-            recipe.model,
-            state.config.group
-          )
-          const chatPatch: Partial<PlaygroundConfig> = {}
-          const enabled: Partial<ParameterEnabled> = {}
-          const chatKeys = [
-            'temperature',
-            'top_p',
-            'max_tokens',
-            'frequency_penalty',
-            'presence_penalty',
-            'seed',
-          ] as const
-          for (const key of chatKeys) {
-            const value = recipe.parameters[key]
-            if (typeof value === 'number') {
-              chatPatch[key] = value
-              enabled[key] = true
-            }
-          }
-          const studioPatch: Partial<StudioSettings> = {}
-          let studioMappings: Array<[string, keyof StudioSettings]> = []
-          if (recipe.modality === 'image') {
-            studioMappings = [
-              ['n', 'imageCount'],
-              ['size', 'imageSize'],
-              ['quality', 'imageQuality'],
-            ]
-          } else if (recipe.modality === 'video') {
-            studioMappings = [
-              ['size', 'videoSize'],
-              ['duration', 'videoDuration'],
-            ]
-          } else if (recipe.modality === 'audio') {
-            studioMappings = [
-              ['voice', 'voice'],
-              ['speed', 'speed'],
-              ['format', 'audioFormat'],
-            ]
-          }
-          for (const [source, target] of studioMappings) {
-            const value = recipe.parameters[source]
-            if (typeof value === 'string' || typeof value === 'number') {
-              Object.assign(studioPatch, { [target]: value })
-            }
-          }
-          return {
-            activeModality: recipe.modality,
-            workspaceMode: 'model',
-            view: 'workspace',
-            config: { ...state.config, ...chatPatch, model: recipe.model },
-            parameterEnabled: { ...state.parameterEnabled, ...enabled },
-            studioSettings: normalizeStudioSettings({
-              ...state.studioSettings,
-              ...studioPatch,
-            }),
-            sessions: upsertSession(state.sessions, draft),
-            activeSessionByModality: {
-              ...state.activeSessionByModality,
-              [recipe.modality]: draft.id,
-            },
-            prefill: {
-              prompt: recipe.prompt,
-              nonce: (state.prefill?.nonce ?? 0) + 1,
-            },
-            appliedRecipe: {
-              id: recipe.id,
-              versionId: recipe.versionId,
-              title: recipe.title,
-              model: recipe.model,
-              modality: recipe.modality,
-            },
-          }
-        }),
-      clearAppliedRecipe: () => set({ appliedRecipe: null }),
     }),
     {
       name: PLAYGROUND_STORE_STORAGE_KEY,

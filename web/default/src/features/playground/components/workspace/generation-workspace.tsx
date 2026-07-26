@@ -62,8 +62,6 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
   const imageSize = usePlaygroundStore(
     (state) => state.studioSettings.imageSize
   )
-  const addRecentPrompt = usePlaygroundStore((state) => state.addRecentPrompt)
-  const addMyWork = usePlaygroundStore((state) => state.addMyWork)
 
   // Reset the media reference when the modality or model changes.
   const currentKey = `${props.modality}:${model}`
@@ -141,53 +139,24 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
     }
     setLastPrompt(prompt)
     const settings = usePlaygroundStore.getState().studioSettings
-    addRecentPrompt({ prompt, modality: props.modality, model })
     const refUrl = reference?.dataUrl || null
     const common = { model, group, settings }
-    const workTitle = prompt.slice(0, 48) || t('Untitled work')
     if (props.modality === 'image') {
-      studio.imageMutation.mutate(
-        {
-          ...common,
-          prompt,
-          referenceImage: refUrl,
-          editMode: Boolean(refUrl),
-        },
-        {
-          onSuccess: (images) => {
-            addMyWork({
-              title: workTitle,
-              prompt,
-              modality: 'image',
-              model,
-              previewUrl: images[0]?.url,
-            })
-          },
-        }
-      )
+      studio.imageMutation.mutate({
+        ...common,
+        prompt,
+        referenceImage: refUrl,
+        editMode: Boolean(refUrl),
+      })
     } else if (props.modality === 'video') {
-      studio.videoMutation.mutate(
-        {
-          ...common,
-          prompt,
-          firstFrame: refUrl,
-          inputReference: refUrl,
-        },
-        {
-          onSuccess: () => {
-            addMyWork({ title: workTitle, prompt, modality: 'video', model })
-          },
-        }
-      )
+      studio.videoMutation.mutate({
+        ...common,
+        prompt,
+        firstFrame: refUrl,
+        inputReference: refUrl,
+      })
     } else {
-      studio.audioMutation.mutate(
-        { ...common, text: prompt },
-        {
-          onSuccess: () => {
-            addMyWork({ title: workTitle, prompt, modality: 'audio', model })
-          },
-        }
-      )
+      studio.audioMutation.mutate({ ...common, text: prompt })
     }
   }
 

@@ -57,8 +57,11 @@ export function ComposerShell(props: ComposerShellProps) {
         className='relative'
         groupClassName={cn(
           'playground-composer-surface bg-background/95 dark:bg-background/85 border-border/70 ring-1 ring-foreground/5 rounded-2xl overflow-hidden',
-          'shadow-[0_18px_60px_-32px_rgba(0,0,0,0.55)] transition-[border-color,box-shadow,transform] duration-200',
-          'focus-within:border-primary/45 focus-within:ring-primary/15 focus-within:shadow-[0_22px_70px_-34px_rgba(0,0,0,0.7)]',
+          // The composer manages its own disabled look; keep the InputGroup
+          // from dimming the whole surface (and the Stop button) with it.
+          'has-[[data-slot=input-group-control]:disabled]:opacity-100 has-[[data-slot=input-group-control]:disabled]:bg-background/95 dark:has-[[data-slot=input-group-control]:disabled]:bg-background/85',
+          'shadow-[0_18px_50px_-30px_rgba(15,23,42,0.35)] dark:shadow-[0_18px_60px_-32px_rgba(0,0,0,0.55)] transition-[border-color,box-shadow,transform] duration-200',
+          'focus-within:border-primary/45 focus-within:ring-primary/15 focus-within:shadow-[0_22px_60px_-32px_rgba(15,23,42,0.45)] dark:focus-within:shadow-[0_22px_70px_-34px_rgba(0,0,0,0.7)]',
           props.disabled && 'opacity-90'
         )}
         onSubmit={props.onSubmit}
