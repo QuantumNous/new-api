@@ -142,6 +142,7 @@ const ImageConfigPanel = ({
               count: IMAGE_MAX_EDIT_IMAGES,
             })}
             required
+            maxCount={IMAGE_MAX_EDIT_IMAGES}
             imageUrls={inputs.imageUrls || []}
             imageEnabled={true}
             onImageUrlsChange={(v) =>

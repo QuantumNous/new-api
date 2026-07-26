@@ -1,7 +1,7 @@
-import React, { useRef } from 'react';
-import { Button, Typography } from '@douyinfe/semi-ui';
+import React, { useRef, useState } from 'react';
+import { Button, Typography, Modal } from '@douyinfe/semi-ui';
 import { IconUpload } from '@douyinfe/semi-icons';
-import { X } from 'lucide-react';
+import { X, RefreshCw, Play } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { showError } from '../../helpers';
@@ -21,6 +21,7 @@ const MediaFileInput = ({
 }) => {
   const { t } = useTranslation();
   const inputRef = useRef(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const defaultAccept =
     kind === 'video' ? 'video/*,.mp4,.mov,.webm' : 'audio/*,.wav,.mp3,.m4a';
@@ -72,54 +73,98 @@ const MediaFileInput = ({
         onChange={handleFile}
         disabled={disabled}
       />
-      <div
-        {...getRootProps()}
-        onClick={() => !disabled && inputRef.current?.click()}
-        className={[
-          'flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-3 py-3 cursor-pointer transition-colors',
-          isDragActive
-            ? 'border-blue-400 bg-blue-50'
-            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50',
-          disabled ? 'opacity-50 cursor-not-allowed' : '',
-        ].join(' ')}
-      >
-        <input {...getInputProps()} />
-        <IconUpload
-          size='large'
-          className={isDragActive ? 'text-blue-400' : 'text-gray-400'}
-        />
-        <Typography.Text className='text-xs text-gray-500 text-center'>
-          {isDragActive
-            ? t('松开以添加文件')
-            : value
-              ? t('拖拽或点击以重新选择')
-              : idleText}
-        </Typography.Text>
-      </div>
-      {value && (
-        <Button
-          size='small'
-          type='tertiary'
-          theme='borderless'
-          icon={<X size={14} />}
-          disabled={disabled}
-          onClick={() => onChange('')}
-          className='mt-1'
+      {/* 未选文件时展示拖拽框;选好后收起拖拽框,只留预览 + 操作按钮(拖满即隐藏)。 */}
+      {!value && (
+        <div
+          {...getRootProps()}
+          onClick={() => !disabled && inputRef.current?.click()}
+          className={[
+            'flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-3 py-3 cursor-pointer transition-colors',
+            isDragActive
+              ? 'border-blue-400 bg-blue-50'
+              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50',
+            disabled ? 'opacity-50 cursor-not-allowed' : '',
+          ].join(' ')}
         >
-          {t('移除')}
-        </Button>
+          <input {...getInputProps()} />
+          <IconUpload
+            size='large'
+            className={isDragActive ? 'text-blue-400' : 'text-gray-400'}
+          />
+          <Typography.Text className='text-xs text-gray-500 text-center'>
+            {isDragActive ? t('松开以添加文件') : idleText}
+          </Typography.Text>
+        </div>
       )}
+
+      {/* 已选文件:视频=缩略图预览(点击弹窗看原视频),音频=内联播放器。 */}
       {value &&
         (kind === 'video' ? (
-          <video
-            src={value}
-            controls
-            className='mt-2 w-full rounded-lg'
-            style={{ maxHeight: 160 }}
-          />
+          <div
+            className='relative mt-1 inline-block cursor-pointer rounded-lg overflow-hidden border border-gray-200'
+            onClick={() => setPreviewOpen(true)}
+          >
+            <video
+              src={value}
+              muted
+              playsInline
+              preload='metadata'
+              className='block'
+              style={{ width: 160, height: 100, objectFit: 'cover' }}
+            />
+            <div className='absolute inset-0 flex items-center justify-center bg-black/20'>
+              <div className='w-9 h-9 rounded-full bg-black/50 flex items-center justify-center'>
+                <Play size={18} className='text-white ml-0.5' />
+              </div>
+            </div>
+          </div>
         ) : (
           <audio src={value} controls className='mt-2 w-full' />
         ))}
+
+      {value && (
+        <div className='flex items-center gap-1 mt-1'>
+          <Button
+            size='small'
+            type='tertiary'
+            theme='borderless'
+            icon={<RefreshCw size={14} />}
+            disabled={disabled}
+            onClick={() => !disabled && inputRef.current?.click()}
+          >
+            {t('更换')}
+          </Button>
+          <Button
+            size='small'
+            type='danger'
+            theme='borderless'
+            icon={<X size={14} />}
+            disabled={disabled}
+            onClick={() => onChange('')}
+          >
+            {t('移除')}
+          </Button>
+        </div>
+      )}
+
+      {/* 原视频弹窗:带完整控制条,点击缩略图打开。 */}
+      {kind === 'video' && (
+        <Modal
+          visible={previewOpen}
+          onCancel={() => setPreviewOpen(false)}
+          footer={null}
+          centered
+          title={label}
+        >
+          <video
+            src={value}
+            controls
+            autoPlay
+            className='w-full rounded-lg'
+            style={{ maxHeight: '70vh' }}
+          />
+        </Modal>
+      )}
     </div>
   );
 };

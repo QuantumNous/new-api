@@ -44,7 +44,7 @@ const areas = [
   },
   {
     key: 'image',
-    title: '图片生成',
+    title: '图像生成',
     desc: '文生图 · 图生图',
     icon: <PictureOutline />,
     bg: 'linear-gradient(135deg,#1d5f9e,#3f83c4)',

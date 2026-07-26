@@ -51,6 +51,7 @@ const routerMap = {
   task: '/console/task',
   models: '/console/models',
   deployment: '/console/deployment',
+  playgroundAdmin: '/console/playground-admin',
   playground: '/console/playground',
   video: '/console/video',
   image: '/console/image',
@@ -252,6 +253,13 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
+        text: t('体验区管理'),
+        itemKey: 'playgroundAdmin',
+        to: '/console/playground-admin',
+        // 页面读写 /api/option/（RootAuth），与「系统设置」一致仅超管可见
+        className: isRoot() ? '' : 'tableHiddle',
+      },
+      {
         text: t('兑换码管理'),
         itemKey: 'redemption',
         to: '/redemption',
@@ -312,7 +320,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/playground',
       },
       {
-        text: t('图片模型'),
+        text: t('图像模型'),
         itemKey: 'image',
         to: '/image',
       },

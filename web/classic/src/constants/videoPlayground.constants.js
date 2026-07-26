@@ -43,11 +43,12 @@ export const VIDEO_EXAMPLES = {
     {
       label: '图生视频(参考图)',
       prompt:
-        '以参考图中的少女与灵蛇为主体,生成一段电影质感短片:少女立于雾气缭绕的竹林中,灵蛇盘绕身侧缓缓游动,光斑浮动,镜头缓缓环绕拍摄。',
+        '以第一张参考图中的大理石雕像为主体,给他戴上第二张参考图里的粉色猫耳耳机,坐在第三张参考图的海边落日长椅上,正对镜头、中景固定机位,随音乐轻轻点头晃动身体。保持雕像的白色石质、卷曲雕刻发型与肌肉体格,以及海滩长椅、棕榈树与橙粉紫落日天空的场景不变,动作自然流畅、俏皮不夸张。',
       files: {
         refImages: [
-          '/playground-samples/images/vace-ref-girl.png',
-          '/playground-samples/images/vace-ref-snake.png',
+          '/playground-samples/images/bernini-r2v-statue.jpg',
+          '/playground-samples/images/bernini-r2v-headphones.jpg',
+          '/playground-samples/images/bernini-r2v-beach.jpg',
         ],
       },
     },

@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Button,
   CapsuleTabs,
+  Empty,
   Image as AmImage,
   ImageViewer,
   NavBar,
@@ -13,6 +14,7 @@ import { AddOutline } from 'antd-mobile-icons';
 import { useImageGeneration } from '@classic/hooks/imagePlayground/useImageGeneration';
 import { IMAGE_MAX_EDIT_IMAGES } from '@classic/constants/imagePlayground.constants';
 
+import { useVisibleModes } from '../hooks/useVisibleModes';
 import ConfigBar from '../components/gen/ConfigBar';
 import MessageFeed from '../components/gen/MessageFeed';
 import PromptBar from '../components/gen/PromptBar';
@@ -190,6 +192,7 @@ const ImageBody = ({ mode }) => {
                     height={64}
                     fit='cover'
                     style={{ borderRadius: 8 }}
+                    onClick={() => setViewerImage(url)}
                   />
                   <Button
                     size='mini'
@@ -232,19 +235,29 @@ const ImageBody = ({ mode }) => {
 
 const ImagePage = () => {
   const navigate = useNavigate();
-  const [mode, setMode] = useState('text2image');
+  const modes = useVisibleModes('image', MODES);
+  const [mode, setMode] = useState(modes[0]?.key || MODES[0].key);
+  useEffect(() => {
+    if (modes.length && !modes.some((m) => m.key === mode)) setMode(modes[0].key);
+  }, [modes, mode]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <NavBar onBack={() => navigate(-1)}>图片生成</NavBar>
-      <CapsuleTabs activeKey={mode} onChange={setMode}>
-        {MODES.map((m) => (
-          <CapsuleTabs.Tab key={m.key} title={m.title} />
-        ))}
-      </CapsuleTabs>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <ImageBody key={mode} mode={mode} />
-      </div>
+      {modes.length === 0 ? (
+        <Empty style={{ padding: 32 }} description='当前体验区暂未开放' />
+      ) : (
+        <>
+          <CapsuleTabs activeKey={mode} onChange={setMode}>
+            {modes.map((m) => (
+              <CapsuleTabs.Tab key={m.key} title={m.title} />
+            ))}
+          </CapsuleTabs>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <ImageBody key={mode} mode={mode} />
+          </div>
+        </>
+      )}
     </div>
   );
 };

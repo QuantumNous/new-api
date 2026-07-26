@@ -21,7 +21,7 @@ import React, { lazy, Suspense, useContext, useMemo } from 'react';
 import { Route, Routes, useLocation, useParams } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
-import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
+import { AuthRedirect, PrivateRoute, AdminRoute, RootRoute } from './helpers';
 import RegisterForm from './components/auth/RegisterForm';
 import LoginForm from './components/auth/LoginForm';
 import NotFound from './pages/NotFound';
@@ -43,6 +43,7 @@ import Pricing from './pages/Pricing';
 import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
+import PlaygroundAdminPage from './pages/PlaygroundAdmin';
 import Playground from './pages/Playground';
 import VideoModel from './pages/Video';
 import ImageModel from './pages/Image';
@@ -132,6 +133,14 @@ function App() {
             <AdminRoute>
               <ModelDeploymentPage />
             </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/playground-admin'
+          element={
+            <RootRoute>
+              <PlaygroundAdminPage />
+            </RootRoute>
           }
         />
         <Route

@@ -54,6 +54,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     channel: true,
     models: true,
     deployment: true,
+    playgroundAdmin: true,
     redemption: true,
     user: true,
     kyc: true,

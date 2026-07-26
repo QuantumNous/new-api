@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
+import { usePlaygroundTabs } from '../../hooks/common/usePlaygroundTabs';
 import { useImageGeneration } from '../../hooks/imagePlayground/useImageGeneration';
 import ImageConfigPanel from '../../components/imagePlayground/ImageConfigPanel';
 import ImageChatArea from '../../components/imagePlayground/ImageChatArea';
@@ -85,7 +86,16 @@ const ImagePlaygroundBody = ({ mode }) => {
 const ImageModel = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState('text2image');
+  const tabs = usePlaygroundTabs('image');
+  const [activeTab, setActiveTab] = useState(tabs[0]?.key || 'text2image');
+
+  useEffect(() => {
+    if (tabs.length && !tabs.some((tb) => tb.key === activeTab)) {
+      setActiveTab(tabs[0].key);
+    }
+  }, [tabs, activeTab]);
+
+  if (!tabs.length) return null;
 
   return (
     <div className='h-full'>
@@ -96,8 +106,9 @@ const ImageModel = () => {
           onChange={setActiveTab}
           className='flex-shrink-0'
         >
-          <TabPane tab={t('文生图')} itemKey='text2image' />
-          <TabPane tab={t('图生图')} itemKey='image2image' />
+          {tabs.map((tb) => (
+            <TabPane key={tb.key} tab={t(tb.label)} itemKey={tb.key} />
+          ))}
         </Tabs>
 
         {/* key 使切换 tab 时整体重挂载,各模式 hook 状态独立 */}

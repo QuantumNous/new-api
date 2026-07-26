@@ -21,11 +21,6 @@ import React, { useEffect, useState } from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
 import SettingsGeneral from '../../pages/Setting/Operation/SettingsGeneral';
 import SettingsHeaderNavModules from '../../pages/Setting/Operation/SettingsHeaderNavModules';
-import SettingsSidebarModulesAdmin from '../../pages/Setting/Operation/SettingsSidebarModulesAdmin';
-import SettingsImageSizes from '../../pages/Setting/Operation/SettingsImageSizes';
-import SettingsVideoModels from '../../pages/Setting/Operation/SettingsVideoModels';
-import SettingsAudioModels from '../../pages/Setting/Operation/SettingsAudioModels';
-import SettingsMusicModels from '../../pages/Setting/Operation/SettingsMusicModels';
 import SettingsSensitiveWords from '../../pages/Setting/Operation/SettingsSensitiveWords';
 import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
@@ -158,26 +153,8 @@ const OperationSetting = () => {
         <div style={{ marginTop: '10px' }}>
           <SettingsHeaderNavModules options={inputs} refresh={onRefresh} />
         </div>
-        {/* 左侧边栏模块管理（管理员） */}
-        <div style={{ marginTop: '10px' }}>
-          <SettingsSidebarModulesAdmin options={inputs} refresh={onRefresh} />
-        </div>
-        {/* 图片模型尺寸配置 */}
-        <div style={{ marginTop: '10px' }}>
-          <SettingsImageSizes options={inputs} refresh={onRefresh} />
-        </div>
-        {/* 视频模型配置 */}
-        <div style={{ marginTop: '10px' }}>
-          <SettingsVideoModels options={inputs} refresh={onRefresh} />
-        </div>
-        {/* 音频模型配置 */}
-        <div style={{ marginTop: '10px' }}>
-          <SettingsAudioModels options={inputs} refresh={onRefresh} />
-        </div>
-        {/* 音乐模型配置 */}
-        <div style={{ marginTop: '10px' }}>
-          <SettingsMusicModels options={inputs} refresh={onRefresh} />
-        </div>
+        {/* 体验区相关配置（左侧栏模块、tab 显隐、各模型能力与选项）已迁移到
+            独立的「体验区管理」页（/console/playground-admin）统一管理。 */}
         {/* 屏蔽词过滤设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsSensitiveWords options={inputs} refresh={onRefresh} />

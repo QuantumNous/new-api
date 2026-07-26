@@ -87,6 +87,7 @@ const VideoConfigPanel = ({
         label={label}
         required={!opts.optional}
         maxMB={uploadMaxMB}
+        maxCount={1}
         imageUrls={inputs[key] ? [inputs[key]] : []}
         imageEnabled={true}
         onImageUrlsChange={(v) =>
@@ -279,6 +280,7 @@ const VideoConfigPanel = ({
                   count: maxRefImages,
                 })}
                 maxMB={uploadMaxMB}
+                maxCount={maxRefImages}
                 imageUrls={inputs.refImages || []}
                 imageEnabled={true}
                 onImageUrlsChange={(v) =>
@@ -325,6 +327,7 @@ const VideoConfigPanel = ({
                   count: maxRefImages,
                 })}
                 maxMB={uploadMaxMB}
+                maxCount={maxRefImages}
                 imageUrls={inputs.refImages || []}
                 imageEnabled={true}
                 onImageUrlsChange={(v) =>

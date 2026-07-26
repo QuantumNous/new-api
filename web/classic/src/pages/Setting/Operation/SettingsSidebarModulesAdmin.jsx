@@ -146,8 +146,8 @@ export default function SettingsSidebarModulesAdmin(props) {
         },
         {
           key: 'image',
-          title: t('图片模型'),
-          description: t('图片模型生成'),
+          title: t('图像模型'),
+          description: t('图像模型生成'),
         },
         {
           key: 'video',

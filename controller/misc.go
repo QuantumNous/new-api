@@ -105,6 +105,10 @@ func GetStatus(c *gin.Context) {
 		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
 		"SidebarModulesAdmin": common.OptionMap["SidebarModulesAdmin"],
 
+		// 体验区各分类下 tab 显隐配置（{category:{modeKey:bool}}，缺省=显示）。
+		// 由「体验区管理」页维护，classic/mobile 的 tab 渲染据此过滤。
+		"PlaygroundTabConfig": common.OptionMap["PlaygroundTabConfig"],
+
 		// 图片模型可选尺寸配置（按模型）
 		"ImageModelSizeConfig": common.OptionMap["ImageModelSizeConfig"],
 
