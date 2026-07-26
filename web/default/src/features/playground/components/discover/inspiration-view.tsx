@@ -7,6 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { Download, History, Images, Loader2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +19,7 @@ import {
   PageTransition,
 } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
+import { listCanvasProjects } from '@/features/inspiration/canvas/api'
 import { cn } from '@/lib/utils'
 
 import { listPlaygroundTasks } from '../../api'
@@ -37,7 +39,6 @@ type InspirationViewProps = {
   recentPrompts: RecentPrompt[]
   onApplyPrompt: (prompt: string, modality: StudioModality) => void
   isAuthenticated: boolean
-  availableModels: Array<{ name: string; modality: string }>
   onRequireAuth: () => void
   onRemoveWork?: (id: string) => void
   className?: string
@@ -68,6 +69,11 @@ export function InspirationView(props: InspirationViewProps) {
     queryKey: ['playground', 'runs'],
     queryFn: listPlaygroundTasks,
     enabled: view === 'works',
+  })
+  const canvasProjects = useQuery({
+    queryKey: ['inspiration', 'canvas', 'projects'],
+    queryFn: listCanvasProjects,
+    enabled: view === 'works' && props.isAuthenticated,
   })
 
   const downloadWork = async (work: InspirationWork) => {
@@ -157,23 +163,47 @@ export function InspirationView(props: InspirationViewProps) {
         {view === 'square' && (
           <InspirationGallery
             isAuthenticated={props.isAuthenticated}
-            availableModels={props.availableModels}
             onRequireAuth={props.onRequireAuth}
           />
         )}
 
         {view === 'works' && (
           <CardStaggerContainer className='space-y-2'>
-            {worksList.length === 0 && (
-              <div className='py-10 text-center'>
-                <div className='bg-primary/10 text-primary mx-auto flex size-10 items-center justify-center rounded-xl'>
-                  <Images className='size-5' aria-hidden='true' />
+            {(canvasProjects.data ?? []).map((project) => (
+              <CardStaggerItem
+                key={`canvas-${project.id}`}
+                className='border-primary/20 bg-primary/5 rounded-xl border p-3'
+              >
+                <Link
+                  to='/inspiration/projects/$projectId'
+                  params={{ projectId: String(project.id) }}
+                  className='flex items-center justify-between gap-3'
+                >
+                  <div className='min-w-0'>
+                    <p className='text-foreground truncate text-sm font-medium'>
+                      {project.title}
+                    </p>
+                    <p className='text-muted-foreground mt-1 text-[11px]'>
+                      {t('Canvas project')}
+                    </p>
+                  </div>
+                  <span className='text-primary shrink-0 text-xs font-medium'>
+                    {t('Open')}
+                  </span>
+                </Link>
+              </CardStaggerItem>
+            ))}
+            {worksList.length === 0 &&
+              (canvasProjects.data ?? []).length === 0 && (
+                <div className='py-10 text-center'>
+                  <div className='bg-primary/10 text-primary mx-auto flex size-10 items-center justify-center rounded-xl'>
+                    <Images className='size-5' aria-hidden='true' />
+                  </div>
+                  <p className='text-muted-foreground mt-3 text-sm'>
+                    {t('Generations you save will show up here.')}
+                  </p>
                 </div>
-                <p className='text-muted-foreground mt-3 text-sm'>
-                  {t('Generations you save will show up here.')}
-                </p>
-              </div>
-            )}
+              )}
             {worksList.map((work) => (
               <CardStaggerItem
                 key={work.id}

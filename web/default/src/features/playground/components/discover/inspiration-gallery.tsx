@@ -7,6 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { Copy, Heart, Loader2, Search } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +22,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { usePlaygroundStore } from '@/stores/playground-store'
+import { createCanvasProject } from '@/features/inspiration/canvas/api'
 
 import {
   createInspirationCollection,
@@ -35,7 +36,6 @@ import {
 import {
   compileRecipe,
   initialRecipeValues,
-  resolveRecipeModel,
   type RecipeFieldError,
   type RecipeValues,
 } from '../../inspiration/compile-recipe'
@@ -46,7 +46,6 @@ import type {
 
 type Props = {
   isAuthenticated: boolean
-  availableModels: Array<{ name: string; modality: string }>
   onRequireAuth: () => void
 }
 
@@ -212,11 +211,10 @@ function RecipeDetail(props: {
   onOpenChange: (open: boolean) => void
   isAuthenticated: boolean
   onRequireAuth: () => void
-  availableModels: Props['availableModels']
 }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const applyRecipe = usePlaygroundStore((state) => state.applyRecipe)
   const [values, setValues] = useState<RecipeValues>({})
   const [collectionName, setCollectionName] = useState('')
   useEffect(() => {
@@ -236,6 +234,30 @@ function RecipeDetail(props: {
       }),
     onError: () => toast.error(t('Something went wrong')),
   })
+  const createProject = useMutation({
+    mutationFn: async () => {
+      if (!props.recipe || !compiled) {
+        throw new Error('Recipe is unavailable')
+      }
+      const recipe = props.recipe
+      const project = await createCanvasProject({
+        template_id: recipe.id,
+        title: recipe.title,
+        prompt: compiled.prompt,
+        values,
+      })
+      return { project, recipe }
+    },
+    onSuccess: ({ project, recipe }) => {
+      void recordInspirationEvents(recipe, 'apply')
+      props.onOpenChange(false)
+      void navigate({
+        to: '/inspiration/projects/$projectId',
+        params: { projectId: String(project.id) },
+      })
+    },
+    onError: () => toast.error(t('Could not create canvas project')),
+  })
   if (!props.recipe || !compiled) return null
   const recipe = props.recipe
   const favorite =
@@ -243,12 +265,6 @@ function RecipeDetail(props: {
       (save) =>
         save.template_id === props.recipe?.id && save.collection_id === 0
     ) ?? false
-  const model = resolveRecipeModel(
-    props.recipe,
-    props.availableModels
-      .filter((item) => item.modality === props.recipe?.modality)
-      .map((item) => item.name)
-  )
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(compiled.prompt)
@@ -439,28 +455,17 @@ function RecipeDetail(props: {
           </Button>
           <Button
             disabled={
+              createProject.isPending ||
               Object.keys(compiled.errors).length > 0 ||
               compiled.unknown.length > 0
             }
             onClick={() => {
-              if (!model) {
-                toast.error(t('No compatible model is available'))
-                return
-              }
-              applyRecipe({
-                id: recipe.id,
-                versionId: recipe.version_id,
-                title: recipe.title,
-                modality: recipe.modality,
-                model,
-                prompt: compiled.prompt,
-                parameters: recipe.parameters,
-              })
-              void recordInspirationEvents(recipe, 'apply')
-              props.onOpenChange(false)
+              if (!requireAuth()) return
+              createProject.mutate()
             }}
           >
-            {t('Apply')}
+            {createProject.isPending && <Loader2 className='animate-spin' />}
+            {t('Start creating')}
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -612,7 +617,6 @@ export function InspirationGallery(props: Props) {
         }}
         isAuthenticated={props.isAuthenticated}
         onRequireAuth={props.onRequireAuth}
-        availableModels={props.availableModels}
       />
     </div>
   )

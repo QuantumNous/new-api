@@ -681,14 +681,6 @@ export function Playground() {
           onRemoveWork={removeMyWork}
           isAuthenticated={isAuthenticated}
           onRequireAuth={() => setSignInDialogOpen(true)}
-          availableModels={playgroundModels
-            .filter((model) =>
-              models.some((item) => item.value === model.model_name)
-            )
-            .map((model) => ({
-              name: model.model_name,
-              modality: getModelModality(model),
-            }))}
         />
       )}
 

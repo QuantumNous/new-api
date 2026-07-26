@@ -403,6 +403,13 @@ func SetApiRouter(router *gin.Engine) {
 			playgroundDataRoute.PUT("/projects/:id", controller.UpdatePlaygroundProject)
 			playgroundDataRoute.DELETE("/projects/:id", controller.DeletePlaygroundProject)
 
+			playgroundDataRoute.GET("/canvas/projects", controller.ListPlaygroundCanvasProjects)
+			playgroundDataRoute.POST("/canvas/projects", controller.CreatePlaygroundCanvasProject)
+			playgroundDataRoute.GET("/canvas/projects/:id", controller.GetPlaygroundCanvasProject)
+			playgroundDataRoute.PUT("/canvas/projects/:id", controller.UpdatePlaygroundCanvasProject)
+			playgroundDataRoute.PATCH("/canvas/projects/:id", controller.UpdatePlaygroundCanvasProject)
+			playgroundDataRoute.DELETE("/canvas/projects/:id", controller.DeletePlaygroundCanvasProject)
+
 			playgroundDataRoute.GET("/personas", controller.ListPlaygroundPersonas)
 			playgroundDataRoute.POST("/personas", controller.CreatePlaygroundPersona)
 			playgroundDataRoute.PATCH("/personas/:id", controller.UpdatePlaygroundPersona)
