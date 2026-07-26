@@ -54,7 +54,7 @@ export function CanvasVersionHistory(props: CanvasVersionHistoryProps) {
       } catch {
         throw new Error('invalid version document')
       }
-      useCanvasStore.getState().loadDocument(doc)
+      useCanvasStore.getState().loadDocument(doc, { userRestore: true })
       props.onOpenChange(false)
       toast.success(t('Version restored'))
     } catch {

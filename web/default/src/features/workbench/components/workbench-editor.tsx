@@ -8,7 +8,7 @@ License, or (at your option) any later version.
 */
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, History, Sparkles } from 'lucide-react'
+import { ArrowLeft, History, Search, Share2, Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -24,6 +24,13 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -32,8 +39,10 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 
 import { getCanvasProject, updateCanvasProject } from '../api'
+import { searchCanvasNodes } from '../engine/canvas-search'
 import { useCanvasStore } from '../store/canvas-store'
 import { CanvasNodeType, type CanvasDocument } from '../types'
+import { CanvasShareDialog } from './canvas-share-dialog'
 import { CanvasVersionHistory } from './canvas-version-history'
 import { WorkbenchInspiration } from './inspiration/workbench-inspiration'
 import { WorkbenchCanvas } from './workbench-canvas'
@@ -59,16 +68,34 @@ export function WorkbenchEditor(props: { projectId: number }) {
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [inspirationOpen, setInspirationOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [conflictOpen, setConflictOpen] = useState(false)
   const [conflictBusy, setConflictBusy] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const baseUpdatedAtRef = useRef(0)
   const savedSignatureRef = useRef('')
   const savedCoverRef = useRef('')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingLocalDocRef = useRef('')
+  const saveInFlightRef = useRef<Promise<void> | null>(null)
+  const dirtyWhileSavingRef = useRef(false)
+  const [saveSequence, setSaveSequence] = useState(0)
 
   const revision = useCanvasStore((state) => state.revision)
   const loadDocument = useCanvasStore((state) => state.loadDocument)
+  const nodes = useCanvasStore((state) => state.nodes)
+  const experienceMode = useCanvasStore((state) => state.experienceMode)
+
+  useEffect(() => {
+    const openSearch = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', openSearch)
+    return () => window.removeEventListener('keydown', openSearch)
+  }, [])
 
   const project = useQuery({
     queryKey: ['workbench', 'canvas-project', props.projectId],
@@ -104,52 +131,71 @@ export function WorkbenchEditor(props: { projectId: number }) {
       doc: useCanvasStore.getState().exportDocument(),
     })
     if (signature === savedSignatureRef.current) return
+    if (saveInFlightRef.current) {
+      dirtyWhileSavingRef.current = true
+      return
+    }
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(async () => {
+    saveTimerRef.current = setTimeout(() => {
       setSaveState('saving')
       const exported = useCanvasStore.getState().exportDocument()
       const docPayload = JSON.stringify(exported)
       const cover = extractCover(exported)
       const nextSignature = JSON.stringify({ title, doc: exported })
-      pendingLocalDocRef.current = docPayload
-      try {
-        const payload: {
-          title: string
-          doc: string
-          cover?: string
-          base_updated_at: number
-        } = {
-          title,
-          doc: docPayload,
-          base_updated_at: baseUpdatedAtRef.current,
+      const save = async () => {
+        try {
+          const payload: {
+            title: string
+            doc: string
+            cover?: string
+            base_updated_at: number
+          } = {
+            title,
+            doc: docPayload,
+            base_updated_at: baseUpdatedAtRef.current,
+          }
+          if (cover !== savedCoverRef.current) {
+            payload.cover = cover
+          }
+          const result = await updateCanvasProject(props.projectId, payload)
+          baseUpdatedAtRef.current = result.updated_at
+          savedSignatureRef.current = nextSignature
+          if (cover !== savedCoverRef.current) savedCoverRef.current = cover
+          setSaveState('saved')
+        } catch (error) {
+          const message = error instanceof Error ? error.message : ''
+          if (message.includes('modified elsewhere')) {
+            setSaveState('conflict')
+            setConflictOpen(true)
+            return
+          }
+          setSaveState('error')
+          toast.error(t('Failed to save the canvas'))
+        } finally {
+          saveInFlightRef.current = null
+          if (dirtyWhileSavingRef.current) {
+            dirtyWhileSavingRef.current = false
+            setSaveSequence((value) => value + 1)
+          }
         }
-        if (cover !== savedCoverRef.current) {
-          payload.cover = cover
-        }
-        const result = await updateCanvasProject(props.projectId, payload)
-        baseUpdatedAtRef.current = result.updated_at
-        savedSignatureRef.current = nextSignature
-        if (cover !== savedCoverRef.current) {
-          savedCoverRef.current = cover
-        }
-        setSaveState('saved')
-      } catch (error) {
-        const message = error instanceof Error ? error.message : ''
-        if (message.includes('modified elsewhere')) {
-          setSaveState('conflict')
-          setConflictOpen(true)
-          return
-        }
-        setSaveState('error')
-        toast.error(t('Failed to save the canvas'))
       }
+      const request = save()
+      saveInFlightRef.current = request
     }, AUTOSAVE_DELAY_MS)
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
-  }, [project.data, props.projectId, revision, saveState, t, title])
+  }, [
+    project.data,
+    props.projectId,
+    revision,
+    saveSequence,
+    saveState,
+    t,
+    title,
+  ])
 
   async function handleReloadFromServer() {
     setConflictBusy(true)
@@ -182,9 +228,10 @@ export function WorkbenchEditor(props: { projectId: number }) {
   async function handleOverwrite() {
     setConflictBusy(true)
     try {
+      await saveInFlightRef.current
       const latest = await getCanvasProject(props.projectId)
       const exported = useCanvasStore.getState().exportDocument()
-      const docPayload = pendingLocalDocRef.current || JSON.stringify(exported)
+      const docPayload = JSON.stringify(exported)
       const cover = extractCover(exported)
       const payload: {
         title: string
@@ -268,6 +315,82 @@ export function WorkbenchEditor(props: { projectId: number }) {
           {saveState === 'error' ? t('Not saved') : null}
         </span>
         <div className='ml-auto flex items-center gap-2'>
+          <div className='relative'>
+            <Button
+              size='sm'
+              variant='outline'
+              aria-expanded={searchOpen}
+              onClick={() => setSearchOpen((open) => !open)}
+            >
+              <Search />
+              {t('Search nodes')}
+              <kbd className='text-muted-foreground ml-2'>⌘K</kbd>
+            </Button>
+            {searchOpen ? (
+              <div className='bg-popover absolute top-10 right-0 z-50 w-80 rounded-md border p-2 shadow-lg'>
+                <Input
+                  autoFocus
+                  role='searchbox'
+                  aria-label={t('Search canvas nodes')}
+                  placeholder={t('Search by title, prompt, text, or type')}
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                />
+                <div role='listbox' className='mt-2 max-h-72 overflow-auto'>
+                  {searchCanvasNodes(nodes, searchQuery).map((node) => (
+                    <button
+                      key={node.id}
+                      type='button'
+                      role='option'
+                      aria-selected='false'
+                      className='hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm'
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent('canvas:focus-node', {
+                            detail: node.id,
+                          })
+                        )
+                        setSearchOpen(false)
+                      }}
+                    >
+                      <span className='truncate'>{node.title}</span>
+                      <span className='text-muted-foreground ml-auto text-xs'>
+                        {t(node.type)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <Select
+            value={experienceMode}
+            onValueChange={(value) =>
+              useCanvasStore
+                .getState()
+                .setExperienceMode(value as 'simple' | 'professional')
+            }
+          >
+            <SelectTrigger
+              size='sm'
+              className='w-36'
+              aria-label={t('Canvas mode')}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='simple'>{t('Simple')}</SelectItem>
+              <SelectItem value='professional'>{t('Professional')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            size='sm'
+            variant='outline'
+            onClick={() => setShareOpen(true)}
+          >
+            <Share2 />
+            {t('Share')}
+          </Button>
           <Button
             size='sm'
             variant='outline'
@@ -304,6 +427,11 @@ export function WorkbenchEditor(props: { projectId: number }) {
         projectId={props.projectId}
         open={historyOpen}
         onOpenChange={setHistoryOpen}
+      />
+      <CanvasShareDialog
+        projectId={props.projectId}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
       />
 
       <AlertDialog

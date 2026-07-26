@@ -24,6 +24,10 @@ import { nanoid } from 'nanoid'
 import { create } from 'zustand'
 
 import {
+  instantiateClipboardNodes,
+  serializeCanvasSelection,
+} from '../engine/canvas-clipboard'
+import {
   applyNodeConfigPatch,
   attachNodeToStoryboardRow,
   createCanvasNode,
@@ -31,6 +35,14 @@ import {
   removeCanvasNodes,
 } from '../engine/canvas-domain'
 import { applyFrameDrop, findFrameDropTarget } from '../engine/canvas-frame'
+import {
+  layoutCanvasNodes,
+  type CanvasLayoutAction,
+} from '../engine/canvas-layout'
+import {
+  createNodeVariant,
+  setPrimaryNodeVersion,
+} from '../engine/canvas-node-versions'
 import {
   getCanvasNodesBounds,
   viewportForBounds,
@@ -40,6 +52,7 @@ import {
   type CanvasBackgroundMode,
   type CanvasConnection,
   type CanvasDocument,
+  type CanvasExperienceMode,
   type CanvasNodeData,
   type CanvasNodeMetadata,
   type Position,
@@ -61,15 +74,21 @@ type CanvasStoreState = {
   connections: CanvasConnection[]
   viewport: ViewportTransform
   backgroundMode: CanvasBackgroundMode
+  experienceMode: CanvasExperienceMode
   selectedNodeIds: string[]
   selectedConnectionId: string | null
   past: HistorySnapshot[]
   future: HistorySnapshot[]
   revision: number
-  loadDocument: (doc: Partial<CanvasDocument> | null) => void
+  loadDocument: (
+    doc: Partial<CanvasDocument> | null,
+    options?: { userRestore?: boolean }
+  ) => void
   exportDocument: () => CanvasDocument
   setViewport: (viewport: ViewportTransform) => void
   setBackgroundMode: (mode: CanvasBackgroundMode) => void
+  setExperienceMode: (mode: CanvasExperienceMode) => void
+  layoutSelection: (action: CanvasLayoutAction) => void
   fitView: (size: { width: number; height: number }) => void
   addNode: (
     type: CanvasNodeType,
@@ -86,9 +105,14 @@ type CanvasStoreState = {
   ) => void
   setStoryboardRows: (nodeId: string, rows: StoryboardRow[]) => void
   moveNodes: (offsets: Array<{ id: string; x: number; y: number }>) => void
-  commitNodeDrag: (movedIds: string[]) => void
+  commitNodeDrag: (
+    movedIds: string[],
+    initial?: Array<{ id: string; x: number; y: number }>
+  ) => void
   removeNodes: (ids: string[]) => void
   duplicateNodes: (ids: string[]) => void
+  createNodeVariant: (id: string) => void
+  setPrimaryNodeVersion: (id: string) => void
   connectNodes: (
     fromNodeId: string,
     toNodeId: string,
@@ -127,24 +151,26 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
   connections: [],
   viewport: DEFAULT_VIEWPORT,
   backgroundMode: 'lines',
+  experienceMode: 'professional',
   selectedNodeIds: [],
   selectedConnectionId: null,
   past: [],
   future: [],
   revision: 0,
 
-  loadDocument: (doc) =>
-    set({
+  loadDocument: (doc, options) =>
+    set((state) => ({
       nodes: doc?.nodes ?? [],
       connections: doc?.connections ?? [],
       viewport: doc?.viewport ?? DEFAULT_VIEWPORT,
       backgroundMode: doc?.backgroundMode ?? 'lines',
+      experienceMode: doc?.experienceMode ?? 'professional',
       selectedNodeIds: [],
       selectedConnectionId: null,
       past: [],
       future: [],
-      revision: 0,
-    }),
+      revision: options?.userRestore ? state.revision + 1 : 0,
+    })),
 
   exportDocument: () => {
     const state = get()
@@ -153,6 +179,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
       connections: state.connections,
       viewport: state.viewport,
       backgroundMode: state.backgroundMode,
+      experienceMode: state.experienceMode,
     }
   },
 
@@ -160,6 +187,50 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 
   setBackgroundMode: (backgroundMode) =>
     set((state) => ({ backgroundMode, revision: state.revision + 1 })),
+
+  setExperienceMode: (experienceMode) =>
+    set((state) => ({ experienceMode, revision: state.revision + 1 })),
+
+  layoutSelection: (action) =>
+    set((state) => {
+      const positions = layoutCanvasNodes(
+        state.nodes,
+        state.connections,
+        state.selectedNodeIds,
+        action
+      )
+      if (!positions.length) return state
+      const byId = new Map(positions.map((item) => [item.id, item.position]))
+      return withHistory(state, {
+        nodes: state.nodes
+          .map((node) => {
+            const position = byId.get(node.id)
+            if (!position) return node
+            return { ...node, position }
+          })
+          .map((node, _, all) => {
+            if (!node.parentId || !byId.has(node.parentId)) return node
+            const originalParent = state.nodes.find(
+              (item) => item.id === node.parentId
+            )
+            const parent = all.find((item) => item.id === node.parentId)
+            if (!originalParent || !parent) return node
+            return {
+              ...node,
+              position: {
+                x:
+                  node.position.x +
+                  parent.position.x -
+                  originalParent.position.x,
+                y:
+                  node.position.y +
+                  parent.position.y -
+                  originalParent.position.y,
+              },
+            }
+          }),
+      })
+    }),
 
   fitView: (size) => {
     const bounds = getCanvasNodesBounds(get().nodes)
@@ -192,6 +263,22 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
       })
     )
   },
+
+  createNodeVariant: (id) =>
+    set((state) => {
+      const variant = createNodeVariant(state.nodes, state.connections, id)
+      if (!variant) return state
+      return withHistory(state, {
+        nodes: [...variant.updatedNodes, variant.node],
+        connections: [...state.connections, ...variant.connections],
+        selectedNodeIds: [variant.node.id],
+      })
+    }),
+
+  setPrimaryNodeVersion: (id) =>
+    set((state) =>
+      withHistory(state, { nodes: setPrimaryNodeVersion(state.nodes, id) })
+    ),
 
   updateNode: (id, patch) =>
     set((state) => ({
@@ -243,6 +330,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
                 referenceNodeIds:
                   node.metadata?.storyboard?.referenceNodeIds ?? [],
                 rows,
+                batch: node.metadata?.storyboard?.batch,
               },
             },
           }
@@ -263,15 +351,27 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
     }))
   },
 
-  commitNodeDrag: (movedIds) => {
+  commitNodeDrag: (movedIds, initial) => {
     const state = get()
     const draggedIds = new Set(movedIds)
     const frameId = findFrameDropTarget(state.nodes, draggedIds)
-    set(
-      withHistory(state, {
-        nodes: applyFrameDrop(state.nodes, draggedIds, frameId),
-      })
-    )
+    const beforeNodes = initial?.length
+      ? state.nodes.map((node) => {
+          const position = initial.find((item) => item.id === node.id)
+          return position
+            ? { ...node, position: { x: position.x, y: position.y } }
+            : node
+        })
+      : state.nodes
+    set({
+      nodes: applyFrameDrop(state.nodes, draggedIds, frameId),
+      past: [
+        ...state.past,
+        { nodes: beforeNodes, connections: state.connections },
+      ].slice(-HISTORY_LIMIT),
+      future: [],
+      revision: state.revision + 1,
+    })
   },
 
   removeNodes: (ids) => {
@@ -294,25 +394,21 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
 
   duplicateNodes: (ids) => {
     const state = get()
-    const selected = new Set(ids)
-    const copies = state.nodes
-      .filter((node) => selected.has(node.id))
-      .map((node) => ({
-        ...node,
-        id: `${node.type}-${nanoid(8)}`,
-        parentId: undefined,
-        position: { x: node.position.x + 40, y: node.position.y + 40 },
-        metadata: {
-          ...node.metadata,
-          isBatchRoot: undefined,
-          batchRootId: undefined,
-          batchChildIds: undefined,
-        },
-      }))
+    const payload = serializeCanvasSelection(
+      state.nodes,
+      state.connections,
+      ids
+    )
+    if (!payload) return
+    const { nodes: copies, connections } = instantiateClipboardNodes(payload, {
+      x: 40,
+      y: 40,
+    })
     if (!copies.length) return
     set(
       withHistory(state, {
         nodes: [...state.nodes, ...copies],
+        connections: [...state.connections, ...connections],
         selectedNodeIds: copies.map((node) => node.id),
       })
     )

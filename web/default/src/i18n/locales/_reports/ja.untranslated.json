@@ -1,0 +1,14 @@
+{
+  "Canvas instructions: Tab to nodes and connections, Enter or Space to select, arrow keys to move, and Delete to remove.": "Canvas instructions: Tab to nodes and connections, Enter or Space to select, arrow keys to move, and Delete to remove.",
+  "Connection from {{from}} to {{to}}": "Connection from {{from}} to {{to}}",
+  "Connection selected": "Connection selected",
+  "Copy failed": "Copy failed",
+  "Could not capture the video frame. Check that the video allows cross-origin access.": "Could not capture the video frame. Check that the video allows cross-origin access.",
+  "Drag a free rectangle over the image.": "Drag a free rectangle over the image.",
+  "Fullscreen preview failed": "Fullscreen preview failed",
+  "Image crop area": "Image crop area",
+  "Image processing failed. The original was kept.": "Image processing failed. The original was kept.",
+  "Nothing selected": "Nothing selected",
+  "Prompt copied": "Prompt copied",
+  "Resize {{corner}} handle": "Resize {{corner}} handle"
+}

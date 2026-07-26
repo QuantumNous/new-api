@@ -42,6 +42,7 @@ export type CanvasGenerationSettings = {
   audioVoice?: string
   audioFormat?: string
   audioSpeed?: string
+  audioInstructions?: string
 }
 
 export type CanvasImageGenerationResult = {
@@ -149,7 +150,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
-async function pollVideoTask(
+export async function pollCanvasVideoTask(
   taskId: string,
   options: {
     onProgress?: (progress: {
@@ -181,6 +182,40 @@ async function pollVideoTask(
     await delay(VIDEO_POLL_INTERVAL_MS, options.signal)
   }
   throw new Error('Video generation timed out')
+}
+
+async function persistCanvasVideoResult(
+  taskId: string
+): Promise<{ url: string; assetId?: number; taskId: string }> {
+  const url = `/v1/videos/${taskId}/content`
+  let finalUrl = url
+  let assetId: number | undefined
+  try {
+    const asset = await persistGeneratedMediaAsset(
+      url,
+      `canvas-video-${taskId}.mp4`,
+      'video'
+    )
+    finalUrl = asset.url
+    assetId = asset.id
+  } catch {
+    // The authenticated content endpoint remains a usable fallback.
+  }
+  return { url: finalUrl, assetId, taskId }
+}
+
+export async function resumeCanvasVideoGeneration(input: {
+  taskId: string
+  onProgress?: (progress: {
+    status?: string
+    percent: number | null
+    taskId: string
+  }) => void
+  signal?: AbortSignal
+}): Promise<{ url: string; assetId?: number; taskId: string }> {
+  await pollCanvasVideoTask(input.taskId, input)
+  throwIfAborted(input.signal)
+  return persistCanvasVideoResult(input.taskId)
 }
 
 export async function runCanvasImageGeneration(input: {
@@ -259,27 +294,12 @@ export async function runCanvasVideoGeneration(input: {
     percent: null,
     taskId,
   })
-  await pollVideoTask(taskId, {
+  await pollCanvasVideoTask(taskId, {
     onProgress: input.onProgress,
     signal: input.signal,
   })
 
-  const url = `/v1/videos/${taskId}/content`
-  let finalUrl = url
-  let assetId: number | undefined
-  try {
-    const asset = await persistGeneratedMediaAsset(
-      url,
-      `canvas-video-${taskId}.mp4`,
-      'video'
-    )
-    finalUrl = asset.url
-    assetId = asset.id
-  } catch {
-    // Prefer original URL when asset persistence fails.
-  }
-
-  return { url: finalUrl, assetId, taskId }
+  return persistCanvasVideoResult(taskId)
 }
 
 export async function runCanvasAudioGeneration(input: {
@@ -293,6 +313,7 @@ export async function runCanvasAudioGeneration(input: {
     text: input.text,
     settings: studioSettings,
     voiceId: input.settings.audioVoice,
+    instructions: input.settings.audioInstructions,
   })
 
   const extension = studioSettings.audioFormat || 'mp3'

@@ -25,6 +25,7 @@ import {
   type CanvasConnection,
   type CanvasNodeData,
 } from '../types'
+import { mentionedNodeIds } from './canvas-prompt-shortcuts'
 
 export type NodeGenerationInput = {
   nodeId: string
@@ -99,7 +100,22 @@ export function buildNodeGenerationContext(
   connections: CanvasConnection[],
   prompt: string
 ): NodeGenerationContext {
-  const inputs = buildNodeGenerationInputs(nodeId, nodes, connections)
+  const connectedInputs = buildNodeGenerationInputs(nodeId, nodes, connections)
+  const connectedIds = new Set(connectedInputs.map((input) => input.nodeId))
+  const mentionedInputs = mentionedNodeIds(prompt).flatMap<NodeGenerationInput>(
+    (id) => {
+      if (connectedIds.has(id) || id === nodeId) return []
+      const node = nodes.find((item) => item.id === id)
+      if (!node) return []
+      const type = inputTypeForNode(node)
+      const content = node.metadata?.content?.trim()
+      if (!type || !content) return []
+      return type === 'text'
+        ? [{ nodeId: id, type, title: node.title, text: content }]
+        : [{ nodeId: id, type, title: node.title, mediaUrl: content }]
+    }
+  )
+  const inputs = [...connectedInputs, ...mentionedInputs]
   const presetNode = getUpstreamNodes(nodeId, nodes, connections).find(
     (node) => node.type === CanvasNodeType.Config
   )
@@ -117,7 +133,10 @@ export function buildNodeGenerationContext(
   const referenceAudios = inputs
     .filter((input) => input.type === 'audio' && input.mediaUrl)
     .map((input) => input.mediaUrl as string)
-  const basePrompt = prompt.trim()
+  const basePrompt = prompt
+    .replaceAll(/@\[[^\]]*\]\(node:[^\s)]+\)/g, '')
+    .replaceAll(/\s{2,}/g, ' ')
+    .trim()
 
   return {
     prompt: upstreamText

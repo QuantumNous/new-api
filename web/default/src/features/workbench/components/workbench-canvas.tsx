@@ -34,10 +34,21 @@ import {
 import { isHiddenBatchChild } from '../engine/canvas-domain'
 import {
   downloadCanvasDocument,
+  downloadCanvasArchive,
   exportCanvasSnapshot,
   readCanvasDocumentFile,
+  readCanvasArchiveFile,
 } from '../engine/canvas-export'
 import { isNodeHiddenByCollapsedFrame } from '../engine/canvas-frame'
+import {
+  mediaKindForFile,
+  mediaKindForNode,
+} from '../engine/canvas-media-replacement'
+import {
+  captureVideoFrame,
+  transformImage,
+  type CropRect,
+} from '../engine/canvas-media-transform'
 import { useCanvasTheme } from '../engine/canvas-theme'
 import { clampCanvasScale, viewportAtScale } from '../engine/canvas-viewport'
 import { useCanvasGeneration } from '../hooks/use-canvas-generation'
@@ -55,24 +66,31 @@ import {
 } from '../types'
 import { CanvasConnections } from './canvas-connections'
 import { CanvasContextMenu } from './canvas-context-menu'
+import { CanvasCropDialog } from './canvas-crop-dialog'
 import { CanvasMinimap } from './canvas-minimap'
 import { CanvasNode } from './canvas-node'
+import { CanvasSelectionToolbar } from './canvas-selection-toolbar'
 import { CanvasToolbar } from './canvas-toolbar'
+import { CanvasVersionCompare } from './canvas-version-compare'
 import { InfiniteCanvas } from './infinite-canvas'
 
 const PASTE_OFFSET = 32
 
-export function WorkbenchCanvas() {
+export function WorkbenchCanvas(props: { readOnly?: boolean } = {}) {
   const { t } = useTranslation()
   const theme = useCanvasTheme()
   const containerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const replacementInputRef = useRef<HTMLInputElement>(null)
+  const replacementNodeIdRef = useRef<string | null>(null)
   const clipboardRef = useRef('')
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [cropNodeId, setCropNodeId] = useState<string | null>(null)
   const [pendingCreate, setPendingCreate] =
     useState<PendingConnectionCreate | null>(null)
   const interactions = useCanvasInteractions(containerRef, {
+    readOnly: props.readOnly,
     onConnectionDropOnCanvas: (pending) => {
       setPendingCreate({
         connection: pending.connection,
@@ -86,13 +104,14 @@ export function WorkbenchCanvas() {
       })
     },
   })
-  const generation = useCanvasGeneration()
+  const generation = useCanvasGeneration({ enabled: !props.readOnly })
   const mediaImport = useCanvasMediaImport()
 
   const nodes = useCanvasStore((state) => state.nodes)
   const connections = useCanvasStore((state) => state.connections)
   const viewport = useCanvasStore((state) => state.viewport)
   const backgroundMode = useCanvasStore((state) => state.backgroundMode)
+  const experienceMode = useCanvasStore((state) => state.experienceMode)
   const selectedNodeIds = useCanvasStore((state) => state.selectedNodeIds)
   const selectedConnectionId = useCanvasStore(
     (state) => state.selectedConnectionId
@@ -113,6 +132,31 @@ export function WorkbenchCanvas() {
     observer.observe(container)
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    const focusNode = (event: Event) => {
+      const nodeId = (event as CustomEvent<string>).detail
+      const store = useCanvasStore.getState()
+      let node = store.nodes.find((item) => item.id === nodeId)
+      if (!node) return
+      const parent = node.parentId
+        ? store.nodes.find((item) => item.id === node?.parentId)
+        : undefined
+      if (parent?.metadata?.frame?.collapsed) node = parent
+      store.setSelectedNodes([node.id])
+      store.setViewport({
+        x:
+          viewportSize.width / 2 -
+          (node.position.x + node.width / 2) * store.viewport.k,
+        y:
+          viewportSize.height / 2 -
+          (node.position.y + node.height / 2) * store.viewport.k,
+        k: store.viewport.k,
+      })
+    }
+    window.addEventListener('canvas:focus-node', focusNode)
+    return () => window.removeEventListener('canvas:focus-node', focusNode)
+  }, [viewportSize])
 
   const fitView = useCallback(() => {
     useCanvasStore.getState().fitView(viewportSize)
@@ -187,6 +231,7 @@ export function WorkbenchCanvas() {
 
   useCanvasKeyboardShortcuts({
     onDelete: () => {
+      if (props.readOnly) return
       const store = useCanvasStore.getState()
       if (store.selectedConnectionId) {
         store.removeConnection(store.selectedConnectionId)
@@ -195,6 +240,7 @@ export function WorkbenchCanvas() {
       store.removeNodes(store.selectedNodeIds)
     },
     onDuplicate: () => {
+      if (props.readOnly) return
       const store = useCanvasStore.getState()
       store.duplicateNodes(store.selectedNodeIds)
     },
@@ -204,6 +250,7 @@ export function WorkbenchCanvas() {
 
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
+      if (props.readOnly) return
       const target = event.target as HTMLElement | null
       if (
         target?.isContentEditable ||
@@ -219,6 +266,18 @@ export function WorkbenchCanvas() {
       const files = [...(event.clipboardData?.files ?? [])]
       if (files.length) {
         event.preventDefault()
+        const store = useCanvasStore.getState()
+        const selected = store.nodes.filter((node) =>
+          store.selectedNodeIds.includes(node.id)
+        )
+        if (
+          files.length === 1 &&
+          selected.length === 1 &&
+          mediaKindForFile(files[0]) === mediaKindForNode(selected[0])
+        ) {
+          void mediaImport.replaceNodeMedia(selected[0].id, files[0])
+          return
+        }
         void mediaImport.importFiles(files, center)
         return
       }
@@ -230,7 +289,7 @@ export function WorkbenchCanvas() {
     }
     window.addEventListener('paste', handlePaste)
     return () => window.removeEventListener('paste', handlePaste)
-  }, [mediaImport, pasteClipboardText, viewport, viewportSize])
+  }, [mediaImport, pasteClipboardText, props.readOnly, viewport, viewportSize])
 
   const downloadNodeMedia = useCallback(
     async (nodeId: string) => {
@@ -254,6 +313,88 @@ export function WorkbenchCanvas() {
       }
     },
     [t]
+  )
+
+  const replaceTransformedImage = useCallback(
+    async (nodeId: string, crop?: CropRect, turns = 0) => {
+      const node = useCanvasStore
+        .getState()
+        .nodes.find((item) => item.id === nodeId)
+      if (!node?.metadata?.content) return
+      try {
+        const file = await transformImage(node.metadata.content, crop, turns)
+        await mediaImport.replaceNodeMedia(nodeId, file)
+      } catch {
+        toast.error(t('Image processing failed. The original was kept.'))
+      }
+    },
+    [mediaImport, t]
+  )
+
+  const handleMediaAction = useCallback(
+    async (
+      nodeId: string,
+      action:
+        | 'preview'
+        | 'copy-prompt'
+        | 'rotate'
+        | 'crop'
+        | 'current-frame'
+        | 'tail-frame'
+    ) => {
+      const node = useCanvasStore
+        .getState()
+        .nodes.find((item) => item.id === nodeId)
+      if (!node) return
+      if (action === 'copy-prompt') {
+        try {
+          await navigator.clipboard.writeText(node.metadata?.prompt ?? '')
+          toast.success(t('Prompt copied'))
+        } catch {
+          toast.error(t('Copy failed'))
+        }
+        return
+      }
+      if (action === 'crop') {
+        setCropNodeId(nodeId)
+        return
+      }
+      if (action === 'rotate') {
+        await replaceTransformedImage(nodeId, undefined, 1)
+        return
+      }
+      const shell = document.querySelector(
+        `[data-node-id="${CSS.escape(nodeId)}"]`
+      )
+      const media = shell?.querySelector('img,video') as
+        | HTMLImageElement
+        | HTMLVideoElement
+        | null
+      if (action === 'preview') {
+        try {
+          await media?.requestFullscreen()
+        } catch {
+          toast.error(t('Fullscreen preview failed'))
+        }
+        return
+      }
+      const video = media instanceof HTMLVideoElement ? media : null
+      if (!video) return
+      try {
+        const file = await captureVideoFrame(video, action === 'tail-frame')
+        await mediaImport.importFiles([file], {
+          x: node.position.x + node.width + 32,
+          y: node.position.y,
+        })
+      } catch {
+        toast.error(
+          t(
+            'Could not capture the video frame. Check that the video allows cross-origin access.'
+          )
+        )
+      }
+    },
+    [mediaImport, replaceTransformedImage, t]
   )
 
   const addNodeAtCenter = useCallback(
@@ -286,6 +427,13 @@ export function WorkbenchCanvas() {
       !isNodeHiddenByCollapsedFrame(node, nodes) &&
       !isHiddenBatchChild(node, nodes)
   )
+  let selectionAnnouncement = t('Nothing selected')
+  if (selectedConnectionId) selectionAnnouncement = t('Connection selected')
+  if (selectedNodeIds.length) {
+    selectionAnnouncement = t('{{count}} nodes selected', {
+      count: selectedNodeIds.length,
+    })
+  }
 
   return (
     <div className='relative h-full w-full' style={{ color: theme.node.text }}>
@@ -297,10 +445,12 @@ export function WorkbenchCanvas() {
         onCanvasMouseDown={interactions.startSelectionBox}
         onCanvasDeselect={() => useCanvasStore.getState().clearSelection()}
         onCanvasDoubleClick={(event) => {
+          if (props.readOnly) return
           const world = interactions.screenToWorld(event.clientX, event.clientY)
           useCanvasStore.getState().addNode(CanvasNodeType.Text, world)
         }}
         onContextMenu={(event) => {
+          if (props.readOnly) return
           event.preventDefault()
           const target = event.target instanceof Element ? event.target : null
           const nodeId = target
@@ -337,9 +487,22 @@ export function WorkbenchCanvas() {
           })
         }}
         onDrop={(event) => {
+          if (props.readOnly) return
           const files = [...event.dataTransfer.files]
           if (!files.length) return
           event.preventDefault()
+          const targetNodeId = (event.target as Element | null)
+            ?.closest('[data-node-id]')
+            ?.getAttribute('data-node-id')
+          const targetNode = nodes.find((node) => node.id === targetNodeId)
+          if (
+            files.length === 1 &&
+            targetNode &&
+            mediaKindForFile(files[0]) === mediaKindForNode(targetNode)
+          ) {
+            void mediaImport.replaceNodeMedia(targetNode.id, files[0])
+            return
+          }
           void mediaImport.importFiles(
             files,
             interactions.screenToWorld(event.clientX, event.clientY)
@@ -351,6 +514,7 @@ export function WorkbenchCanvas() {
           connections={connections}
           selectedConnectionId={selectedConnectionId}
           pendingConnection={interactions.pendingConnection}
+          readOnly={props.readOnly}
           onSelectConnection={(id) =>
             useCanvasStore.getState().setSelectedConnection(id)
           }
@@ -364,9 +528,15 @@ export function WorkbenchCanvas() {
             dragging={interactions.draggingNodeIds.includes(node.id)}
             isGenerating={generation.isNodeRunning(node.id)}
             interactions={interactions}
+            readOnly={props.readOnly}
             onGenerate={generation.generateNode}
             onCancel={generation.cancelNode}
             onDownload={(id) => void downloadNodeMedia(id)}
+            onReplaceMedia={(id) => {
+              replacementNodeIdRef.current = id
+              replacementInputRef.current?.click()
+            }}
+            onMediaAction={(id, action) => void handleMediaAction(id, action)}
           />
         ))}
 
@@ -422,54 +592,92 @@ export function WorkbenchCanvas() {
         ) : null}
       </InfiniteCanvas>
 
-      <CanvasToolbar
-        scale={viewport.k}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onAddNode={addNodeAtCenter}
-        onUndo={() => useCanvasStore.getState().undo()}
-        onRedo={() => useCanvasStore.getState().redo()}
-        onZoomIn={() => zoomBy(1.2)}
-        onZoomOut={() => zoomBy(1 / 1.2)}
-        onFitView={fitView}
-        onExportDocument={() =>
-          downloadCanvasDocument(
-            useCanvasStore.getState().exportDocument(),
-            t('Canvas')
-          )
-        }
-        onImportDocument={() => fileInputRef.current?.click()}
-        onExportImage={async () => {
-          const ok = await exportCanvasSnapshot(visibleNodes, {
-            title: t('Canvas'),
-            background: theme.canvas.background,
-            stroke: theme.node.stroke,
-            text: theme.node.text,
-          })
-          if (!ok) toast.error(t('There is nothing to export'))
-        }}
-      />
+      {props.readOnly ? null : (
+        <CanvasToolbar
+          scale={viewport.k}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          backgroundMode={backgroundMode}
+          experienceMode={experienceMode}
+          onBackgroundModeChange={(mode) =>
+            useCanvasStore.getState().setBackgroundMode(mode)
+          }
+          onAddNode={addNodeAtCenter}
+          onUndo={() => useCanvasStore.getState().undo()}
+          onRedo={() => useCanvasStore.getState().redo()}
+          onZoomIn={() => zoomBy(1.2)}
+          onZoomOut={() => zoomBy(1 / 1.2)}
+          onFitView={fitView}
+          onExportDocument={() =>
+            downloadCanvasDocument(
+              useCanvasStore.getState().exportDocument(),
+              t('Canvas')
+            )
+          }
+          onExportArchive={() => {
+            void downloadCanvasArchive(
+              useCanvasStore.getState().exportDocument(),
+              t('Canvas')
+            ).catch(() => toast.error(t('Failed to export the canvas archive')))
+          }}
+          onImportDocument={() => fileInputRef.current?.click()}
+          onExportImage={async () => {
+            const ok = await exportCanvasSnapshot(visibleNodes, {
+              title: t('Canvas'),
+              background: theme.canvas.background,
+              stroke: theme.node.stroke,
+              text: theme.node.text,
+            })
+            if (!ok) toast.error(t('There is nothing to export'))
+          }}
+        />
+      )}
+      {props.readOnly ? null : <CanvasSelectionToolbar />}
+      {props.readOnly ? null : <CanvasVersionCompare />}
 
       <input
         ref={fileInputRef}
         type='file'
-        accept='application/json'
+        accept='application/json,.zip,application/zip'
         className='hidden'
         onChange={async (event) => {
           const file = event.target.files?.[0]
           event.target.value = ''
           if (!file) return
-          const doc = await readCanvasDocumentFile(file)
+          let doc
+          try {
+            doc = file.name.toLowerCase().endsWith('.zip')
+              ? await readCanvasArchiveFile(file)
+              : await readCanvasDocumentFile(file)
+          } catch {
+            toast.error(
+              t('The canvas archive is invalid or exceeds safety limits')
+            )
+            return
+          }
           if (!doc) {
             toast.error(t('This file is not a canvas document'))
             return
           }
-          useCanvasStore.getState().loadDocument(doc)
+          useCanvasStore.getState().loadDocument(doc, { userRestore: true })
           toast.success(t('Canvas imported'))
         }}
       />
+      <input
+        ref={replacementInputRef}
+        type='file'
+        accept='image/*,video/*,audio/*'
+        className='hidden'
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          const nodeId = replacementNodeIdRef.current
+          event.target.value = ''
+          replacementNodeIdRef.current = null
+          if (file && nodeId) void mediaImport.replaceNodeMedia(nodeId, file)
+        }}
+      />
 
-      {contextMenu ? (
+      {contextMenu && !props.readOnly ? (
         <CanvasContextMenu
           state={contextMenu}
           connectMode={Boolean(pendingCreate)}
@@ -556,6 +764,25 @@ export function WorkbenchCanvas() {
             y: viewportSize.height / 2 - world.y * store.viewport.k,
             k: store.viewport.k,
           })
+        }}
+      />
+      <div className='sr-only' aria-live='polite'>
+        {selectionAnnouncement}
+      </div>
+      <p className='sr-only'>
+        {t(
+          'Canvas instructions: Tab to nodes and connections, Enter or Space to select, arrow keys to move, and Delete to remove.'
+        )}
+      </p>
+      <CanvasCropDialog
+        source={
+          nodes.find((node) => node.id === cropNodeId)?.metadata?.content ??
+          null
+        }
+        onClose={() => setCropNodeId(null)}
+        onApply={(crop) => {
+          if (cropNodeId) void replaceTransformedImage(cropNodeId, crop)
+          setCropNodeId(null)
         }}
       />
     </div>

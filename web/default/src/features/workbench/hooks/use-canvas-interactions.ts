@@ -33,13 +33,14 @@ import {
   isFrameNode,
 } from '../engine/canvas-frame'
 import { useCanvasStore } from '../store/canvas-store'
-import type {
-  CanvasNodeData,
-  ConnectionHandle,
-  PendingConnectionCreate,
-  Position,
-  SelectionBox,
-  ViewportTransform,
+import {
+  CanvasNodeType,
+  type CanvasNodeData,
+  type ConnectionHandle,
+  type PendingConnectionCreate,
+  type Position,
+  type SelectionBox,
+  type ViewportTransform,
 } from '../types'
 
 const ALIGNMENT_THRESHOLD = 6
@@ -76,6 +77,7 @@ export type CanvasInteractions = {
 export function useCanvasInteractions(
   containerRef: React.RefObject<HTMLDivElement | null>,
   options: {
+    readOnly?: boolean
     onConnectionDropOnCanvas?: (
       pending: PendingConnectionCreate & { clientX: number; clientY: number }
     ) => void
@@ -140,6 +142,7 @@ export function useCanvasInteractions(
 
   const startNodeDrag = useCallback(
     (event: React.PointerEvent<HTMLElement>, nodeId: string) => {
+      if (optionsRef.current.readOnly) return
       if (event.button !== 0) return
       const store = useCanvasStore.getState()
       const node = store.nodes.find((item) => item.id === nodeId)
@@ -185,6 +188,7 @@ export function useCanvasInteractions(
       nodeId: string,
       corner: 'se' | 'sw' | 'ne' | 'nw'
     ) => {
+      if (optionsRef.current.readOnly) return
       if (event.button !== 0) return
       const node = useCanvasStore
         .getState()
@@ -211,6 +215,7 @@ export function useCanvasInteractions(
 
   const startConnection = useCallback(
     (event: React.PointerEvent<HTMLElement>, handle: ConnectionHandle) => {
+      if (optionsRef.current.readOnly) return
       if (event.button !== 0) return
       event.stopPropagation()
       event.preventDefault()
@@ -225,6 +230,7 @@ export function useCanvasInteractions(
 
   const startSelectionBox = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      if (optionsRef.current.readOnly) return
       const store = useCanvasStore.getState()
       const world = screenToWorld(event.clientX, event.clientY)
       setSelectionBox({
@@ -275,8 +281,27 @@ export function useCanvasInteractions(
           width: resize.corner.endsWith('e') ? dx : -dx,
           height: resize.corner.startsWith('s') ? dy : -dy,
         }
-        const width = Math.max(160, resize.initial.width + grows.width)
-        const height = Math.max(96, resize.initial.height + grows.height)
+        const node = useCanvasStore
+          .getState()
+          .nodes.find((item) => item.id === resize.nodeId)
+        if (!node) return
+        const preserveAspect =
+          node.type === CanvasNodeType.Video ||
+          (node.type === CanvasNodeType.Image && !node.metadata?.freeResize)
+        let width = Math.max(160, resize.initial.width + grows.width)
+        let height = Math.max(96, resize.initial.height + grows.height)
+        if (preserveAspect) {
+          const ratio = resize.initial.width / resize.initial.height
+          const widthScale = width / resize.initial.width
+          const heightScale = height / resize.initial.height
+          if (Math.abs(widthScale - 1) >= Math.abs(heightScale - 1)) {
+            height = Math.max(96, width / ratio)
+            width = height * ratio
+          } else {
+            width = Math.max(160, height * ratio)
+            height = width / ratio
+          }
+        }
         useCanvasStore.getState().updateNode(resize.nodeId, {
           width,
           height,
@@ -311,11 +336,12 @@ export function useCanvasInteractions(
 
     const handleUp = (event: PointerEvent) => {
       if (dragRef.current?.active) {
-        const movedIds = dragRef.current.initial.map((item) => item.id)
+        const initial = dragRef.current.initial
+        const movedIds = initial.map((item) => item.id)
         dragRef.current = null
         setAlignmentGuides({})
         setDraggingNodeIds([])
-        useCanvasStore.getState().commitNodeDrag(movedIds)
+        useCanvasStore.getState().commitNodeDrag(movedIds, initial)
       }
       if (resizeRef.current?.active) resizeRef.current = null
 

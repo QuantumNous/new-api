@@ -26,11 +26,16 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { NativeSelect } from '@/components/ui/native-select'
+import { Textarea } from '@/components/ui/textarea'
 import {
   IMAGE_COUNTS,
+  IMAGE_QUALITIES,
   IMAGE_SIZES,
   VIDEO_DURATIONS,
   VIDEO_SIZES,
+  AUDIO_FORMATS,
+  SPEEDS,
+  VOICES,
   videoSizeLabel,
 } from '@/features/playground/lib/studio/generation-options'
 
@@ -51,6 +56,7 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
   const metadata = props.node.metadata ?? {}
   const batchChildIds = metadata.batchChildIds ?? []
   const updateNodeMetadata = useCanvasStore((state) => state.updateNodeMetadata)
+  const experienceMode = useCanvasStore((state) => state.experienceMode)
 
   return (
     <div className='flex h-full flex-col gap-2'>
@@ -97,6 +103,8 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
         onChange={(prompt) => props.onMetadataChange({ prompt })}
         onGenerate={props.onGenerate}
         onCancel={props.onCancel}
+        modality='image'
+        nodeId={props.node.id}
       >
         <NodeModelSelect
           value={metadata.model}
@@ -105,7 +113,27 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
         />
       </NodePromptBar>
 
-      <div className='flex items-center gap-2' data-canvas-no-zoom>
+      <p className='text-muted-foreground text-[10px]'>
+        {t('Current settings')}: {metadata.size ?? 'auto'} ·{' '}
+        {metadata.quality ?? 'auto'} · {metadata.count ?? 1}
+      </p>
+      <div
+        className={
+          experienceMode === 'professional'
+            ? 'flex items-center gap-2'
+            : 'hidden'
+        }
+        data-canvas-no-zoom
+      >
+        <label className='flex items-center gap-1 text-[11px]'>
+          <Checkbox
+            checked={Boolean(metadata.freeResize)}
+            onCheckedChange={(checked) =>
+              props.onMetadataChange({ freeResize: checked === true })
+            }
+          />
+          {t('Free resize')}
+        </label>
         <NativeSelect
           size='sm'
           className='min-w-0 flex-1'
@@ -118,6 +146,24 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
           {IMAGE_SIZES.map((option) => (
             <option key={option} value={option}>
               {option === 'auto' ? t('Auto') : option}
+            </option>
+          ))}
+        </NativeSelect>
+        <NativeSelect
+          size='sm'
+          className='w-24'
+          value={metadata.quality ?? 'auto'}
+          onChange={(event) =>
+            props.onMetadataChange({ quality: event.target.value })
+          }
+        >
+          {IMAGE_QUALITIES.map((quality) => (
+            <option key={quality} value={quality}>
+              {t(
+                { auto: 'Auto', low: 'Low', medium: 'Medium', high: 'High' }[
+                  quality
+                ]
+              )}
             </option>
           ))}
         </NativeSelect>
@@ -137,6 +183,18 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
           ))}
         </NativeSelect>
       </div>
+      <label
+        className={
+          experienceMode === 'professional'
+            ? 'flex items-center gap-2 text-[11px]'
+            : 'hidden'
+        }
+        title={t(
+          'Transparent background is not supported by this generation API.'
+        )}
+      >
+        <Checkbox disabled checked={false} /> {t('Transparent background')}
+      </label>
     </div>
   )
 }
@@ -146,6 +204,7 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
   const theme = useCanvasTheme()
   const models = useWorkbenchModels()
   const metadata = props.node.metadata ?? {}
+  const experienceMode = useCanvasStore((state) => state.experienceMode)
 
   return (
     <div className='flex h-full flex-col gap-2'>
@@ -162,6 +221,7 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
         )}
         <NodeStatusOverlay
           status={metadata.status}
+          taskStatus={metadata.taskStatus}
           progress={metadata.taskProgress}
           errorDetails={metadata.errorDetails}
         />
@@ -175,6 +235,8 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
         onChange={(prompt) => props.onMetadataChange({ prompt })}
         onGenerate={props.onGenerate}
         onCancel={props.onCancel}
+        modality='video'
+        nodeId={props.node.id}
       >
         <NodeModelSelect
           value={metadata.model}
@@ -183,7 +245,19 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
         />
       </NodePromptBar>
 
-      <div className='flex items-center gap-2' data-canvas-no-zoom>
+      <p className='text-muted-foreground text-[10px]'>
+        {t('Current settings')}:{' '}
+        {videoSizeLabel(metadata.size ?? VIDEO_SIZES[0])} ·{' '}
+        {metadata.seconds ?? VIDEO_DURATIONS[0]}s
+      </p>
+      <div
+        className={
+          experienceMode === 'professional'
+            ? 'flex items-center gap-2'
+            : 'hidden'
+        }
+        data-canvas-no-zoom
+      >
         <NativeSelect
           size='sm'
           className='min-w-0 flex-1'
@@ -217,7 +291,11 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
       </div>
 
       <label
-        className='flex items-center gap-2 text-[11px]'
+        className={
+          experienceMode === 'professional'
+            ? 'flex items-center gap-2 text-[11px]'
+            : 'hidden'
+        }
         data-canvas-no-zoom
         onPointerDown={(event) => event.stopPropagation()}
       >
@@ -240,6 +318,7 @@ export function AudioNodeBody(props: CanvasNodeBodyProps) {
   const theme = useCanvasTheme()
   const models = useWorkbenchModels()
   const metadata = props.node.metadata ?? {}
+  const experienceMode = useCanvasStore((state) => state.experienceMode)
 
   return (
     <div className='flex h-full flex-col gap-2'>
@@ -276,6 +355,8 @@ export function AudioNodeBody(props: CanvasNodeBodyProps) {
         onChange={(prompt) => props.onMetadataChange({ prompt })}
         onGenerate={props.onGenerate}
         onCancel={props.onCancel}
+        modality='audio'
+        nodeId={props.node.id}
       >
         <NodeModelSelect
           value={metadata.model}
@@ -283,6 +364,65 @@ export function AudioNodeBody(props: CanvasNodeBodyProps) {
           onChange={(model) => props.onMetadataChange({ model })}
         />
       </NodePromptBar>
+      <p className='text-muted-foreground text-[10px]'>
+        {t('Current settings')}: {metadata.audioVoice ?? 'alloy'} ·{' '}
+        {metadata.audioFormat ?? 'mp3'} · {metadata.audioSpeed ?? '1'}×
+      </p>
+      <div
+        className={
+          experienceMode === 'professional'
+            ? 'grid grid-cols-3 gap-2'
+            : 'hidden'
+        }
+        data-canvas-no-zoom
+      >
+        <NativeSelect
+          size='sm'
+          value={metadata.audioVoice ?? 'alloy'}
+          onChange={(event) =>
+            props.onMetadataChange({ audioVoice: event.target.value })
+          }
+        >
+          {VOICES.map((voice) => (
+            <option key={voice}>{voice}</option>
+          ))}
+        </NativeSelect>
+        <NativeSelect
+          size='sm'
+          value={metadata.audioFormat ?? 'mp3'}
+          onChange={(event) =>
+            props.onMetadataChange({ audioFormat: event.target.value })
+          }
+        >
+          {AUDIO_FORMATS.map((format) => (
+            <option key={format}>{format}</option>
+          ))}
+        </NativeSelect>
+        <NativeSelect
+          size='sm'
+          value={metadata.audioSpeed ?? '1'}
+          onChange={(event) =>
+            props.onMetadataChange({ audioSpeed: event.target.value })
+          }
+        >
+          {SPEEDS.map((speed) => (
+            <option key={speed} value={speed}>
+              {speed}×
+            </option>
+          ))}
+        </NativeSelect>
+      </div>
+      {experienceMode === 'professional' ? (
+        <Textarea
+          value={metadata.audioInstructions ?? ''}
+          placeholder={t('Voice instructions')}
+          rows={2}
+          className='min-h-10 text-xs'
+          onChange={(event) =>
+            props.onMetadataChange({ audioInstructions: event.target.value })
+          }
+        />
+      ) : null}
     </div>
   )
 }

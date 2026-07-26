@@ -308,6 +308,7 @@ func migrateDB() error {
 		&PlaygroundProject{},
 		&PlaygroundCanvasProject{},
 		&PlaygroundCanvasVersion{},
+		&PlaygroundCanvasShare{},
 		&PlaygroundPersona{},
 		&PlaygroundRun{},
 		&PlaygroundChatToolRun{},

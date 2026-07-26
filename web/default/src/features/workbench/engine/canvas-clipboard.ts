@@ -29,10 +29,24 @@ export function serializeCanvasSelection(
   selectedIds: string[]
 ): CanvasClipboardPayload | null {
   const wanted = new Set(selectedIds)
-  nodes.forEach((node) => {
-    if (!wanted.has(node.id)) return
-    node.metadata?.batchChildIds?.forEach((childId) => wanted.add(childId))
-  })
+  let changed = true
+  while (changed) {
+    changed = false
+    nodes.forEach((node) => {
+      if (!wanted.has(node.id)) return
+      const related = [
+        ...nodes
+          .filter((candidate) => candidate.parentId === node.id)
+          .map((candidate) => candidate.id),
+        ...(node.metadata?.batchChildIds ?? []),
+      ]
+      related.forEach((id) => {
+        if (wanted.has(id)) return
+        wanted.add(id)
+        changed = true
+      })
+    })
+  }
   const picked = nodes.filter((node) => wanted.has(node.id))
   if (!picked.length) return null
   return {
@@ -89,8 +103,31 @@ export function instantiateClipboardNodes(
     return nextRowId ? `row:${nextRowId}` : undefined
   }
 
+  const versionFamilies = new Map<string, CanvasNodeData[]>()
+  payload.nodes.forEach((node) => {
+    const rootId = node.metadata?.versionRootId
+    if (!rootId) return
+    versionFamilies.set(rootId, [...(versionFamilies.get(rootId) ?? []), node])
+  })
+  const normalizedVersions = new Map<
+    string,
+    { rootId: string; label: 'A' | 'B' | 'C'; primary: boolean }
+  >()
+  versionFamilies.forEach((family, oldRootId) => {
+    const root = family.find((node) => node.id === oldRootId) ?? family[0]
+    const rootId = idMap.get(root.id) as string
+    family.slice(0, 3).forEach((node, index) => {
+      normalizedVersions.set(node.id, {
+        rootId,
+        label: ['A', 'B', 'C'][index] as 'A' | 'B' | 'C',
+        primary: node.id === root.id,
+      })
+    })
+  })
+
   const nodes = payload.nodes.map((node) => {
     const storyboard = node.metadata?.storyboard
+    const version = normalizedVersions.get(node.id)
     return {
       ...node,
       id: idMap.get(node.id) as string,
@@ -101,11 +138,21 @@ export function instantiateClipboardNodes(
       },
       metadata: {
         ...node.metadata,
+        status: node.metadata?.content
+          ? ('success' as const)
+          : ('idle' as const),
+        errorDetails: undefined,
+        taskId: undefined,
+        taskStatus: undefined,
+        taskProgress: undefined,
         batchRootId: remap(node.metadata?.batchRootId),
         batchChildIds: node.metadata?.batchChildIds
           ?.map((childId) => remap(childId))
           .filter((childId): childId is string => Boolean(childId)),
         primaryImageId: remap(node.metadata?.primaryImageId),
+        versionRootId: version?.rootId,
+        versionLabel: version?.label,
+        versionPrimary: version?.primary,
         storyboard: storyboard
           ? {
               referenceNodeIds: storyboard.referenceNodeIds
@@ -114,6 +161,8 @@ export function instantiateClipboardNodes(
               rows: storyboard.rows.map((row) => ({
                 ...row,
                 id: rowIdMap.get(row.id) ?? `shot-${nanoid(8)}`,
+                status: 'idle' as const,
+                errorDetails: undefined,
                 referenceNodeIds: (row.referenceNodeIds || [])
                   .map((id) => remap(id))
                   .filter((id): id is string => Boolean(id)),

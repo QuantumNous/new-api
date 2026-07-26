@@ -1,6 +1,7 @@
 package model
 
 import (
+	"crypto/sha256"
 	"testing"
 	"time"
 
@@ -15,9 +16,37 @@ func setupPlaygroundCanvasTestDB(t *testing.T) {
 	old := DB
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&PlaygroundCanvasProject{}, &PlaygroundCanvasVersion{}))
+	require.NoError(t, db.AutoMigrate(&PlaygroundCanvasProject{}, &PlaygroundCanvasVersion{}, &PlaygroundCanvasShare{}))
 	DB = db
 	t.Cleanup(func() { DB = old })
+}
+
+func TestPlaygroundCanvasShareTokenLifecycle(t *testing.T) {
+	setupPlaygroundCanvasTestDB(t)
+	p := &PlaygroundCanvasProject{UserId: 41, Title: "Shared", Doc: `{"nodes":[]}`}
+	require.NoError(t, CreatePlaygroundCanvasProject(p))
+	token := "plain-secret-token"
+	share, err := UpsertPlaygroundCanvasShare(p.Id, p.UserId, PlaygroundCanvasShareTokenHash(token), time.Now().Add(time.Hour).Unix())
+	require.NoError(t, err)
+	assert.NotEqual(t, token, share.TokenHash)
+	assert.Len(t, share.TokenHash, sha256.Size*2)
+
+	_, project, err := GetActivePlaygroundCanvasShare(token, time.Now().Unix())
+	require.NoError(t, err)
+	assert.Equal(t, p.Id, project.Id)
+	_, _, err = GetActivePlaygroundCanvasShare("wrong", time.Now().Unix())
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+
+	share.ExpiresAt = time.Now().Add(-time.Second).Unix()
+	require.NoError(t, DB.Save(share).Error)
+	_, _, err = GetActivePlaygroundCanvasShare(token, time.Now().Unix())
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+
+	_, err = UpsertPlaygroundCanvasShare(p.Id, p.UserId, PlaygroundCanvasShareTokenHash("rotated"), 0)
+	require.NoError(t, err)
+	require.NoError(t, RevokePlaygroundCanvasShare(p.Id, p.UserId))
+	_, _, err = GetActivePlaygroundCanvasShare("rotated", time.Now().Unix())
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 
 func TestPlaygroundCanvasUpdateCAS(t *testing.T) {

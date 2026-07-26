@@ -21,6 +21,8 @@ Adapted from open-ai-canvas (https://github.com/ddcat-ai/open-ai-canvas),
 based on basketikun/infinite-canvas. AGPL-3.0; see THIRD-PARTY-LICENSES.md.
 */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { usePlaygroundStore } from '@/stores/playground-store'
 
@@ -32,8 +34,10 @@ import {
   runCanvasAudioGeneration,
   runCanvasImageGeneration,
   runCanvasVideoGeneration,
+  resumeCanvasVideoGeneration,
   type CanvasGenerationSettings,
 } from '../engine/canvas-generation-runner'
+import { shouldRecoverCanvasVideoTask } from '../engine/canvas-video-recovery'
 import { fitNodeSize } from '../engine/canvas-viewport'
 import { useCanvasStore } from '../store/canvas-store'
 import {
@@ -43,6 +47,7 @@ import {
 } from '../types'
 
 const BATCH_GAP = 24
+const activeVideoNodeIds = new Set<string>()
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message
@@ -68,7 +73,7 @@ function pickDefinedMetadata(
   return result
 }
 
-function resolveGenerationSettings(
+export function resolveGenerationSettings(
   node: CanvasNodeData,
   nodes: CanvasNodeData[],
   presetNodeId?: string
@@ -85,6 +90,7 @@ function resolveGenerationSettings(
     'audioVoice',
     'audioFormat',
     'audioSpeed',
+    'audioInstructions',
   ]
   // Preset supplies defaults only for fields the node itself does not define.
   const merged = {
@@ -105,6 +111,10 @@ function resolveGenerationSettings(
       typeof merged.audioFormat === 'string' ? merged.audioFormat : undefined,
     audioSpeed:
       typeof merged.audioSpeed === 'string' ? merged.audioSpeed : undefined,
+    audioInstructions:
+      typeof merged.audioInstructions === 'string'
+        ? merged.audioInstructions
+        : undefined,
   }
 }
 
@@ -185,13 +195,16 @@ function createBatchChildNodes(
   })
 }
 
-export function useCanvasGeneration(): {
+export function useCanvasGeneration(options: { enabled?: boolean } = {}): {
   generateNode: (nodeId: string) => Promise<void>
   cancelNode: (nodeId: string) => void
   isNodeRunning: (nodeId: string) => boolean
 } {
+  const { t } = useTranslation()
   const controllersRef = useRef(new Map<string, AbortController>())
+  const stoppedObservationIdsRef = useRef(new Set<string>())
   const [runningIds, setRunningIds] = useState<string[]>([])
+  const nodes = useCanvasStore((state) => state.nodes)
 
   const syncRunningIds = useCallback(() => {
     setRunningIds([...controllersRef.current.keys()])
@@ -199,25 +212,102 @@ export function useCanvasGeneration(): {
 
   useEffect(() => {
     const controllers = controllersRef.current
+    const stoppedObservationIds = stoppedObservationIdsRef.current
     return () => {
-      controllers.forEach((controller) => controller.abort())
+      controllers.forEach((controller, nodeId) => {
+        controller.abort()
+        activeVideoNodeIds.delete(nodeId)
+      })
       controllers.clear()
+      stoppedObservationIds.clear()
     }
   }, [])
+
+  useEffect(() => {
+    if (options.enabled === false) return
+    nodes.forEach((node) => {
+      if (
+        !shouldRecoverCanvasVideoTask(
+          node,
+          activeVideoNodeIds,
+          stoppedObservationIdsRef.current
+        )
+      ) {
+        return
+      }
+      const taskId = node.metadata?.taskId
+      if (!taskId) return
+
+      const controller = new AbortController()
+      activeVideoNodeIds.add(node.id)
+      controllersRef.current.set(node.id, controller)
+      syncRunningIds()
+      useCanvasStore.getState().updateNodeMetadata(node.id, {
+        status: 'loading',
+        errorDetails: undefined,
+        taskStatus: 'RUNNING',
+      })
+      void resumeCanvasVideoGeneration({
+        taskId,
+        signal: controller.signal,
+        onProgress: (progress) => {
+          if (controller.signal.aborted) return
+          useCanvasStore.getState().updateNodeMetadata(node.id, {
+            status: 'loading',
+            taskStatus: progress.status,
+            taskProgress: progress.percent ?? undefined,
+          })
+        },
+      })
+        .then((result) => {
+          useCanvasStore.getState().updateNodeMetadata(node.id, {
+            content: result.url,
+            assetId: result.assetId,
+            taskStatus: 'SUCCESS',
+            taskProgress: 100,
+            status: 'success',
+            errorDetails: undefined,
+          })
+        })
+        .catch((error: unknown) => {
+          if (isAbortError(error) || controller.signal.aborted) return
+          useCanvasStore.getState().updateNodeMetadata(node.id, {
+            status: 'error',
+            taskStatus: 'FAILURE',
+            errorDetails: errorMessage(error),
+          })
+        })
+        .finally(() => {
+          activeVideoNodeIds.delete(node.id)
+          if (controllersRef.current.get(node.id) === controller) {
+            controllersRef.current.delete(node.id)
+            syncRunningIds()
+          }
+        })
+    })
+  }, [nodes, options.enabled, syncRunningIds])
 
   const cancelNode = useCallback(
     (nodeId: string) => {
       const controller = controllersRef.current.get(nodeId)
       if (!controller) return
       controller.abort()
+      activeVideoNodeIds.delete(nodeId)
       controllersRef.current.delete(nodeId)
+      stoppedObservationIdsRef.current.add(nodeId)
       syncRunningIds()
       useCanvasStore.getState().updateNodeMetadata(nodeId, {
         status: 'idle',
+        taskStatus: 'OBSERVATION_STOPPED',
         errorDetails: undefined,
       })
+      toast.info(
+        t(
+          'Stopped watching this video task. It may still be running on the server.'
+        )
+      )
     },
-    [syncRunningIds]
+    [syncRunningIds, t]
   )
 
   const isNodeRunning = useCallback(
@@ -227,9 +317,11 @@ export function useCanvasGeneration(): {
 
   const generateNode = useCallback(
     async (nodeId: string) => {
+      if (options.enabled === false) return
       const store = useCanvasStore.getState()
       const node = store.nodes.find((item) => item.id === nodeId)
       if (!node) return
+      if (node.metadata?.status === 'loading') return
       if (
         node.type !== CanvasNodeType.Image &&
         node.type !== CanvasNodeType.Video &&
@@ -240,8 +332,10 @@ export function useCanvasGeneration(): {
 
       const existing = controllersRef.current.get(nodeId)
       if (existing) existing.abort()
+      stoppedObservationIdsRef.current.delete(nodeId)
 
       const controller = new AbortController()
+      if (node.type === CanvasNodeType.Video) activeVideoNodeIds.add(nodeId)
       controllersRef.current.set(nodeId, controller)
       syncRunningIds()
 
@@ -376,13 +470,16 @@ export function useCanvasGeneration(): {
           errorDetails: errorMessage(error),
         })
       } finally {
+        if (node.type === CanvasNodeType.Video) {
+          activeVideoNodeIds.delete(nodeId)
+        }
         if (controllersRef.current.get(nodeId) === controller) {
           controllersRef.current.delete(nodeId)
           syncRunningIds()
         }
       }
     },
-    [syncRunningIds]
+    [options.enabled, syncRunningIds]
   )
 
   return { generateNode, cancelNode, isNodeRunning }

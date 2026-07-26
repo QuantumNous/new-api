@@ -67,7 +67,7 @@ function mediaFetchHeaders(url: string): HeadersInit | undefined {
   return headers
 }
 
-async function fetchMedia(sourceUrl: string): Promise<Blob> {
+export async function fetchGeneratedMedia(sourceUrl: string): Promise<Blob> {
   let fetchUrl = sourceUrl
   // Force attachment stream on same-origin media endpoints so browsers get a
   // CORS-readable body (no cross-origin R2 redirect).
@@ -90,7 +90,7 @@ export async function persistGeneratedMediaAsset(
   kind: DownloadableMediaKind
 ): Promise<PlaygroundAsset> {
   try {
-    const blob = await fetchMedia(sourceUrl)
+    const blob = await fetchGeneratedMedia(sourceUrl)
     return uploadPlaygroundAsset(
       new File([blob], filename, { type: blob.type }),
       kind
@@ -108,13 +108,13 @@ export async function downloadGeneratedMedia(
 ): Promise<void> {
   let blob: Blob
   try {
-    blob = await fetchMedia(sourceUrl)
+    blob = await fetchGeneratedMedia(sourceUrl)
   } catch (error) {
     // External provider URLs often block browser CORS; import server-side then
     // stream the stored asset.
     if (!/^https?:\/\//i.test(sourceUrl)) throw error
     const asset = await importPlaygroundAsset(sourceUrl, kind)
-    blob = await fetchMedia(asset.url)
+    blob = await fetchGeneratedMedia(asset.url)
   }
 
   const extension = generatedMediaExtension(blob.type, kind)

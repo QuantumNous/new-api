@@ -363,6 +363,7 @@ export async function generateSpeech(input: {
   text: string
   settings: StudioSettings
   voiceId?: string
+  instructions?: string
 }): Promise<Blob> {
   const response = await api.post(
     API_ENDPOINTS.AUDIO_SPEECH,
@@ -373,6 +374,9 @@ export async function generateSpeech(input: {
       voice: input.voiceId || input.settings.voice,
       speed: input.settings.speed,
       response_format: input.settings.audioFormat,
+      ...(input.instructions !== undefined
+        ? { instructions: input.instructions }
+        : {}),
     },
     { responseType: 'blob' }
   )

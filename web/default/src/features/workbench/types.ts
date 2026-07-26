@@ -43,6 +43,23 @@ export enum CanvasNodeType {
 
 export type CanvasNodeStatus = 'idle' | 'success' | 'loading' | 'error'
 export type CanvasGenerationMode = 'text' | 'image' | 'video' | 'audio'
+export type StoryboardBatchItemStatus =
+  | 'waiting'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+
+export type StoryboardBatch = {
+  id: string
+  kind: 'image' | 'video'
+  stopped: boolean
+  items: Array<{
+    rowId: string
+    status: StoryboardBatchItemStatus
+    errorDetails?: string
+  }>
+}
 
 export type StoryboardRow = {
   id: string
@@ -65,6 +82,7 @@ export type StoryboardRow = {
 export type StoryboardData = {
   rows: StoryboardRow[]
   referenceNodeIds: string[]
+  batch?: StoryboardBatch
 }
 
 export type CanvasNodeMetadata = {
@@ -80,6 +98,7 @@ export type CanvasNodeMetadata = {
   size?: string
   quality?: string
   count?: number
+  audioInstructions?: string
   seconds?: string
   audioVoice?: string
   audioFormat?: string
@@ -102,6 +121,9 @@ export type CanvasNodeMetadata = {
   taskId?: string
   taskStatus?: string
   taskProgress?: number
+  versionRootId?: string
+  versionLabel?: 'A' | 'B' | 'C'
+  versionPrimary?: boolean
   storyboard?: StoryboardData
   storyboardComposerHeight?: number
   frame?: {
@@ -157,12 +179,14 @@ export type PendingConnectionCreate = {
 }
 
 export type CanvasBackgroundMode = 'dots' | 'lines' | 'blank'
+export type CanvasExperienceMode = 'simple' | 'professional'
 
 export type CanvasDocument = {
   nodes: CanvasNodeData[]
   connections: CanvasConnection[]
   viewport: ViewportTransform
   backgroundMode: CanvasBackgroundMode
+  experienceMode: CanvasExperienceMode
 }
 
 export type CanvasProjectMeta = {

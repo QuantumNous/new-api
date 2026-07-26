@@ -56,6 +56,7 @@ import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authentica
 import { Route as AuthenticatedGroupStatusIndexRouteImport } from './routes/_authenticated/group-status/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
+import { Route as ShareCanvasTokenRouteImport } from './routes/share/canvas/$token'
 import { Route as AuthenticatedWorkbenchProjectIdRouteImport } from './routes/_authenticated/workbench/$projectId'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
@@ -327,6 +328,11 @@ const AuthenticatedChannelsIndexRoute =
     path: '/channels/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ShareCanvasTokenRoute = ShareCanvasTokenRouteImport.update({
+  id: '/share/canvas/$token',
+  path: '/share/canvas/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedWorkbenchProjectIdRoute =
   AuthenticatedWorkbenchProjectIdRouteImport.update({
     id: '/workbench/$projectId',
@@ -496,6 +502,7 @@ export interface FileRoutesByFullPath {
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/workbench/$projectId': typeof AuthenticatedWorkbenchProjectIdRoute
+  '/share/canvas/$token': typeof ShareCanvasTokenRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/group-status/': typeof AuthenticatedGroupStatusIndexRoute
@@ -564,6 +571,7 @@ export interface FileRoutesByTo {
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/workbench/$projectId': typeof AuthenticatedWorkbenchProjectIdRoute
+  '/share/canvas/$token': typeof ShareCanvasTokenRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/group-status': typeof AuthenticatedGroupStatusIndexRoute
@@ -636,6 +644,7 @@ export interface FileRoutesById {
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/workbench/$projectId': typeof AuthenticatedWorkbenchProjectIdRoute
+  '/share/canvas/$token': typeof ShareCanvasTokenRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/group-status/': typeof AuthenticatedGroupStatusIndexRoute
@@ -707,6 +716,7 @@ export interface FileRouteTypes {
     | '/models/$section'
     | '/usage-logs/$section'
     | '/workbench/$projectId'
+    | '/share/canvas/$token'
     | '/channels/'
     | '/dashboard/'
     | '/group-status/'
@@ -775,6 +785,7 @@ export interface FileRouteTypes {
     | '/models/$section'
     | '/usage-logs/$section'
     | '/workbench/$projectId'
+    | '/share/canvas/$token'
     | '/channels'
     | '/dashboard'
     | '/group-status'
@@ -846,6 +857,7 @@ export interface FileRouteTypes {
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/workbench/$projectId'
+    | '/share/canvas/$token'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/group-status/'
@@ -899,6 +911,7 @@ export interface RootRouteChildren {
   PricingIndexRoute: typeof PricingIndexRoute
   RankingsIndexRoute: typeof RankingsIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
+  ShareCanvasTokenRoute: typeof ShareCanvasTokenRoute
   PricingModelIdIndexRoute: typeof PricingModelIdIndexRoute
 }
 
@@ -1233,6 +1246,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/share/canvas/$token': {
+      id: '/share/canvas/$token'
+      path: '/share/canvas/$token'
+      fullPath: '/share/canvas/$token'
+      preLoaderRoute: typeof ShareCanvasTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/workbench/$projectId': {
       id: '/_authenticated/workbench/$projectId'
       path: '/workbench/$projectId'
@@ -1555,6 +1575,7 @@ const rootRouteChildren: RootRouteChildren = {
   PricingIndexRoute: PricingIndexRoute,
   RankingsIndexRoute: RankingsIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
+  ShareCanvasTokenRoute: ShareCanvasTokenRoute,
   PricingModelIdIndexRoute: PricingModelIdIndexRoute,
 }
 export const routeTree = rootRouteImport

@@ -91,4 +91,19 @@ describe('buildNodeGenerationContext', () => {
     expect(context.referenceImages).toEqual([])
     expect(context.presetNodeId).toBeUndefined()
   })
+
+  it('adds mentioned resources while deduplicating connected nodes', () => {
+    const context = buildNodeGenerationContext(
+      'target',
+      nodes,
+      connections,
+      'animate @[first](node:image-1) @[voice](node:audio-1)'
+    )
+    expect(context.prompt).toBe('animate\n\na cold morning')
+    expect(context.referenceImages).toEqual([
+      'https://a/first.png',
+      'https://a/last.png',
+    ])
+    expect(context.referenceAudios).toEqual(['https://a/voice.mp3'])
+  })
 })

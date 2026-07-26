@@ -12,6 +12,11 @@ import { toast } from 'sonner'
 
 import { uploadPlaygroundAsset } from '@/features/playground/api'
 
+import {
+  mediaKindForFile,
+  mediaKindForNode,
+  metadataForMediaReplacement,
+} from '../engine/canvas-media-replacement'
 import { fitNodeSize } from '../engine/canvas-viewport'
 import { useCanvasStore } from '../store/canvas-store'
 import { CanvasNodeType, type Position } from '../types'
@@ -42,8 +47,39 @@ function measureImage(
 export function useCanvasMediaImport(): {
   importFiles: (files: File[], position: Position) => Promise<void>
   importText: (text: string, position: Position) => void
+  replaceNodeMedia: (nodeId: string, file: File) => Promise<boolean>
 } {
   const { t } = useTranslation()
+
+  const replaceNodeMedia = useCallback(
+    async (nodeId: string, file: File) => {
+      const node = useCanvasStore
+        .getState()
+        .nodes.find((item) => item.id === nodeId)
+      const kind = node && mediaKindForNode(node)
+      if (!node || !kind || mediaKindForFile(file) !== kind) {
+        toast.error(t('Choose a matching media file'))
+        return false
+      }
+      try {
+        const asset = await uploadPlaygroundAsset(file, kind)
+        const current = useCanvasStore
+          .getState()
+          .nodes.find((item) => item.id === nodeId)
+        if (!current || current.type !== node.type) return false
+        useCanvasStore.getState().updateNode(nodeId, {
+          title: file.name,
+          metadata: metadataForMediaReplacement(current, asset, file.type),
+        })
+        toast.success(t('Media replaced'))
+        return true
+      } catch {
+        toast.error(t('Failed to replace the media. The original was kept.'))
+        return false
+      }
+    },
+    [t]
+  )
 
   const importFiles = useCallback(
     async (files: File[], position: Position) => {
@@ -114,5 +150,5 @@ export function useCanvasMediaImport(): {
     })
   }, [])
 
-  return { importFiles, importText }
+  return { importFiles, importText, replaceNodeMedia }
 }

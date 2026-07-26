@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useTranslation } from 'react-i18next'
+
 import { storyboardHandleY } from '../engine/canvas-domain'
 import { resolveFrameConnection } from '../engine/canvas-frame'
 /*
@@ -23,6 +25,7 @@ Adapted from open-ai-canvas (https://github.com/ddcat-ai/open-ai-canvas),
 based on basketikun/infinite-canvas. AGPL-3.0; see THIRD-PARTY-LICENSES.md.
 */
 import { useCanvasTheme } from '../engine/canvas-theme'
+import { useCanvasStore } from '../store/canvas-store'
 import type {
   CanvasConnection,
   CanvasNodeData,
@@ -40,6 +43,7 @@ type CanvasConnectionsProps = {
     targetNodeId?: string
   } | null
   onSelectConnection: (id: string) => void
+  readOnly?: boolean
 }
 
 const CANVAS_PLANE = 100000
@@ -64,6 +68,7 @@ function targetAnchor(node: CanvasNodeData, handleId?: string): Position {
 }
 
 export function CanvasConnections(props: CanvasConnectionsProps) {
+  const { t } = useTranslation()
   const theme = useCanvasTheme()
   const pending = props.pendingConnection
   const pendingNode = pending
@@ -90,14 +95,32 @@ export function CanvasConnections(props: CanvasConnectionsProps) {
         return (
           <g key={connection.id} data-connection-id={connection.id}>
             <path
+              tabIndex={props.readOnly ? -1 : 0}
+              role='button'
+              aria-label={t('Connection from {{from}} to {{to}}', {
+                from: resolved.from.title,
+                to: resolved.to.title,
+              })}
               d={bezierPath(from, to)}
               fill='none'
               stroke='transparent'
               strokeWidth={16}
               className='pointer-events-auto cursor-pointer'
               onPointerDown={(event) => {
+                if (props.readOnly) return
                 event.stopPropagation()
                 props.onSelectConnection(connection.id)
+              }}
+              onKeyDown={(event) => {
+                if (props.readOnly) return
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  props.onSelectConnection(connection.id)
+                }
+                if (event.key === 'Delete' || event.key === 'Backspace') {
+                  event.preventDefault()
+                  useCanvasStore.getState().removeConnection(connection.id)
+                }
               }}
             />
             <path

@@ -20,6 +20,7 @@ import {
   normalizeConnection,
   removeCanvasNodes,
 } from './canvas-domain'
+import { metadataForMediaReplacement } from './canvas-media-replacement'
 
 function node(
   id: string,
@@ -154,6 +155,29 @@ describe('removeCanvasNodes', () => {
     ]
     const result = removeCanvasNodes(nodes, new Set(['frame-1']))
     expect(result.nodes[0].parentId).toBeUndefined()
+  })
+
+  it('keeps batch visibility and delete ownership after root and child replacement', () => {
+    const root = node('root', CanvasNodeType.Image, {
+      isBatchRoot: true,
+      batchChildIds: ['child'],
+      primaryImageId: 'child',
+    })
+    const child = node('child', CanvasNodeType.Image, { batchRootId: 'root' })
+    root.metadata = metadataForMediaReplacement(
+      root,
+      { id: 1, url: '/root.png' },
+      'image/png'
+    )
+    child.metadata = metadataForMediaReplacement(
+      child,
+      { id: 2, url: '/child.png' },
+      'image/png'
+    )
+    expect(isHiddenBatchChild(child, [root, child])).toBe(true)
+    expect(removeCanvasNodes([root, child], new Set([root.id])).nodes).toEqual(
+      []
+    )
   })
 })
 

@@ -21,7 +21,8 @@ Adapted from open-ai-canvas (https://github.com/ddcat-ai/open-ai-canvas),
 based on basketikun/infinite-canvas. AGPL-3.0; see THIRD-PARTY-LICENSES.md.
 */
 import { Film, Loader2, Play, Plus, Sparkles, Trash2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { nanoid } from 'nanoid'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -37,11 +38,23 @@ import {
 } from '../../constants'
 import { createStoryboardRow } from '../../engine/canvas-domain'
 import { requestStoryboardShots } from '../../engine/canvas-storyboard-ai'
+import {
+  claimStoryboardBatchItems,
+  createStoryboardBatch,
+  reconcileStoryboardBatchItem,
+  retryStoryboardBatchItem,
+  setStoryboardBatchItemStatus,
+  stopStoryboardBatch,
+} from '../../engine/canvas-storyboard-batch'
 import { useCanvasTheme } from '../../engine/canvas-theme'
 import { useCanvasGeneration } from '../../hooks/use-canvas-generation'
 import { useWorkbenchModels } from '../../hooks/use-workbench-models'
 import { useCanvasStore } from '../../store/canvas-store'
-import { CanvasNodeType, type StoryboardRow } from '../../types'
+import {
+  CanvasNodeType,
+  type StoryboardBatch,
+  type StoryboardRow,
+} from '../../types'
 import { NodeModelSelect, type CanvasNodeBodyProps } from './node-shared'
 
 function readStoryboardRows(nodeId: string): StoryboardRow[] {
@@ -55,24 +68,40 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
   const { t } = useTranslation()
   const theme = useCanvasTheme()
   const models = useWorkbenchModels()
-  const { generateNode } = useCanvasGeneration()
-  const [isGeneratingAll, setIsGeneratingAll] = useState(false)
+  const { generateNode } = useCanvasGeneration({ enabled: !props.readOnly })
+  const processingBatchItemsRef = useRef(new Set<string>())
   const [isDrafting, setIsDrafting] = useState(false)
   const [ideaOpen, setIdeaOpen] = useState(false)
   const [idea, setIdea] = useState('')
   const [shotCount, setShotCount] = useState(6)
 
   const metadata = props.node.metadata ?? {}
-  const rows = metadata.storyboard?.rows ?? []
+  const rows = useMemo(
+    () => metadata.storyboard?.rows ?? [],
+    [metadata.storyboard?.rows]
+  )
+  const batch = metadata.storyboard?.batch
   const tableHeight = storyboardTableHeight(props.node.height)
   const anyRowLoading =
-    isGeneratingAll ||
+    Boolean(batch?.items.some((item) => item.status === 'running')) ||
     isDrafting ||
     rows.some((row) => row.status === 'loading')
 
   const patchRow = useCallback(
     (rowId: string, patch: Partial<StoryboardRow>) => {
       useCanvasStore.getState().updateStoryboardRow(props.node.id, rowId, patch)
+    },
+    [props.node.id]
+  )
+
+  const writeBatch = useCallback(
+    (nextBatch: StoryboardBatch) => {
+      const store = useCanvasStore.getState()
+      const node = store.nodes.find((item) => item.id === props.node.id)
+      if (!node?.metadata?.storyboard) return
+      store.updateNodeMetadata(node.id, {
+        storyboard: { ...node.metadata.storyboard, batch: nextBatch },
+      })
     },
     [props.node.id]
   )
@@ -89,13 +118,20 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
 
   const deleteRow = useCallback(
     (rowId: string) => {
+      if (
+        batch?.items.some(
+          (item) => item.status === 'running' || item.status === 'waiting'
+        )
+      ) {
+        return
+      }
       const current = readStoryboardRows(props.node.id)
       const next = current
         .filter((row) => row.id !== rowId)
         .map((row, index) => ({ ...row, shotNumber: index + 1 }))
       useCanvasStore.getState().setStoryboardRows(props.node.id, next)
     },
-    [props.node.id]
+    [batch, props.node.id]
   )
 
   const generateRowImage = useCallback(
@@ -277,19 +313,6 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
     [generateNode, props.node.id, t]
   )
 
-  const generateAllVideos = useCallback(async () => {
-    if (isGeneratingAll) return
-    setIsGeneratingAll(true)
-    try {
-      const current = readStoryboardRows(props.node.id)
-      for (const row of current) {
-        await generateRowVideo(row)
-      }
-    } finally {
-      setIsGeneratingAll(false)
-    }
-  }, [generateRowVideo, isGeneratingAll, props.node.id])
-
   const draftShotsWithAi = useCallback(async () => {
     const trimmedIdea = idea.trim()
     if (!trimmedIdea || isDrafting) return
@@ -335,20 +358,108 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
     }
   }, [idea, isDrafting, models, props.node.id, shotCount, t])
 
-  const generateAllShots = useCallback(async () => {
-    if (isGeneratingAll) return
-    setIsGeneratingAll(true)
-    try {
-      const current = readStoryboardRows(props.node.id)
-      for (let index = 0; index < current.length; index += 1) {
-        const row = current[index]
-        if (!row.imageGenerationPrompt.trim()) continue
-        await generateRowImage(row, index)
+  const startBatch = useCallback(
+    (kind: StoryboardBatch['kind']) => {
+      if (props.readOnly) return
+      const currentBatch = useCanvasStore
+        .getState()
+        .nodes.find((item) => item.id === props.node.id)?.metadata
+        ?.storyboard?.batch
+      if (
+        currentBatch?.items.some(
+          (item) => item.status === 'running' || item.status === 'waiting'
+        )
+      ) {
+        return
       }
-    } finally {
-      setIsGeneratingAll(false)
+      const eligible = readStoryboardRows(props.node.id).filter((row) =>
+        kind === 'image'
+          ? Boolean(row.imageGenerationPrompt.trim())
+          : Boolean(row.imageNodeId)
+      )
+      if (!eligible.length) return
+      writeBatch(createStoryboardBatch(nanoid(), kind, eligible))
+    },
+    [props.node.id, props.readOnly, writeBatch]
+  )
+
+  useEffect(() => {
+    if (props.readOnly) return
+    if (!batch) return
+    let reconciled = batch
+    batch.items.forEach((item) => {
+      if (
+        item.status !== 'running' ||
+        processingBatchItemsRef.current.has(`${batch.id}:${item.rowId}`)
+      ) {
+        return
+      }
+      const row = rows.find((candidate) => candidate.id === item.rowId)
+      const generatedNodeId =
+        batch.kind === 'video' ? row?.videoNodeId : row?.imageNodeId
+      const generatedNode = useCanvasStore
+        .getState()
+        .nodes.find((node) => node.id === generatedNodeId)
+      const generatedStatus = generatedNode?.metadata?.status ?? 'missing'
+      reconciled = reconcileStoryboardBatchItem(
+        reconciled,
+        item.rowId,
+        generatedStatus,
+        Boolean(generatedNode?.metadata?.taskId),
+        t('Generation was interrupted. Retry this item.')
+      )
+    })
+    if (reconciled !== batch) {
+      writeBatch(reconciled)
+      return
     }
-  }, [generateRowImage, isGeneratingAll, props.node.id])
+    if (batch.stopped) return
+    const claimed = claimStoryboardBatchItems(batch, 2)
+    if (!claimed.rowIds.length) return
+    writeBatch(claimed.batch)
+
+    claimed.rowIds.forEach((rowId) => {
+      const key = `${batch.id}:${rowId}`
+      if (processingBatchItemsRef.current.has(key)) return
+      processingBatchItemsRef.current.add(key)
+      const currentRows = readStoryboardRows(props.node.id)
+      const rowIndex = currentRows.findIndex((row) => row.id === rowId)
+      const row = currentRows[rowIndex]
+      if (!row) return
+      const run =
+        batch.kind === 'image'
+          ? generateRowImage(row, rowIndex)
+          : generateRowVideo(row)
+      void run.finally(() => {
+        processingBatchItemsRef.current.delete(key)
+        const storeNode = useCanvasStore
+          .getState()
+          .nodes.find((item) => item.id === props.node.id)
+        const latestBatch = storeNode?.metadata?.storyboard?.batch
+        const latestRow = storeNode?.metadata?.storyboard?.rows.find(
+          (item) => item.id === rowId
+        )
+        if (!latestBatch || latestBatch.id !== batch.id) return
+        writeBatch(
+          setStoryboardBatchItemStatus(
+            latestBatch,
+            rowId,
+            latestRow?.status === 'error' ? 'failed' : 'succeeded',
+            latestRow?.errorDetails
+          )
+        )
+      })
+    })
+  }, [
+    batch,
+    generateRowImage,
+    generateRowVideo,
+    props.node.id,
+    props.readOnly,
+    rows,
+    t,
+    writeBatch,
+  ])
 
   return (
     <div className='flex h-full min-h-0 flex-col' data-canvas-no-zoom>
@@ -554,6 +665,33 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
                       {row.errorDetails || t('Generation failed')}
                     </span>
                   ) : null}
+                  {batch?.items.find((item) => item.rowId === row.id) ? (
+                    <button
+                      type='button'
+                      className='max-w-[58px] truncate text-[10px] underline-offset-2 hover:underline'
+                      title={t(
+                        batch.items.find((item) => item.rowId === row.id)
+                          ?.status ?? 'waiting'
+                      )}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => {
+                        const item = batch.items.find(
+                          (entry) => entry.rowId === row.id
+                        )
+                        if (
+                          item?.status === 'failed' ||
+                          item?.status === 'cancelled'
+                        ) {
+                          writeBatch(retryStoryboardBatchItem(batch, row.id))
+                        }
+                      }}
+                    >
+                      {t(
+                        batch.items.find((item) => item.rowId === row.id)
+                          ?.status ?? 'waiting'
+                      )}
+                    </button>
+                  ) : null}
                   <Button
                     size='sm'
                     variant='ghost'
@@ -628,31 +766,52 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
           <Button
             size='sm'
             className='ml-auto h-7 gap-1 px-2 text-xs'
-            disabled={anyRowLoading}
+            disabled={anyRowLoading && !batch}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => {
-              void generateAllShots()
+              if (
+                batch &&
+                batch.items.some((item) => item.status === 'waiting')
+              ) {
+                writeBatch(stopStoryboardBatch(batch))
+              } else {
+                startBatch('image')
+              }
             }}
           >
-            {isGeneratingAll ? (
+            {batch?.kind === 'image' &&
+            batch.items.some((item) => item.status === 'running') ? (
               <Loader2 className='size-3.5 animate-spin' />
             ) : (
               <Play className='size-3.5' />
             )}
-            {t('Generate all shots')}
+            {batch?.kind === 'image' &&
+            batch.items.some((item) => item.status === 'waiting')
+              ? t('Stop pending items')
+              : t('Generate all shots')}
           </Button>
           <Button
             size='sm'
             variant='outline'
             className='h-7 gap-1 px-2 text-xs'
-            disabled={anyRowLoading}
+            disabled={anyRowLoading && !batch}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => {
-              void generateAllVideos()
+              if (
+                batch &&
+                batch.items.some((item) => item.status === 'waiting')
+              ) {
+                writeBatch(stopStoryboardBatch(batch))
+              } else {
+                startBatch('video')
+              }
             }}
           >
             <Film className='size-3.5' />
-            {t('Generate all videos')}
+            {batch?.kind === 'video' &&
+            batch.items.some((item) => item.status === 'waiting')
+              ? t('Stop pending items')
+              : t('Generate all videos')}
           </Button>
         </div>
       ) : null}

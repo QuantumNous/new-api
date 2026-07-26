@@ -41,7 +41,7 @@ import {
 import { useCanvasTheme } from '../../engine/canvas-theme'
 import { useWorkbenchModels } from '../../hooks/use-workbench-models'
 import { useCanvasStore } from '../../store/canvas-store'
-import type { CanvasGenerationMode } from '../../types'
+import { CanvasNodeType, type CanvasGenerationMode } from '../../types'
 import { NodeModelSelect, type CanvasNodeBodyProps } from './node-shared'
 
 export function TextNodeBody(props: CanvasNodeBodyProps) {
@@ -206,40 +206,87 @@ export function FrameNodeBody(props: CanvasNodeBodyProps) {
   const updateNode = useCanvasStore((state) => state.updateNode)
   const frame = props.node.metadata?.frame
   const collapsed = Boolean(frame?.collapsed)
+  const children = useCanvasStore((state) =>
+    state.nodes.filter((node) => node.parentId === props.node.id).slice(0, 24)
+  )
 
   return (
-    <button
-      type='button'
-      className='flex items-center gap-1 rounded px-1 text-xs'
-      style={{ color: theme.node.muted }}
-      data-canvas-no-zoom
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={() =>
-        updateNode(props.node.id, {
-          width: collapsed ? (frame?.expandedWidth ?? props.node.width) : 260,
-          height: collapsed ? (frame?.expandedHeight ?? props.node.height) : 44,
-          metadata: {
-            ...props.node.metadata,
-            frame: {
-              collapsed: !collapsed,
-              expandedWidth: collapsed
-                ? (frame?.expandedWidth ?? props.node.width)
-                : props.node.width,
-              expandedHeight: collapsed
-                ? (frame?.expandedHeight ?? props.node.height)
-                : props.node.height,
+    <div className='flex h-full flex-col gap-1'>
+      <button
+        type='button'
+        className='flex items-center gap-1 rounded px-1 text-xs'
+        style={{ color: theme.node.muted }}
+        data-canvas-no-zoom
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={() =>
+          updateNode(props.node.id, {
+            width: collapsed ? (frame?.expandedWidth ?? props.node.width) : 260,
+            height: collapsed
+              ? (frame?.expandedHeight ?? props.node.height)
+              : 44,
+            metadata: {
+              ...props.node.metadata,
+              frame: {
+                collapsed: !collapsed,
+                expandedWidth: collapsed
+                  ? (frame?.expandedWidth ?? props.node.width)
+                  : props.node.width,
+                expandedHeight: collapsed
+                  ? (frame?.expandedHeight ?? props.node.height)
+                  : props.node.height,
+              },
             },
-          },
-        })
-      }
-    >
-      {collapsed ? (
-        <ChevronRight className='size-3.5' />
-      ) : (
-        <ChevronDown className='size-3.5' />
-      )}
-      {collapsed ? t('Expand frame') : t('Collapse frame')}
-    </button>
+          })
+        }
+      >
+        {collapsed ? (
+          <ChevronRight className='size-3.5' />
+        ) : (
+          <ChevronDown className='size-3.5' />
+        )}
+        {collapsed ? t('Expand frame') : t('Collapse frame')}
+      </button>
+      {collapsed && children.length ? (
+        <div
+          className='grid min-h-0 flex-1 grid-cols-6 gap-0.5 overflow-hidden'
+          aria-label={t('Frame contents preview')}
+        >
+          {children.map((child) => (
+            <div
+              key={child.id}
+              className='bg-muted overflow-hidden rounded-sm'
+              title={child.title}
+            >
+              {child.type === CanvasNodeType.Image &&
+              child.metadata?.content ? (
+                <img
+                  src={child.metadata.content}
+                  alt=''
+                  className='size-full object-cover'
+                />
+              ) : null}
+              {child.type === CanvasNodeType.Video &&
+              child.metadata?.content ? (
+                <video
+                  src={child.metadata.content}
+                  muted
+                  className='size-full object-cover'
+                />
+              ) : null}
+              {child.type !== CanvasNodeType.Image &&
+              child.type !== CanvasNodeType.Video ? (
+                <span className='line-clamp-2 p-0.5 text-[7px]'>
+                  {child.metadata?.prompt ||
+                    child.metadata?.content ||
+                    child.metadata?.storyboard?.rows[0]?.plotDescription ||
+                    child.title}
+                </span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 }
 

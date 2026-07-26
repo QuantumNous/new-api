@@ -22,6 +22,7 @@ based on basketikun/infinite-canvas. AGPL-3.0; see THIRD-PARTY-LICENSES.md.
 */
 import {
   Camera,
+  CircleDot,
   Download,
   Frame,
   Image as ImageIcon,
@@ -40,10 +41,21 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 
 import { useCanvasTheme } from '../engine/canvas-theme'
-import { CanvasNodeType } from '../types'
+import {
+  CanvasNodeType,
+  type CanvasBackgroundMode,
+  type CanvasExperienceMode,
+} from '../types'
 
 type CanvasToolbarProps = {
   scale: number
@@ -56,8 +68,12 @@ type CanvasToolbarProps = {
   onZoomOut: () => void
   onFitView: () => void
   onExportDocument: () => void
+  onExportArchive: () => void
   onImportDocument: () => void
   onExportImage: () => void
+  backgroundMode: CanvasBackgroundMode
+  experienceMode: CanvasExperienceMode
+  onBackgroundModeChange: (mode: CanvasBackgroundMode) => void
 }
 
 const NODE_BUTTONS = [
@@ -85,7 +101,15 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
       }}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      {NODE_BUTTONS.map((button) => (
+      {NODE_BUTTONS.filter(
+        (button) =>
+          props.experienceMode === 'professional' ||
+          ![
+            CanvasNodeType.Audio,
+            CanvasNodeType.Script,
+            CanvasNodeType.Config,
+          ].includes(button.type)
+      ).map((button) => (
         <Button
           key={button.type}
           size='icon'
@@ -97,6 +121,29 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
           <button.icon className='size-4' />
         </Button>
       ))}
+
+      <Separator orientation='vertical' className='mx-1 h-5' />
+
+      <Select
+        value={props.backgroundMode}
+        onValueChange={(value) =>
+          props.onBackgroundModeChange(value as CanvasBackgroundMode)
+        }
+      >
+        <SelectTrigger
+          size='sm'
+          className='w-24'
+          aria-label={t('Canvas background')}
+        >
+          <CircleDot />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value='dots'>{t('Dots')}</SelectItem>
+          <SelectItem value='lines'>{t('Lines')}</SelectItem>
+          <SelectItem value='blank'>{t('Blank')}</SelectItem>
+        </SelectContent>
+      </Select>
 
       <Separator orientation='vertical' className='mx-1 h-5' />
 
@@ -162,6 +209,15 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
         className='size-8 rounded-full'
         title={t('Export canvas file')}
         onClick={props.onExportDocument}
+      >
+        <Download className='size-4' />
+      </Button>
+      <Button
+        size='icon'
+        variant='ghost'
+        className='size-8 rounded-full'
+        title={t('Export canvas archive')}
+        onClick={props.onExportArchive}
       >
         <Download className='size-4' />
       </Button>

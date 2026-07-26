@@ -1,6 +1,8 @@
 package model
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -49,6 +51,82 @@ type PlaygroundCanvasVersion struct {
 }
 
 func (PlaygroundCanvasVersion) TableName() string { return "playground_canvas_versions" }
+
+// PlaygroundCanvasShare stores only a one-way digest of the public token.
+// A project has at most one active share; rotating replaces its digest.
+type PlaygroundCanvasShare struct {
+	Id        int    `json:"-" gorm:"primaryKey;autoIncrement"`
+	ProjectId int    `json:"project_id" gorm:"not null;uniqueIndex"`
+	UserId    int    `json:"-" gorm:"not null;index"`
+	TokenHash string `json:"-" gorm:"type:varchar(64);not null;uniqueIndex"`
+	ExpiresAt int64  `json:"expires_at" gorm:"bigint;not null"`
+	RevokedAt int64  `json:"revoked_at" gorm:"bigint;not null"`
+	CreatedAt int64  `json:"created_at" gorm:"bigint;not null"`
+	UpdatedAt int64  `json:"updated_at" gorm:"bigint;not null"`
+}
+
+func (PlaygroundCanvasShare) TableName() string { return "playground_canvas_shares" }
+
+func PlaygroundCanvasShareTokenHash(token string) string {
+	digest := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(digest[:])
+}
+
+func UpsertPlaygroundCanvasShare(projectId, userId int, tokenHash string, expiresAt int64) (*PlaygroundCanvasShare, error) {
+	if _, err := GetPlaygroundCanvasProject(projectId, userId); err != nil {
+		return nil, err
+	}
+	now := time.Now().Unix()
+	share := &PlaygroundCanvasShare{ProjectId: projectId, UserId: userId}
+	err := DB.Where("project_id = ? AND user_id = ?", projectId, userId).First(share).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		share.TokenHash = tokenHash
+		share.ExpiresAt = expiresAt
+		share.CreatedAt = now
+		share.UpdatedAt = now
+		return share, DB.Create(share).Error
+	}
+	if err != nil {
+		return nil, err
+	}
+	share.TokenHash = tokenHash
+	share.ExpiresAt = expiresAt
+	share.RevokedAt = 0
+	share.UpdatedAt = now
+	return share, DB.Save(share).Error
+}
+
+func GetPlaygroundCanvasShareStatus(projectId, userId int) (*PlaygroundCanvasShare, error) {
+	var share PlaygroundCanvasShare
+	err := DB.Where("project_id = ? AND user_id = ?", projectId, userId).First(&share).Error
+	return &share, err
+}
+
+func GetActivePlaygroundCanvasShare(token string, now int64) (*PlaygroundCanvasShare, *PlaygroundCanvasProject, error) {
+	var share PlaygroundCanvasShare
+	err := DB.Where("token_hash = ? AND revoked_at = 0 AND (expires_at = 0 OR expires_at > ?)", PlaygroundCanvasShareTokenHash(token), now).First(&share).Error
+	if err != nil {
+		return nil, nil, err
+	}
+	var project PlaygroundCanvasProject
+	if err := DB.Where("id = ? AND user_id = ?", share.ProjectId, share.UserId).First(&project).Error; err != nil {
+		return nil, nil, err
+	}
+	return &share, &project, nil
+}
+
+func RevokePlaygroundCanvasShare(projectId, userId int) error {
+	result := DB.Model(&PlaygroundCanvasShare{}).
+		Where("project_id = ? AND user_id = ?", projectId, userId).
+		Updates(map[string]any{"revoked_at": time.Now().Unix(), "updated_at": time.Now().Unix()})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
 
 func CreatePlaygroundCanvasProject(project *PlaygroundCanvasProject) error {
 	now := time.Now().Unix()
@@ -112,7 +190,10 @@ func DeletePlaygroundCanvasProject(id, userId int) error {
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
-	return DB.Where("project_id = ?", id).Delete(&PlaygroundCanvasVersion{}).Error
+	if err := DB.Where("project_id = ?", id).Delete(&PlaygroundCanvasVersion{}).Error; err != nil {
+		return err
+	}
+	return DB.Where("project_id = ?", id).Delete(&PlaygroundCanvasShare{}).Error
 }
 
 // SnapshotPlaygroundCanvasProject stores the project's current document as a

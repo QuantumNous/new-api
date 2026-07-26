@@ -78,3 +78,43 @@ export async function getCanvasVersion(
   if (!res.data?.success) throw new Error(res.data?.message || 'request failed')
   return res.data.data as CanvasVersionRecord
 }
+
+export type CanvasShareStatus = {
+  active: boolean
+  expires_at?: number
+  created_at?: number
+}
+
+export async function getCanvasShareStatus(
+  projectId: number
+): Promise<CanvasShareStatus> {
+  const res = await api.get(`${CANVAS_PROJECTS}/${projectId}/share`)
+  if (!res.data?.success) throw new Error(res.data?.message || 'request failed')
+  return res.data.data as CanvasShareStatus
+}
+
+export async function createCanvasShare(
+  projectId: number,
+  expiresInDays: 0 | 7 | 30,
+  rotate = false
+): Promise<CanvasShareStatus & { token: string }> {
+  const suffix = rotate ? '/share/rotate' : '/share'
+  const res = await api.post(`${CANVAS_PROJECTS}/${projectId}${suffix}`, {
+    expires_in_days: expiresInDays,
+  })
+  if (!res.data?.success) throw new Error(res.data?.message || 'request failed')
+  return res.data.data as CanvasShareStatus & { token: string }
+}
+
+export async function revokeCanvasShare(projectId: number): Promise<void> {
+  const res = await api.delete(`${CANVAS_PROJECTS}/${projectId}/share`)
+  if (!res.data?.success) throw new Error(res.data?.message || 'request failed')
+}
+
+export async function getPublicCanvas(
+  token: string
+): Promise<{ title: string; doc: string; cover?: string }> {
+  const res = await api.get(`/api/share/canvas/${encodeURIComponent(token)}`)
+  if (!res.data?.success) throw new Error(res.data?.message || 'request failed')
+  return res.data.data as { title: string; doc: string; cover?: string }
+}

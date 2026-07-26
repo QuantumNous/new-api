@@ -35,6 +35,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/home/stats", middleware.HeaderNavModuleAuth("pricing"), middleware.HeaderNavModuleAuth("rankings"), controller.GetHomeStats)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
 		apiRouter.GET("/playground/catalog", middleware.HeaderNavModuleAuth("playground"), controller.GetPricing)
+		apiRouter.GET("/share/canvas/:token", controller.GetPublicPlaygroundCanvas)
+		apiRouter.GET("/share/canvas/:token/assets/:assetId", controller.GetPublicPlaygroundCanvasAsset)
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("pricing"))
 		{
@@ -411,6 +413,10 @@ func SetApiRouter(router *gin.Engine) {
 			playgroundDataRoute.DELETE("/canvas/projects/:id", controller.DeletePlaygroundCanvasProject)
 			playgroundDataRoute.GET("/canvas/projects/:id/versions", controller.ListPlaygroundCanvasVersions)
 			playgroundDataRoute.GET("/canvas/projects/:id/versions/:versionId", controller.GetPlaygroundCanvasVersion)
+			playgroundDataRoute.POST("/canvas/projects/:id/share", controller.CreatePlaygroundCanvasShare)
+			playgroundDataRoute.POST("/canvas/projects/:id/share/rotate", controller.RotatePlaygroundCanvasShare)
+			playgroundDataRoute.GET("/canvas/projects/:id/share", controller.GetPlaygroundCanvasShareStatus)
+			playgroundDataRoute.DELETE("/canvas/projects/:id/share", controller.RevokePlaygroundCanvasShare)
 
 			playgroundDataRoute.GET("/personas", controller.ListPlaygroundPersonas)
 			playgroundDataRoute.POST("/personas", controller.CreatePlaygroundPersona)

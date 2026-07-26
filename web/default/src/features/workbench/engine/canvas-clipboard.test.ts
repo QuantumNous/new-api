@@ -69,6 +69,32 @@ describe('serializeCanvasSelection', () => {
     expect(payload?.nodes.map((item) => item.id)).toEqual(['root', 'child'])
     expect(payload?.connections.map((item) => item.id)).toEqual(['c1'])
   })
+
+  it('includes frame descendants and their internal connections', () => {
+    const frame = node('frame', CanvasNodeType.Frame)
+    const child = node('child', CanvasNodeType.Text, { parentId: frame.id })
+    const payload = serializeCanvasSelection(
+      [frame, child],
+      [
+        connection('inside', frame.id, child.id, {
+          fromHandleId: 'out',
+          toHandleId: 'in',
+        }),
+      ],
+      [frame.id]
+    )
+    expect(payload?.nodes).toHaveLength(2)
+    expect(payload?.connections).toHaveLength(1)
+    if (!payload) return
+    const copy = instantiateClipboardNodes(payload, { x: 10, y: 10 })
+    const copiedFrame = copy.nodes.find((item) => item.title === 'frame')
+    const copiedChild = copy.nodes.find((item) => item.title === 'child')
+    expect(copiedChild?.parentId).toBe(copiedFrame?.id)
+    expect(copy.connections[0]).toMatchObject({
+      fromHandleId: 'out',
+      toHandleId: 'in',
+    })
+  })
 })
 
 describe('parseCanvasClipboard', () => {
@@ -127,5 +153,88 @@ describe('instantiateClipboardNodes', () => {
     expect(result.connections[0].fromNodeId).toBe(script.id)
     expect(result.connections[0].toNodeId).toBe(image.id)
     expect(result.connections[0].fromHandleId).toBe(`row:${nextRow?.id}`)
+  })
+
+  it('copies a complete frame with a valid internal version family', () => {
+    const frame = node('frame', CanvasNodeType.Frame)
+    const primary = node('image-a', CanvasNodeType.Image, {
+      parentId: frame.id,
+      metadata: {
+        versionRootId: 'external-family',
+        versionLabel: 'C',
+        versionPrimary: false,
+      },
+    })
+    const payload = serializeCanvasSelection([frame, primary], [], [frame.id])
+    if (!payload) throw new Error('selection was not serialized')
+    const copy = instantiateClipboardNodes(payload, { x: 0, y: 0 })
+    const copiedImage = copy.nodes.find(
+      (item) => item.type === CanvasNodeType.Image
+    )
+    expect(copiedImage?.metadata).toMatchObject({
+      versionRootId: copiedImage?.id,
+      versionLabel: 'A',
+      versionPrimary: true,
+    })
+    expect(copiedImage?.parentId).toBe(
+      copy.nodes.find((item) => item.type === CanvasNodeType.Frame)?.id
+    )
+  })
+
+  it('clears live task and storyboard execution state from copied nodes', () => {
+    const row = createStoryboardRow(1, {
+      status: 'loading',
+      errorDetails: 'in progress',
+    })
+    const payload = serializeCanvasSelection(
+      [
+        node('video', CanvasNodeType.Video, {
+          metadata: {
+            content: '/video.mp4',
+            status: 'loading',
+            taskId: 'task-original',
+            taskStatus: 'RUNNING',
+            taskProgress: 42,
+            errorDetails: 'old error',
+          },
+        }),
+        node('script', CanvasNodeType.Script, {
+          metadata: {
+            status: 'loading',
+            storyboard: {
+              rows: [row],
+              referenceNodeIds: [],
+              batch: {
+                id: 'active-batch',
+                kind: 'video',
+                stopped: false,
+                items: [{ rowId: row.id, status: 'running' }],
+              },
+            },
+          },
+        }),
+      ],
+      [],
+      ['video', 'script']
+    )
+    if (!payload) throw new Error('selection was not serialized')
+
+    const copy = instantiateClipboardNodes(payload, { x: 0, y: 0 })
+    const video = copy.nodes.find((item) => item.type === CanvasNodeType.Video)
+    const script = copy.nodes.find(
+      (item) => item.type === CanvasNodeType.Script
+    )
+
+    expect(video?.metadata).toMatchObject({ status: 'success' })
+    expect(video?.metadata?.taskId).toBeUndefined()
+    expect(video?.metadata?.taskStatus).toBeUndefined()
+    expect(video?.metadata?.taskProgress).toBeUndefined()
+    expect(video?.metadata?.errorDetails).toBeUndefined()
+    expect(script?.metadata?.status).toBe('idle')
+    expect(script?.metadata?.storyboard?.batch).toBeUndefined()
+    expect(script?.metadata?.storyboard?.rows[0]).toMatchObject({
+      status: 'idle',
+    })
+    expect(script?.metadata?.storyboard?.rows[0].errorDetails).toBeUndefined()
   })
 })

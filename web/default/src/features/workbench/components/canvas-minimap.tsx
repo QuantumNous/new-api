@@ -21,7 +21,9 @@ Adapted from open-ai-canvas (https://github.com/ddcat-ai/open-ai-canvas),
 based on basketikun/infinite-canvas. AGPL-3.0; see THIRD-PARTY-LICENSES.md.
 */
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { arrowDelta, keyboardStep } from '../engine/canvas-media-transform'
 import { useCanvasTheme } from '../engine/canvas-theme'
 import { getCanvasNodesBounds } from '../engine/canvas-viewport'
 import type { CanvasNodeData, ViewportTransform } from '../types'
@@ -38,6 +40,7 @@ const MINIMAP_HEIGHT = 120
 const MINIMAP_PADDING = 200
 
 export function CanvasMinimap(props: CanvasMinimapProps) {
+  const { t } = useTranslation()
   const theme = useCanvasTheme()
 
   const projection = useMemo(() => {
@@ -66,6 +69,9 @@ export function CanvasMinimap(props: CanvasMinimapProps) {
 
   return (
     <div
+      role='navigation'
+      tabIndex={0}
+      aria-label={t('Canvas minimap')}
       data-canvas-no-zoom
       className='absolute right-4 bottom-4 overflow-hidden rounded-lg border'
       style={{
@@ -94,6 +100,15 @@ export function CanvasMinimap(props: CanvasMinimapProps) {
       onPointerUp={(event) =>
         event.currentTarget.releasePointerCapture(event.pointerId)
       }
+      onKeyDown={(event) => {
+        if (!event.key.startsWith('Arrow')) return
+        event.preventDefault()
+        const delta = arrowDelta(event.key, keyboardStep(event.shiftKey) * 20)
+        props.onJump({
+          x: -props.viewport.x / props.viewport.k + delta.x,
+          y: -props.viewport.y / props.viewport.k + delta.y,
+        })
+      }}
     >
       {props.nodes.map((node) => (
         <div
