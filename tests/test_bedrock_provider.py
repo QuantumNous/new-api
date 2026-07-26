@@ -288,15 +288,50 @@ def test_family_dispatch():
     ]
 
 
-def test_claude_family_builds_native_anthropic_over_bedrock():
+def test_claude_family_builds_native_anthropic_over_bedrock(monkeypatch):
     from anthropic import AnthropicBedrock
 
     from coworker.providers import AnthropicProvider
 
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
     p = BedrockProvider(region="us-east-1", profile_name="work")
     sub = p._family_client("claude")
     assert isinstance(sub, AnthropicProvider)
     assert isinstance(sub._client, AnthropicBedrock)
+
+
+def test_claude_family_prefers_bedrock_api_key_over_sigv4(monkeypatch):
+    """A Bedrock API key must take the bearer path WITHOUT the SigV4 params —
+    AnthropicBedrock raises outright when both are passed."""
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    p = BedrockProvider(
+        region="us-east-1", bedrock_api_key="ABSKtest", profile_name="work"
+    )
+    sub = p._family_client("claude")
+    assert sub._client.api_key == "ABSKtest"
+    assert sub._client.aws_profile is None
+
+
+def test_converse_client_publishes_api_key_as_bearer_env(monkeypatch):
+    import os
+
+    import boto3
+
+    from coworker.providers.bedrock_provider import _BedrockConverseClient
+
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+
+    class _FakeSession:
+        def __init__(self, **kwargs):
+            pass
+
+        def client(self, service, **kwargs):
+            return object()
+
+    monkeypatch.setattr(boto3.session, "Session", _FakeSession)
+    client = _BedrockConverseClient(region="us-east-1", bedrock_api_key="ABSKtest")
+    client._ensure_client()
+    assert os.environ["AWS_BEARER_TOKEN_BEDROCK"] == "ABSKtest"
 
 
 # -- capabilities / matrix ------------------------------------------------------------
@@ -334,6 +369,7 @@ def test_bedrock_descriptor_and_builder():
     keys = [f.key for f in d.fields]
     assert keys == [
         "region",
+        "bedrock_api_key",
         "aws_profile",
         "aws_access_key_id",
         "aws_secret_access_key",
@@ -341,7 +377,7 @@ def test_bedrock_descriptor_and_builder():
     ]
     assert [f.key for f in d.fields if f.required] == ["region"]
     secret = {f.key for f in d.fields if f.secret}
-    assert secret == {"aws_secret_access_key", "aws_session_token"}
+    assert secret == {"bedrock_api_key", "aws_secret_access_key", "aws_session_token"}
     # Recommended model is curated in the matrix (set_provider's auto-add depends on it).
     from coworker.providers.matrix import models_for_provider
 
@@ -414,6 +450,22 @@ def test_verify_bedrock_ok(monkeypatch):
     assert captured["service"] == "bedrock"
     assert captured["session"] == {"profile_name": "work"}
     assert captured["client"]["region_name"] == "us-east-1"
+
+
+def test_verify_bedrock_api_key_rides_the_bearer_env(monkeypatch):
+    import os
+
+    from coworker.providers.registry import verify_provider_key
+
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    captured: dict = {}
+    _patch_session(monkeypatch, _FakeBedrockControl(), captured)
+    out = verify_provider_key(
+        "bedrock", fields={"region": "us-east-1", "bedrock_api_key": "ABSKtest"}
+    )
+    assert out == {"ok": True}
+    assert captured["session"] == {}  # bearer only — no SigV4 session kwargs
+    assert os.environ["AWS_BEARER_TOKEN_BEDROCK"] == "ABSKtest"
 
 
 def test_verify_bedrock_maps_client_errors(monkeypatch):

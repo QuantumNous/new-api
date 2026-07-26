@@ -12,8 +12,12 @@ An id with no family segment falls back to Converse as-is — Converse serves ev
 model (including Claude, minus the native extras), so a raw model id pasted without the
 add-model dropdown still works.
 
-Credentials resolve explicit → named profile → ambient (env / `~/.aws` default / role),
-matching what AWS CLI users expect; `aws sso login` sessions arrive via the named profile.
+Credentials, in order:
+1. A **Bedrock API key** (bearer token from the Bedrock console — the no-CLI path). When
+   present (field or `AWS_BEARER_TOKEN_BEDROCK` env) it WINS over SigV4 credentials, the
+   same precedence boto3 applies; mixing both makes `AnthropicBedrock` raise outright.
+2. Explicit IAM keys → named profile (covers `aws sso login`) → ambient chain.
+
 boto3 is a lazy import (packaged via the `bedrock` extra) and returns PLAIN DICTS — every
 response/stream mapping here is dict-shaped, unlike the attribute objects other SDKs return.
 """
@@ -22,6 +26,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
 from typing import Any, Optional
 
@@ -260,6 +265,7 @@ class _BedrockConverseClient(ProviderClient):
         client: Any = None,
         *,
         region: Optional[str] = None,
+        bedrock_api_key: Optional[str] = None,
         profile_name: Optional[str] = None,
         access_key_id: Optional[str] = None,
         secret_access_key: Optional[str] = None,
@@ -267,6 +273,7 @@ class _BedrockConverseClient(ProviderClient):
     ):
         self._client = client  # tests inject a dict-returning fake
         self._region = region
+        self._bedrock_api_key = bedrock_api_key
         self._session_kwargs = _session_kwargs(
             profile_name, access_key_id, secret_access_key, session_token
         )
@@ -280,6 +287,11 @@ class _BedrockConverseClient(ProviderClient):
                     "AWS Bedrock support needs the boto3 package — "
                     "install with `pip install 'openworker[bedrock]'`."
                 ) from exc
+            # boto3 has no per-client bearer parameter — it only reads the env var, and
+            # prefers bearer auth for Bedrock whenever it's set. The sidecar process is
+            # ours, so publishing the configured key there is the supported path.
+            if self._bedrock_api_key:
+                os.environ["AWS_BEARER_TOKEN_BEDROCK"] = self._bedrock_api_key
             session = boto3.session.Session(**self._session_kwargs)
             self._client = session.client("bedrock-runtime", region_name=self._region)
         return self._client
@@ -437,6 +449,7 @@ class BedrockProvider(ProviderClient):
         self,
         *,
         region: Optional[str] = None,
+        bedrock_api_key: Optional[str] = None,
         profile_name: Optional[str] = None,
         access_key_id: Optional[str] = None,
         secret_access_key: Optional[str] = None,
@@ -445,6 +458,7 @@ class BedrockProvider(ProviderClient):
         converse_client: Optional[ProviderClient] = None,
     ):
         self._region = region
+        self._bedrock_api_key = bedrock_api_key
         self._profile_name = profile_name
         self._access_key_id = access_key_id
         self._secret_access_key = secret_access_key
@@ -472,18 +486,26 @@ class BedrockProvider(ProviderClient):
             if family == "claude":
                 from anthropic import AnthropicBedrock
 
-                client = AnthropicProvider(
-                    client=AnthropicBedrock(
+                # A Bedrock API key (field or ambient env) takes the bearer path and
+                # EXCLUDES the SigV4 params — AnthropicBedrock raises on a mix.
+                bearer = self._bedrock_api_key or os.environ.get(
+                    "AWS_BEARER_TOKEN_BEDROCK"
+                )
+                if bearer:
+                    sdk = AnthropicBedrock(api_key=bearer, aws_region=self._region)
+                else:
+                    sdk = AnthropicBedrock(
                         aws_region=self._region,
                         aws_profile=self._profile_name,
                         aws_access_key=self._access_key_id,
                         aws_secret_key=self._secret_access_key,
                         aws_session_token=self._session_token,
                     )
-                )
+                client = AnthropicProvider(client=sdk)
             else:
                 client = _BedrockConverseClient(
                     region=self._region,
+                    bedrock_api_key=self._bedrock_api_key,
                     profile_name=self._profile_name,
                     access_key_id=self._access_key_id,
                     secret_access_key=self._secret_access_key,

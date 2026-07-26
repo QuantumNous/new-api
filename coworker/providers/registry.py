@@ -140,6 +140,7 @@ def _build_bedrock(profile: dict[str, Any], secrets: Any) -> ProviderClient:
 
     return BedrockProvider(
         region=get("region"),
+        bedrock_api_key=get("bedrock_api_key"),
         profile_name=get("aws_profile"),
         access_key_id=get("aws_access_key_id"),
         secret_access_key=get("aws_secret_access_key"),
@@ -298,6 +299,15 @@ DESCRIPTORS: list[ProviderDescriptor] = [
                 secret=False,
                 placeholder="us-east-1",
                 help="The region your Bedrock model access is enabled in.",
+            ),
+            ProviderField(
+                "bedrock_api_key",
+                "Bedrock API key (optional)",
+                secret=True,
+                required=False,
+                placeholder="ABSK…",
+                help="The easiest way in: generate one on the Bedrock console — no AWS "
+                "CLI or IAM setup needed. Takes precedence over the fields below.",
             ),
             ProviderField(
                 "aws_profile",
@@ -551,6 +561,10 @@ def _verify_bedrock(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
             "error": "boto3 is not installed — `pip install 'openworker[bedrock]'`.",
         }
     try:
+        # A Bedrock API key rides the env var (boto3's only bearer channel) and then
+        # wins over any SigV4 credentials, matching the provider's own precedence.
+        if get("bedrock_api_key"):
+            os.environ["AWS_BEARER_TOKEN_BEDROCK"] = get("bedrock_api_key")
         session = boto3.session.Session(
             **_session_kwargs(
                 get("aws_profile"),
