@@ -138,3 +138,23 @@ func mustResponsesEventsFromChatChunk(t *testing.T, state *ChatToResponsesStream
 	require.NoError(t, err)
 	return events
 }
+
+// TestChatCreatedAtHandlesUnixTimestamp guards against a round-trip regression where
+// ResponsesResponseToChatCompletionsResponse stores a dto.UnixTimestamp in
+// OpenAITextResponse.Created (any), and that value is later re-consumed by
+// ChatCompletionsResponseToResponsesResponse → chatCreatedAt.
+func TestChatCreatedAtHandlesUnixTimestamp(t *testing.T) {
+	t.Parallel()
+
+	const ts = dto.UnixTimestamp(1783476848)
+
+	chat := &dto.OpenAITextResponse{
+		Id:      "chatcmpl_1",
+		Model:   "gpt-test",
+		Created: ts, // in-process round-trip: Created holds a dto.UnixTimestamp
+	}
+
+	resp, _, err := ChatCompletionsResponseToResponsesResponse(chat, "resp_1")
+	require.NoError(t, err)
+	assert.Equal(t, ts, resp.CreatedAt)
+}
