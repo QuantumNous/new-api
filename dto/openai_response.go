@@ -320,42 +320,6 @@ func (o *OpenAIResponsesResponse) GetOpenAIError() *types.OpenAIError {
 	return GetOpenAIError(o.Error)
 }
 
-func (o *OpenAIResponsesResponse) HasImageGenerationCall() bool {
-	if len(o.Output) == 0 {
-		return false
-	}
-	for _, output := range o.Output {
-		if output.Type == ResponsesOutputTypeImageGenerationCall {
-			return true
-		}
-	}
-	return false
-}
-
-func (o *OpenAIResponsesResponse) GetQuality() string {
-	if len(o.Output) == 0 {
-		return ""
-	}
-	for _, output := range o.Output {
-		if output.Type == ResponsesOutputTypeImageGenerationCall {
-			return output.Quality
-		}
-	}
-	return ""
-}
-
-func (o *OpenAIResponsesResponse) GetSize() string {
-	if len(o.Output) == 0 {
-		return ""
-	}
-	for _, output := range o.Output {
-		if output.Type == ResponsesOutputTypeImageGenerationCall {
-			return output.Size
-		}
-	}
-	return ""
-}
-
 type IncompleteDetails struct {
 	Reason string `json:"reason"`
 }
@@ -368,6 +332,7 @@ type ResponsesOutput struct {
 	Content   []ResponsesOutputContent `json:"content"`
 	Quality   string                   `json:"quality"`
 	Size      string                   `json:"size"`
+	Result    string                   `json:"result,omitempty"`
 	CallId    string                   `json:"call_id,omitempty"`
 	Name      string                   `json:"name,omitempty"`
 	Arguments json.RawMessage          `json:"arguments,omitempty"`
@@ -399,11 +364,17 @@ type ResponsesReasoningSummaryPart struct {
 
 const (
 	BuildInToolWebSearchPreview = "web_search_preview"
+	BuildInToolWebSearch        = "web_search"
 	BuildInToolFileSearch       = "file_search"
+	BuildInToolGoogleSearch     = "google_search"
+	BuildInToolImageGeneration  = "image_generation"
 )
 
 const (
-	BuildInCallWebSearchCall = "web_search_call"
+	BuildInCallWebSearchCall  = "web_search_call"
+	BuildInCallFileSearchCall = "file_search_call"
+	BuildInCallFunctionCall   = "function_call"
+	BuildInCallToolUse        = "tool_use"
 )
 
 const (

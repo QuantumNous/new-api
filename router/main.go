@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetRouter(router *gin.Engine, assets ThemeAssets) {
+func SetRouter(router *gin.Engine, assets WebAssets) {
 	// Public crawl files (must register before web NoRoute).
 	router.GET("/robots.txt", controller.RobotsTxt)
 	router.GET("/sitemap.xml", controller.SitemapXML)
