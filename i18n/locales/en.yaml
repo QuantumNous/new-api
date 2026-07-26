@@ -32,6 +32,11 @@ auth.user_id_format_error: "Unauthorized, New-Api-User header format error"
 auth.user_id_mismatch: "Unauthorized, New-Api-User does not match logged in user"
 auth.user_banned: "User has been banned"
 auth.insufficient_privilege: "Unauthorized, insufficient privileges"
+auth.client_ip_parse_failed: "Failed to parse client IP address"
+auth.ip_not_allowed: "Your IP is not in this token's allowed IP list"
+auth.group_access_denied: "You do not have permission to access group {{.Group}}"
+auth.group_deprecated: "Group {{.Group}} has been deprecated"
+auth.specific_channel_denied: "Regular users cannot specify a channel"
 
 # Token messages
 token.name_too_long: "Token name is too long"
@@ -157,7 +162,16 @@ channel.get_ollama_failed: "Failed to get Ollama models"
 channel.query_failed: "Failed to query channel"
 channel.no_valid_upstream: "No valid upstream channel"
 channel.upstream_saturated: "Current group upstream load is saturated, please try again later"
+channel.upstream_saturated_upgrade: "Current group upstream load is saturated, please try again later or upgrade your account for better service quality"
 channel.get_available_failed: "Failed to get available channels for model {{.Model}} under group {{.Group}}"
+channel.get_available_retry_failed: "Failed to get available channels for model {{.Model}} under group {{.Group}} (retry): {{.Error}}"
+channel.no_available_retry: "No available channel for model {{.Model}} under group {{.Group}} (retry)"
+
+# Playground messages
+playground.access_token_unsupported: "Access tokens are not supported here"
+
+# Task messages
+task.file_too_large: "File {{.File}} exceeds the size limit. Maximum allowed is {{.MaxMB}} MB"
 
 # Model messages
 model.name_empty: "Model name cannot be empty"
