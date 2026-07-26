@@ -5288,6 +5288,7 @@
     "Leave empty to use System Name + suffix": "留空则使用：系统名称 - 标题后缀",
     "Full browser tab title. Supports long-tail keywords. Overrides suffix mode when set.": "完整浏览器标题，可写长尾关键词；填写后优先生效，不再拼接后缀。",
     "e.g. AI大模型API网关|OpenAI兼容|统一分发平台": "例如：AI大模型API网关|OpenAI兼容|统一分发平台",
-    "Appended after system name when full title is empty: {Name} - {Suffix}": "完整标题为空时拼接为：系统名称 - 后缀"
+    "Appended after system name when full title is empty: {Name} - {Suffix}": "完整标题为空时拼接为：系统名称 - 后缀",
+    "Anonymous": "匿名"
   }
 }

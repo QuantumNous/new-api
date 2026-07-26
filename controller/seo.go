@@ -11,23 +11,12 @@ import (
 )
 
 func seoSiteBase(c *gin.Context) string {
+	// Prefer configured absolute site URL only. Do not trust Request.Host —
+	// without SEOSiteURL/ServerAddress, omit absolute links rather than
+	// emitting attacker-controlled Host into robots/sitemap.
 	site := strings.TrimRight(strings.TrimSpace(common.SEOSiteURL), "/")
 	if site == "" {
 		site = strings.TrimRight(strings.TrimSpace(system_setting.ServerAddress), "/")
-	}
-	if site == "" && c != nil && c.Request != nil {
-		scheme := "http"
-		if c.Request.TLS != nil {
-			scheme = "https"
-		}
-		// Respect reverse-proxy proto when present.
-		if proto := c.GetHeader("X-Forwarded-Proto"); proto == "https" || proto == "http" {
-			scheme = proto
-		}
-		host := c.Request.Host
-		if host != "" {
-			site = scheme + "://" + host
-		}
 	}
 	return site
 }
@@ -56,7 +45,12 @@ func RobotsTxt(c *gin.Context) {
 func SitemapXML(c *gin.Context) {
 	site := seoSiteBase(c)
 	if site == "" {
-		site = "http://localhost:3000"
+		// No configured public base URL: emit relative-path locs only when needed,
+		// but sitemap requires absolute URLs — return empty set rather than fake host.
+		c.Data(http.StatusOK, "application/xml; charset=utf-8", []byte(
+			`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>`,
+		))
+		return
 	}
 	paths := []string{"/", "/pricing", "/about", "/rankings"}
 	var b strings.Builder

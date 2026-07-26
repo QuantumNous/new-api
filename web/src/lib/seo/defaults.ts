@@ -9,9 +9,9 @@ export function defaultSeoDescription(lang?: string): string {
 export function defaultSeoKeywords(lang?: string): string {
   const l = (lang || '').toLowerCase()
   if (l.startsWith('zh')) {
-    return 'AI API,大模型API,LLM网关,OpenAI兼容接口,Claude API,Gemini API,API聚合分发,模型管理,New API'
+    return 'AI API,大模型API,LLM网关,OpenAI兼容接口,Claude API,Gemini API,API聚合分发,模型管理,DaoXE'
   }
-  return 'AI API, LLM API Gateway, OpenAI Compatible API, Claude API, Gemini API, model aggregation, API distribution, New API'
+  return 'AI API, LLM API Gateway, OpenAI Compatible API, Claude API, Gemini API, model aggregation, API distribution, DaoXE'
 }
 
 export function defaultSeoTitleSuffix(lang?: string): string {
@@ -22,18 +22,26 @@ export function defaultSeoTitleSuffix(lang?: string): string {
   return 'AI LLM API Gateway | OpenAI Claude Gemini Compatible | Unified Model Hub'
 }
 
-/** Build final document title with optional long-tail suffix. */
+/**
+ * Build final document title.
+ * Long-tail default suffix is ONLY applied when allowDefaultSuffix is true
+ * (homepage). Other routes keep a short brand title.
+ */
 export function buildDocumentTitle(input: {
   fullTitle?: string
   title?: string
   titleSuffix?: string
   lang?: string
+  /** When true and no fullTitle/suffix set, append language long-tail. Homepage only. */
+  allowDefaultSuffix?: boolean
 }): string {
   const full = (input.fullTitle || '').trim()
   if (full) return full
-  const name = (input.title || '').trim() || 'New API'
-  const suffix =
-    (input.titleSuffix || '').trim() || defaultSeoTitleSuffix(input.lang)
+  const name = (input.title || '').trim() || 'DaoXE'
+  let suffix = (input.titleSuffix || '').trim()
+  if (!suffix && input.allowDefaultSuffix) {
+    suffix = defaultSeoTitleSuffix(input.lang)
+  }
   if (!suffix) return name
   // Avoid double-appending if title already contains the suffix
   if (name.includes(suffix) || suffix.includes(name)) return name

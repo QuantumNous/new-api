@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next'
 
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getStatus } from '@/lib/api'
-import { applyDocumentSeo, applySeoFromStatus } from '@/lib/seo'
+import { applySeoFromStatus, clearSeoJsonLd } from '@/lib/seo'
 
 /**
- * Homepage-only SEO: refresh meta + JSON-LD when branding/language changes.
+ * Homepage-only SEO: long-tail title + JSON-LD while mounted.
+ * On leave, strip long-tail back to short brand title.
  */
 export function useHomeSeo() {
   const { i18n } = useTranslation()
@@ -39,9 +40,7 @@ export function useHomeSeo() {
       if (cancelled) return
 
       const name =
-        systemName ||
-        String(status?.system_name || '') ||
-        'New API'
+        systemName || String(status?.system_name || '') || 'DaoXE'
       const siteUrl = String(
         status?.seo_site_url || status?.server_address || ''
       ).replace(/\/$/, '')
@@ -80,6 +79,25 @@ export function useHomeSeo() {
     void run()
     return () => {
       cancelled = true
+      clearSeoJsonLd()
+      try {
+        const raw = localStorage.getItem('status')
+        const status = raw
+          ? (JSON.parse(raw) as Record<string, unknown>)
+          : null
+        const name =
+          systemName || String(status?.system_name || '') || 'DaoXE'
+        applySeoFromStatus(status || undefined, {
+          title: name,
+          path:
+            typeof window !== 'undefined'
+              ? window.location.pathname || '/'
+              : '/',
+          lang: i18n.language,
+        })
+      } catch {
+        document.title = systemName || 'DaoXE'
+      }
     }
   }, [systemName, logo, i18n.language])
 }

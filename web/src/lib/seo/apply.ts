@@ -37,11 +37,19 @@ export function applyDocumentSeo(input: SeoInput): void {
     document.documentElement.lang ||
     (typeof navigator !== 'undefined' ? navigator.language : 'zh-CN')
 
+  const pathForTitle =
+    input.path ||
+    (typeof window !== 'undefined' ? window.location.pathname : '/') ||
+    '/'
+  const isHome =
+    pathForTitle === '/' || pathForTitle === '' || pathForTitle === '/index.html'
   const title = buildDocumentTitle({
-    fullTitle: input.fullTitle,
+    fullTitle: isHome ? input.fullTitle : undefined,
     title: input.title,
-    titleSuffix: input.titleSuffix,
+    // Long-tail suffix only on homepage (even if caller passes a suffix).
+    titleSuffix: isHome ? input.titleSuffix : undefined,
     lang,
+    allowDefaultSuffix: isHome,
   })
   const description =
     (input.description || '').trim() || defaultSeoDescription(lang)
@@ -69,13 +77,13 @@ export function applyDocumentSeo(input: SeoInput): void {
   upsertMetaByName('keywords', keywords)
   upsertMetaByName('robots', robotsIndex ? 'index,follow' : 'noindex,nofollow')
 
-  const ogTitle = title || document.title || 'New API'
+  const ogTitle = title || document.title || 'DaoXE'
   upsertMetaByProperty('og:type', 'website')
   upsertMetaByProperty('og:title', ogTitle)
   upsertMetaByProperty('og:description', description)
   if (pageUrl) upsertMetaByProperty('og:url', pageUrl)
   if (ogImage) upsertMetaByProperty('og:image', ogImage)
-  if (title) upsertMetaByProperty('og:site_name', title)
+  if (title) upsertMetaByProperty('og:site_name', input.title || title || 'DaoXE')
 
   upsertMetaByName('twitter:card', ogImage ? 'summary_large_image' : 'summary')
   upsertMetaByName('twitter:title', ogTitle)
@@ -89,6 +97,29 @@ export function applyDocumentSeo(input: SeoInput): void {
   }
 }
 
+function normalizePath(path: string): string {
+  return (path || '/').split('?')[0] || '/'
+}
+
+/** Homepage only — long-tail SEO titles belong here, not on every public page. */
+function isHomePath(path: string): boolean {
+  const p = normalizePath(path)
+  return p === '/' || p === '' || p === '/index.html'
+}
+
+/** Public marketing pages may be indexed with a short brand title (no long-tail). */
+function isPublicMarketingPath(path: string): boolean {
+  const p = normalizePath(path)
+  if (isHomePath(p)) return true
+  return (
+    p === '/pricing' ||
+    p.startsWith('/pricing/') ||
+    p === '/about' ||
+    p === '/rankings' ||
+    p.startsWith('/rankings/')
+  )
+}
+
 /** Map /api/status payload into SeoInput and apply. */
 export function applySeoFromStatus(
   status: StatusSeoFields | Record<string, unknown> | null | undefined,
@@ -96,19 +127,39 @@ export function applySeoFromStatus(
 ): void {
   if (!status && !extra) return
   const s = (status || {}) as StatusSeoFields
-  applyDocumentSeo({
-    title: s.system_name,
-    fullTitle: s.seo_title,
-    titleSuffix: s.seo_title_suffix,
+  const path =
+    (extra && extra.path) ||
+    (typeof window !== 'undefined' ? window.location.pathname || '/' : '/')
+  const home = isHomePath(path)
+  const publicPath = isPublicMarketingPath(path)
+  const baseRobots = s.seo_robots_index !== false
+
+  const input: SeoInput = {
+    title: s.system_name || 'DaoXE',
     description: s.seo_description,
     keywords: s.seo_keywords,
     siteUrl: s.seo_site_url || s.server_address,
     ogImage: s.seo_og_image || s.logo || '/logo.png',
-    robotsIndex: s.seo_robots_index !== false,
-    path:
-      typeof window !== 'undefined' ? window.location.pathname || '/' : '/',
+    // Long-tail full title / suffix: homepage only.
+    fullTitle: home ? s.seo_title : undefined,
+    titleSuffix: home ? s.seo_title_suffix : undefined,
+    // Console/auth: noindex. Public pages follow admin robots flag.
+    robotsIndex: publicPath ? baseRobots : false,
+    path: publicPath ? path : '/',
     ...extra,
-  })
+  }
+  // Re-assert after spread so callers cannot put long-tail on non-home routes
+  // unless they explicitly set path to '/'.
+  const finalPath = normalizePath(input.path || path)
+  const finalHome = isHomePath(finalPath)
+  if (!finalHome) {
+    input.fullTitle = undefined
+    input.titleSuffix = undefined
+  }
+  if (!isPublicMarketingPath(finalPath) && extra?.robotsIndex === undefined) {
+    input.robotsIndex = false
+  }
+  applyDocumentSeo(input)
 }
 
 export function clearSeoJsonLd(): void {

@@ -143,6 +143,7 @@ func InitOptionMap() {
 	common.OptionMap["InviteTopupRebateEnabled"] = strconv.FormatBool(common.InviteTopupRebateEnabled)
 	common.OptionMap["InviteTopupRebateRatioBp"] = strconv.Itoa(common.InviteTopupRebateRatioBp)
 	common.OptionMap["InviteTopupRebateBackfillMinutes"] = strconv.Itoa(common.InviteTopupRebateBackfillMinutes)
+	common.OptionMap["InviteTopupRebateEnabledAt"] = strconv.FormatInt(common.InviteTopupRebateEnabledAt, 10)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -330,7 +331,22 @@ func updateOptionMap(key string, value string) (err error) {
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
 		case "InviteTopupRebateEnabled":
+			was := common.InviteTopupRebateEnabled
 			common.InviteTopupRebateEnabled = boolValue
+			// First/last turn-ON stamps the cutoff: only later top-ups earn rebate.
+			// Turning OFF does not clear the stamp (re-enable keeps original start).
+			// If admin never had a stamp and enables, set now.
+			if boolValue && !was {
+				if common.InviteTopupRebateEnabledAt <= 0 {
+					common.InviteTopupRebateEnabledAt = common.GetTimestamp()
+					common.OptionMap["InviteTopupRebateEnabledAt"] = strconv.FormatInt(common.InviteTopupRebateEnabledAt, 10)
+					// Persist cutoff so restarts / other nodes share the same boundary.
+					_ = DB.Save(&Option{
+						Key:   "InviteTopupRebateEnabledAt",
+						Value: common.OptionMap["InviteTopupRebateEnabledAt"],
+					}).Error
+				}
+			}
 		case "EmailDomainRestrictionEnabled":
 			common.EmailDomainRestrictionEnabled = boolValue
 		case "EmailAliasRestrictionEnabled":
@@ -573,6 +589,13 @@ func updateOptionMap(key string, value string) (err error) {
 				v = 1440
 			}
 			common.InviteTopupRebateBackfillMinutes = v
+		}
+	case "InviteTopupRebateEnabledAt":
+		if v, err := strconv.ParseInt(value, 10, 64); err == nil {
+			if v < 0 {
+				v = 0
+			}
+			common.InviteTopupRebateEnabledAt = v
 		}
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)

@@ -366,10 +366,19 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 
-	// Handle affiliate code
+// Handle affiliate code (same rules as Register: refuse disabled inviters).
 	inviterId := 0
+	affiliateCode = strings.TrimSpace(affiliateCode)
+	if len(affiliateCode) > 32 {
+		affiliateCode = affiliateCode[:32]
+	}
 	if affiliateCode != "" {
 		inviterId, _ = model.GetUserIdByAffCode(affiliateCode)
+		if inviterId > 0 {
+			if inviter, err := model.GetUserById(inviterId, false); err != nil || inviter == nil || inviter.Status != common.UserStatusEnabled {
+				inviterId = 0
+			}
+		}
 	}
 
 	// Use transaction to ensure user creation and OAuth binding are atomic

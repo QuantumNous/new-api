@@ -344,7 +344,7 @@ export function InviteRebatePage() {
                         ) : (
                           board.slice(0, 5).map((row) => (
                             <div
-                              key={row.user_id}
+                              key={`lb-${row.rank}-${row.is_me ? "me" : "x"}`}
                               className={cn(
                                 'flex items-center justify-between rounded-lg border px-3 py-2 text-sm',
                                 row.is_me && 'border-primary/40 bg-primary/5'
@@ -367,7 +367,7 @@ export function InviteRebatePage() {
                                 <span className='font-medium'>
                                   {row.display_name ||
                                     row.username ||
-                                    `#${row.user_id}`}
+                                    (row.user_id ? `#${row.user_id}` : t('Anonymous'))}
                                   {row.is_me ? (
                                     <span className='text-primary ml-1 text-xs'>
                                       ({t('You')})
@@ -460,7 +460,7 @@ export function InviteRebatePage() {
                           ) : (
                             board.map((row) => (
                               <TableRow
-                                key={row.user_id}
+                                key={`lb-${row.rank}-${row.is_me ? "me" : "x"}`}
                                 className={cn(row.is_me && 'bg-primary/5')}
                               >
                                 <TableCell className='font-semibold tabular-nums'>
@@ -469,7 +469,7 @@ export function InviteRebatePage() {
                                 <TableCell>
                                   {row.display_name ||
                                     row.username ||
-                                    `#${row.user_id}`}
+                                    (row.user_id ? `#${row.user_id}` : t('Anonymous'))}
                                   {row.is_me ? (
                                     <Badge
                                       variant='secondary'
