@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 from coworker.config import load_config
@@ -63,3 +65,32 @@ def test_cloud_endpoints_default_to_production():
     assert cfg.boxai_web_base_url == "https://you-box.com"
     assert cfg.cloud_base_url == "https://api-desktop.you-box.com"
     assert cfg.cloud_relay_ws_url.startswith("wss://")
+
+
+def test_sidecar_disables_access_logs_that_would_expose_oauth_query_secrets(
+    monkeypatch,
+):
+    from coworker.server import run
+
+    captured = {}
+    monkeypatch.setattr(
+        run,
+        "load_config",
+        lambda: SimpleNamespace(
+            model="gpt-5.6-sol",
+            mode="interactive",
+            host="127.0.0.1",
+            port=8765,
+        ),
+    )
+    monkeypatch.setattr(run, "build_app", lambda *args: object())
+    monkeypatch.setattr(run, "_exit_when_orphaned", lambda: None)
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        SimpleNamespace(run=lambda *args, **kwargs: captured.update(kwargs)),
+    )
+
+    run.main([])
+
+    assert captured["access_log"] is False

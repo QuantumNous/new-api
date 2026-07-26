@@ -149,7 +149,11 @@ def main(argv=None) -> None:
 
     _exit_when_orphaned()
     app = build_app(args.cwd, args.model, args.mode)
-    uvicorn.run(app, host=args.host, port=args.port)
+    # Loopback OAuth callbacks carry short-lived authorization codes and state
+    # in their query strings. Uvicorn's default access log records the complete
+    # request target, so disable it for the local sidecar rather than persisting
+    # credentials in console, Tauri, or support logs.
+    uvicorn.run(app, host=args.host, port=args.port, access_log=False)
 
 
 if __name__ == "__main__":
