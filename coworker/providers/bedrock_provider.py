@@ -12,11 +12,18 @@ An id with no family segment falls back to Converse as-is — Converse serves ev
 model (including Claude, minus the native extras), so a raw model id pasted without the
 add-model dropdown still works.
 
-Credentials, in order:
-1. A **Bedrock API key** (bearer token from the Bedrock console — the no-CLI path). When
-   present (field or `AWS_BEARER_TOKEN_BEDROCK` env) it WINS over SigV4 credentials, the
-   same precedence boto3 applies; mixing both makes `AnthropicBedrock` raise outright.
-2. Explicit IAM keys → named profile (covers `aws sso login`) → ambient chain.
+Auth is ONE method at a time, selected by the profile's `auth_method` (a segmented choice
+in Settings — owner call 2026-07-26, directness over field-precedence rules):
+
+- `api_key`  — a **Bedrock API key** (bearer token from the console, the no-CLI path);
+  rides `AWS_BEARER_TOKEN_BEDROCK`, which boto3 prefers over SigV4 for Bedrock calls.
+- `profile`  — a named `~/.aws` profile (covers `aws sso login`); blank → the default
+  credential chain (env vars / ~/.aws / role).
+- `iam`      — explicit access keys (+ optional STS session token).
+
+Fields from non-selected methods are dropped at construction, so a stale stored value can
+never leak into a different auth path (`AnthropicBedrock` raises outright on a mix). A
+missing/unknown method falls back to whichever fields are present, api_key first.
 
 boto3 is a lazy import (packaged via the `bedrock` extra) and returns PLAIN DICTS — every
 response/stream mapping here is dict-shaped, unlike the attribute objects other SDKs return.
@@ -449,6 +456,7 @@ class BedrockProvider(ProviderClient):
         self,
         *,
         region: Optional[str] = None,
+        auth_method: Optional[str] = None,
         bedrock_api_key: Optional[str] = None,
         profile_name: Optional[str] = None,
         access_key_id: Optional[str] = None,
@@ -457,6 +465,14 @@ class BedrockProvider(ProviderClient):
         claude_client: Optional[ProviderClient] = None,
         converse_client: Optional[ProviderClient] = None,
     ):
+        # Narrow to the selected auth method here, once — stale values stored under a
+        # previously-selected method must never reach a different credential path.
+        if auth_method == "api_key":
+            profile_name = access_key_id = secret_access_key = session_token = None
+        elif auth_method == "profile":
+            bedrock_api_key = access_key_id = secret_access_key = session_token = None
+        elif auth_method == "iam":
+            bedrock_api_key = profile_name = None
         self._region = region
         self._bedrock_api_key = bedrock_api_key
         self._profile_name = profile_name

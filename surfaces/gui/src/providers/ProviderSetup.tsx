@@ -341,6 +341,41 @@ export function ProviderForm({
         // A keyed provider's base_url is an expert option — it renders BELOW the key-help
         // line as its own advanced section (owner nit 2026-07-19), not inside the loop.
         if (f.key === "base_url" && keyed) return null;
+        // Conditional fields (Bedrock's per-auth-method inputs) render only while their
+        // controlling field holds the matching value.
+        if (f.show_when && !Object.entries(f.show_when).every(([k, v]) => (ps.fields[k] || "") === v))
+          return null;
+        // Segmented choice (e.g. Bedrock's "Connect with"): a button per option, stored
+        // like any field value. Switching methods requires a fresh Test to save.
+        if (f.choices?.length)
+          return (
+            <div key={f.key}>
+              <label className={label}>{f.label}</label>
+              <div className="flex gap-1.5" role="radiogroup" aria-label={f.label}>
+                {f.choices.map((c) => {
+                  const active = (ps.fields[f.key] || "") === c.value;
+                  return (
+                    <button
+                      key={c.value}
+                      role="radio"
+                      aria-checked={active}
+                      className={
+                        "px-3 py-1.5 rounded-lg border text-[12.5px] transition-colors " +
+                        (active
+                          ? "border-accent text-ink font-medium"
+                          : "border-line text-muted hover:border-lineStrong")
+                      }
+                      data-testid={`${tp}-choice-${f.key}-${c.value}`}
+                      onClick={() => ps.setFieldValue(f.key, c.value)}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {f.help && <p className="text-[11.5px] text-faint mt-1">{f.help}</p>}
+            </div>
+          );
         // Test lives next to the required secret (the API key) when there is one; cloud
         // providers whose secrets are all optional (Bedrock, Vertex) test from the first
         // field instead — their credentials may be ambient (~/.aws, ADC).

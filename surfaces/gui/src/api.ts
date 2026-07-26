@@ -1265,6 +1265,8 @@ export interface ProviderField {
   help: string;
   placeholder: string;
   default?: string; // pre-filled editable value (e.g. an OpenAI-compatible vendor's endpoint)
+  choices?: { value: string; label: string }[]; // non-empty → segmented choice, not a text input
+  show_when?: Record<string, string> | null; // render only while these fields hold these values
 }
 
 export interface ProviderInfo {

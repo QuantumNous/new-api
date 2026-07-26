@@ -43,6 +43,12 @@ class ProviderField:
     # Pre-filled (still editable) form value — e.g. an OpenAI-compatible vendor's official
     # endpoint, so the user only has to paste a key. Distinct from `placeholder` (grey hint).
     default: str = ""
+    # Non-empty → the field renders as a segmented choice control instead of a text input;
+    # each option is {"value", "label"}. The chosen value is stored like any field value.
+    choices: tuple = ()
+    # {"other_field_key": "value"} → the field only renders while that other field holds
+    # that value. Drives auth-method switching (Bedrock) without a per-provider form.
+    show_when: Optional[dict] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -53,6 +59,8 @@ class ProviderField:
             "help": self.help,
             "placeholder": self.placeholder,
             "default": self.default,
+            "choices": [dict(c) for c in self.choices],
+            "show_when": self.show_when,
         }
 
 
@@ -140,6 +148,7 @@ def _build_bedrock(profile: dict[str, Any], secrets: Any) -> ProviderClient:
 
     return BedrockProvider(
         region=get("region"),
+        auth_method=get("auth_method"),
         bedrock_api_key=get("bedrock_api_key"),
         profile_name=get("aws_profile"),
         access_key_id=get("aws_access_key_id"),
@@ -300,44 +309,61 @@ DESCRIPTORS: list[ProviderDescriptor] = [
                 placeholder="us-east-1",
                 help="The region your Bedrock model access is enabled in.",
             ),
+            # One auth method at a time (owner call 2026-07-26): AWS users are advanced —
+            # a direct choice beats a pile of "(optional)" fields with hidden precedence.
+            ProviderField(
+                "auth_method",
+                "Connect with",
+                secret=False,
+                required=False,  # the default stands in; builder tolerates absence
+                default="api_key",
+                choices=(
+                    {"value": "api_key", "label": "Bedrock API key"},
+                    {"value": "profile", "label": "AWS profile"},
+                    {"value": "iam", "label": "IAM keys"},
+                ),
+            ),
             ProviderField(
                 "bedrock_api_key",
-                "Bedrock API key (optional)",
+                "Bedrock API key",
                 secret=True,
                 required=False,
                 placeholder="ABSK…",
-                help="The easiest way in: generate one on the Bedrock console — no AWS "
-                "CLI or IAM setup needed. Takes precedence over the fields below.",
+                show_when={"auth_method": "api_key"},
+                help="Generate one on the Bedrock console — no AWS CLI or IAM setup needed.",
             ),
             ProviderField(
                 "aws_profile",
-                "AWS profile (optional)",
+                "AWS profile",
                 secret=False,
                 required=False,
                 placeholder="default",
+                show_when={"auth_method": "profile"},
                 help="A named profile from ~/.aws — works with `aws configure` and "
-                "`aws sso login` (IAM Identity Center). Leave blank to use explicit "
-                "keys below, or the default credential chain.",
+                "`aws sso login` (IAM Identity Center). Leave blank to use your "
+                "default AWS credentials (env vars or ~/.aws).",
             ),
             ProviderField(
                 "aws_access_key_id",
-                "Access key ID (optional)",
+                "Access key ID",
                 secret=False,
                 required=False,
                 placeholder="AKIA…",
+                show_when={"auth_method": "iam"},
             ),
             ProviderField(
                 "aws_secret_access_key",
-                "Secret access key (optional)",
+                "Secret access key",
                 secret=True,
                 required=False,
+                show_when={"auth_method": "iam"},
             ),
             ProviderField(
                 "aws_session_token",
-                "Session token (optional)",
+                "Session token (STS only, optional)",
                 secret=True,
                 required=False,
-                help="Only for temporary credentials (STS).",
+                show_when={"auth_method": "iam"},
             ),
         ],
         build=_build_bedrock,
@@ -560,19 +586,35 @@ def _verify_bedrock(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
             "ok": False,
             "error": "boto3 is not installed — `pip install 'openworker[bedrock]'`.",
         }
+    # Exactly one auth method is exercised — the one the form has selected. Per-method
+    # required fields are checked here so the Test button says what's missing.
+    method = get("auth_method") or "api_key"
+    if method == "api_key" and not (
+        get("bedrock_api_key") or os.environ.get("AWS_BEARER_TOKEN_BEDROCK")
+    ):
+        return {"ok": False, "error": "Enter a Bedrock API key to test."}
+    if method == "iam" and not (
+        get("aws_access_key_id") and get("aws_secret_access_key")
+    ):
+        return {"ok": False, "error": "Enter an access key ID and secret access key."}
     try:
-        # A Bedrock API key rides the env var (boto3's only bearer channel) and then
-        # wins over any SigV4 credentials, matching the provider's own precedence.
-        if get("bedrock_api_key"):
-            os.environ["AWS_BEARER_TOKEN_BEDROCK"] = get("bedrock_api_key")
-        session = boto3.session.Session(
-            **_session_kwargs(
-                get("aws_profile"),
+        if method == "api_key":
+            # The key rides the env var (boto3's only bearer channel); bearer then wins
+            # over any ambient SigV4 credentials for Bedrock calls.
+            if get("bedrock_api_key"):
+                os.environ["AWS_BEARER_TOKEN_BEDROCK"] = get("bedrock_api_key")
+            session_kwargs: dict[str, Any] = {}
+        elif method == "profile":
+            # Blank profile → the default credential chain (env vars / ~/.aws / role).
+            session_kwargs = _session_kwargs(get("aws_profile"), None, None, None)
+        else:  # iam
+            session_kwargs = _session_kwargs(
+                None,
                 get("aws_access_key_id"),
                 get("aws_secret_access_key"),
                 get("aws_session_token"),
             )
-        )
+        session = boto3.session.Session(**session_kwargs)
         client = session.client(
             "bedrock",
             region_name=get("region"),

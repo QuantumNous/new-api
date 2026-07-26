@@ -312,6 +312,32 @@ def test_claude_family_prefers_bedrock_api_key_over_sigv4(monkeypatch):
     assert sub._client.aws_profile is None
 
 
+def test_auth_method_narrows_out_other_methods_fields(monkeypatch):
+    """Stale values stored under a previously-selected method must never leak into a
+    different auth path — the selected method drops everything else at construction."""
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    p = BedrockProvider(
+        region="us-east-1",
+        auth_method="profile",
+        bedrock_api_key="ABSKstale",
+        profile_name="work",
+        access_key_id="AKIAstale",
+        secret_access_key="stale",
+    )
+    assert p._bedrock_api_key is None
+    assert p._access_key_id is None
+    sub = p._family_client("claude")
+    assert sub._client.api_key is None
+    assert sub._client.aws_profile == "work"
+
+    p2 = BedrockProvider(
+        region="us-east-1", auth_method="api_key", bedrock_api_key="ABSKlive",
+        profile_name="stale",
+    )
+    assert p2._profile_name is None
+    assert p2._family_client("claude")._client.api_key == "ABSKlive"
+
+
 def test_converse_client_publishes_api_key_as_bearer_env(monkeypatch):
     import os
 
@@ -369,6 +395,7 @@ def test_bedrock_descriptor_and_builder():
     keys = [f.key for f in d.fields]
     assert keys == [
         "region",
+        "auth_method",
         "bedrock_api_key",
         "aws_profile",
         "aws_access_key_id",
@@ -378,6 +405,16 @@ def test_bedrock_descriptor_and_builder():
     assert [f.key for f in d.fields if f.required] == ["region"]
     secret = {f.key for f in d.fields if f.secret}
     assert secret == {"bedrock_api_key", "aws_secret_access_key", "aws_session_token"}
+    # One auth method at a time: a defaulted segmented choice drives per-method fields.
+    method = next(f for f in d.fields if f.key == "auth_method")
+    assert method.default == "api_key"
+    assert [c["value"] for c in method.choices] == ["api_key", "profile", "iam"]
+    by_key = {f.key: f for f in d.fields}
+    assert by_key["bedrock_api_key"].show_when == {"auth_method": "api_key"}
+    assert by_key["aws_profile"].show_when == {"auth_method": "profile"}
+    assert by_key["aws_secret_access_key"].show_when == {"auth_method": "iam"}
+    assert by_key["region"].show_when is None
+    assert by_key["region"].to_dict()["choices"] == []
     # Recommended model is curated in the matrix (set_provider's auto-add depends on it).
     from coworker.providers.matrix import models_for_provider
 
@@ -444,12 +481,59 @@ def test_verify_bedrock_ok(monkeypatch):
     captured: dict = {}
     _patch_session(monkeypatch, _FakeBedrockControl(), captured)
     out = verify_provider_key(
-        "bedrock", fields={"region": "us-east-1", "aws_profile": "work"}
+        "bedrock",
+        fields={"region": "us-east-1", "auth_method": "profile", "aws_profile": "work"},
     )
     assert out == {"ok": True}
     assert captured["service"] == "bedrock"
     assert captured["session"] == {"profile_name": "work"}
     assert captured["client"]["region_name"] == "us-east-1"
+
+
+def test_verify_bedrock_per_method_required_fields(monkeypatch):
+    from coworker.providers.registry import verify_provider_key
+
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    out = verify_provider_key(
+        "bedrock", fields={"region": "us-east-1", "auth_method": "api_key"}
+    )
+    assert not out["ok"] and "Bedrock API key" in out["error"]
+    out = verify_provider_key(
+        "bedrock",
+        fields={"region": "us-east-1", "auth_method": "iam", "aws_access_key_id": "AKIA"},
+    )
+    assert not out["ok"] and "secret access key" in out["error"]
+    # Blank profile is fine — it means the default credential chain.
+    captured: dict = {}
+    _patch_session(monkeypatch, _FakeBedrockControl(), captured)
+    out = verify_provider_key(
+        "bedrock", fields={"region": "us-east-1", "auth_method": "profile"}
+    )
+    assert out == {"ok": True}
+    assert captured["session"] == {}
+
+
+def test_verify_bedrock_ignores_other_methods_stale_fields(monkeypatch):
+    from coworker.providers.registry import verify_provider_key
+
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    captured: dict = {}
+    _patch_session(monkeypatch, _FakeBedrockControl(), captured)
+    out = verify_provider_key(
+        "bedrock",
+        fields={
+            "region": "us-east-1",
+            "auth_method": "iam",
+            "aws_access_key_id": "AKIA1",
+            "aws_secret_access_key": "sec",
+            "aws_profile": "stale",  # other method's leftover — must not be used
+        },
+    )
+    assert out == {"ok": True}
+    assert captured["session"] == {
+        "aws_access_key_id": "AKIA1",
+        "aws_secret_access_key": "sec",
+    }
 
 
 def test_verify_bedrock_api_key_rides_the_bearer_env(monkeypatch):
@@ -478,7 +562,9 @@ def test_verify_bedrock_maps_client_errors(monkeypatch):
         "ListFoundationModels",
     )
     _patch_session(monkeypatch, _FakeBedrockControl(exc=denied), {})
-    out = verify_provider_key("bedrock", fields={"region": "us-east-1"})
+    out = verify_provider_key(
+        "bedrock", fields={"region": "us-east-1", "auth_method": "profile"}
+    )
     assert not out["ok"] and "Bedrock access" in out["error"]
 
     bad_key = ClientError(
@@ -486,5 +572,7 @@ def test_verify_bedrock_maps_client_errors(monkeypatch):
         "ListFoundationModels",
     )
     _patch_session(monkeypatch, _FakeBedrockControl(exc=bad_key), {})
-    out = verify_provider_key("bedrock", fields={"region": "us-east-1"})
+    out = verify_provider_key(
+        "bedrock", fields={"region": "us-east-1", "auth_method": "profile"}
+    )
     assert not out["ok"] and "rejected" in out["error"]
