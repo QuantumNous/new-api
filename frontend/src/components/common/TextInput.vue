@@ -50,9 +50,7 @@ const inputAttrs = computed(() => {
       style="border-color: var(--border-default)"
       :class="[
         $slots.icon ? 'pl-10' : 'pl-1',
-        readonly
-          ? 'cursor-not-allowed opacity-60'
-          : '',
+        readonly ? 'cursor-not-allowed opacity-60' : '',
       ]"
     />
   </div>

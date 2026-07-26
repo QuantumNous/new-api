@@ -8,15 +8,15 @@
 
 ### 1.1 风格关键词
 
-| 维度 | 手绘主线 | 雅致辅线 |
-|---|---|---|
-| 边框 | 略带笔压感的不均匀描边，非正圆角 | 细线 + 足量留白 |
-| 色彩 | 暖土/橄榄绿/麦金，饱和度偏低 | 单色系渐变，减少纯黑 |
-| 底纹 | 纸纹噪点 + 竖向/斜向笔触纹 | 半透明玻璃面 |
-| 装饰 | 手绘植物叶脉、碑文草字、铅笔线格线 | 烫金分隔线、极细几何框 |
+| 维度 | 手绘主线                                  | 雅致辅线               |
+| ---- | ----------------------------------------- | ---------------------- |
+| 边框 | 略带笔压感的不均匀描边，非正圆角          | 细线 + 足量留白        |
+| 色彩 | 暖土/橄榄绿/麦金，饱和度偏低              | 单色系渐变，减少纯黑   |
+| 底纹 | 纸纹噪点 + 竖向/斜向笔触纹                | 半透明玻璃面           |
+| 装饰 | 手绘植物叶脉、碑文草字、铅笔线格线        | 烫金分隔线、极细几何框 |
 | 字型 | 衬线展示标题（Noto Serif SC）+ 无衬线正文 | 字重对比大，行间距宽松 |
-| 动效 | 慢速淡入+轻微上浮，模拟翻页 | 微弹跳 spring 曲线 |
-| 图标 | 手绘线稿风 SVG（stroke，非 fill） | 描边均匀，尖角收笔 |
+| 动效 | 慢速淡入+轻微上浮，模拟翻页               | 微弹跳 spring 曲线     |
+| 图标 | 手绘线稿风 SVG（stroke，非 fill）         | 描边均匀，尖角收笔     |
 
 ### 1.2 配色适配策略
 
@@ -30,12 +30,12 @@
 
 ### 1.3 字体策略
 
-| 场景 | 现状 | 升级 |
-|---|---|---|
-| Hero 大标题 | `Ren2NotoSerifSC`（`.display-title`） | 保持，增大字号阶梯，加字间距 |
-| 导航/功能文字 | `Ren2Inter` + `Ren2NotoSansSC` | 保持 |
-| 数字/KPI 大字 | 同上 | 切换为 `font-mono`（JetBrains Mono）形成账本感 |
-| 表头分组标签 | `text-[10px] tracking-widest` | 保持并加强间距至 `tracking-[0.2em]` |
+| 场景          | 现状                                  | 升级                                           |
+| ------------- | ------------------------------------- | ---------------------------------------------- |
+| Hero 大标题   | `Ren2NotoSerifSC`（`.display-title`） | 保持，增大字号阶梯，加字间距                   |
+| 导航/功能文字 | `Ren2Inter` + `Ren2NotoSansSC`        | 保持                                           |
+| 数字/KPI 大字 | 同上                                  | 切换为 `font-mono`（JetBrains Mono）形成账本感 |
+| 表头分组标签  | `text-[10px] tracking-widest`         | 保持并加强间距至 `tracking-[0.2em]`            |
 
 ### 1.4 手绘装饰元素体系
 
@@ -62,26 +62,25 @@ DEC-08  刷痕高亮（`::after` 倾斜矩形遮罩，accent-soft 底）
 
 ```css
 /* ===== 手绘笔触令牌 ===== */
---sketch-border-width: 1.5px;         /* 手绘描边基准粗细 */
+--sketch-border-width: 1.5px; /* 手绘描边基准粗细 */
 --sketch-border-radius-sm: 6px 8px 7px 5px / 5px 6px 8px 7px; /* 不均匀圆角 */
 --sketch-border-radius-md: 10px 13px 11px 12px / 11px 10px 13px 10px;
 --sketch-border-radius-lg: 16px 18px 15px 17px / 15px 17px 16px 18px;
---sketch-rotate-1: rotate(-0.3deg);   /* 微妙歪斜，手持效果 */
+--sketch-rotate-1: rotate(-0.3deg); /* 微妙歪斜，手持效果 */
 --sketch-rotate-2: rotate(0.4deg);
 --sketch-rotate-3: rotate(-0.6deg);
 
 /* ===== 装饰色令牌 ===== */
 --dec-stamp: rgba(157, 48, 23, 0.22); /* Desert Ledger: 朱砂印章 */
---dec-gold-line: rgba(216, 152, 76, 0.35);   /* 烫金分隔线 */
---dec-leaf: rgba(127, 164, 99, 0.28);         /* 叶脉装饰 */
---dec-grid-line: rgba(56, 55, 43, 0.06);      /* 草纸格线 */
+--dec-gold-line: rgba(216, 152, 76, 0.35); /* 烫金分隔线 */
+--dec-leaf: rgba(127, 164, 99, 0.28); /* 叶脉装饰 */
+--dec-grid-line: rgba(56, 55, 43, 0.06); /* 草纸格线 */
 
 /* ===== 卡片变体令牌 ===== */
 --card-sketch-border: var(--sketch-border-width) solid var(--border-default);
 --card-sketch-shadow:
-  2px 3px 0 var(--border-subtle),
-  0 8px 24px var(--shadow-color);
---card-warm-bg: #fdf6e3;              /* 竹纸暖底（仅日间局部使用） */
+  2px 3px 0 var(--border-subtle), 0 8px 24px var(--shadow-color);
+--card-warm-bg: #fdf6e3; /* 竹纸暖底（仅日间局部使用） */
 ```
 
 > Dark 模式在 `html.dark` 块内覆盖：`--dec-stamp` 换为金色系，`--card-warm-bg` 换为 `rgba(226,188,85,0.07)`，其余令牌保持。
@@ -94,9 +93,15 @@ DEC-08  刷痕高亮（`::after` 倾斜矩形遮罩，accent-soft 底）
 
 ```css
 /* 手绘边框不均匀圆角工具类 */
-.sketch-sm { border-radius: var(--sketch-border-radius-sm); }
-.sketch-md { border-radius: var(--sketch-border-radius-md); }
-.sketch-lg { border-radius: var(--sketch-border-radius-lg); }
+.sketch-sm {
+  border-radius: var(--sketch-border-radius-sm);
+}
+.sketch-md {
+  border-radius: var(--sketch-border-radius-md);
+}
+.sketch-lg {
+  border-radius: var(--sketch-border-radius-lg);
+}
 
 /* 手绘刷痕高亮：文字下方倾斜色块 */
 .brush-highlight {
@@ -106,7 +111,9 @@ DEC-08  刷痕高亮（`::after` 倾斜矩形遮罩，accent-soft 底）
 .brush-highlight::after {
   content: '';
   position: absolute;
-  bottom: 2px; left: -2px; right: -2px;
+  bottom: 2px;
+  left: -2px;
+  right: -2px;
   height: 40%;
   background: var(--accent-soft);
   transform: skewX(-4deg);
@@ -140,7 +147,9 @@ DEC-08  刷痕高亮（`::after` 倾斜矩形遮罩，accent-soft 底）
   height: 1px;
   background: var(--dec-gold-line);
 }
-.section-heading::before { flex: 0 0 20px; }
+.section-heading::before {
+  flex: 0 0 20px;
+}
 ```
 
 ---
@@ -150,6 +159,7 @@ DEC-08  刷痕高亮（`::after` 倾斜矩形遮罩，accent-soft 底）
 ### 4.1 ConsoleCard（`src/components/common/ConsoleCard.vue`）
 
 **改动点**：
+
 - 新增 `variant: 'sketch'`：使用不均匀圆角 `--sketch-border-radius-lg`、手绘多层阴影 `--card-sketch-shadow`
 - 原有 `variant: 'ink'` 加 `grid-paper` 底纹，增加账本感
 - 卡片标题行左侧加 `DEC-03` 竖笔条，颜色从 `--accent` 取样
@@ -164,6 +174,7 @@ ink      →  保留深底色 + 新增 grid-paper 纹理 + 金线标题
 ### 4.2 ConsoleButton（`src/components/common/ConsoleButton.vue`）
 
 **改动点**：
+
 - `primary`：保持 accent 底色，但 `border-radius` 换为 `--sketch-border-radius-sm`，加 `box-shadow: 2px 3px 0 rgba(56,55,43,0.18)` 手绘投影
 - `secondary`：边框升级为略不规则，`border-width: 1.5px`
 - `ghost`：hover 时加 `brush-highlight` 下划刷痕（伪元素 `::after`）
@@ -222,6 +233,7 @@ ink      →  保留深底色 + 新增 grid-paper 纹理 + 金线标题
 **现有手绘元素保留**：分组标签前竖笔条 SVG、底部虚线分隔。
 
 **新增/强化**：
+
 - 品牌区标题字换为 `.display-title` 衬线
 - 侧边栏背景加 `texture-paper` 极淡纸纹（`opacity: 0.4`，避免与内容竞争）
 - 激活导航项左侧 accent 竖条宽度从 2px 升至 3px，加圆头，并带入 `DEC-08` 刷痕底
@@ -249,15 +261,15 @@ ink      →  保留深底色 + 新增 grid-paper 纹理 + 金线标题
 
 ### 6.1 Dashboard — 仪表盘
 
-| 区域 | 改造内容 |
-|---|---|
-| OverviewKpiStrip（4 KPI 条） | 每个 KPI 格改为 `sketch` 卡片变体，数字用 `font-mono`，加手绘上箭头/下箭头 SVG |
-| BalanceCard | 左上角加「账本」印章水印（`DEC-06`，极淡），额度条改为手绘刷痕进度条 |
-| TrendDualCard | ECharts 折线改为手绘感：关闭平滑曲线、启用 `symbol: 'circle'` 手绘节点、grid 改为 `--dec-grid-line` 虚线 |
-| TokenTrendCard | 同上，面积图底色改为 `--accent-soft` |
-| ModelDistributionCard | 环图改为手绘感描边（ECharts `borderWidth: 2, borderColor: '--surface-solid'`），图例用 `StatusChip` 手绘标签 |
-| SystemStatusCard | 各指标行加左侧彩色「手绘状态圆点」（`DEC-05`），进度条改为粗刷笔刷形 |
-| DiscountCard | 表格行改为 `--border-dashed-color` 虚线分隔 |
+| 区域                         | 改造内容                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| OverviewKpiStrip（4 KPI 条） | 每个 KPI 格改为 `sketch` 卡片变体，数字用 `font-mono`，加手绘上箭头/下箭头 SVG                               |
+| BalanceCard                  | 左上角加「账本」印章水印（`DEC-06`，极淡），额度条改为手绘刷痕进度条                                         |
+| TrendDualCard                | ECharts 折线改为手绘感：关闭平滑曲线、启用 `symbol: 'circle'` 手绘节点、grid 改为 `--dec-grid-line` 虚线     |
+| TokenTrendCard               | 同上，面积图底色改为 `--accent-soft`                                                                         |
+| ModelDistributionCard        | 环图改为手绘感描边（ECharts `borderWidth: 2, borderColor: '--surface-solid'`），图例用 `StatusChip` 手绘标签 |
+| SystemStatusCard             | 各指标行加左侧彩色「手绘状态圆点」（`DEC-05`），进度条改为粗刷笔刷形                                         |
+| DiscountCard                 | 表格行改为 `--border-dashed-color` 虚线分隔                                                                  |
 
 **草稿线稿 Banner AI 生图计划** → 见第八章 IMG-01
 
@@ -326,6 +338,7 @@ ink      →  保留深底色 + 新增 grid-paper 纹理 + 金线标题
 ### 6.11 Activity / Farm / Bigame — 游戏化页面
 
 这三个页面已有强视觉内容，手绘改造重点在装饰层：
+
 - 活动 Banner 背景替换为 AI 生图（手绘插画，见 IMG-04/05/06）
 - 进度条、里程碑轨道改为手绘刷笔条
 - 盲盒/农场格子改为 `sketch-md` 不均匀圆角
@@ -345,6 +358,7 @@ ink      →  保留深底色 + 新增 grid-paper 纹理 + 金线标题
 ### 7.2 HomeView — 公开首页
 
 首页目前已有强动态 Canvas，手绘改造限于静态层：
+
 - Hero 大标题区加「朱砂印章」背景水印（`DEC-06`，极淡透明度）
 - 功能区卡片改为 `sketch-md` 不均匀圆角
 - 底部 Footer 加 `section-heading` 双金线分组标题
@@ -356,18 +370,18 @@ ink      →  保留深底色 + 新增 grid-paper 纹理 + 金线标题
 
 ### 8.1 任务清单
 
-| ID | 用途 | 尺寸 | API Key | 质量 | 数量 |
-|---|---|---|---|---|---|
-| IMG-01 | Dashboard 仪表盘横幅装饰插画（账本/钱币/笔墨） | 2400×600 | Key-A | standard | 4张对比 |
-| IMG-02 | Models 页空状态插画（各厂商 AI 模型手绘排列） | 1200×800 | Key-A | standard | 3张对比 |
-| IMG-03 | Wallet 钱包页 Hero 插画（古典账本+现代感） | 1600×600 | Key-A | standard | 4张对比 |
-| IMG-04 | Activity 活动 Banner（节日/庆典手绘） | 1920×480 | Key-A | standard | 4张对比 |
-| IMG-05 | Farm 农场页 Hero（田野/农作物线稿彩绘） | 1920×480 | Key-B | hd | 4张对比 |
-| IMG-06 | Bigame 盲盒/游戏页 Banner（玩具/礼盒手绘） | 1920×480 | Key-A | standard | 3张对比 |
-| IMG-07 | Auth 页面背景（手绘植物/几何，暖土色） | 1080×1920 | Key-B | hd | 4张对比 |
-| IMG-08 | 首页 Hero 背景底纹（抽象水墨+暖土色块） | 3840×2160 (4K) | Key-B | hd | 3张对比 |
-| IMG-09 | 侧边栏底部装饰插画（小型，书架/笔筒风） | 200×300 | Key-A | standard | 3张对比 |
-| IMG-10 | 通用纸纹噪点底纹（替换现有 SVG noise） | 480×480 tile | Key-B | hd | 3张对比 |
+| ID     | 用途                                           | 尺寸           | API Key | 质量     | 数量    |
+| ------ | ---------------------------------------------- | -------------- | ------- | -------- | ------- |
+| IMG-01 | Dashboard 仪表盘横幅装饰插画（账本/钱币/笔墨） | 2400×600       | Key-A   | standard | 4张对比 |
+| IMG-02 | Models 页空状态插画（各厂商 AI 模型手绘排列）  | 1200×800       | Key-A   | standard | 3张对比 |
+| IMG-03 | Wallet 钱包页 Hero 插画（古典账本+现代感）     | 1600×600       | Key-A   | standard | 4张对比 |
+| IMG-04 | Activity 活动 Banner（节日/庆典手绘）          | 1920×480       | Key-A   | standard | 4张对比 |
+| IMG-05 | Farm 农场页 Hero（田野/农作物线稿彩绘）        | 1920×480       | Key-B   | hd       | 4张对比 |
+| IMG-06 | Bigame 盲盒/游戏页 Banner（玩具/礼盒手绘）     | 1920×480       | Key-A   | standard | 3张对比 |
+| IMG-07 | Auth 页面背景（手绘植物/几何，暖土色）         | 1080×1920      | Key-B   | hd       | 4张对比 |
+| IMG-08 | 首页 Hero 背景底纹（抽象水墨+暖土色块）        | 3840×2160 (4K) | Key-B   | hd       | 3张对比 |
+| IMG-09 | 侧边栏底部装饰插画（小型，书架/笔筒风）        | 200×300        | Key-A   | standard | 3张对比 |
+| IMG-10 | 通用纸纹噪点底纹（替换现有 SVG noise）         | 480×480 tile   | Key-B   | hd       | 3张对比 |
 
 ### 8.2 API 调用规范
 
@@ -393,34 +407,38 @@ Key-B: 用于 hd 质量，2k/4k 分辨率，高保真背景图
 ### 8.3 Prompt 模板
 
 **IMG-01 Dashboard 横幅（手绘账本）**
+
 ```
-Hand-drawn illustration, warm earth tones palette (#f6f3eb beige, #d8984c caramel, #7fa463 olive green), 
-Japanese-style sketchbook aesthetic, horizontal banner, showing an open ledger book with ink brush 
-calligraphy numbers, scattered coins and receipts, minimalist pencil sketch style with subtle paper 
+Hand-drawn illustration, warm earth tones palette (#f6f3eb beige, #d8984c caramel, #7fa463 olive green),
+Japanese-style sketchbook aesthetic, horizontal banner, showing an open ledger book with ink brush
+calligraphy numbers, scattered coins and receipts, minimalist pencil sketch style with subtle paper
 texture, no text overlay, transparent-friendly edges, 2400x600 ratio composition, elegant and calm mood.
 ```
 
 **IMG-07 Auth 背景（手绘植物）**
+
 ```
-Full-screen vertical illustration, hand-drawn botanical style, warm sand and parchment tones 
-(#f6f3eb, #fffdf8, #d8984c accent), delicate ink-sketch leaves and branches, washi paper texture, 
-traditional Japanese wabi-sabi aesthetic mixed with modern minimal design, soft gradient fog overlay, 
+Full-screen vertical illustration, hand-drawn botanical style, warm sand and parchment tones
+(#f6f3eb, #fffdf8, #d8984c accent), delicate ink-sketch leaves and branches, washi paper texture,
+traditional Japanese wabi-sabi aesthetic mixed with modern minimal design, soft gradient fog overlay,
 portrait orientation 1080x1920, elegant, calm, welcoming mood. No text, no UI elements.
 ```
 
 **IMG-08 首页 Hero 背景（4K）**
+
 ```
-4K abstract background, hand-drawn ink wash painting style (水墨画), warm earth color palette with 
-deep charcoal (#38372b) strokes, golden (#d8984c) flowing lines, cream (#f6f3eb) base, subtle paper 
-grain texture overlay, inspired by Chinese literati painting, abstract topographic lines mixed with 
+4K abstract background, hand-drawn ink wash painting style (水墨画), warm earth color palette with
+deep charcoal (#38372b) strokes, golden (#d8984c) flowing lines, cream (#f6f3eb) base, subtle paper
+grain texture overlay, inspired by Chinese literati painting, abstract topographic lines mixed with
 botanical elements, ultra-wide landscape composition 3840x2160, cinematic depth, elegant and refined.
 ```
 
 **IMG-05 Farm 农场 Hero（高清彩绘）**
+
 ```
-HD hand-drawn illustration, pastoral farmland aerial view style, inspired by Japanese countryside art, 
-warm olive green (#7fa463), wheat gold (#cfaf6b) and cream (#fffdf8) color palette, sketch-style 
-plants, crops, small farm animals in minimal cartoon-sketch fusion, wide banner composition 1920x480, 
+HD hand-drawn illustration, pastoral farmland aerial view style, inspired by Japanese countryside art,
+warm olive green (#7fa463), wheat gold (#cfaf6b) and cream (#fffdf8) color palette, sketch-style
+plants, crops, small farm animals in minimal cartoon-sketch fusion, wide banner composition 1920x480,
 gentle ink outline, watercolor fill, paper texture, cheerful and cozy mood. No text.
 ```
 
@@ -477,11 +495,11 @@ gentle ink outline, watercolor fill, paper texture, cheerful and cozy mood. No t
 
 ### 风险管控
 
-| 风险 | 措施 |
-|---|---|
-| 不均匀圆角在某些浏览器表现不一致 | 提供 `@supports` 降级回圆角 `border-radius: 12px` |
-| 手绘阴影增加 CSS 复杂度导致重绘性能 | 限制只在静态卡片使用，表格行不用多层 shadow |
-| AI 生图与品牌配色偏差 | 先生成 preview，人工审核通过后引入 |
+| 风险                                 | 措施                                               |
+| ------------------------------------ | -------------------------------------------------- |
+| 不均匀圆角在某些浏览器表现不一致     | 提供 `@supports` 降级回圆角 `border-radius: 12px`  |
+| 手绘阴影增加 CSS 复杂度导致重绘性能  | 限制只在静态卡片使用，表格行不用多层 shadow        |
+| AI 生图与品牌配色偏差                | 先生成 preview，人工审核通过后引入                 |
 | 现有测试快照（vitest）因样式改变失败 | 此次只改 CSS 和 class，不改 DOM 结构，快照不受影响 |
 
 ---

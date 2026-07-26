@@ -3,13 +3,14 @@
    不经过懒加载布局，也要能用。 */
 
 /* Round selection checkbox shared by DataTable and the admin mobile lists.
-   Single source of truth — do not re-declare this in component styles. */
+   Single source of truth — do not re-declare this in component styles.
+   日间：微不圆手绘圈 + 粗勾线；夜间：uniform 圆 + MD state 感。 */
 .checkbox-round {
   appearance: none;
   -webkit-appearance: none;
   width: 1.05rem;
   height: 1.05rem;
-  border-radius: 9999px;
+  border-radius: 45% 55% 50% 48% / 52% 46% 54% 48%;
   border: 1.5px solid var(--border-default);
   background: var(--surface-solid);
   cursor: pointer;
@@ -20,8 +21,12 @@
     border-color 0.15s ease,
     background-color 0.15s ease;
 }
+html.dark .checkbox-round {
+  border-radius: 9999px;
+}
 .checkbox-round:hover {
   border-color: var(--accent);
+  background: var(--state-hover-layer);
 }
 .checkbox-round:focus-visible {
   outline: 2px solid var(--accent);
@@ -39,8 +44,8 @@
   width: 0.3rem;
   height: 0.55rem;
   border: solid var(--accent-contrast);
-  border-width: 0 2px 2px 0;
-  transform: translate(-50%, -50%) rotate(45deg);
+  border-width: 0 2.2px 2.2px 0;
+  transform: translate(-50%, -50%) rotate(43deg);
 }
 .checkbox-round:disabled {
   cursor: not-allowed;

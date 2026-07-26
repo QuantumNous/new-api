@@ -40,13 +40,13 @@ withDefaults(
       :aria-selected="model === opt.value"
       :aria-label="opt.ariaLabel"
       :title="opt.ariaLabel"
-      class="inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors focus-ring"
+      class="inline-flex items-center justify-center gap-1.5 font-semibold transition-colors focus-ring"
       :class="[
         size === 'sm' ? 'h-8 px-2.5 text-xs' : 'h-9 px-3.5 text-sm',
         opt.label ? '' : size === 'sm' ? 'w-8 px-0' : 'w-9 px-0',
         model === opt.value
-          ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
-          : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]',
+          ? 'seg-active text-[var(--text-primary)]'
+          : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--state-hover-layer)] rounded-lg',
       ]"
       @click="model = opt.value"
     >
@@ -66,3 +66,13 @@ withDefaults(
     </button>
   </div>
 </template>
+
+<style scoped>
+/* Active segment: day = outlined hand-drawn tile; night = filled + elevation */
+.seg-active {
+  background: var(--surface-solid);
+  border-radius: var(--sketch-border-radius-sm);
+  box-shadow: var(--elevation-1);
+  border: 1px solid var(--border-default);
+}
+</style>

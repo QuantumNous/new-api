@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
 import { useEChart } from '@/charts/useEChart'
+import { areaGradient, lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import type { FlowPoint } from '@/composables/useDashboard'
@@ -29,6 +30,7 @@ const series = computed(() =>
 useEChart(
   el,
   (p) => {
+    const mood = lineMood(p)
     const lineColor = showTopup.value ? p.accent : p.signalStrong
     return {
       grid: { left: 56, right: 16, top: 18, bottom: 28 },
@@ -48,7 +50,7 @@ useEChart(
       },
       yAxis: {
         type: 'value',
-        splitLine: { lineStyle: { color: p.borderSubtle, type: 'dashed' } },
+        splitLine: mood.splitLine,
         axisLabel: {
           color: p.textTertiary,
           fontSize: 10,
@@ -63,12 +65,12 @@ useEChart(
       series: [
         {
           type: 'line',
-          smooth: true,
-          symbol: 'circle',
-          symbolSize: 7,
-          showSymbol: false,
+          smooth: mood.line.smooth,
+          symbol: mood.line.symbol,
+          symbolSize: mood.line.symbolSize,
+          showSymbol: !p.isDark,
           data: series.value,
-          lineStyle: { color: lineColor, width: 3 },
+          lineStyle: { color: lineColor, ...mood.line.lineStyle, width: 3 },
           itemStyle: {
             color: lineColor,
             borderColor: p.surfaceSolid,
@@ -81,10 +83,7 @@ useEChart(
               y: 0,
               x2: 0,
               y2: 1,
-              colorStops: [
-                { offset: 0, color: lineColor + '30' },
-                { offset: 1, color: lineColor + '05' },
-              ],
+              colorStops: areaGradient(p, lineColor),
             },
           },
         },

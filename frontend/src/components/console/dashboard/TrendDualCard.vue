@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useEChart } from '@/charts/useEChart'
+import { areaGradient, lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import { formatQuota, formatNumber } from '@/utils/format'
 import type { DashboardStats, FlowPoint } from '@/composables/useDashboard'
@@ -24,6 +25,7 @@ const flowData = computed(() => props.flow)
 useEChart(
   el,
   (p) => {
+    const mood = lineMood(p)
     const dates = flowData.value.map((f) => f.date)
     const consume = flowData.value.map((f) => f.consume)
     const requests = flowData.value.map((f) => f.requests)
@@ -62,9 +64,7 @@ useEChart(
         ? [
             {
               type: 'value',
-              splitLine: {
-                lineStyle: { color: p.borderSubtle, type: 'dashed' },
-              },
+              splitLine: mood.splitLine,
               axisLabel: {
                 color: p.textTertiary,
                 fontSize: 10,
@@ -78,9 +78,7 @@ useEChart(
               type: 'value',
               name: t('dashboard.consumeTrend'),
               nameTextStyle: { color: p.textTertiary, fontSize: 9 },
-              splitLine: {
-                lineStyle: { color: p.borderSubtle, type: 'dashed' },
-              },
+              splitLine: mood.splitLine,
               axisLabel: {
                 color: p.textTertiary,
                 fontSize: 9,
@@ -107,9 +105,9 @@ useEChart(
               {
                 name: t('dashboard.consumeTrend'),
                 type: 'line',
-                smooth: true,
+                smooth: mood.line.smooth,
                 data: consume,
-                lineStyle: { color: p.accent, width: 2.5 },
+                lineStyle: { color: p.accent, ...mood.line.lineStyle },
                 itemStyle: {
                   color: p.accent,
                   borderColor: p.surfaceSolid,
@@ -122,14 +120,12 @@ useEChart(
                     y: 0,
                     x2: 0,
                     y2: 1,
-                    colorStops: [
-                      { offset: 0, color: `${p.accent}33` },
-                      { offset: 1, color: `${p.accent}05` },
-                    ],
+                    colorStops: areaGradient(p, p.accent),
                   },
                 },
-                showSymbol: false,
-                symbolSize: 6,
+                showSymbol: !p.isDark,
+                symbol: mood.line.symbol,
+                symbolSize: mood.line.symbolSize,
                 yAxisIndex: 0,
               },
             ]
@@ -139,16 +135,21 @@ useEChart(
               {
                 name: t('dashboard.requestTrend'),
                 type: 'line',
-                smooth: true,
+                smooth: mood.line.smooth,
                 data: requests,
-                lineStyle: { color: p.signal, width: 2 },
+                lineStyle: {
+                  color: p.signal,
+                  ...mood.line.lineStyle,
+                  width: 2,
+                },
                 itemStyle: {
                   color: p.signal,
                   borderColor: p.surfaceSolid,
                   borderWidth: 2,
                 },
-                showSymbol: false,
-                symbolSize: 6,
+                showSymbol: !p.isDark,
+                symbol: mood.line.symbol,
+                symbolSize: mood.line.symbolSize,
                 yAxisIndex: singleAxis ? 0 : 1,
               },
             ]

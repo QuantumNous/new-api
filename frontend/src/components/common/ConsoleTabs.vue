@@ -48,7 +48,8 @@ function onKeydown(e: KeyboardEvent, index: number) {
       <span
         :class="model === item.key ? 'brush-highlight' : ''"
         style="position: relative; z-index: 0"
-      >{{ item.label }}</span>
+        >{{ item.label }}</span
+      >
 
       <!-- Active indicator: tapered brush-stroke bar (wider center, thin ends) -->
       <span
@@ -61,11 +62,12 @@ function onKeydown(e: KeyboardEvent, index: number) {
 </template>
 
 <style scoped>
+/* Day: tapered brush-stroke bar (clip). Night: full-width gold bar + glow. */
 .active-bar {
   height: 2.5px;
   background: var(--accent);
   border-radius: 9999px;
-  /* Clip-path creates a tapered "brush stroke": wide in the middle, thin at ends */
-  clip-path: inset(0 8% round 9999px);
+  clip-path: var(--tab-bar-clip, none);
+  box-shadow: var(--tab-bar-glow, none);
 }
 </style>

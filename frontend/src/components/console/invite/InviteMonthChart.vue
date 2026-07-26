@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useEChart } from '@/charts/useEChart'
+import { lineMood } from '@/charts/themePreset'
 import type { InviteMonthPoint } from '@/types/console'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 
@@ -53,7 +54,7 @@ useEChart(
     yAxis: {
       type: 'value',
       minInterval: 1,
-      splitLine: { lineStyle: { color: p.borderSubtle, type: 'dashed' } },
+      splitLine: lineMood(p).splitLine,
       axisLabel: { color: p.textTertiary, fontSize: 10 },
     },
     series: [
@@ -61,7 +62,7 @@ useEChart(
         type: 'bar',
         data: values.value,
         barMaxWidth: 40,
-        itemStyle: { color: p.accent, borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: p.accent, borderRadius: lineMood(p).barRadius },
         label: {
           show: true,
           position: 'top',

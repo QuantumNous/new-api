@@ -91,10 +91,11 @@ a {
   outline-offset: 2px;
 }
 
-/* 手账纸纹：静态噪点叠加在页面底色上，随主题令牌切换浅墨/浅光噪点。 */
+/* 手账纸纹：AI 和纸 tile（日间）/ 丝绒暗纹（夜间），透明度已烘焙进素材。 */
 .texture-paper {
-  background-image: var(--paper-noise);
+  background-image: var(--paper-texture-img);
   background-repeat: repeat;
+  background-size: 512px 512px;
 }
 
 /* 展示级标题：衬线字型，仅用于 hero 级大标题与 404 等呼吸区。 */
@@ -106,11 +107,17 @@ a {
 /* ===== 手绘风格工具类 ===== */
 
 /* 不均匀圆角 — 模拟手持绘制微妙歪斜 */
-.sketch-sm { border-radius: var(--sketch-border-radius-sm) !important; }
-.sketch-md { border-radius: var(--sketch-border-radius-md) !important; }
-.sketch-lg { border-radius: var(--sketch-border-radius-lg) !important; }
+.sketch-sm {
+  border-radius: var(--sketch-border-radius-sm) !important;
+}
+.sketch-md {
+  border-radius: var(--sketch-border-radius-md) !important;
+}
+.sketch-lg {
+  border-radius: var(--sketch-border-radius-lg) !important;
+}
 
-/* 刷痕高亮：文字下方倾斜色块，用于标题关键词 */
+/* 刷痕高亮：日间为笔刷多边形色块；夜间由令牌退化为细金下划线 */
 .brush-highlight {
   position: relative;
   display: inline-block;
@@ -121,11 +128,31 @@ a {
   bottom: 1px;
   left: -3px;
   right: -3px;
-  height: 38%;
+  height: var(--brush-highlight-height, 38%);
   background: var(--brush-highlight-bg);
-  transform: skewX(-5deg);
+  transform: skewX(var(--brush-highlight-skew, -5deg));
+  clip-path: var(--brush-highlight-clip, none);
   z-index: -1;
   border-radius: 2px;
+}
+
+/* 墨线分隔：日间 AI 干刷笔触；夜间金色 hairline */
+.ink-divider {
+  height: var(--divider-ink-height, 5px);
+  background: var(--divider-ink) no-repeat center / contain;
+  border: 0;
+  opacity: 0.55;
+}
+html.dark .ink-divider {
+  background: var(--hairline-gold);
+  opacity: 1;
+}
+
+/* 展示级大数字：日间浓墨粗体；夜间雅致轻字重 + 宽字距 */
+.display-number {
+  font-weight: var(--display-number-weight, 700);
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 手账格线背景 — 用于 journal 型卡片内容区 */
@@ -161,7 +188,7 @@ a {
   background: var(--dec-gold-line);
 }
 
-/* 印章水印 — 极低透明度，fixed 旋转叠在卡片背景 */
+/* 印章水印 — AI 篆刻印图，极低透明度旋转叠底；夜间由 --dec-stamp 熄灭 */
 .stamp-watermark {
   position: relative;
   overflow: hidden;
@@ -169,14 +196,18 @@ a {
 .stamp-watermark::before {
   content: '';
   position: absolute;
-  bottom: 8px;
-  right: 10px;
-  width: 72px;
-  height: 72px;
-  border: 3px solid var(--dec-stamp);
-  border-radius: 4px 6px 4px 5px / 5px 4px 6px 4px;
-  transform: rotate(-8deg);
+  bottom: 6px;
+  right: 8px;
+  width: 84px;
+  height: 88px;
+  background: url('../assets/textures/seal-stamp.png') no-repeat center /
+    contain;
+  opacity: 0.14;
+  transform: rotate(-7deg);
   pointer-events: none;
+}
+html.dark .stamp-watermark::before {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

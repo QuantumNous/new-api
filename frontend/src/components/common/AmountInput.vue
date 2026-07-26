@@ -78,7 +78,8 @@ function onBlur(e: Event) {
       :max="max"
       :placeholder="placeholder"
       v-bind="inputAttrs"
-      class="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] pl-8 pr-4 text-sm font-semibold text-[var(--text-primary)] placeholder:font-normal placeholder:text-[var(--text-tertiary)] transition-colors focus:border-[var(--border-strong)] focus-ring"
+      class="h-11 w-full border-0 border-b-[1.5px] bg-transparent pl-8 pr-4 font-mono text-sm font-semibold text-[var(--text-primary)] placeholder:font-normal placeholder:font-sans placeholder:text-[var(--text-tertiary)] transition-[border-color] focus:outline-none focus:border-[var(--accent)]"
+      style="border-color: var(--border-default)"
       @input="onInput"
       @blur="onBlur"
     />

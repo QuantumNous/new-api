@@ -17,6 +17,10 @@ export interface ChartPalette {
   textTertiary: string
   borderSubtle: string
   surfaceSolid: string
+  /** resolved theme at build time — presets branch day/night on this */
+  isDark: boolean
+  /** night-only line glow color; transparent by day */
+  lineGlow: string
   series: string[]
 }
 
@@ -42,6 +46,7 @@ export function resolveToken(name: string, fallback = ''): string {
 }
 
 export function chartPalette(): ChartPalette {
+  const isDark = document.documentElement.dataset.theme === 'dark'
   const p: ChartPalette = {
     accent: resolveToken('--accent', '#d8984c'),
     signal: resolveToken('--signal', '#74765a'),
@@ -56,6 +61,10 @@ export function chartPalette(): ChartPalette {
     textTertiary: resolveToken('--text-tertiary', '#827e66'),
     borderSubtle: resolveToken('--border-subtle', 'rgba(56,55,43,.08)'),
     surfaceSolid: resolveToken('--surface-solid', '#fffdf8'),
+    isDark,
+    lineGlow: isDark
+      ? resolveToken('--chart-line-glow', 'rgba(226,188,85,0.35)')
+      : 'transparent',
     series: [],
   }
   // Donut / categorical cycle: all six seed hues for maximum distinction

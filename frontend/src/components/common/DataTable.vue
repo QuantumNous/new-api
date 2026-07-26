@@ -460,7 +460,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="data-table-shell">
-        <!-- Visual header: wider tracking + gold-line bottom border for ledger feel -->
+    <!-- Visual header: wider tracking + gold-line bottom border for ledger feel -->
     <div
       ref="headerClipRef"
       class="data-table-header-clip overflow-hidden border-b bg-[var(--surface-table-header)]"
@@ -498,7 +498,11 @@ onBeforeUnmount(() => {
               v-for="col in columns"
               :key="col.key"
               class="px-3 py-3 font-semibold tracking-[0.12em] uppercase"
-              style="font-size:10px;font-family:var(--font-display);color:var(--text-tertiary)"
+              style="
+                font-size: 10px;
+                font-family: var(--font-display);
+                color: var(--text-tertiary);
+              "
               :class="alignClass(col.align)"
             >
               <slot :name="`header-${col.key}`" :column="col">
@@ -577,8 +581,7 @@ onBeforeUnmount(() => {
             </tr>
             <tr
               v-else
-              class="border-b border-dashed transition-colors last:border-0 hover:bg-[var(--surface-muted)]"
-              style="border-color: var(--dec-grid-line)"
+              class="row-divider transition-colors last:border-0 hover:bg-[var(--surface-muted)]"
               :class="[
                 rowInteractive ? 'cursor-pointer select-none' : undefined,
                 rowClass?.(row),
@@ -660,6 +663,11 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Row divider: dashed ledger line by day, solid hairline by night (tokens). */
+.row-divider {
+  border-bottom: 1px var(--row-divider-style, dashed) var(--row-divider-color);
+}
+
 .data-table-body-viewport {
   scrollbar-gutter: stable;
   scrollbar-width: thin;

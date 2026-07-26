@@ -165,23 +165,75 @@
   --brand-soft: var(--accent-soft);
   --foreground: var(--text-primary);
 
-  /* ===== 手绘装饰令牌 — Desert Ledger（日间） ===== */
-  --sketch-border-radius-sm: 6px 8px 7px 5px / 5px 6px 8px 7px;
-  --sketch-border-radius-md: 10px 13px 11px 12px / 11px 10px 13px 10px;
-  --sketch-border-radius-lg: 16px 18px 15px 17px / 15px 17px 16px 18px;
+  /* ===== 手绘装饰令牌 — Desert Ledger（日间：浓墨手账） ===== */
+  /* 歪斜幅度加大 40%：手持绘制感更明显 */
+  --sketch-border-radius-sm: 7px 10px 8px 5px / 5px 8px 10px 7px;
+  --sketch-border-radius-md: 12px 16px 13px 15px / 14px 12px 16px 13px;
+  --sketch-border-radius-lg: 18px 22px 16px 20px / 17px 21px 18px 22px;
   --sketch-border-width: 1.5px;
+  /* 马克笔投影：offset 更实 */
   --card-sketch-shadow:
-    2px 3px 0 rgba(56, 55, 43, 0.10),
-    0 8px 24px rgba(56, 55, 43, 0.09);
+    3px 4px 0 rgba(56, 55, 43, 0.13), 0 10px 28px rgba(56, 55, 43, 0.1);
   --card-sketch-shadow-hover:
-    3px 4px 0 rgba(56, 55, 43, 0.14),
-    0 14px 36px rgba(56, 55, 43, 0.14);
+    4px 5px 0 rgba(56, 55, 43, 0.16), 0 16px 40px rgba(56, 55, 43, 0.15);
   --dec-stamp: rgba(157, 48, 23, 0.18);
   --dec-gold-line: rgba(192, 139, 87, 0.32);
   --dec-leaf: rgba(127, 164, 99, 0.26);
-  --dec-grid-line: rgba(56, 55, 43, 0.055);
+  --dec-grid-line: rgba(56, 55, 43, 0.07);
   --surface-warm-tile: #fdf6e3;
   --brush-highlight-bg: var(--accent-soft);
+  /* brush-highlight 形态参数：日间 = 笔刷色块；夜间覆盖为细金下划线 */
+  --brush-highlight-height: 38%;
+  --brush-highlight-skew: -5deg;
+  --brush-highlight-clip: polygon(
+    0% 20%,
+    4% 0%,
+    97% 8%,
+    100% 55%,
+    96% 100%,
+    2% 92%
+  );
+  /* 墨线分隔：AI 生成干刷笔触 PNG（夜间退化为金色 hairline） */
+  --divider-ink: url('../assets/textures/divider-ink.png');
+  --divider-ink-height: 5px;
+  /* 统一交互状态层（日间暖土系；夜间覆盖为星辉金 MD state layer） */
+  --state-hover-layer: rgba(192, 139, 87, 0.1);
+  --state-press-layer: rgba(192, 139, 87, 0.16);
+  /* MD elevation 别名：日间映射回铅笔投影体系 */
+  --elevation-1:
+    0 1px 2px rgba(56, 55, 43, 0.07), 0 2px 6px rgba(56, 55, 43, 0.05);
+  --elevation-2: var(--card-sketch-shadow);
+  --elevation-3: var(--card-sketch-shadow-hover);
+  --elevation-5: var(--overlay-shadow);
+  /* 表格行分隔样式参数（日间虚线账本；夜间 solid hairline） */
+  --row-divider-style: dashed;
+  --row-divider-color: var(--dec-grid-line);
+  /* 台账 ruling：日间横线格；夜间 none */
+  --ledger-ruling: repeating-linear-gradient(
+    transparent 0 39px,
+    var(--dec-grid-line) 39px 40px
+  );
+  /* StatusChip 左色条宽度（夜间归零转 MD tonal chip） */
+  --chip-bar-width: 2.5px;
+  --chip-radius: 4px 6px 5px 5px / 5px 4px 6px 4px;
+  /* 大数字字重：日间浓墨 700；夜间雅致 500 */
+  --display-number-weight: 700;
+  /* Tab 激活条形态：日间收边刷痕；夜间金色圆头光晕 */
+  --tab-bar-clip: inset(0 8% round 9999px);
+  --tab-bar-glow: none;
+  /* 图表线发光（夜间启用） */
+  --chart-line-glow: transparent;
+  /* 金色 hairline 渐变（夜间分隔线用） */
+  --hairline-gold: linear-gradient(
+    90deg,
+    transparent,
+    rgba(192, 139, 87, 0.34) 30%,
+    rgba(192, 139, 87, 0.34) 70%,
+    transparent
+  );
+  /* AI 和纸纹理：真实纤维 tile（透明度已烘焙），叠加于页面底色 */
+  --paper-texture-img: url('../assets/textures/paper-day.webp');
+  --night-texture-img: none;
 }
 
 html.dark {
@@ -328,17 +380,63 @@ html.dark {
   --brand-soft: var(--accent-soft);
   --foreground: var(--text-primary);
 
-  /* ===== 手绘装饰令牌 — One Night（夜间覆盖） ===== */
-  --card-sketch-shadow:
-    2px 3px 0 rgba(0, 4, 16, 0.28),
-    0 8px 24px rgba(0, 4, 16, 0.36);
-  --card-sketch-shadow-hover:
-    3px 4px 0 rgba(0, 4, 16, 0.38),
-    0 14px 36px rgba(0, 4, 16, 0.48);
-  --dec-stamp: rgba(226, 188, 85, 0.16);
+  /* ===== 夜间覆盖 — One Night：Material × Elegant ===== */
+  /* 去歪斜：MD shape scale（uniform 圆角），手绘骨架保留、形态收敛 */
+  --sketch-border-radius-sm: 8px;
+  --sketch-border-radius-md: 12px;
+  --sketch-border-radius-lg: 16px;
+  /* MD3 elevation：key(umbra) + ambient(penumbra) 双层 */
+  --elevation-1:
+    0 1px 2px rgba(0, 4, 16, 0.42), 0 1px 3px 1px rgba(0, 4, 16, 0.28);
+  --elevation-2:
+    0 1px 2px rgba(0, 4, 16, 0.44), 0 2px 6px 2px rgba(0, 4, 16, 0.3);
+  --elevation-3:
+    0 1px 3px rgba(0, 4, 16, 0.46), 0 4px 8px 3px rgba(0, 4, 16, 0.32);
+  --elevation-5:
+    0 4px 4px rgba(0, 4, 16, 0.5), 0 8px 12px 6px rgba(0, 4, 16, 0.36);
+  --card-sketch-shadow: var(--elevation-2);
+  --card-sketch-shadow-hover: var(--elevation-3);
+  /* MD surface tint：海拔越高表面越暖亮（炭蓝 + 星辉金 5%/8%/11% 预计算） */
+  --surface-tint-1: #373941;
+  --surface-tint-2: #3c3d42;
+  --surface-tint-3: #424144;
+  --surface-solid: #32363f;
+  --surface-table-header: var(--surface-tint-2);
+  --surface-overlay: var(--surface-tint-3);
+  --overlay-shadow: var(--elevation-5);
+  /* MD state layer：hover 8% / press 12% 星辉金 */
+  --state-hover-layer: rgba(226, 188, 85, 0.08);
+  --state-press-layer: rgba(226, 188, 85, 0.12);
+  --surface-hover: var(--state-hover-layer);
+  --surface-warm-tile: var(--state-hover-layer);
+  /* 手绘装饰在夜间熄灭/收敛 */
+  --dec-stamp: transparent;
   --dec-gold-line: rgba(226, 188, 85, 0.28);
   --dec-leaf: rgba(142, 200, 170, 0.24);
   --dec-grid-line: rgba(152, 164, 192, 0.07);
-  --surface-warm-tile: rgba(226, 188, 85, 0.07);
-  --brush-highlight-bg: var(--accent-soft);
+  --divider-ink: none;
+  --divider-ink-height: 1px;
+  --brush-highlight-bg: var(--accent);
+  --brush-highlight-height: 1.5px;
+  --brush-highlight-skew: 0deg;
+  --brush-highlight-clip: none;
+  --row-divider-style: solid;
+  --row-divider-color: rgba(152, 164, 192, 0.09);
+  --ledger-ruling: none;
+  --chip-bar-width: 0px;
+  --chip-radius: 6px;
+  --display-number-weight: 500;
+  --tab-bar-clip: none;
+  --tab-bar-glow: 0 0 8px rgba(226, 188, 85, 0.35);
+  --chart-line-glow: rgba(226, 188, 85, 0.35);
+  --hairline-gold: linear-gradient(
+    90deg,
+    transparent,
+    rgba(226, 188, 85, 0.34) 30%,
+    rgba(226, 188, 85, 0.34) 70%,
+    transparent
+  );
+  /* 夜间丝绒暗纹：极淡（alpha 0.05 已烘焙），只在页面底，卡面保持纯净 */
+  --paper-texture-img: url('../assets/textures/velvet-night.webp');
+  --night-texture-img: none;
 }

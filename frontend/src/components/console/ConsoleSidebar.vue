@@ -70,7 +70,7 @@ defineExpose({ collapsed })
         alt=""
         aria-hidden="true"
         class="h-7 w-7 shrink-0 object-contain"
-        style="filter: drop-shadow(0 1px 2px rgba(56,55,43,0.18))"
+        style="filter: drop-shadow(0 1px 2px rgba(56, 55, 43, 0.18))"
       />
       <span
         v-if="!collapsed"
@@ -93,8 +93,14 @@ defineExpose({ collapsed })
         <div v-if="!collapsed" class="mb-1 flex items-center gap-2 px-3 py-0.5">
           <!-- bamboo-node style: a cluster of short horizontal rules -->
           <div class="flex flex-col gap-[3px] shrink-0" aria-hidden="true">
-            <span class="block h-px w-3 rounded-full" style="background:var(--status-danger);opacity:0.7" />
-            <span class="block h-px w-2 rounded-full" style="background:var(--status-danger);opacity:0.45" />
+            <span
+              class="block h-px w-3 rounded-full"
+              style="background: var(--status-danger); opacity: 0.7"
+            />
+            <span
+              class="block h-px w-2 rounded-full"
+              style="background: var(--status-danger); opacity: 0.45"
+            />
           </div>
           <span
             class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-tertiary)]"
@@ -139,7 +145,7 @@ defineExpose({ collapsed })
               <span
                 v-if="activeName === item.name && !collapsed"
                 class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
-                style="background:var(--accent)"
+                style="background: var(--accent)"
                 aria-hidden="true"
               />
 
@@ -175,10 +181,9 @@ defineExpose({ collapsed })
       </div>
     </div>
 
-    <!-- bottom tools: dashed journal-style divider -->
-    <div
-      class="shrink-0 border-t border-dashed border-[var(--border-dashed-color)] px-3 py-3"
-    >
+    <!-- bottom tools: ink-brush divider by day, gold hairline by night -->
+    <div class="shrink-0 px-3 py-3">
+      <div class="ink-divider mb-3 -mx-3" aria-hidden="true" />
       <ul class="space-y-0.5">
         <li v-for="item in consoleNavTools" :key="item.name">
           <component

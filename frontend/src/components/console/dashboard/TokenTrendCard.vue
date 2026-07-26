@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useEChart } from '@/charts/useEChart'
+import { areaGradient, lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import type { TokenTrendPoint } from '@/composables/useDashboard'
 import { formatCompact, formatQuota } from '@/utils/format'
@@ -37,6 +38,7 @@ interface TooltipParam {
 useEChart(
   el,
   (p) => {
+    const mood = lineMood(p)
     const dates = props.points.map((d) => d.date)
     const labels = {
       input: t('dashboard.tokenTrend.input'),
@@ -59,13 +61,13 @@ useEChart(
     ].map((s) => ({
       name: s.name,
       type: 'line' as const,
-      smooth: true,
-      showSymbol: false,
-      symbol: 'circle',
-      symbolSize: 6,
+      smooth: mood.line.smooth,
+      showSymbol: !p.isDark,
+      symbol: mood.line.symbol,
+      symbolSize: mood.line.symbolSize,
       yAxisIndex: 0,
       data: props.points.map((d) => d[s.key]),
-      lineStyle: { color: s.color, width: 2 },
+      lineStyle: { color: s.color, ...mood.line.lineStyle, width: 2 },
       itemStyle: {
         color: s.color,
         borderColor: p.surfaceSolid,
@@ -78,10 +80,7 @@ useEChart(
           y: 0,
           x2: 0,
           y2: 1,
-          colorStops: [
-            { offset: 0, color: `${s.color}2e` },
-            { offset: 1, color: `${s.color}03` },
-          ],
+          colorStops: areaGradient(p, s.color),
         },
       },
     }))
@@ -145,7 +144,7 @@ useEChart(
       yAxis: [
         {
           type: 'value',
-          splitLine: { lineStyle: { color: p.borderSubtle, type: 'dashed' } },
+          splitLine: mood.splitLine,
           axisLabel: {
             color: p.textTertiary,
             fontSize: 9,

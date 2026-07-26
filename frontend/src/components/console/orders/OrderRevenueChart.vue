@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useEChart } from '@/charts/useEChart'
+import { areaGradient, lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import type { AdminOrderDailyPoint } from '@/types/console'
 import { formatMoney } from '@/utils/format'
@@ -43,116 +44,116 @@ const axisLabels = computed(() =>
 
 useEChart(
   el,
-  (p) => ({
-    grid: { left: 8, right: 8, top: 40, bottom: 24, containLabel: true },
-    /**
-     * Units live in the legend rather than in `yAxis.name`. An axis name
-     * defaults to nameLocation:'end', which puts it in the same top strip the
-     * legend occupies — the left axis name lands under the legend and the right
-     * one overprints it. Carrying the unit here states it once, unambiguously.
-     */
-    legend: {
-      top: 4,
-      right: 0,
-      itemWidth: 18,
-      itemHeight: 10,
-      icon: 'roundRect',
-      textStyle: { color: p.textSecondary, fontSize: 11 },
-      data: [t('orders.chart.revenue'), t('orders.chart.orders')],
-      formatter: (name: string) =>
-        name === t('orders.chart.revenue')
-          ? t('orders.chart.revenueAxis')
-          : t('orders.chart.ordersAxis'),
-    },
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: p.surfaceSolid,
-      borderColor: p.borderSubtle,
-      textStyle: { color: p.textPrimary, fontSize: 12 },
-      axisPointer: { type: 'line', lineStyle: { color: p.borderSubtle } },
-    },
-    xAxis: {
-      type: 'category',
-      data: axisLabels.value,
-      boundaryGap: false,
-      axisLine: { lineStyle: { color: p.borderSubtle } },
-      axisTick: { show: false },
-      axisLabel: {
-        color: p.textTertiary,
-        fontSize: 10,
-        interval: labelInterval.value,
+  (p) => {
+    const mood = lineMood(p)
+    return {
+      grid: { left: 8, right: 8, top: 40, bottom: 24, containLabel: true },
+      /**
+       * Units live in the legend rather than in `yAxis.name`. An axis name
+       * defaults to nameLocation:'end', which puts it in the same top strip the
+       * legend occupies — the left axis name lands under the legend and the right
+       * one overprints it. Carrying the unit here states it once, unambiguously.
+       */
+      legend: {
+        top: 4,
+        right: 0,
+        itemWidth: 18,
+        itemHeight: 10,
+        icon: 'roundRect',
+        textStyle: { color: p.textSecondary, fontSize: 11 },
+        data: [t('orders.chart.revenue'), t('orders.chart.orders')],
+        formatter: (name: string) =>
+          name === t('orders.chart.revenue')
+            ? t('orders.chart.revenueAxis')
+            : t('orders.chart.ordersAxis'),
       },
-    },
-    // Neither axis carries a `name`: ECharts anchors it at nameLocation:'end'
-    // (the top of the axis), which put the right-hand one directly under the
-    // legend. The units live in the legend labels instead, where they cannot
-    // collide with anything.
-    yAxis: [
-      {
-        type: 'value',
-        splitLine: { lineStyle: { color: p.borderSubtle, type: 'dashed' } },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: p.surfaceSolid,
+        borderColor: p.borderSubtle,
+        textStyle: { color: p.textPrimary, fontSize: 12 },
+        axisPointer: { type: 'line', lineStyle: { color: p.borderSubtle } },
+      },
+      xAxis: {
+        type: 'category',
+        data: axisLabels.value,
+        boundaryGap: false,
+        axisLine: { lineStyle: { color: p.borderSubtle } },
+        axisTick: { show: false },
         axisLabel: {
           color: p.textTertiary,
           fontSize: 10,
-          formatter: (v: number) =>
-            v >= 1000 ? `${Math.round(v / 100) / 10}K` : String(v),
+          interval: labelInterval.value,
         },
       },
-      {
-        type: 'value',
-        splitLine: { show: false },
-        axisLabel: { color: p.textTertiary, fontSize: 10 },
-        minInterval: 1,
-      },
-    ],
-    series: [
-      {
-        name: t('orders.chart.revenue'),
-        type: 'line',
-        smooth: true,
-        showSymbol: false,
-        symbol: 'circle',
-        symbolSize: 6,
-        data: points.value.map((point) => point.revenue),
-        lineStyle: { color: p.accent, width: 2.5 },
-        itemStyle: {
-          color: p.accent,
-          borderColor: p.surfaceSolid,
-          borderWidth: 2,
-        },
-        tooltip: { valueFormatter: (v: number) => formatMoney(v) },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [
-              { offset: 0, color: p.accent + '33' },
-              { offset: 1, color: p.accent + '05' },
-            ],
+      // Neither axis carries a `name`: ECharts anchors it at nameLocation:'end'
+      // (the top of the axis), which put the right-hand one directly under the
+      // legend. The units live in the legend labels instead, where they cannot
+      // collide with anything.
+      yAxis: [
+        {
+          type: 'value',
+          splitLine: mood.splitLine,
+          axisLabel: {
+            color: p.textTertiary,
+            fontSize: 10,
+            formatter: (v: number) =>
+              v >= 1000 ? `${Math.round(v / 100) / 10}K` : String(v),
           },
         },
-      },
-      {
-        name: t('orders.chart.orders'),
-        type: 'line',
-        yAxisIndex: 1,
-        smooth: true,
-        showSymbol: false,
-        symbol: 'circle',
-        symbolSize: 6,
-        data: points.value.map((point) => point.orders),
-        lineStyle: { color: p.signalStrong, width: 2.5 },
-        itemStyle: {
-          color: p.signalStrong,
-          borderColor: p.surfaceSolid,
-          borderWidth: 2,
+        {
+          type: 'value',
+          splitLine: { show: false },
+          axisLabel: { color: p.textTertiary, fontSize: 10 },
+          minInterval: 1,
         },
-      },
-    ],
-  }),
+      ],
+      series: [
+        {
+          name: t('orders.chart.revenue'),
+          type: 'line',
+          smooth: mood.line.smooth,
+          showSymbol: !p.isDark,
+          symbol: mood.line.symbol,
+          symbolSize: mood.line.symbolSize,
+          data: points.value.map((point) => point.revenue),
+          lineStyle: { color: p.accent, ...mood.line.lineStyle },
+          itemStyle: {
+            color: p.accent,
+            borderColor: p.surfaceSolid,
+            borderWidth: 2,
+          },
+          tooltip: { valueFormatter: (v: number) => formatMoney(v) },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: areaGradient(p, p.accent),
+            },
+          },
+        },
+        {
+          name: t('orders.chart.orders'),
+          type: 'line',
+          yAxisIndex: 1,
+          smooth: mood.line.smooth,
+          showSymbol: !p.isDark,
+          symbol: mood.line.symbol,
+          symbolSize: mood.line.symbolSize,
+          data: points.value.map((point) => point.orders),
+          lineStyle: { color: p.signalStrong, ...mood.line.lineStyle },
+          itemStyle: {
+            color: p.signalStrong,
+            borderColor: p.surfaceSolid,
+            borderWidth: 2,
+          },
+        },
+      ],
+    }
+  },
   [points, labelInterval, () => t('orders.chart.revenue')]
 )
 </script>

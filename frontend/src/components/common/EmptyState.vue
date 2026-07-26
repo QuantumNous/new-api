@@ -64,8 +64,24 @@ watch(
         stroke-linejoin="round"
       />
       <!-- center label on flap: hand-drawn horizontal lines -->
-      <line x1="48" y1="29" x2="72" y2="29" stroke="var(--border-subtle)" stroke-width="2" stroke-linecap="round" />
-      <line x1="52" y1="34" x2="68" y2="34" stroke="var(--border-subtle)" stroke-width="1.5" stroke-linecap="round" />
+      <line
+        x1="48"
+        y1="29"
+        x2="72"
+        y2="29"
+        stroke="var(--border-subtle)"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+      <line
+        x1="52"
+        y1="34"
+        x2="68"
+        y2="34"
+        stroke="var(--border-subtle)"
+        stroke-width="1.5"
+        stroke-linecap="round"
+      />
       <!-- inner question mark (hand-drawn): stroke path -->
       <path
         d="M55 58 Q55 52 60 52 Q65 52 65 57 Q65 61 60 63"
@@ -76,7 +92,13 @@ watch(
         fill="none"
         opacity="0.6"
       />
-      <circle cx="60" cy="68" r="1.5" fill="var(--text-tertiary)" opacity="0.6" />
+      <circle
+        cx="60"
+        cy="68"
+        r="1.5"
+        fill="var(--text-tertiary)"
+        opacity="0.6"
+      />
       <!-- decorative small leaf sprout top-right -->
       <path
         d="M95 20 Q98 14 104 16 Q99 22 95 20Z"
@@ -84,13 +106,27 @@ watch(
         stroke="var(--dec-leaf)"
         stroke-width="0.5"
       />
-      <line x1="95" y1="20" x2="95" y2="30" stroke="var(--dec-leaf)" stroke-width="1.2" stroke-linecap="round" opacity="0.7" />
+      <line
+        x1="95"
+        y1="20"
+        x2="95"
+        y2="30"
+        stroke="var(--dec-leaf)"
+        stroke-width="1.2"
+        stroke-linecap="round"
+        opacity="0.7"
+      />
     </svg>
 
-    <p class="display-title mt-5 text-base font-semibold text-[var(--text-primary)]">
+    <p
+      class="display-title mt-5 text-base font-semibold text-[var(--text-primary)]"
+    >
       {{ title }}
     </p>
-    <p v-if="hint" class="mt-1.5 text-sm leading-relaxed text-[var(--text-tertiary)]">
+    <p
+      v-if="hint"
+      class="mt-1.5 text-sm leading-relaxed text-[var(--text-tertiary)]"
+    >
       {{ hint }}
     </p>
     <slot />

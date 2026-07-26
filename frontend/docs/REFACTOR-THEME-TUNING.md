@@ -50,14 +50,14 @@ html.dark    →  夜间值（uniform 圆角、MD elevation、state layer）
 
 ### 2.2 日间令牌修改表
 
-| 令牌 | 现值 | 新值 | 说明 |
-|---|---|---|---|
-| `--sketch-border-radius-sm` | `6px 8px 7px 5px / …` | `7px 10px 8px 5px / 5px 8px 10px 7px` | 歪斜幅度 +40% |
-| `--sketch-border-radius-md` | `10px 13px 11px 12px / …` | `12px 16px 13px 15px / 14px 12px 16px 13px` | 同上 |
-| `--sketch-border-radius-lg` | `16px 18px 15px 17px / …` | `18px 22px 16px 20px / 17px 21px 18px 22px` | 同上 |
-| `--card-sketch-shadow` | `2px 3px 0 …10%` | `3px 4px 0 rgba(56,55,43,0.13), 0 10px 28px rgba(56,55,43,0.10)` | 马克笔投影更实 |
-| `--sketch-border-width` | `1.5px` | `1.5px`（不变） | |
-| `--dec-grid-line` | `rgba(56,55,43,0.055)` | `rgba(56,55,43,0.07)` | 账本格线略深 |
+| 令牌                        | 现值                      | 新值                                                             | 说明           |
+| --------------------------- | ------------------------- | ---------------------------------------------------------------- | -------------- |
+| `--sketch-border-radius-sm` | `6px 8px 7px 5px / …`     | `7px 10px 8px 5px / 5px 8px 10px 7px`                            | 歪斜幅度 +40%  |
+| `--sketch-border-radius-md` | `10px 13px 11px 12px / …` | `12px 16px 13px 15px / 14px 12px 16px 13px`                      | 同上           |
+| `--sketch-border-radius-lg` | `16px 18px 15px 17px / …` | `18px 22px 16px 20px / 17px 21px 18px 22px`                      | 同上           |
+| `--card-sketch-shadow`      | `2px 3px 0 …10%`          | `3px 4px 0 rgba(56,55,43,0.13), 0 10px 28px rgba(56,55,43,0.10)` | 马克笔投影更实 |
+| `--sketch-border-width`     | `1.5px`                   | `1.5px`（不变）                                                  |                |
+| `--dec-grid-line`           | `rgba(56,55,43,0.055)`    | `rgba(56,55,43,0.07)`                                            | 账本格线略深   |
 
 **日间新增令牌**：
 
@@ -70,7 +70,7 @@ html.dark    →  夜间值（uniform 圆角、MD elevation、state layer）
 --paper-noise-opacity: 1;
 
 /* 统一交互状态层（日间为暖土系） */
---state-hover-layer: rgba(192, 139, 87, 0.10);
+--state-hover-layer: rgba(192, 139, 87, 0.1);
 --state-press-layer: rgba(192, 139, 87, 0.16);
 
 /* AI 和纸纹理挂载点（Phase D 生成后替换 var(--paper-noise)） */
@@ -82,35 +82,40 @@ html.dark    →  夜间值（uniform 圆角、MD elevation、state layer）
 **去歪斜**：
 
 ```css
---sketch-border-radius-sm: 8px;      /* uniform — MD shape scale small */
---sketch-border-radius-md: 12px;     /* medium */
---sketch-border-radius-lg: 16px;     /* large */
---dec-stamp: transparent;            /* 印章水印夜间熄灭 */
---divider-ink: none;                 /* 墨线分隔夜间退化为 hairline */
+--sketch-border-radius-sm: 8px; /* uniform — MD shape scale small */
+--sketch-border-radius-md: 12px; /* medium */
+--sketch-border-radius-lg: 16px; /* large */
+--dec-stamp: transparent; /* 印章水印夜间熄灭 */
+--divider-ink: none; /* 墨线分隔夜间退化为 hairline */
 ```
 
 **MD3 Elevation 体系（新增，5 级；日间同名令牌映射回铅笔投影）**：
 
 ```css
 /* 夜间：umbra + penumbra 双层，底色炭蓝深压 */
---elevation-1: 0 1px 2px rgba(0,4,16,0.42), 0 1px 3px 1px rgba(0,4,16,0.28);
---elevation-2: 0 1px 2px rgba(0,4,16,0.44), 0 2px 6px 2px rgba(0,4,16,0.30);
---elevation-3: 0 1px 3px rgba(0,4,16,0.46), 0 4px 8px 3px rgba(0,4,16,0.32);
---elevation-4: 0 2px 3px rgba(0,4,16,0.48), 0 6px 10px 4px rgba(0,4,16,0.34);
---elevation-5: 0 4px 4px rgba(0,4,16,0.50), 0 8px 12px 6px rgba(0,4,16,0.36);
---card-sketch-shadow: var(--elevation-2);        /* 卡片落位 2 级 */
+--elevation-1:
+  0 1px 2px rgba(0, 4, 16, 0.42), 0 1px 3px 1px rgba(0, 4, 16, 0.28);
+--elevation-2:
+  0 1px 2px rgba(0, 4, 16, 0.44), 0 2px 6px 2px rgba(0, 4, 16, 0.3);
+--elevation-3:
+  0 1px 3px rgba(0, 4, 16, 0.46), 0 4px 8px 3px rgba(0, 4, 16, 0.32);
+--elevation-4:
+  0 2px 3px rgba(0, 4, 16, 0.48), 0 6px 10px 4px rgba(0, 4, 16, 0.34);
+--elevation-5:
+  0 4px 4px rgba(0, 4, 16, 0.5), 0 8px 12px 6px rgba(0, 4, 16, 0.36);
+--card-sketch-shadow: var(--elevation-2); /* 卡片落位 2 级 */
 --card-sketch-shadow-hover: var(--elevation-3);
---overlay-shadow: var(--elevation-5);            /* Modal / 下拉 */
+--overlay-shadow: var(--elevation-5); /* Modal / 下拉 */
 ```
 
 **MD3 Surface Tint（表面金色染色，海拔越高越暖亮）** —— 预计算 hex，不依赖 color-mix：
 
 ```css
 /* #2e3240 基面 + 星辉金 #e2bc55 按 MD3 透明度阶梯混合 */
---surface-tint-1: #373941;   /* +5%  — 静置卡片 */
---surface-tint-2: #3c3d42;   /* +8%  — hover 卡片 / 表头 */
---surface-tint-3: #424144;   /* +11% — Modal / 命令面板 */
---surface-solid: #32363f;    /* 基面微调：原 #2e3240 略提亮接近 tint-0.5 */
+--surface-tint-1: #373941; /* +5%  — 静置卡片 */
+--surface-tint-2: #3c3d42; /* +8%  — hover 卡片 / 表头 */
+--surface-tint-3: #424144; /* +11% — Modal / 命令面板 */
+--surface-solid: #32363f; /* 基面微调：原 #2e3240 略提亮接近 tint-0.5 */
 --surface-table-header: var(--surface-tint-2);
 --surface-overlay: var(--surface-tint-3);
 ```
@@ -118,20 +123,26 @@ html.dark    →  夜间值（uniform 圆角、MD elevation、state layer）
 **MD3 State Layer（交互状态 = 金色透明层）**：
 
 ```css
---state-hover-layer: rgba(226, 188, 85, 0.08);   /* MD hover 8% */
---state-press-layer: rgba(226, 188, 85, 0.12);   /* MD press 12% */
---surface-hover: var(--state-hover-layer);       /* 旧令牌别名到新体系 */
---surface-warm-tile: var(--state-hover-layer);   /* 夜间导航 hover 同层 */
+--state-hover-layer: rgba(226, 188, 85, 0.08); /* MD hover 8% */
+--state-press-layer: rgba(226, 188, 85, 0.12); /* MD press 12% */
+--surface-hover: var(--state-hover-layer); /* 旧令牌别名到新体系 */
+--surface-warm-tile: var(--state-hover-layer); /* 夜间导航 hover 同层 */
 ```
 
 **雅致细节令牌**：
 
 ```css
---brush-highlight-height: 1.5px;      /* 日间 38% 色块 → 夜间细金下划线 */
---brush-highlight-skew: 0deg;         /* 夜间不倾斜 */
---chart-line-glow: rgba(226, 188, 85, 0.35);   /* 图表线发光色 */
---hairline-gold: linear-gradient(90deg, transparent, rgba(226,188,85,0.34) 30%, rgba(226,188,85,0.34) 70%, transparent);
---display-number-weight: 500;         /* 大数字夜间轻字重（日间 700） */
+--brush-highlight-height: 1.5px; /* 日间 38% 色块 → 夜间细金下划线 */
+--brush-highlight-skew: 0deg; /* 夜间不倾斜 */
+--chart-line-glow: rgba(226, 188, 85, 0.35); /* 图表线发光色 */
+--hairline-gold: linear-gradient(
+  90deg,
+  transparent,
+  rgba(226, 188, 85, 0.34) 30%,
+  rgba(226, 188, 85, 0.34) 70%,
+  transparent
+);
+--display-number-weight: 500; /* 大数字夜间轻字重（日间 700） */
 ```
 
 对应 `base.css` 的 `.brush-highlight::after` 改为读
@@ -157,13 +168,15 @@ html.dark    →  夜间值（uniform 圆角、MD elevation、state layer）
   background: var(--divider-ink) repeat-x center / 120px 4px;
   border: 0;
 }
-html.dark .ink-divider {          /* 夜间退化为金色 hairline */
+html.dark .ink-divider {
+  /* 夜间退化为金色 hairline */
   height: 1px;
   background: var(--hairline-gold);
 }
 ```
 
 **应用位**（全部是现有分隔线的替换，非新增装饰）：
+
 - ConsoleSidebar 底部工具区上缘（替换 border-dashed）
 - PageHero 与内容区之间（当前无线，加一条呼吸线）
 - ConsoleModal footer 上缘
@@ -171,14 +184,14 @@ html.dark .ink-divider {          /* 夜间退化为金色 hairline */
 
 ### 3.3 控件形态手绘化
 
-| 控件 | 文件 | 改造 |
-|---|---|---|
-| 圆形复选框 | `styles/console.css` `.checkbox-round` | 边框 1.5px、圆角 `45% 55% 50% 48%`（微不圆）、勾选态勾线加粗至 2.2px |
-| 开关 | `components/common/ConsoleToggle.vue` | 日间：轨道 sketch-sm 圆角、滑块微不圆 + 1px 描边墨点感；夜间：MD 标准 switch（uniform 圆、state layer hover 光环） |
-| 下拉选择 | `FilterSelect.vue` / `MultiFilterSelect.vue` | 展开箭头换手绘 V 线（stroke-linecap round）；面板圆角 sketch-md；日间面板加纸纹 |
-| 分段切换 | `SegmentedToggle.vue` | 激活段：日间描边 1.5px accent + sketch-sm；夜间 filled + elevation-1 |
-| 搜索框 | `SearchInput.vue` | 对齐 TextInput 底线式（当前仍为盒式） |
-| 数字输入 | `AmountInput.vue` | 同底线式 |
+| 控件       | 文件                                         | 改造                                                                                                               |
+| ---------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 圆形复选框 | `styles/console.css` `.checkbox-round`       | 边框 1.5px、圆角 `45% 55% 50% 48%`（微不圆）、勾选态勾线加粗至 2.2px                                               |
+| 开关       | `components/common/ConsoleToggle.vue`        | 日间：轨道 sketch-sm 圆角、滑块微不圆 + 1px 描边墨点感；夜间：MD 标准 switch（uniform 圆、state layer hover 光环） |
+| 下拉选择   | `FilterSelect.vue` / `MultiFilterSelect.vue` | 展开箭头换手绘 V 线（stroke-linecap round）；面板圆角 sketch-md；日间面板加纸纹                                    |
+| 分段切换   | `SegmentedToggle.vue`                        | 激活段：日间描边 1.5px accent + sketch-sm；夜间 filled + elevation-1                                               |
+| 搜索框     | `SearchInput.vue`                            | 对齐 TextInput 底线式（当前仍为盒式）                                                                              |
+| 数字输入   | `AmountInput.vue`                            | 同底线式                                                                                                           |
 
 ### 3.4 表格账本 ruling
 
@@ -225,14 +238,14 @@ clip-path: polygon(0% 20%, 4% 0%, 97% 8%, 100% 55%, 96% 100%, 2% 92%);
 
 ### 4.1 Elevation 落位表
 
-| 表面 | 海拔 | 令牌 |
-|---|---|---|
-| 页面底 / NavStrip | 0 | 无投影 |
-| 静置卡片（ConsoleCard 全变体） | 2 | `--elevation-2` + `--surface-tint-1` 底 |
-| hover 卡片 / 表头 | 3 | `--elevation-3` + `--surface-tint-2` |
-| Sidebar / Topbar | 2 | tint-1 底、右/下缘 1px hairline |
-| Modal / CommandPalette / 下拉 | 5 | `--elevation-5` + `--surface-tint-3` |
-| Toast | 5 | 同上 |
+| 表面                           | 海拔 | 令牌                                    |
+| ------------------------------ | ---- | --------------------------------------- |
+| 页面底 / NavStrip              | 0    | 无投影                                  |
+| 静置卡片（ConsoleCard 全变体） | 2    | `--elevation-2` + `--surface-tint-1` 底 |
+| hover 卡片 / 表头              | 3    | `--elevation-3` + `--surface-tint-2`    |
+| Sidebar / Topbar               | 2    | tint-1 底、右/下缘 1px hairline         |
+| Modal / CommandPalette / 下拉  | 5    | `--elevation-5` + `--surface-tint-3`    |
+| Toast                          | 5    | 同上                                    |
 
 ### 4.2 组件夜间微调（读令牌为主，少量 `html.dark` 分支）
 
@@ -339,10 +352,10 @@ Phase E  回归验证：test/typecheck/lint + Playwright 双主题 × {dashboard
 
 ### 风险与对策
 
-| 风险 | 对策 |
-|---|---|
-| 夜间去歪斜后某组件残留内联 sketch 值 | Phase A 后全局 grep 内联 `border-radius:.*px .*px` 清点，改读令牌 |
-| AI tile 接缝可见 | prompt 强调 tileable + 验收时 `background-repeat` 放大检查；不合格改用 offset 镜像拼接 |
-| elevation 投影过多导致合成层压力 | 只在卡片/浮层用，表格行、列表项禁用 |
-| 状态层别名改动影响现有 hover 视觉 | `--surface-hover` 别名保持向后兼容，逐组件目检 |
-| 图表 preset 接入面广（11 个组件） | 每改 3 个跑一次 vitest + 截图，分批提交 |
+| 风险                                 | 对策                                                                                   |
+| ------------------------------------ | -------------------------------------------------------------------------------------- |
+| 夜间去歪斜后某组件残留内联 sketch 值 | Phase A 后全局 grep 内联 `border-radius:.*px .*px` 清点，改读令牌                      |
+| AI tile 接缝可见                     | prompt 强调 tileable + 验收时 `background-repeat` 放大检查；不合格改用 offset 镜像拼接 |
+| elevation 投影过多导致合成层压力     | 只在卡片/浮层用，表格行、列表项禁用                                                    |
+| 状态层别名改动影响现有 hover 视觉    | `--surface-hover` 别名保持向后兼容，逐组件目检                                         |
+| 图表 preset 接入面广（11 个组件）    | 每改 3 个跑一次 vitest + 截图，分批提交                                                |

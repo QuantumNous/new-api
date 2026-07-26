@@ -71,7 +71,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
             alt=""
             aria-hidden="true"
             class="h-8 w-8 shrink-0 object-contain"
-            style="filter: drop-shadow(0 1px 2px rgba(56,55,43,0.18))"
+            style="filter: drop-shadow(0 1px 2px rgba(56, 55, 43, 0.18))"
           />
           <span
             class="display-title hidden whitespace-nowrap text-lg font-bold tracking-tight text-[var(--text-primary)] sm:inline"

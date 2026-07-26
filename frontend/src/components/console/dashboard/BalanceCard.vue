@@ -82,9 +82,11 @@ const runwayDays = computed(() => {
       </StatusChip>
     </div>
 
-    <!-- Balance number: mono font for ledger feel -->
+    <!-- Balance number: mono font for ledger feel; weight is theme-driven -->
     <div class="mt-3 flex items-center gap-2.5">
-      <p class="font-mono text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+      <p
+        class="display-number font-mono text-3xl tracking-tight text-[var(--text-primary)]"
+      >
         {{ display }}
       </p>
       <button
@@ -170,23 +172,33 @@ const runwayDays = computed(() => {
     >
       <div
         class="px-3 py-2.5"
-        style="background:var(--surface-muted);border-radius:var(--sketch-border-radius-sm)"
+        style="
+          background: var(--surface-muted);
+          border-radius: var(--sketch-border-radius-sm);
+        "
       >
         <p class="text-[11px] text-[var(--text-tertiary)]">
           {{ t('dashboard.todaySpend') }}
         </p>
-        <p class="mt-0.5 font-mono font-bold tabular-nums text-[var(--text-primary)]">
+        <p
+          class="mt-0.5 font-mono font-bold tabular-nums text-[var(--text-primary)]"
+        >
           {{ todayQuota === undefined ? '--' : formatQuota(todayQuota) }}
         </p>
       </div>
       <div
         class="px-3 py-2.5"
-        style="background:var(--surface-muted);border-radius:var(--sketch-border-radius-sm)"
+        style="
+          background: var(--surface-muted);
+          border-radius: var(--sketch-border-radius-sm);
+        "
       >
         <p class="text-[11px] text-[var(--text-tertiary)]">
           {{ t('dashboard.balanceHint.avgBurn') }}
         </p>
-        <p class="mt-0.5 font-mono font-bold tabular-nums text-[var(--text-primary)]">
+        <p
+          class="mt-0.5 font-mono font-bold tabular-nums text-[var(--text-primary)]"
+        >
           {{ dailyBurn === undefined ? '--' : formatQuota(dailyBurn) }}
         </p>
       </div>

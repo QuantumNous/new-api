@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useEChart } from '@/charts/useEChart'
+import { lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import type { HourlyPoint } from '@/composables/useDashboardStats'
 
@@ -23,6 +24,7 @@ const peakHour = computed(() => {
 useEChart(
   el,
   (p) => {
+    const mood = lineMood(p)
     const values = data.value.map((h) => h.requests)
     const maxVal = Math.max(...values, 1)
     return {
@@ -48,7 +50,7 @@ useEChart(
       },
       yAxis: {
         type: 'value',
-        splitLine: { lineStyle: { color: p.borderSubtle, type: 'dashed' } },
+        splitLine: mood.splitLine,
         axisLabel: { color: p.textTertiary, fontSize: 10 },
       },
       series: [
@@ -58,7 +60,7 @@ useEChart(
             value: v,
             itemStyle: {
               color: v === maxVal ? p.accent : `${p.accent}66`,
-              borderRadius: [3, 3, 0, 0],
+              borderRadius: mood.barRadius,
             },
           })),
           emphasis: {

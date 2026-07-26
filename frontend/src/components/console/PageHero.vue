@@ -23,7 +23,9 @@ withDefaults(
     <!-- title row -->
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="min-w-0">
-        <h1 class="display-title text-4xl font-bold text-[var(--text-primary)] lg:text-5xl leading-tight">
+        <h1
+          class="display-title text-4xl font-bold text-[var(--text-primary)] lg:text-5xl leading-tight"
+        >
           {{ title }}
           <!-- accent phrase wrapped in brush-highlight for a painted underline -->
           <span
@@ -47,5 +49,7 @@ withDefaults(
     </div>
 
     <ConsoleTabs v-if="tabs.length" v-model="tab" :items="tabs" class="mt-5" />
+    <!-- breathing ink line below hero when no tabs own the boundary -->
+    <div v-else class="ink-divider mt-6" aria-hidden="true" />
   </div>
 </template>
