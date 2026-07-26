@@ -371,10 +371,13 @@ async function runBulkStatus(action: 'enable' | 'disable'): Promise<void> {
           :crumbs="[t('nav.groupAdmin'), t('nav.userManagement')]"
           spacing="mb-2"
         />
-        <h1 class="text-2xl font-bold text-[var(--text-primary)]">
+        <h1 class="display-title text-2xl font-bold text-[var(--text-primary)]">
           {{ t('users.title') }}
         </h1>
-        <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
+        <p
+          class="mt-1 text-xs tabular-nums text-[var(--text-tertiary)]"
+          aria-live="polite"
+        >
           {{ t('users.resultCount', { count: total }) }}
         </p>
       </div>
@@ -432,7 +435,7 @@ async function runBulkStatus(action: 'enable' | 'disable'): Promise<void> {
                   ? t('users.sortAscending')
                   : t('users.sortDescending')
               "
-              class="h-10 w-10 shrink-0 rounded-xl bg-[var(--surface-muted)]"
+              class="sketch-sm h-10 w-10 shrink-0 bg-[var(--surface-muted)]"
               @click="toggleSortOrder"
             >
               <ArrowUpNarrowWide v-if="sortOrder === 'asc'" :size="17" />
@@ -556,7 +559,7 @@ async function runBulkStatus(action: 'enable' | 'disable'): Promise<void> {
               />
               <div class="min-w-0">
                 <p
-                  class="truncate font-semibold text-[var(--text-primary)]"
+                  class="display-title truncate font-semibold text-[var(--text-primary)]"
                   :title="(row as AdminUser).username"
                 >
                   {{ (row as AdminUser).username }}
@@ -584,7 +587,9 @@ async function runBulkStatus(action: 'enable' | 'disable'): Promise<void> {
           </template>
 
           <template #cell-id="{ row }">
-            <span class="font-mono text-xs text-[var(--text-secondary)]">
+            <span
+              class="display-number font-mono text-xs text-[var(--text-secondary)]"
+            >
               #{{ (row as AdminUser).id }}
             </span>
           </template>

@@ -57,7 +57,7 @@ onClickOutside(modelsDropdownRef, () => {
   <!-- ============ GRID ============ -->
   <article
     v-if="layout === 'grid'"
-    class="group flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4 shadow-[var(--card-shadow)] transition duration-200 ease-out hover:border-[var(--accent)] hover:shadow-[var(--card-shadow-hover)] focus-within:border-[var(--accent)] motion-safe:hover:-translate-y-1"
+    class="sketch-card group flex flex-col border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4 transition duration-200 ease-out hover:border-[var(--accent)] focus-within:border-[var(--accent)] motion-safe:hover:-translate-y-1"
   >
     <div class="flex items-start gap-2">
       <div class="min-w-0 flex-1">

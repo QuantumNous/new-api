@@ -41,6 +41,15 @@ const note = computed(() => {
   return t('users.quotaUsed', { value: formatQuota(props.user.used_quota) })
 })
 
+/**
+ * A healthy account keeps its sub-line quiet; only scarcity earns the meter's
+ * warning colour. Resolved here rather than in the template so the token stays
+ * a single expression.
+ */
+const noteColor = computed(() =>
+  meter.value.state === 'normal' ? 'var(--text-tertiary)' : meter.value.color
+)
+
 const ariaLabel = computed(() =>
   t('users.quotaSummary', {
     remaining: formatQuota(props.user.quota),
@@ -88,19 +97,10 @@ const ariaLabel = computed(() =>
     </svg>
 
     <div class="min-w-0">
-      <p
-        class="font-mono text-xs font-semibold tabular-nums text-[var(--text-primary)]"
-      >
+      <p class="display-number font-mono text-xs text-[var(--text-primary)]">
         {{ formatQuota(user.quota) }}
       </p>
-      <p
-        class="truncate text-[11px]"
-        :style="
-          meter.state === 'normal'
-            ? 'color:var(--text-tertiary)'
-            : `color:${meter.color}`
-        "
-      >
+      <p class="truncate text-[11px]" :style="{ color: noteColor }">
         {{ note }}
       </p>
     </div>

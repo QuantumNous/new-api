@@ -117,6 +117,17 @@ a {
   border-radius: var(--sketch-border-radius-lg) !important;
 }
 
+/* 手账卡片：歪斜圆角 + 马克笔投影（夜间令牌自动换成 MD elevation）。
+   hover 抬升走 CSS，组件不需要写 inline style 或 JS。 */
+.sketch-card {
+  border-radius: var(--sketch-border-radius-lg);
+  box-shadow: var(--card-sketch-shadow);
+}
+.sketch-card:hover,
+.sketch-card:focus-within {
+  box-shadow: var(--card-sketch-shadow-hover);
+}
+
 /* 刷痕高亮：日间为笔刷多边形色块；夜间由令牌退化为细金下划线 */
 .brush-highlight {
   position: relative;

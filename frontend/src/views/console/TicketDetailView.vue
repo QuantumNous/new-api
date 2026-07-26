@@ -172,8 +172,8 @@ watch(ticketId, (id) => void load(id), { immediate: true })
 
     <!-- loading -->
     <div v-if="loading" class="space-y-4">
-      <div class="h-28 animate-pulse rounded-2xl bg-[var(--surface-muted)]" />
-      <div class="h-48 animate-pulse rounded-2xl bg-[var(--surface-muted)]" />
+      <div class="sketch-lg h-28 animate-pulse bg-[var(--surface-muted)]" />
+      <div class="sketch-lg h-48 animate-pulse bg-[var(--surface-muted)]" />
     </div>
 
     <!-- load failure -->
@@ -206,7 +206,9 @@ watch(ticketId, (id) => void load(id), { immediate: true })
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div class="min-w-0">
             <div class="mb-2 flex flex-wrap items-center gap-2">
-              <span class="font-mono text-xs text-[var(--text-tertiary)]">
+              <span
+                class="display-number font-mono text-xs text-[var(--text-tertiary)]"
+              >
                 #TK-{{ String(ticket.id).padStart(4, '0') }}
               </span>
               <StatusChip :tone="ticketStatusTone[ticket.status]">
@@ -219,7 +221,9 @@ watch(ticketId, (id) => void load(id), { immediate: true })
                 t(`tickets.category.${ticket.category}`)
               }}</StatusChip>
             </div>
-            <h1 class="text-2xl font-bold text-[var(--text-primary)]">
+            <h1
+              class="display-title text-2xl font-bold text-[var(--text-primary)]"
+            >
               {{ ticket.title }}
             </h1>
             <div
@@ -280,7 +284,7 @@ watch(ticketId, (id) => void load(id), { immediate: true })
       </ConsoleCard>
       <ConsoleCard v-else>
         <div class="flex flex-col items-start gap-1">
-          <p class="font-semibold text-[var(--text-primary)]">
+          <p class="display-title font-semibold text-[var(--text-primary)]">
             {{ t('tickets.detail.closedBanner') }}
           </p>
           <p class="text-sm text-[var(--text-secondary)]">

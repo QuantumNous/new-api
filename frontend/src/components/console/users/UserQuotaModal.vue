@@ -71,7 +71,7 @@ async function submit() {
   >
     <div class="space-y-5 text-left">
       <div
-        class="grid grid-cols-2 gap-1 rounded-xl bg-[var(--surface-muted)] p-1"
+        class="sketch-md grid grid-cols-2 gap-1 bg-[var(--surface-muted)] p-1"
         role="radiogroup"
         :aria-label="t('users.quotaDirection')"
       >
@@ -84,7 +84,7 @@ async function submit() {
           type="button"
           role="radio"
           :aria-checked="mode === option.value"
-          class="h-9 rounded-lg text-sm font-medium transition-colors focus-ring"
+          class="sketch-sm h-9 text-sm font-medium transition-colors focus-ring"
           :class="
             mode === option.value
               ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
@@ -116,7 +116,7 @@ async function submit() {
       </FormField>
 
       <dl
-        class="space-y-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 text-xs"
+        class="sketch-md space-y-1.5 border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-3 text-xs"
       >
         <div class="flex items-center justify-between gap-3">
           <dt class="text-[var(--text-tertiary)]">

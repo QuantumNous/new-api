@@ -27,7 +27,9 @@ const { t } = useI18n()
     <header class="mb-3 flex items-center gap-3 px-1">
       <VendorLogo :vendor="group.vendor" :size="40" />
       <div class="min-w-0">
-        <h2 class="truncate text-base font-semibold text-[var(--text-primary)]">
+        <h2
+          class="display-title truncate text-base font-semibold text-[var(--text-primary)]"
+        >
           {{ group.vendor }}
         </h2>
         <p
@@ -37,19 +39,19 @@ const { t } = useI18n()
           {{ group.tagline }}
         </p>
       </div>
-      <!-- rust-red editorial rule (--status-danger: day rust / night muted coral) -->
+      <!-- gold hairline rule — same decorative family as .section-heading -->
       <span
-        class="h-px min-w-6 flex-1 bg-[var(--status-danger)] opacity-40"
+        class="h-px min-w-6 flex-1 bg-[var(--dec-gold-line)]"
         aria-hidden="true"
       />
       <div class="shrink-0 text-right">
         <p class="text-sm text-[var(--text-secondary)]">
-          <span class="font-semibold text-[var(--text-primary)]">{{
+          <span class="display-number text-[var(--text-primary)]">{{
             group.models.length
           }}</span>
           {{ t('models.modelUnit') }}
           <span class="mx-1 text-[var(--border-default)]">·</span>
-          <span class="font-semibold text-[var(--text-primary)]">{{
+          <span class="display-number text-[var(--text-primary)]">{{
             group.channelCount
           }}</span>
           {{ t('models.channelUnit') }}

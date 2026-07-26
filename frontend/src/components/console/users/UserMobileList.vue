@@ -90,7 +90,7 @@ const { t, locale } = useI18n()
             />
             <div class="min-w-0">
               <h2
-                class="truncate text-sm font-semibold text-[var(--text-primary)]"
+                class="display-title truncate text-sm font-semibold text-[var(--text-primary)]"
                 :title="user.username"
               >
                 {{ user.username }}
@@ -100,7 +100,7 @@ const { t, locale } = useI18n()
               </p>
               <p
                 v-if="visibleFields.includes('id')"
-                class="mt-0.5 font-mono text-[11px] text-[var(--text-tertiary)]"
+                class="display-number mt-0.5 font-mono text-[11px] text-[var(--text-tertiary)]"
               >
                 #{{ user.id }}
               </p>

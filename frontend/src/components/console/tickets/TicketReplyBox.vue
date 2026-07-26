@@ -34,7 +34,7 @@ function send() {
       name="ticket-reply"
       :aria-label="t('tickets.detail.replyPlaceholder')"
       :placeholder="t('tickets.detail.replyPlaceholder')"
-      class="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-colors focus:border-[var(--border-strong)] focus-ring"
+      class="sketch-md w-full border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-colors focus:border-[var(--accent)] focus-ring"
       @keydown.enter.exact.prevent="send"
     />
 
@@ -43,7 +43,7 @@ function send() {
     <div class="flex items-center justify-between gap-3">
       <button
         type="button"
-        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
+        class="sketch-sm inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
         @click="showUploader = !showUploader"
       >
         <svg

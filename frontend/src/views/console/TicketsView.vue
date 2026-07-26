@@ -158,7 +158,7 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
         <template #cell-title="{ row }">
           <button
             type="button"
-            class="max-w-xs truncate text-left font-medium text-[var(--text-primary)] transition-colors hover:text-[var(--accent-text)]"
+            class="display-title max-w-xs truncate text-left font-medium text-[var(--text-primary)] transition-colors hover:text-[var(--accent-text)]"
             @click="openDetail((row as TicketRow).id)"
           >
             {{ (row as TicketRow).title }}

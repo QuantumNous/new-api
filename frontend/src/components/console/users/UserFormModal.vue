@@ -169,7 +169,7 @@ async function submit() {
           {{ t('users.status') }}
         </p>
         <div
-          class="grid grid-cols-2 gap-1 rounded-xl bg-[var(--surface-muted)] p-1"
+          class="sketch-md grid grid-cols-2 gap-1 bg-[var(--surface-muted)] p-1"
           role="radiogroup"
           :aria-label="t('users.status')"
         >
@@ -182,7 +182,7 @@ async function submit() {
             type="button"
             role="radio"
             :aria-checked="form.status === option.value"
-            class="h-9 rounded-lg text-sm font-medium transition-colors focus-ring"
+            class="sketch-sm h-9 text-sm font-medium transition-colors focus-ring"
             :class="
               form.status === option.value
                 ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
