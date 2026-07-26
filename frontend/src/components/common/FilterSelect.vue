@@ -206,19 +206,25 @@ onClickOutside(root, closeMenu)
         fill="none"
         stroke="currentColor"
         stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
         aria-hidden="true"
       >
         <path d="m6 9 6 6 6-6" />
       </svg>
     </button>
 
-    <!-- panel -->
+    <!-- panel: sketch radius + paper texture by day, uniform + elevation by night -->
     <Transition name="fs-pop">
       <ul
         v-if="open"
         :id="listboxId"
         ref="listRef"
-        class="subtle-scroll absolute left-0 z-40 max-h-64 w-full overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] py-1 shadow-[var(--card-shadow)]"
+        class="subtle-scroll texture-paper absolute left-0 z-40 max-h-64 w-full overflow-y-auto border border-[var(--border-subtle)] bg-[var(--surface-solid)] py-1"
+        style="
+          border-radius: var(--sketch-border-radius-md);
+          box-shadow: var(--elevation-3);
+        "
         :class="direction === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'"
         role="listbox"
       >
