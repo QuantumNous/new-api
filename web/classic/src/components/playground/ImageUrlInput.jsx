@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef, useCallback } from 'react';
-import { Typography, Button, Switch, Toast, Tooltip } from '@douyinfe/semi-ui';
+import {
+  Typography,
+  Button,
+  Switch,
+  Toast,
+  Tooltip,
+  Image as SemiImage,
+} from '@douyinfe/semi-ui';
 import { IconUpload } from '@douyinfe/semi-icons';
 import { X, Image, HelpCircle } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
@@ -44,6 +51,8 @@ const ImageUrlInput = ({
   required = false,
   // 单文件大小上限(MB;0/未传=不限)。视频体验区按 maxInputMB 兜住上传成本。
   maxMB = 0,
+  // 最多可上传张数(0/未传=不限)。达到上限后隐藏拖拽框(单帧槽=1,参考图=1~3)。
+  maxCount = 0,
 }) => {
   const { t } = useTranslation();
   const fileInputRef = useRef(null);
@@ -56,8 +65,23 @@ const ImageUrlInput = ({
   const handleFiles = useCallback(
     async (files) => {
       if (!imageEnabled || disabled) return;
+      // 一次多选/多拖时按剩余槽位截断,避免超过 maxCount(不再依赖上层 slice 兜底)。
+      const remaining =
+        maxCount > 0 ? maxCount - (imageUrls?.length || 0) : Infinity;
+      if (remaining <= 0) {
+        Toast.warning({
+          content: t('最多上传 {{count}} 张', { count: maxCount }),
+          duration: 2,
+        });
+        return;
+      }
       const results = [];
+      let overflow = false;
       for (const file of files) {
+        if (results.length >= remaining) {
+          overflow = true;
+          break;
+        }
         if (maxMB > 0 && file.size > maxMB * 1024 * 1024) {
           Toast.error({
             content: t('文件不能超过 {{size}} MB', { size: maxMB }),
@@ -76,8 +100,14 @@ const ImageUrlInput = ({
         onImageUrlsChange([...imageUrls, ...results]);
         Toast.success({ content: t('图片已添加'), duration: 2 });
       }
+      if (overflow) {
+        Toast.warning({
+          content: t('最多上传 {{count}} 张', { count: maxCount }),
+          duration: 2,
+        });
+      }
     },
-    [imageEnabled, disabled, imageUrls, onImageUrlsChange, maxMB, t],
+    [imageEnabled, disabled, imageUrls, onImageUrlsChange, maxMB, maxCount, t],
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -98,6 +128,8 @@ const ImageUrlInput = ({
   };
 
   const isActive = imageEnabled && !disabled;
+  // 达到张数上限则隐藏拖拽框(拖满即收起,移除后再出现)。
+  const reachedMax = maxCount > 0 && (imageUrls?.length || 0) >= maxCount;
 
   return (
     <div className={disabled ? 'opacity-50' : ''}>
@@ -150,8 +182,8 @@ const ImageUrlInput = ({
         onChange={handleFileInputChange}
       />
 
-      {/* 拖拽 / 上传区域（开启后始终显示） */}
-      {isActive && (
+      {/* 拖拽 / 上传区域（开启且未达张数上限时显示，拖满自动收起） */}
+      {isActive && !reachedMax && (
         <div
           {...getRootProps()}
           onClick={handleFileButtonClick}
@@ -183,29 +215,27 @@ const ImageUrlInput = ({
         </Typography.Text>
       )}
 
-      {/* 已上传图片列表 */}
+      {/* 已上传图片:只展示预览缩略图,点击放大看原图(Semi Image 默认 preview=true,
+          单图即可全屏预览);右上角 × 移除。达到上限后拖拽框已收起,此处即最终态。 */}
       {isActive && imageUrls.length > 0 && (
-        <div className='space-y-1 max-h-32 overflow-y-auto image-list-scroll'>
+        <div className='flex flex-wrap gap-2'>
           {imageUrls.map((url, index) => (
-            <div
-              key={index}
-              className='flex items-center gap-2 px-2 py-1 bg-gray-50 rounded-lg border border-gray-200'
-            >
-              <img
+            <div key={index} className='relative'>
+              <SemiImage
                 src={url}
+                width={64}
+                height={64}
                 alt={`image-${index + 1}`}
-                className='w-8 h-8 object-cover rounded flex-shrink-0'
+                className='object-cover rounded-lg border border-gray-200'
+                style={{ objectFit: 'cover', borderRadius: 8 }}
               />
-              <Typography.Text className='text-xs text-gray-500 truncate flex-1'>
-                {t('图片')} {index + 1}
-              </Typography.Text>
               <Button
                 icon={<X size={12} />}
                 size='small'
-                theme='borderless'
+                theme='solid'
                 type='danger'
                 onClick={() => handleRemoveImageUrl(index)}
-                className='!rounded-full !w-6 !h-6 !p-0 !min-w-0 !text-red-500 hover:!bg-red-50 flex-shrink-0'
+                className='!absolute !-top-2 !-right-2 !rounded-full !w-5 !h-5 !p-0 !min-w-0 flex-shrink-0'
               />
             </div>
           ))}

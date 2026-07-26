@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, CapsuleTabs, NavBar, TextArea } from 'antd-mobile';
+import { Button, CapsuleTabs, Empty, NavBar, TextArea } from 'antd-mobile';
 
 import { useAudioGeneration } from '@classic/hooks/audioPlayground/useAudioGeneration';
 import {
@@ -9,6 +9,7 @@ import {
 } from '@classic/constants/audioPlayground.constants';
 
 import AsyncTaskBubble from '../components/gen/AsyncTaskBubble';
+import { useVisibleModes } from '../hooks/useVisibleModes';
 import ConfigBar from '../components/gen/ConfigBar';
 import MessageFeed from '../components/gen/MessageFeed';
 import PromptBar from '../components/gen/PromptBar';
@@ -148,19 +149,29 @@ const AudioBody = ({ mode }) => {
 
 const Audio = () => {
   const navigate = useNavigate();
-  const [mode, setMode] = useState('emotion');
+  const modes = useVisibleModes('audio', MODES);
+  const [mode, setMode] = useState(modes[0]?.key || MODES[0].key);
+  useEffect(() => {
+    if (modes.length && !modes.some((m) => m.key === mode)) setMode(modes[0].key);
+  }, [modes, mode]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <NavBar onBack={() => navigate(-1)}>语音合成</NavBar>
-      <CapsuleTabs activeKey={mode} onChange={setMode}>
-        {MODES.map((m) => (
-          <CapsuleTabs.Tab key={m.key} title={m.title} />
-        ))}
-      </CapsuleTabs>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <AudioBody key={mode} mode={mode} />
-      </div>
+      {modes.length === 0 ? (
+        <Empty style={{ padding: 32 }} description='当前体验区暂未开放' />
+      ) : (
+        <>
+          <CapsuleTabs activeKey={mode} onChange={setMode}>
+            {modes.map((m) => (
+              <CapsuleTabs.Tab key={m.key} title={m.title} />
+            ))}
+          </CapsuleTabs>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <AudioBody key={mode} mode={mode} />
+          </div>
+        </>
+      )}
     </div>
   );
 };

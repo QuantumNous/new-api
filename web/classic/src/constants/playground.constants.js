@@ -145,8 +145,10 @@ export const PLAYGROUND_UNSUPPORTED_ENDPOINTS = {
 // ========== 配置默认值 ==========
 export const DEFAULT_CONFIG = {
   inputs: {
-    model: 'gpt-4o',
-    group: '',
+    // 首次进入（无本地保存配置）的默认分组/模型。模型不存在时 loadModels 会
+    // 回退到该分组首个可用文本模型。
+    model: 'qwen3.5-35b-a3b',
+    group: 'default',
     temperature: 0.7,
     top_p: 1,
     max_tokens: 4096,

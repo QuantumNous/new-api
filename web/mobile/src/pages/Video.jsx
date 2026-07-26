@@ -1,9 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Button,
   CapsuleTabs,
+  Empty,
   Image,
+  ImageViewer,
   NavBar,
   ProgressCircle,
   SpinLoading,
@@ -12,6 +14,7 @@ import {
 import { AddOutline } from 'antd-mobile-icons';
 
 import { useVideoGeneration } from '@classic/hooks/videoPlayground/useVideoGeneration';
+import { useVisibleModes } from '../hooks/useVisibleModes';
 
 import ConfigBar from '../components/gen/ConfigBar';
 import MessageFeed from '../components/gen/MessageFeed';
@@ -50,6 +53,7 @@ const VideoBody = ({ mode }) => {
   } = useVideoGeneration({ mode });
 
   const fileRef = useRef(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const handlePickImage = async (e) => {
     const file = e.target.files?.[0];
@@ -256,13 +260,14 @@ const VideoBody = ({ mode }) => {
             <div style={{ marginBottom: 8 }}>
               {inputs.firstFrame ? (
                 <div style={{ position: 'relative', display: 'inline-block' }}>
+                  {/* 点击预览看原图；× 移除后拖拽入口才重新出现（满额隐藏） */}
                   <Image
                     src={inputs.firstFrame}
                     width={72}
                     height={72}
                     fit='cover'
                     style={{ borderRadius: 8 }}
-                    onClick={() => fileRef.current?.click()}
+                    onClick={() => setViewerOpen(true)}
                   />
                   <Button
                     size='mini'
@@ -271,6 +276,11 @@ const VideoBody = ({ mode }) => {
                   >
                     ×
                   </Button>
+                  <ImageViewer
+                    image={inputs.firstFrame}
+                    visible={viewerOpen}
+                    onClose={() => setViewerOpen(false)}
+                  />
                 </div>
               ) : (
                 <Button
@@ -298,19 +308,32 @@ const VideoBody = ({ mode }) => {
 
 const Video = () => {
   const navigate = useNavigate();
-  const [mode, setMode] = useState('text2video');
+  const modes = useVisibleModes('video', MODES);
+  const [mode, setMode] = useState(modes[0]?.key || MODES[0].key);
+
+  useEffect(() => {
+    if (modes.length && !modes.some((m) => m.key === mode)) {
+      setMode(modes[0].key);
+    }
+  }, [modes, mode]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <NavBar onBack={() => navigate(-1)}>视频生成</NavBar>
-      <CapsuleTabs activeKey={mode} onChange={setMode}>
-        {MODES.map((m) => (
-          <CapsuleTabs.Tab key={m.key} title={m.title} />
-        ))}
-      </CapsuleTabs>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <VideoBody key={mode} mode={mode} />
-      </div>
+      {modes.length === 0 ? (
+        <Empty style={{ padding: 32 }} description='当前体验区暂未开放' />
+      ) : (
+        <>
+          <CapsuleTabs activeKey={mode} onChange={setMode}>
+            {modes.map((m) => (
+              <CapsuleTabs.Tab key={m.key} title={m.title} />
+            ))}
+          </CapsuleTabs>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <VideoBody key={mode} mode={mode} />
+          </div>
+        </>
+      )}
     </div>
   );
 };

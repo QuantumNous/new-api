@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
+import { usePlaygroundTabs } from '../../hooks/common/usePlaygroundTabs';
 import { useVideoGeneration } from '../../hooks/videoPlayground/useVideoGeneration';
 import VideoConfigPanel from '../../components/videoPlayground/VideoConfigPanel';
 import VideoChatArea from '../../components/videoPlayground/VideoChatArea';
@@ -113,7 +114,19 @@ export const VideoPlaygroundBody = ({ mode }) => {
 
 const VideoModel = () => {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState('text2video');
+  // 视频超分不再直接提供：超分能力经 1080P 档位的两段流水线触达（sr 模式保留给流水线）。
+  // 可见 tab 由运营「体验区管理」配置过滤（缺省全显示）。
+  const tabs = usePlaygroundTabs('video');
+  const [activeTab, setActiveTab] = useState(tabs[0]?.key || 'text2video');
+
+  // 当前 tab 被隐藏时回退到首个可见 tab。
+  useEffect(() => {
+    if (tabs.length && !tabs.some((tb) => tb.key === activeTab)) {
+      setActiveTab(tabs[0].key);
+    }
+  }, [tabs, activeTab]);
+
+  if (!tabs.length) return null;
 
   return (
     <div className='h-full'>
@@ -124,12 +137,9 @@ const VideoModel = () => {
           onChange={setActiveTab}
           className='flex-shrink-0'
         >
-          <TabPane tab={t('文生视频')} itemKey='text2video' />
-          <TabPane tab={t('图生视频')} itemKey='image2video' />
-          <TabPane tab={t('首尾帧')} itemKey='flf2v' />
-          <TabPane tab={t('数字人')} itemKey='s2v' />
-          {/* 视频超分不再直接提供：超分能力经 1080P 档位的两段流水线触达（sr 模式代码保留给流水线） */}
-          <TabPane tab={t('视频编辑')} itemKey='vace' />
+          {tabs.map((tb) => (
+            <TabPane key={tb.key} tab={t(tb.label)} itemKey={tb.key} />
+          ))}
         </Tabs>
 
         <VideoPlaygroundBody key={activeTab} mode={activeTab} />

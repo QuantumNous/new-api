@@ -86,8 +86,10 @@ const Chat = () => {
   };
 
   const handleClear = () => {
-    // 保留 system 消息（与 classic 行为一致）
-    setMessage((prev) => prev.filter((m) => m.role === MESSAGE_ROLES.SYSTEM));
+    // 与 classic handleClearMessages 一致：清空并立即持久化空列表，
+    // 否则重进对话页会重新加载已存的旧消息（原来只 setMessage 未落盘）。
+    setMessage([]);
+    setTimeout(() => saveMessagesImmediately([]), 0);
   };
 
   const renderAssistant = (m) => {

@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
+import { usePlaygroundTabs } from '../../hooks/common/usePlaygroundTabs';
 import { useMusicGeneration } from '../../hooks/musicPlayground/useMusicGeneration';
 import MusicConfigPanel from '../../components/musicPlayground/MusicConfigPanel';
 import MusicChatArea from '../../components/musicPlayground/MusicChatArea';
 import VideoHistoryPanel from '../../components/videoPlayground/VideoHistoryPanel';
-import { MUSIC_TAB_ORDER } from '../../constants/musicPlayground.constants';
 
 // 单个玩法的三栏体验区。切 tab 时整体重挂载,各玩法历史/参数互不串扰(mode 作为 key)。
 // 涵盖 ACE-Step(文生音乐/音乐改编/音乐重绘)与 AudioX/SoulX(文生音效/视频配音效/视频
@@ -122,19 +122,18 @@ const MusicPlaygroundBody = ({ mode }) => {
   );
 };
 
-// 5 个子标签页(标签文案 = 能力中文)。
-// 「视频生音」(v2a)已于 2026-07 下线:视频配乐移交 LTX-2.3,入口在语音模型页。
-const TAB_LABELS = {
-  t2m: '文生音乐',
-  cover: '音乐改编',
-  repaint: '音乐重绘',
-  t2a: '文生音效',
-  svs: '歌声合成',
-};
-
 const MusicModel = () => {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState('t2m');
+  const tabs = usePlaygroundTabs('music');
+  const [activeTab, setActiveTab] = useState(tabs[0]?.key || 't2m');
+
+  useEffect(() => {
+    if (tabs.length && !tabs.some((tb) => tb.key === activeTab)) {
+      setActiveTab(tabs[0].key);
+    }
+  }, [tabs, activeTab]);
+
+  if (!tabs.length) return null;
 
   return (
     <div className='h-full'>
@@ -145,8 +144,8 @@ const MusicModel = () => {
           onChange={setActiveTab}
           className='flex-shrink-0'
         >
-          {MUSIC_TAB_ORDER.map((mode) => (
-            <TabPane key={mode} tab={t(TAB_LABELS[mode])} itemKey={mode} />
+          {tabs.map((tb) => (
+            <TabPane key={tb.key} tab={t(tb.label)} itemKey={tb.key} />
           ))}
         </Tabs>
 

@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
+import { usePlaygroundTabs } from '../../hooks/common/usePlaygroundTabs';
 import { useAudioGeneration } from '../../hooks/audioPlayground/useAudioGeneration';
 import AudioConfigPanel from '../../components/audioPlayground/AudioConfigPanel';
 import AudioChatArea from '../../components/audioPlayground/AudioChatArea';
 import VideoHistoryPanel from '../../components/videoPlayground/VideoHistoryPanel';
 import { VideoPlaygroundBody } from '../Video';
 import {
-  AUDIO_TAB_ORDER,
   AUDIO_MODES,
   AUDIO_EMOTION_EXAMPLES,
   AUDIO_SYNTHESIS_EXAMPLES,
@@ -165,10 +165,19 @@ const AudioPlaygroundBody = ({ mode }) => {
   );
 };
 
-// 4 个子标签页(标签文案 = 能力中文,取自 AUDIO_MODES[mode].capability)。
+// 子标签页(标签文案取中央元数据;含「视频配音」dub)。可见性由运营配置过滤。
 const AudioModel = () => {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState('emotion');
+  const tabs = usePlaygroundTabs('audio');
+  const [activeTab, setActiveTab] = useState(tabs[0]?.key || 'emotion');
+
+  useEffect(() => {
+    if (tabs.length && !tabs.some((tb) => tb.key === activeTab)) {
+      setActiveTab(tabs[0].key);
+    }
+  }, [tabs, activeTab]);
+
+  if (!tabs.length) return null;
 
   return (
     <div className='h-full'>
@@ -179,12 +188,8 @@ const AudioModel = () => {
           onChange={setActiveTab}
           className='flex-shrink-0'
         >
-          {AUDIO_TAB_ORDER.map((mode) => (
-            <TabPane
-              key={mode}
-              tab={t(AUDIO_MODES[mode].capability)}
-              itemKey={mode}
-            />
+          {tabs.map((tb) => (
+            <TabPane key={tb.key} tab={t(tb.label)} itemKey={tb.key} />
           ))}
         </Tabs>
 

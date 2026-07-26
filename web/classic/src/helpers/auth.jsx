@@ -65,4 +65,22 @@ export function AdminRoute({ children }) {
   return <Navigate to='/forbidden' replace />;
 }
 
+// 仅超管（role>=100）可进。用于读写 /api/option/（后端 RootAuth）的页面，
+// 避免普通管理员直连 URL 后落到请求全 401 的坏页。
+export function RootRoute({ children }) {
+  const raw = localStorage.getItem('user');
+  if (!raw) {
+    return <Navigate to='/login' state={{ from: history.location }} />;
+  }
+  try {
+    const user = JSON.parse(raw);
+    if (user && typeof user.role === 'number' && user.role >= 100) {
+      return children;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return <Navigate to='/forbidden' replace />;
+}
+
 export { PrivateRoute };

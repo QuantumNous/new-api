@@ -24,7 +24,7 @@ const quickEntries = [
   { title: '视频', path: '/video', icon: <MovieOutline />, bg: 'linear-gradient(135deg,#9d3b8f,#c05aa8)' },
   { title: '音乐', path: '/music', icon: <PlayOutline />, bg: 'linear-gradient(135deg,#b07a2f,#d2a253)' },
   { title: '语音', path: '/audio', icon: <SoundOutline />, bg: 'linear-gradient(135deg,#0f766e,#2ba79b)' },
-  { title: '图片', path: '/image', icon: <PictureOutline />, bg: 'linear-gradient(135deg,#1d5f9e,#3f83c4)' },
+  { title: '图像', path: '/image', icon: <PictureOutline />, bg: 'linear-gradient(135deg,#1d5f9e,#3f83c4)' },
   { title: '模型广场', path: '/models', icon: <AppstoreOutline />, bg: 'linear-gradient(135deg,#334155,#5b6b82)' },
   { title: '令牌', path: '/tokens', icon: <KeyOutline />, bg: 'linear-gradient(135deg,#42389d,#6656d6)' },
   { title: '工单', path: '/tickets', icon: <FileOutline />, bg: 'linear-gradient(135deg,#7c2d4f,#a4486f)' },
