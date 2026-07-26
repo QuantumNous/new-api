@@ -40,13 +40,16 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		oaiUsage.ClaudeCacheCreation1hTokens,
 	)
 	cacheCreationTokens := oaiUsage.PromptTokensDetails.CacheCreationTokensTotal()
+	cachedTokens := oaiUsage.PromptTokensDetails.CachedTokens
 	inputTokens := oaiUsage.PromptTokens
-	if oaiUsage.PromptTokensDetails.CacheWriteTokens > 0 {
-		// OpenAI native cache-write usage counts cached and cache-write tokens
-		// inside prompt_tokens, while Claude semantics reports input_tokens
-		// excluding both. Both counts are unadjusted prefixes and may overlap,
-		// so clamp a negative remainder at zero.
-		inputTokens = oaiUsage.PromptTokens - oaiUsage.PromptTokensDetails.CachedTokens - cacheCreationTokens
+	// OpenAI's prompt_tokens is a superset that already includes cached_tokens
+	// (cache reads) and cache_write/cache_creation tokens, while Claude's
+	// input_tokens excludes both. Whenever either subset is present, subtract
+	// them so the resulting input_tokens matches Claude semantics. The pure-hit
+	// case (cached>0, cache_write=0) must be covered too — upstream providers
+	// like DeepSeek and LongCat only report cached_tokens on cache hits.
+	if cachedTokens > 0 || cacheCreationTokens > 0 {
+		inputTokens = oaiUsage.PromptTokens - cachedTokens - cacheCreationTokens
 		if inputTokens < 0 {
 			inputTokens = 0
 		}
@@ -55,7 +58,7 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		InputTokens:              inputTokens,
 		OutputTokens:             oaiUsage.CompletionTokens,
 		CacheCreationInputTokens: cacheCreationTokens,
-		CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
+		CacheReadInputTokens:     cachedTokens,
 		BillingUsage:             billingUsage,
 	}
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {

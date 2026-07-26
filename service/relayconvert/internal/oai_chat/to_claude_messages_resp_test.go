@@ -103,6 +103,43 @@ func TestBuildClaudeUsageFromOpenAICacheWriteUsage(t *testing.T) {
 	assert.Equal(t, 3616, usage.BillingUsage.OpenAIUsage.PromptTokensDetails.CacheWriteTokens)
 }
 
+func TestBuildClaudeUsageFromOpenAIPureCacheHit(t *testing.T) {
+	// Pure cache-hit case: upstream reports only cached_tokens on hit (e.g.
+	// DeepSeek/LongCat via OpenAI protocol). prompt_tokens already includes
+	// cached_tokens, so input_tokens must subtract them to match Claude
+	// semantics where input and cache_read are mutually exclusive.
+	usage := buildClaudeUsageFromOpenAIUsage(&dto.Usage{
+		PromptTokens:     11649,
+		CompletionTokens: 16,
+		TotalTokens:      11665,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 11584,
+		},
+	})
+
+	require.NotNil(t, usage)
+	assert.Equal(t, 65, usage.InputTokens)
+	assert.Equal(t, 11584, usage.CacheReadInputTokens)
+	assert.Equal(t, 0, usage.CacheCreationInputTokens)
+	assert.Equal(t, 16, usage.OutputTokens)
+}
+
+func TestBuildClaudeUsageFromOpenAINoCache(t *testing.T) {
+	// No cache activity: prompt_tokens is the unadjusted miss count, no
+	// subtraction should happen.
+	usage := buildClaudeUsageFromOpenAIUsage(&dto.Usage{
+		PromptTokens:     11649,
+		CompletionTokens: 16,
+		TotalTokens:      11665,
+	})
+
+	require.NotNil(t, usage)
+	assert.Equal(t, 11649, usage.InputTokens)
+	assert.Equal(t, 0, usage.CacheReadInputTokens)
+	assert.Equal(t, 0, usage.CacheCreationInputTokens)
+	assert.Equal(t, 16, usage.OutputTokens)
+}
+
 func TestStreamResponseOpenAI2ClaudeClosesTextThinkingAndToolBlocks(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{
