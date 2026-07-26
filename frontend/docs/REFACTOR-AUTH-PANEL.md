@@ -135,12 +135,12 @@ background, no text, minimal, dreamy.
 新文件 `src/canvas/AuthScene.ts`（目标 ~300 行，MapScene 的 1/4），**不依赖
 MapScene**，但复用其成熟模块：
 
-| 复用 | 来源 | 用途 |
-|---|---|---|
-| `arcAway()` | `canvas/arc.ts` | 飞线贝塞尔控制点 |
-| `withAlpha()` / 色盘模式 | `canvas/theme.ts` | 主题色解析 |
-| 图标加载 | `canvas/iconLoader.ts` | 模型 Logo 位图（public/models/） |
-| 运行闸门模式 | HeroWorldMap.vue | visibilitychange 暂停 / DPR 上限 / 销毁释放 |
+| 复用                     | 来源                   | 用途                                        |
+| ------------------------ | ---------------------- | ------------------------------------------- |
+| `arcAway()`              | `canvas/arc.ts`        | 飞线贝塞尔控制点                            |
+| `withAlpha()` / 色盘模式 | `canvas/theme.ts`      | 主题色解析                                  |
+| 图标加载                 | `canvas/iconLoader.ts` | 模型 Logo 位图（public/models/）            |
+| 运行闸门模式             | HeroWorldMap.vue       | visibilitychange 暂停 / DPR 上限 / 销毁释放 |
 
 ### 4.1 场景元素
 
@@ -241,14 +241,14 @@ P6  提交（子模块 + 外层指针）
 
 ### 风险与对策
 
-| 风险 | 对策 |
-|---|---|
-| Key-B 连接不稳（上轮实证） | 每任务 Key-B 只试 1 次即降级 Key-A；A 已验证可用 |
-| AI 背景压不住文字对比度 | 强制 scrim 渐变层 + 验收 4.5:1；不达标就加深 scrim |
-| 3D 钥匙质感翻车 | 预设 Canvas 矢量钥匙 fallback，主线不阻塞 |
-| 星座与文案区重叠（窄屏 lg~xl） | 节点坐标按面板高宽比两档微调（栅格断点内测） |
-| 登录页首屏变重 | 背景 ≤300KB、引擎异步 chunk、canvas 延迟到 idle 启动 |
-| 图标加载失败（无网/缺文件） | iconLoader 已有 fallback → 彩色圆点 + 首字母 |
+| 风险                           | 对策                                                 |
+| ------------------------------ | ---------------------------------------------------- |
+| Key-B 连接不稳（上轮实证）     | 每任务 Key-B 只试 1 次即降级 Key-A；A 已验证可用     |
+| AI 背景压不住文字对比度        | 强制 scrim 渐变层 + 验收 4.5:1；不达标就加深 scrim   |
+| 3D 钥匙质感翻车                | 预设 Canvas 矢量钥匙 fallback，主线不阻塞            |
+| 星座与文案区重叠（窄屏 lg~xl） | 节点坐标按面板高宽比两档微调（栅格断点内测）         |
+| 登录页首屏变重                 | 背景 ≤300KB、引擎异步 chunk、canvas 延迟到 idle 启动 |
+| 图标加载失败（无网/缺文件）    | iconLoader 已有 fallback → 彩色圆点 + 首字母         |
 
 ---
 

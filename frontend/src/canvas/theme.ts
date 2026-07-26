@@ -149,6 +149,52 @@ export function getCanvasTheme(name: CanvasThemeName): CanvasTheme {
   return CANVAS_THEMES[name]
 }
 
+/** Auth 品牌面板迷你场景色盘。面板底色「双主题恒深」，但深法不同：
+ *  日间=墨绿夜（对齐 --surface-footer #38372b），夜间=炭蓝夜（footer #181b24）。 */
+export interface AuthSceneTheme {
+  packet: string
+  packetCore: string
+  response: string
+  nodeSurface: string
+  nodeRing: string
+  halo: string
+  dust: string
+  label: string
+  labelSurface: string
+  keyGlow: string
+}
+
+const AUTH_THEMES: Record<CanvasThemeName, AuthSceneTheme> = {
+  light: {
+    packet: '#d8984c',
+    packetCore: '#f6e8c9',
+    response: '#7fa463',
+    nodeSurface: '#2e2d23',
+    nodeRing: '#a87643',
+    halo: '#e4c276',
+    dust: '#9b9c86',
+    label: '#f4f2e8',
+    labelSurface: '#26251c',
+    keyGlow: '#d8984c',
+  },
+  dark: {
+    packet: '#e2bc55',
+    packetCore: '#f5e49c',
+    response: '#8ec8aa',
+    nodeSurface: '#232d42',
+    nodeRing: '#e2bc55',
+    halo: '#efd27e',
+    dust: '#636e8a',
+    label: '#dee3f0',
+    labelSurface: '#10141f',
+    keyGlow: '#e2bc55',
+  },
+}
+
+export function getAuthSceneTheme(name: CanvasThemeName): AuthSceneTheme {
+  return AUTH_THEMES[name]
+}
+
 export function withAlpha(hex: string, alpha: number): string {
   const value = hex.replace('#', '')
   if (value.length !== 6) return hex

@@ -31,5 +31,8 @@ export default {
     passwordTooShort: 'Password must be at least 8 characters',
     brandSlogan: 'One Key, All Models',
     brandTagline: 'A stable, affordable AI gateway for everyone',
+    tickerModels: 'Models',
+    tickerUptime: 'Uptime',
+    tickerVersion: 'Version',
   },
 }

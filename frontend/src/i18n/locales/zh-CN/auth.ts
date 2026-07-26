@@ -31,5 +31,8 @@ export default {
     passwordTooShort: '密码至少 8 位',
     brandSlogan: 'One Key, All Models',
     brandTagline: '稳定与平价、人人用得起的 AI 网关',
+    tickerModels: '支持模型',
+    tickerUptime: '在线率',
+    tickerVersion: '版本',
   },
 }
