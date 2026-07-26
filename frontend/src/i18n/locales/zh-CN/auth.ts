@@ -34,5 +34,23 @@ export default {
     tickerModels: '支持模型',
     tickerUptime: '在线率',
     tickerVersion: '版本',
+    backHome: '返回首页',
+    cardMotto: '最安心的大模型中转平台',
+    relay: {
+      prompt: '提示词原文',
+      passthrough: '字节级直通',
+      upstream: '官方上游',
+    },
+    editorial: {
+      word1: '隐私',
+      word2: '透明',
+      word3: '一念可达',
+      line1: '一念之轻',
+      line2: '接万模之响',
+      point1: '不存请求体 · 不参与训练',
+      point2: '全链路 TLS · 全程可审计',
+      point3: '注册即开 · 秒级接入',
+      statusLabel: 'STATUS · 实时运行',
+    },
   },
 }

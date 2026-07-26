@@ -43,12 +43,19 @@ async function submit() {
 
 <template>
   <AuthLayout>
-    <h1 class="text-3xl font-bold text-[var(--text-primary)]">
-      {{ t('auth.signInTitle') }}
-    </h1>
-    <p class="mt-2 text-sm text-[var(--text-tertiary)]">
-      {{ t('auth.signInSubtitle') }}
-    </p>
+    <div class="text-center">
+      <p class="text-xs italic tracking-wide text-[var(--text-tertiary)]">
+        {{ t('auth.cardMotto') }}
+      </p>
+      <h1
+        class="display-title mt-3 text-3xl font-bold text-[var(--text-primary)]"
+      >
+        {{ t('auth.signInTitle') }}
+      </h1>
+      <p class="mt-2 text-sm text-[var(--text-tertiary)]">
+        {{ t('auth.signInSubtitle') }}
+      </p>
+    </div>
 
     <form class="mt-8 space-y-4" @submit.prevent="submit">
       <FormField :label="t('auth.username')">

@@ -1,33 +1,71 @@
 <script setup lang="ts">
+// 编辑式认证布局（随想式）：整页同一纸底（texture-paper），顶部一条极简
+// 品牌栏，左侧编辑排版叙事（AuthEditorialPanel），右侧悬浮表单卡。
+// 双主题依旧全令牌驱动 —— 日间暖纸、夜间炭蓝，无恒深面板。
+import { useI18n } from 'vue-i18n'
+
+import AuthEditorialPanel from '@/components/auth/AuthEditorialPanel.vue'
 import BrandMark from '@/components/console/BrandMark.vue'
-import AuthBrandPanel from '@/components/auth/AuthBrandPanel.vue'
 import LanguageSelector from '@/components/common/LanguageSelector.vue'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
+
+const { t } = useI18n()
 </script>
 
 <template>
-  <div class="grid min-h-screen lg:grid-cols-[minmax(380px,42%)_1fr]">
-    <!-- Brand panel: key-constellation scene, deep in both themes
-         (footer rule, color report §5.4). -->
-    <AuthBrandPanel />
-
-    <!-- form pane -->
-    <div
-      class="texture-paper relative flex items-center justify-center px-4 py-10"
+  <div
+    class="texture-paper flex min-h-screen flex-col bg-[var(--page-background)]"
+  >
+    <!-- 顶部品牌栏 -->
+    <header
+      class="relative z-20 flex h-16 shrink-0 items-center justify-between px-5 sm:px-8 xl:px-12"
     >
-      <div class="absolute right-5 top-5 flex items-center gap-1">
+      <RouterLink
+        :to="{ name: 'home' }"
+        class="flex items-center gap-2.5 focus-ring rounded-lg"
+        aria-label="Ren2Hub"
+      >
+        <BrandMark class="h-8 w-8 rounded-lg" />
+        <span
+          class="display-title text-lg font-bold tracking-tight text-[var(--text-primary)]"
+          >Ren2Hub</span
+        >
+      </RouterLink>
+      <div class="flex items-center gap-1 sm:gap-2">
         <ThemeSwitcher variant="console" />
         <LanguageSelector variant="console" />
+        <RouterLink
+          :to="{ name: 'home' }"
+          class="ml-1 hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)] focus-ring sm:flex"
+        >
+          ← {{ t('auth.backHome') }}
+        </RouterLink>
       </div>
-      <div class="w-full max-w-md">
-        <div class="mb-8 flex items-center gap-2.5 lg:hidden">
-          <BrandMark class="h-9 w-9 rounded-lg" />
-          <span class="text-lg font-bold text-[var(--text-primary)]"
-            >Ren2Hub</span
-          >
+    </header>
+
+    <!-- 主体：左叙事 + 右表单卡 -->
+    <div
+      class="mx-auto grid w-full max-w-[1440px] flex-1 lg:grid-cols-[1fr_minmax(420px,480px)] lg:gap-10 lg:px-8 xl:gap-16 xl:px-12"
+    >
+      <AuthEditorialPanel />
+
+      <!-- 表单卡：纸面上的悬浮实体卡 -->
+      <div class="flex items-center justify-center px-4 py-8 lg:py-12">
+        <div
+          class="auth-card w-full max-w-md border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-7 py-9 sm:px-9"
+        >
+          <slot />
         </div>
-        <slot />
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Sketch radius + elevation come from the theme fork: hand-drawn card by day,
+   Material card by night. */
+.auth-card {
+  border-radius: var(--sketch-border-radius-lg);
+  box-shadow: var(--elevation-3);
+}
+</style>

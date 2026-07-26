@@ -34,5 +34,23 @@ export default {
     tickerModels: 'Models',
     tickerUptime: 'Uptime',
     tickerVersion: 'Version',
+    backHome: 'Back to home',
+    cardMotto: 'The AI relay you can trust',
+    relay: {
+      prompt: 'Your prompt',
+      passthrough: 'Byte-level relay',
+      upstream: 'Official upstream',
+    },
+    editorial: {
+      word1: 'Private',
+      word2: 'Transparent',
+      word3: 'Instant',
+      line1: 'One key, light as a thought —',
+      line2: 'every model answers.',
+      point1: 'No request bodies stored · never trained on',
+      point2: 'End-to-end TLS · fully auditable',
+      point3: 'Instant signup · connected in seconds',
+      statusLabel: 'STATUS · LIVE',
+    },
   },
 }

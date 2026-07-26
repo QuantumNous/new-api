@@ -39,7 +39,7 @@ async function submit() {
     >
       ← {{ t('common.back') }}
     </RouterLink>
-    <h1 class="text-3xl font-bold text-[var(--text-primary)]">
+    <h1 class="display-title text-3xl font-bold text-[var(--text-primary)]">
       {{ t('auth.resetTitle') }}
     </h1>
     <p class="mt-2 text-sm text-[var(--text-tertiary)]">
