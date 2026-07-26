@@ -1396,8 +1396,8 @@ export function App() {
                 className="topbar-icon-btn"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => setRailHidden((h) => !h)}
-                aria-label={railHidden ? "Show side panel" : "Hide side panel"}
-                title={railHidden ? "Show side panel" : "Hide side panel"}
+                aria-label={railHidden ? t("Show side panel") : t("Hide side panel")}
+                title={railHidden ? t("Show side panel") : t("Hide side panel")}
               >
                 <Icon name="sidebarRight" size={16} />
               </button>

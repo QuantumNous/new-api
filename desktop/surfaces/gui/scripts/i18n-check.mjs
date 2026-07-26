@@ -1,12 +1,16 @@
-// i18n:check — locale parity for extracted keys only.
+// i18n:check — locale parity for extracted keys.
 //
-// Guarantee: every t("…") / i18n.t("…") double-quoted key used under src/ exists in each
-// locale JSON, and each locale has no stale keys. Keys are English source strings
+// Guarantee: every user-facing key discovered under src/ exists in each locale JSON,
+// and each locale has no stale keys. Keys are English source strings
 // (see src/i18n/index.ts). English needs no resource file (key === fallback).
 //
-// This does NOT prove the UI is fully translated: hardcoded JSX text, template-literal
-// keys, single-quoted t('…'), and identity translations (value === key) are out of scope.
-// Hybrid/broken catalog values are also not detected — review catalogs manually for those.
+// Extracted from:
+//   - t("…") / t('…')  (double- or single-quoted call sites)
+//   - i18n.t("…") / i18n.t('…')
+//   - labelKey: "…" / descriptionKey: "…"  (dynamic t(var) tables)
+//
+// Still out of scope: fully dynamic keys built at runtime without a static string,
+// hardcoded JSX without t(), identity translations (value === key), hybrid garbage.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,11 +27,29 @@ function walk(dir) {
   });
 }
 
+function unescape(s) {
+  return s.replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\n/g, "\n");
+}
+
 const used = new Set();
 for (const file of walk(srcDir)) {
+  // skip test files — they may assert English without needing locale entries
+  if (/\.test\.(tsx?|mts)$/.test(file)) continue;
   const text = readFileSync(file, "utf8");
-  for (const m of text.matchAll(/\bt\(\s*"((?:[^"\\]|\\.)+)"/g)) {
-    used.add(m[1].replace(/\\"/g, '"'));
+  // t("…") and i18n.t("…") — double quotes
+  for (const m of text.matchAll(/(?:\bi18n\.)?\bt\(\s*"((?:[^"\\]|\\.)+)"/g)) {
+    used.add(unescape(m[1]));
+  }
+  // t('…') and i18n.t('…') — single quotes
+  for (const m of text.matchAll(/(?:\bi18n\.)?\bt\(\s*'((?:[^'\\]|\\.)+)'/g)) {
+    used.add(unescape(m[1]));
+  }
+  // labelKey / descriptionKey tables feeding t(dynamicKey)
+  for (const m of text.matchAll(/\b(?:labelKey|descriptionKey)\s*:\s*"((?:[^"\\]|\\.)+)"/g)) {
+    used.add(unescape(m[1]));
+  }
+  for (const m of text.matchAll(/\b(?:labelKey|descriptionKey)\s*:\s*'((?:[^'\\]|\\.)+)'/g)) {
+    used.add(unescape(m[1]));
   }
 }
 
@@ -49,4 +71,6 @@ for (const file of readdirSync(localesDir).filter((f) => f.endsWith(".json"))) {
 }
 
 if (failed) process.exit(1);
-console.log(`i18n:check OK — ${used.size} keys, ${readdirSync(localesDir).filter((f) => f.endsWith(".json")).length} locale file(s).`);
+console.log(
+  `i18n:check OK — ${used.size} keys, ${readdirSync(localesDir).filter((f) => f.endsWith(".json")).length} locale file(s).`,
+);
