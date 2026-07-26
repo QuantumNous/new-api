@@ -28,7 +28,13 @@ type ClaudeOptions struct {
 	// fraction of max_tokens when the adapter fires.
 	ThinkingAdapterBudgetTokensPercentage float64
 	// DefaultMaxTokens returns the max_tokens to inject when the source
-	// request carries none. Nil disables injection.
+	// request carries none. The Claude Messages API requires max_tokens
+	// (omitting it is a 400), so when this hook is nil and no other path
+	// supplies a value, OpenAI→Claude request conversion fails with an
+	// explicit error instead of emitting a request the upstream is
+	// guaranteed to reject. The new-api host always provides this hook;
+	// standalone relaykit users must supply one or guarantee max_tokens on
+	// every request.
 	DefaultMaxTokens func(modelName string) int
 }
 

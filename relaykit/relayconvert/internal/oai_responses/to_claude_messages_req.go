@@ -120,6 +120,11 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		claudeRequest.System = systemMessages
 	}
 	claudeRequest.Messages = ensureClaudeMessagesStartWithUser(claudeRequest.Messages)
+	// Checked last so every injection path has had its chance to satisfy the
+	// required field.
+	if claudeRequest.MaxTokens == nil {
+		return nil, sharedclaude.ErrMissingMaxTokens
+	}
 	return claudeRequest, nil
 }
 
