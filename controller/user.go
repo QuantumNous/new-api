@@ -485,22 +485,24 @@ func generateDefaultSidebarConfig(userRole int) string {
 	if userRole == common.RoleAdminUser {
 		// 管理员可以访问管理员区域，但不能访问系统设置
 		defaultConfig["admin"] = map[string]interface{}{
-			"enabled":    true,
-			"channel":    true,
-			"models":     true,
-			"redemption": true,
-			"user":       true,
-			"setting":    false, // 管理员不能访问系统设置
+			"enabled":     true,
+			"channel":     true,
+			"models":      true,
+			"redemption":  true,
+			"user":        true,
+			"entitlement": true,
+			"setting":     false, // 管理员不能访问系统设置
 		}
 	} else if userRole == common.RoleRootUser {
 		// 超级管理员可以访问所有功能
 		defaultConfig["admin"] = map[string]interface{}{
-			"enabled":    true,
-			"channel":    true,
-			"models":     true,
-			"redemption": true,
-			"user":       true,
-			"setting":    true,
+			"enabled":     true,
+			"channel":     true,
+			"models":      true,
+			"redemption":  true,
+			"user":        true,
+			"entitlement": true,
+			"setting":     true,
 		}
 	}
 	// 普通用户不包含admin区域
@@ -531,6 +533,17 @@ func GetUserModels(c *gin.Context) {
 		for _, g := range model.GetGroupEnabledModels(group) {
 			if !common.StringsContains(models, g) {
 				models = append(models, g)
+			}
+		}
+	}
+	entitlementPackages, entitlementErr := model.GetUserEntitlementPackages(id, true)
+	if entitlementErr == nil {
+		for _, item := range entitlementPackages {
+			for _, entitlementModel := range strings.Split(item.Models, ",") {
+				entitlementModel = strings.TrimSpace(entitlementModel)
+				if entitlementModel != "" && !common.StringsContains(models, entitlementModel) {
+					models = append(models, entitlementModel)
+				}
 			}
 		}
 	}

@@ -67,6 +67,7 @@ const EditTokenModal = (props) => {
   const formApiRef = useRef(null);
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [entitlementPackages, setEntitlementPackages] = useState([]);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
   const isEdit = props.editingToken.id !== undefined;
 
@@ -81,6 +82,7 @@ const EditTokenModal = (props) => {
     allow_ips: '',
     group: '',
     cross_group_retry: false,
+    entitlement_package_ids: [],
     tokenCount: 1,
   });
 
@@ -156,9 +158,27 @@ const EditTokenModal = (props) => {
     }
   };
 
+  const loadEntitlementPackages = async () => {
+    const res = await API.get('/api/entitlement/self/packages');
+    const { success, message, data } = res.data;
+    if (success) {
+      setEntitlementPackages(
+        (data || []).map((item) => ({
+          label: `${item.name}（${item.group}）`,
+          value: item.id,
+        })),
+      );
+    } else {
+      showError(t(message));
+    }
+  };
+
   const loadToken = async () => {
     setLoading(true);
-    let res = await API.get(`/api/token/${props.editingToken.id}`);
+    const [res, entitlementRes] = await Promise.all([
+      API.get(`/api/token/${props.editingToken.id}`),
+      API.get(`/api/entitlement/self/token/${props.editingToken.id}`),
+    ]);
     const { success, message, data } = res.data;
     if (success) {
       if (data.expired_time !== -1) {
@@ -172,6 +192,11 @@ const EditTokenModal = (props) => {
       data.remain_amount = Number(
         quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
       );
+      data.entitlement_package_ids = entitlementRes.data.success
+        ? (entitlementRes.data.data || [])
+            .filter((item) => item.status === 1)
+            .map((item) => item.package_id)
+        : [];
       if (formApiRef.current) {
         formApiRef.current.setValues({ ...getInitValues(), ...data });
       }
@@ -189,6 +214,7 @@ const EditTokenModal = (props) => {
     }
     loadModels();
     loadGroups();
+    loadEntitlementPackages();
   }, [props.editingToken.id]);
 
   useEffect(() => {
@@ -552,7 +578,10 @@ const EditTokenModal = (props) => {
                         ? `▾ ${t('收起原生额度输入')}`
                         : `▸ ${t('使用原生额度输入')}`}
                     </div>
-                    <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                    <div
+                      style={{ display: showQuotaInput ? 'block' : 'none' }}
+                      className='mt-2'
+                    >
                       <Form.InputNumber
                         field='remain_quota'
                         label={t('额度')}
@@ -609,6 +638,20 @@ const EditTokenModal = (props) => {
                   </div>
                 </div>
                 <Row gutter={12}>
+                  <Col span={24}>
+                    <Form.Select
+                      field='entitlement_package_ids'
+                      label={t('定向权益包')}
+                      placeholder={t('选择管理员已授权给你的活动或模型包')}
+                      multiple
+                      optionList={entitlementPackages}
+                      showClear
+                      style={{ width: '100%' }}
+                      extraText={t(
+                        '每把令牌可选择多个权益包；未授权的权益包不会显示',
+                      )}
+                    />
+                  </Col>
                   <Col span={24}>
                     <Form.Select
                       field='model_limits'

@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -179,6 +180,17 @@ func ListModels(c *gin.Context, modelType int) {
 		} else {
 			models = model.GetGroupEnabledModels(group)
 		}
+		entitlementPackages, entitlementErr := model.GetActiveTokenEntitlementPackages(c.GetInt("token_id"), userId)
+		if entitlementErr == nil {
+			for _, item := range entitlementPackages {
+				for _, entitlementModel := range strings.Split(item.Models, ",") {
+					entitlementModel = strings.TrimSpace(entitlementModel)
+					if entitlementModel != "" && !common.StringsContains(models, entitlementModel) {
+						models = append(models, entitlementModel)
+					}
+				}
+			}
+		}
 		for _, modelName := range models {
 			if !acceptUnsetRatioModel {
 				if !helper.HasModelBillingConfig(modelName) {
@@ -200,6 +212,18 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	}
 
+	if tokenId := c.GetInt("token_id"); tokenId > 0 {
+		filteredModels := make([]dto.OpenAIModels, 0, len(userOpenAiModels))
+		for _, item := range userOpenAiModels {
+			grant, protected, entitlementErr := model.ResolveTokenEntitlement(tokenId, c.GetInt("id"), item.Id, time.Now())
+			if protected && (entitlementErr != nil || grant == nil) {
+				continue
+			}
+			filteredModels = append(filteredModels, item)
+		}
+		userOpenAiModels = filteredModels
+	}
+
 	switch modelType {
 	case constant.ChannelTypeAnthropic:
 		useranthropicModels := make([]dto.AnthropicModel, len(userOpenAiModels))
@@ -211,12 +235,12 @@ func ListModels(c *gin.Context, modelType int) {
 				Type:        "model",
 			}
 		}
-		c.JSON(200, gin.H{
-			"data":     useranthropicModels,
-			"first_id": useranthropicModels[0].ID,
-			"has_more": false,
-			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
-		})
+		response := gin.H{"data": useranthropicModels, "has_more": false}
+		if len(useranthropicModels) > 0 {
+			response["first_id"] = useranthropicModels[0].ID
+			response["last_id"] = useranthropicModels[len(useranthropicModels)-1].ID
+		}
+		c.JSON(200, response)
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
 		for i, model := range userOpenAiModels {
@@ -261,6 +285,20 @@ func EnabledListModels(c *gin.Context) {
 
 func RetrieveModel(c *gin.Context, modelType int) {
 	modelId := c.Param("model")
+	if tokenId := c.GetInt("token_id"); tokenId > 0 {
+		grant, protected, err := model.ResolveTokenEntitlement(tokenId, c.GetInt("id"), modelId, time.Now())
+		if protected && (err != nil || grant == nil) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": types.OpenAIError{
+					Message: fmt.Sprintf("The model '%s' does not exist or is not authorized for this token", modelId),
+					Type:    "invalid_request_error",
+					Param:   "model",
+					Code:    types.ErrorCodeEntitlementRequired,
+				},
+			})
+			return
+		}
+	}
 	if aiModel, ok := openAIModelsMap[modelId]; ok {
 		switch modelType {
 		case constant.ChannelTypeAnthropic:

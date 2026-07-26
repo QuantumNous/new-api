@@ -77,9 +77,20 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendRequestConversionChain(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)
 	appendBillingInfo(relayInfo, other)
+	appendEntitlementInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	return other
+}
+
+func appendEntitlementInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil || relayInfo.EntitlementId <= 0 {
+		return
+	}
+	other["entitlement_id"] = relayInfo.EntitlementId
+	other["entitlement_package_id"] = relayInfo.EntitlementPackageId
+	other["entitlement_name"] = relayInfo.EntitlementName
+	other["entitlement_usage_date"] = relayInfo.EntitlementUsageDate
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
@@ -262,6 +273,7 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
 	appendRequestPath(nil, relayInfo, other)
+	appendEntitlementInfo(relayInfo, other)
 	return other
 }
 

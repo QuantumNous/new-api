@@ -164,13 +164,19 @@ func GetTokenUsage(c *gin.Context) {
 	})
 }
 
+type tokenMutationRequest struct {
+	model.Token
+	EntitlementPackageIds *[]int `json:"entitlement_package_ids,omitempty"`
+}
+
 func AddToken(c *gin.Context) {
-	token := model.Token{}
-	err := c.ShouldBindJSON(&token)
+	req := tokenMutationRequest{}
+	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	token := req.Token
 	if len(token.Name) > 50 {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
 		return
@@ -211,6 +217,7 @@ func AddToken(c *gin.Context) {
 		UserId:             c.GetInt("id"),
 		Name:               token.Name,
 		Key:                key,
+		Status:             common.TokenStatusEnabled,
 		CreatedTime:        common.GetTimestamp(),
 		AccessedTime:       common.GetTimestamp(),
 		ExpiredTime:        token.ExpiredTime,
@@ -222,7 +229,11 @@ func AddToken(c *gin.Context) {
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
 	}
-	err = cleanToken.Insert()
+	packageIds := []int{}
+	if req.EntitlementPackageIds != nil {
+		packageIds = *req.EntitlementPackageIds
+	}
+	err = model.CreateTokenWithEntitlements(&cleanToken, packageIds, false)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -250,12 +261,13 @@ func DeleteToken(c *gin.Context) {
 func UpdateToken(c *gin.Context) {
 	userId := c.GetInt("id")
 	statusOnly := c.Query("status_only")
-	token := model.Token{}
-	err := c.ShouldBindJSON(&token)
+	req := tokenMutationRequest{}
+	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	token := req.Token
 	if len(token.Name) > 50 {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
 		return
@@ -304,6 +316,12 @@ func UpdateToken(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if statusOnly == "" && req.EntitlementPackageIds != nil {
+		if err := model.SetTokenEntitlementPackages(cleanToken.Id, userId, *req.EntitlementPackageIds, false); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

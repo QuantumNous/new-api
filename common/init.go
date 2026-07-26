@@ -115,6 +115,7 @@ func InitEnv() {
 		SysLog("SAFE_FAILOVER_IMAGE_GUARD_SECONDS must be positive; using 60")
 		SafeFailoverImageGuardSeconds = 60
 	}
+	EntitlementFeatureEnabled = GetEnvOrDefaultBool("ENTITLEMENT_FEATURE_ENABLED", true)
 
 	// Initialize string variables with GetEnvOrDefaultString
 	GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")

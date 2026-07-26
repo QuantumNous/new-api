@@ -121,6 +121,12 @@ type RelayInfo struct {
 	SendResponseCount      int
 	ReceivedResponseCount  int
 	FinalPreConsumedQuota  int // 最终预消耗的配额
+	EntitlementId          int
+	EntitlementPackageId   int
+	EntitlementName        string
+	EntitlementUsageDate   string
+	EntitlementDailyQuota  int
+	EntitlementTotalQuota  int
 	// ForcePreConsume 为 true 时禁用 BillingSession 的信任额度旁路，
 	// 强制预扣全额。用于异步任务（视频/音乐生成等），因为请求返回后任务仍在运行，
 	// 必须在提交前锁定全额。
@@ -464,10 +470,16 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 
 		OriginModelName: common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 
-		TokenId:        common.GetContextKeyInt(c, constant.ContextKeyTokenId),
-		TokenKey:       common.GetContextKeyString(c, constant.ContextKeyTokenKey),
-		TokenUnlimited: common.GetContextKeyBool(c, constant.ContextKeyTokenUnlimited),
-		TokenGroup:     tokenGroup,
+		TokenId:               common.GetContextKeyInt(c, constant.ContextKeyTokenId),
+		TokenKey:              common.GetContextKeyString(c, constant.ContextKeyTokenKey),
+		TokenUnlimited:        common.GetContextKeyBool(c, constant.ContextKeyTokenUnlimited),
+		TokenGroup:            tokenGroup,
+		EntitlementId:         c.GetInt("entitlement_id"),
+		EntitlementPackageId:  c.GetInt("entitlement_package_id"),
+		EntitlementName:       c.GetString("entitlement_name"),
+		EntitlementUsageDate:  c.GetString("entitlement_usage_date"),
+		EntitlementDailyQuota: c.GetInt("entitlement_daily_quota"),
+		EntitlementTotalQuota: c.GetInt("entitlement_total_quota"),
 
 		isFirstResponse: true,
 		RelayMode:       relayconstant.Path2RelayMode(c.Request.URL.Path),

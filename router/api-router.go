@@ -266,6 +266,30 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.POST("/batch/keys", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKeysBatch)
 		}
 
+		entitlementRoute := apiRouter.Group("/entitlement")
+		{
+			entitlementSelfRoute := entitlementRoute.Group("/self")
+			entitlementSelfRoute.Use(middleware.UserAuth())
+			{
+				entitlementSelfRoute.GET("/packages", controller.GetSelfEntitlementPackages)
+				entitlementSelfRoute.GET("/token/:id", controller.GetTokenEntitlementAssignments)
+				entitlementSelfRoute.PUT("/token/:id", controller.SetSelfTokenEntitlementAssignments)
+			}
+
+			entitlementAdminRoute := entitlementRoute.Group("")
+			entitlementAdminRoute.Use(middleware.AdminAuth())
+			{
+				entitlementAdminRoute.GET("/packages", controller.GetEntitlementPackages)
+				entitlementAdminRoute.POST("/package", controller.SaveEntitlementPackage)
+				entitlementAdminRoute.PUT("/package", controller.SaveEntitlementPackage)
+				entitlementAdminRoute.GET("/package/:id", controller.GetEntitlementPackageDetails)
+				entitlementAdminRoute.POST("/package/:id/users", controller.GrantEntitlementToUsers)
+				entitlementAdminRoute.POST("/token", controller.SaveTokenEntitlement)
+				entitlementAdminRoute.GET("/token/:id", controller.GetAdminTokenEntitlementAssignments)
+				entitlementAdminRoute.POST("/admin-token", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.CreateAdminEntitlementToken)
+			}
+		}
+
 		usageRoute := apiRouter.Group("/usage")
 		usageRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{

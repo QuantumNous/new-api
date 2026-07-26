@@ -23,16 +23,17 @@ import (
 // BillingSession 封装单次请求的预扣费/结算/退款生命周期。
 // 实现 relaycommon.BillingSettler 接口。
 type BillingSession struct {
-	relayInfo        *relaycommon.RelayInfo
-	funding          FundingSource
-	preConsumedQuota int  // 实际预扣额度（信任用户可能为 0）
-	tokenConsumed    int  // 令牌额度实际扣减量
-	extraReserved    int  // 发送前补充预扣的额度（订阅退款时需要单独回滚）
-	trusted          bool // 是否命中信任额度旁路
-	fundingSettled   bool // funding.Settle 已成功，资金来源已提交
-	settled          bool // Settle 全部完成（资金 + 令牌）
-	refunded         bool // Refund 已调用
-	mu               sync.Mutex
+	relayInfo           *relaycommon.RelayInfo
+	funding             FundingSource
+	preConsumedQuota    int  // 实际预扣额度（信任用户可能为 0）
+	tokenConsumed       int  // 令牌额度实际扣减量
+	entitlementConsumed int  // 权益包每日/总额度实际预占量
+	extraReserved       int  // 发送前补充预扣的额度（订阅退款时需要单独回滚）
+	trusted             bool // 是否命中信任额度旁路
+	fundingSettled      bool // funding.Settle 已成功，资金来源已提交
+	settled             bool // Settle 全部完成（资金 + 令牌）
+	refunded            bool // Refund 已调用
+	mu                  sync.Mutex
 }
 
 // Settle 根据实际消耗额度进行结算。
@@ -70,6 +71,23 @@ func (s *BillingSession) Settle(actualQuota int) error {
 				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
 		}
 	}
+	if s.relayInfo.EntitlementId > 0 && delta != 0 {
+		if err := model.AdjustEntitlementQuota(
+			s.relayInfo.EntitlementId,
+			s.relayInfo.EntitlementUsageDate,
+			delta,
+			0,
+			0,
+		); err != nil {
+			common.SysLog(fmt.Sprintf("error adjusting entitlement quota after settlement (grant=%d, delta=%d): %s",
+				s.relayInfo.EntitlementId, delta, err.Error()))
+			if tokenErr == nil {
+				tokenErr = err
+			}
+		} else {
+			s.entitlementConsumed += delta
+		}
+	}
 	// 3) 更新 relayInfo 上的订阅 PostDelta（用于日志）
 	if s.funding.Source() == BillingSourceSubscription {
 		s.relayInfo.SubscriptionPostDelta += int64(delta)
@@ -100,6 +118,9 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	isPlayground := s.relayInfo.IsPlayground
 	tokenConsumed := s.tokenConsumed
 	extraReserved := s.extraReserved
+	entitlementConsumed := s.entitlementConsumed
+	entitlementId := s.relayInfo.EntitlementId
+	entitlementUsageDate := s.relayInfo.EntitlementUsageDate
 	subscriptionId := s.relayInfo.SubscriptionId
 	funding := s.funding
 
@@ -119,6 +140,11 @@ func (s *BillingSession) Refund(c *gin.Context) {
 				common.SysLog("error refunding token quota: " + err.Error())
 			}
 		}
+		if entitlementConsumed > 0 && entitlementId > 0 {
+			if err := model.AdjustEntitlementQuota(entitlementId, entitlementUsageDate, -entitlementConsumed, 0, 0); err != nil {
+				common.SysLog("error refunding entitlement quota: " + err.Error())
+			}
+		}
 	})
 }
 
@@ -135,6 +161,9 @@ func (s *BillingSession) needsRefundLocked() bool {
 		return false
 	}
 	if s.tokenConsumed > 0 {
+		return true
+	}
+	if s.entitlementConsumed > 0 {
 		return true
 	}
 	// 订阅可能在 tokenConsumed=0 时仍预扣了额度
@@ -169,9 +198,17 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 		s.rollbackFundingReserve(delta)
 		return err
 	}
+	if err := s.reserveEntitlement(delta); err != nil {
+		if !s.relayInfo.IsPlayground {
+			_ = model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta)
+		}
+		s.rollbackFundingReserve(delta)
+		return err
+	}
 
 	s.preConsumedQuota += delta
 	s.tokenConsumed += delta
+	s.entitlementConsumed += delta
 	s.extraReserved += delta
 	s.syncRelayInfo()
 	return nil
@@ -202,6 +239,22 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		}
 		s.tokenConsumed = effectiveQuota
 	}
+	if effectiveQuota > 0 && s.relayInfo.EntitlementId > 0 {
+		if err := model.AdjustEntitlementQuota(
+			s.relayInfo.EntitlementId,
+			s.relayInfo.EntitlementUsageDate,
+			effectiveQuota,
+			s.relayInfo.EntitlementDailyQuota,
+			s.relayInfo.EntitlementTotalQuota,
+		); err != nil {
+			if s.tokenConsumed > 0 && !s.relayInfo.IsPlayground {
+				_ = model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, s.tokenConsumed)
+				s.tokenConsumed = 0
+			}
+			return types.NewErrorWithStatusCode(err, entitlementLimitErrorCode(err), http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		}
+		s.entitlementConsumed = effectiveQuota
+	}
 
 	// ---- 2) 预扣资金来源 ----
 	if err := s.funding.PreConsume(effectiveQuota); err != nil {
@@ -212,6 +265,12 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
 			}
 			s.tokenConsumed = 0
+		}
+		if s.entitlementConsumed > 0 && s.relayInfo.EntitlementId > 0 {
+			if rollbackErr := model.AdjustEntitlementQuota(s.relayInfo.EntitlementId, s.relayInfo.EntitlementUsageDate, -s.entitlementConsumed, 0, 0); rollbackErr != nil {
+				common.SysLog("error rolling back entitlement quota: " + rollbackErr.Error())
+			}
+			s.entitlementConsumed = 0
 		}
 		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
 		errMsg := err.Error()
@@ -278,10 +337,37 @@ func (s *BillingSession) reserveToken(delta int) error {
 	return nil
 }
 
+func (s *BillingSession) reserveEntitlement(delta int) error {
+	if delta <= 0 || s.relayInfo.EntitlementId <= 0 {
+		return nil
+	}
+	if err := model.AdjustEntitlementQuota(
+		s.relayInfo.EntitlementId,
+		s.relayInfo.EntitlementUsageDate,
+		delta,
+		s.relayInfo.EntitlementDailyQuota,
+		s.relayInfo.EntitlementTotalQuota,
+	); err != nil {
+		return types.NewErrorWithStatusCode(err, entitlementLimitErrorCode(err), http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+	}
+	return nil
+}
+
+func entitlementLimitErrorCode(err error) types.ErrorCode {
+	if accessErr, ok := err.(*model.EntitlementAccessError); ok &&
+		strings.HasPrefix(accessErr.Code, "entitlement_total_") {
+		return types.ErrorCodeEntitlementTotalLimit
+	}
+	return types.ErrorCodeEntitlementDailyLimit
+}
+
 // shouldTrust 统一信任额度检查，适用于钱包和订阅。
 func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 	// 异步任务（ForcePreConsume=true）必须预扣全额，不允许信任旁路
 	if s.relayInfo.ForcePreConsume {
+		return false
+	}
+	if s.relayInfo.EntitlementId > 0 && (s.relayInfo.EntitlementDailyQuota > 0 || s.relayInfo.EntitlementTotalQuota > 0) {
 		return false
 	}
 

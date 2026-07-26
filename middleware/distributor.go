@@ -30,11 +30,46 @@ type ModelRequest struct {
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
+		var entitlementGrant *model.EntitlementGrant
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
+		}
+		if modelRequest.Model != "" && c.GetInt("token_id") > 0 {
+			entitlementGrant, _, err = model.ResolveTokenEntitlement(
+				c.GetInt("token_id"),
+				c.GetInt("id"),
+				modelRequest.Model,
+				time.Now(),
+			)
+			if err != nil {
+				code := types.ErrorCodeEntitlementRequired
+				var accessErr *model.EntitlementAccessError
+				if errors.As(err, &accessErr) {
+					switch accessErr.Code {
+					case "entitlement_inactive":
+						code = types.ErrorCodeEntitlementInactive
+					case "entitlement_daily_requests_exhausted", "entitlement_daily_quota_exhausted":
+						code = types.ErrorCodeEntitlementDailyLimit
+					case "entitlement_total_requests_exhausted", "entitlement_total_quota_exhausted":
+						code = types.ErrorCodeEntitlementTotalLimit
+					}
+				}
+				abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), code)
+				return
+			}
+			if entitlementGrant != nil {
+				common.SetContextKey(c, constant.ContextKeyUsingGroup, entitlementGrant.Package.Group)
+				common.SetContextKey(c, constant.ContextKeyTokenGroup, entitlementGrant.Package.Group)
+				c.Set("entitlement_id", entitlementGrant.TokenGrant.Id)
+				c.Set("entitlement_package_id", entitlementGrant.Package.Id)
+				c.Set("entitlement_name", entitlementGrant.Package.Name)
+				c.Set("entitlement_usage_date", entitlementGrant.UsageDate)
+				c.Set("entitlement_daily_quota", entitlementGrant.DailyQuota)
+				c.Set("entitlement_total_quota", entitlementGrant.TotalQuota)
+			}
 		}
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
@@ -155,9 +190,25 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
+		if entitlementGrant != nil {
+			if err := model.ReserveEntitlementRequest(entitlementGrant); err != nil {
+				code := types.ErrorCodeEntitlementDailyLimit
+				var accessErr *model.EntitlementAccessError
+				if errors.As(err, &accessErr) && strings.HasPrefix(accessErr.Code, "entitlement_total_") {
+					code = types.ErrorCodeEntitlementTotalLimit
+				}
+				abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), code)
+				return
+			}
+		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
 		c.Next()
+		if entitlementGrant != nil && c.Writer != nil && c.Writer.Status() >= http.StatusBadRequest {
+			if err := model.AdjustEntitlementRequest(entitlementGrant.TokenGrant.Id, entitlementGrant.UsageDate, -1); err != nil {
+				common.SysLog(fmt.Sprintf("failed to return entitlement request count (grant=%d): %s", entitlementGrant.TokenGrant.Id, err.Error()))
+			}
+		}
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
