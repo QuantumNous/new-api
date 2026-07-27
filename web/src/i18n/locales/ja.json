@@ -5215,6 +5215,24 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Total Req": "総リクエスト",
+    "Today Req": "今日のリクエスト",
+    "Range RPM": "範囲 RPM",
+    "Today RPM": "今日の RPM",
+    "Range TPM": "範囲 TPM",
+    "Today TPM": "今日の TPM",
+    "Avg Latency": "平均レイテンシ",
+    "Errors": "エラー数",
+    "Total consume requests in selected range": "選択した期間内の総消費リクエスト数",
+    "Consume requests since today 00:00": "今日 00:00 からの消費リクエスト数",
+    "Average requests per minute over selected range": "選択した期間の平均毎分リクエスト数",
+    "Average requests per minute since today 00:00": "今日 00:00 からの平均毎分リクエスト数",
+    "Average tokens per minute over selected range": "選択した期間の平均毎分トークン数",
+    "Average tokens per minute since today 00:00": "今日 00:00 からの平均毎分トークン数",
+    "Average response time for consume requests": "消費リクエストの平均レスポンス時間",
+    "Error log count in selected range": "選択した期間内のエラーログ数",
+    "Auto refresh: Off. Click to enable.": "自動更新：オフ。クリックして有効化",
+    "Auto refresh": "自動更新"
   }
 }

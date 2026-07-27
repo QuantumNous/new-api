@@ -5215,6 +5215,24 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Total Req": "總請求",
+    "Today Req": "今日請求",
+    "Range RPM": "區間 RPM",
+    "Today RPM": "今日 RPM",
+    "Range TPM": "區間 TPM",
+    "Today TPM": "今日 TPM",
+    "Avg Latency": "平均延遲",
+    "Errors": "錯誤數",
+    "Total consume requests in selected range": "所選時間段內的總消費請求數",
+    "Consume requests since today 00:00": "今日 00:00 至今的消費請求數",
+    "Average requests per minute over selected range": "所選時間段內的平均每分鐘請求數",
+    "Average requests per minute since today 00:00": "今日 00:00 至今的平均每分鐘請求數",
+    "Average tokens per minute over selected range": "所選時間段內的平均每分鐘 Token 數",
+    "Average tokens per minute since today 00:00": "今日 00:00 至今的平均每分鐘 Token 數",
+    "Average response time for consume requests": "消費請求的平均回應時間",
+    "Error log count in selected range": "所選時間段內的錯誤日誌數",
+    "Auto refresh: Off. Click to enable.": "自動刷新：關閉，點擊開啟",
+    "Auto refresh": "自動刷新"
   }
 }

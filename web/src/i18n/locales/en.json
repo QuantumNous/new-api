@@ -5215,6 +5215,24 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Total Req": "Total Req",
+    "Today Req": "Today Req",
+    "Range RPM": "Range RPM",
+    "Today RPM": "Today RPM",
+    "Range TPM": "Range TPM",
+    "Today TPM": "Today TPM",
+    "Avg Latency": "Avg Latency",
+    "Errors": "Errors",
+    "Total consume requests in selected range": "Total consume requests in selected range",
+    "Consume requests since today 00:00": "Consume requests since today 00:00",
+    "Average requests per minute over selected range": "Average requests per minute over selected range",
+    "Average requests per minute since today 00:00": "Average requests per minute since today 00:00",
+    "Average tokens per minute over selected range": "Average tokens per minute over selected range",
+    "Average tokens per minute since today 00:00": "Average tokens per minute since today 00:00",
+    "Average response time for consume requests": "Average response time for consume requests",
+    "Error log count in selected range": "Error log count in selected range",
+    "Auto refresh: Off. Click to enable.": "Auto refresh: Off. Click to enable.",
+    "Auto refresh": "Auto refresh"
   }
 }

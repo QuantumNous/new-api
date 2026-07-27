@@ -58,6 +58,7 @@ export function buildSearchParams(
         ...(commonFilters.upstreamRequestId && {
           upstreamRequestId: commonFilters.upstreamRequestId,
         }),
+        ...(commonFilters.ip && { ip: commonFilters.ip }),
       }
     }
     case 'drawing': {

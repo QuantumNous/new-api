@@ -5215,6 +5215,24 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Total Req": "Tổng yêu cầu",
+    "Today Req": "Yêu cầu hôm nay",
+    "Range RPM": "RPM khoảng",
+    "Today RPM": "RPM hôm nay",
+    "Range TPM": "TPM khoảng",
+    "Today TPM": "TPM hôm nay",
+    "Avg Latency": "Độ trễ TB",
+    "Errors": "Lỗi",
+    "Total consume requests in selected range": "Tổng yêu cầu tiêu thụ trong khoảng thời gian đã chọn",
+    "Consume requests since today 00:00": "Yêu cầu tiêu thụ từ 00:00 hôm nay",
+    "Average requests per minute over selected range": "Trung bình yêu cầu mỗi phút trong khoảng đã chọn",
+    "Average requests per minute since today 00:00": "Trung bình yêu cầu mỗi phút từ 00:00 hôm nay",
+    "Average tokens per minute over selected range": "Trung bình token mỗi phút trong khoảng đã chọn",
+    "Average tokens per minute since today 00:00": "Trung bình token mỗi phút từ 00:00 hôm nay",
+    "Average response time for consume requests": "Thời gian phản hồi trung bình cho yêu cầu tiêu thụ",
+    "Error log count in selected range": "Số lượng lỗi trong khoảng thời gian đã chọn",
+    "Auto refresh: Off. Click to enable.": "Tự động làm mới: Tắt. Nhấn để bật.",
+    "Auto refresh": "Tự động làm mới"
   }
 }

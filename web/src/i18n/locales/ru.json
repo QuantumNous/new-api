@@ -5215,6 +5215,24 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Total Req": "Всего запросов",
+    "Today Req": "Запросов сегодня",
+    "Range RPM": "RPM за период",
+    "Today RPM": "RPM сегодня",
+    "Range TPM": "TPM за период",
+    "Today TPM": "TPM сегодня",
+    "Avg Latency": "Ср. задержка",
+    "Errors": "Ошибки",
+    "Total consume requests in selected range": "Всего запросов за выбранный период",
+    "Consume requests since today 00:00": "Запросы с 00:00 сегодня",
+    "Average requests per minute over selected range": "Среднее количество запросов в минуту за период",
+    "Average requests per minute since today 00:00": "Среднее количество запросов в минуту с 00:00",
+    "Average tokens per minute over selected range": "Среднее количество токенов в минуту за период",
+    "Average tokens per minute since today 00:00": "Среднее количество токенов в минуту с 00:00",
+    "Average response time for consume requests": "Среднее время ответа для запросов",
+    "Error log count in selected range": "Количество ошибок за выбранный период",
+    "Auto refresh: Off. Click to enable.": "Авто-обновление: выкл. Нажмите для включения.",
+    "Auto refresh": "Авто-обновление"
   }
 }

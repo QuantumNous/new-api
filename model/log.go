@@ -350,13 +350,6 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
 	otherStr := common.MapToJsonStr(params.Other)
-	// 判断是否需要记录 IP
-	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
-		}
-	}
 	log := &Log{
 		UserId:           userId,
 		Username:         username,
@@ -373,12 +366,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		UseTime:          params.UseTimeSeconds,
 		IsStream:         params.IsStream,
 		Group:            params.Group,
-		Ip: func() string {
-			if needRecordIp {
-				return c.ClientIP()
-			}
-			return ""
-		}(),
+		Ip:               c.ClientIP(),
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
@@ -465,7 +453,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, ip string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
@@ -499,6 +487,9 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	}
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
+	}
+	if ip != "" {
+		tx = tx.Where("logs.ip = ?", ip)
 	}
 	err = tx.Model(&Log{}).Count(&total).Error
 	if err != nil {
@@ -561,7 +552,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, ip string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
@@ -590,6 +581,9 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
+	if ip != "" {
+		tx = tx.Where("logs.ip = ?", ip)
+	}
 	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
 	if err != nil {
 		common.SysError("failed to count user logs: " + err.Error())
@@ -610,63 +604,138 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 }
 
 type Stat struct {
-	Quota int `json:"quota"`
-	Rpm   int `json:"rpm"`
-	Tpm   int `json:"tpm"`
+	Quota         int     `json:"quota"`
+	Rpm           int     `json:"rpm"`
+	Tpm           int     `json:"tpm"`
+	TotalRequests int64   `json:"total_requests"`
+	TodayRequests int64   `json:"today_requests"`
+	TotalTokens   int64   `json:"total_tokens"`
+	TodayTokens   int64   `json:"today_tokens"`
+	AvgUseTime    float64 `json:"avg_use_time"`
+	ErrorCount    int64   `json:"error_count"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
+func todayStartUnix() int64 {
+	now := time.Now()
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
+}
 
-	// 为rpm和tpm创建单独的查询
-	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm")
-
+func applyStatBaseFilters(tx *gorm.DB, username, tokenName, modelName string, channel int, group string, ip string) (*gorm.DB, error) {
+	var err error
 	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
-		return stat, err
-	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
-		return stat, err
+		return nil, err
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)
-		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("created_at <= ?", endTimestamp)
 	}
 	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
-		return stat, err
-	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "model_name", modelName); err != nil {
-		return stat, err
+		return nil, err
 	}
 	if channel != 0 {
 		tx = tx.Where("channel_id = ?", channel)
-		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)
 	}
 	if group != "" {
 		tx = tx.Where(logGroupCol+" = ?", group)
-		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
 	}
+	if ip != "" {
+		tx = tx.Where("ip = ?", ip)
+	}
+	return tx, nil
+}
 
-	tx = tx.Where("type = ?", LogTypeConsume)
-	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
-
-	// 只统计最近60秒的rpm和tpm
-	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
-
-	// 执行查询
-	if err := tx.Scan(&stat).Error; err != nil {
-		common.SysError("failed to query log stat: " + err.Error())
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, ip string) (stat Stat, err error) {
+	// quota: sum over the requested time range (all log types when logType==0)
+	quotaTx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
+	if quotaTx, err = applyStatBaseFilters(quotaTx, username, tokenName, modelName, channel, group, ip); err != nil {
+		return stat, err
+	}
+	if startTimestamp != 0 {
+		quotaTx = quotaTx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		quotaTx = quotaTx.Where("created_at <= ?", endTimestamp)
+	}
+	if logType != LogTypeUnknown {
+		quotaTx = quotaTx.Where("type = ?", logType)
+	}
+	if err = quotaTx.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query log stat quota: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
 	}
-	if err := rpmTpmQuery.Scan(&stat).Error; err != nil {
+
+	// realtime rpm/tpm: consume logs in the last 60 seconds
+	realtimeTx := LOG_DB.Table("logs").
+		Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm")
+	if realtimeTx, err = applyStatBaseFilters(realtimeTx, username, tokenName, modelName, channel, group, ip); err != nil {
+		return stat, err
+	}
+	realtimeTx = realtimeTx.
+		Where("type = ?", LogTypeConsume).
+		Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
+	if err = realtimeTx.Scan(&stat).Error; err != nil {
 		common.SysError("failed to query rpm/tpm stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
 	}
+
+	// range aggregate: consume logs within the requested time window
+	type rangeResult struct {
+		TotalRequests int64   `gorm:"column:total_requests"`
+		TotalTokens   int64   `gorm:"column:total_tokens"`
+		AvgUseTime    float64 `gorm:"column:avg_use_time"`
+		ErrorCount    int64   `gorm:"column:error_count"`
+	}
+	tokenCastType := "INTEGER"
+	if common.UsingLogDatabase(common.DatabaseTypeMySQL) {
+		tokenCastType = "SIGNED"
+	}
+	var rr rangeResult
+	rangeTx := LOG_DB.Table("logs").Select(
+		"COALESCE(SUM(CASE WHEN type = ? THEN 1 ELSE 0 END), 0) total_requests, "+
+			"COALESCE(SUM(CASE WHEN type = ? THEN CAST(prompt_tokens AS "+tokenCastType+") + CAST(completion_tokens AS "+tokenCastType+") ELSE 0 END), 0) total_tokens, "+
+			"COALESCE(AVG(CASE WHEN type = ? AND use_time > 0 THEN use_time ELSE NULL END), 0) avg_use_time, "+
+			"COALESCE(SUM(CASE WHEN type = ? THEN 1 ELSE 0 END), 0) error_count",
+		LogTypeConsume, LogTypeConsume, LogTypeConsume, LogTypeError,
+	)
+	if rangeTx, err = applyStatBaseFilters(rangeTx, username, tokenName, modelName, channel, group, ip); err != nil {
+		return stat, err
+	}
+	if startTimestamp != 0 {
+		rangeTx = rangeTx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		rangeTx = rangeTx.Where("created_at <= ?", endTimestamp)
+	}
+	if err = rangeTx.Scan(&rr).Error; err != nil {
+		common.SysError("failed to query range stat: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+	stat.TotalRequests = rr.TotalRequests
+	stat.TotalTokens = rr.TotalTokens
+	stat.AvgUseTime = rr.AvgUseTime
+	stat.ErrorCount = rr.ErrorCount
+
+	// today aggregate: consume logs since today 00:00:00
+	type todayResult struct {
+		TodayRequests int64 `gorm:"column:today_requests"`
+		TodayTokens   int64 `gorm:"column:today_tokens"`
+	}
+	var tr todayResult
+	todayTx := LOG_DB.Table("logs").Select(
+		"count(*) today_requests, "+
+			"COALESCE(sum(CAST(prompt_tokens AS "+tokenCastType+") + CAST(completion_tokens AS "+tokenCastType+")), 0) today_tokens",
+	)
+	if todayTx, err = applyStatBaseFilters(todayTx, username, tokenName, modelName, channel, group, ip); err != nil {
+		return stat, err
+	}
+	todayTx = todayTx.
+		Where("type = ?", LogTypeConsume).
+		Where("created_at >= ?", todayStartUnix())
+	if err = todayTx.Scan(&tr).Error; err != nil {
+		common.SysError("failed to query today stat: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+	stat.TodayRequests = tr.TodayRequests
+	stat.TodayTokens = tr.TodayTokens
 
 	return stat, nil
 }

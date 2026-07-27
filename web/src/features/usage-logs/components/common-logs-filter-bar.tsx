@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -87,6 +87,7 @@ function buildSearchSourceKey(values: {
   username?: unknown
   requestId?: unknown
   upstreamRequestId?: unknown
+  ip?: unknown
   type?: unknown
 }) {
   return [
@@ -403,6 +404,14 @@ export function CommonLogsFilterBar<TData>(
           placeholder={t('Upstream Request ID')}
           value={filters.upstreamRequestId || ''}
           onChange={(e) => handleChange('upstreamRequestId', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('IP Address')}
+          value={filters.ip || ''}
+          onChange={(e) => handleChange('ip', e.target.value)}
           onKeyDown={handleKeyDown}
         />
       </LogsFilterField>

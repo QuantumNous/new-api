@@ -597,6 +597,25 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     },
     size: 160,
   })
+
+  columns.push({
+    accessorKey: 'ip',
+    header: t('IP'),
+    cell: function IpCell({ row }) {
+      const { sensitiveVisible } = useUsageLogsContext()
+      const log = row.original
+      if (!isDisplayableLogType(log.type)) return null
+      if (!log.ip) return null
+      return (
+        <span className='font-mono text-xs tabular-nums'>
+          {sensitiveVisible ? log.ip : '••••'}
+        </span>
+      )
+    },
+    size: 130,
+    meta: { label: t('IP') },
+  })
+
   columns.push(
     {
       accessorKey: 'model_name',
