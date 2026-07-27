@@ -81,6 +81,8 @@ interface SubscriptionPlansCardProps {
 
 const EXTERNAL_RETURN_POLL_KEY = 'new-api:subscription-change-return-pending'
 const RENEWAL_FAILURE_TOAST_SHOWN = 'renewal failure toast shown'
+const RENEWAL_MUTATION_ALREADY_IN_FLIGHT =
+  'renewal mutation already in flight'
 
 const PLAN_DISPLAY_ORDER: Record<string, number> = {
   go: 0,
@@ -321,7 +323,9 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   }
 
   const handleCancelRenewal = async () => {
-    if (renewalMutationInFlightRef.current) return
+    if (renewalMutationInFlightRef.current) {
+      throw new Error(RENEWAL_MUTATION_ALREADY_IN_FLIGHT)
+    }
     renewalMutationInFlightRef.current = true
     setRenewalMutationPending(true)
     try {
@@ -348,7 +352,9 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   }
 
   const handleResumeRenewal = async () => {
-    if (renewalMutationInFlightRef.current) return
+    if (renewalMutationInFlightRef.current) {
+      throw new Error(RENEWAL_MUTATION_ALREADY_IN_FLIGHT)
+    }
     renewalMutationInFlightRef.current = true
     setRenewalMutationPending(true)
     try {

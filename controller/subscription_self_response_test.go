@@ -668,6 +668,27 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 			}(),
 		},
 		{
+			name: "wallet access extension outside renewal period has no lifecycle action",
+			contract: func() model.UserSubscriptionContract {
+				contract := activeContract
+				contract.PaymentMode = model.SubscriptionPaymentModePrepaid
+				contract.RenewalSource = model.SubscriptionRenewalSourceWallet
+				contract.RenewalStatus = model.SubscriptionRenewalStatusEnabled
+				contract.CurrentPeriodEnd = now - 1
+				return contract
+			}(),
+			entitlement: func() model.UserSubscription {
+				entitlement := activeEntitlement
+				entitlement.PaymentMode = model.SubscriptionPaymentModePrepaid
+				entitlement.Source = model.PaymentMethodBalance
+				entitlement.EndTime = now - 1
+				entitlement.AccessEndTime = now + 3600
+				return entitlement
+			}(),
+			wantSource: model.SubscriptionRenewalSourceWallet,
+			wantStatus: model.SubscriptionRenewalStatusEnabled,
+		},
+		{
 			name:        "empty one period stays empty",
 			contract:    model.UserSubscriptionContract{Id: 1, Status: model.SubscriptionContractStatusActive, PaymentMode: model.SubscriptionPaymentModeBalanceOnePeriod, CurrentPeriodEnd: now + 3600},
 			entitlement: model.UserSubscription{Id: 2, Status: model.SubscriptionEntitlementStatusActive, PaymentMode: model.SubscriptionPaymentModeBalanceOnePeriod, EndTime: now + 3600, AccessEndTime: now + 3600},

@@ -142,6 +142,12 @@ func TestCancelCurrentSubscriptionRenewalStripeRejectsUnsafeBindingStates(t *tes
 			},
 		},
 		{
+			name: "incomplete_current_binding",
+			mutate: func(t *testing.T, contract *model.UserSubscriptionContract, binding *model.SubscriptionProviderBinding) {
+				require.NoError(t, model.DB.Model(binding).Update("provider_status", "incomplete").Error)
+			},
+		},
+		{
 			name: "blank_provider_subscription_id",
 			mutate: func(t *testing.T, contract *model.UserSubscriptionContract, binding *model.SubscriptionProviderBinding) {
 				require.NoError(t, model.DB.Model(binding).Update("provider_subscription_id", "   ").Error)
@@ -172,6 +178,28 @@ func TestCancelCurrentSubscriptionRenewalStripeRejectsUnsafeBindingStates(t *tes
 			require.Nil(t, result)
 		})
 	}
+}
+
+func TestCancelCurrentSubscriptionRenewalStripeIgnoresUnfinishedCheckoutBinding(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7945, false, "sub_unified_valid")
+	unfinished := insertStripeRenewalLifecycleBinding(t, contract.UserId, contract.Id, contract.CurrentPlanId, "sub_unified_unfinished", false)
+	require.NoError(t, model.DB.Model(unfinished).Update("provider_status", "incomplete").Error)
+	originalCancel := cancelCurrentStripeRecurringSubscription
+	t.Cleanup(func() { cancelCurrentStripeRecurringSubscription = originalCancel })
+	cancelCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		require.Equal(t, contract.UserId, userID)
+		require.Equal(t, binding.Id, bindingID)
+		result := *binding
+		result.CancelAtPeriodEnd = true
+		return &result, nil
+	}
+
+	result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, model.SubscriptionRenewalStatusCancelledByUser, result.RenewalStatus)
 }
 
 func TestResumeCurrentSubscriptionRenewalStripeRejectsProviderFailureWithoutPseudoSuccess(t *testing.T) {

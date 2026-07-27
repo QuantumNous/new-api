@@ -849,7 +849,7 @@ func buildSubscriptionCapabilitiesDTO(
 		}
 	}
 	capabilities.RequiresSupport = capabilities.RequiresSupport || renewalRequiresSupport
-	if !capabilities.RequiresSupport && hasActiveFutureSubscriptionPeriod(currentEntitlement) {
+	if !capabilities.RequiresSupport && hasRenewalLifecycleActionWindow(contract, currentEntitlement) {
 		switch renewalStatus {
 		case model.SubscriptionRenewalStatusEnabled:
 			if renewalSource == model.SubscriptionRenewalSourceProvider || renewalSource == model.SubscriptionRenewalSourceWallet {
@@ -1065,15 +1065,20 @@ func currentRecurringForSubscription(
 	return nil
 }
 
-func hasActiveFutureSubscriptionPeriod(entitlement *model.UserSubscription) bool {
-	if entitlement == nil || entitlement.Id <= 0 || entitlement.Status != model.SubscriptionEntitlementStatusActive {
+func hasRenewalLifecycleActionWindow(contract *model.UserSubscriptionContract, entitlement *model.UserSubscription) bool {
+	now := common.GetTimestamp()
+	if contract == nil || contract.Id <= 0 ||
+		contract.Status != model.SubscriptionContractStatusActive ||
+		contract.CurrentPeriodEnd <= now ||
+		entitlement == nil || entitlement.Id <= 0 ||
+		contract.CurrentEntitlementId != entitlement.Id ||
+		entitlement.Status != model.SubscriptionEntitlementStatusActive ||
+		entitlement.EndTime <= now ||
+		entitlement.AccessEndTime <= now ||
+		entitlement.CurrentSlot == nil || *entitlement.CurrentSlot != 1 {
 		return false
 	}
-	accessEnd := entitlement.EndTime
-	if entitlement.AccessEndTime > accessEnd {
-		accessEnd = entitlement.AccessEndTime
-	}
-	return accessEnd > common.GetTimestamp()
+	return true
 }
 
 func hasActiveRecurringRenewal(

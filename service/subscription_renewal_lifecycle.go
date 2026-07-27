@@ -149,7 +149,9 @@ func validateStripeRenewalLifecycleTargetTx(tx *gorm.DB, contract *model.UserSub
 	if strings.TrimSpace(binding.ProviderSubscriptionId) == "" {
 		return 0, errors.New("Stripe subscription binding is incomplete")
 	}
-	if isTerminalStripeSubscriptionStatus(binding.ProviderStatus) || binding.EndedAt > 0 {
+	if isTerminalStripeSubscriptionStatus(binding.ProviderStatus) ||
+		isIncompleteStripeSubscriptionStatus(binding.ProviderStatus) ||
+		binding.EndedAt > 0 {
 		return 0, errors.New("current subscription is not active Stripe recurring")
 	}
 	var bindings []model.SubscriptionProviderBinding
@@ -163,7 +165,9 @@ func validateStripeRenewalLifecycleTargetTx(tx *gorm.DB, contract *model.UserSub
 	}
 	nonTerminalRecurringBindings := 0
 	for _, candidate := range bindings {
-		if strings.TrimSpace(candidate.ProviderSubscriptionId) == "" || isTerminalStripeSubscriptionStatus(candidate.ProviderStatus) {
+		if strings.TrimSpace(candidate.ProviderSubscriptionId) == "" ||
+			isTerminalStripeSubscriptionStatus(candidate.ProviderStatus) ||
+			isIncompleteStripeSubscriptionStatus(candidate.ProviderStatus) {
 			continue
 		}
 		nonTerminalRecurringBindings++
@@ -172,6 +176,10 @@ func validateStripeRenewalLifecycleTargetTx(tx *gorm.DB, contract *model.UserSub
 		return 0, errors.New("multiple active Stripe recurring bindings require migration reconciliation")
 	}
 	return binding.Id, nil
+}
+
+func isIncompleteStripeSubscriptionStatus(status string) bool {
+	return strings.EqualFold(strings.TrimSpace(status), "incomplete")
 }
 
 func buildSubscriptionRenewalLifecycleResult(contract *model.UserSubscriptionContract) *SubscriptionRenewalLifecycleResult {

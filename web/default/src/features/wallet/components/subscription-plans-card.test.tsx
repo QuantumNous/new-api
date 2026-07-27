@@ -614,7 +614,12 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     )
     expect(cardSource).toContain('await fetchSelfSubscription()')
     expect(
-      cardSource.match(/if \(renewalMutationInFlightRef\.current\) return/g)
+      cardSource.match(/if \(renewalMutationInFlightRef\.current\) \{/g)
+    ).toHaveLength(2)
+    expect(
+      cardSource.match(
+        /throw new Error\(RENEWAL_MUTATION_ALREADY_IN_FLIGHT\)/g
+      )
     ).toHaveLength(2)
     expect(
       cardSource.match(/renewalMutationInFlightRef\.current = true/g)
