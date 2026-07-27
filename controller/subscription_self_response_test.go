@@ -624,6 +624,7 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 			entitlement: func() model.UserSubscription {
 				entitlement := activeEntitlement
 				entitlement.PaymentMode = model.SubscriptionPaymentModeBalanceOnePeriod
+				entitlement.Source = model.PaymentMethodBalance
 				return entitlement
 			}(),
 			wantSource:    model.SubscriptionRenewalSourceWallet,
@@ -642,12 +643,29 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 			entitlement: func() model.UserSubscription {
 				entitlement := activeEntitlement
 				entitlement.PaymentMode = model.SubscriptionPaymentModeBalanceOnePeriod
+				entitlement.Source = model.PaymentMethodBalance
 				return entitlement
 			}(),
 			wantSource:      model.SubscriptionRenewalSourceWallet,
 			wantStatus:      model.SubscriptionRenewalStatusCancelledByUser,
 			wantCanResume:   true,
 			wantCancelAtEnd: true,
+		},
+		{
+			name: "one-time pix does not inherit legacy wallet renewal state",
+			contract: func() model.UserSubscriptionContract {
+				contract := activeContract
+				contract.PaymentMode = model.SubscriptionPaymentModePrepaid
+				contract.RenewalSource = model.SubscriptionRenewalSourceWallet
+				contract.RenewalStatus = model.SubscriptionRenewalStatusEnabled
+				return contract
+			}(),
+			entitlement: func() model.UserSubscription {
+				entitlement := activeEntitlement
+				entitlement.PaymentMode = model.SubscriptionPaymentModePrepaid
+				entitlement.Source = model.SubscriptionPaymentMethodPix
+				return entitlement
+			}(),
 		},
 		{
 			name:        "empty one period stays empty",
@@ -790,6 +808,7 @@ func TestGetSubscriptionSelfReturnsCurrentEntitlementQuotaReadModel(t *testing.T
 		AccessEndTime:     now + 49*3600 + 1,
 		Status:            model.SubscriptionEntitlementStatusActive,
 		PaymentMode:       model.SubscriptionPaymentModeBalanceOnePeriod,
+		Source:            model.PaymentMethodBalance,
 		NextResetTime:     now + 3600,
 	}
 	require.NoError(t, model.DB.Create(&entitlement).Error)

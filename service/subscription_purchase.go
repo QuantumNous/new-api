@@ -476,7 +476,6 @@ func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract
 		PaymentAmountMinor:        quote.PaymentAmountMinor,
 		PlanSnapshot:              snapshot,
 		PurchaseIntent:            intent.Kind,
-		RenewalSource:             model.SubscriptionRenewalSourceWallet,
 		RecallCampaignId:          quote.RecallCampaignID,
 		RecallRecipientId:         quote.RecallRecipientID,
 		RecallPromotionCodeId:     quote.RecallPromotionCodeID,
@@ -616,7 +615,7 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 	}, periodStart, cmd.Months); err != nil {
 		return nil, nil, err
 	}
-	if err := markPrepaidPurchaseAppliedTx(tx, contract, intent, plan, periodStart, periodEnd, order.TradeNo); err != nil {
+	if err := markPrepaidPurchaseAppliedTx(tx, contract, intent, plan, periodStart, periodEnd, order.TradeNo, order.PaymentMethod); err != nil {
 		return nil, nil, err
 	}
 	if err := tx.Where("id = ?", contract.Id).First(contract).Error; err != nil {
@@ -719,7 +718,7 @@ func createPrepaidTermSegmentsTx(tx *gorm.DB, contractID int64, orderID int, pla
 	return nil
 }
 
-func markPrepaidPurchaseAppliedTx(tx *gorm.DB, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, periodStart int64, periodEnd int64, tradeNo string) error {
+func markPrepaidPurchaseAppliedTx(tx *gorm.DB, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, periodStart int64, periodEnd int64, tradeNo string, paymentMethod string) error {
 	intent.Status = model.SubscriptionChangeIntentStatusApplied
 	intent.WalletDebitTradeNo = tradeNo
 	intent.EffectiveAt = periodStart
@@ -731,6 +730,11 @@ func markPrepaidPurchaseAppliedTx(tx *gorm.DB, contract *model.UserSubscriptionC
 	}).Error; err != nil {
 		return err
 	}
+	renewalSource, renewalStatus := "", ""
+	if strings.TrimSpace(paymentMethod) == model.PaymentMethodBalance {
+		renewalSource = model.SubscriptionRenewalSourceWallet
+		renewalStatus = model.SubscriptionRenewalStatusEnabled
+	}
 	return tx.Model(&model.UserSubscriptionContract{}).Where("id = ?", contract.Id).Updates(map[string]interface{}{
 		"current_plan_id":             plan.Id,
 		"current_provider_binding_id": 0,
@@ -740,8 +744,8 @@ func markPrepaidPurchaseAppliedTx(tx *gorm.DB, contract *model.UserSubscriptionC
 		"current_period_start":        periodStart,
 		"current_period_end":          periodEnd,
 		"payment_mode":                model.SubscriptionPaymentModePrepaid,
-		"renewal_source":              model.SubscriptionRenewalSourceWallet,
-		"renewal_status":              model.SubscriptionRenewalStatusEnabled,
+		"renewal_source":              renewalSource,
+		"renewal_status":              renewalStatus,
 		"status":                      model.SubscriptionContractStatusActive,
 		"change_version":              intent.ChangeVersion,
 	}).Error

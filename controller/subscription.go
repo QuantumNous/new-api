@@ -999,7 +999,9 @@ func subscriptionSelfRenewalState(
 			return model.SubscriptionRenewalSourceProvider, model.SubscriptionRenewalStatusEnabled
 		}
 	}
-	if storedSource == model.SubscriptionRenewalSourceWallet && isValidSubscriptionRenewalPair(storedSource, storedStatus) {
+	if storedSource == model.SubscriptionRenewalSourceWallet &&
+		isValidSubscriptionRenewalPair(storedSource, storedStatus) &&
+		currentEntitlement != nil && strings.TrimSpace(currentEntitlement.Source) == model.PaymentMethodBalance {
 		return storedSource, storedStatus
 	}
 	return "", ""

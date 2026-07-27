@@ -1463,6 +1463,10 @@ func TestCompleteOneTimeStripeSubscriptionPurchaseAppliesPendingOrderOnce(t *tes
 	require.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
 	require.Equal(t, "BRL", reloaded.PaymentCurrency)
 	require.Equal(t, int64(1234), reloaded.PaymentAmountMinor)
+	var reloadedContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&reloadedContract, "id = ?", contract.Id).Error)
+	require.Empty(t, reloadedContract.RenewalSource)
+	require.Empty(t, reloadedContract.RenewalStatus)
 	var topup model.TopUp
 	require.NoError(t, model.DB.First(&topup, "trade_no = ?", order.TradeNo).Error)
 	require.Equal(t, common.TopUpStatusSuccess, topup.Status)

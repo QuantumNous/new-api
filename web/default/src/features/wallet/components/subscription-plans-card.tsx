@@ -225,6 +225,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   } | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [renewalMutationPending, setRenewalMutationPending] = useState(false)
+  const renewalMutationInFlightRef = useRef(false)
   const recallClaim = useRecallClaimContext()
 
   const fetchPlans = useCallback(async () => {
@@ -320,7 +321,8 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   }
 
   const handleCancelRenewal = async () => {
-    if (renewalMutationPending) return
+    if (renewalMutationInFlightRef.current) return
+    renewalMutationInFlightRef.current = true
     setRenewalMutationPending(true)
     try {
       const res = await cancelSubscriptionRenewal()
@@ -340,12 +342,14 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
       }
       throw error
     } finally {
+      renewalMutationInFlightRef.current = false
       setRenewalMutationPending(false)
     }
   }
 
   const handleResumeRenewal = async () => {
-    if (renewalMutationPending) return
+    if (renewalMutationInFlightRef.current) return
+    renewalMutationInFlightRef.current = true
     setRenewalMutationPending(true)
     try {
       const res = await resumeSubscriptionRenewal()
@@ -365,6 +369,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
       }
       throw error
     } finally {
+      renewalMutationInFlightRef.current = false
       setRenewalMutationPending(false)
     }
   }

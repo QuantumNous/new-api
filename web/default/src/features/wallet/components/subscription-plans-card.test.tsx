@@ -613,6 +613,15 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       "toast.success(t('Subscription renewal resumed'))"
     )
     expect(cardSource).toContain('await fetchSelfSubscription()')
+    expect(
+      cardSource.match(/if \(renewalMutationInFlightRef\.current\) return/g)
+    ).toHaveLength(2)
+    expect(
+      cardSource.match(/renewalMutationInFlightRef\.current = true/g)
+    ).toHaveLength(2)
+    expect(
+      cardSource.match(/renewalMutationInFlightRef\.current = false/g)
+    ).toHaveLength(2)
     expect(cardSource).not.toContain('cancelRecurringSubscription')
     expect(cardSource).not.toContain('resumeRecurringSubscription')
     expect(cardSource).not.toContain('current_provider_binding_id')

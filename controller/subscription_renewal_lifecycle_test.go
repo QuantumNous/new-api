@@ -67,3 +67,42 @@ func TestResumeSubscriptionRenewalReturnsApiErrorEnvelope(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `"success":false`)
 	require.Contains(t, recorder.Body.String(), "subscription renewal status cannot be changed")
 }
+
+func TestSubscriptionRenewalLifecycleRejectsNilServiceResult(t *testing.T) {
+	originalCancel := cancelCurrentSubscriptionRenewal
+	originalResume := resumeCurrentSubscriptionRenewal
+	t.Cleanup(func() {
+		cancelCurrentSubscriptionRenewal = originalCancel
+		resumeCurrentSubscriptionRenewal = originalResume
+	})
+	cancelCurrentSubscriptionRenewal = func(userID int) (*service.SubscriptionRenewalLifecycleResult, error) {
+		return nil, nil
+	}
+	resumeCurrentSubscriptionRenewal = func(userID int) (*service.SubscriptionRenewalLifecycleResult, error) {
+		return nil, nil
+	}
+
+	tests := []struct {
+		name    string
+		path    string
+		handler func(*gin.Context)
+	}{
+		{name: "cancel", path: "/api/subscription/self/renewal/cancel", handler: CancelSubscriptionRenewal},
+		{name: "resume", path: "/api/subscription/self/renewal/resume", handler: ResumeSubscriptionRenewal},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Set("id", 903)
+			ctx.Request = httptest.NewRequest(http.MethodPost, test.path, nil)
+
+			test.handler(ctx)
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+			require.Contains(t, recorder.Body.String(), `"success":false`)
+			require.Contains(t, recorder.Body.String(), "subscription renewal lifecycle result is missing")
+		})
+	}
+}

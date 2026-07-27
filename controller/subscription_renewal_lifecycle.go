@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"errors"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
@@ -24,6 +26,10 @@ func CancelSubscriptionRenewal(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if result == nil {
+		common.ApiError(c, errors.New("subscription renewal lifecycle result is missing"))
+		return
+	}
 	common.ApiSuccess(c, subscriptionRenewalLifecycleResponse(result))
 }
 
@@ -31,6 +37,10 @@ func ResumeSubscriptionRenewal(c *gin.Context) {
 	result, err := resumeCurrentSubscriptionRenewal(c.GetInt("id"))
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if result == nil {
+		common.ApiError(c, errors.New("subscription renewal lifecycle result is missing"))
 		return
 	}
 	common.ApiSuccess(c, subscriptionRenewalLifecycleResponse(result))

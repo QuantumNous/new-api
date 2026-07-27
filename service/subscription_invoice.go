@@ -1501,7 +1501,7 @@ func CompleteOneTimeStripeSubscriptionPurchase(ctx context.Context, tradeNo stri
 			return err
 		}
 		plan := model.SubscriptionPlan{Id: order.PlanId}
-		if err := markPrepaidPurchaseAppliedTx(tx, &contract, &intent, &plan, periodStart, periodEnd, order.TradeNo); err != nil {
+		if err := markPrepaidPurchaseAppliedTx(tx, &contract, &intent, &plan, periodStart, periodEnd, order.TradeNo, order.PaymentMethod); err != nil {
 			return err
 		}
 		order.Status = common.TopUpStatusSuccess
