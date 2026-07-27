@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { IconBadge } from '@/components/ui/icon-badge'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import type { AffiliateSummary } from '../types'
@@ -21,7 +20,7 @@ interface AffiliateRewardsCardProps {
 function formatMoney(micros: number, currency: string): string {
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
-    currency: currency || 'USD',
+    currency: currency || 'CNY',
   }).format(micros / 1_000_000)
 }
 
@@ -38,7 +37,7 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
     )
   }
 
-  const currency = props.summary?.currency ?? 'USD'
+  const currency = props.summary?.currency ?? 'CNY'
   const account = props.summary?.account
   const stats = [
     [t('Available'), formatMoney(account?.available_micros ?? 0, currency)],
@@ -49,7 +48,7 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
 
   return (
     <Card data-card-hover='false' className='bg-muted/20 py-0'>
-      <CardContent className='grid gap-4 p-4 lg:grid-cols-[minmax(180px,0.75fr)_minmax(300px,1fr)_minmax(300px,1fr)] lg:items-center'>
+      <CardContent className='grid gap-4 p-4 xl:grid-cols-[minmax(180px,0.7fr)_minmax(280px,0.9fr)_minmax(420px,1.5fr)] xl:items-center'>
         <div className='flex min-w-0 items-center gap-2.5'>
           <IconBadge tone='chart-3'>
             <Share2 />
@@ -64,7 +63,7 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
               ) : null}
             </div>
             <p className='text-muted-foreground text-xs'>
-              {t('Qualified referrals')}: {props.summary?.qualified_count ?? 0}
+              {t('Confirmed referrals')}: {props.summary?.qualified_count ?? 0}
             </p>
           </div>
         </div>
@@ -82,20 +81,47 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
           ))}
         </div>
 
-        <div className='flex items-center gap-2'>
-          <Input
-            value={props.affiliateLink}
-            readOnly
-            className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
-          />
-          <CopyButton
-            value={props.affiliateLink}
-            variant='outline'
-            className='bg-background size-9 shrink-0'
-            iconClassName='size-4'
-            tooltip={t('Copy referral link')}
-            aria-label={t('Copy referral link')}
-          />
+        <div className='grid min-w-0 gap-2 sm:grid-cols-[minmax(120px,0.35fr)_minmax(240px,1fr)_auto] sm:items-end'>
+          <div className='grid min-w-0 gap-1'>
+            <span className='text-muted-foreground text-xs font-medium'>
+              {t('Invitation Code')}
+            </span>
+            <div className='border-muted bg-background/70 flex min-h-9 min-w-0 items-center rounded-md border pl-3'>
+              <span className='min-w-0 flex-1 truncate font-mono text-xs'>
+                {props.summary?.referral_code || '-'}
+              </span>
+              {props.summary?.referral_code ? (
+                <CopyButton
+                  value={props.summary.referral_code}
+                  className='size-8'
+                  iconClassName='size-4'
+                  tooltip={t('Copy invitation code')}
+                  aria-label={t('Copy invitation code')}
+                />
+              ) : null}
+            </div>
+          </div>
+
+          <div className='grid min-w-0 gap-1'>
+            <span className='text-muted-foreground text-xs font-medium'>
+              {t('Invitation Link')}
+            </span>
+            <div className='border-muted bg-background/70 flex min-h-9 min-w-0 items-center rounded-md border py-1 pl-3'>
+              <span className='min-w-0 flex-1 font-mono text-xs leading-4 break-all'>
+                {props.affiliateLink || '-'}
+              </span>
+              {props.affiliateLink ? (
+                <CopyButton
+                  value={props.affiliateLink}
+                  className='size-8'
+                  iconClassName='size-4'
+                  tooltip={t('Copy referral link')}
+                  aria-label={t('Copy referral link')}
+                />
+              ) : null}
+            </div>
+          </div>
+
           <Button size='sm' className='h-9 shrink-0' onClick={props.onManage}>
             <WalletCards />
             {t('Manage')}

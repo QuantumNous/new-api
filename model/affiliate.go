@@ -62,6 +62,7 @@ type AffiliateCampaign struct {
 	ConfigKey               string `json:"-" gorm:"type:varchar(64);uniqueIndex;not null"`
 	Status                  string `json:"status" gorm:"type:varchar(20);index;not null"`
 	Currency                string `json:"currency" gorm:"type:varchar(8);not null"`
+	RewardRateBps           int64  `json:"reward_rate_bps" gorm:"type:bigint;not null;default:0"`
 	RewardMicros            int64  `json:"reward_micros" gorm:"type:bigint;not null"`
 	MinimumTopUpMicros      int64  `json:"minimum_topup_micros" gorm:"type:bigint;not null"`
 	HoldSeconds             int64  `json:"hold_seconds" gorm:"type:bigint;not null"`
@@ -89,6 +90,7 @@ type ReferralRelation struct {
 	CampaignID         int    `json:"campaign_id" gorm:"index;not null"`
 	CodeSnapshot       string `json:"code_snapshot" gorm:"type:varchar(32);not null"`
 	Currency           string `json:"currency" gorm:"type:varchar(8);not null"`
+	RewardRateBps      int64  `json:"reward_rate_bps" gorm:"type:bigint;not null;default:0"`
 	RewardMicros       int64  `json:"reward_micros" gorm:"type:bigint;not null"`
 	MinimumTopUpMicros int64  `json:"minimum_topup_micros" gorm:"type:bigint;not null"`
 	HoldSeconds        int64  `json:"hold_seconds" gorm:"type:bigint;not null"`
@@ -209,6 +211,7 @@ type AffiliateSummary struct {
 	Enabled                 bool             `json:"enabled"`
 	ReferralCode            string           `json:"referral_code"`
 	Currency                string           `json:"currency"`
+	RewardRateBps           int64            `json:"reward_rate_bps"`
 	RewardMicros            int64            `json:"reward_micros"`
 	MinimumTopUpMicros      int64            `json:"minimum_topup_micros"`
 	MinimumWithdrawalMicros int64            `json:"minimum_withdrawal_micros"`
@@ -228,7 +231,12 @@ func normalizedAffiliateSetting() operation_setting.AffiliateSetting {
 	setting := *operation_setting.GetAffiliateSetting()
 	setting.Currency = strings.ToUpper(strings.TrimSpace(setting.Currency))
 	if setting.Currency == "" {
-		setting.Currency = "USD"
+		setting.Currency = "CNY"
+	}
+	if setting.RewardRateBps < 0 {
+		setting.RewardRateBps = 0
+	} else if setting.RewardRateBps > 10_000 {
+		setting.RewardRateBps = 10_000
 	}
 	if setting.RewardMicros < 0 {
 		setting.RewardMicros = 0
@@ -246,7 +254,7 @@ func normalizedAffiliateSetting() operation_setting.AffiliateSetting {
 }
 
 func affiliateCampaignKey(setting operation_setting.AffiliateSetting) string {
-	value := fmt.Sprintf("%t|%s|%d|%d|%d|%d", setting.Enabled, setting.Currency, setting.RewardMicros, setting.MinimumTopUpMicros, setting.HoldSeconds, setting.MinimumWithdrawalMicros)
+	value := fmt.Sprintf("%t|%s|%d|%d|%d|%d|%d", setting.Enabled, setting.Currency, setting.RewardRateBps, setting.RewardMicros, setting.MinimumTopUpMicros, setting.HoldSeconds, setting.MinimumWithdrawalMicros)
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(value)))
 }
 
@@ -268,6 +276,7 @@ func currentAffiliateCampaignWithTx(tx *gorm.DB) (*AffiliateCampaign, error) {
 		ConfigKey:               configKey,
 		Status:                  status,
 		Currency:                setting.Currency,
+		RewardRateBps:           setting.RewardRateBps,
 		RewardMicros:            setting.RewardMicros,
 		MinimumTopUpMicros:      setting.MinimumTopUpMicros,
 		HoldSeconds:             setting.HoldSeconds,
@@ -352,6 +361,7 @@ func bindAffiliateRelationWithTx(tx *gorm.DB, invitee *User, inviterID int, camp
 		CampaignID:         campaign.ID,
 		CodeSnapshot:       code.Code,
 		Currency:           campaign.Currency,
+		RewardRateBps:      campaign.RewardRateBps,
 		RewardMicros:       campaign.RewardMicros,
 		MinimumTopUpMicros: campaign.MinimumTopUpMicros,
 		HoldSeconds:        campaign.HoldSeconds,
@@ -406,6 +416,25 @@ func topUpPaidMicros(topUp *TopUp) (int64, error) {
 	return amount, nil
 }
 
+func calculateAffiliateRewardMicros(paidMicros int64, minimumTopUpMicros int64, rewardRateBps int64, maximumRewardMicros int64) int64 {
+	if paidMicros < minimumTopUpMicros || paidMicros <= 0 || rewardRateBps <= 0 || maximumRewardMicros <= 0 {
+		return 0
+	}
+	reward := decimal.NewFromInt(paidMicros).
+		Mul(decimal.NewFromInt(rewardRateBps)).
+		Div(decimal.NewFromInt(10_000)).
+		Truncate(0)
+	maximumReward := decimal.NewFromInt(maximumRewardMicros)
+	if reward.GreaterThan(maximumReward) {
+		return maximumRewardMicros
+	}
+	amount, err := strconv.ParseInt(reward.StringFixed(0), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return amount
+}
+
 func appendAffiliateLedgerWithTx(tx *gorm.DB, account *AffiliateAccount, entry AffiliateLedger) error {
 	entry.UserID = account.UserID
 	entry.AccountID = account.ID
@@ -437,11 +466,37 @@ func qualifyAffiliateTopUpWithTx(tx *gorm.DB, topUp *TopUp) error {
 	if err != nil {
 		return err
 	}
-	if relation.Status != ReferralStatusBound || relation.RewardMicros <= 0 {
+	if relation.Status != ReferralStatusBound {
 		return nil
 	}
-	paidMicros, err := topUpPaidMicros(topUp)
-	if err != nil || paidMicros < relation.MinimumTopUpMicros {
+	var successfulTopUps []TopUp
+	if err := tx.Select("id", "money").
+		Where("user_id = ? AND status = ? AND create_time >= ?", relation.InviteeUserID, common.TopUpStatusSuccess, relation.BoundAt).
+		Find(&successfulTopUps).Error; err != nil {
+		return err
+	}
+	totalPaidMicros := int64(0)
+	maxInt64 := int64(^uint64(0) >> 1)
+	for index := range successfulTopUps {
+		paidMicros, amountErr := topUpPaidMicros(&successfulTopUps[index])
+		if amountErr != nil {
+			continue
+		}
+		if paidMicros > maxInt64-totalPaidMicros {
+			totalPaidMicros = maxInt64
+			break
+		}
+		totalPaidMicros += paidMicros
+	}
+	rewardRateBps := relation.RewardRateBps
+	minimumTopUpMicros := relation.MinimumTopUpMicros
+	rewardMicros := relation.RewardMicros
+	if rewardRateBps > 0 {
+		rewardMicros = calculateAffiliateRewardMicros(totalPaidMicros, minimumTopUpMicros, rewardRateBps, relation.RewardMicros)
+	} else if totalPaidMicros < minimumTopUpMicros {
+		rewardMicros = 0
+	}
+	if rewardMicros <= 0 {
 		return nil
 	}
 	now := common.GetTimestamp()
@@ -457,7 +512,7 @@ func qualifyAffiliateTopUpWithTx(tx *gorm.DB, topUp *TopUp) error {
 		TopUpID:            topUp.Id,
 		CampaignID:         relation.CampaignID,
 		Currency:           relation.Currency,
-		AmountMicros:       relation.RewardMicros,
+		AmountMicros:       rewardMicros,
 		Status:             status,
 		AvailableAt:        availableAt,
 		IdempotencyKey:     fmt.Sprintf("topup:%d", topUp.Id),
@@ -500,6 +555,9 @@ func qualifyAffiliateTopUpWithTx(tx *gorm.DB, topUp *TopUp) error {
 		return err
 	}
 	relation.Status = ReferralStatusQualified
+	relation.RewardRateBps = rewardRateBps
+	relation.RewardMicros = rewardMicros
+	relation.MinimumTopUpMicros = minimumTopUpMicros
 	relation.QualifiedAt = now
 	relation.QualifyingTopUpID = &topUp.Id
 	return tx.Save(&relation).Error
@@ -766,6 +824,7 @@ func GetAffiliateSummary(userID int) (*AffiliateSummary, error) {
 		Enabled:                 setting.Enabled && operation_setting.IsPaymentComplianceConfirmed(),
 		ReferralCode:            user.AffCode,
 		Currency:                setting.Currency,
+		RewardRateBps:           setting.RewardRateBps,
 		RewardMicros:            setting.RewardMicros,
 		MinimumTopUpMicros:      setting.MinimumTopUpMicros,
 		MinimumWithdrawalMicros: setting.MinimumWithdrawalMicros,

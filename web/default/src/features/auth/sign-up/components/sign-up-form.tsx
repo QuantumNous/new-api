@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -89,6 +89,7 @@ export function SignUpForm({
     defaultValues: {
       username: '',
       email: '',
+      aff_code: '',
       password: '',
       confirmPassword: '',
     },
@@ -105,6 +106,14 @@ export function SignUpForm({
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
   const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
+  let verificationCodeButtonContent: ReactNode = t('Send code')
+  if (isActive) {
+    verificationCodeButtonContent = t('Resend ({{seconds}}s)', {
+      seconds: secondsLeft,
+    })
+  } else if (isSendingCode) {
+    verificationCodeButtonContent = <Loader2 className='h-4 w-4 animate-spin' />
+  }
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -129,11 +138,15 @@ export function SignUpForm({
   }, [requiresLegalConsent])
 
   useEffect(() => {
-    const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
-    if (aff) {
-      saveAffiliateCode(aff)
-    }
-  }, [])
+    const queryAffiliateCode = new URLSearchParams(window.location.search)
+      .get('aff')
+      ?.trim()
+    const affiliateCode = queryAffiliateCode || getAffiliateCode().trim()
+    if (!affiliateCode) return
+
+    saveAffiliateCode(affiliateCode)
+    form.setValue('aff_code', affiliateCode, { shouldValidate: true })
+  }, [form])
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
@@ -155,6 +168,11 @@ export function SignUpForm({
 
     if (!validateTurnstile()) return
 
+    const affiliateCode = data.aff_code?.trim()
+    if (affiliateCode) {
+      saveAffiliateCode(affiliateCode)
+    }
+
     setIsLoading(true)
     try {
       const res = await register({
@@ -162,7 +180,7 @@ export function SignUpForm({
         password: data.password,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
-        aff_code: getAffiliateCode(),
+        aff_code: affiliateCode || undefined,
         turnstile: turnstileToken,
       })
 
@@ -172,7 +190,7 @@ export function SignUpForm({
       } else {
         toast.error(res?.message || t('Failed to create account'))
       }
-    } catch (_error) {
+    } catch {
       // Errors are handled by global interceptor
     } finally {
       setIsLoading(false)
@@ -216,7 +234,7 @@ export function SignUpForm({
       } else {
         toast.error(res?.message || t('Login failed'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Login failed'))
     } finally {
       setIsWeChatSubmitting(false)
@@ -239,6 +257,24 @@ export function SignUpForm({
               <FormLabel>{t('Username')}</FormLabel>
               <FormControl>
                 <Input placeholder={t('Enter your username')} {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name='aff_code'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Invitation Code (optional)')}</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder={t('Enter invitation code')}
+                  autoComplete='off'
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -323,13 +359,7 @@ export function SignUpForm({
                 }
                 onClick={handleSendVerificationCode}
               >
-                {isActive ? (
-                  t('Resend ({{seconds}}s)', { seconds: secondsLeft })
-                ) : isSendingCode ? (
-                  <Loader2 className='h-4 w-4 animate-spin' />
-                ) : (
-                  t('Send code')
-                )}
+                {verificationCodeButtonContent}
               </Button>
             </div>
           </>

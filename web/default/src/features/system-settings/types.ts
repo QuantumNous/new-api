@@ -330,6 +330,7 @@ export type BillingSettings = {
   'checkin_setting.max_quota': number
   'affiliate_setting.enabled': boolean
   'affiliate_setting.currency': string
+  'affiliate_setting.reward_rate_bps': number
   'affiliate_setting.reward_micros': number
   'affiliate_setting.minimum_topup_micros': number
   'affiliate_setting.hold_seconds': number

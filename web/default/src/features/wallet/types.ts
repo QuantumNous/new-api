@@ -54,6 +54,7 @@ export interface AffiliateSummary {
   enabled: boolean
   referral_code: string
   currency: string
+  reward_rate_bps: number
   reward_micros: number
   minimum_topup_micros: number
   minimum_withdrawal_micros: number
