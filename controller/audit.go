@@ -12,7 +12,7 @@ import (
 )
 
 // auditContentTemplates 将稳定的操作标识 action 映射为英文兜底模板，渲染后写入
-// Log.Content（供导出 / 经典前端等非本地化消费者使用）。占位符为 ${name}，由该
+// Log.Content（供导出等非本地化消费者使用）。占位符为 ${name}，由该
 // action 的 params 填充。本地化展示文案在前端 i18n 模板中维护，本表是语言中立的
 // 英文基线——调用方因此无需在每个埋点处手写句子（避免与 params 重复书写同一份值）。
 var auditContentTemplates = map[string]string{
@@ -46,6 +46,9 @@ var auditContentTemplates = map[string]string{
 	"channel.upstream_apply_all": "Applied upstream model changes to ${count} channels",
 
 	"redemption.create": "Created ${count} redemption codes named ${name} (${quota} each)",
+
+	"subscription.plan_reset":      "Reset active subscriptions for plan ${plan_id}",
+	"subscription.user_plan_reset": "Reset active plan ${plan_id} subscriptions for user ${target_user_id}",
 }
 
 // auditContentEN 按 action 模板渲染英文兜底文本；未登记的 action 退回 action 本身。
