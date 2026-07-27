@@ -24,7 +24,6 @@ const (
 	recallEmailLeaseSeconds           = int64(60)
 	recallEmailMaxAttempts            = 5
 	recallEmailProductSummaryCacheTTL = 5 * time.Minute
-	recallEmailUnsubscribeTTL         = 90 * 24 * time.Hour
 )
 
 var (
@@ -473,9 +472,6 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 
 func (w *RecallEmailWorker) createUnsubscribeToken(item *model.RecallEmailWorkItem) (string, error) {
 	expiresAt := time.Unix(item.Recipient.PromotionExpiresAt, 0)
-	if item.Campaign.CampaignType == model.RecallCampaignTypeContentOnly && item.Recipient.PromotionExpiresAt <= 0 {
-		expiresAt = w.now().Add(recallEmailUnsubscribeTTL)
-	}
 	return w.claims.CreateRecipientUnsubscribeToken(item.Recipient.Id, expiresAt)
 }
 
@@ -509,7 +505,7 @@ func (w *RecallEmailWorker) recallEmailStopReason(ctx context.Context, item *mod
 		if item.Recipient.StripePromotionCodeId == nil || strings.TrimSpace(*item.Recipient.StripePromotionCodeId) == "" || strings.TrimSpace(item.Recipient.PromotionCode) == "" {
 			return "promotion_unavailable", nil
 		}
-	} else if item.Recipient.PromotionExpiresAt > 0 && item.Recipient.PromotionExpiresAt <= now {
+	} else if item.Recipient.PromotionExpiresAt <= now {
 		return "activity_expired", nil
 	}
 	snapshotEmail, snapshotOK := recallAudienceEmail(item.Recipient.EmailSnapshot)

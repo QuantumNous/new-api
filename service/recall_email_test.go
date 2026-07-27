@@ -1013,13 +1013,13 @@ func TestRecallContentOnlyEmailSendsWithoutClaimOrPromotionData(t *testing.T) {
 		"stripe_coupon_id":        "",
 		"product_scope":           `{not-json`,
 		"email_sequence_config":   string(emailJSON),
-		"promotion_valid_seconds": int64(0),
+		"promotion_valid_seconds": int64(3600),
 	}).Error)
 	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", fixture.recipient.Id).Updates(map[string]any{
 		"stripe_customer_id":       "",
 		"stripe_promotion_code_id": nil,
 		"promotion_code":           "",
-		"promotion_expires_at":     int64(0),
+		"promotion_expires_at":     recallEmailTestNow + 3600,
 		"claim_token_hash":         nil,
 		"last_error_code":          "",
 		"last_error_message":       "",
@@ -1042,7 +1042,7 @@ func TestRecallContentOnlyEmailSendsWithoutClaimOrPromotionData(t *testing.T) {
 	require.NotContains(t, sent.htmlBody, "recall_claim")
 	require.NotContains(t, sent.htmlBody, "PROMOCODE")
 	unsubscribeToken := recallEmailRawUnsubscribeToken(t, sent.htmlBody)
-	requireRecallEmailUnsubscribePayload(t, unsubscribeToken, 2, 0, fixture.recipient.Id, recallEmailTestNow+int64(recallEmailUnsubscribeTTL/time.Second))
+	requireRecallEmailUnsubscribePayload(t, unsubscribeToken, 2, 0, fixture.recipient.Id, recallEmailTestNow+3600)
 
 	accepted := loadRecallEmailMessageByID(t, fixture.message.Id)
 	require.Equal(t, model.RecallMessageAccepted, accepted.State)
@@ -1096,6 +1096,27 @@ func TestRecallContentOnlyEmailCancelsAfterActivityExpiry(t *testing.T) {
 	require.Equal(t, "activity_expired", stored.LastErrorCode)
 }
 
+func TestRecallContentOnlyEmailCancelsWhenActivityExpiryMissing(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", fixture.campaign.Id).Update(
+		"campaign_type", model.RecallCampaignTypeContentOnly,
+	).Error)
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", fixture.recipient.Id).Updates(map[string]any{
+		"stripe_customer_id":       "",
+		"stripe_promotion_code_id": nil,
+		"promotion_code":           "",
+		"promotion_expires_at":     int64(0),
+		"claim_token_hash":         nil,
+	}).Error)
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	require.Empty(t, *fixture.sent)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageCancelled, stored.State)
+	require.Equal(t, "activity_expired", stored.LastErrorCode)
+}
+
 func TestRecallContentOnlyEmailRejectsHistoricalClaimTemplateBeforeSend(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
 	templateJSON, err := common.Marshal(map[string]RecallEmailTemplate{
@@ -1109,7 +1130,7 @@ func TestRecallContentOnlyEmailRejectsHistoricalClaimTemplateBeforeSend(t *testi
 		"stripe_customer_id":       "",
 		"stripe_promotion_code_id": nil,
 		"promotion_code":           "",
-		"promotion_expires_at":     int64(0),
+		"promotion_expires_at":     recallEmailTestNow + 3600,
 		"claim_token_hash":         nil,
 	}).Error)
 	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
