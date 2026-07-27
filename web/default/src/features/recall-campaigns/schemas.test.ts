@@ -102,9 +102,26 @@ describe('recallCampaignDraftSchema', () => {
       topup_price_ids: [],
       subscription_price_ids: [],
     }
-    draft.promotion_valid_seconds = 0
 
     expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+  })
+
+  test('requires activity delivery validity for content-only drafts', () => {
+    const draft = makeDraft()
+    draft.campaign_type = 'content_only'
+    draft.promotion_valid_seconds = 0
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['promotion_valid_seconds'],
+          message: 'Activity delivery validity is required',
+        })
+      )
+    }
   })
 
   test('rejects unknown campaign types', () => {

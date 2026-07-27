@@ -1063,7 +1063,7 @@ func (s *RecallCampaignService) runDueCampaign(ctx context.Context, campaign *mo
 	if err != nil {
 		return false, permanentRecallCampaignRunError(err)
 	}
-	if draft.Discount.CouponRedeemBy > 0 && now.Unix() >= draft.Discount.CouponRedeemBy {
+	if draft.CampaignType == model.RecallCampaignTypePromotion && draft.Discount.CouponRedeemBy > 0 && now.Unix() >= draft.Discount.CouponRedeemBy {
 		_, err := model.CompleteDueRecallCampaignWithContext(ctx, campaign.Id, campaign.NextRunAt, now.Unix())
 		return false, err
 	}
@@ -1090,7 +1090,7 @@ func (s *RecallCampaignService) runDueCampaign(ctx context.Context, campaign *mo
 		expected := campaign.NextRunAt
 		runKey := fmt.Sprintf("recurring:%d:%d", campaign.Id, expected)
 		fields := map[string]any{"next_run_at": next.Unix()}
-		if draft.Discount.CouponRedeemBy > 0 && next.Unix() >= draft.Discount.CouponRedeemBy {
+		if draft.CampaignType == model.RecallCampaignTypePromotion && draft.Discount.CouponRedeemBy > 0 && next.Unix() >= draft.Discount.CouponRedeemBy {
 			fields["next_run_at"] = int64(0)
 		}
 		return s.commitCampaignRun(
@@ -1144,17 +1144,17 @@ func (s *RecallCampaignService) commitCampaignRun(
 	if err != nil {
 		return false, err
 	}
+	expiresAt := runAt.Add(time.Duration(campaign.PromotionValidSeconds) * time.Second).Unix()
 	if draft.CampaignType == model.RecallCampaignTypePromotion {
-		expiresAt := runAt.Add(time.Duration(campaign.PromotionValidSeconds) * time.Second).Unix()
 		if draft.Discount.CouponRedeemBy > 0 && draft.Discount.CouponRedeemBy < expiresAt {
 			expiresAt = draft.Discount.CouponRedeemBy
 		}
-		if expiresAt <= runAt.Unix() {
-			return false, fmt.Errorf("recall promotion expiry must be after its campaign run")
-		}
-		for i := range recipients {
-			recipients[i].PromotionExpiresAt = expiresAt
-		}
+	}
+	if expiresAt <= runAt.Unix() {
+		return false, fmt.Errorf("recall activity delivery expiry must be after its campaign run")
+	}
+	for i := range recipients {
+		recipients[i].PromotionExpiresAt = expiresAt
 	}
 	eventData, err := common.Marshal(map[string]any{
 		"campaign_type":  draft.CampaignType,
@@ -1331,6 +1331,9 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 		return RecallCampaignDraft{}, fmt.Errorf("unsupported recall execution mode %q", draft.ExecutionMode)
 	}
 
+	if draft.PromotionValidSeconds <= 0 {
+		return RecallCampaignDraft{}, fmt.Errorf("recall activity delivery validity must be positive")
+	}
 	if draft.CampaignType == model.RecallCampaignTypePromotion {
 		var err error
 		draft, err = validateAndNormalizeRecallPromotionDraft(draft, now)
@@ -1392,9 +1395,6 @@ func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now tim
 	draft.Products.SubscriptionDisplaySnapshots = nil
 	if len(draft.Products.TopUpPriceIDs)+len(draft.Products.SubscriptionPriceIDs) == 0 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign requires at least one Stripe Price")
-	}
-	if draft.PromotionValidSeconds <= 0 {
-		return RecallCampaignDraft{}, fmt.Errorf("recall promotion validity must be positive")
 	}
 	return draft, nil
 }

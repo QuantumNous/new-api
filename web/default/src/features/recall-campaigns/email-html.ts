@@ -1,3 +1,5 @@
+import type { RecallCampaignType } from './types'
+
 export const RECALL_EMAIL_ACTIONS = [
   '{{.RecipientName}}',
   '{{.PromotionCodeMasked}}',
@@ -207,7 +209,10 @@ function escapeRecallHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
-export function convertRecallBodyTextToHtml(bodyText: string): string {
+export function convertRecallBodyTextToHtml(
+  bodyText: string,
+  campaignType: RecallCampaignType = 'promotion'
+): string {
   const paragraphs = bodyText
     .replace(/\r\n?/g, '\n')
     .split(/\n+/)
@@ -215,6 +220,11 @@ export function convertRecallBodyTextToHtml(bodyText: string): string {
     .filter(Boolean)
     .map((paragraph) => `<p>${escapeRecallHtml(paragraph)}</p>`)
     .join('\n      ')
+
+  const claimAction =
+    campaignType === 'promotion'
+      ? '      <p><a href="{{.ClaimURL}}">Claim your offer</a></p>\n'
+      : ''
 
   return `<!doctype html>
 <html>
@@ -226,19 +236,21 @@ export function convertRecallBodyTextToHtml(bodyText: string): string {
   <body>
     <main>
       ${paragraphs || '<p>Hello {{.RecipientName}},</p>'}
-      <p><a href="{{.ClaimURL}}">Claim your offer</a></p>
-      <p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>
+${claimAction}      <p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>
     </main>
   </body>
 </html>`
 }
 
-export function normalizeRecallBodyInputToHtml(bodyInput: string): string {
+export function normalizeRecallBodyInputToHtml(
+  bodyInput: string,
+  campaignType: RecallCampaignType = 'promotion'
+): string {
   const trimmed = bodyInput.trim()
   if (/<\/?[a-z][\w:-]*(?:\s[^<>]*)?>/i.test(trimmed)) {
     return bodyInput
   }
-  return convertRecallBodyTextToHtml(bodyInput)
+  return convertRecallBodyTextToHtml(bodyInput, campaignType)
 }
 
 export function insertRecallEmailAction(

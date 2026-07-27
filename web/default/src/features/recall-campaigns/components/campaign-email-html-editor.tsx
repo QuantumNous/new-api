@@ -47,12 +47,16 @@ interface RecallEmailPreviewPreparedRequest {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function createRecallEmailPreviewTemplate(props: {
+  campaignType?: RecallCampaignType
   subject: string
   bodyHTML: string
 }): { subject: string; body_html: string } {
   return {
     subject: props.subject.trim() || 'Recall email preview',
-    body_html: normalizeRecallBodyInputToHtml(props.bodyHTML),
+    body_html: normalizeRecallBodyInputToHtml(
+      props.bodyHTML,
+      props.campaignType ?? 'promotion'
+    ),
   }
 }
 
@@ -74,7 +78,10 @@ export async function prepareRecallEmailPreviewRequest(props: {
   return {
     campaign_type: props.campaignType,
     snapshot,
-    template: createRecallEmailPreviewTemplate(snapshot),
+    template: createRecallEmailPreviewTemplate({
+      ...snapshot,
+      campaignType: props.campaignType,
+    }),
   }
 }
 

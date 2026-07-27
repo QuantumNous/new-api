@@ -638,7 +638,6 @@ describe('CampaignEditor audience rules', () => {
     const draft = makeDraft('first_purchase')
     draft.campaign_type = 'content_only'
     draft.product_scope = { topup_price_ids: [], subscription_price_ids: [] }
-    draft.promotion_valid_seconds = 0
 
     const html = renderEditor('first_purchase', draft)
 
@@ -648,12 +647,17 @@ describe('CampaignEditor audience rules', () => {
     expect(html).toContain('5. Execution schedule')
     expect(html).toContain('6. Email sequence')
     expect(html).not.toContain('3. Stripe Coupon')
-    expect(html).not.toContain('4. Products, minimum, and validity')
+    expect(html).toContain('4. Activity delivery')
     expect(html).not.toContain('Coupon source')
     expect(html).not.toContain('Discount type')
     expect(html).not.toContain('Top-up products')
     expect(html).not.toContain('Subscription products')
+    expect(html).not.toContain('Minimum amount')
+    expect(html).not.toContain('Coupon redeem-by timestamp')
     expect(html).not.toContain('Promotion validity seconds')
+    expect(html).toContain('Activity delivery validity seconds')
+    expect(html).toContain('Enrollment limit')
+    expect(html).toContain('Worker concurrency')
   })
 
   test('preserves hidden promotion state when switching to content-only and submitting', async () => {

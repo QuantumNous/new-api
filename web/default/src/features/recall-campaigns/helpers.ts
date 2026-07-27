@@ -157,7 +157,8 @@ export function prepareRecallCampaignSubmitDraft(
                 subject: template.subject.trim() || draft.name.trim(),
                 body_text: '',
                 body_html: normalizeRecallBodyInputToHtml(
-                  template.body_html ?? ''
+                  template.body_html ?? '',
+                  draft.campaign_type
                 ),
               },
             ]
@@ -166,7 +167,8 @@ export function prepareRecallCampaignSubmitDraft(
           let normalizedBodyHTML = ''
           if (bodyText) {
             normalizedBodyHTML = convertRecallBodyTextToHtml(
-              template.body_text ?? ''
+              template.body_text ?? '',
+              draft.campaign_type
             )
           } else if (locale === 'en') {
             normalizedBodyHTML = starterHtml

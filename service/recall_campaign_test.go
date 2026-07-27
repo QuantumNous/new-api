@@ -436,7 +436,6 @@ func TestRecallCampaignContentOnlyDraftPreviewAndManualActivationSkipStripe(t *t
 	draft.CouponSource = ""
 	draft.Discount = RecallDiscountConfig{}
 	draft.Products = RecallProductScope{}
-	draft.PromotionValidSeconds = 0
 	draft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "News", BodyText: "Plain update"}
 
 	campaign, err := service.SaveDraft(context.Background(), 17, draft)
@@ -455,6 +454,9 @@ func TestRecallCampaignContentOnlyDraftPreviewAndManualActivationSkipStripe(t *t
 	require.Equal(t, model.RecallCampaignRunning, stored.Status)
 	require.Empty(t, stored.StripeCouponId)
 	require.Zero(t, calls.createCoupon)
+	var recipient model.RecallRecipient
+	require.NoError(t, db.First(&recipient).Error)
+	require.Equal(t, now.Add(time.Duration(draft.PromotionValidSeconds)*time.Second).Unix(), recipient.PromotionExpiresAt)
 	exported, err := service.Export(context.Background(), campaign.Id)
 	require.NoError(t, err)
 	require.Contains(t, string(exported), "campaign_type,recipient_id,user_id,state")
@@ -462,6 +464,20 @@ func TestRecallCampaignContentOnlyDraftPreviewAndManualActivationSkipStripe(t *t
 	var runEvent model.RecallEvent
 	require.NoError(t, db.Where("campaign_id = ? AND event_type = ?", campaign.Id, "campaign_run").First(&runEvent).Error)
 	require.Contains(t, runEvent.EventData, `"campaign_type":"content_only"`)
+}
+
+func TestRecallCampaignContentOnlyRequiresActivityDeliveryValidity(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	now := time.Unix(1_721_000_000, 0)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.CampaignType = model.RecallCampaignTypeContentOnly
+	draft.PromotionValidSeconds = 0
+
+	_, err := service.SaveDraft(context.Background(), 17, draft)
+
+	require.ErrorContains(t, err, "activity delivery validity must be positive")
 }
 
 func TestRecallCampaignUnknownStoredTypeFailsClosed(t *testing.T) {
@@ -1774,6 +1790,69 @@ func TestRecallCampaignActivationRejectsScheduledRunAtCouponRedeemBy(t *testing.
 	stored, getErr := model.GetRecallCampaignByID(campaign.Id)
 	require.NoError(t, getErr)
 	require.Equal(t, model.RecallCampaignDraft, stored.Status)
+}
+
+func TestRecallCampaignContentOnlyScheduledRunIgnoresExpiredHiddenCouponRedeemBy(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 0, 30, 0, 0, time.UTC)
+	runAt := now.Add(30 * time.Minute)
+	createRecallCampaignEligibleUser(t, db, now, "content-only-scheduled-hidden-coupon")
+	draft := validRecallCampaignDraft(now)
+	draft.CampaignType = model.RecallCampaignTypeContentOnly
+	draft.Audience.LastAPICallAgeDays = 0
+	draft.ExecutionMode = "scheduled_once"
+	draft.Schedule.ScheduledAt = runAt.Unix()
+	draft.Discount.CouponRedeemBy = now.Add(15 * time.Minute).Unix()
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+
+	processed, err := service.RunDueCampaigns(context.Background(), runAt, 10)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignRunning, stored.Status)
+	require.Zero(t, stored.NextRunAt)
+	var recipient model.RecallRecipient
+	require.NoError(t, db.First(&recipient).Error)
+	require.Equal(t, runAt.Add(time.Duration(draft.PromotionValidSeconds)*time.Second).Unix(), recipient.PromotionExpiresAt)
+}
+
+func TestRecallCampaignContentOnlyRecurringRunKeepsNextRunPastHiddenCouponRedeemBy(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 0, 30, 0, 0, time.UTC)
+	createRecallCampaignEligibleUser(t, db, now, "content-only-recurring-hidden-coupon")
+	draft := validRecallCampaignDraft(now)
+	draft.CampaignType = model.RecallCampaignTypeContentOnly
+	draft.Audience.LastAPICallAgeDays = 0
+	draft.ExecutionMode = "recurring"
+	draft.Schedule = RecallScheduleConfig{Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}
+	draft.Discount.CouponRedeemBy = time.Date(2026, 7, 16, 13, 0, 0, 0, time.UTC).Unix()
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	firstRunAt := time.Unix(stored.NextRunAt, 0)
+
+	processed, err := service.RunDueCampaigns(context.Background(), firstRunAt, 10)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	stored, err = model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, time.Date(2026, 7, 17, 1, 0, 0, 0, time.UTC).Unix(), stored.NextRunAt)
+	var recipient model.RecallRecipient
+	require.NoError(t, db.First(&recipient).Error)
+	require.Equal(t, firstRunAt.Add(time.Duration(draft.PromotionValidSeconds)*time.Second).Unix(), recipient.PromotionExpiresAt)
 }
 
 func TestRecallCampaignRecurringRunUsesDeterministicEventKey(t *testing.T) {

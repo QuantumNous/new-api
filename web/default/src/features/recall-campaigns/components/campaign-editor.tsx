@@ -962,102 +962,104 @@ export function CampaignEditor(props: CampaignEditorProps) {
         </Card>
       ) : null}
 
-      {isPromotionCampaign ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('4. Products, minimum, and validity')}</CardTitle>
-          </CardHeader>
-          <CardContent className='grid gap-4 md:grid-cols-2'>
-            <CampaignProductSelector
-              topUpPriceIDs={topUpPrices}
-              subscriptionPriceIDs={subscriptionPrices}
-              onTopUpChange={(value) =>
-                form.setValue('product_scope.topup_price_ids', value, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-              onSubscriptionChange={(value) =>
-                form.setValue('product_scope.subscription_price_ids', value, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-              immutable={immutable}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('4. Activity delivery')}</CardTitle>
+        </CardHeader>
+        <CardContent className='grid gap-4 md:grid-cols-2'>
+          {isPromotionCampaign ? (
+            <>
+              <CampaignProductSelector
+                topUpPriceIDs={topUpPrices}
+                subscriptionPriceIDs={subscriptionPrices}
+                onTopUpChange={(value) =>
+                  form.setValue('product_scope.topup_price_ids', value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                onSubscriptionChange={(value) =>
+                  form.setValue('product_scope.subscription_price_ids', value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                immutable={immutable}
+              />
+              {!automaticFixed ? (
+                <>
+                  <div className='space-y-2'>
+                    <Label>{t('Minimum amount')}</Label>
+                    <Input
+                      type='number'
+                      min={0}
+                      disabled={immutable}
+                      {...form.register('discount_config.minimum_amount', {
+                        valueAsNumber: true,
+                      })}
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label>{t('Minimum amount currency')}</Label>
+                    <Input
+                      maxLength={3}
+                      placeholder='USD'
+                      disabled={immutable}
+                      {...form.register(
+                        'discount_config.minimum_amount_currency'
+                      )}
+                    />
+                  </div>
+                </>
+              ) : null}
+              <div className='space-y-2'>
+                <Label>{t('Coupon redeem-by timestamp')}</Label>
+                <Input
+                  type='number'
+                  min={0}
+                  disabled={immutable}
+                  {...form.register('discount_config.coupon_redeem_by', {
+                    valueAsNumber: true,
+                  })}
+                />
+              </div>
+            </>
+          ) : null}
+          <div className='space-y-2'>
+            <Label>{t('Activity delivery validity seconds')}</Label>
+            <Input
+              type='number'
+              min={1}
+              disabled={immutable}
+              {...form.register('promotion_valid_seconds', {
+                valueAsNumber: true,
+              })}
             />
-            {!automaticFixed ? (
-              <>
-                <div className='space-y-2'>
-                  <Label>{t('Minimum amount')}</Label>
-                  <Input
-                    type='number'
-                    min={0}
-                    disabled={immutable}
-                    {...form.register('discount_config.minimum_amount', {
-                      valueAsNumber: true,
-                    })}
-                  />
-                </div>
-                <div className='space-y-2'>
-                  <Label>{t('Minimum amount currency')}</Label>
-                  <Input
-                    maxLength={3}
-                    placeholder='USD'
-                    disabled={immutable}
-                    {...form.register(
-                      'discount_config.minimum_amount_currency'
-                    )}
-                  />
-                </div>
-              </>
-            ) : null}
-            <div className='space-y-2'>
-              <Label>{t('Coupon redeem-by timestamp')}</Label>
-              <Input
-                type='number'
-                min={0}
-                disabled={immutable}
-                {...form.register('discount_config.coupon_redeem_by', {
-                  valueAsNumber: true,
-                })}
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label>{t('Promotion validity seconds')}</Label>
-              <Input
-                type='number'
-                min={1}
-                disabled={immutable}
-                {...form.register('promotion_valid_seconds', {
-                  valueAsNumber: true,
-                })}
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label>{t('Enrollment limit')}</Label>
-              <Input
-                type='number'
-                min={1}
-                max={100000}
-                disabled={immutable}
-                {...form.register('enrollment_limit', { valueAsNumber: true })}
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label>{t('Worker concurrency')}</Label>
-              <Input
-                type='number'
-                min={1}
-                max={20}
-                disabled={immutable}
-                {...form.register('worker_concurrency', {
-                  valueAsNumber: true,
-                })}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
+          <div className='space-y-2'>
+            <Label>{t('Enrollment limit')}</Label>
+            <Input
+              type='number'
+              min={1}
+              max={100000}
+              disabled={immutable}
+              {...form.register('enrollment_limit', { valueAsNumber: true })}
+            />
+          </div>
+          <div className='space-y-2'>
+            <Label>{t('Worker concurrency')}</Label>
+            <Input
+              type='number'
+              min={1}
+              max={20}
+              disabled={immutable}
+              {...form.register('worker_concurrency', {
+                valueAsNumber: true,
+              })}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

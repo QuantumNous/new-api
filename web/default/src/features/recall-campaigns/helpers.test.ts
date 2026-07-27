@@ -247,6 +247,24 @@ describe('recall campaign editor normalization', () => {
     )
   })
 
+  test('converts content-only plain text at submit without a claim action', () => {
+    const draft = makeValidDraft()
+    draft.campaign_type = 'content_only'
+    draft.email_sequence[0].templates.en = {
+      subject: 'Product update',
+      body_text: '',
+      body_html: 'Product update\nRead the details',
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+    const html = normalized.email_sequence[0].templates.en.body_html
+
+    expect(html).toContain('<p>Product update</p>')
+    expect(html).toContain('<p>Read the details</p>')
+    expect(html).not.toContain('{{.ClaimURL}}')
+    expect(html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
   test('validates exactly one email body and preserves hidden localized HTML', () => {
     const validHtml = makeValidDraft()
     validHtml.audience_config.groups = []

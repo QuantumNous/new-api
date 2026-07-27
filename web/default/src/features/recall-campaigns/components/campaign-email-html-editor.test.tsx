@@ -232,6 +232,20 @@ describe('recall email preview race guard', () => {
     expect(operatorBody).toBe('Plain preview\n2 < 3')
   })
 
+  test('prepares content-only plain-text preview without a claim action', async () => {
+    const prepared = await prepareRecallEmailPreviewRequest({
+      campaignType: 'content_only',
+      nextRequestId: () => 4,
+      subject: 'Product update',
+      bodyHTML: 'Product update\nRead the details',
+      validateBody: async () => true,
+    })
+
+    expect(prepared?.template.body_html).toContain('<p>Product update</p>')
+    expect(prepared?.template.body_html).not.toContain('{{.ClaimURL}}')
+    expect(prepared?.template.body_html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
   test('assigns the preview request id only after body validation completes', async () => {
     let resolveValidation: ((valid: boolean) => void) | undefined
     let nextRequestId = 0

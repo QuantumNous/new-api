@@ -76,12 +76,36 @@ describe('recall email HTML helpers', () => {
     expect(html).toContain('{{.UnsubscribeURL}}')
   })
 
+  test('converts content-only text without inventing a claim action', () => {
+    const html = convertRecallBodyTextToHtml(
+      'Product update\nRead the details',
+      'content_only'
+    )
+
+    expect(html).toContain('<p>Product update</p>')
+    expect(html).toContain('<p>Read the details</p>')
+    expect(html).not.toContain('{{.ClaimURL}}')
+    expect(html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
   test('converts plain body input to escaped HTML with required action links', () => {
     const html = normalizeRecallBodyInputToHtml('Hello\n2 < 3 & "quoted"')
 
     expect(html).toContain('<p>Hello</p>')
     expect(html).toContain('<p>2 &lt; 3 &amp; &quot;quoted&quot;</p>')
     expect(html).toContain('href="{{.ClaimURL}}"')
+    expect(html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
+  test('normalizes content-only plain body input without a claim action', () => {
+    const html = normalizeRecallBodyInputToHtml(
+      'Product update\n2 < 3',
+      'content_only'
+    )
+
+    expect(html).toContain('<p>Product update</p>')
+    expect(html).toContain('<p>2 &lt; 3</p>')
+    expect(html).not.toContain('{{.ClaimURL}}')
     expect(html).toContain('href="{{.UnsubscribeURL}}"')
   })
 

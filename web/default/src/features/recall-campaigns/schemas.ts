@@ -467,6 +467,13 @@ export const recallCampaignDraftSchema = z
     if (draft.audience_template === 'specified_users') {
       validateSpecifiedUsersAudience(draft.audience_config, context)
     }
+    if (draft.promotion_valid_seconds <= 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['promotion_valid_seconds'],
+        message: 'Activity delivery validity is required',
+      })
+    }
     if (draft.campaign_type === 'content_only') {
       return
     }
@@ -500,13 +507,6 @@ export const recallCampaignDraftSchema = z
         code: 'custom',
         path: ['product_scope'],
         message: 'At least one Stripe Price is required',
-      })
-    }
-    if (draft.promotion_valid_seconds <= 0) {
-      context.addIssue({
-        code: 'custom',
-        path: ['promotion_valid_seconds'],
-        message: 'Promotion validity is required',
       })
     }
     if (
