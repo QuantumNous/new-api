@@ -124,6 +124,53 @@ func TestCancelCurrentSubscriptionRenewalRejectsInactiveOrMismatchedEntitlement(
 	require.Equal(t, model.SubscriptionRenewalStatusEnabled, stored.RenewalStatus)
 }
 
+func TestCancelCurrentSubscriptionRenewalRejectsHistoricalCurrentEntitlement(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	plan := insertPurchaseServicePlan(t, 7829, 1, 7, 700)
+	periodEnd := common.GetTimestamp() + 3600
+	contract, entitlement := seedWalletRenewalContract(t, 7929, 700, plan, periodEnd)
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).
+		Where("id = ? AND contract_id = ?", entitlement.Id, contract.Id).
+		Update("status", model.SubscriptionEntitlementStatusHistorical).Error)
+	var storedEntitlement model.UserSubscription
+	require.NoError(t, model.DB.First(&storedEntitlement, "id = ?", entitlement.Id).Error)
+	require.Equal(t, model.SubscriptionEntitlementStatusHistorical, storedEntitlement.Status)
+	require.NotNil(t, storedEntitlement.CurrentSlot)
+
+	result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
+
+	require.ErrorContains(t, err, "active current subscription entitlement")
+	require.Nil(t, result)
+	var storedContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&storedContract, "id = ?", contract.Id).Error)
+	require.Equal(t, model.SubscriptionRenewalStatusEnabled, storedContract.RenewalStatus)
+}
+
+func TestResumeCurrentSubscriptionRenewalRejectsHistoricalCurrentEntitlement(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	plan := insertPurchaseServicePlan(t, 7830, 1, 7, 700)
+	periodEnd := common.GetTimestamp() + 3600
+	contract, entitlement := seedWalletRenewalContract(t, 7930, 700, plan, periodEnd)
+	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).
+		Where("id = ?", contract.Id).
+		Update("renewal_status", model.SubscriptionRenewalStatusCancelledByUser).Error)
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).
+		Where("id = ? AND contract_id = ?", entitlement.Id, contract.Id).
+		Update("status", model.SubscriptionEntitlementStatusHistorical).Error)
+	var storedEntitlement model.UserSubscription
+	require.NoError(t, model.DB.First(&storedEntitlement, "id = ?", entitlement.Id).Error)
+	require.Equal(t, model.SubscriptionEntitlementStatusHistorical, storedEntitlement.Status)
+	require.NotNil(t, storedEntitlement.CurrentSlot)
+
+	result, err := ResumeCurrentSubscriptionRenewal(contract.UserId)
+
+	require.ErrorContains(t, err, "active current subscription entitlement")
+	require.Nil(t, result)
+	var storedContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&storedContract, "id = ?", contract.Id).Error)
+	require.Equal(t, model.SubscriptionRenewalStatusCancelledByUser, storedContract.RenewalStatus)
+}
+
 func TestCancelCurrentSubscriptionRenewalRejectsNonWalletSource(t *testing.T) {
 	setupSubscriptionPurchaseServiceTestDB(t)
 	plan := insertPurchaseServicePlan(t, 7825, 1, 7, 700)
