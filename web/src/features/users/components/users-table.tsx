@@ -123,7 +123,14 @@ export function UsersTable() {
   // Fetch groups for filter
   const { data: groupsData } = useQuery({
     queryKey: ['groups'],
-    queryFn: getGroups,
+    queryFn: async () => {
+      const result = await getGroups()
+      if (!result.success) {
+        toast.error(result.message || t('Failed to load groups'))
+        return { data: [] }
+      }
+      return result
+    },
   })
 
   const groupOptions = useMemo(
