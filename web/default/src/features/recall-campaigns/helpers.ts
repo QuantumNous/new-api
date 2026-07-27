@@ -268,20 +268,25 @@ export interface RecallPromotionDuration {
   hours: number
 }
 
+function normalizeRecallDurationPart(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.trunc(value))
+}
+
 export function recallPromotionDurationToSeconds({
   days,
   hours,
 }: RecallPromotionDuration): number {
   return (
-    Math.max(0, Math.trunc(days)) * 86_400 +
-    Math.max(0, Math.trunc(hours)) * 3_600
+    normalizeRecallDurationPart(days) * 86_400 +
+    normalizeRecallDurationPart(hours) * 3_600
   )
 }
 
 export function recallPromotionSecondsToDuration(
   seconds: number
 ): RecallPromotionDuration {
-  const normalized = Math.max(0, Math.trunc(seconds))
+  const normalized = normalizeRecallDurationPart(seconds)
   return {
     days: Math.floor(normalized / 86_400),
     hours: Math.floor((normalized % 86_400) / 3_600),

@@ -62,6 +62,7 @@ function makeDraft() {
         stage_no: 1,
         delay_seconds: 0,
         template_version: 1,
+        manual_locales: [],
         templates: {
           en: {
             subject: 'We miss you',
@@ -733,6 +734,26 @@ describe('recallCampaignDraftSchema', () => {
     const missingBody = makeDraft()
     missingBody.email_sequence[0].templates.en.body_text = ''
     expect(recallCampaignDraftSchema.safeParse(missingBody).success).toBe(false)
+  })
+
+  test('allows only supported target languages in manual_locales', () => {
+    const valid = makeDraft()
+    valid.email_sequence[0].manual_locales = [
+      'zh',
+      'es',
+      'fr',
+      'pt',
+      'ru',
+      'ja',
+      'vi',
+    ]
+    expect(recallCampaignDraftSchema.safeParse(valid).success).toBe(true)
+
+    for (const locale of ['en', 'de', 'unknown']) {
+      const invalid = makeDraft()
+      invalid.email_sequence[0].manual_locales = [locale]
+      expect(recallCampaignDraftSchema.safeParse(invalid).success).toBe(false)
+    }
   })
 
   test('counts subject and body limits in Unicode characters', () => {

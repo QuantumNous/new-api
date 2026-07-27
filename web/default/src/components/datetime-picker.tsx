@@ -73,6 +73,8 @@ export function DateTimePicker({
   const [time, setTime] = React.useState<string>('00:00')
 
   React.useEffect(() => {
+    // Controlled values can change when a form is reset or loaded asynchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDate(value)
     setMonth(value)
     if (value) {

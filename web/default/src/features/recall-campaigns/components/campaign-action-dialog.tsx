@@ -52,6 +52,30 @@ export function getRecallLocalizationBlockers(
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export function handleRecallCampaignActionError(
+  action: DialogAction,
+  error: unknown,
+  handlers: {
+    onLocalizationBlocked?: (blocker: RecallEmailLocalizationBlocker) => void
+    onClose: () => void
+    onError: (message: string) => void
+  }
+): void {
+  const blocker =
+    action === 'activate' ? getRecallLocalizationBlockers(error)[0] : undefined
+  if (blocker && handlers.onLocalizationBlocked) {
+    handlers.onLocalizationBlocked(blocker)
+    handlers.onClose()
+    return
+  }
+  handlers.onError(
+    error instanceof Error && error.message.trim()
+      ? error.message
+      : 'Recall campaign request failed'
+  )
+}
+
 export function CampaignActionDialog(props: CampaignActionDialogProps) {
   const { t } = useTranslation()
   const [acknowledged, setAcknowledged] = useState(false)
@@ -76,21 +100,11 @@ export function CampaignActionDialog(props: CampaignActionDialogProps) {
       toast.success(t('Campaign action completed'))
       setOpen(false)
     } catch (error) {
-      const blocker =
-        props.action === 'activate'
-          ? getRecallLocalizationBlockers(error)[0]
-          : undefined
-      if (blocker) {
-        props.onLocalizationBlocked?.(blocker)
-        setOpen(false)
-      }
-      toast.error(
-        t(
-          error instanceof Error && error.message.trim()
-            ? error.message
-            : 'Recall campaign request failed'
-        )
-      )
+      handleRecallCampaignActionError(props.action, error, {
+        onLocalizationBlocked: props.onLocalizationBlocked,
+        onClose: () => setOpen(false),
+        onError: (message) => toast.error(t(message)),
+      })
     }
   }
 

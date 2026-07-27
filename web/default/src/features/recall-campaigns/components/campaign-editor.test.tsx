@@ -55,6 +55,19 @@ const createMutation = mock(async (draft: RecallCampaignDraft) => {
     data: { id: 123, name: draft.name, config_revision: 7 },
   }
 })
+const updateMutation = mock(
+  async (value: { id: number; draft: RecallCampaignDraft }) => {
+    operationOrder.push('update')
+    return {
+      success: true,
+      data: {
+        id: value.id,
+        name: value.draft.name,
+        config_revision: 9,
+      },
+    }
+  }
+)
 const generateMutation = mock(
   async (value: {
     id: number
@@ -109,7 +122,7 @@ const latestInputProps: Record<
 
 spyOn(recallApi, 'useRecallCampaignMutations').mockImplementation(() => ({
   create: { isPending: false, mutateAsync: createMutation },
-  update: { isPending: false, mutateAsync: createMutation },
+  update: { isPending: false, mutateAsync: updateMutation },
   action: {
     isPending: false,
     mutateAsync: mock(async () => ({ success: true })),
@@ -675,6 +688,7 @@ beforeEach(() => {
     delete latestInputProps[key]
   }
   createMutation.mockClear()
+  updateMutation.mockClear()
   generateMutation.mockClear()
   generateMutation.mockImplementation(async (value) => {
     operationOrder.push('generate')
@@ -1240,6 +1254,36 @@ describe('CampaignEditor email sequence', () => {
       request: { config_revision: 7, name: 'Test campaign' },
     })
     expect(container.textContent).toContain('7 / 7 ready')
+    dispose(root)
+  })
+
+  test('updates the persisted draft before generating again in the same new editor', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates = {
+      en: draft.email_sequence[0].templates.en,
+    }
+    draft.email_sequence[0].translated_source_revision = 0
+    const { root, container } = renderEditorDom(draft)
+
+    await clickByID(container, 'recall-generate-translations')
+    React.act(() => {
+      latestInputProps['recall-email-0-en-subject'].onChange?.({
+        target: {
+          name: 'email_sequence.0.templates.en.subject',
+          value: 'Changed English subject',
+        },
+        type: 'change',
+      } as React.ChangeEvent<HTMLInputElement>)
+    })
+    await clickByID(container, 'recall-generate-translations')
+
+    expect(createMutation).toHaveBeenCalledTimes(1)
+    expect(updateMutation).toHaveBeenCalledTimes(1)
+    expect(updateMutation.mock.calls[0][0]).toMatchObject({
+      id: 123,
+      draft: { name: 'Test campaign' },
+    })
+    expect(generateMutation).toHaveBeenCalledTimes(2)
     dispose(root)
   })
 

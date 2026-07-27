@@ -144,8 +144,11 @@ func (s *RecallClaimService) ResolveBestRecallOffer(ctx context.Context, userID 
 	if priceID == "" {
 		return nil, ErrRecallClaimWrongPrice
 	}
-	if currency == "" || subtotalMinor <= 0 {
+	if currency == "" || subtotalMinor < 0 {
 		return nil, fmt.Errorf("recall offer purchase facts are invalid")
+	}
+	if subtotalMinor == 0 {
+		return nil, nil
 	}
 	if !operation_setting.IsRecallCampaignEnabled() {
 		return nil, nil

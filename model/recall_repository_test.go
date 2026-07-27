@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -953,6 +954,89 @@ func TestListRecallOfferCandidatesForUserFiltersAndBindsExactEmailMatches(t *tes
 	require.Empty(t, disabledCandidates)
 }
 
+func TestListRecallOfferCandidatesUsesSetBasedFinalLoad(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const now int64 = 1_800_000_000
+	user := User{
+		Username: "recall-offer-query-user", Password: "password", Status: common.UserStatusEnabled,
+		Email: "query-owner@example.com", AffCode: "recall-offer-query-aff", CreatedAt: now - 100,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	for index := 0; index < 3; index++ {
+		campaign := newRecallRepositoryCampaign(fmt.Sprintf("offer query %d", index))
+		campaign.Status = RecallCampaignRunning
+		require.NoError(t, DB.Create(&campaign).Error)
+		promotionID := fmt.Sprintf("promo_query_%d", index)
+		require.NoError(t, DB.Create(&RecallRecipient{
+			CampaignId: campaign.Id, UserId: user.Id, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+			LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: &promotionID,
+			PromotionCode: fmt.Sprintf("QUERY%d", index), PromotionExpiresAt: now + 100, CreatedAt: now - int64(index+1),
+		}).Error)
+	}
+
+	queryCount := 0
+	callbackName := "recall_offer_query_count_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(callbackName, func(*gorm.DB) {
+		queryCount++
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Query().Remove(callbackName) })
+
+	candidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now)
+
+	require.NoError(t, err)
+	require.Len(t, candidates, 3)
+	require.LessOrEqual(t, queryCount, 4, "candidate loading must not add recipient and campaign queries per offer")
+}
+
+func TestListRecallOfferCandidatesChunksLargeSetBasedFinalLoads(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const (
+		now            int64 = 1_800_000_000
+		candidateCount       = 501
+	)
+	user := User{
+		Username: "recall-offer-chunk-user", Password: "password", Status: common.UserStatusEnabled,
+		Email: "chunk-owner@example.com", AffCode: "recall-offer-chunk-aff", CreatedAt: now - 100,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	campaigns := make([]RecallCampaign, 0, candidateCount)
+	for index := 0; index < candidateCount; index++ {
+		campaign := newRecallRepositoryCampaign(fmt.Sprintf("offer chunk %d", index))
+		campaign.Status = RecallCampaignRunning
+		campaigns = append(campaigns, campaign)
+	}
+	require.NoError(t, DB.CreateInBatches(&campaigns, 25).Error)
+	recipients := make([]RecallRecipient, 0, candidateCount)
+	for index := range campaigns {
+		promotionID := fmt.Sprintf("promo_chunk_%d", index)
+		recipients = append(recipients, RecallRecipient{
+			CampaignId: campaigns[index].Id, UserId: user.Id, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+			LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: &promotionID,
+			PromotionCode: fmt.Sprintf("CHUNK%d", index), PromotionExpiresAt: now + 100, CreatedAt: now - int64(index+1),
+		})
+	}
+	require.NoError(t, DB.CreateInBatches(&recipients, 25).Error)
+
+	queryCounts := map[string]int{}
+	callbackName := "recall_offer_chunk_query_count_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil {
+			return
+		}
+		queryCounts[tx.Statement.Schema.Name]++
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Query().Remove(callbackName) })
+
+	candidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now)
+
+	require.NoError(t, err)
+	require.Len(t, candidates, candidateCount)
+	require.Equal(t, 3, queryCounts["RecallRecipient"], "initial lookup plus two bounded final recipient loads")
+	require.Equal(t, 2, queryCounts["RecallCampaign"], "campaign hydration must use the same bounded batching")
+}
+
 func TestListRecallOfferCandidatesDropsEmailMatchTransitionedBeforeBind(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 
@@ -1075,6 +1159,36 @@ func TestPersistRecallRecipientPromotionSetsImmutableIssuedAt(t *testing.T) {
 	require.False(t, conflict)
 	require.NoError(t, DB.First(&stored, recipient.Id).Error)
 	require.Equal(t, int64(1_800_000_000), stored.PromotionIssuedAt)
+}
+
+func TestPersistRecallRecipientPromotionInitializesLegacyNullIssuedAt(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	recipient := RecallRecipient{
+		CampaignId:          54,
+		UserId:              7102,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       "legacy-null-issued-at@example.com",
+		LanguageSnapshot:    "en",
+		State:               RecallRecipientCustomerReady,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	require.NoError(t, DB.Exec("UPDATE recall_recipients SET promotion_issued_at = NULL WHERE id = ?", recipient.Id).Error)
+
+	persisted, err := PersistRecallRecipientPromotion(context.Background(), recipient.Id, "promo_legacy", "LEGACY123", 1_800_000_100)
+	require.NoError(t, err)
+	require.True(t, persisted)
+
+	var issuedAt sql.NullInt64
+	require.NoError(t, DB.Raw("SELECT promotion_issued_at FROM recall_recipients WHERE id = ?", recipient.Id).Row().Scan(&issuedAt))
+	require.True(t, issuedAt.Valid)
+	require.Equal(t, int64(1_800_000_100), issuedAt.Int64)
+
+	persisted, err = PersistRecallRecipientPromotion(context.Background(), recipient.Id, "promo_legacy", "LEGACY123", 1_800_000_999)
+	require.NoError(t, err)
+	require.True(t, persisted)
+	require.NoError(t, DB.Raw("SELECT promotion_issued_at FROM recall_recipients WHERE id = ?", recipient.Id).Row().Scan(&issuedAt))
+	require.Equal(t, int64(1_800_000_100), issuedAt.Int64)
 }
 
 func TestListRecallCampaignRecipientKeysWithContext(t *testing.T) {
@@ -2063,9 +2177,14 @@ func TestReleaseRecallMessageLeaseRestoresScheduledAndRetryStates(t *testing.T) 
 
 		var stored RecallMessage
 		require.NoError(t, DB.First(&stored, candidate.ID).Error)
-		require.Equal(t, candidate.State, stored.State)
+		if candidate.State == RecallMessageLeased {
+			require.Equal(t, RecallMessageRetryWait, stored.State)
+			require.Equal(t, candidate.EffectiveDueAt, stored.NextAttemptAt)
+		} else {
+			require.Equal(t, candidate.State, stored.State)
+		}
 		require.Empty(t, stored.LeaseOwner)
-		require.Equal(t, candidate.PreviousLeaseExpires, stored.LeaseExpiresAt)
+		require.Zero(t, stored.LeaseExpiresAt)
 		require.Equal(t, expectedAttempts[candidate.ID], stored.AttemptCount)
 	}
 

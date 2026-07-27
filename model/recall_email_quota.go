@@ -25,12 +25,71 @@ type RecallEmailQuotaStatus struct {
 	Exhausted       bool  `json:"exhausted"`
 }
 
-var recallEmailQuotaNow = GetDBTimestamp
+type RecallEmailSMTPAttempt struct {
+	Quota      RecallEmailQuotaStatus
+	Reserved   bool
+	LeaseOwned bool
+}
+
+var (
+	recallEmailQuotaNow     = getDBTimestamp
+	errRecallEmailQuotaWait = errors.New("recall email quota exhausted")
+)
 
 func ReserveRecallEmailQuotaWithContext(ctx context.Context, limit int) (RecallEmailQuotaStatus, bool, error) {
-	windowStartedAt := recallEmailQuotaWindowStart(recallEmailQuotaNow())
+	return reserveRecallEmailQuota(DB.WithContext(ctx), limit)
+}
+
+func BeginRecallEmailSMTPAttemptWithContext(
+	ctx context.Context,
+	messageID int64,
+	owner string,
+	expectedLeaseUntil int64,
+	limit int,
+) (RecallEmailSMTPAttempt, error) {
+	attempt := RecallEmailSMTPAttempt{}
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&RecallMessage{}).
+			Where(
+				"id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?",
+				messageID,
+				RecallMessageLeased,
+				owner,
+				expectedLeaseUntil,
+			).
+			Update("state", RecallMessageSending)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return nil
+		}
+		attempt.LeaseOwned = true
+
+		status, reserved, err := reserveRecallEmailQuota(tx, limit)
+		if err != nil {
+			return err
+		}
+		attempt.Quota = status
+		attempt.Reserved = reserved
+		if !reserved {
+			return errRecallEmailQuotaWait
+		}
+		return nil
+	})
+	if errors.Is(err, errRecallEmailQuotaWait) {
+		return attempt, nil
+	}
+	return attempt, err
+}
+
+func reserveRecallEmailQuota(db *gorm.DB, limit int) (RecallEmailQuotaStatus, bool, error) {
+	now, err := recallEmailQuotaNow(db)
+	if err != nil {
+		return RecallEmailQuotaStatus{}, false, err
+	}
+	windowStartedAt := recallEmailQuotaWindowStart(now)
 	window := RecallEmailQuotaWindow{WindowStartedAt: windowStartedAt}
-	db := DB.WithContext(ctx)
 	if err := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&window).Error; err != nil {
 		return RecallEmailQuotaStatus{}, false, err
 	}
@@ -50,8 +109,12 @@ func ReserveRecallEmailQuotaWithContext(ctx context.Context, limit int) (RecallE
 }
 
 func GetRecallEmailQuotaStatusWithContext(ctx context.Context, limit int) (RecallEmailQuotaStatus, error) {
-	windowStartedAt := recallEmailQuotaWindowStart(recallEmailQuotaNow())
-	return getRecallEmailQuotaStatus(DB.WithContext(ctx), windowStartedAt, limit)
+	db := DB.WithContext(ctx)
+	now, err := recallEmailQuotaNow(db)
+	if err != nil {
+		return RecallEmailQuotaStatus{}, err
+	}
+	return getRecallEmailQuotaStatus(db, recallEmailQuotaWindowStart(now), limit)
 }
 
 func getRecallEmailQuotaStatus(db *gorm.DB, windowStartedAt int64, limit int) (RecallEmailQuotaStatus, error) {

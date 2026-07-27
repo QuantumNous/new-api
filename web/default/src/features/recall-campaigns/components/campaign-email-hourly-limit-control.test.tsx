@@ -9,6 +9,7 @@ import {
   CampaignEmailHourlyLimitControlView,
   getRecallEmailQuotaPollInterval,
   parseRecallEmailHourlyLimit,
+  syncRecallEmailHourlyLimitFromServer,
 } from './campaign-email-hourly-limit-control'
 
 const testI18n = createInstance()
@@ -64,6 +65,17 @@ describe('CampaignEmailHourlyLimitControl', () => {
 
     expect(getRecallEmailQuotaPollInterval(quota, now, true)).toBe(1_000_000)
     expect(getRecallEmailQuotaPollInterval(quota, now, false)).toBeFalse()
+  })
+
+  test('does not overwrite an unsaved administrator limit during polling', () => {
+    expect(syncRecallEmailHourlyLimitFromServer('250', 100, 120)).toEqual({
+      inputValue: '250',
+      confirmedLimit: 120,
+    })
+    expect(syncRecallEmailHourlyLimitFromServer('100', 100, 120)).toEqual({
+      inputValue: '120',
+      confirmedLimit: 120,
+    })
   })
 
   test('shows usage, local reset time, module scope, and exhausted queue state', () => {

@@ -864,6 +864,93 @@ func TestRecallEmailRunBatchLeasesOnlyDueMessages(t *testing.T) {
 	require.Equal(t, model.RecallMessageScheduled, loadRecallEmailMessageByID(t, future.Id).State)
 }
 
+func TestRecallEmailRunBatchBatchesInitialAPIActivityLookup(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	fixture.worker.audience.LogBatchSize = 10
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
+		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
+	}).Error)
+	addRecallEmailBatchMessage(t, fixture, "activity-batch-2", recallEmailTestNow)
+	addRecallEmailBatchMessage(t, fixture, "activity-batch-3", recallEmailTestNow)
+
+	queryCount := 0
+	callbackName := "recall_email_activity_query_count_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, model.LOG_DB.Callback().Row().After("gorm:row").Register(callbackName, func(tx *gorm.DB) {
+		if strings.Contains(tx.Statement.SQL.String(), "MAX(created_at)") {
+			queryCount++
+		}
+	}))
+	t.Cleanup(func() { _ = model.LOG_DB.Callback().Row().Remove(callbackName) })
+
+	processed, err := fixture.worker.RunBatch(context.Background(), 10)
+
+	require.NoError(t, err)
+	require.Equal(t, 3, processed)
+	require.Len(t, *fixture.sent, 3)
+	require.Equal(t, 4, queryCount, "one initial batch lookup plus one final send fence per message")
+}
+
+func TestRecallEmailRunBatchReleasesLeasesWhenInitialActivityLookupFails(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
+		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
+	}).Error)
+	_, _, secondMessage := addRecallEmailBatchMessage(t, fixture, "activity-error-2", recallEmailTestNow)
+
+	expectedErr := errors.New("activity lookup failed")
+	callbackName := "recall_email_activity_lookup_failure_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, model.LOG_DB.Callback().Row().Before("gorm:row").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "Log" {
+			return
+		}
+		tx.AddError(expectedErr)
+	}))
+	t.Cleanup(func() { _ = model.LOG_DB.Callback().Row().Remove(callbackName) })
+
+	processed, err := fixture.worker.RunBatch(context.Background(), 10)
+
+	require.ErrorIs(t, err, expectedErr)
+	require.Zero(t, processed)
+	require.Empty(t, *fixture.sent)
+	for _, messageID := range []int64{fixture.message.Id, secondMessage.Id} {
+		stored := loadRecallEmailMessageByID(t, messageID)
+		require.Equal(t, model.RecallMessageScheduled, stored.State)
+		require.Empty(t, stored.LeaseOwner)
+		require.Zero(t, stored.LeaseExpiresAt)
+	}
+}
+
+func TestRecallEmailRunBatchReleasesLeasesAfterContextCancellation(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
+		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
+	}).Error)
+	_, _, secondMessage := addRecallEmailBatchMessage(t, fixture, "activity-cancel-2", recallEmailTestNow)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	callbackName := "recall_email_activity_cancel_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, model.LOG_DB.Callback().Row().After("gorm:row").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "Log" {
+			return
+		}
+		cancel()
+	}))
+	t.Cleanup(func() { _ = model.LOG_DB.Callback().Row().Remove(callbackName) })
+
+	processed, err := fixture.worker.RunBatch(ctx, 10)
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Zero(t, processed)
+	require.Empty(t, *fixture.sent)
+	for _, messageID := range []int64{fixture.message.Id, secondMessage.Id} {
+		stored := loadRecallEmailMessageByID(t, messageID)
+		require.Equal(t, model.RecallMessageScheduled, stored.State)
+		require.Empty(t, stored.LeaseOwner)
+		require.Zero(t, stored.LeaseExpiresAt)
+	}
+}
+
 func TestRecallEmailWorkerStopsAtSharedHourlyLimit(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
 	setRecallEmailHourlyLimit(t, 2)
@@ -899,6 +986,49 @@ func TestRecallEmailWorkerStopsAtSharedHourlyLimit(t *testing.T) {
 	require.NoError(t, statusErr)
 	require.Equal(t, 2, status.Used)
 	require.True(t, status.Exhausted)
+}
+
+func TestRecallEmailRunBatchDoesNotChurnExpiredLeaseWhileQuotaIsExhausted(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	setRecallEmailHourlyLimit(t, 1)
+	_, reserved, err := model.ReserveRecallEmailQuotaWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	require.True(t, reserved)
+	expiredLease := recallEmailTestNow - 30
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
+		"state":            model.RecallMessageLeased,
+		"lease_owner":      "expired-owner",
+		"lease_expires_at": expiredLease,
+	}).Error)
+
+	processed, err := fixture.worker.RunBatch(context.Background(), 10)
+
+	var waitErr *RecallEmailQuotaWaitError
+	require.ErrorAs(t, err, &waitErr)
+	require.Zero(t, processed)
+	require.Empty(t, *fixture.sent)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageLeased, stored.State)
+	require.Equal(t, "expired-owner", stored.LeaseOwner)
+	require.Equal(t, expiredLease, stored.LeaseExpiresAt)
+}
+
+func TestRecallEmailProcessLeasedDefersOwnedLeaseUntilQuotaReset(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	setRecallEmailHourlyLimit(t, 1)
+	_, reserved, err := model.ReserveRecallEmailQuotaWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	require.True(t, reserved)
+
+	err = fixture.worker.ProcessLeased(context.Background(), fixture.message.Id)
+
+	var waitErr *RecallEmailQuotaWaitError
+	require.ErrorAs(t, err, &waitErr)
+	require.Empty(t, *fixture.sent)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageLeased, stored.State)
+	require.Equal(t, fixture.worker.owner, stored.LeaseOwner)
+	require.Equal(t, waitErr.ResetsAt, stored.LeaseExpiresAt)
 }
 
 func TestRecallEmailWorkerPreSMTPCancellationDoesNotConsumeQuota(t *testing.T) {

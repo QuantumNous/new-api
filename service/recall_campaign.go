@@ -778,6 +778,9 @@ func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, a
 	if latest.ConfigRevision != request.ConfigRevision {
 		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d config revision changed during email translation", id)
 	}
+	if latest.Status != stored.Status {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d status changed during email translation", id)
+	}
 	latestDraft, err := recallCampaignDraftFromModel(latest)
 	if err != nil {
 		return RecallEmailGenerationResponse{}, err
@@ -789,12 +792,12 @@ func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, a
 	if err != nil {
 		return RecallEmailGenerationResponse{}, err
 	}
-	won, err := model.UpdateRecallCampaignEmailTranslationsWithContext(ctx, id, request.ConfigRevision, name, string(emailJSON))
+	won, err := model.UpdateRecallCampaignEmailTranslationsWithContext(ctx, id, stored.Status, request.ConfigRevision, name, string(emailJSON))
 	if err != nil {
 		return RecallEmailGenerationResponse{}, err
 	}
 	if !won {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d config revision changed during email translation", id)
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d status or config revision changed during email translation", id)
 	}
 	return RecallEmailGenerationResponse{
 		ConfigRevision: request.ConfigRevision + 1,

@@ -216,7 +216,7 @@ func SetApiRouter(router *gin.Engine) {
 			recallCampaignRoute.GET("/audience-users", controller.ListRecallAudienceUsers)
 			recallCampaignRoute.GET("/:id", controller.GetRecallCampaign)
 			recallCampaignRoute.PUT("/:id", controller.UpdateRecallCampaign)
-			recallCampaignRoute.POST("/:id/email-translations/generate", controller.GenerateRecallEmailTranslations)
+			recallCampaignRoute.POST("/:id/email-translations/generate", middleware.CriticalRateLimit(), controller.GenerateRecallEmailTranslations)
 			recallCampaignRoute.POST("/:id/preview", controller.PreviewRecallCampaign)
 			recallCampaignRoute.POST("/:id/activate", controller.ActivateRecallCampaign)
 			recallCampaignRoute.POST("/:id/pause", controller.PauseRecallCampaign)

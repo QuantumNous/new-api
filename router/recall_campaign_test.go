@@ -88,6 +88,58 @@ func TestRecallEmailQuotaStatusRouteAndGenerationRouteAreRegisteredWithAdminAuth
 	require.Less(t, quotaIndex, idIndex)
 }
 
+func TestRecallEmailTranslationGenerationRouteUsesCriticalRateLimit(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	previousRedisEnabled := common.RedisEnabled
+	previousGlobalEnabled := common.GlobalApiRateLimitEnable
+	previousCriticalEnabled := common.CriticalRateLimitEnable
+	previousCriticalLimit := common.CriticalRateLimitNum
+	common.RedisEnabled = false
+	common.GlobalApiRateLimitEnable = false
+	common.CriticalRateLimitEnable = true
+	common.CriticalRateLimitNum = 1
+	t.Cleanup(func() {
+		common.RedisEnabled = previousRedisEnabled
+		common.GlobalApiRateLimitEnable = previousGlobalEnabled
+		common.CriticalRateLimitEnable = previousCriticalEnabled
+		common.CriticalRateLimitNum = previousCriticalLimit
+	})
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-email-generation-rate-limit"))))
+	SetApiRouter(engine)
+	engine.GET("/login-admin", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set("id", 99)
+		session.Set("username", "recall-admin")
+		session.Set("role", common.RoleAdminUser)
+		session.Set("status", common.UserStatusEnabled)
+		session.Set("group", "default")
+		require.NoError(t, session.Save())
+		c.Status(http.StatusNoContent)
+	})
+
+	loginRecorder := httptest.NewRecorder()
+	engine.ServeHTTP(loginRecorder, httptest.NewRequest(http.MethodGet, "/login-admin", nil))
+	require.Equal(t, http.StatusNoContent, loginRecorder.Code)
+
+	requestGeneration := func() *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodPost, "/api/recall-campaigns/1/email-translations/generate", strings.NewReader("not-json"))
+		request.RemoteAddr = "192.0.2.88:1234"
+		request.Header.Set("New-Api-User", "99")
+		for _, sessionCookie := range loginRecorder.Result().Cookies() {
+			request.AddCookie(sessionCookie)
+		}
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	require.NotEqual(t, http.StatusTooManyRequests, requestGeneration().Code)
+	require.Equal(t, http.StatusTooManyRequests, requestGeneration().Code)
+}
+
 func TestRecallAudienceUsersRouteIsRegisteredBeforeIDRoute(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()

@@ -1041,6 +1041,35 @@ func TestGenerateRecallEmailTranslationsRejectsConcurrentRevisionWithoutPartialW
 	require.Equal(t, campaign.ConfigRevision+1, stored.ConfigRevision)
 }
 
+func TestGenerateRecallEmailTranslationsRejectsConcurrentStatusChangeWithoutPartialWrite(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	translator.translateFn = func(stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+		require.NoError(t, db.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).UpdateColumn("status", model.RecallCampaignRunning).Error)
+		return recallCampaignTestTranslations(stages), nil
+	}
+
+	_, err = service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         draft.Emails,
+	})
+
+	require.ErrorContains(t, err, "status")
+	stored, getErr := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, getErr)
+	require.Equal(t, model.RecallCampaignRunning, stored.Status)
+	require.Equal(t, campaign.EmailSequenceConfig, stored.EmailSequenceConfig)
+	require.Equal(t, campaign.ConfigRevision, stored.ConfigRevision)
+}
+
 func TestGenerateRecallEmailTranslationsUpdatesActiveCampaignAtomically(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

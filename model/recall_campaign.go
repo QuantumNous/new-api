@@ -253,9 +253,9 @@ func UpdateRecallCampaignEmailSequenceWithContext(ctx context.Context, id int64,
 	return result.RowsAffected == 1, nil
 }
 
-func UpdateRecallCampaignEmailTranslationsWithContext(ctx context.Context, id int64, expectedConfigRevision int64, name string, emailSequence string) (bool, error) {
+func UpdateRecallCampaignEmailTranslationsWithContext(ctx context.Context, id int64, expectedStatus string, expectedConfigRevision int64, name string, emailSequence string) (bool, error) {
 	result := DB.WithContext(ctx).Model(&RecallCampaign{}).
-		Where("id = ? AND status IN ? AND config_revision = ?", id, []string{
+		Where("id = ? AND status = ? AND status IN ? AND config_revision = ?", id, expectedStatus, []string{
 			RecallCampaignDraft,
 			RecallCampaignScheduled,
 			RecallCampaignRunning,

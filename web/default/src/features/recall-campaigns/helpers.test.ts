@@ -542,6 +542,19 @@ describe('recall campaign editor normalization', () => {
     })
   })
 
+  test('normalizes invalid intermediate duration values without producing NaN', () => {
+    expect(
+      recallPromotionDurationToSeconds({ days: Number.NaN, hours: 3 })
+    ).toBe(10_800)
+    expect(
+      recallPromotionDurationToSeconds({ days: 2, hours: Number.NaN })
+    ).toBe(172_800)
+    expect(recallPromotionSecondsToDuration(Number.NaN)).toEqual({
+      days: 0,
+      hours: 0,
+    })
+  })
+
   test('caps the displayed promotion expiry at coupon redeem-by', () => {
     const draft = makeValidDraft()
     draft.promotion_valid_seconds = 7_200

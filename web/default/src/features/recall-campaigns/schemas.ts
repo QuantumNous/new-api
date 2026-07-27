@@ -316,6 +316,15 @@ const productScopeSchema = z
   .strict()
 
 const MAX_BODY_HTML_BYTES = 100 * 1024
+const recallTargetLocaleSchema = z.enum([
+  'zh',
+  'es',
+  'fr',
+  'pt',
+  'ru',
+  'ja',
+  'vi',
+])
 
 const emailTemplateSchema = z
   .object({
@@ -368,7 +377,7 @@ const emailStageSchema = z
     template_version: z.number().int().min(1),
     source_revision: nonNegativeInteger.optional().default(0),
     translated_source_revision: nonNegativeInteger.optional().default(0),
-    manual_locales: z.array(z.string().trim().min(1)).optional().default([]),
+    manual_locales: z.array(recallTargetLocaleSchema).optional().default([]),
     templates: z.record(z.string().trim().min(1), emailTemplateSchema),
   })
   .strict()

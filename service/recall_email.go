@@ -163,11 +163,27 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 	if w.owner == "" {
 		return 0, fmt.Errorf("recall email worker owner is required")
 	}
+	quotaStatus, err := model.GetRecallEmailQuotaStatusWithContext(
+		ctx,
+		operation_setting.GetRecallCampaignSetting().EmailHourlyLimit,
+	)
+	if err != nil {
+		return 0, err
+	}
+	if quotaStatus.Exhausted {
+		return 0, &RecallEmailQuotaWaitError{ResetsAt: quotaStatus.ResetsAt}
+	}
 	now := w.now().Unix()
 	candidates, err := model.ListDueRecallMessages(now, limit)
 	if err != nil {
 		return 0, err
 	}
+	type leasedEmail struct {
+		item      *model.RecallEmailWorkItem
+		candidate model.RecallDueMessage
+	}
+	leased := make([]leasedEmail, 0, len(candidates))
+	activityChecks := make([]model.RecallAPIActivityCheck, 0, len(candidates))
 	processed := 0
 	var firstErr error
 	for _, candidate := range candidates {
@@ -196,26 +212,69 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 			}
 			continue
 		}
-		recentlyActive := false
+		leased = append(leased, leasedEmail{item: item, candidate: candidate})
 		if item.Recipient.UserId > 0 {
-			activeMessageIDs, activityErr := model.FindRecallMessageIDsWithAPIActivityAfterWithContext(ctx, []model.RecallAPIActivityCheck{{
+			activityChecks = append(activityChecks, model.RecallAPIActivityCheck{
 				MessageId: item.Message.Id,
 				UserId:    item.Recipient.UserId,
 				After:     item.Recipient.CreatedAt,
-			}}, w.audience.LogBatchSize)
-			if activityErr != nil {
-				processed++
-				if firstErr == nil {
-					firstErr = activityErr
-				}
+			})
+		}
+	}
+	releaseRemaining := func(releaseCtx context.Context, start int) error {
+		var firstReleaseErr error
+		for index := start; index < len(leased); index++ {
+			entry := leased[index]
+			released, releaseErr := model.ReleaseRecallMessageLeaseWithContext(
+				releaseCtx,
+				entry.item.Message.Id,
+				w.owner,
+				entry.item.Message.LeaseExpiresAt,
+				entry.candidate,
+			)
+			if releaseErr != nil && firstReleaseErr == nil {
+				firstReleaseErr = releaseErr
 				continue
 			}
-			_, recentlyActive = activeMessageIDs[item.Message.Id]
+			if !released && firstReleaseErr == nil {
+				firstReleaseErr = ErrRecallEmailLeaseLost
+			}
 		}
-		processErr := w.processLeasedItem(ctx, item, recentlyActive, &candidate)
+		return firstReleaseErr
+	}
+	releaseRemainingSafely := func(start int) error {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		return releaseRemaining(cleanupCtx, start)
+	}
+	activeMessageIDs, activityErr := model.FindRecallMessageIDsWithAPIActivityAfterWithContext(ctx, activityChecks, w.audience.LogBatchSize)
+	if activityErr != nil {
+		if firstErr == nil {
+			firstErr = activityErr
+		}
+		if releaseErr := releaseRemainingSafely(0); releaseErr != nil {
+			return processed, fmt.Errorf("%w; release recall email leases: %v", firstErr, releaseErr)
+		}
+		return processed, firstErr
+	}
+	for index, entry := range leased {
+		if err := ctx.Err(); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			if releaseErr := releaseRemainingSafely(index); releaseErr != nil {
+				firstErr = fmt.Errorf("%w; release remaining recall email leases: %v", firstErr, releaseErr)
+			}
+			break
+		}
+		_, recentlyActive := activeMessageIDs[entry.item.Message.Id]
+		processErr := w.processLeasedItem(ctx, entry.item, recentlyActive, &entry.candidate)
 		if processErr != nil {
 			var waitErr *RecallEmailQuotaWaitError
 			if errors.As(processErr, &waitErr) {
+				if releaseErr := releaseRemainingSafely(index + 1); releaseErr != nil {
+					return processed, fmt.Errorf("%w; release remaining recall email leases: %v", waitErr, releaseErr)
+				}
 				return processed, waitErr
 			}
 			processed++
@@ -425,14 +484,20 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	if expectedLeaseUntil <= w.now().Unix() {
 		return ErrRecallEmailLeaseLost
 	}
-	quotaStatus, reserved, err := model.ReserveRecallEmailQuotaWithContext(
+	attempt, err := model.BeginRecallEmailSMTPAttemptWithContext(
 		ctx,
+		item.Message.Id,
+		w.owner,
+		expectedLeaseUntil,
 		operation_setting.GetRecallCampaignSetting().EmailHourlyLimit,
 	)
 	if err != nil {
 		return err
 	}
-	if !reserved {
+	if !attempt.LeaseOwned {
+		return ErrRecallEmailLeaseLost
+	}
+	if !attempt.Reserved {
 		if candidate != nil {
 			released, releaseErr := model.ReleaseRecallMessageLeaseWithContext(
 				ctx,
@@ -447,15 +512,22 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 			if !released {
 				return ErrRecallEmailLeaseLost
 			}
+		} else if attempt.Quota.ResetsAt > expectedLeaseUntil {
+			deferred, deferErr := model.DeferRecallMessageLeaseWithContext(
+				ctx,
+				item.Message.Id,
+				w.owner,
+				expectedLeaseUntil,
+				attempt.Quota.ResetsAt,
+			)
+			if deferErr != nil {
+				return deferErr
+			}
+			if !deferred {
+				return ErrRecallEmailLeaseLost
+			}
 		}
-		return &RecallEmailQuotaWaitError{ResetsAt: quotaStatus.ResetsAt}
-	}
-	sending, err := model.MarkRecallMessageSendingWithContext(ctx, item.Message.Id, w.owner, expectedLeaseUntil)
-	if err != nil {
-		return err
-	}
-	if !sending {
-		return ErrRecallEmailLeaseLost
+		return &RecallEmailQuotaWaitError{ResetsAt: attempt.Quota.ResetsAt}
 	}
 
 	if err := w.sender(subject, item.Recipient.EmailSnapshot, htmlBody, providerMessageID); err != nil {

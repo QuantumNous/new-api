@@ -109,13 +109,29 @@ func LeaseDueRecallMessage(candidate RecallDueMessage, owner string, now int64, 
 }
 
 func ReleaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage) (bool, error) {
+	restoredState := candidate.State
+	updates := map[string]any{
+		"state":            restoredState,
+		"lease_owner":      "",
+		"lease_expires_at": int64(0),
+	}
+	if candidate.State == RecallMessageLeased {
+		updates["state"] = RecallMessageRetryWait
+		updates["next_attempt_at"] = candidate.EffectiveDueAt
+	}
 	result := DB.WithContext(ctx).Model(&RecallMessage{}).
 		Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, RecallMessageLeased, owner, expectedLeaseUntil).
-		Updates(map[string]any{
-			"state":            candidate.State,
-			"lease_owner":      "",
-			"lease_expires_at": candidate.PreviousLeaseExpires,
-		})
+		Updates(updates)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func DeferRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, deferUntil int64) (bool, error) {
+	result := DB.WithContext(ctx).Model(&RecallMessage{}).
+		Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, RecallMessageLeased, owner, expectedLeaseUntil).
+		Update("lease_expires_at", deferUntil)
 	if result.Error != nil {
 		return false, result.Error
 	}

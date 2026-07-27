@@ -268,9 +268,10 @@ export function useRecallCampaignMutations(id?: number) {
     onSuccess: invalidate,
   })
   const update = useMutation({
-    mutationFn: (draft: RecallCampaignDraft) => {
-      if (!id) throw new Error('Recall campaign ID is required')
-      return updateRecallCampaign(id, draft)
+    mutationFn: (value: { id?: number; draft: RecallCampaignDraft }) => {
+      const campaignID = value.id ?? id
+      if (!campaignID) throw new Error('Recall campaign ID is required')
+      return updateRecallCampaign(campaignID, value.draft)
     },
     onSuccess: invalidate,
   })

@@ -18,6 +18,8 @@ mock.module('./campaign-email-html-editor', () => ({
 
 const {
   CampaignTranslationWorkspace,
+  getRecallEmailEditorKey,
+  getRecallManualLocaleCount,
   getRecallTranslationSummary,
   getRecallWorkspaceLocaleStatus,
   markRecallManualLocale,
@@ -149,5 +151,20 @@ describe('CampaignTranslationWorkspace', () => {
     markRecallManualLocale(form, 0, 'es')
 
     expect(form.getValues('email_sequence.0.manual_locales')).toEqual(['es'])
+  })
+
+  test('counts only supported target languages as manual translations', () => {
+    const stage = makeStage()
+    stage.manual_locales = ['en', 'es', 'es', 'de']
+
+    expect(getRecallManualLocaleCount([stage])).toBe(1)
+  })
+
+  test('uses a distinct editor identity for every locale in a stage', () => {
+    expect(getRecallEmailEditorKey('stage-1', 'en')).toBe('stage-1-en')
+    expect(getRecallEmailEditorKey('stage-1', 'es')).toBe('stage-1-es')
+    expect(getRecallEmailEditorKey('stage-1', 'en')).not.toBe(
+      getRecallEmailEditorKey('stage-1', 'es')
+    )
   })
 })

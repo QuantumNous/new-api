@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -61,6 +61,21 @@ export function getRecallEmailQuotaPollInterval(
   if (!visible) return false
   if (!quota?.resets_at) return 60_000
   return Math.max(1_000, quota.resets_at * 1_000 - nowMilliseconds)
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function syncRecallEmailHourlyLimitFromServer(
+  inputValue: string,
+  confirmedLimit: number,
+  serverLimit: number
+): { inputValue: string; confirmedLimit: number } {
+  return {
+    inputValue:
+      inputValue === String(confirmedLimit)
+        ? String(serverLimit)
+        : inputValue,
+    confirmedLimit: serverLimit,
+  }
 }
 
 function createDefaultQuota(): RecallEmailQuotaStatus {
@@ -147,7 +162,7 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
   const [inputValue, setInputValue] = useState(
     String(DEFAULT_RECALL_EMAIL_HOURLY_LIMIT)
   )
-  const [confirmedLimit, setConfirmedLimit] = useState(
+  const confirmedLimitRef = useRef(
     DEFAULT_RECALL_EMAIL_HOURLY_LIMIT
   )
   const [error, setError] = useState('')
@@ -167,8 +182,18 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
 
   useEffect(() => {
     if (!quotaQuery.data?.data) return
-    setConfirmedLimit(quotaQuery.data.data.limit)
-    setInputValue(String(quotaQuery.data.data.limit))
+    const serverLimit = quotaQuery.data.data.limit
+    const previousConfirmedLimit = confirmedLimitRef.current
+    confirmedLimitRef.current = serverLimit
+    // Polling may update the confirmed value, but it must preserve an unsaved edit.
+    setInputValue(
+      (currentInput) =>
+        syncRecallEmailHourlyLimitFromServer(
+          currentInput,
+          previousConfirmedLimit,
+          serverLimit
+        ).inputValue
+    )
   }, [quotaQuery.data])
 
   const save = async () => {
@@ -184,7 +209,7 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
         value: String(limit),
       })
       if (!response.success) {
-        setInputValue(String(confirmedLimit))
+        setInputValue(String(confirmedLimitRef.current))
         setError(response.message || 'Failed to update setting')
         return
       }
@@ -193,7 +218,7 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
         success: true,
         data: nextQuota,
       })
-      setConfirmedLimit(limit)
+      confirmedLimitRef.current = limit
       setInputValue(String(limit))
       await Promise.all([
         queryClient.invalidateQueries({
@@ -202,7 +227,7 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
         queryClient.invalidateQueries({ queryKey: ['system-options'] }),
       ])
     } catch (updateError) {
-      setInputValue(String(confirmedLimit))
+      setInputValue(String(confirmedLimitRef.current))
       setError(
         updateError instanceof Error && updateError.message.trim()
           ? updateError.message

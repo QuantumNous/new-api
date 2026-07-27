@@ -4,6 +4,7 @@ import {
   useWatch,
   type UseFormReturn,
 } from 'react-hook-form'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,6 +28,7 @@ type RecallPromotionModeForm = Pick<
   'getValues' | 'setValue'
 >
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function setRecallPromotionExpiryMode(
   form: RecallPromotionModeForm,
   mode: RecallPromotionExpiryMode
@@ -78,10 +80,12 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 export function CampaignOfferValidityFields({
   form,
   immutable,
-  nowSeconds = Math.floor(Date.now() / 1_000),
+  nowSeconds,
   showMinimumAmount,
 }: CampaignOfferValidityFieldsProps) {
   const { t } = useTranslation()
+  const [mountedAtSeconds] = useState(() => Math.floor(Date.now() / 1_000))
+  const effectiveNowSeconds = nowSeconds ?? mountedAtSeconds
   const [mode, promotionExpiresAt, promotionValidSeconds, couponRedeemBy] =
     useWatch({
       control: form.control,
@@ -115,7 +119,7 @@ export function CampaignOfferValidityFields({
         coupon_redeem_by: couponRedeemBy,
       },
     },
-    nowSeconds
+    effectiveNowSeconds
   )
   const effectiveExpiryText =
     effectiveExpiry > 0

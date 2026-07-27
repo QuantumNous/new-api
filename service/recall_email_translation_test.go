@@ -77,8 +77,8 @@ func TestRecallEmailTranslationSendsOnlyVisibleHTMLSegments(t *testing.T) {
 		"Hello {{.RecipientName}}",
 		"{{.PromotionCodeMasked}} · {{.ProductSummary}} · {{.ExpiresAt}}",
 		"Claim offer",
-		"Support center",
 		"Get help",
+		"Support center",
 		"Help",
 		"Unsubscribe",
 	}, expectedHTMLSegments)

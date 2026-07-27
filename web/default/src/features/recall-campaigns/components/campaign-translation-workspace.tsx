@@ -82,6 +82,30 @@ export function getRecallTranslationSummary(
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
+export function getRecallManualLocaleCount(
+  stages: RecallEmailStage[]
+): number {
+  return stages.reduce(
+    (count, stage) =>
+      count +
+      new Set(
+        (stage.manual_locales ?? []).filter((locale) =>
+          isRecallTargetLocale(locale)
+        )
+      ).size,
+    0
+  )
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function getRecallEmailEditorKey(
+  stageID: string,
+  locale: string
+): string {
+  return `${stageID}-${locale}`
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
 export function markRecallManualLocale(
   form: UseFormReturn<RecallCampaignDraft>,
   stageIndex: number,
@@ -145,13 +169,12 @@ export function CampaignTranslationWorkspace(
     watchedStages,
     englishDirtyStages
   )
-  const manualCount = watchedStages.reduce(
-    (count, stage) => count + new Set(stage.manual_locales ?? []).size,
-    0
-  )
+  const manualCount = getRecallManualLocaleCount(watchedStages)
 
   useEffect(() => {
     if (!props.focusBlocker) return
+    // A new activation blocker is an imperative request to reveal its field.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveTab('translations')
     if (isRecallTargetLocale(props.focusBlocker.locale)) {
       setActiveTargetLocale(props.focusBlocker.locale)
@@ -200,7 +223,10 @@ export function CampaignTranslationWorkspace(
     const targetLocale = locale !== 'en'
 
     return (
-      <div className='space-y-3 rounded-lg border p-3' key={stage.id}>
+      <div
+        className='space-y-3 rounded-lg border p-3'
+        key={getRecallEmailEditorKey(stage.id, locale)}
+      >
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <strong>{t('Email stage {{stage}}', { stage: index + 1 })}</strong>
           <span className='text-muted-foreground text-xs'>
