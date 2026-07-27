@@ -195,6 +195,7 @@ const BILLING_SECTIONS = [
       <AffiliateSettingsSection
         defaultValues={{
           enabled: settings['affiliate_setting.enabled'],
+          rewardRateBps: settings['affiliate_setting.reward_rate_bps'],
           rewardMicros: settings['affiliate_setting.reward_micros'],
           minimumTopUpMicros:
             settings['affiliate_setting.minimum_topup_micros'],

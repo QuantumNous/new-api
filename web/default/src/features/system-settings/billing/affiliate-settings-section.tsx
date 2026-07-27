@@ -27,10 +27,12 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const MICROS_PER_UNIT = 1_000_000
 const SECONDS_PER_DAY = 86_400
+const BASIS_POINTS_PER_PERCENT = 100
 
 const schema = z.object({
   enabled: z.boolean(),
-  rewardAmount: z.coerce.number().min(0),
+  rewardRate: z.coerce.number().min(0).max(100),
+  maximumReward: z.coerce.number().min(0),
   minimumTopUp: z.coerce.number().min(0),
   holdDays: z.coerce.number().int().min(0).max(365),
   minimumWithdrawal: z.coerce.number().min(0),
@@ -41,6 +43,7 @@ type Values = z.infer<typeof schema>
 interface AffiliateSettingsSectionProps {
   defaultValues: {
     enabled: boolean
+    rewardRateBps: number
     rewardMicros: number
     minimumTopUpMicros: number
     holdSeconds: number
@@ -53,7 +56,8 @@ export function AffiliateSettingsSection(props: AffiliateSettingsSectionProps) {
   const updateOption = useUpdateOption()
   const defaults: Values = {
     enabled: props.defaultValues.enabled,
-    rewardAmount: props.defaultValues.rewardMicros / MICROS_PER_UNIT,
+    rewardRate: props.defaultValues.rewardRateBps / BASIS_POINTS_PER_PERCENT,
+    maximumReward: props.defaultValues.rewardMicros / MICROS_PER_UNIT,
     minimumTopUp: props.defaultValues.minimumTopUpMicros / MICROS_PER_UNIT,
     holdDays: Math.round(props.defaultValues.holdSeconds / SECONDS_PER_DAY),
     minimumWithdrawal:
@@ -73,9 +77,14 @@ export function AffiliateSettingsSection(props: AffiliateSettingsSectionProps) {
         changed: values.enabled !== defaults.enabled,
       },
       {
+        key: 'affiliate_setting.reward_rate_bps',
+        value: String(Math.round(values.rewardRate * BASIS_POINTS_PER_PERCENT)),
+        changed: values.rewardRate !== defaults.rewardRate,
+      },
+      {
         key: 'affiliate_setting.reward_micros',
-        value: String(Math.round(values.rewardAmount * MICROS_PER_UNIT)),
-        changed: values.rewardAmount !== defaults.rewardAmount,
+        value: String(Math.round(values.maximumReward * MICROS_PER_UNIT)),
+        changed: values.maximumReward !== defaults.maximumReward,
       },
       {
         key: 'affiliate_setting.minimum_topup_micros',
@@ -142,14 +151,36 @@ export function AffiliateSettingsSection(props: AffiliateSettingsSectionProps) {
             <div className='grid gap-6 sm:grid-cols-2'>
               <FormField
                 control={form.control}
-                name='rewardAmount'
+                name='rewardRate'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Cashback per referral')}</FormLabel>
+                    <FormLabel>{t('Cashback rate')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={100}
+                        step='0.01'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Percentage of the paid amount')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='maximumReward'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Maximum cashback per referral')}</FormLabel>
                     <FormControl>
                       <Input type='number' min={0} step='0.01' {...field} />
                     </FormControl>
-                    <FormDescription>{t('Amount in USD')}</FormDescription>
+                    <FormDescription>{t('Amount in CNY')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -164,7 +195,7 @@ export function AffiliateSettingsSection(props: AffiliateSettingsSectionProps) {
                       <Input type='number' min={0} step='0.01' {...field} />
                     </FormControl>
                     <FormDescription>
-                      {t('Minimum paid amount in USD')}
+                      {t('Minimum paid amount in CNY')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -195,7 +226,7 @@ export function AffiliateSettingsSection(props: AffiliateSettingsSectionProps) {
                     <FormControl>
                       <Input type='number' min={0} step='0.01' {...field} />
                     </FormControl>
-                    <FormDescription>{t('Amount in USD')}</FormDescription>
+                    <FormDescription>{t('Amount in CNY')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

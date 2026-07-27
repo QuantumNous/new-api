@@ -73,7 +73,7 @@ interface AffiliateCenterDialogProps {
 function formatMoney(micros: number, currency: string): string {
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
-    currency: currency || 'USD',
+    currency: currency || 'CNY',
   }).format(micros / MICROS_PER_UNIT)
 }
 
@@ -127,7 +127,7 @@ export function AffiliateCenterDialog(props: AffiliateCenterDialogProps) {
     }
   }
 
-  const currency = props.summary?.currency ?? 'USD'
+  const currency = props.summary?.currency ?? 'CNY'
   const account = props.summary?.account
   const statusLabels: Record<AffiliateWithdrawal['status'], string> = {
     pending: t('Pending'),

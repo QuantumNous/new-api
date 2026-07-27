@@ -36,7 +36,7 @@ const PAGE_SIZE = 20
 function formatMoney(micros: number, currency: string): string {
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
-    currency: currency || 'USD',
+    currency: currency || 'CNY',
   }).format(micros / 1_000_000)
 }
 
