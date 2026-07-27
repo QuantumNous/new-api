@@ -72,6 +72,7 @@ func insertPurchaseServiceUser(t *testing.T, id int, quota int) {
 	require.NoError(t, model.DB.Create(&model.User{
 		Id:       id,
 		Username: "purchase_user_" + t.Name(),
+		Email:    strings.NewReplacer("/", "_", " ", "_").Replace(t.Name()) + "@example.com",
 		Status:   common.UserStatusEnabled,
 		Quota:    quota,
 		Group:    "plg",
@@ -204,6 +205,7 @@ func TestPurchaseSubscriptionStripeRecurringResolvesRecallPromotionCode(t *testi
 	require.NoError(t, model.DB.Create(&model.User{
 		Id:       fixture.recipient.UserId,
 		Username: "purchase_recall_user",
+		Email:    fixture.recipient.EmailSnapshot,
 		Status:   common.UserStatusEnabled,
 		Group:    "plg",
 		AffCode:  "purchase_recall_aff",
@@ -231,7 +233,6 @@ func TestPurchaseSubscriptionStripeRecurringResolvesRecallPromotionCode(t *testi
 		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
 		Months:        1,
 		RequestID:     "stripe-purchase-recall",
-		RecallClaim:   fixture.claim,
 	})
 
 	require.NoError(t, err)
@@ -276,7 +277,6 @@ func TestQuoteSubscriptionPurchaseRecallFirstMonthPercentDiscountsOnlyOneMonth(t
 		PlanID:        plan.Id,
 		PaymentChoice: SubscriptionPaymentChoiceBalance,
 		Months:        3,
-		RecallClaim:   fixture.claim,
 	})
 
 	require.NoError(t, err)
@@ -342,7 +342,7 @@ func TestQuoteSubscriptionPurchaseRecallFirstMonthFixedDiscountHonorsCurrency(t 
 	}
 }
 
-func TestPurchaseSubscriptionRecallBalanceRequiresClaimAndChargesDiscountedQuote(t *testing.T) {
+func TestPurchaseSubscriptionRecallBalanceUsesAccountOfferAndChargesDiscountedQuote(t *testing.T) {
 	setupSubscriptionRecallPurchaseTestDB(t)
 	now := time.Now().UTC()
 	fixture := createRecallClaimFixture(t, now)
@@ -351,36 +351,12 @@ func TestPurchaseSubscriptionRecallBalanceRequiresClaimAndChargesDiscountedQuote
 	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
 		Update("stripe_price_id", "price_subscription").Error)
 
-	_, err := PurchaseSubscription(PurchaseSubscriptionCommand{
-		UserID:        fixture.recipient.UserId,
-		PlanID:        plan.Id,
-		PaymentChoice: SubscriptionPaymentChoiceBalance,
-		Months:        3,
-		RequestID:     "recall-balance-missing-claim",
-		VerifiedQuote: &SubscriptionPurchaseQuote{
-			Currency:                 "USD",
-			UnitPrice:                1,
-			UnitAmountMinor:          100,
-			OriginalTotal:            3,
-			OriginalTotalAmountMinor: 300,
-			DiscountAmount:           0.20,
-			DiscountAmountMinor:      20,
-			Total:                    2.80,
-			PaymentAmountMinor:       280,
-			RecallCampaignID:         fixture.campaign.Id,
-			RecallRecipientID:        fixture.recipient.Id,
-		},
-	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "recall")
-
 	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
 		UserID:        fixture.recipient.UserId,
 		PlanID:        plan.Id,
 		PaymentChoice: SubscriptionPaymentChoiceBalance,
 		Months:        3,
-		RequestID:     "recall-balance-discounted",
-		RecallClaim:   fixture.claim,
+		RequestID:     "recall-balance-no-claim",
 		VerifiedQuote: &SubscriptionPurchaseQuote{
 			Currency:                 "USD",
 			UnitPrice:                1,
@@ -395,15 +371,82 @@ func TestPurchaseSubscriptionRecallBalanceRequiresClaimAndChargesDiscountedQuote
 			RecallRecipientID:        fixture.recipient.Id,
 		},
 	})
-
 	require.NoError(t, err)
 	require.Equal(t, int64(280), result.Order.PaymentAmountMinor)
 	require.Equal(t, float64(2.80), result.Order.Money)
+
 	var user model.User
 	require.NoError(t, model.DB.First(&user, "id = ?", fixture.recipient.UserId).Error)
 	require.Equal(t, 49720, user.Quota)
-	require.NotEqual(t, 49700, user.Quota)
-	require.NotEqual(t, 49760, user.Quota)
+}
+
+func TestPurchaseSubscriptionRecallSuppliedWeakerClaimDoesNotOverrideBestAccountOffer(t *testing.T) {
+	setupSubscriptionRecallPurchaseTestDB(t)
+	now := time.Now().UTC()
+	user := model.User{
+		Id:       753601,
+		Username: "purchase_best_offer_user",
+		Email:    "purchase-best-offer@example.com",
+		Status:   common.UserStatusEnabled,
+		Quota:    50000,
+		Group:    "plg",
+	}
+	require.NoError(t, model.DB.Create(&user).Error)
+	weaker := createRecallOfferFixture(t, user, now.Add(-time.Minute), "subscription weak", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 10},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}}, nil)
+	stronger := createRecallOfferFixture(t, user, now, "subscription strong", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 30},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}}, nil)
+	weakClaim := strings.Repeat("w", 48)
+	weakHash := recallClaimHash(weakClaim)
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", weaker.recipient.Id).
+		Update("claim_token_hash", weakHash).Error)
+	plan := insertPurchaseServicePlan(t, 7536, 1, 1, 100)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription").Error)
+
+	quote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        user.Id,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        3,
+		RecallClaim:   weakClaim,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(30), quote.DiscountAmountMinor)
+	require.Equal(t, stronger.campaign.Id, quote.RecallCampaignID)
+	require.Equal(t, stronger.recipient.Id, quote.RecallRecipientID)
+
+	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        user.Id,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        3,
+		RequestID:     "recall-balance-best-offer",
+		RecallClaim:   weakClaim,
+		VerifiedQuote: &SubscriptionPurchaseQuote{
+			Currency:                 quote.Currency,
+			UnitPrice:                quote.UnitPrice,
+			UnitAmountMinor:          quote.UnitAmountMinor,
+			OriginalTotal:            quote.OriginalTotal,
+			OriginalTotalAmountMinor: quote.OriginalTotalAmountMinor,
+			DiscountAmount:           quote.DiscountAmount,
+			DiscountAmountMinor:      quote.DiscountAmountMinor,
+			Total:                    quote.Total,
+			PaymentAmountMinor:       quote.PaymentAmountMinor,
+			RecallCampaignID:         quote.RecallCampaignID,
+			RecallRecipientID:        quote.RecallRecipientID,
+			RecallPromotionCodeID:    "promo_subscription_strong",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(270), result.Order.PaymentAmountMinor)
+	require.Equal(t, stronger.campaign.Id, result.Order.RecallCampaignId)
+	require.Equal(t, stronger.recipient.Id, result.Order.RecallRecipientId)
+	require.Equal(t, "promo_subscription_strong", result.Order.RecallPromotionCodeId)
 }
 
 func TestPurchaseSubscriptionRecallOneTimeOrderPersistsAttributionFields(t *testing.T) {
@@ -421,7 +464,6 @@ func TestPurchaseSubscriptionRecallOneTimeOrderPersistsAttributionFields(t *test
 		PaymentChoice: SubscriptionPaymentChoiceAlipay,
 		Months:        3,
 		RequestID:     "recall-one-time-persist",
-		RecallClaim:   fixture.claim,
 		VerifiedQuote: discountedRecallPurchaseQuote(fixture, 1, 3, 20),
 	})
 

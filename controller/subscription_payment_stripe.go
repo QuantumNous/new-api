@@ -89,6 +89,27 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		}
 	}
 
+	service.RecordRecallClaimAttribution(c.Request.Context(), userId, req.RecallClaim)
+	firstPeriodSubtotalMinor, err := stripeMinorUnitAmount(plan.PriceAmount, plan.Currency)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	resolvedRecallOffer, err := service.GetRecallRuntime().Claims.ResolveBestRecallOffer(
+		c.Request.Context(),
+		userId,
+		service.RecallPurchaseKindSubscription,
+		strings.TrimSpace(plan.StripePriceId),
+		strings.ToUpper(strings.TrimSpace(plan.Currency)),
+		firstPeriodSubtotalMinor,
+	)
+	if err != nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe subscription recall offer resolution failed user_id=%d plan_id=%d price_id=%s error=%q", userId, plan.Id, plan.StripePriceId, err.Error()))
+		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable))
+		return
+	}
+	recallDiscount := service.RecallCheckoutDiscountFromResolvedOffer(resolvedRecallOffer)
+
 	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
@@ -104,24 +125,6 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	if err := model.CreateSubscriptionOrderWithInviteDiscount(order, plan.PriceAmount, 0); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return
-	}
-
-	var recallDiscount *service.RecallCheckoutDiscount
-	if strings.TrimSpace(req.RecallClaim) != "" {
-		recallDiscount, err = service.GetRecallRuntime().Claims.BuildCheckoutDiscount(
-			c.Request.Context(),
-			userId,
-			req.RecallClaim,
-			service.RecallPurchaseKindSubscription,
-			plan.StripePriceId,
-		)
-		if err != nil {
-			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe subscription recall claim rejected user_id=%d trade_no=%s plan_id=%d error=%q", userId, referenceId, plan.Id, err.Error()))
-			order.Status = common.TopUpStatusFailed
-			_ = order.Update()
-			c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable)})
-			return
-		}
 	}
 
 	checkoutSession, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId, userId, plan.Id, order.DiscountUSD, recallDiscount)

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"net/http"
@@ -85,6 +86,90 @@ func TestSubscriptionStripeRecallPromotionCode(t *testing.T) {
 	require.Equal(t, "84", params.Metadata["recall_recipient_id"])
 }
 
+func TestSubscriptionStripeNoClaimAppliesBestAccountRecallOffer(t *testing.T) {
+	backend := setupSubscriptionStripeRecordingBackend(t)
+	setupSubscriptionRecallClaimDB(t)
+	confirmPaymentComplianceForTest(t)
+	enableRecallCampaignForControllerTest(t)
+	originalGate := common.SubscriptionSingleContractEnabled
+	common.SubscriptionSingleContractEnabled = false
+	t.Cleanup(func() { common.SubscriptionSingleContractEnabled = originalGate })
+
+	originalWebhookSecret := setting.StripeWebhookSecret
+	setting.StripeWebhookSecret = "whsec_subscription_test"
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalWebhookSecret
+	})
+
+	const userID = 710101
+	const planID = 910101
+	user := model.User{
+		Id:       userID,
+		Username: "subscription_best_offer_user",
+		Email:    "subscription-best-offer@example.com",
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, model.DB.Create(&user).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Id:            planID,
+		Title:         "Subscription best offer test",
+		PriceAmount:   29,
+		Currency:      "USD",
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		StripePriceId: "price_subscription",
+	}).Error)
+	model.InvalidateSubscriptionPlanCache(planID)
+	seedControllerSubscriptionRecallOffer(t, user, "subscription weak", service.RecallDiscountConfig{Type: "percent", PercentOff: 10}, "price_subscription", "promo_subscription_weak", model.RecallRecipientContacting)
+	strongerCampaign, strongerRecipient := seedControllerSubscriptionRecallOffer(t, user, "subscription strong", service.RecallDiscountConfig{Type: "percent", PercentOff: 25}, "price_subscription", "promo_subscription_strong", model.RecallRecipientContacting)
+	resolved, err := service.GetRecallRuntime().Claims.ResolveBestRecallOffer(
+		context.Background(),
+		userID,
+		service.RecallPurchaseKindSubscription,
+		"price_subscription",
+		"USD",
+		2900,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+	require.Equal(t, strongerRecipient.Id, resolved.View.RecipientID)
+	handlerPlan, err := model.GetSubscriptionPlanById(planID)
+	require.NoError(t, err)
+	handlerSubtotal, err := stripeMinorUnitAmount(handlerPlan.PriceAmount, handlerPlan.Currency)
+	require.NoError(t, err)
+	handlerResolved, err := service.GetRecallRuntime().Claims.ResolveBestRecallOffer(
+		context.Background(),
+		userID,
+		service.RecallPurchaseKindSubscription,
+		strings.TrimSpace(handlerPlan.StripePriceId),
+		strings.ToUpper(strings.TrimSpace(handlerPlan.Currency)),
+		handlerSubtotal,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, handlerResolved)
+	require.Equal(t, strongerRecipient.Id, handlerResolved.View.RecipientID)
+
+	body, err := common.Marshal(SubscriptionStripePayRequest{PlanId: planID})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/subscription/stripe/pay", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", userID)
+
+	SubscriptionRequestStripePay(ctx)
+
+	require.Len(t, backend.params, 1)
+	params := backend.params[0]
+	require.Len(t, params.Discounts, 1)
+	require.Equal(t, "promo_subscription_strong", *params.Discounts[0].PromotionCode)
+	require.Equal(t, fmt.Sprintf("%d", strongerCampaign.Id), params.Metadata["recall_campaign_id"])
+	require.Equal(t, fmt.Sprintf("%d", strongerRecipient.Id), params.Metadata["recall_recipient_id"])
+	require.Equal(t, params.Metadata["recall_campaign_id"], params.SubscriptionData.Metadata["recall_campaign_id"])
+	require.Equal(t, params.Metadata["recall_recipient_id"], params.SubscriptionData.Metadata["recall_recipient_id"])
+}
+
 func TestSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testing.T) {
 	for _, tc := range []struct {
 		language string
@@ -94,12 +179,12 @@ func TestSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testin
 		{language: "zh-CN", message: "此优惠无效、已过期或不适用于本次购买。"},
 	} {
 		t.Run(tc.language, func(t *testing.T) {
-			testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t, tc.language, tc.message)
+			testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t, tc.language)
 		})
 	}
 }
 
-func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testing.T, language string, expectedMessage string) {
+func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testing.T, language string) {
 	t.Helper()
 	require.NoError(t, i18n.Init())
 	originalSingleContractEnabled := common.SubscriptionSingleContractEnabled
@@ -109,6 +194,9 @@ func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testin
 	setupSubscriptionRecallClaimDB(t)
 	confirmPaymentComplianceForTest(t)
 	enableRecallCampaignForControllerTest(t)
+	originalGate := common.SubscriptionSingleContractEnabled
+	common.SubscriptionSingleContractEnabled = false
+	t.Cleanup(func() { common.SubscriptionSingleContractEnabled = originalGate })
 
 	originalWebhookSecret := setting.StripeWebhookSecret
 	setting.StripeWebhookSecret = "whsec_subscription_test"
@@ -176,12 +264,46 @@ func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testin
 
 	SubscriptionRequestStripePay(ctx)
 
-	require.Empty(t, backend.params, "a wrong-scope recall claim must stop before Stripe Checkout creation")
+	require.Len(t, backend.params, 1)
+	require.Empty(t, backend.params[0].Discounts)
 	responseBody := recorder.Body.String()
-	require.Contains(t, responseBody, `"message":"error"`)
-	require.Contains(t, responseBody, expectedMessage)
+	require.Contains(t, responseBody, `"message":"success"`)
 	require.NotContains(t, responseBody, service.ErrRecallClaimWrongPrice.Error())
 	require.NotContains(t, responseBody, claim)
+}
+
+func seedControllerSubscriptionRecallOffer(t *testing.T, user model.User, name string, discount service.RecallDiscountConfig, subscriptionPriceID string, promotionCodeID string, state string) (model.RecallCampaign, model.RecallRecipient) {
+	t.Helper()
+	discountJSON, err := common.Marshal(discount)
+	require.NoError(t, err)
+	productsJSON, err := common.Marshal(service.RecallProductScope{SubscriptionPriceIDs: []string{subscriptionPriceID}})
+	require.NoError(t, err)
+	campaign := model.RecallCampaign{
+		Name:                name,
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "specified_users",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "automatic",
+		DiscountConfig:      string(discountJSON),
+		ProductScope:        string(productsJSON),
+		EmailSequenceConfig: `[]`,
+	}
+	require.NoError(t, model.DB.Create(&campaign).Error)
+	recipient := model.RecallRecipient{
+		CampaignId:            campaign.Id,
+		UserId:                user.Id,
+		EligibilitySnapshot:   `{}`,
+		EmailSnapshot:         user.Email,
+		LanguageSnapshot:      "en",
+		State:                 state,
+		StripePromotionCodeId: &promotionCodeID,
+		PromotionCode:         "FK" + strings.ToUpper(strings.ReplaceAll(name, " ", "")) + "234",
+		PromotionExpiresAt:    time.Now().Add(time.Hour).Unix(),
+		PromotionIssuedAt:     time.Now().Add(-time.Minute).Unix(),
+	}
+	require.NoError(t, model.DB.Create(&recipient).Error)
+	return campaign, recipient
 }
 
 func setupSubscriptionRecallClaimDB(t *testing.T) {

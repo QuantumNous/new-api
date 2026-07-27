@@ -31,6 +31,8 @@ type StripeSubscriptionCheckoutInput struct {
 	CustomerID     string
 	Email          string
 	PriceID        string
+	Currency       string
+	SubtotalMinor  int64
 	IdempotencyKey string
 	Presentation   StripeCheckoutPresentation
 	RecallDiscount *RecallCheckoutDiscount

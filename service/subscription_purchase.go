@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -84,6 +85,27 @@ type SubscriptionPurchaseQuoteResult struct {
 	RecallRecipientID        int64   `json:"recall_recipient_id,omitempty"`
 }
 
+func RecallCheckoutDiscountFromResolvedOffer(offer *RecallResolvedOffer) *RecallCheckoutDiscount {
+	if offer == nil {
+		return nil
+	}
+	return &RecallCheckoutDiscount{
+		PromotionCodeID: offer.PromotionCodeID,
+		CampaignID:      offer.View.CampaignID,
+		RecipientID:     offer.View.RecipientID,
+	}
+}
+
+func RecordRecallClaimAttribution(ctx context.Context, userID int, claim string) {
+	claim = strings.TrimSpace(claim)
+	if claim == "" {
+		return
+	}
+	if _, err := GetRecallRuntime().Claims.ValidateClaim(ctx, userID, claim); err != nil {
+		common.SysLog(fmt.Sprintf("recall claim attribution ignored user_id=%d error=%q", userID, err.Error()))
+	}
+}
+
 type purchasePlanSnapshot struct {
 	PlanID              int     `json:"plan_id"`
 	Title               string  `json:"title"`
@@ -152,7 +174,7 @@ func QuoteSubscriptionPurchase(cmd PurchaseSubscriptionCommand) (*SubscriptionPu
 	if err != nil {
 		return nil, err
 	}
-	if result != nil && result.Available && strings.TrimSpace(cmd.RecallClaim) != "" && planSnapshot != nil {
+	if result != nil && result.Available && planSnapshot != nil {
 		quote := SubscriptionPurchaseQuote{
 			Currency:                 result.Currency,
 			UnitPrice:                result.UnitPrice,
@@ -837,14 +859,9 @@ func validateAuthoritativeSubscriptionPurchaseQuote(ctx context.Context, cmd Pur
 	if err != nil {
 		return SubscriptionPurchaseQuote{}, err
 	}
-	if cmd.VerifiedQuote.DiscountAmountMinor > 0 && strings.TrimSpace(cmd.RecallClaim) == "" {
-		return SubscriptionPurchaseQuote{}, errors.New("recall claim is required for discounted subscription purchase quote")
-	}
-	if strings.TrimSpace(cmd.RecallClaim) != "" {
-		expected, err = applyRecallFirstMonthDiscount(ctx, cmd.UserID, cmd.RecallClaim, *plan, expected)
-		if err != nil {
-			return SubscriptionPurchaseQuote{}, err
-		}
+	expected, err = applyRecallFirstMonthDiscount(ctx, cmd.UserID, cmd.RecallClaim, *plan, expected)
+	if err != nil {
+		return SubscriptionPurchaseQuote{}, err
 	}
 	tokenQuote, err := validateSubscriptionPurchaseQuoteForChoice(*cmd.VerifiedQuote, cmd.PaymentChoice, cmd.Months)
 	if err != nil {
@@ -870,14 +887,13 @@ func validateSubscriptionPurchaseQuoteMatchesPlan(plan model.SubscriptionPlan, c
 }
 
 func applyRecallFirstMonthDiscount(ctx context.Context, userID int, claim string, plan model.SubscriptionPlan, quote SubscriptionPurchaseQuote) (SubscriptionPurchaseQuote, error) {
-	claim = strings.TrimSpace(claim)
-	if claim == "" {
+	RecordRecallClaimAttribution(ctx, userID, claim)
+	if !operation_setting.IsRecallCampaignEnabled() || strings.TrimSpace(plan.StripePriceId) == "" {
 		return quote, nil
 	}
-	discount, err := GetRecallRuntime().Claims.BuildFirstMonthPurchaseDiscount(
+	offer, err := GetRecallRuntime().Claims.ResolveBestRecallOffer(
 		ctx,
 		userID,
-		claim,
 		RecallPurchaseKindSubscription,
 		strings.TrimSpace(plan.StripePriceId),
 		quote.Currency,
@@ -886,17 +902,17 @@ func applyRecallFirstMonthDiscount(ctx context.Context, userID int, claim string
 	if err != nil {
 		return SubscriptionPurchaseQuote{}, err
 	}
-	if discount == nil || discount.DiscountAmountMinor <= 0 {
+	if offer == nil || offer.DiscountMinor <= 0 {
 		return quote, nil
 	}
-	discountMinor := discount.DiscountAmountMinor
+	discountMinor := offer.DiscountMinor
 	quote.DiscountAmountMinor = discountMinor
 	quote.DiscountAmount = float64(discountMinor) / 100
 	quote.PaymentAmountMinor = quote.OriginalTotalAmountMinor - discountMinor
 	quote.Total = float64(quote.PaymentAmountMinor) / 100
-	quote.RecallCampaignID = discount.CampaignID
-	quote.RecallRecipientID = discount.RecipientID
-	quote.RecallPromotionCodeID = discount.PromotionCodeID
+	quote.RecallCampaignID = offer.View.CampaignID
+	quote.RecallRecipientID = offer.View.RecipientID
+	quote.RecallPromotionCodeID = offer.PromotionCodeID
 	return quote, nil
 }
 
