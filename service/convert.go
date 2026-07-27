@@ -260,6 +260,75 @@ func claudeToolChoiceToOpenAI(rawChoice any) (any, *bool, error) {
 	}
 }
 
+// closeOpenClaudeBlocks emits the required content_block_stop event(s) for the currently open
+// block(s) according to Anthropic's SSE streaming state machine:
+// content_block_start -> content_block_delta* -> content_block_stop (per index).
+//
+// For text/thinking, there is at most one open block at info.ClaudeConvertInfo.Index.
+// For tools, OpenAI tool_calls can stream multiple parallel tool_use blocks (indexed from 0),
+// so we may have multiple open blocks and must stop each one explicitly.
+func closeOpenClaudeBlocks(info *relaycommon.RelayInfo) []*dto.ClaudeResponse {
+	var responses []*dto.ClaudeResponse
+	switch info.ClaudeConvertInfo.LastMessagesType {
+	case relaycommon.LastMessageTypeText, relaycommon.LastMessageTypeThinking:
+		responses = append(responses, generateStopBlock(info.ClaudeConvertInfo.Index))
+	case relaycommon.LastMessageTypeTools:
+		base := info.ClaudeConvertInfo.ToolCallBaseIndex
+		for offset := 0; offset <= info.ClaudeConvertInfo.ToolCallMaxIndexOffset; offset++ {
+			responses = append(responses, generateStopBlock(base+offset))
+		}
+	}
+	return responses
+}
+
+// setClaudeMessageType 记录当前输出的内容块类型，并标记是否已产出实际答复内容。
+func setClaudeMessageType(info *relaycommon.RelayInfo, messageType string) {
+	info.ClaudeConvertInfo.LastMessagesType = messageType
+	if messageType == relaycommon.LastMessageTypeText || messageType == relaycommon.LastMessageTypeTools {
+		info.ClaudeConvertInfo.HasEmittedAnswer = true
+	}
+}
+
+// CanFinalizeClaudeStreamWithoutFinishReason 判断上游没有给出 finish_reason 时，
+// 是否可以安全地兜底收尾：要求上游明确下发过 [DONE]，且已经输出过实际答复内容。
+// 只产出 thinking 就断流的情况不满足条件，应按异常处理，避免用假的 end_turn 掩盖截断。
+//
+// 这里刻意不用 StreamStatus.IsNormalEnd()：它同时放行 eof 与 handler_stop。
+// eof 表示连接在没有 [DONE] 哨兵的情况下关闭（即截断），handler_stop 更是致命错误路径，
+// 两者都不能补一个假的收尾事件。
+func CanFinalizeClaudeStreamWithoutFinishReason(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ClaudeConvertInfo == nil {
+		return false
+	}
+	if info.StreamStatus == nil || info.StreamStatus.EndReason != relaycommon.StreamEndReasonDone {
+		return false
+	}
+	return info.ClaudeConvertInfo.HasEmittedAnswer
+}
+
+// FinalizeClaudeStreamWithoutFinishReason 在上游正常收尾却没有下发 finish_reason 时，
+// 按已产出的内容类型补齐 Anthropic 协议要求的收尾事件。
+func FinalizeClaudeStreamWithoutFinishReason(info *relaycommon.RelayInfo, usage *dto.Usage) []*dto.ClaudeResponse {
+	stopReason := "end_turn"
+	if info.ClaudeConvertInfo.LastMessagesType == relaycommon.LastMessageTypeTools {
+		stopReason = "tool_use"
+	}
+
+	responses := closeOpenClaudeBlocks(info)
+	responses = append(responses, &dto.ClaudeResponse{
+		Type:  "message_delta",
+		Usage: buildClaudeUsageFromOpenAIUsage(usage),
+		Delta: &dto.ClaudeMediaMessage{
+			StopReason: common.GetPointer[string](stopReason),
+		},
+	})
+	responses = append(responses, &dto.ClaudeResponse{
+		Type: "message_stop",
+	})
+	info.ClaudeConvertInfo.Done = true
+	return responses
+}
+
 func generateStopBlock(index int) *dto.ClaudeResponse {
 	return &dto.ClaudeResponse{
 		Type:  "content_block_stop",
@@ -302,23 +371,8 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	}
 
 	var claudeResponses []*dto.ClaudeResponse
-	// stopOpenBlocks emits the required content_block_stop event(s) for the currently open block(s)
-	// according to Anthropic's SSE streaming state machine:
-	// content_block_start -> content_block_delta* -> content_block_stop (per index).
-	//
-	// For text/thinking, there is at most one open block at info.ClaudeConvertInfo.Index.
-	// For tools, OpenAI tool_calls can stream multiple parallel tool_use blocks (indexed from 0),
-	// so we may have multiple open blocks and must stop each one explicitly.
 	stopOpenBlocks := func() {
-		switch info.ClaudeConvertInfo.LastMessagesType {
-		case relaycommon.LastMessageTypeText, relaycommon.LastMessageTypeThinking:
-			claudeResponses = append(claudeResponses, generateStopBlock(info.ClaudeConvertInfo.Index))
-		case relaycommon.LastMessageTypeTools:
-			base := info.ClaudeConvertInfo.ToolCallBaseIndex
-			for offset := 0; offset <= info.ClaudeConvertInfo.ToolCallMaxIndexOffset; offset++ {
-				claudeResponses = append(claudeResponses, generateStopBlock(base+offset))
-			}
-		}
+		claudeResponses = append(claudeResponses, closeOpenClaudeBlocks(info)...)
 	}
 	// stopOpenBlocksAndAdvance closes the currently open block(s) and advances the content block index
 	// to the next available slot for subsequent content_block_start events.
@@ -378,7 +432,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		//	Type: "ping",
 		//})
 		if openAIResponse.IsToolCall() {
-			info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeTools
+			setClaudeMessageType(info, relaycommon.LastMessageTypeTools)
 			info.ClaudeConvertInfo.ToolCallBaseIndex = 0
 			info.ClaudeConvertInfo.ToolCallMaxIndexOffset = 0
 			var toolCall dto.ToolCallResponse
@@ -468,7 +522,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 						Text: common.GetPointer[string](content),
 					},
 				})
-				info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeText
+				setClaudeMessageType(info, relaycommon.LastMessageTypeText)
 			}
 		}
 
@@ -513,7 +567,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				info.ClaudeConvertInfo.ToolCallBaseIndex = info.ClaudeConvertInfo.Index
 				info.ClaudeConvertInfo.ToolCallMaxIndexOffset = 0
 			}
-			info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeTools
+			setClaudeMessageType(info, relaycommon.LastMessageTypeTools)
 			base := info.ClaudeConvertInfo.ToolCallBaseIndex
 			maxOffset := info.ClaudeConvertInfo.ToolCallMaxIndexOffset
 
@@ -591,7 +645,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 							},
 						})
 					}
-					info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeText
+					setClaudeMessageType(info, relaycommon.LastMessageTypeText)
 					claudeResponse.Delta = &dto.ClaudeMediaMessage{
 						Type: "text_delta",
 						Text: common.GetPointer[string](textContent),

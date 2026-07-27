@@ -148,6 +148,70 @@ func TestStreamResponseOpenAI2ClaudeFinishesAfterUsageOnlyChunk(t *testing.T) {
 	require.Equal(t, "message_stop", usageResponses[2].Type)
 }
 
+// HasEmittedAnswer 只应在产出实际答复内容（text / tool_use）时置位，
+// 仅有 thinking 不算，供上游缺少 finish_reason 时判断能否安全兜底收尾。
+func TestStreamResponseOpenAI2ClaudeTracksEmittedAnswer(t *testing.T) {
+	reasoning := "thinking only"
+	content := "hello"
+	toolIndex := 0
+
+	tests := []struct {
+		name  string
+		delta dto.ChatCompletionsStreamResponseChoiceDelta
+		want  bool
+	}{
+		{
+			name:  "thinking does not count",
+			delta: dto.ChatCompletionsStreamResponseChoiceDelta{ReasoningContent: &reasoning},
+			want:  false,
+		},
+		{
+			name:  "text counts",
+			delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: &content},
+			want:  true,
+		},
+		{
+			name: "tool call counts",
+			delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+				ToolCalls: []dto.ToolCallResponse{
+					{
+						Index:    &toolIndex,
+						ID:       "call_bash",
+						Type:     "function",
+						Function: dto.FunctionResponse{Name: "Bash", Arguments: "{}"},
+					},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{
+					LastMessagesType: relaycommon.LastMessageTypeNone,
+				},
+				SendResponseCount: 2,
+			}
+
+			StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+				Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: test.delta}},
+			}, info)
+
+			require.Equal(t, test.want, info.ClaudeConvertInfo.HasEmittedAnswer)
+			require.Equal(t, test.want, CanFinalizeClaudeStreamWithoutFinishReason(withNormalStreamEnd(info)))
+		})
+	}
+}
+
+func withNormalStreamEnd(info *relaycommon.RelayInfo) *relaycommon.RelayInfo {
+	status := relaycommon.NewStreamStatus()
+	status.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+	info.StreamStatus = status
+	return info
+}
+
 // 上游把 tool_calls 与 finish_reason 放在同一个 chunk 时（GLM 未开启 tool_stream 时的常见形态），
 // 该 chunk 的工具调用内容必须照常转换，不能因为 chunk 自身没带 usage 就被整块丢弃。
 func TestStreamResponseOpenAI2ClaudeKeepsToolCallsOnFinishChunk(t *testing.T) {
