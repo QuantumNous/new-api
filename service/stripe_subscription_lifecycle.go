@@ -28,6 +28,7 @@ func CancelStripeRecurringSubscription(userID int, bindingID int64) (*model.Subs
 	if err != nil {
 		return nil, err
 	}
+	expectedLifecycleActionSeq := binding.LifecycleActionSeq
 	idempotencyKey := recurringLifecycleIdempotencyKey(binding, "cancel")
 	if strings.EqualFold(binding.ProviderStatus, "past_due") {
 		snapshot, err := stripeCancelSubscriptionNow(binding.ProviderSubscriptionId, idempotencyKey)
@@ -44,19 +45,19 @@ func CancelStripeRecurringSubscription(userID int, bindingID int64) (*model.Subs
 		if !hasPendingDowngrade {
 			return nil, err
 		}
-		return resolvePendingDowngradeAfterCancelAttempt(binding, downgrade, err)
+		return resolvePendingDowngradeAfterCancelAttempt(binding, expectedLifecycleActionSeq, downgrade, err)
 	}
 	snapshot, err := stripeUpdateSubscriptionCancelAtPeriodEnd(binding.ProviderSubscriptionId, true, idempotencyKey)
 	if !hasPendingDowngrade {
 		if err != nil {
 			return nil, err
 		}
-		return model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot)
+		return model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, expectedLifecycleActionSeq, snapshot)
 	}
-	return resolvePendingDowngradeAfterCancelAttempt(binding, downgrade, err)
+	return resolvePendingDowngradeAfterCancelAttempt(binding, expectedLifecycleActionSeq, downgrade, err)
 }
 
-func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProviderBinding, downgrade model.SubscriptionChangeIntent, updateErr error) (*model.SubscriptionProviderBinding, error) {
+func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProviderBinding, expectedLifecycleActionSeq int64, downgrade model.SubscriptionChangeIntent, updateErr error) (*model.SubscriptionProviderBinding, error) {
 	confirmed, confirmErr := stripeSubscriptionSnapshotGetter(binding.ProviderSubscriptionId)
 	if confirmErr != nil || strings.TrimSpace(confirmed.ProviderSubscriptionId) != binding.ProviderSubscriptionId {
 		cause := confirmErr
@@ -72,7 +73,7 @@ func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProvid
 		return nil, cause
 	}
 	if confirmed.CancelAtPeriodEnd {
-		updated, applyErr := model.ApplyProviderSubscriptionSnapshot(binding.Id, confirmed)
+		updated, applyErr := model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, expectedLifecycleActionSeq, confirmed)
 		if applyErr != nil {
 			_ = markCancelDowngradeCompensationUncertain(binding, downgrade, applyErr)
 			return nil, applyErr
@@ -84,7 +85,7 @@ func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProvid
 		return updated, nil
 	}
 
-	if _, applyErr := model.ApplyProviderSubscriptionSnapshot(binding.Id, confirmed); applyErr != nil {
+	if _, applyErr := model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, expectedLifecycleActionSeq, confirmed); applyErr != nil {
 		return nil, applyErr
 	}
 	restoreCause := updateErr
@@ -116,7 +117,7 @@ func ResumeStripeRecurringSubscription(userID int, bindingID int64) (*model.Subs
 	if err != nil {
 		return nil, err
 	}
-	return model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot)
+	return model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, snapshot)
 }
 
 func AdminInvalidateUserSubscriptionWithRecurringPolicy(userSubscriptionID int) (string, error) {

@@ -132,7 +132,7 @@ The unified resolver must verify all of the following before dispatch:
 
 While the contract and current binding rows are locked, the resolver projects the binding's current renewal status from `cancel_at_period_end`. If that status already equals the requested target, the request fails locally without calling Stripe instead of reporting a success that could be stale while an opposite provider mutation is in flight. If it does not equal the action's expected source status, the request also fails. Only the exact expected source-to-target transition may dispatch to Stripe; the existing Stripe idempotency key protects retries of an allowed same-direction mutation.
 
-The implementation does not keep a database transaction open while waiting on the Stripe network call. It validates and gates the exact target under the row lock, releases the transaction, then relies on the existing authoritative revalidation when the provider snapshot is applied.
+The implementation does not keep a database transaction open while waiting on the Stripe network call. It validates and gates the exact target under the row lock, releases the transaction, and applies the provider snapshot only while the binding's captured `lifecycle_action_seq` still matches. A concurrent same-direction result resolves to the current binding when the target state is already present; a stale opposite-state snapshot is rejected instead of overwriting a later lifecycle action.
 
 ## Self-subscription response and capabilities
 
@@ -214,7 +214,8 @@ Adding either rail later requires a separate design for account eligibility, man
 
 - Provider errors do not mutate wallet state or fabricate a successful renewal projection.
 - A failed wallet update rolls back the whole transaction.
-- A stale duplicate request returns the already-achieved state.
+- A wallet duplicate returns the already-achieved state; an already-at-target Stripe request fails locally without another provider call.
+- A stale Stripe lifecycle snapshot cannot overwrite a later opposite action.
 - A cancel/resume request received after the period expires fails without reviving the entitlement.
 - A user-cancelled wallet contract remains user-cancelled across scheduler scans and application restarts.
 - Stripe webhooks and reconciliation remain authoritative if the provider changes state outside this endpoint.
@@ -231,6 +232,7 @@ Backend tests cover:
 - the scheduler never charges a user-cancelled wallet contract;
 - the renewal-versus-cancel transaction ordering described above;
 - Stripe cancel/resume dispatch uses only `current_provider_binding_id`;
+- a delayed Stripe cancel snapshot cannot overwrite a later successful resume;
 - missing, mismatched, multiple, incomplete, and terminal Stripe bindings fail safely;
 - Stripe provider failure does not report a cancelled/resumed state;
 - self-response renewal status and provider-neutral capabilities for Stripe, wallet, one-period, and migration-conflict cases;

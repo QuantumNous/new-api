@@ -17,6 +17,7 @@ const (
 )
 
 var ErrSubscriptionProviderBindingConflict = errors.New("subscription provider binding conflict")
+var ErrSubscriptionProviderLifecycleConflict = errors.New("subscription provider lifecycle conflict")
 
 type SubscriptionProviderBinding struct {
 	Id int64 `json:"id"`
@@ -214,6 +215,14 @@ func GetRecurringSubscriptionBindingsForUser(userID int) ([]SubscriptionProvider
 }
 
 func ApplyProviderSubscriptionSnapshot(bindingID int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	return applyProviderSubscriptionSnapshot(bindingID, nil, snapshot)
+}
+
+func ApplyProviderSubscriptionLifecycleSnapshot(bindingID int64, expectedLifecycleActionSeq int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	return applyProviderSubscriptionSnapshot(bindingID, &expectedLifecycleActionSeq, snapshot)
+}
+
+func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionSeq *int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
 	if bindingID <= 0 {
 		return nil, errors.New("invalid binding id")
 	}
@@ -227,6 +236,12 @@ func ApplyProviderSubscriptionSnapshot(bindingID int64, snapshot ProviderSubscri
 		}
 		if binding.EndedAt > 0 || isTerminalProviderSubscriptionStatus(binding.ProviderStatus) {
 			return nil
+		}
+		if expectedLifecycleActionSeq != nil && binding.LifecycleActionSeq != *expectedLifecycleActionSeq {
+			if binding.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
+				return nil
+			}
+			return ErrSubscriptionProviderLifecycleConflict
 		}
 		updates := map[string]interface{}{
 			"provider_customer_id":       strings.TrimSpace(snapshot.ProviderCustomerId),

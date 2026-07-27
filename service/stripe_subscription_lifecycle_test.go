@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -272,6 +274,71 @@ func TestStripeSubscriptionLifecycleIdempotencyKeyIsStableForFailedRetry(t *test
 
 	require.Len(t, keys, 2)
 	require.Equal(t, keys[0], keys[1])
+}
+
+func TestStripeSubscriptionLifecycleRejectsStaleCancelSnapshotAfterResume(t *testing.T) {
+	setupStripeSubscriptionLifecycleTestDB(t)
+	binding := insertStripeLifecycleBindingWithSubscriptionID(t, 822, "sub_lifecycle_stale_cancel", "active", false)
+	originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+	t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
+
+	staleCancelStarted := make(chan struct{})
+	releaseStaleCancel := make(chan struct{}, 1)
+	t.Cleanup(func() {
+		select {
+		case releaseStaleCancel <- struct{}{}:
+		default:
+		}
+	})
+	var callCount atomic.Int32
+	stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+		call := callCount.Add(1)
+		if call == 1 {
+			close(staleCancelStarted)
+			<-releaseStaleCancel
+		}
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderStatus:         "active",
+			CancelAtPeriodEnd:      cancelAtPeriodEnd,
+			CurrentPeriodStart:     1000,
+			CurrentPeriodEnd:       2000,
+		}, nil
+	}
+
+	type lifecycleResult struct {
+		binding *model.SubscriptionProviderBinding
+		err     error
+	}
+	staleCancelResult := make(chan lifecycleResult, 1)
+	go func() {
+		updated, err := CancelStripeRecurringSubscription(822, binding.Id)
+		staleCancelResult <- lifecycleResult{binding: updated, err: err}
+	}()
+	select {
+	case <-staleCancelStarted:
+	case <-time.After(time.Second):
+		t.Fatal("stale cancel did not reach the Stripe update")
+	}
+
+	_, err := CancelStripeRecurringSubscription(822, binding.Id)
+	require.NoError(t, err)
+	_, err = ResumeStripeRecurringSubscription(822, binding.Id)
+	require.NoError(t, err)
+	releaseStaleCancel <- struct{}{}
+
+	select {
+	case completed := <-staleCancelResult:
+		require.ErrorIs(t, completed.err, model.ErrSubscriptionProviderLifecycleConflict)
+		require.Nil(t, completed.binding)
+	case <-time.After(time.Second):
+		t.Fatal("stale cancel did not complete")
+	}
+
+	var stored model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&stored, binding.Id).Error)
+	require.False(t, stored.CancelAtPeriodEnd)
+	require.Equal(t, int64(2), stored.LifecycleActionSeq)
 }
 
 func TestStripeSubscriptionLifecycleRejectsForeignBinding(t *testing.T) {

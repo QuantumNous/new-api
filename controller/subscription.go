@@ -1193,10 +1193,6 @@ func isTerminalRecurringProviderStatus(status string) bool {
 	}
 }
 
-func isIncompleteRecurringProviderStatus(status string) bool {
-	return strings.ToLower(strings.TrimSpace(status)) == "incomplete"
-}
-
 func UpdateSubscriptionPreference(c *gin.Context) {
 	// Kept as a compatibility endpoint for older clients. Billing order is now
 	// fixed: subscription quota first, then wallet balance.
