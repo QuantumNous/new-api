@@ -18,6 +18,9 @@ type SubscriptionRenewalLifecycleResult struct {
 	CancelAtPeriodEnd bool
 }
 
+var cancelCurrentStripeRecurringSubscription = CancelStripeRecurringSubscription
+var resumeCurrentStripeRecurringSubscription = ResumeStripeRecurringSubscription
+
 func CancelCurrentSubscriptionRenewal(userID int) (*SubscriptionRenewalLifecycleResult, error) {
 	return updateCurrentSubscriptionRenewal(userID, model.SubscriptionRenewalStatusEnabled, model.SubscriptionRenewalStatusCancelledByUser)
 }
@@ -70,9 +73,9 @@ func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus st
 	if stripeBindingID > 0 {
 		var binding *model.SubscriptionProviderBinding
 		if toStatus == model.SubscriptionRenewalStatusCancelledByUser {
-			binding, err = CancelStripeRecurringSubscription(userID, stripeBindingID)
+			binding, err = cancelCurrentStripeRecurringSubscription(userID, stripeBindingID)
 		} else {
-			binding, err = ResumeStripeRecurringSubscription(userID, stripeBindingID)
+			binding, err = resumeCurrentStripeRecurringSubscription(userID, stripeBindingID)
 		}
 		if err != nil {
 			return nil, err

@@ -1,8 +1,10 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -13,28 +15,38 @@ import (
 func TestCancelCurrentSubscriptionRenewalStripeUsesAuthoritativeCurrentBinding(t *testing.T) {
 	setupSubscriptionPurchaseServiceTestDB(t)
 	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7941, false, "sub_unified_cancel")
-	originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
-	t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
-	var calledBindingID int64
-	stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
-		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
-		require.True(t, cancelAtPeriodEnd)
-		calledBindingID = binding.Id
-		return model.ProviderSubscriptionSnapshot{
-			ProviderSubscriptionId: providerSubscriptionID,
-			ProviderCustomerId:     binding.ProviderCustomerId,
-			ProviderPriceId:        binding.ProviderPriceId,
-			ProviderStatus:         "active",
-			CancelAtPeriodEnd:      true,
-			CurrentPeriodStart:     binding.CurrentPeriodStart,
-			CurrentPeriodEnd:       binding.CurrentPeriodEnd,
-		}, nil
+	stale := insertStripeRenewalLifecycleBinding(t, contract.UserId, contract.Id, contract.CurrentPlanId, "sub_unified_cancel_stale", false)
+	require.NoError(t, model.DB.Model(stale).Updates(map[string]interface{}{
+		"provider_status": "canceled",
+		"ended_at":        common.GetTimestamp(),
+	}).Error)
+	originalCancel := cancelCurrentStripeRecurringSubscription
+	t.Cleanup(func() { cancelCurrentStripeRecurringSubscription = originalCancel })
+	var gotUserID int
+	var gotBindingID int64
+	cancelCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		gotUserID = userID
+		gotBindingID = bindingID
+		require.Equal(t, contract.UserId, userID)
+		require.Equal(t, contract.CurrentProviderBindingId, bindingID)
+		require.NotEqual(t, stale.Id, bindingID)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, model.DB.WithContext(ctx).Model(&model.UserSubscriptionContract{}).
+			Where("id = ?", contract.Id).
+			Update("base_user_group", "cancel_delegate_seen").Error)
+		var delegatedBinding model.SubscriptionProviderBinding
+		require.NoError(t, model.DB.WithContext(ctx).First(&delegatedBinding, bindingID).Error)
+		require.Equal(t, binding.ProviderSubscriptionId, delegatedBinding.ProviderSubscriptionId)
+		delegatedBinding.CancelAtPeriodEnd = true
+		return &delegatedBinding, nil
 	}
 
 	result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
 
 	require.NoError(t, err)
-	require.Equal(t, binding.Id, calledBindingID)
+	require.Equal(t, contract.UserId, gotUserID)
+	require.Equal(t, binding.Id, gotBindingID)
 	require.Equal(t, model.SubscriptionRenewalSourceProvider, result.RenewalSource)
 	require.Equal(t, model.SubscriptionRenewalStatusCancelledByUser, result.RenewalStatus)
 	require.Equal(t, binding.CurrentPeriodEnd, result.CurrentPeriodEnd)
@@ -44,36 +56,44 @@ func TestCancelCurrentSubscriptionRenewalStripeUsesAuthoritativeCurrentBinding(t
 	var storedContract model.UserSubscriptionContract
 	require.NoError(t, model.DB.First(&storedContract, contract.Id).Error)
 	require.Equal(t, model.SubscriptionRenewalStatusEnabled, storedContract.RenewalStatus)
-	var storedBinding model.SubscriptionProviderBinding
-	require.NoError(t, model.DB.First(&storedBinding, binding.Id).Error)
-	require.True(t, storedBinding.CancelAtPeriodEnd)
+	require.Equal(t, "cancel_delegate_seen", storedContract.BaseUserGroup)
 }
 
 func TestResumeCurrentSubscriptionRenewalStripeUsesAuthoritativeCurrentBinding(t *testing.T) {
 	setupSubscriptionPurchaseServiceTestDB(t)
 	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7942, true, "sub_unified_resume")
-	originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
-	t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
-	var called bool
-	stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
-		called = true
-		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
-		require.False(t, cancelAtPeriodEnd)
-		return model.ProviderSubscriptionSnapshot{
-			ProviderSubscriptionId: providerSubscriptionID,
-			ProviderCustomerId:     binding.ProviderCustomerId,
-			ProviderPriceId:        binding.ProviderPriceId,
-			ProviderStatus:         "active",
-			CancelAtPeriodEnd:      false,
-			CurrentPeriodStart:     binding.CurrentPeriodStart,
-			CurrentPeriodEnd:       binding.CurrentPeriodEnd,
-		}, nil
+	stale := insertStripeRenewalLifecycleBinding(t, contract.UserId, contract.Id, contract.CurrentPlanId, "sub_unified_resume_stale", true)
+	require.NoError(t, model.DB.Model(stale).Updates(map[string]interface{}{
+		"provider_status": "canceled",
+		"ended_at":        common.GetTimestamp(),
+	}).Error)
+	originalResume := resumeCurrentStripeRecurringSubscription
+	t.Cleanup(func() { resumeCurrentStripeRecurringSubscription = originalResume })
+	var gotUserID int
+	var gotBindingID int64
+	resumeCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		gotUserID = userID
+		gotBindingID = bindingID
+		require.Equal(t, contract.UserId, userID)
+		require.Equal(t, contract.CurrentProviderBindingId, bindingID)
+		require.NotEqual(t, stale.Id, bindingID)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, model.DB.WithContext(ctx).Model(&model.UserSubscriptionContract{}).
+			Where("id = ?", contract.Id).
+			Update("base_user_group", "resume_delegate_seen").Error)
+		var delegatedBinding model.SubscriptionProviderBinding
+		require.NoError(t, model.DB.WithContext(ctx).First(&delegatedBinding, bindingID).Error)
+		require.Equal(t, binding.ProviderSubscriptionId, delegatedBinding.ProviderSubscriptionId)
+		delegatedBinding.CancelAtPeriodEnd = false
+		return &delegatedBinding, nil
 	}
 
 	result, err := ResumeCurrentSubscriptionRenewal(contract.UserId)
 
 	require.NoError(t, err)
-	require.True(t, called)
+	require.Equal(t, contract.UserId, gotUserID)
+	require.Equal(t, binding.Id, gotBindingID)
 	require.Equal(t, model.SubscriptionRenewalSourceProvider, result.RenewalSource)
 	require.Equal(t, model.SubscriptionRenewalStatusEnabled, result.RenewalStatus)
 	require.Equal(t, binding.CurrentPeriodEnd, result.CurrentPeriodEnd)
@@ -83,6 +103,7 @@ func TestResumeCurrentSubscriptionRenewalStripeUsesAuthoritativeCurrentBinding(t
 	var storedContract model.UserSubscriptionContract
 	require.NoError(t, model.DB.First(&storedContract, contract.Id).Error)
 	require.Equal(t, model.SubscriptionRenewalStatusEnabled, storedContract.RenewalStatus)
+	require.Equal(t, "resume_delegate_seen", storedContract.BaseUserGroup)
 }
 
 func TestCancelCurrentSubscriptionRenewalStripeRejectsUnsafeBindingStates(t *testing.T) {
@@ -138,11 +159,11 @@ func TestCancelCurrentSubscriptionRenewalStripeRejectsUnsafeBindingStates(t *tes
 			setupSubscriptionPurchaseServiceTestDB(t)
 			contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7943, false, "sub_unified_reject_"+tc.name)
 			tc.mutate(t, contract, binding)
-			originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
-			t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
-			stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
-				t.Fatal("unsafe unified Stripe cancel must perform zero remote writes")
-				return model.ProviderSubscriptionSnapshot{}, nil
+			originalCancel := cancelCurrentStripeRecurringSubscription
+			t.Cleanup(func() { cancelCurrentStripeRecurringSubscription = originalCancel })
+			cancelCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+				t.Fatal("unsafe unified Stripe cancel must not reach the provider delegate")
+				return nil, nil
 			}
 
 			result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
@@ -156,13 +177,13 @@ func TestCancelCurrentSubscriptionRenewalStripeRejectsUnsafeBindingStates(t *tes
 func TestResumeCurrentSubscriptionRenewalStripeRejectsProviderFailureWithoutPseudoSuccess(t *testing.T) {
 	setupSubscriptionPurchaseServiceTestDB(t)
 	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7944, true, "sub_unified_resume_failure")
-	originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
-	t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
+	originalResume := resumeCurrentStripeRecurringSubscription
+	t.Cleanup(func() { resumeCurrentStripeRecurringSubscription = originalResume })
 	providerErr := errors.New("stripe update failed")
-	stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
-		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
-		require.False(t, cancelAtPeriodEnd)
-		return model.ProviderSubscriptionSnapshot{}, providerErr
+	resumeCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		require.Equal(t, contract.UserId, userID)
+		require.Equal(t, binding.Id, bindingID)
+		return nil, providerErr
 	}
 
 	result, err := ResumeCurrentSubscriptionRenewal(contract.UserId)
