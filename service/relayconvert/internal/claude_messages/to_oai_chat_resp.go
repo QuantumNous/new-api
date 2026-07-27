@@ -241,6 +241,9 @@ func BuildMessageDeltaPatchUsage(claudeResponse *dto.ClaudeResponse, claudeInfo 
 	if usage.InputTokens == 0 && claudeInfo.Usage.PromptTokens > 0 {
 		usage.InputTokens = claudeInfo.Usage.PromptTokens
 	}
+	if usage.OutputTokens == 0 && claudeInfo.Usage.CompletionTokens > 0 {
+		usage.OutputTokens = claudeInfo.Usage.CompletionTokens
+	}
 	if usage.CacheReadInputTokens == 0 && claudeInfo.Usage.PromptTokensDetails.CachedTokens > 0 {
 		usage.CacheReadInputTokens = claudeInfo.Usage.PromptTokensDetails.CachedTokens
 	}
@@ -301,6 +304,7 @@ func PatchClaudeMessageDeltaUsageData(data string, usage *dto.ClaudeUsage) strin
 	}
 
 	data = setMessageDeltaUsageInt(data, "usage.input_tokens", usage.InputTokens)
+	data = setMessageDeltaUsageInt(data, "usage.output_tokens", usage.OutputTokens)
 	data = setMessageDeltaUsageInt(data, "usage.cache_read_input_tokens", usage.CacheReadInputTokens)
 	data = setMessageDeltaUsageInt(data, "usage.cache_creation_input_tokens", usage.CacheCreationInputTokens)
 
