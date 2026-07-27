@@ -39,6 +39,9 @@ type ClaudeConvertInfo struct {
 	Usage            *dto.Usage
 	FinishReason     string
 	Done             bool
+	// HasEmittedAnswer 表示已经向下游输出过实际答复内容（text 或 tool_use）。
+	// 仅有 thinking 不算，用于区分「上游正常收尾但没给 finish_reason」和「只思考就断流」。
+	HasEmittedAnswer bool
 
 	ToolCallBaseIndex      int
 	ToolCallMaxIndexOffset int

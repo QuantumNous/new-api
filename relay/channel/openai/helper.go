@@ -227,7 +227,15 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 			_ = helper.ClaudeData(c, *resp)
 		}
 		if !info.ClaudeConvertInfo.Done {
-			handleIncompleteClaudeStream(c, info, "upstream stream ended without finish_reason")
+			// 部分 OpenAI 兼容上游只用 [DONE] 收尾，不下发 finish_reason。
+			// 这类响应内容本身是完整的，补齐收尾事件即可，不应判为截断。
+			if service.CanFinalizeClaudeStreamWithoutFinishReason(info) {
+				for _, resp := range service.FinalizeClaudeStreamWithoutFinishReason(info, usage) {
+					_ = helper.ClaudeData(c, *resp)
+				}
+			} else {
+				handleIncompleteClaudeStream(c, info, "upstream stream ended without finish_reason")
+			}
 		}
 
 	case types.RelayFormatGemini:
