@@ -1,6 +1,7 @@
 package openaicompat
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -303,6 +304,101 @@ func TestG2ReasoningUsesSummary(t *testing.T) {
 	b, _ := common.Marshal(reasoning)
 	if !strings.Contains(string(b), `"summary"`) {
 		t.Errorf("serialized reasoning item missing summary: %s", b)
+	}
+}
+
+func TestChatResponseToResponses_ExtractsReasoningDetailsAndInlineThink(t *testing.T) {
+	reasoningDetails := jsonBytes(t, []map[string]any{
+		{"summary": "Step one."},
+		{"parts": []map[string]any{{"text": "Step two."}}},
+	})
+	cases := []struct {
+		name      string
+		message   dto.Message
+		rawBody   []byte
+		reasoning string
+		answer    string
+	}{
+		{
+			name:    "reasoning details",
+			message: dto.Message{Role: "assistant", Content: "final"},
+			rawBody: jsonBytes(t, map[string]any{
+				"choices": []map[string]any{{"message": map[string]any{"reasoning_details": json.RawMessage(reasoningDetails)}}},
+			}),
+			reasoning: "Step one.\n\nStep two.",
+			answer:    "final",
+		},
+		{
+			name:      "inline think",
+			message:   dto.Message{Role: "assistant", Content: "<think>\nNeed context.\n</think>\n\npong"},
+			reasoning: "Need context.",
+			answer:    "pong",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := &dto.OpenAITextResponse{
+				Model: "deepseek-reasoner",
+				Choices: []dto.OpenAITextResponseChoice{{
+					Message:      tc.message,
+					FinishReason: "stop",
+				}},
+			}
+			EnrichChatResponseReasoningDetails(resp, tc.rawBody)
+			out, err := ChatCompletionsResponseToResponsesResponse(resp, "id1", nil)
+			if err != nil {
+				t.Fatalf("err: %v", err)
+			}
+			if len(out.Output) != 2 {
+				t.Fatalf("output = %+v", out.Output)
+			}
+			if out.Output[0].Type != "reasoning" || out.Output[0].Summary[0].Text != tc.reasoning {
+				t.Errorf("reasoning output = %+v", out.Output[0])
+			}
+			if out.Output[1].Type != "message" || out.Output[1].Content[0].Text != tc.answer {
+				t.Errorf("message output = %+v", out.Output[1])
+			}
+		})
+	}
+}
+
+func TestChatResponseToResponses_CopiesOriginalRequestFields(t *testing.T) {
+	req := &dto.OpenAIResponsesRequest{
+		Model:             "deepseek-chat",
+		Instructions:      jsonBytes(t, "be concise"),
+		MaxOutputTokens:   common.GetPointer(uint(123)),
+		ParallelToolCalls: jsonBytes(t, true),
+		Reasoning:         &dto.Reasoning{Effort: "high"},
+		Temperature:       common.GetPointer(0.25),
+		TopP:              common.GetPointer(0.8),
+		ToolChoice:        jsonBytes(t, "auto"),
+		Tools: jsonBytes(t, []map[string]any{{
+			"type": "function", "name": "lookup", "parameters": map[string]any{"type": "object"},
+		}}),
+		Metadata: jsonBytes(t, map[string]any{"trace": "abc"}),
+	}
+	ctx := dto.NewResponsesToolContext()
+	ctx.OriginalRequest = req
+	resp := &dto.OpenAITextResponse{
+		Model: "deepseek-chat",
+		Choices: []dto.OpenAITextResponseChoice{{
+			Message:      dto.Message{Role: "assistant", Content: "ok"},
+			FinishReason: "stop",
+		}},
+	}
+
+	out, err := ChatCompletionsResponseToResponsesResponse(resp, "id1", ctx)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if string(out.Instructions) != `"be concise"` || out.MaxOutputTokens != 123 {
+		t.Errorf("instructions/max tokens = %s/%d", out.Instructions, out.MaxOutputTokens)
+	}
+	if !out.ParallelToolCalls || out.Reasoning == nil || out.Reasoning.Effort != "high" {
+		t.Errorf("parallel/reasoning = %v/%+v", out.ParallelToolCalls, out.Reasoning)
+	}
+	if out.Temperature != 0.25 || out.TopP != 0.8 || len(out.Tools) != 1 {
+		t.Errorf("temperature/top_p/tools = %v/%v/%+v", out.Temperature, out.TopP, out.Tools)
 	}
 }
 

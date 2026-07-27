@@ -434,6 +434,271 @@ func TestResponsesRequestToChat_InstructionsRole(t *testing.T) {
 	}
 }
 
+func TestResponsesRequestToChat_NormalizesExplicitInstructionRoles(t *testing.T) {
+	cases := []struct {
+		model string
+		want  string
+	}{
+		{"qwen3.6-35b-a3b", "system"},
+		{"glm-5.2", "system"},
+		{"deepseek-v4-pro", "system"},
+		{"gpt-5-codex", "developer"},
+		{"o3-mini", "developer"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.model, func(t *testing.T) {
+			req := &dto.OpenAIResponsesRequest{
+				Model: tc.model,
+				Input: raw(t, []map[string]any{
+					{
+						"type": "message",
+						"role": "developer",
+						"content": []map[string]any{
+							{"type": "input_text", "text": "developer instructions"},
+						},
+					},
+					{
+						"type": "message",
+						"role": "user",
+						"content": []map[string]any{
+							{"type": "input_text", "text": "hello"},
+						},
+					},
+				}),
+			}
+
+			got, _, err := ResponsesRequestToChatCompletionsRequest(req)
+			if err != nil {
+				t.Fatalf("err: %v", err)
+			}
+			if len(got.Messages) != 2 {
+				t.Fatalf("messages len = %d, want 2: %+v", len(got.Messages), got.Messages)
+			}
+			if got.Messages[0].Role != tc.want {
+				t.Errorf("instruction role = %q, want %q", got.Messages[0].Role, tc.want)
+			}
+			if got.Messages[0].Content != "developer instructions" {
+				t.Errorf("instruction content = %v", got.Messages[0].Content)
+			}
+			if got.Messages[1].Role != "user" || got.Messages[1].Content != "hello" {
+				t.Errorf("user message = %+v", got.Messages[1])
+			}
+		})
+	}
+}
+
+func TestResponsesRequestToChat_CollapsesInstructionMessagesToHead(t *testing.T) {
+	req := &dto.OpenAIResponsesRequest{
+		Model:        "qwen3.6-35b-a3b",
+		Instructions: raw(t, "root system"),
+		Input: raw(t, []map[string]any{
+			{
+				"type":    "message",
+				"role":    "user",
+				"content": []map[string]any{{"type": "input_text", "text": "hello"}},
+			},
+			{
+				"type":    "message",
+				"role":    "developer",
+				"content": []map[string]any{{"type": "input_text", "text": "late developer"}},
+			},
+			{
+				"type":    "message",
+				"role":    "assistant",
+				"content": []map[string]any{{"type": "output_text", "text": "ok"}},
+			},
+		}),
+	}
+
+	got, _, err := ResponsesRequestToChatCompletionsRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got.Messages) != 3 {
+		t.Fatalf("messages len = %d, want 3: %+v", len(got.Messages), got.Messages)
+	}
+	if got.Messages[0].Role != "system" {
+		t.Errorf("head role = %q, want system", got.Messages[0].Role)
+	}
+	if got.Messages[0].Content != "root system\n\nlate developer" {
+		t.Errorf("head content = %v", got.Messages[0].Content)
+	}
+	if got.Messages[1].Role != "user" || got.Messages[2].Role != "assistant" {
+		t.Errorf("remaining messages = %+v", got.Messages[1:])
+	}
+}
+
+func TestResponsesRequestToChat_PreservesGPTInstructionRolesAndOrder(t *testing.T) {
+	req := &dto.OpenAIResponsesRequest{
+		Model:        "openai/gpt-5-codex",
+		Instructions: raw(t, "root developer"),
+		Input: raw(t, []map[string]any{
+			{
+				"type":    "message",
+				"role":    "user",
+				"content": []map[string]any{{"type": "input_text", "text": "hello"}},
+			},
+			{
+				"type":    "message",
+				"role":    "system",
+				"content": []map[string]any{{"type": "input_text", "text": "late system"}},
+			},
+			{
+				"type":    "message",
+				"role":    "developer",
+				"content": []map[string]any{{"type": "input_text", "text": "late developer"}},
+			},
+		}),
+	}
+
+	got, _, err := ResponsesRequestToChatCompletionsRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got.Messages) != 4 {
+		t.Fatalf("messages len = %d, want 4: %+v", len(got.Messages), got.Messages)
+	}
+	wantRoles := []string{"developer", "user", "system", "developer"}
+	for i, want := range wantRoles {
+		if got.Messages[i].Role != want {
+			t.Errorf("messages[%d].role = %q, want %q", i, got.Messages[i].Role, want)
+		}
+	}
+}
+
+func TestResponsesRequestToChat_NormalizesReminderAndUnknownRoles(t *testing.T) {
+	req := &dto.OpenAIResponsesRequest{
+		Model: "deepseek-v4-pro",
+		Input: raw(t, []map[string]any{
+			{"type": "message", "role": "latest_reminder", "content": "remember this"},
+			{"type": "message", "role": "future_role", "content": "fallback"},
+		}),
+	}
+
+	got, _, err := ResponsesRequestToChatCompletionsRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got.Messages) != 2 {
+		t.Fatalf("messages len = %d, want 2: %+v", len(got.Messages), got.Messages)
+	}
+	for i, message := range got.Messages {
+		if message.Role != "user" {
+			t.Errorf("messages[%d].role = %q, want user", i, message.Role)
+		}
+	}
+}
+
+func TestResponsesRequestToChat_PreservesReasoningWithToolHistory(t *testing.T) {
+	req := &dto.OpenAIResponsesRequest{
+		Model: "deepseek-v4-pro",
+		Input: raw(t, []map[string]any{
+			{
+				"type":    "reasoning",
+				"summary": []map[string]any{{"type": "summary_text", "text": "Need to inspect files."}},
+			},
+			{
+				"type":    "message",
+				"role":    "assistant",
+				"content": []map[string]any{{"type": "output_text", "text": "I will inspect."}},
+			},
+			{
+				"type":      "function_call",
+				"call_id":   "call_1",
+				"name":      "shell",
+				"arguments": `{"cmd":"rg foo"}`,
+			},
+			{
+				"type":    "function_call_output",
+				"call_id": "call_1",
+				"output":  "result",
+			},
+		}),
+	}
+
+	got, _, err := ResponsesRequestToChatCompletionsRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got.Messages) != 2 {
+		t.Fatalf("messages len = %d, want 2: %+v", len(got.Messages), got.Messages)
+	}
+	assistant := got.Messages[0]
+	if assistant.Role != "assistant" || assistant.Content != "I will inspect." {
+		t.Fatalf("assistant = %+v", assistant)
+	}
+	if assistant.GetReasoningContent() != "Need to inspect files." {
+		t.Errorf("reasoning_content = %q", assistant.GetReasoningContent())
+	}
+	calls := assistant.ParseToolCalls()
+	if len(calls) != 1 || calls[0].ID != "call_1" {
+		t.Errorf("tool calls = %+v", calls)
+	}
+	if got.Messages[1].Role != "tool" || got.Messages[1].ToolCallId != "call_1" {
+		t.Errorf("tool output = %+v", got.Messages[1])
+	}
+}
+
+func TestResponsesRequestToChat_ReplaysLegacyToolHistory(t *testing.T) {
+	req := &dto.OpenAIResponsesRequest{
+		Model: "qwen3.6-35b-a3b",
+		Input: raw(t, []map[string]any{
+			{
+				"type": "tool_call",
+				"tool_use": map[string]any{
+					"id": "call_legacy", "name": "lookup", "input": map[string]any{"query": "go"},
+				},
+			},
+			{
+				"type": "tool_result",
+				"content": map[string]any{
+					"tool_use_id": "call_legacy",
+					"content":     map[string]any{"result": "found"},
+				},
+			},
+		}),
+	}
+
+	got, _, err := ResponsesRequestToChatCompletionsRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got.Messages) != 2 {
+		t.Fatalf("messages len = %d, want 2: %+v", len(got.Messages), got.Messages)
+	}
+	calls := got.Messages[0].ParseToolCalls()
+	if len(calls) != 1 || calls[0].ID != "call_legacy" || calls[0].Function.Name != "lookup" {
+		t.Errorf("legacy tool call = %+v", calls)
+	}
+	if got.Messages[1].Role != "tool" || got.Messages[1].ToolCallId != "call_legacy" ||
+		got.Messages[1].Content != `{"result":"found"}` {
+		t.Errorf("legacy tool result = %+v", got.Messages[1])
+	}
+}
+
+func TestResponsesRequestToChat_NormalizesNullAssistantContent(t *testing.T) {
+	req := &dto.OpenAIResponsesRequest{
+		Model: "deepseek-chat",
+		Input: raw(t, []map[string]any{
+			{"type": "message", "role": "assistant", "content": nil},
+			{"type": "message", "role": "assistant", "content": []any{}},
+		}),
+	}
+
+	got, _, err := ResponsesRequestToChatCompletionsRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got.Messages) != 2 {
+		t.Fatalf("messages len = %d, want 2", len(got.Messages))
+	}
+	for i, message := range got.Messages {
+		if message.Content != "" {
+			t.Errorf("messages[%d].content = %#v, want empty string", i, message.Content)
+		}
+	}
+}
+
 func TestResponsesRequestToChat_StoredPrompt(t *testing.T) {
 	// prompt references a server-side stored prompt -> reject
 	withPrompt := &dto.OpenAIResponsesRequest{

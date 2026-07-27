@@ -420,7 +420,8 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 	output := make([]dto.ResponsesOutput, 0, 2)
 
 	if msg != nil {
-		if reasoning := strings.TrimSpace(msg.GetReasoningContent()); reasoning != "" {
+		reasoning, answer := chatMessageReasoningAndAnswer(msg)
+		if reasoning != "" {
 			output = append(output, dto.ResponsesOutput{
 				Type:    "reasoning",
 				ID:      "rs_" + id,
@@ -429,14 +430,14 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 			})
 		}
 
-		if text := msg.StringContent(); text != "" {
+		if answer != "" {
 			output = append(output, dto.ResponsesOutput{
 				Type:   "message",
 				ID:     "msg_" + id,
 				Status: "completed",
 				Role:   "assistant",
 				Content: []dto.ResponsesOutputContent{
-					{Type: "output_text", Text: text},
+					{Type: "output_text", Text: answer},
 				},
 			})
 		}
@@ -471,12 +472,141 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 		Output:    output,
 		Usage:     chatUsageToResponses(resp.Usage),
 	}
+	copyResponsesRequestFieldsToResponse(out, toolCtx)
 	if finishReason == "length" {
 		out.Status = json.RawMessage(`"incomplete"`)
 		out.IncompleteDetails = &dto.IncompleteDetails{Reason: "max_output_tokens"}
 	}
 
 	return out, nil
+}
+
+func chatMessageReasoningAndAnswer(msg *dto.Message) (string, string) {
+	if msg == nil {
+		return "", ""
+	}
+	reasoning := strings.TrimSpace(msg.GetReasoningContent())
+	answer := msg.StringContent()
+	if inlineReasoning, inlineAnswer, ok := splitLeadingThinkBlock(answer); ok {
+		if reasoning == "" {
+			reasoning = inlineReasoning
+		}
+		answer = inlineAnswer
+	}
+	return strings.TrimSpace(reasoning), answer
+}
+
+// EnrichChatResponseReasoningDetails extracts non-standard reasoning_details
+// only on the responses-via-chat return path. Keeping this out of dto.Message
+// avoids changing ordinary /v1/chat/completions request passthrough behavior.
+func EnrichChatResponseReasoningDetails(resp *dto.OpenAITextResponse, rawBody []byte) {
+	if resp == nil || len(resp.Choices) == 0 || resp.Choices[0].Message.GetReasoningContent() != "" {
+		return
+	}
+	var probe struct {
+		Choices []struct {
+			Message struct {
+				ReasoningDetails json.RawMessage `json:"reasoning_details"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if common.Unmarshal(rawBody, &probe) != nil || len(probe.Choices) == 0 {
+		return
+	}
+	if reasoning := reasoningDetailsText(probe.Choices[0].Message.ReasoningDetails); reasoning != "" {
+		resp.Choices[0].Message.ReasoningContent = common.GetPointer(reasoning)
+	}
+}
+
+func reasoningDetailsText(raw json.RawMessage) string {
+	if len(raw) == 0 || common.GetJsonType(raw) == "null" {
+		return ""
+	}
+	var value any
+	if common.Unmarshal(raw, &value) != nil {
+		return ""
+	}
+	var collect func(any) []string
+	collect = func(current any) []string {
+		switch typed := current.(type) {
+		case string:
+			if text := strings.TrimSpace(typed); text != "" {
+				return []string{text}
+			}
+		case []any:
+			var texts []string
+			for _, item := range typed {
+				texts = append(texts, collect(item)...)
+			}
+			return texts
+		case map[string]any:
+			for _, key := range []string{"summary", "text", "reasoning", "reasoning_content", "parts", "content"} {
+				if child, ok := typed[key]; ok {
+					if texts := collect(child); len(texts) > 0 {
+						return texts
+					}
+				}
+			}
+		}
+		return nil
+	}
+	return strings.Join(collect(value), "\n\n")
+}
+
+func splitLeadingThinkBlock(text string) (string, string, bool) {
+	trimmed := strings.TrimLeft(text, " \t\r\n")
+	if !strings.HasPrefix(trimmed, "<think>") {
+		return "", text, false
+	}
+	rest := strings.TrimPrefix(trimmed, "<think>")
+	end := strings.Index(rest, "</think>")
+	if end < 0 {
+		return "", text, false
+	}
+	reasoning := strings.TrimSpace(rest[:end])
+	answer := strings.TrimLeft(rest[end+len("</think>"):], " \t\r\n")
+	return reasoning, answer, true
+}
+
+func copyResponsesRequestFieldsToResponse(out *dto.OpenAIResponsesResponse, toolCtx *dto.ResponsesToolContext) {
+	if out == nil || toolCtx == nil || toolCtx.OriginalRequest == nil {
+		return
+	}
+	req := toolCtx.OriginalRequest
+	out.Instructions = req.Instructions
+	if req.PreviousResponseID != "" {
+		out.PreviousResponseID = mustMarshalJSON(req.PreviousResponseID)
+	}
+	out.Reasoning = req.Reasoning
+	out.ToolChoice = req.ToolChoice
+	out.TopP = pointerFloatValue(req.TopP)
+	out.Temperature = pointerFloatValue(req.Temperature)
+	out.Metadata = req.Metadata
+	if req.MaxOutputTokens != nil {
+		out.MaxOutputTokens = int(*req.MaxOutputTokens)
+	}
+	if value, ok := responsesParallelToolCalls(req.ParallelToolCalls); ok {
+		out.ParallelToolCalls = value
+	}
+	if len(req.Store) > 0 {
+		_ = common.Unmarshal(req.Store, &out.Store)
+	}
+	if len(req.Truncation) > 0 {
+		out.Truncation = req.Truncation
+	}
+	if len(req.User) > 0 {
+		out.User = req.User
+	}
+	if len(req.Tools) > 0 {
+		_ = common.Unmarshal(req.Tools, &out.Tools)
+	}
+}
+
+func pointerFloatValue(value *float64) float64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 // toolCallItemToResponsesOutput converts a map-shaped tool-call item (from

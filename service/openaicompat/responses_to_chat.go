@@ -139,16 +139,21 @@ func ExtractOutputTextFromResponses(resp *dto.OpenAIResponsesResponse) string {
 // function_call_output items additionally carry call_id/name/arguments/output,
 // so we parse into this richer local struct.
 type responsesInputItem struct {
-	Type      string          `json:"type"`
-	Role      string          `json:"role"`
-	Content   json.RawMessage `json:"content"`
-	CallID    string          `json:"call_id"`
-	ID        string          `json:"id"`
-	Name      string          `json:"name"`
-	Namespace string          `json:"namespace"`
-	Arguments json.RawMessage `json:"arguments"`
-	Input     json.RawMessage `json:"input"`
-	Output    json.RawMessage `json:"output"`
+	Type             string          `json:"type"`
+	Role             string          `json:"role"`
+	Content          json.RawMessage `json:"content"`
+	CallID           string          `json:"call_id"`
+	ToolCallID       string          `json:"tool_call_id"`
+	ID               string          `json:"id"`
+	Name             string          `json:"name"`
+	Namespace        string          `json:"namespace"`
+	Arguments        json.RawMessage `json:"arguments"`
+	Input            json.RawMessage `json:"input"`
+	Output           json.RawMessage `json:"output"`
+	Summary          json.RawMessage `json:"summary"`
+	Reasoning        json.RawMessage `json:"reasoning"`
+	ReasoningContent json.RawMessage `json:"reasoning_content"`
+	ToolUse          json.RawMessage `json:"tool_use"`
 }
 
 // ResponsesRequestToChatCompletionsRequest converts an OpenAI Responses API
@@ -170,13 +175,15 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 	}
 
 	toolCtx := BuildCodexToolContext(req.Tools)
+	toolCtx.OriginalRequest = req
 
 	messages := make([]dto.Message, 0)
 
-	// instructions -> leading system message. Use the model-specific system role
+	// instructions -> leading instruction message. Use the model-specific role
 	// (o-series / GPT-5 expect "developer") so it matches the Chat request logic
 	// and applySystemPromptIfNeeded downstream.
-	systemRole := (&dto.GeneralOpenAIRequest{Model: req.Model}).GetSystemRoleName()
+	systemRole := (&dto.GeneralOpenAIRequest{Model: responsesModelBaseName(req.Model)}).GetSystemRoleName()
+	preserveInstructionRoles := shouldPreserveResponsesInstructionRoles(req.Model)
 	if instr := responsesInstructionsToString(req.Instructions); instr != "" {
 		messages = append(messages, dto.Message{Role: systemRole, Content: instr})
 	}
@@ -189,12 +196,35 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 	lastAssistantIdx := -1
 	toolCallsByIdx := make(map[int][]dto.ToolCallRequest)
 	seen := make(map[string]bool)
+	pendingReasoning := make([]string, 0)
+
+	attachPendingReasoning := func(messageIdx int) {
+		if messageIdx < 0 || len(pendingReasoning) == 0 {
+			return
+		}
+		reasoning := strings.Join(pendingReasoning, "\n")
+		if existing := messages[messageIdx].GetReasoningContent(); existing != "" {
+			reasoning = existing + "\n" + reasoning
+		}
+		messages[messageIdx].ReasoningContent = common.GetPointer(reasoning)
+		pendingReasoning = pendingReasoning[:0]
+	}
+
+	flushPendingReasoning := func() {
+		if len(pendingReasoning) == 0 {
+			return
+		}
+		messages = append(messages, dto.Message{Role: "assistant", Content: ""})
+		lastAssistantIdx = len(messages) - 1
+		attachPendingReasoning(lastAssistantIdx)
+	}
 
 	addToolCall := func(callID string, tc dto.ToolCallRequest) {
 		if lastAssistantIdx < 0 {
 			messages = append(messages, dto.Message{Role: "assistant", Content: ""})
 			lastAssistantIdx = len(messages) - 1
 		}
+		attachPendingReasoning(lastAssistantIdx)
 		toolCallsByIdx[lastAssistantIdx] = append(toolCallsByIdx[lastAssistantIdx], tc)
 		seen[callID] = true
 	}
@@ -235,6 +265,25 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 				Function: dto.FunctionRequest{Name: subName, Arguments: args},
 			})
 
+		case "tool_call":
+			var toolUse struct {
+				ID    string          `json:"id"`
+				Name  string          `json:"name"`
+				Input json.RawMessage `json:"input"`
+			}
+			if common.Unmarshal(it.ToolUse, &toolUse) != nil {
+				continue
+			}
+			callID := firstNonEmpty(toolUse.ID, firstNonEmpty(it.CallID, it.ID))
+			if callID == "" || strings.TrimSpace(toolUse.Name) == "" {
+				continue
+			}
+			addToolCall(callID, dto.ToolCallRequest{
+				ID:       callID,
+				Type:     "function",
+				Function: dto.FunctionRequest{Name: strings.TrimSpace(toolUse.Name), Arguments: responsesArgumentsToChat(toolUse.Input)},
+			})
+
 		case "function_call_output", "custom_tool_call_output":
 			callID := strings.TrimSpace(it.CallID)
 			if callID == "" {
@@ -245,24 +294,55 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 				messages = append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content})
 			} else {
 				// Orphan output: no matching preceding call → fold into a user message.
+				flushPendingReasoning()
+				messages = append(messages, dto.Message{Role: "user", Content: "Function call output (" + callID + "): " + content})
+			}
+			lastAssistantIdx = -1
+
+		case "tool_result":
+			var legacyContent struct {
+				ToolUseID string          `json:"tool_use_id"`
+				Content   json.RawMessage `json:"content"`
+			}
+			_ = common.Unmarshal(it.Content, &legacyContent)
+			callID := firstNonEmpty(legacyContent.ToolUseID, firstNonEmpty(it.ToolCallID, it.CallID))
+			if callID == "" {
+				continue
+			}
+			output := legacyContent.Content
+			if len(output) == 0 {
+				output = it.Content
+			}
+			content := responsesRawToString(output)
+			if seen[callID] {
+				messages = append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content})
+			} else {
+				flushPendingReasoning()
 				messages = append(messages, dto.Message{Role: "user", Content: "Function call output (" + callID + "): " + content})
 			}
 			lastAssistantIdx = -1
 
 		case "reasoning":
-			// No Chat Completions equivalent; drop.
+			if reasoning := responsesInputReasoningText(it); reasoning != "" {
+				pendingReasoning = append(pendingReasoning, reasoning)
+			}
 			continue
 
 		case "message", "":
-			role := strings.TrimSpace(it.Role)
-			if role == "" {
+			rawRole := strings.TrimSpace(it.Role)
+			if rawRole == "" {
 				continue
+			}
+			role := responsesRoleToChatRole(rawRole, systemRole, preserveInstructionRoles)
+			if role != "assistant" {
+				flushPendingReasoning()
 			}
 			msg := dto.Message{Role: role}
 			setResponsesMessageContent(&msg, it.Content)
 			messages = append(messages, msg)
 			if role == "assistant" {
 				lastAssistantIdx = len(messages) - 1
+				attachPendingReasoning(lastAssistantIdx)
 			} else {
 				lastAssistantIdx = -1
 			}
@@ -272,11 +352,18 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 			continue
 		}
 	}
+	flushPendingReasoning()
 
 	for idx, tcs := range toolCallsByIdx {
 		if len(tcs) > 0 {
 			messages[idx].SetToolCalls(tcs)
 		}
+	}
+	if !preserveInstructionRoles {
+		// Strict non-GPT Chat templates commonly accept only one leading system
+		// message. Responses clients may place system/developer messages
+		// throughout input history, so merge their textual content at the head.
+		messages = collapseInstructionMessagesToHead(messages, systemRole)
 	}
 
 	// previous_response_id means the client is in stateful mode, sending only the
@@ -357,6 +444,80 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 	return out, toolCtx, nil
 }
 
+// shouldPreserveResponsesInstructionRoles reports whether the mapped upstream
+// model is an OpenAI GPT/o-series model whose Chat API understands Responses
+// instruction roles. Provider prefixes such as "openai/gpt-5" are supported.
+func shouldPreserveResponsesInstructionRoles(model string) bool {
+	model = responsesModelBaseName(model)
+	model = strings.ToLower(model)
+	return strings.HasPrefix(model, "gpt-") ||
+		strings.HasPrefix(model, "chatgpt-") ||
+		dto.IsOpenAIReasoningOModel(model)
+}
+
+func responsesModelBaseName(model string) string {
+	model = strings.TrimSpace(model)
+	if idx := strings.LastIndex(model, "/"); idx >= 0 {
+		model = model[idx+1:]
+	}
+	return model
+}
+
+// responsesRoleToChatRole normalizes Responses-only roles for Chat upstreams.
+// GPT/o-series models preserve explicit system/developer roles. Other mapped
+// upstream models receive one compatible instruction role (normally system).
+func responsesRoleToChatRole(role string, instructionRole string, preserveInstructionRoles bool) string {
+	switch strings.TrimSpace(role) {
+	case "developer", "system":
+		if preserveInstructionRoles {
+			return strings.TrimSpace(role)
+		}
+		return instructionRole
+	case "assistant":
+		return "assistant"
+	case "tool":
+		return "tool"
+	case "latest_reminder", "user":
+		return "user"
+	default:
+		// Unknown Responses roles are safer as user content than as an invalid
+		// Chat role that strict upstream templates reject.
+		return "user"
+	}
+}
+
+// collapseInstructionMessagesToHead merges textual instruction messages into a
+// single leading message. Non-text instruction content is preserved in place so
+// media is never silently flattened or discarded.
+func collapseInstructionMessagesToHead(messages []dto.Message, instructionRole string) []dto.Message {
+	instructionChunks := make([]string, 0)
+	rest := make([]dto.Message, 0, len(messages))
+
+	for _, message := range messages {
+		if message.Role == instructionRole {
+			if content, ok := message.Content.(string); ok {
+				if strings.TrimSpace(content) != "" {
+					instructionChunks = append(instructionChunks, content)
+				}
+				continue
+			}
+		}
+		rest = append(rest, message)
+	}
+
+	if len(instructionChunks) == 0 {
+		return rest
+	}
+
+	result := make([]dto.Message, 0, len(rest)+1)
+	result = append(result, dto.Message{
+		Role:    instructionRole,
+		Content: strings.Join(instructionChunks, "\n\n"),
+	})
+	result = append(result, rest...)
+	return result
+}
+
 func firstNonEmpty(a, b string) string {
 	if s := strings.TrimSpace(a); s != "" {
 		return s
@@ -416,6 +577,9 @@ func setResponsesMessageContent(msg *dto.Message, rawContent json.RawMessage) {
 		return
 	}
 	switch common.GetJsonType(rawContent) {
+	case "null":
+		msg.Content = ""
+		return
 	case "string":
 		var s string
 		_ = common.Unmarshal(rawContent, &s)
@@ -467,6 +631,40 @@ func setResponsesMessageContent(msg *dto.Message, rawContent json.RawMessage) {
 		return
 	}
 	msg.SetMediaContent(media)
+}
+
+func responsesInputReasoningText(item responsesInputItem) string {
+	for _, raw := range []json.RawMessage{item.Summary, item.ReasoningContent, item.Reasoning, item.Content} {
+		if text := responsesReasoningRawText(raw); text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
+func responsesReasoningRawText(raw json.RawMessage) string {
+	if len(raw) == 0 || common.GetJsonType(raw) == "null" {
+		return ""
+	}
+	if common.GetJsonType(raw) == "string" {
+		var text string
+		_ = common.Unmarshal(raw, &text)
+		return strings.TrimSpace(text)
+	}
+	if common.GetJsonType(raw) == "array" {
+		var parts []map[string]any
+		if common.Unmarshal(raw, &parts) == nil {
+			texts := make([]string, 0, len(parts))
+			for _, part := range parts {
+				text := firstNonEmpty(mapGetString(part, "text"), mapGetString(part, "summary"))
+				if text != "" {
+					texts = append(texts, text)
+				}
+			}
+			return strings.Join(texts, "\n")
+		}
+	}
+	return ""
 }
 
 // responsesInputFileToChat builds the Chat `file` object for an input_file part.
