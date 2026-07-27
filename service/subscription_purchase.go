@@ -74,6 +74,7 @@ var subscriptionPurchaseQuoteResolver = defaultSubscriptionPurchaseQuote
 var subscriptionPurchaseAfterQuoteValidationHook func()
 
 var ErrSubscriptionPurchaseQuoteUnavailable = errors.New("subscription purchase quote unavailable")
+var ErrSubscriptionPurchaseInvitationReservationRequired = errors.New("subscription purchase invitation discount requires reservation support")
 
 type SubscriptionPurchaseQuoteResult struct {
 	Available                     bool    `json:"available"`
@@ -207,6 +208,9 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 	validatedQuote, err := validateAuthoritativeSubscriptionPurchaseQuote(context.Background(), cmd)
 	if err != nil {
 		return nil, err
+	}
+	if validatedQuote.DiscountKind == SubscriptionDiscountKindInvitation {
+		return nil, ErrSubscriptionPurchaseInvitationReservationRequired
 	}
 	cmd.VerifiedQuote = &validatedQuote
 	if subscriptionPurchaseAfterQuoteValidationHook != nil {

@@ -653,15 +653,15 @@ func TestQuoteSubscriptionPurchaseRepairsMissingInviteeRegistrationGrantForAnyRe
 	}
 }
 
-func TestPurchaseSubscriptionInvitationOrdersDoNotWriteRecallAttribution(t *testing.T) {
+func TestPurchaseSubscriptionInvitationOneTimeRequiresReservationSupport(t *testing.T) {
 	tests := []struct {
 		name   string
 		choice string
 	}{
-		{name: "alipay_pending", choice: SubscriptionPaymentChoiceAlipay},
-		{name: "pix_pending", choice: SubscriptionPaymentChoicePix},
-		{name: "upi_pending", choice: SubscriptionPaymentChoiceUPI},
-		{name: "balance_success", choice: SubscriptionPaymentChoiceBalance},
+		{name: "alipay", choice: SubscriptionPaymentChoiceAlipay},
+		{name: "pix", choice: SubscriptionPaymentChoicePix},
+		{name: "upi", choice: SubscriptionPaymentChoiceUPI},
+		{name: "balance", choice: SubscriptionPaymentChoiceBalance},
 	}
 
 	for index, test := range tests {
@@ -684,23 +684,43 @@ func TestPurchaseSubscriptionInvitationOrdersDoNotWriteRecallAttribution(t *test
 			})
 			require.NoError(t, err)
 			require.Equal(t, SubscriptionDiscountKindInvitation, quote.DiscountKind)
-
-			result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
-				UserID:        userID,
-				PlanID:        plan.Id,
-				PaymentChoice: test.choice,
-				Months:        1,
-				RequestID:     "purchase-invitation-" + test.name,
-				VerifiedQuote: purchaseQuoteFromResult(quote),
-			})
-
+			accountBefore, err := model.GetSubscriptionDiscountAccount(userID)
 			require.NoError(t, err)
-			require.NotNil(t, result.Order)
-			require.Equal(t, quote.PaymentAmountMinor, result.Order.PaymentAmountMinor)
-			require.Zero(t, result.Order.RecallCampaignId)
-			require.Zero(t, result.Order.RecallRecipientId)
-			require.Empty(t, result.Order.RecallPromotionCodeId)
-			require.Zero(t, result.Order.RecallDiscountAmountMinor)
+			entriesBefore := countPurchaseServiceDiscountEntries(t, userID)
+			var hookCalls int
+			originalHook := subscriptionPurchaseAfterQuoteValidationHook
+			subscriptionPurchaseAfterQuoteValidationHook = func() { hookCalls++ }
+			t.Cleanup(func() { subscriptionPurchaseAfterQuoteValidationHook = originalHook })
+
+			for _, requestID := range []string{"purchase-invitation-" + test.name + "-first", "purchase-invitation-" + test.name + "-second"} {
+				result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+					UserID:        userID,
+					PlanID:        plan.Id,
+					PaymentChoice: test.choice,
+					Months:        1,
+					RequestID:     requestID,
+					VerifiedQuote: purchaseQuoteFromResult(quote),
+				})
+
+				require.ErrorIs(t, err, ErrSubscriptionPurchaseInvitationReservationRequired)
+				require.Nil(t, result)
+			}
+
+			require.Zero(t, hookCalls)
+			var orderCount int64
+			require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", userID).Count(&orderCount).Error)
+			require.Zero(t, orderCount)
+			var intentCount int64
+			require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", userID).Count(&intentCount).Error)
+			require.Zero(t, intentCount)
+			var ledgerCount int64
+			require.NoError(t, model.DB.Model(&model.WalletLedgerEntry{}).Where("user_id = ?", userID).Count(&ledgerCount).Error)
+			require.Zero(t, ledgerCount)
+			accountAfter, err := model.GetSubscriptionDiscountAccount(userID)
+			require.NoError(t, err)
+			require.Equal(t, accountBefore.AvailableUSDMinor, accountAfter.AvailableUSDMinor)
+			require.Equal(t, accountBefore.ReservedUSDMinor, accountAfter.ReservedUSDMinor)
+			require.Equal(t, entriesBefore, countPurchaseServiceDiscountEntries(t, userID))
 			var conversionCount int64
 			require.NoError(t, model.DB.Model(&model.RecallEvent{}).Where("event_type = ?", "conversion").Count(&conversionCount).Error)
 			require.Zero(t, conversionCount)
@@ -708,19 +728,24 @@ func TestPurchaseSubscriptionInvitationOrdersDoNotWriteRecallAttribution(t *test
 	}
 }
 
-func TestPurchaseSubscriptionMultiMonthInvitationDiscountCanExceedMonthlyUnit(t *testing.T) {
-	setupSubscriptionPurchaseServiceTestDB(t)
-	userID := 7668
-	insertPurchaseServiceUser(t, userID, 100000)
-	plan := insertPurchaseServicePlan(t, 7768, 1, 20, 2000)
-	grantPurchaseServiceInvitationDiscount(t, userID, 5000, "multi-month-invitation")
+func TestValidateSubscriptionPurchaseQuoteAllowsMultiMonthInvitationDiscountGreaterThanMonthlyUnit(t *testing.T) {
+	quote, err := validateSubscriptionPurchaseQuoteForChoice(SubscriptionPurchaseQuote{
+		Currency:                      "USD",
+		UnitPrice:                     20,
+		UnitAmountMinor:               2000,
+		OriginalTotal:                 60,
+		OriginalTotalAmountMinor:      6000,
+		DiscountKind:                  SubscriptionDiscountKindInvitation,
+		DiscountAmount:                50,
+		DiscountAmountMinor:           5000,
+		Total:                         10,
+		PaymentAmountMinor:            1000,
+		InvitationAvailableUSDMinor:   5000,
+		InvitationDiscountUSDMinor:    5000,
+		InvitationDiscountAmountMinor: 5000,
+		InvitationRemainingUSDMinor:   0,
+	}, SubscriptionPaymentChoiceBalance, 3)
 
-	quote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
-		UserID:        userID,
-		PlanID:        plan.Id,
-		PaymentChoice: SubscriptionPaymentChoiceBalance,
-		Months:        3,
-	})
 	require.NoError(t, err)
 	require.Equal(t, SubscriptionDiscountKindInvitation, quote.DiscountKind)
 	require.Equal(t, int64(2000), quote.UnitAmountMinor)
@@ -728,20 +753,6 @@ func TestPurchaseSubscriptionMultiMonthInvitationDiscountCanExceedMonthlyUnit(t 
 	require.Equal(t, int64(5000), quote.DiscountAmountMinor)
 	require.Greater(t, quote.DiscountAmountMinor, quote.UnitAmountMinor)
 	require.LessOrEqual(t, quote.DiscountAmountMinor, quote.OriginalTotalAmountMinor)
-
-	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
-		UserID:        userID,
-		PlanID:        plan.Id,
-		PaymentChoice: SubscriptionPaymentChoiceBalance,
-		Months:        3,
-		RequestID:     "multi-month-invitation",
-		VerifiedQuote: purchaseQuoteFromResult(quote),
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, result.Order)
-	require.Equal(t, int64(1000), result.Order.PaymentAmountMinor)
-	require.Zero(t, result.Order.RecallDiscountAmountMinor)
 }
 
 func TestValidateSubscriptionPurchaseQuoteRejectsRecallDiscountGreaterThanMonthlyUnit(t *testing.T) {
