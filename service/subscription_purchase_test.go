@@ -239,6 +239,63 @@ func TestPurchaseSubscriptionStripeRecurringResolvesRecallPromotionCode(t *testi
 	require.Equal(t, ChangePlanStatusCheckoutRequired, result.Status)
 }
 
+func TestPurchaseSubscriptionStripeRecurringUsesJPYMinorUnitsForRecallSelection(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.SubscriptionProviderBinding{},
+		&model.UserSubscriptionContract{},
+		&model.SubscriptionChangeIntent{},
+		&model.SubscriptionTermSegment{},
+		&model.WalletLedgerEntry{},
+	))
+	setRecallCampaignEnabled(t, true)
+	now := time.Now().UTC()
+	user := model.User{
+		Id:       742601,
+		Username: "purchase_jpy_recall_user",
+		Email:    "purchase-jpy-recall@example.com",
+		Status:   common.UserStatusEnabled,
+		Group:    "plg",
+		AffCode:  "purchase_jpy_recall_aff",
+	}
+	require.NoError(t, model.DB.Create(&user).Error)
+	highMinimum := createRecallOfferFixture(t, user, now.Add(-time.Minute), "jpy high minimum", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "fixed", AmountOff: 500, Currency: "JPY", MinimumAmount: 50000, MinimumAmountCurrency: "JPY"},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription_jpy"}}, nil)
+	selected := createRecallOfferFixture(t, user, now, "jpy selected percent", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 20},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription_jpy"}}, nil)
+	require.NotEqual(t, highMinimum.recipient.Id, selected.recipient.Id)
+	plan := insertPurchaseServicePlan(t, 7426, 1, 1000, 100)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Updates(map[string]interface{}{"stripe_price_id": "price_subscription_jpy", "currency": "JPY"}).Error)
+
+	originalCreator := stripeSubscriptionCheckoutCreator
+	t.Cleanup(func() { stripeSubscriptionCheckoutCreator = originalCreator })
+	stripeSubscriptionCheckoutCreator = func(_ context.Context, input StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		require.Equal(t, int64(1000), input.SubtotalMinor)
+		require.NotNil(t, input.RecallDiscount)
+		require.Equal(t, "promo_jpy_selected_percent", input.RecallDiscount.PromotionCodeID)
+		require.Equal(t, selected.campaign.Id, input.RecallDiscount.CampaignID)
+		require.Equal(t, selected.recipient.Id, input.RecallDiscount.RecipientID)
+		return &StripeSubscriptionCheckoutSession{
+			ID:  "cs_purchase_jpy_recall",
+			URL: "https://checkout.stripe.test/purchase-jpy-recall",
+		}, nil
+	}
+
+	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        user.Id,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RequestID:     "stripe-purchase-jpy-recall",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ChangePlanStatusCheckoutRequired, result.Status)
+}
+
 func setupSubscriptionRecallPurchaseTestDB(t *testing.T) {
 	t.Helper()
 	setupRecallCampaignTestDB(t)

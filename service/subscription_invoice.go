@@ -1829,3 +1829,7 @@ func stripeMinorUnitAmountForSubscription(amount float64, currency string) (int6
 	}
 	return decimal.NewFromFloat(amount).Shift(scale).Round(0).IntPart(), nil
 }
+
+func StripeMinorUnitAmountForSubscription(amount float64, currency string) (int64, error) {
+	return stripeMinorUnitAmountForSubscription(amount, currency)
+}

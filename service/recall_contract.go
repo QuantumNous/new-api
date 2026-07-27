@@ -13,9 +13,10 @@ const (
 )
 
 type RecallCheckoutDiscount struct {
-	PromotionCodeID string `json:"promotion_code_id"`
-	CampaignID      int64  `json:"campaign_id"`
-	RecipientID     int64  `json:"recipient_id"`
+	PromotionCodeID     string `json:"promotion_code_id"`
+	CampaignID          int64  `json:"campaign_id"`
+	RecipientID         int64  `json:"recipient_id"`
+	DiscountAmountMinor int64  `json:"discount_amount_minor"`
 }
 
 type RecallPurchaseDiscount struct {

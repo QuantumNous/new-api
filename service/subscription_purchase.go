@@ -90,9 +90,10 @@ func RecallCheckoutDiscountFromResolvedOffer(offer *RecallResolvedOffer) *Recall
 		return nil
 	}
 	return &RecallCheckoutDiscount{
-		PromotionCodeID: offer.PromotionCodeID,
-		CampaignID:      offer.View.CampaignID,
-		RecipientID:     offer.View.RecipientID,
+		PromotionCodeID:     offer.PromotionCodeID,
+		CampaignID:          offer.View.CampaignID,
+		RecipientID:         offer.View.RecipientID,
+		DiscountAmountMinor: offer.DiscountMinor,
 	}
 }
 

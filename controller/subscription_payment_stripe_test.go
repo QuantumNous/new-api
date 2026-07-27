@@ -26,14 +26,24 @@ import (
 
 type subscriptionStripeRecordingBackend struct {
 	stripe.Backend
-	params []*stripe.CheckoutSessionParams
+	params       []*stripe.CheckoutSessionParams
+	couponParams []*stripe.CouponParams
 }
 
 func (b *subscriptionStripeRecordingBackend) Call(_ string, _ string, _ string, params stripe.ParamsContainer, result stripe.LastResponseSetter) error {
-	b.params = append(b.params, params.(*stripe.CheckoutSessionParams))
-	session := result.(*stripe.CheckoutSession)
-	session.ID = "cs_subscription_test"
-	session.URL = "https://checkout.stripe.test/subscription"
+	switch typed := params.(type) {
+	case *stripe.CheckoutSessionParams:
+		b.params = append(b.params, typed)
+		session := result.(*stripe.CheckoutSession)
+		session.ID = "cs_subscription_test"
+		session.URL = "https://checkout.stripe.test/subscription"
+	case *stripe.CouponParams:
+		b.couponParams = append(b.couponParams, typed)
+		coupon := result.(*stripe.Coupon)
+		coupon.ID = fmt.Sprintf("coupon_subscription_test_%d", len(b.couponParams))
+	default:
+		return fmt.Errorf("unexpected Stripe params type %T", params)
+	}
 	return nil
 }
 
@@ -84,6 +94,157 @@ func TestSubscriptionStripeRecallPromotionCode(t *testing.T) {
 	require.Equal(t, "promo_subscription_recall", *params.Discounts[0].PromotionCode)
 	require.Equal(t, "42", params.Metadata["recall_campaign_id"])
 	require.Equal(t, "84", params.Metadata["recall_recipient_id"])
+}
+
+func TestSubscriptionStripeInviteAndRecallUsesRecallWhenStronger(t *testing.T) {
+	backend := setupSubscriptionStripeRecordingBackend(t)
+	setupSubscriptionRecallClaimDB(t)
+	confirmPaymentComplianceForTest(t)
+	enableRecallCampaignForControllerTest(t)
+	enableInviteFirstSubscriptionDiscountForControllerTest(t, 5)
+	originalGate := common.SubscriptionSingleContractEnabled
+	common.SubscriptionSingleContractEnabled = false
+	t.Cleanup(func() { common.SubscriptionSingleContractEnabled = originalGate })
+
+	originalWebhookSecret := setting.StripeWebhookSecret
+	setting.StripeWebhookSecret = "whsec_subscription_test"
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalWebhookSecret
+	})
+
+	const inviterID = 710201
+	const userID = 710202
+	const planID = 910202
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       inviterID,
+		Username: "subscription_inviter",
+		Email:    "subscription-inviter@example.com",
+		Status:   common.UserStatusEnabled,
+		AffCode:  "subscription_inviter",
+	}).Error)
+	user := model.User{
+		Id:        userID,
+		Username:  "subscription_recall_beats_invite",
+		Email:     "subscription-recall-beats-invite@example.com",
+		Status:    common.UserStatusEnabled,
+		InviterId: inviterID,
+		AffCode:   "subscription_recall_beats_invite",
+	}
+	require.NoError(t, model.DB.Create(&user).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Id:            planID,
+		Title:         "Subscription recall beats invite test",
+		PriceAmount:   20,
+		Currency:      "USD",
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		StripePriceId: "price_subscription",
+	}).Error)
+	model.InvalidateSubscriptionPlanCache(planID)
+	strongerCampaign, strongerRecipient := seedControllerSubscriptionRecallOffer(t, user, "subscription recall stronger", service.RecallDiscountConfig{Type: "percent", PercentOff: 50}, "price_subscription", "promo_subscription_recall_stronger", model.RecallRecipientContacting)
+
+	body, err := common.Marshal(SubscriptionStripePayRequest{PlanId: planID})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/subscription/stripe/pay", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", userID)
+
+	SubscriptionRequestStripePay(ctx)
+
+	require.Len(t, backend.params, 1)
+	require.Empty(t, backend.couponParams)
+	params := backend.params[0]
+	require.Len(t, params.Discounts, 1)
+	require.Equal(t, "promo_subscription_recall_stronger", *params.Discounts[0].PromotionCode)
+	require.Equal(t, fmt.Sprintf("%d", strongerCampaign.Id), params.Metadata["recall_campaign_id"])
+	require.Equal(t, fmt.Sprintf("%d", strongerRecipient.Id), params.Metadata["recall_recipient_id"])
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "user_id = ?", userID).Error)
+	require.Zero(t, order.DiscountUSD)
+}
+
+func TestSubscriptionStripeInviteAndRecallUsesInviteOnStrongerOrTie(t *testing.T) {
+	backend := setupSubscriptionStripeRecordingBackend(t)
+	setupSubscriptionRecallClaimDB(t)
+	confirmPaymentComplianceForTest(t)
+	enableRecallCampaignForControllerTest(t)
+	enableInviteFirstSubscriptionDiscountForControllerTest(t, 5)
+	originalGate := common.SubscriptionSingleContractEnabled
+	common.SubscriptionSingleContractEnabled = false
+	t.Cleanup(func() { common.SubscriptionSingleContractEnabled = originalGate })
+
+	originalWebhookSecret := setting.StripeWebhookSecret
+	setting.StripeWebhookSecret = "whsec_subscription_test"
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalWebhookSecret
+	})
+
+	for _, test := range []struct {
+		name       string
+		percentOff float64
+	}{
+		{name: "invite_stronger", percentOff: 10},
+		{name: "invite_tie", percentOff: 25},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			backend.params = nil
+			backend.couponParams = nil
+			userID := 710300 + len(test.name)
+			planID := 910300 + len(test.name)
+			inviterID := userID + 1000
+			require.NoError(t, model.DB.Create(&model.User{
+				Id:       inviterID,
+				Username: "subscription_inviter_" + test.name,
+				Email:    "subscription-inviter-" + test.name + "@example.com",
+				Status:   common.UserStatusEnabled,
+				AffCode:  "subscription_inviter_" + test.name,
+			}).Error)
+			user := model.User{
+				Id:        userID,
+				Username:  "subscription_invite_wins_" + test.name,
+				Email:     "subscription-invite-wins-" + test.name + "@example.com",
+				Status:    common.UserStatusEnabled,
+				InviterId: inviterID,
+				AffCode:   "subscription_invite_wins_" + test.name,
+			}
+			require.NoError(t, model.DB.Create(&user).Error)
+			require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+				Id:            planID,
+				Title:         "Subscription invite wins test",
+				PriceAmount:   20,
+				Currency:      "USD",
+				DurationUnit:  model.SubscriptionDurationMonth,
+				DurationValue: 1,
+				Enabled:       true,
+				StripePriceId: "price_subscription",
+			}).Error)
+			model.InvalidateSubscriptionPlanCache(planID)
+			seedControllerSubscriptionRecallOffer(t, user, "subscription recall "+test.name, service.RecallDiscountConfig{Type: "percent", PercentOff: test.percentOff}, "price_subscription", "promo_subscription_recall_"+test.name, model.RecallRecipientContacting)
+
+			body, err := common.Marshal(SubscriptionStripePayRequest{PlanId: planID})
+			require.NoError(t, err)
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/subscription/stripe/pay", bytes.NewReader(body))
+			ctx.Request.Header.Set("Content-Type", "application/json")
+			ctx.Set("id", userID)
+
+			SubscriptionRequestStripePay(ctx)
+
+			require.Len(t, backend.params, 1)
+			require.Len(t, backend.couponParams, 1)
+			params := backend.params[0]
+			require.Len(t, params.Discounts, 1)
+			require.Equal(t, "coupon_subscription_test_1", *params.Discounts[0].Coupon)
+			require.Empty(t, params.Metadata["recall_campaign_id"])
+			require.Empty(t, params.Metadata["recall_recipient_id"])
+			require.Empty(t, params.SubscriptionData.Metadata["recall_campaign_id"])
+			require.Empty(t, params.SubscriptionData.Metadata["recall_recipient_id"])
+		})
+	}
 }
 
 func TestSubscriptionStripeNoClaimAppliesBestAccountRecallOffer(t *testing.T) {
@@ -350,5 +511,17 @@ func enableRecallCampaignForControllerTest(t *testing.T) {
 			"recall_campaign_setting.batch_size":   "100",
 			"recall_campaign_setting.tick_seconds": "30",
 		}))
+	})
+}
+
+func enableInviteFirstSubscriptionDiscountForControllerTest(t *testing.T, discountUSD float64) {
+	t.Helper()
+	originalMode := common.InviteRewardSubscriptionMode
+	originalDiscount := common.InviteFirstSubDiscountUSD
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = discountUSD
+	t.Cleanup(func() {
+		common.InviteRewardSubscriptionMode = originalMode
+		common.InviteFirstSubDiscountUSD = originalDiscount
 	})
 }

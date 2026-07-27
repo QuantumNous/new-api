@@ -90,7 +90,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	}
 
 	service.RecordRecallClaimAttribution(c.Request.Context(), userId, req.RecallClaim)
-	firstPeriodSubtotalMinor, err := stripeMinorUnitAmount(plan.PriceAmount, plan.Currency)
+	firstPeriodSubtotalMinor, err := service.StripeMinorUnitAmountForSubscription(plan.PriceAmount, plan.Currency)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -126,6 +126,16 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return
 	}
+	if err := applySubscriptionCheckoutDiscountSelection(order, plan, recallDiscount); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅折扣选择失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
+		order.Status = common.TopUpStatusFailed
+		_ = order.Update()
+		common.ApiError(c, err)
+		return
+	}
+	if order.RecallDiscountAmountMinor == 0 {
+		recallDiscount = nil
+	}
 
 	checkoutSession, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId, userId, plan.Id, order.DiscountUSD, recallDiscount)
 	if err != nil {
@@ -142,6 +152,28 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 			"pay_link": checkoutSession.URL,
 		},
 	})
+}
+
+func applySubscriptionCheckoutDiscountSelection(order *model.SubscriptionOrder, plan *model.SubscriptionPlan, recall *service.RecallCheckoutDiscount) error {
+	if order == nil || plan == nil || recall == nil || recall.DiscountAmountMinor <= 0 {
+		return nil
+	}
+	if order.DiscountUSD > 0 {
+		inviteDiscountMinor, err := service.StripeMinorUnitAmountForSubscription(order.DiscountUSD, plan.Currency)
+		if err != nil {
+			return err
+		}
+		if inviteDiscountMinor >= recall.DiscountAmountMinor {
+			return nil
+		}
+		order.DiscountUSD = 0
+		order.Money = plan.PriceAmount
+	}
+	order.RecallCampaignId = recall.CampaignID
+	order.RecallRecipientId = recall.RecipientID
+	order.RecallPromotionCodeId = recall.PromotionCodeID
+	order.RecallDiscountAmountMinor = recall.DiscountAmountMinor
+	return order.Update()
 }
 
 func genStripeSubscriptionLink(referenceId string, customerId string, email string, priceId string, userId int, planId int, discountUSD float64, recall *service.RecallCheckoutDiscount) (*stripe.CheckoutSession, error) {

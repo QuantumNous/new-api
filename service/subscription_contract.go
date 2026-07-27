@@ -216,6 +216,10 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 						return err
 					}
 				}
+				subtotalMinor, err := stripeMinorUnitAmountForSubscription(plan.PriceAmount, plan.Currency)
+				if err != nil {
+					return err
+				}
 				checkoutInput = &StripeSubscriptionCheckoutInput{
 					TradeNo:        order.TradeNo,
 					UserID:         user.Id,
@@ -226,7 +230,7 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 					Email:          strings.TrimSpace(user.Email),
 					PriceID:        strings.TrimSpace(plan.StripePriceId),
 					Currency:       strings.ToUpper(strings.TrimSpace(plan.Currency)),
-					SubtotalMinor:  subscriptionPurchaseMinorAmount(plan.PriceAmount),
+					SubtotalMinor:  subtotalMinor,
 					IdempotencyKey: existing.ProviderIdempotencyKey,
 					Presentation:   ResolveStripeCheckoutPresentation(cmd.UIMode),
 				}
@@ -1234,6 +1238,10 @@ func prepareStripeSubscriptionCheckoutPaymentTx(tx *gorm.DB, user *model.User, c
 	if err := tx.Create(order).Error; err != nil {
 		return nil, err
 	}
+	subtotalMinor, err := stripeMinorUnitAmountForSubscription(plan.PriceAmount, plan.Currency)
+	if err != nil {
+		return nil, err
+	}
 	return &StripeSubscriptionCheckoutInput{
 		TradeNo:        tradeNo,
 		UserID:         user.Id,
@@ -1244,7 +1252,7 @@ func prepareStripeSubscriptionCheckoutPaymentTx(tx *gorm.DB, user *model.User, c
 		Email:          strings.TrimSpace(user.Email),
 		PriceID:        strings.TrimSpace(plan.StripePriceId),
 		Currency:       strings.ToUpper(strings.TrimSpace(plan.Currency)),
-		SubtotalMinor:  subscriptionPurchaseMinorAmount(plan.PriceAmount),
+		SubtotalMinor:  subtotalMinor,
 		IdempotencyKey: idempotencyKey,
 		Presentation:   ResolveStripeCheckoutPresentation(""),
 	}, nil
