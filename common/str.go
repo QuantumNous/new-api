@@ -179,10 +179,7 @@ func maskHostForPlainDomain(domain string) string {
 		return domain
 	}
 	tail := maskHostTail(parts)
-	numStars := len(parts) - len(tail)
-	if numStars < 1 {
-		numStars = 1
-	}
+	numStars := max(len(parts)-len(tail), 1)
 	stars := strings.TrimSuffix(strings.Repeat("***.", numStars), ".")
 	return stars + "." + strings.Join(tail, ".")
 }

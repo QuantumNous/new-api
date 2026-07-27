@@ -91,10 +91,7 @@ func SizeToVeoResolution(size string) string {
 	}
 	w, _ := strconv.Atoi(parts[0])
 	h, _ := strconv.Atoi(parts[1])
-	maxDim := w
-	if h > maxDim {
-		maxDim = h
-	}
+	maxDim := max(h, w)
 	if maxDim >= 3840 {
 		return "4k"
 	}

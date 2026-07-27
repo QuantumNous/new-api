@@ -136,10 +136,7 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 			hScaled = float64(height) * r
 			patchesW := math.Ceil(wScaled / 32.0)
 			patchesH := math.Ceil(hScaled / 32.0)
-			imageTokens := int(patchesW * patchesH)
-			if imageTokens > 1536 {
-				imageTokens = 1536
-			}
+			imageTokens := min(int(patchesW*patchesH), 1536)
 			return int(math.Round(float64(imageTokens) * multiplier)), nil
 		}
 		// below cap
