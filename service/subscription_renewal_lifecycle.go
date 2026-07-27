@@ -47,6 +47,16 @@ func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus st
 			if err != nil {
 				return err
 			}
+			currentStatus := model.SubscriptionRenewalStatusEnabled
+			if binding.CancelAtPeriodEnd {
+				currentStatus = model.SubscriptionRenewalStatusCancelledByUser
+			}
+			if currentStatus == toStatus {
+				return errors.New("subscription renewal status already matches requested state")
+			}
+			if currentStatus != fromStatus {
+				return errors.New("subscription renewal status cannot be changed")
+			}
 			stripeBinding = binding
 			return nil
 		}
@@ -154,9 +164,7 @@ func validateStripeRenewalLifecycleTargetTx(tx *gorm.DB, contract *model.UserSub
 	if strings.TrimSpace(binding.ProviderSubscriptionId) == "" {
 		return nil, errors.New("Stripe subscription binding is incomplete")
 	}
-	if isTerminalStripeSubscriptionStatus(binding.ProviderStatus) ||
-		isIncompleteStripeSubscriptionStatus(binding.ProviderStatus) ||
-		binding.EndedAt > 0 {
+	if !isActionableStripeRenewalStatus(binding.ProviderStatus) || binding.EndedAt > 0 {
 		return nil, errors.New("current subscription is not active Stripe recurring")
 	}
 	var bindings []model.SubscriptionProviderBinding
@@ -243,6 +251,15 @@ func isIncompleteStripeSubscriptionStatus(status string) bool {
 	return strings.EqualFold(strings.TrimSpace(status), "incomplete")
 }
 
+func isActionableStripeRenewalStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "active", "trialing":
+		return true
+	default:
+		return false
+	}
+}
+
 func buildSubscriptionRenewalLifecycleResult(contract *model.UserSubscriptionContract) *SubscriptionRenewalLifecycleResult {
 	result := &SubscriptionRenewalLifecycleResult{
 		RenewalSource:    contract.RenewalSource,
@@ -261,12 +278,20 @@ func buildSubscriptionRenewalLifecycleResult(contract *model.UserSubscriptionCon
 
 func buildStripeSubscriptionRenewalLifecycleResult(binding *model.SubscriptionProviderBinding) *SubscriptionRenewalLifecycleResult {
 	result := &SubscriptionRenewalLifecycleResult{
-		RenewalSource:     model.SubscriptionRenewalSourceProvider,
-		RenewalStatus:     model.SubscriptionRenewalStatusEnabled,
-		CurrentPeriodEnd:  binding.CurrentPeriodEnd,
-		CanCancel:         true,
-		CancelAtPeriodEnd: binding.CancelAtPeriodEnd,
+		RenewalSource:    model.SubscriptionRenewalSourceProvider,
+		CurrentPeriodEnd: binding.CurrentPeriodEnd,
 	}
+	providerStatus := strings.ToLower(strings.TrimSpace(binding.ProviderStatus))
+	if providerStatus == "canceled" {
+		result.RenewalStatus = model.SubscriptionRenewalStatusCancelledByUser
+		return result
+	}
+	if !isActionableStripeRenewalStatus(providerStatus) {
+		return result
+	}
+	result.RenewalStatus = model.SubscriptionRenewalStatusEnabled
+	result.CanCancel = true
+	result.CancelAtPeriodEnd = binding.CancelAtPeriodEnd
 	if binding.CancelAtPeriodEnd {
 		result.RenewalStatus = model.SubscriptionRenewalStatusCancelledByUser
 		result.CanCancel = false

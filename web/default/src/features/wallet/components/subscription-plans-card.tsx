@@ -325,7 +325,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   }
 
   const refreshAfterRenewal = async (syncPending: boolean) => {
-    let refreshFailed = syncPending || !(await fetchSelfSubscription())
+    let refreshFailed = !(await fetchSelfSubscription())
     try {
       await onPurchaseSuccess?.()
     } catch {
@@ -333,6 +333,8 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
     if (refreshFailed) {
       toast.error(t('Subscription updated, but failed to refresh status'))
+    } else if (syncPending) {
+      toast.info(t('Subscription updated; renewal status is still syncing'))
     }
   }
 

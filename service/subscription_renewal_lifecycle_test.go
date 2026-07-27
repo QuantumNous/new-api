@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -58,6 +59,141 @@ func TestCancelCurrentSubscriptionRenewalStripeUsesAuthoritativeCurrentBinding(t
 	require.NoError(t, model.DB.First(&storedContract, contract.Id).Error)
 	require.Equal(t, model.SubscriptionRenewalStatusEnabled, storedContract.RenewalStatus)
 	require.Equal(t, "cancel_delegate_seen", storedContract.BaseUserGroup)
+}
+
+func TestStripeRenewalTransitionAlreadyAtTargetRejectsWithoutProviderMutation(t *testing.T) {
+	testCases := []struct {
+		name              string
+		cancelAtPeriodEnd bool
+		invoke            func(userID int) (*SubscriptionRenewalLifecycleResult, error)
+		installFailure    func(t *testing.T)
+	}{
+		{
+			name:              "cancel already scheduled",
+			cancelAtPeriodEnd: true,
+			invoke:            CancelCurrentSubscriptionRenewal,
+			installFailure: func(t *testing.T) {
+				original := cancelCurrentStripeRecurringSubscription
+				t.Cleanup(func() { cancelCurrentStripeRecurringSubscription = original })
+				cancelCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+					return nil, errors.New("duplicate cancel reached Stripe delegate")
+				}
+			},
+		},
+		{
+			name:              "renewal already enabled",
+			cancelAtPeriodEnd: false,
+			invoke:            ResumeCurrentSubscriptionRenewal,
+			installFailure: func(t *testing.T) {
+				original := resumeCurrentStripeRecurringSubscription
+				t.Cleanup(func() { resumeCurrentStripeRecurringSubscription = original })
+				resumeCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+					return nil, errors.New("duplicate resume reached Stripe delegate")
+				}
+			},
+		},
+	}
+
+	for index, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			setupSubscriptionPurchaseServiceTestDB(t)
+			contract, _, _ := seedStripeRenewalLifecycleContract(t, 7950+index, testCase.cancelAtPeriodEnd, "sub_target_state_"+testCase.name)
+			testCase.installFailure(t)
+
+			result, err := testCase.invoke(contract.UserId)
+
+			require.ErrorContains(t, err, "already matches requested state")
+			require.Nil(t, result)
+		})
+	}
+}
+
+func TestOppositeStripeRenewalActionCannotMutateWhileCancelIsInFlight(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7952, false, "sub_cancel_in_flight")
+	originalCancel := cancelCurrentStripeRecurringSubscription
+	originalResume := resumeCurrentStripeRecurringSubscription
+	t.Cleanup(func() {
+		cancelCurrentStripeRecurringSubscription = originalCancel
+		resumeCurrentStripeRecurringSubscription = originalResume
+	})
+	cancelStarted := make(chan struct{})
+	releaseCancel := make(chan struct{}, 1)
+	t.Cleanup(func() {
+		select {
+		case releaseCancel <- struct{}{}:
+		default:
+		}
+	})
+	cancelCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		close(cancelStarted)
+		<-releaseCancel
+		updated := *binding
+		updated.CancelAtPeriodEnd = true
+		return &updated, nil
+	}
+	var resumeCalls atomic.Int32
+	resumeCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		resumeCalls.Add(1)
+		return nil, errors.New("opposite resume reached Stripe delegate")
+	}
+	type lifecycleCallResult struct {
+		result *SubscriptionRenewalLifecycleResult
+		err    error
+	}
+	cancelResult := make(chan lifecycleCallResult, 1)
+	go func() {
+		result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
+		cancelResult <- lifecycleCallResult{result: result, err: err}
+	}()
+	select {
+	case <-cancelStarted:
+	case <-time.After(time.Second):
+		t.Fatal("cancel delegate did not start")
+	}
+
+	resumeResult, err := ResumeCurrentSubscriptionRenewal(contract.UserId)
+
+	require.ErrorContains(t, err, "already matches requested state")
+	require.Nil(t, resumeResult)
+	require.Zero(t, resumeCalls.Load())
+	releaseCancel <- struct{}{}
+	select {
+	case completed := <-cancelResult:
+		require.NoError(t, completed.err)
+		require.NotNil(t, completed.result)
+		require.Equal(t, model.SubscriptionRenewalStatusCancelledByUser, completed.result.RenewalStatus)
+	case <-time.After(time.Second):
+		t.Fatal("cancel did not complete")
+	}
+}
+
+func TestStripeRenewalLifecycleResultNeverExposesTerminalBindingAsEnabled(t *testing.T) {
+	testCases := []struct {
+		name       string
+		status     string
+		endedAt    int64
+		wantStatus string
+	}{
+		{name: "user canceled", status: "canceled", endedAt: 100, wantStatus: model.SubscriptionRenewalStatusCancelledByUser},
+		{name: "unpaid terminal", status: "unpaid", endedAt: 100},
+		{name: "incomplete expired terminal", status: "incomplete_expired", endedAt: 100},
+		{name: "incomplete", status: "incomplete"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			result := buildStripeSubscriptionRenewalLifecycleResult(&model.SubscriptionProviderBinding{
+				ProviderStatus:   testCase.status,
+				EndedAt:          testCase.endedAt,
+				CurrentPeriodEnd: 200,
+			})
+
+			require.Equal(t, testCase.wantStatus, result.RenewalStatus)
+			require.False(t, result.CanCancel)
+			require.False(t, result.CanResume)
+			require.False(t, result.CancelAtPeriodEnd)
+		})
+	}
 }
 
 func TestResumeCurrentSubscriptionRenewalStripeUsesAuthoritativeCurrentBinding(t *testing.T) {

@@ -5836,6 +5836,7 @@
     "Subscription renewal canceled": "Đã hủy gia hạn gói đăng ký",
     "Subscription renewal resumed": "Đã tiếp tục gia hạn gói đăng ký",
     "Subscription updated, but failed to refresh status": "Gói đăng ký đã được cập nhật nhưng không thể làm mới trạng thái",
+    "Subscription updated; renewal status is still syncing": "Gói đăng ký đã được cập nhật; trạng thái gia hạn vẫn đang được đồng bộ",
     "Start date": "Ngày bắt đầu",
     "End date": "Ngày kết thúc",
     "Remaining days": "Số ngày còn lại",

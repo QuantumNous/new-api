@@ -1165,8 +1165,7 @@ func recurringMatchesCurrentSubscription(
 func isActiveRecurringBinding(recurring RecurringSubscriptionDTO, now int64) bool {
 	if strings.TrimSpace(recurring.Provider) != model.PaymentProviderStripe ||
 		recurring.RequiresSupport || recurring.Terminal ||
-		isIncompleteRecurringProviderStatus(recurring.ProviderStatus) ||
-		isTerminalRecurringProviderStatus(recurring.ProviderStatus) {
+		!isActionableRecurringProviderStatus(recurring.ProviderStatus) {
 		return false
 	}
 	periodEnd := recurring.CurrentPeriodEnd
@@ -1174,6 +1173,15 @@ func isActiveRecurringBinding(recurring RecurringSubscriptionDTO, now int64) boo
 		periodEnd = recurring.GracePeriodEnd
 	}
 	return periodEnd > now
+}
+
+func isActionableRecurringProviderStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "active", "trialing":
+		return true
+	default:
+		return false
+	}
 }
 
 func isTerminalRecurringProviderStatus(status string) bool {

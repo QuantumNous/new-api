@@ -127,10 +127,12 @@ The unified resolver must verify all of the following before dispatch:
 - `current_provider_binding_id` is positive;
 - the binding belongs to the same user and contract;
 - the provider is Stripe and the provider subscription ID is complete;
-- the binding is not terminal;
+- the binding provider status is exactly `active` or `trialing`, and `ended_at` is empty;
 - migration classification does not require admin review.
 
-The existing Stripe idempotency behavior handles repeat requests. The database contract/binding checks prevent a stale UI request from targeting a former subscription. The implementation must not keep a database transaction open while waiting on the Stripe network call; it validates the exact target immediately before the provider service call and relies on the existing authoritative revalidation when the provider snapshot is applied.
+While the contract and current binding rows are locked, the resolver projects the binding's current renewal status from `cancel_at_period_end`. If that status already equals the requested target, the request fails locally without calling Stripe instead of reporting a success that could be stale while an opposite provider mutation is in flight. If it does not equal the action's expected source status, the request also fails. Only the exact expected source-to-target transition may dispatch to Stripe; the existing Stripe idempotency key protects retries of an allowed same-direction mutation.
+
+The implementation does not keep a database transaction open while waiting on the Stripe network call. It validates and gates the exact target under the row lock, releases the transaction, then relies on the existing authoritative revalidation when the provider snapshot is applied.
 
 ## Self-subscription response and capabilities
 
@@ -142,7 +144,7 @@ Update its renewal projection so that:
 - an active exact Stripe binding with `cancel_at_period_end=true` returns `provider_recurring/cancelled_by_user`;
 - an active wallet contract returns its persisted wallet renewal status, including `cancelled_by_user`;
 - a one-period contract without canonical auto-renewal returns empty renewal source/status;
-- stale provider state without an active matching binding returns empty renewal state and support/migration capabilities rather than a guessed action.
+- stale provider state, including `past_due`, `paused`, incomplete, terminal, or unknown provider statuses, returns empty renewal state and support/migration capabilities rather than a guessed action.
 
 Set provider-neutral capabilities from that canonical projection:
 
@@ -155,7 +157,7 @@ Set provider-neutral capabilities from that canonical projection:
 
 The current-plan card renders renewal UI only when `renewal_source` is `provider_recurring` or `wallet_auto`.
 
-The card receives mutation callbacks and pending state from the subscription-plans container. The container owns the API mutation, toast handling, query invalidation, and refetch. During a mutation, both lifecycle actions are disabled to prevent double submission.
+The card receives mutation callbacks and pending state from the subscription-plans container. The container owns the API mutation, toast handling, query invalidation, and refetch. During a mutation, both lifecycle actions are disabled to prevent double submission. A successful mutation with `sync_pending=true` uses a reconciliation-in-progress notice after a successful refresh; only an actual refresh failure uses the refresh-error notice.
 
 Display rules:
 

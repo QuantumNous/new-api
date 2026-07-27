@@ -5836,6 +5836,7 @@
     "Subscription renewal canceled": "Продление подписки отменено",
     "Subscription renewal resumed": "Продление подписки возобновлено",
     "Subscription updated, but failed to refresh status": "Подписка обновлена, но не удалось обновить статус",
+    "Subscription updated; renewal status is still syncing": "Подписка обновлена; статус продления всё ещё синхронизируется",
     "Start date": "Дата начала",
     "End date": "Дата окончания",
     "Remaining days": "Осталось дней",

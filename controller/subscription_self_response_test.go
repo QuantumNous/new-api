@@ -731,6 +731,24 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 			wantSupport: true,
 		},
 		{
+			name: "past due stripe binding requires support instead of period end cancellation",
+			contract: func() model.UserSubscriptionContract {
+				contract := activeContract
+				contract.CurrentProviderBindingId = activeBinding.BindingId
+				return contract
+			}(),
+			entitlement: activeEntitlement,
+			bindings: recurringSubscriptionDTOs([]model.SubscriptionProviderBinding{{
+				Id:                     activeBinding.BindingId,
+				Provider:               model.PaymentProviderStripe,
+				PlanId:                 activeBinding.PlanId,
+				ProviderSubscriptionId: "sub_past_due_requires_support",
+				ProviderStatus:         "past_due",
+				CurrentPeriodEnd:       now + 3600,
+			}}),
+			wantSupport: true,
+		},
+		{
 			name: "mismatched stripe binding requires support",
 			contract: func() model.UserSubscriptionContract {
 				contract := activeContract

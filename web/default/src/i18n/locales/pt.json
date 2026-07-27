@@ -5836,6 +5836,7 @@
     "Subscription renewal canceled": "Renovação da assinatura cancelada",
     "Subscription renewal resumed": "Renovação da assinatura retomada",
     "Subscription updated, but failed to refresh status": "A assinatura foi atualizada, mas não foi possível atualizar o status",
+    "Subscription updated; renewal status is still syncing": "A assinatura foi atualizada; o status da renovação ainda está sendo sincronizado",
     "Start date": "Data de início",
     "End date": "Data de término",
     "Remaining days": "Dias restantes",

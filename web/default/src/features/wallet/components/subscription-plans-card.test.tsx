@@ -622,6 +622,15 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(cardSource).toContain(
       "toast.error(t('Subscription updated, but failed to refresh status'))"
     )
+    expect(cardSource).toContain(
+      "toast.info(t('Subscription updated; renewal status is still syncing'))"
+    )
+    expect(cardSource).toContain(
+      'let refreshFailed = !(await fetchSelfSubscription())'
+    )
+    expect(cardSource).not.toContain(
+      'let refreshFailed = syncPending || !(await fetchSelfSubscription())'
+    )
     expect(
       cardSource.match(/if \(renewalMutationInFlightRef\.current\) \{/g)
     ).toHaveLength(2)
@@ -641,7 +650,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(cardSource).not.toContain('current_provider_binding_id')
   })
 
-  test('localizes the renewal refresh warning in every wallet locale', () => {
+  test('localizes renewal refresh and reconciliation warnings in every wallet locale', () => {
     for (const localeCode of ['en', 'zh', 'fr', 'ru', 'ja', 'vi', 'es', 'pt']) {
       const locale = JSON.parse(
         readFileSync(
@@ -653,6 +662,11 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       expect(
         locale.translation[
           'Subscription updated, but failed to refresh status'
+        ]
+      ).toBeTruthy()
+      expect(
+        locale.translation[
+          'Subscription updated; renewal status is still syncing'
         ]
       ).toBeTruthy()
     }
