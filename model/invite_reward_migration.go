@@ -260,6 +260,25 @@ func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int, pricing
 	var inviterId int
 	migrated := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		var locator InviteSubscriptionReward
+		err := tx.Select("id", "inviter_id", "reward_quota", "status").
+			Where("id = ?", rewardId).First(&locator).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if locator.Status != InviteSubRewardStatusPending {
+			return nil
+		}
+		inviterId = locator.InviterId
+		if _, err := lockLegacyInvitationMigrationUserTx(tx, locator.InviterId); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
 		reward, err := lockLegacyInvitationMigrationRewardTx(tx, rewardId)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
@@ -267,15 +286,10 @@ func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int, pricing
 		if err != nil {
 			return err
 		}
-		if reward.Status != InviteSubRewardStatusPending {
+		if reward.Status != InviteSubRewardStatusPending ||
+			reward.InviterId != locator.InviterId ||
+			reward.RewardQuota != locator.RewardQuota {
 			return nil
-		}
-		inviterId = reward.InviterId
-		if _, err := lockLegacyInvitationMigrationUserTx(tx, reward.InviterId); err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil
-			}
-			return err
 		}
 		if reward.RewardQuota < 0 {
 			return ErrSubscriptionDiscountInvalidAmount

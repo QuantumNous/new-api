@@ -251,6 +251,33 @@ func TestMigrateInvitationValueSkipsMissingInvitersWithoutBlockingLaterRewards(t
 	require.EqualValues(t, 1, entries)
 }
 
+func TestMigrateInvitationRewardLocksInviterBeforeRewardRow(t *testing.T) {
+	db := setupInviteRewardMigrationTest(t)
+
+	inviter := User{Id: 317, Username: "lock-order-inviter", Password: "password123", AffCode: "lock-order-inviter-code"}
+	require.NoError(t, db.Create(&inviter).Error)
+	require.NoError(t, db.Create(&InviteSubscriptionReward{
+		Id:          414,
+		InviteeId:   914,
+		InviterId:   inviter.Id,
+		RewardQuota: 100_000,
+		Status:      InviteSubRewardStatusPending,
+		UnlockAt:    100,
+	}).Error)
+
+	var lockOrder []string
+	db.Callback().Update().Before("gorm:update").Register("test_record_invite_reward_migration_lock_order", func(tx *gorm.DB) {
+		switch tx.Statement.Table {
+		case "users", "invite_subscription_rewards":
+			lockOrder = append(lockOrder, tx.Statement.Table)
+		}
+	})
+
+	require.NoError(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
+	require.GreaterOrEqual(t, len(lockOrder), 2)
+	require.Equal(t, []string{"users", "invite_subscription_rewards"}, lockOrder[:2])
+}
+
 func TestMigrateInvitationValueHandlesZeroQuotaPendingRewardAsTerminalNoCredit(t *testing.T) {
 	db := setupInviteRewardMigrationTest(t)
 
