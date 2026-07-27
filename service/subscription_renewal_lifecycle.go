@@ -51,6 +51,9 @@ func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus st
 			if binding.CancelAtPeriodEnd {
 				currentStatus = model.SubscriptionRenewalStatusCancelledByUser
 			}
+			// Stripe already-at-target requests intentionally fail locally: an
+			// opposite provider mutation may still be in flight. Wallet renewal is
+			// fully local and row-locked, so its repeated actions remain idempotent.
 			if currentStatus == toStatus {
 				return errors.New("subscription renewal status already matches requested state")
 			}
@@ -199,6 +202,9 @@ func confirmStripeRenewalMutationAfterError(
 	if binding == nil || mutationErr == nil {
 		return nil, false
 	}
+	if errors.Is(mutationErr, model.ErrSubscriptionProviderLifecycleConflict) {
+		return nil, false
+	}
 	snapshot, err := stripeSubscriptionSnapshotGetter(binding.ProviderSubscriptionId)
 	if err != nil || strings.TrimSpace(snapshot.ProviderSubscriptionId) != strings.TrimSpace(binding.ProviderSubscriptionId) {
 		return nil, false
@@ -252,6 +258,9 @@ func isIncompleteStripeSubscriptionStatus(status string) bool {
 }
 
 func isActionableStripeRenewalStatus(status string) bool {
+	// Unified self-service renewal deliberately fails closed for degraded
+	// provider states. The lower-level past_due termination path remains for
+	// explicit administrative and compatibility flows, not wallet controls.
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "active", "trialing":
 		return true

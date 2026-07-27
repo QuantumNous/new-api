@@ -559,12 +559,12 @@ func reconcileCancelDowngradeCompensation(intent model.SubscriptionChangeIntent)
 		return errors.New("cancel downgrade compensation Stripe subscription mismatch")
 	}
 	if snapshot.CancelAtPeriodEnd {
-		if _, err := model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot); err != nil {
+		if _, err := model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, snapshot); err != nil {
 			return err
 		}
 		return clearPendingDowngradeAfterCancel(&binding, intent)
 	}
-	if _, err := model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot); err != nil {
+	if _, err := model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, snapshot); err != nil {
 		return err
 	}
 	return restorePendingDowngradeAfterCancelFailure(&binding, intent, snapshot, errors.New("authoritative Stripe subscription is not canceled at period end"))

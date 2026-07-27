@@ -452,6 +452,37 @@ func TestResumeCurrentSubscriptionRenewalReturnsConfirmedRemoteStateAfterLocalSy
 	require.True(t, result.SyncPending)
 }
 
+func TestCancelCurrentSubscriptionRenewalDoesNotConfirmLifecycleConflictFromProviderSnapshot(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7949, false, "sub_unified_cancel_lifecycle_conflict")
+	originalCancel := cancelCurrentStripeRecurringSubscription
+	originalGet := stripeSubscriptionSnapshotGetter
+	t.Cleanup(func() {
+		cancelCurrentStripeRecurringSubscription = originalCancel
+		stripeSubscriptionSnapshotGetter = originalGet
+	})
+	cancelCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		require.Equal(t, contract.UserId, userID)
+		require.Equal(t, binding.Id, bindingID)
+		return nil, model.ErrSubscriptionProviderLifecycleConflict
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderStatus:         "active",
+			CancelAtPeriodEnd:      true,
+			CurrentPeriodStart:     binding.CurrentPeriodStart,
+			CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+		}, nil
+	}
+
+	result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
+
+	require.ErrorIs(t, err, model.ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, result)
+}
+
 func TestCancelCurrentSubscriptionRenewalDoesNotTreatUnpaidSnapshotAsConfirmedCancellation(t *testing.T) {
 	setupSubscriptionPurchaseServiceTestDB(t)
 	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7948, false, "sub_unified_cancel_unpaid")

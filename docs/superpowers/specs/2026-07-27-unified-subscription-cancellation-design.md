@@ -134,6 +134,8 @@ While the contract and current binding rows are locked, the resolver projects th
 
 The implementation does not keep a database transaction open while waiting on the Stripe network call. It validates and gates the exact target under the row lock, releases the transaction, and applies the provider snapshot only while the binding's captured `lifecycle_action_seq` still matches. A concurrent same-direction result resolves to the current binding when the target state is already present; a stale opposite-state snapshot is rejected instead of overwriting a later lifecycle action.
 
+Passive webhook and periodic-reconciliation snapshots may update provider metadata, status, schedules, and paid-period fields, but they do not mutate `cancel_at_period_end`, `canceled_at`, or `lifecycle_action_seq`. Those lifecycle fields change only through the sequence-guarded lifecycle snapshot path or the explicit terminal-snapshot path. This prevents an out-of-order webhook created before a user cancel/resume from reversing that newer user decision. Compensation flows that intentionally resolve lifecycle state also use the sequence-guarded path.
+
 ## Self-subscription response and capabilities
 
 `GET /api/subscription/self` remains the canonical read model.

@@ -249,11 +249,9 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 			"provider_price_id":          strings.TrimSpace(snapshot.ProviderPriceId),
 			"provider_latest_invoice_id": strings.TrimSpace(snapshot.ProviderLatestInvoiceId),
 			"provider_status":            strings.TrimSpace(snapshot.ProviderStatus),
-			"cancel_at_period_end":       snapshot.CancelAtPeriodEnd,
 			"current_period_start":       snapshot.CurrentPeriodStart,
 			"current_period_end":         snapshot.CurrentPeriodEnd,
 			"grace_period_end":           snapshot.GracePeriodEnd,
-			"canceled_at":                snapshot.CanceledAt,
 			"ended_at":                   snapshot.EndedAt,
 			"livemode":                   snapshot.Livemode,
 			"last_synced_at":             common.GetTimestamp(),
@@ -265,8 +263,15 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 		if snapshot.ProviderScheduleIdObserved {
 			updates["provider_schedule_id"] = strings.TrimSpace(snapshot.ProviderScheduleId)
 		}
-		if snapshot.CancelAtPeriodEnd != binding.CancelAtPeriodEnd {
-			updates["lifecycle_action_seq"] = binding.LifecycleActionSeq + 1
+		// Passive webhook and reconciliation snapshots can arrive out of order.
+		// Only the lifecycle CAS entry point may change cancellation state;
+		// termination has its own explicit path below.
+		if expectedLifecycleActionSeq != nil {
+			updates["cancel_at_period_end"] = snapshot.CancelAtPeriodEnd
+			updates["canceled_at"] = snapshot.CanceledAt
+			if snapshot.CancelAtPeriodEnd != binding.CancelAtPeriodEnd {
+				updates["lifecycle_action_seq"] = binding.LifecycleActionSeq + 1
+			}
 		}
 		updateQuery := tx.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID)
 		if expectedLifecycleActionSeq != nil {

@@ -731,6 +731,9 @@ func markPrepaidPurchaseAppliedTx(tx *gorm.DB, contract *model.UserSubscriptionC
 		return err
 	}
 	renewalSource, renewalStatus := "", ""
+	// Confirmed Flatkey product behavior: a successful wallet-balance purchase
+	// opts into Flatkey wallet auto-renew by default. Pix, UPI, Alipay, and
+	// other prepaid methods keep the canonical renewal fields empty.
 	if strings.TrimSpace(paymentMethod) == model.PaymentMethodBalance {
 		renewalSource = model.SubscriptionRenewalSourceWallet
 		renewalStatus = model.SubscriptionRenewalStatusEnabled

@@ -1176,6 +1176,9 @@ func isActiveRecurringBinding(recurring RecurringSubscriptionDTO, now int64) boo
 }
 
 func isActionableRecurringProviderStatus(status string) bool {
+	// The wallet read model exposes lifecycle actions only for exact healthy
+	// bindings. Degraded states such as past_due require support even though a
+	// lower-level administrative termination path can still handle them.
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "active", "trialing":
 		return true

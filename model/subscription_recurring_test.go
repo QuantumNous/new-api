@@ -431,6 +431,49 @@ func TestApplyProviderSubscriptionLifecycleSnapshotUsesAtomicSequencePredicate(t
 	require.Contains(t, updateWhere, "lifecycle_action_seq")
 }
 
+func TestApplyProviderSubscriptionSnapshotPreservesNewerLifecycleDecision(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+	insertUserForSubscriptionRecurringTest(t, 509)
+	insertPlanForSubscriptionRecurringTest(t, 609, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-generic-snapshot", 509, 609)
+
+	binding, err := CompleteSubscriptionOrderWithProviderBinding(
+		"recurring-order-generic-snapshot",
+		"{}",
+		PaymentProviderStripe,
+		PaymentMethodStripe,
+		stripeSnapshotForSubscriptionRecurringTest("sub_generic_snapshot"),
+	)
+	require.NoError(t, err)
+
+	cancelled, err := ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId: binding.ProviderSubscriptionId,
+		ProviderStatus:         "active",
+		CancelAtPeriodEnd:      true,
+		CurrentPeriodStart:     1000,
+		CurrentPeriodEnd:       2000,
+		CanceledAt:             1500,
+	})
+	require.NoError(t, err)
+	require.True(t, cancelled.CancelAtPeriodEnd)
+
+	updated, err := ApplyProviderSubscriptionSnapshot(binding.Id, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId:  binding.ProviderSubscriptionId,
+		ProviderLatestInvoiceId: "in_newer_snapshot",
+		ProviderStatus:          "active",
+		CancelAtPeriodEnd:       false,
+		CurrentPeriodStart:      2000,
+		CurrentPeriodEnd:        3000,
+	})
+	require.NoError(t, err)
+	require.True(t, updated.CancelAtPeriodEnd)
+	require.Equal(t, cancelled.CanceledAt, updated.CanceledAt)
+	require.Equal(t, cancelled.LifecycleActionSeq, updated.LifecycleActionSeq)
+	require.Equal(t, "in_newer_snapshot", updated.ProviderLatestInvoiceId)
+	require.Equal(t, int64(3000), updated.CurrentPeriodEnd)
+}
+
 func TestApplyProviderSubscriptionSnapshotDoesNotReviveTerminalBinding(t *testing.T) {
 	setupSubscriptionRecurringTestDB(t)
 	migrateSubscriptionRecurringTestDB(t)
