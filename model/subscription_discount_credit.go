@@ -142,6 +142,9 @@ func GrantSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountGrantInp
 	if err != nil {
 		return false, err
 	}
+	if err := validateSubscriptionDiscountPricingSnapshot(input.PricingSnapshot); err != nil {
+		return false, err
+	}
 	exists, err := subscriptionDiscountIdempotencyExistsTx(tx, idempotencyKey)
 	if err != nil || exists {
 		return false, err
@@ -207,6 +210,9 @@ func ReserveSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountReserv
 	}
 	normalized, err := normalizeSubscriptionDiscountReservationInput(input)
 	if err != nil {
+		return false, err
+	}
+	if err := validateSubscriptionDiscountPricingSnapshot(input.PricingSnapshot); err != nil {
 		return false, err
 	}
 	exists, err := subscriptionDiscountIdempotencyExistsTx(tx, normalized.idempotencyKey)
@@ -601,6 +607,17 @@ func isSQLiteBusyError(err error) bool {
 func validateSubscriptionDiscountAccount(account *SubscriptionDiscountAccount) error {
 	if account == nil || account.UserID <= 0 || account.AvailableUSDMinor < 0 || account.ReservedUSDMinor < 0 {
 		return ErrSubscriptionDiscountInvalidAccountState
+	}
+	return nil
+}
+
+func validateSubscriptionDiscountPricingSnapshot(snapshot string) error {
+	if strings.TrimSpace(snapshot) == "" {
+		return nil
+	}
+	var raw any
+	if err := common.Unmarshal([]byte(snapshot), &raw); err != nil {
+		return ErrSubscriptionDiscountInvalidReservation
 	}
 	return nil
 }

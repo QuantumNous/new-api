@@ -436,6 +436,20 @@ func TestSubscriptionDiscountRejectsInvalidMetadataBeforeMutation(t *testing.T) 
 			},
 		},
 		{
+			name: "invalid_grant_pricing_snapshot",
+			run: func(tx *gorm.DB) (bool, error) {
+				return GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+					UserID:          130,
+					USDMinor:        100,
+					EntryType:       SubscriptionDiscountEntryTypeGrantInvitee,
+					SourceType:      "test",
+					SourceKey:       "invalid-grant-snapshot",
+					IdempotencyKey:  "invalid-grant-snapshot",
+					PricingSnapshot: "{invalid-json",
+				})
+			},
+		},
+		{
 			name: "negative_order",
 			run: func(tx *gorm.DB) (bool, error) {
 				return ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
@@ -517,6 +531,21 @@ func TestSubscriptionDiscountRejectsInvalidMetadataBeforeMutation(t *testing.T) 
 					PaymentCurrency:    "US1",
 					AppliedAmountMinor: 100,
 					IdempotencyKey:     "bad-currency",
+				})
+			},
+		},
+		{
+			name: "invalid_reserve_pricing_snapshot",
+			run: func(tx *gorm.DB) (bool, error) {
+				return ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+					UserID:             130,
+					USDMinor:           100,
+					OrderID:            1,
+					TradeNo:            "trade-invalid-reserve-snapshot",
+					PaymentCurrency:    "USD",
+					AppliedAmountMinor: 100,
+					IdempotencyKey:     "invalid-reserve-snapshot",
+					PricingSnapshot:    "{invalid-json",
 				})
 			},
 		},
