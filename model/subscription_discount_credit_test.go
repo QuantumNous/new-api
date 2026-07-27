@@ -3,7 +3,9 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -107,6 +109,13 @@ func countSubscriptionDiscountAccountsForTest(t *testing.T, userID int) int64 {
 	return rows
 }
 
+func countSubscriptionDiscountEntriesForUserTest(t *testing.T, userID int) int64 {
+	t.Helper()
+	var rows int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("user_id = ?", userID).Count(&rows).Error)
+	return rows
+}
+
 func TestSubscriptionDiscountGrantCreatesAccountAndImmutableEntry(t *testing.T) {
 	setupSubscriptionDiscountCreditMemoryDB(t)
 
@@ -168,6 +177,31 @@ func TestSubscriptionDiscountDuplicateGlobalGrantKeyDoesNotCreateSecondAccount(t
 	require.False(t, changed)
 	require.EqualValues(t, 0, countSubscriptionDiscountAccountsForTest(t, 122))
 	require.Len(t, readSubscriptionDiscountEntries(t), 1)
+}
+
+func TestSubscriptionDiscountGrantRejectsAvailableOverflowWithoutMutation(t *testing.T) {
+	setupSubscriptionDiscountCreditMemoryDB(t)
+
+	require.True(t, grantSubscriptionDiscountForTest(t, 127, math.MaxInt64, "grant-max"))
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		_, err := GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+			UserID:         127,
+			USDMinor:       1,
+			EntryType:      SubscriptionDiscountEntryTypeGrantInvitee,
+			SourceType:     "test",
+			SourceKey:      "grant-overflow",
+			IdempotencyKey: "grant-overflow",
+		})
+		return err
+	})
+	require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidAmount)
+
+	account, err := GetSubscriptionDiscountAccount(127)
+	require.NoError(t, err)
+	require.EqualValues(t, math.MaxInt64, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	require.EqualValues(t, 1, countSubscriptionDiscountEntriesForUserTest(t, 127))
 }
 
 func TestSubscriptionDiscountZeroGrantNoOpAndNegativeGrantRejected(t *testing.T) {
@@ -249,6 +283,261 @@ func TestSubscriptionDiscountGrantRejectsInvalidEntryTypesWithoutMutation(t *tes
 	}
 }
 
+func TestSubscriptionDiscountGrantNormalizesWhitespaceKeys(t *testing.T) {
+	setupSubscriptionDiscountCreditMemoryDB(t)
+
+	var changed bool
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		changed, err = GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+			UserID:         128,
+			USDMinor:       100,
+			EntryType:      SubscriptionDiscountEntryTypeGrantInvitee,
+			SourceType:     "  test  ",
+			SourceKey:      "  source-key  ",
+			IdempotencyKey: "  canonical-key  ",
+		})
+		return err
+	}))
+	require.True(t, changed)
+
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		changed, err = GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+			UserID:         128,
+			USDMinor:       100,
+			EntryType:      SubscriptionDiscountEntryTypeGrantInvitee,
+			SourceType:     "test",
+			SourceKey:      "source-key",
+			IdempotencyKey: "canonical-key",
+		})
+		return err
+	}))
+	require.False(t, changed)
+
+	entries := readSubscriptionDiscountEntries(t)
+	require.Len(t, entries, 1)
+	require.Equal(t, "test", entries[0].SourceType)
+	require.Equal(t, "source-key", entries[0].SourceKey)
+	require.Equal(t, "canonical-key", entries[0].IdempotencyKey)
+}
+
+func TestSubscriptionDiscountRejectsOverlongKeysBeforeMutation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		run  func(*gorm.DB) (bool, error)
+	}{
+		{
+			name: "grant_idempotency",
+			run: func(tx *gorm.DB) (bool, error) {
+				return GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+					UserID:         129,
+					USDMinor:       100,
+					EntryType:      SubscriptionDiscountEntryTypeGrantInvitee,
+					SourceType:     "test",
+					SourceKey:      "source-key",
+					IdempotencyKey: strings.Repeat("i", 192),
+				})
+			},
+		},
+		{
+			name: "grant_source_key",
+			run: func(tx *gorm.DB) (bool, error) {
+				return GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+					UserID:         129,
+					USDMinor:       100,
+					EntryType:      SubscriptionDiscountEntryTypeGrantInvitee,
+					SourceType:     "test",
+					SourceKey:      strings.Repeat("s", 192),
+					IdempotencyKey: "overlong-source-key",
+				})
+			},
+		},
+		{
+			name: "reserve_key",
+			run: func(tx *gorm.DB) (bool, error) {
+				return ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+					UserID:             129,
+					USDMinor:           100,
+					OrderID:            1,
+					TradeNo:            "trade-overlong-reserve",
+					PaymentCurrency:    "USD",
+					AppliedAmountMinor: 100,
+					IdempotencyKey:     strings.Repeat("r", 192),
+				})
+			},
+		},
+		{
+			name: "terminal_key",
+			run: func(tx *gorm.DB) (bool, error) {
+				return CommitSubscriptionDiscountTx(tx, strings.Repeat("t", 192))
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setupSubscriptionDiscountCreditMemoryDB(t)
+
+			var changed bool
+			err := DB.Transaction(func(tx *gorm.DB) error {
+				var err error
+				changed, err = tc.run(tx)
+				return err
+			})
+			require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidReservation)
+			require.False(t, changed)
+			require.EqualValues(t, 0, countSubscriptionDiscountAccountsForTest(t, 129))
+			require.Len(t, readSubscriptionDiscountEntries(t), 0)
+		})
+	}
+}
+
+func TestSubscriptionDiscountRejectsInvalidMetadataBeforeMutation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		run  func(*gorm.DB) (bool, error)
+	}{
+		{
+			name: "blank_grant_source_type",
+			run: func(tx *gorm.DB) (bool, error) {
+				return GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+					UserID:         130,
+					USDMinor:       100,
+					EntryType:      SubscriptionDiscountEntryTypeGrantInvitee,
+					SourceType:     " ",
+					SourceKey:      "source",
+					IdempotencyKey: "blank-source-type",
+				})
+			},
+		},
+		{
+			name: "overlong_grant_source_type",
+			run: func(tx *gorm.DB) (bool, error) {
+				return GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+					UserID:         130,
+					USDMinor:       100,
+					EntryType:      SubscriptionDiscountEntryTypeGrantInvitee,
+					SourceType:     strings.Repeat("s", 65),
+					SourceKey:      "source",
+					IdempotencyKey: "overlong-source-type",
+				})
+			},
+		},
+		{
+			name: "blank_grant_source_key",
+			run: func(tx *gorm.DB) (bool, error) {
+				return GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+					UserID:         130,
+					USDMinor:       100,
+					EntryType:      SubscriptionDiscountEntryTypeGrantInvitee,
+					SourceType:     "test",
+					SourceKey:      " ",
+					IdempotencyKey: "blank-source-key",
+				})
+			},
+		},
+		{
+			name: "negative_order",
+			run: func(tx *gorm.DB) (bool, error) {
+				return ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+					UserID:             130,
+					USDMinor:           100,
+					OrderID:            -1,
+					TradeNo:            "trade-negative-order",
+					PaymentCurrency:    "USD",
+					AppliedAmountMinor: 100,
+					IdempotencyKey:     "negative-order",
+				})
+			},
+		},
+		{
+			name: "negative_applied",
+			run: func(tx *gorm.DB) (bool, error) {
+				return ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+					UserID:             130,
+					USDMinor:           100,
+					OrderID:            1,
+					TradeNo:            "trade-negative-applied",
+					PaymentCurrency:    "USD",
+					AppliedAmountMinor: -1,
+					IdempotencyKey:     "negative-applied",
+				})
+			},
+		},
+		{
+			name: "negative_expires",
+			run: func(tx *gorm.DB) (bool, error) {
+				return ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+					UserID:             130,
+					USDMinor:           100,
+					OrderID:            1,
+					TradeNo:            "trade-negative-expires",
+					PaymentCurrency:    "USD",
+					AppliedAmountMinor: 100,
+					ExpiresAt:          -1,
+					IdempotencyKey:     "negative-expires",
+				})
+			},
+		},
+		{
+			name: "blank_trade_no",
+			run: func(tx *gorm.DB) (bool, error) {
+				return ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+					UserID:             130,
+					USDMinor:           100,
+					OrderID:            1,
+					TradeNo:            " ",
+					PaymentCurrency:    "USD",
+					AppliedAmountMinor: 100,
+					IdempotencyKey:     "blank-trade",
+				})
+			},
+		},
+		{
+			name: "overlong_trade_no",
+			run: func(tx *gorm.DB) (bool, error) {
+				return ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+					UserID:             130,
+					USDMinor:           100,
+					OrderID:            1,
+					TradeNo:            strings.Repeat("t", 256),
+					PaymentCurrency:    "USD",
+					AppliedAmountMinor: 100,
+					IdempotencyKey:     "overlong-trade",
+				})
+			},
+		},
+		{
+			name: "bad_currency",
+			run: func(tx *gorm.DB) (bool, error) {
+				return ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+					UserID:             130,
+					USDMinor:           100,
+					OrderID:            1,
+					TradeNo:            "trade-bad-currency",
+					PaymentCurrency:    "US1",
+					AppliedAmountMinor: 100,
+					IdempotencyKey:     "bad-currency",
+				})
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setupSubscriptionDiscountCreditMemoryDB(t)
+
+			var changed bool
+			err := DB.Transaction(func(tx *gorm.DB) error {
+				var err error
+				changed, err = tc.run(tx)
+				return err
+			})
+			require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidReservation)
+			require.False(t, changed)
+			require.EqualValues(t, 0, countSubscriptionDiscountAccountsForTest(t, 130))
+			require.Len(t, readSubscriptionDiscountEntries(t), 0)
+		})
+	}
+}
+
 func TestSubscriptionDiscountReserveMovesAvailableToReserved(t *testing.T) {
 	setupSubscriptionDiscountCreditMemoryDB(t)
 	require.True(t, grantSubscriptionDiscountForTest(t, 104, 500, "grant-104"))
@@ -278,9 +567,13 @@ func TestSubscriptionDiscountInsufficientReserveRejectedWithoutMutation(t *testi
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		_, err := ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
-			UserID:         105,
-			USDMinor:       400,
-			IdempotencyKey: "reserve-too-much",
+			UserID:             105,
+			USDMinor:           400,
+			OrderID:            1,
+			TradeNo:            "trade-reserve-too-much",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 400,
+			IdempotencyKey:     "reserve-too-much",
 		})
 		return err
 	})
@@ -317,15 +610,91 @@ func TestSubscriptionDiscountDuplicateGlobalReserveKeyDoesNotCreateSecondAccount
 	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
 		var err error
 		changed, err = ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
-			UserID:         125,
-			USDMinor:       100,
-			IdempotencyKey: "global-reserve-key",
+			UserID:             125,
+			USDMinor:           100,
+			OrderID:            1,
+			TradeNo:            "trade-global-reserve-key",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 100,
+			IdempotencyKey:     "global-reserve-key",
 		})
 		return err
 	}))
 	require.False(t, changed)
 	require.EqualValues(t, 0, countSubscriptionDiscountAccountsForTest(t, 125))
 	require.Len(t, readSubscriptionDiscountEntries(t), 2)
+}
+
+func TestSubscriptionDiscountReserveRejectsReservedOverflowWithoutMutation(t *testing.T) {
+	setupSubscriptionDiscountCreditMemoryDB(t)
+	require.NoError(t, DB.Create(&SubscriptionDiscountAccount{
+		UserID:            131,
+		AvailableUSDMinor: 1000,
+		ReservedUSDMinor:  math.MaxInt64,
+		CreatedAt:         common.GetTimestamp(),
+		UpdatedAt:         common.GetTimestamp(),
+	}).Error)
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		_, err := ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+			UserID:             131,
+			USDMinor:           1,
+			OrderID:            1,
+			TradeNo:            "trade-reserved-overflow",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 1,
+			IdempotencyKey:     "reserved-overflow",
+		})
+		return err
+	})
+	require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidAccountState)
+
+	account, err := GetSubscriptionDiscountAccount(131)
+	require.NoError(t, err)
+	require.EqualValues(t, 1000, account.AvailableUSDMinor)
+	require.EqualValues(t, math.MaxInt64, account.ReservedUSDMinor)
+	require.EqualValues(t, 0, countSubscriptionDiscountEntriesForUserTest(t, 131))
+}
+
+func TestSubscriptionDiscountReserveNormalizesMetadata(t *testing.T) {
+	setupSubscriptionDiscountCreditMemoryDB(t)
+	require.True(t, grantSubscriptionDiscountForTest(t, 132, 500, "grant-normalize-reserve"))
+
+	var changed bool
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		changed, err = ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+			UserID:             132,
+			USDMinor:           100,
+			OrderID:            1,
+			TradeNo:            "  trade-normalized  ",
+			PaymentCurrency:    " usd ",
+			AppliedAmountMinor: 100,
+			IdempotencyKey:     " reserve-normalized ",
+		})
+		return err
+	}))
+	require.True(t, changed)
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		changed, err = ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+			UserID:             132,
+			USDMinor:           100,
+			OrderID:            1,
+			TradeNo:            "trade-normalized",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 100,
+			IdempotencyKey:     "reserve-normalized",
+		})
+		return err
+	}))
+	require.False(t, changed)
+
+	entries := readSubscriptionDiscountEntries(t)
+	require.Len(t, entries, 2)
+	require.Equal(t, "reserve-normalized", entries[1].IdempotencyKey)
+	require.Equal(t, "trade-normalized", entries[1].TradeNo)
+	require.Equal(t, "USD", entries[1].PaymentCurrency)
 }
 
 func TestSubscriptionDiscountCommitConsumesReservedCredit(t *testing.T) {
@@ -378,6 +747,47 @@ func TestSubscriptionDiscountReleaseRestoresAvailableCredit(t *testing.T) {
 	require.EqualValues(t, -200, entries[2].ReservedDeltaUSDMinor)
 	require.Equal(t, "reserve-release", entries[2].SourceKey)
 	require.Equal(t, "reserve-release:release", entries[2].IdempotencyKey)
+}
+
+func TestSubscriptionDiscountTerminalRejectsCorruptStatesWithoutEntry(t *testing.T) {
+	t.Run("commit_underflow", func(t *testing.T) {
+		setupSubscriptionDiscountCreditMemoryDB(t)
+		require.True(t, grantSubscriptionDiscountForTest(t, 133, 500, "grant-commit-underflow"))
+		require.True(t, reserveSubscriptionDiscountForTest(t, 133, 200, "reserve-commit-underflow"))
+		require.NoError(t, DB.Model(&SubscriptionDiscountAccount{}).
+			Where("user_id = ?", 133).
+			Update("reserved_usd_minor", 0).Error)
+
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			_, err := CommitSubscriptionDiscountTx(tx, "reserve-commit-underflow")
+			return err
+		})
+		require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidAccountState)
+		require.EqualValues(t, 2, countSubscriptionDiscountEntriesForUserTest(t, 133))
+	})
+
+	t.Run("release_available_overflow", func(t *testing.T) {
+		setupSubscriptionDiscountCreditMemoryDB(t)
+		require.True(t, grantSubscriptionDiscountForTest(t, 134, 500, "grant-release-overflow"))
+		require.True(t, reserveSubscriptionDiscountForTest(t, 134, 200, "reserve-release-overflow"))
+		require.NoError(t, DB.Model(&SubscriptionDiscountAccount{}).
+			Where("user_id = ?", 134).
+			Updates(map[string]any{
+				"available_usd_minor": math.MaxInt64,
+				"reserved_usd_minor":  int64(200),
+			}).Error)
+
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			_, err := ReleaseSubscriptionDiscountTx(tx, "reserve-release-overflow")
+			return err
+		})
+		require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidAccountState)
+		account, err := GetSubscriptionDiscountAccount(134)
+		require.NoError(t, err)
+		require.EqualValues(t, math.MaxInt64, account.AvailableUSDMinor)
+		require.EqualValues(t, 200, account.ReservedUSDMinor)
+		require.EqualValues(t, 2, countSubscriptionDiscountEntriesForUserTest(t, 134))
+	})
 }
 
 func TestSubscriptionDiscountCommitReleaseMutualExclusionBothOrders(t *testing.T) {
@@ -471,9 +881,13 @@ func TestSubscriptionDiscountConcurrentSQLiteReservationsDoNotOverspend(t *testi
 			<-start
 			results <- DB.Transaction(func(tx *gorm.DB) error {
 				changed, err := ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
-					UserID:         112,
-					USDMinor:       400,
-					IdempotencyKey: fmt.Sprintf("reserve-concurrent-%d", i),
+					UserID:             112,
+					USDMinor:           400,
+					OrderID:            i + 1,
+					TradeNo:            fmt.Sprintf("trade-reserve-concurrent-%d", i),
+					PaymentCurrency:    "USD",
+					AppliedAmountMinor: 400,
+					IdempotencyKey:     fmt.Sprintf("reserve-concurrent-%d", i),
 				})
 				if err != nil {
 					return err

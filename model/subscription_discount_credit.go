@@ -2,7 +2,7 @@ package model
 
 import (
 	"errors"
-	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -18,6 +18,11 @@ const (
 	SubscriptionDiscountEntryTypeReserve      = "reserve"
 	SubscriptionDiscountEntryTypeCommit       = "commit"
 	SubscriptionDiscountEntryTypeRelease      = "release"
+
+	subscriptionDiscountMaxBusinessKeyLength         = 191
+	subscriptionDiscountMaxTerminalIdempotencyLength = 191
+	subscriptionDiscountMaxSourceTypeLength          = 64
+	subscriptionDiscountMaxTradeNoLength             = 255
 )
 
 var (
@@ -59,7 +64,7 @@ type SubscriptionDiscountEntry struct {
 	AvailableAfterUSDMinor int64   `json:"available_after_usd_minor" gorm:"type:bigint;not null;default:0"`
 	ReservedAfterUSDMinor  int64   `json:"reserved_after_usd_minor" gorm:"type:bigint;not null;default:0"`
 	SourceType             string  `json:"source_type" gorm:"type:varchar(64);not null;default:'';index"`
-	SourceKey              string  `json:"source_key" gorm:"type:varchar(255);not null;default:'';index"`
+	SourceKey              string  `json:"source_key" gorm:"type:varchar(191);not null;default:'';index"`
 	OrderID                int     `json:"order_id" gorm:"not null;default:0;index"`
 	TradeNo                string  `json:"trade_no" gorm:"type:varchar(255);not null;default:'';index"`
 	PaymentCurrency        string  `json:"payment_currency" gorm:"type:varchar(16);not null;default:''"`
@@ -129,17 +134,15 @@ func GrantSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountGrantInp
 	if input.USDMinor == 0 {
 		return false, nil
 	}
-	if strings.TrimSpace(input.IdempotencyKey) == "" {
-		return false, ErrSubscriptionDiscountInvalidReservation
-	}
 	entryType := strings.TrimSpace(input.EntryType)
 	if !isValidSubscriptionDiscountGrantEntryType(entryType) {
 		return false, ErrSubscriptionDiscountInvalidEntryType
 	}
-	if err := validateSubscriptionDiscountPricingSnapshot(input.PricingSnapshot); err != nil {
+	sourceType, sourceKey, idempotencyKey, err := normalizeSubscriptionDiscountGrantInput(input)
+	if err != nil {
 		return false, err
 	}
-	exists, err := subscriptionDiscountIdempotencyExistsTx(tx, input.IdempotencyKey)
+	exists, err := subscriptionDiscountIdempotencyExistsTx(tx, idempotencyKey)
 	if err != nil || exists {
 		return false, err
 	}
@@ -148,7 +151,15 @@ func GrantSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountGrantInp
 	if err != nil {
 		return false, err
 	}
-	afterAvailable := account.AvailableUSDMinor + input.USDMinor
+	afterAvailable, ok := checkedAddInt64(account.AvailableUSDMinor, input.USDMinor)
+	if !ok {
+		if accountCreated {
+			if cleanupErr := deleteNewEmptySubscriptionDiscountAccountTx(tx, input.UserID); cleanupErr != nil {
+				return false, cleanupErr
+			}
+		}
+		return false, ErrSubscriptionDiscountInvalidAmount
+	}
 	entry := SubscriptionDiscountEntry{
 		UserID:                 input.UserID,
 		EntryType:              entryType,
@@ -156,10 +167,10 @@ func GrantSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountGrantInp
 		ReservedDeltaUSDMinor:  0,
 		AvailableAfterUSDMinor: afterAvailable,
 		ReservedAfterUSDMinor:  account.ReservedUSDMinor,
-		SourceType:             input.SourceType,
-		SourceKey:              input.SourceKey,
+		SourceType:             sourceType,
+		SourceKey:              sourceKey,
 		PricingSnapshot:        input.PricingSnapshot,
-		IdempotencyKey:         input.IdempotencyKey,
+		IdempotencyKey:         idempotencyKey,
 		CreatedAt:              now,
 	}
 	created, err := createSubscriptionDiscountEntryTx(tx, &entry)
@@ -171,14 +182,18 @@ func GrantSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountGrantInp
 		}
 		return created, err
 	}
-	if err := tx.Model(&SubscriptionDiscountAccount{}).
+	update := tx.Model(&SubscriptionDiscountAccount{}).
 		Where("user_id = ?", input.UserID).
 		Updates(map[string]any{
 			"available_usd_minor": afterAvailable,
 			"reserved_usd_minor":  account.ReservedUSDMinor,
 			"updated_at":          now,
-		}).Error; err != nil {
-		return false, err
+		})
+	if update.Error != nil {
+		return false, update.Error
+	}
+	if update.RowsAffected != 1 {
+		return false, ErrSubscriptionDiscountInvalidAccountState
 	}
 	return true, nil
 }
@@ -190,13 +205,11 @@ func ReserveSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountReserv
 	if input.USDMinor <= 0 {
 		return false, ErrSubscriptionDiscountInvalidAmount
 	}
-	if strings.TrimSpace(input.IdempotencyKey) == "" {
-		return false, ErrSubscriptionDiscountInvalidReservation
-	}
-	if err := validateSubscriptionDiscountPricingSnapshot(input.PricingSnapshot); err != nil {
+	normalized, err := normalizeSubscriptionDiscountReservationInput(input)
+	if err != nil {
 		return false, err
 	}
-	exists, err := subscriptionDiscountIdempotencyExistsTx(tx, input.IdempotencyKey)
+	exists, err := subscriptionDiscountIdempotencyExistsTx(tx, normalized.idempotencyKey)
 	if err != nil || exists {
 		return false, err
 	}
@@ -213,8 +226,19 @@ func ReserveSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountReserv
 		}
 		return false, ErrSubscriptionDiscountInsufficient
 	}
-	afterAvailable := account.AvailableUSDMinor - input.USDMinor
-	afterReserved := account.ReservedUSDMinor + input.USDMinor
+	afterAvailable, ok := checkedSubInt64(account.AvailableUSDMinor, input.USDMinor)
+	if !ok {
+		return false, ErrSubscriptionDiscountInvalidAccountState
+	}
+	afterReserved, ok := checkedAddInt64(account.ReservedUSDMinor, input.USDMinor)
+	if !ok {
+		if accountCreated {
+			if cleanupErr := deleteNewEmptySubscriptionDiscountAccountTx(tx, input.UserID); cleanupErr != nil {
+				return false, cleanupErr
+			}
+		}
+		return false, ErrSubscriptionDiscountInvalidAccountState
+	}
 	entry := SubscriptionDiscountEntry{
 		UserID:                 input.UserID,
 		EntryType:              SubscriptionDiscountEntryTypeReserve,
@@ -223,14 +247,14 @@ func ReserveSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountReserv
 		AvailableAfterUSDMinor: afterAvailable,
 		ReservedAfterUSDMinor:  afterReserved,
 		SourceType:             SubscriptionDiscountEntryTypeReserve,
-		SourceKey:              input.IdempotencyKey,
-		OrderID:                input.OrderID,
-		TradeNo:                input.TradeNo,
-		PaymentCurrency:        input.PaymentCurrency,
-		AppliedAmountMinor:     input.AppliedAmountMinor,
+		SourceKey:              normalized.idempotencyKey,
+		OrderID:                normalized.orderID,
+		TradeNo:                normalized.tradeNo,
+		PaymentCurrency:        normalized.paymentCurrency,
+		AppliedAmountMinor:     normalized.appliedAmountMinor,
 		PricingSnapshot:        input.PricingSnapshot,
-		IdempotencyKey:         input.IdempotencyKey,
-		ExpiresAt:              input.ExpiresAt,
+		IdempotencyKey:         normalized.idempotencyKey,
+		ExpiresAt:              normalized.expiresAt,
 		CreatedAt:              now,
 	}
 	created, err := createSubscriptionDiscountEntryTx(tx, &entry)
@@ -242,14 +266,18 @@ func ReserveSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountReserv
 		}
 		return created, err
 	}
-	if err := tx.Model(&SubscriptionDiscountAccount{}).
+	update := tx.Model(&SubscriptionDiscountAccount{}).
 		Where("user_id = ? AND available_usd_minor >= ?", input.UserID, input.USDMinor).
 		Updates(map[string]any{
 			"available_usd_minor": afterAvailable,
 			"reserved_usd_minor":  afterReserved,
 			"updated_at":          now,
-		}).Error; err != nil {
-		return false, err
+		})
+	if update.Error != nil {
+		return false, update.Error
+	}
+	if update.RowsAffected != 1 {
+		return false, ErrSubscriptionDiscountInvalidAccountState
 	}
 	return true, nil
 }
@@ -263,7 +291,8 @@ func ReleaseSubscriptionDiscountTx(tx *gorm.DB, reservationKey string) (bool, er
 }
 
 func closeSubscriptionDiscountReservationTx(tx *gorm.DB, reservationKey string, entryType string) (bool, error) {
-	if strings.TrimSpace(reservationKey) == "" {
+	reservationKey, err := normalizeSubscriptionDiscountTerminalReservationKey(reservationKey, entryType)
+	if err != nil {
 		return false, ErrSubscriptionDiscountInvalidReservation
 	}
 	reservation, err := getSubscriptionDiscountReservationEntryTx(tx, reservationKey)
@@ -288,9 +317,12 @@ func closeSubscriptionDiscountReservationTx(tx *gorm.DB, reservationKey string, 
 		availableDelta = amount
 	}
 	reservedDelta := -amount
-	afterAvailable := account.AvailableUSDMinor + availableDelta
-	afterReserved := account.ReservedUSDMinor + reservedDelta
-	if afterAvailable < 0 || afterReserved < 0 {
+	afterAvailable, ok := checkedAddInt64(account.AvailableUSDMinor, availableDelta)
+	if !ok {
+		return false, ErrSubscriptionDiscountInvalidAccountState
+	}
+	afterReserved, ok := checkedAddInt64(account.ReservedUSDMinor, reservedDelta)
+	if !ok || afterReserved < 0 {
 		return false, ErrSubscriptionDiscountInvalidAccountState
 	}
 
@@ -320,14 +352,18 @@ func closeSubscriptionDiscountReservationTx(tx *gorm.DB, reservationKey string, 
 	if account.ReservedUSDMinor < amount {
 		return false, ErrSubscriptionDiscountInvalidAccountState
 	}
-	if err := tx.Model(&SubscriptionDiscountAccount{}).
+	update := tx.Model(&SubscriptionDiscountAccount{}).
 		Where("user_id = ? AND reserved_usd_minor >= ?", reservation.UserID, amount).
 		Updates(map[string]any{
 			"available_usd_minor": afterAvailable,
 			"reserved_usd_minor":  afterReserved,
 			"updated_at":          now,
-		}).Error; err != nil {
-		return false, err
+		})
+	if update.Error != nil {
+		return false, update.Error
+	}
+	if update.RowsAffected != 1 {
+		return false, ErrSubscriptionDiscountInvalidAccountState
 	}
 	return true, nil
 }
@@ -445,6 +481,103 @@ func isValidSubscriptionDiscountGrantEntryType(entryType string) bool {
 	}
 }
 
+type normalizedSubscriptionDiscountReservationInput struct {
+	idempotencyKey     string
+	orderID            int
+	tradeNo            string
+	paymentCurrency    string
+	appliedAmountMinor int64
+	expiresAt          int64
+}
+
+func normalizeSubscriptionDiscountGrantInput(input SubscriptionDiscountGrantInput) (string, string, string, error) {
+	sourceType := strings.TrimSpace(input.SourceType)
+	if sourceType == "" || len(sourceType) > subscriptionDiscountMaxSourceTypeLength {
+		return "", "", "", ErrSubscriptionDiscountInvalidReservation
+	}
+	sourceKey, err := normalizeSubscriptionDiscountBusinessKey(input.SourceKey)
+	if err != nil {
+		return "", "", "", err
+	}
+	idempotencyKey, err := normalizeSubscriptionDiscountBusinessKey(input.IdempotencyKey)
+	if err != nil {
+		return "", "", "", err
+	}
+	return sourceType, sourceKey, idempotencyKey, nil
+}
+
+func normalizeSubscriptionDiscountReservationInput(input SubscriptionDiscountReservationInput) (normalizedSubscriptionDiscountReservationInput, error) {
+	idempotencyKey, err := normalizeSubscriptionDiscountTerminalReservationKey(input.IdempotencyKey, SubscriptionDiscountEntryTypeRelease)
+	if err != nil {
+		return normalizedSubscriptionDiscountReservationInput{}, err
+	}
+	tradeNo := strings.TrimSpace(input.TradeNo)
+	if tradeNo == "" || len(tradeNo) > subscriptionDiscountMaxTradeNoLength {
+		return normalizedSubscriptionDiscountReservationInput{}, ErrSubscriptionDiscountInvalidReservation
+	}
+	paymentCurrency, err := normalizeSubscriptionDiscountCurrency(input.PaymentCurrency)
+	if err != nil {
+		return normalizedSubscriptionDiscountReservationInput{}, err
+	}
+	if input.OrderID < 0 || input.AppliedAmountMinor < 0 || input.ExpiresAt < 0 {
+		return normalizedSubscriptionDiscountReservationInput{}, ErrSubscriptionDiscountInvalidReservation
+	}
+	return normalizedSubscriptionDiscountReservationInput{
+		idempotencyKey:     idempotencyKey,
+		orderID:            input.OrderID,
+		tradeNo:            tradeNo,
+		paymentCurrency:    paymentCurrency,
+		appliedAmountMinor: input.AppliedAmountMinor,
+		expiresAt:          input.ExpiresAt,
+	}, nil
+}
+
+func normalizeSubscriptionDiscountTerminalReservationKey(reservationKey string, terminalEntryType string) (string, error) {
+	key, err := normalizeSubscriptionDiscountBusinessKey(reservationKey)
+	if err != nil {
+		return "", err
+	}
+	if len(key)+1+len(terminalEntryType) > subscriptionDiscountMaxTerminalIdempotencyLength {
+		return "", ErrSubscriptionDiscountInvalidReservation
+	}
+	return key, nil
+}
+
+func normalizeSubscriptionDiscountBusinessKey(key string) (string, error) {
+	key = strings.TrimSpace(key)
+	if key == "" || len(key) > subscriptionDiscountMaxBusinessKeyLength {
+		return "", ErrSubscriptionDiscountInvalidReservation
+	}
+	return key, nil
+}
+
+func normalizeSubscriptionDiscountCurrency(currency string) (string, error) {
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if len(currency) != 3 {
+		return "", ErrSubscriptionDiscountInvalidReservation
+	}
+	for _, r := range currency {
+		if r < 'A' || r > 'Z' {
+			return "", ErrSubscriptionDiscountInvalidReservation
+		}
+	}
+	return currency, nil
+}
+
+func checkedAddInt64(a int64, b int64) (int64, bool) {
+	if (b > 0 && a > math.MaxInt64-b) || (b < 0 && a < math.MinInt64-b) {
+		return 0, false
+	}
+	return a + b, true
+}
+
+func checkedSubInt64(a int64, b int64) (int64, bool) {
+	if b == math.MinInt64 {
+		return 0, false
+	}
+	return checkedAddInt64(a, -b)
+}
+
 func retrySQLiteBusy(fn func() error) error {
 	var err error
 	for attempt := 0; attempt < 50; attempt++ {
@@ -468,17 +601,6 @@ func isSQLiteBusyError(err error) bool {
 func validateSubscriptionDiscountAccount(account *SubscriptionDiscountAccount) error {
 	if account == nil || account.UserID <= 0 || account.AvailableUSDMinor < 0 || account.ReservedUSDMinor < 0 {
 		return ErrSubscriptionDiscountInvalidAccountState
-	}
-	return nil
-}
-
-func validateSubscriptionDiscountPricingSnapshot(snapshot string) error {
-	if strings.TrimSpace(snapshot) == "" {
-		return nil
-	}
-	var raw any
-	if err := common.Unmarshal([]byte(snapshot), &raw); err != nil {
-		return fmt.Errorf("%w: invalid pricing snapshot", ErrSubscriptionDiscountInvalidReservation)
 	}
 	return nil
 }
