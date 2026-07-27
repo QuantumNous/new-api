@@ -180,9 +180,7 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 	stripe.Key = setting.StripeApiSecret
 
 	params := buildStripeSubscriptionCheckoutSessionParams(referenceId, customerId, email, priceId, userId, planId)
-	if recall == nil {
-		params.AllowPromotionCodes = stripe.Bool(true)
-	} else {
+	if recall != nil {
 		params.Discounts = append(params.Discounts, &stripe.CheckoutSessionDiscountParams{
 			PromotionCode: stripe.String(recall.PromotionCodeID),
 		})
@@ -190,6 +188,8 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 		params.Metadata["recall_recipient_id"] = strconv.FormatInt(recall.RecipientID, 10)
 		params.SubscriptionData.Metadata["recall_campaign_id"] = strconv.FormatInt(recall.CampaignID, 10)
 		params.SubscriptionData.Metadata["recall_recipient_id"] = strconv.FormatInt(recall.RecipientID, 10)
+	} else if discountUSD <= 0 {
+		params.AllowPromotionCodes = stripe.Bool(true)
 	}
 	if discountUSD > 0 {
 		couponParams := &stripe.CouponParams{

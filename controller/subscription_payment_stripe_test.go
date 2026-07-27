@@ -96,6 +96,21 @@ func TestSubscriptionStripeRecallPromotionCode(t *testing.T) {
 	require.Equal(t, "84", params.Metadata["recall_recipient_id"])
 }
 
+func TestSubscriptionStripeInviteCouponDisablesPromotionCodeEntry(t *testing.T) {
+	backend := setupSubscriptionStripeRecordingBackend(t)
+
+	checkoutSession, err := genStripeSubscriptionLink("sub_ref_invite", "", "buyer@example.com", "price_subscription", 7, 11, 5, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "https://checkout.stripe.test/subscription", checkoutSession.URL)
+	require.Len(t, backend.params, 1)
+	require.Len(t, backend.couponParams, 1)
+	params := backend.params[0]
+	require.Nil(t, params.AllowPromotionCodes)
+	require.Len(t, params.Discounts, 1)
+	require.Equal(t, "coupon_subscription_test_1", *params.Discounts[0].Coupon)
+}
+
 func TestSubscriptionStripeInviteAndRecallUsesRecallWhenStronger(t *testing.T) {
 	backend := setupSubscriptionStripeRecordingBackend(t)
 	setupSubscriptionRecallClaimDB(t)
@@ -237,6 +252,7 @@ func TestSubscriptionStripeInviteAndRecallUsesInviteOnStrongerOrTie(t *testing.T
 			require.Len(t, backend.params, 1)
 			require.Len(t, backend.couponParams, 1)
 			params := backend.params[0]
+			require.Nil(t, params.AllowPromotionCodes)
 			require.Len(t, params.Discounts, 1)
 			require.Equal(t, "coupon_subscription_test_1", *params.Discounts[0].Coupon)
 			require.Empty(t, params.Metadata["recall_campaign_id"])
