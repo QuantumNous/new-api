@@ -337,8 +337,13 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 	if tools := responsesToolsToChatToolsWithContext(req.Tools, toolCtx); len(tools) > 0 {
 		out.Tools = chatToolMapsToRequests(tools)
 	}
-	if tc := responsesToolChoiceToChatWithContext(req.ToolChoice, toolCtx); tc != nil {
-		out.ToolChoice = tc
+	// tool_choice is only meaningful alongside tools. Some upstreams (e.g. vLLM)
+	// reject tool_choice when tools is absent, and Codex sends tool_choice:"auto"
+	// on tool-less requests such as context compaction, so drop it in that case.
+	if len(out.Tools) > 0 {
+		if tc := responsesToolChoiceToChatWithContext(req.ToolChoice, toolCtx); tc != nil {
+			out.ToolChoice = tc
+		}
 	}
 	if rf := responsesTextToResponseFormat(req.Text); rf != nil {
 		out.ResponseFormat = rf

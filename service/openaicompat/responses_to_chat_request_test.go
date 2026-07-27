@@ -163,6 +163,26 @@ func TestResponsesRequestToChat_Tools(t *testing.T) {
 	}
 }
 
+func TestResponsesRequestToChat_ToolChoiceDroppedWithoutTools(t *testing.T) {
+	// Codex's context-compaction request carries tool_choice:"auto" but no tools.
+	// vLLM rejects tool_choice without tools, so it must not be forwarded.
+	req := &dto.OpenAIResponsesRequest{
+		Model:      "gpt-4o",
+		Input:      raw(t, "summarize"),
+		ToolChoice: raw(t, "auto"),
+	}
+	got, _, err := ResponsesRequestToChatCompletionsRequest(req)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got.Tools) != 0 {
+		t.Fatalf("tools len = %d, want 0", len(got.Tools))
+	}
+	if got.ToolChoice != nil {
+		t.Errorf("tool_choice = %v, want nil when no tools", got.ToolChoice)
+	}
+}
+
 func TestResponsesRequestToChat_TextFormatJSONSchema(t *testing.T) {
 	req := &dto.OpenAIResponsesRequest{
 		Model: "gpt-4o",
