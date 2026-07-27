@@ -385,9 +385,13 @@ export type SelfSubscriptionRenewalStatus =
   | ''
   | (string & {})
 
+export type SubscriptionRenewalLifecycleStatus =
+  | 'enabled'
+  | 'cancelled_by_user'
+
 export interface SubscriptionRenewalLifecycleResult {
   renewal_source: SubscriptionRenewalSource
-  renewal_status: SubscriptionRenewalStatus
+  renewal_status: SubscriptionRenewalLifecycleStatus
   current_period_end: number
   can_cancel: boolean
   can_resume: boolean

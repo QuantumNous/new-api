@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -597,6 +598,80 @@ func TestCancelUpdateErrorConfirmedRemoteCancelSupersedesPendingDowngrade(t *tes
 	require.Zero(t, contract.PendingEffectiveAt)
 	require.NoError(t, model.DB.First(intent, intent.Id).Error)
 	require.Equal(t, model.SubscriptionChangeIntentStatusSuperseded, intent.Status)
+}
+
+func TestPendingDowngradeConfirmationRejectsSameTargetLifecycleCASRace(t *testing.T) {
+	for _, confirmedCancelAtPeriodEnd := range []bool{true, false} {
+		name := "confirmed_resume"
+		triggerTarget := 0
+		if confirmedCancelAtPeriodEnd {
+			name = "confirmed_cancel"
+			triggerTarget = 1
+		}
+		t.Run(name, func(t *testing.T) {
+			setupStripeSubscriptionLifecycleTestDB(t)
+			binding, contract, intent := seedPendingDowngradeCancelFixture(
+				t,
+				823,
+				"sched_cancel_strict_race_"+name,
+				"cancel-strict-race-"+name,
+			)
+			originalRelease := stripeReleaseSubscriptionSchedule
+			originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+			originalRestore := stripeRestoreSubscriptionSchedule
+			originalGet := stripeSubscriptionSnapshotGetter
+			t.Cleanup(func() {
+				stripeReleaseSubscriptionSchedule = originalRelease
+				stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate
+				stripeRestoreSubscriptionSchedule = originalRestore
+				stripeSubscriptionSnapshotGetter = originalGet
+			})
+			stripeReleaseSubscriptionSchedule = func(scheduleID string, idempotencyKey string) error { return nil }
+			stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+				return model.ProviderSubscriptionSnapshot{}, errors.New("Stripe update transport failure")
+			}
+			stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+				return model.ProviderSubscriptionSnapshot{
+					ProviderSubscriptionId: providerSubscriptionID,
+					ProviderStatus:         "active",
+					CancelAtPeriodEnd:      confirmedCancelAtPeriodEnd,
+					CurrentPeriodStart:     1000,
+					CurrentPeriodEnd:       2000,
+				}, nil
+			}
+			var restoreCalls int
+			stripeRestoreSubscriptionSchedule = func(rawSnapshot string, idempotencyKey string) (string, error) {
+				restoreCalls++
+				return "sched_restored_after_race", nil
+			}
+			triggerName := "advance_downgrade_seq_" + name
+			require.NoError(t, model.DB.Exec(fmt.Sprintf(`
+				CREATE TRIGGER %s
+				BEFORE UPDATE OF cancel_at_period_end ON subscription_provider_bindings
+				WHEN OLD.id = %d AND OLD.lifecycle_action_seq = %d AND NEW.cancel_at_period_end = %d
+				BEGIN
+					UPDATE subscription_provider_bindings
+					SET cancel_at_period_end = %d,
+						lifecycle_action_seq = OLD.lifecycle_action_seq + 1
+					WHERE id = OLD.id;
+					SELECT RAISE(IGNORE);
+				END
+			`, triggerName, binding.Id, binding.LifecycleActionSeq, triggerTarget, triggerTarget)).Error)
+			t.Cleanup(func() {
+				require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
+			})
+
+			updated, err := CancelStripeRecurringSubscription(contract.UserId, binding.Id)
+
+			require.ErrorIs(t, err, model.ErrSubscriptionProviderLifecycleConflict)
+			require.Nil(t, updated)
+			require.Zero(t, restoreCalls)
+			require.NoError(t, model.DB.First(contract, contract.Id).Error)
+			require.Equal(t, binding.PlanId+1, contract.PendingPlanId)
+			require.NoError(t, model.DB.First(intent, intent.Id).Error)
+			require.NotEqual(t, model.SubscriptionChangeIntentStatusSuperseded, intent.Status)
+		})
+	}
 }
 
 func TestCancelConfirmationUnknownMarksDowngradeForCompensationWithoutRestore(t *testing.T) {

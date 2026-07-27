@@ -73,7 +73,7 @@ func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProvid
 		return nil, cause
 	}
 	if confirmed.CancelAtPeriodEnd {
-		updated, applyErr := model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, expectedLifecycleActionSeq, confirmed)
+		updated, applyErr := model.ApplyProviderSubscriptionLifecycleSnapshotStrict(binding.Id, expectedLifecycleActionSeq, confirmed)
 		if applyErr != nil {
 			_ = markCancelDowngradeCompensationUncertain(binding, downgrade, applyErr)
 			return nil, applyErr
@@ -85,7 +85,7 @@ func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProvid
 		return updated, nil
 	}
 
-	if _, applyErr := model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, expectedLifecycleActionSeq, confirmed); applyErr != nil {
+	if _, applyErr := model.ApplyProviderSubscriptionLifecycleSnapshotStrict(binding.Id, expectedLifecycleActionSeq, confirmed); applyErr != nil {
 		return nil, applyErr
 	}
 	restoreCause := updateErr

@@ -19,6 +19,8 @@ const (
 var ErrSubscriptionProviderBindingConflict = errors.New("subscription provider binding conflict")
 var ErrSubscriptionProviderLifecycleConflict = errors.New("subscription provider lifecycle conflict")
 
+var terminalProviderSubscriptionStatuses = []string{"canceled", "incomplete_expired", "unpaid"}
+
 type SubscriptionProviderBinding struct {
 	Id int64 `json:"id"`
 
@@ -137,12 +139,13 @@ func normalizeProvider(provider string) string {
 }
 
 func isTerminalProviderSubscriptionStatus(status string) bool {
-	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "canceled", "incomplete_expired", "unpaid":
-		return true
-	default:
-		return false
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	for _, terminalStatus := range terminalProviderSubscriptionStatuses {
+		if normalized == terminalStatus {
+			return true
+		}
 	}
+	return false
 }
 
 func subscriptionProviderBindingFromSnapshot(order *SubscriptionOrder, snapshot ProviderSubscriptionSnapshot) *SubscriptionProviderBinding {
@@ -293,7 +296,7 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 				*expectedLifecycleActionSeq,
 				0,
 				binding.ProviderSubscriptionId,
-				[]string{"canceled", "incomplete_expired", "unpaid"},
+				terminalProviderSubscriptionStatuses,
 			)
 		}
 		updateResult := updateQuery.Updates(updates)

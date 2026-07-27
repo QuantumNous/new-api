@@ -106,6 +106,17 @@ export const walletRenewalResultContract = {
   sync_pending: false,
 } satisfies SubscriptionRenewalLifecycleResult
 
+export const pausedMutationResultMustNotTypecheck = {
+  renewal_source: 'wallet_auto',
+  // @ts-expect-error paused states belong to self-subscription state, not mutation results
+  renewal_status: 'paused_insufficient_balance',
+  current_period_end: 2000,
+  can_cancel: false,
+  can_resume: false,
+  is_cancel_at_period_end: false,
+  sync_pending: false,
+} satisfies SubscriptionRenewalLifecycleResult
+
 export const legacySelfSubscriptionResponseContract = {
   renewal_source: 'balance',
   renewal_status: 'legacy_paused',

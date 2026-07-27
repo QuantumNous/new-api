@@ -115,6 +115,14 @@ func stripeSnapshotForSubscriptionRecurringTest(subscriptionID string) ProviderS
 	}
 }
 
+func TestTerminalProviderSubscriptionStatusesRemainCanonical(t *testing.T) {
+	for _, status := range []string{"canceled", "incomplete_expired", "unpaid"} {
+		require.True(t, isTerminalProviderSubscriptionStatus(status), status)
+		require.True(t, isTerminalProviderSubscriptionStatus(strings.ToUpper(status)), status)
+	}
+	require.False(t, isTerminalProviderSubscriptionStatus("active"))
+}
+
 func TestSubscriptionProviderBindingMigrationCreatesRecurringTablesAndColumn(t *testing.T) {
 	setupSubscriptionRecurringTestDB(t)
 
