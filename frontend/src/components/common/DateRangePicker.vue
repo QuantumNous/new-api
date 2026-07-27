@@ -301,7 +301,8 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
     <button
       ref="triggerRef"
       type="button"
-      class="flex h-full w-full items-center gap-2 rounded-xl border px-3.5 text-left text-sm transition-colors focus-ring"
+      class="pencil-control flex h-full w-full items-center gap-2 rounded-xl border px-3.5 text-left text-sm transition-colors focus-ring"
+      data-handdrawn="control"
       :class="[
         open || hasValue
           ? 'border-[var(--border-strong)] bg-[var(--surface-solid)]'
@@ -375,6 +376,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
         style="border-color: var(--overlay-border)"
         role="dialog"
         aria-modal="false"
+        data-handdrawn="menu"
         :aria-labelledby="panelTitleId"
       >
         <h2 :id="panelTitleId" class="sr-only">

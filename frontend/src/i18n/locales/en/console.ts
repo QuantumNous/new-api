@@ -225,6 +225,7 @@ export default {
     colExpired: 'Expires',
     colCreated: 'Created',
     colActions: 'Actions',
+    selectKey: 'Select token "{name}"',
     viewKey: 'Reveal full key',
     manageChannels: 'Manage route channels',
     editKey: 'Edit key',

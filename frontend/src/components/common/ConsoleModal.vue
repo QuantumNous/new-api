@@ -160,10 +160,11 @@ onBeforeUnmount(() => {
         <div
           ref="panel"
           tabindex="-1"
-          class="relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden border border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper animate-scale-in focus:outline-none"
+          class="pencil-surface-strong relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden border border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper animate-scale-in focus:outline-none"
+          data-handdrawn="modal"
           style="
-            border-radius: var(--sketch-border-radius-lg);
-            box-shadow: var(--card-sketch-shadow);
+            border-radius: var(--shape-overlay);
+            box-shadow: var(--overlay-shadow);
           "
           :class="widths[size]"
         >

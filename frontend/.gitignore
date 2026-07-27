@@ -1,5 +1,7 @@
 node_modules/
 dist/
+output/
+tmp/
 *.local
 *.tsbuildinfo
 

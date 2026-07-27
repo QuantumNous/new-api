@@ -26,7 +26,12 @@ const inputAttrs = computed(() => {
 </script>
 
 <template>
-  <div class="relative" :class="attrs.class" :style="wrapperStyle">
+  <div
+    class="pencil-underline relative"
+    :class="attrs.class"
+    :style="wrapperStyle"
+    data-handdrawn="underline"
+  >
     <svg
       class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]"
       width="16"

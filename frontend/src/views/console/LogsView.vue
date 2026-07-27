@@ -37,6 +37,7 @@ import LogUsageCell from '@/components/console/log-ui/LogUsageCell.vue'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { formatNumber, formatQuota, formatTime } from '@/utils/format'
+import { serializeSpreadsheet } from '@/utils/spreadsheetExport'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -348,33 +349,21 @@ async function doExport() {
         'json'
       )
     } else if (exportType.value === 'excel') {
-      const esc = (v: unknown) =>
-        String(v)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-      const head = `<tr>${LOG_EXPORT_HEADERS.map((h) => `<th>${h}</th>`).join('')}</tr>`
-      const body = items
-        .map(
-          (l) =>
-            `<tr>${getLogExportValues(l)
-              .map((v) => `<td>${esc(v)}</td>`)
-              .join('')}</tr>`
-        )
-        .join('')
       download(
-        `<html><head><meta charset="utf-8"></head><body><table>${head}${body}</table></body></html>`,
-        'application/vnd.ms-excel;charset=utf-8',
-        'xls'
+        ...serializeSpreadsheet(
+          LOG_EXPORT_HEADERS,
+          items.map(getLogExportValues),
+          'excel'
+        )
       )
     } else {
-      const csvRow = (vals: readonly unknown[]) =>
-        vals.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')
-      const lines = [
-        csvRow(LOG_EXPORT_HEADERS),
-        ...items.map((l) => csvRow(getLogExportValues(l))),
-      ]
-      download('﻿' + lines.join('\n'), 'text/csv;charset=utf-8', 'csv')
+      download(
+        ...serializeSpreadsheet(
+          LOG_EXPORT_HEADERS,
+          items.map(getLogExportValues),
+          'csv'
+        )
+      )
     }
     exportOpen.value = false
     if (truncated) {

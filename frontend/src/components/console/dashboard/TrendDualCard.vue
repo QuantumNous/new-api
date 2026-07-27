@@ -140,7 +140,6 @@ useEChart(
                 lineStyle: {
                   color: p.signal,
                   ...mood.line.lineStyle,
-                  width: 2,
                 },
                 itemStyle: {
                   color: p.signal,

@@ -224,6 +224,7 @@ export default {
     colExpired: '过期时间',
     colCreated: '创建时间',
     colActions: '操作',
+    selectKey: '选择令牌「{name}」',
     viewKey: '查看完整密钥',
     manageChannels: '查看路由渠道管理',
     editKey: '编辑令牌',

@@ -150,7 +150,8 @@ onClickOutside(root, closeMenu)
     <button
       :id="triggerId"
       type="button"
-      class="flex h-full w-full items-center gap-2 rounded-xl border px-4 text-left text-sm text-[var(--text-primary)] transition-colors focus-ring"
+      class="pencil-control flex h-full w-full items-center gap-2 rounded-xl border px-4 text-left text-sm text-[var(--text-primary)] transition-colors focus-ring"
+      data-handdrawn="control"
       :class="
         open
           ? 'border-[var(--border-strong)] bg-[var(--surface-solid)]'
@@ -197,6 +198,7 @@ onClickOutside(root, closeMenu)
         class="subtle-scroll absolute left-0 z-40 max-h-72 w-full min-w-[180px] overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] py-1 shadow-[var(--card-shadow)]"
         :class="direction === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'"
         role="listbox"
+        data-handdrawn="menu"
         aria-multiselectable="true"
       >
         <ul>

@@ -140,6 +140,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
       role="dialog"
       :aria-label="t('nav.notifications')"
       class="absolute right-0 top-12 z-40 w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] shadow-[var(--overlay-shadow)] animate-scale-in"
+      data-handdrawn="menu"
     >
       <header class="flex items-center justify-between px-5 pt-4">
         <h3 class="text-sm font-semibold text-[var(--text-primary)]">

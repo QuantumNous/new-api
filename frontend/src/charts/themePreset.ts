@@ -45,7 +45,7 @@ export function lineMood(p: ChartPalette): LineMoodOptions {
         lineStyle: { width: 2, shadowBlur: 8, shadowColor: p.lineGlow },
       },
       splitLine: {
-        lineStyle: { type: 'solid', color: 'rgba(152,164,192,0.08)' },
+        lineStyle: { type: 'solid', color: p.chartGrid },
       },
       barRadius: [4, 4, 0, 0],
     }
@@ -58,7 +58,7 @@ export function lineMood(p: ChartPalette): LineMoodOptions {
       lineStyle: { width: 2.5 },
     },
     splitLine: {
-      lineStyle: { type: [4, 5], color: p.borderSubtle },
+      lineStyle: { type: [7, 3, 2, 5], color: p.borderSubtle },
     },
     barRadius: [3, 2, 0, 0],
   }

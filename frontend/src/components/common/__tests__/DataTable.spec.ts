@@ -38,6 +38,27 @@ describe('DataTable keyboard rows', () => {
     expect(wrapper.get('tbody tr').classes()).toContain('opacity-75')
   })
 
+  it('marks the ledger and selected rows without changing table structure', () => {
+    const wrapper = mount(DataTable, {
+      props: {
+        columns: [{ key: 'name', label: 'Name' }],
+        rows: [
+          { id: 1, name: 'Selected' },
+          { id: 2, name: 'Unselected' },
+        ],
+        rowKey: 'id',
+        selectable: true,
+        selected: [1],
+      },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.attributes('data-handdrawn')).toBe('ledger')
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[0]?.attributes('data-selected')).toBe('true')
+    expect(rows[1]?.attributes('data-selected')).toBeUndefined()
+  })
+
   it('renders custom visual headers without replacing semantic labels', () => {
     const wrapper = mount(DataTable, {
       props: {

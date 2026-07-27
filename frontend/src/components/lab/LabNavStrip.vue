@@ -21,6 +21,7 @@ const activeName = computed(() => {
   <nav
     class="lab-strip flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3 py-2 lg:hidden"
     :aria-label="t('nav.alchemy')"
+    data-handdrawn="navigation-strip"
   >
     <RouterLink
       v-for="item in labNavItems"

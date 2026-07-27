@@ -23,6 +23,7 @@ const activeName = computed(
   <nav
     class="strip flex gap-1 overflow-x-auto border-b border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3 py-2 lg:hidden"
     :aria-label="t('nav.console')"
+    data-handdrawn="navigation-strip"
   >
     <button
       v-for="item in allItems"

@@ -17,6 +17,13 @@ export default {
     viewMore: '查看更多',
     loading: '加载中…',
     retry: '重试',
+    appError: {
+      label: '应用错误',
+      title: '此页面暂时无法显示',
+      message: '页面渲染遇到意外错误。请重试当前页面，或返回首页。',
+      retry: '重试页面',
+      home: '返回首页',
+    },
     tableRows: '表格数据行',
     none: '暂无数据',
     prevPage: '上一页',

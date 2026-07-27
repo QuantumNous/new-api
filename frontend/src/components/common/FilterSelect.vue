@@ -170,7 +170,8 @@ onClickOutside(root, closeMenu)
     <button
       :id="triggerId"
       type="button"
-      class="flex h-full w-full items-center gap-2 rounded-xl border px-4 text-left text-sm text-[var(--text-primary)] transition-colors focus-ring"
+      class="pencil-control flex h-full w-full items-center gap-2 rounded-xl border px-4 text-left text-sm text-[var(--text-primary)] transition-colors focus-ring"
+      data-handdrawn="control"
       :class="
         open
           ? 'border-[var(--border-strong)] bg-[var(--surface-solid)]'
@@ -227,6 +228,7 @@ onClickOutside(root, closeMenu)
         "
         :class="direction === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'"
         role="listbox"
+        data-handdrawn="menu"
       >
         <li
           v-for="(opt, i) in allOptions"

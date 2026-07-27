@@ -33,7 +33,8 @@ function moodColor(mood: number): string {
 
 <template>
   <article
-    class="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)]"
+    class="pencil-surface rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)]"
+    data-handdrawn="surface"
   >
     <h3 class="mb-4 text-sm font-semibold text-[var(--text-primary)]">
       🐄 {{ t('farm.ranch.title') }}
@@ -61,7 +62,7 @@ function moodColor(mood: number): string {
             </span>
           </div>
           <div
-            class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-solid)]"
+            class="pencil-progress mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-solid)]"
           >
             <div
               class="h-full rounded-full transition-all"

@@ -110,7 +110,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-full flex-col">
+  <div class="flex h-full flex-col" data-handdrawn-page="chat">
     <!-- ===== conversation view ===== -->
     <template v-if="sessionId">
       <div class="subtle-scroll min-h-0 flex-1 overflow-y-auto">
@@ -123,7 +123,9 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-else class="space-y-6">
-            <h1 class="mb-2 text-xl font-bold text-[var(--text-primary)]">
+            <h1
+              class="gesture-mark mb-2 text-xl font-bold text-[var(--text-primary)]"
+            >
               {{ conversation?.title }}
             </h1>
             <div
@@ -137,11 +139,12 @@ onBeforeUnmount(() => {
                 class="mt-0.5 h-8 w-8 shrink-0 rounded-lg"
               />
               <div
-                class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                class="lab-message-content max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                :data-message-role="m.role"
                 :class="
                   m.role === 'user'
-                    ? 'bg-[var(--accent-soft)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-primary)]'
+                    ? 'pencil-surface bg-[var(--accent-soft)] text-[var(--text-primary)]'
+                    : 'lab-assistant-message text-[var(--text-primary)]'
                 "
               >
                 {{ m.content }}
@@ -194,6 +197,7 @@ onBeforeUnmount(() => {
             :key="m.id"
             type="button"
             class="flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-solid)] py-1 pl-1 pr-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] focus-ring"
+            data-handdrawn="brand-option"
             @click="pickModel(m.name)"
           >
             <VendorLogo :vendor="m.vendor" :size="20" />
@@ -244,7 +248,8 @@ onBeforeUnmount(() => {
               v-for="s in starters"
               :key="s.id"
               type="button"
-              class="group flex items-start gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4 text-left shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)] focus-ring"
+              class="pencil-surface group flex items-start gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4 text-left shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)] focus-ring"
+              data-handdrawn="surface"
               @click="useStarter(s.desc)"
             >
               <span

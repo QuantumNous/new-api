@@ -42,7 +42,7 @@ const color = computed(() => {
       </span>
     </div>
     <div
-      class="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+      class="pencil-progress mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-muted)]"
       aria-hidden="true"
     >
       <div

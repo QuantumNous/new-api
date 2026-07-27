@@ -31,6 +31,7 @@ withDefaults(
     class="inline-flex items-center gap-1 rounded-xl bg-[var(--surface-muted)] p-1"
     role="tablist"
     :aria-label="label"
+    data-handdrawn="segments"
   >
     <button
       v-for="opt in options"

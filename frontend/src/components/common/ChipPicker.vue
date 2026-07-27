@@ -59,21 +59,24 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="relative">
-    <input
-      :id="inputId"
-      v-model="keyword"
-      type="text"
-      name="chip-picker-search"
-      :aria-label="placeholder"
-      :placeholder="placeholder"
-      class="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-colors focus:border-[var(--border-strong)] focus-ring"
-      @focus="onFocus"
-      @blur="onBlur"
-    />
+    <div class="pencil-control" data-handdrawn="control">
+      <input
+        :id="inputId"
+        v-model="keyword"
+        type="text"
+        name="chip-picker-search"
+        :aria-label="placeholder"
+        :placeholder="placeholder"
+        class="h-11 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-colors focus:border-[var(--border-strong)] focus-ring"
+        @focus="onFocus"
+        @blur="onBlur"
+      />
+    </div>
 
     <div
       v-if="open && filtered.length > 0"
       class="subtle-scroll absolute z-20 mt-1.5 max-h-56 w-full overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] py-1 shadow-[var(--card-shadow)]"
+      data-handdrawn="menu"
     >
       <button
         v-for="option in filtered"
@@ -91,6 +94,7 @@ onBeforeUnmount(() => {
         v-for="option in model"
         :key="option"
         class="relative inline-flex items-center rounded-lg bg-[var(--surface-muted)] py-1.5 pl-3 pr-7 text-xs font-medium text-[var(--text-primary)]"
+        data-handdrawn="chip"
       >
         {{ option }}
         <button

@@ -1,6 +1,7 @@
 <template>
   <div
-    class="landing-shell min-h-screen bg-[var(--page-background)] text-[var(--text-primary)]"
+    class="landing-shell night-page-texture min-h-screen bg-[var(--page-background)] text-[var(--text-primary)]"
+    data-handdrawn-scope="home"
   >
     <AppNavbar />
     <ScrollActivityIndicator />
@@ -59,7 +60,7 @@
           <button
             ref="stageButton"
             type="button"
-            class="flex items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-1.5 text-[11px] tracking-[0.06em] text-[var(--text-secondary)] shadow-[0_6px_18px_var(--shadow-color)] backdrop-blur-[12px] backdrop-saturate-150 transition-all duration-500 [@media(max-height:700px)_and_(max-width:1023px)]:hidden"
+            class="hero-stage-hint flex items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-1.5 text-[11px] tracking-[0.06em] text-[var(--text-secondary)] shadow-[0_6px_18px_var(--shadow-color)] backdrop-blur-[12px] backdrop-saturate-150 transition-all duration-500 [@media(max-height:700px)_and_(max-width:1023px)]:hidden"
             :class="
               showHint
                 ? 'translate-y-0 opacity-100'
@@ -107,7 +108,7 @@
         <button
           v-if="immersive"
           type="button"
-          class="absolute bottom-[max(20px,env(safe-area-inset-bottom))] left-1/2 z-[12] inline-flex -translate-x-1/2 animate-pulse-slow items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-2.5 text-xs font-semibold tracking-[0.04em] text-[var(--text-primary)] shadow-[0_8px_24px_var(--shadow-color)] backdrop-blur-[16px] backdrop-saturate-150 lg:hidden"
+          class="hero-stage-hint absolute bottom-[max(20px,env(safe-area-inset-bottom))] left-1/2 z-[12] inline-flex -translate-x-1/2 animate-pulse-slow items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-2.5 text-xs font-semibold tracking-[0.04em] text-[var(--text-primary)] shadow-[0_8px_24px_var(--shadow-color)] backdrop-blur-[16px] backdrop-saturate-150 lg:hidden"
           data-hero-canvas-boundary
           :aria-label="t('hero.stageRecall')"
           @click="exitImmersive"
@@ -134,7 +135,7 @@
         aria-hidden="true"
       >
         <div
-          class="flex h-9 w-5 items-start justify-center rounded-full border border-[var(--border-default)] p-1.5"
+          class="hero-scroll-cue flex h-9 w-5 items-start justify-center rounded-full border border-[var(--border-default)] p-1.5"
         >
           <span
             class="h-2 w-1 animate-bounce rounded-full bg-[var(--accent)]"

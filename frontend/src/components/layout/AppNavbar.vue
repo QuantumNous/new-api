@@ -2,6 +2,7 @@
   <header
     class="app-navbar fixed inset-x-0 top-0 z-[70] transition-all duration-300"
     data-hero-canvas-boundary
+    :data-scrolled="scrolled"
     :class="
       scrolled
         ? 'border-b border-[var(--border-subtle)] bg-[var(--surface-raised)] backdrop-blur-xl shadow-[0_12px_36px_var(--shadow-color)]'
@@ -15,7 +16,7 @@
       <div class="flex min-w-0 items-center gap-2.5 sm:gap-4">
         <RouterLink
           :to="{ name: 'home' }"
-          class="flex min-h-11 min-w-11 items-center justify-center gap-2.5 transition-transform hover:scale-[1.02] sm:justify-start"
+          class="home-brand flex min-h-11 min-w-11 items-center justify-center gap-2.5 transition-transform hover:scale-[1.02] sm:justify-start"
           :aria-label="`${systemName} ${t('nav.home')}`"
         >
           <img
@@ -63,7 +64,7 @@
         <ThemeSwitcher class="hidden md:block" />
         <RouterLink
           :to="isAuthenticated ? { name: 'dashboard' } : { name: 'sign-in' }"
-          class="inline-flex h-11 w-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--accent)] px-0 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] hover:shadow-[0_10px_24px_var(--shadow-color)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] min-[420px]:w-auto min-[420px]:px-3 md:h-auto md:w-auto md:px-4 md:py-1.5"
+          class="home-nav-cta inline-flex h-11 w-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--accent)] px-0 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] hover:shadow-[var(--button-shadow-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] min-[420px]:w-auto min-[420px]:px-3 md:h-auto md:w-auto md:px-4 md:py-1.5"
           :aria-label="isAuthenticated ? t('nav.console') : t('nav.login')"
         >
           <span class="sr-only min-[420px]:not-sr-only">{{

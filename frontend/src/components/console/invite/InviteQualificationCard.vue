@@ -71,7 +71,7 @@ const topupReached = computed(
             </span>
           </div>
           <div
-            class="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-muted)]"
+            class="pencil-progress h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-muted)]"
           >
             <div
               class="h-full rounded-full transition-all"
@@ -101,7 +101,7 @@ const topupReached = computed(
             </span>
           </div>
           <div
-            class="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-muted)]"
+            class="pencil-progress h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-muted)]"
           >
             <div
               class="h-full rounded-full transition-all"

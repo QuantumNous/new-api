@@ -157,6 +157,7 @@
         :id="menuId"
         ref="menu"
         role="menu"
+        data-handdrawn="menu"
         class="theme-switcher__menu"
         :aria-label="t('nav.theme')"
         @keydown="onMenuKeydown"
@@ -383,7 +384,6 @@ onClickOutside(root, () => close())
   --theme-switcher-selected: var(--accent-soft);
   --theme-switcher-accent: var(--accent);
   --theme-switcher-focus: var(--focus-ring);
-  --theme-switcher-shadow: var(--shadow-color);
 }
 
 .theme-switcher__trigger {
@@ -431,7 +431,7 @@ onClickOutside(root, () => close())
   border: 1px solid var(--theme-switcher-border);
   border-radius: 0.75rem;
   background: var(--theme-switcher-menu);
-  box-shadow: 0 24px 46px var(--theme-switcher-shadow);
+  box-shadow: var(--menu-shadow);
   backdrop-filter: blur(20px);
 }
 

@@ -11,6 +11,7 @@ import { canStartCanvasRequest } from './requestGate'
 import { getCanvasTheme, type CanvasTheme, type CanvasThemeName } from './theme'
 import { MODEL_NODES } from '@/constants/home/models'
 import { MODEL_GEO, SOURCE_GEO } from '@/constants/home/modelGeo'
+import { BRAND_LOGO_PATH } from '@/constants/branding'
 import type {
   SignalCapabilityId,
   SignalConsolePhase,
@@ -237,7 +238,7 @@ export class MapScene {
         this.theme
       )
     })
-    loadIcon('/logo.png')
+    loadIcon(BRAND_LOGO_PATH)
       .then((image) => {
         if (!this.disposed) this.hub.setLogo(image)
       })
@@ -1280,6 +1281,7 @@ export class MapScene {
     // so document visibility/intersection pauses freeze instead of skipping.
     this.lastFrame = performance.now()
     this.draw()
+    if (this.reduced) return
     this.raf = requestAnimationFrame(this.frame)
   }
 

@@ -15,7 +15,7 @@ const soundEnabled = useStorage<boolean>('ren2hub_lab_sound', true)
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden">
+  <div class="flex h-screen overflow-hidden" data-handdrawn-scope="lab">
     <LabSidebar />
 
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -24,12 +24,15 @@ const soundEnabled = useStorage<boolean>('ren2hub_lab_sound', true)
       <LabNavStrip />
 
       <!-- page content (relative for floating toolbar) -->
-      <div class="relative min-w-0 flex-1 overflow-hidden">
+      <div
+        class="night-page-texture draft-grid relative min-w-0 flex-1 overflow-hidden"
+      >
         <!-- floating toolbar: private mode + sound -->
         <div class="absolute right-4 top-3 z-30 flex items-center gap-1.5">
           <button
             type="button"
-            class="flex h-9 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors focus-ring"
+            class="pencil-control flex h-9 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors focus-ring"
+            data-handdrawn="control"
             :style="
               privateMode
                 ? 'background:var(--accent-soft);color:var(--accent-text)'

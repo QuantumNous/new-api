@@ -65,7 +65,12 @@ function onBlur(e: Event) {
 </script>
 
 <template>
-  <div class="relative" :class="attrs.class" :style="wrapperStyle">
+  <div
+    class="pencil-underline relative"
+    :class="attrs.class"
+    :style="wrapperStyle"
+    data-handdrawn="underline"
+  >
     <span
       class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[var(--text-tertiary)]"
       >$</span

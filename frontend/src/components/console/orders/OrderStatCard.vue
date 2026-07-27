@@ -34,7 +34,8 @@ const plate = computed(() => {
 
 <template>
   <section
-    class="sketch-card flex items-center gap-3.5 border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4"
+    class="pencil-surface sketch-card flex items-center gap-3.5 border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4"
+    data-handdrawn="surface"
   >
     <span
       class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"

@@ -21,7 +21,8 @@ const rarityTone = (r: string): RarityTone =>
 
 <template>
   <article
-    class="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)]"
+    class="pencil-surface rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)]"
+    data-handdrawn="surface"
   >
     <h3 class="mb-4 text-sm font-semibold text-[var(--text-primary)]">
       🎣 {{ t('farm.fishing.title') }}

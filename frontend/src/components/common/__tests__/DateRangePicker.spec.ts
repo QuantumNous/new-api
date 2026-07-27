@@ -13,8 +13,17 @@ describe('DateRangePicker keyboard model', () => {
       global: { plugins: [i18n] },
     })
 
-    await wrapper.get('button[aria-haspopup="dialog"]').trigger('click')
+    const trigger = wrapper.get('button[aria-haspopup="dialog"]')
+    expect(trigger.attributes('data-handdrawn')).toBe('control')
+
+    await trigger.trigger('click')
     await nextTick()
+    expect(wrapper.get('[role="dialog"]').attributes('data-handdrawn')).toBe(
+      'menu'
+    )
+    expect(
+      wrapper.get('[data-date-key="2026-07-15"] span').classes()
+    ).not.toContain('pencil-control')
     const active = document.activeElement as HTMLButtonElement
     expect(active.dataset.dateKey).toBe('2026-07-15')
 

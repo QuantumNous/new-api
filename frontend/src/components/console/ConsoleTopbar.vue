@@ -55,6 +55,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
 <template>
   <header
     class="topbar-header sticky top-0 z-[60] bg-[var(--surface-raised)] backdrop-blur-xl"
+    data-handdrawn="navigation-top"
   >
     <nav
       class="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-1.5 px-3 sm:gap-3 sm:px-6 lg:px-8"
@@ -70,8 +71,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
             :src="app.logo"
             alt=""
             aria-hidden="true"
-            class="h-8 w-8 shrink-0 object-contain"
-            style="filter: drop-shadow(0 1px 2px rgba(56, 55, 43, 0.18))"
+            class="pencil-brand-frame h-8 w-8 shrink-0 object-contain"
+            style="filter: var(--brand-icon-shadow)"
           />
           <span
             class="display-title hidden whitespace-nowrap text-lg font-bold tracking-tight text-[var(--text-primary)] sm:inline"
@@ -90,7 +91,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
         <!-- search: underline-style hand-drawn feel -->
         <button
           type="button"
-          class="search-trigger flex items-center gap-2 rounded-xl bg-[var(--surface-muted)] py-2 pl-3.5 pr-3 text-sm text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)] focus-ring"
+          class="pencil-control search-trigger flex items-center gap-2 rounded-xl bg-[var(--surface-muted)] py-2 pl-3.5 pr-3 text-sm text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)] focus-ring"
+          data-handdrawn="control"
           :aria-label="t('nav.search')"
           @click="searchOpen = true"
         >
@@ -125,9 +127,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
       </div>
     </nav>
 
-    <!-- mobile nav strip: active pill gets micro-tilt + sketch radius -->
+    <!-- Mobile nav strip: the active outline carries the hand-drawn tilt. -->
     <div
       class="flex gap-1 overflow-x-auto border-t border-[var(--border-subtle)] px-3 py-2 lg:hidden"
+      data-handdrawn="navigation-strip"
     >
       <RouterLink
         v-for="item in mobileItems"
@@ -158,12 +161,11 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
   box-shadow: 0 1px 0 var(--dec-gold-line);
 }
 
-/* Active mobile pill: hand-drawn irregular radius + micro-rotation */
+/* Active mobile pill keeps its hit geometry fixed. */
 .mobile-pill {
   border-radius: 9999px;
 }
 .mobile-pill.active {
   border-radius: var(--sketch-border-radius-sm);
-  transform: rotate(-0.4deg);
 }
 </style>

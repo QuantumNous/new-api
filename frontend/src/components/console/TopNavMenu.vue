@@ -148,6 +148,7 @@ onBeforeUnmount(() => {
       <div
         v-if="group.children && openGroup === group.name"
         class="absolute left-1/2 top-12 z-40 w-52 -translate-x-1/2 rounded-2xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] py-1.5 shadow-[var(--overlay-shadow)] animate-scale-in"
+        data-handdrawn="menu"
       >
         <button
           v-for="child in group.children"

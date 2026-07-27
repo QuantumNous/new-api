@@ -84,12 +84,15 @@ function stub() {
 </script>
 
 <template>
-  <div class="subtle-scroll h-full overflow-y-auto">
+  <div
+    class="subtle-scroll h-full overflow-y-auto"
+    data-handdrawn-page="plugins"
+  >
     <div class="mx-auto max-w-[900px] px-4 py-8 sm:px-6">
       <!-- page header -->
       <div class="mb-6">
         <h1
-          class="text-2xl font-bold tracking-tight text-[var(--text-primary)]"
+          class="gesture-mark text-2xl font-bold tracking-tight text-[var(--text-primary)]"
         >
           {{ t('lab.plugins.title') }}
         </h1>
@@ -177,7 +180,7 @@ function stub() {
               v-for="p in plugins"
               :key="p.id"
               type="button"
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl opacity-90 transition-opacity hover:opacity-100 focus-ring"
+              class="pencil-brand-frame flex h-10 w-10 shrink-0 items-center justify-center rounded-xl opacity-90 transition-opacity hover:opacity-100 focus-ring"
               :style="{ background: p.color }"
               :title="p.name"
               :aria-label="p.name"
@@ -197,7 +200,10 @@ function stub() {
           </div>
 
           <!-- plugin list -->
-          <ul class="divide-y divide-[var(--border-subtle)]">
+          <ul
+            class="divide-y divide-[var(--border-subtle)]"
+            data-handdrawn="ledger-list"
+          >
             <li
               v-for="p in filteredPlugins"
               :key="p.id"
@@ -205,7 +211,7 @@ function stub() {
             >
               <button
                 type="button"
-                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl focus-ring"
+                class="pencil-brand-frame flex h-10 w-10 shrink-0 items-center justify-center rounded-xl focus-ring"
                 :style="{ background: p.color }"
                 :aria-label="p.name"
                 @click="stub"
@@ -249,7 +255,8 @@ function stub() {
           }}</span>
           <button
             type="button"
-            class="flex h-9 items-center gap-2 rounded-xl bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-contrast)] hover:bg-[var(--accent-hover)] focus-ring"
+            class="pencil-control flex h-9 items-center gap-2 rounded-xl bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-contrast)] hover:bg-[var(--accent-hover)] focus-ring"
+            data-handdrawn="control"
             @click="stub"
           >
             <svg
@@ -287,6 +294,7 @@ function stub() {
         <ul
           v-else-if="filteredMcp.length"
           class="divide-y divide-[var(--border-subtle)]"
+          data-handdrawn="ledger-list"
         >
           <li
             v-for="m in filteredMcp"
@@ -294,7 +302,7 @@ function stub() {
             class="flex items-center gap-3 py-3"
           >
             <span
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--signal-soft)]"
+              class="pencil-brand-frame flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--signal-soft)]"
             >
               <svg
                 width="18"
@@ -364,7 +372,8 @@ function stub() {
           </span>
           <button
             type="button"
-            class="flex h-9 items-center gap-2 rounded-xl bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-contrast)] hover:bg-[var(--accent-hover)] focus-ring"
+            class="pencil-control flex h-9 items-center gap-2 rounded-xl bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-contrast)] hover:bg-[var(--accent-hover)] focus-ring"
+            data-handdrawn="control"
             @click="stub"
           >
             <svg
@@ -391,7 +400,8 @@ function stub() {
           <article
             v-for="s in filteredSkills"
             :key="s.id"
-            class="flex cursor-pointer flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+            class="pencil-surface flex cursor-pointer flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+            data-handdrawn="surface"
             role="button"
             tabindex="0"
             @click="stub"
@@ -400,7 +410,7 @@ function stub() {
           >
             <div class="mb-2 flex items-start justify-between gap-3">
               <span
-                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                class="pencil-brand-frame flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
                 :style="{ background: s.color }"
               >
                 <svg
@@ -511,7 +521,8 @@ function stub() {
               <article
                 v-for="p in group.items"
                 :key="p.id"
-                class="relative flex items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-3 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+                class="pencil-surface relative flex items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-3 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+                data-handdrawn="surface"
               >
                 <button
                   type="button"
@@ -520,7 +531,7 @@ function stub() {
                   @click="stub"
                 />
                 <span
-                  class="pointer-events-none flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                  class="pencil-brand-frame pointer-events-none flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
                   :style="{ background: p.color }"
                 >
                   <svg

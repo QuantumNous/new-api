@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
+import bigameDayBanner from '@/assets/activity/bigame-banner-day-sketch.webp'
+import bigameNightBanner from '@/assets/activity/bigame-banner.webp'
+import { useThemedAsset } from '@/composables/useThemedAsset'
 import type { GameWallet } from '@/types/bigame'
-import bigameBanner from '@/assets/activity/bigame-banner.webp'
 
 defineProps<{ wallet: GameWallet }>()
 const { t } = useI18n()
+const bigameBanner = useThemedAsset(bigameDayBanner, bigameNightBanner)
 </script>
 
 <template>
   <section
-    class="relative overflow-hidden rounded-2xl border border-[var(--border-subtle)] p-5 shadow-[var(--card-shadow)]"
+    class="game-hero pencil-surface relative overflow-hidden rounded-2xl border border-[var(--border-subtle)] p-5 shadow-[var(--card-shadow)]"
+    data-handdrawn="surface-clipped"
   >
     <!-- generated banner art -->
     <img
@@ -20,17 +24,7 @@ const { t } = useI18n()
       class="absolute inset-0 h-full w-full object-cover"
     />
     <!-- readability scrim -->
-    <div
-      class="absolute inset-0"
-      style="
-        background: linear-gradient(
-          100deg,
-          rgba(24, 18, 40, 0.9) 0%,
-          rgba(24, 18, 40, 0.66) 48%,
-          rgba(24, 18, 40, 0.28) 100%
-        );
-      "
-    />
+    <div class="game-hero__scrim absolute inset-0" />
     <div class="relative z-10 flex flex-wrap items-start justify-between gap-4">
       <!-- title block -->
       <div>
@@ -41,11 +35,13 @@ const { t } = useI18n()
           🎮 {{ t('bigame.title') }}
         </span>
         <h1
-          class="mt-3 text-2xl font-bold tracking-tight text-white drop-shadow"
+          class="game-hero__title mt-3 text-2xl font-bold tracking-tight text-white drop-shadow"
         >
           {{ t('bigame.earnTitle') }}
         </h1>
-        <p class="mt-1 text-sm text-white/80">{{ t('bigame.earnHint') }}</p>
+        <p class="game-hero__copy mt-1 text-sm text-white/80">
+          {{ t('bigame.earnHint') }}
+        </p>
       </div>
 
       <!-- coin wallet stat card -->
@@ -84,3 +80,39 @@ const { t } = useI18n()
     </div>
   </section>
 </template>
+
+<style scoped>
+.game-hero__scrim {
+  background: linear-gradient(
+    100deg,
+    rgba(24, 18, 40, 0.9) 0%,
+    rgba(24, 18, 40, 0.66) 48%,
+    rgba(24, 18, 40, 0.28) 100%
+  );
+}
+
+:global(html.dark .game-hero) {
+  border-color: var(--border-subtle) !important;
+  border-radius: 1rem !important;
+  background-color: transparent;
+  box-shadow: var(--card-shadow) !important;
+}
+
+:global(html.light .game-hero__scrim) {
+  background: linear-gradient(
+    100deg,
+    rgba(251, 248, 239, 0.96) 0%,
+    rgba(251, 248, 239, 0.72) 48%,
+    rgba(251, 248, 239, 0.12) 100%
+  );
+}
+
+:global(html.light .game-hero__title) {
+  color: var(--text-primary);
+  filter: none;
+}
+
+:global(html.light .game-hero__copy) {
+  color: var(--text-secondary);
+}
+</style>

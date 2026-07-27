@@ -81,12 +81,14 @@ function newChat() {
   <aside
     class="sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-[var(--border-subtle)] bg-[var(--surface-solid)] transition-[width] duration-[250ms] lg:flex"
     :style="{ width: collapsed ? '64px' : '264px' }"
+    data-handdrawn="navigation"
   >
     <!-- new chat CTA (formerly below brand header) -->
     <div class="shrink-0 px-3 pt-4 pb-1">
       <button
         type="button"
-        class="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] font-semibold text-[var(--accent-contrast)] shadow-[0_6px_18px_var(--shadow-color)] transition-all hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] focus-ring"
+        class="pencil-control flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] font-semibold text-[var(--accent-contrast)] shadow-[var(--button-shadow)] transition-all hover:bg-[var(--accent-hover)] hover:shadow-[var(--button-shadow-hover)] active:bg-[var(--accent-active)] focus-ring"
+        data-handdrawn="control"
         :title="collapsed ? t('lab.newChat') : undefined"
         @click="newChat"
       >
@@ -217,7 +219,8 @@ function newChat() {
       <button
         v-if="!collapsed && remaining !== null"
         type="button"
-        class="mb-2 flex w-full flex-col gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--surface-hover)] focus-ring"
+        class="pencil-surface mb-2 flex w-full flex-col gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--surface-hover)] focus-ring"
+        data-handdrawn="surface"
         :title="t('lab.balance.hint')"
         @click="go('wallet')"
       >
@@ -245,7 +248,7 @@ function newChat() {
         </div>
         <!-- progress bar: remaining / total -->
         <div
-          class="h-1 w-full overflow-hidden rounded-full bg-[var(--border-subtle)]"
+          class="pencil-progress h-1 w-full overflow-hidden rounded-full bg-[var(--border-subtle)]"
         >
           <div
             class="h-full rounded-full bg-[var(--accent)] transition-[width] duration-500"

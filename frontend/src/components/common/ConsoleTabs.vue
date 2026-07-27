@@ -25,8 +25,9 @@ function onKeydown(e: KeyboardEvent, index: number) {
 
 <template>
   <div
-    class="flex items-center gap-7 border-b border-[var(--border-subtle)]"
+    class="console-tabs flex items-center gap-7 border-b border-[var(--border-subtle)]"
     role="tablist"
+    data-handdrawn="tabs"
   >
     <button
       v-for="(item, i) in items"
@@ -62,6 +63,13 @@ function onKeydown(e: KeyboardEvent, index: number) {
 </template>
 
 <style scoped>
+.console-tabs {
+  scrollbar-width: none;
+}
+.console-tabs::-webkit-scrollbar {
+  display: none;
+}
+
 /* Day: tapered brush-stroke bar (clip). Night: full-width gold bar + glow. */
 .active-bar {
   height: 2.5px;

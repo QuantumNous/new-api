@@ -98,7 +98,8 @@ const cells = computed<Cell[]>(() => [
     slot's height so the strip stays level.
   -->
   <section
-    class="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+    class="pencil-surface overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+    data-handdrawn="surface-clipped"
   >
     <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5">
       <div

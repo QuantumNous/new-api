@@ -238,12 +238,14 @@ describe('UsersView', () => {
     await wrapper
       .get('button[aria-label="Disable selected users"]')
       .trigger('click')
-    await waitForRequests()
+
+    await vi.waitFor(() => {
+      expect(wrapper.text()).not.toContain('1 selected')
+    })
 
     expect(useToast().toasts.map((toast) => toast.message)).toContain(
       'Disabled 1 users'
     )
-    expect(wrapper.text()).not.toContain('1 selected')
   })
 
   it('adjusts quota from the row action group', async () => {

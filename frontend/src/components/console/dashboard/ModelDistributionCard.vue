@@ -83,7 +83,7 @@ const { dispatch } = useEChart(
         itemStyle: {
           borderColor: p.surfaceSolid,
           borderWidth: 2,
-          borderRadius: 4,
+          borderRadius: p.isDark ? 4 : 0,
         },
         label: { show: false },
         emphasis: { scaleSize: 6 },

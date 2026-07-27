@@ -118,13 +118,13 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="flex min-w-0 justify-start gap-1 overflow-x-auto [scrollbar-width:none] lg:justify-end [&::-webkit-scrollbar]:hidden"
+    class="grid min-w-0 grid-cols-1 gap-1 sm:flex sm:flex-wrap sm:justify-start lg:justify-end"
     :aria-label="t('keys.endpoints.regionLabel')"
   >
     <div
       v-for="endpoint in ENDPOINTS"
       :key="endpoint.id"
-      class="flex min-w-max flex-none items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-2 py-1"
+      class="flex min-w-0 items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-2 py-1 sm:min-w-max sm:flex-none"
     >
       <span class="shrink-0 text-[11px] font-medium text-[var(--text-primary)]">
         {{ t(endpoint.labelKey) }}

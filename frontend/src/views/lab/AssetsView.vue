@@ -86,19 +86,22 @@ function rowAction(_item: AssetItem) {
 </script>
 
 <template>
-  <div class="subtle-scroll h-full overflow-y-auto">
+  <div
+    class="subtle-scroll h-full overflow-y-auto"
+    data-handdrawn-page="assets"
+  >
     <div class="mx-auto max-w-[1100px] px-4 py-8 sm:px-6">
       <!-- header -->
       <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1
-            class="text-2xl font-bold tracking-tight text-[var(--text-primary)]"
+            class="gesture-mark text-2xl font-bold tracking-tight text-[var(--text-primary)]"
           >
             {{ t('lab.assets.title') }}
           </h1>
           <div v-if="storage" class="mt-2 flex items-center gap-3">
             <div
-              class="h-1.5 w-40 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+              class="pencil-progress h-1.5 w-40 overflow-hidden rounded-full bg-[var(--surface-muted)]"
             >
               <div
                 class="h-full rounded-full bg-[var(--accent)]"
@@ -117,7 +120,8 @@ function rowAction(_item: AssetItem) {
         </div>
         <button
           type="button"
-          class="flex h-10 items-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] focus-ring"
+          class="pencil-control flex h-10 items-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] focus-ring"
+          data-handdrawn="control"
           @click="upload"
         >
           <svg
@@ -156,6 +160,7 @@ function rowAction(_item: AssetItem) {
       <div
         v-if="view === 'list'"
         class="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
+        data-handdrawn="ledger-list"
       >
         <div
           class="flex items-center gap-3 border-b border-[var(--border-subtle)] bg-[var(--surface-table-header)] px-4 py-2.5 text-xs font-medium text-[var(--text-secondary)]"
@@ -223,7 +228,7 @@ function rowAction(_item: AssetItem) {
             >
             <button
               type="button"
-              class="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] opacity-0 transition-all hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-ring group-hover:opacity-100"
+              class="touch-row-action flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] opacity-0 transition-all hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-ring group-hover:opacity-100"
               :aria-label="t('lab.assets.more')"
               @click="rowAction(item)"
             >
@@ -269,7 +274,8 @@ function rowAction(_item: AssetItem) {
           <figure
             v-for="item in filtered"
             :key="item.id"
-            class="group overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+            class="pencil-surface group overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+            data-handdrawn="surface-clipped"
           >
             <div
               class="aspect-square overflow-hidden bg-[var(--surface-muted)]"

@@ -17,6 +17,14 @@ export default {
     viewMore: 'View more',
     loading: 'Loading…',
     retry: 'Retry',
+    appError: {
+      label: 'Application error',
+      title: 'This page could not be rendered',
+      message:
+        'An unexpected interface error interrupted this page. Retry the view or return home.',
+      retry: 'Retry view',
+      home: 'Return home',
+    },
     tableRows: 'Table rows',
     none: 'No data',
     prevPage: 'Prev',

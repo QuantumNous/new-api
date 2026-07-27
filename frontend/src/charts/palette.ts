@@ -1,3 +1,5 @@
+import { normalizeOpaqueColor } from '@/utils/cssColor'
+
 /**
  * ECharts renders to canvas and cannot inherit CSS variables, so we resolve
  * the semantic tokens at runtime — same strategy as canvas/theme.ts in the
@@ -16,6 +18,7 @@ export interface ChartPalette {
   textSecondary: string
   textTertiary: string
   borderSubtle: string
+  chartGrid: string
   surfaceSolid: string
   /** resolved theme at build time — presets branch day/night on this */
   isDark: boolean
@@ -48,19 +51,35 @@ export function resolveToken(name: string, fallback = ''): string {
 export function chartPalette(): ChartPalette {
   const isDark = document.documentElement.dataset.theme === 'dark'
   const p: ChartPalette = {
-    accent: resolveToken('--accent', '#d8984c'),
-    signal: resolveToken('--signal', '#74765a'),
-    signalStrong: resolveToken('--signal-strong', '#5c5e45'),
-    support: resolveToken('--support', '#cfaf6b'),
-    success: resolveToken('--status-success', '#64764b'),
-    warning: resolveToken('--status-warning', '#a87b2a'),
-    danger: resolveToken('--status-danger', '#9d3017'),
-    info: resolveToken('--status-info', '#74765a'),
-    textPrimary: resolveToken('--text-primary', '#38372b'),
-    textSecondary: resolveToken('--text-secondary', '#5c5946'),
-    textTertiary: resolveToken('--text-tertiary', '#827e66'),
+    accent: normalizeOpaqueColor(resolveToken('--accent'), '#d8984c'),
+    signal: normalizeOpaqueColor(resolveToken('--signal'), '#74765a'),
+    signalStrong: normalizeOpaqueColor(
+      resolveToken('--signal-strong'),
+      '#5c5e45'
+    ),
+    support: normalizeOpaqueColor(resolveToken('--support'), '#cfaf6b'),
+    success: normalizeOpaqueColor(resolveToken('--status-success'), '#64764b'),
+    warning: normalizeOpaqueColor(resolveToken('--status-warning'), '#a87b2a'),
+    danger: normalizeOpaqueColor(resolveToken('--status-danger'), '#9d3017'),
+    info: normalizeOpaqueColor(resolveToken('--status-info'), '#74765a'),
+    textPrimary: normalizeOpaqueColor(
+      resolveToken('--text-primary'),
+      '#38372b'
+    ),
+    textSecondary: normalizeOpaqueColor(
+      resolveToken('--text-secondary'),
+      '#5c5946'
+    ),
+    textTertiary: normalizeOpaqueColor(
+      resolveToken('--text-tertiary'),
+      '#827e66'
+    ),
     borderSubtle: resolveToken('--border-subtle', 'rgba(56,55,43,.08)'),
-    surfaceSolid: resolveToken('--surface-solid', '#fffdf8'),
+    chartGrid: resolveToken('--chart-grid-line', 'rgba(56,55,43,.08)'),
+    surfaceSolid: normalizeOpaqueColor(
+      resolveToken('--surface-solid'),
+      '#fffdf8'
+    ),
     isDark,
     lineGlow: isDark
       ? resolveToken('--chart-line-glow', 'rgba(226,188,85,0.35)')

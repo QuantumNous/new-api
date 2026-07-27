@@ -2,6 +2,7 @@ import { ApiError, type ApiResponse } from '../types'
 import type { HttpMethod, RequestOptions } from '../transport'
 import { readDemoUser, writeDemoUser } from '../demoStorage'
 import type { UserInfo } from '@/types/auth'
+import { BRAND_LOGO_PATH } from '@/constants/branding'
 import { MODELS, marketSources } from '@/constants/console'
 import {
   ADMIN_CHANNEL_SORT_FIELDS,
@@ -629,7 +630,7 @@ export async function dispatchMock<T>(
     return ok({
       version: 'v2.6.1',
       system_name: 'Ren2Hub',
-      logo: './favicon.svg',
+      logo: BRAND_LOGO_PATH,
       register_enabled: true,
       uptime_kuma_enabled: true,
     }) as ApiResponse<T>

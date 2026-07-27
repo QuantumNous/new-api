@@ -2,6 +2,8 @@
 // 「AI 中转」的具象：请求从一座城市升起，沿弧线抵达另一座城市。
 // 颜色全部来自语义令牌（运行时解析），纸底上呈现日间橄榄墨点 / 夜间雾蓝星点。
 import { resolveToken } from '@/charts/palette'
+import { normalizeOpaqueColor } from '@/utils/cssColor'
+import { withAlpha } from './theme'
 import { landnessDeg } from './worldMask'
 
 const DPR_CAP = 2
@@ -38,12 +40,6 @@ interface Arc {
   durationMs: number
 }
 
-function withAlpha(hex: string, alpha: number): string {
-  const v = hex.replace('#', '')
-  if (v.length !== 6) return hex
-  return `rgba(${parseInt(v.slice(0, 2), 16)},${parseInt(v.slice(2, 4), 16)},${parseInt(v.slice(4, 6), 16)},${alpha})`
-}
-
 export class DotGlobe {
   private ctx: CanvasRenderingContext2D
   private canvas: HTMLCanvasElement
@@ -76,10 +72,13 @@ export class DotGlobe {
   }
 
   private resolvePalette(): Palette {
-    const signal = resolveToken('--signal', '#74765a')
-    const accent = resolveToken('--accent', '#d8984c')
-    const surface = resolveToken('--surface-solid', '#fffdf8')
-    const glow = resolveToken('--glow', '#7fa463')
+    const signal = normalizeOpaqueColor(resolveToken('--signal'), '#74765a')
+    const accent = normalizeOpaqueColor(resolveToken('--accent'), '#d8984c')
+    const surface = normalizeOpaqueColor(
+      resolveToken('--surface-solid'),
+      '#fffdf8'
+    )
+    const glow = normalizeOpaqueColor(resolveToken('--glow'), '#7fa463')
     return {
       dot: withAlpha(signal, 0.55),
       dotFaint: withAlpha(signal, 0.22),

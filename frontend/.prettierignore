@@ -1,0 +1,9 @@
+node_modules/
+dist/
+output/
+tmp/
+*.local
+*.tsbuildinfo
+
+src/assets/illustrations/_review/
+illustrations-gen.log

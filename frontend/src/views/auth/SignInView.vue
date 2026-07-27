@@ -61,7 +61,7 @@ async function submit() {
       <FormField :label="t('auth.username')">
         <TextInput
           v-model="username"
-          :placeholder="t('auth.username')"
+          :placeholder="t('auth.usernameOrEmailPlaceholder')"
           autocomplete="username"
         />
       </FormField>
@@ -71,7 +71,7 @@ async function submit() {
           <TextInput
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
-            :placeholder="t('auth.password')"
+            :placeholder="t('auth.passwordPlaceholder')"
             autocomplete="current-password"
           />
           <button

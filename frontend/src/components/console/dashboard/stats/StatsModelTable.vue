@@ -115,7 +115,7 @@ const colors = SERIES_TOKENS
               <!-- mini progress bar -->
               <div class="flex items-center justify-end gap-2">
                 <div
-                  class="h-1.5 w-20 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+                  class="pencil-progress h-1.5 w-20 overflow-hidden rounded-full bg-[var(--surface-muted)]"
                 >
                   <div
                     class="h-full rounded-full transition-all"

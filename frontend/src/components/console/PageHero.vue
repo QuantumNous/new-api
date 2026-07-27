@@ -16,7 +16,7 @@ withDefaults(
 </script>
 
 <template>
-  <div class="mb-8">
+  <div class="mb-8" data-handdrawn="page-hero">
     <!-- breadcrumb -->
     <Breadcrumb :crumbs="crumbs" />
 
@@ -24,7 +24,7 @@ withDefaults(
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="min-w-0">
         <h1
-          class="display-title text-4xl font-bold text-[var(--text-primary)] lg:text-5xl leading-tight"
+          class="gesture-mark display-title text-4xl font-bold text-[var(--text-primary)] lg:text-5xl leading-tight"
         >
           {{ title }}
           <!-- accent phrase wrapped in brush-highlight for a painted underline -->

@@ -42,6 +42,7 @@ const label = computed(() => {
     role="img"
     :aria-label="label"
     :title="label"
+    data-handdrawn="health-meter"
   >
     <span
       v-for="i in bars"

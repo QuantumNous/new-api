@@ -459,7 +459,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="data-table-shell">
+  <div class="data-table-shell" data-handdrawn="ledger">
     <!-- Visual header: wider tracking + gold-line bottom border for ledger feel -->
     <div
       ref="headerClipRef"
@@ -582,6 +582,11 @@ onBeforeUnmount(() => {
             <tr
               v-else
               class="row-divider transition-colors last:border-0 hover:bg-[var(--surface-muted)]"
+              :data-selected="
+                selected.includes(row[rowKey] as string | number)
+                  ? 'true'
+                  : undefined
+              "
               :class="[
                 rowInteractive ? 'cursor-pointer select-none' : undefined,
                 rowClass?.(row),

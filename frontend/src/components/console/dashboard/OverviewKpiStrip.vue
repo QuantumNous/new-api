@@ -141,7 +141,8 @@ const rpmCaption = computed(() => {
 
 <template>
   <section
-    class="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+    class="pencil-surface overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+    data-handdrawn="surface-clipped"
   >
     <!--
       Divided strip: hairline separators between cells rather than gaps, so the

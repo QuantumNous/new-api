@@ -3,19 +3,24 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import bigameDayBanner from '@/assets/activity/bigame-banner-day-sketch.webp'
+import bigameNightBanner from '@/assets/activity/bigame-banner.webp'
+import farmDayBanner from '@/assets/activity/farm-banner-day-sketch.webp'
+import farmNightBanner from '@/assets/activity/farm-banner.webp'
 import ActivityHero from '@/components/console/activity/ActivityHero.vue'
 import ActivityCard from '@/components/console/activity/ActivityCard.vue'
 import CheckinCard from '@/components/console/activity/CheckinCard.vue'
 import NewcomerCard from '@/components/console/activity/NewcomerCard.vue'
 import ActivityEntryCard from '@/components/console/ActivityEntryCard.vue'
 import { useActivity } from '@/composables/useActivity'
+import { useThemedAsset } from '@/composables/useThemedAsset'
 import type { Activity } from '@/types/console'
-import farmBanner from '@/assets/activity/farm-banner.webp'
-import bigameBanner from '@/assets/activity/bigame-banner.webp'
 
 const { t } = useI18n()
 const router = useRouter()
 const { activities, loading, claiming, load, checkin, claim } = useActivity()
+const farmBanner = useThemedAsset(farmDayBanner, farmNightBanner)
+const bigameBanner = useThemedAsset(bigameDayBanner, bigameNightBanner)
 
 const refreshing = ref(false)
 

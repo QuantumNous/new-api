@@ -270,7 +270,7 @@ const successColor = computed(() => rateColor(successRate.value))
         </div>
         <div
           v-else
-          class="mt-auto flex h-1 overflow-hidden rounded-full bg-[var(--surface-solid)]"
+          class="pencil-progress mt-auto flex h-1 overflow-hidden rounded-full bg-[var(--surface-solid)]"
           aria-hidden="true"
         >
           <div

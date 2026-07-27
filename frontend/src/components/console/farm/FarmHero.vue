@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import farmDayBanner from '@/assets/activity/farm-banner-day-sketch.webp'
+import farmNightBanner from '@/assets/activity/farm-banner.webp'
+import { useThemedAsset } from '@/composables/useThemedAsset'
 import type { FarmState, MineState } from '@/types/farm'
-import farmBanner from '@/assets/activity/farm-banner.webp'
 
 const props = defineProps<{
   state: FarmState
@@ -11,6 +13,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const farmBanner = useThemedAsset(farmDayBanner, farmNightBanner)
 
 const expPercent = computed(() =>
   props.state.exp_next > 0
@@ -21,7 +24,8 @@ const expPercent = computed(() =>
 
 <template>
   <section
-    class="relative overflow-hidden rounded-2xl border border-[var(--border-subtle)] p-5 shadow-[var(--card-shadow)]"
+    class="farm-hero pencil-surface relative overflow-hidden rounded-2xl border border-[var(--border-subtle)] p-5 shadow-[var(--card-shadow)]"
+    data-handdrawn="surface-clipped"
   >
     <!-- generated banner art -->
     <img
@@ -31,17 +35,7 @@ const expPercent = computed(() =>
       class="absolute inset-0 h-full w-full object-cover"
     />
     <!-- readability scrim: darkens for white text, keeps art visible on the right -->
-    <div
-      class="absolute inset-0"
-      style="
-        background: linear-gradient(
-          100deg,
-          rgba(20, 24, 14, 0.9) 0%,
-          rgba(20, 24, 14, 0.66) 48%,
-          rgba(20, 24, 14, 0.28) 100%
-        );
-      "
-    />
+    <div class="farm-hero__scrim absolute inset-0" />
     <div class="relative z-10">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <!-- left: level + exp -->
@@ -60,15 +54,17 @@ const expPercent = computed(() =>
             }}</span>
           </div>
           <div>
-            <p class="text-xs text-white/70">
+            <p class="farm-hero__eyebrow text-xs text-white/70">
               {{ t('farm.level', { n: state.level }) }}
             </p>
-            <p class="text-lg font-bold text-white drop-shadow">
+            <p
+              class="farm-hero__title text-lg font-bold text-white drop-shadow"
+            >
               {{ t('farm.exp', { cur: state.exp, max: state.exp_next }) }}
             </p>
             <!-- exp bar -->
             <div
-              class="mt-1.5 h-1.5 w-40 overflow-hidden rounded-full bg-white/25"
+              class="pencil-progress mt-1.5 h-1.5 w-40 overflow-hidden rounded-full bg-white/25"
             >
               <div
                 class="h-full rounded-full transition-all duration-500"
@@ -146,3 +142,39 @@ const expPercent = computed(() =>
     </div>
   </section>
 </template>
+
+<style scoped>
+.farm-hero__scrim {
+  background: linear-gradient(
+    100deg,
+    rgba(20, 24, 14, 0.9) 0%,
+    rgba(20, 24, 14, 0.66) 48%,
+    rgba(20, 24, 14, 0.28) 100%
+  );
+}
+
+:global(html.dark .farm-hero) {
+  border-color: var(--border-subtle) !important;
+  border-radius: 1rem !important;
+  background-color: transparent;
+  box-shadow: var(--card-shadow) !important;
+}
+
+:global(html.light .farm-hero__scrim) {
+  background: linear-gradient(
+    100deg,
+    rgba(251, 248, 239, 0.96) 0%,
+    rgba(251, 248, 239, 0.74) 48%,
+    rgba(251, 248, 239, 0.14) 100%
+  );
+}
+
+:global(html.light .farm-hero__eyebrow) {
+  color: var(--text-secondary);
+}
+
+:global(html.light .farm-hero__title) {
+  color: var(--text-primary);
+  filter: none;
+}
+</style>

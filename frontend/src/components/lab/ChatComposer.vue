@@ -41,7 +41,8 @@ function onEnter(e: KeyboardEvent) {
 
 <template>
   <div
-    class="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] transition-shadow focus-within:shadow-[var(--card-shadow-hover)]"
+    class="pencil-surface-strong rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] transition-shadow focus-within:shadow-[var(--card-shadow-hover)]"
+    data-handdrawn="surface-strong"
   >
     <textarea
       v-model="text"
@@ -71,7 +72,8 @@ function onEnter(e: KeyboardEvent) {
         </button>
         <button
           type="button"
-          class="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors focus-ring"
+          class="pencil-control flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors focus-ring"
+          data-handdrawn="control"
           :style="
             deepThink
               ? 'background:var(--accent-soft);color:var(--accent-text)'

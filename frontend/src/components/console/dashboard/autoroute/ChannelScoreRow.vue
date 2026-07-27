@@ -122,7 +122,7 @@ const segments = computed(() =>
           aria-hidden="true"
         />
         <div
-          class="h-1.5 max-w-56 flex-1 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+          class="pencil-progress h-1.5 max-w-56 flex-1 overflow-hidden rounded-full bg-[var(--surface-muted)]"
           role="img"
           :aria-label="`${t('dashboard.autoRoute.health')} ${channel.health}%`"
         >
@@ -144,7 +144,7 @@ const segments = computed(() =>
 
       <!-- weighted contribution bar: filled length = composite score -->
       <div
-        class="flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-[var(--surface-muted)]"
+        class="pencil-progress flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-[var(--surface-muted)]"
         role="img"
         :aria-label="`${t('dashboard.autoRoute.breakdownLabel')} ${channel.score}`"
       >

@@ -75,7 +75,8 @@ function cellDark(idx: number) {
 
 <template>
   <section
-    class="sketch-card min-w-0 border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-6"
+    class="pencil-surface sketch-card min-w-0 border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-6"
+    data-handdrawn="surface"
   >
     <!-- badges -->
     <div class="flex flex-wrap items-center gap-2">

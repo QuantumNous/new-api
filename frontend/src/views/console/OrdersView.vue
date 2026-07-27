@@ -57,6 +57,7 @@ import {
 } from '@/constants/adminOrders'
 import type { AdminOrder, AdminOrderRange } from '@/types/console'
 import { formatMoney, formatTime } from '@/utils/format'
+import { serializeSpreadsheet } from '@/utils/spreadsheetExport'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -229,34 +230,17 @@ function serialize(
     ]
   }
   if (format === 'excel') {
-    const esc = (value: unknown) =>
-      String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-    const head = `<tr>${ORDER_EXPORT_HEADERS.map((h) => `<th>${h}</th>`).join('')}</tr>`
-    const body = items
-      .map(
-        (order) =>
-          `<tr>${getOrderExportValues(order)
-            .map((value) => `<td>${esc(value)}</td>`)
-            .join('')}</tr>`
-      )
-      .join('')
-    return [
-      `<html><head><meta charset="utf-8"></head><body><table>${head}${body}</table></body></html>`,
-      'application/vnd.ms-excel;charset=utf-8',
-      'xls',
-    ]
+    return serializeSpreadsheet(
+      ORDER_EXPORT_HEADERS,
+      items.map(getOrderExportValues),
+      'excel'
+    )
   }
-  const csvRow = (values: readonly unknown[]) =>
-    values.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')
-  // Leading BOM so Excel reads the UTF-8 order numbers and emails correctly.
-  const csv = [
-    csvRow(ORDER_EXPORT_HEADERS),
-    ...items.map((order) => csvRow(getOrderExportValues(order))),
-  ].join('\n')
-  return ['﻿' + csv, 'text/csv;charset=utf-8', 'csv']
+  return serializeSpreadsheet(
+    ORDER_EXPORT_HEADERS,
+    items.map(getOrderExportValues),
+    'csv'
+  )
 }
 
 async function doExport() {

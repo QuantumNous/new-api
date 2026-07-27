@@ -68,6 +68,7 @@ onBeforeUnmount(() => {
     <div
       v-if="open"
       class="absolute right-0 top-12 z-40 w-56 rounded-2xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] py-1.5 shadow-[var(--overlay-shadow)] animate-scale-in"
+      data-handdrawn="menu"
     >
       <button
         type="button"

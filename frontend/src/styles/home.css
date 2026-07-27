@@ -17,29 +17,200 @@ html:not(.dark) .landing-shell .hero-title {
   letter-spacing: 0;
 }
 
+html.light .landing-shell .hero-title {
+  position: relative;
+}
+
+html.light .landing-shell .hero-title::after {
+  content: '';
+  position: absolute;
+  right: 2%;
+  bottom: -0.14em;
+  left: 9%;
+  height: 0.32em;
+  border-top: 2px solid var(--pencil-line-soft);
+  border-radius: 51% 49% 43% 57%;
+  box-shadow: 0 -3px 0 -2px var(--pencil-line-faint);
+  transform: rotate(-0.65deg);
+  pointer-events: none;
+}
+
+html.light .landing-shell .hero-pledge {
+  border-color: var(--pencil-line-soft);
+  border-radius: var(--sketch-border-radius-sm);
+  box-shadow: 1px 1px 0 var(--pencil-line-faint);
+}
+
+html.light .landing-shell .hero-cta-primary,
+html.light .landing-shell .hero-cta-secondary,
+html.light .landing-shell .hero-stage-hint {
+  position: relative;
+  border-radius: var(--sketch-border-radius-md);
+  box-shadow: var(--pencil-control-shadow);
+}
+
+html.light .landing-shell .hero-cta-primary::before,
+html.light .landing-shell .hero-cta-secondary::before,
+html.light .landing-shell .hero-stage-hint::before {
+  content: '';
+  position: absolute;
+  inset: 2px 3px 1px 2px;
+  border: 1px solid var(--pencil-line-soft);
+  border-radius: inherit;
+  clip-path: polygon(
+    0 4%,
+    64% 0,
+    64% 1px,
+    100% 6%,
+    99% 92%,
+    37% 100%,
+    37% calc(100% - 1px),
+    1% 94%
+  );
+  transform: rotate(-0.22deg);
+  pointer-events: none;
+}
+
+html.light .landing-shell .hero-integration-boundary {
+  border-top-color: transparent;
+  background: repeating-linear-gradient(
+      91deg,
+      var(--pencil-line-soft) 0 var(--pencil-dash-length),
+      transparent var(--pencil-dash-length)
+        calc(var(--pencil-dash-length) + var(--pencil-dash-gap))
+    )
+    top left / 100% 1px no-repeat;
+}
+
+html.light .landing-shell .hero-scroll-cue {
+  border-color: var(--pencil-line-soft);
+  box-shadow:
+    1px 1px 0 var(--pencil-line-faint),
+    inset 1px 0 0 var(--pencil-line-faint);
+}
+
+html.light .landing-shell .signal-console__rail {
+  background: repeating-linear-gradient(
+    180deg,
+    var(--pencil-line-soft) 0 var(--pencil-dash-length),
+    transparent var(--pencil-dash-length)
+      calc(var(--pencil-dash-length) + var(--pencil-dash-gap))
+  );
+  box-shadow: 2px 0 0 var(--pencil-line-faint);
+}
+
 .landing-shell {
   font-family: 'Ren2Inter', 'Ren2NotoSansSC', system-ui, sans-serif;
-  --hero-copy-overlay: none;
+  --hero-copy-overlay: var(--home-hero-copy-overlay);
   --surface-overlay: rgba(246, 243, 235, 0.96);
   --text-tertiary: #827e66;
 }
 
 html.dark .landing-shell {
-  --hero-copy-overlay:
-    radial-gradient(
-      720px 560px at 81% 51%,
-      rgba(22, 26, 40, 0.48) 0%,
-      rgba(22, 26, 40, 0.24) 56%,
-      transparent 78%
-    ),
-    linear-gradient(
-      90deg,
-      transparent 32%,
-      rgba(22, 26, 40, 0.06) 51%,
-      rgba(22, 26, 40, 0.38) 100%
-    );
-  --surface-overlay: rgba(30, 33, 44, 0.96);
-  --text-tertiary: #636e8a;
+  --surface-overlay: var(--surface-container-highest);
+  --text-tertiary: var(--text-tertiary-base);
+}
+
+html.dark .landing-shell .hero-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+html.dark .landing-shell .app-navbar[data-scrolled='false'],
+html.light .landing-shell .app-navbar[data-scrolled='false'] {
+  border-color: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.dark .landing-shell .app-navbar[data-scrolled='true'] {
+  background-color: var(--surface-raised) !important;
+}
+
+html.dark .landing-shell .app-navbar .home-brand,
+html.light .landing-shell .app-navbar .home-brand {
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.landing-shell .app-navbar .home-brand img {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+html.dark .landing-shell .app-navbar .home-brand::before,
+html.dark .landing-shell .app-navbar .home-brand::after,
+html.light .landing-shell .app-navbar .home-brand::before,
+html.light .landing-shell .app-navbar .home-brand::after {
+  display: none !important;
+}
+
+html.dark .landing-shell .hero-pledge {
+  border-color: var(--outline-variant);
+  border-radius: var(--shape-control);
+  background: var(--surface-container-low);
+}
+
+html.dark .landing-shell .hero-cta-primary,
+html.dark .landing-shell .hero-cta-secondary,
+html.dark .landing-shell .hero-stage-hint,
+html.dark .landing-shell .home-nav-cta {
+  border-radius: var(--shape-control);
+}
+
+html.dark .landing-shell .hero-cta-primary,
+html.dark .landing-shell .home-nav-cta {
+  box-shadow: var(--button-shadow);
+}
+
+html.dark .landing-shell .hero-cta-primary:hover,
+html.dark .landing-shell .home-nav-cta:hover {
+  box-shadow: var(--button-shadow-hover);
+}
+
+html.dark .landing-shell .hero-cta-secondary,
+html.dark .landing-shell .hero-stage-hint {
+  border-color: var(--outline-variant);
+  background: var(--surface-container-low);
+  box-shadow: none;
+}
+
+html.dark .landing-shell .hero-integration-boundary {
+  border-top-color: var(--outline-variant);
+}
+
+html.dark .landing-shell .signal-console {
+  opacity: 0.82;
+  text-shadow: none;
+}
+
+html.dark .landing-shell .signal-console__telemetry-row,
+html.dark .landing-shell .signal-console__capability,
+html.dark .landing-shell .signal-console__trace-record {
+  opacity: 0.72;
+}
+
+html.dark .landing-shell .signal-console__telemetry-row.is-target,
+html.dark .landing-shell .signal-console__capability.is-active,
+html.dark .landing-shell .signal-console__trace-record.is-focus {
+  opacity: 1;
+}
+
+html.dark .landing-shell .signal-console__rule {
+  opacity: 0.34;
+}
+
+html.dark .landing-shell .signal-console__trace-record {
+  border-top-style: solid;
+}
+
+html.dark .landing-shell .signal-dot-matrix {
+  opacity: 0.66;
 }
 
 .mobile-nav-drawer {
@@ -49,8 +220,8 @@ html.dark .landing-shell {
 }
 
 html.dark .mobile-nav-drawer {
-  --surface-overlay: rgba(30, 33, 44, 0.96);
-  --text-tertiary: #636e8a;
+  --surface-overlay: var(--surface-container-highest);
+  --text-tertiary: var(--text-tertiary-base);
 }
 
 .landing-shell :where(.hero-title, .hero-copy-glow) {
@@ -824,32 +995,7 @@ html.hero-scrollbar-hidden::-webkit-scrollbar-thumb:hover {
    光池下缘漫到下方直排内容区顶缘，与净底排版自然相接。 */
 @media (max-width: 1023px) {
   .landing-shell {
-    --hero-depth-overlay:
-      radial-gradient(
-        780px 560px at 50% 26%,
-        rgba(216, 152, 76, 0.16),
-        transparent 70%
-      ),
-      linear-gradient(
-        180deg,
-        rgba(246, 243, 235, 0.22) 0%,
-        rgba(236, 230, 212, 0.06) 35%,
-        rgba(246, 243, 235, 0.42) 100%
-      );
-  }
-  html.dark .landing-shell {
-    --hero-depth-overlay:
-      radial-gradient(
-        780px 560px at 50% 26%,
-        rgba(226, 188, 85, 0.1),
-        transparent 70%
-      ),
-      linear-gradient(
-        180deg,
-        rgba(22, 26, 40, 0.5) 0%,
-        rgba(38, 42, 52, 0.1) 35%,
-        rgba(38, 42, 52, 0.5) 100%
-      );
+    --hero-depth-overlay: var(--hero-mobile-depth-overlay);
   }
 }
 

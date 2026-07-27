@@ -57,6 +57,7 @@ defineExpose({ collapsed })
   <aside
     class="sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper transition-[width] duration-[250ms] lg:flex"
     :style="{ width: collapsed ? '64px' : '220px' }"
+    data-handdrawn="navigation"
   >
     <!-- brand header: serif typeface for hand-crafted feel -->
     <RouterLink
@@ -69,8 +70,8 @@ defineExpose({ collapsed })
         :src="app.logo"
         alt=""
         aria-hidden="true"
-        class="h-7 w-7 shrink-0 object-contain"
-        style="filter: drop-shadow(0 1px 2px rgba(56, 55, 43, 0.18))"
+        class="pencil-brand-frame h-7 w-7 shrink-0 object-contain"
+        style="filter: var(--brand-icon-shadow)"
       />
       <span
         v-if="!collapsed"

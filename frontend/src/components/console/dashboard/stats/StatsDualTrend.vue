@@ -106,7 +106,7 @@ useEChart(
           type: 'line',
           smooth: mood.line.smooth,
           data: data.value.map((f) => f.requests),
-          lineStyle: { color: p.signal, ...mood.line.lineStyle, width: 2 },
+          lineStyle: { color: p.signal, ...mood.line.lineStyle },
           itemStyle: { color: p.signal },
           showSymbol: !p.isDark,
           symbol: mood.line.symbol,

@@ -6,9 +6,12 @@ const { t } = useI18n()
 
 <template>
   <div
-    class="texture-paper flex min-h-screen flex-col items-center justify-center gap-5 px-4"
+    class="texture-paper draft-grid flex min-h-screen flex-col items-center justify-center gap-5 px-4"
+    data-handdrawn-scope="not-found"
   >
-    <p class="display-title text-7xl font-bold text-[var(--accent-text)]">
+    <p
+      class="gesture-mark display-title text-7xl font-bold text-[var(--accent-text)]"
+    >
       404
     </p>
     <p class="text-lg text-[var(--text-secondary)]">
@@ -16,7 +19,8 @@ const { t } = useI18n()
     </p>
     <RouterLink
       :to="{ name: 'home' }"
-      class="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] shadow-[0_6px_18px_var(--shadow-color)] transition-all focus-ring hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)]"
+      class="pencil-control inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] shadow-[var(--button-shadow)] transition-all focus-ring hover:bg-[var(--accent-hover)] hover:shadow-[var(--button-shadow-hover)] active:bg-[var(--accent-active)]"
+      data-handdrawn="control"
     >
       {{ t('notFound.backHome') }}
     </RouterLink>

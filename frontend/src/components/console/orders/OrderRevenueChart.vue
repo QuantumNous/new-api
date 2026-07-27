@@ -59,7 +59,7 @@ useEChart(
         right: 0,
         itemWidth: 18,
         itemHeight: 10,
-        icon: 'roundRect',
+        icon: p.isDark ? 'roundRect' : 'rect',
         textStyle: { color: p.textSecondary, fontSize: 11 },
         data: [t('orders.chart.revenue'), t('orders.chart.orders')],
         formatter: (name: string) =>

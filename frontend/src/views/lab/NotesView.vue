@@ -58,11 +58,11 @@ function create() {
 </script>
 
 <template>
-  <div class="subtle-scroll h-full overflow-y-auto">
+  <div class="subtle-scroll h-full overflow-y-auto" data-handdrawn-page="notes">
     <div class="mx-auto max-w-[1100px] px-4 pb-8 pt-14 sm:px-6">
       <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1
-          class="text-2xl font-bold tracking-tight text-[var(--text-primary)]"
+          class="gesture-mark text-2xl font-bold tracking-tight text-[var(--text-primary)]"
         >
           {{ t('lab.notes.title') }}
         </h1>
@@ -74,7 +74,8 @@ function create() {
           />
           <button
             type="button"
-            class="flex h-10 items-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] focus-ring"
+            class="pencil-control flex h-10 items-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] focus-ring"
+            data-handdrawn="control"
             @click="create"
           >
             <svg
@@ -98,7 +99,8 @@ function create() {
           v-for="card in createCards"
           :key="card.id"
           type="button"
-          class="group flex items-center gap-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 text-left shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)] focus-ring"
+          class="pencil-surface group flex items-center gap-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 text-left shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)] focus-ring"
+          data-handdrawn="surface"
           @click="create"
         >
           <span
@@ -135,7 +137,8 @@ function create() {
         <article
           v-for="note in filtered"
           :key="note.id"
-          class="group flex cursor-pointer flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+          class="pencil-surface group flex cursor-pointer flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+          data-handdrawn="surface"
           role="button"
           tabindex="0"
           @click="create"
@@ -158,6 +161,7 @@ function create() {
                 v-for="tag in note.tags"
                 :key="tag"
                 class="rounded-md bg-[var(--surface-muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]"
+                data-handdrawn="chip"
               >
                 {{ tag }}
               </span>

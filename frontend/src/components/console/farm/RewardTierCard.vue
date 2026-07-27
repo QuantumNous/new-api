@@ -31,7 +31,8 @@ const progressPercent = computed(() => {
 
 <template>
   <article
-    class="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)]"
+    class="pencil-surface rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)]"
+    data-handdrawn="surface"
   >
     <h3 class="mb-4 text-sm font-semibold text-[var(--text-primary)]">
       💰 {{ t('farm.rebate.title') }}
@@ -102,7 +103,9 @@ const progressPercent = computed(() => {
             {{ nextTier ? formatQuota(nextTier.min_quota) : '—' }}</span
           >
         </div>
-        <div class="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+        <div
+          class="pencil-progress h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+        >
           <div
             class="h-full rounded-full transition-all duration-700"
             style="

@@ -38,20 +38,21 @@ export class CharRain {
     for (let i = 0; i < this.cols; i++) {
       // 隔列稀疏（约 1/2 列）：偶数列从不绘制，直接跳过。
       // （原先仍对 drops[i] 累加，但该值永不被读取——纯死计算。）
-      if (i % 2 === 0) continue
+      const columnStride = theme.name === 'dark' ? 4 : 2
+      if (i % columnStride !== 1) continue
       const rowY = this.drops[i] * FONT
       const ch = CHARS[Math.floor(Math.random() * CHARS.length)]
       const x = i * FONT
       // 主体极暗绿（大幅下调透明度作垫底氛围）
       ctx.fillStyle = withAlpha(
         theme.charRain,
-        theme.name === 'light' ? 0.055 : 0.07
+        theme.name === 'light' ? 0.055 : 0.04
       )
       ctx.fillText(ch, x, rowY)
       // 前导字符略亮
       ctx.fillStyle = withAlpha(
         theme.charRainLead,
-        theme.name === 'light' ? 0.08 : 0.11
+        theme.name === 'light' ? 0.08 : 0.065
       )
       ctx.fillText(ch, x, rowY)
       this.drops[i] += this.speeds[i]

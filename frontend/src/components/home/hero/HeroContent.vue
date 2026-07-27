@@ -49,7 +49,7 @@
       <li
         v-for="p in pledges"
         :key="p"
-        class="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)] sm:px-3 sm:text-xs"
+        class="hero-pledge inline-flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)] sm:px-3 sm:text-xs"
       >
         <svg
           class="text-[var(--accent)]"
@@ -74,7 +74,7 @@
     >
       <RouterLink
         :to="isAuthenticated ? { name: 'dashboard' } : { name: 'sign-in' }"
-        class="group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-[var(--accent)] px-7 py-3.5 text-base font-semibold text-[var(--accent-contrast)] transition-all [text-shadow:none] hover:-translate-y-0.5 hover:bg-[var(--accent-hover)] hover:shadow-[0_16px_36px_var(--shadow-color)] active:scale-[0.98] lg:w-auto"
+        class="hero-cta-primary group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-[var(--accent)] px-7 py-3.5 text-base font-semibold text-[var(--accent-contrast)] shadow-[var(--button-shadow)] transition-all [text-shadow:none] hover:-translate-y-0.5 hover:bg-[var(--accent-hover)] hover:shadow-[var(--button-shadow-hover)] active:scale-[0.98] lg:w-auto"
       >
         <span class="cta-sheen" />
         <span class="relative">{{
@@ -98,7 +98,7 @@
         :href="docsLink"
         target="_blank"
         rel="noopener noreferrer"
-        class="group inline-flex min-h-11 items-center justify-center gap-2 self-center px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] lg:min-h-0 lg:self-auto lg:rounded-full lg:border lg:border-[var(--border-default)] lg:px-7 lg:py-3.5 lg:text-base lg:font-semibold lg:text-[var(--text-secondary)] lg:transition-all lg:hover:border-[var(--border-strong)] lg:hover:bg-[var(--surface-muted)]"
+        class="hero-cta-secondary group inline-flex min-h-11 items-center justify-center gap-2 self-center px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] lg:min-h-0 lg:self-auto lg:rounded-full lg:border lg:border-[var(--border-default)] lg:px-7 lg:py-3.5 lg:text-base lg:font-semibold lg:text-[var(--text-secondary)] lg:transition-all lg:hover:border-[var(--border-strong)] lg:hover:bg-[var(--surface-muted)]"
       >
         {{ t('hero.ctaSecondary') }}
         <svg
@@ -137,7 +137,7 @@
 
     <!-- 已适配工具跑马灯 -->
     <div
-      class="mt-4 w-full min-w-0 overflow-visible border-t border-[var(--border-subtle)] pt-3 animate-fade-in max-sm:[@media(min-height:701px)]:mt-5 lg:mt-7"
+      class="hero-integration-boundary mt-4 w-full min-w-0 overflow-visible border-t border-[var(--border-subtle)] pt-3 animate-fade-in max-sm:[@media(min-height:701px)]:mt-5 lg:mt-7"
       style="animation-delay: 1.1s"
     >
       <IntegrationMarquee />

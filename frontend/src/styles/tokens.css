@@ -25,11 +25,39 @@
   --surface-overlay: #fbf6ec;
   --overlay-border: rgba(192, 139, 87, 0.2);
   --overlay-shadow:
-    0 1px 2px rgba(56, 55, 43, 0.06), 0 16px 44px rgba(56, 55, 43, 0.14);
+    2px 2px 0 rgba(56, 55, 43, 0.11), 5px 6px 0 rgba(56, 55, 43, 0.035),
+    0 16px 44px rgba(56, 55, 43, 0.12);
   --surface-footer: #38372b;
+  /* Neutral surface contract consumed by shared components. Light aliases
+     preserve the existing Desert Ledger rendering exactly. */
+  --surface-container-lowest: var(--page-background);
+  --surface-container-low: var(--surface-raised);
+  --surface-container: var(--surface-solid);
+  --surface-container-high: var(--surface-table-header);
+  --surface-container-highest: var(--surface-overlay);
+  --outline: var(--border-default);
+  --outline-variant: var(--border-subtle);
+  --shape-control: var(--sketch-border-radius-sm);
+  --shape-card: var(--sketch-border-radius-lg);
+  --shape-overlay: var(--sketch-border-radius-lg);
+  --state-focus-layer: rgba(192, 139, 87, 0.14);
+  --focus-halo: 0 0 0 4px var(--state-focus-layer);
+  --brand-icon-shadow: drop-shadow(0 1px 2px rgba(56, 55, 43, 0.18));
+  --media-scrim-strong: rgba(0, 0, 0, 0.62);
+  --media-scrim-medium: rgba(0, 0, 0, 0.32);
+  --media-scrim-soft: rgba(0, 0, 0, 0.05);
+  --chart-grid-line: rgba(56, 55, 43, 0.08);
+  --button-shadow:
+    2px 3px 0 rgba(56, 55, 43, 0.18), 0 4px 14px var(--shadow-color);
+  --button-shadow-hover:
+    3px 4px 0 rgba(56, 55, 43, 0.18), 0 8px 20px var(--shadow-color);
+  --stamp-shadow: 2px 2px 0 rgba(56, 55, 43, 0.22);
+  --menu-shadow: 0 24px 46px var(--shadow-color);
+  --ink-surface-muted: rgba(244, 242, 232, 0.08);
   --text-primary: #38372b;
   --text-secondary: #5c5946;
   --text-tertiary: #6c6955;
+  --text-tertiary-base: #6c6955;
   --text-inverse: #f6f3eb;
   --border-default: rgba(56, 55, 43, 0.14);
   --border-subtle: rgba(56, 55, 43, 0.08);
@@ -64,9 +92,11 @@
   --focus-ring: #c08b57;
   --shadow-color: rgba(56, 55, 43, 0.16);
   --card-shadow:
-    0 1px 2px rgba(56, 55, 43, 0.05), 0 10px 32px rgba(56, 55, 43, 0.08);
+    2px 2px 0 rgba(56, 55, 43, 0.11), 5px 6px 0 rgba(56, 55, 43, 0.035),
+    0 12px 28px rgba(56, 55, 43, 0.075);
   --card-shadow-hover:
-    0 2px 4px rgba(56, 55, 43, 0.08), 0 18px 44px rgba(56, 55, 43, 0.16);
+    3px 3px 0 rgba(56, 55, 43, 0.14), 6px 7px 0 rgba(56, 55, 43, 0.04),
+    0 16px 34px rgba(56, 55, 43, 0.09);
   --status-success: #64764b;
   --status-success-text: #52623d;
   --status-success-soft: rgba(100, 118, 75, 0.14);
@@ -121,6 +151,19 @@
       rgba(246, 243, 235, 0.12) 54%,
       rgba(246, 243, 235, 0.68) 100%
     );
+  --home-hero-copy-overlay: none;
+  --hero-mobile-depth-overlay:
+    radial-gradient(
+      780px 560px at 50% 26%,
+      rgba(216, 152, 76, 0.16),
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(246, 243, 235, 0.22) 0%,
+      rgba(236, 230, 212, 0.06) 35%,
+      rgba(246, 243, 235, 0.42) 100%
+    );
   --hero-vignette: inset 0 0 220px 60px rgba(56, 55, 43, 0.12);
   --drawer-backdrop: rgba(43, 42, 32, 0.42);
   --scroll-track: #f6f3eb;
@@ -171,6 +214,28 @@
   --sketch-border-radius-md: 12px 16px 13px 15px / 14px 12px 16px 13px;
   --sketch-border-radius-lg: 18px 22px 16px 20px / 17px 21px 18px 22px;
   --sketch-border-width: 1.5px;
+  /* Graphite system: the first line defines structure, the second pass stays
+     visibly imperfect, and construction marks remain quieter than content. */
+  --pencil-line: rgba(56, 55, 43, 0.58);
+  --pencil-line-strong: rgba(56, 55, 43, 0.72);
+  --pencil-line-soft: rgba(56, 55, 43, 0.27);
+  --pencil-line-faint: rgba(56, 55, 43, 0.12);
+  --pencil-line-erased: rgba(246, 243, 235, 0.72);
+  --pencil-wash: rgba(192, 139, 87, 0.055);
+  --pencil-wash-strong: rgba(216, 152, 76, 0.12);
+  --pencil-construction: rgba(56, 55, 43, 0.075);
+  --pencil-echo-offset: 2px;
+  --pencil-dash-length: 7px;
+  --pencil-dash-gap: 5px;
+  --pencil-surface-shadow:
+    2px 2px 0 rgba(56, 55, 43, 0.11), 5px 6px 0 rgba(56, 55, 43, 0.035),
+    0 12px 28px rgba(56, 55, 43, 0.075);
+  --pencil-surface-shadow-hover:
+    3px 3px 0 rgba(56, 55, 43, 0.14), 6px 7px 0 rgba(56, 55, 43, 0.04),
+    0 16px 34px rgba(56, 55, 43, 0.09);
+  --pencil-control-shadow:
+    1px 1.5px 0 rgba(56, 55, 43, 0.12), 0 4px 12px rgba(56, 55, 43, 0.055);
+  --pencil-progress-track: rgba(56, 55, 43, 0.11);
   /* 马克笔投影：offset 更实 */
   --card-sketch-shadow:
     3px 4px 0 rgba(56, 55, 43, 0.13), 0 10px 28px rgba(56, 55, 43, 0.1);
@@ -267,6 +332,7 @@ html.dark {
   --text-primary: #dee3f0;
   --text-secondary: #98a4c0;
   --text-tertiary: #96a2bf;
+  --text-tertiary-base: #96a2bf;
   --text-inverse: #262a34;
   --border-default: rgba(152, 164, 192, 0.13);
   --border-subtle: rgba(152, 164, 192, 0.07);
@@ -355,6 +421,31 @@ html.dark {
       rgba(22, 26, 40, 0.12) 51%,
       rgba(22, 26, 40, 0.64) 100%
     );
+  --home-hero-copy-overlay:
+    radial-gradient(
+      720px 560px at 81% 51%,
+      rgba(22, 26, 40, 0.48) 0%,
+      rgba(22, 26, 40, 0.24) 56%,
+      transparent 78%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 32%,
+      rgba(22, 26, 40, 0.06) 51%,
+      rgba(22, 26, 40, 0.38) 100%
+    );
+  --hero-mobile-depth-overlay:
+    radial-gradient(
+      780px 560px at 50% 26%,
+      rgba(226, 188, 85, 0.1),
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(22, 26, 40, 0.5) 0%,
+      rgba(38, 42, 52, 0.1) 35%,
+      rgba(38, 42, 52, 0.5) 100%
+    );
   --hero-vignette: inset 0 0 220px 60px rgba(8, 10, 20, 0.78);
   --drawer-backdrop: rgba(8, 10, 20, 0.65);
   --scroll-track: #262a34;
@@ -398,15 +489,31 @@ html.dark {
   --sketch-border-radius-sm: 8px;
   --sketch-border-radius-md: 12px;
   --sketch-border-radius-lg: 16px;
+  /* Shared components can consume these without branching. Their values match
+     the existing night material treatment and do not introduce sketch marks. */
+  --pencil-line: var(--border-default);
+  --pencil-line-strong: var(--border-default);
+  --pencil-line-soft: transparent;
+  --pencil-line-faint: transparent;
+  --pencil-line-erased: transparent;
+  --pencil-wash: transparent;
+  --pencil-wash-strong: transparent;
+  --pencil-construction: transparent;
+  --pencil-echo-offset: 0px;
+  --pencil-dash-length: 0px;
+  --pencil-dash-gap: 0px;
+  --pencil-surface-shadow: var(--elevation-2);
+  --pencil-surface-shadow-hover: var(--elevation-3);
+  --pencil-control-shadow: none;
+  --pencil-progress-track: var(--border-default);
   /* MD3 elevation：key(umbra) + ambient(penumbra) 双层 */
-  --elevation-1:
-    0 1px 2px rgba(0, 4, 16, 0.42), 0 1px 3px 1px rgba(0, 4, 16, 0.28);
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgba(0, 4, 16, 0.34), 0 1px 3px rgba(0, 4, 16, 0.2);
   --elevation-2:
-    0 1px 2px rgba(0, 4, 16, 0.44), 0 2px 6px 2px rgba(0, 4, 16, 0.3);
-  --elevation-3:
-    0 1px 3px rgba(0, 4, 16, 0.46), 0 4px 8px 3px rgba(0, 4, 16, 0.32);
+    0 1px 2px rgba(0, 4, 16, 0.38), 0 4px 10px rgba(0, 4, 16, 0.28);
+  --elevation-3: 0 2px 4px rgba(0, 4, 16, 0.42), 0 8px 20px rgba(0, 4, 16, 0.3);
   --elevation-5:
-    0 4px 4px rgba(0, 4, 16, 0.5), 0 8px 12px 6px rgba(0, 4, 16, 0.36);
+    0 4px 8px rgba(0, 4, 16, 0.48), 0 18px 42px rgba(0, 4, 16, 0.36);
   --card-sketch-shadow: var(--elevation-2);
   --card-sketch-shadow-hover: var(--elevation-3);
   /* MD surface tint：海拔越高表面越暖亮（炭蓝 + 星辉金 5%/8%/11% 预计算） */
@@ -414,12 +521,37 @@ html.dark {
   --surface-tint-2: #3c3d42;
   --surface-tint-3: #424144;
   --surface-solid: #32363f;
-  --surface-table-header: var(--surface-tint-2);
-  --surface-overlay: var(--surface-tint-3);
+  --surface-container-lowest: #1f232c;
+  --surface-container-low: #292e39;
+  --surface-container: var(--surface-solid);
+  --surface-container-high: var(--surface-tint-1);
+  --surface-container-highest: var(--surface-tint-3);
+  --surface-raised: rgba(55, 59, 70, 0.92);
+  --surface-table-header: var(--surface-container-high);
+  --surface-overlay: var(--surface-container-highest);
+  --outline: rgba(152, 164, 192, 0.18);
+  --outline-variant: rgba(152, 164, 192, 0.09);
+  --shape-control: 10px;
+  --shape-card: 16px;
+  --shape-overlay: 20px;
   --overlay-shadow: var(--elevation-5);
+  --card-shadow: var(--elevation-1);
+  --card-shadow-hover: var(--elevation-2);
+  --button-shadow: var(--elevation-1);
+  --button-shadow-hover: var(--elevation-2);
+  --stamp-shadow: var(--elevation-1);
+  --menu-shadow: var(--elevation-5);
+  --brand-icon-shadow: drop-shadow(0 2px 5px rgba(0, 4, 16, 0.42));
+  --media-scrim-strong: rgba(8, 10, 20, 0.72);
+  --media-scrim-medium: rgba(8, 10, 20, 0.42);
+  --media-scrim-soft: rgba(8, 10, 20, 0.08);
+  --chart-grid-line: rgba(152, 164, 192, 0.08);
+  --ink-surface-muted: rgba(222, 227, 240, 0.08);
   /* MD state layer：hover 8% / press 12% 星辉金 */
   --state-hover-layer: rgba(226, 188, 85, 0.08);
   --state-press-layer: rgba(226, 188, 85, 0.12);
+  --state-focus-layer: rgba(226, 188, 85, 0.14);
+  --focus-halo: 0 0 0 4px var(--state-focus-layer);
   --surface-hover: var(--state-hover-layer);
   --surface-warm-tile: var(--state-hover-layer);
   /* 手绘装饰在夜间熄灭/收敛 */
@@ -464,5 +596,5 @@ html.dark {
 
   /* 夜间丝绒暗纹：极淡（alpha 0.05 已烘焙），只在页面底，卡面保持纯净 */
   --paper-texture-img: url('../assets/textures/velvet-night.webp');
-  --night-texture-img: none;
+  --night-texture-img: var(--paper-texture-img);
 }

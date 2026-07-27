@@ -20,6 +20,10 @@ describe('ConsoleModal', () => {
     await nextTick()
     const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')
     expect(dialog?.getAttribute('aria-labelledby')).toBeTruthy()
+    expect(dialog?.classList.contains('pencil-surface-strong')).toBe(false)
+    expect(
+      dialog?.querySelector('[data-handdrawn="modal"]')?.classList
+    ).toContain('pencil-surface-strong')
     expect(document.activeElement?.classList.contains('confirm')).toBe(true)
 
     await wrapper.setProps({ open: false })

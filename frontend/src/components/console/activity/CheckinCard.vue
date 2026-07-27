@@ -65,7 +65,8 @@ const weekLabel = computed(() => {
 
 <template>
   <article
-    class="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+    class="pencil-surface overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+    data-handdrawn="surface-clipped"
   >
     <!-- ─── header ─── -->
     <div
@@ -151,7 +152,7 @@ const weekLabel = computed(() => {
 
         <!-- claimed / unclaimed stamp -->
         <div
-          class="mt-1 rotate-[-14deg] rounded-md border-2 px-3 py-1 text-xs font-bold uppercase tracking-widest"
+          class="checkin-stamp mt-1 rotate-[-14deg] rounded-md border-2 px-3 py-1 text-xs font-bold uppercase tracking-widest"
           :style="
             activity.checkin.todayClaimed
               ? 'border-color:var(--status-danger);color:var(--status-danger-text)'
@@ -178,7 +179,7 @@ const weekLabel = computed(() => {
 
         <!-- dashed perforated divider (mobile: bottom) -->
         <div
-          class="absolute bottom-0 left-5 right-5 h-px border-b border-dashed border-[var(--border-default)] sm:hidden"
+          class="checkin-perforation absolute bottom-0 left-5 right-5 h-px border-b border-dashed border-[var(--border-default)] sm:hidden"
         />
       </div>
 
@@ -265,7 +266,7 @@ const weekLabel = computed(() => {
           >
         </div>
         <div
-          class="h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+          class="pencil-progress h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
         >
           <div
             class="h-full rounded-full transition-all duration-700"
@@ -325,3 +326,13 @@ const weekLabel = computed(() => {
     </div>
   </article>
 </template>
+
+<style scoped>
+:global(html.dark) .checkin-stamp {
+  transform: none;
+}
+
+:global(html.dark) .checkin-perforation {
+  border-bottom-style: solid;
+}
+</style>

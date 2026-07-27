@@ -124,7 +124,7 @@ const navItems = computed(() => [
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6" data-handdrawn-page="profile">
     <!-- ① Page title -->
     <PageHero
       :title="t('profile.title')"
@@ -137,7 +137,8 @@ const navItems = computed(() => [
 
     <!-- ② Identity card — pure CSS gradient, on-theme -->
     <section
-      class="rounded-2xl border border-[var(--border-subtle)] p-6 shadow-[var(--card-shadow)] sm:p-8"
+      class="profile-identity pencil-surface-strong rounded-2xl border border-[var(--border-subtle)] p-6 shadow-[var(--card-shadow)] sm:p-8"
+      data-handdrawn="surface-strong"
       style="
         background: linear-gradient(
           105deg,
@@ -276,7 +277,7 @@ const navItems = computed(() => [
           </div>
         </div>
         <div
-          class="h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+          class="pencil-progress h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
         >
           <div
             class="h-full rounded-full transition-all duration-700"
@@ -314,7 +315,8 @@ const navItems = computed(() => [
           },
         ]"
         :key="stat.label"
-        class="group cursor-pointer rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-5 py-4 shadow-[var(--card-shadow)] transition-all hover:border-[var(--border-strong)] hover:shadow-[var(--card-shadow-hover)] focus-ring"
+        class="pencil-surface group cursor-pointer rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-5 py-4 shadow-[var(--card-shadow)] transition-all hover:border-[var(--border-strong)] hover:shadow-[var(--card-shadow-hover)] focus-ring"
+        data-handdrawn="surface"
         tabindex="0"
         role="button"
         @click="router.push({ name: stat.route })"
@@ -351,7 +353,8 @@ const navItems = computed(() => [
       <div class="space-y-5 lg:col-span-2">
         <!-- 个人资料 -->
         <article
-          class="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+          class="pencil-surface rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+          data-handdrawn="surface"
         >
           <header
             class="flex items-center justify-between border-b border-[var(--border-subtle)] px-5 py-4"
@@ -383,7 +386,10 @@ const navItems = computed(() => [
             </button>
           </header>
 
-          <div class="divide-y divide-[var(--border-subtle)]">
+          <div
+            class="divide-y divide-[var(--border-subtle)]"
+            data-handdrawn="ledger-rows"
+          >
             <div
               v-for="row in [
                 {
@@ -409,7 +415,7 @@ const navItems = computed(() => [
                 row.label
               }}</span>
               <span
-                class="text-sm font-medium text-[var(--text-primary)]"
+                class="profile-row-value text-sm font-medium text-[var(--text-primary)]"
                 :class="{ 'font-mono text-xs': 'mono' in row && row.mono }"
               >
                 {{ row.value }}
@@ -420,7 +426,8 @@ const navItems = computed(() => [
 
         <!-- 账户安全 -->
         <article
-          class="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+          class="pencil-surface rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+          data-handdrawn="surface"
         >
           <header
             class="flex items-center justify-between border-b border-[var(--border-subtle)] px-5 py-4"
@@ -452,7 +459,10 @@ const navItems = computed(() => [
             </button>
           </header>
 
-          <div class="divide-y divide-[var(--border-subtle)]">
+          <div
+            class="divide-y divide-[var(--border-subtle)]"
+            data-handdrawn="ledger-rows"
+          >
             <!-- password -->
             <div class="flex items-center justify-between px-5 py-3">
               <span class="text-sm text-[var(--text-secondary)]">{{
@@ -497,15 +507,15 @@ const navItems = computed(() => [
                     },
                   ]"
                   :key="binding.label"
-                  class="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-2.5"
+                  class="profile-binding-row flex items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-2.5"
                 >
                   <span class="text-sm text-[var(--text-primary)]">{{
                     binding.label
                   }}</span>
-                  <div class="flex items-center gap-2">
+                  <div class="profile-binding-value flex items-center gap-2">
                     <span
                       v-if="binding.bound && binding.value"
-                      class="font-mono text-xs text-[var(--text-tertiary)]"
+                      class="profile-binding-text font-mono text-xs text-[var(--text-tertiary)]"
                       >{{ binding.value }}</span
                     >
                     <StatusChip :tone="binding.bound ? 'success' : 'neutral'">
@@ -527,7 +537,8 @@ const navItems = computed(() => [
       <div class="space-y-5">
         <!-- 快速导航 -->
         <article
-          class="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+          class="pencil-surface rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+          data-handdrawn="surface"
         >
           <header
             class="flex items-center gap-2.5 border-b border-[var(--border-subtle)] px-5 py-4"
@@ -548,7 +559,10 @@ const navItems = computed(() => [
             </h3>
           </header>
 
-          <div class="divide-y divide-[var(--border-subtle)]">
+          <div
+            class="divide-y divide-[var(--border-subtle)]"
+            data-handdrawn="ledger-rows"
+          >
             <button
               v-for="item in navItems"
               :key="item.route"

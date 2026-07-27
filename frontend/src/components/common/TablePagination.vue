@@ -61,6 +61,7 @@ const pageItems = computed<Array<number | '…'>>(() => {
 <template>
   <div
     class="flex flex-col gap-3 px-3 py-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+    data-handdrawn="pagination"
   >
     <!-- Compact navigation keeps mobile targets reachable without making the
          whole document wider than the viewport. Desktop retains number links. -->

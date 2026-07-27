@@ -79,11 +79,14 @@ function runTool() {
 </script>
 
 <template>
-  <div class="subtle-scroll h-full overflow-y-auto">
+  <div
+    class="subtle-scroll h-full overflow-y-auto"
+    data-handdrawn-page="studio"
+  >
     <div class="mx-auto max-w-[1100px] px-4 py-10 sm:px-6">
       <div class="mb-6 text-center">
         <h1
-          class="text-2xl font-bold tracking-tight text-[var(--text-primary)] sm:text-3xl"
+          class="gesture-mark text-2xl font-bold tracking-tight text-[var(--text-primary)] sm:text-3xl"
         >
           {{ t('lab.studio.title') }}
         </h1>
@@ -94,7 +97,8 @@ function runTool() {
 
       <!-- prompt composer -->
       <div
-        class="mx-auto max-w-[760px] rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-2 shadow-[var(--card-shadow)]"
+        class="pencil-surface-strong mx-auto max-w-[760px] rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-2 shadow-[var(--card-shadow)]"
+        data-handdrawn="surface-strong"
       >
         <textarea
           v-model="prompt"
@@ -111,7 +115,8 @@ function runTool() {
           />
           <button
             type="button"
-            class="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
+            class="pencil-control flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
+            data-handdrawn="control"
           >
             <svg
               width="14"
@@ -153,7 +158,8 @@ function runTool() {
           />
           <button
             type="button"
-            class="ml-auto flex h-9 items-center gap-1.5 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] disabled:opacity-40 focus-ring"
+            class="pencil-control ml-auto flex h-9 items-center gap-1.5 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] disabled:opacity-40 focus-ring"
+            data-handdrawn="control"
             :disabled="!prompt.trim()"
             @click="generate"
           >
@@ -180,7 +186,8 @@ function runTool() {
           v-for="tool in tools"
           :key="tool.id"
           type="button"
-          class="flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3.5 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] focus-ring"
+          class="pencil-control flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3.5 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] focus-ring"
+          data-handdrawn="control"
           @click="runTool"
         >
           <svg

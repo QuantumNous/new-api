@@ -54,7 +54,8 @@ const safeTiles = computed(() =>
     <figure
       v-for="tile in safeTiles"
       :key="tile.id"
-      class="group relative mb-4 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+      class="pencil-surface group relative mb-4 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+      data-handdrawn="surface-clipped"
     >
       <img
         :src="tile.cover"

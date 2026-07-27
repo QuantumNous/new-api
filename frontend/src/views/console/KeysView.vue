@@ -9,10 +9,12 @@ import KeyChannelsModal from '@/components/console/keys/KeyChannelsModal.vue'
 import KeyInlineChannels from '@/components/console/keys/KeyInlineChannels.vue'
 import KeyFormModal from '@/components/console/keys/KeyFormModal.vue'
 import KeyEndpointStrip from '@/components/console/keys/KeyEndpointStrip.vue'
+import KeyMobileList from '@/components/console/keys/KeyMobileList.vue'
 import KeyRevealModal from '@/components/console/keys/KeyRevealModal.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import DataTable, { type TableColumn } from '@/components/common/DataTable.vue'
 import IconButton from '@/components/common/IconButton.vue'
@@ -75,6 +77,22 @@ const columns = computed<TableColumn[]>(() => [
 
 const typeTone = (type: TokenSummary['type']) =>
   type === 'auto' ? 'info' : 'accent'
+
+const allPageSelected = computed(
+  () =>
+    rows.value.length > 0 &&
+    rows.value.every((row) => selected.value.includes(row.id))
+)
+
+function toggleAllSelected() {
+  selected.value = allPageSelected.value ? [] : rows.value.map((row) => row.id)
+}
+
+function toggleSelected(row: TokenSummary) {
+  selected.value = selected.value.includes(row.id)
+    ? selected.value.filter((id) => id !== row.id)
+    : [...selected.value, row.id]
+}
 
 const listRequest = useLatestRequest()
 
@@ -258,6 +276,7 @@ onBeforeUnmount(() => {
 
       <DataTable
         v-model:selected="selected"
+        class="hidden md:block"
         :columns="columns"
         :rows="rows"
         row-key="id"
@@ -287,8 +306,15 @@ onBeforeUnmount(() => {
         </template>
 
         <template #cell-key="{ row }">
-          <div class="flex items-center gap-1.5" @click.stop @dblclick.stop>
-            <span class="font-mono text-xs text-[var(--text-secondary)]">
+          <div
+            class="flex min-w-0 items-center gap-1.5"
+            @click.stop
+            @dblclick.stop
+          >
+            <span
+              class="min-w-0 truncate font-mono text-xs text-[var(--text-secondary)]"
+              :title="(row as TokenSummary).key_preview"
+            >
               {{ (row as TokenSummary).key_preview }}
             </span>
             <IconButton
@@ -462,6 +488,61 @@ onBeforeUnmount(() => {
           </div>
         </template>
       </DataTable>
+
+      <div class="md:hidden">
+        <div
+          v-if="loading"
+          data-key-mobile-loading
+          class="divide-y divide-[var(--border-subtle)]"
+          aria-hidden="true"
+        >
+          <div
+            v-for="index in pageSize"
+            :key="index"
+            data-key-mobile-skeleton-row
+            class="space-y-4 p-4"
+          >
+            <div
+              class="h-5 w-2/3 animate-pulse rounded bg-[var(--surface-muted)]"
+            />
+            <div class="grid grid-cols-2 gap-3">
+              <div
+                class="h-14 animate-pulse rounded bg-[var(--surface-muted)]"
+              />
+              <div
+                class="h-14 animate-pulse rounded bg-[var(--surface-muted)]"
+              />
+            </div>
+          </div>
+        </div>
+        <EmptyState
+          v-else-if="rows.length === 0"
+          :title="t('keys.emptyTitle')"
+          :hint="t('keys.emptyHint')"
+          illustration="empty-keys"
+        />
+        <KeyMobileList
+          v-else
+          :tokens="rows"
+          :selected-ids="selected"
+          :all-selected="allPageSelected"
+          :toggle-all-selected="toggleAllSelected"
+          :toggle-selected="toggleSelected"
+          :is-toggling="(row) => togglingIds.has(row.id)"
+          :toggle-status="toggleStatus"
+          :view-key="copyKey"
+          :manage-channels="(row) => (channelsToken = row)"
+          :edit-key="openEdit"
+          :delete-key="(row) => (deleting = row)"
+        />
+        <div data-key-mobile-pagination :aria-busy="loading">
+          <TablePagination
+            v-model:page="page"
+            v-model:page-size="pageSize"
+            :total="total"
+          />
+        </div>
+      </div>
     </ConsoleCard>
 
     <!-- overlay backdrop + bottom-up drawer — teleported to body so fixed covers full viewport -->

@@ -34,7 +34,16 @@ useEChart(
         backgroundColor: p.surfaceSolid,
         borderColor: p.borderSubtle,
         textStyle: { color: p.textPrimary, fontSize: 12 },
-        axisPointer: { type: 'shadow' },
+        axisPointer: p.isDark
+          ? { type: 'shadow' }
+          : {
+              type: 'line',
+              lineStyle: {
+                color: p.borderSubtle,
+                type: [7, 3, 2, 5],
+                width: 1,
+              },
+            },
       },
       xAxis: {
         type: 'category',

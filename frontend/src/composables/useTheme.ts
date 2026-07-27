@@ -2,21 +2,21 @@ import { computed, watch } from 'vue'
 import { useColorMode } from '@vueuse/core'
 
 import { migrateLocalStorageKey } from '@/utils/legacyStorage'
+import {
+  isThemePreference,
+  LEGACY_THEME_STORAGE_KEY,
+  THEME_STORAGE_KEY,
+  type ThemePreference,
+} from '@/utils/themePreference'
 
-export type ThemePreference = 'auto' | 'light' | 'dark'
+export type { ThemePreference } from '@/utils/themePreference'
 export type ResolvedTheme = Exclude<ThemePreference, 'auto'>
-
-export const THEME_STORAGE_KEY = 'ren2hub_theme_mode'
-const LEGACY_THEME_STORAGE_KEY = 'renren_theme_mode'
+export { THEME_STORAGE_KEY } from '@/utils/themePreference'
 
 // This module evaluates before main.ts runs its migrations (import hoisting),
 // so the theme key migrates here — useColorMode below reads it immediately.
 if (typeof window !== 'undefined') {
   migrateLocalStorageKey(LEGACY_THEME_STORAGE_KEY, THEME_STORAGE_KEY)
-}
-
-function isThemePreference(value: unknown): value is ThemePreference {
-  return value === 'auto' || value === 'light' || value === 'dark'
 }
 
 function clearInvalidStoredPreference() {

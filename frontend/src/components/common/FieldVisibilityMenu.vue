@@ -82,7 +82,8 @@ onClickOutside(root, () => closeMenu())
     <IconButton
       ref="trigger"
       :label="title"
-      class="h-10 w-10 rounded-xl border border-[var(--border-default)] bg-[var(--surface-solid)]"
+      class="pencil-control h-10 w-10 rounded-xl border border-[var(--border-default)] bg-[var(--surface-solid)]"
+      data-handdrawn="control"
       aria-haspopup="dialog"
       :aria-expanded="open"
       :aria-controls="panelId"
@@ -100,6 +101,7 @@ onClickOutside(root, () => closeMenu())
         aria-modal="false"
         :aria-labelledby="titleId"
         class="subtle-scroll absolute right-0 top-full z-50 mt-2 max-h-[min(24rem,calc(100dvh-8rem))] w-64 overflow-y-auto rounded-lg border border-[var(--overlay-border)] bg-[var(--surface-overlay)] py-1.5 shadow-[var(--overlay-shadow)]"
+        data-handdrawn="menu"
       >
         <div class="flex items-center justify-between gap-2 px-3 py-1.5">
           <p

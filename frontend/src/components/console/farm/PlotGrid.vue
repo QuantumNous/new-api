@@ -42,7 +42,8 @@ const stageColor = computed(() => (stage: FarmPlot['stage']) => {
 
 <template>
   <article
-    class="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)]"
+    class="pencil-surface rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)]"
+    data-handdrawn="surface"
   >
     <h3 class="mb-4 text-sm font-semibold text-[var(--text-primary)]">
       🌱 {{ t('farm.plot.title') }}
@@ -51,7 +52,7 @@ const stageColor = computed(() => (stage: FarmPlot['stage']) => {
       <div
         v-for="plot in plots"
         :key="plot.id"
-        class="flex flex-col items-center gap-2 rounded-xl border p-3 text-center transition-all"
+        class="farm-plot-tile flex flex-col items-center gap-2 rounded-xl border p-3 text-center transition-all"
         :class="[
           plot.stage === 'ready'
             ? 'border-[var(--status-success)] cursor-pointer hover:bg-[var(--status-success-soft)]'
@@ -91,3 +92,9 @@ const stageColor = computed(() => (stage: FarmPlot['stage']) => {
     </div>
   </article>
 </template>
+
+<style scoped>
+:global(html.dark) .farm-plot-tile {
+  border-style: solid;
+}
+</style>

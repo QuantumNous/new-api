@@ -50,7 +50,13 @@ export function useEChart(
 
   function render() {
     if (!chart) return
-    chart.setOption(buildOption(chartPalette()), true)
+    const option = buildOption(chartPalette())
+    chart.setOption(
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? { ...option, animation: false }
+        : option,
+      true
+    )
   }
 
   /**

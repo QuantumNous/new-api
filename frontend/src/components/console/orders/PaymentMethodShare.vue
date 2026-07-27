@@ -63,7 +63,7 @@ function share(amount: number): number {
           </span>
         </div>
         <div
-          class="mt-2 h-1 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+          class="pencil-progress mt-2 h-1 overflow-hidden rounded-full bg-[var(--surface-muted)]"
         >
           <div
             class="h-full rounded-full"

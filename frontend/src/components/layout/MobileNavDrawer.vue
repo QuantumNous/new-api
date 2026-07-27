@@ -6,6 +6,7 @@
         id="mobile-navigation-drawer"
         class="mobile-nav-drawer fixed inset-0 z-[80] flex justify-end"
         data-hero-canvas-boundary
+        data-handdrawn-scope="mobile-navigation"
         @keydown="onKeydown"
       >
         <button
@@ -20,8 +21,9 @@
 
         <aside
           ref="panel"
-          class="mobile-nav-drawer__panel relative flex h-full w-[min(86vw,22rem)] flex-col border-l border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] shadow-[0_24px_60px_var(--shadow-color)] backdrop-blur-2xl"
+          class="mobile-nav-drawer__panel relative flex h-full w-[min(86vw,22rem)] flex-col border-l border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] shadow-[var(--overlay-shadow)] backdrop-blur-2xl"
           data-hero-canvas-boundary
+          data-handdrawn="navigation-drawer"
           role="dialog"
           aria-modal="true"
           aria-labelledby="mobile-navigation-title"

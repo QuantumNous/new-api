@@ -31,13 +31,20 @@ const sketch = computed(() => props.variant === 'sketch')
 <template>
   <section
     class="border"
+    :data-surface-variant="variant"
+    :data-handdrawn="ink ? undefined : sketch ? 'surface-strong' : 'surface'"
     :class="[
       ink
         ? 'border-transparent bg-[var(--surface-footer)] grid-paper'
         : sketch
           ? 'border-[var(--border-default)] bg-[var(--surface-solid)] stamp-watermark'
           : 'border-[var(--border-subtle)] bg-[var(--surface-solid)]',
-      sketch ? 'sketch-lg' : 'rounded-2xl',
+      ink
+        ? 'rounded-2xl'
+        : sketch
+          ? 'sketch-lg pencil-surface-strong'
+          : 'rounded-2xl pencil-surface',
+      ink ? 'no-handdrawn' : '',
       { 'flex h-full flex-col': stretch },
     ]"
     :style="[
@@ -48,7 +55,7 @@ const sketch = computed(() => props.variant === 'sketch')
             '--text-tertiary': 'var(--footer-text-tertiary)',
             '--border-subtle': 'var(--footer-border)',
             '--border-default': 'var(--footer-border)',
-            '--surface-muted': 'rgba(244, 242, 232, 0.08)',
+            '--surface-muted': 'var(--ink-surface-muted)',
             '--accent-text': 'var(--footer-accent)',
             boxShadow: 'var(--card-shadow)',
           }
@@ -57,6 +64,7 @@ const sketch = computed(() => props.variant === 'sketch')
           : { boxShadow: 'var(--card-shadow)' },
     ]"
   >
+    <span v-if="sketch" class="stamp-watermark-art" aria-hidden="true" />
     <header
       v-if="title || $slots.action"
       class="flex items-center justify-between gap-3 px-5 pt-4"

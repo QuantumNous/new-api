@@ -76,7 +76,7 @@ const standardTotal = computed(() =>
           </div>
           <!-- progress bar: fill = (1 - ratio), showing discount depth -->
           <div
-            class="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+            class="pencil-progress mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
           >
             <div
               class="h-full rounded-full bg-[var(--accent)] transition-[width]"
@@ -120,7 +120,7 @@ const standardTotal = computed(() =>
             </span>
           </div>
           <div
-            class="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+            class="pencil-progress mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
           >
             <div
               class="h-full rounded-full bg-[var(--accent)] transition-[width]"

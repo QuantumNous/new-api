@@ -67,7 +67,7 @@ useEChart(
       symbolSize: mood.line.symbolSize,
       yAxisIndex: 0,
       data: props.points.map((d) => d[s.key]),
-      lineStyle: { color: s.color, ...mood.line.lineStyle, width: 2 },
+      lineStyle: { color: s.color, ...mood.line.lineStyle },
       itemStyle: {
         color: s.color,
         borderColor: p.surfaceSolid,
@@ -168,12 +168,17 @@ useEChart(
         {
           name: labels.hitRate,
           type: 'line',
-          smooth: true,
+          smooth: mood.line.smooth,
           yAxisIndex: 1,
-          symbol: 'circle',
-          symbolSize: 6,
+          showSymbol: !p.isDark,
+          symbol: mood.line.symbol,
+          symbolSize: mood.line.symbolSize,
           data: props.points.map((d) => d.hit_rate),
-          lineStyle: { color: p.support, width: 2, type: 'dashed' },
+          lineStyle: {
+            color: p.support,
+            ...mood.line.lineStyle,
+            type: p.isDark ? 'solid' : 'dashed',
+          },
           itemStyle: {
             color: p.surfaceSolid,
             borderColor: p.support,

@@ -22,7 +22,8 @@ const toneVar: Record<ToastType, string> = {
       <div
         v-for="toast in toasts"
         :key="toast.id"
-        class="pointer-events-auto flex items-start gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-3.5 shadow-[var(--card-shadow)]"
+        class="pencil-surface pointer-events-auto flex items-start gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-3.5 shadow-[var(--card-shadow)]"
+        data-handdrawn="toast"
         :role="toast.type === 'error' ? 'alert' : 'status'"
       >
         <span

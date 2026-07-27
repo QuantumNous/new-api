@@ -22,7 +22,7 @@ const props = withDefaults(
 
 const classes = computed(() => {
   const base =
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap font-semibold transition-all focus-ring disabled:cursor-not-allowed disabled:opacity-50'
+    'pencil-control inline-flex items-center justify-center gap-2 whitespace-nowrap font-semibold transition-all focus-ring disabled:cursor-not-allowed disabled:opacity-50'
   const sizes = {
     sm: 'h-8 px-3 text-xs',
     md: 'h-10 px-4 text-sm',
@@ -31,7 +31,7 @@ const classes = computed(() => {
   const variants = {
     // Solid CTA: accent background, hand-drawn irregular radius + pencil-pressure shadow
     primary:
-      'sketch-sm bg-[var(--accent)] text-[var(--accent-contrast)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] shadow-[2px_3px_0_rgba(56,55,43,0.18),0_4px_14px_var(--shadow-color)]',
+      'sketch-sm bg-[var(--accent)] text-[var(--accent-contrast)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] shadow-[var(--button-shadow)] hover:shadow-[var(--button-shadow-hover)]',
     // Outlined: 1.5px border, hand-drawn radius, paper-surface fill
     secondary:
       'sketch-sm border-[length:var(--sketch-border-width)] border-[var(--border-default)] bg-[var(--surface-solid)] text-[var(--text-primary)] hover:bg-[var(--surface-muted)] hover:border-[var(--border-strong)]',
@@ -41,9 +41,9 @@ const classes = computed(() => {
     // Ghost: brush-highlight appears on hover via group/pseudo approach
     ghost:
       'sketch-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]',
-    // Stamp: vermilion-ink seal style, slight rotation, for special actions
+    // Stamp: vermilion-ink seal style for special actions. Geometry stays fixed.
     stamp:
-      'bg-[var(--status-danger)] text-[var(--text-inverse)] hover:opacity-90 shadow-[2px_2px_0_rgba(56,55,43,0.22)] -rotate-[0.5deg] hover:rotate-0',
+      'bg-[var(--status-danger)] text-[var(--text-inverse)] hover:opacity-90 shadow-[var(--stamp-shadow)]',
   }
   // stamp uses its own border-radius (more square, seal-like)
   const radiusOverride =
@@ -62,7 +62,12 @@ const classes = computed(() => {
 </script>
 
 <template>
-  <button :type="type" :class="classes" :disabled="disabled || loading">
+  <button
+    :type="type"
+    :class="classes"
+    :disabled="disabled || loading"
+    data-handdrawn="control"
+  >
     <svg
       v-if="loading"
       class="h-4 w-4 animate-spin"

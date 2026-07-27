@@ -17,7 +17,8 @@ const app = useAppStore()
 
 <template>
   <div
-    class="texture-paper flex min-h-screen flex-col bg-[var(--page-background)]"
+    class="night-page-texture texture-paper draft-grid flex min-h-screen flex-col bg-[var(--page-background)]"
+    data-handdrawn-scope="auth"
   >
     <!-- 顶部品牌栏 -->
     <header
@@ -26,7 +27,7 @@ const app = useAppStore()
       <RouterLink
         :to="{ name: 'home' }"
         class="flex items-center gap-2.5 focus-ring rounded-lg"
-        aria-label="Ren2Hub"
+        :aria-label="app.systemName"
       >
         <BrandMark class="h-8 w-8 rounded-lg" />
         <span
@@ -55,7 +56,8 @@ const app = useAppStore()
       <!-- 表单卡：纸面上的悬浮实体卡 -->
       <div class="flex items-center justify-center px-4 py-8 lg:py-12">
         <div
-          class="auth-card w-full max-w-md border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-7 py-9 sm:px-9"
+          class="auth-card pencil-surface-strong w-full max-w-md border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-7 py-9 sm:px-9"
+          data-handdrawn="surface-strong"
         >
           <slot />
         </div>

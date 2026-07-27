@@ -1,7 +1,9 @@
+import { normalizeOpaqueColor } from '@/utils/cssColor'
+
 /**
- * Palette used by the canvas scene. Keep this independent from CSS variables:
- * canvas pixels cannot inherit document tokens, and a single palette lets an
- * already-running scene change colour without rebuilding its animation state.
+ * Palette used by the canvas scene. Light keeps its protected Desert Ledger
+ * values. Night resolves its structural colours from the same semantic CSS
+ * tokens as the DOM; vendor overrides remain explicit brand-colour exceptions.
  */
 export type CanvasThemeName = 'light' | 'dark'
 
@@ -145,8 +147,67 @@ const CANVAS_THEMES: Record<CanvasThemeName, CanvasTheme> = {
   },
 }
 
+function resolveNightToken(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim()
+  return normalizeOpaqueColor(value, fallback)
+}
+
 export function getCanvasTheme(name: CanvasThemeName): CanvasTheme {
-  return CANVAS_THEMES[name]
+  const fallback = CANVAS_THEMES[name]
+  if (name === 'light') return fallback
+
+  return {
+    ...fallback,
+    backgroundTop: resolveNightToken(
+      '--surface-container-lowest',
+      fallback.backgroundTop
+    ),
+    backgroundBottom: resolveNightToken(
+      '--page-background',
+      fallback.backgroundBottom
+    ),
+    mapLand: resolveNightToken('--signal', fallback.mapLand),
+    mapHighlight: resolveNightToken('--accent', fallback.mapHighlight),
+    mapOcean: resolveNightToken('--signal-deep', fallback.mapOcean),
+    mapLabel: resolveNightToken('--text-secondary', fallback.mapLabel),
+    mapFlow: resolveNightToken('--glow-strong', fallback.mapFlow),
+    mapRipple: resolveNightToken('--glow', fallback.mapRipple),
+    mapGlyph: resolveNightToken('--signal-bright', fallback.mapGlyph),
+    mapGlyphAccent: resolveNightToken('--accent', fallback.mapGlyphAccent),
+    mapCursorGlow: resolveNightToken('--accent', fallback.mapCursorGlow),
+    mapCursorRing: resolveNightToken('--focus-ring', fallback.mapCursorRing),
+    modelFallback: resolveNightToken('--signal', fallback.modelFallback),
+    charRain: resolveNightToken('--signal-strong', fallback.charRain),
+    charRainLead: resolveNightToken('--glow', fallback.charRainLead),
+    nodeSurface: resolveNightToken('--surface-container', fallback.nodeSurface),
+    nodeLabelSurface: resolveNightToken(
+      '--surface-container-lowest',
+      fallback.nodeLabelSurface
+    ),
+    nodeLabelText: resolveNightToken('--text-primary', fallback.nodeLabelText),
+    userAccent: resolveNightToken('--glow', fallback.userAccent),
+    userCore: resolveNightToken('--glow-bright', fallback.userCore),
+    hubHalo: resolveNightToken('--signal-strong', fallback.hubHalo),
+    hubSurface: resolveNightToken(
+      '--surface-container-lowest',
+      fallback.hubSurface
+    ),
+    hubOrbitPrimary: resolveNightToken('--accent', fallback.hubOrbitPrimary),
+    hubOrbitSecondary: resolveNightToken('--glow', fallback.hubOrbitSecondary),
+    hubOrbitCore: resolveNightToken('--accent-hover', fallback.hubOrbitCore),
+    hubRing: resolveNightToken('--accent', fallback.hubRing),
+    hubLabel: resolveNightToken('--text-primary', fallback.hubLabel),
+    channelStroke: resolveNightToken('--accent', fallback.channelStroke),
+    channelGlow: resolveNightToken('--accent', fallback.channelGlow),
+    channelPacket: resolveNightToken('--accent-hover', fallback.channelPacket),
+    channelCore: resolveNightToken('--text-primary', fallback.channelCore),
+    responsePacket: resolveNightToken('--glow', fallback.responsePacket),
+    packetCore: resolveNightToken('--on-colored', fallback.packetCore),
+    accent: resolveNightToken('--accent', fallback.accent),
+  }
 }
 
 export function withAlpha(hex: string, alpha: number): string {

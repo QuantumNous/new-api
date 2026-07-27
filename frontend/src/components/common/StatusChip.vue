@@ -33,6 +33,7 @@ const style = computed(() => {
     class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium"
     style="border-radius: var(--chip-radius)"
     :style="style"
+    data-handdrawn="chip"
   >
     <slot />
   </span>

@@ -25,7 +25,10 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center px-6 py-16 text-center">
+  <div
+    class="flex flex-col items-center justify-center px-6 py-16 text-center"
+    data-handdrawn="empty-state"
+  >
     <img
       v-if="isUrl && !imageFailed"
       :src="illustration"

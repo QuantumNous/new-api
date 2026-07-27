@@ -30,13 +30,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden">
+  <div class="flex h-screen overflow-hidden" data-handdrawn-scope="console">
     <ConsoleSidebar />
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
       <ConsoleTopbar data-console-scroll-boundary />
       <div
         data-console-scroll-zone
-        class="scroll-zone texture-paper min-w-0 flex-1 overflow-y-auto"
+        class="night-page-texture scroll-zone texture-paper draft-grid min-w-0 flex-1 overflow-y-auto"
         :class="{ scrolling: isScrolling, 'no-page-scroll': noPageScroll }"
         @scroll.passive="onScroll"
       >

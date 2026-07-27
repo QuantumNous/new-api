@@ -23,6 +23,7 @@ defineExpose({
     :aria-label="label"
     :title="label"
     class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors focus-ring"
+    data-handdrawn="control"
     :class="
       tone === 'danger'
         ? 'hover:bg-[var(--status-danger-soft)] hover:text-[var(--status-danger-text)]'
