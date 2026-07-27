@@ -600,6 +600,9 @@ func CompleteSubscriptionOrderWithProviderBinding(tradeNo string, providerPayloa
 		if err := tx.Save(&order).Error; err != nil {
 			return err
 		}
+		if err := GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, &order); err != nil {
+			return err
+		}
 		logUserId = order.UserId
 		logPlanTitle = plan.Title
 		logMoney = order.Money

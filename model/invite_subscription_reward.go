@@ -622,10 +622,10 @@ func SumLockedInviteSubscriptionRewardQuota(inviterId int) (int64, error) {
 }
 
 // ReconcileMissedInviteSubscriptionRewards backfills rewards for successful
-// subscription orders whose invited payer has no reward row - the durable
-// compensation for grant paths that run after their order transaction commits
-// (balance purchases, or a crash between order commit and reward creation).
-// TryGrant... is idempotent (invitee_id unique), so re-scanning is safe.
+// subscription orders whose invited payer has no reward row. Subscription mode
+// no longer starts a scheduler; this remains as a manual/compatibility helper
+// for historical gaps. TryGrant... is idempotent (invitee_id unique), so
+// re-scanning is safe.
 func ReconcileMissedInviteSubscriptionRewards(sinceSeconds int64, limit int) (int, error) {
 	if !common.InviteRewardSubscriptionMode {
 		return 0, nil
@@ -658,6 +658,7 @@ func ReconcileMissedInviteSubscriptionRewards(sinceSeconds int64, limit int) (in
 
 // StartInviteSubscriptionRewardUnlocker is retained for boot compatibility.
 // Subscription-mode inviter value is settled synchronously by paid-order
-// transactions, so there is no background unlocker to start.
+// transactions, and missed-reward reconciliation is manual/compatibility-only,
+// so there is no background unlocker or scheduler to start.
 func StartInviteSubscriptionRewardUnlocker() {
 }
