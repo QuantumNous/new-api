@@ -11,6 +11,9 @@ import type {
   RecallCampaignSummary,
   RecallEmailPreviewRequest,
   RecallEmailPreviewResponse,
+  RecallEmailGenerationRequest,
+  RecallEmailGenerationResponse,
+  RecallEmailQuotaStatus,
   RecallEvent,
   RecallPage,
   RecallAudienceUserOption,
@@ -22,6 +25,7 @@ import type {
 
 export const recallCampaignKeys = {
   all: ['recall-campaigns'] as const,
+  emailQuota: ['recall-campaigns', 'email-quota'] as const,
   list: (search: RecallCampaignSearch) =>
     ['recall-campaigns', 'list', search] as const,
   detail: (id: number) => ['recall-campaigns', 'detail', id] as const,
@@ -44,6 +48,9 @@ export const recallCampaignKeys = {
   audienceUsers: (params: { keyword?: string; ids?: number[] }) =>
     ['recall-campaigns', 'audience-options', 'users', params] as const,
 }
+
+export const recallEmailHourlyLimitOptionKey =
+  'recall_campaign_setting.email_hourly_limit'
 
 function requireRecallSuccess<T>(response: ApiResponse<T>): ApiResponse<T> {
   if (response?.success !== true) {
@@ -98,6 +105,24 @@ export async function previewRecallEmail(
     '/api/recall-campaigns/email-preview',
     request
   )
+  return requireRecallSuccess(response.data)
+}
+
+export async function generateRecallEmailTranslations(
+  id: number,
+  request: RecallEmailGenerationRequest
+): Promise<ApiResponse<RecallEmailGenerationResponse>> {
+  const response = await api.post(
+    `/api/recall-campaigns/${id}/email-translations/generate`,
+    request
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallEmailQuotaStatus(): Promise<
+  ApiResponse<RecallEmailQuotaStatus>
+> {
+  const response = await api.get('/api/recall-campaigns/email-quota')
   return requireRecallSuccess(response.data)
 }
 

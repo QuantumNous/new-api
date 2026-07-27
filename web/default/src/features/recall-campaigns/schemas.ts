@@ -269,21 +269,11 @@ const promotionDiscountSchema = z
       }
     }
     if (discount.minimum_amount > 0) {
-      if (!currencySchema.safeParse(discount.minimum_amount_currency).success) {
+      if (discount.minimum_amount_currency !== 'USD') {
         context.addIssue({
           code: 'custom',
           path: ['minimum_amount_currency'],
-          message: 'Minimum amount currency is invalid',
-        })
-      }
-      if (
-        discount.type === 'fixed' &&
-        discount.minimum_amount_currency !== discount.currency
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['minimum_amount_currency'],
-          message: 'Only one currency is supported',
+          message: 'Minimum amount currency must be USD',
         })
       }
     } else if (discount.minimum_amount_currency !== '') {
@@ -376,6 +366,9 @@ const emailStageSchema = z
     stage_no: z.number().int().min(1).max(3),
     delay_seconds: nonNegativeInteger,
     template_version: z.number().int().min(1),
+    source_revision: nonNegativeInteger.optional().default(0),
+    translated_source_revision: nonNegativeInteger.optional().default(0),
+    manual_locales: z.array(z.string().trim().min(1)).optional().default([]),
     templates: z.record(z.string().trim().min(1), emailTemplateSchema),
   })
   .strict()
@@ -444,10 +437,13 @@ export const recallCampaignDraftSchema = z
     existing_coupon_id: z.string(),
     discount_config: discountSchema,
     product_scope: productScopeSchema,
-    promotion_valid_seconds: z.number().int().min(0),
+    promotion_expiry_mode: z.enum(['relative', 'fixed']).default('relative'),
+    promotion_expires_at: nonNegativeInteger.default(0),
+    promotion_valid_seconds: nonNegativeInteger,
     enrollment_limit: z.number().int().min(1).max(100_000),
     worker_concurrency: z.number().int().min(1).max(20),
     email_sequence: emailSequenceSchema,
+    defer_localization: z.boolean().default(true),
   })
   .strict()
   .superRefine((draft, context) => {
@@ -467,7 +463,10 @@ export const recallCampaignDraftSchema = z
     if (draft.audience_template === 'specified_users') {
       validateSpecifiedUsersAudience(draft.audience_config, context)
     }
-    if (draft.promotion_valid_seconds <= 0) {
+    if (
+      draft.campaign_type === 'content_only' &&
+      draft.promotion_valid_seconds <= 0
+    ) {
       context.addIssue({
         code: 'custom',
         path: ['promotion_valid_seconds'],
@@ -558,6 +557,38 @@ export const recallCampaignDraftSchema = z
         path: ['existing_coupon_id'],
         message: 'Existing coupon ID is required',
       })
+    }
+    if (draft.promotion_expiry_mode === 'relative') {
+      if (draft.promotion_valid_seconds <= 0) {
+        context.addIssue({
+          code: 'custom',
+          path: ['promotion_valid_seconds'],
+          message: 'Promotion validity must be positive',
+        })
+      }
+      if (draft.promotion_expires_at !== 0) {
+        context.addIssue({
+          code: 'custom',
+          path: ['promotion_expires_at'],
+          message: 'Fixed promotion expiry must be empty',
+        })
+      }
+    }
+    if (draft.promotion_expiry_mode === 'fixed') {
+      if (draft.promotion_expires_at <= Date.now() / 1000) {
+        context.addIssue({
+          code: 'custom',
+          path: ['promotion_expires_at'],
+          message: 'Fixed promotion expiry must be in the future',
+        })
+      }
+      if (draft.promotion_valid_seconds !== 0) {
+        context.addIssue({
+          code: 'custom',
+          path: ['promotion_valid_seconds'],
+          message: 'Relative promotion validity must be empty',
+        })
+      }
     }
     if (
       draft.execution_mode === 'scheduled_once' &&

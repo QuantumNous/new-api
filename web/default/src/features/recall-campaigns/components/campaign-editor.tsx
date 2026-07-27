@@ -273,6 +273,8 @@ function createRecallCampaignDefaults(): RecallCampaignDraft {
       coupon_redeem_by: 0,
     },
     product_scope: { topup_price_ids: [], subscription_price_ids: [] },
+    promotion_expiry_mode: 'relative',
+    promotion_expires_at: 0,
     promotion_valid_seconds: 604800,
     enrollment_limit: 1000,
     worker_concurrency: 5,
@@ -284,6 +286,7 @@ function createRecallCampaignDefaults(): RecallCampaignDraft {
         templates: createRecallEmailTemplates(),
       },
     ],
+    defer_localization: true,
   }
 }
 

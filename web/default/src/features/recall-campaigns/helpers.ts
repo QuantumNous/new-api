@@ -11,6 +11,7 @@ import type {
   RecallCouponSource,
   RecallDiscountType,
   RecallEmailStage,
+  RecallEmailLocaleStatus,
   RecallFixedCurrency,
   RecallRecipient,
 } from './types'
@@ -137,6 +138,11 @@ export function prepareRecallCampaignSubmitDraft(
 
   return {
     ...draft,
+    discount_config: {
+      ...draft.discount_config,
+      minimum_amount_currency:
+        draft.discount_config.minimum_amount > 0 ? 'USD' : '',
+    },
     audience_config: {
       ...draft.audience_config,
       groups: normalizeRecallGroupsForMode(
@@ -206,10 +212,7 @@ export function normalizeRecallDiscountType(
         amount_off: 0,
         currency: '',
         currency_options: {},
-        minimum_amount_currency:
-          discount.minimum_amount > 0
-            ? discount.minimum_amount_currency.trim().toUpperCase()
-            : '',
+        minimum_amount_currency: discount.minimum_amount > 0 ? 'USD' : '',
       },
     }
   }
@@ -246,10 +249,7 @@ export function normalizeRecallDiscountType(
     }
   }
 
-  const currency =
-    discount.currency.trim().toUpperCase() ||
-    discount.minimum_amount_currency.trim().toUpperCase() ||
-    'USD'
+  const currency = discount.currency.trim().toUpperCase() || 'USD'
   return {
     ...draft,
     discount_config: {
@@ -258,9 +258,81 @@ export function normalizeRecallDiscountType(
       percent_off: 0,
       amount_off: discount.amount_off > 0 ? discount.amount_off : 1,
       currency,
-      minimum_amount_currency: discount.minimum_amount > 0 ? currency : '',
+      minimum_amount_currency: discount.minimum_amount > 0 ? 'USD' : '',
     },
   }
+}
+
+export interface RecallPromotionDuration {
+  days: number
+  hours: number
+}
+
+export function recallPromotionDurationToSeconds({
+  days,
+  hours,
+}: RecallPromotionDuration): number {
+  return (
+    Math.max(0, Math.trunc(days)) * 86_400 +
+    Math.max(0, Math.trunc(hours)) * 3_600
+  )
+}
+
+export function recallPromotionSecondsToDuration(
+  seconds: number
+): RecallPromotionDuration {
+  const normalized = Math.max(0, Math.trunc(seconds))
+  return {
+    days: Math.floor(normalized / 86_400),
+    hours: Math.floor((normalized % 86_400) / 3_600),
+  }
+}
+
+export function getRecallEffectivePromotionExpiry(
+  draft: Pick<
+    RecallCampaignDraft,
+    | 'promotion_expiry_mode'
+    | 'promotion_expires_at'
+    | 'promotion_valid_seconds'
+    | 'discount_config'
+  >,
+  runAtSeconds: number
+): number {
+  const promotionExpiry =
+    draft.promotion_expiry_mode === 'fixed'
+      ? draft.promotion_expires_at
+      : runAtSeconds + draft.promotion_valid_seconds
+  const couponRedeemBy = draft.discount_config.coupon_redeem_by
+  return couponRedeemBy > 0
+    ? Math.min(promotionExpiry, couponRedeemBy)
+    : promotionExpiry
+}
+
+function hasRecallEmailTemplate(
+  stage: RecallEmailStage,
+  locale: string
+): boolean {
+  const template = stage.templates[locale]
+  if (!template) return false
+  const bodyCount = [template.body_text, template.body_html].filter((value) =>
+    value?.trim()
+  ).length
+  return template.subject.trim() !== '' && bodyCount === 1
+}
+
+export function getRecallEmailLocaleStatus(
+  stage: RecallEmailStage,
+  locale: string
+): RecallEmailLocaleStatus {
+  if (!hasRecallEmailTemplate(stage, locale)) return 'missing'
+  if (locale === 'en') return 'ready'
+  if (
+    (stage.translated_source_revision ?? 0) !== (stage.source_revision ?? 0)
+  ) {
+    return 'stale'
+  }
+  if (stage.manual_locales?.includes(locale)) return 'manual'
+  return 'ready'
 }
 
 export function removeRecallEmailStage(

@@ -4,6 +4,8 @@ import { api } from '@/lib/api'
 import {
   createRecallCampaign,
   exportRecallCampaign,
+  generateRecallEmailTranslations,
+  getRecallEmailQuotaStatus,
   getRecallSubscriptionProductConfiguration,
   getRecallTopUpProductConfiguration,
   getRecallUserGroups,
@@ -16,11 +18,12 @@ import {
   previewRecallEmail,
   previewRecallCampaign,
   retryRecallRecipient,
+  recallEmailHourlyLimitOptionKey,
   runRecallCampaignAction,
   updateRecallCampaign,
   validateRecallStripeConfig,
 } from './api'
-import type { RecallCampaignDraft } from './types'
+import type { RecallCampaignDraft, RecallEmailGenerationRequest } from './types'
 
 const originalAdapter = api.defaults.adapter
 let capturedConfig: InternalAxiosRequestConfig | undefined
@@ -163,5 +166,45 @@ describe('recall campaign API contracts', () => {
       campaign_type: 'content_only',
       template: { subject: 'Subject', body_html: '<p>Hello</p>' },
     })
+  })
+
+  test('generates all email translations with the campaign revision', async () => {
+    const request: RecallEmailGenerationRequest = {
+      config_revision: 7,
+      name: 'Win back customers',
+      email_sequence: [],
+    }
+    respondWith({ success: true, data: request })
+
+    await generateRecallEmailTranslations(42, request)
+
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/email-translations/generate'
+    )
+    expect(JSON.parse(String(capturedConfig?.data))).toEqual(request)
+  })
+
+  test('loads the activity email quota from its dedicated endpoint', async () => {
+    respondWith({
+      success: true,
+      data: {
+        limit: 100,
+        used: 12,
+        remaining: 88,
+        window_started_at: 1_900_000_000,
+        resets_at: 1_900_003_600,
+        exhausted: false,
+      },
+    })
+
+    await getRecallEmailQuotaStatus()
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-quota')
+  })
+
+  test('uses the registered activity email hourly-limit option key', () => {
+    expect(recallEmailHourlyLimitOptionKey).toBe(
+      'recall_campaign_setting.email_hourly_limit'
+    )
   })
 })

@@ -51,7 +51,10 @@ function makeDraft() {
       topup_price_ids: ['price_topup_20'],
       subscription_price_ids: [],
     },
+    promotion_expiry_mode: 'relative',
+    promotion_expires_at: 0,
     promotion_valid_seconds: 604_800,
+    defer_localization: true,
     enrollment_limit: 1_000,
     worker_concurrency: 5,
     email_sequence: [
@@ -582,6 +585,35 @@ describe('recallCampaignDraftSchema', () => {
     expect(recallCampaignDraftSchema.safeParse(subscriptionOnly).success).toBe(
       false
     )
+  })
+
+  test('validates relative promotion expiry and clears the fixed branch', () => {
+    const draft = makeDraft()
+
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+
+    draft.promotion_valid_seconds = 0
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+
+    draft.promotion_valid_seconds = 86_400
+    draft.promotion_expires_at = Math.floor(Date.now() / 1000) + 86_400
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+  })
+
+  test('validates fixed promotion expiry in the future and clears duration', () => {
+    const draft = makeDraft()
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_valid_seconds = 0
+    draft.promotion_expires_at = Math.floor(Date.now() / 1000) + 86_400
+
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+
+    draft.promotion_expires_at = Math.floor(Date.now() / 1000)
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+
+    draft.promotion_expires_at = Math.floor(Date.now() / 1000) + 86_400
+    draft.promotion_valid_seconds = 3_600
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
   })
 
   test('ignores schedule validation in manual mode', () => {

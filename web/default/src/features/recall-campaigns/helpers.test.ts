@@ -5,6 +5,8 @@ import {
   convertRecallBodyTextToHtml,
   formatRecallMinorAmount,
   formatRecallCampaignType,
+  getRecallEffectivePromotionExpiry,
+  getRecallEmailLocaleStatus,
   getRecallPageCount,
   getRecallRecipientRetry,
   isRecallPromotionCampaign,
@@ -15,6 +17,8 @@ import {
   parseRecallMajorAmount,
   prepareRecallCampaignSubmitDraft,
   RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
+  recallPromotionDurationToSeconds,
+  recallPromotionSecondsToDuration,
   removeRecallEmailStage,
   setRecallCampaignGroups,
   setRecallCampaignGroupMode,
@@ -88,7 +92,10 @@ function makeValidDraft(): RecallCampaignDraft {
       topup_price_ids: ['price_topup_20'],
       subscription_price_ids: [],
     },
+    promotion_expiry_mode: 'relative',
+    promotion_expires_at: 0,
     promotion_valid_seconds: 604_800,
+    defer_localization: true,
     enrollment_limit: 1_000,
     worker_concurrency: 5,
     email_sequence: [
@@ -508,6 +515,61 @@ describe('recall campaign editor normalization', () => {
       minimum_amount: 100,
       minimum_amount_currency: 'USD',
     })
+  })
+
+  test('canonicalizes positive minimum amounts to USD and clears zero currency', () => {
+    const positiveDraft = makeValidDraft()
+    positiveDraft.discount_config.minimum_amount = 100
+    positiveDraft.discount_config.minimum_amount_currency = 'eur'
+    const positive = prepareRecallCampaignSubmitDraft(positiveDraft)
+    expect(positive.discount_config.minimum_amount_currency).toBe('USD')
+
+    const zero = makeValidDraft()
+    zero.discount_config.minimum_amount_currency = 'EUR'
+    expect(
+      prepareRecallCampaignSubmitDraft(zero).discount_config
+        .minimum_amount_currency
+    ).toBe('')
+  })
+
+  test('converts relative validity between days, hours, and seconds', () => {
+    expect(recallPromotionDurationToSeconds({ days: 2, hours: 3 })).toBe(
+      183_600
+    )
+    expect(recallPromotionSecondsToDuration(183_600)).toEqual({
+      days: 2,
+      hours: 3,
+    })
+  })
+
+  test('caps the displayed promotion expiry at coupon redeem-by', () => {
+    const draft = makeValidDraft()
+    draft.promotion_valid_seconds = 7_200
+    draft.discount_config.coupon_redeem_by = 10_000
+
+    expect(getRecallEffectivePromotionExpiry(draft, 5_000)).toBe(10_000)
+
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_valid_seconds = 0
+    draft.promotion_expires_at = 20_000
+    expect(getRecallEffectivePromotionExpiry(draft, 5_000)).toBe(10_000)
+  })
+
+  test('derives ready, stale, manual, and missing locale states', () => {
+    const stage = makeStage(1, 0)
+    stage.source_revision = 2
+    stage.translated_source_revision = 2
+    stage.templates.es = { subject: 'Vuelve', body_html: '<p>Hola</p>' }
+    stage.templates.fr = { subject: 'Revenez', body_html: '<p>Bonjour</p>' }
+    stage.manual_locales = ['fr']
+
+    expect(getRecallEmailLocaleStatus(stage, 'es')).toBe('ready')
+    expect(getRecallEmailLocaleStatus(stage, 'fr')).toBe('manual')
+    expect(getRecallEmailLocaleStatus(stage, 'pt')).toBe('missing')
+
+    stage.source_revision = 3
+    expect(getRecallEmailLocaleStatus(stage, 'es')).toBe('stale')
+    expect(getRecallEmailLocaleStatus(stage, 'fr')).toBe('stale')
   })
 
   test('establishes the four automatic fixed discount defaults', () => {
