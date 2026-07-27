@@ -53,6 +53,7 @@ func setupInvitationControllerTest(t *testing.T) (*gorm.DB, model.User) {
 	originalQuotaForInvitee := common.QuotaForInvitee
 	originalQuotaForInviterMaxCount := common.QuotaForInviterMaxCount
 	originalQuotaPerUnit := common.QuotaPerUnit
+	originalInviteRewardSubscriptionMode := common.InviteRewardSubscriptionMode
 	paymentSetting := operation_setting.GetPaymentSetting()
 	originalPaymentSetting := *paymentSetting
 	dbPath := t.TempDir() + "/invitation-controller.db"
@@ -75,6 +76,7 @@ func setupInvitationControllerTest(t *testing.T) (*gorm.DB, model.User) {
 		common.QuotaForInvitee = originalQuotaForInvitee
 		common.QuotaForInviterMaxCount = originalQuotaForInviterMaxCount
 		common.QuotaPerUnit = originalQuotaPerUnit
+		common.InviteRewardSubscriptionMode = originalInviteRewardSubscriptionMode
 		*paymentSetting = originalPaymentSetting
 	})
 
@@ -87,6 +89,7 @@ func setupInvitationControllerTest(t *testing.T) (*gorm.DB, model.User) {
 	common.QuotaForInvitee = 250
 	common.QuotaForInviterMaxCount = 10
 	common.QuotaPerUnit = 100
+	common.InviteRewardSubscriptionMode = false
 	paymentSetting.ComplianceConfirmed = true
 	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
 
@@ -159,7 +162,7 @@ func performInvitationRequest(t *testing.T, inviterId int, query string) (*httpt
 }
 
 func TestGetSelfInvitations(t *testing.T) {
-	t.Run("returns scoped privacy-safe summary and items", func(t *testing.T) {
+	t.Run("mode off keeps legacy quota reconciliation and privacy-safe response", func(t *testing.T) {
 		db, inviter := setupInvitationControllerTest(t)
 
 		recorder, response := performInvitationRequest(t, inviter.Id, "")
@@ -187,6 +190,24 @@ func TestGetSelfInvitations(t *testing.T) {
 		require.NotContains(t, body, "other@example.com")
 		require.NotContains(t, body, "other-pending-user")
 
+		var refreshed model.User
+		require.NoError(t, db.First(&refreshed, inviter.Id).Error)
+		require.Equal(t, 400, refreshed.Quota)
+		require.Zero(t, refreshed.AffQuota)
+		var entries int64
+		require.NoError(t, db.Model(&model.SubscriptionDiscountEntry{}).Count(&entries).Error)
+		require.Zero(t, entries)
+	})
+
+	t.Run("mode on migrates transferable value to subscription discount ledger", func(t *testing.T) {
+		db, inviter := setupInvitationControllerTest(t)
+		common.InviteRewardSubscriptionMode = true
+
+		recorder, response := performInvitationRequest(t, inviter.Id, "")
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		require.True(t, response.Success)
+		require.Zero(t, response.Data.Summary.TransferableUSD)
 		var refreshed model.User
 		require.NoError(t, db.First(&refreshed, inviter.Id).Error)
 		require.Zero(t, refreshed.Quota)

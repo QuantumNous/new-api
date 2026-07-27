@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/shopspring/decimal"
@@ -26,6 +27,20 @@ const (
 	legacyInvitationValueAffQuotaKeyPrefix = "migration:invite-discount-v1:aff-quota:"
 	legacyInvitationValueRewardKeyPrefix   = "migration:invite-discount-v1:invite-subscription-reward:"
 )
+
+type legacyInvitationMigrationPricing struct {
+	quotaPerUnit decimal.Decimal
+	snapshot     float64
+	ratio        string
+}
+
+type legacyInvitationMigrationSnapshot struct {
+	SourceType      string  `json:"source_type"`
+	SourceQuota     int     `json:"source_quota"`
+	QuotaPerUnit    float64 `json:"quota_per_unit"`
+	QuotaToUSDRatio string  `json:"quota_to_usd_ratio"`
+	USDMinor        int64   `json:"usd_minor"`
+}
 
 func MigrateLegacyAffQuotaToQuota() error {
 	lastUserId := 0
@@ -88,6 +103,10 @@ func MigrateUserLegacyAffQuotaToQuota(userId int) error {
 }
 
 func MigrateLegacyInvitationValueToSubscriptionDiscount() error {
+	pricing, err := newLegacyInvitationMigrationPricing(common.QuotaPerUnit)
+	if err != nil {
+		return err
+	}
 	lastUserId := 0
 	for {
 		var users []User
@@ -103,7 +122,7 @@ func MigrateLegacyInvitationValueToSubscriptionDiscount() error {
 			break
 		}
 		for _, user := range users {
-			if err := migrateUserLegacyAffQuotaToSubscriptionDiscount(user.Id); err != nil {
+			if err := migrateUserLegacyAffQuotaToSubscriptionDiscount(user.Id, pricing); err != nil {
 				return err
 			}
 		}
@@ -125,7 +144,7 @@ func MigrateLegacyInvitationValueToSubscriptionDiscount() error {
 			return nil
 		}
 		for _, reward := range rewards {
-			if err := migrateInviteSubscriptionRewardToSubscriptionDiscount(reward.Id); err != nil {
+			if err := migrateInviteSubscriptionRewardToSubscriptionDiscount(reward.Id, pricing); err != nil {
 				return err
 			}
 		}
@@ -137,7 +156,11 @@ func MigrateUserLegacyInvitationValueToSubscriptionDiscount(userId int) error {
 	if userId <= 0 {
 		return errors.New("user id must be positive")
 	}
-	if err := migrateUserLegacyAffQuotaToSubscriptionDiscount(userId); err != nil {
+	pricing, err := newLegacyInvitationMigrationPricing(common.QuotaPerUnit)
+	if err != nil {
+		return err
+	}
+	if err := migrateUserLegacyAffQuotaToSubscriptionDiscount(userId, pricing); err != nil {
 		return err
 	}
 
@@ -156,7 +179,7 @@ func MigrateUserLegacyInvitationValueToSubscriptionDiscount(userId int) error {
 			return nil
 		}
 		for _, reward := range rewards {
-			if err := migrateInviteSubscriptionRewardToSubscriptionDiscount(reward.Id); err != nil {
+			if err := migrateInviteSubscriptionRewardToSubscriptionDiscount(reward.Id, pricing); err != nil {
 				return err
 			}
 		}
@@ -164,7 +187,7 @@ func MigrateUserLegacyInvitationValueToSubscriptionDiscount(userId int) error {
 	}
 }
 
-func migrateUserLegacyAffQuotaToSubscriptionDiscount(userId int) error {
+func migrateUserLegacyAffQuotaToSubscriptionDiscount(userId int, pricing legacyInvitationMigrationPricing) error {
 	if userId <= 0 {
 		return errors.New("user id must be positive")
 	}
@@ -180,13 +203,14 @@ func migrateUserLegacyAffQuotaToSubscriptionDiscount(userId int) error {
 		if user.AffQuota <= 0 {
 			return nil
 		}
-		usdMinor, err := legacyInvitationQuotaToUSDMinor(user.AffQuota)
+		usdMinor := legacyInvitationQuotaToUSDMinor(user.AffQuota, pricing)
+		key := legacyInvitationValueAffQuotaKey(user.Id)
+		exists, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, user.Id, user.AffQuota, legacyInvitationValueAffQuotaSourceType)
 		if err != nil {
 			return err
 		}
-		key := legacyInvitationValueAffQuotaKey(user.Id)
-		if usdMinor > 0 {
-			snapshot, err := legacyInvitationValuePricingSnapshot(legacyInvitationValueAffQuotaSourceType, user.AffQuota, usdMinor)
+		if !exists && usdMinor > 0 {
+			snapshot, err := legacyInvitationValuePricingSnapshot(legacyInvitationValueAffQuotaSourceType, user.AffQuota, usdMinor, pricing)
 			if err != nil {
 				return err
 			}
@@ -203,13 +227,17 @@ func migrateUserLegacyAffQuotaToSubscriptionDiscount(userId int) error {
 				return err
 			}
 			if !changed {
-				if err := requireLegacyInvitationMigrationEntryTx(tx, key, user.Id, usdMinor, legacyInvitationValueAffQuotaSourceType); err != nil {
+				if _, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, user.Id, user.AffQuota, legacyInvitationValueAffQuotaSourceType); err != nil {
 					return err
 				}
 			}
 		}
-		if err := tx.Model(&User{}).Where("id = ? AND aff_quota = ?", user.Id, user.AffQuota).Update("aff_quota", 0).Error; err != nil {
-			return err
+		update := tx.Model(&User{}).Where("id = ? AND aff_quota = ?", user.Id, user.AffQuota).Update("aff_quota", 0)
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected != 1 {
+			return ErrSubscriptionDiscountInvalidAccountState
 		}
 		migrated = true
 		return nil
@@ -225,7 +253,7 @@ func migrateUserLegacyAffQuotaToSubscriptionDiscount(userId int) error {
 	return nil
 }
 
-func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int) error {
+func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int, pricing legacyInvitationMigrationPricing) error {
 	if rewardId <= 0 {
 		return errors.New("reward id must be positive")
 	}
@@ -252,13 +280,14 @@ func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int) error {
 		if reward.RewardQuota < 0 {
 			return ErrSubscriptionDiscountInvalidAmount
 		}
-		usdMinor, err := legacyInvitationQuotaToUSDMinor(reward.RewardQuota)
+		usdMinor := legacyInvitationQuotaToUSDMinor(reward.RewardQuota, pricing)
+		key := legacyInvitationValueRewardKey(reward.Id)
+		exists, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, reward.InviterId, reward.RewardQuota, legacyInvitationValueRewardSourceType)
 		if err != nil {
 			return err
 		}
-		key := legacyInvitationValueRewardKey(reward.Id)
-		if usdMinor > 0 {
-			snapshot, err := legacyInvitationValuePricingSnapshot(legacyInvitationValueRewardSourceType, reward.RewardQuota, usdMinor)
+		if !exists && usdMinor > 0 {
+			snapshot, err := legacyInvitationValuePricingSnapshot(legacyInvitationValueRewardSourceType, reward.RewardQuota, usdMinor, pricing)
 			if err != nil {
 				return err
 			}
@@ -275,7 +304,7 @@ func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int) error {
 				return err
 			}
 			if !changed {
-				if err := requireLegacyInvitationMigrationEntryTx(tx, key, reward.InviterId, usdMinor, legacyInvitationValueRewardSourceType); err != nil {
+				if _, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, reward.InviterId, reward.RewardQuota, legacyInvitationValueRewardSourceType); err != nil {
 					return err
 				}
 			}
@@ -290,6 +319,9 @@ func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int) error {
 			})
 		if update.Error != nil {
 			return update.Error
+		}
+		if update.RowsAffected != 1 {
+			return ErrSubscriptionDiscountInvalidAccountState
 		}
 		migrated = update.RowsAffected > 0
 		return nil
@@ -355,24 +387,32 @@ func lockLegacyInvitationMigrationRewardTx(tx *gorm.DB, rewardId int) (*InviteSu
 	return &reward, nil
 }
 
-func legacyInvitationQuotaToUSDMinor(quota int) (int64, error) {
-	if quota < 0 || common.QuotaPerUnit <= 0 {
-		return 0, ErrSubscriptionDiscountInvalidAmount
+func newLegacyInvitationMigrationPricing(quotaPerUnit float64) (legacyInvitationMigrationPricing, error) {
+	if math.IsNaN(quotaPerUnit) || math.IsInf(quotaPerUnit, 0) || quotaPerUnit <= 0 {
+		return legacyInvitationMigrationPricing{}, ErrSubscriptionDiscountInvalidAmount
 	}
-	minor := decimal.NewFromInt(int64(quota)).
-		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
-		Mul(decimal.NewFromInt(100)).
-		Round(0)
-	return minor.IntPart(), nil
+	return legacyInvitationMigrationPricing{
+		quotaPerUnit: decimal.NewFromFloat(quotaPerUnit),
+		snapshot:     quotaPerUnit,
+		ratio:        fmt.Sprintf("%g:1", quotaPerUnit),
+	}, nil
 }
 
-func legacyInvitationValuePricingSnapshot(sourceType string, sourceQuota int, usdMinor int64) (string, error) {
-	payload := map[string]any{
-		"source_type":        sourceType,
-		"source_quota":       sourceQuota,
-		"quota_per_unit":     common.QuotaPerUnit,
-		"quota_to_usd_ratio": fmt.Sprintf("%g:1", common.QuotaPerUnit),
-		"usd_minor":          usdMinor,
+func legacyInvitationQuotaToUSDMinor(quota int, pricing legacyInvitationMigrationPricing) int64 {
+	minor := decimal.NewFromInt(int64(quota)).
+		Div(pricing.quotaPerUnit).
+		Mul(decimal.NewFromInt(100)).
+		Round(0)
+	return minor.IntPart()
+}
+
+func legacyInvitationValuePricingSnapshot(sourceType string, sourceQuota int, usdMinor int64, pricing legacyInvitationMigrationPricing) (string, error) {
+	payload := legacyInvitationMigrationSnapshot{
+		SourceType:      sourceType,
+		SourceQuota:     sourceQuota,
+		QuotaPerUnit:    pricing.snapshot,
+		QuotaToUSDRatio: pricing.ratio,
+		USDMinor:        usdMinor,
 	}
 	data, err := common.Marshal(payload)
 	if err != nil {
@@ -381,15 +421,39 @@ func legacyInvitationValuePricingSnapshot(sourceType string, sourceQuota int, us
 	return string(data), nil
 }
 
-func requireLegacyInvitationMigrationEntryTx(tx *gorm.DB, idempotencyKey string, userId int, usdMinor int64, sourceType string) error {
+func validateExistingLegacyInvitationMigrationEntryTx(tx *gorm.DB, idempotencyKey string, userId int, sourceQuota int, sourceType string) (bool, error) {
 	var entry SubscriptionDiscountEntry
 	if err := tx.Where("idempotency_key = ?", idempotencyKey).First(&entry).Error; err != nil {
-		return err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
 	}
+	return true, validateLegacyInvitationMigrationEntry(entry, idempotencyKey, userId, sourceQuota, sourceType)
+}
+
+func validateLegacyInvitationMigrationEntry(entry SubscriptionDiscountEntry, idempotencyKey string, userId int, sourceQuota int, sourceType string) error {
 	if entry.UserID != userId ||
 		entry.EntryType != SubscriptionDiscountEntryTypeMigration ||
 		entry.SourceType != sourceType ||
-		entry.AvailableDeltaUSDMinor != usdMinor {
+		entry.SourceKey != idempotencyKey ||
+		entry.IdempotencyKey != idempotencyKey {
+		return ErrSubscriptionDiscountInvalidAccountState
+	}
+	var snapshot legacyInvitationMigrationSnapshot
+	if err := common.Unmarshal([]byte(entry.PricingSnapshot), &snapshot); err != nil {
+		return ErrSubscriptionDiscountInvalidAccountState
+	}
+	pricing, err := newLegacyInvitationMigrationPricing(snapshot.QuotaPerUnit)
+	if err != nil {
+		return err
+	}
+	if snapshot.SourceType != sourceType ||
+		snapshot.SourceQuota != sourceQuota ||
+		snapshot.QuotaToUSDRatio != pricing.ratio ||
+		snapshot.USDMinor != entry.AvailableDeltaUSDMinor ||
+		entry.ReservedDeltaUSDMinor != 0 ||
+		legacyInvitationQuotaToUSDMinor(sourceQuota, pricing) != snapshot.USDMinor {
 		return ErrSubscriptionDiscountInvalidAccountState
 	}
 	return nil

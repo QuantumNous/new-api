@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -24,6 +25,7 @@ func setupInviteRewardMigrationTest(t *testing.T) *gorm.DB {
 	originalUsingMySQL := common.UsingMySQL
 	originalUsingPostgreSQL := common.UsingPostgreSQL
 	originalQuotaPerUnit := common.QuotaPerUnit
+	originalInviteRewardSubscriptionMode := common.InviteRewardSubscriptionMode
 
 	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/invite-reward-migration.db"), &gorm.Config{})
 	require.NoError(t, err)
@@ -47,6 +49,7 @@ func setupInviteRewardMigrationTest(t *testing.T) *gorm.DB {
 		common.UsingMySQL = originalUsingMySQL
 		common.UsingPostgreSQL = originalUsingPostgreSQL
 		common.QuotaPerUnit = originalQuotaPerUnit
+		common.InviteRewardSubscriptionMode = originalInviteRewardSubscriptionMode
 	})
 
 	return db
@@ -121,6 +124,133 @@ func TestMigrateInvitationValuePreservesOnlyUntransferredSources(t *testing.T) {
 	require.Zero(t, inviteeBackfillEntries)
 }
 
+func TestMigrateInvitationValueUsesOneQuotaPerUnitSnapshotForWholeRun(t *testing.T) {
+	db := setupInviteRewardMigrationTest(t)
+
+	require.NoError(t, db.Create(&[]User{
+		{Id: 311, Username: "snapshot-a", Password: "password123", AffCode: "snapshot-a-code", AffQuota: 100_000},
+		{Id: 312, Username: "snapshot-b", Password: "password123", AffCode: "snapshot-b-code", AffQuota: 100_000},
+	}).Error)
+	switched := false
+	db.Callback().Create().After("gorm:create").Register("test_switch_quota_per_unit_after_first_migration_entry", func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*SubscriptionDiscountEntry); !ok || switched {
+			return
+		}
+		switched = true
+		common.QuotaPerUnit = 200_000
+	})
+
+	require.NoError(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
+
+	var entries []SubscriptionDiscountEntry
+	require.NoError(t, db.Where("entry_type = ?", SubscriptionDiscountEntryTypeMigration).Order("id ASC").Find(&entries).Error)
+	require.Len(t, entries, 2)
+	for _, entry := range entries {
+		require.EqualValues(t, 100, entry.AvailableDeltaUSDMinor)
+		require.JSONEq(t, `{"source_type":"aff_quota","source_quota":100000,"quota_per_unit":100000,"quota_to_usd_ratio":"100000:1","usd_minor":100}`, entry.PricingSnapshot)
+	}
+}
+
+func TestMigrateInvitationValueRejectsInvalidQuotaPerUnit(t *testing.T) {
+	for _, quotaPerUnit := range []float64{0, -1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		t.Run(fmt.Sprintf("%v", quotaPerUnit), func(t *testing.T) {
+			setupInviteRewardMigrationTest(t)
+			common.QuotaPerUnit = quotaPerUnit
+
+			require.ErrorIs(t, MigrateLegacyInvitationValueToSubscriptionDiscount(), ErrSubscriptionDiscountInvalidAmount)
+		})
+	}
+}
+
+func TestMigrateInvitationValueClearsSourceWhenExistingLedgerHasOlderValidSnapshot(t *testing.T) {
+	db := setupInviteRewardMigrationTest(t)
+
+	user := User{Id: 313, Username: "older-ratio", Password: "password123", AffCode: "older-ratio-code", AffQuota: 250_000}
+	require.NoError(t, db.Create(&user).Error)
+	key := legacyInvitationValueAffQuotaKey(user.Id)
+	require.NoError(t, db.Create(&SubscriptionDiscountAccount{
+		UserID:            user.Id,
+		AvailableUSDMinor: 250,
+		CreatedAt:         common.GetTimestamp(),
+		UpdatedAt:         common.GetTimestamp(),
+	}).Error)
+	require.NoError(t, db.Create(&SubscriptionDiscountEntry{
+		UserID:                 user.Id,
+		EntryType:              SubscriptionDiscountEntryTypeMigration,
+		AvailableDeltaUSDMinor: 250,
+		AvailableAfterUSDMinor: 250,
+		SourceType:             legacyInvitationValueAffQuotaSourceType,
+		SourceKey:              key,
+		IdempotencyKey:         key,
+		PricingSnapshot:        `{"source_type":"aff_quota","source_quota":250000,"quota_per_unit":100000,"quota_to_usd_ratio":"100000:1","usd_minor":250}`,
+		CreatedAt:              common.GetTimestamp(),
+	}).Error)
+	common.QuotaPerUnit = 200_000
+
+	require.NoError(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
+
+	var migrated User
+	require.NoError(t, db.First(&migrated, user.Id).Error)
+	require.Zero(t, migrated.AffQuota)
+	var entries int64
+	require.NoError(t, db.Model(&SubscriptionDiscountEntry{}).Where("idempotency_key = ?", key).Count(&entries).Error)
+	require.EqualValues(t, 1, entries)
+}
+
+func TestMigrateInvitationValueRejectsMismatchedExistingLedgerAndKeepsSource(t *testing.T) {
+	db := setupInviteRewardMigrationTest(t)
+
+	user := User{Id: 314, Username: "bad-ledger", Password: "password123", AffCode: "bad-ledger-code", AffQuota: 250_000}
+	require.NoError(t, db.Create(&user).Error)
+	key := legacyInvitationValueAffQuotaKey(user.Id)
+	require.NoError(t, db.Create(&SubscriptionDiscountEntry{
+		UserID:                 user.Id,
+		EntryType:              SubscriptionDiscountEntryTypeMigration,
+		AvailableDeltaUSDMinor: 250,
+		AvailableAfterUSDMinor: 250,
+		SourceType:             legacyInvitationValueAffQuotaSourceType,
+		SourceKey:              "wrong-source-key",
+		IdempotencyKey:         key,
+		PricingSnapshot:        `{"source_type":"aff_quota","source_quota":250000,"quota_per_unit":100000,"quota_to_usd_ratio":"100000:1","usd_minor":250}`,
+		CreatedAt:              common.GetTimestamp(),
+	}).Error)
+
+	require.Error(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
+
+	var unchanged User
+	require.NoError(t, db.First(&unchanged, user.Id).Error)
+	require.Equal(t, 250_000, unchanged.AffQuota)
+}
+
+func TestMigrateInvitationValueSkipsMissingInvitersWithoutBlockingLaterRewards(t *testing.T) {
+	db := setupInviteRewardMigrationTest(t)
+
+	deletedInviter := User{Id: 315, Username: "deleted-inviter", Password: "password123", AffCode: "deleted-inviter-code"}
+	validInviter := User{Id: 316, Username: "valid-inviter", Password: "password123", AffCode: "valid-inviter-code"}
+	require.NoError(t, db.Create(&[]User{deletedInviter, validInviter}).Error)
+	require.NoError(t, db.Delete(&User{}, deletedInviter.Id).Error)
+	require.NoError(t, db.Create(&[]InviteSubscriptionReward{
+		{Id: 411, InviteeId: 911, InviterId: 999_001, RewardQuota: 100_000, Status: InviteSubRewardStatusPending, UnlockAt: 100},
+		{Id: 412, InviteeId: 912, InviterId: deletedInviter.Id, RewardQuota: 100_000, Status: InviteSubRewardStatusPending, UnlockAt: 100},
+		{Id: 413, InviteeId: 913, InviterId: validInviter.Id, RewardQuota: 100_000, Status: InviteSubRewardStatusPending, UnlockAt: 100},
+	}).Error)
+
+	require.NoError(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
+
+	for _, rewardId := range []int{411, 412} {
+		var reward InviteSubscriptionReward
+		require.NoError(t, db.First(&reward, rewardId).Error)
+		require.Equal(t, InviteSubRewardStatusPending, reward.Status)
+		require.Zero(t, reward.GrantedAt)
+	}
+	var granted InviteSubscriptionReward
+	require.NoError(t, db.First(&granted, 413).Error)
+	require.Equal(t, InviteSubRewardStatusGranted, granted.Status)
+	var entries int64
+	require.NoError(t, db.Model(&SubscriptionDiscountEntry{}).Where("entry_type = ?", SubscriptionDiscountEntryTypeMigration).Count(&entries).Error)
+	require.EqualValues(t, 1, entries)
+}
+
 func TestMigrateInvitationValueHandlesZeroQuotaPendingRewardAsTerminalNoCredit(t *testing.T) {
 	db := setupInviteRewardMigrationTest(t)
 
@@ -148,6 +278,51 @@ func TestMigrateInvitationValueHandlesZeroQuotaPendingRewardAsTerminalNoCredit(t
 	var entries int64
 	require.NoError(t, db.Model(&SubscriptionDiscountEntry{}).Count(&entries).Error)
 	require.Zero(t, entries)
+}
+
+func TestStartupInviteRewardMigrationSelectionUsesStoredOption(t *testing.T) {
+	t.Run("missing option keeps legacy quota migration", func(t *testing.T) {
+		db := setupInviteRewardMigrationTest(t)
+		require.NoError(t, db.AutoMigrate(&Option{}))
+		common.InviteRewardSubscriptionMode = true
+		require.NoError(t, db.Create(&User{Id: 361, Username: "startup-legacy", Password: "password123", AffCode: "startup-legacy-code", AffQuota: 100_000}).Error)
+
+		require.NoError(t, migrateStartupInvitationValue())
+
+		var user User
+		require.NoError(t, db.First(&user, 361).Error)
+		require.Zero(t, user.AffQuota)
+		require.Equal(t, 100_000, user.Quota)
+		var entries int64
+		require.NoError(t, db.Model(&SubscriptionDiscountEntry{}).Count(&entries).Error)
+		require.Zero(t, entries)
+	})
+
+	t.Run("true option runs subscription discount migration", func(t *testing.T) {
+		db := setupInviteRewardMigrationTest(t)
+		require.NoError(t, db.AutoMigrate(&Option{}))
+		common.InviteRewardSubscriptionMode = false
+		require.NoError(t, db.Create(&Option{Key: "InviteRewardSubscriptionModeEnabled", Value: "true"}).Error)
+		require.NoError(t, db.Create(&User{Id: 362, Username: "startup-subscription", Password: "password123", AffCode: "startup-subscription-code", AffQuota: 100_000}).Error)
+
+		require.NoError(t, migrateStartupInvitationValue())
+
+		var user User
+		require.NoError(t, db.First(&user, 362).Error)
+		require.Zero(t, user.AffQuota)
+		require.Zero(t, user.Quota)
+		account, err := GetSubscriptionDiscountAccount(362)
+		require.NoError(t, err)
+		require.EqualValues(t, 100, account.AvailableUSDMinor)
+	})
+
+	t.Run("invalid option returns parse error", func(t *testing.T) {
+		db := setupInviteRewardMigrationTest(t)
+		require.NoError(t, db.AutoMigrate(&Option{}))
+		require.NoError(t, db.Create(&Option{Key: "InviteRewardSubscriptionModeEnabled", Value: "not-bool"}).Error)
+
+		require.Error(t, migrateStartupInvitationValue())
+	})
 }
 
 func TestMigrateUserInvitationValueScopesAffQuotaAndPendingRewards(t *testing.T) {
