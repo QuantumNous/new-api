@@ -43,8 +43,7 @@ export type TopNavLink = {
  *   about: false
  * }
  *
- * Default strip: Home · AI Aggregation Platform · Model Hub · Rankings · API Docs.
- * About is off by default but appears when admin enables HeaderNavModules.about.
+ * Default strip: Home · Workspace · Agents · Inspiration · Model Hub · Rankings.
  * Console/Dashboard is a CTA in PublicHeader, not a strip text link.
  */
 export function useTopNavLinks(): TopNavLink[] {
@@ -59,14 +58,11 @@ export function useTopNavLinks(): TopNavLink[] {
     )
   }, [status])
 
-  // Documentation link (may be external)
-  const docsLink: string | undefined = status?.docs_link as string | undefined
-
   const isAuthed = !!user
 
   const links: TopNavLink[] = []
 
-  // Marketing strip order: Home · AI Aggregation Platform · Model Hub · Rankings · API Docs · (About if enabled)
+  // Public navigation order: Home · Workspace · Agents · Inspiration · Model Hub · Rankings.
   // Dashboard is rendered as a primary CTA button in PublicHeader, not here.
 
   if (modules?.home !== false) {
@@ -74,7 +70,15 @@ export function useTopNavLinks(): TopNavLink[] {
   }
 
   if (modules.playground.enabled) {
-    links.push({ title: t('AI Aggregation Platform'), href: '/playground' })
+    links.push({ title: t('Workspace'), href: '/playground' })
+  }
+
+  if (modules.agents.enabled) {
+    links.push({ title: t('Agents'), href: '/agents' })
+  }
+
+  if (modules.inspiration.enabled) {
+    links.push({ title: t('Inspiration'), href: '/inspiration' })
   }
 
   const pricing = modules?.pricing
@@ -87,20 +91,6 @@ export function useTopNavLinks(): TopNavLink[] {
   if (rankings && typeof rankings === 'object' && rankings.enabled) {
     const requiresAuth = rankings.requireAuth && !isAuthed
     links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
-  }
-
-  if (modules?.docs !== false) {
-    if (docsLink) {
-      links.push({ title: t('API Docs'), href: docsLink, external: true })
-    } else {
-      links.push({ title: t('API Docs'), href: '/docs' })
-    }
-  }
-
-  // Explicit opt-in (default false). Skip when Docs already links to /about
-  // so the strip does not show two labels for the same destination.
-  if (modules?.about) {
-    links.push({ title: t('About'), href: '/about' })
   }
 
   return links

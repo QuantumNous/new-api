@@ -52,6 +52,8 @@ const headerNavSchema = z.object({
   home: z.boolean(),
   console: z.boolean(),
   playgroundEnabled: z.boolean(),
+  agentsEnabled: z.boolean(),
+  inspirationEnabled: z.boolean(),
   pricingEnabled: z.boolean(),
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
@@ -78,6 +80,14 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.playground?.enabled === undefined
       ? HEADER_NAV_DEFAULT.playground.enabled
       : Boolean(config.playground.enabled),
+  agentsEnabled:
+    config.agents?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.agents.enabled
+      : Boolean(config.agents.enabled),
+  inspirationEnabled:
+    config.inspiration?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.inspiration.enabled
+      : Boolean(config.inspiration.enabled),
   pricingEnabled:
     config.pricing?.enabled === undefined
       ? HEADER_NAV_DEFAULT.pricing.enabled
@@ -130,6 +140,14 @@ export function HeaderNavigationSection({
         enabled: values.playgroundEnabled,
         requireAuth: false,
       },
+      agents: {
+        enabled: values.agentsEnabled,
+        requireAuth: false,
+      },
+      inspiration: {
+        enabled: values.inspirationEnabled,
+        requireAuth: false,
+      },
       pricing: {
         ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
         enabled: values.pricingEnabled,
@@ -174,22 +192,18 @@ export function HeaderNavigationSection({
     },
     {
       key: 'playgroundEnabled',
-      title: t('AI Aggregation Platform'),
+      title: t('Workspace'),
       description: t('Experiment with prompts and models in real time.'),
     },
     {
-      key: 'docs',
-      title: t('Docs'),
-      description: t(
-        'Shows API Docs in the public header. Uses the external docs URL from Site settings when set; otherwise falls back to the About page content.'
-      ),
+      key: 'agentsEnabled',
+      title: t('Agents'),
+      description: t('BoxAI Desktop'),
     },
     {
-      key: 'about',
-      title: t('About'),
-      description: t(
-        'Static About page. Independent of Docs; enable to show About in the public header strip (off by default).'
-      ),
+      key: 'inspirationEnabled',
+      title: t('Inspiration'),
+      description: t('Official inspiration templates'),
     },
   ]
 

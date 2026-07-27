@@ -24,6 +24,7 @@ const DEEP_TOOL_NAMES = [
 	'Task',
 	'view_media',
 	'web_search',
+	'mcp__*',
 ] as const
 
 export default function (amp: PluginAPI) {

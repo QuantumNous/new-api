@@ -16,19 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { TopNavLink } from '../types'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-/**
- * Default public navigation links.
- *
- * Priority: Backend HeaderNavModules (via useTopNavLinks) > provided navLinks >
- * these defaults. Keep titles as English i18n source keys.
- */
-export const defaultTopNavLinks: TopNavLink[] = [
-  { title: 'Home', href: '/' },
-  { title: 'Workspace', href: '/playground' },
-  { title: 'Agents', href: '/agents' },
-  { title: 'Inspiration', href: '/inspiration' },
-  { title: 'Model Hub', href: '/pricing' },
-  { title: 'Rankings', href: '/rankings' },
-]
+import { PublicLayout } from '@/components/layout'
+import { AgentsView } from '@/features/agents'
+import { getFreshModuleAccess } from '@/lib/nav-modules'
+
+export const Route = createFileRoute('/agents/')({
+  beforeLoad: async () => {
+    const access = await getFreshModuleAccess('agents')
+    if (!access.enabled) throw redirect({ to: '/' })
+  },
+  component: AgentsPage,
+})
+
+function AgentsPage() {
+  return (
+    <PublicLayout showMainContainer={false}>
+      <AgentsView />
+    </PublicLayout>
+  )
+}

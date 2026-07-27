@@ -22,12 +22,6 @@ import { cn } from '@/lib/utils'
 import { SessionHistoryPanel } from './session-history-panel'
 
 type PlaygroundShellProps = {
-  /**
-   * workspace: three-column layout with the catalog rail and settings column.
-   * discover: full-width single column for Agents/Inspiration, no rail.
-   */
-  variant: 'workspace' | 'discover'
-  toolbar: React.ReactNode
   catalog: React.ReactNode
   /** Right settings column (desktop only) */
   settings?: React.ReactNode
@@ -49,26 +43,12 @@ export function PlaygroundShell(props: PlaygroundShellProps) {
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   const { catalogOpen, onCatalogOpenChange, historyOpen, onHistoryOpenChange } =
     props
-  const isWorkspace = props.variant === 'workspace'
 
   // Desktop keeps the model catalog in the left rail; close the mobile catalog
   // sheet when crossing the breakpoint. History is always a sheet.
   useEffect(() => {
     if (isDesktop && catalogOpen) onCatalogOpenChange(false)
   }, [isDesktop, catalogOpen, onCatalogOpenChange])
-
-  // Leaving the workspace closes workspace-only overlays.
-  useEffect(() => {
-    if (isWorkspace) return
-    if (catalogOpen) onCatalogOpenChange(false)
-    if (historyOpen) onHistoryOpenChange(false)
-  }, [
-    isWorkspace,
-    catalogOpen,
-    onCatalogOpenChange,
-    historyOpen,
-    onHistoryOpenChange,
-  ])
 
   const handleCatalogOpen = (open: boolean) => {
     if (open) onHistoryOpenChange(false)
@@ -88,12 +68,8 @@ export function PlaygroundShell(props: PlaygroundShellProps) {
       )}
       data-playground-workbench=''
     >
-      <div className='playground-topbar border-border/70 flex h-11 shrink-0 items-center gap-2 border-b px-2 sm:h-12 sm:px-3'>
-        {props.toolbar}
-      </div>
-
       <div className='relative flex min-h-0 flex-1'>
-        {isWorkspace && isDesktop && (
+        {isDesktop && (
           <aside className='playground-rail bg-sidebar/95 text-sidebar-foreground border-sidebar-border flex w-[min(300px,28vw)] shrink-0 flex-col border-r backdrop-blur-md'>
             <div className='min-h-0 flex-1'>{props.catalog}</div>
           </aside>
@@ -103,13 +79,10 @@ export function PlaygroundShell(props: PlaygroundShellProps) {
           {props.children}
         </main>
 
-        {isWorkspace && isDesktop && props.settings}
+        {isDesktop && props.settings}
       </div>
 
-      <Sheet
-        open={isWorkspace && !isDesktop && catalogOpen}
-        onOpenChange={handleCatalogOpen}
-      >
+      <Sheet open={!isDesktop && catalogOpen} onOpenChange={handleCatalogOpen}>
         <SheetContent
           side='left'
           className='bg-sidebar text-sidebar-foreground border-sidebar-border w-[min(92vw,22rem)] p-0 sm:max-w-sm'
@@ -126,7 +99,7 @@ export function PlaygroundShell(props: PlaygroundShellProps) {
         </SheetContent>
       </Sheet>
 
-      <Sheet open={isWorkspace && historyOpen} onOpenChange={handleHistoryOpen}>
+      <Sheet open={historyOpen} onOpenChange={handleHistoryOpen}>
         <SheetContent
           side='right'
           className='bg-sidebar text-sidebar-foreground border-sidebar-border w-[min(92vw,22rem)] p-0 sm:max-w-sm'

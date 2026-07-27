@@ -74,8 +74,6 @@ import type {
 
 const PERSIST_WRITE_DEBOUNCE_MS = 500
 
-export type PlaygroundView = 'workspace' | 'agents'
-
 export type PlaygroundPrefill = {
   prompt: string
   nonce: number
@@ -88,13 +86,11 @@ export type PlaygroundGenerationStatus = {
 
 interface PlaygroundStoreState extends PersistedPlaygroundState {
   // Ephemeral (not persisted)
-  view: PlaygroundView
   models: ModelOption[]
   groups: GroupOption[]
   prefill: PlaygroundPrefill | null
   generation: PlaygroundGenerationStatus
 
-  setView: (view: PlaygroundView) => void
   setWorkspaceMode: (mode: PlaygroundWorkspaceMode) => void
   setActiveModality: (modality: StudioModality) => void
   /**
@@ -282,13 +278,11 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
       activeSessionByModality: {},
       ui: { settingsPanelOpen: true },
 
-      view: 'workspace',
       models: [],
       groups: [],
       prefill: null,
       generation: { activeModality: null, pendingCount: 0 },
 
-      setView: (view) => set({ view }),
       setWorkspaceMode: (workspaceMode) => set({ workspaceMode }),
       setActiveModality: (modality) =>
         set((state) => {
@@ -297,7 +291,6 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
           return {
             activeModality: modality,
             workspaceMode: 'model',
-            view: 'workspace',
             sessions: ensured.sessions,
             activeSessionByModality: ensured.activeSessionByModality,
             config: {
@@ -376,12 +369,11 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
             },
             activeModality: modality,
             workspaceMode: 'model',
-            view: 'workspace',
             sessions,
             activeSessionByModality,
           }
         }),
-      selectDuo: () => set({ workspaceMode: 'duo', view: 'workspace' }),
+      selectDuo: () => set({ workspaceMode: 'duo' }),
       updateConfig: (patch) =>
         set((state) => {
           const nextConfig = { ...state.config, ...patch }
@@ -506,7 +498,6 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
           return {
             activeModality: target,
             workspaceMode: 'model',
-            view: 'workspace',
             sessions: upsertSession(state.sessions, draft),
             activeSessionByModality: {
               ...state.activeSessionByModality,
@@ -521,7 +512,6 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
           return {
             activeModality: session.modality,
             workspaceMode: 'model',
-            view: 'workspace',
             activeSessionByModality: {
               ...state.activeSessionByModality,
               [session.modality]: session.id,

@@ -25,6 +25,8 @@ export type HeaderNavModulesConfig = {
   home: boolean
   console: boolean
   playground: HeaderNavAccessConfig
+  agents: HeaderNavAccessConfig
+  inspiration: HeaderNavAccessConfig
   pricing: HeaderNavAccessConfig
   rankings: HeaderNavAccessConfig
   docs: boolean
@@ -39,12 +41,20 @@ export type SidebarSectionConfig = {
 
 export type SidebarModulesAdminConfig = Record<string, SidebarSectionConfig>
 
-// Mirrors frontend defaults in lib/nav-modules.ts (Apilio-style public strip).
+// Mirrors frontend defaults in lib/nav-modules.ts.
 // About is off by default; admins can re-enable for a dedicated about page.
 export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
   home: true,
   console: true,
   playground: {
+    enabled: true,
+    requireAuth: false,
+  },
+  agents: {
+    enabled: true,
+    requireAuth: false,
+  },
+  inspiration: {
     enabled: true,
     requireAuth: false,
   },
@@ -103,6 +113,8 @@ const toBoolean = (value: unknown, fallback: boolean): boolean => {
 const cloneHeaderNavDefault = (): HeaderNavModulesConfig => ({
   ...HEADER_NAV_DEFAULT,
   playground: { ...HEADER_NAV_DEFAULT.playground },
+  agents: { ...HEADER_NAV_DEFAULT.agents },
+  inspiration: { ...HEADER_NAV_DEFAULT.inspiration },
   pricing: { ...HEADER_NAV_DEFAULT.pricing },
   rankings: { ...HEADER_NAV_DEFAULT.rankings },
 })
@@ -152,14 +164,16 @@ export function parseHeaderNavModules(
     const result: HeaderNavModulesConfig = {
       ...base,
       playground: { ...base.playground },
+      agents: { ...base.agents },
+      inspiration: { ...base.inspiration },
       pricing: { ...base.pricing },
       rankings: { ...base.rankings },
     }
 
     Object.entries(parsed).forEach(([key, raw]) => {
-      if (key === 'playground') {
-        result.playground = {
-          ...parseAccessModule(raw, base.playground),
+      if (key === 'playground' || key === 'agents' || key === 'inspiration') {
+        result[key] = {
+          ...parseAccessModule(raw, base[key]),
           requireAuth: false,
         }
         return

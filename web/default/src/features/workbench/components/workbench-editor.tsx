@@ -8,7 +8,7 @@ License, or (at your option) any later version.
 */
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, History, Search, Share2, Sparkles } from 'lucide-react'
+import { ArrowLeft, History, Search, Share2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -30,12 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import { Spinner } from '@/components/ui/spinner'
 
 import { getCanvasProject, updateCanvasProject } from '../api'
@@ -44,7 +38,6 @@ import { useCanvasStore } from '../store/canvas-store'
 import { CanvasNodeType, type CanvasDocument } from '../types'
 import { CanvasShareDialog } from './canvas-share-dialog'
 import { CanvasVersionHistory } from './canvas-version-history'
-import { WorkbenchInspiration } from './inspiration/workbench-inspiration'
 import { WorkbenchCanvas } from './workbench-canvas'
 
 const AUTOSAVE_DELAY_MS = 1500
@@ -66,7 +59,6 @@ export function WorkbenchEditor(props: { projectId: number }) {
   const navigate = useNavigate()
   const [title, setTitle] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('idle')
-  const [inspirationOpen, setInspirationOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [conflictOpen, setConflictOpen] = useState(false)
@@ -399,29 +391,12 @@ export function WorkbenchEditor(props: { projectId: number }) {
             <History />
             {t('History')}
           </Button>
-          <Button
-            size='sm'
-            variant='outline'
-            onClick={() => setInspirationOpen(true)}
-          >
-            <Sparkles />
-            {t('Inspiration')}
-          </Button>
         </div>
       </div>
 
       <div className='min-h-0 flex-1'>
         <WorkbenchCanvas />
       </div>
-
-      <Sheet open={inspirationOpen} onOpenChange={setInspirationOpen}>
-        <SheetContent side='right' className='w-full sm:max-w-3xl'>
-          <SheetHeader>
-            <SheetTitle>{t('Inspiration')}</SheetTitle>
-          </SheetHeader>
-          <WorkbenchInspiration onApplied={() => setInspirationOpen(false)} />
-        </SheetContent>
-      </Sheet>
 
       <CanvasVersionHistory
         projectId={props.projectId}

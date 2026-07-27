@@ -73,7 +73,7 @@ export function AgentsView() {
   if (!loading && !downloadUrl) downloadLabel = t('Desktop app coming soon')
 
   return (
-    <div className='playground-discover-hero min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-5 md:p-8'>
+    <div className='playground-discover-hero min-h-svh px-3 pt-20 pb-10 sm:px-5 sm:pt-24 md:px-8'>
       <PageTransition className='mx-auto max-w-5xl space-y-5 md:space-y-8'>
         <section className='border-border bg-card relative overflow-hidden rounded-2xl border px-5 py-8 shadow-sm sm:px-8 sm:py-10 md:px-12 md:py-14'>
           <div

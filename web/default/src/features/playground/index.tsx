@@ -51,14 +51,12 @@ import {
 import { ModelCatalog } from './components/catalog/model-catalog'
 import { PlaygroundChat } from './components/chat/playground-chat'
 import { ChatComposer } from './components/composer/chat-composer'
-import { AgentsView } from './components/discover/agents-view'
 import {
   SettingsPanel,
   SettingsSections,
 } from './components/settings/settings-panel'
 import { ModalityQuickSwitch } from './components/shell/modality-quick-switch'
 import { PlaygroundShell } from './components/shell/playground-shell'
-import { PlaygroundToolbar } from './components/shell/playground-toolbar'
 import { WorkspaceHeader } from './components/shell/workspace-header'
 import { DuoWorkspace } from './components/workspace/duo-workspace'
 import { GenerationWorkspace } from './components/workspace/generation-workspace'
@@ -95,8 +93,6 @@ export function Playground() {
   const [narrowSettingsOpen, setNarrowSettingsOpen] = useState(false)
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false)
 
-  const view = usePlaygroundStore((state) => state.view)
-  const setView = usePlaygroundStore((state) => state.setView)
   const workspaceMode = usePlaygroundStore((state) => state.workspaceMode)
   const setWorkspaceMode = usePlaygroundStore((state) => state.setWorkspaceMode)
   const activeModality = usePlaygroundStore((state) => state.activeModality)
@@ -547,11 +543,6 @@ export function Playground() {
     ]
   )
 
-  const studioPending =
-    studio.imageMutation.isPending ||
-    studio.videoMutation.isPending ||
-    studio.audioMutation.isPending
-
   const catalog = (
     <ModelCatalog
       available={models}
@@ -577,7 +568,6 @@ export function Playground() {
     />
   )
 
-  const showWorkspace = view === 'workspace'
   const duoActive = workspaceMode === 'duo'
   const desktopSettingsOpen = isWideDesktop
     ? settingsPanelOpen
@@ -603,64 +593,48 @@ export function Playground() {
 
   return (
     <PlaygroundShell
-      variant={showWorkspace ? 'workspace' : 'discover'}
-      toolbar={
-        <PlaygroundToolbar
-          view={view}
-          onViewChange={setView}
-          isChatGenerating={isGenerating}
-          isStudioPending={studioPending}
-          onStopChat={stopGeneration}
-        />
-      }
       catalog={catalog}
       catalogOpen={catalogDrawerOpen}
       onCatalogOpenChange={setCatalogDrawerOpen}
       historyOpen={historyDrawerOpen}
       onHistoryOpenChange={setHistoryDrawerOpen}
       settings={
-        showWorkspace ? (
-          <SettingsPanel
-            modality={activeModality}
-            duoActive={duoActive}
-            open={desktopSettingsOpen}
-            onClose={closeDesktopSettings}
-          />
-        ) : undefined
+        <SettingsPanel
+          modality={activeModality}
+          duoActive={duoActive}
+          open={desktopSettingsOpen}
+          onClose={closeDesktopSettings}
+        />
       }
     >
-      {view === 'agents' && <AgentsView />}
+      <WorkspaceHeader
+        model={config.model}
+        pricingModel={selectedCatalogModel}
+        group={config.group}
+        mode={workspaceMode}
+        modality={activeModality}
+        sessionTitle={activeSession?.title}
+        onOpenCatalog={() => {
+          // Desktop keeps the catalog in the left rail; mobile uses a sheet.
+          if (!isDesktop) setCatalogDrawerOpen(true)
+        }}
+        onOpenHistory={() => setHistoryDrawerOpen(true)}
+        onNewSession={handleNewSession}
+        actions={
+          <Button
+            size='icon'
+            variant='ghost'
+            className='text-muted-foreground hover:text-foreground size-9 touch-manipulation sm:size-8'
+            aria-label={t('Settings')}
+            aria-pressed={isDesktop ? desktopSettingsOpen : undefined}
+            onClick={toggleSettings}
+          >
+            <SlidersHorizontal className='size-4' />
+          </Button>
+        }
+      />
 
-      {showWorkspace && (
-        <WorkspaceHeader
-          model={config.model}
-          pricingModel={selectedCatalogModel}
-          group={config.group}
-          mode={workspaceMode}
-          modality={activeModality}
-          sessionTitle={activeSession?.title}
-          onOpenCatalog={() => {
-            // Desktop keeps the catalog in the left rail; mobile uses a sheet.
-            if (!isDesktop) setCatalogDrawerOpen(true)
-          }}
-          onOpenHistory={() => setHistoryDrawerOpen(true)}
-          onNewSession={handleNewSession}
-          actions={
-            <Button
-              size='icon'
-              variant='ghost'
-              className='text-muted-foreground hover:text-foreground size-9 touch-manipulation sm:size-8'
-              aria-label={t('Settings')}
-              aria-pressed={isDesktop ? desktopSettingsOpen : undefined}
-              onClick={toggleSettings}
-            >
-              <SlidersHorizontal className='size-4' />
-            </Button>
-          }
-        />
-      )}
-
-      {showWorkspace && !duoActive && (
+      {!duoActive && (
         <ModalityQuickSwitch
           active={activeModality}
           available={availableModalities}
@@ -670,7 +644,7 @@ export function Playground() {
         />
       )}
 
-      {showWorkspace && duoActive && (
+      {duoActive && (
         <div className='min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 md:p-8'>
           <DuoWorkspace
             chatModels={chatModels}
@@ -679,7 +653,7 @@ export function Playground() {
         </div>
       )}
 
-      {showWorkspace && !duoActive && activeModality === 'chat' && (
+      {!duoActive && activeModality === 'chat' && (
         <>
           <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
             <PlaygroundChat
@@ -710,7 +684,7 @@ export function Playground() {
         </>
       )}
 
-      {showWorkspace && !duoActive && activeModality !== 'chat' && (
+      {!duoActive && activeModality !== 'chat' && (
         <div className='flex min-h-0 flex-1 flex-col'>
           <GenerationWorkspace
             modality={activeModality}
