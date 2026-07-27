@@ -557,6 +557,24 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     )
   })
 
+  test('omits the access end sentence when the renewal period end is unavailable', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <CurrentPlanRenewalDialogContent
+          action='cancel'
+          renewalSource='provider_recurring'
+          pending={false}
+          plain
+          onConfirm={() => undefined}
+        />
+      </I18nextProvider>
+    )
+
+    expect(html).not.toContain(
+      'Your current access and benefits continue through'
+    )
+  })
+
   test('wires current plan renewal callbacks through the card props', () => {
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>

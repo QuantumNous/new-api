@@ -132,6 +132,8 @@ export function CurrentPlanRenewalDialogContent(
       : 'Resume automatic renewal?'
   const confirmLabel =
     props.action === 'cancel' ? 'Confirm cancellation' : 'Confirm resume'
+  const hasEndTimestamp =
+    typeof props.endTimestamp === 'number' && props.endTimestamp > 0
 
   if (props.plain) {
     return (
@@ -140,11 +142,13 @@ export function CurrentPlanRenewalDialogContent(
           <h2>{t(title)}</h2>
           <p>{t(getRenewalProviderCopy(props.action, props.renewalSource))}</p>
         </div>
-        <p>
-          {t('Your current access and benefits continue through {{date}}.', {
-            date: formatTimestampToDate(props.endTimestamp),
-          })}
-        </p>
+        {hasEndTimestamp ? (
+          <p>
+            {t('Your current access and benefits continue through {{date}}.', {
+              date: formatTimestampToDate(props.endTimestamp),
+            })}
+          </p>
+        ) : null}
         <div data-slot='alert-dialog-footer'>
           <Button type='button' disabled={props.pending}>
             {t('Cancel')}
@@ -169,11 +173,13 @@ export function CurrentPlanRenewalDialogContent(
           {t(getRenewalProviderCopy(props.action, props.renewalSource))}
         </AlertDialogDescription>
       </AlertDialogHeader>
-      <p className='text-muted-foreground text-sm'>
-        {t('Your current access and benefits continue through {{date}}.', {
-          date: formatTimestampToDate(props.endTimestamp),
-        })}
-      </p>
+      {hasEndTimestamp ? (
+        <p className='text-muted-foreground text-sm'>
+          {t('Your current access and benefits continue through {{date}}.', {
+            date: formatTimestampToDate(props.endTimestamp),
+          })}
+        </p>
+      ) : null}
       <AlertDialogFooter>
         <AlertDialogCancel disabled={props.pending}>
           {t('Cancel')}
