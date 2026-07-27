@@ -406,6 +406,9 @@ func ReconcilePaidInvoice(ctx context.Context, invoiceID string) (*PaidInvoiceRe
 		}).Error; err != nil {
 			return err
 		}
+		if err := model.GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, order); err != nil {
+			return err
+		}
 		result.Binding = binding
 		if grant != nil {
 			result.Entitlement = grant.Entitlement
@@ -1512,6 +1515,9 @@ func CompleteOneTimeStripeSubscriptionPurchase(ctx context.Context, tradeNo stri
 		if err := tx.Save(&order).Error; err != nil {
 			return err
 		}
+		if err := model.GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, &order); err != nil {
+			return err
+		}
 		if err := tx.Where("id = ?", contract.Id).First(&contract).Error; err != nil {
 			return err
 		}
@@ -1533,11 +1539,6 @@ func CompleteOneTimeStripeSubscriptionPurchase(ctx context.Context, tradeNo stri
 	if result.Order != nil {
 		if err := model.SyncSubscriptionOrderTopUpHistory(tradeNo); err != nil {
 			return nil, err
-		}
-	}
-	if result.Order != nil && result.Order.Status == common.TopUpStatusSuccess {
-		if err := model.TryGrantInviteSubscriptionRewardAfterOrderCompleted(tradeNo); err != nil {
-			common.SysError(fmt.Sprintf("invite subscription reward grant failed for one-time order %s: %v", tradeNo, err))
 		}
 	}
 	return result, nil

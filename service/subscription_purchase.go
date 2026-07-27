@@ -619,6 +619,9 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 	if err := markPrepaidPurchaseAppliedTx(tx, contract, intent, plan, periodStart, periodEnd, order.TradeNo); err != nil {
 		return nil, nil, err
 	}
+	if err := model.GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, order); err != nil {
+		return nil, nil, err
+	}
 	if err := tx.Where("id = ?", contract.Id).First(contract).Error; err != nil {
 		return nil, nil, err
 	}

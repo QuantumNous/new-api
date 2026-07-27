@@ -1081,6 +1081,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if err := tx.Save(&order).Error; err != nil {
 			return err
 		}
+		if err := GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, &order); err != nil {
+			return err
+		}
 		logUserId = order.UserId
 		logPlanTitle = plan.Title
 		logMoney = order.Money
@@ -1096,10 +1099,6 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	if logUserId > 0 {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
-	}
-	if err := TryGrantInviteSubscriptionRewardAfterOrderCompleted(tradeNo); err != nil {
-		// Reward bookkeeping must never fail an already-completed payment.
-		common.SysError(fmt.Sprintf("invite subscription reward grant failed for order %s: %v", tradeNo, err))
 	}
 	return nil
 }
@@ -1313,7 +1312,6 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	var logMoney float64
 	var chargedQuota int
 	var upgradeGroup string
-	var completedTradeNo string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
@@ -1385,12 +1383,14 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		if err := upsertSubscriptionTopUpTx(tx, order); err != nil {
 			return err
 		}
+		if err := GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, order); err != nil {
+			return err
+		}
 
 		logPlanTitle = plan.Title
 		logMoney = chargedPrice
 		chargedQuota = requiredQuota
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		completedTradeNo = tradeNo
 		return nil
 	})
 	if err != nil {
@@ -1407,11 +1407,6 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	}
 	msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
 	RecordLog(userId, LogTypeTopup, msg)
-	// Balance purchases bypass CompleteSubscriptionOrder, so trigger the same
-	// idempotent referral-reward bookkeeping here (never fails the purchase).
-	if err := TryGrantInviteSubscriptionRewardAfterOrderCompleted(completedTradeNo); err != nil {
-		common.SysError(fmt.Sprintf("invite subscription reward grant failed for balance order %s: %v", completedTradeNo, err))
-	}
 	return nil
 }
 

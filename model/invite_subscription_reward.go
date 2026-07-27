@@ -3,11 +3,10 @@ package model
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -15,10 +14,9 @@ import (
 // Subscription-mode invite rewards ("invite reward v2"): when
 // common.InviteRewardSubscriptionMode is enabled, the trigger moves from the
 // invitee's first top-up to their first successful subscription payment. The
-// inviter gets a fixed QuotaForInviter reward, created locked and unlocking
-// after a settle window (default 7 days) so refunds and card-testing
-// chargebacks can claw it back first. The invitee's side is a flat
-// InviteFirstSubDiscountUSD off their first payment, applied at checkout.
+// inviter gets a fixed QuotaForInviter value as permanent subscription-discount
+// credit immediately. The invitee's side is a flat InviteFirstSubDiscountUSD
+// off their first payment, applied at checkout.
 const (
 	InviteSubRewardStatusPending = "pending"
 	InviteSubRewardStatusGranted = "granted"
@@ -55,12 +53,10 @@ type inviteSubRewardCreateResult struct {
 	unlockAt    int64
 }
 
-// TryGrantInviteSubscriptionRewardAfterOrderCompleted creates the locked
-// inviter reward for the invitee's first completed subscription order. It is a
-// no-op when subscription reward mode is disabled, the payer has no inviter,
-// or a reward for this invitee already exists (uniqueIndex on invitee_id makes
-// webhook retries and duplicate orders idempotent). Errors are returned for
-// logging only — callers must not fail the payment on reward errors.
+// TryGrantInviteSubscriptionRewardAfterOrderCompleted grants the inviter's
+// subscription-discount credit for the invitee's first completed subscription
+// order. Prefer GrantInviteSubscriptionDiscountAfterPaidOrderTx inside paid
+// order transactions. The invitee_id unique index keeps retries idempotent.
 func TryGrantInviteSubscriptionRewardAfterOrderCompleted(tradeNo string) error {
 	if !common.InviteRewardSubscriptionMode {
 		return nil
@@ -78,7 +74,7 @@ func TryGrantInviteSubscriptionRewardAfterOrderCompleted(tradeNo string) error {
 	var result inviteSubRewardCreateResult
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
-		result, err = tryCreateInviteSubscriptionRewardInTx(tx, order)
+		result, err = grantInviteSubscriptionDiscountAfterPaidOrderTx(tx, order)
 		return err
 	})
 	if err != nil {
@@ -86,6 +82,215 @@ func TryGrantInviteSubscriptionRewardAfterOrderCompleted(tradeNo string) error {
 	}
 	runInviteSubRewardPostCreateHooks(result)
 	return nil
+}
+
+func GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx *gorm.DB, order *SubscriptionOrder) error {
+	_, err := grantInviteSubscriptionDiscountAfterPaidOrderTx(tx, order)
+	return err
+}
+
+func grantInviteSubscriptionDiscountAfterPaidOrderTx(tx *gorm.DB, order *SubscriptionOrder) (inviteSubRewardCreateResult, error) {
+	if tx == nil {
+		return inviteSubRewardCreateResult{}, errors.New("tx is nil")
+	}
+	if order == nil {
+		return inviteSubRewardCreateResult{}, errors.New("subscription order is nil")
+	}
+	if !common.InviteRewardSubscriptionMode || order.Status != common.TopUpStatusSuccess {
+		return inviteSubRewardCreateResult{}, nil
+	}
+
+	invitee, err := lockInviteSubscriptionRewardUserTx(tx, order.UserId)
+	if err != nil {
+		return inviteSubRewardCreateResult{}, err
+	}
+	if invitee == nil || invitee.InviterId <= 0 {
+		return inviteSubRewardCreateResult{}, nil
+	}
+	inviter, err := lockInviteSubscriptionRewardUserTx(tx, invitee.InviterId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return inviteSubRewardCreateResult{}, nil
+		}
+		return inviteSubRewardCreateResult{}, err
+	}
+	if inviter == nil {
+		return inviteSubRewardCreateResult{}, nil
+	}
+
+	now := common.GetTimestamp()
+	rewardQuota := common.QuotaForInviter
+	reward := InviteSubscriptionReward{
+		InviteeId:   invitee.Id,
+		InviterId:   inviter.Id,
+		OrderId:     order.Id,
+		TradeNo:     order.TradeNo,
+		OrderMoney:  order.Money,
+		RewardQuota: rewardQuota,
+		Status:      InviteSubRewardStatusGranted,
+		UnlockAt:    0,
+		GrantedAt:   now,
+	}
+	insert := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&reward)
+	if insert.Error != nil {
+		return inviteSubRewardCreateResult{}, insert.Error
+	}
+	if insert.RowsAffected == 0 {
+		return inviteSubRewardCreateResult{}, nil
+	}
+
+	result := inviteSubRewardCreateResult{
+		handled:     true,
+		inviteeId:   invitee.Id,
+		inviterId:   inviter.Id,
+		rewardQuota: rewardQuota,
+	}
+	if rewardQuota < 0 {
+		return inviteSubRewardCreateResult{}, ErrSubscriptionDiscountInvalidAmount
+	}
+	if rewardQuota == 0 {
+		if err := finalizeInviteSubscriptionRewardInviteeTx(tx, invitee.Id, now); err != nil {
+			return inviteSubRewardCreateResult{}, err
+		}
+		return result, nil
+	}
+
+	capReached, err := claimInviteSubscriptionRewardCapSlotTx(tx, inviter.Id)
+	if err != nil {
+		return inviteSubRewardCreateResult{}, err
+	}
+	if capReached {
+		if err := tx.Model(&InviteSubscriptionReward{}).
+			Where("id = ? AND status = ?", reward.Id, InviteSubRewardStatusGranted).
+			Updates(map[string]any{
+				"status":       InviteSubRewardStatusBlocked,
+				"reward_quota": 0,
+				"unlock_at":    0,
+				"granted_at":   0,
+				"reason":       InviteSubRewardReasonLimitReached,
+			}).Error; err != nil {
+			return inviteSubRewardCreateResult{}, err
+		}
+		if err := finalizeInviteSubscriptionRewardInviteeTx(tx, invitee.Id, now); err != nil {
+			return inviteSubRewardCreateResult{}, err
+		}
+		result.blocked = true
+		result.rewardQuota = 0
+		return result, nil
+	}
+
+	usdMinor, err := inviteSubscriptionRewardQuotaToUSDMinor(rewardQuota)
+	if err != nil {
+		return inviteSubRewardCreateResult{}, err
+	}
+	pricingSnapshot, err := inviteSubscriptionRewardPricingSnapshot(rewardQuota, usdMinor)
+	if err != nil {
+		return inviteSubRewardCreateResult{}, err
+	}
+	idempotencyKey := inviteSubscriptionRewardIdempotencyKey(invitee.Id)
+	changed, err := GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+		UserID:          inviter.Id,
+		USDMinor:        usdMinor,
+		EntryType:       SubscriptionDiscountEntryTypeGrantInviter,
+		SourceType:      "invite_subscription_reward",
+		SourceKey:       idempotencyKey,
+		IdempotencyKey:  idempotencyKey,
+		PricingSnapshot: pricingSnapshot,
+	})
+	if err != nil {
+		return inviteSubRewardCreateResult{}, err
+	}
+	if !changed {
+		return inviteSubRewardCreateResult{}, nil
+	}
+	if err := finalizeInviteSubscriptionRewardInviteeTx(tx, invitee.Id, now); err != nil {
+		return inviteSubRewardCreateResult{}, err
+	}
+	return result, nil
+}
+
+func lockInviteSubscriptionRewardUserTx(tx *gorm.DB, userId int) (*User, error) {
+	if userId <= 0 {
+		return nil, nil
+	}
+	if common.UsingSQLite {
+		if err := retrySQLiteBusy(func() error {
+			return tx.Model(&User{}).
+				Where("id = ?", userId).
+				Update("id", gorm.Expr("id")).Error
+		}); err != nil {
+			return nil, err
+		}
+		var user User
+		if err := tx.Select("id", "inviter_id", "invite_reward_status").
+			Where("id = ?", userId).First(&user).Error; err != nil {
+			return nil, err
+		}
+		return &user, nil
+	}
+	query := tx
+	if common.UsingMySQL || common.UsingPostgreSQL {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	var user User
+	if err := query.Select("id", "inviter_id", "invite_reward_status").
+		Where("id = ?", userId).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func claimInviteSubscriptionRewardCapSlotTx(tx *gorm.DB, inviterId int) (bool, error) {
+	if common.QuotaForInviterMaxCount <= 0 {
+		return false, tx.Model(&User{}).
+			Where("id = ?", inviterId).
+			Update("aff_count", gorm.Expr("aff_count + ?", 1)).Error
+	}
+	claim := tx.Model(&User{}).
+		Where("id = ? AND aff_count < ?", inviterId, common.QuotaForInviterMaxCount).
+		Update("aff_count", gorm.Expr("aff_count + ?", 1))
+	if claim.Error != nil {
+		return false, claim.Error
+	}
+	return claim.RowsAffected == 0, nil
+}
+
+func finalizeInviteSubscriptionRewardInviteeTx(tx *gorm.DB, inviteeId int, now int64) error {
+	return tx.Model(&User{}).
+		Where("id = ? AND invite_reward_status = ?", inviteeId, InviteRewardStatusPending).
+		Updates(map[string]any{
+			"invite_reward_status":       InviteRewardStatusGranted,
+			"invite_reward_granted_at":   now,
+			"invite_reward_block_reason": "",
+		}).Error
+}
+
+func inviteSubscriptionRewardQuotaToUSDMinor(rewardQuota int) (int64, error) {
+	if rewardQuota < 0 || common.QuotaPerUnit <= 0 {
+		return 0, ErrSubscriptionDiscountInvalidAmount
+	}
+	minor := decimal.NewFromInt(int64(rewardQuota)).
+		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Mul(decimal.NewFromInt(100)).
+		Round(0)
+	return minor.IntPart(), nil
+}
+
+func inviteSubscriptionRewardIdempotencyKey(inviteeId int) string {
+	return fmt.Sprintf("inviter:%d:first-paid-subscription", inviteeId)
+}
+
+func inviteSubscriptionRewardPricingSnapshot(rewardQuota int, usdMinor int64) (string, error) {
+	payload := map[string]any{
+		"quota_for_inviter": rewardQuota,
+		"quota_per_unit":    common.QuotaPerUnit,
+		"usd_minor":         usdMinor,
+	}
+	data, err := common.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func tryCreateInviteSubscriptionRewardInTx(tx *gorm.DB, order *SubscriptionOrder) (inviteSubRewardCreateResult, error) {
@@ -184,9 +389,8 @@ func runInviteSubRewardPostCreateHooks(result inviteSubRewardCreateResult) {
 		RecordLog(result.inviterId, LogTypeSystem, "已达到邀请奖励上限，本次邀请不再获得奖励")
 		return
 	}
-	unlockDays := common.InviteRewardUnlockDelaySeconds / 86400
 	RecordLog(result.inviterId, LogTypeSystem,
-		fmt.Sprintf("邀请好友订阅成功，奖励 %s 已入账，%d 天无退款后自动解锁", logger.LogQuota(result.rewardQuota), unlockDays))
+		fmt.Sprintf("邀请好友订阅成功，奖励 %s 已进入套餐抵扣账户", logger.LogQuota(result.rewardQuota)))
 }
 
 // UnlockDueInviteSubscriptionRewards grants all pending rewards whose settle
@@ -194,6 +398,9 @@ func runInviteSubRewardPostCreateHooks(result inviteSubRewardCreateResult) {
 // its own transaction, so concurrent nodes running the unlocker cannot
 // double-grant (Rule 11). Returns the number of rewards granted.
 func UnlockDueInviteSubscriptionRewards(limit int) (int, error) {
+	if common.InviteRewardSubscriptionMode {
+		return 0, nil
+	}
 	if limit <= 0 {
 		limit = 100
 	}
@@ -249,9 +456,12 @@ func UnlockDueInviteSubscriptionRewards(limit int) (int, error) {
 // RevokeInviteSubscriptionRewardByTradeNo claws back the reward tied to a
 // refunded or disputed subscription order. A pending reward is simply revoked;
 // a granted reward also deducts the quota from the inviter (balance may go
-// negative — acceptable, it blocks further API use). Idempotent via the
+// negative - acceptable, it blocks further API use). Idempotent via the
 // conditional status update.
 func RevokeInviteSubscriptionRewardByTradeNo(tradeNo string, reason string) (bool, error) {
+	if common.InviteRewardSubscriptionMode {
+		return false, nil
+	}
 	if tradeNo == "" {
 		return false, errors.New("tradeNo is empty")
 	}
@@ -314,8 +524,8 @@ func RevokeInviteSubscriptionRewardByTradeNo(tradeNo string, reason string) (boo
 
 // claimInviteFirstSubDiscountTx atomically determines the invitee
 // first-subscription discount inside the caller's transaction. It locks the
-// invitee's user row (FOR UPDATE) so concurrent purchase attempts — including
-// cross-node ones — serialize on the claim, then treats both successful
+// invitee's user row (FOR UPDATE) so concurrent purchase attempts - including
+// cross-node ones - serialize on the claim, then treats both successful
 // orders AND live discounted orders (pending/success with discount_usd > 0)
 // as consuming the one-time slot. Failed/expired discounted orders release
 // the slot automatically by dropping out of that status set.
@@ -365,7 +575,7 @@ func claimInviteFirstSubDiscountTx(tx *gorm.DB, userId int, planPrice float64, m
 // first-subscription discount and creates the order in one transaction, so
 // concurrent checkout attempts cannot each acquire the discount. The order's
 // Money/DiscountUSD are filled from the claim (Money = planPrice - discount).
-// Claim-lookup failures degrade to a full-price order — never block checkout.
+// Claim-lookup failures degrade to a full-price order - never block checkout.
 func CreateSubscriptionOrderWithInviteDiscount(order *SubscriptionOrder, planPrice float64, minCharge float64) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
 		discount, err := claimInviteFirstSubDiscountTx(tx, order.UserId, planPrice, minCharge)
@@ -412,7 +622,7 @@ func SumLockedInviteSubscriptionRewardQuota(inviterId int) (int64, error) {
 }
 
 // ReconcileMissedInviteSubscriptionRewards backfills rewards for successful
-// subscription orders whose invited payer has no reward row — the durable
+// subscription orders whose invited payer has no reward row - the durable
 // compensation for grant paths that run after their order transaction commits
 // (balance purchases, or a crash between order commit and reward creation).
 // TryGrant... is idempotent (invitee_id unique), so re-scanning is safe.
@@ -446,34 +656,8 @@ func ReconcileMissedInviteSubscriptionRewards(sinceSeconds int64, limit int) (in
 	return granted, nil
 }
 
-// StartInviteSubscriptionRewardUnlocker runs the settle-window unlocker on the
-// master node. Claims are per-row conditional updates, so overlap with another
-// node is safe; master-only gating just avoids redundant scans.
+// StartInviteSubscriptionRewardUnlocker is retained for boot compatibility.
+// Subscription-mode inviter value is settled synchronously by paid-order
+// transactions, so there is no background unlocker to start.
 func StartInviteSubscriptionRewardUnlocker() {
-	if !common.IsMasterNode {
-		return
-	}
-	gopool.Go(func() {
-		for {
-			time.Sleep(10 * time.Minute)
-			if !common.InviteRewardSubscriptionMode {
-				continue
-			}
-			for {
-				granted, err := UnlockDueInviteSubscriptionRewards(100)
-				if err != nil {
-					common.SysError(fmt.Sprintf("invite subscription reward unlock failed: %v", err))
-					break
-				}
-				if granted < 100 {
-					break
-				}
-			}
-			// 漏发对账：余额购等「事务后发奖」路径若在提交与发奖之间崩溃，
-			// 由这里按成功订单幂等补建（扫最近 7 天）。
-			if _, err := ReconcileMissedInviteSubscriptionRewards(7*24*3600, 100); err != nil {
-				common.SysError(fmt.Sprintf("invite subscription reward reconcile scan failed: %v", err))
-			}
-		}
-	})
 }

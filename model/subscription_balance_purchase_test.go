@@ -46,9 +46,10 @@ func TestBalancePurchaseGrantsInviteSubscriptionReward(t *testing.T) {
 
 	var reward InviteSubscriptionReward
 	require.NoError(t, DB.First(&reward, "invitee_id = ?", invitee.Id).Error)
-	require.Equal(t, InviteSubRewardStatusPending, reward.Status)
+	require.Equal(t, InviteSubRewardStatusGranted, reward.Status)
 	require.Equal(t, inviter.Id, reward.InviterId)
 	require.Equal(t, common.QuotaForInviter, reward.RewardQuota)
+	requireInviteSubRewardLedger(t, inviter.Id, invitee.Id, 750)
 }
 
 // The invitee first-subscription discount must apply to balance purchases
