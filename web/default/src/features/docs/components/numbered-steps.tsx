@@ -16,10 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+type NumberedStepsProps = {
+  items: string[]
+}
 
-export const Route = createFileRoute('/docs/integrations/')({
-  beforeLoad: () => {
-    throw redirect({ to: '/docs/tools/cc-switch' })
-  },
-})
+export function NumberedSteps(props: NumberedStepsProps) {
+  return (
+    <ol className='mt-5 flex flex-col gap-4'>
+      {props.items.map((item, index) => (
+        <li
+          key={item}
+          className='grid grid-cols-[2rem_minmax(0,1fr)] gap-3 leading-7'
+        >
+          <span className='bg-muted flex size-8 items-center justify-center rounded-lg text-sm font-semibold'>
+            {index + 1}
+          </span>
+          <span className='min-w-0 pt-0.5 break-words'>{item}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}

@@ -22,14 +22,38 @@ import {
   BookOpen01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout/components/public-layout'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
-export type DocsPageId = 'overview' | 'ai-model' | 'integrations'
+export type DocsPageId =
+  | 'introduction'
+  | 'payment'
+  | 'model-pricing'
+  | 'cc-switch'
+  | 'codex'
+  | 'claude-code'
+  | 'openclaw'
+  | 'hermes'
+  | 'opencode'
+  | 'gemini'
+  | 'api-integration'
+
+type DocsHref =
+  | '/docs'
+  | '/docs/payment'
+  | '/docs/model-pricing'
+  | '/docs/tools/cc-switch'
+  | '/docs/tools/codex'
+  | '/docs/tools/claude-code'
+  | '/docs/tools/openclaw'
+  | '/docs/tools/hermes'
+  | '/docs/tools/opencode'
+  | '/docs/tools/gemini'
+  | '/docs/api/integration'
 
 export type DocsTocItem = {
   id: string
@@ -47,56 +71,146 @@ type DocsShellProps = {
 type DocsNavigationItem = {
   id: DocsPageId
   label: string
-  href: '/docs' | '/docs/ai-model' | '/docs/integrations'
+  href: DocsHref
+}
+
+type DocsNavigationGroup = {
+  label: string
+  items: DocsNavigationItem[]
 }
 
 function DocsNavigation(props: {
   currentPageId: DocsPageId
-  items: DocsNavigationItem[]
+  groups: DocsNavigationGroup[]
   ariaLabel: string
-  mobile?: boolean
 }) {
   return (
-    <nav
-      aria-label={props.ariaLabel}
-      className={cn(
-        props.mobile ? 'grid grid-cols-3 gap-1' : 'flex flex-col gap-1'
-      )}
-    >
-      {props.items.map((item) => {
-        const isActive = item.id === props.currentPageId
-        return (
-          <Link
-            key={item.id}
-            to={item.href}
-            aria-current={isActive ? 'page' : undefined}
-            className={cn(
-              'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-              props.mobile && 'truncate text-center text-xs sm:text-sm',
-              isActive
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-            )}
-          >
-            {item.label}
-          </Link>
-        )
-      })}
+    <nav aria-label={props.ariaLabel} className='flex flex-col gap-5'>
+      {props.groups.map((group) => (
+        <div key={group.label}>
+          <p className='text-muted-foreground mb-1.5 px-3 text-xs font-semibold'>
+            {group.label}
+          </p>
+          <div className='flex flex-col gap-1'>
+            {group.items.map((item) => {
+              const isActive = item.id === props.currentPageId
+              return (
+                <Link
+                  key={item.id}
+                  to={item.href}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={cn(
+                    'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                  )}
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
+  )
+}
+
+function DocsMobileNavigation(props: {
+  currentPageId: DocsPageId
+  groups: DocsNavigationGroup[]
+  ariaLabel: string
+}) {
+  const navigate = useNavigate()
+  const currentItem = props.groups
+    .flatMap((group) => group.items)
+    .find((item) => item.id === props.currentPageId)
+
+  return (
+    <div className='mx-auto flex w-full max-w-[1400px] items-center gap-2'>
+      <HugeiconsIcon
+        icon={BookOpen01Icon}
+        className='text-muted-foreground size-4 shrink-0'
+        aria-hidden='true'
+      />
+      <select
+        value={currentItem?.href ?? '/docs'}
+        aria-label={props.ariaLabel}
+        onChange={(event) => {
+          void navigate({ to: event.target.value as DocsHref })
+        }}
+        className='border-border bg-background text-foreground focus-visible:ring-ring h-9 min-w-0 flex-1 rounded-md border px-3 text-sm outline-none focus-visible:ring-2'
+      >
+        {props.groups.map((group) => (
+          <optgroup key={group.label} label={group.label}>
+            {group.items.map((item) => (
+              <option key={item.id} value={item.href}>
+                {item.label}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
   )
 }
 
 export function DocsShell(props: DocsShellProps) {
   const { t } = useTranslation()
-  const navigation: DocsNavigationItem[] = [
-    { id: 'overview', label: t('Overview'), href: '/docs' },
-    { id: 'ai-model', label: t('AI model API'), href: '/docs/ai-model' },
+  const navigationGroups: DocsNavigationGroup[] = [
     {
-      id: 'integrations',
-      label: t('Integration guide'),
-      href: '/docs/integrations',
+      label: t('Overview'),
+      items: [
+        {
+          id: 'introduction',
+          label: t('Gateway introduction'),
+          href: '/docs',
+        },
+        {
+          id: 'payment',
+          label: t('Billing and payment'),
+          href: '/docs/payment',
+        },
+        {
+          id: 'model-pricing',
+          label: t('Model pricing and consumption'),
+          href: '/docs/model-pricing',
+        },
+      ],
+    },
+    {
+      label: t('Tool access guides'),
+      items: [
+        {
+          id: 'cc-switch',
+          label: t('CC Switch one-click import'),
+          href: '/docs/tools/cc-switch',
+        },
+        { id: 'codex', label: 'Codex', href: '/docs/tools/codex' },
+        {
+          id: 'claude-code',
+          label: 'Claude Code',
+          href: '/docs/tools/claude-code',
+        },
+        { id: 'openclaw', label: 'OpenClaw', href: '/docs/tools/openclaw' },
+        { id: 'hermes', label: 'Hermes', href: '/docs/tools/hermes' },
+        { id: 'opencode', label: 'OpenCode', href: '/docs/tools/opencode' },
+        { id: 'gemini', label: 'Gemini', href: '/docs/tools/gemini' },
+      ],
+    },
+    {
+      label: t('General API access'),
+      items: [
+        {
+          id: 'api-integration',
+          label: t('API integration guide'),
+          href: '/docs/api/integration',
+        },
+      ],
     },
   ]
+  const navigation = navigationGroups.flatMap((group) => group.items)
   const currentIndex = navigation.findIndex((item) => item.id === props.pageId)
   const previous = currentIndex > 0 ? navigation[currentIndex - 1] : undefined
   const next =
@@ -107,11 +221,10 @@ export function DocsShell(props: DocsShellProps) {
   return (
     <PublicLayout showMainContainer={false}>
       <div className='border-border bg-background/95 sticky top-16 z-30 mt-16 border-y px-4 py-2 backdrop-blur md:hidden'>
-        <DocsNavigation
+        <DocsMobileNavigation
           currentPageId={props.pageId}
-          items={navigation}
+          groups={navigationGroups}
           ariaLabel={t('Documentation')}
-          mobile
         />
       </div>
 
@@ -128,7 +241,7 @@ export function DocsShell(props: DocsShellProps) {
             </div>
             <DocsNavigation
               currentPageId={props.pageId}
-              items={navigation}
+              groups={navigationGroups}
               ariaLabel={t('Documentation')}
             />
           </div>
@@ -149,7 +262,7 @@ export function DocsShell(props: DocsShellProps) {
             >
               {t('Documentation')}
             </Link>
-            {props.pageId !== 'overview' && (
+            {props.pageId !== 'introduction' && (
               <>
                 <span aria-hidden='true'>/</span>
                 <span className='text-foreground truncate'>{props.title}</span>

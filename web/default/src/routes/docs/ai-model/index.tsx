@@ -16,10 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
-
-import { DocsAiModelApi } from '@/features/docs'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/docs/ai-model/')({
-  component: DocsAiModelApi,
+  beforeLoad: () => {
+    throw redirect({ to: '/docs/api/integration' })
+  },
 })

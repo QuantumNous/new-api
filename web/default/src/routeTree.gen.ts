@@ -37,6 +37,8 @@ import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
+import { Route as DocsPaymentIndexRouteImport } from './routes/docs/payment/index'
+import { Route as DocsModelPricingIndexRouteImport } from './routes/docs/model-pricing/index'
 import { Route as DocsIntegrationsIndexRouteImport } from './routes/docs/integrations/index'
 import { Route as DocsAiModelIndexRouteImport } from './routes/docs/ai-model/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
@@ -61,6 +63,14 @@ import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
+import { Route as DocsToolsOpencodeIndexRouteImport } from './routes/docs/tools/opencode/index'
+import { Route as DocsToolsOpenclawIndexRouteImport } from './routes/docs/tools/openclaw/index'
+import { Route as DocsToolsHermesIndexRouteImport } from './routes/docs/tools/hermes/index'
+import { Route as DocsToolsGeminiIndexRouteImport } from './routes/docs/tools/gemini/index'
+import { Route as DocsToolsCodexIndexRouteImport } from './routes/docs/tools/codex/index'
+import { Route as DocsToolsClaudeCodeIndexRouteImport } from './routes/docs/tools/claude-code/index'
+import { Route as DocsToolsCcSwitchIndexRouteImport } from './routes/docs/tools/cc-switch/index'
+import { Route as DocsApiIntegrationIndexRouteImport } from './routes/docs/api/integration/index'
 import { Route as AuthenticatedSystemSettingsSiteIndexRouteImport } from './routes/_authenticated/system-settings/site/index'
 import { Route as AuthenticatedSystemSettingsSecurityIndexRouteImport } from './routes/_authenticated/system-settings/security/index'
 import { Route as AuthenticatedSystemSettingsOperationsIndexRouteImport } from './routes/_authenticated/system-settings/operations/index'
@@ -215,6 +225,16 @@ const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   path: '/pricing/$modelId/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsPaymentIndexRoute = DocsPaymentIndexRouteImport.update({
+  id: '/docs/payment/',
+  path: '/docs/payment/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsModelPricingIndexRoute = DocsModelPricingIndexRouteImport.update({
+  id: '/docs/model-pricing/',
+  path: '/docs/model-pricing/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsIntegrationsIndexRoute = DocsIntegrationsIndexRouteImport.update({
   id: '/docs/integrations/',
   path: '/docs/integrations/',
@@ -353,6 +373,47 @@ const authUserResetRoute = authUserResetRouteImport.update({
   path: '/user/reset',
   getParentRoute: () => authRouteRoute,
 } as any)
+const DocsToolsOpencodeIndexRoute = DocsToolsOpencodeIndexRouteImport.update({
+  id: '/docs/tools/opencode/',
+  path: '/docs/tools/opencode/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsToolsOpenclawIndexRoute = DocsToolsOpenclawIndexRouteImport.update({
+  id: '/docs/tools/openclaw/',
+  path: '/docs/tools/openclaw/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsToolsHermesIndexRoute = DocsToolsHermesIndexRouteImport.update({
+  id: '/docs/tools/hermes/',
+  path: '/docs/tools/hermes/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsToolsGeminiIndexRoute = DocsToolsGeminiIndexRouteImport.update({
+  id: '/docs/tools/gemini/',
+  path: '/docs/tools/gemini/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsToolsCodexIndexRoute = DocsToolsCodexIndexRouteImport.update({
+  id: '/docs/tools/codex/',
+  path: '/docs/tools/codex/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsToolsClaudeCodeIndexRoute =
+  DocsToolsClaudeCodeIndexRouteImport.update({
+    id: '/docs/tools/claude-code/',
+    path: '/docs/tools/claude-code/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const DocsToolsCcSwitchIndexRoute = DocsToolsCcSwitchIndexRouteImport.update({
+  id: '/docs/tools/cc-switch/',
+  path: '/docs/tools/cc-switch/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsApiIntegrationIndexRoute = DocsApiIntegrationIndexRouteImport.update({
+  id: '/docs/api/integration/',
+  path: '/docs/api/integration/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedSystemSettingsSiteIndexRoute =
   AuthenticatedSystemSettingsSiteIndexRouteImport.update({
     id: '/site/',
@@ -488,6 +549,8 @@ export interface FileRoutesByFullPath {
   '/wallet/': typeof AuthenticatedWalletIndexRoute
   '/docs/ai-model/': typeof DocsAiModelIndexRoute
   '/docs/integrations/': typeof DocsIntegrationsIndexRoute
+  '/docs/model-pricing/': typeof DocsModelPricingIndexRoute
+  '/docs/payment/': typeof DocsPaymentIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -503,6 +566,14 @@ export interface FileRoutesByFullPath {
   '/system-settings/operations/': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
+  '/docs/api/integration/': typeof DocsApiIntegrationIndexRoute
+  '/docs/tools/cc-switch/': typeof DocsToolsCcSwitchIndexRoute
+  '/docs/tools/claude-code/': typeof DocsToolsClaudeCodeIndexRoute
+  '/docs/tools/codex/': typeof DocsToolsCodexIndexRoute
+  '/docs/tools/gemini/': typeof DocsToolsGeminiIndexRoute
+  '/docs/tools/hermes/': typeof DocsToolsHermesIndexRoute
+  '/docs/tools/openclaw/': typeof DocsToolsOpenclawIndexRoute
+  '/docs/tools/opencode/': typeof DocsToolsOpencodeIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -553,6 +624,8 @@ export interface FileRoutesByTo {
   '/wallet': typeof AuthenticatedWalletIndexRoute
   '/docs/ai-model': typeof DocsAiModelIndexRoute
   '/docs/integrations': typeof DocsIntegrationsIndexRoute
+  '/docs/model-pricing': typeof DocsModelPricingIndexRoute
+  '/docs/payment': typeof DocsPaymentIndexRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -568,6 +641,14 @@ export interface FileRoutesByTo {
   '/system-settings/operations': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/system-settings/security': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site': typeof AuthenticatedSystemSettingsSiteIndexRoute
+  '/docs/api/integration': typeof DocsApiIntegrationIndexRoute
+  '/docs/tools/cc-switch': typeof DocsToolsCcSwitchIndexRoute
+  '/docs/tools/claude-code': typeof DocsToolsClaudeCodeIndexRoute
+  '/docs/tools/codex': typeof DocsToolsCodexIndexRoute
+  '/docs/tools/gemini': typeof DocsToolsGeminiIndexRoute
+  '/docs/tools/hermes': typeof DocsToolsHermesIndexRoute
+  '/docs/tools/openclaw': typeof DocsToolsOpenclawIndexRoute
+  '/docs/tools/opencode': typeof DocsToolsOpencodeIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -622,6 +703,8 @@ export interface FileRoutesById {
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
   '/docs/ai-model/': typeof DocsAiModelIndexRoute
   '/docs/integrations/': typeof DocsIntegrationsIndexRoute
+  '/docs/model-pricing/': typeof DocsModelPricingIndexRoute
+  '/docs/payment/': typeof DocsPaymentIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -637,6 +720,14 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/operations/': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/_authenticated/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/_authenticated/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
+  '/docs/api/integration/': typeof DocsApiIntegrationIndexRoute
+  '/docs/tools/cc-switch/': typeof DocsToolsCcSwitchIndexRoute
+  '/docs/tools/claude-code/': typeof DocsToolsClaudeCodeIndexRoute
+  '/docs/tools/codex/': typeof DocsToolsCodexIndexRoute
+  '/docs/tools/gemini/': typeof DocsToolsGeminiIndexRoute
+  '/docs/tools/hermes/': typeof DocsToolsHermesIndexRoute
+  '/docs/tools/openclaw/': typeof DocsToolsOpenclawIndexRoute
+  '/docs/tools/opencode/': typeof DocsToolsOpencodeIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -690,6 +781,8 @@ export interface FileRouteTypes {
     | '/wallet/'
     | '/docs/ai-model/'
     | '/docs/integrations/'
+    | '/docs/model-pricing/'
+    | '/docs/payment/'
     | '/pricing/$modelId/'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
@@ -705,6 +798,14 @@ export interface FileRouteTypes {
     | '/system-settings/operations/'
     | '/system-settings/security/'
     | '/system-settings/site/'
+    | '/docs/api/integration/'
+    | '/docs/tools/cc-switch/'
+    | '/docs/tools/claude-code/'
+    | '/docs/tools/codex/'
+    | '/docs/tools/gemini/'
+    | '/docs/tools/hermes/'
+    | '/docs/tools/openclaw/'
+    | '/docs/tools/opencode/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -755,6 +856,8 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/docs/ai-model'
     | '/docs/integrations'
+    | '/docs/model-pricing'
+    | '/docs/payment'
     | '/pricing/$modelId'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
@@ -770,6 +873,14 @@ export interface FileRouteTypes {
     | '/system-settings/operations'
     | '/system-settings/security'
     | '/system-settings/site'
+    | '/docs/api/integration'
+    | '/docs/tools/cc-switch'
+    | '/docs/tools/claude-code'
+    | '/docs/tools/codex'
+    | '/docs/tools/gemini'
+    | '/docs/tools/hermes'
+    | '/docs/tools/openclaw'
+    | '/docs/tools/opencode'
   id:
     | '__root__'
     | '/'
@@ -823,6 +934,8 @@ export interface FileRouteTypes {
     | '/_authenticated/wallet/'
     | '/docs/ai-model/'
     | '/docs/integrations/'
+    | '/docs/model-pricing/'
+    | '/docs/payment/'
     | '/pricing/$modelId/'
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/billing/$section'
@@ -838,6 +951,14 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/operations/'
     | '/_authenticated/system-settings/security/'
     | '/_authenticated/system-settings/site/'
+    | '/docs/api/integration/'
+    | '/docs/tools/cc-switch/'
+    | '/docs/tools/claude-code/'
+    | '/docs/tools/codex/'
+    | '/docs/tools/gemini/'
+    | '/docs/tools/hermes/'
+    | '/docs/tools/openclaw/'
+    | '/docs/tools/opencode/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -861,7 +982,17 @@ export interface RootRouteChildren {
   SetupIndexRoute: typeof SetupIndexRoute
   DocsAiModelIndexRoute: typeof DocsAiModelIndexRoute
   DocsIntegrationsIndexRoute: typeof DocsIntegrationsIndexRoute
+  DocsModelPricingIndexRoute: typeof DocsModelPricingIndexRoute
+  DocsPaymentIndexRoute: typeof DocsPaymentIndexRoute
   PricingModelIdIndexRoute: typeof PricingModelIdIndexRoute
+  DocsApiIntegrationIndexRoute: typeof DocsApiIntegrationIndexRoute
+  DocsToolsCcSwitchIndexRoute: typeof DocsToolsCcSwitchIndexRoute
+  DocsToolsClaudeCodeIndexRoute: typeof DocsToolsClaudeCodeIndexRoute
+  DocsToolsCodexIndexRoute: typeof DocsToolsCodexIndexRoute
+  DocsToolsGeminiIndexRoute: typeof DocsToolsGeminiIndexRoute
+  DocsToolsHermesIndexRoute: typeof DocsToolsHermesIndexRoute
+  DocsToolsOpenclawIndexRoute: typeof DocsToolsOpenclawIndexRoute
+  DocsToolsOpencodeIndexRoute: typeof DocsToolsOpencodeIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1062,6 +1193,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/payment/': {
+      id: '/docs/payment/'
+      path: '/docs/payment'
+      fullPath: '/docs/payment/'
+      preLoaderRoute: typeof DocsPaymentIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/model-pricing/': {
+      id: '/docs/model-pricing/'
+      path: '/docs/model-pricing'
+      fullPath: '/docs/model-pricing/'
+      preLoaderRoute: typeof DocsModelPricingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs/integrations/': {
       id: '/docs/integrations/'
       path: '/docs/integrations'
@@ -1229,6 +1374,62 @@ declare module '@tanstack/react-router' {
       fullPath: '/user/reset'
       preLoaderRoute: typeof authUserResetRouteImport
       parentRoute: typeof authRouteRoute
+    }
+    '/docs/tools/opencode/': {
+      id: '/docs/tools/opencode/'
+      path: '/docs/tools/opencode'
+      fullPath: '/docs/tools/opencode/'
+      preLoaderRoute: typeof DocsToolsOpencodeIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/tools/openclaw/': {
+      id: '/docs/tools/openclaw/'
+      path: '/docs/tools/openclaw'
+      fullPath: '/docs/tools/openclaw/'
+      preLoaderRoute: typeof DocsToolsOpenclawIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/tools/hermes/': {
+      id: '/docs/tools/hermes/'
+      path: '/docs/tools/hermes'
+      fullPath: '/docs/tools/hermes/'
+      preLoaderRoute: typeof DocsToolsHermesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/tools/gemini/': {
+      id: '/docs/tools/gemini/'
+      path: '/docs/tools/gemini'
+      fullPath: '/docs/tools/gemini/'
+      preLoaderRoute: typeof DocsToolsGeminiIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/tools/codex/': {
+      id: '/docs/tools/codex/'
+      path: '/docs/tools/codex'
+      fullPath: '/docs/tools/codex/'
+      preLoaderRoute: typeof DocsToolsCodexIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/tools/claude-code/': {
+      id: '/docs/tools/claude-code/'
+      path: '/docs/tools/claude-code'
+      fullPath: '/docs/tools/claude-code/'
+      preLoaderRoute: typeof DocsToolsClaudeCodeIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/tools/cc-switch/': {
+      id: '/docs/tools/cc-switch/'
+      path: '/docs/tools/cc-switch'
+      fullPath: '/docs/tools/cc-switch/'
+      preLoaderRoute: typeof DocsToolsCcSwitchIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/api/integration/': {
+      id: '/docs/api/integration/'
+      path: '/docs/api/integration'
+      fullPath: '/docs/api/integration/'
+      preLoaderRoute: typeof DocsApiIntegrationIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/system-settings/site/': {
       id: '/_authenticated/system-settings/site/'
@@ -1492,7 +1693,17 @@ const rootRouteChildren: RootRouteChildren = {
   SetupIndexRoute: SetupIndexRoute,
   DocsAiModelIndexRoute: DocsAiModelIndexRoute,
   DocsIntegrationsIndexRoute: DocsIntegrationsIndexRoute,
+  DocsModelPricingIndexRoute: DocsModelPricingIndexRoute,
+  DocsPaymentIndexRoute: DocsPaymentIndexRoute,
   PricingModelIdIndexRoute: PricingModelIdIndexRoute,
+  DocsApiIntegrationIndexRoute: DocsApiIntegrationIndexRoute,
+  DocsToolsCcSwitchIndexRoute: DocsToolsCcSwitchIndexRoute,
+  DocsToolsClaudeCodeIndexRoute: DocsToolsClaudeCodeIndexRoute,
+  DocsToolsCodexIndexRoute: DocsToolsCodexIndexRoute,
+  DocsToolsGeminiIndexRoute: DocsToolsGeminiIndexRoute,
+  DocsToolsHermesIndexRoute: DocsToolsHermesIndexRoute,
+  DocsToolsOpenclawIndexRoute: DocsToolsOpenclawIndexRoute,
+  DocsToolsOpencodeIndexRoute: DocsToolsOpencodeIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

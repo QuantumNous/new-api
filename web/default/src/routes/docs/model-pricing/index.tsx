@@ -16,10 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/docs/integrations/')({
-  beforeLoad: () => {
-    throw redirect({ to: '/docs/tools/cc-switch' })
-  },
+import { DocsModelPricing } from '@/features/docs/model-pricing'
+
+export const Route = createFileRoute('/docs/model-pricing/')({
+  component: DocsModelPricing,
 })

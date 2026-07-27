@@ -16,175 +16,179 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  ApiIcon,
-  ArrowRight01Icon,
-  InformationCircleIcon,
-  PlugSocketIcon,
-} from '@hugeicons/core-free-icons'
+import { ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import {
-  Card,
-  CardAction,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 import { CodeBlock } from './components/code-block'
 import { DocsShell } from './components/docs-shell'
+import { NumberedSteps } from './components/numbered-steps'
 import { useDocsBaseUrl } from './hooks/use-docs-base-url'
 
 export function DocsOverview() {
   const { t } = useTranslation()
   const baseUrl = useDocsBaseUrl()
-  const firstRequest = `curl "${baseUrl}/v1/models" \\
+  const listModels = `curl "${baseUrl}/v1/models" \\
   -H "Authorization: Bearer sk-your-api-key"`
+  const firstRequest = `curl "${baseUrl}/v1/chat/completions" \\
+  -H "Authorization: Bearer sk-your-api-key" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "your-model-id",
+    "messages": [
+      {"role": "user", "content": "Hello"}
+    ]
+  }'`
 
   return (
     <DocsShell
-      pageId='overview'
-      title={t('API documentation')}
+      pageId='introduction'
+      title={t('Gateway introduction')}
       description={t(
-        'Connect your applications to leading AI models through one compatible API.'
+        'Learn what the gateway provides and complete the basic setup before making your first request.'
       )}
       toc={[
-        { id: 'introduction', label: t('Introduction') },
-        { id: 'quick-start', label: t('Quick start') },
-        { id: 'core-resources', label: t('Core resources') },
+        {
+          id: 'what-the-gateway-provides',
+          label: t('What the gateway provides'),
+        },
+        { id: 'before-you-start', label: t('Before you start') },
+        { id: 'create-api-key', label: t('Create an API key') },
+        { id: 'service-address', label: t('Confirm the service address') },
+        { id: 'list-models', label: t('List available models') },
+        { id: 'first-request', label: t('Send the first request') },
+        { id: 'verify-usage', label: t('Verify usage and continue') },
       ]}
     >
-      <section id='introduction' className='scroll-mt-28'>
-        <h2 className='text-2xl font-semibold'>{t('Introduction')}</h2>
+      <section id='what-the-gateway-provides' className='scroll-mt-28'>
+        <h2 className='text-2xl font-semibold'>
+          {t('What the gateway provides')}
+        </h2>
         <p className='text-muted-foreground mt-3 leading-7'>
           {t(
-            'The gateway exposes OpenAI-compatible endpoints for models, chat, responses, embeddings, images, and audio. Use the same API key and base URL across supported clients.'
+            'The gateway provides one service address for supported AI models and keeps API keys, model access, billing, and usage records in one console.'
           )}
         </p>
-        <Alert className='mt-5'>
-          <HugeiconsIcon icon={InformationCircleIcon} aria-hidden='true' />
-          <AlertTitle>{t('OpenAI compatible')}</AlertTitle>
-          <AlertDescription>
-            {t(
-              'Most OpenAI SDKs work by changing only the API key, base URL, and model name.'
-            )}
-          </AlertDescription>
-        </Alert>
+        <p className='text-muted-foreground mt-3 leading-7'>
+          {t(
+            'Most OpenAI-compatible clients work after you replace the API key, base URL, and model name. Anthropic and Gemini clients use their own protocol routes described in the API integration guide.'
+          )}
+        </p>
       </section>
 
-      <section id='quick-start' className='scroll-mt-28'>
-        <h2 className='text-2xl font-semibold'>{t('Quick start')}</h2>
-        <ol className='mt-5 flex flex-col gap-6'>
-          <li className='grid grid-cols-[2rem_minmax(0,1fr)] gap-3'>
-            <span className='bg-muted flex size-8 items-center justify-center rounded-lg text-sm font-semibold'>
-              1
-            </span>
-            <div>
-              <h3 className='font-semibold'>{t('Create an API key')}</h3>
-              <p className='text-muted-foreground mt-1 leading-7'>
-                {t(
-                  'Sign in to the console, open API keys, and create a key for your application.'
-                )}
-              </p>
-            </div>
-          </li>
-          <li className='grid grid-cols-[2rem_minmax(0,1fr)] gap-3'>
-            <span className='bg-muted flex size-8 items-center justify-center rounded-lg text-sm font-semibold'>
-              2
-            </span>
-            <div>
-              <h3 className='font-semibold'>{t('Set the base URL')}</h3>
-              <p className='text-muted-foreground mt-1 leading-7'>
-                {t('Use this service address in your SDK or client.')}
-              </p>
-              <code className='border-border bg-muted/40 mt-2 inline-block max-w-full overflow-x-auto rounded-md border px-2.5 py-1.5 font-mono text-sm'>
-                {baseUrl}/v1
-              </code>
-            </div>
-          </li>
-          <li className='grid grid-cols-[2rem_minmax(0,1fr)] gap-3'>
-            <span className='bg-muted flex size-8 items-center justify-center rounded-lg text-sm font-semibold'>
-              3
-            </span>
-            <div>
-              <h3 className='font-semibold'>{t('Send your first request')}</h3>
-              <p className='text-muted-foreground mt-1 leading-7'>
-                {t(
-                  'List the models available to your API key before selecting one for a request.'
-                )}
-              </p>
-            </div>
-          </li>
-        </ol>
+      <section id='before-you-start' className='scroll-mt-28'>
+        <h2 className='text-2xl font-semibold'>{t('Before you start')}</h2>
+        <NumberedSteps
+          items={[
+            t('Confirm that your wallet or subscription has available quota.'),
+            t(
+              'Open model pricing and choose a model that supports the endpoint required by your client.'
+            ),
+            t(
+              'Record the exact model ID, input and output price, endpoint type, and any model-specific limits.'
+            ),
+          ]}
+        />
+        <div className='mt-5 flex flex-wrap gap-3'>
+          <Button variant='outline' render={<Link to='/wallet' />}>
+            {t('Open wallet')}
+            <HugeiconsIcon icon={ArrowRight01Icon} data-icon='inline-end' />
+          </Button>
+          <Button variant='outline' render={<Link to='/pricing' />}>
+            {t('Open model pricing')}
+            <HugeiconsIcon icon={ArrowRight01Icon} data-icon='inline-end' />
+          </Button>
+        </div>
+      </section>
+
+      <section id='create-api-key' className='scroll-mt-28'>
+        <h2 className='text-2xl font-semibold'>{t('Create an API key')}</h2>
+        <NumberedSteps
+          items={[
+            t('Open the API keys page and create a key for this client.'),
+            t(
+              'Set an expiration time, quota, model restriction, or IP restriction when your use case requires it.'
+            ),
+            t(
+              'Copy the complete key when it is shown and store it in a password manager or server-side secret store.'
+            ),
+          ]}
+        />
+        <Button className='mt-5' render={<Link to='/keys' />}>
+          {t('Open API keys')}
+          <HugeiconsIcon icon={ArrowRight01Icon} data-icon='inline-end' />
+        </Button>
+      </section>
+
+      <section id='service-address' className='scroll-mt-28'>
+        <h2 className='text-2xl font-semibold'>
+          {t('Confirm the service address')}
+        </h2>
+        <p className='text-muted-foreground mt-3 leading-7'>
+          {t(
+            'OpenAI-compatible clients normally use the following base URL. Tool-specific guides state when a client requires the service root without /v1.'
+          )}
+        </p>
+        <div className='mt-5'>
+          <CodeBlock code={`${baseUrl}/v1`} label={t('Base URL')} />
+        </div>
+      </section>
+
+      <section id='list-models' className='scroll-mt-28'>
+        <h2 className='text-2xl font-semibold'>{t('List available models')}</h2>
+        <p className='text-muted-foreground mt-3 leading-7'>
+          {t(
+            'Run this request with the new API key. A successful response returns only models currently available to that key.'
+          )}
+        </p>
+        <div className='mt-5'>
+          <CodeBlock code={listModels} label='cURL' />
+        </div>
+      </section>
+
+      <section id='first-request' className='scroll-mt-28'>
+        <h2 className='text-2xl font-semibold'>
+          {t('Send the first request')}
+        </h2>
+        <p className='text-muted-foreground mt-3 leading-7'>
+          {t(
+            'Replace your-model-id with one value returned by the model list. This example uses the OpenAI Chat Completions protocol.'
+          )}
+        </p>
         <div className='mt-5'>
           <CodeBlock code={firstRequest} label='cURL' />
         </div>
       </section>
 
-      <section id='core-resources' className='scroll-mt-28'>
-        <h2 className='text-2xl font-semibold'>{t('Core resources')}</h2>
-        <p className='text-muted-foreground mt-3 leading-7'>
-          {t(
-            'Continue with the endpoint reference or configure a supported development tool.'
-          )}
-        </p>
-        <div className='mt-5 grid gap-4 sm:grid-cols-2'>
-          <Link to='/docs/ai-model' className='group block'>
-            <Card className='h-full transition-shadow group-hover:shadow-md'>
-              <CardHeader>
-                <div className='bg-muted mb-2 flex size-9 items-center justify-center rounded-lg'>
-                  <HugeiconsIcon
-                    icon={ApiIcon}
-                    className='size-5'
-                    aria-hidden='true'
-                  />
-                </div>
-                <CardTitle>{t('AI model API')}</CardTitle>
-                <CardDescription>
-                  {t(
-                    'Review authentication, endpoints, request fields, and response examples.'
-                  )}
-                </CardDescription>
-                <CardAction>
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    className='text-muted-foreground size-4 transition-transform group-hover:translate-x-0.5'
-                    aria-hidden='true'
-                  />
-                </CardAction>
-              </CardHeader>
-            </Card>
-          </Link>
-          <Link to='/docs/integrations' className='group block'>
-            <Card className='h-full transition-shadow group-hover:shadow-md'>
-              <CardHeader>
-                <div className='bg-muted mb-2 flex size-9 items-center justify-center rounded-lg'>
-                  <HugeiconsIcon
-                    icon={PlugSocketIcon}
-                    className='size-5'
-                    aria-hidden='true'
-                  />
-                </div>
-                <CardTitle>{t('Integration guide')}</CardTitle>
-                <CardDescription>
-                  {t(
-                    'Connect OpenAI SDKs, Claude Code, Cherry Studio, Cursor, and compatible clients.'
-                  )}
-                </CardDescription>
-                <CardAction>
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    className='text-muted-foreground size-4 transition-transform group-hover:translate-x-0.5'
-                    aria-hidden='true'
-                  />
-                </CardAction>
-              </CardHeader>
-            </Card>
-          </Link>
+      <section id='verify-usage' className='scroll-mt-28'>
+        <h2 className='text-2xl font-semibold'>
+          {t('Verify usage and continue')}
+        </h2>
+        <NumberedSteps
+          items={[
+            t(
+              'Confirm that the response contains model output and no error object.'
+            ),
+            t(
+              'Open usage logs and verify the request time, model, endpoint, token counts, and charge.'
+            ),
+            t(
+              'Continue with the API integration guide or a tool-specific guide for production configuration.'
+            ),
+          ]}
+        />
+        <div className='mt-5 flex flex-wrap gap-3'>
+          <Button variant='outline' render={<Link to='/usage-logs' />}>
+            {t('Open usage logs')}
+            <HugeiconsIcon icon={ArrowRight01Icon} data-icon='inline-end' />
+          </Button>
+          <Button render={<Link to='/docs/api/integration' />}>
+            {t('Open API integration guide')}
+            <HugeiconsIcon icon={ArrowRight01Icon} data-icon='inline-end' />
+          </Button>
         </div>
       </section>
     </DocsShell>
