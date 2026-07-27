@@ -6140,7 +6140,7 @@
     "first_purchase": "Первая покупка",
     "lapsed_payer": "Неактивный плательщик",
     "expired_subscription": "Истёкшая подписка",
-    "manual": "изменён вручную",
+    "manual": "Вручную",
     "scheduled_once": "Однократно по расписанию",
     "recurring": "Регулярно",
     "automatic": "Автоматически",
@@ -6294,6 +6294,11 @@
     "stale": "устарел",
     "missing": "отсутствует",
     "invalid": "недопустим",
+    "recall.translation_status.ready": "Готов",
+    "recall.translation_status.stale": "Устарел",
+    "recall.translation_status.manual": "Изменён вручную",
+    "recall.translation_status.missing": "Отсутствует",
+    "recall.translation_status.invalid": "Недопустим",
     "Activity email hourly limit": "Почасовой лимит писем активностей",
     "All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.": "Все кампании в разделе «Настройка активностей» используют общий почасовой лимит. Другие системные письма не затрагиваются.",
     "Attempts count when SMTP sending starts and are not refunded.": "Попытка учитывается при начале отправки по SMTP и не возвращается в лимит.",
@@ -6301,6 +6306,7 @@
     "Hourly limit reached. Queued activity emails will resume at {{time}}.": "Почасовой лимит достигнут. Отправка писем активностей из очереди возобновится в {{time}}.",
     "Quota resets at {{time}}.": "Лимит сбросится в {{time}}.",
     "Hourly limit must be between 1 and 100000.": "Почасовой лимит должен быть от 1 до 100000.",
+    "Failed to load email quota.": "Не удалось загрузить лимит писем.",
     "Save hourly limit": "Сохранить почасовой лимит"
   }
 }

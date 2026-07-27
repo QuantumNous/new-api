@@ -639,6 +639,28 @@ describe('recallCampaignDraftSchema', () => {
     }
   })
 
+  test('requires coupon redeem-by after a scheduled campaign run', () => {
+    const draft = makeDraft()
+    draft.execution_mode = 'scheduled_once'
+    draft.schedule.scheduled_at = FUTURE_TIMESTAMP
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_valid_seconds = 0
+    draft.promotion_expires_at = FUTURE_TIMESTAMP + 3_600
+    draft.discount_config.coupon_redeem_by = FUTURE_TIMESTAMP - 60
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'coupon_redeem_by'],
+          message: 'Coupon redeem-by must be after the scheduled run time',
+        })
+      )
+    }
+  })
+
   test('ignores schedule validation in manual mode', () => {
     const draft = makeDraft()
     draft.schedule = {

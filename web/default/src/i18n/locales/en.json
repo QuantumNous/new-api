@@ -6140,7 +6140,7 @@
     "first_purchase": "First purchase",
     "lapsed_payer": "Lapsed payer",
     "expired_subscription": "Expired subscription",
-    "manual": "Manually edited",
+    "manual": "Manual",
     "scheduled_once": "Scheduled once",
     "recurring": "Recurring",
     "automatic": "Automatic",
@@ -6294,6 +6294,11 @@
     "stale": "Stale",
     "missing": "Missing",
     "invalid": "Invalid",
+    "recall.translation_status.ready": "Ready",
+    "recall.translation_status.stale": "Stale",
+    "recall.translation_status.manual": "Manually edited",
+    "recall.translation_status.missing": "Missing",
+    "recall.translation_status.invalid": "Invalid",
     "Activity email hourly limit": "Activity email hourly limit",
     "All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.": "All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.",
     "Attempts count when SMTP sending starts and are not refunded.": "Attempts count when SMTP sending starts and are not refunded.",
@@ -6301,6 +6306,7 @@
     "Hourly limit reached. Queued activity emails will resume at {{time}}.": "Hourly limit reached. Queued activity emails will resume at {{time}}.",
     "Quota resets at {{time}}.": "Quota resets at {{time}}.",
     "Hourly limit must be between 1 and 100000.": "Hourly limit must be between 1 and 100000.",
+    "Failed to load email quota.": "Failed to load email quota.",
     "Save hourly limit": "Save hourly limit"
   }
 }

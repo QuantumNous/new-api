@@ -130,10 +130,11 @@ const activityEmailLocalizationAndQuotaKeys = [
   'Translation generation failed',
   'Translations must be complete and current before activation.',
   'Generate or fix translations',
-  'stale',
-  'manual',
-  'missing',
-  'invalid',
+  'recall.translation_status.ready',
+  'recall.translation_status.stale',
+  'recall.translation_status.manual',
+  'recall.translation_status.missing',
+  'recall.translation_status.invalid',
   'Activity email hourly limit',
   'All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.',
   'Attempts count when SMTP sending starts and are not refunded.',
@@ -141,6 +142,7 @@ const activityEmailLocalizationAndQuotaKeys = [
   'Hourly limit reached. Queued activity emails will resume at {{time}}.',
   'Quota resets at {{time}}.',
   'Hourly limit must be between 1 and 100000.',
+  'Failed to load email quota.',
   'Save hourly limit',
 ] as const
 
@@ -242,6 +244,14 @@ describe('recall campaign copy', () => {
           `${locale} should not keep legacy visible key ${key}`
         ).toBe(false)
       }
+    })
+
+    test(`${locale} separates manual execution mode from manual translation status`, () => {
+      expect(translations.manual).toBeTruthy()
+      expect(translations['recall.translation_status.manual']).toBeTruthy()
+      expect(translations.manual).not.toBe(
+        translations['recall.translation_status.manual']
+      )
     })
   }
 })

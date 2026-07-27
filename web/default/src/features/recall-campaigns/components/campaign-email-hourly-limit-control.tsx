@@ -16,6 +16,7 @@ const MIN_RECALL_EMAIL_HOURLY_LIMIT = 1
 const MAX_RECALL_EMAIL_HOURLY_LIMIT = 100_000
 
 interface CampaignEmailHourlyLimitControlViewProps {
+  disabled: boolean
   error: string
   inputValue: string
   pending: boolean
@@ -77,6 +78,19 @@ export function syncRecallEmailHourlyLimitFromServer(
   }
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export function getRecallEmailQuotaControlState(
+  quota: RecallEmailQuotaStatus | undefined,
+  pending: boolean,
+  queryError: boolean
+): { disabled: boolean; loadError: boolean } {
+  const missingQuota = !quota
+  return {
+    disabled: pending || missingQuota,
+    loadError: queryError && missingQuota,
+  }
+}
+
 function createDefaultQuota(): RecallEmailQuotaStatus {
   return {
     limit: DEFAULT_RECALL_EMAIL_HOURLY_LIMIT,
@@ -115,12 +129,12 @@ export function CampaignEmailHourlyLimitControlView(
             min={MIN_RECALL_EMAIL_HOURLY_LIMIT}
             max={MAX_RECALL_EMAIL_HOURLY_LIMIT}
             step={1}
-            disabled={props.pending}
+            disabled={props.disabled || props.pending}
             value={props.inputValue}
             onChange={(event) => props.onInputChange(event.target.value)}
           />
         </div>
-        <Button type='submit' disabled={props.pending}>
+        <Button type='submit' disabled={props.disabled || props.pending}>
           {props.pending ? t('Saving') : t('Save hourly limit')}
         </Button>
       </form>
@@ -175,7 +189,13 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
       ),
     refetchIntervalInBackground: false,
   })
-  const quota = quotaQuery.data?.data ?? createDefaultQuota()
+  const serverQuota = quotaQuery.data?.data
+  const quota = serverQuota ?? createDefaultQuota()
+  const controlState = getRecallEmailQuotaControlState(
+    serverQuota,
+    quotaQuery.isPending,
+    quotaQuery.isError
+  )
 
   useEffect(() => {
     if (!quotaQuery.data?.data) return
@@ -194,6 +214,10 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
   }, [quotaQuery.data])
 
   const save = async () => {
+    if (controlState.disabled) {
+      setError('Failed to load email quota.')
+      return
+    }
     const limit = parseRecallEmailHourlyLimit(inputValue)
     if (limit === null) {
       setError('Hourly limit must be between 1 and 100000.')
@@ -230,7 +254,8 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
 
   return (
     <CampaignEmailHourlyLimitControlView
-      error={error}
+      disabled={controlState.disabled}
+      error={controlState.loadError ? 'Failed to load email quota.' : error}
       inputValue={inputValue}
       pending={updateLimit.isPending}
       quota={quota}

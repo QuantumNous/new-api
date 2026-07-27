@@ -977,7 +977,13 @@ func TestRecallEmailWorkerStopsAtSharedHourlyLimit(t *testing.T) {
 			require.Equal(t, 1, stored.AttemptCount)
 			continue
 		}
-		require.Equal(t, model.RecallMessageScheduled, stored.State)
+		if index == 2 {
+			require.Equal(t, model.RecallMessageRetryWait, stored.State)
+			require.Equal(t, waitErr.ResetsAt, stored.NextAttemptAt)
+		} else {
+			require.Equal(t, model.RecallMessageScheduled, stored.State)
+			require.Zero(t, stored.NextAttemptAt)
+		}
 		require.Zero(t, stored.AttemptCount)
 		require.Empty(t, stored.LeaseOwner)
 		require.Zero(t, stored.LeaseExpiresAt)

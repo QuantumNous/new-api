@@ -294,12 +294,70 @@ func TestSubscriptionStripeRecallAvoidsCrossCurrencyInviteComparison(t *testing.
 
 	require.NoError(t, applySubscriptionCheckoutDiscountSelection(&order, &plan, &recall))
 
-	require.Zero(t, order.DiscountUSD)
-	require.Equal(t, plan.PriceAmount, order.Money)
-	require.Equal(t, recall.CampaignID, order.RecallCampaignId)
-	require.Equal(t, recall.RecipientID, order.RecallRecipientId)
-	require.Equal(t, recall.PromotionCodeID, order.RecallPromotionCodeId)
-	require.Equal(t, recall.DiscountAmountMinor, order.RecallDiscountAmountMinor)
+	require.Equal(t, 5.0, order.DiscountUSD)
+	require.Equal(t, 15.0, order.Money)
+	require.Zero(t, order.RecallCampaignId)
+	require.Zero(t, order.RecallRecipientId)
+	require.Empty(t, order.RecallPromotionCodeId)
+	require.Zero(t, order.RecallDiscountAmountMinor)
+}
+
+func TestSubscriptionStripeAutoRecallDiscoveryFailureFallsBackToOriginalPrice(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	backend := setupSubscriptionStripeRecordingBackend(t)
+	setupSubscriptionRecallClaimDB(t)
+	confirmPaymentComplianceForTest(t)
+	enableRecallCampaignForControllerTest(t)
+	originalGate := common.SubscriptionSingleContractEnabled
+	common.SubscriptionSingleContractEnabled = false
+	t.Cleanup(func() { common.SubscriptionSingleContractEnabled = originalGate })
+	originalInviteMode := common.InviteRewardSubscriptionMode
+	common.InviteRewardSubscriptionMode = false
+	t.Cleanup(func() { common.InviteRewardSubscriptionMode = originalInviteMode })
+	originalWebhookSecret := setting.StripeWebhookSecret
+	setting.StripeWebhookSecret = "whsec_subscription_test"
+	t.Cleanup(func() { setting.StripeWebhookSecret = originalWebhookSecret })
+
+	const userID = 710402
+	const planID = 910402
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       userID,
+		Username: "subscription_auto_recall_failure",
+		Email:    "subscription-auto-recall-failure@example.com",
+		Status:   common.UserStatusEnabled,
+		AffCode:  "subscription_auto_recall_failure",
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Id:            planID,
+		Title:         "Automatic recall failure fallback",
+		PriceAmount:   20,
+		Currency:      "USD",
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		StripePriceId: "price_auto_recall_failure",
+	}).Error)
+	model.InvalidateSubscriptionPlanCache(planID)
+	require.NoError(t, model.DB.Migrator().DropTable(&model.RecallRecipient{}))
+
+	body, err := common.Marshal(SubscriptionStripePayRequest{PlanId: planID})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/subscription/stripe/pay", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", userID)
+
+	SubscriptionRequestStripePay(ctx)
+
+	require.Contains(t, recorder.Body.String(), `"message":"success"`)
+	require.Len(t, backend.params, 1)
+	require.Empty(t, backend.params[0].Discounts)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "user_id = ?", userID).Error)
+	require.Zero(t, order.RecallCampaignId)
+	require.Zero(t, order.RecallRecipientId)
+	require.Zero(t, order.RecallDiscountAmountMinor)
 }
 
 func TestSubscriptionStripeNoClaimAppliesBestAccountRecallOffer(t *testing.T) {

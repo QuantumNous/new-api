@@ -52,10 +52,11 @@ export const recallCampaignEditorCopyKeys = [
 ] as const
 
 export const recallActivityEmailCopyKeys = [
-  'stale',
-  'manual',
-  'missing',
-  'invalid',
+  'recall.translation_status.ready',
+  'recall.translation_status.stale',
+  'recall.translation_status.manual',
+  'recall.translation_status.missing',
+  'recall.translation_status.invalid',
   'Activity email hourly limit',
   'All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.',
   'Attempts count when SMTP sending starts and are not refunded.',
@@ -63,5 +64,6 @@ export const recallActivityEmailCopyKeys = [
   'Hourly limit reached. Queued activity emails will resume at {{time}}.',
   'Quota resets at {{time}}.',
   'Hourly limit must be between 1 and 100000.',
+  'Failed to load email quota.',
   'Save hourly limit',
 ] as const

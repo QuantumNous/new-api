@@ -1740,6 +1740,7 @@ func TestValidateRecallCampaignDraftSupportsFixedAndRelativePromotionExpiry(t *t
 	t.Run("fixed clears relative validity", func(t *testing.T) {
 		draft := validRecallCampaignDraft(now)
 		draft.PromotionExpiryMode = RecallPromotionExpiryFixed
+		draft.PromotionValidSeconds = 0
 		draft.PromotionExpiresAt = now.Add(24 * time.Hour).Unix()
 
 		normalized, err := validateAndNormalizeRecallCampaignDraft(draft, now)

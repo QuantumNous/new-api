@@ -918,6 +918,11 @@ func TestListRecallOfferCandidatesForUserFiltersAndBindsExactEmailMatches(t *tes
 	}
 	createRecipient(campaigns[RecallCampaignDraft], user.Id, "draft@example.com", RecallRecipientContacting, promotionID("promo_draft"), "DRAFT123", now+100, now+1, now-10)
 	createRecipient(campaigns[RecallCampaignCancelled], user.Id, "cancelled@example.com", RecallRecipientContacting, promotionID("promo_cancelled"), "CANCEL123", now+100, now+1, now-10)
+	contentOnlyCampaign := createCampaign(RecallCampaignRunning)
+	require.NoError(t, DB.Model(&RecallCampaign{}).
+		Where("id = ?", contentOnlyCampaign.Id).
+		Update("campaign_type", RecallCampaignTypeContentOnly).Error)
+	contentOnly := createRecipient(contentOnlyCampaign, user.Id, "content-only@example.com", RecallRecipientContacting, promotionID("promo_content_only"), "CONTENT123", now+100, now+1, now-10)
 	for _, state := range []string{RecallRecipientConverted, RecallRecipientSuppressed, RecallRecipientIneligible, RecallRecipientExpired, RecallRecipientFailed} {
 		createRecipient(createCampaign(RecallCampaignRunning), user.Id, state+"@example.com", state, promotionID("promo_"+state), "STATE123", now+100, now+1, now-10)
 	}
@@ -942,6 +947,7 @@ func TestListRecallOfferCandidatesForUserFiltersAndBindsExactEmailMatches(t *tes
 	require.Contains(t, ids, bound.Id)
 	require.Contains(t, ids, emailOnly.Id)
 	require.NotContains(t, ids, conflict.Id)
+	require.NotContains(t, ids, contentOnly.Id)
 	require.Equal(t, bound.CreatedAt, candidates[0].EffectiveIssuedAt())
 	for _, candidate := range candidates {
 		if candidate.Recipient.Id == emailOnly.Id {
@@ -1121,6 +1127,48 @@ func TestListRecallOfferCandidatesDoesNotBindEmailMatchCancelledBeforeBind(t *te
 	var storedRecipient RecallRecipient
 	require.NoError(t, DB.First(&storedRecipient, recipient.Id).Error)
 	require.Zero(t, storedRecipient.UserId)
+}
+
+func TestListRecallOfferCandidatesDropsCampaignChangedToContentOnlyBeforeHydration(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const now int64 = 1_800_000_000
+	user := User{
+		Username: "recall-offer-content-race-user", Password: "password", Status: common.UserStatusEnabled,
+		Email: "content-race-owner@example.com", AffCode: "recall-offer-content-race-aff", CreatedAt: now - 100,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	campaign := newRecallRepositoryCampaign("offer content race")
+	campaign.Status = RecallCampaignRunning
+	require.NoError(t, DB.Create(&campaign).Error)
+	promotionID := "promo_content_race"
+	recipient := RecallRecipient{
+		CampaignId: campaign.Id, UserId: user.Id, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+		LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: &promotionID,
+		PromotionCode: "CONTENTRACE123", PromotionExpiresAt: now + 100, CreatedAt: now - 50,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+
+	joinedRecipientQueries := 0
+	callbackName := "recall_offer_content_race_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table != "recall_recipients" || !strings.Contains(tx.Statement.SQL.String(), "JOIN recall_campaigns") {
+			return
+		}
+		joinedRecipientQueries++
+		if joinedRecipientQueries == 2 {
+			require.NoError(t, DB.Exec("UPDATE recall_campaigns SET campaign_type = ? WHERE id = ?", RecallCampaignTypeContentOnly, campaign.Id).Error)
+		}
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Query().Remove(callbackName) })
+
+	candidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now)
+
+	require.NoError(t, err)
+	require.Empty(t, candidates)
+	var stored RecallCampaign
+	require.NoError(t, DB.First(&stored, campaign.Id).Error)
+	require.Equal(t, RecallCampaignTypeContentOnly, stored.CampaignType)
 }
 
 func TestRecallOfferCandidateEffectiveIssuedAtFallsBackToCreatedAt(t *testing.T) {
@@ -2193,6 +2241,41 @@ func TestReleaseRecallMessageLeaseRestoresScheduledAndRetryStates(t *testing.T) 
 
 	require.Equal(t, now-30, loadRecallMessageForRepositoryTest(t, messages[0].Id).ScheduledAt)
 	require.Equal(t, now-20, loadRecallMessageForRepositoryTest(t, messages[1].Id).NextAttemptAt)
+}
+
+func TestReleaseRecallMessageLeaseForRetryDefersEveryDueState(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	now := int64(1_721_000_000)
+	retryAt := now + 3_600
+	messages := []RecallMessage{
+		{RecipientId: 521, StageNo: 1, TemplateSnapshot: `{}`, ScheduledAt: now - 30, State: RecallMessageScheduled},
+		{RecipientId: 522, StageNo: 1, TemplateSnapshot: `{}`, NextAttemptAt: now - 20, State: RecallMessageRetryWait},
+		{RecipientId: 523, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageLeased, LeaseOwner: "expired-owner", LeaseExpiresAt: now - 10},
+	}
+	require.NoError(t, DB.Create(&messages).Error)
+	due, err := ListDueRecallMessages(now, 10)
+	require.NoError(t, err)
+	require.Len(t, due, len(messages))
+
+	for _, candidate := range due {
+		leaseUntil := now + 60 + candidate.ID
+		won, err := LeaseDueRecallMessage(candidate, "quota-worker", now, leaseUntil)
+		require.NoError(t, err)
+		require.True(t, won)
+
+		released, err := ReleaseRecallMessageLeaseForRetryWithContext(
+			context.Background(), candidate.ID, "quota-worker", leaseUntil, candidate, retryAt,
+		)
+		require.NoError(t, err)
+		require.True(t, released)
+
+		stored := loadRecallMessageForRepositoryTest(t, candidate.ID)
+		require.Equal(t, RecallMessageRetryWait, stored.State)
+		require.Equal(t, retryAt, stored.NextAttemptAt)
+		require.Empty(t, stored.LeaseOwner)
+		require.Zero(t, stored.LeaseExpiresAt)
+	}
 }
 
 func loadRecallMessageForRepositoryTest(t *testing.T, id int64) RecallMessage {

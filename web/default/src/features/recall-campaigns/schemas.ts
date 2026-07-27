@@ -620,6 +620,17 @@ export const recallCampaignDraftSchema = z
         message: 'Scheduled time must be in the future',
       })
     }
+    if (
+      draft.execution_mode === 'scheduled_once' &&
+      draft.discount_config.coupon_redeem_by > 0 &&
+      draft.discount_config.coupon_redeem_by <= draft.schedule.scheduled_at
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['discount_config', 'coupon_redeem_by'],
+        message: 'Coupon redeem-by must be after the scheduled run time',
+      })
+    }
     if (draft.execution_mode === 'recurring') {
       if (!isIanaTimezone(draft.schedule.timezone)) {
         context.addIssue({

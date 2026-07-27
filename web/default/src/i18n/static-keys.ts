@@ -20,10 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
   // Activity email translation status
-  'stale',
-  'manual',
-  'missing',
-  'invalid',
+  'recall.translation_status.ready',
+  'recall.translation_status.stale',
+  'recall.translation_status.manual',
+  'recall.translation_status.missing',
+  'recall.translation_status.invalid',
 
   // Header navigation
   'Home',

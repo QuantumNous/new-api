@@ -1533,7 +1533,7 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 		return RecallCampaignDraft{}, fmt.Errorf("unsupported recall execution mode %q", draft.ExecutionMode)
 	}
 
-	if draft.PromotionValidSeconds <= 0 {
+	if draft.CampaignType == model.RecallCampaignTypeContentOnly && draft.PromotionValidSeconds <= 0 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall activity delivery validity must be positive")
 	}
 	if draft.CampaignType == model.RecallCampaignTypePromotion {

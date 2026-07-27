@@ -63,6 +63,13 @@ export function getRecallWorkspaceLocaleStatus(
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
+export function getRecallTranslationStatusKey(
+  status: RecallEmailLocaleStatus
+): string {
+  return `recall.translation_status.${status}`
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
 export function getRecallTranslationSummary(
   stages: RecallEmailStage[],
   englishDirtyStages: Set<number>
@@ -301,6 +308,7 @@ export function CampaignTranslationWorkspace(
           <Button
             type='button'
             variant='outline'
+            disabled={readOnly}
             onClick={() =>
               stages.replace(
                 removeRecallEmailStage(
@@ -364,10 +372,14 @@ export function CampaignTranslationWorkspace(
                 <span className='text-xs'>
                   {watchedStages
                     .map((stage, index) =>
-                      getRecallWorkspaceLocaleStatus(
-                        stage,
-                        locale,
-                        englishDirtyStages.has(index)
+                      t(
+                        getRecallTranslationStatusKey(
+                          getRecallWorkspaceLocaleStatus(
+                            stage,
+                            locale,
+                            englishDirtyStages.has(index)
+                          )
+                        )
                       )
                     )
                     .join(', ')}
@@ -422,6 +434,7 @@ export function CampaignTranslationWorkspace(
         <Button
           type='button'
           variant='outline'
+          disabled={readOnly}
           onClick={() =>
             stages.append({
               stage_no: stages.fields.length + 1,

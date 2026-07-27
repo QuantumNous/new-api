@@ -109,21 +109,21 @@ func LeaseDueRecallMessage(candidate RecallDueMessage, owner string, now int64, 
 }
 
 func ReleaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage) (bool, error) {
-	return releaseRecallMessageLeaseWithContext(ctx, id, owner, expectedLeaseUntil, candidate, expectedLeaseUntil)
+	return releaseRecallMessageLeaseWithContext(ctx, id, owner, expectedLeaseUntil, candidate, expectedLeaseUntil, false)
 }
 
 func ReleaseRecallMessageLeaseForRetryWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage, retryAt int64) (bool, error) {
-	return releaseRecallMessageLeaseWithContext(ctx, id, owner, expectedLeaseUntil, candidate, retryAt)
+	return releaseRecallMessageLeaseWithContext(ctx, id, owner, expectedLeaseUntil, candidate, retryAt, true)
 }
 
-func releaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage, retryAt int64) (bool, error) {
+func releaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage, retryAt int64, forceRetry bool) (bool, error) {
 	restoredState := candidate.State
 	updates := map[string]any{
 		"state":            restoredState,
 		"lease_owner":      "",
 		"lease_expires_at": int64(0),
 	}
-	if candidate.State == RecallMessageLeased {
+	if forceRetry || candidate.State == RecallMessageLeased {
 		updates["state"] = RecallMessageRetryWait
 		updates["next_attempt_at"] = retryAt
 	}

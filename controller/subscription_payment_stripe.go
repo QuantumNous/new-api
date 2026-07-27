@@ -105,8 +105,11 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	)
 	if err != nil {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe subscription recall offer resolution failed user_id=%d plan_id=%d price_id=%s error=%q", userId, plan.Id, plan.StripePriceId, err.Error()))
-		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable))
-		return
+		if strings.TrimSpace(req.RecallClaim) != "" {
+			common.ApiErrorMsg(c, i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable))
+			return
+		}
+		resolvedRecallOffer = nil
 	}
 	recallDiscount := service.RecallCheckoutDiscountFromResolvedOffer(resolvedRecallOffer)
 
@@ -159,14 +162,15 @@ func applySubscriptionCheckoutDiscountSelection(order *model.SubscriptionOrder, 
 		return nil
 	}
 	if order.DiscountUSD > 0 {
-		if strings.EqualFold(strings.TrimSpace(plan.Currency), "USD") {
-			inviteDiscountMinor, err := service.StripeMinorUnitAmountForSubscription(order.DiscountUSD, plan.Currency)
-			if err != nil {
-				return err
-			}
-			if inviteDiscountMinor >= recall.DiscountAmountMinor {
-				return nil
-			}
+		if !strings.EqualFold(strings.TrimSpace(plan.Currency), "USD") {
+			return nil
+		}
+		inviteDiscountMinor, err := service.StripeMinorUnitAmountForSubscription(order.DiscountUSD, plan.Currency)
+		if err != nil {
+			return err
+		}
+		if inviteDiscountMinor >= recall.DiscountAmountMinor {
+			return nil
 		}
 		order.DiscountUSD = 0
 		order.Money = plan.PriceAmount

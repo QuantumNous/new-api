@@ -7,6 +7,7 @@ import type { RecallEmailQuotaStatus } from '../types'
 import {
   applyRecallEmailHourlyLimit,
   CampaignEmailHourlyLimitControlView,
+  getRecallEmailQuotaControlState,
   getRecallEmailQuotaPollInterval,
   parseRecallEmailHourlyLimit,
   syncRecallEmailHourlyLimitFromServer,
@@ -78,6 +79,17 @@ describe('CampaignEmailHourlyLimitControl', () => {
     })
   })
 
+  test('keeps cached quota editable after a background refresh error', () => {
+    expect(getRecallEmailQuotaControlState(undefined, false, true)).toEqual({
+      disabled: true,
+      loadError: true,
+    })
+    expect(getRecallEmailQuotaControlState(makeQuota(), false, true)).toEqual({
+      disabled: false,
+      loadError: false,
+    })
+  })
+
   test('shows usage, local reset time, module scope, and exhausted queue state', () => {
     const quota = makeQuota({
       used: 100,
@@ -87,6 +99,7 @@ describe('CampaignEmailHourlyLimitControl', () => {
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <CampaignEmailHourlyLimitControlView
+          disabled={false}
           error=''
           inputValue='100'
           pending={false}
@@ -105,5 +118,30 @@ describe('CampaignEmailHourlyLimitControl', () => {
     expect(html).toContain(
       'Hourly limit reached. Queued activity emails will resume at'
     )
+  })
+
+  test('disables editing and keeps the load error visible while quota is unavailable', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <CampaignEmailHourlyLimitControlView
+          disabled={true}
+          error='Failed to load email quota.'
+          inputValue='100'
+          pending={false}
+          quota={makeQuota()}
+          onInputChange={() => undefined}
+          onSave={() => undefined}
+        />
+      </I18nextProvider>
+    )
+
+    expect(html).toMatch(
+      /<input(?=[^>]*id="recall-email-hourly-limit")(?=[^>]*disabled="")[^>]*>/
+    )
+    expect(html).toMatch(
+      /<button(?=[^>]*disabled="")[^>]*>Save hourly limit<\/button>/
+    )
+    expect(html).toContain('role="alert"')
+    expect(html).toContain('Failed to load email quota.')
   })
 })

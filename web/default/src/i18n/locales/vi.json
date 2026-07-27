@@ -6140,7 +6140,7 @@
     "first_purchase": "Mua lần đầu",
     "lapsed_payer": "Khách hàng ngừng thanh toán",
     "expired_subscription": "Gói đăng ký đã hết hạn",
-    "manual": "đã sửa thủ công",
+    "manual": "Thủ công",
     "scheduled_once": "Lên lịch một lần",
     "recurring": "Lặp lại",
     "automatic": "Tự động",
@@ -6294,6 +6294,11 @@
     "stale": "đã cũ",
     "missing": "bị thiếu",
     "invalid": "không hợp lệ",
+    "recall.translation_status.ready": "Sẵn sàng",
+    "recall.translation_status.stale": "Đã cũ",
+    "recall.translation_status.manual": "Đã sửa thủ công",
+    "recall.translation_status.missing": "Bị thiếu",
+    "recall.translation_status.invalid": "Không hợp lệ",
     "Activity email hourly limit": "Giới hạn email hoạt động mỗi giờ",
     "All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.": "Tất cả chiến dịch trong Cấu hình hoạt động dùng chung giới hạn mỗi giờ này. Các email hệ thống khác không bị ảnh hưởng.",
     "Attempts count when SMTP sending starts and are not refunded.": "Lượt gửi được tính khi SMTP bắt đầu gửi và sẽ không được hoàn lại.",
@@ -6301,6 +6306,7 @@
     "Hourly limit reached. Queued activity emails will resume at {{time}}.": "Đã đạt giới hạn mỗi giờ. Email hoạt động trong hàng đợi sẽ tiếp tục lúc {{time}}.",
     "Quota resets at {{time}}.": "Hạn mức được đặt lại lúc {{time}}.",
     "Hourly limit must be between 1 and 100000.": "Giới hạn mỗi giờ phải từ 1 đến 100000.",
+    "Failed to load email quota.": "Không thể tải hạn mức email.",
     "Save hourly limit": "Lưu giới hạn mỗi giờ"
   }
 }

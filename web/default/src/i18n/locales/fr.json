@@ -6140,7 +6140,7 @@
     "first_purchase": "Premier achat",
     "lapsed_payer": "Payeur inactif",
     "expired_subscription": "Abonnement expiré",
-    "manual": "modification manuelle",
+    "manual": "Manuel",
     "scheduled_once": "Planifiée une fois",
     "recurring": "Récurrente",
     "automatic": "Automatique",
@@ -6294,6 +6294,11 @@
     "stale": "obsolète",
     "missing": "manquante",
     "invalid": "non valide",
+    "recall.translation_status.ready": "Prête",
+    "recall.translation_status.stale": "Obsolète",
+    "recall.translation_status.manual": "Modifiée manuellement",
+    "recall.translation_status.missing": "Manquante",
+    "recall.translation_status.invalid": "Non valide",
     "Activity email hourly limit": "Limite horaire des e-mails d’activité",
     "All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.": "Toutes les campagnes de Configuration des activités partagent cette limite horaire. Les autres e-mails du système ne sont pas concernés.",
     "Attempts count when SMTP sending starts and are not refunded.": "Les tentatives sont comptées dès le début de l’envoi SMTP et ne sont pas recréditées.",
@@ -6301,6 +6306,7 @@
     "Hourly limit reached. Queued activity emails will resume at {{time}}.": "Limite horaire atteinte. Les e-mails d’activité en attente reprendront à {{time}}.",
     "Quota resets at {{time}}.": "Le quota est réinitialisé à {{time}}.",
     "Hourly limit must be between 1 and 100000.": "La limite horaire doit être comprise entre 1 et 100000.",
+    "Failed to load email quota.": "Échec du chargement du quota d’e-mails.",
     "Save hourly limit": "Enregistrer la limite horaire"
   }
 }

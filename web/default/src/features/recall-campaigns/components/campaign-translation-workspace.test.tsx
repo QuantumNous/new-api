@@ -26,6 +26,7 @@ const {
   getRecallEmailEditorKey,
   getRecallManualLocaleCount,
   getRecallTranslationSummary,
+  getRecallTranslationStatusKey,
   getRecallWorkspaceLocaleStatus,
   markRecallManualLocale,
 } = await import('./campaign-translation-workspace')
@@ -151,6 +152,21 @@ describe('CampaignTranslationWorkspace', () => {
     )
   })
 
+  test('disables adding and removing stages with the rest of the workspace', () => {
+    const html = renderWorkspace(
+      makeDraft([makeStage(1), makeStage(2)]),
+      undefined,
+      true
+    )
+
+    expect(html).toMatch(
+      /<button(?=[^>]*disabled="")[^>]*>Remove stage<\/button>/
+    )
+    expect(html).toMatch(
+      /<button(?=[^>]*disabled="")[^>]*>Add email stage<\/button>/
+    )
+  })
+
   test('summarizes optional locale review without acknowledgments', () => {
     const html = renderWorkspace(makeDraft([makeStage()]), {
       stage_no: 1,
@@ -169,6 +185,15 @@ describe('CampaignTranslationWorkspace', () => {
 
     expect(getRecallWorkspaceLocaleStatus(stage, 'es', false)).toBe('ready')
     expect(getRecallWorkspaceLocaleStatus(stage, 'es', true)).toBe('stale')
+  })
+
+  test('isolates translation status labels from execution mode labels', () => {
+    expect(getRecallTranslationStatusKey('manual')).toBe(
+      'recall.translation_status.manual'
+    )
+    expect(getRecallTranslationStatusKey('ready')).toBe(
+      'recall.translation_status.ready'
+    )
   })
 
   test('counts ready targets across every stage', () => {
