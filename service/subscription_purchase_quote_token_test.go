@@ -109,6 +109,87 @@ func TestSubscriptionPurchaseQuoteTokenRoundTripWithInvitationDiscount(t *testin
 	require.Equal(t, claims, verified)
 }
 
+func TestSubscriptionPurchaseQuoteTokenRoundTripWithRecurringZeroTotalInvitationDiscount(t *testing.T) {
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "subscription-quote-test-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+
+	claims := SubscriptionPurchaseQuoteTokenClaims{
+		Version:                       2,
+		UserID:                        17,
+		PlanID:                        3,
+		PaymentChoice:                 SubscriptionPaymentChoiceStripeRecurring,
+		Months:                        1,
+		RequestID:                     "purchase-request-17",
+		Currency:                      "USD",
+		UnitAmountMinor:               999,
+		DiscountKind:                  SubscriptionDiscountKindInvitation,
+		DiscountAmountMinor:           999,
+		TotalAmountMinor:              0,
+		InvitationAvailableUSDMinor:   999,
+		InvitationDiscountUSDMinor:    999,
+		InvitationDiscountAmountMinor: 999,
+		InvitationRemainingUSDMinor:   0,
+		OtherDiscountKind:             SubscriptionDiscountKindRecall,
+		OtherDiscountAmountMinor:      500,
+		PlanRevision:                  1_753_268_400,
+		ExpiresAt:                     1_753_269_000,
+	}
+
+	token, err := SignSubscriptionPurchaseQuoteToken(claims)
+	require.NoError(t, err)
+
+	verified, err := VerifySubscriptionPurchaseQuoteToken(
+		token,
+		time.Unix(1_753_268_500, 0),
+	)
+	require.NoError(t, err)
+	require.Equal(t, claims, verified)
+	require.Zero(t, verified.RecallCampaignID)
+	require.Zero(t, verified.RecallRecipientID)
+}
+
+func TestSubscriptionPurchaseQuoteTokenRejectsInvitationAmountTamperingWithoutResigning(t *testing.T) {
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "subscription-quote-test-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+
+	token, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
+		Version:                       2,
+		UserID:                        17,
+		PlanID:                        3,
+		PaymentChoice:                 SubscriptionPaymentChoiceStripeRecurring,
+		Months:                        1,
+		RequestID:                     "purchase-request-17",
+		Currency:                      "USD",
+		UnitAmountMinor:               999,
+		DiscountKind:                  SubscriptionDiscountKindInvitation,
+		DiscountAmountMinor:           999,
+		TotalAmountMinor:              0,
+		InvitationAvailableUSDMinor:   999,
+		InvitationDiscountUSDMinor:    999,
+		InvitationDiscountAmountMinor: 999,
+		InvitationRemainingUSDMinor:   0,
+		PlanRevision:                  1_753_268_400,
+		ExpiresAt:                     1_753_269_000,
+	})
+	require.NoError(t, err)
+
+	parts := strings.Split(token, ".")
+	require.Len(t, parts, 2)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	require.NoError(t, err)
+	tamperedPayload := strings.Replace(string(payload), `"invitation_discount_usd_minor":999`, `"invitation_discount_usd_minor":998`, 1)
+	require.NotEqual(t, string(payload), tamperedPayload)
+	parts[0] = base64.RawURLEncoding.EncodeToString([]byte(tamperedPayload))
+
+	_, err = VerifySubscriptionPurchaseQuoteToken(
+		strings.Join(parts, "."),
+		time.Unix(1_753_268_500, 0),
+	)
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+}
+
 func TestSubscriptionPurchaseQuoteTokenRejectsTampering(t *testing.T) {
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "subscription-quote-test-secret"

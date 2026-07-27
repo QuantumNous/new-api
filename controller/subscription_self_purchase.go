@@ -73,10 +73,6 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 		return
 	}
 	choice := normalizeSubscriptionSelfPaymentChoice(req.PaymentMethod, req.PaymentChoice)
-	if choice == service.SubscriptionPaymentChoiceStripeRecurring {
-		common.ApiErrorMsg(c, "stripe_recurring does not require a one-time quote")
-		return
-	}
 	req.RequestID = strings.TrimSpace(req.RequestID)
 	if req.RequestID == "" {
 		common.ApiErrorMsg(c, "request_id is required")
@@ -109,7 +105,7 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 	}
 	expiresAt := time.Now().Add(subscriptionSelfQuoteTTL).Unix()
 	token, err := service.SignSubscriptionPurchaseQuoteToken(service.SubscriptionPurchaseQuoteTokenClaims{
-		Version:                       1,
+		Version:                       2,
 		UserID:                        userID,
 		PlanID:                        req.PlanID,
 		PaymentChoice:                 choice,
@@ -173,15 +169,14 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		common.ApiErrorMsg(c, "request_id is required")
 		return
 	}
-	var claims service.SubscriptionPurchaseQuoteTokenClaims
-	requiresQuote := isOneTimePlanStripeMethod(choice) || choice == service.SubscriptionPaymentChoiceBalance
-	if requiresQuote {
-		var err error
-		claims, err = validateSubscriptionSelfPurchaseQuote(req, userID, choice)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
+	claims, err := validateSubscriptionSelfPurchaseQuote(req, userID, choice)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if claims.DiscountKind == service.SubscriptionDiscountKindInvitation {
+		common.ApiError(c, service.ErrSubscriptionPurchaseInvitationReservationRequired)
+		return
 	}
 
 	result, err := service.PurchaseSubscription(service.PurchaseSubscriptionCommand{
@@ -190,7 +185,7 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		PaymentChoice: choice,
 		Months:        req.Months,
 		RequestID:     req.RequestID,
-		VerifiedQuote: subscriptionPurchaseQuoteFromClaims(claims, requiresQuote),
+		VerifiedQuote: subscriptionPurchaseQuoteFromClaims(claims, true),
 		UIMode:        req.UIMode,
 		RecallClaim:   req.RecallClaim,
 	})
@@ -198,11 +193,9 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if requiresQuote && result != nil && result.Order != nil {
-		if result.Order.PaymentCurrency != claims.Currency || result.Order.PaymentAmountMinor != claims.TotalAmountMinor {
-			common.ApiErrorMsg(c, "subscription purchase quote mismatch")
-			return
-		}
+	if err := validateSubscriptionSelfPurchaseResultQuote(result, claims); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
 	}
 	if isOneTimePlanStripeMethod(choice) {
 		checkoutURL, err := ensureSubscriptionSelfOneTimeCheckout(c, result, req.UIMode)
@@ -218,6 +211,78 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, subscriptionSelfPurchaseResponse(result, ""))
+}
+
+func validateSubscriptionSelfPurchaseResultQuote(result *service.PurchaseSubscriptionResult, claims service.SubscriptionPurchaseQuoteTokenClaims) error {
+	if result == nil {
+		return nil
+	}
+	order := result.Order
+	if order == nil && result.Intent != nil && result.Intent.Id > 0 {
+		var stored model.SubscriptionOrder
+		query := model.DB.Where("change_intent_id = ? AND payment_provider = ?", result.Intent.Id, model.PaymentProviderStripe).
+			Order("id desc").
+			Limit(1).
+			Find(&stored)
+		if query.Error != nil {
+			return query.Error
+		}
+		if query.RowsAffected > 0 {
+			order = &stored
+		}
+	}
+	if order == nil {
+		return nil
+	}
+	if claims.PaymentChoice == service.SubscriptionPaymentChoiceStripeRecurring {
+		updates := map[string]interface{}{
+			"payment_currency":     claims.Currency,
+			"payment_amount_minor": order.PaymentAmountMinor,
+			"money":                order.Money,
+		}
+		if order.PaymentAmountMinor != claims.TotalAmountMinor {
+			updates["payment_amount_minor"] = claims.TotalAmountMinor
+			updates["money"] = float64(claims.TotalAmountMinor) / 100
+		}
+		if claims.DiscountKind == service.SubscriptionDiscountKindRecall {
+			updates["recall_campaign_id"] = claims.RecallCampaignID
+			updates["recall_recipient_id"] = claims.RecallRecipientID
+			updates["recall_discount_amount_minor"] = claims.DiscountAmountMinor
+		} else {
+			updates["recall_campaign_id"] = int64(0)
+			updates["recall_recipient_id"] = int64(0)
+			updates["recall_promotion_code_id"] = ""
+			updates["recall_discount_amount_minor"] = int64(0)
+		}
+		if err := model.DB.Model(&model.SubscriptionOrder{}).Where("id = ?", order.Id).Updates(updates).Error; err != nil {
+			return err
+		}
+		order.PaymentCurrency = claims.Currency
+		order.PaymentAmountMinor = claims.TotalAmountMinor
+		order.Money = float64(claims.TotalAmountMinor) / 100
+		order.RecallCampaignId = claims.RecallCampaignID
+		order.RecallRecipientId = claims.RecallRecipientID
+		order.RecallDiscountAmountMinor = claims.DiscountAmountMinor
+		if claims.DiscountKind != service.SubscriptionDiscountKindRecall {
+			order.RecallPromotionCodeId = ""
+		}
+	}
+	if strings.ToUpper(strings.TrimSpace(order.PaymentCurrency)) != claims.Currency ||
+		order.PaymentAmountMinor != claims.TotalAmountMinor {
+		return errors.New("subscription purchase quote mismatch")
+	}
+	if claims.DiscountKind == service.SubscriptionDiscountKindRecall {
+		if order.RecallCampaignId != claims.RecallCampaignID ||
+			order.RecallRecipientId != claims.RecallRecipientID ||
+			order.RecallDiscountAmountMinor != claims.DiscountAmountMinor {
+			return errors.New("subscription purchase quote mismatch")
+		}
+	}
+	if claims.DiscountKind != service.SubscriptionDiscountKindRecall &&
+		(order.RecallCampaignId != 0 || order.RecallRecipientId != 0 || order.RecallDiscountAmountMinor != 0) {
+		return errors.New("subscription purchase quote mismatch")
+	}
+	return nil
 }
 
 func syncSubscriptionSelfRecurringCheckoutHistory(result *service.PurchaseSubscriptionResult) error {
@@ -256,7 +321,39 @@ func validateSubscriptionSelfPurchaseQuote(req SubscriptionSelfPurchaseRequest, 
 	if claims.PlanRevision != subscriptionPurchasePlanRevision(plan) {
 		return service.SubscriptionPurchaseQuoteTokenClaims{}, errors.New("subscription purchase quote is stale")
 	}
+	quote, err := service.QuoteSubscriptionPurchase(service.PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        req.PlanID,
+		PaymentChoice: choice,
+		Months:        req.Months,
+		RecallClaim:   req.RecallClaim,
+	})
+	if err != nil {
+		return service.SubscriptionPurchaseQuoteTokenClaims{}, err
+	}
+	if quote == nil || !quote.Available || !subscriptionSelfQuoteMatchesClaims(quote, claims) {
+		return service.SubscriptionPurchaseQuoteTokenClaims{}, errors.New("subscription purchase quote mismatch")
+	}
 	return claims, nil
+}
+
+func subscriptionSelfQuoteMatchesClaims(quote *service.SubscriptionPurchaseQuoteResult, claims service.SubscriptionPurchaseQuoteTokenClaims) bool {
+	if quote == nil {
+		return false
+	}
+	return strings.ToUpper(strings.TrimSpace(quote.Currency)) == claims.Currency &&
+		quote.UnitAmountMinor == claims.UnitAmountMinor &&
+		quote.PaymentAmountMinor == claims.TotalAmountMinor &&
+		quote.DiscountKind == claims.DiscountKind &&
+		quote.DiscountAmountMinor == claims.DiscountAmountMinor &&
+		quote.InvitationAvailableUSDMinor == claims.InvitationAvailableUSDMinor &&
+		quote.InvitationDiscountUSDMinor == claims.InvitationDiscountUSDMinor &&
+		quote.InvitationDiscountAmountMinor == claims.InvitationDiscountAmountMinor &&
+		quote.InvitationRemainingUSDMinor == claims.InvitationRemainingUSDMinor &&
+		quote.OtherDiscountKind == claims.OtherDiscountKind &&
+		quote.OtherDiscountAmountMinor == claims.OtherDiscountAmountMinor &&
+		quote.RecallCampaignID == claims.RecallCampaignID &&
+		quote.RecallRecipientID == claims.RecallRecipientID
 }
 
 func subscriptionPurchaseQuoteFromClaims(claims service.SubscriptionPurchaseQuoteTokenClaims, required bool) *service.SubscriptionPurchaseQuote {

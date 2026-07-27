@@ -19,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v86"
+	"gorm.io/gorm"
 )
 
 func insertSubscriptionSelfPurchasePlan(t *testing.T, id int) model.SubscriptionPlan {
@@ -54,6 +55,22 @@ func performSubscriptionSelfPurchaseRequest(body string, handler gin.HandlerFunc
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	handler(ctx)
 	return recorder
+}
+
+func grantSubscriptionSelfPurchaseInvitationDiscount(t *testing.T, userID int, amountUSDMinor int64, key string) {
+	t.Helper()
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.GrantSubscriptionDiscountTx(tx, model.SubscriptionDiscountGrantInput{
+			UserID:          userID,
+			USDMinor:        amountUSDMinor,
+			EntryType:       model.SubscriptionDiscountEntryTypeGrantInvitee,
+			SourceType:      "test_invitation",
+			SourceKey:       key,
+			IdempotencyKey:  key,
+			PricingSnapshot: `{"source":"test"}`,
+		})
+		return err
+	}))
 }
 
 func TestSubscriptionSelfQuoteSignsPixBRLQuote(t *testing.T) {
@@ -286,11 +303,15 @@ func TestSubscriptionSelfQuoteReturnsUnavailableWhenLocalPriceMissing(t *testing
 	}
 }
 
-func TestSubscriptionSelfQuoteRejectsStripeRecurringQuote(t *testing.T) {
+func TestSubscriptionSelfQuoteSignsRecurringZeroTotalInvitationQuote(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "controller-subscription-recurring-quote-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
 	insertSubscriptionControllerUser(t, 9102)
-	insertSubscriptionSelfPurchasePlan(t, 9202)
+	plan := insertSubscriptionSelfPurchasePlan(t, 9202)
+	grantSubscriptionSelfPurchaseInvitationDiscount(t, 9102, 999, "controller-recurring-invitation")
 
 	recorder := performSubscriptionSelfPurchaseRequest(
 		`{"plan_id":9202,"payment_method":"stripe_recurring","months":1,"request_id":"stripe-recurring-quote"}`,
@@ -299,7 +320,37 @@ func TestSubscriptionSelfQuoteRejectsStripeRecurringQuote(t *testing.T) {
 	)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	require.Contains(t, recorder.Body.String(), "recurring")
+	var envelope struct {
+		Message string `json:"message"`
+		Data    struct {
+			PaymentQuotes map[string]SubscriptionSelfPaymentQuote `json:"payment_quotes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Empty(t, envelope.Message)
+	recurringQuote := envelope.Data.PaymentQuotes[service.SubscriptionPaymentChoiceStripeRecurring]
+	require.Equal(t, "USD", recurringQuote.Currency)
+	require.Equal(t, float64(9.99), recurringQuote.UnitPrice)
+	require.Equal(t, float64(9.99), recurringQuote.OriginalTotal)
+	require.Equal(t, float64(9.99), recurringQuote.DiscountAmount)
+	require.Zero(t, recurringQuote.Total)
+	require.NotEmpty(t, recurringQuote.QuoteID)
+
+	claims, err := service.VerifySubscriptionPurchaseQuoteToken(recurringQuote.QuoteID, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, 2, claims.Version)
+	require.Equal(t, 9102, claims.UserID)
+	require.Equal(t, plan.Id, claims.PlanID)
+	require.Equal(t, service.SubscriptionPaymentChoiceStripeRecurring, claims.PaymentChoice)
+	require.Equal(t, service.SubscriptionDiscountKindInvitation, claims.DiscountKind)
+	require.Equal(t, int64(999), claims.InvitationAvailableUSDMinor)
+	require.Equal(t, int64(999), claims.InvitationDiscountUSDMinor)
+	require.Equal(t, int64(999), claims.InvitationDiscountAmountMinor)
+	require.Zero(t, claims.InvitationRemainingUSDMinor)
+	require.Zero(t, claims.TotalAmountMinor)
+	require.Zero(t, claims.RecallCampaignID)
+	require.Zero(t, claims.RecallRecipientID)
+	require.Equal(t, subscriptionPurchasePlanRevision(&plan), claims.PlanRevision)
 }
 
 func TestSubscriptionSelfPurchaseRejectsTamperedQuotePayload(t *testing.T) {
@@ -468,8 +519,22 @@ func TestSubscriptionSelfPurchaseStripeRecurringForwardsRecallClaimToCheckout(t 
 		stripe.Key = originalKey
 	})
 
-	purchase := performSubscriptionSelfPurchaseRequest(
+	quote := performSubscriptionSelfPurchaseRequest(
 		`{"plan_id":9217,"payment_choice":"stripe_recurring","months":1,"request_id":"self-recall","recall_claim":"`+claim+`"}`,
+		QuoteSubscriptionSelfPurchase,
+		9117,
+	)
+	var quoteEnvelope struct {
+		Data struct {
+			PaymentQuotes map[string]SubscriptionSelfPaymentQuote `json:"payment_quotes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(quote.Body.Bytes(), &quoteEnvelope))
+	recurringQuote := quoteEnvelope.Data.PaymentQuotes[service.SubscriptionPaymentChoiceStripeRecurring]
+	require.NotEmpty(t, recurringQuote.QuoteID)
+
+	purchase := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9217,"payment_choice":"stripe_recurring","months":1,"request_id":"self-recall","recall_claim":"`+claim+`","quote_id":"`+recurringQuote.QuoteID+`"}`,
 		PurchaseSubscriptionSelf,
 		9117,
 	)
@@ -754,6 +819,62 @@ func TestSubscriptionSelfPurchaseBalanceRequiresQuote(t *testing.T) {
 	require.Contains(t, purchase.Body.String(), "quote_id")
 	var count int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9107).Count(&count).Error)
+	require.Zero(t, count)
+}
+
+func TestSubscriptionSelfPurchaseStripeRecurringRequiresQuote(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	insertSubscriptionControllerUser(t, 9118)
+	insertSubscriptionSelfPurchasePlan(t, 9218)
+
+	purchase := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9218,"payment_method":"stripe_recurring","months":1,"request_id":"recurring-no-quote"}`,
+		PurchaseSubscriptionSelf,
+		9118,
+	)
+
+	require.Equal(t, http.StatusOK, purchase.Code)
+	require.Contains(t, purchase.Body.String(), "quote_id")
+	var count int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9118).Count(&count).Error)
+	require.Zero(t, count)
+}
+
+func TestSubscriptionSelfPurchaseRejectsRecurringInvitationQuoteUntilReservationSupport(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "controller-subscription-recurring-invitation-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+	insertSubscriptionControllerUser(t, 9119)
+	insertSubscriptionSelfPurchasePlan(t, 9219)
+	grantSubscriptionSelfPurchaseInvitationDiscount(t, 9119, 999, "controller-recurring-invitation-purchase")
+
+	quote := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9219,"payment_method":"stripe_recurring","months":1,"request_id":"recurring-invitation"}`,
+		QuoteSubscriptionSelfPurchase,
+		9119,
+	)
+	var quoteEnvelope struct {
+		Data struct {
+			PaymentQuotes map[string]SubscriptionSelfPaymentQuote `json:"payment_quotes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(quote.Body.Bytes(), &quoteEnvelope))
+	recurringQuote := quoteEnvelope.Data.PaymentQuotes[service.SubscriptionPaymentChoiceStripeRecurring]
+	require.NotEmpty(t, recurringQuote.QuoteID)
+
+	purchase := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9219,"payment_method":"stripe_recurring","months":1,"request_id":"recurring-invitation","quote_id":"`+recurringQuote.QuoteID+`"}`,
+		PurchaseSubscriptionSelf,
+		9119,
+	)
+
+	require.Equal(t, http.StatusOK, purchase.Code)
+	require.Contains(t, purchase.Body.String(), "reservation support")
+	var count int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9119).Count(&count).Error)
 	require.Zero(t, count)
 }
 

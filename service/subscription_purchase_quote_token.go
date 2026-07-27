@@ -12,7 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
-const subscriptionPurchaseQuoteTokenVersion = 1
+const subscriptionPurchaseQuoteTokenVersion = 2
 
 var (
 	ErrSubscriptionPurchaseQuoteInvalid = errors.New("subscription purchase quote is invalid")
@@ -83,7 +83,7 @@ func VerifySubscriptionPurchaseQuoteToken(token string, now time.Time) (Subscrip
 }
 
 func validateSubscriptionPurchaseQuoteTokenClaims(claims SubscriptionPurchaseQuoteTokenClaims) error {
-	if claims.Version != subscriptionPurchaseQuoteTokenVersion {
+	if claims.Version != subscriptionPurchaseQuoteTokenVersion && claims.Version != 1 {
 		return fmt.Errorf("%w: unsupported version", ErrSubscriptionPurchaseQuoteInvalid)
 	}
 	if claims.UserID <= 0 || claims.PlanID <= 0 || claims.PlanRevision <= 0 {
@@ -122,7 +122,21 @@ func validateSubscriptionPurchaseQuoteTokenClaims(claims SubscriptionPurchaseQuo
 		if claims.DiscountAmountMinor != 0 {
 			return fmt.Errorf("%w: discount kind does not match amount", ErrSubscriptionPurchaseQuoteInvalid)
 		}
+		if claims.InvitationDiscountUSDMinor != 0 || claims.InvitationDiscountAmountMinor != 0 ||
+			claims.OtherDiscountKind != "" || claims.OtherDiscountAmountMinor != 0 {
+			return fmt.Errorf("%w: discount facts conflict with none discount", ErrSubscriptionPurchaseQuoteInvalid)
+		}
 	case SubscriptionDiscountKindInvitation:
+		if claims.DiscountAmountMinor <= 0 {
+			return fmt.Errorf("%w: invitation discount requires amount", ErrSubscriptionPurchaseQuoteInvalid)
+		}
+		if claims.DiscountAmountMinor != claims.InvitationDiscountAmountMinor {
+			return fmt.Errorf("%w: invitation discount amount mismatch", ErrSubscriptionPurchaseQuoteInvalid)
+		}
+		if claims.InvitationDiscountUSDMinor <= 0 || claims.InvitationAvailableUSDMinor <= 0 ||
+			claims.InvitationAvailableUSDMinor != claims.InvitationDiscountUSDMinor+claims.InvitationRemainingUSDMinor {
+			return fmt.Errorf("%w: invitation USD facts are inconsistent", ErrSubscriptionPurchaseQuoteInvalid)
+		}
 		if claims.RecallCampaignID != 0 || claims.RecallRecipientID != 0 {
 			return fmt.Errorf("%w: invitation quote cannot include recall identity", ErrSubscriptionPurchaseQuoteInvalid)
 		}
@@ -145,6 +159,15 @@ func validateSubscriptionPurchaseQuoteTokenClaims(claims SubscriptionPurchaseQuo
 	default:
 		return fmt.Errorf("%w: unsupported discount kind", ErrSubscriptionPurchaseQuoteInvalid)
 	}
+	if claims.OtherDiscountKind == "" && claims.OtherDiscountAmountMinor != 0 {
+		return fmt.Errorf("%w: other discount amount requires kind", ErrSubscriptionPurchaseQuoteInvalid)
+	}
+	if claims.OtherDiscountKind != "" && claims.OtherDiscountAmountMinor <= 0 {
+		return fmt.Errorf("%w: other discount kind requires amount", ErrSubscriptionPurchaseQuoteInvalid)
+	}
+	if claims.OtherDiscountKind != "" && claims.OtherDiscountKind != SubscriptionDiscountKindRecall {
+		return fmt.Errorf("%w: unsupported other discount kind", ErrSubscriptionPurchaseQuoteInvalid)
+	}
 	if claims.DiscountKind != SubscriptionDiscountKindRecall && (claims.RecallCampaignID != 0 || claims.RecallRecipientID != 0) {
 		return fmt.Errorf("%w: recall identity requires recall discount", ErrSubscriptionPurchaseQuoteInvalid)
 	}
@@ -160,7 +183,7 @@ func validateSubscriptionPurchaseQuoteTokenClaims(claims SubscriptionPurchaseQuo
 		if claims.Currency != "INR" {
 			return fmt.Errorf("%w: UPI quote must use INR", ErrSubscriptionPurchaseQuoteInvalid)
 		}
-	case SubscriptionPaymentChoiceAlipay, SubscriptionPaymentChoiceBalance:
+	case SubscriptionPaymentChoiceAlipay, SubscriptionPaymentChoiceBalance, SubscriptionPaymentChoiceStripeRecurring:
 	default:
 		return fmt.Errorf("%w: unsupported payment choice", ErrSubscriptionPurchaseQuoteInvalid)
 	}
