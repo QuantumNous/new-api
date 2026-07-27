@@ -25,6 +25,17 @@ type RecallPurchaseDiscount struct {
 	DiscountAmountMinor int64
 }
 
+type RecallOfferView struct {
+	RecallClaimView
+	IssuedAt int64 `json:"issued_at"`
+}
+
+type RecallResolvedOffer struct {
+	View            RecallOfferView `json:"view"`
+	PromotionCodeID string          `json:"-"`
+	DiscountMinor   int64           `json:"discount_minor"`
+}
+
 type RecallCampaignDraft struct {
 	CampaignType          string               `json:"campaign_type"`
 	Name                  string               `json:"name"`

@@ -153,6 +153,33 @@ func createRecallEmailOnlyClaimFixture(t *testing.T, now time.Time, email string
 	return recallClaimFixture{campaign: campaign, recipient: recipient, message: message, claim: claim}
 }
 
+func createRecallOfferFixture(t *testing.T, user model.User, now time.Time, name string, status string, discount RecallDiscountConfig, products RecallProductScope, mutate func(*model.RecallRecipient)) recallClaimFixture {
+	t.Helper()
+	discountJSON, err := common.Marshal(discount)
+	require.NoError(t, err)
+	productsJSON, err := common.Marshal(products)
+	require.NoError(t, err)
+	campaign := model.RecallCampaign{
+		Name: name, Status: status, AudienceTemplate: "specified_users",
+		AudienceConfig: `{}`, ExecutionMode: "manual", CouponSource: "automatic",
+		DiscountConfig: string(discountJSON), ProductScope: string(productsJSON), EmailSequenceConfig: `[]`,
+	}
+	require.NoError(t, model.DB.Create(&campaign).Error)
+	promotionID := "promo_" + strings.ReplaceAll(name, " ", "_")
+	recipient := model.RecallRecipient{
+		CampaignId: campaign.Id, UserId: user.Id, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+		LanguageSnapshot: "en", State: model.RecallRecipientContacting,
+		StripePromotionCodeId: &promotionID, PromotionCode: "FK" + strings.ToUpper(strings.ReplaceAll(name, " ", "")) + "234",
+		PromotionExpiresAt: now.Add(time.Hour).Unix(), PromotionIssuedAt: now.Add(-time.Minute).Unix(),
+		StripeCustomerId: "cus_" + strings.ReplaceAll(name, " ", "_"),
+	}
+	if mutate != nil {
+		mutate(&recipient)
+	}
+	require.NoError(t, model.DB.Create(&recipient).Error)
+	return recallClaimFixture{campaign: campaign, recipient: recipient}
+}
+
 func recallClaimHash(claim string) string {
 	digest := sha256.Sum256([]byte(claim))
 	return hex.EncodeToString(digest[:])
@@ -447,7 +474,7 @@ func TestRecallClaimValidateRejectsInvalidClaimsWithTypedErrors(t *testing.T) {
 }
 
 func TestRecallClaimValidateKeepsIssuedClaimsValidAfterCampaignEnds(t *testing.T) {
-	for _, status := range []string{model.RecallCampaignCancelled, model.RecallCampaignCompleted} {
+	for _, status := range []string{model.RecallCampaignCompleted} {
 		t.Run(status, func(t *testing.T) {
 			setupRecallCampaignTestDB(t)
 			setRecallCampaignEnabled(t, true)
@@ -547,6 +574,208 @@ func TestRecallClaimDisabledAndEmptyCheckoutClaim(t *testing.T) {
 	require.ErrorIs(t, err, ErrRecallDisabled)
 	_, err = claimService.BuildCheckoutDiscount(context.Background(), 7, strings.Repeat("c", 48), RecallPurchaseKindTopUp, "price_topup")
 	require.ErrorIs(t, err, ErrRecallDisabled)
+
+	offers, err := claimService.ListOffers(context.Background(), 7)
+	require.NoError(t, err)
+	require.Empty(t, offers)
+}
+
+func TestRecallListOffersSkipsMalformedAndUnsafeFields(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "offer-user", AffCode: "offer-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "offer@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+	valid := createRecallOfferFixture(t, user, now, "valid offer", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 25},
+		RecallProductScope{TopUpPriceIDs: []string{"price_topup"}},
+		func(recipient *model.RecallRecipient) { recipient.PromotionIssuedAt = now.Unix() })
+	malformed := createRecallOfferFixture(t, user, now, "malformed offer", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 50},
+		RecallProductScope{TopUpPriceIDs: []string{"price_topup"}},
+		nil)
+	require.NoError(t, db.Model(&model.RecallCampaign{}).Where("id = ?", malformed.campaign.Id).Update("discount_config", `{`).Error)
+
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+	offers, err := claimService.ListOffers(context.Background(), user.Id)
+
+	require.NoError(t, err)
+	require.Len(t, offers, 1)
+	require.Equal(t, valid.campaign.Id, offers[0].CampaignID)
+	require.Equal(t, valid.recipient.Id, offers[0].RecipientID)
+	require.Equal(t, model.MaskPromotionCode(valid.recipient.PromotionCode), offers[0].PromotionCodeMasked)
+	require.Equal(t, now.Unix(), offers[0].IssuedAt)
+
+	raw, err := common.Marshal(offers[0])
+	require.NoError(t, err)
+	var offerJSON map[string]any
+	require.NoError(t, common.Unmarshal(raw, &offerJSON))
+	require.ElementsMatch(t, []string{
+		"campaign_id", "recipient_id", "campaign_name", "promotion_code_masked",
+		"expires_at", "discount", "products", "redeemed", "issued_at",
+	}, recallAudienceJSONKeys(offerJSON))
+	require.NotContains(t, string(raw), *valid.recipient.StripePromotionCodeId)
+	require.NotContains(t, string(raw), valid.recipient.PromotionCode)
+	require.NotContains(t, string(raw), valid.recipient.EmailSnapshot)
+	require.NotContains(t, string(raw), valid.recipient.StripeCustomerId)
+}
+
+func TestRecallOfferStatusEligibilitySharedByListResolveAndClaim(t *testing.T) {
+	for _, status := range []string{model.RecallCampaignScheduled, model.RecallCampaignRunning, model.RecallCampaignPaused, model.RecallCampaignCompleted} {
+		t.Run(status, func(t *testing.T) {
+			db := setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Unix(1_721_000_000, 0).UTC()
+			user := model.User{Username: "status-" + status, AffCode: "status-aff-" + status, Password: "hash", Status: common.UserStatusEnabled, Email: status + "@example.com"}
+			require.NoError(t, db.Create(&user).Error)
+			fixture := createRecallOfferFixture(t, user, now, "status "+status, status,
+				RecallDiscountConfig{Type: "percent", PercentOff: 10},
+				RecallProductScope{TopUpPriceIDs: []string{"price_topup"}}, nil)
+			claim := strings.Repeat("s", 48)
+			claimHash := recallClaimHash(claim)
+			require.NoError(t, db.Model(&model.RecallRecipient{}).Where("id = ?", fixture.recipient.Id).Update("claim_token_hash", claimHash).Error)
+
+			claimService := NewRecallClaimService()
+			claimService.now = func() time.Time { return now }
+			offers, err := claimService.ListOffers(context.Background(), user.Id)
+			require.NoError(t, err)
+			require.Len(t, offers, 1)
+			resolved, err := claimService.ResolveBestRecallOffer(context.Background(), user.Id, RecallPurchaseKindTopUp, "price_topup", "USD", 1000)
+			require.NoError(t, err)
+			require.NotNil(t, resolved)
+			_, err = claimService.ValidateClaim(context.Background(), user.Id, claim)
+			require.NoError(t, err)
+		})
+	}
+
+	t.Run(model.RecallCampaignCancelled, func(t *testing.T) {
+		db := setupRecallCampaignTestDB(t)
+		setRecallCampaignEnabled(t, true)
+		now := time.Unix(1_721_000_000, 0).UTC()
+		user := model.User{Username: "status-cancelled", AffCode: "status-aff-cancelled", Password: "hash", Status: common.UserStatusEnabled, Email: "cancelled@example.com"}
+		require.NoError(t, db.Create(&user).Error)
+		fixture := createRecallOfferFixture(t, user, now, "status cancelled", model.RecallCampaignCancelled,
+			RecallDiscountConfig{Type: "percent", PercentOff: 10},
+			RecallProductScope{TopUpPriceIDs: []string{"price_topup"}}, nil)
+		claim := strings.Repeat("x", 48)
+		claimHash := recallClaimHash(claim)
+		require.NoError(t, db.Model(&model.RecallRecipient{}).Where("id = ?", fixture.recipient.Id).Update("claim_token_hash", claimHash).Error)
+
+		claimService := NewRecallClaimService()
+		claimService.now = func() time.Time { return now }
+		offers, err := claimService.ListOffers(context.Background(), user.Id)
+		require.NoError(t, err)
+		require.Empty(t, offers)
+		resolved, err := claimService.ResolveBestRecallOffer(context.Background(), user.Id, RecallPurchaseKindTopUp, "price_topup", "USD", 1000)
+		require.NoError(t, err)
+		require.Nil(t, resolved)
+		_, err = claimService.ValidateClaim(context.Background(), user.Id, claim)
+		require.ErrorIs(t, err, ErrRecallClaimInactive)
+	})
+}
+
+func TestRecallResolveBestOfferActualDiscountAndOrdering(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "best-offer-user", AffCode: "best-offer-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "best@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+	createRecallOfferFixture(t, user, now, "newer small", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 10},
+		RecallProductScope{TopUpPriceIDs: []string{"price_topup"}}, func(recipient *model.RecallRecipient) {
+			recipient.PromotionIssuedAt = now.Add(20 * time.Second).Unix()
+		})
+	larger := createRecallOfferFixture(t, user, now, "older larger", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "fixed", AmountOff: 1500, Currency: "USD"},
+		RecallProductScope{TopUpPriceIDs: []string{"price_topup"}}, func(recipient *model.RecallRecipient) {
+			recipient.PromotionIssuedAt = now.Add(10 * time.Second).Unix()
+		})
+
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+	resolved, err := claimService.ResolveBestRecallOffer(context.Background(), user.Id, RecallPurchaseKindTopUp, "price_topup", "USD", 10_000)
+
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+	require.Equal(t, larger.recipient.Id, resolved.View.RecipientID)
+	require.Equal(t, int64(1500), resolved.DiscountMinor)
+	require.Equal(t, *larger.recipient.StripePromotionCodeId, resolved.PromotionCodeID)
+}
+
+func TestRecallResolveBestOfferTiesByIssuedAtThenRecipientID(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "tie-offer-user", AffCode: "tie-offer-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "tie@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+	old := createRecallOfferFixture(t, user, now, "old tie", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 10},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}}, func(recipient *model.RecallRecipient) {
+			recipient.PromotionIssuedAt = now.Unix()
+		})
+	newer := createRecallOfferFixture(t, user, now, "new tie", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 10},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}}, func(recipient *model.RecallRecipient) {
+			recipient.PromotionIssuedAt = now.Add(time.Second).Unix()
+		})
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+
+	resolved, err := claimService.ResolveBestRecallOffer(context.Background(), user.Id, RecallPurchaseKindSubscription, "price_subscription", "USD", 10_000)
+	require.NoError(t, err)
+	require.Equal(t, newer.recipient.Id, resolved.View.RecipientID)
+
+	require.NoError(t, db.Model(&model.RecallRecipient{}).Where("id = ?", newer.recipient.Id).Update("promotion_issued_at", old.recipient.PromotionIssuedAt).Error)
+	resolved, err = claimService.ResolveBestRecallOffer(context.Background(), user.Id, RecallPurchaseKindSubscription, "price_subscription", "USD", 10_000)
+	require.NoError(t, err)
+	require.Equal(t, old.recipient.Id, resolved.View.RecipientID)
+}
+
+func TestRecallResolveBestOfferRejectsInvalidFactsAndProductEligibility(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "facts-offer-user", AffCode: "facts-offer-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "facts@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+	createRecallOfferFixture(t, user, now, "facts offer", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 10},
+		RecallProductScope{TopUpPriceIDs: []string{"price_topup"}, SubscriptionPriceIDs: []string{"price_subscription"}}, nil)
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+
+	for _, test := range []struct {
+		name     string
+		kind     string
+		priceID  string
+		currency string
+		subtotal int64
+	}{
+		{name: "empty kind", kind: "", priceID: "price_topup", currency: "USD", subtotal: 1000},
+		{name: "unknown kind", kind: "other", priceID: "price_topup", currency: "USD", subtotal: 1000},
+		{name: "empty price", kind: RecallPurchaseKindTopUp, priceID: "", currency: "USD", subtotal: 1000},
+		{name: "empty currency", kind: RecallPurchaseKindTopUp, priceID: "price_topup", currency: "", subtotal: 1000},
+		{name: "zero subtotal", kind: RecallPurchaseKindTopUp, priceID: "price_topup", currency: "USD", subtotal: 0},
+		{name: "negative subtotal", kind: RecallPurchaseKindTopUp, priceID: "price_topup", currency: "USD", subtotal: -1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := claimService.ResolveBestRecallOffer(context.Background(), user.Id, test.kind, test.priceID, test.currency, test.subtotal)
+			require.Error(t, err)
+		})
+	}
+
+	wrongPrice, err := claimService.ResolveBestRecallOffer(context.Background(), user.Id, RecallPurchaseKindTopUp, "price_subscription", "USD", 1000)
+	require.NoError(t, err)
+	require.Nil(t, wrongPrice)
+
+	zeroUser := model.User{Username: "zero-offer-user", AffCode: "zero-offer-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "zero@example.com"}
+	require.NoError(t, db.Create(&zeroUser).Error)
+	createRecallOfferFixture(t, zeroUser, now, "zero offer", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "fixed", AmountOff: 0, Currency: "USD"},
+		RecallProductScope{TopUpPriceIDs: []string{"price_topup"}}, nil)
+	zero, err := claimService.ResolveBestRecallOffer(context.Background(), zeroUser.Id, RecallPurchaseKindTopUp, "price_topup", "USD", 1000)
+	require.NoError(t, err)
+	require.Nil(t, zero)
 }
 
 func TestRecallFirstMonthDiscountAmountMinor(t *testing.T) {
@@ -561,6 +790,20 @@ func TestRecallFirstMonthDiscountAmountMinor(t *testing.T) {
 			name:     "percent rounds positive minor units",
 			discount: RecallDiscountConfig{Type: "percent", PercentOff: 12.5},
 			currency: "BRL",
+			unit:     999,
+			want:     125,
+		},
+		{
+			name:     "percent rounds USD half up to minor unit",
+			discount: RecallDiscountConfig{Type: "percent", PercentOff: 12.5},
+			currency: "USD",
+			unit:     999,
+			want:     125,
+		},
+		{
+			name:     "percent rounds JPY half up to integer unit",
+			discount: RecallDiscountConfig{Type: "percent", PercentOff: 12.5},
+			currency: "JPY",
 			unit:     999,
 			want:     125,
 		},
@@ -643,10 +886,106 @@ func TestRecallFirstMonthDiscountAmountMinor(t *testing.T) {
 			unit:     10000,
 			want:     0,
 		},
+		{
+			name:     "fixed clamps to subtotal",
+			discount: RecallDiscountConfig{Type: "fixed", AmountOff: 1500, Currency: "USD"},
+			currency: "USD",
+			unit:     1000,
+			want:     1000,
+		},
+		{
+			name:     "zero discount is ineligible",
+			discount: RecallDiscountConfig{Type: "fixed", AmountOff: 0, Currency: "USD"},
+			currency: "USD",
+			unit:     1000,
+			want:     0,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got := calculateRecallFirstMonthDiscountAmountMinor(test.discount, test.currency, test.unit)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestRecallActualDiscountAmountMinorUsesExactCheckoutFacts(t *testing.T) {
+	tests := []struct {
+		name     string
+		discount RecallDiscountConfig
+		currency string
+		subtotal int64
+		want     int64
+	}{
+		{
+			name:     "percent rounds USD half up to minor unit",
+			discount: RecallDiscountConfig{Type: "percent", PercentOff: 12.5},
+			currency: "USD",
+			subtotal: 999,
+			want:     125,
+		},
+		{
+			name:     "percent rounds JPY half up to integer unit",
+			discount: RecallDiscountConfig{Type: "percent", PercentOff: 12.5},
+			currency: "JPY",
+			subtotal: 999,
+			want:     125,
+		},
+		{
+			name: "fixed requires exact uppercase checkout currency for options",
+			discount: RecallDiscountConfig{
+				Type:            "fixed",
+				AmountOff:       500,
+				Currency:        "USD",
+				CurrencyOptions: map[string]int64{"BRL": 2500},
+			},
+			currency: "brl",
+			subtotal: 10000,
+			want:     0,
+		},
+		{
+			name: "fixed uses exact uppercase currency option",
+			discount: RecallDiscountConfig{
+				Type:            "fixed",
+				AmountOff:       500,
+				Currency:        "USD",
+				CurrencyOptions: map[string]int64{"BRL": 2500},
+			},
+			currency: "BRL",
+			subtotal: 10000,
+			want:     2500,
+		},
+		{
+			name: "minimum requires exact currency",
+			discount: RecallDiscountConfig{
+				Type:                  "fixed",
+				AmountOff:             500,
+				Currency:              "USD",
+				MinimumAmount:         10000,
+				MinimumAmountCurrency: "USD",
+			},
+			currency: "usd",
+			subtotal: 10000,
+			want:     0,
+		},
+		{
+			name:     "fixed clamps to subtotal",
+			discount: RecallDiscountConfig{Type: "fixed", AmountOff: 1500, Currency: "USD"},
+			currency: "USD",
+			subtotal: 1000,
+			want:     1000,
+		},
+		{
+			name:     "zero discount is ineligible",
+			discount: RecallDiscountConfig{Type: "fixed", AmountOff: 0, Currency: "USD"},
+			currency: "USD",
+			subtotal: 1000,
+			want:     0,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := calculateRecallActualDiscountAmountMinor(test.discount, test.currency, test.subtotal)
 			require.Equal(t, test.want, got)
 		})
 	}
