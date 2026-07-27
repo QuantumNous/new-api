@@ -56,7 +56,7 @@ import type {
   PlanRecord,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
-import { formatLocalCurrencyAmount } from '@/lib/currency'
+import { formatSubscriptionPlanPrice } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -571,7 +571,7 @@ export function SubscriptionPlansCard({
 
                     <div className='py-2'>
                       <span className='text-primary text-2xl font-bold'>
-                        {formatLocalCurrencyAmount(
+                        {formatSubscriptionPlanPrice(
                           Number(plan.price_amount || 0)
                         )}
                       </span>

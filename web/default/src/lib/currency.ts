@@ -615,3 +615,16 @@ export function formatLocalCurrencyAmount(
 
   return formatCurrencyValue(amount, merged, meta)
 }
+
+/** Format a locally configured subscription amount as its USD-equivalent price. */
+export function formatSubscriptionPlanPrice(
+  amount: number | null | undefined,
+  options?: CurrencyFormatOptions
+): string {
+  if (amount == null || Number.isNaN(amount)) return '-'
+
+  const { config } = getCurrencyDisplay()
+  const exchangeRate = config.usdExchangeRate > 0 ? config.usdExchangeRate : 1
+
+  return formatLocalCurrencyAmount(amount / exchangeRate, options)
+}

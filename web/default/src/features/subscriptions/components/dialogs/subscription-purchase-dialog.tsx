@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { useSystemConfig } from '@/hooks/use-system-config'
-import { formatLocalCurrencyAmount } from '@/lib/currency'
+import { formatSubscriptionPlanPrice } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
 
@@ -318,7 +318,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
           <div className='flex items-center justify-between'>
             <span className='text-sm font-medium'>{t('Amount Due')}</span>
             <span className='text-primary text-lg font-bold'>
-              {formatLocalCurrencyAmount(Number(plan.price_amount || 0))}
+              {formatSubscriptionPlanPrice(Number(plan.price_amount || 0))}
             </span>
           </div>
         </div>

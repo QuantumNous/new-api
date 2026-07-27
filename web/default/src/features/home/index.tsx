@@ -44,7 +44,7 @@ import type { PricingModel } from '@/features/pricing/types'
 import { getPublicPlans } from '@/features/subscriptions/api'
 import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
 import { api } from '@/lib/api'
-import { formatLocalCurrencyAmount, getCurrencyDisplay } from '@/lib/currency'
+import { formatSubscriptionPlanPrice, getCurrencyDisplay } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
@@ -804,7 +804,7 @@ export function Home() {
                                   <CardContent className='flex flex-1 flex-col gap-5'>
                                     <div className='bg-primary/8 rounded-2xl px-4 py-3'>
                                       <span className='text-primary text-3xl font-bold'>
-                                        {formatLocalCurrencyAmount(
+                                        {formatSubscriptionPlanPrice(
                                           Number(plan.price_amount || 0)
                                         )}
                                       </span>
