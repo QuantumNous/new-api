@@ -258,27 +258,6 @@ func parseModelStatusFilterSpec(status string) (spec modelStatusFilterSpec, ok b
 	}
 }
 
-// parseModelStatusFilter maps UI/API status values to the models.status column.
-// Returns ok=false when no status filter should be applied.
-// Kept for callers that only need plain status=0/1 filtering.
-func parseModelStatusFilter(status string) (value int, ok bool) {
-	spec, ok := parseModelStatusFilterSpec(status)
-	if !ok {
-		return 0, false
-	}
-	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "auto-enabled", "auto_enabled", "auto-disabled", "auto_disabled":
-		// Plain status-only callers cannot express auto flags.
-		return 0, false
-	default:
-		if len(spec.args) == 0 {
-			return 0, false
-		}
-		n, ok := spec.args[0].(int)
-		return n, ok
-	}
-}
-
 // parseModelSyncFilter maps UI/API sync values to the models.sync_official column.
 // Returns ok=false when no sync filter should be applied.
 func parseModelSyncFilter(syncOfficial string) (value int, ok bool) {

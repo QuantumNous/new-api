@@ -655,5 +655,3 @@ export async function checkClusterNameAvailability(name: string): Promise<{
   })
   return res.data
 }
-
-
