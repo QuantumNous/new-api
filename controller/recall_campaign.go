@@ -428,6 +428,24 @@ func ValidateRecallClaim(c *gin.Context) {
 	common.ApiSuccess(c, view)
 }
 
+func ListRecallOffers(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	runtime, err := recallControllerRuntime()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	offers, err := runtime.Claims.ListOffers(c.Request.Context(), c.GetInt("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if offers == nil {
+		offers = []service.RecallOfferView{}
+	}
+	common.ApiSuccess(c, offers)
+}
+
 func UnsubscribeRecallEmail(c *gin.Context) {
 	runtime, err := recallControllerRuntime()
 	if err == nil {

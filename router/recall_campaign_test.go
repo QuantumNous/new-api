@@ -98,3 +98,24 @@ func TestRecallAudienceUsersRouteRequiresAdminAuthForNormalUser(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Contains(t, recorder.Body.String(), `"success":false`)
 }
+
+func TestRecallOffersRouteIsRegisteredAndRequiresUserAuth(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-offers-auth"))))
+	SetApiRouter(engine)
+
+	registered := false
+	for _, route := range engine.Routes() {
+		if route.Method == http.MethodGet && route.Path == "/api/user/recall/offers" {
+			registered = true
+			break
+		}
+	}
+	require.True(t, registered)
+
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/user/recall/offers", nil))
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
