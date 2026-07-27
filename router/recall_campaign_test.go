@@ -88,6 +88,28 @@ func TestRecallEmailQuotaStatusRouteAndGenerationRouteAreRegisteredWithAdminAuth
 	require.Less(t, quotaIndex, idIndex)
 }
 
+func TestRecallEmailQuotaUpdateRouteIsRegisteredWithAdminAuth(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-email-quota-update-auth"))))
+	SetApiRouter(engine)
+
+	found := false
+	for _, route := range engine.Routes() {
+		if route.Path == "/api/recall-campaigns/email-quota" && route.Method == http.MethodPut {
+			found = true
+			break
+		}
+	}
+	require.True(t, found)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPut, "/api/recall-campaigns/email-quota", strings.NewReader(`{"limit":250}`))
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
 func TestRecallEmailTranslationGenerationRouteUsesCriticalRateLimit(t *testing.T) {
 	require.NoError(t, backendI18n.Init())
 	previousRedisEnabled := common.RedisEnabled

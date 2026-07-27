@@ -49,9 +49,6 @@ export const recallCampaignKeys = {
     ['recall-campaigns', 'audience-options', 'users', params] as const,
 }
 
-export const recallEmailHourlyLimitOptionKey =
-  'recall_campaign_setting.email_hourly_limit'
-
 export class RecallApiError<T = unknown> extends Error {
   data?: T
 
@@ -136,6 +133,13 @@ export async function getRecallEmailQuotaStatus(): Promise<
   ApiResponse<RecallEmailQuotaStatus>
 > {
   const response = await api.get('/api/recall-campaigns/email-quota')
+  return requireRecallSuccess(response.data)
+}
+
+export async function updateRecallEmailQuotaLimit(
+  limit: number
+): Promise<ApiResponse<RecallEmailQuotaStatus>> {
+  const response = await api.put('/api/recall-campaigns/email-quota', { limit })
   return requireRecallSuccess(response.data)
 }
 

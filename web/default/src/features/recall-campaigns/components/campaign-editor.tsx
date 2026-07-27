@@ -398,15 +398,14 @@ export function CampaignEditor(props: CampaignEditorProps) {
     if (!response.success || !response.data) return null
     const result = {
       id: response.data.id,
-      configRevision:
-        response.data.config_revision || persistedConfigRevision,
+      configRevision: response.data.config_revision || persistedConfigRevision,
     }
     setPersistedCampaignID(result.id)
     setPersistedConfigRevision(result.configRevision)
     if (notifySaved) {
-      toast.success(
-        campaignID ? t('Campaign updated') : t('Campaign created')
-      )
+      toast.success(campaignID ? t('Campaign updated') : t('Campaign created'))
+      props.onSaved?.(result.id)
+    } else if (!campaignID) {
       props.onSaved?.(result.id)
     }
     return result

@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
 import {
   getRecallEmailQuotaStatus,
   recallCampaignKeys,
-  recallEmailHourlyLimitOptionKey,
+  updateRecallEmailQuotaLimit,
 } from '../api'
 import type { ApiResponse, RecallEmailQuotaStatus } from '../types'
 
@@ -158,7 +157,7 @@ export function CampaignEmailHourlyLimitControlView(
 
 export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
   const queryClient = useQueryClient()
-  const updateOption = useUpdateOption()
+  const updateLimit = useMutation({ mutationFn: updateRecallEmailQuotaLimit })
   const [inputValue, setInputValue] = useState(
     String(DEFAULT_RECALL_EMAIL_HOURLY_LIMIT)
   )
@@ -202,28 +201,23 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
     }
     setError('')
     try {
-      const response = await updateOption.mutateAsync({
-        key: recallEmailHourlyLimitOptionKey,
-        value: String(limit),
-      })
+      const response = await updateLimit.mutateAsync(limit)
       if (!response.success) {
         setInputValue(String(confirmedLimitRef.current))
         setError(response.message || 'Failed to update setting')
         return
       }
-      const nextQuota = applyRecallEmailHourlyLimit(quota, limit)
+      const nextQuota =
+        response.data ?? applyRecallEmailHourlyLimit(quota, limit)
       queryClient.setQueryData(recallCampaignKeys.emailQuota, {
         success: true,
         data: nextQuota,
       })
       confirmedLimitRef.current = limit
       setInputValue(String(limit))
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: recallCampaignKeys.emailQuota,
-        }),
-        queryClient.invalidateQueries({ queryKey: ['system-options'] }),
-      ])
+      await queryClient.invalidateQueries({
+        queryKey: recallCampaignKeys.emailQuota,
+      })
     } catch (updateError) {
       setInputValue(String(confirmedLimitRef.current))
       setError(
@@ -238,7 +232,7 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
     <CampaignEmailHourlyLimitControlView
       error={error}
       inputValue={inputValue}
-      pending={updateOption.isPending}
+      pending={updateLimit.isPending}
       quota={quota}
       onInputChange={(value) => {
         setInputValue(value)

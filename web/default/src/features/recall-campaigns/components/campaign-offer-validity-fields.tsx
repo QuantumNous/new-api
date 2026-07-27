@@ -1,10 +1,10 @@
+import { useState } from 'react'
 import {
   Controller,
   useFormState,
   useWatch,
   type UseFormReturn,
 } from 'react-hook-form'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -86,16 +86,24 @@ export function CampaignOfferValidityFields({
   const { t } = useTranslation()
   const [mountedAtSeconds] = useState(() => Math.floor(Date.now() / 1_000))
   const effectiveNowSeconds = nowSeconds ?? mountedAtSeconds
-  const [mode, promotionExpiresAt, promotionValidSeconds, couponRedeemBy] =
-    useWatch({
-      control: form.control,
-      name: [
-        'promotion_expiry_mode',
-        'promotion_expires_at',
-        'promotion_valid_seconds',
-        'discount_config.coupon_redeem_by',
-      ],
-    })
+  const [
+    mode,
+    promotionExpiresAt,
+    promotionValidSeconds,
+    couponRedeemBy,
+    executionMode,
+    scheduledAt,
+  ] = useWatch({
+    control: form.control,
+    name: [
+      'promotion_expiry_mode',
+      'promotion_expires_at',
+      'promotion_valid_seconds',
+      'discount_config.coupon_redeem_by',
+      'execution_mode',
+      'schedule.scheduled_at',
+    ],
+  })
   const { errors } = useFormState({
     control: form.control,
     name: [
@@ -109,6 +117,10 @@ export function CampaignOfferValidityFields({
   const fixedError = errors.promotion_expires_at?.message
   const durationError = errors.promotion_valid_seconds?.message
   const minimumError = errors.discount_config?.minimum_amount?.message
+  const previewBaseSeconds =
+    executionMode === 'scheduled_once' && scheduledAt > 0
+      ? scheduledAt
+      : effectiveNowSeconds
   const effectiveExpiry = getRecallEffectivePromotionExpiry(
     {
       promotion_expiry_mode: mode,
@@ -119,7 +131,7 @@ export function CampaignOfferValidityFields({
         coupon_redeem_by: couponRedeemBy,
       },
     },
-    effectiveNowSeconds
+    previewBaseSeconds
   )
   const effectiveExpiryText =
     effectiveExpiry > 0

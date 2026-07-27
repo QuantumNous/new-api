@@ -166,6 +166,7 @@ export function CampaignTranslationWorkspace(
   }
   const summary = getRecallTranslationSummary(watchedStages, englishDirtyStages)
   const manualCount = getRecallManualLocaleCount(watchedStages)
+  const readOnly = props.disabled || Boolean(props.immutable)
 
   useEffect(() => {
     if (!props.focusBlocker) return
@@ -254,7 +255,7 @@ export function CampaignTranslationWorkspace(
             <Label htmlFor={subjectId}>{t('Subject')}</Label>
             <Input
               id={subjectId}
-              disabled={props.disabled}
+              disabled={readOnly}
               aria-invalid={Boolean(subjectError)}
               aria-describedby={`${subjectHelpId}${subjectError ? ` ${subjectErrorId}` : ''}`}
               {...subjectRegistration}
@@ -289,7 +290,7 @@ export function CampaignTranslationWorkspace(
           form={props.form}
           index={index}
           locale={locale}
-          disabled={props.disabled}
+          disabled={readOnly}
           onEdit={
             targetLocale
               ? () => markRecallManualLocale(props.form, index, locale)
@@ -393,7 +394,7 @@ export function CampaignTranslationWorkspace(
           <Button
             id='recall-confirm-regenerate-translations'
             type='button'
-            disabled={props.isGenerating}
+            disabled={readOnly || props.isGenerating}
             onClick={() => void generate()}
           >
             {t('Replace and regenerate')}
@@ -409,7 +410,7 @@ export function CampaignTranslationWorkspace(
       <Button
         id='recall-generate-translations'
         type='button'
-        disabled={props.disabled || props.isGenerating}
+        disabled={readOnly || props.isGenerating}
         onClick={requestGeneration}
       >
         {props.isGenerating

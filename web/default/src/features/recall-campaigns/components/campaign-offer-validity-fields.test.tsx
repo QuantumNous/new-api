@@ -195,6 +195,25 @@ describe('CampaignOfferValidityFields', () => {
     expect(html).toContain('local time')
   })
 
+  test('previews relative validity from a scheduled-once run time', () => {
+    const draft = makeDraft()
+    draft.execution_mode = 'scheduled_once'
+    draft.schedule.scheduled_at = 2_000_010_000
+    draft.discount_config.coupon_redeem_by = 0
+    const expected = new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(
+      new Date(
+        (draft.schedule.scheduled_at + draft.promotion_valid_seconds) * 1_000
+      )
+    )
+
+    const html = renderFields(draft)
+
+    expect(html).toContain(expected)
+  })
+
   test('renders a fixed USD suffix without an editable currency field', () => {
     const html = renderFields(makeDraft())
 

@@ -1050,6 +1050,42 @@ func TestRecallEmailProcessLeasedShortensOwnedLeaseToEarlierQuotaReset(t *testin
 	require.Equal(t, waitErr.ResetsAt, stored.LeaseExpiresAt)
 }
 
+func TestRecallEmailExpiredLeaseDefersUntilQuotaResetAfterConcurrentExhaustion(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	setRecallEmailHourlyLimit(t, 1)
+	expiredLease := recallEmailTestNow - 30
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
+		"state":            model.RecallMessageLeased,
+		"lease_owner":      "expired-owner",
+		"lease_expires_at": expiredLease,
+	}).Error)
+	candidates, err := model.ListDueRecallMessages(recallEmailTestNow, 1)
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	leaseUntil := recallEmailTestNow + recallEmailLeaseSeconds
+	won, err := model.LeaseDueRecallMessage(candidates[0], fixture.worker.owner, recallEmailTestNow, leaseUntil)
+	require.NoError(t, err)
+	require.True(t, won)
+	item, err := model.GetRecallEmailWorkItemForLeaseEpochWithContext(
+		context.Background(), fixture.message.Id, fixture.worker.owner, leaseUntil,
+	)
+	require.NoError(t, err)
+	_, reserved, err := model.ReserveRecallEmailQuotaWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	require.True(t, reserved)
+
+	err = fixture.worker.processLeasedItem(context.Background(), item, false, &candidates[0])
+
+	var waitErr *RecallEmailQuotaWaitError
+	require.ErrorAs(t, err, &waitErr)
+	require.Greater(t, waitErr.ResetsAt, leaseUntil)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageRetryWait, stored.State)
+	require.Equal(t, waitErr.ResetsAt, stored.NextAttemptAt)
+	require.Empty(t, stored.LeaseOwner)
+	require.Zero(t, stored.LeaseExpiresAt)
+}
+
 func TestRecallEmailWorkerPreSMTPCancellationDoesNotConsumeQuota(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
 	setRecallEmailHourlyLimit(t, 1)

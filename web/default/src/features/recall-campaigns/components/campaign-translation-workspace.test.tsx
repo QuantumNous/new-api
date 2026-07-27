@@ -7,11 +7,16 @@ import { I18nextProvider, initReactI18next } from 'react-i18next'
 import type { RecallCampaignDraft, RecallEmailStage } from '../types'
 
 mock.module('./campaign-email-html-editor', () => ({
-  CampaignEmailHtmlEditor: (props: { index: number; locale: string }) => (
+  CampaignEmailHtmlEditor: (props: {
+    disabled?: boolean
+    index: number
+    locale: string
+  }) => (
     <textarea
       data-email-editor='true'
       data-index={props.index}
       data-locale={props.locale}
+      disabled={props.disabled}
     />
   ),
 }))
@@ -76,12 +81,14 @@ function createForm(
 function renderWorkspace(
   draft: RecallCampaignDraft,
   focusBlocker?: { stage_no: number; locale: string; reason: 'missing' },
-  disabled = false
+  disabled = false,
+  immutable = false
 ): string {
   return renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
       <CampaignTranslationWorkspace
         disabled={disabled}
+        immutable={immutable}
         focusBlocker={focusBlocker}
         form={createForm(draft)}
         isGenerating={false}
@@ -122,6 +129,25 @@ describe('CampaignTranslationWorkspace', () => {
 
     expect(html).toMatch(
       /<input(?=[^>]*type="number")(?=[^>]*disabled="")[^>]*>/
+    )
+  })
+
+  test('makes every template editing action read-only after activation', () => {
+    const html = renderWorkspace(
+      makeDraft([makeStage()]),
+      undefined,
+      false,
+      true
+    )
+
+    expect(html).toMatch(
+      /<input(?=[^>]*name="email_sequence\.0\.templates\.en\.subject")(?=[^>]*disabled="")[^>]*>/
+    )
+    expect(html).toMatch(
+      /<textarea(?=[^>]*data-email-editor="true")(?=[^>]*disabled="")[^>]*>/
+    )
+    expect(html).toMatch(
+      /<button(?=[^>]*id="recall-generate-translations")(?=[^>]*disabled="")[^>]*>/
     )
   })
 

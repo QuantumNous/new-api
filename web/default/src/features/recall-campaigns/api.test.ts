@@ -6,6 +6,7 @@ import {
   exportRecallCampaign,
   generateRecallEmailTranslations,
   getRecallEmailQuotaStatus,
+  updateRecallEmailQuotaLimit,
   getRecallSubscriptionProductConfiguration,
   getRecallTopUpProductConfiguration,
   getRecallUserGroups,
@@ -18,7 +19,6 @@ import {
   previewRecallEmail,
   previewRecallCampaign,
   retryRecallRecipient,
-  recallEmailHourlyLimitOptionKey,
   runRecallCampaignAction,
   updateRecallCampaign,
   validateRecallStripeConfig,
@@ -220,9 +220,23 @@ describe('recall campaign API contracts', () => {
     expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-quota')
   })
 
-  test('uses the registered activity email hourly-limit option key', () => {
-    expect(recallEmailHourlyLimitOptionKey).toBe(
-      'recall_campaign_setting.email_hourly_limit'
-    )
+  test('updates the activity email quota through its admin-scoped endpoint', async () => {
+    respondWith({
+      success: true,
+      data: {
+        limit: 250,
+        used: 12,
+        remaining: 238,
+        window_started_at: 1_900_000_000,
+        resets_at: 1_900_003_600,
+        exhausted: false,
+      },
+    })
+
+    await updateRecallEmailQuotaLimit(250)
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-quota')
+    expect(capturedConfig?.method).toBe('put')
+    expect(JSON.parse(String(capturedConfig?.data))).toEqual({ limit: 250 })
   })
 })

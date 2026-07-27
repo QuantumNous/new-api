@@ -499,12 +499,13 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	}
 	if !attempt.Reserved {
 		if candidate != nil {
-			released, releaseErr := model.ReleaseRecallMessageLeaseWithContext(
+			released, releaseErr := model.ReleaseRecallMessageLeaseForRetryWithContext(
 				ctx,
 				item.Message.Id,
 				w.owner,
 				expectedLeaseUntil,
 				*candidate,
+				attempt.Quota.ResetsAt,
 			)
 			if releaseErr != nil {
 				return releaseErr

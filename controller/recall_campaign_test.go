@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -143,6 +144,7 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 	setting.StripePriceId20 = ""
 	setting.StripePriceId200 = ""
 	require.NoError(t, db.AutoMigrate(
+		&model.Option{},
 		&model.User{},
 		&model.TopUp{},
 		&model.SubscriptionOrder{},
@@ -711,6 +713,31 @@ func TestRecallEmailQuotaStatusRouteReturnsActivityOnlyWindow(t *testing.T) {
 	require.NotZero(t, data["window_started_at"])
 	require.NotZero(t, data["resets_at"])
 	require.Len(t, data, 6)
+}
+
+func TestUpdateRecallEmailQuotaLimitPersistsActivityScopedSetting(t *testing.T) {
+	setupRecallControllerHarness(t)
+	common.OptionMapRWMutex.Lock()
+	previousOptionMap := common.OptionMap
+	common.OptionMap = make(map[string]string)
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previousOptionMap
+		common.OptionMapRWMutex.Unlock()
+	})
+	body := recallControllerJSON(t, map[string]any{"limit": 250})
+
+	recorder := invokeRecallHandler(t, UpdateRecallEmailQuotaLimit, http.MethodPut, "/", body, 7, nil)
+
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	data := payload["data"].(map[string]any)
+	require.Equal(t, float64(250), data["limit"])
+	require.Equal(t, 250, operation_setting.GetRecallCampaignSetting().EmailHourlyLimit)
+	var option model.Option
+	require.NoError(t, model.DB.Where("key = ?", "recall_campaign_setting.email_hourly_limit").First(&option).Error)
+	require.Equal(t, "250", option.Value)
 }
 
 func TestRecallCampaignPreviewReturnsAudienceAndStripeWithoutCreateOrSend(t *testing.T) {

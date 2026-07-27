@@ -109,6 +109,14 @@ func LeaseDueRecallMessage(candidate RecallDueMessage, owner string, now int64, 
 }
 
 func ReleaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage) (bool, error) {
+	return releaseRecallMessageLeaseWithContext(ctx, id, owner, expectedLeaseUntil, candidate, expectedLeaseUntil)
+}
+
+func ReleaseRecallMessageLeaseForRetryWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage, retryAt int64) (bool, error) {
+	return releaseRecallMessageLeaseWithContext(ctx, id, owner, expectedLeaseUntil, candidate, retryAt)
+}
+
+func releaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage, retryAt int64) (bool, error) {
 	restoredState := candidate.State
 	updates := map[string]any{
 		"state":            restoredState,
@@ -117,7 +125,7 @@ func ReleaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner s
 	}
 	if candidate.State == RecallMessageLeased {
 		updates["state"] = RecallMessageRetryWait
-		updates["next_attempt_at"] = expectedLeaseUntil
+		updates["next_attempt_at"] = retryAt
 	}
 	result := DB.WithContext(ctx).Model(&RecallMessage{}).
 		Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, RecallMessageLeased, owner, expectedLeaseUntil).

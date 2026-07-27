@@ -159,12 +159,14 @@ func applySubscriptionCheckoutDiscountSelection(order *model.SubscriptionOrder, 
 		return nil
 	}
 	if order.DiscountUSD > 0 {
-		inviteDiscountMinor, err := service.StripeMinorUnitAmountForSubscription(order.DiscountUSD, plan.Currency)
-		if err != nil {
-			return err
-		}
-		if inviteDiscountMinor >= recall.DiscountAmountMinor {
-			return nil
+		if strings.EqualFold(strings.TrimSpace(plan.Currency), "USD") {
+			inviteDiscountMinor, err := service.StripeMinorUnitAmountForSubscription(order.DiscountUSD, plan.Currency)
+			if err != nil {
+				return err
+			}
+			if inviteDiscountMinor >= recall.DiscountAmountMinor {
+				return nil
+			}
 		}
 		order.DiscountUSD = 0
 		order.Money = plan.PriceAmount

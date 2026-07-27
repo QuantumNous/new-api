@@ -485,8 +485,9 @@ function setupDom() {
     }
 
     focus() {
-      ;(globalThis.document as unknown as { activeElement: ElementShim }).activeElement =
-        this
+      ;(
+        globalThis.document as unknown as { activeElement: ElementShim }
+      ).activeElement = this
     }
   }
 
@@ -632,7 +633,9 @@ async function clickByID(container: HTMLElement, id: string) {
   const element = container.querySelector(`#${id}`)
   expect(element).toBeTruthy()
   await React.act(async () => {
-    element?.dispatchEvent(new Event('click', { bubbles: true, cancelable: true }))
+    element?.dispatchEvent(
+      new Event('click', { bubbles: true, cancelable: true })
+    )
     await Promise.resolve()
   })
 }
@@ -1243,11 +1246,14 @@ describe('CampaignEditor email sequence', () => {
       en: draft.email_sequence[0].templates.en,
     }
     draft.email_sequence[0].translated_source_revision = 0
-    const { root, container } = renderEditorDom(draft)
+    const onSaved = mock(() => undefined)
+    const { root, container } = renderEditorDom(draft, { onSaved })
 
     await clickByID(container, 'recall-generate-translations')
 
     expect(operationOrder).toEqual(['save', 'generate'])
+    expect(onSaved).toHaveBeenCalledTimes(1)
+    expect(onSaved).toHaveBeenCalledWith(123)
     expect(generateMutation).toHaveBeenCalledTimes(1)
     expect(generateMutation.mock.calls[0][0]).toMatchObject({
       id: 123,
@@ -1263,7 +1269,8 @@ describe('CampaignEditor email sequence', () => {
       en: draft.email_sequence[0].templates.en,
     }
     draft.email_sequence[0].translated_source_revision = 0
-    const { root, container } = renderEditorDom(draft)
+    const onSaved = mock(() => undefined)
+    const { root, container } = renderEditorDom(draft, { onSaved })
 
     await clickByID(container, 'recall-generate-translations')
     React.act(() => {
@@ -1278,6 +1285,7 @@ describe('CampaignEditor email sequence', () => {
     await clickByID(container, 'recall-generate-translations')
 
     expect(createMutation).toHaveBeenCalledTimes(1)
+    expect(onSaved).toHaveBeenCalledTimes(1)
     expect(updateMutation).toHaveBeenCalledTimes(1)
     expect(updateMutation.mock.calls[0][0]).toMatchObject({
       id: 123,

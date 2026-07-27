@@ -263,6 +263,45 @@ func TestSubscriptionStripeInviteAndRecallUsesInviteOnStrongerOrTie(t *testing.T
 	}
 }
 
+func TestSubscriptionStripeRecallAvoidsCrossCurrencyInviteComparison(t *testing.T) {
+	setupSubscriptionRecallClaimDB(t)
+	plan := model.SubscriptionPlan{
+		Id:            910401,
+		Title:         "Cross-currency recall selection",
+		PriceAmount:   20,
+		Currency:      "EUR",
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		StripePriceId: "price_cross_currency",
+	}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	order := model.SubscriptionOrder{
+		UserId:      710401,
+		PlanId:      plan.Id,
+		Money:       15,
+		DiscountUSD: 5,
+		TradeNo:     "subscription_cross_currency_discount",
+		Status:      common.TopUpStatusPending,
+	}
+	require.NoError(t, model.DB.Create(&order).Error)
+	recall := service.RecallCheckoutDiscount{
+		CampaignID:          41,
+		RecipientID:         42,
+		PromotionCodeID:     "promo_cross_currency_recall",
+		DiscountAmountMinor: 200,
+	}
+
+	require.NoError(t, applySubscriptionCheckoutDiscountSelection(&order, &plan, &recall))
+
+	require.Zero(t, order.DiscountUSD)
+	require.Equal(t, plan.PriceAmount, order.Money)
+	require.Equal(t, recall.CampaignID, order.RecallCampaignId)
+	require.Equal(t, recall.RecipientID, order.RecallRecipientId)
+	require.Equal(t, recall.PromotionCodeID, order.RecallPromotionCodeId)
+	require.Equal(t, recall.DiscountAmountMinor, order.RecallDiscountAmountMinor)
+}
+
 func TestSubscriptionStripeNoClaimAppliesBestAccountRecallOffer(t *testing.T) {
 	backend := setupSubscriptionStripeRecordingBackend(t)
 	setupSubscriptionRecallClaimDB(t)

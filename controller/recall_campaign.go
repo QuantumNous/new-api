@@ -26,6 +26,10 @@ type recallRetryRequest struct {
 	AcknowledgeUncertain bool `json:"acknowledge_uncertain"`
 }
 
+type recallEmailQuotaUpdateRequest struct {
+	Limit int `json:"limit"`
+}
+
 type recallPreviewResponse struct {
 	service.RecallAudiencePreview
 	Stripe *service.RecallStripePreview `json:"stripe"`
@@ -147,6 +151,28 @@ func GenerateRecallEmailTranslations(c *gin.Context) {
 func GetRecallEmailQuotaStatus(c *gin.Context) {
 	limit := operation_setting.GetRecallCampaignSetting().EmailHourlyLimit
 	status, err := model.GetRecallEmailQuotaStatusWithContext(c.Request.Context(), limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
+}
+
+func UpdateRecallEmailQuotaLimit(c *gin.Context) {
+	var request recallEmailQuotaUpdateRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
+		return
+	}
+	if request.Limit < 1 || request.Limit > 100000 {
+		common.ApiError(c, fmt.Errorf("recall campaign email hourly limit must be between 1 and 100000"))
+		return
+	}
+	if err := model.UpdateOption("recall_campaign_setting.email_hourly_limit", strconv.Itoa(request.Limit)); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	status, err := model.GetRecallEmailQuotaStatusWithContext(c.Request.Context(), request.Limit)
 	if err != nil {
 		common.ApiError(c, err)
 		return
