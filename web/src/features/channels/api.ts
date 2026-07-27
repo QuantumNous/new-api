@@ -296,7 +296,11 @@ export async function deleteDisabledChannels(): Promise<{
 export async function getChannelKey(
   id: number,
   proofToken?: string
-): Promise<{ success: boolean; message?: string; data?: { key: string } }> {
+): Promise<{
+  success: boolean
+  message?: string
+  data?: { key: string; openrouter_management_key?: string }
+}> {
   const res = await api.post(
     `/api/channel/${id}/key`,
     undefined,

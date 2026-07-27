@@ -2029,7 +2029,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -5215,6 +5215,12 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Management": "Management",
+    "OpenRouter Management Key": "OpenRouter Management Key",
+    "Optional — used only for balance / credits queries": "Optional — used only for balance / credits queries",
+    "OpenRouter requires a Management Key for account balance. Inference still uses the channel API Key. Do not put the Management Key in the channel key field.": "OpenRouter requires a Management Key for account balance. Inference still uses the channel API Key. Do not put the Management Key in the channel key field.",
+    "Current management key": "Current management key",
+    "No management key configured yet.": "No management key configured yet."
   }
 }

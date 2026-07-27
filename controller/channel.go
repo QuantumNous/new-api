@@ -69,6 +69,36 @@ func clearChannelInfo(channel *model.Channel) {
 		channel.ChannelInfo.MultiKeyDisabledReason = nil
 		channel.ChannelInfo.MultiKeyDisabledTime = nil
 	}
+	maskOpenRouterManagementKeyInChannel(channel)
+}
+
+// maskOpenRouterManagementKeyInChannel redacts the OpenRouter management key from
+// API responses. List/get must never return the plaintext value.
+func maskOpenRouterManagementKeyInChannel(channel *model.Channel) {
+	if channel == nil || channel.OtherSettings == "" {
+		return
+	}
+	settings := channel.GetOtherSettings()
+	if strings.TrimSpace(settings.OpenRouterManagementKey) == "" {
+		return
+	}
+	settings.OpenRouterManagementKey = dto.OpenRouterManagementKeyMasked
+	channel.SetOtherSettings(settings)
+}
+
+// preserveOpenRouterManagementKey keeps the stored management key when the client
+// omits it or sends the masked placeholder (same UX as leaving channel.key empty).
+func preserveOpenRouterManagementKey(channel *model.Channel, origin *model.Channel) {
+	if channel == nil || origin == nil {
+		return
+	}
+	incoming := channel.GetOtherSettings()
+	if !dto.IsOpenRouterManagementKeyMasked(incoming.OpenRouterManagementKey) {
+		return
+	}
+	originKey := origin.GetOtherSettings().GetOpenRouterManagementKey()
+	incoming.OpenRouterManagementKey = originKey
+	channel.SetOtherSettings(incoming)
 }
 
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
@@ -443,13 +473,19 @@ func GetChannelKey(c *gin.Context) {
 		"name": channel.Name,
 	})
 
-	// 返回渠道密钥
+	data := map[string]interface{}{
+		"key": channel.Key,
+	}
+	// OpenRouter Management Key is a sensitive credential; return it together
+	// with the channel key after the same security verification.
+	if mgmt := channel.GetOtherSettings().GetOpenRouterManagementKey(); mgmt != "" {
+		data["openrouter_management_key"] = mgmt
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "获取成功",
-		"data": map[string]interface{}{
-			"key": channel.Key,
-		},
+		"data":    data,
 	})
 }
 
@@ -991,6 +1027,10 @@ func UpdateChannel(c *gin.Context) {
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
+
+	// Keep existing OpenRouter management key unless the client sent a new value.
+	// Empty / masked values must not wipe the stored secret (same as channel.Key).
+	preserveOpenRouterManagementKey(&channel.Channel, originChannel)
 
 	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {

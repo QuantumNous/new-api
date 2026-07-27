@@ -230,6 +230,8 @@ export const channelFormSchema = z
     system_prompt_override: z.boolean().optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
+    openrouter_management_key: z.string().optional(), // OpenRouter management key (balance only)
+    openrouter_management_key_configured: z.boolean().optional(), // existing key present (masked)
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
     azure_responses_version: z.string().optional(), // Azure specific
@@ -383,6 +385,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   system_prompt_override: false,
   // Type-specific settings
   is_enterprise_account: false,
+  openrouter_management_key: '',
+  openrouter_management_key_configured: false,
   vertex_key_type: 'json',
   aws_key_type: 'ak_sk',
   azure_responses_version: '',
@@ -455,6 +459,7 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
   let advancedCustom = ''
+  let openrouterManagementKeyConfigured = false
 
   if (channel.settings) {
     try {
@@ -462,6 +467,10 @@ export function transformChannelToFormDefaults(
       vertexKeyType = parsed.vertex_key_type || 'json'
       azureResponsesVersion = parsed.azure_responses_version || ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
+      openrouterManagementKeyConfigured = Boolean(
+        parsed.openrouter_management_key &&
+          String(parsed.openrouter_management_key).trim() !== ''
+      )
       awsKeyType = parsed.aws_key_type || 'ak_sk'
       allowServiceTier = parsed.allow_service_tier === true
       disableStore = parsed.disable_store === true
@@ -519,6 +528,8 @@ export function transformChannelToFormDefaults(
     ...extraSettings,
     // Type-specific settings
     is_enterprise_account: isEnterpriseAccount,
+    openrouter_management_key: '', // Never prefill plaintext; leave empty to keep existing
+    openrouter_management_key_configured: openrouterManagementKeyConfigured,
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
     aws_key_type: awsKeyType,
@@ -585,8 +596,16 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   // Add enterprise account setting for OpenRouter (type 20)
   if (formData.type === 20) {
     settingsObj.openrouter_enterprise = formData.is_enterprise_account === true
+    const managementKey = (formData.openrouter_management_key || '').trim()
+    if (managementKey) {
+      // Only send a new value; empty means backend preserves the stored key.
+      settingsObj.openrouter_management_key = managementKey
+    } else {
+      delete settingsObj.openrouter_management_key
+    }
   } else if ('openrouter_enterprise' in settingsObj) {
     delete settingsObj.openrouter_enterprise
+    delete settingsObj.openrouter_management_key
   }
 
   // Add aws_key_type for AWS channels (type 33)
