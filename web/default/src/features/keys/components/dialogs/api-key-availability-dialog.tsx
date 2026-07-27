@@ -71,8 +71,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 
 import {
-  fetchApiKeyModels,
   getApiKeys,
+  isApiKeyTestEndpoint,
   selectApiKeyTestModel,
   testApiKeyModel,
   type ApiKeyModel,
@@ -81,13 +81,13 @@ import {
   type ApiKeyTestEndpoint,
 } from '../../api'
 import { API_KEY_STATUS } from '../../constants'
+import { useApiKeyModelCatalog } from '../../hooks/use-api-key-model-catalog'
 import type { ApiKey } from '../../types'
 import { useApiKeys } from '../api-keys-provider'
 import { ApiKeyAvailabilityResult } from './api-key-availability-result'
 
 const EMPTY_MODELS: ApiKeyModel[] = []
 const EMPTY_ENDPOINTS: ApiKeyTestEndpoint[] = []
-const MODEL_CATALOG_STALE_TIME_MS = 5 * 60 * 1000
 
 type ApiKeyAvailabilityDialogProps = {
   apiBaseUrl: string
@@ -459,36 +459,21 @@ function ApiKeyAvailabilityDialogContent(props: ApiKeyAvailabilityDialogProps) {
     selectedApiKeyId,
   ])
 
-  const modelsQuery = useQuery({
-    queryKey: [
-      'api-key-availability-models',
-      selectedApiKey?.id ?? null,
-      selectedApiKey?.group ?? '',
-      selectedApiKey?.model_limits_enabled ?? false,
-      selectedApiKey?.model_limits ?? '',
-      refreshTrigger,
-      props.apiBaseUrl,
-    ],
-    enabled:
-      props.open &&
-      Boolean(
-        selectedApiKey &&
-        props.apiBaseUrl &&
-        selectedTokenKey &&
-        !isResolvingKey
-      ),
-    queryFn: () => fetchApiKeyModels(props.apiBaseUrl, selectedTokenKey),
-    retry: false,
-    refetchOnWindowFocus: false,
-    staleTime: MODEL_CATALOG_STALE_TIME_MS,
+  const modelsQuery = useApiKeyModelCatalog({
+    apiBaseUrl: props.apiBaseUrl,
+    apiKey: selectedApiKey ?? null,
+    enabled: props.open && !isResolvingKey,
+    tokenKey: selectedTokenKey,
   })
 
   const modelsResult = modelsQuery.data
   const models = useMemo(() => {
     if (!modelsResult?.success) return EMPTY_MODELS
-    return [...modelsResult.models].sort((left, right) =>
-      left.id.localeCompare(right.id)
-    )
+    return modelsResult.models
+      .filter((model) =>
+        model.supportedEndpointTypes.some(isApiKeyTestEndpoint)
+      )
+      .sort((left, right) => left.id.localeCompare(right.id))
   }, [modelsResult])
   const modelsFailure: Extract<ApiKeyModelsResult, { success: false }> | null =
     modelsResult?.success === false ? modelsResult : null
@@ -498,7 +483,8 @@ function ApiKeyAvailabilityDialogContent(props: ApiKeyAvailabilityDialogProps) {
     selectedApiKey
   )
   const availableEndpoints =
-    selectedModel?.supportedEndpointTypes ?? EMPTY_ENDPOINTS
+    selectedModel?.supportedEndpointTypes.filter(isApiKeyTestEndpoint) ??
+    EMPTY_ENDPOINTS
   const activeEndpoint =
     selectedEndpoint && availableEndpoints.includes(selectedEndpoint)
       ? selectedEndpoint
@@ -547,7 +533,9 @@ function ApiKeyAvailabilityDialogContent(props: ApiKeyAvailabilityDialogProps) {
     requestVersionRef.current += 1
     setIsTesting(false)
     setSelectedModelId(model.id)
-    setSelectedEndpoint(model.supportedEndpointTypes[0] ?? null)
+    setSelectedEndpoint(
+      model.supportedEndpointTypes.find(isApiKeyTestEndpoint) ?? null
+    )
     setTestResult(null)
   }
 

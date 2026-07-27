@@ -36,6 +36,13 @@ type userModelsResponse struct {
 	Data    []string `json:"data"`
 }
 
+type anthropicModelsResponse struct {
+	Data    []dto.AnthropicModel `json:"data"`
+	FirstID *string              `json:"first_id"`
+	HasMore bool                 `json:"has_more"`
+	LastID  *string              `json:"last_id"`
+}
+
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -163,6 +170,27 @@ func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder)
 		ids[item.Id] = struct{}{}
 	}
 	return ids
+}
+
+func TestListModelsReturnsEmptyAnthropicPage(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	setupModelListControllerTestDB(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "default")
+
+	ListModels(ctx, constant.ChannelTypeAnthropic)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload anthropicModelsResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	assert.Empty(t, payload.Data)
+	assert.Nil(t, payload.FirstID)
+	assert.False(t, payload.HasMore)
+	assert.Nil(t, payload.LastID)
 }
 
 func pricingByModelName(pricings []model.Pricing) map[string]model.Pricing {
@@ -472,6 +500,124 @@ func TestListModelsUsesOrderedTokenCandidatesForUnionAndOwner(t *testing.T) {
 	require.Equal(t, "openai", secondPayload.Data[0].OwnedBy)
 }
 
+func TestListModelsOrdersEnabledModelsForEveryGroupMode(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+
+	originalAutoGroups := setting.AutoGroups2JsonString()
+	require.NoError(t, setting.UpdateAutoGroupsByJsonString(`["default"]`))
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateAutoGroupsByJsonString(originalAutoGroups))
+	})
+
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-order-z-model", ChannelId: 821, Enabled: true},
+		{Group: "default", Model: "zz-order-a-model", ChannelId: 821, Enabled: true},
+		{Group: "default", Model: "zz-order-shared-model", ChannelId: 821, Enabled: true},
+		{Group: "vip", Model: "zz-order-y-model", ChannelId: 822, Enabled: true},
+		{Group: "vip", Model: "zz-order-b-model", ChannelId: 822, Enabled: true},
+		{Group: "vip", Model: "zz-order-shared-model", ChannelId: 822, Enabled: true},
+	}).Error)
+
+	tests := []struct {
+		name       string
+		tokenGroup string
+		candidates []string
+		expected   []string
+	}{
+		{
+			name:       "fixed group",
+			tokenGroup: "default",
+			expected: []string{
+				"zz-order-a-model",
+				"zz-order-shared-model",
+				"zz-order-z-model",
+			},
+		},
+		{
+			name:       "system auto",
+			tokenGroup: "auto",
+			expected: []string{
+				"zz-order-a-model",
+				"zz-order-shared-model",
+				"zz-order-z-model",
+			},
+		},
+		{
+			name:       "ordered candidates",
+			tokenGroup: "auto",
+			candidates: []string{"vip", "default"},
+			expected: []string{
+				"zz-order-b-model",
+				"zz-order-shared-model",
+				"zz-order-y-model",
+				"zz-order-a-model",
+				"zz-order-z-model",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+			common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+			common.SetContextKey(ctx, constant.ContextKeyTokenGroup, tt.tokenGroup)
+			common.SetContextKey(ctx, constant.ContextKeyTokenGroupCandidates, tt.candidates)
+
+			ListModels(ctx, constant.ChannelTypeOpenAI)
+
+			payload := decodeListModelsPayload(t, recorder)
+			require.Equal(t, tt.expected, lo.Map(payload.Data, func(item dto.OpenAIModels, _ int) string {
+				return item.Id
+			}))
+		})
+	}
+}
+
+func TestListModelsIntersectsTokenModelLimitsWithCandidateGroups(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "first", Model: "zz-limit-a-shared-model", ChannelId: 831, Enabled: true},
+		{Group: "first", Model: "zz-limit-z-first-model", ChannelId: 831, Enabled: true},
+		{Group: "first", Model: "zz-limit-m-not-allowed-model", ChannelId: 831, Enabled: true},
+		{Group: "first", Model: "zz-limit-disabled-model", ChannelId: 831, Enabled: false},
+		{Group: "second", Model: "zz-limit-a-shared-model", ChannelId: 832, Enabled: true},
+		{Group: "second", Model: "zz-limit-b-second-model", ChannelId: 832, Enabled: true},
+		{Group: "foreign", Model: "zz-limit-foreign-model", ChannelId: 833, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "auto")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroupCandidates, []string{"first", "second"})
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
+		"zz-limit-a-shared-model": true,
+		"zz-limit-z-first-model":  true,
+		"zz-limit-b-second-model": true,
+		"zz-limit-disabled-model": true,
+		"zz-limit-foreign-model":  true,
+		"zz-limit-missing-model":  true,
+	})
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	payload := decodeListModelsPayload(t, recorder)
+	require.Equal(t, []string{
+		"zz-limit-a-shared-model",
+		"zz-limit-z-first-model",
+		"zz-limit-b-second-model",
+	}, lo.Map(payload.Data, func(item dto.OpenAIModels, _ int) string {
+		return item.Id
+	}))
+}
+
 func TestListModelsAdvertisesCodexResponseEndpoints(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	db := setupModelListControllerTestDB(t)
@@ -527,7 +673,13 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 		"zz-token-tiered-visible-model":    `tier("base", p * 1 + c * 2)`,
 		"zz-token-tiered-empty-expr-model": "",
 	})
-	setupModelListControllerTestDB(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-token-tiered-visible-model", ChannelId: 841, Enabled: true},
+		{Group: "default", Model: "zz-token-tiered-empty-expr-model", ChannelId: 841, Enabled: true},
+		{Group: "default", Model: "zz-token-tiered-missing-expr-model", ChannelId: 841, Enabled: true},
+		{Group: "default", Model: "zz-token-unpriced-model", ChannelId: 841, Enabled: true},
+	}).Error)
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)

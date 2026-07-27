@@ -68,17 +68,29 @@ const API_KEY_TEST_ENDPOINTS = [
   'embeddings',
 ] as const
 
+const API_KEY_MODEL_ENDPOINTS = [
+  ...API_KEY_TEST_ENDPOINTS,
+  'openai-video',
+] as const
 const API_KEY_TEST_ENDPOINT_SET = new Set<string>(API_KEY_TEST_ENDPOINTS)
+const API_KEY_MODEL_ENDPOINT_SET = new Set<string>(API_KEY_MODEL_ENDPOINTS)
 const MODEL_LIST_TIMEOUT_MS = 15_000
 const MODEL_TEST_TIMEOUT_MS = 60_000
 const RESPONSE_PREVIEW_MAX_LENGTH = 240
 
 export type ApiKeyTestEndpoint = (typeof API_KEY_TEST_ENDPOINTS)[number]
+export type ApiKeyModelEndpoint = (typeof API_KEY_MODEL_ENDPOINTS)[number]
 
 export type ApiKeyModel = {
   id: string
   ownedBy?: string
-  supportedEndpointTypes: ApiKeyTestEndpoint[]
+  supportedEndpointTypes: ApiKeyModelEndpoint[]
+}
+
+export function isApiKeyTestEndpoint(
+  endpointType: ApiKeyModelEndpoint
+): endpointType is ApiKeyTestEndpoint {
+  return API_KEY_TEST_ENDPOINT_SET.has(endpointType)
 }
 
 const DEFAULT_API_KEY_TEST_MODELS = ['gpt-5.6-sol', 'claude-opus-4-8'] as const
@@ -89,7 +101,9 @@ export function selectApiKeyTestModel(
   apiKey?: Pick<ApiKey, 'group' | 'name'> | null
 ): ApiKeyModel | undefined {
   const selectedModel = models.find((model) => model.id === selectedModelId)
-  if (selectedModel) return selectedModel
+  if (selectedModel?.supportedEndpointTypes.some(isApiKeyTestEndpoint)) {
+    return selectedModel
+  }
 
   const groupHint = apiKey?.group?.toLowerCase() ?? ''
   const nameHint = apiKey?.name.toLowerCase() ?? ''
@@ -107,13 +121,14 @@ export function selectApiKeyTestModel(
   for (const preferredModelId of preferredModelIds) {
     const preferredModel = models.find(
       (model) =>
-        model.id === preferredModelId && model.supportedEndpointTypes.length > 0
+        model.id === preferredModelId &&
+        model.supportedEndpointTypes.some(isApiKeyTestEndpoint)
     )
     if (preferredModel) return preferredModel
   }
 
-  return (
-    models.find((model) => model.supportedEndpointTypes.length > 0) ?? models[0]
+  return models.find((model) =>
+    model.supportedEndpointTypes.some(isApiKeyTestEndpoint)
   )
 }
 
@@ -288,11 +303,11 @@ function parseApiKeyModel(value: unknown): ApiKeyModel | null {
   const rawEndpointTypes = record.supported_endpoint_types
   const supportedEndpointTypes = Array.isArray(rawEndpointTypes)
     ? rawEndpointTypes.filter(
-        (endpoint): endpoint is ApiKeyTestEndpoint =>
+        (endpoint): endpoint is ApiKeyModelEndpoint =>
           typeof endpoint === 'string' &&
-          API_KEY_TEST_ENDPOINT_SET.has(endpoint)
+          API_KEY_MODEL_ENDPOINT_SET.has(endpoint)
       )
-    : (['openai'] as ApiKeyTestEndpoint[])
+    : (['openai'] as ApiKeyModelEndpoint[])
 
   return {
     id: record.id.trim(),

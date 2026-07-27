@@ -27,6 +27,7 @@ import {
   selectApiKeyTestModel,
   testApiKeyModel,
   type ApiKeyModel,
+  type ApiKeyModelEndpoint,
   type ApiKeyTestEndpoint,
 } from './api'
 
@@ -83,7 +84,7 @@ describe('API key availability test', () => {
   test('selects the requested provider defaults without overriding a manual choice', () => {
     const model = (
       id: string,
-      supportedEndpointTypes: ApiKeyTestEndpoint[] = ['openai']
+      supportedEndpointTypes: ApiKeyModelEndpoint[] = ['openai']
     ): ApiKeyModel => ({ id, supportedEndpointTypes })
 
     const bothProviderDefaults = [
@@ -117,9 +118,14 @@ describe('API key availability test', () => {
     assert.equal(
       selectApiKeyTestModel([
         model('not-testable', []),
+        model('video-only', ['openai-video']),
         model('first-testable', ['embeddings']),
       ])?.id,
       'first-testable'
+    )
+    assert.equal(
+      selectApiKeyTestModel([model('video-only', ['openai-video'])]),
+      undefined
     )
   })
 
@@ -158,7 +164,7 @@ describe('API key availability test', () => {
         {
           id: 'claude-sonnet-4-5',
           ownedBy: 'anthropic',
-          supportedEndpointTypes: ['anthropic', 'openai'],
+          supportedEndpointTypes: ['anthropic', 'openai', 'openai-video'],
         },
         {
           id: 'legacy-model',

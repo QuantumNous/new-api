@@ -171,10 +171,9 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string, supporte
 }
 
 type modelListGroups struct {
-	userGroup         string
-	tokenGroup        string
-	ownerGroups       []string
-	orderedCandidates bool
+	userGroup   string
+	tokenGroup  string
+	ownerGroups []string
 }
 
 func getModelListGroups(c *gin.Context) (modelListGroups, error) {
@@ -191,10 +190,9 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 
 	if len(groupCandidates) > 0 {
 		return modelListGroups{
-			userGroup:         userGroup,
-			tokenGroup:        tokenGroup,
-			ownerGroups:       groupCandidates,
-			orderedCandidates: true,
+			userGroup:   userGroup,
+			tokenGroup:  tokenGroup,
+			ownerGroups: groupCandidates,
 		}, nil
 	}
 
@@ -229,7 +227,6 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	}
 
-	userModelNames := make([]string, 0)
 	groups, err := getModelListGroups(c)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -239,48 +236,43 @@ func ListModels(c *gin.Context, modelType int) {
 		return
 	}
 	ownerGroups := groups.ownerGroups
+	groupModelNames := make([]string, 0)
+	seenModelNames := make(map[string]struct{})
+	for _, group := range ownerGroups {
+		models := model.GetGroupEnabledModels(group)
+		sort.Strings(models)
+		for _, modelName := range models {
+			if _, seen := seenModelNames[modelName]; seen {
+				continue
+			}
+			seenModelNames[modelName] = struct{}{}
+			groupModelNames = append(groupModelNames, modelName)
+		}
+	}
+
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
+	tokenModelLimit := map[string]bool{}
 	if modelLimitEnable {
 		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
-		var tokenModelLimit map[string]bool
 		if ok {
-			tokenModelLimit = s.(map[string]bool)
-		} else {
-			tokenModelLimit = map[string]bool{}
-		}
-		for allowModel, _ := range tokenModelLimit {
-			if !acceptUnsetRatioModel {
-				if !helper.HasModelBillingConfig(allowModel) {
-					continue
-				}
+			tokenModelLimit, _ = s.(map[string]bool)
+			if tokenModelLimit == nil {
+				tokenModelLimit = map[string]bool{}
 			}
-			userModelNames = append(userModelNames, allowModel)
 		}
-	} else {
-		var models []string
-		if groups.tokenGroup == "auto" || groups.orderedCandidates {
-			for _, autoGroup := range ownerGroups {
-				groupModels := model.GetGroupEnabledModels(autoGroup)
-				if groups.orderedCandidates {
-					sort.Strings(groupModels)
-				}
-				for _, g := range groupModels {
-					if !common.StringsContains(models, g) {
-						models = append(models, g)
-					}
-				}
+	}
+
+	userModelNames := make([]string, 0, len(groupModelNames))
+	for _, modelName := range groupModelNames {
+		if modelLimitEnable && !tokenModelLimit[modelName] {
+			continue
+		}
+		if !acceptUnsetRatioModel {
+			if !helper.HasModelBillingConfig(modelName) {
+				continue
 			}
-		} else {
-			models = model.GetGroupEnabledModels(ownerGroups[0])
 		}
-		for _, modelName := range models {
-			if !acceptUnsetRatioModel {
-				if !helper.HasModelBillingConfig(modelName) {
-					continue
-				}
-			}
-			userModelNames = append(userModelNames, modelName)
-		}
+		userModelNames = append(userModelNames, modelName)
 	}
 
 	ownerByModel := map[string]string{}
@@ -307,11 +299,16 @@ func ListModels(c *gin.Context, modelType int) {
 				Type:        "model",
 			}
 		}
+		var firstID, lastID *string
+		if len(useranthropicModels) > 0 {
+			firstID = &useranthropicModels[0].ID
+			lastID = &useranthropicModels[len(useranthropicModels)-1].ID
+		}
 		c.JSON(200, gin.H{
 			"data":     useranthropicModels,
-			"first_id": useranthropicModels[0].ID,
+			"first_id": firstID,
 			"has_more": false,
-			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
+			"last_id":  lastID,
 		})
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))

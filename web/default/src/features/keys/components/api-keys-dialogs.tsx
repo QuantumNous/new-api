@@ -28,8 +28,9 @@ export function ApiKeysDialogs() {
   const { open, setOpen, currentRow, resolvedKey, setResolvedKey } =
     useApiKeys()
   const { serverAddress } = useChatPresets()
-  const apiBaseUrl = serverAddress.trim()
-    ? `${serverAddress.trim().replace(/\/+$/, '')}/v1`
+  const normalizedServerAddress = serverAddress.trim().replace(/\/+$/, '')
+  const apiBaseUrl = normalizedServerAddress
+    ? `${normalizedServerAddress}/v1`
     : ''
 
   const handleCredentialDialogOpenChange = (isOpen: boolean) => {
@@ -49,6 +50,9 @@ export function ApiKeysDialogs() {
       <CCSwitchDialog
         open={open === 'cc-switch'}
         onOpenChange={handleCredentialDialogOpenChange}
+        apiKey={currentRow}
+        apiBaseUrl={apiBaseUrl}
+        serverAddress={normalizedServerAddress}
         tokenKey={resolvedKey}
       />
       <ApiKeyAvailabilityDialog

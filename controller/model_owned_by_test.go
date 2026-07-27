@@ -98,7 +98,6 @@ func TestGetModelListGroupsUsesOrderedTokenCandidates(t *testing.T) {
 	require.Equal(t, "default", groups.userGroup)
 	require.Equal(t, "auto", groups.tokenGroup)
 	require.Equal(t, []string{"claude-low", "openai-low"}, groups.ownerGroups)
-	require.True(t, groups.orderedCandidates)
 }
 
 func TestGetModelListGroupsKeepsLegacyAutoGroupsWithoutCandidates(t *testing.T) {
@@ -111,5 +110,4 @@ func TestGetModelListGroupsKeepsLegacyAutoGroupsWithoutCandidates(t *testing.T) 
 	require.NoError(t, err)
 
 	require.Equal(t, service.GetUserAutoGroup("default"), groups.ownerGroups)
-	require.False(t, groups.orderedCandidates)
 }

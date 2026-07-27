@@ -25,6 +25,9 @@ func TestValidateTokenGroupAccessUsesConcreteCandidates(t *testing.T) {
 
 	token.Group = "default"
 	require.Error(t, validateTokenGroupAccess("default", token))
+
+	require.NoError(t, token.SetGroupCandidates([]string{"default"}))
+	require.Error(t, validateTokenGroupAccess("default", token))
 }
 
 func TestValidateTokenGroupAccessRejectsInvalidCandidateStorage(t *testing.T) {

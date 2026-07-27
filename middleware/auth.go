@@ -241,7 +241,7 @@ func validateTokenGroupAccess(userGroup string, token *model.Token) error {
 	if len(groupCandidates) == 0 {
 		return service.ValidateTokenGroup(userGroup, token.Group)
 	}
-	if len(groupCandidates) > 1 && token.Group != "auto" {
+	if token.Group != "auto" {
 		return errors.New("令牌候选分组配置无效")
 	}
 	return service.ValidateTokenGroupCandidates(userGroup, groupCandidates)
