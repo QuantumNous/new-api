@@ -19,6 +19,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// getImageToken 返回图片的固定估算 token 数（不再下载文件解码尺寸）。
+// 估算阶段不下载完整文件，避免内存飙升；实际计费时优先使用上游返回的 ImageTokens，
+// 若上游未返回，则使用此处估算的固定值（见 text_quota.go 的 fallback 逻辑）。
 func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, stream bool) (int, error) {
 	if fileMeta == nil || fileMeta.Source == nil {
 		return 0, fmt.Errorf("image_url_is_nil")
@@ -26,7 +29,6 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 
 	// Defaults for 4o/4.1/4.5 family unless overridden below
 	baseTokens := 85
-	tileTokens := 170
 
 	// Model classification
 	lowerModel := strings.ToLower(model)
@@ -38,142 +40,38 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 
 	// Patch-based models (32x32 patches, capped at 1536, with multiplier)
 	isPatchBased := false
-	multiplier := 1.0
 	switch {
-	case strings.Contains(lowerModel, "gpt-4.1-mini"):
+	case strings.Contains(lowerModel, "gpt-4.1-mini"),
+		strings.Contains(lowerModel, "gpt-4.1-nano"),
+		strings.HasPrefix(lowerModel, "o4-mini"),
+		strings.HasPrefix(lowerModel, "gpt-5-mini"),
+		strings.HasPrefix(lowerModel, "gpt-5-nano"):
 		isPatchBased = true
-		multiplier = 1.62
-	case strings.Contains(lowerModel, "gpt-4.1-nano"):
-		isPatchBased = true
-		multiplier = 2.46
-	case strings.HasPrefix(lowerModel, "o4-mini"):
-		isPatchBased = true
-		multiplier = 1.72
-	case strings.HasPrefix(lowerModel, "gpt-5-mini"):
-		isPatchBased = true
-		multiplier = 1.62
-	case strings.HasPrefix(lowerModel, "gpt-5-nano"):
-		isPatchBased = true
-		multiplier = 2.46
 	}
 
-	// Tile-based model tokens and bases per doc
+	// Tile-based model bases per doc
 	if !isPatchBased {
 		if strings.HasPrefix(lowerModel, "gpt-4o-mini") {
 			baseTokens = 2833
-			tileTokens = 5667
 		} else if strings.HasPrefix(lowerModel, "gpt-5-chat-latest") || (strings.HasPrefix(lowerModel, "gpt-5") && !strings.Contains(lowerModel, "mini") && !strings.Contains(lowerModel, "nano")) {
 			baseTokens = 70
-			tileTokens = 140
 		} else if strings.HasPrefix(lowerModel, "o1") || strings.HasPrefix(lowerModel, "o3") || strings.HasPrefix(lowerModel, "o1-pro") {
 			baseTokens = 75
-			tileTokens = 150
 		} else if strings.Contains(lowerModel, "computer-use-preview") {
 			baseTokens = 65
-			tileTokens = 129
 		} else if strings.Contains(lowerModel, "4.1") || strings.Contains(lowerModel, "4o") || strings.Contains(lowerModel, "4.5") {
 			baseTokens = 85
-			tileTokens = 170
 		}
 	}
 
-	// Respect existing feature flags/short-circuits
+	// low detail 直接返回 baseTokens
 	if fileMeta.Detail == "low" && !isPatchBased {
 		return baseTokens, nil
 	}
 
-	// Whether to count image tokens at all
-	if !constant.GetMediaToken {
-		return 3 * baseTokens, nil
-	}
-
-	if !constant.GetMediaTokenNotStream && !stream {
-		return 3 * baseTokens, nil
-	}
-	// Normalize detail
-	if fileMeta.Detail == "auto" || fileMeta.Detail == "" {
-		fileMeta.Detail = "high"
-	}
-
-	// 使用统一的文件服务获取图片配置
-	config, format, err := GetImageConfig(c, fileMeta.Source)
-	if err != nil {
-		return 0, err
-	}
-	if config.Width == 0 || config.Height == 0 {
-		// not an image, but might be a valid file
-		if format != "" {
-			// file type
-			return 3 * baseTokens, nil
-		}
-		return 0, errors.New(fmt.Sprintf("fail to decode image config: %s", fileMeta.GetIdentifier()))
-	}
-
-	width := config.Width
-	height := config.Height
-	logger.LogDebug(c, "image token input: format=%s, width=%d, height=%d", format, width, height)
-
-	if isPatchBased {
-		// 32x32 patch-based calculation with 1536 cap and model multiplier
-		ceilDiv := func(a, b int) int { return (a + b - 1) / b }
-		rawPatchesW := ceilDiv(width, 32)
-		rawPatchesH := ceilDiv(height, 32)
-		rawPatches := rawPatchesW * rawPatchesH
-		if rawPatches > 1536 {
-			// scale down
-			area := float64(width * height)
-			r := math.Sqrt(float64(32*32*1536) / area)
-			wScaled := float64(width) * r
-			hScaled := float64(height) * r
-			// adjust to fit whole number of patches after scaling
-			adjW := math.Floor(wScaled/32.0) / (wScaled / 32.0)
-			adjH := math.Floor(hScaled/32.0) / (hScaled / 32.0)
-			adj := math.Min(adjW, adjH)
-			if !math.IsNaN(adj) && adj > 0 {
-				r = r * adj
-			}
-			wScaled = float64(width) * r
-			hScaled = float64(height) * r
-			patchesW := math.Ceil(wScaled / 32.0)
-			patchesH := math.Ceil(hScaled / 32.0)
-			imageTokens := int(patchesW * patchesH)
-			if imageTokens > 1536 {
-				imageTokens = 1536
-			}
-			return int(math.Round(float64(imageTokens) * multiplier)), nil
-		}
-		// below cap
-		imageTokens := rawPatches
-		return int(math.Round(float64(imageTokens) * multiplier)), nil
-	}
-
-	// Tile-based calculation for 4o/4.1/4.5/o1/o3/etc.
-	// Step 1: fit within 2048x2048 square
-	maxSide := math.Max(float64(width), float64(height))
-	fitScale := 1.0
-	if maxSide > 2048 {
-		fitScale = maxSide / 2048.0
-	}
-	fitW := int(math.Round(float64(width) / fitScale))
-	fitH := int(math.Round(float64(height) / fitScale))
-
-	// Step 2: scale so that shortest side is exactly 768
-	minSide := math.Min(float64(fitW), float64(fitH))
-	if minSide == 0 {
-		return baseTokens, nil
-	}
-	shortScale := 768.0 / minSide
-	finalW := int(math.Round(float64(fitW) * shortScale))
-	finalH := int(math.Round(float64(fitH) * shortScale))
-
-	// Count 512px tiles
-	tilesW := (finalW + 512 - 1) / 512
-	tilesH := (finalH + 512 - 1) / 512
-	tiles := tilesW * tilesH
-
-	logger.LogDebug(c, "image token scaled size: width=%d, height=%d, tiles=%d", finalW, finalH, tiles)
-
-	return tiles*tileTokens + baseTokens, nil
+	// 估算阶段固定使用 3*baseTokens 作为高细节图片的 token 估算值，
+	// 不再下载图片解码尺寸。实际计费优先使用上游返回的 ImageTokens。
+	return 3 * baseTokens, nil
 }
 
 func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
@@ -235,45 +133,26 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 		tkm += 3
 	}
 
-	shouldFetchFiles := true
-
-	if info.RelayFormat == types.RelayFormatGemini {
-		shouldFetchFiles = false
-	}
-
-	// 是否本地计算媒体token数量
-	if !constant.GetMediaToken {
-		shouldFetchFiles = false
-	}
-
-	// 是否在非流模式下本地计算媒体token数量
-	if !constant.GetMediaTokenNotStream && !info.IsStream {
-		shouldFetchFiles = false
-	}
-
-	// 使用统一的文件服务获取文件类型
-	for _, file := range meta.Files {
+	// 估算阶段不再下载完整文件计算媒体 token。
+	// 仅当 FileType 未知时，做轻量级 MIME 检测（最多读取 512 字节）判断类型，
+	// 之后使用固定估算值计算 token。实际计费优先使用上游返回的 ImageTokens。
+	estimateImageTokens := 0
+	for i, file := range meta.Files {
 		if file.Source == nil {
 			continue
 		}
 
-		// 如果文件类型未知且需要获取，通过 MIME 类型检测
-		if file.FileType == "" || (file.Source.IsURL() && shouldFetchFiles) {
-			// 注意：这里我们直接调用 LoadFileSource 而不是 GetMimeType
-			// 因为 GetMimeType 内部可能会调用 GetFileTypeFromUrl (HEAD 请求)
-			// 而我们这里既然要计算 token，通常需要完整数据
-			cachedData, err := LoadFileSource(c, file.Source, "token_counter")
+		// 仅当 FileType 未知时，做轻量级 MIME 检测（不缓存数据）
+		if file.FileType == "" {
+			mimeType, err := DetectMimeTypeLightweight(c, file.Source)
 			if err != nil {
-				if shouldFetchFiles {
-					return 0, fmt.Errorf("error getting file type: %v", err)
-				}
-				continue
+				// 检测失败按未知文件处理，避免阻断估算
+				logger.LogWarn(c, fmt.Sprintf("lightweight mime detect failed, identifier[%s], err: %v", file.GetIdentifier(), err))
+			} else if mimeType != "" {
+				file.FileType = DetectFileType(mimeType)
 			}
-			file.FileType = DetectFileType(cachedData.MimeType)
 		}
-	}
 
-	for i, file := range meta.Files {
 		switch file.FileType {
 		case types.FileTypeImage:
 			if common.IsOpenAITextModel(model) {
@@ -282,8 +161,10 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 					return 0, fmt.Errorf("error counting image token, media index[%d], identifier[%s], err: %v", i, file.GetIdentifier(), err)
 				}
 				tkm += token
+				estimateImageTokens += token
 			} else {
 				tkm += 520
+				estimateImageTokens += 520
 			}
 		case types.FileTypeAudio:
 			tkm += 256
@@ -295,6 +176,9 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 			tkm += 4096 // Default case for unknown file types
 		}
 	}
+
+	// 记录图片 token 估算值，供计费阶段在上游未返回 ImageTokens 时 fallback 使用
+	info.SetEstimateImageTokens(estimateImageTokens)
 
 	common.SetContextKey(c, constant.ContextKeyPromptTokens, tkm)
 	return tkm, nil
