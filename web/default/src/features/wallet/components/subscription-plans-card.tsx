@@ -30,8 +30,10 @@ import { TitledCard } from '@/components/ui/titled-card'
 import {
   getPublicPlans,
   getSelfSubscriptionFull,
+  cancelSubscriptionRenewal,
   purchaseSubscriptionPlanFlexible,
   quoteSubscriptionPlanFlexible,
+  resumeSubscriptionRenewal,
 } from '@/features/subscriptions/api'
 import { useRecallClaimContext } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
 import {
@@ -40,6 +42,15 @@ import {
   type PlanRecord,
   type SubscriptionPaymentAvailability,
 } from '@/features/subscriptions/types'
+import type {
+  StripeCheckoutOpenResult,
+  StripeCheckoutPresentation,
+} from '../hooks/use-payment'
+import {
+  getRecallPriceDiscount,
+  isRecallPriceEligible,
+  type RecallPriceDiscount,
+} from '../lib/recall-claim'
 import {
   type LifecyclePlanRecord,
   type WalletSelfSubscriptionData,
@@ -50,16 +61,7 @@ import {
   mergeFlexibleQuoteProjection,
   normalizeSelfSubscriptionData,
 } from '../lib/subscription-plan-lifecycle'
-import {
-  getRecallPriceDiscount,
-  isRecallPriceEligible,
-  type RecallPriceDiscount,
-} from '../lib/recall-claim'
 import type { TopupInfo } from '../types'
-import type {
-  StripeCheckoutOpenResult,
-  StripeCheckoutPresentation,
-} from '../hooks/use-payment'
 import { CurrentPlanCard } from './current-plan-card'
 import { PlanPurchaseDialog } from './plan-purchase-dialog'
 
@@ -78,6 +80,7 @@ interface SubscriptionPlansCardProps {
 }
 
 const EXTERNAL_RETURN_POLL_KEY = 'new-api:subscription-change-return-pending'
+const RENEWAL_FAILURE_TOAST_SHOWN = 'renewal failure toast shown'
 
 const PLAN_DISPLAY_ORDER: Record<string, number> = {
   go: 0,
@@ -221,6 +224,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     requestId: string
   } | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
+  const [renewalMutationPending, setRenewalMutationPending] = useState(false)
   const recallClaim = useRecallClaimContext()
 
   const fetchPlans = useCallback(async () => {
@@ -312,6 +316,56 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
       await Promise.all([fetchPlans(), fetchSelfSubscription()])
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  const handleCancelRenewal = async () => {
+    if (renewalMutationPending) return
+    setRenewalMutationPending(true)
+    try {
+      const res = await cancelSubscriptionRenewal()
+      if (!res.success) {
+        toast.error(res.message || t('Payment request failed'))
+        throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
+      }
+      toast.success(t('Subscription renewal canceled'))
+      await fetchSelfSubscription()
+      await onPurchaseSuccess?.()
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.message !== RENEWAL_FAILURE_TOAST_SHOWN
+      ) {
+        toast.error(t('Payment request failed'))
+      }
+      throw error
+    } finally {
+      setRenewalMutationPending(false)
+    }
+  }
+
+  const handleResumeRenewal = async () => {
+    if (renewalMutationPending) return
+    setRenewalMutationPending(true)
+    try {
+      const res = await resumeSubscriptionRenewal()
+      if (!res.success) {
+        toast.error(res.message || t('Payment request failed'))
+        throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
+      }
+      toast.success(t('Subscription renewal resumed'))
+      await fetchSelfSubscription()
+      await onPurchaseSuccess?.()
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.message !== RENEWAL_FAILURE_TOAST_SHOWN
+      ) {
+        toast.error(t('Payment request failed'))
+      }
+      throw error
+    } finally {
+      setRenewalMutationPending(false)
     }
   }
 
@@ -480,7 +534,13 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         }
       >
         {hasActivePlan && currentPlan ? (
-          <CurrentPlanCard plan={currentPlan} selfData={selfData} />
+          <CurrentPlanCard
+            plan={currentPlan}
+            selfData={selfData}
+            renewalMutationPending={renewalMutationPending}
+            onCancelRenewal={handleCancelRenewal}
+            onResumeRenewal={handleResumeRenewal}
+          />
         ) : null}
 
         {plans.length > 0 ? (
@@ -541,7 +601,9 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                           <span className='inline-flex rounded-full bg-[#dcfce7] px-2 py-1 text-[11px] font-semibold text-[#166534] uppercase dark:bg-[#14532d]/40 dark:text-[#86efac]'>
                             {getRecallDiscountLabel(
                               recallDiscount,
-                              Number(recallClaim.view?.discount.percent_off || 0),
+                              Number(
+                                recallClaim.view?.discount.percent_off || 0
+                              ),
                               t
                             )}
                           </span>
@@ -562,7 +624,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                           : price}
                       </span>
                       {recallDiscount ? (
-                        <span className='text-muted-foreground mb-2 text-sm line-through tabular-nums'>
+                        <span className='text-muted-foreground mb-2 text-sm tabular-nums line-through'>
                           {price}
                         </span>
                       ) : null}
