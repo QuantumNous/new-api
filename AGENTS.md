@@ -135,6 +135,15 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 - In React components, use `useTranslation()` and call `t('English key')` for user-facing text.
 - Follow `web/default/AGENTS.md` for detailed frontend conventions, including TypeScript, component structure, styling, accessibility, testing, and build checks.
 
+### Local Development Ports
+
+- The Go backend uses `http://127.0.0.1:3000`.
+- The default frontend development server uses **only** `http://localhost:5173` and is started from `web/default/` with `bun run dev`.
+- Before starting the frontend, check whether port `5173` already serves this workspace. Reuse the healthy existing server instead of starting another process.
+- Never pass an alternate `--port`, and never allow the dev server to fall through to `3001`, `5174`, or another port. `web/default/rsbuild.config.ts` must keep `port: 5173` and `strictPort: true`.
+- If port `5173` is occupied by an unrelated or unhealthy process, identify the owning process and report the conflict. Do not terminate a user-owned process or switch ports without explicit approval.
+- Do not start a frontend server for checks that only require tests, type checking, linting, formatting, or a production build. When browser verification is required, use the fixed URL above and keep it running for user review.
+
 ### Project Governance
 
 **Protected project information:** The following project-related information is strictly protected and MUST NOT be modified, deleted, replaced, or removed under any circumstances:
