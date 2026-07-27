@@ -13,7 +13,9 @@ import {
   LayoutGrid,
   MessageSquare,
   Pin,
+  Search,
   Video,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -32,6 +34,7 @@ import {
   MODALITY_COLORS,
 } from '../../lib/workbench/modality-styles'
 import type { ModelOption, StudioModality } from '../../types'
+import { getBrandColor } from './brand-color'
 import { ModelBrandIcon } from './model-brand-icon'
 
 type CatalogFilter = 'all' | StudioModality
@@ -72,6 +75,7 @@ type ModelCatalogProps = {
 export function ModelCatalog(props: ModelCatalogProps) {
   const { t } = useTranslation()
   const [modality, setModality] = useState<CatalogFilter>('all')
+  const [query, setQuery] = useState('')
   const pinnedSet = useMemo(
     () => new Set(props.pinnedModels ?? []),
     [props.pinnedModels]
@@ -108,7 +112,8 @@ export function ModelCatalog(props: ModelCatalogProps) {
   }, [catalog])
 
   const filtered = useMemo(() => {
-    const list = catalog.filter((model) => {
+    const normalizedQuery = query.trim().toLowerCase()
+    return catalog.filter((model) => {
       const modelModality = getModelModality(model)
       if (
         modelModality === 'image' &&
@@ -117,15 +122,46 @@ export function ModelCatalog(props: ModelCatalogProps) {
         return false
       }
       if (modality !== 'all' && modelModality !== modality) return false
-      return true
+      if (!normalizedQuery) return true
+      return (
+        model.model_name.toLowerCase().includes(normalizedQuery) ||
+        (model.vendor_name ?? '').toLowerCase().includes(normalizedQuery) ||
+        (model.description ?? '').toLowerCase().includes(normalizedQuery)
+      )
     })
-    return list.sort((a, b) => {
-      const ap = pinnedSet.has(a.model_name) ? 0 : 1
-      const bp = pinnedSet.has(b.model_name) ? 0 : 1
-      if (ap !== bp) return ap - bp
-      return a.model_name.localeCompare(b.model_name)
-    })
-  }, [catalog, modality, pinnedSet])
+  }, [catalog, modality, query])
+
+  // Pinned models float to a dedicated section; the rest group by provider,
+  // larger providers first, unattributed models last.
+  const groups = useMemo(() => {
+    const byName = (a: PricingModel, b: PricingModel) =>
+      a.model_name.localeCompare(b.model_name)
+    const pinned: PricingModel[] = []
+    const byVendor = new Map<string, PricingModel[]>()
+    for (const model of filtered) {
+      if (pinnedSet.has(model.model_name)) {
+        pinned.push(model)
+        continue
+      }
+      const vendor = model.vendor_name?.trim() ?? ''
+      const list = byVendor.get(vendor)
+      if (list) {
+        list.push(model)
+      } else {
+        byVendor.set(vendor, [model])
+      }
+    }
+    const vendorGroups = [...byVendor.entries()]
+      .map(([vendor, models]) => ({ vendor, models: models.sort(byName) }))
+      .sort((a, b) => {
+        if (!a.vendor !== !b.vendor) return a.vendor ? -1 : 1
+        if (a.models.length !== b.models.length) {
+          return b.models.length - a.models.length
+        }
+        return a.vendor.localeCompare(b.vendor)
+      })
+    return { pinned: pinned.sort(byName), vendorGroups }
+  }, [filtered, pinnedSet])
 
   return (
     <div className='flex h-full min-h-0 flex-col bg-transparent'>
@@ -179,6 +215,30 @@ export function ModelCatalog(props: ModelCatalogProps) {
             )
           })}
         </div>
+        <div className='relative mt-2'>
+          <Search
+            className='text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2'
+            aria-hidden='true'
+          />
+          <input
+            type='search'
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t('Search models')}
+            aria-label={t('Search models')}
+            className='border-border/60 bg-background/60 placeholder:text-muted-foreground/70 focus-visible:ring-ring h-8 w-full rounded-lg border pr-7 pl-8 text-xs outline-none focus-visible:ring-2 [&::-webkit-search-cancel-button]:hidden'
+          />
+          {query && (
+            <button
+              type='button'
+              aria-label={t('Clear search')}
+              onClick={() => setQuery('')}
+              className='text-muted-foreground hover:text-foreground absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-1'
+            >
+              <X className='size-3' aria-hidden='true' />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className='min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2'>
@@ -224,112 +284,208 @@ export function ModelCatalog(props: ModelCatalogProps) {
           <CatalogState
             text={t('No models match these filters.')}
             action={t('Show all')}
-            onAction={() => setModality('all')}
+            onAction={() => {
+              setModality('all')
+              setQuery('')
+            }}
           />
         )}
-        <div className='space-y-1.5'>
-          {filtered.map((model) => {
-            const modelModality = getModelModality(model)
-            const ModalityIcon = modalityIcons[modelModality]
-            const selected = props.selected === model.model_name
-            const pinned = pinnedSet.has(model.model_name)
-            const isNew = isLikelyNewModel(model)
-            return (
-              <div
-                key={model.model_name}
-                className={cn(
-                  'group relative w-full rounded-[11px] border border-transparent transition-all',
-                  selected
-                    ? 'border-primary/30 from-primary/12 to-primary/4 bg-gradient-to-br shadow-sm'
-                    : 'hover:border-border hover:bg-muted/40 hover:shadow-sm'
-                )}
-              >
-                <button
-                  type='button'
-                  onClick={() => props.onSelect(model)}
-                  aria-current={selected ? 'true' : undefined}
-                  className='focus-visible:ring-ring w-full p-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset'
-                >
-                  <div className='flex items-start justify-between gap-2'>
-                    <span className='flex min-w-0 items-center gap-2'>
-                      <span
-                        className={cn(
-                          'flex size-9 shrink-0 items-center justify-center rounded-lg ring-1',
-                          MODALITY_COLORS[modelModality].tile
-                        )}
-                      >
-                        <ModelBrandIcon
-                          modelName={model.model_name}
-                          icon={model.icon}
-                          vendorIcon={model.vendor_icon}
-                          size={22}
-                        />
-                      </span>
-                      <span className='min-w-0'>
-                        <span className='flex items-center gap-1.5'>
-                          <span className='text-foreground block truncate font-mono text-xs font-semibold'>
-                            {model.model_name}
-                          </span>
-                          {isNew && (
-                            <span className='bg-chart-4/20 text-chart-4 ring-chart-4/30 shrink-0 rounded px-1 py-px text-[9px] font-bold tracking-wide ring-1'>
-                              {t('NEW')}
-                            </span>
-                          )}
-                        </span>
-                        <span className='text-muted-foreground mt-0.5 flex items-center gap-1 truncate text-[11px]'>
-                          <ModalityIcon className='size-3' aria-hidden='true' />
-                          {model.vendor_name ||
-                            t(modalityLabelKey(modelModality))}
-                        </span>
-                      </span>
-                    </span>
-                    <span
-                      className={cn(
-                        'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize',
-                        MODALITY_COLORS[modelModality].tag,
-                        // The pin button occupies the same corner; crossfade
-                        // so the two never stack on top of each other.
-                        props.onTogglePin &&
-                          'transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0',
-                        props.onTogglePin && pinned && 'opacity-0'
-                      )}
-                    >
-                      {t(modalityLabelKey(modelModality))}
-                    </span>
-                  </div>
-                  <p className='text-muted-foreground mt-1.5 line-clamp-2 text-[11px] text-pretty'>
-                    {model.description ||
-                      model.vendor_description ||
-                      t('Available for generation')}
-                  </p>
-                </button>
-                {props.onTogglePin && (
-                  <button
-                    type='button'
-                    className={cn(
-                      'absolute top-2 right-2 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:opacity-100',
-                      pinned
-                        ? 'text-primary'
-                        : 'text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-foreground/80'
-                    )}
-                    aria-label={pinned ? t('Unpin model') : t('Pin model')}
-                    aria-pressed={pinned}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      props.onTogglePin?.(model.model_name)
-                    }}
-                  >
-                    <Pin
-                      className={cn('size-3.5', pinned && 'fill-current')}
-                      aria-hidden='true'
-                    />
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
+
+        {groups.pinned.length > 0 && (
+          <section>
+            <GroupHeader
+              label={t('Pinned')}
+              count={groups.pinned.length}
+              icon={
+                <Pin
+                  className='text-primary size-3 fill-current'
+                  aria-hidden='true'
+                />
+              }
+            />
+            <div className='space-y-1.5 pt-1.5'>
+              {groups.pinned.map((model) => (
+                <ModelCard
+                  key={model.model_name}
+                  model={model}
+                  selected={props.selected === model.model_name}
+                  pinned
+                  onSelect={props.onSelect}
+                  onTogglePin={props.onTogglePin}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {groups.vendorGroups.map((group) => (
+          <section key={group.vendor || '__other'}>
+            <GroupHeader
+              label={group.vendor || t('Other providers')}
+              count={group.models.length}
+              icon={
+                group.vendor ? (
+                  <ModelBrandIcon
+                    modelName={group.models[0].model_name}
+                    icon={group.models[0].vendor_icon || group.models[0].icon}
+                    size={14}
+                  />
+                ) : (
+                  <LayoutGrid
+                    className='text-muted-foreground size-3'
+                    aria-hidden='true'
+                  />
+                )
+              }
+            />
+            <div className='space-y-1.5 pt-1.5'>
+              {group.models.map((model) => (
+                <ModelCard
+                  key={model.model_name}
+                  model={model}
+                  selected={props.selected === model.model_name}
+                  pinned={pinnedSet.has(model.model_name)}
+                  onSelect={props.onSelect}
+                  onTogglePin={props.onTogglePin}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
+    </div>
+  )
+}
+
+function GroupHeader(props: {
+  label: string
+  count: number
+  icon?: React.ReactNode
+}) {
+  return (
+    <div className='bg-sidebar/90 border-border/40 sticky -top-2 z-10 -mx-2 flex items-center gap-1.5 border-b px-3.5 py-1.5 backdrop-blur-md'>
+      {props.icon}
+      <span className='text-foreground/80 truncate text-[11px] font-semibold tracking-wide'>
+        {props.label}
+      </span>
+      <span className='text-muted-foreground/80 font-mono text-[10px] tabular-nums'>
+        {props.count}
+      </span>
+    </div>
+  )
+}
+
+function ModelCard(props: {
+  model: PricingModel
+  selected: boolean
+  pinned: boolean
+  onSelect: (model: PricingModel) => void
+  onTogglePin?: (modelName: string) => void
+}) {
+  const { t } = useTranslation()
+  const { model, selected, pinned } = props
+  const modelModality = getModelModality(model)
+  const ModalityIcon = modalityIcons[modelModality]
+  const isNew = isLikelyNewModel(model)
+  const brand = getBrandColor(model.icon, model.vendor_icon)
+
+  return (
+    <div
+      className={cn(
+        'group relative w-full rounded-[11px] border border-transparent transition-all',
+        selected
+          ? 'border-primary/30 from-primary/12 to-primary/4 bg-gradient-to-br shadow-sm'
+          : 'hover:border-border hover:bg-muted/40 hover:shadow-sm'
+      )}
+    >
+      <button
+        type='button'
+        onClick={() => props.onSelect(model)}
+        aria-current={selected ? 'true' : undefined}
+        className='focus-visible:ring-ring w-full p-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset'
+      >
+        <div className='flex items-start justify-between gap-2'>
+          <span className='flex min-w-0 items-center gap-2'>
+            <span
+              className={cn(
+                'flex size-9 shrink-0 items-center justify-center rounded-lg ring-1',
+                !brand && MODALITY_COLORS[modelModality].tile
+              )}
+              style={
+                brand
+                  ? ({
+                      backgroundColor: `color-mix(in srgb, ${brand} 13%, transparent)`,
+                      '--tw-ring-color': `color-mix(in srgb, ${brand} 34%, transparent)`,
+                    } as React.CSSProperties)
+                  : undefined
+              }
+            >
+              <ModelBrandIcon
+                modelName={model.model_name}
+                icon={model.icon}
+                vendorIcon={model.vendor_icon}
+                size={22}
+              />
+            </span>
+            <span className='min-w-0'>
+              <span className='flex items-center gap-1.5'>
+                <span className='text-foreground block truncate font-mono text-xs font-semibold'>
+                  {model.model_name}
+                </span>
+                {isNew && (
+                  <span className='bg-chart-4/20 text-chart-4 ring-chart-4/30 shrink-0 rounded px-1 py-px text-[9px] font-bold tracking-wide ring-1'>
+                    {t('NEW')}
+                  </span>
+                )}
+              </span>
+              <span className='text-muted-foreground mt-0.5 flex items-center gap-1 truncate text-[11px]'>
+                <ModalityIcon className='size-3' aria-hidden='true' />
+                {model.vendor_name || t(modalityLabelKey(modelModality))}
+              </span>
+            </span>
+          </span>
+          <span
+            className={cn(
+              'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize',
+              MODALITY_COLORS[modelModality].tag,
+              // The pin button occupies the same corner; crossfade
+              // so the two never stack on top of each other.
+              props.onTogglePin &&
+                'transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0',
+              props.onTogglePin && pinned && 'opacity-0'
+            )}
+          >
+            {t(modalityLabelKey(modelModality))}
+          </span>
+        </div>
+        <p className='text-muted-foreground mt-1.5 line-clamp-2 text-[11px] text-pretty'>
+          {model.description ||
+            model.vendor_description ||
+            t('Available for generation')}
+        </p>
+      </button>
+      {props.onTogglePin && (
+        <button
+          type='button'
+          className={cn(
+            'focus-visible:ring-ring absolute top-2 right-2 rounded-md p-1 outline-none focus-visible:opacity-100 focus-visible:ring-2',
+            pinned
+              ? 'text-primary'
+              : 'text-muted-foreground hover:text-foreground/80 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
+          )}
+          aria-label={pinned ? t('Unpin model') : t('Pin model')}
+          aria-pressed={pinned}
+          onClick={(event) => {
+            event.stopPropagation()
+            props.onTogglePin?.(model.model_name)
+          }}
+        >
+          <Pin
+            className={cn('size-3.5', pinned && 'fill-current')}
+            aria-hidden='true'
+          />
+        </button>
+      )}
     </div>
   )
 }

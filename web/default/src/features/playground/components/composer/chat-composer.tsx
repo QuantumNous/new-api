@@ -27,6 +27,7 @@ import { usePlaygroundStore } from '@/stores/playground-store'
 import { getInputControlState, getSubmittableInputText } from '../../lib'
 import { DOCUMENT_ACCEPT } from '../../lib/attachments/document-extract'
 import type { ChatAttachment } from '../../types'
+import { ModelBrandIcon } from '../catalog/model-brand-icon'
 import { ChatAttachmentStrip } from './attachments/chat-attachments'
 import { useChatAttachments } from './attachments/use-chat-attachments'
 import { ComposerShell } from './composer'
@@ -40,6 +41,7 @@ type ChatComposerProps = {
   isModelLoading?: boolean
   hasMessages?: boolean
   onClearMessages?: () => void
+  onOpenModelCatalog?: () => void
 }
 
 /**
@@ -54,6 +56,8 @@ export function ChatComposer(props: ChatComposerProps) {
   const attachments = useChatAttachments()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
+  const activeModel = usePlaygroundStore((state) => state.config.model)
   const models = usePlaygroundStore((state) => state.models)
   const groups = usePlaygroundStore((state) => state.groups)
   const toolMode = usePlaygroundStore((state) => state.chatTools.mode)
@@ -101,8 +105,20 @@ export function ChatComposer(props: ChatComposerProps) {
         showStop={shouldShowStop}
         onStop={props.onStop}
         onPaste={attachments.handlePaste}
-        onDrop={attachments.handleDrop}
-        onDragOver={attachments.handleDragOver}
+        onDrop={(event) => {
+          setDragActive(false)
+          attachments.handleDrop(event)
+        }}
+        onDragOver={(event) => {
+          attachments.handleDragOver(event)
+          setDragActive(true)
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+            setDragActive(false)
+          }
+        }}
+        dragActive={dragActive}
         attachments={
           <ChatAttachmentStrip
             attachments={attachments.attachments}
@@ -112,6 +128,31 @@ export function ChatComposer(props: ChatComposerProps) {
         }
         tools={
           <>
+            {activeModel && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type='button'
+                      aria-label={t('Switch model')}
+                      onClick={props.onOpenModelCatalog}
+                      disabled={!props.onOpenModelCatalog}
+                      className={cn(
+                        'border-border/60 bg-muted/40 text-foreground/85 flex h-8 max-w-[9.5rem] shrink-0 items-center gap-1.5 rounded-lg border px-2 text-[11px] font-medium outline-none sm:max-w-[13rem]',
+                        'hover:bg-muted/70 hover:text-foreground focus-visible:ring-ring transition-colors focus-visible:ring-2',
+                        !props.onOpenModelCatalog && 'pointer-events-none'
+                      )}
+                    />
+                  }
+                >
+                  <ModelBrandIcon modelName={activeModel} size={14} />
+                  <span className='truncate font-mono'>{activeModel}</span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t('Switch model')}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
             <input
               ref={fileInputRef}
               type='file'

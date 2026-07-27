@@ -16,6 +16,11 @@ import {
   PromptInputTextarea,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 type ComposerShellProps = {
@@ -36,6 +41,9 @@ type ComposerShellProps = {
   onPaste?: React.ClipboardEventHandler<HTMLTextAreaElement>
   onDrop?: React.DragEventHandler<HTMLDivElement>
   onDragOver?: React.DragEventHandler<HTMLDivElement>
+  onDragLeave?: React.DragEventHandler<HTMLDivElement>
+  /** Highlights the surface while files hover over the composer. */
+  dragActive?: boolean
   className?: string
 }
 
@@ -52,6 +60,7 @@ export function ComposerShell(props: ComposerShellProps) {
       className={cn('grid shrink-0 gap-2 px-1', props.className)}
       onDrop={props.onDrop}
       onDragOver={props.onDragOver}
+      onDragLeave={props.onDragLeave}
     >
       <PromptInput
         className='relative'
@@ -62,6 +71,8 @@ export function ComposerShell(props: ComposerShellProps) {
           'has-[[data-slot=input-group-control]:disabled]:opacity-100 has-[[data-slot=input-group-control]:disabled]:bg-background/95 dark:has-[[data-slot=input-group-control]:disabled]:bg-background/85',
           'shadow-[0_18px_50px_-30px_rgba(15,23,42,0.35)] dark:shadow-[0_18px_60px_-32px_rgba(0,0,0,0.55)] transition-[border-color,box-shadow,transform] duration-200',
           'focus-within:border-primary/45 focus-within:ring-primary/15 focus-within:shadow-[0_22px_60px_-32px_rgba(15,23,42,0.45)] dark:focus-within:shadow-[0_22px_70px_-34px_rgba(0,0,0,0.7)]',
+          props.dragActive &&
+            'border-primary/70 ring-primary/25 bg-primary/[0.04] border-dashed',
           props.disabled && 'opacity-90'
         )}
         onSubmit={props.onSubmit}
@@ -99,22 +110,31 @@ export function ComposerShell(props: ComposerShellProps) {
                   <span className='sr-only sm:hidden'>{t('Stop')}</span>
                 </PromptInputButton>
               ) : (
-                <PromptInputButton
-                  className={cn(
-                    'bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground h-9 min-w-9 touch-manipulation px-3 font-medium shadow-sm sm:h-8',
-                    'transition-transform active:scale-[0.97]',
-                    props.canSubmit &&
-                      !props.disabled &&
-                      'shadow-primary/25 shadow-md'
-                  )}
-                  disabled={!props.canSubmit || props.disabled}
-                  type='submit'
-                  variant='default'
-                >
-                  <SendIcon size={16} />
-                  <span className='hidden sm:inline'>{t('Send')}</span>
-                  <span className='sr-only sm:hidden'>{t('Send')}</span>
-                </PromptInputButton>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <PromptInputButton
+                        className={cn(
+                          'bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground h-9 min-w-9 touch-manipulation px-3 font-medium shadow-sm sm:h-8',
+                          'transition-transform active:scale-[0.97]',
+                          props.canSubmit &&
+                            !props.disabled &&
+                            'shadow-primary/25 shadow-md'
+                        )}
+                        disabled={!props.canSubmit || props.disabled}
+                        type='submit'
+                        variant='default'
+                      />
+                    }
+                  >
+                    <SendIcon size={16} />
+                    <span className='hidden sm:inline'>{t('Send')}</span>
+                    <span className='sr-only sm:hidden'>{t('Send')}</span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{t('Enter to send, Shift+Enter for a new line')}</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
           </div>

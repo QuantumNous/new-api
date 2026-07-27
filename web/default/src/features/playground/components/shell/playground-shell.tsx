@@ -85,10 +85,13 @@ export function PlaygroundShell(props: PlaygroundShellProps) {
     props
   const [railTab, setRailTab] = useState<RailTab>('models')
 
-  // Close the mobile catalog sheet when crossing the breakpoint. On desktop
-  // the header history button focuses the rail's Chats tab instead of a sheet.
+  // On desktop the catalog sheet does not exist; open requests focus the
+  // rail's Models tab instead (composer model chip, breakpoint crossing).
   useEffect(() => {
-    if (isDesktop && catalogOpen) onCatalogOpenChange(false)
+    if (isDesktop && catalogOpen) {
+      setRailTab('models')
+      onCatalogOpenChange(false)
+    }
   }, [isDesktop, catalogOpen, onCatalogOpenChange])
 
   useEffect(() => {

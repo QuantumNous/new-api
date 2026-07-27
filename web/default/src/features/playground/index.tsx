@@ -690,6 +690,7 @@ export function Playground() {
               disabled={isGenerating || isRouting}
               isGenerating={isGenerating}
               isModelLoading={isLoadingModels}
+              onOpenModelCatalog={() => setCatalogDrawerOpen(true)}
               onClearMessages={handleClearMessages}
               onStop={stopGeneration}
               onSubmit={handleSendMessage}
