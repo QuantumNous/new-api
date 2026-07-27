@@ -149,43 +149,42 @@ func UpdateModelMeta(c *gin.Context) {
 		}
 		common.ApiSuccess(c, &m)
 		return
-	} else {
-		// 名称冲突检查
-		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
-			common.ApiError(c, err)
-			return
-		} else if dup {
-			common.ApiErrorMsg(c, "模型名称已存在")
-			return
-		}
+	}
 
-		// Preserve previous status to detect explicit status changes.
-		var prev model.Model
-		_ = model.DB.Select("id", "status", "model_name", "name_rule").Where("id = ?", m.Id).First(&prev).Error
-
-		if err := m.Update(); err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		// Admin explicitly changed status via metadata editor -> clear auto-disable marker.
-		// Other metadata edits do not clear the marker.
-		pricingRefreshed := false
-		if prev.Id != 0 && prev.Status != m.Status {
-			service.ClearModelAutoDisabledByRule(m.Id)
-			res := service.SyncModelChannelAvailability("model.status_update")
-			pricingRefreshed = res.PricingRefreshed
-		}
-		// Name/rule changes can alter availability matching.
-		if prev.Id == 0 || prev.ModelName != m.ModelName || prev.NameRule != m.NameRule {
-			res := service.SyncModelChannelAvailability("model.update")
-			pricingRefreshed = pricingRefreshed || res.PricingRefreshed
-		}
-		if !pricingRefreshed {
-			model.RefreshPricing()
-		}
-		common.ApiSuccess(c, &m)
+	// 名称冲突检查
+	if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
+		common.ApiError(c, err)
+		return
+	} else if dup {
+		common.ApiErrorMsg(c, "模型名称已存在")
 		return
 	}
+
+	// Preserve previous status to detect explicit status changes.
+	var prev model.Model
+	_ = model.DB.Select("id", "status", "model_name", "name_rule").Where("id = ?", m.Id).First(&prev).Error
+
+	if err := m.Update(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Admin explicitly changed status via metadata editor -> clear auto-disable marker.
+	// Other metadata edits do not clear the marker.
+	pricingRefreshed := false
+	if prev.Id != 0 && prev.Status != m.Status {
+		service.ClearModelAutoDisabledByRule(m.Id)
+		res := service.SyncModelChannelAvailability("model.status_update")
+		pricingRefreshed = res.PricingRefreshed
+	}
+	// Name/rule changes can alter availability matching.
+	if prev.Id == 0 || prev.ModelName != m.ModelName || prev.NameRule != m.NameRule {
+		res := service.SyncModelChannelAvailability("model.update")
+		pricingRefreshed = pricingRefreshed || res.PricingRefreshed
+	}
+	if !pricingRefreshed {
+		model.RefreshPricing()
+	}
+	common.ApiSuccess(c, &m)
 }
 
 // DeleteModelMeta 删除模型
