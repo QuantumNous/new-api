@@ -474,6 +474,52 @@ func TestApplyProviderSubscriptionSnapshotPreservesNewerLifecycleDecision(t *tes
 	require.Equal(t, int64(3000), updated.CurrentPeriodEnd)
 }
 
+func TestApplyProviderSubscriptionLifecycleSnapshotSameTargetRetryRefreshesSafeMetadata(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+	insertUserForSubscriptionRecurringTest(t, 510)
+	insertPlanForSubscriptionRecurringTest(t, 610, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-same-target-retry", 510, 610)
+
+	binding, err := CompleteSubscriptionOrderWithProviderBinding(
+		"recurring-order-same-target-retry",
+		"{}",
+		PaymentProviderStripe,
+		PaymentMethodStripe,
+		stripeSnapshotForSubscriptionRecurringTest("sub_same_target_retry"),
+	)
+	require.NoError(t, err)
+
+	cancelled, err := ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId:  binding.ProviderSubscriptionId,
+		ProviderLatestInvoiceId: "in_initial_cancel",
+		ProviderStatus:          "active",
+		CancelAtPeriodEnd:       true,
+		CurrentPeriodStart:      1000,
+		CurrentPeriodEnd:        2000,
+		CanceledAt:              1500,
+	})
+	require.NoError(t, err)
+	require.True(t, cancelled.CancelAtPeriodEnd)
+
+	updated, err := ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId:  binding.ProviderSubscriptionId,
+		ProviderLatestInvoiceId: "in_same_target_retry",
+		ProviderStatus:          "trialing",
+		CancelAtPeriodEnd:       true,
+		CurrentPeriodStart:      2000,
+		CurrentPeriodEnd:        3000,
+		CanceledAt:              2500,
+	})
+	require.NoError(t, err)
+	require.True(t, updated.CancelAtPeriodEnd)
+	require.Equal(t, cancelled.CanceledAt, updated.CanceledAt)
+	require.Equal(t, cancelled.LifecycleActionSeq, updated.LifecycleActionSeq)
+	require.Equal(t, "in_same_target_retry", updated.ProviderLatestInvoiceId)
+	require.Equal(t, "trialing", updated.ProviderStatus)
+	require.Equal(t, int64(3000), updated.CurrentPeriodEnd)
+}
+
 func TestApplyProviderSubscriptionSnapshotDoesNotReviveTerminalBinding(t *testing.T) {
 	setupSubscriptionRecurringTestDB(t)
 	migrateSubscriptionRecurringTestDB(t)

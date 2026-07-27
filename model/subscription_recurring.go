@@ -228,6 +228,7 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 	}
 	var binding SubscriptionProviderBinding
 	lifecycleCASMiss := false
+	lifecycleSameTargetRetry := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", bindingID).First(&binding).Error; err != nil {
 			return err
@@ -240,6 +241,7 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 		}
 		if expectedLifecycleActionSeq != nil && binding.LifecycleActionSeq != *expectedLifecycleActionSeq {
 			if binding.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
+				lifecycleSameTargetRetry = true
 				return nil
 			}
 			return ErrSubscriptionProviderLifecycleConflict
@@ -299,12 +301,13 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 	if err != nil {
 		return nil, err
 	}
-	if lifecycleCASMiss {
-		if err := DB.Where("id = ?", bindingID).First(&binding).Error; err != nil {
+	if lifecycleSameTargetRetry || lifecycleCASMiss {
+		updated, err := ApplyProviderSubscriptionSnapshot(bindingID, snapshot)
+		if err != nil {
 			return nil, err
 		}
-		if binding.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
-			return &binding, nil
+		if updated.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
+			return updated, nil
 		}
 		return nil, ErrSubscriptionProviderLifecycleConflict
 	}
