@@ -5835,6 +5835,7 @@
     "Confirm resume": "Подтвердить возобновление",
     "Subscription renewal canceled": "Продление подписки отменено",
     "Subscription renewal resumed": "Продление подписки возобновлено",
+    "Subscription updated, but failed to refresh status": "Подписка обновлена, но не удалось обновить статус",
     "Start date": "Дата начала",
     "End date": "Дата окончания",
     "Remaining days": "Осталось дней",

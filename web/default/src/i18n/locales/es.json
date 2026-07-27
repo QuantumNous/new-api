@@ -5835,6 +5835,7 @@
     "Confirm resume": "Confirmar reanudación",
     "Subscription renewal canceled": "Renovación de la suscripción cancelada",
     "Subscription renewal resumed": "Renovación de la suscripción reanudada",
+    "Subscription updated, but failed to refresh status": "La suscripción se actualizó, pero no se pudo actualizar el estado",
     "Start date": "Fecha de inicio",
     "End date": "Fecha de fin",
     "Remaining days": "Días restantes",

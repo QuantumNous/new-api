@@ -162,11 +162,11 @@ func TestGetSubscriptionSelfReturnsCanonicalContractWithoutProviderIDs(t *testin
 	require.NotContains(t, pending, "provider_schedule_id")
 
 	capabilities := data["capabilities"].(map[string]any)
-	require.Equal(t, true, capabilities["can_resume"])
+	require.Equal(t, false, capabilities["can_resume"])
 	require.Equal(t, false, capabilities["can_cancel"])
 	require.Equal(t, false, capabilities["can_change_plan"])
 	require.Equal(t, true, capabilities["has_pending_intent"])
-	require.Equal(t, true, capabilities["is_cancel_at_period_end"])
+	require.Equal(t, false, capabilities["is_cancel_at_period_end"])
 	require.Equal(t, false, capabilities["can_use_balance_one_period"])
 
 	migration := data["migration"].(map[string]any)
@@ -212,12 +212,14 @@ func TestGetSubscriptionSelfReturnsProviderNeutralRecurringReviewShape(t *testin
 	require.NoError(t, model.DB.Create(&contract).Error)
 	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Update("contract_id", contract.Id).Error)
 	grantKey := "grant_self_should_not_leak"
+	currentSlot := 1
 	entitlement := model.UserSubscription{
 		UserId:            918,
 		PlanId:            9932,
 		ContractId:        contract.Id,
 		ProviderBindingId: binding.Id,
 		GrantKey:          &grantKey,
+		CurrentSlot:       &currentSlot,
 		AmountTotal:       1000,
 		StartTime:         now - 60,
 		EndTime:           now + 3600,

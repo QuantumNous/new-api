@@ -5835,6 +5835,7 @@
     "Confirm resume": "再開を確認",
     "Subscription renewal canceled": "サブスクリプションの更新をキャンセルしました",
     "Subscription renewal resumed": "サブスクリプションの更新を再開しました",
+    "Subscription updated, but failed to refresh status": "サブスクリプションは更新されましたが、ステータスの更新に失敗しました",
     "Start date": "開始日",
     "End date": "終了日",
     "Remaining days": "残り日数",

@@ -5835,6 +5835,7 @@
     "Confirm resume": "Confirm resume",
     "Subscription renewal canceled": "Subscription renewal canceled",
     "Subscription renewal resumed": "Subscription renewal resumed",
+    "Subscription updated, but failed to refresh status": "Subscription updated, but failed to refresh status",
     "Start date": "Start date",
     "End date": "End date",
     "Remaining days": "Remaining days",

@@ -239,14 +239,16 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
   }, [])
 
-  const fetchSelfSubscription = useCallback(async () => {
+  const fetchSelfSubscription = useCallback(async (): Promise<boolean> => {
     try {
       const res = await getSelfSubscriptionFull()
       setSelfData(
         normalizeSelfSubscriptionData(res.success ? res.data : undefined)
       )
+      return res.success
     } catch {
       setSelfData(normalizeSelfSubscriptionData(undefined))
+      return false
     }
   }, [])
 
@@ -322,6 +324,18 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
   }
 
+  const refreshAfterRenewal = async () => {
+    let refreshFailed = !(await fetchSelfSubscription())
+    try {
+      await onPurchaseSuccess?.()
+    } catch {
+      refreshFailed = true
+    }
+    if (refreshFailed) {
+      toast.error(t('Subscription updated, but failed to refresh status'))
+    }
+  }
+
   const handleCancelRenewal = async () => {
     if (renewalMutationInFlightRef.current) {
       throw new Error(RENEWAL_MUTATION_ALREADY_IN_FLIGHT)
@@ -335,8 +349,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
       }
       toast.success(t('Subscription renewal canceled'))
-      await fetchSelfSubscription()
-      await onPurchaseSuccess?.()
+      await refreshAfterRenewal()
     } catch (error) {
       if (
         !(error instanceof Error) ||
@@ -364,8 +377,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
       }
       toast.success(t('Subscription renewal resumed'))
-      await fetchSelfSubscription()
-      await onPurchaseSuccess?.()
+      await refreshAfterRenewal()
     } catch (error) {
       if (
         !(error instanceof Error) ||

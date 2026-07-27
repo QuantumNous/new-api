@@ -613,6 +613,10 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       "toast.success(t('Subscription renewal resumed'))"
     )
     expect(cardSource).toContain('await fetchSelfSubscription()')
+    expect(cardSource).toContain('const refreshAfterRenewal = async () =>')
+    expect(cardSource).toContain(
+      "toast.error(t('Subscription updated, but failed to refresh status'))"
+    )
     expect(
       cardSource.match(/if \(renewalMutationInFlightRef\.current\) \{/g)
     ).toHaveLength(2)
@@ -630,6 +634,23 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(cardSource).not.toContain('cancelRecurringSubscription')
     expect(cardSource).not.toContain('resumeRecurringSubscription')
     expect(cardSource).not.toContain('current_provider_binding_id')
+  })
+
+  test('localizes the renewal refresh warning in every wallet locale', () => {
+    for (const localeCode of ['en', 'zh', 'fr', 'ru', 'ja', 'vi', 'es', 'pt']) {
+      const locale = JSON.parse(
+        readFileSync(
+          new URL(`../../../i18n/locales/${localeCode}.json`, import.meta.url),
+          'utf8'
+        )
+      ) as { translation: Record<string, string> }
+
+      expect(
+        locale.translation[
+          'Subscription updated, but failed to refresh status'
+        ]
+      ).toBeTruthy()
+    }
   })
 
   test('does not infer wallet auto-renew from a balance one-period contract without canonical renewal state', () => {
