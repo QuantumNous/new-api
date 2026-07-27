@@ -17,9 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useQueries, useQuery } from '@tanstack/react-query'
+import {
+  ChevronDown,
+  KeyRound,
+  Route,
+  Settings2,
+  WalletCards,
+} from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -62,10 +68,10 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { createApiKey, updateApiKey, getApiKey } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
@@ -73,14 +79,15 @@ import {
   getApiKeyFormSchema,
   type ApiKeyFormValues,
   getApiKeyFormDefaultValues,
+  SYSTEM_ROUTING_VALUE,
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
 import type { ApiKey } from '../types'
 import {
-  ApiKeyGroupCombobox,
-  type ApiKeyGroupOption,
-} from './api-key-group-combobox'
+  ApiKeyRoutingGroupsField,
+  type ApiKeyRoutingGroupOption,
+} from './api-key-routing-groups-field'
 import { useApiKeys } from './api-keys-provider'
 
 type ApiKeyMutateDrawerProps = {
@@ -97,18 +104,9 @@ export function ApiKeysMutateDrawer({
   const { t } = useTranslation()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useApiKeys()
-  const { status } = useStatus()
+  const accountGroup = useAuthStore((state) => state.auth.user?.group ?? '')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const defaultUseAutoGroup = status?.default_use_auto_group === true
-
-  // Fetch models
-  const { data: modelsData } = useQuery({
-    queryKey: ['user-models'],
-    queryFn: getUserModels,
-    enabled: open,
-    staleTime: 0,
-  })
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -118,22 +116,32 @@ export function ApiKeysMutateDrawer({
     staleTime: 0,
   })
 
-  const models = modelsData?.data || []
-  const groupsRaw = groupsData?.data || {}
-  const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw).map(
-    ([key, info]) => ({
-      value: key,
-      label: key,
-      desc: info.desc || key,
-      ratio: info.ratio,
-    })
+  const groupsRaw = groupsData?.data
+  const backendHasAuto = Object.hasOwn(groupsRaw ?? {}, 'auto')
+  const groups = useMemo<ApiKeyRoutingGroupOption[]>(
+    () =>
+      Object.entries(groupsRaw ?? {})
+        .filter(([key]) => key !== 'auto')
+        .map(([key, info]) => ({
+          value: key,
+          label: key,
+          desc: info.desc || key,
+          ratio: info.ratio,
+        })),
+    [groupsRaw]
   )
-  const backendHasAuto = groups.some((g) => g.value === 'auto')
+  const defaultGroup = useMemo(
+    () =>
+      groups.find((group) => group.value === accountGroup)?.value ??
+      groups[0]?.value ??
+      '',
+    [accountGroup, groups]
+  )
   const schema = getApiKeyFormSchema(t)
 
   const form = useForm<ApiKeyFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: getApiKeyFormDefaultValues(defaultUseAutoGroup),
+    defaultValues: getApiKeyFormDefaultValues(),
   })
 
   // Load existing data when updating
@@ -141,31 +149,13 @@ export function ApiKeysMutateDrawer({
     if (open && isUpdate && currentRow) {
       void getApiKey(currentRow.id).then((result) => {
         if (result.success && result.data) {
-          form.reset(transformApiKeyToFormDefaults(result.data))
+          form.reset(transformApiKeyToFormDefaults(result.data, defaultGroup))
         }
       })
     } else if (open && !isUpdate) {
-      form.reset(
-        getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
-      )
+      form.reset(getApiKeyFormDefaultValues())
     }
-  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto])
-
-  // Correct group after groups load: if the form value is not in available groups, fall back
-  useEffect(() => {
-    if (groups.length === 0) return
-    const currentGroup = form.getValues('group')
-    if (currentGroup && !groups.some((g) => g.value === currentGroup)) {
-      const fallback =
-        groups.find((g) => g.value === 'default')?.value ??
-        groups[0]?.value ??
-        ''
-      form.setValue('group', fallback)
-      if (currentGroup === 'auto') {
-        form.setValue('cross_group_retry', false)
-      }
-    }
-  }, [groups, form])
+  }, [open, isUpdate, currentRow, form, defaultGroup])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
@@ -247,7 +237,43 @@ export function ApiKeysMutateDrawer({
   const quotaPlaceholder = tokensOnly
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
-  const selectedGroup = form.watch('group')
+  const selectedGroups = form.watch('group_candidates')
+  const selectedModelLimits = form.watch('model_limits')
+  const concreteSelectedGroups = useMemo(
+    () => selectedGroups.filter((group) => group !== SYSTEM_ROUTING_VALUE),
+    [selectedGroups]
+  )
+  const modelQueryGroups = useMemo(
+    () => (concreteSelectedGroups.length > 0 ? concreteSelectedGroups : ['']),
+    [concreteSelectedGroups]
+  )
+  const modelQueries = useQueries({
+    queries: modelQueryGroups.map((group) => ({
+      queryKey: ['user-models', group || 'all'],
+      queryFn: () => getUserModels(group || undefined),
+      enabled: open,
+      staleTime: 0,
+    })),
+  })
+  const modelsByGroup = useMemo(() => {
+    const result: Record<string, string[]> = {}
+    for (const [index, group] of modelQueryGroups.entries()) {
+      if (!group) continue
+      result[group] = modelQueries[index]?.data?.data ?? []
+    }
+    return result
+  }, [modelQueries, modelQueryGroups])
+  const models = useMemo(() => {
+    const union = new Set<string>()
+    for (const query of modelQueries) {
+      for (const model of query.data?.data ?? []) union.add(model)
+    }
+    for (const model of selectedModelLimits) union.add(model)
+    return [...union]
+  }, [modelQueries, selectedModelLimits])
+  const isLoadingModels = modelQueries.some((query) => query.isLoading)
+  const usesMultipleGroups = selectedGroups.length > 1
+  const usesSystemRouting = selectedGroups[0] === SYSTEM_ROUTING_VALUE
   const unlimitedQuota = form.watch('unlimited_quota')
 
   return (
@@ -299,52 +325,6 @@ export function ApiKeysMutateDrawer({
                   </FormItem>
                 )}
               />
-
-              <FormField
-                control={form.control}
-                name='group'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Group')}</FormLabel>
-                    <FormControl>
-                      <ApiKeyGroupCombobox
-                        options={groups}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder={t('Select a group')}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {selectedGroup === 'auto' && (
-                <FormField
-                  control={form.control}
-                  name='cross_group_retry'
-                  render={({ field }) => (
-                    <FormItem className={sideDrawerSwitchItemClassName()}>
-                      <div className='flex flex-col gap-0.5'>
-                        <FormLabel className='text-sm'>
-                          {t('Cross-group retry')}
-                        </FormLabel>
-                        <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
-                          {t(
-                            'When enabled, if channels in the current group fail, it will try channels in the next group in order.'
-                          )}
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={!!field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              )}
 
               <FormField
                 control={form.control}
@@ -431,6 +411,76 @@ export function ApiKeysMutateDrawer({
                         )}
                       </FormDescription>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </SideDrawerSection>
+
+            <SideDrawerSection>
+              <SideDrawerSectionHeader
+                title={t('Model groups and routing')}
+                description={t('Choose groups and set their request order')}
+                icon={<Route className='size-4' />}
+                iconTone='info'
+              />
+              <FormField
+                control={form.control}
+                name='group_candidates'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Available groups')}</FormLabel>
+                    <FormControl>
+                      <ApiKeyRoutingGroupsField
+                        allowSystemRouting={backendHasAuto || usesSystemRouting}
+                        options={groups}
+                        value={field.value}
+                        modelsByGroup={modelsByGroup}
+                        isLoadingModels={isLoadingModels}
+                        onValueChange={(value) => {
+                          const wasUsingMultipleGroups = field.value.length > 1
+                          field.onChange(value)
+                          if (
+                            value.length <= 1 &&
+                            value[0] !== SYSTEM_ROUTING_VALUE
+                          ) {
+                            form.setValue('cross_group_retry', false)
+                          } else if (
+                            value.length > 1 &&
+                            !wasUsingMultipleGroups
+                          ) {
+                            form.setValue('cross_group_retry', true)
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {(usesMultipleGroups || usesSystemRouting) && (
+                <FormField
+                  control={form.control}
+                  name='cross_group_retry'
+                  render={({ field }) => (
+                    <FormItem className={sideDrawerSwitchItemClassName()}>
+                      <div className='flex flex-col gap-0.5'>
+                        <FormLabel className='text-sm'>
+                          {t('Try the next group after a failure')}
+                        </FormLabel>
+                        <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
+                          {t(
+                            'After retryable failures exhaust the current group, continue with the next group in order.'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={!!field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
                     </FormItem>
                   )}
                 />

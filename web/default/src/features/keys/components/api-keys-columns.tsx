@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { BadgeCell, TruncatedCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
+import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -201,7 +202,55 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       cell: ({ row }) => {
         const apiKey = row.original
         const group = row.getValue('group') as string
+        const groupCandidates = apiKey.group_candidates
         const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
+
+        if (groupCandidates.length > 1) {
+          return (
+            <Tooltip>
+              <TooltipTrigger
+                render={<BadgeCell className='gap-1.5 text-xs' />}
+              >
+                <StatusBadge
+                  label={t('Mixed groups')}
+                  variant='info'
+                  copyable={false}
+                />
+                <Badge variant='secondary'>{groupCandidates.length}</Badge>
+              </TooltipTrigger>
+              <TooltipContent className='max-w-sm'>
+                <div className='flex flex-col gap-1.5 text-xs'>
+                  <span className='font-medium'>{t('Group order')}</span>
+                  <span>{groupCandidates.join(' -> ')}</span>
+                  <span>
+                    {t('This order is managed by the API Key creator')}
+                  </span>
+                  <span>
+                    {apiKey.cross_group_retry
+                      ? t('Failure fallback is enabled')
+                      : t('Failure fallback is disabled')}
+                  </span>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )
+        }
+
+        if (groupCandidates.length === 1) {
+          const selectedGroup = groupCandidates[0]
+          return (
+            <TruncatedCell
+              className='-ml-1.5'
+              tooltipContent={selectedGroup}
+              tooltipClassName='break-all'
+            >
+              <GroupBadge
+                group={selectedGroup}
+                ratio={groupRatios[selectedGroup]}
+              />
+            </TruncatedCell>
+          )
+        }
 
         if (group === 'auto') {
           return (
@@ -209,7 +258,11 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
               <TooltipTrigger
                 render={<BadgeCell className='gap-1.5 text-xs' />}
               >
-                <GroupBadge group='auto' />
+                <StatusBadge
+                  label={t('System routing')}
+                  variant='neutral'
+                  copyable={false}
+                />
                 {apiKey.cross_group_retry && (
                   <StatusBadge
                     label={t('Cross-group')}
@@ -221,7 +274,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
               <TooltipContent>
                 <span className='text-xs'>
                   {t(
-                    'Automatically selects the best available group with circuit breaker mechanism'
+                    'This API Key uses the global group order maintained by the administrator'
                   )}
                 </span>
               </TooltipContent>
@@ -238,7 +291,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
           </TruncatedCell>
         )
       },
-      size: 160,
+      size: 190,
       meta: { mobileHidden: true },
     },
     {

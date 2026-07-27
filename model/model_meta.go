@@ -163,30 +163,37 @@ func GetPreferredModelOwnerChannelTypes(modelNames []string, groups []string) (m
 		Model       string
 		ChannelType int
 	}
-	var rows []row
-
-	query := DB.Table("abilities").
-		Select("abilities.model as model, channels.type as channel_type").
-		Joins("JOIN channels ON abilities.channel_id = channels.id").
-		Where("abilities.model IN ? AND abilities.enabled = ? AND channels.status = ?", modelNames, true, common.ChannelStatusEnabled).
-		Order("COALESCE(abilities.priority, 0) DESC").
-		Order("abilities.weight DESC").
-		Order("abilities.channel_id ASC")
-
 	groups = normalizeLookupValues(groups)
-	if len(groups) > 0 {
-		query = query.Where("abilities."+commonGroupCol+" IN ?", groups)
+	if len(groups) == 0 {
+		groups = []string{""}
 	}
 
-	if err := query.Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	for _, r := range rows {
-		if _, ok := result[r.Model]; ok {
-			continue
+	for _, group := range groups {
+		var rows []row
+		query := DB.Table("abilities").
+			Select("abilities.model as model, channels.type as channel_type").
+			Joins("JOIN channels ON abilities.channel_id = channels.id").
+			Where("abilities.model IN ? AND abilities.enabled = ? AND channels.status = ?", modelNames, true, common.ChannelStatusEnabled).
+			Order("COALESCE(abilities.priority, 0) DESC").
+			Order("abilities.weight DESC").
+			Order("abilities.channel_id ASC")
+		if group != "" {
+			query = query.Where("abilities."+commonGroupCol+" = ?", group)
 		}
-		result[r.Model] = r.ChannelType
+
+		if err := query.Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+
+		for _, r := range rows {
+			if _, ok := result[r.Model]; ok {
+				continue
+			}
+			result[r.Model] = r.ChannelType
+		}
+		if len(result) == len(modelNames) {
+			break
+		}
 	}
 	return result, nil
 }

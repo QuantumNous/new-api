@@ -12,12 +12,14 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -340,6 +342,179 @@ func TestListModelsUsesAdvancedCustomEndpointTypesFromPricingCache(t *testing.T)
 		constant.EndpointTypeOpenAI,
 		constant.EndpointTypeOpenAIResponse,
 	}, payload.Data[0].SupportedEndpointTypes)
+}
+
+func TestListModelsScopesEndpointTypesToOwnerGroups(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+
+	originalAutoGroups := setting.AutoGroups2JsonString()
+	require.NoError(t, setting.UpdateAutoGroupsByJsonString(`["vip","default"]`))
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateAutoGroupsByJsonString(originalAutoGroups))
+		model.InvalidatePricingCache()
+	})
+
+	const modelName = "zz-group-scoped-endpoint-model"
+	require.NoError(t, db.Create(&[]model.Channel{
+		{
+			Id:     801,
+			Type:   constant.ChannelTypeAnthropic,
+			Name:   "default-anthropic-channel",
+			Status: common.ChannelStatusEnabled,
+		},
+		{
+			Id:     802,
+			Type:   constant.ChannelTypeJina,
+			Name:   "vip-jina-channel",
+			Status: common.ChannelStatusEnabled,
+		},
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: modelName, ChannelId: 801, Enabled: true},
+		{Group: "vip", Model: modelName, ChannelId: 802, Enabled: true},
+	}).Error)
+
+	model.InvalidatePricingCache()
+	model.GetPricing()
+
+	defaultRecorder := httptest.NewRecorder()
+	defaultContext, _ := gin.CreateTestContext(defaultRecorder)
+	defaultContext.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(defaultContext, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(defaultContext, constant.ContextKeyTokenGroup, "default")
+
+	ListModels(defaultContext, constant.ChannelTypeOpenAI)
+
+	defaultPayload := decodeListModelsPayload(t, defaultRecorder)
+	require.Len(t, defaultPayload.Data, 1)
+	require.Equal(t, modelName, defaultPayload.Data[0].Id)
+	require.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeAnthropic,
+		constant.EndpointTypeOpenAI,
+	}, defaultPayload.Data[0].SupportedEndpointTypes)
+
+	autoRecorder := httptest.NewRecorder()
+	autoContext, _ := gin.CreateTestContext(autoRecorder)
+	autoContext.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(autoContext, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(autoContext, constant.ContextKeyTokenGroup, "auto")
+
+	ListModels(autoContext, constant.ChannelTypeOpenAI)
+
+	autoPayload := decodeListModelsPayload(t, autoRecorder)
+	require.Len(t, autoPayload.Data, 1)
+	require.Equal(t, modelName, autoPayload.Data[0].Id)
+	require.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeJinaRerank,
+		constant.EndpointTypeAnthropic,
+		constant.EndpointTypeOpenAI,
+	}, autoPayload.Data[0].SupportedEndpointTypes)
+}
+
+func TestListModelsUsesOrderedTokenCandidatesForUnionAndOwner(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+
+	const (
+		sharedModel     = "a-shared-candidate-model"
+		firstOnlyModel  = "z-first-candidate-model"
+		secondOnlyModel = "b-second-candidate-model"
+	)
+	require.NoError(t, db.Create(&[]model.Channel{
+		{Id: 811, Type: constant.ChannelTypeOpenAI, Name: "first-openai", Status: common.ChannelStatusEnabled},
+		{Id: 812, Type: constant.ChannelTypeCodex, Name: "first-codex", Status: common.ChannelStatusEnabled},
+		{Id: 813, Type: constant.ChannelTypeOpenAI, Name: "second-openai", Status: common.ChannelStatusEnabled},
+	}).Error)
+	lowPriority := int64(1)
+	highPriority := int64(2)
+	fallbackPriority := int64(100)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "claude-low", Model: sharedModel, ChannelId: 811, Enabled: true, Priority: &lowPriority},
+		{Group: "claude-low", Model: sharedModel, ChannelId: 812, Enabled: true, Priority: &highPriority},
+		{Group: "claude-low", Model: firstOnlyModel, ChannelId: 812, Enabled: true, Priority: &highPriority},
+		{Group: "openai-low", Model: sharedModel, ChannelId: 813, Enabled: true, Priority: &fallbackPriority},
+		{Group: "openai-low", Model: secondOnlyModel, ChannelId: 813, Enabled: true, Priority: &fallbackPriority},
+	}).Error)
+
+	model.InvalidatePricingCache()
+
+	firstRecorder := httptest.NewRecorder()
+	firstContext, _ := gin.CreateTestContext(firstRecorder)
+	firstContext.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(firstContext, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(firstContext, constant.ContextKeyTokenGroup, "auto")
+	common.SetContextKey(firstContext, constant.ContextKeyTokenGroupCandidates, []string{"claude-low", "openai-low"})
+
+	ListModels(firstContext, constant.ChannelTypeOpenAI)
+
+	firstPayload := decodeListModelsPayload(t, firstRecorder)
+	require.Equal(t, []string{sharedModel, firstOnlyModel, secondOnlyModel}, lo.Map(firstPayload.Data, func(item dto.OpenAIModels, _ int) string {
+		return item.Id
+	}))
+	require.Equal(t, "codex", firstPayload.Data[0].OwnedBy)
+	require.Equal(t, "codex", firstPayload.Data[1].OwnedBy)
+	require.Equal(t, "openai", firstPayload.Data[2].OwnedBy)
+
+	secondRecorder := httptest.NewRecorder()
+	secondContext, _ := gin.CreateTestContext(secondRecorder)
+	secondContext.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(secondContext, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(secondContext, constant.ContextKeyTokenGroup, "auto")
+	common.SetContextKey(secondContext, constant.ContextKeyTokenGroupCandidates, []string{"openai-low", "claude-low"})
+
+	ListModels(secondContext, constant.ChannelTypeOpenAI)
+
+	secondPayload := decodeListModelsPayload(t, secondRecorder)
+	require.Equal(t, []string{sharedModel, secondOnlyModel, firstOnlyModel}, lo.Map(secondPayload.Data, func(item dto.OpenAIModels, _ int) string {
+		return item.Id
+	}))
+	require.Equal(t, "openai", secondPayload.Data[0].OwnedBy)
+}
+
+func TestListModelsAdvertisesCodexResponseEndpoints(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+
+	const (
+		responsesModel = "zz-codex-responses-model"
+		compactModel   = "zz-codex-responses-model-openai-compact"
+	)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     803,
+		Type:   constant.ChannelTypeCodex,
+		Name:   "codex-channel",
+		Status: common.ChannelStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: responsesModel, ChannelId: 803, Enabled: true},
+		{Group: "default", Model: compactModel, ChannelId: 803, Enabled: true},
+	}).Error)
+
+	model.InvalidatePricingCache()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "default")
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	payload := decodeListModelsPayload(t, recorder)
+	require.Len(t, payload.Data, 2)
+	modelsByID := make(map[string]dto.OpenAIModels, len(payload.Data))
+	for _, item := range payload.Data {
+		modelsByID[item.Id] = item
+	}
+	require.Equal(t,
+		[]constant.EndpointType{constant.EndpointTypeOpenAIResponse},
+		modelsByID[responsesModel].SupportedEndpointTypes,
+	)
+	require.Equal(t,
+		[]constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact},
+		modelsByID[compactModel].SupportedEndpointTypes,
+	)
 }
 
 func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {

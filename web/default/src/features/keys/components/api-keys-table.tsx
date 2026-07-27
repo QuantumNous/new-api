@@ -71,6 +71,7 @@ import { DataTableRowActions } from './data-table-row-actions'
 
 const route = getRouteApi('/_authenticated/keys/')
 const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY = 'api-keys:column-visibility'
+const EMPTY_API_KEYS: ApiKey[] = []
 const API_KEYS_MOBILE_SKELETON_IDS = Array.from(
   { length: 5 },
   (_, index) => `api-key-mobile-skeleton-${index + 1}`
@@ -199,7 +200,7 @@ function ApiKeysMobileList({
 export function ApiKeysTable() {
   const { t } = useTranslation()
   const { status } = useStatus()
-  const { refreshTrigger } = useApiKeys()
+  const { refreshTrigger, setVisibleApiKeys } = useApiKeys()
   const [now, setNow] = useState(() => Date.now())
   const columns = useApiKeysColumns(now)
 
@@ -307,7 +308,11 @@ export function ApiKeysTable() {
     placeholderData: (previousData) => previousData,
   })
 
-  const apiKeys = data?.items || []
+  const apiKeys = data?.items ?? EMPTY_API_KEYS
+
+  useEffect(() => {
+    setVisibleApiKeys(apiKeys)
+  }, [apiKeys, setVisibleApiKeys])
 
   const { table } = useDataTable({
     data: apiKeys,

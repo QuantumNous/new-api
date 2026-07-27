@@ -26,8 +26,8 @@ import fr from './locales/fr.json'
 import ja from './locales/ja.json'
 import ru from './locales/ru.json'
 import vi from './locales/vi.json'
-import zhCN from './locales/zh.json'
 import zhTW from './locales/zh-TW.json'
+import zhCN from './locales/zh.json'
 
 export const resources = {
   en,
@@ -36,7 +36,7 @@ export const resources = {
   ru,
   ja,
   vi,
-  zhTW
+  zhTW,
 } as const
 
 i18n

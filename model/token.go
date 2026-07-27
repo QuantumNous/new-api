@@ -27,6 +27,7 @@ type Token struct {
 	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
 	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
 	Group              string         `json:"group" gorm:"default:''"`
+	GroupCandidates    string         `json:"-" gorm:"type:text"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
@@ -54,6 +55,33 @@ func (token *Token) GetFullKey() string {
 
 func (token *Token) GetMaskedKey() string {
 	return MaskTokenKey(token.Key)
+}
+
+func (token *Token) GetGroupCandidates() ([]string, error) {
+	if token.GroupCandidates == "" {
+		return []string{}, nil
+	}
+	groups := make([]string, 0)
+	if err := common.UnmarshalJsonStr(token.GroupCandidates, &groups); err != nil {
+		return nil, fmt.Errorf("failed to decode token group candidates: %w", err)
+	}
+	if len(groups) == 0 {
+		return nil, errors.New("token group candidates cannot be empty")
+	}
+	return groups, nil
+}
+
+func (token *Token) SetGroupCandidates(groups []string) error {
+	if len(groups) == 0 {
+		token.GroupCandidates = ""
+		return nil
+	}
+	data, err := common.Marshal(groups)
+	if err != nil {
+		return fmt.Errorf("failed to encode token group candidates: %w", err)
+	}
+	token.GroupCandidates = string(data)
+	return nil
 }
 
 func (token *Token) GetIpLimits() []string {
@@ -302,7 +330,7 @@ func (token *Token) Update() (err error) {
 		}
 	}()
 	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
-		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry").Updates(token).Error
+		"model_limits_enabled", "model_limits", "allow_ips", "group", "group_candidates", "cross_group_retry").Updates(token).Error
 	return err
 }
 

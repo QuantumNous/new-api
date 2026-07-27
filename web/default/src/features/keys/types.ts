@@ -34,6 +34,7 @@ export const apiKeySchema = z.object({
   created_time: z.number(),
   accessed_time: z.number(),
   group: z.string().nullish().default(''),
+  group_candidates: z.array(z.string()).optional().default([]),
   cross_group_retry: z
     .preprocess((v) => {
       if (v === 1) return true
@@ -91,6 +92,7 @@ export interface ApiKeyFormData {
   model_limits: string
   allow_ips: string
   group: string
+  group_candidates?: string[]
   cross_group_retry: boolean
 }
 
@@ -104,3 +106,4 @@ export type ApiKeysDialogType =
   | 'delete'
   | 'batch-delete'
   | 'cc-switch'
+  | 'api-test'

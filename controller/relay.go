@@ -188,13 +188,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	for {
 		relayInfo.RetryIndex = retryParam.GetRetry()
+		previousGroup := relayInfo.UsingGroup
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
 			break
+		}
+		if previousGroup != relayInfo.UsingGroup {
+			if billingErr := reserveRelayGroupBilling(c, relayInfo, tokens, meta); billingErr != nil {
+				newAPIError = billingErr
+				break
+			}
 		}
 
 		addUsedChannel(c, channel.Id)
@@ -210,6 +217,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		retryParam.MarkAttempted()
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
@@ -231,7 +239,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		if relayRetryCommitted(c, relayInfo) || !shouldRetry(c, newAPIError, boolToRetryCount(retryParam.HasNextRetry())) {
+			break
+		}
+		if !retryParam.AdvanceRetry() {
 			break
 		}
 	}
@@ -290,6 +301,54 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 	return meta
 }
 
+func boolToRetryCount(canRetry bool) int {
+	if canRetry {
+		return 1
+	}
+	return 0
+}
+
+// reserveRelayGroupBilling refreshes pricing after an ordered candidate
+// transition and reserves the higher target before any bytes are sent to the
+// new provider. A free first candidate can therefore create its BillingSession
+// only when the paid fallback is actually selected.
+func reserveRelayGroupBilling(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) *types.NewAPIError {
+	priceData, err := helper.ModelPriceHelper(c, info, promptTokens, meta)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+	}
+	if priceData.FreeModel {
+		return nil
+	}
+	if info.Billing == nil {
+		return service.PreConsumeBilling(c, priceData.QuotaToPreConsume, info)
+	}
+	if err := info.Billing.Reserve(priceData.QuotaToPreConsume); err != nil {
+		var apiErr *types.NewAPIError
+		if errors.As(err, &apiErr) {
+			return apiErr
+		}
+		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+	}
+	return nil
+}
+
+// Once streaming output is visible to the client, replaying the request against
+// another provider would splice two upstream responses into one stream. Client
+// cancellation is terminal even if no bytes were written.
+func relayRetryCommitted(c *gin.Context, info *relaycommon.RelayInfo) bool {
+	if c != nil && c.Request != nil && c.Request.Context().Err() != nil {
+		return true
+	}
+	if info == nil || !info.IsStream {
+		return false
+	}
+	if c != nil && c.Writer != nil && c.Writer.Size() > 0 {
+		return true
+	}
+	return info.ClientWs != nil && info.HasSendResponse()
+}
+
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
 		autoBan := c.GetBool("auto_ban")
@@ -306,8 +365,6 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	}
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
-	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
-
 	if err != nil {
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
@@ -319,6 +376,10 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	if newAPIError != nil {
 		return nil, newAPIError
 	}
+	// CacheGetRandomSatisfiedChannel records the concrete auto candidate on the
+	// request context. Keep RelayInfo in sync before the retry loop compares
+	// groups and refreshes billing for a more expensive fallback.
+	helper.HandleGroupRatio(c, info)
 	return channel, nil
 }
 
@@ -514,12 +575,14 @@ func RelayTask(c *gin.Context) {
 		RequestPath: c.Request.URL.Path,
 		Retry:       common.GetPointer(0),
 	}
+	lockedChannel, hasLockedChannel := relayInfo.LockedChannel.(*model.Channel)
+	hasLockedChannel = hasLockedChannel && lockedChannel != nil
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	for {
 		var channel *model.Channel
 
-		if lockedCh, ok := relayInfo.LockedChannel.(*model.Channel); ok && lockedCh != nil {
-			channel = lockedCh
+		if hasLockedChannel {
+			channel = lockedChannel
 			if retryParam.GetRetry() > 0 {
 				if setupErr := middleware.SetupContextForSelectedChannel(c, channel, relayInfo.OriginModelName); setupErr != nil {
 					taskErr = service.TaskErrorWrapperLocal(setupErr.Err, "setup_locked_channel_failed", http.StatusInternalServerError)
@@ -548,6 +611,7 @@ func RelayTask(c *gin.Context) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		retryParam.MarkAttempted()
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
 			break
@@ -560,7 +624,16 @@ func RelayTask(c *gin.Context) {
 				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
 		}
 
-		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
+		hasNextRetry := retryParam.HasNextRetry()
+		if hasLockedChannel {
+			hasNextRetry = retryParam.GetRetry() < common.RetryTimes
+		}
+		if !shouldRetryTaskRelay(c, channel.Id, taskErr, boolToRetryCount(hasNextRetry)) {
+			break
+		}
+		if hasLockedChannel {
+			retryParam.IncreaseRetry()
+		} else if !retryParam.AdvanceRetry() {
 			break
 		}
 	}

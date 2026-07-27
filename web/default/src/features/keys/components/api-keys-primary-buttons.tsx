@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { DashboardSpeed01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,11 +27,26 @@ import { useApiKeys } from './api-keys-provider'
 
 export function ApiKeysPrimaryButtons() {
   const { t } = useTranslation()
-  const { setOpen } = useApiKeys()
+  const { setCurrentRow, setOpen, setResolvedKey } = useApiKeys()
+
+  const handleOpenApiTest = () => {
+    setCurrentRow(null)
+    setResolvedKey('')
+    setOpen('api-test')
+  }
+
   return (
-    <div className='flex gap-2'>
+    <div className='flex flex-wrap gap-2'>
+      <Button variant='outline' size='sm' onClick={handleOpenApiTest}>
+        <HugeiconsIcon
+          icon={DashboardSpeed01Icon}
+          data-icon='inline-start'
+          aria-hidden='true'
+        />
+        {t('Test API availability')}
+      </Button>
       <Button size='sm' onClick={() => setOpen('create')}>
-        <Plus className='h-4 w-4' />
+        <Plus data-icon='inline-start' />
         {t('Create API Key')}
       </Button>
     </div>

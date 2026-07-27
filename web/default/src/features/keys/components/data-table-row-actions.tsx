@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { DashboardSpeed01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import type { Row } from '@tanstack/react-table'
 import {
   Trash2,
@@ -58,6 +60,8 @@ type DataTableRowActionsProps<TData> = {
   row: Row<TData>
 }
 
+type ResolvingAction = 'cc-switch' | null
+
 export function DataTableRowActions<TData>({
   row,
 }: DataTableRowActionsProps<TData>) {
@@ -74,19 +78,38 @@ export function DataTableRowActions<TData>({
   const isEnabled = apiKey.status === API_KEY_STATUS.ENABLED
   const { chatPresets, serverAddress } = useChatPresets()
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+  const [resolvingAction, setResolvingAction] = useState<ResolvingAction>(null)
   const isRealKeyLoading = Boolean(loadingKeys[apiKey.id])
 
   const hasChatPresets = chatPresets.length > 0
   const toggleLabel = isEnabled ? t('Disable') : t('Enable')
+  const isApiTestDisabled = !isEnabled || !serverAddress.trim()
+  let apiTestTooltip = t('Test API availability')
+  if (!isEnabled) {
+    apiTestTooltip = t('Disabled')
+  } else if (!serverAddress.trim()) {
+    apiTestTooltip = `${t('Base URL')}: ${t('Not available')}`
+  }
 
   const handleOpenCCSwitch = useCallback(async () => {
-    const realKey = await resolveRealKey(apiKey.id)
-    if (!realKey) return
+    setResolvingAction('cc-switch')
+    try {
+      const realKey = await resolveRealKey(apiKey.id)
+      if (!realKey) return
 
-    setResolvedKey(realKey)
-    setCurrentRow(apiKey)
-    setOpen('cc-switch')
+      setResolvedKey(realKey)
+      setCurrentRow(apiKey)
+      setOpen('cc-switch')
+    } finally {
+      setResolvingAction(null)
+    }
   }, [apiKey, resolveRealKey, setCurrentRow, setOpen, setResolvedKey])
+
+  const handleOpenApiTest = useCallback(() => {
+    setResolvedKey('')
+    setCurrentRow(apiKey)
+    setOpen('api-test')
+  }, [apiKey, setCurrentRow, setOpen, setResolvedKey])
 
   const handleOpenChatPreset = useCallback(
     async (preset: ChatPreset) => {
@@ -174,7 +197,7 @@ export function DataTableRowActions<TData>({
             />
           }
         >
-          {isRealKeyLoading ? (
+          {resolvingAction === 'cc-switch' ? (
             <Loader2 className='size-4 animate-spin' />
           ) : (
             <img
@@ -189,6 +212,29 @@ export function DataTableRowActions<TData>({
           )}
         </TooltipTrigger>
         <TooltipContent>{t('Import to CC Switch')}</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              className='inline-flex'
+              tabIndex={isApiTestDisabled ? 0 : undefined}
+              aria-label={isApiTestDisabled ? apiTestTooltip : undefined}
+            />
+          }
+        >
+          <Button
+            variant='ghost'
+            size='icon-sm'
+            onClick={handleOpenApiTest}
+            disabled={isApiTestDisabled}
+            aria-label={t('Test API availability')}
+          >
+            <HugeiconsIcon icon={DashboardSpeed01Icon} aria-hidden='true' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{apiTestTooltip}</TooltipContent>
       </Tooltip>
 
       <Tooltip>

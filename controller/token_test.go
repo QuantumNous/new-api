@@ -13,9 +13,12 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -32,10 +35,12 @@ type tokenPageResponse struct {
 }
 
 type tokenResponseItem struct {
-	ID     int    `json:"id"`
-	Name   string `json:"name"`
-	Key    string `json:"key"`
-	Status int    `json:"status"`
+	ID              int      `json:"id"`
+	Name            string   `json:"name"`
+	Key             string   `json:"key"`
+	Status          int      `json:"status"`
+	Group           string   `json:"group"`
+	GroupCandidates []string `json:"group_candidates"`
 }
 
 type tokenKeyResponse struct {
@@ -202,6 +207,7 @@ func newAuthenticatedContext(t *testing.T, method string, target string, body an
 		ctx.Request.Header.Set("Content-Type", "application/json")
 	}
 	ctx.Set("id", userID)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
 	return ctx, recorder
 }
 
@@ -362,6 +368,7 @@ func TestTokenAutoMigrateUsesVarchar128KeyColumn(t *testing.T) {
 	if got := getTokenKeyColumnType(t, db, "sqlite"); got != "varchar(128)" {
 		t.Fatalf("expected key column type varchar(128), got %q", got)
 	}
+	assert.Equal(t, "text", getSQLiteColumnType(t, db, "tokens", "group_candidates"))
 }
 
 func TestTokenMigrationFromChar48ToVarchar128(t *testing.T) {
@@ -537,4 +544,158 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
 	}
+}
+
+func TestAddTokenNormalizesOrderedGroupCandidates(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	body := map[string]any{
+		"name":                 "multi-group-token",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"group_candidates":     []string{"default", "vip"},
+		"cross_group_retry":    true,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+
+	var token model.Token
+	require.NoError(t, db.First(&token, "name = ?", "multi-group-token").Error)
+	assert.Equal(t, "auto", token.Group)
+	assert.True(t, token.CrossGroupRetry)
+	groups, err := token.GetGroupCandidates()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"default", "vip"}, groups)
+}
+
+func TestAddTokenNormalizesSingleCandidateToFixedGroup(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	body := map[string]any{
+		"name":                 "single-group-token",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "auto",
+		"group_candidates":     []string{"vip"},
+		"cross_group_retry":    true,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+
+	var token model.Token
+	require.NoError(t, db.First(&token, "name = ?", "single-group-token").Error)
+	assert.Equal(t, "vip", token.Group)
+	assert.Empty(t, token.GroupCandidates)
+	assert.False(t, token.CrossGroupRetry)
+}
+
+func TestTokenResponsesExposeCandidatesWithoutLeakingStorage(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	fixedToken := seedToken(t, db, 1, "fixed-group-token", "fixed1234token5678")
+	multiToken := seedToken(t, db, 1, "multi-group-token", "multi1234token5678")
+	multiToken.Group = "auto"
+	require.NoError(t, multiToken.SetGroupCandidates([]string{"default", "vip"}))
+	require.NoError(t, db.Save(multiToken).Error)
+
+	fixedCtx, fixedRecorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(fixedToken.Id), nil, 1)
+	fixedCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(fixedToken.Id)}}
+	GetToken(fixedCtx)
+	fixedResponse := decodeAPIResponse(t, fixedRecorder)
+	require.True(t, fixedResponse.Success, fixedResponse.Message)
+	var fixedItem tokenResponseItem
+	require.NoError(t, common.Unmarshal(fixedResponse.Data, &fixedItem))
+	assert.Equal(t, "default", fixedItem.Group)
+	assert.Equal(t, []string{"default"}, fixedItem.GroupCandidates)
+	assert.Equal(t, fixedToken.GetMaskedKey(), fixedItem.Key)
+
+	multiCtx, multiRecorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(multiToken.Id), nil, 1)
+	multiCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(multiToken.Id)}}
+	GetToken(multiCtx)
+	multiResponse := decodeAPIResponse(t, multiRecorder)
+	require.True(t, multiResponse.Success, multiResponse.Message)
+	var multiItem tokenResponseItem
+	require.NoError(t, common.Unmarshal(multiResponse.Data, &multiItem))
+	assert.Equal(t, "auto", multiItem.Group)
+	assert.Equal(t, []string{"default", "vip"}, multiItem.GroupCandidates)
+	assert.Equal(t, multiToken.GetMaskedKey(), multiItem.Key)
+	assert.NotContains(t, multiRecorder.Body.String(), `"group_candidates":"`)
+}
+
+func TestUpdateTokenPreservesOrReplacesGroupCandidatesExplicitly(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "editable-multi-group", "group1234token5678")
+	token.Group = "auto"
+	require.NoError(t, token.SetGroupCandidates([]string{"default", "vip"}))
+	require.NoError(t, db.Save(token).Error)
+	originalCandidates := token.GroupCandidates
+
+	omittedBody := map[string]any{
+		"id":                   token.Id,
+		"name":                 "updated-with-old-client",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "auto",
+		"cross_group_retry":    true,
+	}
+	omittedCtx, omittedRecorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", omittedBody, 1)
+	UpdateToken(omittedCtx)
+	require.True(t, decodeAPIResponse(t, omittedRecorder).Success)
+	require.NoError(t, db.First(token, token.Id).Error)
+	assert.Equal(t, originalCandidates, token.GroupCandidates)
+
+	statusBody := map[string]any{
+		"id":               token.Id,
+		"status":           common.TokenStatusDisabled,
+		"group":            "default",
+		"group_candidates": []string{},
+	}
+	statusCtx, statusRecorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/?status_only=true", statusBody, 1)
+	UpdateToken(statusCtx)
+	require.True(t, decodeAPIResponse(t, statusRecorder).Success)
+	require.NoError(t, db.First(token, token.Id).Error)
+	assert.Equal(t, common.TokenStatusDisabled, token.Status)
+	assert.Equal(t, "auto", token.Group)
+	assert.Equal(t, originalCandidates, token.GroupCandidates)
+
+	replacementBody := map[string]any{
+		"id":                   token.Id,
+		"name":                 "updated-to-fixed-group",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "auto",
+		"group_candidates":     []string{"vip"},
+		"cross_group_retry":    false,
+	}
+	replacementCtx, replacementRecorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", replacementBody, 1)
+	UpdateToken(replacementCtx)
+	replacementResponse := decodeAPIResponse(t, replacementRecorder)
+	require.True(t, replacementResponse.Success, replacementResponse.Message)
+	require.NoError(t, db.First(token, token.Id).Error)
+	assert.Equal(t, "vip", token.Group)
+	assert.Empty(t, token.GroupCandidates)
+
+	var responseItem tokenResponseItem
+	require.NoError(t, common.Unmarshal(replacementResponse.Data, &responseItem))
+	assert.Equal(t, "vip", responseItem.Group)
+	assert.Equal(t, []string{"vip"}, responseItem.GroupCandidates)
+	assert.Equal(t, token.GetMaskedKey(), responseItem.Key)
 }

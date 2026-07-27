@@ -37,6 +37,7 @@ import {
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { DEFAULT_REDEMPTION_PURCHASE_LINK } from '../constants'
 import {
   formatCurrency,
   getDiscountLabel,
@@ -44,7 +45,6 @@ import {
   getMinTopupAmount,
   calculatePresetPricing,
 } from '../lib'
-import { DEFAULT_REDEMPTION_PURCHASE_LINK } from '../constants'
 import type {
   PaymentMethod,
   PresetAmount,
@@ -140,8 +140,7 @@ export function RechargeFormCard({
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
-  const redemptionPurchaseLink =
-    topupLink || DEFAULT_REDEMPTION_PURCHASE_LINK
+  const redemptionPurchaseLink = topupLink || DEFAULT_REDEMPTION_PURCHASE_LINK
 
   if (loading) {
     return (

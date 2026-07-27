@@ -156,11 +156,11 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
                 type='button'
                 variant='ghost'
                 size='icon'
-                onClick={() => setMobilePanelCollapsed((collapsed) => !collapsed)}
-                aria-expanded={!mobilePanelCollapsed}
-                aria-label={
-                  mobilePanelCollapsed ? t('Expand') : t('Collapse')
+                onClick={() =>
+                  setMobilePanelCollapsed((collapsed) => !collapsed)
                 }
+                aria-expanded={!mobilePanelCollapsed}
+                aria-label={mobilePanelCollapsed ? t('Expand') : t('Collapse')}
                 className='text-muted-foreground hover:text-foreground mr-auto size-7'
               >
                 <ChevronDown

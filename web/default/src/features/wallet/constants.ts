@@ -69,5 +69,4 @@ export const DEFAULT_MIN_TOPUP = 1
  * Fallback storefront for users who need to purchase a redemption code.
  * An administrator-configured topup link still takes precedence in the UI.
  */
-export const DEFAULT_REDEMPTION_PURCHASE_LINK =
-  'https://ldxp.cn/shop/F891OJ5f'
+export const DEFAULT_REDEMPTION_PURCHASE_LINK = 'https://ldxp.cn/shop/F891OJ5f'

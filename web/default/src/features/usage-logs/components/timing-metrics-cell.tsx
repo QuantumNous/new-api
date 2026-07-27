@@ -99,9 +99,7 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
           <span className='text-muted-foreground shrink-0'>
             {t('First token')}
           </span>
-          <span
-            className={cn('tabular-nums', textColorMap[firstTokenVariant])}
-          >
+          <span className={cn('tabular-nums', textColorMap[firstTokenVariant])}>
             {firstTokenLabel}
           </span>
         </div>
@@ -116,9 +114,7 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
             )}
           />
         )}
-        <span className='text-muted-foreground shrink-0'>
-          {t('Duration')}
-        </span>
+        <span className='text-muted-foreground shrink-0'>{t('Duration')}</span>
         <span className={cn('tabular-nums', textColorMap[totalTimeVariant])}>
           {totalTimeLabel}
         </span>
@@ -128,9 +124,7 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
 
   if (indicator === 'dot') {
     return (
-      <div className={cn('flex items-stretch', props.className)}>
-        {labels}
-      </div>
+      <div className={cn('flex items-stretch', props.className)}>{labels}</div>
     )
   }
 

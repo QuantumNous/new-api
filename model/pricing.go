@@ -59,8 +59,9 @@ var (
 )
 
 var (
-	modelSupportEndpointTypes = make(map[string][]constant.EndpointType)
-	modelSupportEndpointsLock = sync.RWMutex{}
+	modelSupportEndpointTypes      = make(map[string][]constant.EndpointType)
+	modelGroupSupportEndpointTypes = make(map[string]map[string][]constant.EndpointType)
+	modelSupportEndpointsLock      = sync.RWMutex{}
 )
 
 func GetPricing() []Pricing {
@@ -105,6 +106,28 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 		return endpoints
 	}
 	return make([]constant.EndpointType, 0)
+}
+
+func GetModelSupportEndpointTypesForGroups(model string, groups []string) []constant.EndpointType {
+	if model == "" || len(groups) == 0 {
+		return make([]constant.EndpointType, 0)
+	}
+
+	modelSupportEndpointsLock.RLock()
+	defer modelSupportEndpointsLock.RUnlock()
+
+	endpoints := make([]constant.EndpointType, 0)
+	seen := make(map[constant.EndpointType]struct{})
+	for _, group := range groups {
+		for _, endpoint := range modelGroupSupportEndpointTypes[group][model] {
+			if _, exists := seen[endpoint]; exists {
+				continue
+			}
+			seen[endpoint] = struct{}{}
+			endpoints = append(endpoints, endpoint)
+		}
+	}
+	return endpoints
 }
 
 func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCustomConfigs map[int]*dto.AdvancedCustomConfig) []constant.EndpointType {
@@ -271,6 +294,7 @@ func updatePricing() {
 
 	//这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
 	modelSupportEndpointsStr := make(map[string][]string)
+	modelGroupSupportEndpointsStr := make(map[string]map[string][]string)
 	advancedCustomConfigs := loadPricingAdvancedCustomConfigs(enableAbilities)
 
 	// 先根据已有能力填充原生端点
@@ -283,6 +307,19 @@ func updatePricing() {
 			}
 		}
 		modelSupportEndpointsStr[ability.Model] = endpoints
+
+		groupModels := modelGroupSupportEndpointsStr[ability.Group]
+		if groupModels == nil {
+			groupModels = make(map[string][]string)
+			modelGroupSupportEndpointsStr[ability.Group] = groupModels
+		}
+		groupEndpoints := groupModels[ability.Model]
+		for _, channelType := range channelTypes {
+			if !common.StringsContains(groupEndpoints, string(channelType)) {
+				groupEndpoints = append(groupEndpoints, string(channelType))
+			}
+		}
+		groupModels[ability.Model] = groupEndpoints
 	}
 
 	// 再补充模型自定义端点：若配置有效则追加到已有推断，不再裁剪渠道真实能力
@@ -297,6 +334,11 @@ func updatePricing() {
 				switch v.(type) {
 				case string, map[string]interface{}:
 					endpoints = appendPricingEndpoint(endpoints, k)
+					for _, groupModels := range modelGroupSupportEndpointsStr {
+						if groupEndpoints, ok := groupModels[modelName]; ok {
+							groupModels[modelName] = appendPricingEndpoint(groupEndpoints, k)
+						}
+					}
 				}
 			}
 			if len(endpoints) > 0 {
@@ -313,6 +355,18 @@ func updatePricing() {
 			supportedEndpoints = append(supportedEndpoints, endpointType)
 		}
 		modelSupportEndpointTypes[model] = supportedEndpoints
+	}
+	modelGroupSupportEndpointTypes = make(map[string]map[string][]constant.EndpointType, len(modelGroupSupportEndpointsStr))
+	for group, groupModels := range modelGroupSupportEndpointsStr {
+		groupEndpointTypes := make(map[string][]constant.EndpointType, len(groupModels))
+		for modelName, endpoints := range groupModels {
+			supportedEndpoints := make([]constant.EndpointType, 0, len(endpoints))
+			for _, endpoint := range endpoints {
+				supportedEndpoints = append(supportedEndpoints, constant.EndpointType(endpoint))
+			}
+			groupEndpointTypes[modelName] = supportedEndpoints
+		}
+		modelGroupSupportEndpointTypes[group] = groupEndpointTypes
 	}
 
 	// 构建全局 supportedEndpointMap（默认 + 自定义覆盖）

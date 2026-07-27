@@ -15,7 +15,6 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-contrib/sessions"
@@ -234,6 +233,20 @@ func TokenOrUserAuth() func(c *gin.Context) {
 	}
 }
 
+func validateTokenGroupAccess(userGroup string, token *model.Token) error {
+	groupCandidates, err := token.GetGroupCandidates()
+	if err != nil {
+		return errors.New("令牌候选分组配置无效")
+	}
+	if len(groupCandidates) == 0 {
+		return service.ValidateTokenGroup(userGroup, token.Group)
+	}
+	if len(groupCandidates) > 1 && token.Group != "auto" {
+		return errors.New("令牌候选分组配置无效")
+	}
+	return service.ValidateTokenGroupCandidates(userGroup, groupCandidates)
+}
+
 // TokenAuthReadOnly 宽松版本的令牌认证中间件，用于只读查询接口。
 // 只验证令牌 key 是否存在，不检查令牌状态、过期时间和额度。
 // 即使令牌已过期、已耗尽或已禁用，也允许访问。
@@ -419,19 +432,11 @@ func TokenAuth() func(c *gin.Context) {
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group
+		if err := validateTokenGroupAccess(userGroup, token); err != nil {
+			abortWithOpenAiMessage(c, http.StatusForbidden, err.Error())
+			return
+		}
 		if tokenGroup != "" {
-			// check common.UserUsableGroups[userGroup]
-			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
-				return
-			}
-			// check group in common.GroupRatio
-			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
-				if tokenGroup != "auto" {
-					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
-					return
-				}
-			}
 			userGroup = tokenGroup
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
@@ -463,6 +468,12 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 		c.Set("token_model_limit_enabled", false)
 	}
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, token.Group)
+	groupCandidates, err := token.GetGroupCandidates()
+	if err != nil {
+		abortWithOpenAiMessage(c, http.StatusForbidden, "令牌候选分组配置无效")
+		return err
+	}
+	common.SetContextKey(c, constant.ContextKeyTokenGroupCandidates, groupCandidates)
 	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
 	if len(parts) > 1 {
 		if model.IsAdmin(token.UserId) {

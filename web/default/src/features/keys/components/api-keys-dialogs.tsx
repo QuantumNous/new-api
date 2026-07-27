@@ -16,14 +16,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
+
 import { ApiKeysDeleteDialog } from './api-keys-delete-dialog'
 import { ApiKeysMutateDrawer } from './api-keys-mutate-drawer'
 import { useApiKeys } from './api-keys-provider'
+import { ApiKeyAvailabilityDialog } from './dialogs/api-key-availability-dialog'
 import { CCSwitchDialog } from './dialogs/cc-switch-dialog'
 
 export function ApiKeysDialogs() {
   const { open, setOpen, currentRow, resolvedKey, setResolvedKey } =
     useApiKeys()
+  const { serverAddress } = useChatPresets()
+  const apiBaseUrl = serverAddress.trim()
+    ? `${serverAddress.trim().replace(/\/+$/, '')}/v1`
+    : ''
+
+  const handleCredentialDialogOpenChange = (isOpen: boolean) => {
+    if (isOpen) return
+    setResolvedKey('')
+    setOpen(null)
+  }
 
   return (
     <>
@@ -35,11 +48,14 @@ export function ApiKeysDialogs() {
       <ApiKeysDeleteDialog />
       <CCSwitchDialog
         open={open === 'cc-switch'}
-        onOpenChange={(isOpen) => {
-          if (isOpen) return
-          setResolvedKey('')
-          setOpen(null)
-        }}
+        onOpenChange={handleCredentialDialogOpenChange}
+        tokenKey={resolvedKey}
+      />
+      <ApiKeyAvailabilityDialog
+        open={open === 'api-test'}
+        onOpenChange={handleCredentialDialogOpenChange}
+        apiKey={currentRow}
+        apiBaseUrl={apiBaseUrl}
         tokenKey={resolvedKey}
       />
     </>

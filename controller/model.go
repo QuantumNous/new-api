@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -150,7 +151,7 @@ func getPreferredModelOwners(modelNames []string, groups []string) map[string]st
 	return owners
 }
 
-func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.OpenAIModels {
+func buildOpenAIModel(modelName string, ownerByModel map[string]string, supportedEndpointTypes []constant.EndpointType) dto.OpenAIModels {
 	var oaiModel dto.OpenAIModels
 	if staticModel, ok := openAIModelsMap[modelName]; ok {
 		oaiModel = staticModel
@@ -165,18 +166,20 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 	if owner, ok := ownerByModel[modelName]; ok && owner != "" {
 		oaiModel.OwnedBy = owner
 	}
-	oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+	oaiModel.SupportedEndpointTypes = supportedEndpointTypes
 	return oaiModel
 }
 
 type modelListGroups struct {
-	userGroup   string
-	tokenGroup  string
-	ownerGroups []string
+	userGroup         string
+	tokenGroup        string
+	ownerGroups       []string
+	orderedCandidates bool
 }
 
 func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
+	groupCandidates := common.GetContextKeyStringSlice(c, constant.ContextKeyTokenGroupCandidates)
 	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 	if userGroup == "" && (tokenGroup == "" || tokenGroup == "auto") {
 		var err error
@@ -184,6 +187,15 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 		if err != nil {
 			return modelListGroups{}, err
 		}
+	}
+
+	if len(groupCandidates) > 0 {
+		return modelListGroups{
+			userGroup:         userGroup,
+			tokenGroup:        tokenGroup,
+			ownerGroups:       groupCandidates,
+			orderedCandidates: true,
+		}, nil
 	}
 
 	if tokenGroup == "auto" {
@@ -246,9 +258,12 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	} else {
 		var models []string
-		if groups.tokenGroup == "auto" {
+		if groups.tokenGroup == "auto" || groups.orderedCandidates {
 			for _, autoGroup := range ownerGroups {
 				groupModels := model.GetGroupEnabledModels(autoGroup)
+				if groups.orderedCandidates {
+					sort.Strings(groupModels)
+				}
 				for _, g := range groupModels {
 					if !common.StringsContains(models, g) {
 						models = append(models, g)
@@ -272,9 +287,13 @@ func ListModels(c *gin.Context, modelType int) {
 	if len(ownerGroups) > 0 {
 		ownerByModel = getPreferredModelOwners(userModelNames, ownerGroups)
 	}
+	if len(userModelNames) > 0 {
+		model.GetPricing()
+	}
 	userOpenAiModels := make([]dto.OpenAIModels, 0, len(userModelNames))
 	for _, modelName := range userModelNames {
-		userOpenAiModels = append(userOpenAiModels, buildOpenAIModel(modelName, ownerByModel))
+		endpointTypes := model.GetModelSupportEndpointTypesForGroups(modelName, ownerGroups)
+		userOpenAiModels = append(userOpenAiModels, buildOpenAIModel(modelName, ownerByModel, endpointTypes))
 	}
 
 	switch modelType {

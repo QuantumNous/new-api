@@ -24,13 +24,15 @@ import useDialogState from '@/hooks/use-dialog'
 
 import { fetchTokenKey, fetchTokenKeysBatch } from '../api'
 import { ERROR_MESSAGES } from '../constants'
-import { type ApiKey, type ApiKeysDialogType } from '../types'
+import type { ApiKey, ApiKeysDialogType } from '../types'
 
 type ApiKeysContextType = {
   open: ApiKeysDialogType | null
   setOpen: (str: ApiKeysDialogType | null) => void
   currentRow: ApiKey | null
   setCurrentRow: React.Dispatch<React.SetStateAction<ApiKey | null>>
+  visibleApiKeys: ApiKey[]
+  setVisibleApiKeys: React.Dispatch<React.SetStateAction<ApiKey[]>>
   refreshTrigger: number
   triggerRefresh: () => void
   resolvedKey: string
@@ -49,6 +51,7 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
   const [open, setOpen] = useDialogState<ApiKeysDialogType>(null)
   const [currentRow, setCurrentRow] = useState<ApiKey | null>(null)
+  const [visibleApiKeys, setVisibleApiKeys] = useState<ApiKey[]>([])
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [resolvedKey, setResolvedKey] = useState('')
 
@@ -161,6 +164,8 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
         setOpen,
         currentRow,
         setCurrentRow,
+        visibleApiKeys,
+        setVisibleApiKeys,
         refreshTrigger,
         triggerRefresh,
         resolvedKey,

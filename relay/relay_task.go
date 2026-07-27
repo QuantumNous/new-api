@@ -19,6 +19,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -203,11 +204,8 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 7. 预扣费（仅首次 — 重试时 info.Billing 已存在，跳过）
-	if info.Billing == nil && !info.PriceData.FreeModel {
-		info.ForcePreConsume = true
-		if apiErr := service.PreConsumeBilling(c, info.PriceData.Quota, info); apiErr != nil {
-			return nil, service.TaskErrorFromAPIError(apiErr)
-		}
+	if taskBillingErr := reserveTaskBilling(c, info); taskBillingErr != nil {
+		return nil, taskBillingErr
 	}
 
 	// 8. 构建请求体
@@ -257,6 +255,30 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		Platform:       platform,
 		Quota:          finalQuota,
 	}, nil
+}
+
+// reserveTaskBilling performs the billing transition immediately before a task
+// request is built. Retries may have selected a more expensive group, so an
+// existing session must reserve the new target before DoRequest is reached.
+func reserveTaskBilling(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	if info == nil || info.PriceData.FreeModel {
+		return nil
+	}
+	if info.Billing == nil {
+		info.ForcePreConsume = true
+		if apiErr := service.PreConsumeBilling(c, info.PriceData.Quota, info); apiErr != nil {
+			return service.TaskErrorFromAPIError(apiErr)
+		}
+		return nil
+	}
+	if err := info.Billing.Reserve(info.PriceData.Quota); err != nil {
+		var apiErr *types.NewAPIError
+		if errors.As(err, &apiErr) {
+			return service.TaskErrorFromAPIError(apiErr)
+		}
+		return service.TaskErrorFromAPIError(types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry()))
+	}
+	return nil
 }
 
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。

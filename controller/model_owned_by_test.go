@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -46,13 +47,13 @@ func TestChannelOwnerNameUsesAdaptorChannelName(t *testing.T) {
 }
 
 func TestBuildOpenAIModelOverridesOwnedBy(t *testing.T) {
-	modelItem := buildOpenAIModel("gpt-5.4", map[string]string{"gpt-5.4": "openai"})
+	modelItem := buildOpenAIModel("gpt-5.4", map[string]string{"gpt-5.4": "openai"}, nil)
 	require.Equal(t, "gpt-5.4", modelItem.Id)
 	require.Equal(t, "openai", modelItem.OwnedBy)
 }
 
 func TestBuildOpenAIModelFallsBackToCustomForUnknownModels(t *testing.T) {
-	modelItem := buildOpenAIModel("custom-test-model", nil)
+	modelItem := buildOpenAIModel("custom-test-model", nil, nil)
 	require.Equal(t, "custom-test-model", modelItem.Id)
 	require.Equal(t, "custom", modelItem.OwnedBy)
 }
@@ -82,4 +83,33 @@ func TestGetModelListGroupsUsesExplicitTokenGroup(t *testing.T) {
 	require.Equal(t, "default", groups.userGroup)
 	require.Equal(t, "vip", groups.tokenGroup)
 	require.Equal(t, []string{"vip"}, groups.ownerGroups)
+}
+
+func TestGetModelListGroupsUsesOrderedTokenCandidates(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "auto")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroupCandidates, []string{"claude-low", "openai-low"})
+
+	groups, err := getModelListGroups(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, "default", groups.userGroup)
+	require.Equal(t, "auto", groups.tokenGroup)
+	require.Equal(t, []string{"claude-low", "openai-low"}, groups.ownerGroups)
+	require.True(t, groups.orderedCandidates)
+}
+
+func TestGetModelListGroupsKeepsLegacyAutoGroupsWithoutCandidates(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "auto")
+
+	groups, err := getModelListGroups(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, service.GetUserAutoGroup("default"), groups.ownerGroups)
+	require.False(t, groups.orderedCandidates)
 }

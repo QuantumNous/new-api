@@ -65,7 +65,8 @@ api.get = ((url: string, config: ApiRequestConfig = {}) => {
   const key = `${url}?${params}`
 
   // Return existing in-flight request if available
-  if (inFlightGet.has(key)) return inFlightGet.get(key)!
+  const inFlightRequest = inFlightGet.get(key)
+  if (inFlightRequest) return inFlightRequest
 
   // Create new request and clean up after completion
   const req = originalGet(url, config).finally(() => inFlightGet.delete(key))
@@ -187,12 +188,13 @@ export async function getSelf() {
 }
 
 // Get user available models
-export async function getUserModels(): Promise<{
+export async function getUserModels(group?: string): Promise<{
   success: boolean
   message?: string
   data?: string[]
 }> {
-  const res = await api.get('/api/user/models')
+  const params = group ? { group } : undefined
+  const res = await api.get('/api/user/models', { params })
   return res.data
 }
 
