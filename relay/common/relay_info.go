@@ -344,6 +344,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeSiliconFlow:    true,
 	constant.ChannelTypeAdvancedCustom: true,
 	constant.ChannelTypeSub2API:        true,
+	constant.ChannelTypeNewAPI:         true,
 	constant.ChannelTypeTencent:        true,
 }
 

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -22,17 +21,14 @@ import (
 
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
-	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
-		switch info.ApiType {
-		case appconstant.APITypeOpenAI, appconstant.APITypeCodex:
-		default:
-			return types.NewErrorWithStatusCode(
-				fmt.Errorf("unsupported endpoint %q for api type %d", "/v1/responses/compact", info.ApiType),
-				types.ErrorCodeInvalidRequest,
-				http.StatusBadRequest,
-				types.ErrOptionWithSkipRetry(),
-			)
-		}
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact &&
+		!common.IsResponsesCompactAPIType(info.ApiType) {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("unsupported endpoint %q for api type %d", "/v1/responses/compact", info.ApiType),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
 	}
 
 	var responsesReq *dto.OpenAIResponsesRequest
