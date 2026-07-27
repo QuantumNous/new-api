@@ -38,7 +38,12 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { register, wechatLoginByCode } from '@/features/auth/api'
+import {
+  checkUserSendEmailChallenge,
+  createUserSendEmailChallenge,
+  register,
+  wechatLoginByCode,
+} from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
@@ -49,6 +54,7 @@ import {
   getAffiliateCode,
   saveAffiliateCode,
 } from '@/features/auth/lib/storage'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useStatus } from '@/hooks/use-status'
 import { isAuthBundle } from '@/lib/api'
 import { getServerErrorMessageKey } from '@/lib/server-error-message'
@@ -61,12 +67,20 @@ export function SignUpForm({
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
+  const [userSendEmailCode, setUserSendEmailCode] = useState('')
+  const [userSendEmailRecipient, setUserSendEmailRecipient] = useState('')
+  const [isCreatingEmailChallenge, setIsCreatingEmailChallenge] =
+    useState(false)
+  const [isCheckingEmailChallenge, setIsCheckingEmailChallenge] =
+    useState(false)
+  const [isUserSendEmailVerified, setIsUserSendEmailVerified] = useState(false)
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
+  const { copyToClipboard } = useCopyToClipboard()
 
   const { status } = useStatus()
   const {
@@ -99,6 +113,10 @@ export function SignUpForm({
 
   const emailValue = form.watch('email')
   const emailVerificationRequired = !!status?.email_verification
+  const userSendEmailVerificationRequired = Boolean(
+    status?.user_send_email_verification ??
+    status?.data?.user_send_email_verification
+  )
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
   const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
@@ -108,6 +126,36 @@ export function SignUpForm({
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
   const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
+  let sendVerificationCodeButtonContent: ReactNode = t('Send code')
+  if (isActive) {
+    sendVerificationCodeButtonContent = t('Resend ({{seconds}}s)', {
+      seconds: secondsLeft,
+    })
+  } else if (isSendingCode) {
+    sendVerificationCodeButtonContent = (
+      <Loader2 className='h-4 w-4 animate-spin' />
+    )
+  }
+  const userSendEmailInstruction = t(
+    'Send an email from {{email}} to {{recipient}}',
+    {
+      email: emailValue,
+      recipient: userSendEmailRecipient,
+    }
+  )
+  const recipientStart = userSendEmailInstruction.indexOf(
+    userSendEmailRecipient
+  )
+  const instructionBeforeRecipient =
+    recipientStart >= 0
+      ? userSendEmailInstruction.slice(0, recipientStart)
+      : userSendEmailInstruction
+  const instructionAfterRecipient =
+    recipientStart >= 0
+      ? userSendEmailInstruction.slice(
+          recipientStart + userSendEmailRecipient.length
+        )
+      : ''
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -138,6 +186,12 @@ export function SignUpForm({
     }
   }, [])
 
+  useEffect(() => {
+    setUserSendEmailCode('')
+    setUserSendEmailRecipient('')
+    setIsUserSendEmailVerified(false)
+  }, [emailValue])
+
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
       toast.error(legalConsentErrorMessage)
@@ -156,6 +210,17 @@ export function SignUpForm({
       }
     }
 
+    if (userSendEmailVerificationRequired) {
+      if (!data.email) {
+        toast.error(t('Please enter your email'))
+        return
+      }
+      if (!isUserSendEmailVerified || !userSendEmailCode) {
+        toast.error(t('Please complete user-sent email verification'))
+        return
+      }
+    }
+
     if (!validateTurnstile()) return
 
     setIsLoading(true)
@@ -164,7 +229,10 @@ export function SignUpForm({
         username: data.username,
         password: data.password,
         email: data.email || undefined,
-        verification_code: verificationCode || undefined,
+        verification_code:
+          (userSendEmailVerificationRequired
+            ? userSendEmailCode
+            : verificationCode) || undefined,
         aff_code: getAffiliateCode(),
         turnstile: turnstileToken,
       })
@@ -186,6 +254,53 @@ export function SignUpForm({
     if (await sendCode(emailValue || '')) {
       setTurnstileToken('')
       setTurnstileWidgetKey((current) => current + 1)
+    }
+  }
+
+  async function handleCreateUserSendEmailChallenge() {
+    if (!emailValue) {
+      toast.error(t('Please enter your email'))
+      return
+    }
+    if (!validateTurnstile()) return
+
+    setIsCreatingEmailChallenge(true)
+    try {
+      const res = await createUserSendEmailChallenge(emailValue, turnstileToken)
+      if (!res.success || !res.data) {
+        toast.error(res.message || t('Failed to create email challenge'))
+        return
+      }
+      setUserSendEmailCode(res.data.code)
+      setUserSendEmailRecipient(res.data.recipient)
+      setIsUserSendEmailVerified(false)
+      toast.success(t('Email challenge created'))
+    } catch {
+      // Errors are handled by global interceptor
+    } finally {
+      setIsCreatingEmailChallenge(false)
+    }
+  }
+
+  async function handleCheckUserSendEmailChallenge() {
+    if (!emailValue || !userSendEmailCode) return
+
+    setIsCheckingEmailChallenge(true)
+    try {
+      const res = await checkUserSendEmailChallenge(
+        emailValue,
+        userSendEmailCode
+      )
+      if (!res.success) {
+        toast.error(res.message || t('Verification email not found'))
+        return
+      }
+      setIsUserSendEmailVerified(true)
+      toast.success(t('Email verified'))
+    } catch {
+      // Errors are handled by global interceptor
+    } finally {
+      setIsCheckingEmailChallenge(false)
     }
   }
 
@@ -229,15 +344,6 @@ export function SignUpForm({
     } finally {
       setIsWeChatSubmitting(false)
     }
-  }
-
-  let verificationCodeAction: ReactNode = t('Send code')
-  if (isActive) {
-    verificationCodeAction = t('Resend ({{seconds}}s)', {
-      seconds: secondsLeft,
-    })
-  } else if (isSendingCode) {
-    verificationCodeAction = <Loader2 className='h-4 w-4 animate-spin' />
   }
 
   return (
@@ -295,56 +401,117 @@ export function SignUpForm({
           )}
         />
 
+        {(emailVerificationRequired || userSendEmailVerificationRequired) && (
+          <FormField
+            control={form.control}
+            name='email'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Email (required for verification)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={t('name@example.com')}
+                    type='email'
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
         {/* Email Verification Section */}
         {emailVerificationRequired && (
-          <>
-            {/* Email Field */}
-            <FormField
-              control={form.control}
-              name='email'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    {t('Email (required for verification)')}
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('name@example.com')}
-                      type='email'
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <div className='flex items-end gap-2'>
+            <div className='flex-1'>
+              <Input
+                placeholder={t('Verification code')}
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+              />
+            </div>
+            <Button
+              variant='outline'
+              type='button'
+              disabled={
+                isLoading ||
+                isSendingCode ||
+                isActive ||
+                !emailValue ||
+                !turnstileReady
+              }
+              onClick={handleSendVerificationCode}
+            >
+              {sendVerificationCodeButtonContent}
+            </Button>
+          </div>
+        )}
 
-            {/* Verification Code Field */}
-            <div className='flex items-end gap-2'>
-              <div className='flex-1'>
-                <Input
-                  placeholder={t('Verification code')}
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                />
+        {userSendEmailVerificationRequired &&
+          (!userSendEmailCode ? (
+            <Button
+              variant='outline'
+              type='button'
+              disabled={
+                isLoading ||
+                isCreatingEmailChallenge ||
+                !emailValue ||
+                !turnstileReady
+              }
+              onClick={handleCreateUserSendEmailChallenge}
+              className='w-full gap-2'
+            >
+              {isCreatingEmailChallenge ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : null}
+              {t('Create email challenge')}
+            </Button>
+          ) : (
+            <div className='bg-muted/50 space-y-3 rounded-md border p-3 text-sm'>
+              <p className='leading-6'>
+                {instructionBeforeRecipient}
+                <button
+                  type='button'
+                  className='bg-background hover:bg-accent focus-visible:ring-ring inline max-w-full cursor-copy rounded border px-1.5 py-0.5 font-mono break-all transition-colors focus-visible:ring-2 focus-visible:outline-none'
+                  onClick={() => copyToClipboard(userSendEmailRecipient)}
+                  title={t('Copy to clipboard')}
+                  aria-label={t('Copy to clipboard')}
+                >
+                  {userSendEmailRecipient}
+                </button>
+                {instructionAfterRecipient}
+              </p>
+              <div className='space-y-1.5'>
+                <p className='leading-5'>
+                  {t('Include this verification content in the email body:')}
+                </p>
+                <button
+                  type='button'
+                  className='bg-background hover:bg-accent focus-visible:ring-ring block w-full cursor-copy rounded border px-2.5 py-2 text-left font-mono break-all transition-colors focus-visible:ring-2 focus-visible:outline-none'
+                  onClick={() => copyToClipboard(userSendEmailCode)}
+                  title={t('Copy verification content')}
+                  aria-label={t('Copy verification content')}
+                >
+                  {userSendEmailCode}
+                </button>
               </div>
               <Button
-                variant='outline'
+                variant={isUserSendEmailVerified ? 'secondary' : 'outline'}
                 type='button'
-                disabled={
-                  isLoading ||
-                  isSendingCode ||
-                  isActive ||
-                  !emailValue ||
-                  !turnstileReady
-                }
-                onClick={handleSendVerificationCode}
+                disabled={isCheckingEmailChallenge || isUserSendEmailVerified}
+                onClick={handleCheckUserSendEmailChallenge}
+                className='w-full gap-2'
               >
-                {verificationCodeAction}
+                {isCheckingEmailChallenge ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : null}
+                {isUserSendEmailVerified
+                  ? t('Email verified')
+                  : t('I have sent the email, check now')}
               </Button>
             </div>
-          </>
-        )}
+          ))}
 
         {/* Turnstile */}
         {isTurnstileEnabled && (

@@ -228,12 +228,18 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
-	if common.EmailVerificationEnabled {
+	if common.EmailVerificationEnabled || common.UserSendEmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
-		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
+		var verified bool
+		if common.UserSendEmailVerificationEnabled {
+			verified = consumeUserSendEmailChallenge(user.Email, user.VerificationCode)
+		} else {
+			verified = common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose)
+		}
+		if !verified {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
 		}
@@ -247,7 +253,7 @@ func Register(c *gin.Context) {
 		}
 	}
 	emailForExistCheck := ""
-	if common.EmailVerificationEnabled {
+	if common.EmailVerificationEnabled || common.UserSendEmailVerificationEnabled {
 		emailForExistCheck = user.Email
 	}
 	exist, err := model.CheckUserExistOrDeleted(user.Username, emailForExistCheck)
@@ -269,7 +275,7 @@ func Register(c *gin.Context) {
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
 	}
-	if common.EmailVerificationEnabled {
+	if common.EmailVerificationEnabled || common.UserSendEmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {

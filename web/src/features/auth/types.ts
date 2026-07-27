@@ -42,6 +42,14 @@ export interface RegisterPayload {
   turnstile?: string
 }
 
+export interface UserSendEmailChallengeResponse extends ApiResponse {
+  data?: {
+    code: string
+    recipient: string
+    expires_in: number
+  }
+}
+
 export interface PasswordResetPayload {
   email: string
   turnstile?: string
@@ -118,6 +126,8 @@ export interface SystemStatus {
     turnstile_check?: boolean
     turnstile_site_key?: string
     email_verification?: boolean
+    user_send_email_verification?: boolean
+    user_send_email_recipient?: string
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
     display_token_stat_enabled?: boolean
@@ -162,6 +172,8 @@ export interface SystemStatus {
   turnstile_check?: boolean
   turnstile_site_key?: string
   email_verification?: boolean
+  user_send_email_verification?: boolean
+  user_send_email_recipient?: string
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean
   display_token_stat_enabled?: boolean
