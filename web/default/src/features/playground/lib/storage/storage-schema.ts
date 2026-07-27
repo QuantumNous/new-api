@@ -23,6 +23,12 @@ export const MAX_STORED_MESSAGES = 100
 export const MAX_STORED_MESSAGES_BYTES = 1024 * 1024
 export const MAX_LOADED_MESSAGES_CHARS = 120_000
 export const MAX_LOADED_MESSAGE_CHARS = 40_000
+/**
+ * Total extracted-document text kept per session. Attachment text is replayed
+ * on every later turn, so it has to be bounded independently of message count;
+ * the newest turns win because they are the ones still being discussed.
+ */
+export const MAX_PERSISTED_ATTACHMENT_CHARS = 200_000
 
 export const playgroundConfigSchema = z.object({
   model: z.string().optional(),
@@ -77,6 +83,36 @@ const managedToolSchema = z.object({
   error: z.string().optional(),
 })
 
+const attachmentIdentitySchema = {
+  id: z.string(),
+  name: z.string(),
+  mimeType: z.string(),
+}
+
+const attachmentAssetSchema = {
+  dataUrl: z.string().optional(),
+  assetId: z.number().int().positive().optional(),
+}
+
+const chatAttachmentSchema = z.discriminatedUnion('kind', [
+  z.object({
+    ...attachmentIdentitySchema,
+    ...attachmentAssetSchema,
+    kind: z.literal('image'),
+  }),
+  z.object({
+    ...attachmentIdentitySchema,
+    ...attachmentAssetSchema,
+    kind: z.literal('file'),
+    text: z.string().optional(),
+  }),
+  z.object({
+    ...attachmentIdentitySchema,
+    kind: z.literal('document'),
+    text: z.string(),
+  }),
+])
+
 const reasoningSchema = z.object({
   content: z.string(),
   duration: z.number(),
@@ -100,6 +136,7 @@ const messageSchema = z.object({
   completedAt: z.number().optional(),
   durationMs: z.number().optional(),
   sources: z.array(sourceSchema).optional(),
+  attachments: z.array(chatAttachmentSchema).optional(),
   managedTool: managedToolSchema.optional(),
   model: z.string().optional(),
   modelChangeFrom: z.string().optional(),

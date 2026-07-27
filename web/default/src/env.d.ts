@@ -25,3 +25,10 @@ declare module '@visactor/react-vchart' {
 declare module '@visactor/vchart-semi-theme' {
   export const initVChartSemiTheme: (opts?: Record<string, unknown>) => void
 }
+
+// pdf.js ships the worker bundle without typings. We import it only to install
+// `globalThis.pdfjsWorker`, which makes pdf.js run its message handler on the
+// main thread instead of resolving a worker URL at runtime.
+declare module 'pdfjs-dist/build/pdf.worker.mjs' {
+  export const WorkerMessageHandler: unknown
+}

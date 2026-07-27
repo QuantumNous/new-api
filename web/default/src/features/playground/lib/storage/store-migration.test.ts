@@ -9,7 +9,8 @@ License, or (at your option) any later version.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_CONFIG, STORAGE_KEYS } from '../../constants'
-import type { Message } from '../../types'
+import type { ChatAttachment, Message } from '../../types'
+import { MAX_PERSISTED_ATTACHMENT_CHARS } from './storage-schema'
 import {
   DEFAULT_STUDIO_SETTINGS,
   loadPersistedPlaygroundState,
@@ -231,13 +232,25 @@ describe('loadPersistedPlaygroundState', () => {
 })
 
 describe('preparePersistedPlaygroundState', () => {
-  it('removes inline attachments without mutating live session messages', () => {
+  function persistChatMessages(messages: Message[]) {
     const state = loadPersistedPlaygroundState()
     const chat = state.sessions.find((session) => session.modality === 'chat')
     if (!chat || chat.modality !== 'chat') {
       throw new Error('expected chat session')
     }
-    chat.messages = [
+    chat.messages = messages
+    const persisted = preparePersistedPlaygroundState(state)
+    const persistedChat = persisted.sessions.find(
+      (session) => session.modality === 'chat'
+    )
+    if (!persistedChat || persistedChat.modality !== 'chat') {
+      throw new Error('expected persisted chat session')
+    }
+    return { live: chat, persisted, persistedChat }
+  }
+
+  it('keeps the asset reference but never the inline bytes', () => {
+    const result = persistChatMessages([
       {
         ...userMessage,
         attachments: [
@@ -246,22 +259,64 @@ describe('preparePersistedPlaygroundState', () => {
             name: 'report.pdf',
             mimeType: 'application/pdf',
             dataUrl: 'data:application/pdf;base64,cGRm',
-            type: 'file',
+            assetId: 12,
+            kind: 'file',
           },
         ],
       },
-    ]
+    ])
 
-    const persisted = preparePersistedPlaygroundState(state)
-    const persistedChat = persisted.sessions.find(
-      (session) => session.modality === 'chat'
+    expect(result.persistedChat.messages[0].attachments).toEqual([
+      {
+        id: 'pdf-1',
+        name: 'report.pdf',
+        mimeType: 'application/pdf',
+        dataUrl: undefined,
+        assetId: 12,
+        kind: 'file',
+      },
+    ])
+    expect(result.live.messages[0].attachments?.[0]).toHaveProperty('dataUrl')
+    expect(JSON.stringify(result.persisted)).not.toContain(
+      'data:application/pdf'
     )
-    if (!persistedChat || persistedChat.modality !== 'chat') {
-      throw new Error('expected persisted chat session')
-    }
+  })
 
-    expect(persistedChat.messages[0].attachments).toBeUndefined()
-    expect(chat.messages[0].attachments).toHaveLength(1)
-    expect(JSON.stringify(persisted)).not.toContain('data:application/pdf')
+  it('drops binary attachments that were never uploaded', () => {
+    const result = persistChatMessages([
+      {
+        ...userMessage,
+        attachments: [
+          {
+            id: 'img-1',
+            name: 'shot.png',
+            mimeType: 'image/png',
+            dataUrl: 'data:image/png;base64,aW1n',
+            kind: 'image',
+          },
+        ],
+      },
+    ])
+
+    expect(result.persistedChat.messages[0].attachments).toBeUndefined()
+  })
+
+  it('keeps the newest extracted documents within the text budget', () => {
+    const document = (id: string, size: number): ChatAttachment => ({
+      id,
+      kind: 'document',
+      name: `${id}.txt`,
+      mimeType: 'text/plain',
+      text: 'x'.repeat(size),
+    })
+    const budget = MAX_PERSISTED_ATTACHMENT_CHARS
+
+    const result = persistChatMessages([
+      { ...userMessage, key: 'older', attachments: [document('old', budget)] },
+      { ...userMessage, key: 'newer', attachments: [document('new', budget)] },
+    ])
+
+    expect(result.persistedChat.messages[0].attachments).toBeUndefined()
+    expect(result.persistedChat.messages[1].attachments).toHaveLength(1)
   })
 })

@@ -186,14 +186,14 @@ describe('buildChatCompletionPayload', () => {
         name: 'chart.png',
         mimeType: 'image/png',
         dataUrl: 'data:image/png;base64,aW1hZ2U=',
-        type: 'image',
+        kind: 'image',
       },
       {
         id: 'pdf-1',
         name: 'report.pdf',
         mimeType: 'application/pdf',
         dataUrl: 'data:application/pdf;base64,cGRm',
-        type: 'file',
+        kind: 'file',
       },
     ]
 
@@ -218,6 +218,73 @@ describe('buildChatCompletionPayload', () => {
               filename: 'report.pdf',
               file_data: 'data:application/pdf;base64,cGRm',
             },
+          },
+        ],
+      },
+    ])
+  })
+
+  it('routes a PDF through extracted text for models without file input', () => {
+    const message = userMessage('Translate this')
+    message.attachments = [
+      {
+        id: 'pdf-1',
+        name: 'report.pdf',
+        mimeType: 'application/pdf',
+        dataUrl: 'data:application/pdf;base64,cGRm',
+        kind: 'file',
+        text: 'Revenue up 12%',
+      },
+    ]
+
+    const payload = buildChatCompletionPayload(
+      [message],
+      DEFAULT_CONFIG,
+      DEFAULT_PARAMETER_ENABLED,
+      { nativeFileInput: false }
+    )
+
+    expect(payload.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Translate this' },
+          {
+            type: 'text',
+            text: 'Attached document "report.pdf":\n\nRevenue up 12%',
+          },
+        ],
+      },
+    ])
+  })
+
+  it('sends extracted document text that has no binary payload', () => {
+    const message = userMessage('Summarize')
+    message.attachments = [
+      {
+        id: 'doc-1',
+        name: 'plan.docx',
+        mimeType:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        kind: 'document',
+        text: 'Hire a CEO',
+      },
+    ]
+
+    const payload = buildChatCompletionPayload(
+      [message],
+      DEFAULT_CONFIG,
+      DEFAULT_PARAMETER_ENABLED
+    )
+
+    expect(payload.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Summarize' },
+          {
+            type: 'text',
+            text: 'Attached document "plan.docx":\n\nHire a CEO',
           },
         ],
       },

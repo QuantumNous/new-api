@@ -24,6 +24,19 @@ import (
 
 // ---------- Assets ----------
 
+// normalizePlaygroundAssetSource keeps the source filter on the known values;
+// anything else is treated as unset so callers cannot inject arbitrary filters.
+func normalizePlaygroundAssetSource(raw string) string {
+	switch strings.TrimSpace(raw) {
+	case model.PlaygroundAssetSourceLibrary:
+		return model.PlaygroundAssetSourceLibrary
+	case model.PlaygroundAssetSourceAttachment:
+		return model.PlaygroundAssetSourceAttachment
+	default:
+		return ""
+	}
+}
+
 func UploadPlaygroundAsset(c *gin.Context) {
 	userId := c.GetInt("id")
 	file, err := c.FormFile("file")
@@ -38,6 +51,10 @@ func UploadPlaygroundAsset(c *gin.Context) {
 	}
 	// optional kind filter: reject after sniff if kind mismatches (no MIME coercion)
 	wantKind := strings.TrimSpace(c.PostForm("kind"))
+	source := normalizePlaygroundAssetSource(c.PostForm("source"))
+	if source == "" {
+		source = model.PlaygroundAssetSourceLibrary
+	}
 
 	// pre-check size against largest cap; precise cap applied after kind sniff
 	if file.Size > service.PlaygroundAssetMaxVideoBytes {
@@ -64,6 +81,7 @@ func UploadPlaygroundAsset(c *gin.Context) {
 	asset := &model.PlaygroundAsset{
 		UserId:     userId,
 		Kind:       kind,
+		Source:     source,
 		Name:       filepath.Base(file.Filename),
 		StorageKey: storageKey,
 		Backend:    backend,
@@ -125,7 +143,8 @@ func ListPlaygroundAssets(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
 	kind := strings.TrimSpace(c.Query("kind"))
-	items, total, err := model.ListPlaygroundAssets(userId, kind, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	source := normalizePlaygroundAssetSource(c.Query("source"))
+	items, total, err := model.ListPlaygroundAssets(userId, kind, source, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -279,13 +298,19 @@ func GetPlaygroundAssetContent(c *gin.Context) {
 		c.Header("Vary", "Origin")
 		c.Header("Access-Control-Expose-Headers", "Content-Type, Content-Length, Content-Disposition")
 	}
-	if forceDownload {
+	// Documents are only ever fetched as bytes, never previewed in a frame, so
+	// they never render inline on our own origin.
+	if forceDownload || asset.Kind == "document" {
 		name := asset.Name
 		if name == "" {
 			name = "download"
 		}
 		c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filepath.Base(name)}))
-		c.Header("Cache-Control", "private, no-store")
+		if forceDownload {
+			c.Header("Cache-Control", "private, no-store")
+		} else {
+			c.Header("Cache-Control", "private, max-age=3600")
+		}
 	} else {
 		c.Header("Cache-Control", "private, max-age=3600")
 	}

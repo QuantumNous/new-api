@@ -60,16 +60,49 @@ export interface MessageVersion {
   content: string
 }
 
-export type ChatAttachment = {
+type ChatAttachmentBase = {
   id: string
   name: string
   mimeType: string
-  /** Empty for extracted documents, which carry textContent instead */
-  dataUrl: string
-  type: 'image' | 'file' | 'document'
-  /** Browser-extracted plain text for office/text documents */
-  textContent?: string
 }
+
+/**
+ * Binary attachment backed by a playground asset. `dataUrl` holds the bytes for
+ * the current tab; after a reload only `assetId` survives and the bytes are
+ * refetched before the next request.
+ */
+type ChatBinaryAttachment = ChatAttachmentBase & {
+  dataUrl?: string
+  assetId?: number
+}
+
+/** Image sent to the model as an `image_url` content part. */
+export type ChatImageAttachment = ChatBinaryAttachment & {
+  kind: 'image'
+}
+
+/**
+ * PDF sent as a native `file` content part. `text` is the browser-extracted
+ * fallback used for models without native file input.
+ */
+export type ChatFileAttachment = ChatBinaryAttachment & {
+  kind: 'file'
+  text?: string
+}
+
+/**
+ * Office or plain-text document. Only the browser-extracted text is ever sent
+ * or stored, so this variant deliberately has no binary payload.
+ */
+export type ChatDocumentAttachment = ChatAttachmentBase & {
+  kind: 'document'
+  text: string
+}
+
+export type ChatAttachment =
+  | ChatImageAttachment
+  | ChatFileAttachment
+  | ChatDocumentAttachment
 
 export interface Message {
   key: string

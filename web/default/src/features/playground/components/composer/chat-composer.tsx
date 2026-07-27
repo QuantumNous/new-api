@@ -40,6 +40,8 @@ type ChatComposerProps = {
   isModelLoading?: boolean
   hasMessages?: boolean
   onClearMessages?: () => void
+  /** Whether the active model accepts a PDF as a native file input. */
+  nativeFileInput?: boolean
 }
 
 /**
@@ -105,6 +107,7 @@ export function ChatComposer(props: ChatComposerProps) {
           <ChatAttachmentStrip
             attachments={attachments.attachments}
             onRemove={attachments.removeAt}
+            nativeFileInput={props.nativeFileInput}
           />
         }
         tools={

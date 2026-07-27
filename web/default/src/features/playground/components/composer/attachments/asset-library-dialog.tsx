@@ -41,17 +41,19 @@ export function AssetLibraryDialog(props: AssetLibraryDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const query = useQuery({
-    queryKey: ['playground', 'assets', props.kind ?? 'all'],
+    queryKey: ['playground', 'assets', props.kind ?? 'all', 'library'],
     queryFn: () =>
       listPlaygroundAssets({
         kind: props.kind,
+        source: 'library',
         page_size: 40,
       }),
     enabled: props.open,
   })
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadPlaygroundAsset(file, props.kind),
+    mutationFn: (file: File) =>
+      uploadPlaygroundAsset(file, props.kind, 'library'),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['playground', 'assets'] })
       toast.success(t('Asset uploaded'))

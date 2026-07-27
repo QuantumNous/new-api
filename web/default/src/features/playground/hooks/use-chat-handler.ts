@@ -34,6 +34,7 @@ import {
   isAssistantMessageFinal,
   isAssistantMessagePending,
 } from '../lib'
+import { hydrateMessageAttachments } from '../lib/attachments/attachment-assets'
 import {
   isChatCompletionPayloadTooLarge,
   type BuildChatPayloadOptions,
@@ -248,8 +249,10 @@ export function useChatHandler({
 
   // Send streaming chat request
   const sendStreamingChat = useCallback(
-    (messages: Message[]) => {
-      const payload = buildValidatedPayload(messages)
+    async (messages: Message[]) => {
+      const payload = buildValidatedPayload(
+        await hydrateMessageAttachments(messages)
+      )
       if (!payload) return
 
       setIsRequesting(true)
@@ -272,7 +275,9 @@ export function useChatHandler({
   // Send non-streaming chat request
   const sendNonStreamingChat = useCallback(
     async (messages: Message[]) => {
-      const payload = buildValidatedPayload(messages)
+      const payload = buildValidatedPayload(
+        await hydrateMessageAttachments(messages)
+      )
       if (!payload) return
 
       const requestId = requestIdRef.current + 1
@@ -323,7 +328,7 @@ export function useChatHandler({
   const sendChat = useCallback(
     (messages: Message[]) => {
       if (config.stream) {
-        sendStreamingChat(messages)
+        void sendStreamingChat(messages)
       } else {
         void sendNonStreamingChat(messages)
       }

@@ -10,9 +10,13 @@ import (
 
 // PlaygroundAsset stores user-owned media for the playground workbench.
 type PlaygroundAsset struct {
-	Id         int    `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserId     int    `json:"user_id" gorm:"not null;index"`
-	Kind       string `json:"kind" gorm:"type:varchar(20);not null;index"` // image | video | audio
+	Id     int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	UserId int    `json:"user_id" gorm:"not null;index"`
+	Kind   string `json:"kind" gorm:"type:varchar(20);not null;index"` // image | video | audio | document
+	// Source separates the user-curated asset library from files attached to a
+	// chat turn, so composer attachments do not pollute the library picker.
+	// Empty means library (legacy rows).
+	Source     string `json:"source" gorm:"type:varchar(20);index"` // library | attachment
 	Name       string `json:"name" gorm:"type:varchar(255)"`
 	StorageKey string `json:"storage_key" gorm:"type:varchar(512);not null"`
 	Backend    string `json:"backend" gorm:"type:varchar(16)"`    // local | r2 (empty = local, legacy)
@@ -26,6 +30,11 @@ type PlaygroundAsset struct {
 }
 
 func (PlaygroundAsset) TableName() string { return "playground_assets" }
+
+const (
+	PlaygroundAssetSourceLibrary    = "library"
+	PlaygroundAssetSourceAttachment = "attachment"
+)
 
 // PlaygroundConversation is a cloud-synced chat or duo session.
 // Kind: "chat" (default) | "duo". Empty kind is treated as chat for legacy rows.
@@ -284,10 +293,15 @@ func GetPlaygroundAssetById(id int) (*PlaygroundAsset, error) {
 	return &a, nil
 }
 
-func ListPlaygroundAssets(userId int, kind string, offset, limit int) ([]PlaygroundAsset, int64, error) {
+func ListPlaygroundAssets(userId int, kind string, source string, offset, limit int) ([]PlaygroundAsset, int64, error) {
 	q := DB.Model(&PlaygroundAsset{}).Where("user_id = ?", userId)
 	if kind != "" {
 		q = q.Where("kind = ?", kind)
+	}
+	if source == PlaygroundAssetSourceLibrary {
+		q = q.Where("source = ? OR source = ?", PlaygroundAssetSourceLibrary, "")
+	} else if source != "" {
+		q = q.Where("source = ?", source)
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
@@ -779,6 +793,7 @@ func PublicPlaygroundAssetDTO(a *PlaygroundAsset) map[string]any {
 		"id":         a.Id,
 		"user_id":    a.UserId,
 		"kind":       a.Kind,
+		"source":     a.Source,
 		"name":       a.Name,
 		"url":        a.URL,
 		"visibility": a.Visibility,

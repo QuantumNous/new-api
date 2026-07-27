@@ -429,6 +429,8 @@ export type PlaygroundAsset = {
   id: number
   user_id: number
   kind: string
+  /** 'library' for curated uploads, 'attachment' for composer attachments. */
+  source?: string
   name: string
   storage_key?: string
   url: string
@@ -439,6 +441,7 @@ export type PlaygroundAsset = {
 
 export async function listPlaygroundAssets(params?: {
   kind?: string
+  source?: string
   p?: number
   page_size?: number
 }): Promise<{ items: PlaygroundAsset[]; total: number }> {
@@ -453,11 +456,13 @@ export async function listPlaygroundAssets(params?: {
 
 export async function uploadPlaygroundAsset(
   file: File,
-  kind?: string
+  kind?: string,
+  source?: string
 ): Promise<PlaygroundAsset> {
   const form = new FormData()
   form.append('file', file)
   if (kind) form.append('kind', kind)
+  if (source) form.append('source', source)
   const res = await api.post(API_ENDPOINTS.ASSETS, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
@@ -465,6 +470,14 @@ export async function uploadPlaygroundAsset(
     throw new Error(res.data?.message || 'Upload failed')
   }
   return res.data.data as PlaygroundAsset
+}
+
+/** Fetch the raw bytes of a private asset through the same-origin app route. */
+export async function fetchPlaygroundAssetBlob(id: number): Promise<Blob> {
+  const res = await api.get(`${API_ENDPOINTS.ASSETS}/${id}/content`, {
+    responseType: 'blob',
+  })
+  return res.data as Blob
 }
 
 export async function importPlaygroundAsset(

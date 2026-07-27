@@ -33,6 +33,11 @@ export type BuildChatPayloadOptions = {
   carryHistory?: boolean
   /** When true, appends the platform visual-output capability prompt */
   visualOutput?: boolean
+  /**
+   * Whether the target model accepts native `file` content parts. Defaults to
+   * true; when false, PDFs are sent as their extracted text instead.
+   */
+  nativeFileInput?: boolean
 }
 
 /**
@@ -83,8 +88,10 @@ export function buildChatCompletionPayload(
         : sourceMessages.slice(lastUserIndex, lastUserIndex + 1)
   }
 
-  const processedMessages: ChatCompletionMessage[] =
-    sourceMessages.map(formatMessageForAPI)
+  const nativeFileInput = options?.nativeFileInput ?? true
+  const processedMessages: ChatCompletionMessage[] = sourceMessages.map(
+    (message) => formatMessageForAPI(message, nativeFileInput)
+  )
 
   const personaPrompt = clampSystemPrompt(options?.systemPrompt).trim()
   const systemPrompt = [

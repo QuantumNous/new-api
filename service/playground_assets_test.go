@@ -19,7 +19,32 @@ func TestDetectPlaygroundAssetKind(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "image", kind)
 
-	_, err = DetectPlaygroundAssetKind("application/pdf")
+	kind, err = DetectPlaygroundAssetKind("application/pdf")
+	require.NoError(t, err)
+	assert.Equal(t, "document", kind)
+
+	// Office and plain-text formats are extracted client-side and must never be
+	// hosted back from our own origin.
+	for _, mimeType := range []string{
+		"text/html",
+		"text/plain",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	} {
+		_, err = DetectPlaygroundAssetKind(mimeType)
+		assert.Error(t, err, mimeType)
+	}
+}
+
+func TestSniffPlaygroundMime_PDF(t *testing.T) {
+	pdf := []byte("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\n")
+	mimeType, kind, err := SniffPlaygroundMime(pdf, "application/octet-stream")
+	require.NoError(t, err)
+	assert.Equal(t, "application/pdf", mimeType)
+	assert.Equal(t, "document", kind)
+}
+
+func TestSniffPlaygroundMime_RejectsDeclaredPDFWithoutMagic(t *testing.T) {
+	_, _, err := SniffPlaygroundMime([]byte("plain text body"), "application/pdf")
 	assert.Error(t, err)
 }
 

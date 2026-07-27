@@ -26,6 +26,7 @@ import type {
   ChatAttachment,
   ContentPart,
 } from '../../types'
+import { hasAttachmentPayload } from '../attachments/attachment-utils'
 
 /**
  * Create a new message version
@@ -80,9 +81,7 @@ export function createUserMessage(
   createdAt: number = Date.now(),
   attachments?: ChatAttachment[]
 ): Message {
-  const validAttachments = attachments?.filter(
-    (attachment) => attachment.dataUrl.trim() !== ''
-  )
+  const validAttachments = attachments?.filter(hasAttachmentPayload)
   return {
     key: nanoid(),
     from: MESSAGE_ROLES.USER,
@@ -117,18 +116,25 @@ export function createLoadingAssistantMessage(
   }
 }
 
+function documentTextPart(name: string, text: string): ContentPart {
+  return {
+    type: 'text',
+    text: `Attached document "${name}":\n\n${text.trim()}`,
+  }
+}
+
 /**
- * Build message content with optional images, PDFs, and extracted documents
+ * Build message content with optional images, PDFs, and extracted documents.
+ * `nativeFileInput` reflects whether the target model accepts a `file` part;
+ * when it does not, PDFs fall back to their browser-extracted text so the
+ * attachment still reaches the model instead of being silently ignored.
  */
 export function buildMessageContent(
   text: string,
-  attachments: ChatAttachment[] = []
+  attachments: ChatAttachment[] = [],
+  nativeFileInput = true
 ): string | ContentPart[] {
-  const validAttachments = attachments.filter((attachment) =>
-    attachment.type === 'document'
-      ? (attachment.textContent ?? '').trim() !== ''
-      : attachment.dataUrl.trim() !== ''
-  )
+  const validAttachments = attachments.filter(hasAttachmentPayload)
 
   if (validAttachments.length === 0) {
     return text
@@ -142,25 +148,27 @@ export function buildMessageContent(
   ]
 
   for (const attachment of validAttachments) {
-    if (attachment.type === 'image') {
-      parts.push({
-        type: 'image_url',
-        image_url: { url: attachment.dataUrl.trim() },
-      })
+    if (attachment.kind === 'document') {
+      parts.push(documentTextPart(attachment.name, attachment.text))
       continue
     }
-    if (attachment.type === 'document') {
-      parts.push({
-        type: 'text',
-        text: `Attached document "${attachment.name}":\n\n${(attachment.textContent ?? '').trim()}`,
-      })
+    const dataUrl = attachment.dataUrl?.trim() ?? ''
+    if (attachment.kind === 'image') {
+      if (dataUrl) {
+        parts.push({ type: 'image_url', image_url: { url: dataUrl } })
+      }
+      continue
+    }
+    const extracted = attachment.text?.trim() ?? ''
+    if (!dataUrl || (!nativeFileInput && extracted)) {
+      if (extracted) parts.push(documentTextPart(attachment.name, extracted))
       continue
     }
     parts.push({
       type: 'file',
       file: {
         filename: attachment.name,
-        file_data: attachment.dataUrl.trim(),
+        file_data: dataUrl,
       },
     })
   }
@@ -187,12 +195,19 @@ export function getTextContent(content: string | ContentPart[]): string {
 /**
  * Format message for API request
  */
-export function formatMessageForAPI(message: Message): ChatCompletionMessage {
+export function formatMessageForAPI(
+  message: Message,
+  nativeFileInput = true
+): ChatCompletionMessage {
   const currentVersion = getCurrentVersion(message)
   if (message.from === MESSAGE_ROLES.USER && message.attachments?.length) {
     return {
       role: message.from,
-      content: buildMessageContent(currentVersion.content, message.attachments),
+      content: buildMessageContent(
+        currentVersion.content,
+        message.attachments,
+        nativeFileInput
+      ),
     }
   }
   return {

@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { STORAGE_KEYS } from '../../constants'
 import type {
+  ChatAttachment,
   Message,
   ParameterEnabled,
   PlaygroundConfig,
   StudioModality,
   StudioSettings,
 } from '../../types'
+import { isAttachmentPersistable } from '../attachments/attachment-utils'
 import type {
   ActiveSessionByModality,
   PlaygroundSession,
@@ -49,6 +51,7 @@ import {
 } from '../workbench/workbench-prefs'
 import { loadMessages, prepareLoadedMessages } from './storage'
 import {
+  MAX_PERSISTED_ATTACHMENT_CHARS,
   MAX_STORED_MESSAGES,
   messagesSchema,
   playgroundConfigSchema,
@@ -105,10 +108,46 @@ export type PersistedPlaygroundState = {
   ui: PlaygroundUiPrefs
 }
 
+function stripAttachmentForPersist(attachment: ChatAttachment): ChatAttachment {
+  if (attachment.kind === 'document') return attachment
+  // Inline base64 would blow the localStorage budget; the asset id is enough to
+  // refetch the bytes before the next request.
+  return { ...attachment, dataUrl: undefined }
+}
+
+function attachmentTextLength(attachment: ChatAttachment): number {
+  if (attachment.kind === 'document') return attachment.text.length
+  if (attachment.kind === 'file') return attachment.text?.length ?? 0
+  return 0
+}
+
+/**
+ * Keep attachments newest-first until the per-session text budget runs out, so
+ * a long thread full of documents cannot grow the persisted store without
+ * bound. Returns the messages in their original order.
+ */
+function limitPersistedAttachments(messages: Message[]): Message[] {
+  let remaining = MAX_PERSISTED_ATTACHMENT_CHARS
+  const limited = [...messages].reverse().map((message) => {
+    if (!message.attachments?.length) return message
+    const kept = message.attachments.filter((attachment) => {
+      const cost = attachmentTextLength(attachment)
+      if (cost > remaining) return false
+      remaining -= cost
+      return true
+    })
+    return { ...message, attachments: kept.length > 0 ? kept : undefined }
+  })
+  return limited.reverse()
+}
+
 function stripMessageForPersist(message: Message): Message {
+  const attachments = message.attachments
+    ?.filter(isAttachmentPersistable)
+    .map(stripAttachmentForPersist)
   return {
     ...message,
-    attachments: undefined,
+    attachments: attachments?.length ? attachments : undefined,
     managedTool: message.managedTool
       ? {
           ...message.managedTool,
@@ -135,7 +174,9 @@ export function preparePersistedPlaygroundState(
           : session.messages
       return {
         ...session,
-        messages: messages.map(stripMessageForPersist),
+        messages: limitPersistedAttachments(
+          messages.map(stripMessageForPersist)
+        ),
         draft: session.draft?.slice(0, 20_000),
       }
     }

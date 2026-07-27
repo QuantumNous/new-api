@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	PlaygroundAssetMaxImageBytes = 10 * 1024 * 1024 // 10MB
-	PlaygroundAssetMaxVideoBytes = 50 * 1024 * 1024 // 50MB
-	PlaygroundAssetMaxAudioBytes = 20 * 1024 * 1024 // 20MB
+	PlaygroundAssetMaxImageBytes    = 10 * 1024 * 1024 // 10MB
+	PlaygroundAssetMaxVideoBytes    = 50 * 1024 * 1024 // 50MB
+	PlaygroundAssetMaxAudioBytes    = 20 * 1024 * 1024 // 20MB
+	PlaygroundAssetMaxDocumentBytes = 20 * 1024 * 1024 // 20MB
 )
 
 var playgroundImageMimes = map[string]bool{
@@ -50,6 +51,15 @@ var playgroundAudioMimes = map[string]bool{
 	"audio/m4a":    true,
 }
 
+// playgroundDocumentMimes covers binary chat attachments that must survive a
+// reload because the model consumes the file itself. Office and plain-text
+// formats are deliberately absent: they are extracted to text in the browser and
+// persisted as text, so storing them would only add an active-content hosting
+// surface on our own origin for no gain.
+var playgroundDocumentMimes = map[string]bool{
+	"application/pdf": true,
+}
+
 // PlaygroundAssetsRoot returns the absolute directory for the local storage
 // backend. Kept for the local content path and backfill tooling.
 func PlaygroundAssetsRoot() string {
@@ -73,12 +83,14 @@ func NormalizePlaygroundMime(mimeType string) string {
 		return "audio/wav"
 	case "audio/x-flac":
 		return "audio/flac"
+	case "application/x-pdf":
+		return "application/pdf"
 	default:
 		return mimeType
 	}
 }
 
-// DetectPlaygroundAssetKind maps mime to kind (image|video|audio).
+// DetectPlaygroundAssetKind maps mime to kind (image|video|audio|document).
 func DetectPlaygroundAssetKind(mimeType string) (string, error) {
 	mimeType = NormalizePlaygroundMime(mimeType)
 	if playgroundImageMimes[mimeType] {
@@ -89,6 +101,9 @@ func DetectPlaygroundAssetKind(mimeType string) (string, error) {
 	}
 	if playgroundAudioMimes[mimeType] {
 		return "audio", nil
+	}
+	if playgroundDocumentMimes[mimeType] {
+		return "document", nil
 	}
 	return "", fmt.Errorf("unsupported mime type: %s", mimeType)
 }
@@ -142,6 +157,9 @@ func sniffPlaygroundContainer(header []byte, declared string) (string, string, b
 			return "audio/wav", "audio", true
 		}
 	}
+	if len(header) >= 5 && bytes.Equal(header[0:5], []byte("%PDF-")) {
+		return "application/pdf", "document", true
+	}
 	if len(header) >= 4 && bytes.Equal(header[0:4], []byte("OggS")) {
 		return "audio/ogg", "audio", true
 	}
@@ -188,6 +206,8 @@ func MaxBytesForPlaygroundKind(kind string) int64 {
 		return PlaygroundAssetMaxVideoBytes
 	case "audio":
 		return PlaygroundAssetMaxAudioBytes
+	case "document":
+		return PlaygroundAssetMaxDocumentBytes
 	default:
 		return PlaygroundAssetMaxImageBytes
 	}
@@ -338,7 +358,8 @@ func safeExtFromName(name, mimeType string) string {
 	switch ext {
 	case ".jpg", ".jpeg", ".png", ".webp", ".gif",
 		".mp4", ".webm", ".mov",
-		".mp3", ".wav", ".ogg", ".m4a", ".mpeg", ".aac", ".flac":
+		".mp3", ".wav", ".ogg", ".m4a", ".mpeg", ".aac", ".flac",
+		".pdf":
 		return ext
 	default:
 		return ".bin"

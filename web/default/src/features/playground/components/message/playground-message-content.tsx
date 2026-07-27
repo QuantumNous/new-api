@@ -59,6 +59,7 @@ import {
   isErrorMessage,
   type MessageAlignment,
 } from '../../lib'
+import { attachmentPreviewSrc } from '../../lib/attachments/attachment-utils'
 import { downloadGeneratedMedia } from '../../lib/download-generated-media'
 import { getMessageContentStyles } from '../../lib/message/message-styles'
 import type { Message } from '../../types'
@@ -170,10 +171,10 @@ export function PlaygroundMessageContent({
       {message.attachments && message.attachments.length > 0 && (
         <div className='mb-2 flex flex-wrap gap-2'>
           {message.attachments.map((attachment, index) =>
-            attachment.type === 'image' ? (
+            attachmentPreviewSrc(attachment) ? (
               <img
                 key={attachment.id}
-                src={attachment.dataUrl}
+                src={attachmentPreviewSrc(attachment)}
                 alt={t('Attachment {{index}}', { index: index + 1 })}
                 className='border-border size-24 rounded-lg border object-cover'
               />

@@ -54,6 +54,7 @@
     "mermaid": "11.15.0",
     "motion": "^12.42.2",
     "nanoid": "^5.1.16",
+    "pdfjs-dist": "^6.1.200",
     "qrcode.react": "catalog:",
     "react": "catalog:",
     "react-day-picker": "^10.0.1",
