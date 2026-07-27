@@ -32,7 +32,7 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 
-import { getUsers, searchUsers } from '../api'
+import { getUsers, searchUsers, getGroups } from '../api'
 import {
   USER_STATUS,
   getUserStatusOptions,
@@ -82,7 +82,7 @@ export function UsersTable() {
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'role', searchKey: 'role', type: 'array' },
-      { columnId: 'group', searchKey: 'group', type: 'string' },
+      { columnId: 'group', searchKey: 'group', type: 'array' },
     ],
   })
   const statusFilter =
@@ -94,8 +94,9 @@ export function UsersTable() {
       | string[]
       | undefined) ?? []
   const groupFilter =
-    (columnFilters.find((filter) => filter.id === 'group')?.value as string) ??
-    ''
+    (columnFilters.find((filter) => filter.id === 'group')?.value as
+      | string[]
+      | undefined) ?? []
 
   const sortParams = useMemo(() => {
     const activeSort = sorting[0]
@@ -119,6 +120,21 @@ export function UsersTable() {
     }
   }
 
+  // Fetch groups for filter
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups'],
+    queryFn: getGroups,
+  })
+
+  const groupOptions = useMemo(
+    () =>
+      (groupsData?.data || []).map((g) => ({
+        label: g,
+        value: g,
+      })),
+    [groupsData]
+  )
+
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
@@ -135,7 +151,7 @@ export function UsersTable() {
     queryFn: async () => {
       const hasFilter = globalFilter?.trim()
       const hasColumnFilter =
-        statusFilter.length > 0 || roleFilter.length > 0 || Boolean(groupFilter)
+        statusFilter.length > 0 || roleFilter.length > 0 || groupFilter.length > 0
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
@@ -149,7 +165,7 @@ export function UsersTable() {
               keyword: globalFilter,
               status: statusFilter[0] ?? '',
               role: roleFilter[0] ?? '',
-              group: groupFilter,
+              group: groupFilter[0] ?? '',
             })
           : await getUsers(params)
 
@@ -228,6 +244,12 @@ export function UsersTable() {
             columnId: 'role',
             title: t('Role'),
             options: getUserRoleOptions(t),
+            singleSelect: true,
+          },
+          {
+            columnId: 'group',
+            title: t('Group'),
+            options: groupOptions,
             singleSelect: true,
           },
         ],
