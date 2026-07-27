@@ -1,4 +1,5 @@
 import { getBlogCategories, getBlogPosts } from "@/lib/blog";
+import { CLI_LANDING_PATH, HIGGSFIELD_ALTERNATIVE_PATH } from "@/lib/cli-landing";
 import { ROUTER_ORIGIN, SITE_ORIGIN } from "@/lib/origins";
 import { getDocsUrl } from "@/lib/public-site-settings";
 
@@ -43,6 +44,8 @@ export async function GET() {
     "## Core Pages",
     "",
     `- Home: ${SITE_ORIGIN}/`,
+    `- Flatkey CLI: ${SITE_ORIGIN}${CLI_LANDING_PATH}`,
+    `- Flatkey vs Higgsfield: ${SITE_ORIGIN}${HIGGSFIELD_ALTERNATIVE_PATH}`,
     `- Model pricing: ${SITE_ORIGIN}/pricing`,
     `- Rankings: ${SITE_ORIGIN}/rankings`,
     `- Blog: ${SITE_ORIGIN}/blog`,

@@ -12,7 +12,7 @@ const fail = (file, message) => errors.push(`${file}: ${message}`);
 
 const appOnly = new Set(["console.html", "login.html", "onboarding.html", "signup.html"]);
 const legacyRoutes = new Set(["/blog", "/models", "/pricing", "/rankings"]);
-const requiredNavRoutes = ["models", "docs", "playground", "pricing", "compute", "usecases"];
+const requiredNavRoutes = ["models", "cli", "docs", "playground", "pricing", "compute", "usecases"];
 const languageTags = new Set(["en-US", "zh-CN", "es-ES", "fr-FR", "pt-PT", "ru-RU", "ja-JP", "vi-VN", "de-DE", "id-ID"]);
 
 for (const file of files) {
@@ -197,7 +197,7 @@ for (const [legacyPath, canonicalPath] of [
   const grouped = legacyPath === "/topup.html" || legacyPath.endsWith("-zh.html") ? false : nginxConfig.includes(`|${legacyPath.slice(1, -5)}|`) || nginxConfig.includes(`(${legacyPath.slice(1, -5)}|`);
   if (!exact.test(nginxConfig) && !grouped) fail("nginx.conf", `${legacyPath} does not permanently redirect to ${canonicalPath}`);
 }
-for (const [route, file] of [["models", "models.html"], ["docs", "docs.html"], ["playground", "playground.html"], ["pricing", "topup.html"], ["terms", "terms.html"]]) {
+for (const [route, file] of [["models", "models.html"], ["cli", "cli.html"], ["docs", "docs.html"], ["playground", "playground.html"], ["pricing", "topup.html"], ["terms", "terms.html"]]) {
   if (!nginxConfig.includes(`location = /${route} { try_files /${file} =404; }`)) fail("nginx.conf", `/${route} does not serve ${file}`);
 }
 if (!nginxConfig.includes("sub_filter 'lang=\"en\"' 'lang=\"en-US\"';")) fail("nginx.conf", "legacy HTML/XML does not normalize language tags");

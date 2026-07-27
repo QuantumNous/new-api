@@ -2,6 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://flatkey.ai/</loc><lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>
   <url><loc>https://flatkey.ai/models</loc><lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://flatkey.ai/cli</loc><lastmod>2026-07-27</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
   <url><loc>https://flatkey.ai/playground</loc><lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
   <url><loc>https://flatkey.ai/docs</loc><lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url><loc>https://flatkey.ai/usecases</loc><lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>

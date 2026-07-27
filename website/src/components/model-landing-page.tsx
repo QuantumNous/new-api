@@ -2,8 +2,9 @@
 
 import { useEffect, useState, type MouseEvent } from "react";
 import { BadgeCheck, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { SiteShell } from "@/components/site-shell";
-import type { Locale } from "@/lib/locales";
+import { localizePath, type Locale } from "@/lib/locales";
 import { modelLandingCopy, normalizeModelId, type ModelConfig, type ModelLandingKey } from "@/lib/model-landing";
 import { consoleUrl } from "@/lib/origins";
 import {
@@ -313,12 +314,12 @@ export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
                 </small>
               </div>
             </div>
-            <a
-              href="/pricing"
+            <Link
+              href={localizePath("/pricing", locale)}
               className="ml-auto rounded-xl bg-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] hover:bg-violet-500"
             >
               {t("See plans →")}
-            </a>
+            </Link>
           </div>
         </div>
       </div>

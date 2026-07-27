@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getAllBlogPosts, getBlogCategories } from "@/lib/blog";
+import { CLI_LANDING_PATH, HIGGSFIELD_ALTERNATIVE_PATH } from "@/lib/cli-landing";
 import { LOCALES, type Locale, localeLanguageTag, localizePath } from "@/lib/locales";
 import { getMarketPathnames } from "@/lib/market-landing";
 import { getModelLandingPathnames } from "@/lib/model-landing";
@@ -53,6 +54,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...entry("/", 1, "daily"),
     ...entry("/pricing", 0.8, "daily"),
     ...entry("/models", 0.82, "daily"),
+    ...entry(CLI_LANDING_PATH, 0.86, "weekly"),
+    ...entry(HIGGSFIELD_ALTERNATIVE_PATH, 0.84, "weekly"),
     ...entry("/use-case/codex", 0.84, "weekly"),
     ...entry("/use-case/claude-code", 0.84, "weekly"),
     ...entry("/use-case/image-buddy", 0.84, "weekly"),

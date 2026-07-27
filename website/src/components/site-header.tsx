@@ -7,6 +7,7 @@ import { FlatkeyBrandLogo } from "@/components/flatkey-brand-logo";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { NotificationPopover } from "@/components/notification-popover";
 import { useSiteConfig } from "@/components/site-config-provider";
+import { CLI_LANDING_PATH, cliLandingCopy } from "@/lib/cli-landing";
 import { getCopy } from "@/lib/copy";
 import { type Locale, localizePath, stripLocale, withIdFallback } from "@/lib/locales";
 import { consoleUrl } from "@/lib/origins";
@@ -49,6 +50,7 @@ type NavItem = {
 export function SiteHeader(props: Props) {
   const { docsUrl } = useSiteConfig();
   const copy = getCopy(props.locale);
+  const cliCopy = cliLandingCopy[props.locale] ?? cliLandingCopy.en;
   const consoleHref = consoleUrl("/dashboard", `lng=${props.locale}`);
   const signInHref = consoleUrl("/sign-in", `lng=${props.locale}`);
   const useCaseLabel = useCaseLabelByLocale[props.locale] ?? useCaseLabelByLocale.en;
@@ -59,6 +61,7 @@ export function SiteHeader(props: Props) {
     { href: "/blog", label: copy.nav.blog, publicPath: true },
     { href: "/pricing", label: copy.nav.pricing, publicPath: true },
     { href: "/models", label: copy.nav.modelPricing, publicPath: true },
+    { href: CLI_LANDING_PATH, label: cliCopy.navLabel, publicPath: true },
     ...(docsUrl ? [{ href: docsUrl, label: copy.nav.docs, external: true }] : []),
     // Rankings is the website's own daily-updated data page (same pipeline
     // as the console chart) — the single public rankings surface.
