@@ -4,7 +4,6 @@ import (
 	"errors"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -42,36 +41,14 @@ type TokenGroupVisibilityPolicy struct {
 	Usernames  []string `json:"usernames"`
 }
 
-var tokenGroupVisibilityCache = struct {
-	sync.RWMutex
-	initialized bool
-	policies    map[string]TokenGroupVisibilityPolicy
-}{policies: map[string]TokenGroupVisibilityPolicy{}}
-
 func TokenGroupVisibilityEnabled() bool {
 	return common.GetEnvOrDefaultBool("TOKEN_GROUP_VISIBILITY_ENABLED", false)
 }
 
-func resetTokenGroupVisibilityCache() {
-	tokenGroupVisibilityCache.Lock()
-	tokenGroupVisibilityCache.initialized = false
-	tokenGroupVisibilityCache.policies = map[string]TokenGroupVisibilityPolicy{}
-	tokenGroupVisibilityCache.Unlock()
-}
-
+// GetTokenGroupVisibilityPolicies deliberately reads through to the database.
+// Visibility is an authorization boundary and this service can run on multiple
+// nodes; an in-process cache could leave a node enforcing stale permissions.
 func GetTokenGroupVisibilityPolicies() ([]TokenGroupVisibilityPolicy, error) {
-	tokenGroupVisibilityCache.RLock()
-	if tokenGroupVisibilityCache.initialized {
-		policies := make([]TokenGroupVisibilityPolicy, 0, len(tokenGroupVisibilityCache.policies))
-		for _, policy := range tokenGroupVisibilityCache.policies {
-			policy.Usernames = append([]string(nil), policy.Usernames...)
-			policies = append(policies, policy)
-		}
-		tokenGroupVisibilityCache.RUnlock()
-		sort.Slice(policies, func(i, j int) bool { return policies[i].Group < policies[j].Group })
-		return policies, nil
-	}
-	tokenGroupVisibilityCache.RUnlock()
 	var rows []TokenGroupVisibility
 	if err := DB.Order(clause.OrderByColumn{Column: clause.Column{Name: "group"}}).Find(&rows).Error; err != nil {
 		return nil, err
@@ -88,13 +65,6 @@ func GetTokenGroupVisibilityPolicies() ([]TokenGroupVisibilityPolicy, error) {
 		}
 		policies = append(policies, policy)
 	}
-	tokenGroupVisibilityCache.Lock()
-	tokenGroupVisibilityCache.policies = make(map[string]TokenGroupVisibilityPolicy, len(policies))
-	for _, policy := range policies {
-		tokenGroupVisibilityCache.policies[policy.Group] = policy
-	}
-	tokenGroupVisibilityCache.initialized = true
-	tokenGroupVisibilityCache.Unlock()
 	return policies, nil
 }
 
@@ -158,7 +128,6 @@ func SaveTokenGroupVisibilityPolicy(policy TokenGroupVisibilityPolicy) error {
 	}); err != nil {
 		return err
 	}
-	resetTokenGroupVisibilityCache()
 	return nil
 }
 
@@ -173,8 +142,5 @@ func DeleteTokenGroupVisibilityPolicy(group string) error {
 		}
 		return tx.Delete(&row).Error
 	})
-	if err == nil {
-		resetTokenGroupVisibilityCache()
-	}
 	return err
 }
