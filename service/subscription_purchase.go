@@ -858,6 +858,9 @@ func validateAuthoritativeSubscriptionPurchaseQuote(ctx context.Context, cmd Pur
 	if err != nil {
 		return SubscriptionPurchaseQuote{}, err
 	}
+	if tokenQuote.DiscountKind == SubscriptionDiscountKindRecall && expected.DiscountKind != SubscriptionDiscountKindRecall {
+		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase recall claim is required")
+	}
 	if err := compareSubscriptionPurchaseQuotes(expected, tokenQuote); err != nil {
 		return SubscriptionPurchaseQuote{}, err
 	}

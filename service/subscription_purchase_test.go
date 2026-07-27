@@ -818,6 +818,18 @@ func TestPurchaseSubscriptionRecallBalanceRequiresClaimAndChargesDiscountedQuote
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "recall")
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", fixture.recipient.UserId).Count(&orderCount).Error)
+	require.Zero(t, orderCount)
+	var intentCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", fixture.recipient.UserId).Count(&intentCount).Error)
+	require.Zero(t, intentCount)
+	var ledgerCount int64
+	require.NoError(t, model.DB.Model(&model.WalletLedgerEntry{}).Where("user_id = ?", fixture.recipient.UserId).Count(&ledgerCount).Error)
+	require.Zero(t, ledgerCount)
+	var conversionCount int64
+	require.NoError(t, model.DB.Model(&model.RecallEvent{}).Where("recipient_id = ? AND event_type = ?", fixture.recipient.Id, "conversion").Count(&conversionCount).Error)
+	require.Zero(t, conversionCount)
 
 	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
 		UserID:        fixture.recipient.UserId,
