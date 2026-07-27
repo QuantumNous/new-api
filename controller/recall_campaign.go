@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -116,6 +118,40 @@ func UpdateRecallCampaign(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, campaign)
+}
+
+func GenerateRecallEmailTranslations(c *gin.Context) {
+	id, err := recallPathID(c, "id")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var request service.RecallEmailGenerationRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	runtime, err := recallControllerRuntime()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	response, err := runtime.Campaigns.GenerateEmailTranslations(c.Request.Context(), c.GetInt("id"), id, request)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, response)
+}
+
+func GetRecallEmailQuotaStatus(c *gin.Context) {
+	limit := operation_setting.GetRecallCampaignSetting().EmailHourlyLimit
+	status, err := model.GetRecallEmailQuotaStatusWithContext(c.Request.Context(), limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
 }
 
 func PreviewRecallCampaign(c *gin.Context) {
@@ -479,6 +515,15 @@ func recallCampaignAction(c *gin.Context, action func(*service.RecallRuntime, in
 		return
 	}
 	if err := action(runtime, c.GetInt("id"), id); err != nil {
+		var blocked *service.RecallActivationBlockedError
+		if errors.As(err, &blocked) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+				"data":    gin.H{"blockers": blocked.Blockers},
+			})
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}

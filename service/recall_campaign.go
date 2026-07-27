@@ -691,6 +691,172 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 	return model.GetRecallCampaignByIDWithContext(ctx, id)
 }
 
+func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, actorID int, id int64, request RecallEmailGenerationRequest) (RecallEmailGenerationResponse, error) {
+	if err := validateRecallCampaignContext(ctx); err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+	if actorID <= 0 || id <= 0 {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign actor and campaign IDs must be positive")
+	}
+	if request.ConfigRevision <= 0 {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall email generation config revision must be positive")
+	}
+	if s.emailTranslator == nil {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall email translation is not configured")
+	}
+
+	stored, err := model.GetRecallCampaignByIDWithContext(ctx, id)
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+	if stored.ConfigRevision != request.ConfigRevision {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d config revision changed", id)
+	}
+	if stored.Status == model.RecallCampaignCancelled || stored.Status == model.RecallCampaignCompleted {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d is in terminal state %s", id, stored.Status)
+	}
+	current, err := recallCampaignDraftFromModel(stored)
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+
+	name := strings.TrimSpace(request.Name)
+	if name == "" || len(name) > 128 {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign name must contain 1 to 128 characters")
+	}
+	proposal, err := canonicalizeRecallEmailDraft(RecallCampaignDraft{
+		CampaignType:      current.CampaignType,
+		Name:              name,
+		Emails:            request.Emails,
+		DeferLocalization: true,
+	})
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+	englishStages := make([]RecallEmailStage, len(proposal.Emails))
+	for i, stage := range proposal.Emails {
+		english, exists := stage.Templates["en"]
+		if !exists {
+			return RecallEmailGenerationResponse{}, fmt.Errorf("recall email stage %d requires an English template", stage.StageNo)
+		}
+		englishStages[i] = RecallEmailStage{
+			StageNo:      stage.StageNo,
+			DelaySeconds: stage.DelaySeconds,
+			Templates:    map[string]RecallEmailTemplate{"en": english},
+		}
+	}
+	applyRecallEmailSubjectFallbacks(englishStages, name)
+	englishStages, err = normalizeRecallEmailStages(current.CampaignType, englishStages)
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+	if err := validateRecallEmailGenerationStageShape(current.Emails, englishStages); err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+	reconciled, err := reconcileRecallEmailLocalizationState(englishStages, englishStages, current.Emails, true)
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+
+	translated, err := s.emailTranslator.Translate(ctx, englishStages)
+	if err != nil {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("translate recall campaign email templates: %w", err)
+	}
+	generated, err := applyRecallEmailGenerationResult(current.CampaignType, reconciled, translated)
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+	generated, err = incrementRecallEmailTemplateVersions(current.Emails, generated)
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+
+	latest, err := model.GetRecallCampaignByIDWithContext(ctx, id)
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+	if latest.ConfigRevision != request.ConfigRevision {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d config revision changed during email translation", id)
+	}
+	latestDraft, err := recallCampaignDraftFromModel(latest)
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+	if !sameRecallEmailSourceRevisions(current.Emails, latestDraft.Emails) {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d email source revision changed during translation", id)
+	}
+	emailJSON, err := common.Marshal(generated)
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+	won, err := model.UpdateRecallCampaignEmailTranslationsWithContext(ctx, id, request.ConfigRevision, name, string(emailJSON))
+	if err != nil {
+		return RecallEmailGenerationResponse{}, err
+	}
+	if !won {
+		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d config revision changed during email translation", id)
+	}
+	return RecallEmailGenerationResponse{
+		ConfigRevision: request.ConfigRevision + 1,
+		Emails:         generated,
+	}, nil
+}
+
+func validateRecallEmailGenerationStageShape(current []RecallEmailStage, proposed []RecallEmailStage) error {
+	if len(current) != len(proposed) {
+		return fmt.Errorf("recall email generation cannot add or remove stages")
+	}
+	for i := range current {
+		if current[i].StageNo != proposed[i].StageNo || current[i].DelaySeconds != proposed[i].DelaySeconds {
+			return fmt.Errorf("recall email generation stage numbers and delays must match the saved campaign")
+		}
+	}
+	return nil
+}
+
+func applyRecallEmailGenerationResult(campaignType string, stages []RecallEmailStage, translated map[int]map[string]RecallEmailTemplate) ([]RecallEmailStage, error) {
+	if len(translated) != len(stages) {
+		return nil, fmt.Errorf("recall email translation returned %d stages; expected %d", len(translated), len(stages))
+	}
+	expected := make(map[int]struct{}, len(stages))
+	for _, stage := range stages {
+		expected[stage.StageNo] = struct{}{}
+	}
+	for stageNo := range translated {
+		if _, exists := expected[stageNo]; !exists {
+			return nil, fmt.Errorf("recall email translation returned unexpected stage %d", stageNo)
+		}
+	}
+	generated := make([]RecallEmailStage, len(stages))
+	for i, stage := range stages {
+		targets, exists := translated[stage.StageNo]
+		if !exists {
+			return nil, fmt.Errorf("recall email translation omitted stage %d", stage.StageNo)
+		}
+		templates, err := canonicalRecallEmailTemplates(campaignType, stage.StageNo, stage.Templates["en"], targets)
+		if err != nil {
+			return nil, err
+		}
+		generated[i] = stage
+		generated[i].Templates = templates
+		generated[i].TranslatedSourceRevision = stage.SourceRevision
+		generated[i].ManualLocales = nil
+	}
+	return generated, nil
+}
+
+func sameRecallEmailSourceRevisions(left []RecallEmailStage, right []RecallEmailStage) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].StageNo != right[i].StageNo || left[i].SourceRevision != right[i].SourceRevision {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *RecallCampaignService) Preview(ctx context.Context, id int64, sampleSize int) (RecallAudiencePreview, *RecallStripePreview, error) {
 	if err := validateRecallCampaignContext(ctx); err != nil {
 		return RecallAudiencePreview{}, nil, err
@@ -1770,13 +1936,16 @@ func normalizeStoredRecallEmailLocalizationStates(stages []RecallEmailStage) ([]
 }
 
 func validateRecallEmailActivationLocalization(stages []RecallEmailStage) error {
+	blockers := make([]RecallEmailLocalizationBlocker, 0)
 	for _, stage := range stages {
 		if _, exists := stage.Templates["en"]; !exists {
-			return fmt.Errorf("recall email stage %d language en is missing", stage.StageNo)
+			blockers = append(blockers, RecallEmailLocalizationBlocker{StageNo: stage.StageNo, Locale: "en", Reason: "missing"})
 		}
+		missingTarget := false
 		for _, language := range recallEmailTranslationLanguages {
 			if _, exists := stage.Templates[language]; !exists {
-				return fmt.Errorf("recall email stage %d language %s translation is missing", stage.StageNo, language)
+				missingTarget = true
+				blockers = append(blockers, RecallEmailLocalizationBlocker{StageNo: stage.StageNo, Locale: language, Reason: "missing"})
 			}
 		}
 		if len(stage.Templates) != len(recallEmailTranslationLanguages)+1 {
@@ -1787,13 +1956,18 @@ func validateRecallEmailActivationLocalization(stages []RecallEmailStage) error 
 			sort.Strings(languages)
 			for _, language := range languages {
 				if language != "en" && !isRecallEmailTranslationLanguage(language) {
-					return fmt.Errorf("recall email stage %d language %s is unsupported", stage.StageNo, language)
+					blockers = append(blockers, RecallEmailLocalizationBlocker{StageNo: stage.StageNo, Locale: language, Reason: "invalid"})
 				}
 			}
 		}
-		if stage.SourceRevision <= 0 || stage.TranslatedSourceRevision != stage.SourceRevision {
-			return fmt.Errorf("recall email stage %d language %s translation is stale", stage.StageNo, recallEmailTranslationLanguages[0])
+		if !missingTarget && (stage.SourceRevision <= 0 || stage.TranslatedSourceRevision != stage.SourceRevision) {
+			for _, language := range recallEmailTranslationLanguages {
+				blockers = append(blockers, RecallEmailLocalizationBlocker{StageNo: stage.StageNo, Locale: language, Reason: "stale"})
+			}
 		}
+	}
+	if len(blockers) > 0 {
+		return &RecallActivationBlockedError{Blockers: blockers}
 	}
 	return nil
 }

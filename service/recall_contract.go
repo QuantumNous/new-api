@@ -133,6 +133,35 @@ type RecallEmailPreviewResponse struct {
 	BodyHTML string `json:"body_html"`
 }
 
+type RecallEmailGenerationRequest struct {
+	ConfigRevision int64              `json:"config_revision"`
+	Name           string             `json:"name"`
+	Emails         []RecallEmailStage `json:"email_sequence"`
+}
+
+type RecallEmailGenerationResponse struct {
+	ConfigRevision int64              `json:"config_revision"`
+	Emails         []RecallEmailStage `json:"email_sequence"`
+}
+
+type RecallEmailLocalizationBlocker struct {
+	StageNo int    `json:"stage_no"`
+	Locale  string `json:"locale"`
+	Reason  string `json:"reason"`
+}
+
+type RecallActivationBlockedError struct {
+	Blockers []RecallEmailLocalizationBlocker
+}
+
+func (e *RecallActivationBlockedError) Error() string {
+	if e == nil || len(e.Blockers) == 0 {
+		return "recall campaign activation is blocked by email localization"
+	}
+	blocker := e.Blockers[0]
+	return fmt.Sprintf("recall email stage %d language %s translation is %s", blocker.StageNo, blocker.Locale, blocker.Reason)
+}
+
 func PreviewRecallEmail(request RecallEmailPreviewRequest) (RecallEmailPreviewResponse, error) {
 	campaignType, err := normalizeRecallCampaignType(request.CampaignType)
 	if err != nil {

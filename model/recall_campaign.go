@@ -253,6 +253,25 @@ func UpdateRecallCampaignEmailSequenceWithContext(ctx context.Context, id int64,
 	return result.RowsAffected == 1, nil
 }
 
+func UpdateRecallCampaignEmailTranslationsWithContext(ctx context.Context, id int64, expectedConfigRevision int64, name string, emailSequence string) (bool, error) {
+	result := DB.WithContext(ctx).Model(&RecallCampaign{}).
+		Where("id = ? AND status IN ? AND config_revision = ?", id, []string{
+			RecallCampaignDraft,
+			RecallCampaignScheduled,
+			RecallCampaignRunning,
+			RecallCampaignPaused,
+		}, expectedConfigRevision).
+		Updates(map[string]any{
+			"name":                  name,
+			"email_sequence_config": emailSequence,
+			"config_revision":       gorm.Expr("config_revision + ?", 1),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 func ListDueRecallCampaignsWithContext(ctx context.Context, now int64, limit int) ([]RecallCampaign, error) {
 	campaigns := make([]RecallCampaign, 0)
 	if limit <= 0 {

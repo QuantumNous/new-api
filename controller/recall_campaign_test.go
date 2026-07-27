@@ -36,6 +36,27 @@ type recallControllerStripeFake struct {
 	getPrice            int
 }
 
+type recallControllerEmailTranslator struct {
+	calls int
+}
+
+func (f *recallControllerEmailTranslator) Translate(_ context.Context, stages []service.RecallEmailStage) (map[int]map[string]service.RecallEmailTemplate, error) {
+	f.calls++
+	result := make(map[int]map[string]service.RecallEmailTemplate, len(stages))
+	for _, stage := range stages {
+		english := stage.Templates["en"]
+		translations := make(map[string]service.RecallEmailTemplate, 7)
+		for _, language := range []string{"zh", "es", "fr", "pt", "ru", "ja", "vi"} {
+			translations[language] = service.RecallEmailTemplate{
+				Subject:  language + ":" + english.Subject,
+				BodyText: language + ":" + english.BodyText,
+			}
+		}
+		result[stage.StageNo] = translations
+	}
+	return result, nil
+}
+
 func (f *recallControllerStripeFake) CreateCoupon(_ context.Context, _ *stripe.CouponParams) (*stripe.Coupon, error) {
 	f.createCoupon++
 	return &stripe.Coupon{ID: "coupon_created", Valid: true, Duration: stripe.CouponDurationOnce}, nil
@@ -89,10 +110,11 @@ func (f *recallControllerStripeFake) GetCheckoutSession(_ context.Context, id st
 }
 
 type recallControllerHarness struct {
-	db        *gorm.DB
-	runtime   *service.RecallRuntime
-	stripe    *recallControllerStripeFake
-	sendCount int
+	db         *gorm.DB
+	runtime    *service.RecallRuntime
+	stripe     *recallControllerStripeFake
+	translator *recallControllerEmailTranslator
+	sendCount  int
 }
 
 func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
@@ -131,16 +153,18 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 		&model.RecallRecipient{},
 		&model.RecallMessage{},
 		&model.RecallEvent{},
+		&model.RecallEmailQuotaWindow{},
 	))
 
 	setRecallControllerEnabled(t, true)
 	stripeFake := &recallControllerStripeFake{}
 	claims := service.NewRecallClaimService()
 	audience := service.NewRecallAudienceSelector()
-	harness := &recallControllerHarness{db: db, stripe: stripeFake}
+	translator := &recallControllerEmailTranslator{}
+	harness := &recallControllerHarness{db: db, stripe: stripeFake, translator: translator}
 	stripeService := service.NewRecallStripeService(stripeFake)
 	harness.runtime = &service.RecallRuntime{
-		Campaigns:   service.NewRecallCampaignService(audience, stripeService),
+		Campaigns:   service.NewRecallCampaignServiceWithTranslator(audience, stripeService, translator),
 		Claims:      claims,
 		Recipients:  service.NewRecallRecipientWorker(stripeService, claims, "controller-test"),
 		Emails:      service.NewRecallEmailWorker(func(_, _, _, _ string) error { harness.sendCount++; return nil }, audience, claims, "controller-test"),
@@ -170,15 +194,17 @@ func setRecallControllerEnabled(t *testing.T, enabled bool) {
 		value = "true"
 	}
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"recall_campaign_setting.enabled":      value,
-		"recall_campaign_setting.batch_size":   "100",
-		"recall_campaign_setting.tick_seconds": "30",
+		"recall_campaign_setting.enabled":            value,
+		"recall_campaign_setting.batch_size":         "100",
+		"recall_campaign_setting.tick_seconds":       "30",
+		"recall_campaign_setting.email_hourly_limit": "100",
 	}))
 	t.Cleanup(func() {
 		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-			"recall_campaign_setting.enabled":      "false",
-			"recall_campaign_setting.batch_size":   "100",
-			"recall_campaign_setting.tick_seconds": "30",
+			"recall_campaign_setting.enabled":            "false",
+			"recall_campaign_setting.batch_size":         "100",
+			"recall_campaign_setting.tick_seconds":       "30",
+			"recall_campaign_setting.email_hourly_limit": "100",
 		}))
 	})
 }
@@ -617,6 +643,74 @@ func TestRecallCampaignCreateAndUpdateRequireJSONAndAdminActor(t *testing.T) {
 	require.Equal(t, true, decodeRecallEnvelope(t, updated)["success"])
 	require.NoError(t, harness.db.First(&campaign, campaign.Id).Error)
 	require.Equal(t, draft.Name, campaign.Name)
+}
+
+func TestRecallEmailGenerationHandlerUpdatesAllTranslations(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
+	detail, err := harness.runtime.Campaigns.GetDetail(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	detail.Draft.Emails[0].Templates["en"] = service.RecallEmailTemplate{Subject: "Generated English", BodyText: "Generated body"}
+	beforeCalls := harness.translator.calls
+	body := recallControllerJSON(t, service.RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         detail.Draft.Emails,
+	})
+
+	recorder := invokeRecallHandler(t, GenerateRecallEmailTranslations, http.MethodPost, "/", body, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	require.Equal(t, beforeCalls+1, harness.translator.calls)
+	data := payload["data"].(map[string]any)
+	require.Equal(t, float64(campaign.ConfigRevision+1), data["config_revision"])
+	emails := data["email_sequence"].([]any)
+	templates := emails[0].(map[string]any)["templates"].(map[string]any)
+	require.Equal(t, "fr:Generated English", templates["fr"].(map[string]any)["subject"])
+}
+
+func TestRecallEmailGenerationActivationReturnsStructuredBlockers(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	draft := recallControllerDraft()
+	draft.DeferLocalization = true
+	campaign, err := harness.runtime.Campaigns.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+
+	recorder := invokeRecallHandler(t, ActivateRecallCampaign, http.MethodPost, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, false, payload["success"])
+	data := payload["data"].(map[string]any)
+	blockers := data["blockers"].([]any)
+	require.NotEmpty(t, blockers)
+	first := blockers[0].(map[string]any)
+	require.Equal(t, float64(1), first["stage_no"])
+	require.Equal(t, "zh", first["locale"])
+	require.Equal(t, "missing", first["reason"])
+}
+
+func TestRecallEmailQuotaStatusRouteReturnsActivityOnlyWindow(t *testing.T) {
+	setupRecallControllerHarness(t)
+	_, reserved, err := model.ReserveRecallEmailQuotaWithContext(context.Background(), 100)
+	require.NoError(t, err)
+	require.True(t, reserved)
+	_, reserved, err = model.ReserveRecallEmailQuotaWithContext(context.Background(), 100)
+	require.NoError(t, err)
+	require.True(t, reserved)
+
+	recorder := invokeRecallHandler(t, GetRecallEmailQuotaStatus, http.MethodGet, "/", nil, 7, nil)
+
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	data := payload["data"].(map[string]any)
+	require.Equal(t, float64(100), data["limit"])
+	require.Equal(t, float64(2), data["used"])
+	require.Equal(t, float64(98), data["remaining"])
+	require.Equal(t, false, data["exhausted"])
+	require.NotZero(t, data["window_started_at"])
+	require.NotZero(t, data["resets_at"])
+	require.Len(t, data, 6)
 }
 
 func TestRecallCampaignPreviewReturnsAudienceAndStripeWithoutCreateOrSend(t *testing.T) {
