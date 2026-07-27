@@ -20,8 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
  * Application-wide constants
  */
 
+// Modified by AI Gateway RU on 2026-07-27.
+
 // System Configuration Defaults
-export const DEFAULT_SYSTEM_NAME = 'New API'
+export const DEFAULT_SYSTEM_NAME = 'AI Gateway RU'
 export const DEFAULT_LOGO = '/logo.png'
 
 // LocalStorage Keys

@@ -10,3 +10,4 @@ docs
 /web/node_modules
 /web/dist
 !THIRD-PARTY-LICENSES.md
+!MODIFICATIONS.md
