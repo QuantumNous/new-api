@@ -310,11 +310,7 @@ func buildStripeSubscriptionRenewalLifecycleResult(binding *model.SubscriptionPr
 		CurrentPeriodEnd: binding.CurrentPeriodEnd,
 	}
 	providerStatus := strings.ToLower(strings.TrimSpace(binding.ProviderStatus))
-	if providerStatus == "canceled" {
-		result.RenewalStatus = model.SubscriptionRenewalStatusCancelledByUser
-		return result
-	}
-	if binding.EndedAt > 0 || !isActionableStripeRenewalStatus(providerStatus) {
+	if binding.EndedAt > 0 || isTerminalStripeSubscriptionStatus(providerStatus) || !isActionableStripeRenewalStatus(providerStatus) {
 		return result
 	}
 	result.RenewalStatus = model.SubscriptionRenewalStatusEnabled

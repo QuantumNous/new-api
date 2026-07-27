@@ -52,7 +52,7 @@ func CancelStripeRecurringSubscription(userID int, bindingID int64) (*model.Subs
 		if err != nil {
 			return nil, err
 		}
-		return model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, expectedLifecycleActionSeq, snapshot)
+		return model.ApplyProviderSubscriptionLifecycleSnapshotStrict(binding.Id, expectedLifecycleActionSeq, snapshot)
 	}
 	return resolvePendingDowngradeAfterCancelAttempt(binding, expectedLifecycleActionSeq, downgrade, err)
 }
@@ -117,7 +117,7 @@ func ResumeStripeRecurringSubscription(userID int, bindingID int64) (*model.Subs
 	if err != nil {
 		return nil, err
 	}
-	return model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, snapshot)
+	return model.ApplyProviderSubscriptionLifecycleSnapshotStrict(binding.Id, binding.LifecycleActionSeq, snapshot)
 }
 
 func AdminInvalidateUserSubscriptionWithRecurringPolicy(userSubscriptionID int) (string, error) {
@@ -559,12 +559,12 @@ func reconcileCancelDowngradeCompensation(intent model.SubscriptionChangeIntent)
 		return errors.New("cancel downgrade compensation Stripe subscription mismatch")
 	}
 	if snapshot.CancelAtPeriodEnd {
-		if _, err := model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, snapshot); err != nil {
+		if _, err := model.ApplyProviderSubscriptionLifecycleSnapshotStrict(binding.Id, binding.LifecycleActionSeq, snapshot); err != nil {
 			return err
 		}
 		return clearPendingDowngradeAfterCancel(&binding, intent)
 	}
-	if _, err := model.ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, snapshot); err != nil {
+	if _, err := model.ApplyProviderSubscriptionLifecycleSnapshotStrict(binding.Id, binding.LifecycleActionSeq, snapshot); err != nil {
 		return err
 	}
 	return restorePendingDowngradeAfterCancelFailure(&binding, intent, snapshot, errors.New("authoritative Stripe subscription is not canceled at period end"))

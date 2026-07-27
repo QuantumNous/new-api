@@ -176,7 +176,7 @@ func TestStripeRenewalLifecycleResultNeverExposesTerminalBindingAsEnabled(t *tes
 		endedAt    int64
 		wantStatus string
 	}{
-		{name: "user canceled", status: "canceled", endedAt: 100, wantStatus: model.SubscriptionRenewalStatusCancelledByUser},
+		{name: "user canceled", status: "canceled", endedAt: 100},
 		{name: "unpaid terminal", status: "unpaid", endedAt: 100},
 		{name: "incomplete expired terminal", status: "incomplete_expired", endedAt: 100},
 		{name: "incomplete", status: "incomplete"},

@@ -342,6 +342,63 @@ func TestStripeSubscriptionLifecycleRejectsStaleCancelSnapshotAfterResume(t *tes
 	require.Equal(t, int64(2), stored.LifecycleActionSeq)
 }
 
+func TestStripeSubscriptionLifecycleDirectMutationsUseStrictCAS(t *testing.T) {
+	testCases := []struct {
+		name              string
+		cancelAtPeriodEnd bool
+		invoke            func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error)
+		triggerTarget     int
+	}{
+		{name: "cancel", cancelAtPeriodEnd: false, invoke: CancelStripeRecurringSubscription, triggerTarget: 1},
+		{name: "resume", cancelAtPeriodEnd: true, invoke: ResumeStripeRecurringSubscription, triggerTarget: 0},
+	}
+	for index, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			setupStripeSubscriptionLifecycleTestDB(t)
+			userID := 824 + index
+			binding := insertStripeLifecycleBindingWithSubscriptionID(
+				t,
+				userID,
+				"sub_strict_direct_"+testCase.name,
+				"active",
+				testCase.cancelAtPeriodEnd,
+			)
+			originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+			t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
+			stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+				return model.ProviderSubscriptionSnapshot{
+					ProviderSubscriptionId: providerSubscriptionID,
+					ProviderStatus:         "active",
+					CancelAtPeriodEnd:      cancelAtPeriodEnd,
+					CurrentPeriodStart:     1000,
+					CurrentPeriodEnd:       2000,
+				}, nil
+			}
+			triggerName := "advance_direct_seq_" + testCase.name
+			require.NoError(t, model.DB.Exec(fmt.Sprintf(`
+				CREATE TRIGGER %s
+				BEFORE UPDATE OF cancel_at_period_end ON subscription_provider_bindings
+				WHEN OLD.id = %d AND OLD.lifecycle_action_seq = %d AND NEW.cancel_at_period_end = %d
+				BEGIN
+					UPDATE subscription_provider_bindings
+					SET cancel_at_period_end = %d,
+						lifecycle_action_seq = OLD.lifecycle_action_seq + 1
+					WHERE id = OLD.id;
+					SELECT RAISE(IGNORE);
+				END
+			`, triggerName, binding.Id, binding.LifecycleActionSeq, testCase.triggerTarget, testCase.triggerTarget)).Error)
+			t.Cleanup(func() {
+				require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
+			})
+
+			updated, err := testCase.invoke(userID, binding.Id)
+
+			require.ErrorIs(t, err, model.ErrSubscriptionProviderLifecycleConflict)
+			require.Nil(t, updated)
+		})
+	}
+}
+
 func TestStripeSubscriptionLifecycleRejectsForeignBinding(t *testing.T) {
 	setupStripeSubscriptionLifecycleTestDB(t)
 	binding := insertStripeLifecycleBinding(t, 803, "active", false)
@@ -786,6 +843,75 @@ func TestCancelDowngradeCompensationReconciliationClosesAuthoritativeBranches(t 
 				require.False(t, reloadedBinding.CancelAtPeriodEnd)
 				require.Equal(t, "sched_cancel_reconciled", reloadedBinding.ProviderScheduleId)
 			}
+		})
+	}
+}
+
+func TestCancelDowngradeCompensationReconciliationUsesStrictCAS(t *testing.T) {
+	for _, cancelAtPeriodEnd := range []bool{true, false} {
+		name := "cancel_not_applied"
+		triggerTarget := 0
+		if cancelAtPeriodEnd {
+			name = "cancel_confirmed"
+			triggerTarget = 1
+		}
+		t.Run(name, func(t *testing.T) {
+			setupStripeSubscriptionLifecycleTestDB(t)
+			binding, contract, intent := seedPendingDowngradeCancelFixture(
+				t,
+				826,
+				"sched_reconcile_strict_"+name,
+				"reconcile-strict-"+name,
+			)
+			require.NoError(t, model.DB.Model(contract).Update("status", model.SubscriptionContractStatusNeedsAttention).Error)
+			require.NoError(t, model.DB.Model(intent).Update("status", model.SubscriptionChangeIntentStatusCompensationRequired).Error)
+			contract.Status = model.SubscriptionContractStatusNeedsAttention
+			intent.Status = model.SubscriptionChangeIntentStatusCompensationRequired
+			originalGet := stripeSubscriptionSnapshotGetter
+			originalRestore := stripeRestoreSubscriptionSchedule
+			t.Cleanup(func() {
+				stripeSubscriptionSnapshotGetter = originalGet
+				stripeRestoreSubscriptionSchedule = originalRestore
+			})
+			stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+				return model.ProviderSubscriptionSnapshot{
+					ProviderSubscriptionId: providerSubscriptionID,
+					ProviderStatus:         "active",
+					CancelAtPeriodEnd:      cancelAtPeriodEnd,
+					CurrentPeriodStart:     1000,
+					CurrentPeriodEnd:       2000,
+				}, nil
+			}
+			var restoreCalls int
+			stripeRestoreSubscriptionSchedule = func(rawSnapshot string, idempotencyKey string) (string, error) {
+				restoreCalls++
+				return "sched_restored_after_reconcile_race", nil
+			}
+			triggerName := "advance_reconcile_seq_" + name
+			require.NoError(t, model.DB.Exec(fmt.Sprintf(`
+				CREATE TRIGGER %s
+				BEFORE UPDATE OF cancel_at_period_end ON subscription_provider_bindings
+				WHEN OLD.id = %d AND OLD.lifecycle_action_seq = %d AND NEW.cancel_at_period_end = %d
+				BEGIN
+					UPDATE subscription_provider_bindings
+					SET cancel_at_period_end = %d,
+						lifecycle_action_seq = OLD.lifecycle_action_seq + 1
+					WHERE id = OLD.id;
+					SELECT RAISE(IGNORE);
+				END
+			`, triggerName, binding.Id, binding.LifecycleActionSeq, triggerTarget, triggerTarget)).Error)
+			t.Cleanup(func() {
+				require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
+			})
+
+			err := reconcileCancelDowngradeCompensation(*intent)
+
+			require.ErrorIs(t, err, model.ErrSubscriptionProviderLifecycleConflict)
+			require.Zero(t, restoreCalls)
+			require.NoError(t, model.DB.First(contract, contract.Id).Error)
+			require.Equal(t, model.SubscriptionContractStatusNeedsAttention, contract.Status)
+			require.NoError(t, model.DB.First(intent, intent.Id).Error)
+			require.Equal(t, model.SubscriptionChangeIntentStatusCompensationRequired, intent.Status)
 		})
 	}
 }

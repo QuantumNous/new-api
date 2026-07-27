@@ -305,6 +305,18 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 		}
 		if expectedLifecycleActionSeq != nil && updateResult.RowsAffected != 1 {
 			if strictLifecycleCAS {
+				var current SubscriptionProviderBinding
+				if err := tx.Where("id = ?", bindingID).First(&current).Error; err != nil {
+					return err
+				}
+				if current.LifecycleActionSeq == *expectedLifecycleActionSeq &&
+					current.EndedAt == 0 &&
+					current.ProviderSubscriptionId == binding.ProviderSubscriptionId &&
+					!isTerminalProviderSubscriptionStatus(current.ProviderStatus) &&
+					current.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
+					binding = current
+					return nil
+				}
 				return ErrSubscriptionProviderLifecycleConflict
 			}
 			lifecycleCASMiss = true

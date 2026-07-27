@@ -605,6 +605,47 @@ func TestApplyProviderSubscriptionLifecycleSnapshotRejectsTerminalInputWithoutEn
 	require.Equal(t, SubscriptionEntitlementStatusActive, storedEntitlement.Status)
 }
 
+func TestApplyProviderSubscriptionLifecycleSnapshotStrictAcceptsMatchedNoOpCAS(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+	insertUserForSubscriptionRecurringTest(t, 513)
+	insertPlanForSubscriptionRecurringTest(t, 613, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-strict-noop", 513, 613)
+
+	binding, err := CompleteSubscriptionOrderWithProviderBinding(
+		"recurring-order-strict-noop",
+		"{}",
+		PaymentProviderStripe,
+		PaymentMethodStripe,
+		stripeSnapshotForSubscriptionRecurringTest("sub_strict_noop"),
+	)
+	require.NoError(t, err)
+	require.NoError(t, DB.Exec(fmt.Sprintf(`
+		CREATE TRIGGER ignore_strict_lifecycle_noop
+		BEFORE UPDATE OF cancel_at_period_end ON subscription_provider_bindings
+		WHEN OLD.id = %d AND OLD.lifecycle_action_seq = %d AND NEW.cancel_at_period_end = 0
+		BEGIN
+			SELECT RAISE(IGNORE);
+		END
+	`, binding.Id, binding.LifecycleActionSeq)).Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Exec("DROP TRIGGER IF EXISTS ignore_strict_lifecycle_noop").Error)
+	})
+
+	updated, err := ApplyProviderSubscriptionLifecycleSnapshotStrict(binding.Id, binding.LifecycleActionSeq, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId: binding.ProviderSubscriptionId,
+		ProviderStatus:         binding.ProviderStatus,
+		CancelAtPeriodEnd:      binding.CancelAtPeriodEnd,
+		CurrentPeriodStart:     binding.CurrentPeriodStart,
+		CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.False(t, updated.CancelAtPeriodEnd)
+	require.Equal(t, binding.LifecycleActionSeq, updated.LifecycleActionSeq)
+}
+
 func TestApplyProviderSubscriptionSnapshotDoesNotReviveTerminalBinding(t *testing.T) {
 	setupSubscriptionRecurringTestDB(t)
 	migrateSubscriptionRecurringTestDB(t)
