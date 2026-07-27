@@ -449,6 +449,75 @@ func TestPurchaseSubscriptionRecallSuppliedWeakerClaimDoesNotOverrideBestAccount
 	require.Equal(t, "promo_subscription_strong", result.Order.RecallPromotionCodeId)
 }
 
+func TestPurchaseSubscriptionRecallConvertedUnrelatedClaimDoesNotVetoAccountOffer(t *testing.T) {
+	setupSubscriptionRecallPurchaseTestDB(t)
+	now := time.Now().UTC()
+	user := model.User{
+		Id:       753602,
+		Username: "purchase_converted_hint_user",
+		Email:    "purchase-converted-hint@example.com",
+		Status:   common.UserStatusEnabled,
+		Quota:    50000,
+		Group:    "plg",
+	}
+	require.NoError(t, model.DB.Create(&user).Error)
+	converted := createRecallOfferFixture(t, user, now.Add(-time.Minute), "subscription converted", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 10},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}}, nil)
+	stronger := createRecallOfferFixture(t, user, now, "subscription active", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 30},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}}, nil)
+	convertedClaim := strings.Repeat("x", 48)
+	convertedHash := recallClaimHash(convertedClaim)
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", converted.recipient.Id).
+		Updates(map[string]interface{}{
+			"claim_token_hash": convertedHash,
+			"state":            model.RecallRecipientConverted,
+			"converted_at":     now.Add(-30 * time.Second).Unix(),
+		}).Error)
+	plan := insertPurchaseServicePlan(t, 7537, 1, 1, 100)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription").Error)
+
+	quote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        user.Id,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        3,
+	})
+	require.NoError(t, err)
+	require.Equal(t, stronger.campaign.Id, quote.RecallCampaignID)
+	require.Equal(t, stronger.recipient.Id, quote.RecallRecipientID)
+	verifiedQuote := &SubscriptionPurchaseQuote{
+		Currency:                 quote.Currency,
+		UnitPrice:                quote.UnitPrice,
+		UnitAmountMinor:          quote.UnitAmountMinor,
+		OriginalTotal:            quote.OriginalTotal,
+		OriginalTotalAmountMinor: quote.OriginalTotalAmountMinor,
+		DiscountAmount:           quote.DiscountAmount,
+		DiscountAmountMinor:      quote.DiscountAmountMinor,
+		Total:                    quote.Total,
+		PaymentAmountMinor:       quote.PaymentAmountMinor,
+		RecallCampaignID:         quote.RecallCampaignID,
+		RecallRecipientID:        quote.RecallRecipientID,
+	}
+
+	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        user.Id,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        3,
+		RequestID:     "recall-balance-converted-unrelated",
+		RecallClaim:   convertedClaim,
+		VerifiedQuote: verifiedQuote,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, stronger.campaign.Id, result.Order.RecallCampaignId)
+	require.Equal(t, stronger.recipient.Id, result.Order.RecallRecipientId)
+	require.Equal(t, int64(270), result.Order.PaymentAmountMinor)
+}
+
 func TestPurchaseSubscriptionRecallOneTimeOrderPersistsAttributionFields(t *testing.T) {
 	setupSubscriptionRecallPurchaseTestDB(t)
 	now := time.Now().UTC()
