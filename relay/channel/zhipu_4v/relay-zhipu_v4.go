@@ -50,6 +50,7 @@ func requestOpenAI2Zhipu(request dto.GeneralOpenAIRequest) *dto.GeneralOpenAIReq
 		Stop:        Stop,
 		Tools:       request.Tools,
 		ToolChoice:  request.ToolChoice,
+		ToolStream:  request.ToolStream,
 		THINKING:    request.THINKING,
 	}
 	if request.MaxTokens != nil || request.MaxCompletionTokens != nil {

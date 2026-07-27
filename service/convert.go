@@ -73,7 +73,10 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 	}
 
 	// Convert tools
-	tools, _ := common.Any2Type[[]dto.Tool](claudeRequest.Tools)
+	tools, err := common.Any2Type[[]dto.Tool](claudeRequest.Tools)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert Claude tools: %w", err)
+	}
 	openAITools := make([]dto.ToolCallRequest, 0)
 	for _, claudeTool := range tools {
 		openAITool := dto.ToolCallRequest{
@@ -87,6 +90,13 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 		openAITools = append(openAITools, openAITool)
 	}
 	openAIRequest.Tools = openAITools
+	openAIRequest.ToolChoice, openAIRequest.ParallelTooCalls, err = claudeToolChoiceToOpenAI(claudeRequest.ToolChoice)
+	if err != nil {
+		return nil, err
+	}
+	if lo.FromPtr(openAIRequest.Stream) && len(openAIRequest.Tools) > 0 && supportsGLMToolStream(openAIRequest.Model) {
+		openAIRequest.ToolStream = lo.ToPtr(true)
+	}
 
 	// Convert messages
 	openAIMessages := make([]dto.Message, 0)
@@ -216,6 +226,50 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 	return &openAIRequest, nil
 }
 
+func claudeToolChoiceToOpenAI(rawChoice any) (any, *bool, error) {
+	if rawChoice == nil {
+		return nil, nil, nil
+	}
+
+	choice, err := common.Any2Type[dto.ClaudeToolChoice](rawChoice)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to convert Claude tool_choice: %w", err)
+	}
+
+	var parallelToolCalls *bool
+	if choice.DisableParallelToolUse {
+		parallelToolCalls = lo.ToPtr(false)
+	}
+
+	switch strings.ToLower(choice.Type) {
+	case "", "auto":
+		return "auto", parallelToolCalls, nil
+	case "any":
+		return "required", parallelToolCalls, nil
+	case "none":
+		return "none", parallelToolCalls, nil
+	case "tool":
+		if choice.Name == "" {
+			return nil, nil, fmt.Errorf("Claude tool_choice type %q requires a tool name", choice.Type)
+		}
+		return map[string]any{
+			"type": "function",
+			"function": map[string]any{
+				"name": choice.Name,
+			},
+		}, parallelToolCalls, nil
+	default:
+		return nil, nil, fmt.Errorf("unsupported Claude tool_choice type %q", choice.Type)
+	}
+}
+
+func supportsGLMToolStream(model string) bool {
+	normalized := strings.ToLower(model)
+	return strings.Contains(normalized, "glm-4.6") ||
+		strings.Contains(normalized, "glm-4.7") ||
+		strings.Contains(normalized, "glm-5")
+}
+
 func generateStopBlock(index int) *dto.ClaudeResponse {
 	return &dto.ClaudeResponse{
 		Type:  "content_block_stop",
@@ -295,6 +349,24 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			info.ClaudeConvertInfo.Index++
 		}
 		info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeNone
+	}
+	finishStream := func(oaiUsage *dto.Usage) bool {
+		if info.FinishReason == "" || oaiUsage == nil {
+			return false
+		}
+		stopOpenBlocks()
+		claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+			Type:  "message_delta",
+			Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
+			Delta: &dto.ClaudeMediaMessage{
+				StopReason: common.GetPointer[string](stopReasonOpenAI2Claude(info.FinishReason)),
+			},
+		})
+		claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+			Type: "message_stop",
+		})
+		info.ClaudeConvertInfo.Done = true
+		return true
 	}
 	if info.SendResponseCount == 1 {
 		msg := &dto.ClaudeMediaMessage{
@@ -413,24 +485,11 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		// 如果首块就带 finish_reason，需要立即发送停止块
 		if len(openAIResponse.Choices) > 0 && openAIResponse.Choices[0].FinishReason != nil && *openAIResponse.Choices[0].FinishReason != "" {
 			info.FinishReason = *openAIResponse.Choices[0].FinishReason
-			stopOpenBlocks()
 			oaiUsage := openAIResponse.Usage
 			if oaiUsage == nil {
 				oaiUsage = info.ClaudeConvertInfo.Usage
 			}
-			if oaiUsage != nil {
-				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-					Type:  "message_delta",
-					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
-					Delta: &dto.ClaudeMediaMessage{
-						StopReason: common.GetPointer[string](stopReasonOpenAI2Claude(info.FinishReason)),
-					},
-				})
-			}
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Type: "message_stop",
-			})
-			info.ClaudeConvertInfo.Done = true
+			finishStream(oaiUsage)
 		}
 		return claudeResponses
 	}
@@ -441,24 +500,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		if oaiUsage == nil {
 			oaiUsage = info.ClaudeConvertInfo.Usage
 		}
-		if oaiUsage != nil {
-			stopOpenBlocks()
-			stopReason := stopReasonOpenAI2Claude(info.FinishReason)
-			if stopReason == "" {
-				stopReason = "end_turn"
-			}
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Type:  "message_delta",
-				Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
-				Delta: &dto.ClaudeMediaMessage{
-					StopReason: common.GetPointer[string](stopReason),
-				},
-			})
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Type: "message_stop",
-			})
-			info.ClaudeConvertInfo.Done = true
-		}
+		finishStream(oaiUsage)
 		return claudeResponses
 	} else {
 		chosenChoice := openAIResponse.Choices[0]
@@ -578,26 +620,14 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			claudeResponses = append(claudeResponses, &claudeResponse)
 		}
 
-		if doneChunk || info.ClaudeConvertInfo.Done {
-			stopOpenBlocks()
+		if doneChunk || info.FinishReason != "" || info.ClaudeConvertInfo.Done {
 			oaiUsage := openAIResponse.Usage
 			if oaiUsage == nil {
 				oaiUsage = info.ClaudeConvertInfo.Usage
 			}
-			if oaiUsage != nil {
-				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-					Type:  "message_delta",
-					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
-					Delta: &dto.ClaudeMediaMessage{
-						StopReason: common.GetPointer[string](stopReasonOpenAI2Claude(info.FinishReason)),
-					},
-				})
+			if finishStream(oaiUsage) {
+				return claudeResponses
 			}
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Type: "message_stop",
-			})
-			info.ClaudeConvertInfo.Done = true
-			return claudeResponses
 		}
 	}
 

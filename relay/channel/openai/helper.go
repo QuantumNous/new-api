@@ -2,6 +2,7 @@ package openai
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -210,7 +211,7 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	case types.RelayFormatClaude:
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
-			common.SysLog("error unmarshalling stream response: " + err.Error())
+			handleIncompleteClaudeStream(c, info, fmt.Sprintf("failed to parse final upstream stream chunk: %v", err))
 			return
 		}
 
@@ -220,7 +221,9 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		for _, resp := range claudeResponses {
 			_ = helper.ClaudeData(c, *resp)
 		}
-		info.ClaudeConvertInfo.Done = true
+		if !info.ClaudeConvertInfo.Done {
+			handleIncompleteClaudeStream(c, info, "upstream stream ended without finish_reason")
+		}
 
 	case types.RelayFormatGemini:
 		var streamResponse dto.ChatCompletionsStreamResponse
@@ -251,6 +254,21 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		c.Render(-1, common.CustomEvent{Data: "data: " + string(geminiResponseStr)})
 		_ = helper.FlushWriter(c)
 	}
+}
+
+func handleIncompleteClaudeStream(c *gin.Context, info *relaycommon.RelayInfo, message string) {
+	logger.LogError(c, message)
+	if info.StreamStatus != nil {
+		info.StreamStatus.RecordError(message)
+	}
+	_ = helper.ClaudeData(c, dto.ClaudeResponse{
+		Type: "error",
+		Error: types.ClaudeError{
+			Type:    "api_error",
+			Message: message,
+		},
+	})
+	info.ClaudeConvertInfo.Done = true
 }
 
 func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamResponse, data string) {

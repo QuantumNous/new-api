@@ -55,6 +55,7 @@ type GeneralOpenAIRequest struct {
 	ParallelTooCalls    *bool             `json:"parallel_tool_calls,omitempty"`
 	Tools               []ToolCallRequest `json:"tools,omitempty"`
 	ToolChoice          any               `json:"tool_choice,omitempty"`
+	ToolStream          *bool             `json:"tool_stream,omitempty"`
 	FunctionCall        json.RawMessage   `json:"function_call,omitempty"`
 	User                json.RawMessage   `json:"user,omitempty"`
 	// ServiceTier specifies upstream service level and may affect billing.
