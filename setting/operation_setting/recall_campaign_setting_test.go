@@ -19,25 +19,42 @@ func TestRecallCampaignSettingDefaultsTickSeconds(t *testing.T) {
 	require.Equal(t, 30, GetRecallCampaignSetting().TickSeconds)
 }
 
+func TestRecallCampaignSettingDefaultsEmailHourlyLimit(t *testing.T) {
+	require.Equal(t, 100, GetRecallCampaignSetting().EmailHourlyLimit)
+}
+
 func TestRecallCampaignSettingLoadsFromConfigMap(t *testing.T) {
 	cfg := RecallCampaignSetting{}
 
 	err := config.UpdateConfigFromMap(&cfg, map[string]string{
-		"enabled":      "true",
-		"batch_size":   "25",
-		"tick_seconds": "15",
+		"enabled":            "true",
+		"batch_size":         "25",
+		"tick_seconds":       "15",
+		"email_hourly_limit": "250",
 	})
 
 	require.NoError(t, err)
 	require.True(t, cfg.Enabled)
 	require.Equal(t, 25, cfg.BatchSize)
 	require.Equal(t, 15, cfg.TickSeconds)
+	require.Equal(t, 250, cfg.EmailHourlyLimit)
 }
 
 func TestRecallCampaignSettingNormalizeAndValidate(t *testing.T) {
-	cfg := RecallCampaignSetting{BatchSize: 25, TickSeconds: 15}
+	cfg := RecallCampaignSetting{BatchSize: 25, TickSeconds: 15, EmailHourlyLimit: 100}
 	require.NoError(t, cfg.NormalizeAndValidate())
 
-	cfg = RecallCampaignSetting{BatchSize: 0, TickSeconds: 30}
+	cfg = RecallCampaignSetting{BatchSize: 0, TickSeconds: 30, EmailHourlyLimit: 100}
 	require.Error(t, cfg.NormalizeAndValidate())
+}
+
+func TestRecallCampaignSettingRejectsEmailHourlyLimitOutsideRange(t *testing.T) {
+	for _, limit := range []int{0, 100001} {
+		cfg := RecallCampaignSetting{
+			BatchSize:        100,
+			TickSeconds:      30,
+			EmailHourlyLimit: limit,
+		}
+		require.ErrorContains(t, cfg.NormalizeAndValidate(), "email hourly limit")
+	}
 }
