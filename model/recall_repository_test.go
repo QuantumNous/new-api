@@ -2005,6 +2005,77 @@ func TestRecallLeaseListsOnlyDueProvisioningAndMessageWork(t *testing.T) {
 	require.False(t, won)
 }
 
+func TestListDueRecallMessagesOrdersByEffectiveDueTimeThenID(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	now := int64(1_721_000_000)
+	messages := []RecallMessage{
+		{RecipientId: 501, StageNo: 1, TemplateSnapshot: `{}`, ScheduledAt: now - 10, State: RecallMessageScheduled},
+		{RecipientId: 502, StageNo: 1, TemplateSnapshot: `{}`, NextAttemptAt: now - 30, State: RecallMessageRetryWait},
+		{RecipientId: 503, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageLeased, LeaseOwner: "old", LeaseExpiresAt: now - 20},
+		{RecipientId: 504, StageNo: 1, TemplateSnapshot: `{}`, ScheduledAt: now - 30, State: RecallMessageScheduled},
+	}
+	require.NoError(t, DB.Create(&messages).Error)
+
+	due, err := ListDueRecallMessages(now, 10)
+	require.NoError(t, err)
+	require.Equal(t, []RecallDueMessage{
+		{ID: messages[1].Id, State: RecallMessageRetryWait, EffectiveDueAt: now - 30},
+		{ID: messages[3].Id, State: RecallMessageScheduled, EffectiveDueAt: now - 30},
+		{ID: messages[2].Id, State: RecallMessageLeased, EffectiveDueAt: now - 20, PreviousLeaseExpires: now - 20},
+		{ID: messages[0].Id, State: RecallMessageScheduled, EffectiveDueAt: now - 10},
+	}, due)
+}
+
+func TestReleaseRecallMessageLeaseRestoresScheduledAndRetryStates(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	now := int64(1_721_000_000)
+	messages := []RecallMessage{
+		{RecipientId: 511, StageNo: 1, TemplateSnapshot: `{}`, ScheduledAt: now - 30, State: RecallMessageScheduled, AttemptCount: 1},
+		{RecipientId: 512, StageNo: 1, TemplateSnapshot: `{}`, NextAttemptAt: now - 20, State: RecallMessageRetryWait, AttemptCount: 2},
+		{RecipientId: 513, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageLeased, LeaseOwner: "expired-owner", LeaseExpiresAt: now - 10, AttemptCount: 3},
+	}
+	require.NoError(t, DB.Create(&messages).Error)
+	due, err := ListDueRecallMessages(now, 10)
+	require.NoError(t, err)
+	require.Len(t, due, len(messages))
+	expectedAttempts := make(map[int64]int, len(messages))
+	for _, message := range messages {
+		expectedAttempts[message.Id] = message.AttemptCount
+	}
+
+	for _, candidate := range due {
+		leaseUntil := now + 60 + candidate.ID
+		won, err := LeaseDueRecallMessage(candidate, "quota-worker", now, leaseUntil)
+		require.NoError(t, err)
+		require.True(t, won)
+
+		released, err := ReleaseRecallMessageLeaseWithContext(
+			context.Background(), candidate.ID, "quota-worker", leaseUntil, candidate,
+		)
+		require.NoError(t, err)
+		require.True(t, released)
+
+		var stored RecallMessage
+		require.NoError(t, DB.First(&stored, candidate.ID).Error)
+		require.Equal(t, candidate.State, stored.State)
+		require.Empty(t, stored.LeaseOwner)
+		require.Equal(t, candidate.PreviousLeaseExpires, stored.LeaseExpiresAt)
+		require.Equal(t, expectedAttempts[candidate.ID], stored.AttemptCount)
+	}
+
+	require.Equal(t, now-30, loadRecallMessageForRepositoryTest(t, messages[0].Id).ScheduledAt)
+	require.Equal(t, now-20, loadRecallMessageForRepositoryTest(t, messages[1].Id).NextAttemptAt)
+}
+
+func loadRecallMessageForRepositoryTest(t *testing.T, id int64) RecallMessage {
+	t.Helper()
+	var message RecallMessage
+	require.NoError(t, DB.First(&message, id).Error)
+	return message
+}
+
 func TestRecallLeaseMessageRejectsStaleListingAfterFutureRetryTransition(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 

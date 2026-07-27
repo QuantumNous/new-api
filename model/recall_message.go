@@ -49,6 +49,79 @@ type RecallEmailWorkItem struct {
 	User      User
 }
 
+type RecallDueMessage struct {
+	ID                   int64
+	State                string
+	EffectiveDueAt       int64
+	PreviousLeaseExpires int64
+}
+
+func ListDueRecallMessages(now int64, limit int) ([]RecallDueMessage, error) {
+	due := make([]RecallDueMessage, 0)
+	if limit <= 0 {
+		return due, nil
+	}
+	const effectiveDueExpression = "CASE WHEN state = ? THEN scheduled_at WHEN state = ? THEN next_attempt_at ELSE lease_expires_at END"
+	err := DB.Model(&RecallMessage{}).
+		Select(
+			"id, state, lease_expires_at AS previous_lease_expires, "+effectiveDueExpression+" AS effective_due_at",
+			RecallMessageScheduled,
+			RecallMessageRetryWait,
+		).
+		Where(
+			"(state = ? AND scheduled_at <= ?) OR (state = ? AND next_attempt_at <= ?) OR (state = ? AND lease_expires_at < ?)",
+			RecallMessageScheduled,
+			now,
+			RecallMessageRetryWait,
+			now,
+			RecallMessageLeased,
+			now,
+		).
+		Order("effective_due_at ASC").
+		Order("id ASC").
+		Limit(limit).
+		Find(&due).Error
+	return due, err
+}
+
+func LeaseDueRecallMessage(candidate RecallDueMessage, owner string, now int64, leaseUntil int64) (bool, error) {
+	query := DB.Model(&RecallMessage{}).
+		Where("id = ? AND state = ?", candidate.ID, candidate.State)
+	switch candidate.State {
+	case RecallMessageScheduled:
+		query = query.Where("scheduled_at = ? AND scheduled_at <= ?", candidate.EffectiveDueAt, now)
+	case RecallMessageRetryWait:
+		query = query.Where("next_attempt_at = ? AND next_attempt_at <= ?", candidate.EffectiveDueAt, now)
+	case RecallMessageLeased:
+		query = query.Where("lease_expires_at = ? AND lease_expires_at < ?", candidate.PreviousLeaseExpires, now)
+	default:
+		return false, nil
+	}
+	result := query.Updates(map[string]any{
+		"state":            RecallMessageLeased,
+		"lease_owner":      owner,
+		"lease_expires_at": leaseUntil,
+	})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func ReleaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage) (bool, error) {
+	result := DB.WithContext(ctx).Model(&RecallMessage{}).
+		Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, RecallMessageLeased, owner, expectedLeaseUntil).
+		Updates(map[string]any{
+			"state":            candidate.State,
+			"lease_owner":      "",
+			"lease_expires_at": candidate.PreviousLeaseExpires,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 func ListDueRecallMessageIDs(now int64, limit int) ([]int64, error) {
 	ids := make([]int64, 0)
 	if limit <= 0 {

@@ -20,6 +20,8 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -862,6 +864,116 @@ func TestRecallEmailRunBatchLeasesOnlyDueMessages(t *testing.T) {
 	require.Equal(t, model.RecallMessageScheduled, loadRecallEmailMessageByID(t, future.Id).State)
 }
 
+func TestRecallEmailWorkerStopsAtSharedHourlyLimit(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	setRecallEmailHourlyLimit(t, 2)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
+		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
+	}).Error)
+	messages := []model.RecallMessage{fixture.message}
+	for i := 2; i <= 4; i++ {
+		_, _, message := addRecallEmailBatchMessage(t, fixture, fmt.Sprintf("quota-%d", i), recallEmailTestNow)
+		messages = append(messages, message)
+	}
+
+	processed, err := fixture.worker.RunBatch(context.Background(), 10)
+	var waitErr *RecallEmailQuotaWaitError
+	require.ErrorAs(t, err, &waitErr)
+	require.Positive(t, waitErr.ResetsAt)
+	require.Equal(t, 2, processed)
+	require.Len(t, *fixture.sent, 2)
+
+	for index, message := range messages {
+		stored := loadRecallEmailMessageByID(t, message.Id)
+		if index < 2 {
+			require.Equal(t, model.RecallMessageAccepted, stored.State)
+			require.Equal(t, 1, stored.AttemptCount)
+			continue
+		}
+		require.Equal(t, model.RecallMessageScheduled, stored.State)
+		require.Zero(t, stored.AttemptCount)
+		require.Empty(t, stored.LeaseOwner)
+		require.Zero(t, stored.LeaseExpiresAt)
+	}
+	status, statusErr := model.GetRecallEmailQuotaStatusWithContext(context.Background(), 2)
+	require.NoError(t, statusErr)
+	require.Equal(t, 2, status.Used)
+	require.True(t, status.Exhausted)
+}
+
+func TestRecallEmailWorkerPreSMTPCancellationDoesNotConsumeQuota(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	setRecallEmailHourlyLimit(t, 1)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
+		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
+	}).Error)
+	settingJSON, err := common.Marshal(dto.UserSetting{RecallMarketingOptOut: true})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", fixture.user.Id).Update("setting", string(settingJSON)).Error)
+	_, _, validMessage := addRecallEmailBatchMessage(t, fixture, "after-opt-out", recallEmailTestNow)
+
+	processed, err := fixture.worker.RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 2, processed)
+	require.Len(t, *fixture.sent, 1)
+	require.Equal(t, model.RecallMessageCancelled, loadRecallEmailMessageByID(t, fixture.message.Id).State)
+	require.Equal(t, model.RecallMessageAccepted, loadRecallEmailMessageByID(t, validMessage.Id).State)
+	status, err := model.GetRecallEmailQuotaStatusWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	require.Equal(t, 1, status.Used)
+}
+
+func TestRecallEmailWorkerRetryAndUncertainSendReserveNewSlots(t *testing.T) {
+	uncertainErr := newRecallEmailUncertainError(t)
+	calls := 0
+	fixture := newRecallEmailFixture(t, 1, func(subject, receiver, content, messageID string) error {
+		calls++
+		if calls == 1 {
+			return errors.New("temporary MAIL FROM rejection")
+		}
+		return uncertainErr
+	})
+	setRecallEmailHourlyLimit(t, 5)
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+	first := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageRetryWait, first.State)
+	*fixture.now = time.Unix(first.NextAttemptAt, 0).UTC()
+	won, err := model.LeaseRecallMessage(first.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
+	require.NoError(t, err)
+	require.True(t, won)
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), first.Id))
+
+	stored := loadRecallEmailMessageByID(t, first.Id)
+	require.Equal(t, model.RecallMessageUncertain, stored.State)
+	require.Equal(t, 2, stored.AttemptCount)
+	status, err := model.GetRecallEmailQuotaStatusWithContext(context.Background(), 5)
+	require.NoError(t, err)
+	require.Equal(t, 2, status.Used)
+}
+
+func TestUnrelatedEmailSenderDoesNotReferenceRecallQuota(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	setRecallEmailHourlyLimit(t, 5)
+	senderCalls := 0
+	unrelatedSender := func(subject, receiver, content, messageID string) error {
+		senderCalls++
+		return nil
+	}
+
+	require.NoError(t, unrelatedSender("subject", "outside@example.com", "body", "<outside@notify.example.com>"))
+	status, err := model.GetRecallEmailQuotaStatusWithContext(context.Background(), 5)
+	require.NoError(t, err)
+	require.Zero(t, status.Used)
+
+	fixture.worker.sender = unrelatedSender
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+	status, err = model.GetRecallEmailQuotaStatusWithContext(context.Background(), 5)
+	require.NoError(t, err)
+	require.Equal(t, 1, status.Used)
+	require.Equal(t, 2, senderCalls)
+}
+
 func TestRecallEmailRunBatchRefreshesStopInputsBeforeEachSend(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -1263,6 +1375,60 @@ func newRecallEmailFixture(t *testing.T, stageCount int, sender RecallEmailSende
 	worker := NewRecallEmailWorker(sender, audience, claims, "email-worker")
 	worker.now = func() time.Time { return now }
 	return recallEmailFixture{worker: worker, claims: claims, campaign: campaign, user: user, recipient: recipient, message: message, sent: &sent, now: &now}
+}
+
+func setRecallEmailHourlyLimit(t *testing.T, limit int) {
+	t.Helper()
+	previous := operation_setting.GetRecallCampaignSetting()
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"recall_campaign_setting.enabled":            boolString(previous.Enabled),
+		"recall_campaign_setting.batch_size":         fmt.Sprintf("%d", previous.BatchSize),
+		"recall_campaign_setting.tick_seconds":       fmt.Sprintf("%d", previous.TickSeconds),
+		"recall_campaign_setting.email_hourly_limit": fmt.Sprintf("%d", limit),
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+			"recall_campaign_setting.enabled":            boolString(previous.Enabled),
+			"recall_campaign_setting.batch_size":         fmt.Sprintf("%d", previous.BatchSize),
+			"recall_campaign_setting.tick_seconds":       fmt.Sprintf("%d", previous.TickSeconds),
+			"recall_campaign_setting.email_hourly_limit": fmt.Sprintf("%d", previous.EmailHourlyLimit),
+		}))
+	})
+}
+
+func addRecallEmailBatchMessage(t *testing.T, fixture recallEmailFixture, suffix string, scheduledAt int64) (model.User, model.RecallRecipient, model.RecallMessage) {
+	t.Helper()
+	user := fixture.user
+	user.Id = 0
+	user.Username = "recall-" + suffix
+	user.Email = suffix + "@example.com"
+	user.AffCode = "recall-" + suffix
+	user.Setting = ""
+	require.NoError(t, model.DB.Create(&user).Error)
+
+	recipient := fixture.recipient
+	recipient.Id = 0
+	recipient.RecipientIdentity = ""
+	recipient.UserId = user.Id
+	recipient.EmailSnapshot = user.Email
+	recipient.State = model.RecallRecipientContacting
+	promotionID := "promo_" + suffix
+	recipient.StripePromotionCodeId = &promotionID
+	require.NoError(t, model.DB.Create(&recipient).Error)
+
+	message := fixture.message
+	message.Id = 0
+	message.RecipientId = recipient.Id
+	message.State = model.RecallMessageScheduled
+	message.ScheduledAt = scheduledAt
+	message.AttemptCount = 0
+	message.NextAttemptAt = 0
+	message.LeaseOwner = ""
+	message.LeaseExpiresAt = 0
+	message.ProviderMessageId = ""
+	message.ClaimTokenHash = nil
+	require.NoError(t, model.DB.Create(&message).Error)
+	return user, recipient, message
 }
 
 func setRecallEmailSMTPFrom(t *testing.T, sender string) {
