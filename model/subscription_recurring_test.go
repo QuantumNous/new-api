@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -386,6 +387,48 @@ func TestProviderSubscriptionSnapshotOmittedSchedulePreservesExistingBindingValu
 	require.NoError(t, err)
 	require.Equal(t, "sub_sched_existing", updated.ProviderScheduleId)
 	require.Equal(t, "si_schedule_preserve_updated", updated.ProviderSubscriptionItemId)
+}
+
+func TestApplyProviderSubscriptionLifecycleSnapshotUsesAtomicSequencePredicate(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+	insertUserForSubscriptionRecurringTest(t, 508)
+	insertPlanForSubscriptionRecurringTest(t, 608, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-lifecycle-cas", 508, 608)
+
+	binding, err := CompleteSubscriptionOrderWithProviderBinding(
+		"recurring-order-lifecycle-cas",
+		"{}",
+		PaymentProviderStripe,
+		PaymentMethodStripe,
+		stripeSnapshotForSubscriptionRecurringTest("sub_lifecycle_cas"),
+	)
+	require.NoError(t, err)
+
+	callbackName := "test:observe_lifecycle_sequence_predicate"
+	var updateWhere string
+	require.NoError(t, DB.Callback().Update().After("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table != "subscription_provider_bindings" {
+			return
+		}
+		where, ok := tx.Statement.Clauses["WHERE"]
+		if ok {
+			updateWhere = fmt.Sprintf("%#v", where.Expression)
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Update().Remove(callbackName))
+	})
+
+	_, err = ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId: binding.ProviderSubscriptionId,
+		ProviderStatus:         "active",
+		CancelAtPeriodEnd:      true,
+		CurrentPeriodStart:     binding.CurrentPeriodStart,
+		CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+	})
+	require.NoError(t, err)
+	require.Contains(t, updateWhere, "lifecycle_action_seq")
 }
 
 func TestApplyProviderSubscriptionSnapshotDoesNotReviveTerminalBinding(t *testing.T) {

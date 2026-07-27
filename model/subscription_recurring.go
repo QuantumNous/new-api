@@ -227,6 +227,7 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 		return nil, errors.New("invalid binding id")
 	}
 	var binding SubscriptionProviderBinding
+	lifecycleCASMiss := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", bindingID).First(&binding).Error; err != nil {
 			return err
@@ -267,13 +268,40 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 		if snapshot.CancelAtPeriodEnd != binding.CancelAtPeriodEnd {
 			updates["lifecycle_action_seq"] = binding.LifecycleActionSeq + 1
 		}
-		if err := tx.Model(&binding).Updates(updates).Error; err != nil {
+		updateQuery := tx.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID)
+		if expectedLifecycleActionSeq != nil {
+			updateQuery = updateQuery.Where(
+				"lifecycle_action_seq = ? AND ended_at = ? AND provider_subscription_id = ? AND provider_status NOT IN ?",
+				*expectedLifecycleActionSeq,
+				0,
+				binding.ProviderSubscriptionId,
+				[]string{"canceled", "incomplete_expired", "unpaid"},
+			)
+		}
+		updateResult := updateQuery.Updates(updates)
+		if updateResult.Error != nil {
+			return updateResult.Error
+		}
+		if expectedLifecycleActionSeq != nil && updateResult.RowsAffected != 1 {
+			lifecycleCASMiss = true
+			return nil
+		}
+		if err := tx.Where("id = ?", bindingID).First(&binding).Error; err != nil {
 			return err
 		}
-		return tx.Where("id = ?", bindingID).First(&binding).Error
+		return nil
 	})
 	if err != nil {
 		return nil, err
+	}
+	if lifecycleCASMiss {
+		if err := DB.Where("id = ?", bindingID).First(&binding).Error; err != nil {
+			return nil, err
+		}
+		if binding.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
+			return &binding, nil
+		}
+		return nil, ErrSubscriptionProviderLifecycleConflict
 	}
 	return &binding, nil
 }
