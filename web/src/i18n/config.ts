@@ -20,7 +20,7 @@ import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
 
-import { convertDetectedLanguage } from './languages'
+import { convertDetectedLanguage, toIntlLocale } from './languages'
 import en from './locales/en.json'
 import fr from './locales/fr.json'
 import ja from './locales/ja.json'
@@ -28,6 +28,11 @@ import ru from './locales/ru.json'
 import vi from './locales/vi.json'
 import zhTW from './locales/zh-TW.json'
 import zhCN from './locales/zh.json'
+
+function syncDocumentLanguage(language?: string) {
+  if (typeof document === 'undefined') return
+  document.documentElement.lang = toIntlLocale(language) ?? 'ru'
+}
 
 export const resources = {
   en,
@@ -38,6 +43,8 @@ export const resources = {
   vi,
   zhTW,
 } as const
+
+i18n.on('languageChanged', syncDocumentLanguage)
 
 i18n
   .use(LanguageDetector)
@@ -60,5 +67,7 @@ i18n
       convertDetectedLanguage,
     },
   })
+
+syncDocumentLanguage(i18n.resolvedLanguage ?? i18n.language)
 
 export default i18n

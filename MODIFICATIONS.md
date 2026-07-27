@@ -8,6 +8,7 @@ and remains licensed under GNU AGPL-3.0.
 - Changed the default product name to `AI Gateway RU`.
 - Changed the first-visit interface language to Russian while preserving the
   user's explicit language selection.
+- Synchronized the HTML document language with the selected interface language.
 - Added a Russian-first product description.
 - Added a GitHub Container Registry workflow for the fork's amd64 image.
 
