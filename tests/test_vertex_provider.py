@@ -142,10 +142,25 @@ def test_vertex_descriptor_and_builder():
 
     d = get_descriptor("vertex")
     assert d is not None and d.needs_key
-    assert [f.key for f in d.fields] == ["project", "location", "service_account_json"]
+    assert [f.key for f in d.fields] == [
+        "project",
+        "location",
+        "auth_method",
+        "service_account_json",
+        "vertex_api_key",
+    ]
     assert [f.key for f in d.fields if f.required] == ["project", "location"]
-    sa = next(f for f in d.fields if f.key == "service_account_json")
-    assert sa.secret and "Application Default Credentials" in sa.help
+    # ADC is the default method (Google's own recommendation) and carries the copyable
+    # sign-in command; the two credential fields hide behind their methods.
+    method = next(f for f in d.fields if f.key == "auth_method")
+    assert method.default == "adc"
+    assert [c["value"] for c in method.choices] == ["adc", "service_account", "api_key"]
+    adc = next(c for c in method.choices if c["value"] == "adc")
+    assert adc["command"].startswith("gcloud auth application-default")
+    by_key = {f.key: f for f in d.fields}
+    assert by_key["service_account_json"].show_when == {"auth_method": "service_account"}
+    assert by_key["vertex_api_key"].show_when == {"auth_method": "api_key"}
+    assert by_key["service_account_json"].secret and by_key["vertex_api_key"].secret
 
     from coworker.providers.matrix import models_for_provider
 
@@ -156,6 +171,108 @@ def test_vertex_descriptor_and_builder():
     )
     assert isinstance(p, VertexProvider)
     assert p._project == "proj" and p._location == "europe-west1"
+
+
+def test_auth_method_narrows_out_other_methods_fields():
+    """Stale values stored under a previously-selected method must never leak into a
+    different auth path."""
+    p = VertexProvider(
+        project="proj",
+        location="us-east5",
+        auth_method="adc",
+        service_account_json="{stale}",
+        api_key="AQ.stale",
+    )
+    assert p._service_account_json is None and p._api_key is None
+    p2 = VertexProvider(
+        project="proj",
+        location="us-east5",
+        auth_method="api_key",
+        api_key="AQ.live",
+        service_account_json="{stale}",
+    )
+    assert p2._api_key == "AQ.live" and p2._service_account_json is None
+
+
+def test_api_key_method_is_gemini_only():
+    p = VertexProvider(
+        project="proj", location="us-east5", auth_method="api_key", api_key="AQ.k"
+    )
+    msgs = [{"role": "user", "content": "x"}]
+    with pytest.raises(RuntimeError, match="Gemini models only"):
+        p.complete(model="claude/claude-sonnet-4-6", messages=msgs)
+    with pytest.raises(RuntimeError, match="Gemini models only"):
+        p.complete(model="openweight/meta/llama-4-maverick-maas", messages=msgs)
+
+
+def test_api_key_method_builds_express_gemini_client(monkeypatch):
+    """Express mode: the key goes to genai.Client WITHOUT project/location (the SDK
+    treats them as mutually exclusive with an API key)."""
+    from google import genai
+
+    captured: dict = {}
+
+    class _FakeClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(genai, "Client", _FakeClient)
+    p = VertexProvider(
+        project="proj", location="us-east5", auth_method="api_key", api_key="AQ.k"
+    )
+    sub = p._family_client("gemini")
+    from coworker.providers import GeminiProvider
+
+    assert isinstance(sub, GeminiProvider)
+    assert captured == {"vertexai": True, "api_key": "AQ.k"}
+
+
+def test_verify_vertex_api_key_method(monkeypatch):
+    import httpx
+
+    from coworker.providers.registry import verify_provider_key
+
+    out = verify_provider_key(
+        "vertex",
+        fields={"project": "p", "location": "l", "auth_method": "api_key"},
+    )
+    assert not out["ok"] and "API key" in out["error"]
+
+    captured: dict = {}
+
+    def fake_get(url, headers=None, timeout=None, **kw):
+        captured["url"] = url
+        captured["headers"] = headers
+
+        class _Resp:
+            status_code = 200
+
+        return _Resp()
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    out = verify_provider_key(
+        "vertex",
+        fields={
+            "project": "p",
+            "location": "l",
+            "auth_method": "api_key",
+            "vertex_api_key": "AQ.k",
+        },
+    )
+    assert out == {"ok": True}
+    assert captured["headers"]["x-goog-api-key"] == "AQ.k"
+    # Express mode is global — no region host, no project in the path.
+    assert captured["url"] == "https://aiplatform.googleapis.com/v1/publishers/google/models"
+
+
+def test_verify_vertex_service_account_requires_json():
+    from coworker.providers.registry import verify_provider_key
+
+    out = verify_provider_key(
+        "vertex",
+        fields={"project": "p", "location": "l", "auth_method": "service_account"},
+    )
+    assert not out["ok"] and "service-account JSON" in out["error"]
 
 
 def test_vertex_configured_needs_project_and_location():

@@ -1265,7 +1265,9 @@ export interface ProviderField {
   help: string;
   placeholder: string;
   default?: string; // pre-filled editable value (e.g. an OpenAI-compatible vendor's endpoint)
-  choices?: { value: string; label: string }[]; // non-empty → segmented choice, not a text input
+  // Non-empty → segmented choice, not a text input. tag = tiny badge ("Easiest");
+  // desc = one-liner atop the method panel; command = copyable terminal command.
+  choices?: { value: string; label: string; tag?: string; desc?: string; command?: string }[];
   show_when?: Record<string, string> | null; // render only while these fields hold these values
 }
 

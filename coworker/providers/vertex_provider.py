@@ -12,11 +12,22 @@ An id with no recognized family segment is best-effort routed by name (gemini* �
 claude* → Claude, anything else → MaaS) so a raw id pasted without the add-model dropdown
 still works.
 
-Credentials: an explicit service-account JSON (pasted content or a file path) when the
-profile has one, else Application Default Credentials (`gcloud auth application-default
-login`). The MaaS path authenticates with a google-auth bearer token that expires ~hourly —
-this wrapper refreshes it and rebuilds the OpenAI sub-client as needed; the two native SDK
-clients take the credentials object and refresh internally.
+Auth is ONE method at a time, selected by the profile's `auth_method` (a segmented choice
+in Settings, mirroring Bedrock — owner call 2026-07-26):
+
+- `adc`             — Application Default Credentials (`gcloud auth application-default
+  login`), Google's own recommended path. Nothing stored.
+- `service_account` — an explicit service-account JSON (pasted content or a file path).
+- `api_key`         — a Vertex API key (express mode). GEMINI FAMILY ONLY: the genai SDK
+  takes it (and it excludes project/location — mutually exclusive there), but Claude
+  (AnthropicVertex) and the MaaS endpoint require OAuth credentials, so those families
+  raise a clear error directing the user to the other methods.
+
+The MaaS path authenticates with a google-auth bearer token that expires ~hourly — this
+wrapper refreshes it and rebuilds the OpenAI sub-client as needed; the two native SDK
+clients take the credentials object and refresh internally. Fields from non-selected
+methods are dropped at construction; a missing/unknown method falls back to whichever
+fields are present (service account, else ADC).
 """
 
 from __future__ import annotations
@@ -59,14 +70,25 @@ class VertexProvider(ProviderClient):
         *,
         project: Optional[str] = None,
         location: Optional[str] = None,
+        auth_method: Optional[str] = None,
         service_account_json: Optional[str] = None,
+        api_key: Optional[str] = None,
         credentials: Any = None,
         gemini_client: Optional[ProviderClient] = None,
         claude_client: Optional[ProviderClient] = None,
         openweight_client: Optional[ProviderClient] = None,
     ):
+        # Narrow to the selected auth method here, once — stale values stored under a
+        # previously-selected method must never reach a different credential path.
+        if auth_method == "adc":
+            service_account_json = api_key = None
+        elif auth_method == "service_account":
+            api_key = None
+        elif auth_method == "api_key":
+            service_account_json = None
         self._project = project
         self._location = location
+        self._api_key = api_key
         self._service_account_json = service_account_json
         self._credentials = credentials  # test seam; normally resolved lazily
         # Test seams: pre-built sub-providers skip the SDK construction below.
@@ -117,6 +139,12 @@ class VertexProvider(ProviderClient):
 
     # -- family sub-clients --------------------------------------------------------
     def _family_client(self, family: str) -> ProviderClient:
+        if self._api_key and family != "gemini":
+            raise RuntimeError(
+                "Vertex API keys cover Gemini models only — switch the Vertex provider "
+                "to Google Cloud login or a service account for Claude and open-weight "
+                "models (Settings ▸ Models)."
+            )
         if family == "openweight":
             return self._openweight_client()
         client = self._clients.get(family)
@@ -124,14 +152,18 @@ class VertexProvider(ProviderClient):
             if family == "gemini":
                 from google import genai
 
-                client = GeminiProvider(
-                    client=genai.Client(
+                if self._api_key:
+                    # Express mode: the key excludes project/location (SDK enforces
+                    # mutual exclusivity — the key already identifies the project).
+                    sdk = genai.Client(vertexai=True, api_key=self._api_key)
+                else:
+                    sdk = genai.Client(
                         vertexai=True,
                         project=self._project,
                         location=self._location,
                         credentials=self._explicit_credentials(),
                     )
-                )
+                client = GeminiProvider(client=sdk)
             else:
                 from anthropic import AnthropicVertex
 

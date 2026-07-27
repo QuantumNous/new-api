@@ -44,7 +44,10 @@ class ProviderField:
     # endpoint, so the user only has to paste a key. Distinct from `placeholder` (grey hint).
     default: str = ""
     # Non-empty → the field renders as a segmented choice control instead of a text input;
-    # each option is {"value", "label"}. The chosen value is stored like any field value.
+    # each option is {"value", "label"} plus optional UI extras: "tag" (a tiny badge like
+    # "Easiest"), "desc" (one-liner atop the method's panel), and "command" (a copyable
+    # terminal command shown in the panel, e.g. the gcloud ADC login). The chosen value is
+    # stored like any other field value.
     choices: tuple = ()
     # {"other_field_key": "value"} → the field only renders while that other field holds
     # that value. Drives auth-method switching (Bedrock) without a per-provider form.
@@ -158,7 +161,6 @@ def _build_bedrock(profile: dict[str, Any], secrets: Any) -> ProviderClient:
 
 
 def _build_vertex(profile: dict[str, Any], secrets: Any) -> ProviderClient:
-    # Blank service_account_json → Application Default Credentials, resolved at call time.
     p = profile or {}
 
     def get(key: str) -> Optional[str]:
@@ -167,7 +169,9 @@ def _build_vertex(profile: dict[str, Any], secrets: Any) -> ProviderClient:
     return VertexProvider(
         project=get("project"),
         location=get("location"),
+        auth_method=get("auth_method"),
         service_account_json=get("service_account_json"),
+        api_key=get("vertex_api_key"),
     )
 
 
@@ -318,9 +322,22 @@ DESCRIPTORS: list[ProviderDescriptor] = [
                 required=False,  # the default stands in; builder tolerates absence
                 default="api_key",
                 choices=(
-                    {"value": "api_key", "label": "Bedrock API key"},
-                    {"value": "profile", "label": "AWS profile"},
-                    {"value": "iam", "label": "IAM keys"},
+                    {
+                        "value": "api_key",
+                        "label": "Bedrock API key",
+                        "tag": "Easiest",
+                        "desc": "A single key generated on the Bedrock console — no AWS CLI or IAM setup needed.",
+                    },
+                    {
+                        "value": "profile",
+                        "label": "AWS profile",
+                        "desc": "Uses a named profile from ~/.aws — works with `aws configure` and `aws sso login`.",
+                    },
+                    {
+                        "value": "iam",
+                        "label": "IAM keys",
+                        "desc": "An IAM access key pair. For temporary STS credentials, include the session token.",
+                    },
                 ),
             ),
             ProviderField(
@@ -330,7 +347,6 @@ DESCRIPTORS: list[ProviderDescriptor] = [
                 required=False,
                 placeholder="ABSK…",
                 show_when={"auth_method": "api_key"},
-                help="Generate one on the Bedrock console — no AWS CLI or IAM setup needed.",
             ),
             ProviderField(
                 "aws_profile",
@@ -339,9 +355,7 @@ DESCRIPTORS: list[ProviderDescriptor] = [
                 required=False,
                 placeholder="default",
                 show_when={"auth_method": "profile"},
-                help="A named profile from ~/.aws — works with `aws configure` and "
-                "`aws sso login` (IAM Identity Center). Leave blank to use your "
-                "default AWS credentials (env vars or ~/.aws).",
+                help="Leave blank to use your default AWS credentials (env vars or ~/.aws).",
             ),
             ProviderField(
                 "aws_access_key_id",
@@ -391,13 +405,49 @@ DESCRIPTORS: list[ProviderDescriptor] = [
                 "(Claude models: us-east5 or europe-west1).",
             ),
             ProviderField(
+                "auth_method",
+                "Connect with",
+                secret=False,
+                required=False,  # the default stands in; builder tolerates absence
+                default="adc",
+                choices=(
+                    {
+                        "value": "adc",
+                        "label": "Google Cloud login",
+                        "tag": "Recommended",
+                        "desc": "Uses your machine's Google Cloud identity (Application "
+                        "Default Credentials). Nothing to paste — sign in once in a terminal:",
+                        "command": "gcloud auth application-default login",
+                    },
+                    {
+                        "value": "service_account",
+                        "label": "Service account",
+                        "desc": "A service-account key — the usual path on shared or headless machines.",
+                    },
+                    {
+                        "value": "api_key",
+                        "label": "API key",
+                        "desc": "A long-lived key from the Google Cloud console's API Keys page. "
+                        "Reaches Gemini models only — Claude and open-weight need Google "
+                        "Cloud login or a service account.",
+                    },
+                ),
+            ),
+            ProviderField(
                 "service_account_json",
-                "Service-account JSON (optional)",
+                "Service-account JSON",
                 secret=True,
                 required=False,
-                help="Paste the JSON key or a path to it. Leave blank to use "
-                "Application Default Credentials "
-                "(`gcloud auth application-default login`).",
+                show_when={"auth_method": "service_account"},
+                help="Paste the JSON key, or a path to the file.",
+            ),
+            ProviderField(
+                "vertex_api_key",
+                "Vertex API key",
+                secret=True,
+                required=False,
+                placeholder="AQ.…",
+                show_when={"auth_method": "api_key"},
             ),
         ],
         build=_build_vertex,
@@ -646,16 +696,44 @@ def _verify_bedrock(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
 
 
 def _verify_vertex(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
-    """Resolve credentials (service account or ADC), mint a bearer, and list Google's
-    publisher models in the given project/location — one cheap read-only call."""
+    """One cheap read-only call (list Google's publisher models) through the SELECTED
+    auth method: ADC / service-account bearer, or the express API key header."""
     import httpx
 
     from .vertex_provider import load_credentials
 
     project = (fields.get("project") or "").strip()
     location = (fields.get("location") or "").strip()
+    method = (fields.get("auth_method") or "").strip() or (
+        "service_account" if (fields.get("service_account_json") or "").strip() else "adc"
+    )
+    if method == "api_key":
+        key = (fields.get("vertex_api_key") or "").strip()
+        if not key:
+            return {"ok": False, "error": "Enter a Vertex API key to test."}
+        try:
+            # Express mode is global — no region host, no project in the path.
+            resp = httpx.get(
+                "https://aiplatform.googleapis.com/v1/publishers/google/models",
+                headers={"x-goog-api-key": key},
+                timeout=timeout,
+            )
+        except Exception as exc:
+            return {
+                "ok": False,
+                "error": f"Couldn't reach Vertex AI ({exc.__class__.__name__}).",
+            }
+        if resp.status_code < 300:
+            return {"ok": True}
+        if resp.status_code in (401, 403):
+            return {"ok": False, "error": "Google rejected the API key."}
+        return {"ok": False, "error": f"Vertex AI returned HTTP {resp.status_code}."}
+    if method == "service_account" and not (fields.get("service_account_json") or "").strip():
+        return {"ok": False, "error": "Paste a service-account JSON to test."}
     try:
-        creds = load_credentials(fields.get("service_account_json"))
+        creds = None
+        if method == "service_account":
+            creds = load_credentials(fields.get("service_account_json"))
         if creds is None:
             import google.auth
 
