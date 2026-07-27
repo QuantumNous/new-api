@@ -126,6 +126,62 @@
         ]
       }
     },
+    "/api/subscription/self/renewal/cancel": {
+      "post": {
+        "summary": "Cancel current subscription auto-renewal",
+        "deprecated": false,
+        "description": "Cancels auto-renewal for the user's current renewable subscription. The endpoint is provider-neutral and does not accept a request body or provider binding ID.",
+        "tags": [
+          "Subscription"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success or lifecycle error in the standard API envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionRenewalLifecycleEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/self/renewal/resume": {
+      "post": {
+        "summary": "Resume current subscription auto-renewal",
+        "deprecated": false,
+        "description": "Resumes auto-renewal for the user's current renewable subscription. The endpoint is provider-neutral and does not accept a request body or provider binding ID.",
+        "tags": [
+          "Subscription"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success or lifecycle error in the standard API envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionRenewalLifecycleEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          }
+        ]
+      }
+    },
     "/api/subscription/self/change-plan": {
       "post": {
         "summary": "Change current user's subscription plan",
@@ -5428,6 +5484,24 @@
           "quota": {
             "$ref": "#/components/schemas/SubscriptionQuota"
           },
+          "renewal_source": {
+            "type": "string",
+            "enum": [
+              "",
+              "provider_recurring",
+              "wallet_auto"
+            ]
+          },
+          "renewal_status": {
+            "type": "string",
+            "enum": [
+              "",
+              "enabled",
+              "cancelled_by_user",
+              "paused_insufficient_balance",
+              "paused_plan_unavailable"
+            ]
+          },
           "pending_change": {
             "$ref": "#/components/schemas/SubscriptionPendingChange"
           },
@@ -5463,6 +5537,8 @@
           "billing_preference",
           "current_period",
           "quota",
+          "renewal_source",
+          "renewal_status",
           "capabilities",
           "migration",
           "subscriptions",
@@ -5668,6 +5744,61 @@
             "type": "boolean"
           }
         }
+      },
+      "SubscriptionRenewalLifecycleEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SubscriptionRenewalLifecycleResult"
+          }
+        }
+      },
+      "SubscriptionRenewalLifecycleResult": {
+        "type": "object",
+        "description": "Provider-neutral lifecycle result for the current subscription renewal state.",
+        "properties": {
+          "renewal_source": {
+            "type": "string",
+            "enum": [
+              "provider_recurring",
+              "wallet_auto"
+            ]
+          },
+          "renewal_status": {
+            "type": "string",
+            "enum": [
+              "enabled",
+              "cancelled_by_user"
+            ]
+          },
+          "current_period_end": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "can_cancel": {
+            "type": "boolean"
+          },
+          "can_resume": {
+            "type": "boolean"
+          },
+          "is_cancel_at_period_end": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "renewal_source",
+          "renewal_status",
+          "current_period_end",
+          "can_cancel",
+          "can_resume",
+          "is_cancel_at_period_end"
+        ]
       },
       "SubscriptionMigration": {
         "type": "object",

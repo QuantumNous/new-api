@@ -1,6 +1,7 @@
 package router
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -72,6 +73,8 @@ func TestSubscriptionSelfLifecycleRoutesUseLocalContractHandlers(t *testing.T) {
 		"POST /api/subscription/self/quote":                                    "controller.QuoteSubscriptionSelfPurchase",
 		"POST /api/subscription/self/purchase":                                 "controller.PurchaseSubscriptionSelf",
 		"POST /api/subscription/self/change-plan":                              "controller.ChangeSubscriptionPlan",
+		"POST /api/subscription/self/renewal/cancel":                           "controller.CancelSubscriptionRenewal",
+		"POST /api/subscription/self/renewal/resume":                           "controller.ResumeSubscriptionRenewal",
 	}
 	for routeKey, expectedHandler := range expectedHandlers {
 		handler, ok := routes[routeKey]
@@ -85,4 +88,35 @@ func TestSubscriptionSelfLifecycleRoutesUseLocalContractHandlers(t *testing.T) {
 		_, ok := routes[routeKey]
 		require.False(t, ok, "user lifecycle route should not be public: %s", routeKey)
 	}
+}
+
+func TestSubscriptionSelfLifecycleRoutesAreAuthenticatedAndCriticalLimited(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	SetApiRouter(engine)
+
+	for _, route := range []struct {
+		method string
+		path   string
+	}{
+		{method: "POST", path: "/api/subscription/self/renewal/cancel"},
+		{method: "POST", path: "/api/subscription/self/renewal/resume"},
+	} {
+		found := false
+		for _, registered := range engine.Routes() {
+			if registered.Method == route.method && registered.Path == route.path {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "missing %s %s", route.method, route.path)
+	}
+
+	source, err := os.ReadFile("api-router.go")
+	require.NoError(t, err)
+	routerSource := string(source)
+	require.Contains(t, routerSource, "subscriptionRoute.Use(middleware.UserAuth())")
+	require.Contains(t, routerSource, `subscriptionRoute.POST("/self/renewal/cancel", middleware.CriticalRateLimit(), controller.CancelSubscriptionRenewal)`)
+	require.Contains(t, routerSource, `subscriptionRoute.POST("/self/renewal/resume", middleware.CriticalRateLimit(), controller.ResumeSubscriptionRenewal)`)
 }
