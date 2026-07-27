@@ -20,6 +20,11 @@ type Option struct {
 	Value string `json:"value"`
 }
 
+const (
+	automaticDisableModelOptionKey = "AutomaticDisableModelEnabled"
+	automaticEnableModelOptionKey  = "AutomaticEnableModelEnabled"
+)
+
 func AllOption() ([]*Option, error) {
 	var options []*Option
 	var err error
@@ -190,12 +195,22 @@ func InitOptionMap() {
 }
 
 func loadOptionsFromDatabase() {
-	options, _ := AllOption()
+	options, err := AllOption()
+	if err != nil {
+		common.SysLog("failed to load options from database: " + err.Error())
+		return
+	}
 	for _, option := range options {
+		if option.Key == automaticDisableModelOptionKey || option.Key == automaticEnableModelOptionKey {
+			continue
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
+	}
+	if err := updateOptionsBulk(nil, true); err != nil {
+		common.SysLog("failed to normalize model availability options: " + err.Error())
 	}
 }
 
@@ -218,12 +233,11 @@ func validateOptionValue(key string, value string) error {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == automaticDisableModelOptionKey || key == automaticEnableModelOptionKey {
+		return UpdateOptionsBulk(map[string]string{key: value})
+	}
 	if err := validateOptionValue(key, value); err != nil {
 		return err
-	}
-	// Keep model auto-enable subordinate to auto-disable before persisting.
-	if key == "AutomaticEnableModelEnabled" && (value == "true" || value == "1") && !common.AutomaticDisableModelEnabled {
-		value = "false"
 	}
 	// Save to database first
 	option := Option{
@@ -246,7 +260,11 @@ func UpdateOption(key string, value string) error {
 // is touched — safe for callers that must commit a set of related options
 // atomically (e.g. payment gateway binding).
 func UpdateOptionsBulk(values map[string]string) error {
-	if len(values) == 0 {
+	return updateOptionsBulk(values, false)
+}
+
+func updateOptionsBulk(values map[string]string, normalizeStoredModelAvailability bool) error {
+	if len(values) == 0 && !normalizeStoredModelAvailability {
 		return nil
 	}
 	for key, value := range values {
@@ -254,8 +272,61 @@ func UpdateOptionsBulk(values map[string]string) error {
 			return err
 		}
 	}
+	normalizedValues := make(map[string]string, len(values)+2)
+	for key, value := range values {
+		normalizedValues[key] = value
+	}
+	_, updatesDisableModel := values[automaticDisableModelOptionKey]
+	_, updatesEnableModel := values[automaticEnableModelOptionKey]
+	updatesModelAvailability := normalizeStoredModelAvailability || updatesDisableModel || updatesEnableModel
+	applyModelAvailability := false
+	normalizedDisableValue := "false"
+	normalizedEnableValue := "false"
+
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		for k, v := range values {
+		if updatesModelAvailability {
+			delete(normalizedValues, automaticDisableModelOptionKey)
+			delete(normalizedValues, automaticEnableModelOptionKey)
+			disableValue := "false"
+			enableValue := "false"
+			var existingOptions []Option
+			if err := tx.Where("key IN ?", []string{
+				automaticDisableModelOptionKey,
+				automaticEnableModelOptionKey,
+			}).Find(&existingOptions).Error; err != nil {
+				return err
+			}
+			if len(existingOptions) == 0 && !updatesDisableModel && !updatesEnableModel {
+				return nil
+			}
+			for _, option := range existingOptions {
+				switch option.Key {
+				case automaticDisableModelOptionKey:
+					disableValue = option.Value
+				case automaticEnableModelOptionKey:
+					enableValue = option.Value
+				}
+			}
+			if value, ok := values[automaticDisableModelOptionKey]; ok {
+				disableValue = value
+			}
+			if value, ok := values[automaticEnableModelOptionKey]; ok {
+				enableValue = value
+			}
+			disableEnabled := isEnabledOptionValue(disableValue)
+			enableEnabled := disableEnabled && isEnabledOptionValue(enableValue)
+			normalizedDisableValue = strconv.FormatBool(disableEnabled)
+			normalizedEnableValue = strconv.FormatBool(enableEnabled)
+			applyModelAvailability = true
+			needsPairPersistence := updatesDisableModel || updatesEnableModel || len(existingOptions) < 2 ||
+				disableValue != normalizedDisableValue || enableValue != normalizedEnableValue
+			if needsPairPersistence {
+				normalizedValues[automaticDisableModelOptionKey] = normalizedDisableValue
+				normalizedValues[automaticEnableModelOptionKey] = normalizedEnableValue
+			}
+		}
+
+		for k, v := range normalizedValues {
 			option := Option{Key: k}
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
 				return err
@@ -270,12 +341,27 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if err != nil {
 		return err
 	}
-	for k, v := range values {
+	if applyModelAvailability {
+		if err := updateOptionMap(automaticDisableModelOptionKey, normalizedDisableValue); err != nil {
+			return err
+		}
+		if err := updateOptionMap(automaticEnableModelOptionKey, normalizedEnableValue); err != nil {
+			return err
+		}
+	}
+	for k, v := range normalizedValues {
+		if k == automaticDisableModelOptionKey || k == automaticEnableModelOptionKey {
+			continue
+		}
 		if err := updateOptionMap(k, v); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func isEnabledOptionValue(value string) bool {
+	return value == "1" || strings.EqualFold(value, "true")
 }
 
 func updateOptionMap(key string, value string) (err error) {
@@ -313,6 +399,10 @@ func updateOptionMap(key string, value string) (err error) {
 	}
 	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" {
 		boolValue := value == "true"
+		if key == automaticDisableModelOptionKey || key == automaticEnableModelOptionKey {
+			boolValue = isEnabledOptionValue(value)
+			common.OptionMap[key] = strconv.FormatBool(boolValue)
+		}
 		switch key {
 		case "PasswordRegisterEnabled":
 			common.PasswordRegisterEnabled = boolValue
@@ -340,14 +430,14 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticDisableChannelEnabled = boolValue
 		case "AutomaticEnableChannelEnabled":
 			common.AutomaticEnableChannelEnabled = boolValue
-		case "AutomaticDisableModelEnabled":
+		case automaticDisableModelOptionKey:
 			common.AutomaticDisableModelEnabled = boolValue
 			if !boolValue {
 				// Enable is paired with disable; keep both off together.
 				common.AutomaticEnableModelEnabled = false
-				common.OptionMap["AutomaticEnableModelEnabled"] = "false"
+				common.OptionMap[automaticEnableModelOptionKey] = "false"
 			}
-		case "AutomaticEnableModelEnabled":
+		case automaticEnableModelOptionKey:
 			// Reject enable-without-disable so automation stays consistent.
 			if boolValue && !common.AutomaticDisableModelEnabled {
 				boolValue = false
