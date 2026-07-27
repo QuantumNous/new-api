@@ -590,10 +590,22 @@ type SubscriptionOrder struct {
 	RecallPromotionCodeId     string `json:"recall_promotion_code_id" gorm:"type:varchar(128);not null;default:'';index"`
 	RecallDiscountAmountMinor int64  `json:"recall_discount_amount_minor" gorm:"type:bigint;not null;default:0"`
 
+	DiscountKind                       string `json:"discount_kind" gorm:"type:varchar(32);not null;default:'none';index"`
+	SubscriptionDiscountUSDMinor       int64  `json:"subscription_discount_usd_minor" gorm:"type:bigint;not null;default:0"`
+	SubscriptionDiscountAmountMinor    int64  `json:"subscription_discount_amount_minor" gorm:"type:bigint;not null;default:0"`
+	SubscriptionDiscountReservationKey string `json:"subscription_discount_reservation_key" gorm:"type:varchar(191);not null;default:'';index"`
+	DiscountPricingSnapshot            string `json:"discount_pricing_snapshot" gorm:"type:text"`
+
 	ProviderPayload    string `json:"provider_payload" gorm:"type:text"`
 	ChangeIntentId     int64  `json:"change_intent_id" gorm:"type:bigint;default:0;index"`
 	ProviderSessionId  string `json:"provider_session_id" gorm:"type:varchar(128);default:'';index"`
 	ProviderSessionURL string `json:"provider_session_url" gorm:"type:text"`
+
+	SupersededByTradeNo            string `json:"superseded_by_trade_no" gorm:"type:varchar(255);not null;default:'';index"`
+	ProviderExpirationPending      bool   `json:"provider_expiration_pending" gorm:"not null;default:false;index"`
+	ProviderExpirationAttemptCount int    `json:"provider_expiration_attempt_count" gorm:"type:int;not null;default:0"`
+	ProviderExpirationLastError    string `json:"provider_expiration_last_error" gorm:"type:text"`
+	ProviderExpirationCompletedAt  int64  `json:"provider_expiration_completed_at" gorm:"type:bigint;not null;default:0"`
 }
 
 func (o *SubscriptionOrder) Insert() error {

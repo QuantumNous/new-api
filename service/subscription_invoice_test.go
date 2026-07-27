@@ -1472,6 +1472,192 @@ func TestCompleteOneTimeStripeSubscriptionPurchaseAppliesPendingOrderOnce(t *tes
 	require.Equal(t, model.PaymentProviderStripe, topup.PaymentProvider)
 }
 
+func TestCompleteOneTimeStripeSubscriptionPurchaseCommitsInvitationReservationOnce(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	userID := 8311
+	planID := 8411
+	insertPurchaseServiceUser(t, userID, 10000)
+	plan := insertPurchaseServicePlan(t, planID, 1, 20, 2000)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).Updates(map[string]interface{}{
+		"currency":      "BRL",
+		"pix_price_brl": 80,
+	}).Error)
+	grantPurchaseServiceInvitationDiscount(t, userID, 700, "invoice-commit-invitation")
+
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        planID,
+		PaymentChoice: SubscriptionPaymentChoicePix,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	purchase, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        planID,
+		PaymentChoice: SubscriptionPaymentChoicePix,
+		Months:        1,
+		RequestID:     "invoice-commit-invitation",
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
+	})
+	require.NoError(t, err)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "trade_no = ?", purchase.Order.TradeNo).Error)
+	require.NotEmpty(t, order.SubscriptionDiscountReservationKey)
+
+	first, err := CompleteOneTimeStripeSubscriptionPurchase(context.Background(), order.TradeNo, `{"session_id":"cs_invitation_commit"}`)
+	require.NoError(t, err)
+	second, err := CompleteOneTimeStripeSubscriptionPurchase(context.Background(), order.TradeNo, `{"session_id":"cs_invitation_commit"}`)
+	require.NoError(t, err)
+
+	require.NotNil(t, first.Entitlement)
+	require.Nil(t, second.Entitlement)
+	var account model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&account, "user_id = ?", userID).Error)
+	require.Zero(t, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var commitCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeCommit).
+		Count(&commitCount).Error)
+	require.Equal(t, int64(1), commitCount)
+}
+
+func TestTerminatePendingStripePurchaseAfterSuccessfulInvitationOneTimeIsNoop(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	userID := 8313
+	planID := 8413
+	insertPurchaseServiceUser(t, userID, 10000)
+	plan := insertPurchaseServicePlan(t, planID, 1, 20, 2000)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).Updates(map[string]interface{}{
+		"currency":      "BRL",
+		"pix_price_brl": 80,
+	}).Error)
+	grantPurchaseServiceInvitationDiscount(t, userID, 700, "invoice-success-terminal-noop")
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        planID,
+		PaymentChoice: SubscriptionPaymentChoicePix,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	purchase, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        planID,
+		PaymentChoice: SubscriptionPaymentChoicePix,
+		Months:        1,
+		RequestID:     "invoice-success-terminal-noop",
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
+	})
+	require.NoError(t, err)
+	completed, err := CompleteOneTimeStripeSubscriptionPurchase(context.Background(), purchase.Order.TradeNo, `{"session_id":"cs_invitation_success_terminal"}`)
+	require.NoError(t, err)
+	require.NotNil(t, completed.Entitlement)
+
+	var successOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&successOrder, "trade_no = ?", purchase.Order.TradeNo).Error)
+	require.Equal(t, common.TopUpStatusSuccess, successOrder.Status)
+	var appliedIntent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&appliedIntent, "id = ?", successOrder.ChangeIntentId).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusApplied, appliedIntent.Status)
+	var appliedContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&appliedContract, "id = ?", appliedIntent.ContractId).Error)
+	require.Equal(t, appliedIntent.Id, appliedContract.LatestChangeIntentId)
+	var accountBefore model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&accountBefore, "user_id = ?", userID).Error)
+	var entitlementCountBefore int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", userID).Count(&entitlementCountBefore).Error)
+	var commitCountBefore int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", successOrder.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeCommit).
+		Count(&commitCountBefore).Error)
+	require.Equal(t, int64(1), commitCountBefore)
+
+	require.NoError(t, TerminatePendingStripePurchase(context.Background(), successOrder.TradeNo, model.SubscriptionChangeIntentStatusExpired))
+	require.NoError(t, TerminatePendingStripePurchase(context.Background(), successOrder.TradeNo, model.SubscriptionChangeIntentStatusFailed))
+
+	var reloadedOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&reloadedOrder, "id = ?", successOrder.Id).Error)
+	require.Equal(t, common.TopUpStatusSuccess, reloadedOrder.Status)
+	require.Equal(t, successOrder.CompleteTime, reloadedOrder.CompleteTime)
+	var reloadedIntent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&reloadedIntent, "id = ?", appliedIntent.Id).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusApplied, reloadedIntent.Status)
+	require.Equal(t, appliedIntent.WalletDebitTradeNo, reloadedIntent.WalletDebitTradeNo)
+	var reloadedContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&reloadedContract, "id = ?", appliedContract.Id).Error)
+	require.Equal(t, appliedContract.LatestChangeIntentId, reloadedContract.LatestChangeIntentId)
+	require.Equal(t, appliedContract.CurrentPlanId, reloadedContract.CurrentPlanId)
+	var accountAfter model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&accountAfter, "user_id = ?", userID).Error)
+	require.Equal(t, accountBefore.AvailableUSDMinor, accountAfter.AvailableUSDMinor)
+	require.Equal(t, accountBefore.ReservedUSDMinor, accountAfter.ReservedUSDMinor)
+	var entitlementCountAfter int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", userID).Count(&entitlementCountAfter).Error)
+	require.Equal(t, entitlementCountBefore, entitlementCountAfter)
+	var releaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", successOrder.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeRelease).
+		Count(&releaseCount).Error)
+	require.Zero(t, releaseCount)
+	var commitCountAfter int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", successOrder.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeCommit).
+		Count(&commitCountAfter).Error)
+	require.Equal(t, commitCountBefore, commitCountAfter)
+}
+
+func TestTerminatePendingStripePurchaseReleasesInvitationReservationOnce(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	userID := 8312
+	planID := 8412
+	insertPurchaseServiceUser(t, userID, 10000)
+	plan := insertPurchaseServicePlan(t, planID, 1, 20, 2000)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).Updates(map[string]interface{}{
+		"currency":      "BRL",
+		"pix_price_brl": 80,
+	}).Error)
+	grantPurchaseServiceInvitationDiscount(t, userID, 700, "invoice-release-invitation")
+
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        planID,
+		PaymentChoice: SubscriptionPaymentChoicePix,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	purchase, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        planID,
+		PaymentChoice: SubscriptionPaymentChoicePix,
+		Months:        1,
+		RequestID:     "invoice-release-invitation",
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
+	})
+	require.NoError(t, err)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "trade_no = ?", purchase.Order.TradeNo).Error)
+	require.NotEmpty(t, order.SubscriptionDiscountReservationKey)
+
+	require.NoError(t, TerminatePendingStripePurchase(context.Background(), order.TradeNo, model.SubscriptionChangeIntentStatusExpired))
+	require.NoError(t, TerminatePendingStripePurchase(context.Background(), order.TradeNo, model.SubscriptionChangeIntentStatusFailed))
+
+	var account model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&account, "user_id = ?", userID).Error)
+	require.Equal(t, int64(700), account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var releaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeRelease).
+		Count(&releaseCount).Error)
+	require.Equal(t, int64(1), releaseCount)
+	var reloaded model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&reloaded, "trade_no = ?", order.TradeNo).Error)
+	require.Equal(t, common.TopUpStatusExpired, reloaded.Status)
+}
+
 func TestCompleteOneTimeStripeSubscriptionPurchaseUsesSnapshotWalletBasisForBRLTerms(t *testing.T) {
 	setupSubscriptionInvoiceServiceTestDB(t)
 	userID := 8303

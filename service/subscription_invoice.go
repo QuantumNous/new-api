@@ -936,8 +936,11 @@ func validateLocalInvoiceFacts(facts paidInvoiceFacts, order *model.Subscription
 }
 
 type supersededStripeCheckout struct {
-	IntentID int64
-	TradeNo  string
+	OrderID                  int
+	IntentID                 int64
+	TradeNo                  string
+	ProviderSessionID        string
+	ReleasedDiscountUSDMinor int64
 }
 
 func supersedeReplaceablePendingStripeCheckouts(ctx context.Context, userID int, requestID string) ([]supersededStripeCheckout, error) {
@@ -981,7 +984,7 @@ func supersedeReplaceablePendingStripeCheckouts(ctx context.Context, userID int,
 			if err := supersedePendingStripeCheckoutLocally(&intent, &order); err != nil {
 				return nil, err
 			}
-			superseded = append(superseded, supersededStripeCheckout{IntentID: intent.Id, TradeNo: order.TradeNo})
+			superseded = append(superseded, supersededStripeCheckout{IntentID: intent.Id, TradeNo: order.TradeNo, ReleasedDiscountUSDMinor: order.SubscriptionDiscountUSDMinor})
 			continue
 		}
 		if err := expireReplaceableStripeCheckout(ctx, order.ProviderSessionId); err != nil {
@@ -990,7 +993,57 @@ func supersedeReplaceablePendingStripeCheckouts(ctx context.Context, userID int,
 		if err := supersedePendingStripeCheckoutLocally(&intent, &order); err != nil {
 			return nil, err
 		}
-		superseded = append(superseded, supersededStripeCheckout{IntentID: intent.Id, TradeNo: order.TradeNo})
+		superseded = append(superseded, supersededStripeCheckout{IntentID: intent.Id, TradeNo: order.TradeNo, ReleasedDiscountUSDMinor: order.SubscriptionDiscountUSDMinor})
+	}
+	return superseded, nil
+}
+
+func supersedeReplaceablePendingStripeCheckoutsLocallyTx(tx *gorm.DB, userID int, requestID string) ([]supersededStripeCheckout, error) {
+	if tx == nil || userID <= 0 || strings.TrimSpace(requestID) == "" {
+		return nil, nil
+	}
+	var orders []model.SubscriptionOrder
+	if err := subscriptionCommandLock(tx).Model(&model.SubscriptionOrder{}).
+		Select("subscription_orders.*").
+		Joins("JOIN subscription_change_intents ON subscription_change_intents.id = subscription_orders.change_intent_id").
+		Where("subscription_orders.user_id = ? AND subscription_orders.payment_provider = ? AND subscription_orders.status = ? AND subscription_change_intents.request_id <> ? AND subscription_change_intents.payment_mode IN ? AND subscription_change_intents.status = ? AND subscription_change_intents.kind IN ?",
+			userID,
+			model.PaymentProviderStripe,
+			common.TopUpStatusPending,
+			strings.TrimSpace(requestID),
+			[]string{model.SubscriptionPaymentModeStripeRecurring, model.SubscriptionPaymentModePrepaid},
+			model.SubscriptionChangeIntentStatusAwaitingPayment,
+			[]string{model.SubscriptionChangeIntentKindPurchase, model.SubscriptionChangeIntentKindRepurchase, model.SubscriptionChangeIntentKindUpgrade, model.SubscriptionChangeIntentKindDowngrade},
+		).
+		Order("subscription_orders.id asc").
+		Find(&orders).Error; err != nil {
+		return nil, err
+	}
+	var superseded []supersededStripeCheckout
+	for _, order := range orders {
+		var intent model.SubscriptionChangeIntent
+		if err := subscriptionCommandLock(tx).
+			Where("id = ? AND user_id = ? AND status = ?", order.ChangeIntentId, userID, model.SubscriptionChangeIntentStatusAwaitingPayment).
+			First(&intent).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return nil, err
+		}
+		if intent.PaymentMode != model.SubscriptionPaymentModeStripeRecurring && intent.PaymentMode != model.SubscriptionPaymentModePrepaid {
+			continue
+		}
+		supersededCheckout := supersededStripeCheckout{
+			OrderID:                  order.Id,
+			IntentID:                 intent.Id,
+			TradeNo:                  order.TradeNo,
+			ProviderSessionID:        strings.TrimSpace(order.ProviderSessionId),
+			ReleasedDiscountUSDMinor: order.SubscriptionDiscountUSDMinor,
+		}
+		if err := supersedePreparedPendingStripeCheckoutLocallyTx(tx, &intent, &order, supersededCheckout.ProviderSessionID != ""); err != nil {
+			return nil, err
+		}
+		superseded = append(superseded, supersededCheckout)
 	}
 	return superseded, nil
 }
@@ -1035,10 +1088,41 @@ func supersedePendingStripeCheckoutLocally(intent *model.SubscriptionChangeInten
 }
 
 func supersedePendingStripeCheckoutLocallyTx(tx *gorm.DB, intent *model.SubscriptionChangeIntent, order *model.SubscriptionOrder) error {
-	now := common.GetTimestamp()
-	if err := tx.Model(order).Where("id = ? AND status = ?", order.Id, common.TopUpStatusPending).
-		Updates(map[string]interface{}{"status": common.TopUpStatusExpired, "complete_time": now}).Error; err != nil {
+	var currentOrder model.SubscriptionOrder
+	if err := subscriptionCommandLock(tx).Where("id = ?", order.Id).First(&currentOrder).Error; err != nil {
 		return err
+	}
+	if currentOrder.Status != common.TopUpStatusPending {
+		return nil
+	}
+	return supersedePreparedPendingStripeCheckoutLocallyTx(tx, intent, &currentOrder, false)
+}
+
+func supersedePreparedPendingStripeCheckoutLocallyTx(tx *gorm.DB, intent *model.SubscriptionChangeIntent, order *model.SubscriptionOrder, providerExpirationPending bool) error {
+	now := common.GetTimestamp()
+	if tx == nil || intent == nil || order == nil {
+		return errors.New("pending Stripe checkout supersede facts are required")
+	}
+	if order.Status != common.TopUpStatusPending {
+		return nil
+	}
+	if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+		if _, err := model.ReleaseSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
+			return err
+		}
+	}
+	update := tx.Model(order).Where("id = ? AND status = ?", order.Id, common.TopUpStatusPending).
+		Updates(map[string]interface{}{
+			"status":                         common.TopUpStatusExpired,
+			"complete_time":                  now,
+			"provider_expiration_pending":    providerExpirationPending,
+			"provider_expiration_last_error": "",
+		})
+	if update.Error != nil {
+		return update.Error
+	}
+	if update.RowsAffected != 1 {
+		return ErrSubscriptionChangeInProgress
 	}
 	if err := tx.Model(intent).Where("id = ? AND status IN ?", intent.Id, []string{
 		model.SubscriptionChangeIntentStatusAwaitingPayment,
@@ -1518,6 +1602,11 @@ func CompleteOneTimeStripeSubscriptionPurchase(ctx context.Context, tradeNo stri
 		if err := model.GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, &order); err != nil {
 			return err
 		}
+		if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+			if _, err := model.CommitSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
+				return err
+			}
+		}
 		if err := tx.Where("id = ?", contract.Id).First(&contract).Error; err != nil {
 			return err
 		}
@@ -1578,7 +1667,7 @@ func validateOneTimeStripeLocalOrderFacts(order *model.SubscriptionOrder, intent
 		snapshot.WindowWeekAmount < 0 || snapshot.MediaCreditsMonthly < 0 {
 		return errors.New("local one-time subscription plan snapshot values are invalid")
 	}
-	if strings.TrimSpace(order.PaymentCurrency) == "" || order.PaymentAmountMinor <= 0 {
+	if strings.TrimSpace(order.PaymentCurrency) == "" || order.PaymentAmountMinor < 0 {
 		return errors.New("local one-time subscription payment quote is missing")
 	}
 	switch strings.TrimSpace(order.PaymentMethod) {
@@ -1638,14 +1727,20 @@ func TerminatePendingStripePurchase(ctx context.Context, tradeNo string, intentS
 		if order.PaymentProvider != model.PaymentProviderStripe {
 			return nil
 		}
+		if order.Status != common.TopUpStatusPending {
+			return nil
+		}
 		shouldSyncTopUpHistory = true
-		if order.Status == common.TopUpStatusPending {
-			if err := tx.Model(&order).Updates(map[string]interface{}{
-				"status":        orderStatus,
-				"complete_time": common.GetTimestamp(),
-			}).Error; err != nil {
+		if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+			if _, err := model.ReleaseSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
 				return err
 			}
+		}
+		if err := tx.Model(&order).Updates(map[string]interface{}{
+			"status":        orderStatus,
+			"complete_time": common.GetTimestamp(),
+		}).Error; err != nil {
+			return err
 		}
 		intentID := order.ChangeIntentId
 		if intentID <= 0 {

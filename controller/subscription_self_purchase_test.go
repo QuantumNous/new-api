@@ -455,6 +455,62 @@ func TestSubscriptionSelfPurchaseCreatesOneTimeStripeCheckoutAndReplaysURL(t *te
 	require.Equal(t, "cs_test_self_purchase", topUps[0].GatewayTradeNo)
 }
 
+func TestSubscriptionSelfPurchaseOneTimeZeroTotalInvitationCompletesLocally(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "controller-subscription-zero-invitation-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+	insertSubscriptionControllerUser(t, 9125)
+	plan := insertSubscriptionSelfPurchasePlan(t, 9225)
+	grantSubscriptionSelfPurchaseInvitationDiscount(t, 9125, 999, "controller-one-time-zero-invitation")
+	originalCreator := stripeOneTimeCheckoutSessionCreator
+	t.Cleanup(func() { stripeOneTimeCheckoutSessionCreator = originalCreator })
+	stripeOneTimeCheckoutSessionCreator = func(_ context.Context, _ *model.SubscriptionOrder, _ *model.User, _ ...service.StripeCheckoutPresentation) (*oneTimeStripeCheckoutSession, error) {
+		t.Fatalf("zero-final one-time purchase must complete locally without Stripe checkout")
+		return nil, nil
+	}
+
+	quote := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9225,"payment_method":"alipay","months":1,"request_id":"one-time-zero-invitation"}`,
+		QuoteSubscriptionSelfPurchase,
+		9125,
+	)
+	var quoteEnvelope struct {
+		Data struct {
+			PaymentQuotes map[string]SubscriptionSelfPaymentQuote `json:"payment_quotes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(quote.Body.Bytes(), &quoteEnvelope))
+	require.Zero(t, quoteEnvelope.Data.PaymentQuotes["alipay"].Total)
+
+	purchase := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9225,"payment_method":"alipay","months":1,"request_id":"one-time-zero-invitation","quote_id":"`+quoteEnvelope.Data.PaymentQuotes["alipay"].QuoteID+`"}`,
+		PurchaseSubscriptionSelf,
+		9125,
+	)
+
+	require.Equal(t, http.StatusOK, purchase.Code)
+	require.Contains(t, purchase.Body.String(), `"status":"applied"`)
+	require.NotContains(t, purchase.Body.String(), "checkout_url")
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.Where("user_id = ? AND plan_id = ?", 9125, plan.Id).First(&order).Error)
+	require.Equal(t, common.TopUpStatusSuccess, order.Status)
+	require.Zero(t, order.PaymentAmountMinor)
+	require.Equal(t, service.SubscriptionDiscountKindInvitation, order.DiscountKind)
+	require.Equal(t, int64(999), order.SubscriptionDiscountUSDMinor)
+	account, err := model.GetSubscriptionDiscountAccount(9125)
+	require.NoError(t, err)
+	require.Zero(t, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var commitCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeCommit).
+		Count(&commitCount).Error)
+	require.Equal(t, int64(1), commitCount)
+}
+
 func TestSubscriptionSelfPurchaseStripeRecurringRecallFailsClosedBeforeCheckout(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)

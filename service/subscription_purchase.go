@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -209,21 +210,11 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 	if err != nil {
 		return nil, err
 	}
-	if validatedQuote.DiscountKind == SubscriptionDiscountKindInvitation {
-		return nil, ErrSubscriptionPurchaseInvitationReservationRequired
-	}
 	cmd.VerifiedQuote = &validatedQuote
 	if subscriptionPurchaseAfterQuoteValidationHook != nil {
 		subscriptionPurchaseAfterQuoteValidationHook()
 	}
 	var supersededCheckouts []supersededStripeCheckout
-	if cmd.PaymentChoice == SubscriptionPaymentChoiceAlipay || cmd.PaymentChoice == SubscriptionPaymentChoicePix || cmd.PaymentChoice == SubscriptionPaymentChoiceUPI || cmd.PaymentChoice == SubscriptionPaymentChoiceBalance {
-		var err error
-		supersededCheckouts, err = supersedeReplaceablePendingStripeCheckouts(context.Background(), cmd.UserID, cmd.RequestID)
-		if err != nil {
-			return nil, err
-		}
-	}
 	var result *PurchaseSubscriptionResult
 	var effects *balanceOnePeriodSideEffects
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
@@ -258,6 +249,17 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 		if err := enforceMaxPurchasePerUserTx(tx, cmd.UserID, plan); err != nil {
 			return err
 		}
+		var replacementReleasedDiscountUSDMinor int64
+		if cmd.PaymentChoice == SubscriptionPaymentChoiceAlipay || cmd.PaymentChoice == SubscriptionPaymentChoicePix || cmd.PaymentChoice == SubscriptionPaymentChoiceUPI || cmd.PaymentChoice == SubscriptionPaymentChoiceBalance {
+			superseded, err := supersedeReplaceablePendingStripeCheckoutsLocallyTx(tx, cmd.UserID, cmd.RequestID)
+			if err != nil {
+				return err
+			}
+			supersededCheckouts = superseded
+			for _, checkout := range superseded {
+				replacementReleasedDiscountUSDMinor += checkout.ReleasedDiscountUSDMinor
+			}
+		}
 		contract, err := getOrCreateContractForUserTx(tx, cmd.UserID)
 		if err != nil {
 			return err
@@ -284,21 +286,7 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 		if err := tx.Create(intent).Error; err != nil {
 			return err
 		}
-		if len(supersededCheckouts) > 0 {
-			var ids []int64
-			for _, superseded := range supersededCheckouts {
-				if superseded.IntentID > 0 {
-					ids = append(ids, superseded.IntentID)
-				}
-			}
-			if len(ids) > 0 {
-				if err := tx.Model(&model.SubscriptionChangeIntent{}).
-					Where("id IN ? AND status = ?", ids, model.SubscriptionChangeIntentStatusSuperseded).
-					Update("superseded_by_id", intent.Id).Error; err != nil {
-					return err
-				}
-			}
-		}
+		discountFacts := subscriptionReservationFactsFromValidatedQuote(validatedQuote, replacementReleasedDiscountUSDMinor)
 		if err := tx.Model(&model.UserSubscriptionContract{}).Where("id = ?", contract.Id).
 			Update("latest_change_intent_id", intent.Id).Error; err != nil {
 			return err
@@ -306,7 +294,7 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 		contract.LatestChangeIntentId = intent.Id
 
 		if cmd.PaymentChoice != SubscriptionPaymentChoiceBalance {
-			order, err := createPendingOneTimePurchaseOrderTx(tx, &user, contract, intent, plan, cmd)
+			order, err := createPendingOneTimePurchaseOrderTx(tx, &user, contract, intent, plan, cmd, discountFacts)
 			if err != nil {
 				return err
 			}
@@ -315,6 +303,9 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 				"status":     intent.Status,
 				"updated_at": common.GetTimestamp(),
 			}).Error; err != nil {
+				return err
+			}
+			if err := markSupersededStripeCheckoutReplacementTx(tx, supersededCheckouts, intent.Id, order.TradeNo); err != nil {
 				return err
 			}
 			result = &PurchaseSubscriptionResult{
@@ -330,22 +321,25 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 		if err != nil {
 			return err
 		}
-		applied, debitEffects, err := applyBalancePrepaidPurchaseTx(tx, &user, contract, intent, plan, cmd, quote)
+		applied, debitEffects, err := applyBalancePrepaidPurchaseTx(tx, &user, contract, intent, plan, cmd, quote, discountFacts)
 		if err != nil {
 			return err
 		}
 		effects = debitEffects
 		result = applied
+		if result != nil && result.Order != nil {
+			if err := markSupersededStripeCheckoutReplacementTx(tx, supersededCheckouts, intent.Id, result.Order.TradeNo); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	for _, superseded := range supersededCheckouts {
-		if strings.TrimSpace(superseded.TradeNo) != "" {
-			if err := model.SyncSubscriptionOrderTopUpHistory(superseded.TradeNo); err != nil {
-				return nil, err
-			}
+	if result != nil && result.Order != nil {
+		if err := expirePendingSupersededStripeCheckoutsForReplacement(context.Background(), result.Order.TradeNo); err != nil {
+			return nil, err
 		}
 	}
 	applyBalanceOnePeriodSideEffects(effects)
@@ -425,6 +419,110 @@ func buildPurchaseReplayResultTx(tx *gorm.DB, cmd PurchaseSubscriptionCommand, i
 	}, nil
 }
 
+func markSupersededStripeCheckoutReplacementTx(tx *gorm.DB, supersededCheckouts []supersededStripeCheckout, replacementIntentID int64, replacementTradeNo string) error {
+	replacementTradeNo = strings.TrimSpace(replacementTradeNo)
+	if tx == nil || len(supersededCheckouts) == 0 || replacementIntentID <= 0 || replacementTradeNo == "" {
+		return nil
+	}
+	intentIDs := make([]int64, 0, len(supersededCheckouts))
+	orderIDs := make([]int, 0, len(supersededCheckouts))
+	for _, superseded := range supersededCheckouts {
+		if superseded.IntentID > 0 {
+			intentIDs = append(intentIDs, superseded.IntentID)
+		}
+		if superseded.OrderID > 0 {
+			orderIDs = append(orderIDs, superseded.OrderID)
+		}
+	}
+	if len(intentIDs) > 0 {
+		if err := tx.Model(&model.SubscriptionChangeIntent{}).
+			Where("id IN ? AND status = ?", intentIDs, model.SubscriptionChangeIntentStatusSuperseded).
+			Update("superseded_by_id", replacementIntentID).Error; err != nil {
+			return err
+		}
+	}
+	if len(orderIDs) > 0 {
+		if err := tx.Model(&model.SubscriptionOrder{}).
+			Where("id IN ? AND status = ?", orderIDs, common.TopUpStatusExpired).
+			Update("superseded_by_trade_no", replacementTradeNo).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func expirePendingSupersededStripeCheckoutsForReplacement(ctx context.Context, replacementTradeNo string) error {
+	replacementTradeNo = strings.TrimSpace(replacementTradeNo)
+	if replacementTradeNo == "" {
+		return nil
+	}
+	var pending []model.SubscriptionOrder
+	if err := model.DB.
+		Where("superseded_by_trade_no = ? AND provider_expiration_pending = ? AND provider_session_id <> ?",
+			replacementTradeNo, true, "").
+		Order("id asc").
+		Find(&pending).Error; err != nil {
+		return err
+	}
+	for _, order := range pending {
+		if err := expireReplaceableStripeCheckout(ctx, order.ProviderSessionId); err != nil {
+			if recordErr := recordSupersededStripeCheckoutExpirationFailure(order.Id, err); recordErr != nil {
+				return recordErr
+			}
+			return err
+		}
+		if err := clearSupersededStripeCheckoutExpirationPending(order.Id); err != nil {
+			return err
+		}
+		if err := model.SyncSubscriptionOrderTopUpHistory(order.TradeNo); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func recordSupersededStripeCheckoutExpirationFailure(orderID int, expireErr error) error {
+	if orderID <= 0 || expireErr == nil {
+		return nil
+	}
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		var order model.SubscriptionOrder
+		if err := subscriptionCommandLock(tx).Where("id = ?", orderID).First(&order).Error; err != nil {
+			return err
+		}
+		if !order.ProviderExpirationPending {
+			return nil
+		}
+		return tx.Model(&order).Where("id = ? AND provider_expiration_pending = ?", order.Id, true).
+			Updates(map[string]interface{}{
+				"provider_expiration_attempt_count": order.ProviderExpirationAttemptCount + 1,
+				"provider_expiration_last_error":    expireErr.Error(),
+			}).Error
+	})
+}
+
+func clearSupersededStripeCheckoutExpirationPending(orderID int) error {
+	if orderID <= 0 {
+		return nil
+	}
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		var order model.SubscriptionOrder
+		if err := subscriptionCommandLock(tx).Where("id = ?", orderID).First(&order).Error; err != nil {
+			return err
+		}
+		if !order.ProviderExpirationPending {
+			return nil
+		}
+		return tx.Model(&order).Where("id = ? AND provider_expiration_pending = ?", order.Id, true).
+			Updates(map[string]interface{}{
+				"provider_expiration_pending":       false,
+				"provider_expiration_attempt_count": order.ProviderExpirationAttemptCount + 1,
+				"provider_expiration_last_error":    "",
+				"provider_expiration_completed_at":  common.GetTimestamp(),
+			}).Error
+	})
+}
+
 func validateFlexiblePrepaidPlan(plan *model.SubscriptionPlan) error {
 	if plan == nil {
 		return errors.New("subscription plan is nil")
@@ -455,7 +553,7 @@ func classifyPrepaidPurchaseKindTx(tx *gorm.DB, contract *model.UserSubscription
 	return model.SubscriptionChangeIntentKindDowngrade, nil
 }
 
-func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, cmd PurchaseSubscriptionCommand) (*model.SubscriptionOrder, error) {
+func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, cmd PurchaseSubscriptionCommand, discountFacts subscriptionReservationDiscountFacts) (*model.SubscriptionOrder, error) {
 	snapshot, err := subscriptionPurchasePlanSnapshot(plan)
 	if err != nil {
 		return nil, err
@@ -492,10 +590,16 @@ func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract
 	if err := tx.Create(order).Error; err != nil {
 		return nil, err
 	}
+	if err := reserveSubscriptionDiscountForOrderTx(tx, order, plan, cmd, quote, discountFacts, subscriptionPurchaseOrderExpiresAt(now)); err != nil {
+		return nil, err
+	}
+	if err := tx.Save(order).Error; err != nil {
+		return nil, err
+	}
 	return order, nil
 }
 
-func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, cmd PurchaseSubscriptionCommand, quote SubscriptionPurchaseQuote) (*PurchaseSubscriptionResult, *balanceOnePeriodSideEffects, error) {
+func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, cmd PurchaseSubscriptionCommand, quote SubscriptionPurchaseQuote, discountFacts subscriptionReservationDiscountFacts) (*PurchaseSubscriptionResult, *balanceOnePeriodSideEffects, error) {
 	if err := enforcePrepaidReplacementLimitTx(tx, contract.Id, cmd.Months); err != nil {
 		return nil, nil, err
 	}
@@ -548,6 +652,9 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 		ChangeIntentId:            intent.Id,
 	}
 	if err := tx.Create(order).Error; err != nil {
+		return nil, nil, err
+	}
+	if err := reserveSubscriptionDiscountForOrderTx(tx, order, plan, cmd, quote, discountFacts, subscriptionPurchaseOrderExpiresAt(now)); err != nil {
 		return nil, nil, err
 	}
 	if quote.DiscountKind == SubscriptionDiscountKindRecall && quote.DiscountAmountMinor > 0 {
@@ -628,6 +735,11 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 	if err := model.GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, order); err != nil {
 		return nil, nil, err
 	}
+	if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+		if _, err := model.CommitSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
+			return nil, nil, err
+		}
+	}
 	if err := tx.Where("id = ?", contract.Id).First(contract).Error; err != nil {
 		return nil, nil, err
 	}
@@ -651,6 +763,183 @@ func subscriptionPurchaseRecallAttribution(quote SubscriptionPurchaseQuote) (int
 		return 0, 0, "", 0
 	}
 	return quote.RecallCampaignID, quote.RecallRecipientID, quote.RecallPromotionCodeID, quote.DiscountAmountMinor
+}
+
+type subscriptionDiscountPricingSnapshot struct {
+	DiscountKind                       string `json:"discount_kind"`
+	Currency                           string `json:"currency"`
+	UnitAmountMinor                    int64  `json:"unit_amount_minor"`
+	OriginalTotalAmountMinor           int64  `json:"original_total_amount_minor"`
+	PaymentAmountMinor                 int64  `json:"payment_amount_minor"`
+	DiscountAmountMinor                int64  `json:"discount_amount_minor"`
+	InvitationAvailableUSDMinor        int64  `json:"invitation_available_usd_minor"`
+	InvitationDiscountUSDMinor         int64  `json:"invitation_discount_usd_minor"`
+	InvitationDiscountAmountMinor      int64  `json:"invitation_discount_amount_minor"`
+	InvitationRemainingUSDMinor        int64  `json:"invitation_remaining_usd_minor"`
+	OtherDiscountKind                  string `json:"other_discount_kind,omitempty"`
+	OtherDiscountAmountMinor           int64  `json:"other_discount_amount_minor,omitempty"`
+	RecallCampaignID                   int64  `json:"recall_campaign_id,omitempty"`
+	RecallRecipientID                  int64  `json:"recall_recipient_id,omitempty"`
+	RecallPromotionCodeID              string `json:"recall_promotion_code_id,omitempty"`
+	SubscriptionDiscountReservationKey string `json:"subscription_discount_reservation_key,omitempty"`
+}
+
+type subscriptionReservationDiscountFacts struct {
+	OtherDiscountKind           string
+	OtherDiscountAmountMinor    int64
+	ReplacementReleasedUSDMinor int64
+}
+
+func subscriptionReservationFactsFromValidatedQuote(quote SubscriptionPurchaseQuote, replacementReleasedUSDMinor int64) subscriptionReservationDiscountFacts {
+	return subscriptionReservationDiscountFacts{
+		OtherDiscountKind:           strings.TrimSpace(quote.OtherDiscountKind),
+		OtherDiscountAmountMinor:    quote.OtherDiscountAmountMinor,
+		ReplacementReleasedUSDMinor: replacementReleasedUSDMinor,
+	}
+}
+
+func reserveSubscriptionDiscountForOrderTx(tx *gorm.DB, order *model.SubscriptionOrder, plan *model.SubscriptionPlan, cmd PurchaseSubscriptionCommand, quote SubscriptionPurchaseQuote, discountFacts subscriptionReservationDiscountFacts, expiresAt int64) error {
+	if tx == nil || order == nil {
+		return errors.New("subscription discount reservation order is required")
+	}
+	quote.DiscountKind = strings.TrimSpace(quote.DiscountKind)
+	if quote.DiscountKind == "" {
+		quote.DiscountKind = SubscriptionDiscountKindNone
+	}
+	order.DiscountKind = quote.DiscountKind
+	order.SubscriptionDiscountUSDMinor = 0
+	order.SubscriptionDiscountAmountMinor = 0
+	order.SubscriptionDiscountReservationKey = ""
+	snapshot, err := subscriptionDiscountSnapshotJSON(quote, "")
+	if err != nil {
+		return err
+	}
+	order.DiscountPricingSnapshot = snapshot
+	switch quote.DiscountKind {
+	case SubscriptionDiscountKindNone, SubscriptionDiscountKindRecall:
+		return nil
+	case SubscriptionDiscountKindInvitation:
+	default:
+		return fmt.Errorf("%w: unsupported discount kind", ErrSubscriptionPurchaseQuoteInvalid)
+	}
+	if quote.InvitationDiscountUSDMinor <= 0 || quote.InvitationDiscountAmountMinor <= 0 {
+		return fmt.Errorf("%w: invitation discount missing amount", ErrSubscriptionPurchaseQuoteInvalid)
+	}
+	if err := validateCurrentInvitationQuoteForReservationTx(tx, order, plan, cmd, quote, discountFacts); err != nil {
+		return err
+	}
+	reservationKey := "subscription-order:" + strings.TrimSpace(order.TradeNo) + ":reserve"
+	snapshot, err = subscriptionDiscountSnapshotJSON(quote, reservationKey)
+	if err != nil {
+		return err
+	}
+	created, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+		UserID:             order.UserId,
+		USDMinor:           quote.InvitationDiscountUSDMinor,
+		OrderID:            order.Id,
+		TradeNo:            order.TradeNo,
+		PaymentCurrency:    quote.Currency,
+		AppliedAmountMinor: quote.InvitationDiscountAmountMinor,
+		PricingSnapshot:    snapshot,
+		IdempotencyKey:     reservationKey,
+		ExpiresAt:          expiresAt,
+	})
+	if err != nil {
+		if errors.Is(err, model.ErrSubscriptionDiscountInsufficient) {
+			return fmt.Errorf("%w: invitation credit changed", ErrSubscriptionPurchaseQuoteInvalid)
+		}
+		return err
+	}
+	if !created {
+		return fmt.Errorf("%w: duplicate reservation", ErrSubscriptionPurchaseQuoteInvalid)
+	}
+	order.SubscriptionDiscountUSDMinor = quote.InvitationDiscountUSDMinor
+	order.SubscriptionDiscountAmountMinor = quote.InvitationDiscountAmountMinor
+	order.SubscriptionDiscountReservationKey = reservationKey
+	order.DiscountPricingSnapshot = snapshot
+	return nil
+}
+
+func validateCurrentInvitationQuoteForReservationTx(tx *gorm.DB, order *model.SubscriptionOrder, plan *model.SubscriptionPlan, cmd PurchaseSubscriptionCommand, quote SubscriptionPurchaseQuote, discountFacts subscriptionReservationDiscountFacts) error {
+	if tx == nil || order == nil || plan == nil {
+		return errors.New("subscription discount reservation quote context is required")
+	}
+	var account model.SubscriptionDiscountAccount
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", order.UserId).First(&account).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		account = model.SubscriptionDiscountAccount{UserID: order.UserId}
+	} else if err != nil {
+		return err
+	}
+	base, err := resolveSubscriptionPurchaseQuote(*plan, cmd.PaymentChoice, cmd.Months)
+	if err != nil {
+		return err
+	}
+	effectiveAvailableUSDMinor := account.AvailableUSDMinor - discountFacts.ReplacementReleasedUSDMinor
+	if effectiveAvailableUSDMinor < 0 {
+		return fmt.Errorf("%w: invitation credit changed", ErrSubscriptionPurchaseQuoteInvalid)
+	}
+	canonicalUSDQuote := subscriptionPurchaseQuoteFromUnitPrice(plan.Currency, plan.PriceAmount, cmd.Months)
+	discountQuote, err := BuildSubscriptionDiscountQuote(SubscriptionDiscountQuoteInput{
+		Currency:                 base.Currency,
+		OriginalAmountMinor:      base.OriginalTotalAmountMinor,
+		OriginalUSDMinor:         canonicalUSDQuote.OriginalTotalAmountMinor,
+		AvailableUSDMinor:        effectiveAvailableUSDMinor,
+		OtherDiscountKind:        discountFacts.OtherDiscountKind,
+		OtherDiscountAmountMinor: discountFacts.OtherDiscountAmountMinor,
+	})
+	if err != nil {
+		return err
+	}
+	expected := base
+	expected.DiscountKind = discountQuote.SelectedKind
+	expected.DiscountAmountMinor = discountQuote.SelectedDiscountAmountMinor
+	expected.DiscountAmount = float64(expected.DiscountAmountMinor) / 100
+	expected.PaymentAmountMinor = discountQuote.FinalAmountMinor
+	expected.Total = float64(expected.PaymentAmountMinor) / 100
+	expected.InvitationAvailableUSDMinor = discountQuote.InvitationAvailableUSDMinor
+	expected.InvitationDiscountUSDMinor = discountQuote.InvitationDiscountUSDMinor
+	expected.InvitationDiscountAmountMinor = discountQuote.InvitationDiscountAmountMinor
+	expected.InvitationRemainingUSDMinor = discountQuote.InvitationRemainingUSDMinor
+	expected.OtherDiscountKind = discountQuote.OtherDiscountKind
+	expected.OtherDiscountAmountMinor = discountQuote.OtherDiscountAmountMinor
+	if err := compareSubscriptionPurchaseQuotes(expected, quote); err != nil {
+		return fmt.Errorf("%w: %v", ErrSubscriptionPurchaseQuoteInvalid, err)
+	}
+	return nil
+}
+
+func subscriptionDiscountSnapshotJSON(quote SubscriptionPurchaseQuote, reservationKey string) (string, error) {
+	payload := subscriptionDiscountPricingSnapshot{
+		DiscountKind:                       strings.TrimSpace(quote.DiscountKind),
+		Currency:                           strings.ToUpper(strings.TrimSpace(quote.Currency)),
+		UnitAmountMinor:                    quote.UnitAmountMinor,
+		OriginalTotalAmountMinor:           quote.OriginalTotalAmountMinor,
+		PaymentAmountMinor:                 quote.PaymentAmountMinor,
+		DiscountAmountMinor:                quote.DiscountAmountMinor,
+		InvitationAvailableUSDMinor:        quote.InvitationAvailableUSDMinor,
+		InvitationDiscountUSDMinor:         quote.InvitationDiscountUSDMinor,
+		InvitationDiscountAmountMinor:      quote.InvitationDiscountAmountMinor,
+		InvitationRemainingUSDMinor:        quote.InvitationRemainingUSDMinor,
+		OtherDiscountKind:                  strings.TrimSpace(quote.OtherDiscountKind),
+		OtherDiscountAmountMinor:           quote.OtherDiscountAmountMinor,
+		RecallCampaignID:                   quote.RecallCampaignID,
+		RecallRecipientID:                  quote.RecallRecipientID,
+		RecallPromotionCodeID:              strings.TrimSpace(quote.RecallPromotionCodeID),
+		SubscriptionDiscountReservationKey: strings.TrimSpace(reservationKey),
+	}
+	data, err := common.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func subscriptionPurchaseOrderExpiresAt(createdAt int64) int64 {
+	if createdAt <= 0 {
+		createdAt = common.GetTimestamp()
+	}
+	return createdAt + int64((30 * time.Minute).Seconds())
 }
 
 func enforcePrepaidReplacementLimitTx(tx *gorm.DB, contractID int64, purchaseMonths int) error {
@@ -830,6 +1119,11 @@ func replayExistingSubscriptionPurchase(cmd PurchaseSubscriptionCommand) (*Purch
 	if err != nil {
 		return nil, false, err
 	}
+	if foundReplay && result != nil && result.Order != nil {
+		if err := expirePendingSupersededStripeCheckoutsForReplacement(context.Background(), result.Order.TradeNo); err != nil {
+			return nil, false, err
+		}
+	}
 	return result, foundReplay, nil
 }
 
@@ -862,7 +1156,7 @@ func validateAuthoritativeSubscriptionPurchaseQuote(ctx context.Context, cmd Pur
 		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase recall claim is required")
 	}
 	if err := compareSubscriptionPurchaseQuotes(expected, tokenQuote); err != nil {
-		return SubscriptionPurchaseQuote{}, err
+		return SubscriptionPurchaseQuote{}, fmt.Errorf("%w: %v", ErrSubscriptionPurchaseQuoteInvalid, err)
 	}
 	return expected, nil
 }
@@ -875,7 +1169,7 @@ func validateSubscriptionPurchaseQuoteMatchesPlan(plan model.SubscriptionPlan, c
 	if base.Currency != quote.Currency ||
 		base.UnitAmountMinor != quote.UnitAmountMinor ||
 		base.OriginalTotalAmountMinor != quote.OriginalTotalAmountMinor {
-		return errors.New("subscription purchase quote mismatch")
+		return fmt.Errorf("%w: subscription purchase quote mismatch", ErrSubscriptionPurchaseQuoteInvalid)
 	}
 	return nil
 }
@@ -968,13 +1262,10 @@ func compareSubscriptionPurchaseQuotes(expected SubscriptionPurchaseQuote, actua
 		expected.InvitationDiscountUSDMinor != actual.InvitationDiscountUSDMinor ||
 		expected.InvitationDiscountAmountMinor != actual.InvitationDiscountAmountMinor ||
 		expected.InvitationRemainingUSDMinor != actual.InvitationRemainingUSDMinor ||
+		expected.OtherDiscountKind != actual.OtherDiscountKind ||
+		expected.OtherDiscountAmountMinor != actual.OtherDiscountAmountMinor ||
 		expected.RecallCampaignID != actual.RecallCampaignID ||
 		expected.RecallRecipientID != actual.RecallRecipientID {
-		return errors.New("subscription purchase quote mismatch")
-	}
-	if expected.DiscountKind == SubscriptionDiscountKindRecall &&
-		(expected.OtherDiscountKind != actual.OtherDiscountKind ||
-			expected.OtherDiscountAmountMinor != actual.OtherDiscountAmountMinor) {
 		return errors.New("subscription purchase quote mismatch")
 	}
 	return nil

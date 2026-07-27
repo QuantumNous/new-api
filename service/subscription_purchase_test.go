@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -179,6 +180,15 @@ func purchaseQuoteFromResult(result *SubscriptionPurchaseQuoteResult) *Subscript
 		RecallCampaignID:              result.RecallCampaignID,
 		RecallRecipientID:             result.RecallRecipientID,
 	}
+}
+
+func firstTableIndex(tables []string, table string) int {
+	for i, candidate := range tables {
+		if candidate == table {
+			return i
+		}
+	}
+	return -1
 }
 
 func TestPurchaseSubscriptionRejectsMonthsOutsideOneToTwelve(t *testing.T) {
@@ -653,15 +663,18 @@ func TestQuoteSubscriptionPurchaseRepairsMissingInviteeRegistrationGrantForAnyRe
 	}
 }
 
-func TestPurchaseSubscriptionInvitationOneTimeRequiresReservationSupport(t *testing.T) {
+func TestPurchaseSubscriptionInvitationOneTimeReservesCreditAndPersistsQuoteSnapshot(t *testing.T) {
 	tests := []struct {
-		name   string
-		choice string
+		name         string
+		choice       string
+		wantCurrency string
+		wantDiscount int64
+		wantFinal    int64
 	}{
-		{name: "alipay", choice: SubscriptionPaymentChoiceAlipay},
-		{name: "pix", choice: SubscriptionPaymentChoicePix},
-		{name: "upi", choice: SubscriptionPaymentChoiceUPI},
-		{name: "balance", choice: SubscriptionPaymentChoiceBalance},
+		{name: "alipay", choice: SubscriptionPaymentChoiceAlipay, wantCurrency: "USD", wantDiscount: 700, wantFinal: 1300},
+		{name: "pix", choice: SubscriptionPaymentChoicePix, wantCurrency: "BRL", wantDiscount: 2800, wantFinal: 5200},
+		{name: "upi", choice: SubscriptionPaymentChoiceUPI, wantCurrency: "INR", wantDiscount: 29050, wantFinal: 53950},
+		{name: "balance", choice: SubscriptionPaymentChoiceBalance, wantCurrency: "USD", wantDiscount: 700, wantFinal: 1300},
 	}
 
 	for index, test := range tests {
@@ -686,46 +699,729 @@ func TestPurchaseSubscriptionInvitationOneTimeRequiresReservationSupport(t *test
 			require.Equal(t, SubscriptionDiscountKindInvitation, quote.DiscountKind)
 			accountBefore, err := model.GetSubscriptionDiscountAccount(userID)
 			require.NoError(t, err)
-			entriesBefore := countPurchaseServiceDiscountEntries(t, userID)
 			var hookCalls int
 			originalHook := subscriptionPurchaseAfterQuoteValidationHook
 			subscriptionPurchaseAfterQuoteValidationHook = func() { hookCalls++ }
 			t.Cleanup(func() { subscriptionPurchaseAfterQuoteValidationHook = originalHook })
 
-			for _, requestID := range []string{"purchase-invitation-" + test.name + "-first", "purchase-invitation-" + test.name + "-second"} {
-				result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
-					UserID:        userID,
-					PlanID:        plan.Id,
-					PaymentChoice: test.choice,
-					Months:        1,
-					RequestID:     requestID,
-					VerifiedQuote: purchaseQuoteFromResult(quote),
-				})
+			result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+				UserID:        userID,
+				PlanID:        plan.Id,
+				PaymentChoice: test.choice,
+				Months:        1,
+				RequestID:     "purchase-invitation-" + test.name,
+				VerifiedQuote: purchaseQuoteFromResult(quote),
+			})
 
-				require.ErrorIs(t, err, ErrSubscriptionPurchaseInvitationReservationRequired)
-				require.Nil(t, result)
-			}
-
-			require.Zero(t, hookCalls)
-			var orderCount int64
-			require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", userID).Count(&orderCount).Error)
-			require.Zero(t, orderCount)
-			var intentCount int64
-			require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", userID).Count(&intentCount).Error)
-			require.Zero(t, intentCount)
-			var ledgerCount int64
-			require.NoError(t, model.DB.Model(&model.WalletLedgerEntry{}).Where("user_id = ?", userID).Count(&ledgerCount).Error)
-			require.Zero(t, ledgerCount)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.NotNil(t, result.Order)
+			require.Equal(t, 1, hookCalls)
+			require.Equal(t, test.wantCurrency, result.Order.PaymentCurrency)
+			require.Equal(t, test.wantFinal, result.Order.PaymentAmountMinor)
+			require.Equal(t, SubscriptionDiscountKindInvitation, result.Order.DiscountKind)
+			require.Equal(t, int64(700), result.Order.SubscriptionDiscountUSDMinor)
+			require.Equal(t, test.wantDiscount, result.Order.SubscriptionDiscountAmountMinor)
+			require.Equal(t, "subscription-order:"+result.Order.TradeNo+":reserve", result.Order.SubscriptionDiscountReservationKey)
+			require.Contains(t, result.Order.DiscountPricingSnapshot, `"discount_kind":"invitation"`)
 			accountAfter, err := model.GetSubscriptionDiscountAccount(userID)
 			require.NoError(t, err)
-			require.Equal(t, accountBefore.AvailableUSDMinor, accountAfter.AvailableUSDMinor)
-			require.Equal(t, accountBefore.ReservedUSDMinor, accountAfter.ReservedUSDMinor)
-			require.Equal(t, entriesBefore, countPurchaseServiceDiscountEntries(t, userID))
-			var conversionCount int64
-			require.NoError(t, model.DB.Model(&model.RecallEvent{}).Where("event_type = ?", "conversion").Count(&conversionCount).Error)
-			require.Zero(t, conversionCount)
+			require.Equal(t, accountBefore.AvailableUSDMinor-700, accountAfter.AvailableUSDMinor)
+			if test.choice == SubscriptionPaymentChoiceBalance {
+				require.Zero(t, accountAfter.ReservedUSDMinor)
+			} else {
+				require.Equal(t, accountBefore.ReservedUSDMinor+700, accountAfter.ReservedUSDMinor)
+			}
+			var reserve model.SubscriptionDiscountEntry
+			require.NoError(t, model.DB.Where("idempotency_key = ?", result.Order.SubscriptionDiscountReservationKey).First(&reserve).Error)
+			require.Equal(t, model.SubscriptionDiscountEntryTypeReserve, reserve.EntryType)
+			require.Equal(t, result.Order.Id, reserve.OrderID)
+			require.Equal(t, result.Order.TradeNo, reserve.TradeNo)
+			require.Equal(t, test.wantCurrency, reserve.PaymentCurrency)
+			require.Equal(t, test.wantDiscount, reserve.AppliedAmountMinor)
 		})
 	}
+}
+
+func TestPurchaseSubscriptionInvitationRejectsTamperedOtherOfferFields(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	insertPurchaseServiceUser(t, 7705, 100000)
+	plan := insertPurchaseServicePlan(t, 7805, 1, 20, 2000)
+	grantPurchaseServiceInvitationDiscount(t, 7705, 700, "purchase-invitation-tampered-other")
+	quote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7705,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionDiscountKindInvitation, quote.DiscountKind)
+	tamperedQuote := purchaseQuoteFromResult(quote)
+	tamperedQuote.OtherDiscountKind = SubscriptionDiscountKindRecall
+	tamperedQuote.OtherDiscountAmountMinor = 600
+
+	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7705,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-tampered-other",
+		VerifiedQuote: tamperedQuote,
+	})
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+	require.Nil(t, result)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7705).Count(&orderCount).Error)
+	require.Zero(t, orderCount)
+	var reserveCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("user_id = ? AND entry_type = ?", 7705, model.SubscriptionDiscountEntryTypeReserve).
+		Count(&reserveCount).Error)
+	require.Zero(t, reserveCount)
+	account, err := model.GetSubscriptionDiscountAccount(7705)
+	require.NoError(t, err)
+	require.Equal(t, int64(700), account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+}
+
+func TestPurchaseSubscriptionInvitationBalanceZeroFinalCommitsOnceWithoutWalletDebit(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	insertPurchaseServiceUser(t, 7706, 100000)
+	plan := insertPurchaseServicePlan(t, 7806, 1, 20, 2000)
+	grantPurchaseServiceInvitationDiscount(t, 7706, 2500, "purchase-invitation-balance-zero")
+	quote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7706,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionDiscountKindInvitation, quote.DiscountKind)
+	require.Equal(t, int64(2000), quote.InvitationDiscountUSDMinor)
+	require.Zero(t, quote.PaymentAmountMinor)
+	require.Equal(t, int64(500), quote.InvitationRemainingUSDMinor)
+
+	first, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7706,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        1,
+		RequestID:     "purchase-invitation-balance-zero",
+		VerifiedQuote: purchaseQuoteFromResult(quote),
+	})
+	require.NoError(t, err)
+	replay, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7706,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        1,
+		RequestID:     "purchase-invitation-balance-zero",
+		VerifiedQuote: purchaseQuoteFromResult(quote),
+	})
+	require.NoError(t, err)
+
+	require.NotNil(t, first)
+	require.NotNil(t, first.Order)
+	require.NotNil(t, first.Entitlement)
+	require.Equal(t, ChangePlanStatusApplied, first.Status)
+	require.Equal(t, common.TopUpStatusSuccess, first.Order.Status)
+	require.Zero(t, first.Order.PaymentAmountMinor)
+	require.Empty(t, first.CheckoutURL)
+	require.Empty(t, first.HostedInvoiceURL)
+	require.Equal(t, first.Order.Id, replay.Order.Id)
+	account, err := model.GetSubscriptionDiscountAccount(7706)
+	require.NoError(t, err)
+	require.Equal(t, int64(500), account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var commitCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", first.Order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeCommit).
+		Count(&commitCount).Error)
+	require.Equal(t, int64(1), commitCount)
+	var debitCount int64
+	require.NoError(t, model.DB.Model(&model.WalletLedgerEntry{}).
+		Where("user_id = ? AND entry_type = ?", 7706, model.WalletLedgerEntryTypePrepaidDebit).
+		Count(&debitCount).Error)
+	require.Zero(t, debitCount)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7706).Count(&orderCount).Error)
+	require.Equal(t, int64(1), orderCount)
+	var entitlementCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", 7706).Count(&entitlementCount).Error)
+	require.Equal(t, int64(1), entitlementCount)
+}
+
+func TestPurchaseSubscriptionInvitationInvalidReplacementDoesNotSupersedeExistingCheckout(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	insertPurchaseServiceUser(t, 7708, 100000)
+	plan := insertPurchaseServicePlan(t, 7808, 1, 20, 2000)
+	grantPurchaseServiceInvitationDiscount(t, 7708, 4000, "purchase-invitation-invalid-replacement")
+	firstQuote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7708,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	first, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7708,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-invalid-replacement-first",
+		VerifiedQuote: purchaseQuoteFromResult(firstQuote),
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).
+		Where("id = ?", first.Order.Id).
+		Update("provider_session_id", "cs_invitation_invalid_replacement_old").Error)
+	replacementQuote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7708,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	tamperedQuote := purchaseQuoteFromResult(replacementQuote)
+	tamperedQuote.PaymentAmountMinor++
+	tamperedQuote.Total = float64(tamperedQuote.PaymentAmountMinor) / 100
+	var expireCalls int
+	restoreStripeAccessors := ReplaceStripeCheckoutSessionAccessorsForTest(
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			require.Equal(t, "cs_invitation_invalid_replacement_old", sessionID)
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusOpen}, nil
+		},
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			expireCalls++
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusExpired}, nil
+		},
+	)
+	t.Cleanup(restoreStripeAccessors)
+	var accountBefore model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&accountBefore, "user_id = ?", 7708).Error)
+	var oldOrderBefore model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&oldOrderBefore, "id = ?", first.Order.Id).Error)
+	var oldIntentBefore model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&oldIntentBefore, "id = ?", first.Intent.Id).Error)
+	var contractBefore model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&contractBefore, "id = ?", first.Contract.Id).Error)
+
+	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7708,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-invalid-replacement-second",
+		VerifiedQuote: tamperedQuote,
+	})
+
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Zero(t, expireCalls)
+	var oldOrderAfter model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&oldOrderAfter, "id = ?", first.Order.Id).Error)
+	require.Equal(t, oldOrderBefore.Status, oldOrderAfter.Status)
+	require.Equal(t, oldOrderBefore.CompleteTime, oldOrderAfter.CompleteTime)
+	require.Equal(t, oldOrderBefore.SubscriptionDiscountReservationKey, oldOrderAfter.SubscriptionDiscountReservationKey)
+	var oldIntentAfter model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&oldIntentAfter, "id = ?", first.Intent.Id).Error)
+	require.Equal(t, oldIntentBefore.Status, oldIntentAfter.Status)
+	require.Equal(t, oldIntentBefore.SupersededById, oldIntentAfter.SupersededById)
+	var contractAfter model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&contractAfter, "id = ?", first.Contract.Id).Error)
+	require.Equal(t, contractBefore.LatestChangeIntentId, contractAfter.LatestChangeIntentId)
+	var accountAfter model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&accountAfter, "user_id = ?", 7708).Error)
+	require.Equal(t, accountBefore.AvailableUSDMinor, accountAfter.AvailableUSDMinor)
+	require.Equal(t, accountBefore.ReservedUSDMinor, accountAfter.ReservedUSDMinor)
+	var releaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", first.Order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeRelease).
+		Count(&releaseCount).Error)
+	require.Zero(t, releaseCount)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7708).Count(&orderCount).Error)
+	require.Equal(t, int64(1), orderCount)
+}
+
+func TestPurchaseSubscriptionInvitationReplacementTransactionFailureKeepsExistingCheckout(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	insertPurchaseServiceUser(t, 7709, 100000)
+	plan := insertPurchaseServicePlan(t, 7809, 1, 20, 2000)
+	grantPurchaseServiceInvitationDiscount(t, 7709, 4000, "purchase-invitation-replacement-rollback")
+	firstQuote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7709,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	first, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7709,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-replacement-rollback-first",
+		VerifiedQuote: purchaseQuoteFromResult(firstQuote),
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).
+		Where("id = ?", first.Order.Id).
+		Update("provider_session_id", "cs_invitation_replacement_rollback_old").Error)
+	replacementQuote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7709,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	var expireCalls int
+	restoreStripeAccessors := ReplaceStripeCheckoutSessionAccessorsForTest(
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			require.Equal(t, "cs_invitation_replacement_rollback_old", sessionID)
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusOpen}, nil
+		},
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			expireCalls++
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusExpired}, nil
+		},
+	)
+	t.Cleanup(restoreStripeAccessors)
+	originalHook := subscriptionPurchaseAfterQuoteValidationHook
+	t.Cleanup(func() { subscriptionPurchaseAfterQuoteValidationHook = originalHook })
+	subscriptionPurchaseAfterQuoteValidationHook = func() {
+		require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+			Update("price_amount", 30.00).Error)
+		model.InvalidateSubscriptionPlanCache(plan.Id)
+	}
+	var accountBefore model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&accountBefore, "user_id = ?", 7709).Error)
+	var oldOrderBefore model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&oldOrderBefore, "id = ?", first.Order.Id).Error)
+	var oldIntentBefore model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&oldIntentBefore, "id = ?", first.Intent.Id).Error)
+	var contractBefore model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&contractBefore, "id = ?", first.Contract.Id).Error)
+
+	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7709,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-replacement-rollback-second",
+		VerifiedQuote: purchaseQuoteFromResult(replacementQuote),
+	})
+
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Zero(t, expireCalls)
+	var oldOrderAfter model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&oldOrderAfter, "id = ?", first.Order.Id).Error)
+	require.Equal(t, oldOrderBefore.Status, oldOrderAfter.Status)
+	require.Equal(t, oldOrderBefore.CompleteTime, oldOrderAfter.CompleteTime)
+	require.Equal(t, oldOrderBefore.SubscriptionDiscountReservationKey, oldOrderAfter.SubscriptionDiscountReservationKey)
+	var oldIntentAfter model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&oldIntentAfter, "id = ?", first.Intent.Id).Error)
+	require.Equal(t, oldIntentBefore.Status, oldIntentAfter.Status)
+	require.Equal(t, oldIntentBefore.SupersededById, oldIntentAfter.SupersededById)
+	var contractAfter model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&contractAfter, "id = ?", first.Contract.Id).Error)
+	require.Equal(t, contractBefore.LatestChangeIntentId, contractAfter.LatestChangeIntentId)
+	var accountAfter model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&accountAfter, "user_id = ?", 7709).Error)
+	require.Equal(t, accountBefore.AvailableUSDMinor, accountAfter.AvailableUSDMinor)
+	require.Equal(t, accountBefore.ReservedUSDMinor, accountAfter.ReservedUSDMinor)
+	var releaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", first.Order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeRelease).
+		Count(&releaseCount).Error)
+	require.Zero(t, releaseCount)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7709).Count(&orderCount).Error)
+	require.Equal(t, int64(1), orderCount)
+}
+
+func TestPurchaseSubscriptionInvitationReplacementRetriesPendingStripeExpirationOnReplay(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	insertPurchaseServiceUser(t, 7711, 100000)
+	plan := insertPurchaseServicePlan(t, 7811, 1, 20, 2000)
+	grantPurchaseServiceInvitationDiscount(t, 7711, 4000, "purchase-invitation-expire-retry")
+	firstQuote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7711,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	first, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7711,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-expire-retry-first",
+		VerifiedQuote: purchaseQuoteFromResult(firstQuote),
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).
+		Where("id = ?", first.Order.Id).
+		Update("provider_session_id", "cs_invitation_expire_retry_old").Error)
+	replacementQuote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7711,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	var expireCalls int
+	restoreStripeAccessors := ReplaceStripeCheckoutSessionAccessorsForTest(
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			require.Equal(t, "cs_invitation_expire_retry_old", sessionID)
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusOpen}, nil
+		},
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			expireCalls++
+			if expireCalls == 1 {
+				return nil, errors.New("temporary stripe expiration failure")
+			}
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusExpired}, nil
+		},
+	)
+	t.Cleanup(restoreStripeAccessors)
+	replacementCmd := PurchaseSubscriptionCommand{
+		UserID:        7711,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-expire-retry-second",
+		VerifiedQuote: purchaseQuoteFromResult(replacementQuote),
+	}
+
+	result, err := PurchaseSubscription(replacementCmd)
+
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Equal(t, 1, expireCalls)
+	var oldOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&oldOrder, "id = ?", first.Order.Id).Error)
+	require.Equal(t, common.TopUpStatusExpired, oldOrder.Status)
+	require.True(t, oldOrder.ProviderExpirationPending)
+	require.NotEmpty(t, oldOrder.SupersededByTradeNo)
+	var replacementOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.Where("user_id = ? AND trade_no = ?", 7711, oldOrder.SupersededByTradeNo).First(&replacementOrder).Error)
+	require.NotEmpty(t, replacementOrder.SubscriptionDiscountReservationKey)
+	accountAfterFailure, err := model.GetSubscriptionDiscountAccount(7711)
+	require.NoError(t, err)
+	require.Equal(t, int64(2000), accountAfterFailure.AvailableUSDMinor)
+	require.Equal(t, int64(2000), accountAfterFailure.ReservedUSDMinor)
+	var releaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", first.Order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeRelease).
+		Count(&releaseCount).Error)
+	require.Equal(t, int64(1), releaseCount)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7711).Count(&orderCount).Error)
+	require.Equal(t, int64(2), orderCount)
+
+	replay, err := PurchaseSubscription(replacementCmd)
+
+	require.NoError(t, err)
+	require.NotNil(t, replay)
+	require.Equal(t, replacementOrder.Id, replay.Order.Id)
+	require.Equal(t, 2, expireCalls)
+	require.NoError(t, model.DB.First(&oldOrder, "id = ?", first.Order.Id).Error)
+	require.False(t, oldOrder.ProviderExpirationPending)
+	require.Equal(t, replay.Order.TradeNo, oldOrder.SupersededByTradeNo)
+	require.NotZero(t, oldOrder.ProviderExpirationCompletedAt)
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", first.Order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeRelease).
+		Count(&releaseCount).Error)
+	require.Equal(t, int64(1), releaseCount)
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7711).Count(&orderCount).Error)
+	require.Equal(t, int64(2), orderCount)
+}
+
+func TestPurchaseSubscriptionReplacementQueriesOldCheckoutBeforeContract(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	insertPurchaseServiceUser(t, 7712, 100000)
+	plan := insertPurchaseServicePlan(t, 7812, 1, 20, 2000)
+	grantPurchaseServiceInvitationDiscount(t, 7712, 4000, "purchase-invitation-lock-order")
+	firstQuote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7712,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	first, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7712,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-lock-order-first",
+		VerifiedQuote: purchaseQuoteFromResult(firstQuote),
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).
+		Where("id = ?", first.Order.Id).
+		Update("provider_session_id", "cs_invitation_lock_order_old").Error)
+	secondQuote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7712,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	restoreStripeAccessors := ReplaceStripeCheckoutSessionAccessorsForTest(
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			require.Equal(t, "cs_invitation_lock_order_old", sessionID)
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusOpen}, nil
+		},
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusExpired}, nil
+		},
+	)
+	t.Cleanup(restoreStripeAccessors)
+	var queriedTables []string
+	callbackName := "test_purchase_replacement_lock_order"
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		queriedTables = append(queriedTables, tx.Statement.Table)
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Query().Remove(callbackName))
+	})
+
+	_, err = PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7712,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-lock-order-second",
+		VerifiedQuote: purchaseQuoteFromResult(secondQuote),
+	})
+
+	require.NoError(t, err)
+	oldOrderIndex := firstTableIndex(queriedTables, "subscription_orders")
+	contractIndex := firstTableIndex(queriedTables, "user_subscription_contracts")
+	require.NotEqual(t, -1, oldOrderIndex, queriedTables)
+	require.NotEqual(t, -1, contractIndex, queriedTables)
+	require.Less(t, oldOrderIndex, contractIndex, queriedTables)
+}
+
+func TestPurchaseSubscriptionInvitationSupersededStripeCheckoutReleasesReservationOnce(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	insertPurchaseServiceUser(t, 7707, 100000)
+	plan := insertPurchaseServicePlan(t, 7807, 1, 20, 2000)
+	grantPurchaseServiceInvitationDiscount(t, 7707, 4000, "purchase-invitation-supersede")
+	firstQuote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7707,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	first, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7707,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-supersede-first",
+		VerifiedQuote: purchaseQuoteFromResult(firstQuote),
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, first.Order.SubscriptionDiscountReservationKey)
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).
+		Where("id = ?", first.Order.Id).
+		Update("provider_session_id", "cs_invitation_supersede_old").Error)
+
+	var expiredSessionIDs []string
+	restoreStripeAccessors := ReplaceStripeCheckoutSessionAccessorsForTest(
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			require.Equal(t, "cs_invitation_supersede_old", sessionID)
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusOpen}, nil
+		},
+		func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+			expiredSessionIDs = append(expiredSessionIDs, sessionID)
+			return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusExpired}, nil
+		},
+	)
+	t.Cleanup(restoreStripeAccessors)
+	secondQuote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7707,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(2000), secondQuote.InvitationAvailableUSDMinor)
+
+	second, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7707,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "purchase-invitation-supersede-second",
+		VerifiedQuote: purchaseQuoteFromResult(secondQuote),
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, second.Order.SubscriptionDiscountReservationKey)
+	require.NotEqual(t, first.Order.SubscriptionDiscountReservationKey, second.Order.SubscriptionDiscountReservationKey)
+	require.Equal(t, []string{"cs_invitation_supersede_old"}, expiredSessionIDs)
+
+	var oldOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&oldOrder, "id = ?", first.Order.Id).Error)
+	require.Equal(t, common.TopUpStatusExpired, oldOrder.Status)
+	var oldIntent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&oldIntent, "id = ?", first.Intent.Id).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusSuperseded, oldIntent.Status)
+	require.Equal(t, second.Intent.Id, oldIntent.SupersededById)
+	account, err := model.GetSubscriptionDiscountAccount(7707)
+	require.NoError(t, err)
+	require.Equal(t, int64(2000), account.AvailableUSDMinor)
+	require.Equal(t, int64(2000), account.ReservedUSDMinor)
+	var oldReleaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", first.Order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeRelease).
+		Count(&oldReleaseCount).Error)
+	require.Equal(t, int64(1), oldReleaseCount)
+	var newReleaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", second.Order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeRelease).
+		Count(&newReleaseCount).Error)
+	require.Zero(t, newReleaseCount)
+
+	require.NoError(t, supersedePendingStripeCheckoutLocally(&oldIntent, &oldOrder))
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", first.Order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeRelease).
+		Count(&oldReleaseCount).Error)
+	require.Equal(t, int64(1), oldReleaseCount)
+}
+
+func TestPurchaseSubscriptionInvitationStaleQuoteRollsBackWithoutOrderOrReservation(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	insertPurchaseServiceUser(t, 7710, 100000)
+	plan := insertPurchaseServicePlan(t, 7810, 1, 20, 2000)
+	grantPurchaseServiceInvitationDiscount(t, 7710, 700, "purchase-invitation-stale")
+	quote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7710,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionDiscountKindInvitation, quote.DiscountKind)
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, reserveErr := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             7710,
+			USDMinor:           700,
+			TradeNo:            "external-stale-order",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 700,
+			PricingSnapshot:    `{"source":"external"}`,
+			IdempotencyKey:     "subscription-order:external-stale-order:reserve",
+			ExpiresAt:          common.GetTimestamp() + 600,
+		})
+		return reserveErr
+	}))
+
+	_, err = PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7710,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        1,
+		RequestID:     "purchase-invitation-stale",
+		VerifiedQuote: purchaseQuoteFromResult(quote),
+	})
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7710).Count(&orderCount).Error)
+	require.Zero(t, orderCount)
+	var intentCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", 7710).Count(&intentCount).Error)
+	require.Zero(t, intentCount)
+	account, err := model.GetSubscriptionDiscountAccount(7710)
+	require.NoError(t, err)
+	require.Zero(t, account.AvailableUSDMinor)
+	require.Equal(t, int64(700), account.ReservedUSDMinor)
+}
+
+func TestPurchaseSubscriptionInvitationConcurrentOrdersDoNotOverspendCredit(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	sqlDB, err := model.DB.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(4)
+	insertPurchaseServiceUser(t, 7720, 100000)
+	plan := insertPurchaseServicePlan(t, 7820, 1, 20, 2000)
+	grantPurchaseServiceInvitationDiscount(t, 7720, 700, "purchase-invitation-concurrent")
+	quote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7720,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionDiscountKindInvitation, quote.DiscountKind)
+
+	type purchaseAttempt struct {
+		result *PurchaseSubscriptionResult
+		err    error
+	}
+	start := make(chan struct{})
+	results := make(chan purchaseAttempt, 2)
+	var wg sync.WaitGroup
+	for _, requestID := range []string{"purchase-invitation-concurrent-a", "purchase-invitation-concurrent-b"} {
+		wg.Add(1)
+		go func(requestID string) {
+			defer wg.Done()
+			<-start
+			result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+				UserID:        7720,
+				PlanID:        plan.Id,
+				PaymentChoice: SubscriptionPaymentChoiceAlipay,
+				Months:        1,
+				RequestID:     requestID,
+				VerifiedQuote: purchaseQuoteFromResult(quote),
+			})
+			results <- purchaseAttempt{result: result, err: err}
+		}(requestID)
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var successes int
+	var failures int
+	for attempt := range results {
+		if attempt.err != nil {
+			failures++
+			continue
+		}
+		require.NotNil(t, attempt.result)
+		require.NotNil(t, attempt.result.Order)
+		successes++
+	}
+	require.Equal(t, 1, successes)
+	require.Equal(t, 1, failures)
+	account, err := model.GetSubscriptionDiscountAccount(7720)
+	require.NoError(t, err)
+	require.Zero(t, account.AvailableUSDMinor)
+	require.Equal(t, int64(700), account.ReservedUSDMinor)
+	var reserveCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("user_id = ? AND entry_type = ?", 7720, model.SubscriptionDiscountEntryTypeReserve).
+		Count(&reserveCount).Error)
+	require.Equal(t, int64(1), reserveCount)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7720).Count(&orderCount).Error)
+	require.Equal(t, int64(1), orderCount)
 }
 
 func TestValidateSubscriptionPurchaseQuoteAllowsMultiMonthInvitationDiscountGreaterThanMonthlyUnit(t *testing.T) {

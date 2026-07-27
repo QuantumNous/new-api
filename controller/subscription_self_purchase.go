@@ -174,7 +174,7 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if claims.DiscountKind == service.SubscriptionDiscountKindInvitation {
+	if choice == service.SubscriptionPaymentChoiceStripeRecurring && claims.DiscountKind == service.SubscriptionDiscountKindInvitation {
 		common.ApiError(c, service.ErrSubscriptionPurchaseInvitationReservationRequired)
 		return
 	}
@@ -346,6 +346,20 @@ func ensureSubscriptionSelfOneTimeCheckout(c *gin.Context, result *service.Purch
 	}
 	order := result.Order
 	presentation := service.ResolveStripeCheckoutPresentation(uiMode)
+	if order.PaymentAmountMinor == 0 {
+		completed, err := service.CompleteOneTimeStripeSubscriptionPurchase(c.Request.Context(), order.TradeNo, "zero_final_amount=true")
+		if err != nil {
+			return "", err
+		}
+		if completed != nil {
+			result.Status = completed.Status
+			result.Contract = completed.Contract
+			result.Intent = completed.Intent
+			result.Order = completed.Order
+			result.Entitlement = completed.Entitlement
+		}
+		return "", model.SyncSubscriptionOrderTopUpHistory(order.TradeNo)
+	}
 	if strings.TrimSpace(order.ProviderSessionURL) != "" {
 		if err := model.SyncSubscriptionOrderTopUpHistory(order.TradeNo); err != nil {
 			return "", err

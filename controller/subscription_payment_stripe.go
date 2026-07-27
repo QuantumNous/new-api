@@ -455,6 +455,18 @@ func oneTimePlanMetadata(order *model.SubscriptionOrder, method string) map[stri
 		"newapi_user_id":       strconv.Itoa(order.UserId),
 		"newapi_plan_id":       strconv.Itoa(order.PlanId),
 	}
+	if strings.TrimSpace(order.DiscountKind) != "" {
+		metadata["discount_kind"] = strings.TrimSpace(order.DiscountKind)
+	}
+	if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+		metadata["subscription_discount_reservation_key"] = strings.TrimSpace(order.SubscriptionDiscountReservationKey)
+	}
+	if order.SubscriptionDiscountUSDMinor > 0 {
+		metadata["subscription_discount_usd_minor"] = strconv.FormatInt(order.SubscriptionDiscountUSDMinor, 10)
+	}
+	if order.SubscriptionDiscountAmountMinor > 0 {
+		metadata["subscription_discount_amount_minor"] = strconv.FormatInt(order.SubscriptionDiscountAmountMinor, 10)
+	}
 	if order.RecallDiscountAmountMinor > 0 {
 		metadata["recall_campaign_id"] = strconv.FormatInt(order.RecallCampaignId, 10)
 		metadata["recall_recipient_id"] = strconv.FormatInt(order.RecallRecipientId, 10)
