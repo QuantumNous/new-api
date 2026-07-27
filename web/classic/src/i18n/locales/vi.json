@@ -4515,6 +4515,9 @@
     "输入名称搜索本企业的令牌": "Tìm token của doanh nghiệp theo tên",
     "选择要绑定的令牌": "Chọn token để ràng buộc",
     "画布": "Canvas",
-    "内置无限画布 AI 创作空间": "Không gian sáng tạo AI canvas vô hạn tích hợp"
+    "内置无限画布 AI 创作空间": "Không gian sáng tạo AI canvas vô hạn tích hợp",
+    "质量档": "Chế độ chất lượng",
+    "仅对 hunyuan-image-3 生效：开启后模型会先思考并改写提示词再生成，出图更贴合描述，但生成时长会明显增加（约 2.8 倍）。其他图片模型（如 z-image、qwen-image-edit）没有该能力，开启也不会有任何效果。默认关闭。": "Chỉ có hiệu lực với hunyuan-image-3: khi bật, mô hình sẽ suy luận và viết lại câu lệnh trước khi tạo ảnh, nên ảnh bám sát mô tả hơn, nhưng thời gian tạo sẽ tăng đáng kể (khoảng 2,8 lần). Các mô hình ảnh khác (như z-image, qwen-image-edit) không có khả năng này, bật lên cũng không có tác dụng. Mặc định tắt.",
+    "当前模型不是 hunyuan-image-3，仅在渠道已映射到该模型时生效": "Mô hình hiện tại không phải hunyuan-image-3; chỉ có hiệu lực nếu kênh đã ánh xạ sang mô hình đó."
   }
 }

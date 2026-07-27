@@ -34,6 +34,7 @@ import {
   getSizesForModel,
   parseImageSizeConfig,
   normalizeImageSize,
+  IMAGE_QUALITY_BOT_TASK,
 } from '../../constants/imagePlayground.constants';
 
 // 文生图 / 图生图共用本 hook,按 mode 区分能力过滤、请求端点、是否带底图。
@@ -104,6 +105,7 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
     size: '',
     seed: '', // 随机种子;'' 表示随机(不下发,引擎自动随机)
     negativePrompt: '', // 负向提示词;生图默认不填
+    qualityMode: false, // 质量档(bot_task);默认关(不下发即引擎快档)
     imageUrls: [], // 图生图底图（base64 data-url 数组,≤IMAGE_MAX_EDIT_IMAGES）
   });
   const [groups, setGroups] = useState([]);
@@ -369,6 +371,7 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
           size: normalizeImageSize(inputs.size),
           seed: inputs.seed,
           negativePrompt: inputs.negativePrompt,
+          qualityMode: inputs.qualityMode,
           images: convImages,
         };
       } else {
@@ -392,6 +395,7 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
               size: conv.size,
               seed: conv.seed,
               negativePrompt: conv.negativePrompt,
+              qualityMode: conv.qualityMode,
               images: conv.images || [],
             }
           : {
@@ -400,6 +404,7 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
               size: normalizeImageSize(inputs.size),
               seed: inputs.seed,
               negativePrompt: inputs.negativePrompt,
+              qualityMode: inputs.qualityMode,
               images: convImages,
             };
       }
@@ -449,6 +454,7 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
               size: params.size,
               seed: params.seed,
               negativePrompt: params.negativePrompt,
+              qualityMode: params.qualityMode,
               images: params.images || [],
               title: text,
               createdAt: now,
@@ -491,6 +497,12 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
         // 负向提示词:非空才发(生图默认不填)。gpustackplus 从 Extra 读取,不外泄其它渠道。
         if (params.negativePrompt && params.negativePrompt.trim()) {
           reqBody.negative_prompt = params.negativePrompt.trim();
+        }
+        // 质量档:开了才发,关闭时不带该字段(引擎缺省即快档)。这里刻意不按模型名过滤——
+        // 渠道映射可能把当前模型指向 HunyuanImage-3.0,按名字拦会误伤;不认此参数的
+        // 引擎会直接忽略。
+        if (params.qualityMode) {
+          reqBody.bot_task = IMAGE_QUALITY_BOT_TASK;
         }
         // 图生图:走 edits 端点,带底图数组(gpustackplus 后端接受 image 数组)
         if (isI2I) {
@@ -571,6 +583,8 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
       seed: conv.seed != null ? conv.seed : prev.seed,
       negativePrompt:
         conv.negativePrompt != null ? conv.negativePrompt : prev.negativePrompt,
+      qualityMode:
+        conv.qualityMode != null ? conv.qualityMode : prev.qualityMode,
     }));
   }, []);
 
