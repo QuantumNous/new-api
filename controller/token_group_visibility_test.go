@@ -169,3 +169,29 @@ func TestPublicPolicyCannotExpandBaseGroupPermission(t *testing.T) {
 		t.Fatal("public visibility policy must not grant a group absent from base permission")
 	}
 }
+
+func TestVisibilityLookupDoesNotChangeExistingUserOrTokenState(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	user := createVisibilityTestUser(t, 1, "baseline", "default")
+	user.Quota = 12345
+	if err := model.DB.Model(user).Update("quota", user.Quota).Error; err != nil {
+		t.Fatal(err)
+	}
+	token := seedToken(t, model.DB, user.Id, "baseline-token", "baseline-key")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityPublic}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.GetUserSelectableTokenGroups(user.Id); err != nil {
+		t.Fatal(err)
+	}
+
+	storedUser, err := model.GetUserById(user.Id, false)
+	if err != nil || storedUser.Quota != user.Quota || storedUser.Status != common.UserStatusEnabled {
+		t.Fatalf("visibility lookup changed user state: user=%#v err=%v", storedUser, err)
+	}
+	storedToken, err := model.GetTokenByIds(token.Id, user.Id)
+	if err != nil || storedToken.Status != common.TokenStatusEnabled || storedToken.RemainQuota != token.RemainQuota {
+		t.Fatalf("visibility lookup changed token state: token=%#v err=%v", storedToken, err)
+	}
+}
