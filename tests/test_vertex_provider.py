@@ -105,6 +105,16 @@ def test_openweight_builds_maas_endpoint_and_refreshes_bearer():
     assert rebuilt._api_key == "tok-3"
 
 
+def test_openweight_global_location_has_no_region_host():
+    creds = _FakeCreds()
+    p = VertexProvider(project="proj", location="global", credentials=creds)
+    client = p._openweight_client()
+    assert client._base_url == (
+        "https://aiplatform.googleapis.com/v1/projects/proj"
+        "/locations/global/endpoints/openapi"
+    )
+
+
 # -- credentials ------------------------------------------------------------------------
 
 
@@ -240,7 +250,7 @@ def test_verify_vertex_api_key_method(monkeypatch):
 
     captured: dict = {}
 
-    def fake_get(url, headers=None, timeout=None, **kw):
+    def fake_post(url, headers=None, json=None, timeout=None, **kw):
         captured["url"] = url
         captured["headers"] = headers
 
@@ -249,7 +259,7 @@ def test_verify_vertex_api_key_method(monkeypatch):
 
         return _Resp()
 
-    monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(httpx, "post", fake_post)
     out = verify_provider_key(
         "vertex",
         fields={
@@ -262,7 +272,10 @@ def test_verify_vertex_api_key_method(monkeypatch):
     assert out == {"ok": True}
     assert captured["headers"]["x-goog-api-key"] == "AQ.k"
     # Express mode is global — no region host, no project in the path.
-    assert captured["url"] == "https://aiplatform.googleapis.com/v1/publishers/google/models"
+    assert captured["url"] == (
+        "https://aiplatform.googleapis.com/v1/publishers/google/models/"
+        "gemini-2.5-flash:countTokens"
+    )
 
 
 def test_verify_vertex_service_account_requires_json():
@@ -306,7 +319,7 @@ def _patch_verify(monkeypatch, creds: Any, status_code: Optional[int]):
     monkeypatch.setattr(vp, "load_credentials", lambda raw: creds)
     captured: dict = {}
 
-    def fake_get(url, headers=None, timeout=None, **kw):
+    def fake_post(url, headers=None, json=None, timeout=None, **kw):
         captured["url"] = url
         captured["headers"] = headers
 
@@ -317,7 +330,7 @@ def _patch_verify(monkeypatch, creds: Any, status_code: Optional[int]):
         resp.status_code = status_code
         return resp
 
-    monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(httpx, "post", fake_post)
     return captured
 
 

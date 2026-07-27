@@ -46,6 +46,14 @@ _SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 _FAMILIES = ("gemini", "claude", "openweight")
 
 
+def _regional_host(location: Optional[str]) -> str:
+    """Vertex REST host for a location — `global` (newer Gemini models) has no region
+    prefix (checked live 2026-07-26)."""
+    if not location or location == "global":
+        return "aiplatform.googleapis.com"
+    return f"{location}-aiplatform.googleapis.com"
+
+
 def load_credentials(service_account_json: Optional[str]) -> Any:
     """Explicit service-account JSON (content or path) → Credentials; blank → None (the
     SDKs and the token path then fall back to Application Default Credentials)."""
@@ -191,7 +199,7 @@ class VertexProvider(ProviderClient):
         client = self._clients.get("openweight")
         if client is None:
             base = (
-                f"https://{self._location}-aiplatform.googleapis.com/v1/projects/"
+                f"https://{_regional_host(self._location)}/v1/projects/"
                 f"{self._project}/locations/{self._location}/endpoints/openapi"
             )
             client = OpenAIProvider(api_key=creds.token, base_url=base)

@@ -400,9 +400,10 @@ DESCRIPTORS: list[ProviderDescriptor] = [
                 "location",
                 "Location",
                 secret=False,
-                placeholder="us-east5",
-                help="The region your Vertex AI models are enabled in "
-                "(Claude models: us-east5 or europe-west1).",
+                placeholder="global",
+                help="Use `global` for the newest Gemini and Claude models. Some models "
+                "are regional — Model Garden lists each (Claude also: us-east5 / "
+                "europe-west1; Qwen3 Coder: us-south1).",
             ),
             ProviderField(
                 "auth_method",
@@ -695,9 +696,16 @@ def _verify_bedrock(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
     return {"ok": True}
 
 
+# Verify probe: countTokens on a stable Gemini model — free (no generation), works with
+# plain ADC (the model list/GET endpoints 403/404 under user credentials — checked live
+# 2026-07-26), and exercises project + location + API enablement in one call.
+_VERTEX_PROBE_MODEL = "gemini-2.5-flash"
+_VERTEX_PROBE_BODY = {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]}
+
+
 def _verify_vertex(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
-    """One cheap read-only call (list Google's publisher models) through the SELECTED
-    auth method: ADC / service-account bearer, or the express API key header."""
+    """One cheap call (countTokens) through the SELECTED auth method: ADC /
+    service-account bearer, or the express API key header."""
     import httpx
 
     from .vertex_provider import load_credentials
@@ -713,9 +721,11 @@ def _verify_vertex(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
             return {"ok": False, "error": "Enter a Vertex API key to test."}
         try:
             # Express mode is global — no region host, no project in the path.
-            resp = httpx.get(
-                "https://aiplatform.googleapis.com/v1/publishers/google/models",
+            resp = httpx.post(
+                "https://aiplatform.googleapis.com/v1/publishers/google/models/"
+                f"{_VERTEX_PROBE_MODEL}:countTokens",
                 headers={"x-goog-api-key": key},
+                json=_VERTEX_PROBE_BODY,
                 timeout=timeout,
             )
         except Exception as exc:
@@ -754,11 +764,15 @@ def _verify_vertex(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
         if kind in ("RefreshError", "MalformedError", "JSONDecodeError", "ValueError"):
             return {"ok": False, "error": "Google rejected the credentials."}
         return {"ok": False, "error": f"Couldn't load Google credentials ({kind})."}
+    from .vertex_provider import _regional_host
+
     try:
-        resp = httpx.get(
-            f"https://{location}-aiplatform.googleapis.com/v1/projects/{project}"
-            f"/locations/{location}/publishers/google/models",
+        resp = httpx.post(
+            f"https://{_regional_host(location)}/v1/projects/{project}"
+            f"/locations/{location}/publishers/google/models/"
+            f"{_VERTEX_PROBE_MODEL}:countTokens",
             headers={"Authorization": f"Bearer {creds.token}"},
+            json=_VERTEX_PROBE_BODY,
             timeout=timeout,
         )
     except Exception as exc:
