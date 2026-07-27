@@ -56,6 +56,7 @@ type RecallCampaignDraft struct {
 	EnrollmentLimit       int                  `json:"enrollment_limit"`
 	WorkerConcurrency     int                  `json:"worker_concurrency"`
 	Emails                []RecallEmailStage   `json:"email_sequence"`
+	DeferLocalization     bool                 `json:"defer_localization,omitempty"`
 }
 
 type RecallAudienceConfig struct {
@@ -107,10 +108,13 @@ type RecallProductScope struct {
 }
 
 type RecallEmailStage struct {
-	StageNo         int                            `json:"stage_no"`
-	DelaySeconds    int64                          `json:"delay_seconds"`
-	TemplateVersion int                            `json:"template_version"`
-	Templates       map[string]RecallEmailTemplate `json:"templates"`
+	StageNo                  int                            `json:"stage_no"`
+	DelaySeconds             int64                          `json:"delay_seconds"`
+	TemplateVersion          int                            `json:"template_version"`
+	SourceRevision           int                            `json:"source_revision,omitempty"`
+	TranslatedSourceRevision int                            `json:"translated_source_revision,omitempty"`
+	ManualLocales            []string                       `json:"manual_locales,omitempty"`
+	Templates                map[string]RecallEmailTemplate `json:"templates"`
 }
 
 type RecallEmailTemplate struct {
