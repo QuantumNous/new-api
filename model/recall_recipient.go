@@ -231,67 +231,131 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 		return candidates, nil
 	}
 
-	usableStatuses := []string{RecallCampaignScheduled, RecallCampaignRunning, RecallCampaignPaused, RecallCampaignCompleted}
-	excludedRecipientStates := []string{
-		RecallRecipientConverted,
-		RecallRecipientSuppressed,
-		RecallRecipientIneligible,
-		RecallRecipientExpired,
-		RecallRecipientFailed,
-	}
+	usableStatuses := recallOfferUsableCampaignStatuses()
 	var recipients []RecallRecipient
-	err := DB.WithContext(ctx).
+	query := DB.WithContext(ctx).
 		Model(&RecallRecipient{}).
 		Select("recall_recipients.*").
 		Joins("JOIN recall_campaigns ON recall_campaigns.id = recall_recipients.campaign_id").
 		Where("recall_campaigns.status IN ?", usableStatuses).
-		Where("(recall_recipients.user_id = ? OR (recall_recipients.user_id = 0 AND LOWER(recall_recipients.email_snapshot) = ?))", userID, email).
-		Where("recall_recipients.state NOT IN ?", excludedRecipientStates).
-		Where("recall_recipients.stripe_promotion_code_id IS NOT NULL AND recall_recipients.stripe_promotion_code_id <> ''").
-		Where("recall_recipients.promotion_code <> ''").
-		Where("recall_recipients.promotion_expires_at > ?", now).
+		Where("(recall_recipients.user_id = ? OR (recall_recipients.user_id = 0 AND LOWER(recall_recipients.email_snapshot) = ?))", userID, email)
+	query = applyRecallOfferRecipientFilters(query, "recall_recipients", now)
+	err := query.
 		Order("recall_recipients.id ASC").
 		Find(&recipients).Error
 	if err != nil {
 		return nil, err
 	}
-	campaignIDs := make([]int64, 0, len(recipients))
-	seenCampaigns := make(map[int64]struct{}, len(recipients))
-	for _, recipient := range recipients {
-		if _, seen := seenCampaigns[recipient.CampaignId]; seen {
-			continue
-		}
-		seenCampaigns[recipient.CampaignId] = struct{}{}
-		campaignIDs = append(campaignIDs, recipient.CampaignId)
-	}
-	campaigns := make([]RecallCampaign, 0, len(campaignIDs))
-	if len(campaignIDs) > 0 {
-		if err := DB.WithContext(ctx).Where("id IN ?", campaignIDs).Find(&campaigns).Error; err != nil {
-			return nil, err
-		}
-	}
-	campaignByID := make(map[int64]RecallCampaign, len(campaigns))
-	for _, campaign := range campaigns {
-		campaignByID[campaign.Id] = campaign
-	}
 	for _, recipient := range recipients {
 		if recipient.UserId == 0 {
-			bound, _, bindErr := BindRecallRecipientUserWithContext(ctx, recipient.Id, userID, email)
+			_, _, bindErr := bindRecallOfferCandidateRecipientUserWithContext(ctx, recipient.Id, userID, email, now)
 			if bindErr != nil {
 				if errors.Is(bindErr, ErrRecallRecipientBindingConflict) || errors.Is(bindErr, gorm.ErrRecordNotFound) {
 					continue
 				}
 				return nil, bindErr
 			}
-			recipient = *bound
 		}
-		campaign, ok := campaignByID[recipient.CampaignId]
+		candidate, ok, err := getRecallOfferCandidateWithContext(ctx, recipient.Id, userID, now)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
 			continue
 		}
-		candidates = append(candidates, RecallOfferCandidate{Recipient: recipient, Campaign: campaign})
+		candidates = append(candidates, *candidate)
 	}
 	return candidates, nil
+}
+
+func recallOfferUsableCampaignStatuses() []string {
+	return []string{RecallCampaignScheduled, RecallCampaignRunning, RecallCampaignPaused, RecallCampaignCompleted}
+}
+
+func recallOfferExcludedRecipientStates() []string {
+	return []string{
+		RecallRecipientConverted,
+		RecallRecipientSuppressed,
+		RecallRecipientIneligible,
+		RecallRecipientExpired,
+		RecallRecipientFailed,
+	}
+}
+
+func applyRecallOfferRecipientFilters(query *gorm.DB, table string, now int64) *gorm.DB {
+	column := func(name string) string {
+		if table == "" {
+			return name
+		}
+		return table + "." + name
+	}
+	return query.
+		Where(column("state")+" NOT IN ?", recallOfferExcludedRecipientStates()).
+		Where(column("stripe_promotion_code_id")+" IS NOT NULL AND "+column("stripe_promotion_code_id")+" <> ''").
+		Where(column("promotion_code")+" <> ''").
+		Where(column("promotion_expires_at")+" > ?", now)
+}
+
+func bindRecallOfferCandidateRecipientUserWithContext(ctx context.Context, recipientID int64, userID int, normalizedEmail string, now int64) (*RecallRecipient, bool, error) {
+	if recipientID <= 0 {
+		return nil, false, gorm.ErrRecordNotFound
+	}
+	if userID <= 0 {
+		return nil, false, fmt.Errorf("recall offer candidate bind requires a positive user id")
+	}
+	email, ok := normalizeRecallRecipientEmail(normalizedEmail)
+	if !ok {
+		return nil, false, fmt.Errorf("recall offer candidate bind requires a normalized email")
+	}
+	query := DB.WithContext(ctx).Model(&RecallRecipient{}).
+		Where("id = ? AND user_id = 0 AND LOWER(email_snapshot) = ?", recipientID, email)
+	query = applyRecallOfferRecipientFilters(query, "", now)
+	result := query.Update("user_id", userID)
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+	var stored RecallRecipient
+	if err := DB.WithContext(ctx).First(&stored, recipientID).Error; err != nil {
+		return nil, false, err
+	}
+	if result.RowsAffected == 1 {
+		return &stored, true, nil
+	}
+	if stored.UserId == userID {
+		return &stored, false, nil
+	}
+	return nil, false, ErrRecallRecipientBindingConflict
+}
+
+func getRecallOfferCandidateWithContext(ctx context.Context, recipientID int64, userID int, now int64) (*RecallOfferCandidate, bool, error) {
+	var recipient RecallRecipient
+	query := DB.WithContext(ctx).
+		Model(&RecallRecipient{}).
+		Select("recall_recipients.*").
+		Joins("JOIN recall_campaigns ON recall_campaigns.id = recall_recipients.campaign_id").
+		Where("recall_recipients.id = ? AND recall_recipients.user_id = ?", recipientID, userID).
+		Where("recall_campaigns.status IN ?", recallOfferUsableCampaignStatuses()).
+		Limit(1)
+	query = applyRecallOfferRecipientFilters(query, "recall_recipients", now)
+	result := query.Find(&recipient)
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, false, nil
+	}
+	var campaign RecallCampaign
+	campaignResult := DB.WithContext(ctx).
+		Where("id = ? AND status IN ?", recipient.CampaignId, recallOfferUsableCampaignStatuses()).
+		Limit(1).
+		Find(&campaign)
+	if campaignResult.Error != nil {
+		return nil, false, campaignResult.Error
+	}
+	if campaignResult.RowsAffected == 0 {
+		return nil, false, nil
+	}
+	return &RecallOfferCandidate{Recipient: recipient, Campaign: campaign}, true, nil
 }
 
 func ListDueRecallRecipientIDs(now int64, limit int) ([]int64, error) {

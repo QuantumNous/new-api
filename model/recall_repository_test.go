@@ -953,6 +953,89 @@ func TestListRecallOfferCandidatesForUserFiltersAndBindsExactEmailMatches(t *tes
 	require.Empty(t, disabledCandidates)
 }
 
+func TestListRecallOfferCandidatesDropsEmailMatchTransitionedBeforeBind(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const now int64 = 1_800_000_000
+	user := User{
+		Username: "recall-offer-transition-user", Password: "password", Status: common.UserStatusEnabled,
+		Email: "transition-owner@example.com", AffCode: "recall-offer-transition-aff", CreatedAt: now - 100,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	campaign := newRecallRepositoryCampaign("offer transition")
+	campaign.Status = RecallCampaignRunning
+	require.NoError(t, DB.Create(&campaign).Error)
+	promotionID := "promo_transition"
+	recipient := RecallRecipient{
+		CampaignId: campaign.Id, UserId: 0, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+		LanguageSnapshot: "en", State: RecallRecipientCodeReady, StripePromotionCodeId: &promotionID,
+		PromotionCode: "TRANSITION123", PromotionExpiresAt: now + 100, CreatedAt: now - 50,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+
+	var transitionOnce sync.Once
+	callbackName := "recall_offer_transition_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table != "recall_recipients" || !strings.Contains(tx.Statement.SQL.String(), "JOIN recall_campaigns") {
+			return
+		}
+		transitionOnce.Do(func() {
+			require.NoError(t, DB.Exec("UPDATE recall_recipients SET state = ? WHERE id = ?", RecallRecipientConverted, recipient.Id).Error)
+		})
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Query().Remove(callbackName) })
+
+	candidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now)
+
+	require.NoError(t, err)
+	require.Empty(t, candidates)
+	var stored RecallRecipient
+	require.NoError(t, DB.First(&stored, recipient.Id).Error)
+	require.Zero(t, stored.UserId)
+	require.Equal(t, RecallRecipientConverted, stored.State)
+}
+
+func TestListRecallOfferCandidatesDropsCampaignCancelledBeforeFinalAppend(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const now int64 = 1_800_000_000
+	user := User{
+		Username: "recall-offer-cancel-user", Password: "password", Status: common.UserStatusEnabled,
+		Email: "cancel-owner@example.com", AffCode: "recall-offer-cancel-aff", CreatedAt: now - 100,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	campaign := newRecallRepositoryCampaign("offer cancel")
+	campaign.Status = RecallCampaignRunning
+	require.NoError(t, DB.Create(&campaign).Error)
+	promotionID := "promo_cancel_race"
+	recipient := RecallRecipient{
+		CampaignId: campaign.Id, UserId: user.Id, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+		LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: &promotionID,
+		PromotionCode: "CANCELRACE123", PromotionExpiresAt: now + 100, CreatedAt: now - 50,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+
+	var cancelOnce sync.Once
+	callbackName := "recall_offer_cancel_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table != "recall_recipients" || !strings.Contains(tx.Statement.SQL.String(), "JOIN recall_campaigns") {
+			return
+		}
+		cancelOnce.Do(func() {
+			require.NoError(t, DB.Exec("UPDATE recall_campaigns SET status = ? WHERE id = ?", RecallCampaignCancelled, campaign.Id).Error)
+		})
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Query().Remove(callbackName) })
+
+	candidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now)
+
+	require.NoError(t, err)
+	require.Empty(t, candidates)
+	var stored RecallCampaign
+	require.NoError(t, DB.First(&stored, campaign.Id).Error)
+	require.Equal(t, RecallCampaignCancelled, stored.Status)
+}
+
 func TestRecallOfferCandidateEffectiveIssuedAtFallsBackToCreatedAt(t *testing.T) {
 	candidate := RecallOfferCandidate{Recipient: RecallRecipient{PromotionIssuedAt: 0, CreatedAt: 123}}
 	require.Equal(t, int64(123), candidate.EffectiveIssuedAt())
