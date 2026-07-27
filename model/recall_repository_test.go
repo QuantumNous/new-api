@@ -135,6 +135,22 @@ func TestRecallCampaignDraftUpdatePersistsCampaignType(t *testing.T) {
 	require.Equal(t, RecallCampaignTypeContentOnly, stored.CampaignType)
 }
 
+func TestRecallCampaignDraftUpdateDefaultsEmptyCampaignTypeToPromotion(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	campaign := newRecallRepositoryCampaign("draft campaign type default")
+	require.NoError(t, CreateRecallCampaign(&campaign))
+	campaign.CampaignType = ""
+
+	won, err := UpdateRecallCampaignDraftWithContext(context.Background(), &campaign)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	stored, err := GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, RecallCampaignTypePromotion, stored.CampaignType)
+}
+
 func createRecallRepositoryCandidateUser(t *testing.T, suffix string, createdAt int64, requestCount int) User {
 	t.Helper()
 	user := User{

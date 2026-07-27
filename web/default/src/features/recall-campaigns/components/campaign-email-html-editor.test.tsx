@@ -129,6 +129,7 @@ beforeAll(async () => {
 describe('recall email preview race guard', () => {
   const latest = {
     requestId: 2,
+    campaignType: 'promotion' as const,
     subject: 'Current subject',
     bodyHTML: '<p>Current body</p>',
   }
@@ -138,6 +139,7 @@ describe('recall email preview race guard', () => {
       shouldApplyRecallEmailPreviewResult({
         candidate: latest,
         latest,
+        currentCampaignType: latest.campaignType,
         currentSubject: 'Edited subject',
         currentBodyHTML: latest.bodyHTML,
       })
@@ -146,6 +148,7 @@ describe('recall email preview race guard', () => {
       shouldApplyRecallEmailPreviewResult({
         candidate: latest,
         latest,
+        currentCampaignType: latest.campaignType,
         currentSubject: latest.subject,
         currentBodyHTML: '<p>Edited body</p>',
       })
@@ -157,10 +160,12 @@ describe('recall email preview race guard', () => {
       shouldApplyRecallEmailPreviewResult({
         candidate: {
           requestId: 1,
+          campaignType: 'promotion',
           subject: 'Older subject',
           bodyHTML: '<p>Older body</p>',
         },
         latest,
+        currentCampaignType: latest.campaignType,
         currentSubject: latest.subject,
         currentBodyHTML: latest.bodyHTML,
       })
@@ -172,10 +177,23 @@ describe('recall email preview race guard', () => {
       shouldApplyRecallEmailPreviewResult({
         candidate: latest,
         latest,
+        currentCampaignType: latest.campaignType,
         currentSubject: latest.subject,
         currentBodyHTML: latest.bodyHTML,
       })
     ).toBe(true)
+  })
+
+  test('ignores a preview result after the campaign type changes', () => {
+    expect(
+      shouldApplyRecallEmailPreviewResult({
+        candidate: { ...latest, campaignType: 'promotion' },
+        latest: { ...latest, campaignType: 'promotion' },
+        currentCampaignType: 'content_only',
+        currentSubject: latest.subject,
+        currentBodyHTML: latest.bodyHTML,
+      })
+    ).toBe(false)
   })
 
   test('clears backend errors for local validation without removing last preview', () => {
@@ -222,6 +240,7 @@ describe('recall email preview race guard', () => {
 
     expect(prepared?.snapshot).toEqual({
       requestId: 3,
+      campaignType: 'promotion',
       subject: '',
       bodyHTML: operatorBody,
     })

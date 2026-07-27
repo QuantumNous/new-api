@@ -114,6 +114,7 @@ func UpdateRecallCampaignDraft(campaign *RecallCampaign) error {
 }
 
 func UpdateRecallCampaignDraftWithContext(ctx context.Context, campaign *RecallCampaign) (bool, error) {
+	normalizeRecallCampaignTypeDefault(campaign)
 	result := DB.WithContext(ctx).Model(&RecallCampaign{}).
 		Where("id = ? AND status = ? AND config_revision = ?", campaign.Id, RecallCampaignDraft, campaign.ConfigRevision).
 		Updates(map[string]any{

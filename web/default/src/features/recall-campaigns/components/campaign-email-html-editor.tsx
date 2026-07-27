@@ -30,6 +30,7 @@ interface RecallEmailPreviewFrameProps {
 
 interface RecallEmailPreviewSnapshot {
   requestId: number
+  campaignType: RecallCampaignType
   subject: string
   bodyHTML: string
 }
@@ -72,6 +73,7 @@ export async function prepareRecallEmailPreviewRequest(props: {
 
   const snapshot = {
     requestId: props.nextRequestId(),
+    campaignType: props.campaignType,
     subject: props.subject,
     bodyHTML: props.bodyHTML,
   }
@@ -89,14 +91,17 @@ export async function prepareRecallEmailPreviewRequest(props: {
 export function shouldApplyRecallEmailPreviewResult(props: {
   candidate: RecallEmailPreviewSnapshot
   latest: RecallEmailPreviewSnapshot | null
+  currentCampaignType: RecallCampaignType
   currentSubject: string
   currentBodyHTML: string
 }): boolean {
   return (
     props.latest !== null &&
     props.candidate.requestId === props.latest.requestId &&
+    props.candidate.campaignType === props.latest.campaignType &&
     props.candidate.subject === props.latest.subject &&
     props.candidate.bodyHTML === props.latest.bodyHTML &&
+    props.currentCampaignType === props.candidate.campaignType &&
     props.currentSubject === props.candidate.subject &&
     props.currentBodyHTML === props.candidate.bodyHTML
   )
@@ -222,6 +227,7 @@ export function CampaignEmailHtmlEditor(
         shouldApplyRecallEmailPreviewResult({
           candidate: snapshot,
           latest: latestPreviewRequestRef.current,
+          currentCampaignType: props.form.getValues('campaign_type'),
           currentSubject: String(props.form.getValues(subjectPath) ?? ''),
           currentBodyHTML: String(props.form.getValues(bodyPath) ?? ''),
         })
@@ -236,6 +242,7 @@ export function CampaignEmailHtmlEditor(
         shouldApplyRecallEmailPreviewResult({
           candidate: snapshot,
           latest: latestPreviewRequestRef.current,
+          currentCampaignType: props.form.getValues('campaign_type'),
           currentSubject: String(props.form.getValues(subjectPath) ?? ''),
           currentBodyHTML: String(props.form.getValues(bodyPath) ?? ''),
         })

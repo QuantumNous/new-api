@@ -80,7 +80,7 @@ export function CampaignPreviewDialog(props: CampaignPreviewDialogProps) {
                           const amount =
                             currency === 'USD'
                               ? data.stripe?.discount.amount_off
-                              : (data.stripe?.discount.currency_options[
+                              : (data.stripe?.discount.currency_options?.[
                                   currency.toLowerCase()
                                 ] ?? 0)
                           return (

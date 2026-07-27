@@ -293,7 +293,9 @@ export interface RecallAudienceCandidate {
 export interface RecallStripePreview {
   coupon_source: RecallCouponSource
   coupon_id: string
-  discount: RecallDiscountConfig
+  discount: Omit<RecallDiscountConfig, 'currency_options'> & {
+    currency_options: Record<string, number> | null
+  }
   topup_price_ids: string[]
   subscription_price_ids: string[]
   product_ids: string[]
