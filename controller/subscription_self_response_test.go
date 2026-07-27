@@ -800,6 +800,24 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 	}
 }
 
+func TestRecurringSubscriptionDTOsRequiresSupportForNonActionableProviderStatuses(t *testing.T) {
+	for _, providerStatus := range []string{"past_due", "paused", "unknown"} {
+		t.Run(providerStatus, func(t *testing.T) {
+			bindings := recurringSubscriptionDTOs([]model.SubscriptionProviderBinding{{
+				Provider:               model.PaymentProviderStripe,
+				ProviderSubscriptionId: "sub_non_actionable_" + providerStatus,
+				ProviderStatus:         providerStatus,
+				CurrentPeriodEnd:       common.GetTimestamp() + 3600,
+			}})
+
+			require.Len(t, bindings, 1)
+			require.True(t, bindings[0].RequiresSupport)
+			require.False(t, bindings[0].CanCancel)
+			require.False(t, bindings[0].CanResume)
+		})
+	}
+}
+
 func TestGetSubscriptionSelfReturnsCurrentEntitlementQuotaReadModel(t *testing.T) {
 	setupSubscriptionControllerTestDB(t)
 	insertSubscriptionControllerUser(t, 915)

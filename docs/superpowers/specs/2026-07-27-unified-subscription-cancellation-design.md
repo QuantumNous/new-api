@@ -21,7 +21,7 @@ Cancelling renewal never refunds the current payment, shortens the current entit
   - Wallet: future deductions from the Flatkey wallet balance stop after the current paid period.
 - Cancellation is effective at period end. The current entitlement, quota windows, plan badge, and current period dates remain unchanged.
 - Resume is allowed only while the current renewable contract and entitlement are still active and before `current_period_end`.
-- Repeated cancel and resume requests are idempotent.
+- Repeated same-direction Stripe mutations use a stable idempotency key; already-at-target lifecycle requests fail locally without another provider call.
 - A current contract with an incomplete, missing, or ambiguous Stripe binding fails safely and sets the existing support/migration-conflict capability; the server never guesses a binding.
 
 ## Scope

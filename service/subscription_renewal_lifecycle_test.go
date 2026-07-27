@@ -179,6 +179,7 @@ func TestStripeRenewalLifecycleResultNeverExposesTerminalBindingAsEnabled(t *tes
 		{name: "unpaid terminal", status: "unpaid", endedAt: 100},
 		{name: "incomplete expired terminal", status: "incomplete_expired", endedAt: 100},
 		{name: "incomplete", status: "incomplete"},
+		{name: "active but already ended", status: "active", endedAt: 100},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {

@@ -945,9 +945,9 @@ func recurringSubscriptionDTOs(bindings []model.SubscriptionProviderBinding) []R
 	for _, binding := range bindings {
 		provider := strings.TrimSpace(binding.Provider)
 		complete := provider == model.PaymentProviderStripe &&
-			strings.TrimSpace(binding.ProviderSubscriptionId) != "" &&
-			!isIncompleteRecurringProviderStatus(binding.ProviderStatus)
+			strings.TrimSpace(binding.ProviderSubscriptionId) != ""
 		terminal := isTerminalRecurringProviderStatus(binding.ProviderStatus) || binding.EndedAt > 0
+		actionable := complete && !terminal && isActionableRecurringProviderStatus(binding.ProviderStatus)
 		result = append(result, RecurringSubscriptionDTO{
 			BindingId:          binding.Id,
 			Provider:           provider,
@@ -957,9 +957,9 @@ func recurringSubscriptionDTOs(bindings []model.SubscriptionProviderBinding) []R
 			CurrentPeriodStart: binding.CurrentPeriodStart,
 			CurrentPeriodEnd:   binding.CurrentPeriodEnd,
 			GracePeriodEnd:     binding.GracePeriodEnd,
-			CanCancel:          complete && !terminal && !binding.CancelAtPeriodEnd,
-			CanResume:          complete && !terminal && binding.CancelAtPeriodEnd,
-			RequiresSupport:    !complete,
+			CanCancel:          actionable && !binding.CancelAtPeriodEnd,
+			CanResume:          actionable && binding.CancelAtPeriodEnd,
+			RequiresSupport:    !complete || (!terminal && !actionable),
 			Terminal:           terminal,
 		})
 	}
