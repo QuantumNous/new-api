@@ -19,6 +19,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	incompleteClaudeStreamDiagnosticCode = "CLAUDE_OPENAI_STREAM_INCOMPLETE"
+	incompleteClaudeStreamClientMessage  = "The model returned an incomplete response. Please retry."
+)
+
 // 辅助函数
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
@@ -257,15 +262,38 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 }
 
 func handleIncompleteClaudeStream(c *gin.Context, info *relaycommon.RelayInfo, message string) {
-	logger.LogError(c, message)
+	channelID := 0
+	upstreamModel := ""
+	if info.ChannelMeta != nil {
+		channelID = info.ChannelMeta.ChannelId
+		upstreamModel = info.ChannelMeta.UpstreamModelName
+	}
+	lastMessageType := ""
+	finishReason := ""
+	if info.ClaudeConvertInfo != nil {
+		lastMessageType = info.ClaudeConvertInfo.LastMessagesType
+		finishReason = info.ClaudeConvertInfo.FinishReason
+	}
+	diagnostic := fmt.Sprintf(
+		"%s channel_id=%d origin_model=%q upstream_model=%q received_chunks=%d last_message_type=%q finish_reason=%q reason=%s",
+		incompleteClaudeStreamDiagnosticCode,
+		channelID,
+		info.OriginModelName,
+		upstreamModel,
+		info.ReceivedResponseCount,
+		lastMessageType,
+		finishReason,
+		message,
+	)
+	logger.LogError(c, diagnostic)
 	if info.StreamStatus != nil {
-		info.StreamStatus.RecordError(message)
+		info.StreamStatus.RecordError(diagnostic)
 	}
 	_ = helper.ClaudeData(c, dto.ClaudeResponse{
 		Type: "error",
 		Error: types.ClaudeError{
 			Type:    "api_error",
-			Message: message,
+			Message: incompleteClaudeStreamClientMessage,
 		},
 	})
 	info.ClaudeConvertInfo.Done = true

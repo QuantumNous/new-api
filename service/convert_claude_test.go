@@ -88,38 +88,16 @@ func TestClaudeToOpenAIRequestToolChoice(t *testing.T) {
 	}
 }
 
-func TestClaudeToOpenAIRequestEnablesGLMToolStream(t *testing.T) {
-	tests := []struct {
-		name       string
-		model      string
-		stream     bool
-		tools      any
-		wantEnable bool
-	}{
-		{name: "GLM 5.2", model: "GLM-5.2", stream: true, tools: []dto.Tool{claudeTool("Bash")}, wantEnable: true},
-		{name: "namespaced GLM 4.7", model: "zai-org/GLM-4.7", stream: true, tools: []dto.Tool{claudeTool("Bash")}, wantEnable: true},
-		{name: "GPT model", model: "gpt-5.4", stream: true, tools: []dto.Tool{claudeTool("Bash")}},
-		{name: "non-streaming GLM", model: "glm-5", tools: []dto.Tool{claudeTool("Bash")}},
-		{name: "GLM without tools", model: "glm-5", stream: true},
-	}
+func TestClaudeToOpenAIRequestDoesNotInferProviderToolStreamCapability(t *testing.T) {
+	stream := true
+	request, err := ClaudeToOpenAIRequest(dto.ClaudeRequest{
+		Model:  "GLM-5.2",
+		Stream: &stream,
+		Tools:  []dto.Tool{claudeTool("Bash")},
+	}, claudeConversionRelayInfo())
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			request, err := ClaudeToOpenAIRequest(dto.ClaudeRequest{
-				Model:  test.model,
-				Stream: &test.stream,
-				Tools:  test.tools,
-			}, claudeConversionRelayInfo())
-
-			require.NoError(t, err)
-			if test.wantEnable {
-				require.NotNil(t, request.ToolStream)
-				require.True(t, *request.ToolStream)
-			} else {
-				require.Nil(t, request.ToolStream)
-			}
-		})
-	}
+	require.NoError(t, err)
+	require.Nil(t, request.ToolStream)
 }
 
 func TestStreamResponseOpenAI2ClaudeUsageWithoutFinishReasonStaysIncomplete(t *testing.T) {
