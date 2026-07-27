@@ -15,6 +15,7 @@ type SubscriptionRenewalLifecycleResponse struct {
 	CanCancel           bool   `json:"can_cancel"`
 	CanResume           bool   `json:"can_resume"`
 	IsCancelAtPeriodEnd bool   `json:"is_cancel_at_period_end"`
+	SyncPending         bool   `json:"sync_pending"`
 }
 
 var cancelCurrentSubscriptionRenewal = service.CancelCurrentSubscriptionRenewal
@@ -57,5 +58,6 @@ func subscriptionRenewalLifecycleResponse(result *service.SubscriptionRenewalLif
 		CanCancel:           result.CanCancel,
 		CanResume:           result.CanResume,
 		IsCancelAtPeriodEnd: result.CancelAtPeriodEnd,
+		SyncPending:         result.SyncPending,
 	}
 }

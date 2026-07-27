@@ -5904,6 +5904,10 @@
           },
           "is_cancel_at_period_end": {
             "type": "boolean"
+          },
+          "sync_pending": {
+            "type": "boolean",
+            "description": "True when the provider mutation was confirmed but local subscription state still requires reconciliation."
           }
         },
         "required": [
@@ -5912,7 +5916,8 @@
           "current_period_end",
           "can_cancel",
           "can_resume",
-          "is_cancel_at_period_end"
+          "is_cancel_at_period_end",
+          "sync_pending"
         ]
       },
       "SubscriptionMigration": {

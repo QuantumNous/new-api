@@ -613,7 +613,12 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       "toast.success(t('Subscription renewal resumed'))"
     )
     expect(cardSource).toContain('await fetchSelfSubscription()')
-    expect(cardSource).toContain('const refreshAfterRenewal = async () =>')
+    expect(cardSource).toContain(
+      'const refreshAfterRenewal = async (syncPending: boolean) =>'
+    )
+    expect(cardSource).toContain(
+      'await refreshAfterRenewal(res.data?.sync_pending === true)'
+    )
     expect(cardSource).toContain(
       "toast.error(t('Subscription updated, but failed to refresh status'))"
     )

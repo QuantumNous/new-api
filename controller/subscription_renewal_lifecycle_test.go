@@ -18,14 +18,16 @@ func TestCancelSubscriptionRenewalReturnsProviderNeutralEnvelope(t *testing.T) {
 	t.Cleanup(func() { cancelCurrentSubscriptionRenewal = originalCancel })
 	cancelCurrentSubscriptionRenewal = func(userID int) (*service.SubscriptionRenewalLifecycleResult, error) {
 		require.Equal(t, 901, userID)
-		return &service.SubscriptionRenewalLifecycleResult{
+		result := &service.SubscriptionRenewalLifecycleResult{
 			RenewalSource:     model.SubscriptionRenewalSourceWallet,
 			RenewalStatus:     model.SubscriptionRenewalStatusCancelledByUser,
 			CurrentPeriodEnd:  12345,
 			CanCancel:         false,
 			CanResume:         true,
 			CancelAtPeriodEnd: true,
-		}, nil
+			SyncPending:       true,
+		}
+		return result, nil
 	}
 
 	recorder := httptest.NewRecorder()
@@ -46,6 +48,7 @@ func TestCancelSubscriptionRenewalReturnsProviderNeutralEnvelope(t *testing.T) {
 	require.Equal(t, false, data["can_cancel"])
 	require.Equal(t, true, data["can_resume"])
 	require.Equal(t, true, data["is_cancel_at_period_end"])
+	require.Equal(t, true, data["sync_pending"])
 }
 
 func TestResumeSubscriptionRenewalReturnsApiErrorEnvelope(t *testing.T) {

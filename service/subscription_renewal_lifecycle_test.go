@@ -53,6 +53,7 @@ func TestCancelCurrentSubscriptionRenewalStripeUsesAuthoritativeCurrentBinding(t
 	require.False(t, result.CanCancel)
 	require.True(t, result.CanResume)
 	require.True(t, result.CancelAtPeriodEnd)
+	require.False(t, result.SyncPending)
 	var storedContract model.UserSubscriptionContract
 	require.NoError(t, model.DB.First(&storedContract, contract.Id).Error)
 	require.Equal(t, model.SubscriptionRenewalStatusEnabled, storedContract.RenewalStatus)
@@ -206,12 +207,26 @@ func TestResumeCurrentSubscriptionRenewalStripeRejectsProviderFailureWithoutPseu
 	setupSubscriptionPurchaseServiceTestDB(t)
 	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7944, true, "sub_unified_resume_failure")
 	originalResume := resumeCurrentStripeRecurringSubscription
-	t.Cleanup(func() { resumeCurrentStripeRecurringSubscription = originalResume })
+	originalGet := stripeSubscriptionSnapshotGetter
+	t.Cleanup(func() {
+		resumeCurrentStripeRecurringSubscription = originalResume
+		stripeSubscriptionSnapshotGetter = originalGet
+	})
 	providerErr := errors.New("stripe update failed")
 	resumeCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
 		require.Equal(t, contract.UserId, userID)
 		require.Equal(t, binding.Id, bindingID)
 		return nil, providerErr
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderStatus:         "active",
+			CancelAtPeriodEnd:      true,
+			CurrentPeriodStart:     binding.CurrentPeriodStart,
+			CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+		}, nil
 	}
 
 	result, err := ResumeCurrentSubscriptionRenewal(contract.UserId)
@@ -224,6 +239,110 @@ func TestResumeCurrentSubscriptionRenewalStripeRejectsProviderFailureWithoutPseu
 	var storedContract model.UserSubscriptionContract
 	require.NoError(t, model.DB.First(&storedContract, contract.Id).Error)
 	require.Equal(t, model.SubscriptionRenewalStatusEnabled, storedContract.RenewalStatus)
+}
+
+func TestCancelCurrentSubscriptionRenewalReturnsConfirmedRemoteStateAfterLocalSyncFailure(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7946, false, "sub_unified_cancel_sync_failure")
+	originalCancel := cancelCurrentStripeRecurringSubscription
+	originalGet := stripeSubscriptionSnapshotGetter
+	t.Cleanup(func() {
+		cancelCurrentStripeRecurringSubscription = originalCancel
+		stripeSubscriptionSnapshotGetter = originalGet
+	})
+	localSyncErr := errors.New("local subscription snapshot apply failed")
+	cancelCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		require.Equal(t, contract.UserId, userID)
+		require.Equal(t, binding.Id, bindingID)
+		return nil, localSyncErr
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderStatus:         "active",
+			CancelAtPeriodEnd:      true,
+			CurrentPeriodStart:     binding.CurrentPeriodStart,
+			CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+		}, nil
+	}
+
+	result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, model.SubscriptionRenewalStatusCancelledByUser, result.RenewalStatus)
+	require.False(t, result.CanCancel)
+	require.True(t, result.CanResume)
+	require.True(t, result.CancelAtPeriodEnd)
+	require.True(t, result.SyncPending)
+}
+
+func TestResumeCurrentSubscriptionRenewalReturnsConfirmedRemoteStateAfterLocalSyncFailure(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7947, true, "sub_unified_resume_sync_failure")
+	originalResume := resumeCurrentStripeRecurringSubscription
+	originalGet := stripeSubscriptionSnapshotGetter
+	t.Cleanup(func() {
+		resumeCurrentStripeRecurringSubscription = originalResume
+		stripeSubscriptionSnapshotGetter = originalGet
+	})
+	localSyncErr := errors.New("local subscription snapshot apply failed")
+	resumeCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		require.Equal(t, contract.UserId, userID)
+		require.Equal(t, binding.Id, bindingID)
+		return nil, localSyncErr
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderStatus:         "active",
+			CancelAtPeriodEnd:      false,
+			CurrentPeriodStart:     binding.CurrentPeriodStart,
+			CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+		}, nil
+	}
+
+	result, err := ResumeCurrentSubscriptionRenewal(contract.UserId)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, model.SubscriptionRenewalStatusEnabled, result.RenewalStatus)
+	require.True(t, result.CanCancel)
+	require.False(t, result.CanResume)
+	require.False(t, result.CancelAtPeriodEnd)
+	require.True(t, result.SyncPending)
+}
+
+func TestCancelCurrentSubscriptionRenewalDoesNotTreatUnpaidSnapshotAsConfirmedCancellation(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7948, false, "sub_unified_cancel_unpaid")
+	originalCancel := cancelCurrentStripeRecurringSubscription
+	originalGet := stripeSubscriptionSnapshotGetter
+	t.Cleanup(func() {
+		cancelCurrentStripeRecurringSubscription = originalCancel
+		stripeSubscriptionSnapshotGetter = originalGet
+	})
+	providerErr := errors.New("stripe cancellation failed")
+	cancelCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		require.Equal(t, contract.UserId, userID)
+		require.Equal(t, binding.Id, bindingID)
+		return nil, providerErr
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderStatus:         "unpaid",
+			EndedAt:                common.GetTimestamp(),
+		}, nil
+	}
+
+	result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
+
+	require.ErrorIs(t, err, providerErr)
+	require.Nil(t, result)
 }
 
 func TestCancelCurrentSubscriptionRenewalMarksWalletAutoCancelledAndIsIdempotent(t *testing.T) {

@@ -92,6 +92,7 @@ export const providerNeutralRenewalResultContract = {
   can_cancel: true,
   can_resume: false,
   is_cancel_at_period_end: false,
+  sync_pending: false,
 } satisfies SubscriptionRenewalLifecycleResult
 
 export const walletRenewalResultContract = {
@@ -101,4 +102,5 @@ export const walletRenewalResultContract = {
   can_cancel: false,
   can_resume: true,
   is_cancel_at_period_end: true,
+  sync_pending: false,
 } satisfies SubscriptionRenewalLifecycleResult
