@@ -66,6 +66,7 @@ func setupSubscriptionPurchaseServiceTestDB(t *testing.T) {
 		&model.WalletLedgerEntry{},
 		&model.SubscriptionDiscountAccount{},
 		&model.SubscriptionDiscountEntry{},
+		&model.RecallEvent{},
 	))
 }
 
@@ -152,6 +153,32 @@ func countPurchaseServiceDiscountEntries(t *testing.T, userID int) int64 {
 	var count int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("user_id = ?", userID).Count(&count).Error)
 	return count
+}
+
+func purchaseQuoteFromResult(result *SubscriptionPurchaseQuoteResult) *SubscriptionPurchaseQuote {
+	if result == nil {
+		return nil
+	}
+	return &SubscriptionPurchaseQuote{
+		Currency:                      result.Currency,
+		UnitPrice:                     result.UnitPrice,
+		UnitAmountMinor:               result.UnitAmountMinor,
+		OriginalTotal:                 result.OriginalTotal,
+		OriginalTotalAmountMinor:      result.OriginalTotalAmountMinor,
+		DiscountKind:                  result.DiscountKind,
+		DiscountAmount:                result.DiscountAmount,
+		DiscountAmountMinor:           result.DiscountAmountMinor,
+		Total:                         result.Total,
+		PaymentAmountMinor:            result.PaymentAmountMinor,
+		InvitationAvailableUSDMinor:   result.InvitationAvailableUSDMinor,
+		InvitationDiscountUSDMinor:    result.InvitationDiscountUSDMinor,
+		InvitationDiscountAmountMinor: result.InvitationDiscountAmountMinor,
+		InvitationRemainingUSDMinor:   result.InvitationRemainingUSDMinor,
+		OtherDiscountKind:             result.OtherDiscountKind,
+		OtherDiscountAmountMinor:      result.OtherDiscountAmountMinor,
+		RecallCampaignID:              result.RecallCampaignID,
+		RecallRecipientID:             result.RecallRecipientID,
+	}
 }
 
 func TestPurchaseSubscriptionRejectsMonthsOutsideOneToTwelve(t *testing.T) {
@@ -556,6 +583,129 @@ func TestQuoteSubscriptionPurchaseRepairsMissingInviteeRegistrationGrantOnceWith
 	require.NoError(t, err)
 	require.Equal(t, int64(700), account.AvailableUSDMinor)
 	require.Zero(t, account.ReservedUSDMinor)
+}
+
+func TestQuoteSubscriptionPurchaseRepairsMissingInviteeRegistrationGrantForAnyRewardState(t *testing.T) {
+	tests := []struct {
+		name              string
+		inviteRewardState string
+		inviterID         int
+		wantGrant         bool
+	}{
+		{name: "granted_inviter_reward_still_repairs_invitee_discount", inviteRewardState: model.InviteRewardStatusGranted, inviterID: 7650, wantGrant: true},
+		{name: "blocked_inviter_reward_still_repairs_invitee_discount", inviteRewardState: model.InviteRewardStatusBlocked, inviterID: 7655, wantGrant: true},
+		{name: "no_inviter_does_not_grant", inviteRewardState: model.InviteRewardStatusGranted, inviterID: 0},
+		{name: "invalid_inviter_does_not_grant", inviteRewardState: model.InviteRewardStatusBlocked, inviterID: 999999},
+	}
+
+	for index, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setupSubscriptionPurchaseServiceTestDB(t)
+			originalMode := common.InviteRewardSubscriptionMode
+			originalDiscount := common.InviteFirstSubDiscountUSD
+			common.InviteRewardSubscriptionMode = true
+			common.InviteFirstSubDiscountUSD = 7
+			t.Cleanup(func() {
+				common.InviteRewardSubscriptionMode = originalMode
+				common.InviteFirstSubDiscountUSD = originalDiscount
+			})
+
+			if test.inviterID > 0 && test.inviterID != 999999 {
+				require.NoError(t, model.DB.Create(&model.User{Id: test.inviterID, Username: "repair_state_inviter", Status: common.UserStatusEnabled, AffCode: "repair_state_inviter_aff"}).Error)
+			}
+			userID := 7651 + index
+			require.NoError(t, model.DB.Create(&model.User{
+				Id:                 userID,
+				Username:           "repair_state_invitee",
+				Status:             common.UserStatusEnabled,
+				InviterId:          test.inviterID,
+				InviteRewardStatus: test.inviteRewardState,
+				AffCode:            "repair_state_invitee_aff",
+			}).Error)
+			plan := insertPurchaseServicePlan(t, 7750+index, 1, 20, 2000)
+
+			first, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+				UserID:        userID,
+				PlanID:        plan.Id,
+				PaymentChoice: SubscriptionPaymentChoiceBalance,
+				Months:        1,
+			})
+			require.NoError(t, err)
+			second, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+				UserID:        userID,
+				PlanID:        plan.Id,
+				PaymentChoice: SubscriptionPaymentChoiceBalance,
+				Months:        1,
+			})
+			require.NoError(t, err)
+
+			if test.wantGrant {
+				require.Equal(t, SubscriptionDiscountKindInvitation, first.DiscountKind)
+				require.Equal(t, int64(700), first.InvitationAvailableUSDMinor)
+				require.Equal(t, int64(700), second.InvitationAvailableUSDMinor)
+				require.Equal(t, int64(1), countPurchaseServiceDiscountEntries(t, userID))
+			} else {
+				require.Equal(t, SubscriptionDiscountKindNone, first.DiscountKind)
+				require.Zero(t, first.InvitationAvailableUSDMinor)
+				require.Zero(t, countPurchaseServiceDiscountEntries(t, userID))
+			}
+		})
+	}
+}
+
+func TestPurchaseSubscriptionInvitationOrdersDoNotWriteRecallAttribution(t *testing.T) {
+	tests := []struct {
+		name   string
+		choice string
+	}{
+		{name: "alipay_pending", choice: SubscriptionPaymentChoiceAlipay},
+		{name: "pix_pending", choice: SubscriptionPaymentChoicePix},
+		{name: "upi_pending", choice: SubscriptionPaymentChoiceUPI},
+		{name: "balance_success", choice: SubscriptionPaymentChoiceBalance},
+	}
+
+	for index, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setupSubscriptionPurchaseServiceTestDB(t)
+			userID := 7660 + index
+			planID := 7760 + index
+			insertPurchaseServiceUser(t, userID, 100000)
+			plan := insertPurchaseServicePlan(t, planID, 1, 20, 2000)
+			require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).Updates(map[string]interface{}{
+				"pix_price_brl": common.GetPointer(80.00),
+				"upi_price_inr": common.GetPointer(830.00),
+			}).Error)
+			grantPurchaseServiceInvitationDiscount(t, userID, 700, "purchase-invitation-"+test.name)
+			quote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+				UserID:        userID,
+				PlanID:        plan.Id,
+				PaymentChoice: test.choice,
+				Months:        1,
+			})
+			require.NoError(t, err)
+			require.Equal(t, SubscriptionDiscountKindInvitation, quote.DiscountKind)
+
+			result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+				UserID:        userID,
+				PlanID:        plan.Id,
+				PaymentChoice: test.choice,
+				Months:        1,
+				RequestID:     "purchase-invitation-" + test.name,
+				VerifiedQuote: purchaseQuoteFromResult(quote),
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, result.Order)
+			require.Equal(t, quote.PaymentAmountMinor, result.Order.PaymentAmountMinor)
+			require.Zero(t, result.Order.RecallCampaignId)
+			require.Zero(t, result.Order.RecallRecipientId)
+			require.Empty(t, result.Order.RecallPromotionCodeId)
+			require.Zero(t, result.Order.RecallDiscountAmountMinor)
+			var conversionCount int64
+			require.NoError(t, model.DB.Model(&model.RecallEvent{}).Where("event_type = ?", "conversion").Count(&conversionCount).Error)
+			require.Zero(t, conversionCount)
+		})
+	}
 }
 
 func TestPurchaseSubscriptionRecallBalanceRequiresClaimAndChargesDiscountedQuote(t *testing.T) {

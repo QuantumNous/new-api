@@ -460,6 +460,7 @@ func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract
 	if err != nil {
 		return nil, err
 	}
+	recallCampaignID, recallRecipientID, recallPromotionCodeID, recallDiscountAmountMinor := subscriptionPurchaseRecallAttribution(quote)
 	now := common.GetTimestamp()
 	order := &model.SubscriptionOrder{
 		UserId:                    user.Id,
@@ -477,10 +478,10 @@ func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract
 		PlanSnapshot:              snapshot,
 		PurchaseIntent:            intent.Kind,
 		RenewalSource:             model.SubscriptionRenewalSourceWallet,
-		RecallCampaignId:          quote.RecallCampaignID,
-		RecallRecipientId:         quote.RecallRecipientID,
-		RecallPromotionCodeId:     quote.RecallPromotionCodeID,
-		RecallDiscountAmountMinor: quote.DiscountAmountMinor,
+		RecallCampaignId:          recallCampaignID,
+		RecallRecipientId:         recallRecipientID,
+		RecallPromotionCodeId:     recallPromotionCodeID,
+		RecallDiscountAmountMinor: recallDiscountAmountMinor,
 		ProviderPayload:           fmt.Sprintf("choice=%s;months=%d;contract_id=%d;change_intent_id=%d", cmd.PaymentChoice, cmd.Months, contract.Id, intent.Id),
 		ChangeIntentId:            intent.Id,
 	}
@@ -516,6 +517,7 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 	if err != nil {
 		return nil, nil, err
 	}
+	recallCampaignID, recallRecipientID, recallPromotionCodeID, recallDiscountAmountMinor := subscriptionPurchaseRecallAttribution(quote)
 	now := common.GetTimestamp()
 	order := &model.SubscriptionOrder{
 		UserId:                    user.Id,
@@ -534,17 +536,17 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 		PlanSnapshot:              snapshot,
 		PurchaseIntent:            intent.Kind,
 		RenewalSource:             model.SubscriptionRenewalSourceWallet,
-		RecallCampaignId:          quote.RecallCampaignID,
-		RecallRecipientId:         quote.RecallRecipientID,
-		RecallPromotionCodeId:     quote.RecallPromotionCodeID,
-		RecallDiscountAmountMinor: quote.DiscountAmountMinor,
+		RecallCampaignId:          recallCampaignID,
+		RecallRecipientId:         recallRecipientID,
+		RecallPromotionCodeId:     recallPromotionCodeID,
+		RecallDiscountAmountMinor: recallDiscountAmountMinor,
 		ProviderPayload:           fmt.Sprintf("charged_quota=%d;refunded_quota=%d;choice=%s;months=%d;contract_id=%d;change_intent_id=%d", requiredQuota, refundQuota, cmd.PaymentChoice, cmd.Months, contract.Id, intent.Id),
 		ChangeIntentId:            intent.Id,
 	}
 	if err := tx.Create(order).Error; err != nil {
 		return nil, nil, err
 	}
-	if quote.DiscountAmountMinor > 0 {
+	if quote.DiscountKind == SubscriptionDiscountKindRecall && quote.DiscountAmountMinor > 0 {
 		eventData, err := common.Marshal(map[string]any{
 			"trade_no":        order.TradeNo,
 			"conversion_kind": model.RecallConversionDirect,
@@ -638,6 +640,13 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 			money:        order.Money,
 			chargedQuota: requiredQuota,
 		}, nil
+}
+
+func subscriptionPurchaseRecallAttribution(quote SubscriptionPurchaseQuote) (int64, int64, string, int64) {
+	if quote.DiscountKind != SubscriptionDiscountKindRecall {
+		return 0, 0, "", 0
+	}
+	return quote.RecallCampaignID, quote.RecallRecipientID, quote.RecallPromotionCodeID, quote.DiscountAmountMinor
 }
 
 func enforcePrepaidReplacementLimitTx(tx *gorm.DB, contractID int64, purchaseMonths int) error {

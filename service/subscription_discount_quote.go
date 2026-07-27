@@ -57,8 +57,7 @@ func BuildSubscriptionDiscountQuote(input SubscriptionDiscountQuoteInput) (Subsc
 	if err != nil {
 		return SubscriptionDiscountQuote{}, err
 	}
-	quote.InvitationDiscountAmountMinor = invitationLocal
-	quote.InvitationDiscountUSDMinor = minInt64(input.AvailableUSDMinor, input.OriginalUSDMinor)
+	invitationUSD := minInt64(input.AvailableUSDMinor, input.OriginalUSDMinor)
 
 	otherLocal := minInt64(input.OtherDiscountAmountMinor, input.OriginalAmountMinor)
 	if otherLocal > 0 && quote.OtherDiscountKind == "" {
@@ -68,7 +67,9 @@ func BuildSubscriptionDiscountQuote(input SubscriptionDiscountQuoteInput) (Subsc
 	if invitationLocal > 0 && invitationLocal > otherLocal {
 		quote.SelectedKind = SubscriptionDiscountKindInvitation
 		quote.SelectedDiscountAmountMinor = invitationLocal
-		quote.InvitationRemainingUSDMinor = input.AvailableUSDMinor - quote.InvitationDiscountUSDMinor
+		quote.InvitationDiscountAmountMinor = invitationLocal
+		quote.InvitationDiscountUSDMinor = invitationUSD
+		quote.InvitationRemainingUSDMinor = input.AvailableUSDMinor - invitationUSD
 	} else if otherLocal > 0 {
 		quote.SelectedKind = quote.OtherDiscountKind
 		quote.SelectedDiscountAmountMinor = otherLocal
