@@ -10,8 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useRecallCampaignMutations } from '../api'
-import type { RecallCampaignAction } from '../types'
+import { RecallApiError, useRecallCampaignMutations } from '../api'
+import type {
+  RecallCampaignAction,
+  RecallEmailLocalizationBlocker,
+} from '../types'
 
 type DialogAction = RecallCampaignAction | 'retry'
 
@@ -22,6 +25,31 @@ interface CampaignActionDialogProps {
   onOpenChange: (open: boolean) => void
   recipientId?: number
   uncertain?: boolean
+  onLocalizationBlocked?: (blocker: RecallEmailLocalizationBlocker) => void
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function getRecallLocalizationBlockers(
+  error: unknown
+): RecallEmailLocalizationBlocker[] {
+  if (!(error instanceof RecallApiError)) return []
+  const data = error.data
+  if (!data || typeof data !== 'object' || !('blockers' in data)) return []
+  const blockers = (data as { blockers?: unknown }).blockers
+  if (!Array.isArray(blockers)) return []
+  return blockers.filter(
+    (blocker): blocker is RecallEmailLocalizationBlocker =>
+      Boolean(blocker) &&
+      typeof blocker === 'object' &&
+      Number.isInteger(
+        (blocker as RecallEmailLocalizationBlocker).stage_no
+      ) &&
+      (blocker as RecallEmailLocalizationBlocker).stage_no > 0 &&
+      typeof (blocker as RecallEmailLocalizationBlocker).locale === 'string' &&
+      ['missing', 'stale', 'invalid'].includes(
+        (blocker as RecallEmailLocalizationBlocker).reason
+      )
+  )
 }
 
 export function CampaignActionDialog(props: CampaignActionDialogProps) {
@@ -36,16 +64,34 @@ export function CampaignActionDialog(props: CampaignActionDialogProps) {
   }
 
   const confirm = async () => {
-    const response =
-      props.action === 'retry'
-        ? await mutations.retry.mutateAsync({
-            recipientId: props.recipientId ?? 0,
-            acknowledgeUncertain: acknowledged,
-          })
-        : await mutations.action.mutateAsync(props.action)
-    if (!response.success) return
-    toast.success(t('Campaign action completed'))
-    setOpen(false)
+    try {
+      const response =
+        props.action === 'retry'
+          ? await mutations.retry.mutateAsync({
+              recipientId: props.recipientId ?? 0,
+              acknowledgeUncertain: acknowledged,
+            })
+          : await mutations.action.mutateAsync(props.action)
+      if (!response.success) return
+      toast.success(t('Campaign action completed'))
+      setOpen(false)
+    } catch (error) {
+      const blocker =
+        props.action === 'activate'
+          ? getRecallLocalizationBlockers(error)[0]
+          : undefined
+      if (blocker) {
+        props.onLocalizationBlocked?.(blocker)
+        setOpen(false)
+      }
+      toast.error(
+        t(
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : 'Recall campaign request failed'
+        )
+      )
+    }
   }
 
   const getDescription = () => {

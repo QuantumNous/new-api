@@ -47,10 +47,50 @@ const firstPurchaseHelp =
 const groupHelp =
   'Choose Allow or Block, then select the user groups to include or exclude. With no group filter, eligible users from every group are included.'
 const testI18n = createInstance()
-const createMutation = mock(async (draft: RecallCampaignDraft) => ({
-  success: true,
-  data: { id: 123, name: draft.name },
-}))
+const operationOrder: string[] = []
+const createMutation = mock(async (draft: RecallCampaignDraft) => {
+  operationOrder.push('save')
+  return {
+    success: true,
+    data: { id: 123, name: draft.name, config_revision: 7 },
+  }
+})
+const generateMutation = mock(
+  async (value: {
+    id: number
+    request: {
+      config_revision: number
+      name: string
+      email_sequence: RecallCampaignDraft['email_sequence']
+    }
+  }) => {
+    operationOrder.push('generate')
+    return {
+      success: true,
+      data: {
+        config_revision: value.request.config_revision + 1,
+        email_sequence: value.request.email_sequence.map((stage) => ({
+          ...stage,
+          source_revision: Math.max(1, stage.source_revision ?? 0),
+          translated_source_revision: Math.max(1, stage.source_revision ?? 0),
+          manual_locales: [],
+          templates: {
+            ...stage.templates,
+            ...Object.fromEntries(
+              ['zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'].map((locale) => [
+                locale,
+                {
+                  subject: `${locale} subject`,
+                  body_html: `<p>${locale} body</p>`,
+                },
+              ])
+            ),
+          },
+        })),
+      },
+    }
+  }
+)
 let latestSpecifiedUsersProps:
   | {
       userIDs: number[]
@@ -78,6 +118,7 @@ spyOn(recallApi, 'useRecallCampaignMutations').mockImplementation(() => ({
     isPending: false,
     mutateAsync: mock(async () => ({ success: true })),
   },
+  generate: { isPending: false, mutateAsync: generateMutation },
 }))
 
 mock.module('@/components/ui/select', () => ({
@@ -429,6 +470,11 @@ function setupDom() {
       }
       return null
     }
+
+    focus() {
+      ;(globalThis.document as unknown as { activeElement: ElementShim }).activeElement =
+        this
+    }
   }
 
   class TextShim extends NodeShim {
@@ -455,6 +501,7 @@ function setupDom() {
     addEventListener() {},
     removeEventListener() {},
     defaultView: globalThis,
+    activeElement: null,
   }
   defineTestGlobal('document', shimDocument as unknown as Document)
   defineTestGlobal(
@@ -568,6 +615,15 @@ async function submit(container: HTMLElement) {
   })
 }
 
+async function clickByID(container: HTMLElement, id: string) {
+  const element = container.querySelector(`#${id}`)
+  expect(element).toBeTruthy()
+  await React.act(async () => {
+    element?.dispatchEvent(new Event('click', { bubbles: true, cancelable: true }))
+    await Promise.resolve()
+  })
+}
+
 const audienceThresholdFields = [
   'registration_age_days',
   'min_request_count',
@@ -619,6 +675,35 @@ beforeEach(() => {
     delete latestInputProps[key]
   }
   createMutation.mockClear()
+  generateMutation.mockClear()
+  generateMutation.mockImplementation(async (value) => {
+    operationOrder.push('generate')
+    return {
+      success: true,
+      data: {
+        config_revision: value.request.config_revision + 1,
+        email_sequence: value.request.email_sequence.map((stage) => ({
+          ...stage,
+          source_revision: Math.max(1, stage.source_revision ?? 0),
+          translated_source_revision: Math.max(1, stage.source_revision ?? 0),
+          manual_locales: [],
+          templates: {
+            ...stage.templates,
+            ...Object.fromEntries(
+              ['zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'].map((locale) => [
+                locale,
+                {
+                  subject: `${locale} subject`,
+                  body_html: `<p>${locale} body</p>`,
+                },
+              ])
+            ),
+          },
+        })),
+      },
+    }
+  })
+  operationOrder.length = 0
 })
 
 afterAll(() => {
@@ -1111,16 +1196,142 @@ describe('CampaignEditor email sequence', () => {
     dispose(root)
   })
 
-  test('renders eight language buttons and the active English fields', () => {
+  test('renders English-first tabs and the active English fields', () => {
     const draft = makeDraft('first_purchase')
     const html = renderEditor('first_purchase', draft)
 
-    expect(html.match(/aria-pressed=/g) ?? []).toHaveLength(8)
-    expect(html).toContain('English')
+    expect(html.match(/role="tab"/g) ?? []).toHaveLength(2)
+    expect(html).toContain('English content')
+    expect(html).toContain('Translation review')
     expect(html).toContain('name="email_sequence.0.templates.en.subject"')
     expect(html).toContain('name="email_sequence.0.templates.en.body_html"')
     expect(html).not.toContain('name="email_sequence.0.templates.en.body_text"')
     expect(html).not.toContain('templates.fr')
+  })
+
+  test('keeps new drafts English-only before explicit generation', () => {
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={createQueryClient()}>
+        <I18nextProvider i18n={testI18n}>
+          <CampaignEditor />
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+
+    expect(html).toContain('name="email_sequence.0.templates.en.subject"')
+    expect(html).not.toContain('templates.es')
+    expect(html).toContain('Generate 7 translations')
+  })
+
+  test('saves a new draft before one all-stage generation request', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates = {
+      en: draft.email_sequence[0].templates.en,
+    }
+    draft.email_sequence[0].translated_source_revision = 0
+    const { root, container } = renderEditorDom(draft)
+
+    await clickByID(container, 'recall-generate-translations')
+
+    expect(operationOrder).toEqual(['save', 'generate'])
+    expect(generateMutation).toHaveBeenCalledTimes(1)
+    expect(generateMutation.mock.calls[0][0]).toMatchObject({
+      id: 123,
+      request: { config_revision: 7, name: 'Test campaign' },
+    })
+    expect(container.textContent).toContain('7 / 7 ready')
+    dispose(root)
+  })
+
+  test('shows stale targets immediately after English changes', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].source_revision = 1
+    draft.email_sequence[0].translated_source_revision = 1
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    React.act(() => {
+      latestInputProps['recall-email-0-en-subject'].onChange?.({
+        target: {
+          name: 'email_sequence.0.templates.en.subject',
+          value: 'Changed English subject',
+        },
+        type: 'change',
+      } as React.ChangeEvent<HTMLInputElement>)
+    })
+    await clickByID(container, 'recall-email-tab-translations')
+
+    expect(container.textContent).toContain('stale')
+    dispose(root)
+  })
+
+  test('marks manual locale edits and warns before replacing them', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].source_revision = 1
+    draft.email_sequence[0].translated_source_revision = 1
+    draft.email_sequence[0].manual_locales = ['es', 'fr']
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    await clickByID(container, 'recall-generate-translations')
+    expect(generateMutation).not.toHaveBeenCalled()
+    expect(container.textContent).toContain(
+      'Regenerating will replace 2 manually edited translations.'
+    )
+
+    await clickByID(container, 'recall-confirm-regenerate-translations')
+    expect(generateMutation).toHaveBeenCalledTimes(1)
+    dispose(root)
+  })
+
+  test('preserves previous targets when generation fails', async () => {
+    generateMutation.mockImplementationOnce(async () => {
+      operationOrder.push('generate')
+      throw new Error('Translation unavailable')
+    })
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].source_revision = 1
+    draft.email_sequence[0].translated_source_revision = 1
+    draft.email_sequence[0].manual_locales = []
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    await clickByID(container, 'recall-generate-translations')
+    await clickByID(container, 'recall-email-tab-translations')
+
+    const french = container.querySelector(
+      '#recall-email-0-fr-subject'
+    ) as HTMLInputElement | null
+    expect(french?.value).toBe('Sujet français')
+    expect(container.textContent).toContain('Translation unavailable')
+    dispose(root)
+  })
+
+  test('focuses the first structured activation blocker without acknowledgments', () => {
+    const draft = makeDraft('first_purchase')
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+      focusBlocker: { stage_no: 1, locale: 'fr', reason: 'missing' },
+    })
+
+    expect(container.textContent).toContain('Translation review')
+    expect(container.querySelector('#recall-email-0-fr-subject')).toBeTruthy()
+    expect(
+      (
+        document.activeElement as unknown as {
+          attributes?: Record<string, string>
+        }
+      )?.attributes?.id
+    ).toBe('recall-email-0-fr-subject')
+    expect(container.textContent).not.toContain('Acknowledge locale')
+    dispose(root)
   })
 
   test('loads legacy text as visible editable HTML without UTF-16 native limits', () => {

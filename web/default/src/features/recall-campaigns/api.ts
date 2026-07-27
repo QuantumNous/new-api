@@ -52,9 +52,22 @@ export const recallCampaignKeys = {
 export const recallEmailHourlyLimitOptionKey =
   'recall_campaign_setting.email_hourly_limit'
 
+export class RecallApiError<T = unknown> extends Error {
+  data?: T
+
+  constructor(message: string, data?: T) {
+    super(message)
+    this.name = 'RecallApiError'
+    this.data = data
+  }
+}
+
 function requireRecallSuccess<T>(response: ApiResponse<T>): ApiResponse<T> {
   if (response?.success !== true) {
-    throw new Error(response?.message || 'Recall campaign request failed')
+    throw new RecallApiError(
+      response?.message || 'Recall campaign request failed',
+      response?.data
+    )
   }
   return response
 }
@@ -282,6 +295,13 @@ export function useRecallCampaignMutations(id?: number) {
     },
     onSuccess: invalidate,
   })
+  const generate = useMutation({
+    mutationFn: (value: {
+      id: number
+      request: RecallEmailGenerationRequest
+    }) => generateRecallEmailTranslations(value.id, value.request),
+    onSuccess: invalidate,
+  })
 
-  return { create, update, action, retry }
+  return { create, update, action, retry, generate }
 }

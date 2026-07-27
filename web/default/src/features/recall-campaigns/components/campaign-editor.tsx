@@ -1,15 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react'
-import {
-  Controller,
-  useFieldArray,
-  useForm,
-  type FieldPath,
-} from 'react-hook-form'
+import { Controller, useForm, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import {
-  INTERFACE_LANGUAGE_OPTIONS,
-  type InterfaceLanguageCode,
-} from '@/i18n/languages'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -39,7 +30,6 @@ import {
   parseRecallMajorAmount,
   prepareRecallCampaignSubmitDraft,
   recallFixedCurrencies,
-  removeRecallEmailStage,
   setRecallCampaignGroups,
   setRecallCampaignGroupMode,
 } from '../helpers'
@@ -51,13 +41,14 @@ import type {
   RecallCampaignDraft,
   RecallCampaignStatus,
   RecallDiscountConfig,
+  RecallEmailLocalizationBlocker,
   RecallEmailTemplate,
   RecallFixedCurrency,
 } from '../types'
-import { CampaignEmailHtmlEditor } from './campaign-email-html-editor'
 import { CampaignGroupSelector } from './campaign-group-selector'
 import { CampaignOfferValidityFields } from './campaign-offer-validity-fields'
 import { CampaignProductSelector } from './campaign-product-selector'
+import { CampaignTranslationWorkspace } from './campaign-translation-workspace'
 
 interface CampaignSpecifiedUsersSelectorProps {
   userIDs: number[]
@@ -76,24 +67,6 @@ const LazyCampaignSpecifiedUsersSelector = lazy(async () => {
 
 type RecallFixedAmountInputs = Record<RecallFixedCurrency, string>
 
-const recallEmailLocaleOrder: InterfaceLanguageCode[] = [
-  'en',
-  'zh',
-  'es',
-  'fr',
-  'pt',
-  'ru',
-  'ja',
-  'vi',
-]
-
-const recallEmailLanguageOptions = recallEmailLocaleOrder.map((code) => ({
-  code,
-  label:
-    INTERFACE_LANGUAGE_OPTIONS.find((option) => option.code === code)?.label ??
-    code.toUpperCase(),
-}))
-
 function createRecallEmailTemplates(
   templates: Record<string, RecallEmailTemplate> = {},
   campaignType: RecallCampaignDraft['campaign_type'] = 'promotion'
@@ -107,12 +80,7 @@ function createRecallEmailTemplates(
     body_text: '',
     body_html: starterHtml,
   }
-  return Object.fromEntries(
-    recallEmailLocaleOrder.map((locale) => [
-      locale,
-      { ...(templates[locale] ?? englishTemplate) },
-    ])
-  )
+  return { ...templates, en: { ...englishTemplate } }
 }
 
 const recallFixedAmountPaths: Record<
@@ -296,8 +264,10 @@ function createRecallCampaignDefaults(): RecallCampaignDraft {
 
 interface CampaignEditorProps {
   campaignId?: number
+  configRevision?: number
   initialDraft?: RecallCampaignDraft
   status?: RecallCampaignStatus
+  focusBlocker?: RecallEmailLocalizationBlocker
   onSaved?: (campaignId: number) => void
   specifiedUsersSelector?: ComponentType<CampaignSpecifiedUsersSelectorProps>
 }
@@ -316,16 +286,16 @@ export function CampaignEditor(props: CampaignEditorProps) {
     resolver: zodResolver(updateSchema),
     defaultValues,
   })
-  const [activeEmailLocale, setActiveEmailLocale] =
-    useState<InterfaceLanguageCode>('en')
+  const [persistedCampaignID, setPersistedCampaignID] = useState(
+    props.campaignId ?? 0
+  )
+  const [persistedConfigRevision, setPersistedConfigRevision] = useState(
+    props.configRevision ?? 0
+  )
   const [fixedAmountInputs, setFixedAmountInputs] =
     useState<RecallFixedAmountInputs>(() =>
       createRecallFixedAmountInputs(defaultValues.discount_config)
     )
-  const stages = useFieldArray({
-    control: form.control,
-    name: 'email_sequence',
-  })
   const campaignType = form.watch('campaign_type')
   const audienceTemplate = form.watch('audience_template')
   const couponSource = form.watch('coupon_source')
@@ -379,6 +349,11 @@ export function CampaignEditor(props: CampaignEditorProps) {
     }
   }, [form, props.initialDraft])
 
+  useEffect(() => {
+    setPersistedCampaignID(props.campaignId ?? 0)
+    setPersistedConfigRevision(props.configRevision ?? 0)
+  }, [props.campaignId, props.configRevision])
+
   const setCsv = (
     path: 'audience_config.groups' | 'audience_config.payment_providers',
     value: string
@@ -407,16 +382,68 @@ export function CampaignEditor(props: CampaignEditorProps) {
     })
   }
 
-  const onSubmit = async (draft: RecallCampaignDraft) => {
+  const persistDraft = async (
+    draft: RecallCampaignDraft,
+    notifySaved: boolean
+  ): Promise<{ id: number; configRevision: number } | null> => {
     const normalizedDraft = prepareRecallCampaignSubmitDraft(draft)
     const response = props.campaignId
       ? await mutations.update.mutateAsync(normalizedDraft)
       : await mutations.create.mutateAsync(normalizedDraft)
-    if (!response.success || !response.data) return
-    toast.success(
-      props.campaignId ? t('Campaign updated') : t('Campaign created')
-    )
-    props.onSaved?.(response.data.id)
+    if (!response.success || !response.data) return null
+    const result = {
+      id: response.data.id,
+      configRevision:
+        response.data.config_revision || persistedConfigRevision,
+    }
+    setPersistedCampaignID(result.id)
+    setPersistedConfigRevision(result.configRevision)
+    if (notifySaved) {
+      toast.success(
+        props.campaignId ? t('Campaign updated') : t('Campaign created')
+      )
+      props.onSaved?.(result.id)
+    }
+    return result
+  }
+
+  const onSubmit = async (draft: RecallCampaignDraft) => {
+    await persistDraft(draft, true)
+  }
+
+  const generateTranslations = async () => {
+    let campaignID = persistedCampaignID
+    let configRevision = persistedConfigRevision
+    if (!campaignID || form.formState.isDirty) {
+      const valid = await form.trigger()
+      if (!valid) throw new Error('Please correct the highlighted fields.')
+      const saved = await persistDraft(form.getValues(), false)
+      if (!saved) throw new Error('Recall campaign request failed')
+      campaignID = saved.id
+      configRevision = saved.configRevision
+    }
+    if (!campaignID || configRevision <= 0) {
+      throw new Error('Recall campaign revision is required')
+    }
+
+    const draft = prepareRecallCampaignSubmitDraft(form.getValues())
+    const response = await mutations.generate.mutateAsync({
+      id: campaignID,
+      request: {
+        config_revision: configRevision,
+        name: draft.name,
+        email_sequence: draft.email_sequence,
+      },
+    })
+    if (!response.success || !response.data) {
+      throw new Error('Translation generation failed')
+    }
+    setPersistedConfigRevision(response.data.config_revision)
+    form.reset({
+      ...draft,
+      email_sequence: response.data.email_sequence,
+      defer_localization: true,
+    })
   }
 
   const setCouponSource = (value: RecallCampaignDraft['coupon_source']) => {
@@ -471,7 +498,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
         ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
         : RECALL_EMAIL_STARTER_HTML
     current.email_sequence.forEach((stage, index) => {
-      recallEmailLocaleOrder.forEach((locale) => {
+      Object.keys(stage.templates).forEach((locale) => {
         const path =
           `email_sequence.${index}.templates.${locale}.body_html` as FieldPath<RecallCampaignDraft>
         const currentBody = stage.templates[locale]?.body_html ?? ''
@@ -1168,129 +1195,14 @@ export function CampaignEditor(props: CampaignEditorProps) {
           <CardTitle>{t('6. Email sequence')}</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
-          <div
-            aria-label={t('Language')}
-            className='flex flex-wrap gap-2'
-            role='group'
-          >
-            {recallEmailLanguageOptions.map((language) => (
-              <Button
-                key={language.code}
-                type='button'
-                size='sm'
-                variant={
-                  activeEmailLocale === language.code ? 'default' : 'outline'
-                }
-                aria-pressed={activeEmailLocale === language.code}
-                onClick={() => setActiveEmailLocale(language.code)}
-              >
-                {language.label}
-              </Button>
-            ))}
-          </div>
-          {stages.fields.map((stage, index) => {
-            const subjectPath =
-              `email_sequence.${index}.templates.${activeEmailLocale}.subject` as FieldPath<RecallCampaignDraft>
-            const subjectId = `recall-email-${index}-${activeEmailLocale}-subject`
-            const subjectErrorId = `${subjectId}-error`
-            const subjectHelpId = `${subjectId}-help`
-            const subjectError = form.getFieldState(
-              subjectPath,
-              form.formState
-            ).error
-            return (
-              <div className='space-y-3 rounded-lg border p-3' key={stage.id}>
-                <div className='flex flex-wrap items-center justify-between gap-2'>
-                  <strong>
-                    {t('Email stage {{stage}}', { stage: index + 1 })}
-                  </strong>
-                  <span className='text-muted-foreground text-xs'>
-                    {t('TemplateVersion')}:{' '}
-                    {form.watch(`email_sequence.${index}.template_version`)}
-                  </span>
-                </div>
-                <div className='grid gap-3 md:grid-cols-2'>
-                  <div className='space-y-2'>
-                    <Label>{t('Delay seconds')}</Label>
-                    <Input
-                      type='number'
-                      min={0}
-                      disabled={immutable}
-                      {...form.register(
-                        `email_sequence.${index}.delay_seconds`,
-                        { valueAsNumber: true }
-                      )}
-                    />
-                  </div>
-                  <div className='space-y-2'>
-                    <Label htmlFor={subjectId}>{t('Subject')}</Label>
-                    <Input
-                      key={subjectPath}
-                      id={subjectId}
-                      disabled={terminal}
-                      aria-invalid={Boolean(subjectError)}
-                      aria-describedby={`${subjectHelpId}${subjectError ? ` ${subjectErrorId}` : ''}`}
-                      {...form.register(subjectPath)}
-                    />
-                    <p
-                      id={subjectHelpId}
-                      className='text-muted-foreground text-sm'
-                    >
-                      {t('Leave empty to use the campaign name.')}
-                    </p>
-                    {subjectError ? (
-                      <p
-                        id={subjectErrorId}
-                        role='alert'
-                        className='text-destructive text-sm'
-                      >
-                        {t(String(subjectError.message))}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <CampaignEmailHtmlEditor
-                  key={`${stage.id}-${activeEmailLocale}`}
-                  form={form}
-                  index={index}
-                  locale={activeEmailLocale}
-                  disabled={terminal}
-                />
-                {stages.fields.length > 1 && !immutable ? (
-                  <Button
-                    type='button'
-                    variant='outline'
-                    onClick={() =>
-                      stages.replace(
-                        removeRecallEmailStage(
-                          form.getValues('email_sequence'),
-                          index
-                        )
-                      )
-                    }
-                  >
-                    {t('Remove stage')}
-                  </Button>
-                ) : null}
-              </div>
-            )
-          })}
-          {stages.fields.length < 3 && !immutable ? (
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() =>
-                stages.append({
-                  stage_no: stages.fields.length + 1,
-                  delay_seconds: stages.fields.length * 86400,
-                  template_version: 1,
-                  templates: createRecallEmailTemplates({}, campaignType),
-                })
-              }
-            >
-              {t('Add email stage')}
-            </Button>
-          ) : null}
+          <CampaignTranslationWorkspace
+            disabled={terminal}
+            focusBlocker={props.focusBlocker}
+            form={form}
+            immutable={immutable}
+            isGenerating={mutations.generate.isPending}
+            onGenerate={generateTranslations}
+          />
         </CardContent>
       </Card>
 

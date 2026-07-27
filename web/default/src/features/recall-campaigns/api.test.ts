@@ -22,6 +22,7 @@ import {
   runRecallCampaignAction,
   updateRecallCampaign,
   validateRecallStripeConfig,
+  RecallApiError,
 } from './api'
 import type { RecallCampaignDraft, RecallEmailGenerationRequest } from './types'
 
@@ -148,6 +149,23 @@ describe('recall campaign API contracts', () => {
     )
 
     await expect(exportRecallCampaign(1)).rejects.toThrow('Export unavailable')
+  })
+
+  test('preserves structured failure data for activation recovery', async () => {
+    const blockers = [{ stage_no: 1, locale: 'es', reason: 'stale' }]
+    respondWith({
+      success: false,
+      message: 'Translations are not ready',
+      data: { blockers },
+    })
+
+    try {
+      await runRecallCampaignAction(9, 'activate')
+      throw new Error('Expected activation to fail')
+    } catch (error) {
+      expect(error).toBeInstanceOf(RecallApiError)
+      expect((error as RecallApiError).data).toEqual({ blockers })
+    }
   })
 
   test('posts email preview requests with the template wrapper', async () => {

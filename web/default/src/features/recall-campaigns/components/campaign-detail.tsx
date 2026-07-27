@@ -24,6 +24,7 @@ import {
 } from '../api'
 import {
   formatRecallCampaignType,
+  getRecallEmailLocaleStatus,
   getRecallPageCount,
   getRecallRecipientRetry,
   isRecallPromotionCampaign,
@@ -31,6 +32,8 @@ import {
 import type {
   RecallCampaignAction,
   RecallCampaignStatus,
+  RecallEmailLocalizationBlocker,
+  RecallEmailStage,
   RecallRecipient,
 } from '../types'
 import { CampaignActionDialog } from './campaign-action-dialog'
@@ -38,6 +41,44 @@ import { CampaignEditor } from './campaign-editor'
 import { CampaignPreviewDialog } from './campaign-preview-dialog'
 
 const DETAIL_PAGE_SIZE = 100
+const activationLocales = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi']
+
+function getRecallActivationBlockerReason(
+  stage: RecallEmailStage,
+  locale: string,
+  status: ReturnType<typeof getRecallEmailLocaleStatus>
+): RecallEmailLocalizationBlocker['reason'] {
+  if (status === 'stale') return 'stale'
+  return stage.templates[locale] ? 'invalid' : 'missing'
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function getRecallActivationReadiness(
+  stages: RecallEmailStage[]
+): { ready: boolean; blockers: RecallEmailLocalizationBlocker[] } {
+  const blockers: RecallEmailLocalizationBlocker[] = []
+  const allowedLocales = new Set(activationLocales)
+  for (const stage of stages) {
+    for (const locale of activationLocales) {
+      const status = getRecallEmailLocaleStatus(stage, locale)
+      if (status === 'ready' || status === 'manual') continue
+      blockers.push({
+        stage_no: stage.stage_no,
+        locale,
+        reason: getRecallActivationBlockerReason(stage, locale, status),
+      })
+    }
+    for (const locale of Object.keys(stage.templates)) {
+      if (allowedLocales.has(locale)) continue
+      blockers.push({
+        stage_no: stage.stage_no,
+        locale,
+        reason: 'invalid',
+      })
+    }
+  }
+  return { ready: blockers.length === 0, blockers }
+}
 
 function formatTimestamp(value: number): string {
   return value > 0 ? new Date(value * 1000).toLocaleString() : '-'
@@ -62,6 +103,8 @@ export function CampaignDetail(props: CampaignDetailProps) {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [recipientPage, setRecipientPage] = useState(1)
   const [eventPage, setEventPage] = useState(1)
+  const [focusBlocker, setFocusBlocker] =
+    useState<RecallEmailLocalizationBlocker>()
   const [dialog, setDialog] = useState<{
     action: RecallCampaignAction | 'retry'
     recipientId?: number
@@ -93,6 +136,9 @@ export function CampaignDetail(props: CampaignDetailProps) {
   const metrics = metricsQuery.data?.data
   const isPromotion = isRecallPromotionCampaign(
     detail?.campaign_type ?? 'promotion'
+  )
+  const activationReadiness = getRecallActivationReadiness(
+    detail?.draft.email_sequence ?? []
   )
   const recipientPageCount = getRecallPageCount(
     recipientsQuery.data?.data?.total ?? 0,
@@ -152,6 +198,7 @@ export function CampaignDetail(props: CampaignDetailProps) {
           <Button
             key={action}
             variant={action === 'cancel' ? 'destructive' : 'default'}
+            disabled={action === 'activate' && !activationReadiness.ready}
             onClick={() => setDialog({ action })}
           >
             {t(action)}
@@ -160,6 +207,24 @@ export function CampaignDetail(props: CampaignDetailProps) {
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='space-y-4'>
+          {detail.status === 'draft' && !activationReadiness.ready ? (
+            <div className='space-y-2 rounded-lg border p-3'>
+              <p className='text-sm'>
+                {t(
+                  'Translations must be complete and current before activation.'
+                )}
+              </p>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() =>
+                  setFocusBlocker(activationReadiness.blockers[0])
+                }
+              >
+                {t('Generate or fix translations')}
+              </Button>
+            </div>
+          ) : null}
           <Card>
             <CardHeader>
               <CardTitle>{t('Campaign metrics')}</CardTitle>
@@ -421,6 +486,8 @@ export function CampaignDetail(props: CampaignDetailProps) {
 
           <CampaignEditor
             campaignId={detail.id}
+            configRevision={detail.config_revision}
+            focusBlocker={focusBlocker}
             initialDraft={detail.draft}
             status={detail.status}
           />
@@ -437,6 +504,7 @@ export function CampaignDetail(props: CampaignDetailProps) {
             recipientId={dialog.recipientId}
             uncertain={dialog.uncertain}
             open
+            onLocalizationBlocked={setFocusBlocker}
             onOpenChange={(open) => {
               if (!open) setDialog(null)
             }}

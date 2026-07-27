@@ -21,6 +21,7 @@ interface CampaignEmailHtmlEditorProps {
   index: number
   locale: InterfaceLanguageCode
   disabled: boolean
+  onEdit?: () => void
 }
 
 interface RecallEmailPreviewFrameProps {
@@ -195,6 +196,7 @@ export function CampaignEmailHtmlEditor(
       shouldDirty: true,
       shouldValidate: true,
     })
+    props.onEdit?.()
     const restoreSelection = () => {
       textarea?.focus()
       textarea?.setSelectionRange(inserted.selection, inserted.selection)
@@ -267,6 +269,10 @@ export function CampaignEmailHtmlEditor(
           aria-describedby={activeBodyError ? bodyErrorId : undefined}
           {...bodyRegistration}
           defaultValue={bodyHTML}
+          onChange={(event) => {
+            void bodyRegistration.onChange(event)
+            props.onEdit?.()
+          }}
           ref={(element) => {
             bodyRegistration.ref(element)
             textareaRef.current = element
