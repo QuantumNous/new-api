@@ -40,6 +40,9 @@ type ResponsesToolContext struct {
 	FunctionTools     map[string]CodexFunctionToolSpec
 	HasCustomTools    bool
 	HasNamespaceTools bool
+	// OriginalRequest is retained only for the responses-via-chat response
+	// conversion so response metadata can mirror the originating request.
+	OriginalRequest *OpenAIResponsesRequest
 }
 
 func NewResponsesToolContext() *ResponsesToolContext {

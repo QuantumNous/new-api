@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,6 +41,7 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	if oaiError := chatResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
+	service.EnrichChatResponseReasoningDetails(&chatResp, body)
 
 	// Normalize provider-specific usage (cached-token fields) like the native Chat path.
 	applyUsagePostProcessing(info, &chatResp.Usage, body)
@@ -98,6 +100,7 @@ func OaiChatToResponsesCompactionHandler(c *gin.Context, info *relaycommon.Relay
 	if oaiError := chatResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
+	service.EnrichChatResponseReasoningDetails(&chatResp, body)
 
 	// Normalize provider-specific usage (cached-token fields) like the native Chat path.
 	applyUsagePostProcessing(info, &chatResp.Usage, body)
@@ -184,6 +187,12 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		reasoningOutputIdx int
 		reasoningBuilder   strings.Builder
 		reasoningFinalItem map[string]any
+		explicitReasoning  bool
+
+		// Some OpenAI-compatible reasoning models place thought text in a
+		// leading <think>...</think> block instead of reasoning_content.
+		inlineThinkState  string
+		inlineThinkBuffer strings.Builder
 
 		// assistant message item state
 		msgAdded       bool
@@ -229,6 +238,7 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				"total_tokens":  u.TotalTokens,
 			}
 		}
+		copyResponsesRequestFieldsToMap(obj, info.ResponsesToolContext)
 		return obj
 	}
 
@@ -309,6 +319,95 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return true
 	}
 
+	emitReasoningDelta := func(reasoning string) bool {
+		if reasoning == "" || reasoningClosed {
+			return true
+		}
+		if !reasoningAdded {
+			reasoningOutputIdx = nextOutputIdx
+			nextOutputIdx++
+			if !emit("response.output_item.added", map[string]any{
+				"output_index": reasoningOutputIdx,
+				"item":         map[string]any{"type": "reasoning", "id": reasoningItemID, "status": "in_progress", "summary": []any{}},
+			}) {
+				return false
+			}
+			if !emit("response.reasoning_summary_part.added", map[string]any{
+				"item_id": reasoningItemID, "output_index": reasoningOutputIdx, "summary_index": 0,
+				"part": map[string]any{"type": "summary_text", "text": ""},
+			}) {
+				return false
+			}
+			reasoningAdded = true
+		}
+		reasoningBuilder.WriteString(reasoning)
+		usageText.WriteString(reasoning)
+		return emit("response.reasoning_summary_text.delta", map[string]any{
+			"item_id": reasoningItemID, "output_index": reasoningOutputIdx, "summary_index": 0, "delta": reasoning,
+		})
+	}
+
+	emitTextDelta := func(content string) bool {
+		if content == "" {
+			return true
+		}
+		if !closeReasoningIfOpen() {
+			return false
+		}
+		if !openMessageItemIfNeeded() {
+			return false
+		}
+		textBuilder.WriteString(content)
+		usageText.WriteString(content)
+		return emit("response.output_text.delta", map[string]any{
+			"item_id":       msgItemID,
+			"output_index":  msgOutputIndex,
+			"content_index": 0,
+			"delta":         content,
+		})
+	}
+
+	processContentDelta := func(content string) bool {
+		if content == "" {
+			return true
+		}
+		if explicitReasoning || inlineThinkState == "plain" || inlineThinkState == "done" {
+			return emitTextDelta(content)
+		}
+
+		inlineThinkBuffer.WriteString(content)
+		buffered := inlineThinkBuffer.String()
+		trimmed := strings.TrimLeft(buffered, " \t\r\n")
+
+		if inlineThinkState == "" {
+			switch {
+			case strings.HasPrefix(trimmed, "<think>"):
+				inlineThinkState = "active"
+			case strings.HasPrefix("<think>", trimmed):
+				return true
+			default:
+				inlineThinkState = "plain"
+				inlineThinkBuffer.Reset()
+				return emitTextDelta(buffered)
+			}
+		}
+
+		if inlineThinkState == "active" {
+			afterOpen := strings.TrimPrefix(trimmed, "<think>")
+			if end := strings.Index(afterOpen, "</think>"); end >= 0 {
+				reasoning := strings.TrimSpace(afterOpen[:end])
+				answer := strings.TrimLeft(afterOpen[end+len("</think>"):], " \t\r\n")
+				inlineThinkState = "done"
+				inlineThinkBuffer.Reset()
+				if !emitReasoningDelta(reasoning) {
+					return false
+				}
+				return emitTextDelta(answer)
+			}
+		}
+		return true
+	}
+
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if streamErr != nil {
 			sr.Stop(streamErr)
@@ -318,6 +417,16 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		// Surface an in-stream upstream error frame instead of masking it as a
 		// successful (empty) completion.
 		if oaiErr := chatStreamErrorFromData(data); oaiErr != nil {
+			if sendCreatedIfNeeded() {
+				failed := buildResponseObject("failed", []map[string]any{}, usage)
+				failed["error"] = map[string]any{
+					"message": oaiErr.Message,
+					"type":    oaiErr.Type,
+					"code":    oaiErr.Code,
+					"param":   oaiErr.Param,
+				}
+				_ = emit("response.failed", map[string]any{"response": failed})
+			}
 			streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
 			sr.Stop(streamErr)
 			return
@@ -356,30 +465,8 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 		// reasoning summary (emitted before any text/tool output)
 		if reasoning := choice.Delta.GetReasoningContent(); reasoning != "" && !reasoningClosed {
-			if !reasoningAdded {
-				reasoningOutputIdx = nextOutputIdx
-				nextOutputIdx++
-				if !emit("response.output_item.added", map[string]any{
-					"output_index": reasoningOutputIdx,
-					"item":         map[string]any{"type": "reasoning", "id": reasoningItemID, "status": "in_progress", "summary": []any{}},
-				}) {
-					sr.Stop(streamErr)
-					return
-				}
-				if !emit("response.reasoning_summary_part.added", map[string]any{
-					"item_id": reasoningItemID, "output_index": reasoningOutputIdx, "summary_index": 0,
-					"part": map[string]any{"type": "summary_text", "text": ""},
-				}) {
-					sr.Stop(streamErr)
-					return
-				}
-				reasoningAdded = true
-			}
-			reasoningBuilder.WriteString(reasoning)
-			usageText.WriteString(reasoning)
-			if !emit("response.reasoning_summary_text.delta", map[string]any{
-				"item_id": reasoningItemID, "output_index": reasoningOutputIdx, "summary_index": 0, "delta": reasoning,
-			}) {
+			explicitReasoning = true
+			if !emitReasoningDelta(reasoning) {
 				sr.Stop(streamErr)
 				return
 			}
@@ -387,22 +474,7 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 		// assistant text
 		if content := choice.Delta.GetContentString(); content != "" {
-			if !closeReasoningIfOpen() {
-				sr.Stop(streamErr)
-				return
-			}
-			if !openMessageItemIfNeeded() {
-				sr.Stop(streamErr)
-				return
-			}
-			textBuilder.WriteString(content)
-			usageText.WriteString(content)
-			if !emit("response.output_text.delta", map[string]any{
-				"item_id":       msgItemID,
-				"output_index":  msgOutputIndex,
-				"content_index": 0,
-				"delta":         content,
-			}) {
+			if !processContentDelta(content) {
 				sr.Stop(streamErr)
 				return
 			}
@@ -515,6 +587,19 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 	if streamErr != nil {
 		return nil, streamErr
+	}
+
+	if inlineThinkBuffer.Len() > 0 {
+		buffered := inlineThinkBuffer.String()
+		inlineThinkBuffer.Reset()
+		if inlineThinkState == "active" {
+			trimmed := strings.TrimLeft(buffered, " \t\r\n")
+			if !emitReasoningDelta(strings.TrimSpace(strings.TrimPrefix(trimmed, "<think>"))) {
+				return nil, streamErr
+			}
+		} else if !emitTextDelta(buffered) {
+			return nil, streamErr
+		}
 	}
 
 	// The stream may end before any data arrived (e.g. empty completion).
@@ -679,6 +764,46 @@ func chatStreamErrorFromData(data string) *types.OpenAIError {
 		return e
 	}
 	return nil
+}
+
+func copyResponsesRequestFieldsToMap(out map[string]any, toolCtx *dto.ResponsesToolContext) {
+	if out == nil || toolCtx == nil || toolCtx.OriginalRequest == nil {
+		return
+	}
+	req := toolCtx.OriginalRequest
+	fields := map[string]any{
+		"instructions":         req.Instructions,
+		"reasoning":            req.Reasoning,
+		"tool_choice":          req.ToolChoice,
+		"tools":                req.Tools,
+		"metadata":             req.Metadata,
+		"parallel_tool_calls":  req.ParallelToolCalls,
+		"previous_response_id": req.PreviousResponseID,
+	}
+	if req.MaxOutputTokens != nil {
+		fields["max_output_tokens"] = *req.MaxOutputTokens
+	}
+	if req.Temperature != nil {
+		fields["temperature"] = *req.Temperature
+	}
+	if req.TopP != nil {
+		fields["top_p"] = *req.TopP
+	}
+	for key, value := range fields {
+		switch typed := value.(type) {
+		case nil:
+			continue
+		case string:
+			if typed == "" {
+				continue
+			}
+		case json.RawMessage:
+			if len(typed) == 0 {
+				continue
+			}
+		}
+		out[key] = value
+	}
 }
 
 // captureChatUsage copies token counts from an upstream Chat usage payload into

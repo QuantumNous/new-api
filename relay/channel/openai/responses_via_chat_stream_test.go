@@ -186,9 +186,70 @@ func TestChatToResponsesStream_UpstreamErrorFrame(t *testing.T) {
 	if apiErr == nil {
 		t.Fatal("expected error surfaced from in-stream error frame, got nil")
 	}
+	if !strings.Contains(recorder.Body.String(), "response.failed") {
+		t.Errorf("error stream should emit response.failed: %s", recorder.Body.String())
+	}
 	// must NOT have emitted a response.completed
 	if strings.Contains(recorder.Body.String(), "response.completed") {
 		t.Errorf("error stream should not emit response.completed: %s", recorder.Body.String())
+	}
+}
+
+func TestChatToResponsesStream_InlineThink(t *testing.T) {
+	chatSSE := strings.Join([]string{
+		`data: {"id":"c1","object":"chat.completion.chunk","created":100,"model":"deepseek-reasoner","choices":[{"index":0,"delta":{"content":"<think>\nNeed"}}]}`,
+		`data: {"id":"c1","choices":[{"index":0,"delta":{"content":" context.</think>\n\npong"},"finish_reason":"stop"}]}`,
+		`data: [DONE]`,
+		"",
+	}, "\n")
+
+	events := runChatToResponsesStream(t, chatSSE)
+	var reasoning, answer string
+	for _, event := range events {
+		switch event.Type {
+		case "response.reasoning_summary_text.delta":
+			reasoning += event.Data["delta"].(string)
+		case "response.output_text.delta":
+			answer += event.Data["delta"].(string)
+		}
+	}
+	if reasoning != "Need context." {
+		t.Errorf("reasoning = %q", reasoning)
+	}
+	if answer != "pong" {
+		t.Errorf("answer = %q", answer)
+	}
+	serialized, err := common.Marshal(events)
+	if err != nil {
+		t.Fatalf("marshal events: %v", err)
+	}
+	if strings.Contains(string(serialized), "<think>") || strings.Contains(string(serialized), "</think>") {
+		t.Errorf("think tags leaked into events: %s", serialized)
+	}
+}
+
+func TestChatToResponsesStream_CopiesOriginalRequestFields(t *testing.T) {
+	chatSSE := strings.Join([]string{
+		`data: {"id":"c1","object":"chat.completion.chunk","created":100,"model":"deepseek-chat","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}`,
+		`data: [DONE]`,
+		"",
+	}, "\n")
+	ctx := dto.NewResponsesToolContext()
+	ctx.OriginalRequest = &dto.OpenAIResponsesRequest{
+		Model:             "deepseek-chat",
+		Instructions:      jsonRaw(t, "be concise"),
+		ParallelToolCalls: jsonRaw(t, true),
+		Temperature:       common.GetPointer(0.2),
+		Metadata:          jsonRaw(t, map[string]any{"trace": "abc"}),
+	}
+
+	events := runChatToResponsesStreamWithCtx(t, chatSSE, ctx)
+	completed := events[len(events)-1].Data["response"].(map[string]any)
+	if completed["instructions"] != "be concise" || completed["parallel_tool_calls"] != true {
+		t.Errorf("copied fields = %+v", completed)
+	}
+	if completed["temperature"] != 0.2 {
+		t.Errorf("temperature = %v", completed["temperature"])
 	}
 }
 
@@ -215,6 +276,15 @@ func TestChatToResponsesStream_LengthTruncation(t *testing.T) {
 	if !ok || details["reason"] != "max_output_tokens" {
 		t.Errorf("incomplete_details = %v", respObj["incomplete_details"])
 	}
+}
+
+func jsonRaw(t *testing.T, value any) []byte {
+	t.Helper()
+	data, err := common.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return data
 }
 
 func TestChatToResponsesStream_ApplyPatchToolCall(t *testing.T) {

@@ -21,6 +21,10 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 	return openaicompat.ChatCompletionsResponseToResponsesResponse(resp, id, toolCtx)
 }
 
+func EnrichChatResponseReasoningDetails(resp *dto.OpenAITextResponse, rawBody []byte) {
+	openaicompat.EnrichChatResponseReasoningDetails(resp, rawBody)
+}
+
 // ResponseToolCallItem maps an upstream chat tool call back to a Responses
 // output item (function_call or custom_tool_call) using the request-side tool context.
 func ResponseToolCallItem(callID, name, arguments string, toolCtx *dto.ResponsesToolContext) map[string]any {
