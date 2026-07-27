@@ -56,6 +56,7 @@ import type {
 } from '../types'
 import { CampaignEmailHtmlEditor } from './campaign-email-html-editor'
 import { CampaignGroupSelector } from './campaign-group-selector'
+import { CampaignOfferValidityFields } from './campaign-offer-validity-fields'
 import { CampaignProductSelector } from './campaign-product-selector'
 
 interface CampaignSpecifiedUsersSelectorProps {
@@ -158,6 +159,9 @@ export function createRecallCampaignFormDraft(
   const preparedDraft = prepareRecallCampaignSubmitDraft(normalizedDraft)
   return {
     ...preparedDraft,
+    promotion_expiry_mode: preparedDraft.promotion_expiry_mode || 'relative',
+    promotion_expires_at: preparedDraft.promotion_expires_at ?? 0,
+    defer_localization: true,
     email_sequence: preparedDraft.email_sequence.map((stage) => ({
       ...stage,
       templates: createRecallEmailTemplates(
@@ -989,56 +993,25 @@ export function CampaignEditor(props: CampaignEditorProps) {
                 }
                 immutable={immutable}
               />
-              {!automaticFixed ? (
-                <>
-                  <div className='space-y-2'>
-                    <Label>{t('Minimum amount')}</Label>
-                    <Input
-                      type='number'
-                      min={0}
-                      disabled={immutable}
-                      {...form.register('discount_config.minimum_amount', {
-                        valueAsNumber: true,
-                      })}
-                    />
-                  </div>
-                  <div className='space-y-2'>
-                    <Label>{t('Minimum amount currency')}</Label>
-                    <Input
-                      maxLength={3}
-                      placeholder='USD'
-                      disabled={immutable}
-                      {...form.register(
-                        'discount_config.minimum_amount_currency'
-                      )}
-                    />
-                  </div>
-                </>
-              ) : null}
-              <div className='space-y-2'>
-                <Label>{t('Coupon redeem-by timestamp')}</Label>
-                <Input
-                  type='number'
-                  min={0}
-                  disabled={immutable}
-                  {...form.register('discount_config.coupon_redeem_by', {
-                    valueAsNumber: true,
-                  })}
-                />
-              </div>
+              <CampaignOfferValidityFields
+                form={form}
+                immutable={immutable}
+                showMinimumAmount={!automaticFixed}
+              />
             </>
-          ) : null}
-          <div className='space-y-2'>
-            <Label>{t('Activity delivery validity seconds')}</Label>
-            <Input
-              type='number'
-              min={1}
-              disabled={immutable}
-              {...form.register('promotion_valid_seconds', {
-                valueAsNumber: true,
-              })}
-            />
-          </div>
+          ) : (
+            <div className='space-y-2'>
+              <Label>{t('Activity delivery validity seconds')}</Label>
+              <Input
+                type='number'
+                min={1}
+                disabled={immutable}
+                {...form.register('promotion_valid_seconds', {
+                  valueAsNumber: true,
+                })}
+              />
+            </div>
+          )}
           <div className='space-y-2'>
             <Label>{t('Enrollment limit')}</Label>
             <Input

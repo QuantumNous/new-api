@@ -248,6 +248,8 @@ function makeDraft(template: RecallAudienceTemplate): RecallCampaignDraft {
       topup_price_ids: ['price_topup_usd'],
       subscription_price_ids: [],
     },
+    promotion_expiry_mode: 'relative',
+    promotion_expires_at: 0,
     promotion_valid_seconds: 604800,
     enrollment_limit: 1000,
     worker_concurrency: 5,
@@ -262,6 +264,7 @@ function makeDraft(template: RecallAudienceTemplate): RecallCampaignDraft {
         },
       },
     ],
+    defer_localization: true,
   }
 }
 
@@ -1072,6 +1075,20 @@ describe('CampaignEditor audience rules', () => {
       )
       dispose(root)
     }
+  })
+})
+
+describe('CampaignEditor offer validity', () => {
+  test('replaces timestamp, seconds, and minimum-currency inputs with guided controls', () => {
+    const html = renderEditor('first_purchase')
+
+    expect(html).toContain('Coupon redeem-by')
+    expect(html).toContain('Promotion expiry mode')
+    expect(html).toContain('Relative duration')
+    expect(html).toContain('USD')
+    expect(html).not.toContain('Coupon redeem-by timestamp')
+    expect(html).not.toContain('Promotion validity seconds')
+    expect(html).not.toContain('Minimum amount currency')
   })
 })
 

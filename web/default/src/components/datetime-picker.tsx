@@ -47,6 +47,10 @@ interface DateTimePickerProps {
   onChange?: (date: Date | undefined) => void
   placeholder?: string
   className?: string
+  id?: string
+  disabled?: boolean
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean
 }
 
 export function DateTimePicker({
@@ -54,6 +58,10 @@ export function DateTimePicker({
   onChange,
   placeholder,
   className,
+  id,
+  disabled = false,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: DateTimePickerProps) {
   const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Select date')
@@ -116,6 +124,10 @@ export function DateTimePicker({
         <PopoverTrigger
           render={
             <Button
+              id={id}
+              disabled={disabled}
+              aria-describedby={ariaDescribedBy}
+              aria-invalid={ariaInvalid}
               variant='outline'
               className={cn(
                 'flex-1 justify-between font-normal',
@@ -140,11 +152,14 @@ export function DateTimePicker({
         </PopoverContent>
       </Popover>
       <Input
+        id={id ? `${id}-time` : undefined}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         type='time'
         value={time}
         onChange={handleTimeChange}
         className='w-32 appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none'
-        disabled={!date}
+        disabled={disabled || !date}
       />
       {date && (
         <Button
@@ -152,6 +167,7 @@ export function DateTimePicker({
           variant='outline'
           size='icon'
           onClick={handleClear}
+          disabled={disabled}
           className='shrink-0'
           aria-label={t('Clear')}
         >
