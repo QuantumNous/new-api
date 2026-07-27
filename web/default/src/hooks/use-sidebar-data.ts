@@ -93,9 +93,9 @@ export function useSidebarData(): SidebarData {
         title: t('Tools'),
         items: [
           {
-            title: t('Workbench'),
-            url: '/workbench',
-            activeUrls: ['/workbench'],
+            title: t('Inspiration'),
+            url: '/inspiration',
+            activeUrls: ['/inspiration'],
             icon: PenTool,
           },
           {

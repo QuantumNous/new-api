@@ -11,58 +11,19 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import {
-  InspirationGallery,
-  type AppliedInspirationRecipe,
-  type InspirationApplyTarget,
-} from '@/features/inspiration/inspiration-gallery'
+import { InspirationGallery } from '@/features/inspiration/components/inspiration-gallery'
+import { recipeNodeMetadata } from '@/features/inspiration/lib/recipe-canvas'
+import type {
+  AppliedInspirationRecipe,
+  InspirationApplyTarget,
+} from '@/features/inspiration/types'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { createStoryboardRow } from '../engine/canvas-domain'
 import { useCanvasGeneration } from '../hooks/use-canvas-generation'
 import { useWorkbenchModels } from '../hooks/use-workbench-models'
 import { useCanvasStore } from '../store/canvas-store'
-import {
-  CanvasNodeType,
-  type CanvasNodeMetadata,
-  type StoryboardRow,
-} from '../types'
-
-function withNegativePrompt(
-  prompt: string,
-  negativePrompt: string | undefined
-): string {
-  const negative = negativePrompt?.trim()
-  if (!negative) return prompt
-  return `${prompt}\n\nNegative: ${negative}`
-}
-
-function recipeNodeMetadata(
-  recipe: AppliedInspirationRecipe,
-  options?: { asNote?: boolean }
-): CanvasNodeMetadata {
-  const prompt = withNegativePrompt(recipe.prompt, recipe.negativePrompt)
-  if (options?.asNote || recipe.modality === 'chat') {
-    return { content: prompt, status: 'idle' }
-  }
-  const parameters = recipe.parameters ?? {}
-  const readString = (key: string) => {
-    const value = parameters[key]
-    return typeof value === 'string' || typeof value === 'number'
-      ? String(value)
-      : undefined
-  }
-  return {
-    prompt,
-    model: recipe.model,
-    status: 'idle',
-    size: readString('size'),
-    quality: readString('quality'),
-    seconds: readString('duration') ?? readString('seconds'),
-    count: Number(parameters.n) > 0 ? Number(parameters.n) : undefined,
-    workflowTitle: recipe.title,
-  }
-}
+import { CanvasNodeType, type StoryboardRow } from '../types'
 
 function canvasCenter(store: ReturnType<typeof useCanvasStore.getState>) {
   return {

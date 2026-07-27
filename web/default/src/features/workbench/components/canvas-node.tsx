@@ -21,24 +21,33 @@ Adapted from open-ai-canvas (https://github.com/ddcat-ai/open-ai-canvas),
 based on basketikun/infinite-canvas. AGPL-3.0; see THIRD-PARTY-LICENSES.md.
 */
 import {
-  CopyPlus,
-  Download,
-  Lock,
-  RefreshCw,
-  Trash2,
-  Unlock,
-  Columns3,
-  Expand,
-  MoreHorizontal,
   ClipboardCopy,
-  RotateCw,
+  Columns3,
+  CopyPlus,
   Crop,
+  Download,
+  Expand,
   ImagePlus,
   ListPlus,
+  Lock,
+  MoreHorizontal,
+  RefreshCw,
+  RotateCw,
+  Trash2,
+  Unlock,
 } from 'lucide-react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
+
+import { nodeMinSize } from '../constants'
 import { isFrameNode } from '../engine/canvas-frame'
 import { arrowDelta, keyboardStep } from '../engine/canvas-media-transform'
 import { useCanvasTheme } from '../engine/canvas-theme'
@@ -58,6 +67,14 @@ import {
 import type { CanvasNodeBodyProps } from './nodes/node-shared'
 import { StoryboardNodeBody } from './nodes/storyboard-node'
 
+type MediaAction =
+  | 'preview'
+  | 'copy-prompt'
+  | 'rotate'
+  | 'crop'
+  | 'current-frame'
+  | 'tail-frame'
+
 type CanvasNodeProps = {
   node: CanvasNodeData
   selected: boolean
@@ -68,20 +85,17 @@ type CanvasNodeProps = {
   onCancel: (nodeId: string) => void
   onDownload?: (nodeId: string) => void
   onReplaceMedia?: (nodeId: string) => void
-  onMediaAction?: (
-    nodeId: string,
-    action:
-      | 'preview'
-      | 'copy-prompt'
-      | 'rotate'
-      | 'crop'
-      | 'current-frame'
-      | 'tail-frame'
-  ) => void
+  onMediaAction?: (nodeId: string, action: MediaAction) => void
   readOnly?: boolean
 }
 
 const RESIZE_CORNERS = ['nw', 'ne', 'sw', 'se'] as const
+
+const MEDIA_NODE_TYPES = new Set<CanvasNodeType>([
+  CanvasNodeType.Image,
+  CanvasNodeType.Video,
+  CanvasNodeType.Audio,
+])
 
 function NodeBody(props: CanvasNodeBodyProps & { type: CanvasNodeType }) {
   const { type, ...body } = props
@@ -94,12 +108,154 @@ function NodeBody(props: CanvasNodeBodyProps & { type: CanvasNodeType }) {
   return <FrameNodeBody {...body} />
 }
 
+function HeaderIconButton(props: {
+  label: string
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type='button'
+      title={props.label}
+      aria-label={props.label}
+      className='hover:bg-foreground/10 flex size-6 items-center justify-center rounded opacity-70 transition-opacity hover:opacity-100'
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={props.onClick}
+    >
+      {props.children}
+    </button>
+  )
+}
+
+/**
+ * Secondary node actions live in a menu so the header never squeezes the
+ * node title on small nodes.
+ */
+function NodeActionMenu(props: {
+  node: CanvasNodeData
+  isMedia: boolean
+  onReplaceMedia?: (nodeId: string) => void
+  onMediaAction?: (nodeId: string, action: MediaAction) => void
+}) {
+  const { t } = useTranslation()
+  const node = props.node
+  const hasContent = Boolean(node.metadata?.content)
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type='button'
+            title={t('More actions')}
+            aria-label={t('More actions')}
+            className='hover:bg-foreground/10 flex size-6 items-center justify-center rounded opacity-70 transition-opacity hover:opacity-100'
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <MoreHorizontal className='size-3.5' />
+          </button>
+        }
+      />
+      <DropdownMenuContent align='end' className='w-52'>
+        <DropdownMenuItem
+          onClick={() => {
+            const store = useCanvasStore.getState()
+            const selected = new Set(store.selectedNodeIds)
+            if (selected.has(node.id)) selected.delete(node.id)
+            else selected.add(node.id)
+            store.setSelectedNodes([...selected])
+          }}
+        >
+          <ListPlus />
+          {t('Toggle multi-select')}
+        </DropdownMenuItem>
+
+        {props.isMedia ? (
+          <DropdownMenuItem
+            onClick={() => useCanvasStore.getState().createNodeVariant(node.id)}
+          >
+            <CopyPlus />
+            {t('Create parameter variant')}
+          </DropdownMenuItem>
+        ) : null}
+
+        {props.isMedia && node.metadata?.versionRootId ? (
+          <DropdownMenuItem
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent('canvas:compare-versions', { detail: node.id })
+              )
+            }
+          >
+            <Columns3 />
+            {t('Compare versions')}
+          </DropdownMenuItem>
+        ) : null}
+
+        {props.isMedia && props.onReplaceMedia ? (
+          <DropdownMenuItem onClick={() => props.onReplaceMedia?.(node.id)}>
+            <RefreshCw />
+            {t('Replace media')}
+          </DropdownMenuItem>
+        ) : null}
+
+        {hasContent &&
+        props.onMediaAction &&
+        node.type === CanvasNodeType.Image ? (
+          <>
+            <DropdownMenuItem
+              onClick={() => props.onMediaAction?.(node.id, 'copy-prompt')}
+            >
+              <ClipboardCopy />
+              {t('Copy prompt')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => props.onMediaAction?.(node.id, 'rotate')}
+            >
+              <RotateCw />
+              {t('Rotate image')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => props.onMediaAction?.(node.id, 'crop')}
+            >
+              <Crop />
+              {t('Crop image')}
+            </DropdownMenuItem>
+          </>
+        ) : null}
+
+        {hasContent &&
+        props.onMediaAction &&
+        node.type === CanvasNodeType.Video ? (
+          <>
+            <DropdownMenuItem
+              onClick={() => props.onMediaAction?.(node.id, 'current-frame')}
+            >
+              <ImagePlus />
+              {t('Capture current frame')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => props.onMediaAction?.(node.id, 'tail-frame')}
+            >
+              <ImagePlus className='rotate-180' />
+              {t('Capture tail frame')}
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
   const { t } = useTranslation()
   const theme = useCanvasTheme()
   const node = props.node
   const frame = isFrameNode(node)
   const locked = Boolean(node.metadata?.locked)
+  const isMedia = MEDIA_NODE_TYPES.has(node.type)
+  const hasContent = Boolean(node.metadata?.content)
+  const minSize = nodeMinSize(node.type)
   const updateNodeMetadata = useCanvasStore((state) => state.updateNodeMetadata)
   const removeNodes = useCanvasStore((state) => state.removeNodes)
   const idleBorderColor = frame ? theme.frame.stroke : theme.node.stroke
@@ -111,7 +267,7 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
       role='group'
       aria-label={t('{{title}} canvas node', { title: node.title })}
       aria-selected={props.selected}
-      className='group absolute flex flex-col rounded-lg border text-xs shadow-sm outline-none focus-visible:ring-2'
+      className='group absolute flex flex-col overflow-hidden rounded-xl border text-xs shadow-sm outline-none focus-visible:ring-2'
       style={{
         left: node.position.x,
         top: node.position.y,
@@ -159,200 +315,73 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
       }}
     >
       <div
-        className='flex shrink-0 items-center gap-1 px-2 py-1.5'
+        className='flex h-8 shrink-0 items-center gap-1 px-2'
         style={{ color: theme.node.label }}
       >
-        <span className='truncate'>{node.title}</span>
+        <span className='min-w-0 flex-1 truncate font-medium'>
+          {node.title}
+        </span>
         {node.metadata?.versionLabel ? (
-          <span className='bg-muted rounded px-1 font-semibold'>
+          <span className='bg-muted shrink-0 rounded px-1 font-semibold'>
             {node.metadata.versionLabel}
             {node.metadata.versionPrimary ? ' ★' : ''}
           </span>
         ) : null}
         <div
-          className={`ml-auto items-center gap-1 group-focus-within:flex group-hover:flex [@media(pointer:coarse)]:flex ${props.selected ? 'flex' : 'hidden'}`}
+          className={cn(
+            'shrink-0 items-center gap-0.5 group-focus-within:flex group-hover:flex [@media(pointer:coarse)]:flex',
+            props.selected ? 'flex' : 'hidden'
+          )}
           data-canvas-no-zoom
           hidden={props.readOnly}
         >
-          {mediaKindForType(node.type) ? (
-            <button
-              type='button'
-              title={t('More actions')}
-              aria-label={t('More actions')}
-              className='hidden min-h-10 min-w-10 items-center justify-center rounded [@media(pointer:coarse)]:flex'
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() =>
-                useCanvasStore.getState().setSelectedNodes([node.id])
-              }
-            >
-              <MoreHorizontal className='size-4' />
-            </button>
-          ) : null}
-          <button
-            type='button'
-            title={t('Toggle multi-select')}
-            className='hidden min-h-10 min-w-10 items-center justify-center rounded [@media(pointer:coarse)]:flex'
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => {
-              const store = useCanvasStore.getState()
-              const selected = new Set(store.selectedNodeIds)
-              if (selected.has(node.id)) selected.delete(node.id)
-              else selected.add(node.id)
-              store.setSelectedNodes([...selected])
-            }}
-          >
-            <ListPlus className='size-4' />
-          </button>
-          {mediaKindForType(node.type) ? (
-            <>
-              <button
-                type='button'
-                title={t('Create parameter variant')}
-                className='rounded p-1 opacity-60 hover:opacity-100'
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={() =>
-                  useCanvasStore.getState().createNodeVariant(node.id)
-                }
-              >
-                <CopyPlus className='size-3' />
-              </button>
-              {node.metadata?.versionRootId ? (
-                <button
-                  type='button'
-                  title={t('Compare versions')}
-                  className='rounded p-1 opacity-60 hover:opacity-100'
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={() =>
-                    window.dispatchEvent(
-                      new CustomEvent('canvas:compare-versions', {
-                        detail: node.id,
-                      })
-                    )
-                  }
-                >
-                  <Columns3 className='size-3' />
-                </button>
-              ) : null}
-            </>
-          ) : null}
-          {mediaKindForType(node.type) && props.onReplaceMedia ? (
-            <button
-              type='button'
-              title={t('Replace media')}
-              className='rounded p-1 opacity-60 hover:opacity-100'
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => props.onReplaceMedia?.(node.id)}
-            >
-              <RefreshCw className='size-3' />
-            </button>
-          ) : null}
-          {node.metadata?.content && props.onDownload ? (
-            <button
-              type='button'
-              title={t('Download')}
-              className='rounded p-1 opacity-60 hover:opacity-100'
-              onPointerDown={(event) => event.stopPropagation()}
+          {hasContent && props.onDownload ? (
+            <HeaderIconButton
+              label={t('Download')}
               onClick={() => props.onDownload?.(node.id)}
             >
-              <Download className='size-3' />
-            </button>
+              <Download className='size-3.5' />
+            </HeaderIconButton>
           ) : null}
-          {node.metadata?.content && props.onMediaAction ? (
-            <>
-              <button
-                type='button'
-                title={t('Fullscreen preview')}
-                className='rounded p-1 opacity-60 hover:opacity-100'
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => props.onMediaAction?.(node.id, 'preview')}
-              >
-                <Expand className='size-3' />
-              </button>
-              {node.type === CanvasNodeType.Image ? (
-                <>
-                  <button
-                    type='button'
-                    title={t('Copy prompt')}
-                    className='rounded p-1 opacity-60 hover:opacity-100'
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={() =>
-                      props.onMediaAction?.(node.id, 'copy-prompt')
-                    }
-                  >
-                    <ClipboardCopy className='size-3' />
-                  </button>
-                  <button
-                    type='button'
-                    title={t('Rotate image')}
-                    className='rounded p-1 opacity-60 hover:opacity-100'
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={() => props.onMediaAction?.(node.id, 'rotate')}
-                  >
-                    <RotateCw className='size-3' />
-                  </button>
-                  <button
-                    type='button'
-                    title={t('Crop image')}
-                    className='rounded p-1 opacity-60 hover:opacity-100'
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={() => props.onMediaAction?.(node.id, 'crop')}
-                  >
-                    <Crop className='size-3' />
-                  </button>
-                </>
-              ) : null}
-              {node.type === CanvasNodeType.Video ? (
-                <>
-                  <button
-                    type='button'
-                    title={t('Capture current frame')}
-                    className='rounded p-1 opacity-60 hover:opacity-100'
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={() =>
-                      props.onMediaAction?.(node.id, 'current-frame')
-                    }
-                  >
-                    <ImagePlus className='size-3' />
-                  </button>
-                  <button
-                    type='button'
-                    title={t('Capture tail frame')}
-                    className='rounded p-1 opacity-60 hover:opacity-100'
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={() => props.onMediaAction?.(node.id, 'tail-frame')}
-                  >
-                    <ImagePlus className='size-3 rotate-180' />
-                  </button>
-                </>
-              ) : null}
-            </>
+          {hasContent && props.onMediaAction ? (
+            <HeaderIconButton
+              label={t('Fullscreen preview')}
+              onClick={() => props.onMediaAction?.(node.id, 'preview')}
+            >
+              <Expand className='size-3.5' />
+            </HeaderIconButton>
           ) : null}
-          <button
-            type='button'
-            title={locked ? t('Unlock') : t('Lock')}
-            className='rounded p-1 opacity-60 hover:opacity-100'
-            onPointerDown={(event) => event.stopPropagation()}
+          <HeaderIconButton
+            label={locked ? t('Unlock') : t('Lock')}
             onClick={() => updateNodeMetadata(node.id, { locked: !locked })}
           >
             {locked ? (
-              <Lock className='size-3' />
+              <Lock className='size-3.5' />
             ) : (
-              <Unlock className='size-3' />
+              <Unlock className='size-3.5' />
             )}
-          </button>
-          <button
-            type='button'
-            title={t('Delete')}
-            className='rounded p-1 opacity-60 hover:opacity-100'
-            onPointerDown={(event) => event.stopPropagation()}
+          </HeaderIconButton>
+          <HeaderIconButton
+            label={t('Delete')}
             onClick={() => removeNodes([node.id])}
           >
-            <Trash2 className='size-3' />
-          </button>
+            <Trash2 className='size-3.5' />
+          </HeaderIconButton>
+          {frame ? null : (
+            <NodeActionMenu
+              node={node}
+              isMedia={isMedia}
+              onReplaceMedia={props.onReplaceMedia}
+              onMediaAction={props.onMediaAction}
+            />
+          )}
         </div>
       </div>
 
-      <fieldset disabled={props.readOnly} className='min-h-0 flex-1 px-2 pb-2'>
+      <fieldset
+        disabled={props.readOnly}
+        className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-2 pb-2'
+      >
         <NodeBody
           type={node.type}
           node={node}
@@ -430,8 +459,8 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
                   keyboardStep(event.shiftKey)
                 )
                 useCanvasStore.getState().updateNode(node.id, {
-                  width: Math.max(160, node.width + delta.x),
-                  height: Math.max(96, node.height + delta.y),
+                  width: Math.max(minSize.width, node.width + delta.x),
+                  height: Math.max(minSize.height, node.height + delta.y),
                 })
               }}
             />
@@ -440,11 +469,3 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
     </div>
   )
 })
-
-function mediaKindForType(type: CanvasNodeType): boolean {
-  return [
-    CanvasNodeType.Image,
-    CanvasNodeType.Video,
-    CanvasNodeType.Audio,
-  ].includes(type)
-}

@@ -30,21 +30,39 @@ type CanvasNodeSpec = {
 }
 
 export const NODE_DEFAULT_SIZE = {
-  [CanvasNodeType.Image]: { width: 340, height: 240, title: 'New generation' },
+  [CanvasNodeType.Image]: { width: 360, height: 400, title: 'New generation' },
   [CanvasNodeType.Text]: { width: 340, height: 240, title: 'Note' },
   [CanvasNodeType.Script]: { width: 920, height: 360, title: 'Storyboard' },
   [CanvasNodeType.Config]: {
     width: 340,
-    height: 300,
+    height: 320,
     title: 'Generation preset',
   },
-  [CanvasNodeType.Video]: { width: 420, height: 236, title: 'Video' },
-  [CanvasNodeType.Audio]: { width: 340, height: 120, title: 'Audio' },
+  [CanvasNodeType.Video]: { width: 420, height: 430, title: 'Video' },
+  [CanvasNodeType.Audio]: { width: 360, height: 300, title: 'Audio' },
   [CanvasNodeType.Frame]: { width: 760, height: 520, title: 'Frame' },
 } satisfies Record<
   CanvasNodeType,
   { width: number; height: number; title: string }
 >
+
+/**
+ * Smallest size that still fits a node's controls. Below these values the
+ * prompt bar, settings row, and media preview start colliding.
+ */
+export const NODE_MIN_SIZE = {
+  [CanvasNodeType.Image]: { width: 300, height: 320 },
+  [CanvasNodeType.Text]: { width: 200, height: 120 },
+  [CanvasNodeType.Script]: { width: 520, height: 240 },
+  [CanvasNodeType.Config]: { width: 260, height: 220 },
+  [CanvasNodeType.Video]: { width: 320, height: 340 },
+  [CanvasNodeType.Audio]: { width: 300, height: 250 },
+  [CanvasNodeType.Frame]: { width: 240, height: 44 },
+} satisfies Record<CanvasNodeType, { width: number; height: number }>
+
+export function nodeMinSize(type: CanvasNodeType) {
+  return NODE_MIN_SIZE[type]
+}
 
 export const NODE_SPECS = {
   [CanvasNodeType.Image]: {
@@ -92,7 +110,11 @@ export function getNodeSpec(type: CanvasNodeType) {
 }
 
 export const STORYBOARD_ROW_HEIGHT = 48
-export const STORYBOARD_HEADER_HEIGHT = 96
+/**
+ * Must match the rendered storyboard header exactly: row connection anchors are
+ * derived from it, so a mismatch offsets every edge drawn into a shot row.
+ */
+export const STORYBOARD_HEADER_HEIGHT = 78
 export const STORYBOARD_FOOTER_HEIGHT = 44
 
 export function storyboardTableHeight(nodeHeight: number) {

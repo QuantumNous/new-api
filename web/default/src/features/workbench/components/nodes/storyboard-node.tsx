@@ -34,7 +34,6 @@ import {
   STORYBOARD_FOOTER_HEIGHT,
   STORYBOARD_HEADER_HEIGHT,
   STORYBOARD_ROW_HEIGHT,
-  storyboardTableHeight,
 } from '../../constants'
 import { createStoryboardRow } from '../../engine/canvas-domain'
 import { requestStoryboardShots } from '../../engine/canvas-storyboard-ai'
@@ -81,7 +80,6 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
     [metadata.storyboard?.rows]
   )
   const batch = metadata.storyboard?.batch
-  const tableHeight = storyboardTableHeight(props.node.height)
   const anyRowLoading =
     Boolean(batch?.items.some((item) => item.status === 'running')) ||
     isDrafting ||
@@ -464,27 +462,22 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
   return (
     <div className='flex h-full min-h-0 flex-col' data-canvas-no-zoom>
       <div
-        className='flex shrink-0 flex-col gap-2 border-b px-1 pb-2'
+        className='relative flex shrink-0 flex-col gap-2 border-b px-1 pt-1 pb-2'
         style={{
-          minHeight: STORYBOARD_HEADER_HEIGHT,
+          height: STORYBOARD_HEADER_HEIGHT,
           borderColor: theme.node.stroke,
         }}
       >
-        <label className='flex flex-col gap-1 text-xs'>
-          <span style={{ color: theme.node.muted }}>
-            {t('Storyboard title')}
-          </span>
-          <Input
-            value={metadata.workflowTitle ?? ''}
-            placeholder={t('Storyboard title')}
-            className='h-7 text-xs'
-            onPointerDown={(event) => event.stopPropagation()}
-            onChange={(event) =>
-              props.onMetadataChange({ workflowTitle: event.target.value })
-            }
-          />
-        </label>
-        <div className='flex items-center gap-2'>
+        <Input
+          value={metadata.workflowTitle ?? ''}
+          placeholder={t('Storyboard title')}
+          className='h-7 shrink-0 text-xs'
+          onPointerDown={(event) => event.stopPropagation()}
+          onChange={(event) =>
+            props.onMetadataChange({ workflowTitle: event.target.value })
+          }
+        />
+        <div className='flex shrink-0 items-center gap-2'>
           <span
             className='shrink-0 text-xs'
             style={{ color: theme.node.muted }}
@@ -496,8 +489,6 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
             options={models.byModality('image')}
             onChange={(model) => props.onMetadataChange({ model })}
           />
-        </div>
-        <div className='flex items-center gap-2'>
           <span
             className='shrink-0 text-xs'
             style={{ color: theme.node.muted }}
@@ -509,12 +500,11 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
             options={models.byModality('video')}
             onChange={(videoModel) => props.onMetadataChange({ videoModel })}
           />
-        </div>
-        <div className='flex items-center gap-2'>
           <Button
             size='sm'
             variant='outline'
-            className='h-7 gap-1 px-2 text-xs'
+            className='h-7 shrink-0 gap-1 px-2 text-xs'
+            aria-expanded={ideaOpen}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => setIdeaOpen((open) => !open)}
           >
@@ -523,7 +513,7 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
           </Button>
         </div>
         {ideaOpen ? (
-          <div className='flex items-center gap-2'>
+          <div className='bg-popover absolute inset-x-1 top-full z-20 mt-1 flex items-center gap-2 rounded-md border p-2 shadow-md'>
             <Input
               value={idea}
               placeholder={t('Describe the story idea')}
@@ -567,7 +557,6 @@ export function StoryboardNodeBody(props: CanvasNodeBodyProps) {
 
       <div
         className='min-h-0 flex-1 overflow-auto'
-        style={{ height: tableHeight }}
         data-canvas-wheel-scroll
         data-canvas-no-zoom
       >

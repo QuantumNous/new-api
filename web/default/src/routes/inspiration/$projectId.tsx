@@ -16,30 +16,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { z } from 'zod'
+import { createFileRoute, redirect, useParams } from '@tanstack/react-router'
 
-import { InspirationHome } from '@/features/inspiration/components/inspiration-home'
+import { WorkbenchEditor } from '@/features/workbench'
+import { useAuthStore } from '@/stores/auth-store'
 
-export const Route = createFileRoute('/inspiration/')({
-  validateSearch: z.object({
-    view: z.enum(['templates', 'projects']).optional(),
-  }),
-  component: InspirationIndexPage,
+export const Route = createFileRoute('/inspiration/$projectId')({
+  beforeLoad: ({ location }) => {
+    if (useAuthStore.getState().auth.user) return
+    throw redirect({ to: '/sign-in', search: { redirect: location.href } })
+  },
+  component: InspirationProjectPage,
 })
 
-function InspirationIndexPage() {
-  const search = Route.useSearch()
-  const navigate = useNavigate()
+function InspirationProjectPage() {
+  const { projectId } = useParams({ from: '/inspiration/$projectId' })
 
   return (
-    <div className='h-full overflow-y-auto'>
-      <InspirationHome
-        view={search.view ?? 'templates'}
-        onViewChange={(view) =>
-          void navigate({ to: '/inspiration', search: { view } })
-        }
-      />
+    <div className='h-full'>
+      <WorkbenchEditor projectId={Number(projectId)} />
     </div>
   )
 }

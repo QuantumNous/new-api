@@ -61,19 +61,14 @@ function extractCover(doc: CanvasDocument): string {
   return imageNode?.metadata?.content ?? ''
 }
 
-export function WorkbenchEditor(props: {
-  projectId: number
-  openInspiration?: boolean
-}) {
+export function WorkbenchEditor(props: { projectId: number }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [title, setTitle] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
-  const [inspirationOpen, setInspirationOpen] = useState(
-    Boolean(props.openInspiration)
-  )
+  const [inspirationOpen, setInspirationOpen] = useState(false)
   const [conflictOpen, setConflictOpen] = useState(false)
   const [conflictBusy, setConflictBusy] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -289,7 +284,9 @@ export function WorkbenchEditor(props: {
         </p>
         <Button
           variant='outline'
-          onClick={() => navigate({ to: '/workbench' })}
+          onClick={() =>
+            navigate({ to: '/inspiration', search: { view: 'projects' } })
+          }
         >
           {t('Back to canvases')}
         </Button>
@@ -299,45 +296,51 @@ export function WorkbenchEditor(props: {
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='border-border flex items-center gap-2 border-b px-3 py-2'>
+      <div className='border-border/60 bg-background/80 flex shrink-0 items-center gap-2 border-b px-3 py-1.5 backdrop-blur'>
         <Button
           size='icon-sm'
           variant='ghost'
           aria-label={t('Back to canvases')}
-          onClick={() => navigate({ to: '/workbench' })}
+          onClick={() =>
+            navigate({ to: '/inspiration', search: { view: 'projects' } })
+          }
         >
           <ArrowLeft />
         </Button>
         <Input
           value={title}
-          className='h-8 max-w-72'
+          className='h-8 w-40 border-transparent bg-transparent font-medium shadow-none sm:w-64'
           onChange={(event) => setTitle(event.target.value)}
         />
-        <span className='text-muted-foreground text-xs'>
+        <span className='text-muted-foreground hidden text-xs sm:inline'>
           {saveState === 'saving' ? t('Saving') : null}
           {saveState === 'saved' ? t('Saved') : null}
           {saveState === 'conflict' ? t('Not saved') : null}
           {saveState === 'error' ? t('Not saved') : null}
         </span>
-        <div className='ml-auto flex items-center gap-2'>
+        <div className='ml-auto flex items-center gap-1.5'>
           <Button
             size='sm'
             variant='outline'
+            title={t('Inspiration')}
             onClick={() => setInspirationOpen(true)}
           >
             <Sparkles />
-            {t('Inspiration')}
+            <span className='hidden lg:inline'>{t('Inspiration')}</span>
           </Button>
           <div className='relative'>
             <Button
               size='sm'
               variant='outline'
               aria-expanded={searchOpen}
+              title={t('Search nodes')}
               onClick={() => setSearchOpen((open) => !open)}
             >
               <Search />
-              {t('Search nodes')}
-              <kbd className='text-muted-foreground ml-2'>⌘K</kbd>
+              <span className='hidden lg:inline'>{t('Search nodes')}</span>
+              <kbd className='text-muted-foreground ml-1 hidden lg:inline'>
+                ⌘K
+              </kbd>
             </Button>
             {searchOpen ? (
               <div className='bg-popover absolute top-10 right-0 z-50 w-80 rounded-md border p-2 shadow-lg'>
@@ -386,7 +389,7 @@ export function WorkbenchEditor(props: {
           >
             <SelectTrigger
               size='sm'
-              className='w-36'
+              className='hidden w-36 md:flex'
               aria-label={t('Canvas mode')}
             >
               <SelectValue />
@@ -399,18 +402,20 @@ export function WorkbenchEditor(props: {
           <Button
             size='sm'
             variant='outline'
+            title={t('Share')}
             onClick={() => setShareOpen(true)}
           >
             <Share2 />
-            {t('Share')}
+            <span className='hidden lg:inline'>{t('Share')}</span>
           </Button>
           <Button
             size='sm'
             variant='outline'
+            title={t('History')}
             onClick={() => setHistoryOpen(true)}
           >
             <History />
-            {t('History')}
+            <span className='hidden lg:inline'>{t('History')}</span>
           </Button>
         </div>
       </div>

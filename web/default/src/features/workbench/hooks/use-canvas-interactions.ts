@@ -22,6 +22,7 @@ based on basketikun/infinite-canvas. AGPL-3.0; see THIRD-PARTY-LICENSES.md.
 */
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
+import { nodeMinSize } from '../constants'
 import {
   calculateNodeAlignment,
   createNodeAlignmentContext,
@@ -288,17 +289,21 @@ export function useCanvasInteractions(
         const preserveAspect =
           node.type === CanvasNodeType.Video ||
           (node.type === CanvasNodeType.Image && !node.metadata?.freeResize)
-        let width = Math.max(160, resize.initial.width + grows.width)
-        let height = Math.max(96, resize.initial.height + grows.height)
+        const minSize = nodeMinSize(node.type)
+        let width = Math.max(minSize.width, resize.initial.width + grows.width)
+        let height = Math.max(
+          minSize.height,
+          resize.initial.height + grows.height
+        )
         if (preserveAspect) {
           const ratio = resize.initial.width / resize.initial.height
           const widthScale = width / resize.initial.width
           const heightScale = height / resize.initial.height
           if (Math.abs(widthScale - 1) >= Math.abs(heightScale - 1)) {
-            height = Math.max(96, width / ratio)
+            height = Math.max(minSize.height, width / ratio)
             width = height * ratio
           } else {
-            width = Math.max(160, height * ratio)
+            width = Math.max(minSize.width, height * ratio)
             height = width / ratio
           }
         }

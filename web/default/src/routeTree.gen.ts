@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UserAgreementRouteImport } from './routes/user-agreement'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as InspirationRouteRouteImport } from './routes/inspiration/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -23,6 +24,7 @@ import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
+import { Route as InspirationProjectIdRouteImport } from './routes/inspiration/$projectId'
 import { Route as DocsSlugRouteImport } from './routes/docs/$slug'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
 import { Route as ConsoleLogRouteImport } from './routes/console/log'
@@ -43,7 +45,6 @@ import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
-import { Route as AuthenticatedWorkbenchIndexRouteImport } from './routes/_authenticated/workbench/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
@@ -59,7 +60,6 @@ import { Route as AuthenticatedGroupStatusIndexRouteImport } from './routes/_aut
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as ShareCanvasTokenRouteImport } from './routes/share/canvas/$token'
-import { Route as AuthenticatedWorkbenchProjectIdRouteImport } from './routes/_authenticated/workbench/$projectId'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -90,6 +90,11 @@ const UserAgreementRoute = UserAgreementRouteImport.update({
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InspirationRouteRoute = InspirationRouteRouteImport.update({
+  id: '/inspiration',
+  path: '/inspiration',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -126,9 +131,9 @@ const PlaygroundIndexRoute = PlaygroundIndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const InspirationIndexRoute = InspirationIndexRouteImport.update({
-  id: '/inspiration/',
-  path: '/inspiration/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => InspirationRouteRoute,
 } as any)
 const DocsIndexRoute = DocsIndexRouteImport.update({
   id: '/docs/',
@@ -149,6 +154,11 @@ const OauthProviderRoute = OauthProviderRouteImport.update({
   id: '/oauth/$provider',
   path: '/oauth/$provider',
   getParentRoute: () => rootRouteImport,
+} as any)
+const InspirationProjectIdRoute = InspirationProjectIdRouteImport.update({
+  id: '/$projectId',
+  path: '/$projectId',
+  getParentRoute: () => InspirationRouteRoute,
 } as any)
 const DocsSlugRoute = DocsSlugRouteImport.update({
   id: '/docs/$slug',
@@ -252,12 +262,6 @@ const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   path: '/pricing/$modelId/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedWorkbenchIndexRoute =
-  AuthenticatedWorkbenchIndexRouteImport.update({
-    id: '/workbench/',
-    path: '/workbench/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedWalletIndexRoute =
   AuthenticatedWalletIndexRouteImport.update({
     id: '/wallet/',
@@ -345,12 +349,6 @@ const ShareCanvasTokenRoute = ShareCanvasTokenRouteImport.update({
   path: '/share/canvas/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedWorkbenchProjectIdRoute =
-  AuthenticatedWorkbenchProjectIdRouteImport.update({
-    id: '/workbench/$projectId',
-    path: '/workbench/$projectId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedUsageLogsSectionRoute =
   AuthenticatedUsageLogsSectionRouteImport.update({
     id: '/usage-logs/$section',
@@ -478,6 +476,7 @@ const AuthenticatedSystemSettingsAuthSectionRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/inspiration': typeof InspirationRouteRouteWithChildren
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/user-agreement': typeof UserAgreementRoute
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
@@ -499,6 +498,7 @@ export interface FileRoutesByFullPath {
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/docs/$slug': typeof DocsSlugRoute
+  '/inspiration/$projectId': typeof InspirationProjectIdRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/agents/': typeof AgentsIndexRoute
@@ -515,7 +515,6 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
-  '/workbench/$projectId': typeof AuthenticatedWorkbenchProjectIdRoute
   '/share/canvas/$token': typeof ShareCanvasTokenRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
@@ -531,7 +530,6 @@ export interface FileRoutesByFullPath {
   '/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
-  '/workbench/': typeof AuthenticatedWorkbenchIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -570,6 +568,7 @@ export interface FileRoutesByTo {
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/docs/$slug': typeof DocsSlugRoute
+  '/inspiration/$projectId': typeof InspirationProjectIdRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
   '/agents': typeof AgentsIndexRoute
@@ -586,7 +585,6 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
-  '/workbench/$projectId': typeof AuthenticatedWorkbenchProjectIdRoute
   '/share/canvas/$token': typeof ShareCanvasTokenRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
@@ -602,7 +600,6 @@ export interface FileRoutesByTo {
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
-  '/workbench': typeof AuthenticatedWorkbenchIndexRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -624,6 +621,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/(auth)': typeof authRouteRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/inspiration': typeof InspirationRouteRouteWithChildren
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
@@ -645,6 +643,7 @@ export interface FileRoutesById {
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/docs/$slug': typeof DocsSlugRoute
+  '/inspiration/$projectId': typeof InspirationProjectIdRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/agents/': typeof AgentsIndexRoute
@@ -661,7 +660,6 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
-  '/_authenticated/workbench/$projectId': typeof AuthenticatedWorkbenchProjectIdRoute
   '/share/canvas/$token': typeof ShareCanvasTokenRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
@@ -677,7 +675,6 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
-  '/_authenticated/workbench/': typeof AuthenticatedWorkbenchIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -698,6 +695,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/inspiration'
     | '/privacy-policy'
     | '/user-agreement'
     | '/system-settings'
@@ -719,6 +717,7 @@ export interface FileRouteTypes {
     | '/console/log'
     | '/console/topup'
     | '/docs/$slug'
+    | '/inspiration/$projectId'
     | '/oauth/$provider'
     | '/about/'
     | '/agents/'
@@ -735,7 +734,6 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
-    | '/workbench/$projectId'
     | '/share/canvas/$token'
     | '/channels/'
     | '/dashboard/'
@@ -751,7 +749,6 @@ export interface FileRouteTypes {
     | '/usage-logs/'
     | '/users/'
     | '/wallet/'
-    | '/workbench/'
     | '/pricing/$modelId/'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
@@ -790,6 +787,7 @@ export interface FileRouteTypes {
     | '/console/log'
     | '/console/topup'
     | '/docs/$slug'
+    | '/inspiration/$projectId'
     | '/oauth/$provider'
     | '/about'
     | '/agents'
@@ -806,7 +804,6 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
-    | '/workbench/$projectId'
     | '/share/canvas/$token'
     | '/channels'
     | '/dashboard'
@@ -822,7 +819,6 @@ export interface FileRouteTypes {
     | '/usage-logs'
     | '/users'
     | '/wallet'
-    | '/workbench'
     | '/pricing/$modelId'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
@@ -843,6 +839,7 @@ export interface FileRouteTypes {
     | '/'
     | '/(auth)'
     | '/_authenticated'
+    | '/inspiration'
     | '/privacy-policy'
     | '/user-agreement'
     | '/_authenticated/system-settings'
@@ -864,6 +861,7 @@ export interface FileRouteTypes {
     | '/console/log'
     | '/console/topup'
     | '/docs/$slug'
+    | '/inspiration/$projectId'
     | '/oauth/$provider'
     | '/about/'
     | '/agents/'
@@ -880,7 +878,6 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
-    | '/_authenticated/workbench/$projectId'
     | '/share/canvas/$token'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
@@ -896,7 +893,6 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/'
     | '/_authenticated/users/'
     | '/_authenticated/wallet/'
-    | '/_authenticated/workbench/'
     | '/pricing/$modelId/'
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/billing/$section'
@@ -918,6 +914,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   authRouteRoute: typeof authRouteRouteWithChildren
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  InspirationRouteRoute: typeof InspirationRouteRouteWithChildren
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   UserAgreementRoute: typeof UserAgreementRoute
   errors401Route: typeof errors401Route
@@ -932,7 +929,6 @@ export interface RootRouteChildren {
   AboutIndexRoute: typeof AboutIndexRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   DocsIndexRoute: typeof DocsIndexRoute
-  InspirationIndexRoute: typeof InspirationIndexRoute
   PlaygroundIndexRoute: typeof PlaygroundIndexRoute
   PricingIndexRoute: typeof PricingIndexRoute
   RankingsIndexRoute: typeof RankingsIndexRoute
@@ -955,6 +951,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inspiration': {
+      id: '/inspiration'
+      path: '/inspiration'
+      fullPath: '/inspiration'
+      preLoaderRoute: typeof InspirationRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -1008,10 +1011,10 @@ declare module '@tanstack/react-router' {
     }
     '/inspiration/': {
       id: '/inspiration/'
-      path: '/inspiration'
+      path: '/'
       fullPath: '/inspiration/'
       preLoaderRoute: typeof InspirationIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof InspirationRouteRoute
     }
     '/docs/': {
       id: '/docs/'
@@ -1040,6 +1043,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/oauth/$provider'
       preLoaderRoute: typeof OauthProviderRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/inspiration/$projectId': {
+      id: '/inspiration/$projectId'
+      path: '/$projectId'
+      fullPath: '/inspiration/$projectId'
+      preLoaderRoute: typeof InspirationProjectIdRouteImport
+      parentRoute: typeof InspirationRouteRoute
     }
     '/docs/$slug': {
       id: '/docs/$slug'
@@ -1181,13 +1191,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/workbench/': {
-      id: '/_authenticated/workbench/'
-      path: '/workbench'
-      fullPath: '/workbench/'
-      preLoaderRoute: typeof AuthenticatedWorkbenchIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/wallet/': {
       id: '/_authenticated/wallet/'
       path: '/wallet'
@@ -1292,13 +1295,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/share/canvas/$token'
       preLoaderRoute: typeof ShareCanvasTokenRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/workbench/$projectId': {
-      id: '/_authenticated/workbench/$projectId'
-      path: '/workbench/$projectId'
-      fullPath: '/workbench/$projectId'
-      preLoaderRoute: typeof AuthenticatedWorkbenchProjectIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/usage-logs/$section': {
       id: '/_authenticated/usage-logs/$section'
@@ -1544,7 +1540,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
-  AuthenticatedWorkbenchProjectIdRoute: typeof AuthenticatedWorkbenchProjectIdRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedGroupStatusIndexRoute: typeof AuthenticatedGroupStatusIndexRoute
@@ -1558,7 +1553,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
-  AuthenticatedWorkbenchIndexRoute: typeof AuthenticatedWorkbenchIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1573,7 +1567,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
-  AuthenticatedWorkbenchProjectIdRoute: AuthenticatedWorkbenchProjectIdRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedGroupStatusIndexRoute: AuthenticatedGroupStatusIndexRoute,
@@ -1588,16 +1581,29 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
-  AuthenticatedWorkbenchIndexRoute: AuthenticatedWorkbenchIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface InspirationRouteRouteChildren {
+  InspirationProjectIdRoute: typeof InspirationProjectIdRoute
+  InspirationIndexRoute: typeof InspirationIndexRoute
+}
+
+const InspirationRouteRouteChildren: InspirationRouteRouteChildren = {
+  InspirationProjectIdRoute: InspirationProjectIdRoute,
+  InspirationIndexRoute: InspirationIndexRoute,
+}
+
+const InspirationRouteRouteWithChildren =
+  InspirationRouteRoute._addFileChildren(InspirationRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  InspirationRouteRoute: InspirationRouteRouteWithChildren,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   UserAgreementRoute: UserAgreementRoute,
   errors401Route: errors401Route,
@@ -1612,7 +1618,6 @@ const rootRouteChildren: RootRouteChildren = {
   AboutIndexRoute: AboutIndexRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   DocsIndexRoute: DocsIndexRoute,
-  InspirationIndexRoute: InspirationIndexRoute,
   PlaygroundIndexRoute: PlaygroundIndexRoute,
   PricingIndexRoute: PricingIndexRoute,
   RankingsIndexRoute: RankingsIndexRoute,

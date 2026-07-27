@@ -59,8 +59,8 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
   const experienceMode = useCanvasStore((state) => state.experienceMode)
 
   return (
-    <div className='flex h-full flex-col gap-2'>
-      <div className='relative min-h-0 flex-1'>
+    <div className='flex h-full min-h-0 flex-col gap-2'>
+      <div className='bg-muted/40 relative min-h-24 flex-1 overflow-hidden rounded-md'>
         {metadata.content ? (
           <img
             src={metadata.content}
@@ -113,14 +113,14 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
         />
       </NodePromptBar>
 
-      <p className='text-muted-foreground text-[10px]'>
+      <p className='text-muted-foreground shrink-0 truncate text-[10px]'>
         {t('Current settings')}: {metadata.size ?? 'auto'} ·{' '}
         {metadata.quality ?? 'auto'} · {metadata.count ?? 1}
       </p>
       <div
         className={
           experienceMode === 'professional'
-            ? 'flex items-center gap-2'
+            ? 'flex shrink-0 flex-wrap items-center gap-2'
             : 'hidden'
         }
         data-canvas-no-zoom
@@ -186,7 +186,7 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
       <label
         className={
           experienceMode === 'professional'
-            ? 'flex items-center gap-2 text-[11px]'
+            ? 'flex shrink-0 items-center gap-2 text-[11px]'
             : 'hidden'
         }
         title={t(
@@ -207,8 +207,8 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
   const experienceMode = useCanvasStore((state) => state.experienceMode)
 
   return (
-    <div className='flex h-full flex-col gap-2'>
-      <div className='relative min-h-0 flex-1'>
+    <div className='flex h-full min-h-0 flex-col gap-2'>
+      <div className='bg-muted/40 relative min-h-24 flex-1 overflow-hidden rounded-md'>
         {metadata.content ? (
           <video
             src={metadata.content}
@@ -245,7 +245,7 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
         />
       </NodePromptBar>
 
-      <p className='text-muted-foreground text-[10px]'>
+      <p className='text-muted-foreground shrink-0 truncate text-[10px]'>
         {t('Current settings')}:{' '}
         {videoSizeLabel(metadata.size ?? VIDEO_SIZES[0])} ·{' '}
         {metadata.seconds ?? VIDEO_DURATIONS[0]}s
@@ -253,7 +253,7 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
       <div
         className={
           experienceMode === 'professional'
-            ? 'flex items-center gap-2'
+            ? 'flex shrink-0 flex-wrap items-center gap-2'
             : 'hidden'
         }
         data-canvas-no-zoom
@@ -293,7 +293,7 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
       <label
         className={
           experienceMode === 'professional'
-            ? 'flex items-center gap-2 text-[11px]'
+            ? 'flex shrink-0 items-start gap-2 text-[11px]'
             : 'hidden'
         }
         data-canvas-no-zoom
@@ -321,8 +321,8 @@ export function AudioNodeBody(props: CanvasNodeBodyProps) {
   const experienceMode = useCanvasStore((state) => state.experienceMode)
 
   return (
-    <div className='flex h-full flex-col gap-2'>
-      <div className='relative'>
+    <div className='flex h-full min-h-0 flex-col gap-2'>
+      <div className='relative flex min-h-14 flex-1 items-center'>
         {metadata.content ? (
           <audio
             src={metadata.content}
@@ -332,7 +332,7 @@ export function AudioNodeBody(props: CanvasNodeBodyProps) {
           />
         ) : (
           <div
-            className='rounded-md border border-dashed px-2 py-3 text-center text-xs'
+            className='w-full rounded-md border border-dashed px-2 py-3 text-center text-xs'
             style={{
               borderColor: theme.node.stroke,
               color: theme.node.placeholder,
@@ -364,14 +364,14 @@ export function AudioNodeBody(props: CanvasNodeBodyProps) {
           onChange={(model) => props.onMetadataChange({ model })}
         />
       </NodePromptBar>
-      <p className='text-muted-foreground text-[10px]'>
+      <p className='text-muted-foreground shrink-0 truncate text-[10px]'>
         {t('Current settings')}: {metadata.audioVoice ?? 'alloy'} ·{' '}
         {metadata.audioFormat ?? 'mp3'} · {metadata.audioSpeed ?? '1'}×
       </p>
       <div
         className={
           experienceMode === 'professional'
-            ? 'grid grid-cols-3 gap-2'
+            ? 'grid shrink-0 grid-cols-3 gap-2'
             : 'hidden'
         }
         data-canvas-no-zoom
@@ -417,7 +417,7 @@ export function AudioNodeBody(props: CanvasNodeBodyProps) {
           value={metadata.audioInstructions ?? ''}
           placeholder={t('Voice instructions')}
           rows={2}
-          className='min-h-10 text-xs'
+          className='min-h-10 shrink-0 resize-none text-xs'
           onChange={(event) =>
             props.onMetadataChange({ audioInstructions: event.target.value })
           }

@@ -52,7 +52,7 @@ export function TextNodeBody(props: CanvasNodeBodyProps) {
     <Textarea
       value={metadata.content ?? ''}
       placeholder={t('Write a note or a prompt fragment')}
-      className='h-full resize-none border-none bg-transparent p-0 shadow-none focus-visible:ring-0'
+      className='min-h-0 flex-1 resize-none border-none bg-transparent p-0 shadow-none focus-visible:ring-0'
       style={{ fontSize: metadata.fontSize ?? 14 }}
       data-canvas-no-zoom
       onPointerDown={(event) => event.stopPropagation()}
@@ -71,7 +71,7 @@ export function ConfigNodeBody(props: CanvasNodeBodyProps) {
 
   return (
     <div
-      className='flex h-full flex-col gap-2 overflow-auto'
+      className='flex h-full min-h-0 flex-col gap-2 overflow-auto'
       data-canvas-wheel-scroll
     >
       <Row label={t('Type')}>
@@ -211,10 +211,10 @@ export function FrameNodeBody(props: CanvasNodeBodyProps) {
   )
 
   return (
-    <div className='flex h-full flex-col gap-1'>
+    <div className='flex h-full min-h-0 flex-col gap-1'>
       <button
         type='button'
-        className='flex items-center gap-1 rounded px-1 text-xs'
+        className='flex shrink-0 items-center gap-1 rounded px-1 text-xs'
         style={{ color: theme.node.muted }}
         data-canvas-no-zoom
         onPointerDown={(event) => event.stopPropagation()}

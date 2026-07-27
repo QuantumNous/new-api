@@ -118,7 +118,7 @@ export function NodePromptBar(props: {
   }
 
   return (
-    <div className='flex flex-col gap-2' data-canvas-no-zoom>
+    <div className='relative flex shrink-0 flex-col gap-2' data-canvas-no-zoom>
       <Textarea
         ref={textareaRef}
         value={props.value}
@@ -164,7 +164,7 @@ export function NodePromptBar(props: {
         onPointerDown={(event) => event.stopPropagation()}
       />
       {menu && candidates.length ? (
-        <div className='bg-popover max-h-32 overflow-auto rounded-md border p-1 text-xs shadow-md'>
+        <div className='bg-popover absolute inset-x-0 bottom-full z-20 mb-1 max-h-32 overflow-auto rounded-md border p-1 text-xs shadow-md'>
           {candidates.map((candidate, index) => (
             <button
               key={candidate.id}
