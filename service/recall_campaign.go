@@ -692,7 +692,7 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 }
 
 func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, actorID int, id int64, request RecallEmailGenerationRequest) (RecallEmailGenerationResponse, error) {
-	if err := validateRecallCampaignContext(ctx); err != nil {
+	if err := recallCampaignGate(ctx); err != nil {
 		return RecallEmailGenerationResponse{}, err
 	}
 	if actorID <= 0 || id <= 0 {

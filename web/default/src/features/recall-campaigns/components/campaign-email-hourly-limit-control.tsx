@@ -60,7 +60,9 @@ export function getRecallEmailQuotaPollInterval(
 ): number | false {
   if (!visible) return false
   if (!quota?.resets_at) return 60_000
-  return Math.max(1_000, quota.resets_at * 1_000 - nowMilliseconds)
+  const millisecondsUntilReset = quota.resets_at * 1_000 - nowMilliseconds
+  if (millisecondsUntilReset <= 0) return 60_000
+  return Math.max(1_000, Math.min(60_000, millisecondsUntilReset))
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -71,9 +73,7 @@ export function syncRecallEmailHourlyLimitFromServer(
 ): { inputValue: string; confirmedLimit: number } {
   return {
     inputValue:
-      inputValue === String(confirmedLimit)
-        ? String(serverLimit)
-        : inputValue,
+      inputValue === String(confirmedLimit) ? String(serverLimit) : inputValue,
     confirmedLimit: serverLimit,
   }
 }
@@ -162,9 +162,7 @@ export function CampaignEmailHourlyLimitControl(): React.JSX.Element {
   const [inputValue, setInputValue] = useState(
     String(DEFAULT_RECALL_EMAIL_HOURLY_LIMIT)
   )
-  const confirmedLimitRef = useRef(
-    DEFAULT_RECALL_EMAIL_HOURLY_LIMIT
-  )
+  const confirmedLimitRef = useRef(DEFAULT_RECALL_EMAIL_HOURLY_LIMIT)
   const [error, setError] = useState('')
   const quotaQuery = useQuery({
     queryKey: recallCampaignKeys.emailQuota,

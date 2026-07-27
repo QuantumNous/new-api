@@ -365,7 +365,11 @@ func bindRecallOfferCandidateRecipientUserWithContext(ctx context.Context, recip
 		return nil, false, fmt.Errorf("recall offer candidate bind requires a normalized email")
 	}
 	query := DB.WithContext(ctx).Model(&RecallRecipient{}).
-		Where("id = ? AND user_id = 0 AND LOWER(email_snapshot) = ?", recipientID, email)
+		Where("id = ? AND user_id = 0 AND LOWER(email_snapshot) = ?", recipientID, email).
+		Where(
+			"EXISTS (SELECT 1 FROM recall_campaigns WHERE recall_campaigns.id = recall_recipients.campaign_id AND recall_campaigns.status IN ?)",
+			recallOfferUsableCampaignStatuses(),
+		)
 	query = applyRecallOfferRecipientFilters(query, "", now)
 	result := query.Update("user_id", userID)
 	if result.Error != nil {

@@ -617,6 +617,28 @@ describe('recallCampaignDraftSchema', () => {
     expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
   })
 
+  test('requires fixed promotion expiry after a scheduled campaign run', () => {
+    const draft = makeDraft()
+    draft.execution_mode = 'scheduled_once'
+    draft.schedule.scheduled_at = FUTURE_TIMESTAMP
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_valid_seconds = 0
+    draft.promotion_expires_at = FUTURE_TIMESTAMP - 60
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['promotion_expires_at'],
+          message:
+            'Fixed promotion expiry must be after the scheduled run time',
+        })
+      )
+    }
+  })
+
   test('ignores schedule validation in manual mode', () => {
     const draft = makeDraft()
     draft.schedule = {

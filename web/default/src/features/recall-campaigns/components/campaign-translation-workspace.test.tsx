@@ -62,7 +62,9 @@ function makeDraft(stages: RecallEmailStage[]): RecallCampaignDraft {
   } as RecallCampaignDraft
 }
 
-function createForm(draft: RecallCampaignDraft): UseFormReturn<RecallCampaignDraft> {
+function createForm(
+  draft: RecallCampaignDraft
+): UseFormReturn<RecallCampaignDraft> {
   const form = createFormControl<RecallCampaignDraft>({ defaultValues: draft })
   form.subscribe({
     formState: { dirtyFields: true, values: true },
@@ -73,12 +75,13 @@ function createForm(draft: RecallCampaignDraft): UseFormReturn<RecallCampaignDra
 
 function renderWorkspace(
   draft: RecallCampaignDraft,
-  focusBlocker?: { stage_no: number; locale: string; reason: 'missing' }
+  focusBlocker?: { stage_no: number; locale: string; reason: 'missing' },
+  disabled = false
 ): string {
   return renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
       <CampaignTranslationWorkspace
-        disabled={false}
+        disabled={disabled}
         focusBlocker={focusBlocker}
         form={createForm(draft)}
         isGenerating={false}
@@ -112,6 +115,14 @@ describe('CampaignTranslationWorkspace', () => {
     expect(html).toContain('Email stage 1')
     expect(html).toContain('Email stage 2')
     expect(html).toContain('Generate 7 translations')
+  })
+
+  test('disables stage delay editing with the rest of the workspace', () => {
+    const html = renderWorkspace(makeDraft([makeStage()]), undefined, true)
+
+    expect(html).toMatch(
+      /<input(?=[^>]*type="number")(?=[^>]*disabled="")[^>]*>/
+    )
   })
 
   test('summarizes optional locale review without acknowledgments', () => {

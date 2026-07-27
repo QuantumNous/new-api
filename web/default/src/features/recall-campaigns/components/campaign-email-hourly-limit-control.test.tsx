@@ -59,11 +59,11 @@ describe('CampaignEmailHourlyLimitControl', () => {
     })
   })
 
-  test('waits until reset while visible and stops polling while hidden', () => {
+  test('polls at most once a minute before reset and stops while hidden', () => {
     const quota = makeQuota({ resets_at: 1_722_474_000 })
     const now = 1_722_473_000_000
 
-    expect(getRecallEmailQuotaPollInterval(quota, now, true)).toBe(1_000_000)
+    expect(getRecallEmailQuotaPollInterval(quota, now, true)).toBe(60_000)
     expect(getRecallEmailQuotaPollInterval(quota, now, false)).toBeFalse()
   })
 
@@ -98,9 +98,7 @@ describe('CampaignEmailHourlyLimitControl', () => {
     )
 
     expect(html).toContain('100 / 100 sent this hour')
-    expect(html).toContain(
-      new Date(quota.resets_at * 1000).toLocaleString()
-    )
+    expect(html).toContain(new Date(quota.resets_at * 1000).toLocaleString())
     expect(html).toContain(
       'All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.'
     )

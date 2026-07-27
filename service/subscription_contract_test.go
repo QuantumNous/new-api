@@ -102,6 +102,105 @@ func balanceChangeCommand(userID int, planID int, requestID string) ChangePlanCo
 	}
 }
 
+func TestResolveOrReuseStripeSubscriptionRecallDiscountFreezesFirstDecision(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	plan := insertContractServicePlan(t, 7290, 1, 2.5, 250)
+	order := model.SubscriptionOrder{
+		UserId:          7190,
+		PlanId:          plan.Id,
+		TradeNo:         "subscription-recall-frozen",
+		PaymentMethod:   model.PaymentMethodStripe,
+		PaymentProvider: model.PaymentProviderStripe,
+		Status:          common.TopUpStatusPending,
+	}
+	require.NoError(t, model.DB.Create(&order).Error)
+	firstDiscount := &RecallCheckoutDiscount{
+		PromotionCodeID:     "promo_first",
+		CampaignID:          901,
+		RecipientID:         902,
+		DiscountAmountMinor: 250,
+	}
+	resolveCalls := 0
+
+	first, err := resolveOrReuseStripeSubscriptionRecallDiscount(
+		context.Background(),
+		order.TradeNo,
+		func() (*RecallCheckoutDiscount, error) {
+			resolveCalls++
+			return firstDiscount, nil
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, firstDiscount, first)
+
+	second, err := resolveOrReuseStripeSubscriptionRecallDiscount(
+		context.Background(),
+		order.TradeNo,
+		func() (*RecallCheckoutDiscount, error) {
+			resolveCalls++
+			return &RecallCheckoutDiscount{
+				PromotionCodeID:     "promo_later_stronger",
+				CampaignID:          903,
+				RecipientID:         904,
+				DiscountAmountMinor: 500,
+			}, nil
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, firstDiscount, second)
+	require.Equal(t, 1, resolveCalls)
+
+	var stored model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&stored, order.Id).Error)
+	require.True(t, stored.RecallOfferResolved)
+	require.Equal(t, firstDiscount.PromotionCodeID, stored.RecallPromotionCodeId)
+	require.Equal(t, firstDiscount.CampaignID, stored.RecallCampaignId)
+	require.Equal(t, firstDiscount.RecipientID, stored.RecallRecipientId)
+	require.Equal(t, firstDiscount.DiscountAmountMinor, stored.RecallDiscountAmountMinor)
+}
+
+func TestResolveOrReuseStripeSubscriptionRecallDiscountFreezesNoOffer(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	plan := insertContractServicePlan(t, 7291, 1, 2.5, 250)
+	order := model.SubscriptionOrder{
+		UserId:          7191,
+		PlanId:          plan.Id,
+		TradeNo:         "subscription-recall-none-frozen",
+		PaymentMethod:   model.PaymentMethodStripe,
+		PaymentProvider: model.PaymentProviderStripe,
+		Status:          common.TopUpStatusPending,
+	}
+	require.NoError(t, model.DB.Create(&order).Error)
+	resolveCalls := 0
+
+	first, err := resolveOrReuseStripeSubscriptionRecallDiscount(
+		context.Background(),
+		order.TradeNo,
+		func() (*RecallCheckoutDiscount, error) {
+			resolveCalls++
+			return nil, nil
+		},
+	)
+	require.NoError(t, err)
+	require.Nil(t, first)
+
+	second, err := resolveOrReuseStripeSubscriptionRecallDiscount(
+		context.Background(),
+		order.TradeNo,
+		func() (*RecallCheckoutDiscount, error) {
+			resolveCalls++
+			return &RecallCheckoutDiscount{PromotionCodeID: "promo_too_late"}, nil
+		},
+	)
+	require.NoError(t, err)
+	require.Nil(t, second)
+	require.Equal(t, 1, resolveCalls)
+
+	var stored model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&stored, order.Id).Error)
+	require.True(t, stored.RecallOfferResolved)
+}
+
 func TestBalancePurchaseCreatesOnePeriodWithoutBinding(t *testing.T) {
 	setupSubscriptionContractServiceTestDB(t)
 	insertContractServiceUser(t, 7101, 1000)

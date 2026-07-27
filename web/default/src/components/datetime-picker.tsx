@@ -53,6 +53,14 @@ interface DateTimePickerProps {
   'aria-invalid'?: boolean
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export function getDateTimePickerOpenState(
+  disabled: boolean,
+  requestedOpen: boolean
+): boolean {
+  return !disabled && requestedOpen
+}
+
 export function DateTimePicker({
   value,
   onChange,
@@ -84,7 +92,15 @@ export function DateTimePicker({
     }
   }, [value])
 
+  React.useEffect(() => {
+    if (disabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false)
+    }
+  }, [disabled])
+
   const handleDateSelect = (selectedDate: Date | undefined) => {
+    if (disabled) return
     if (selectedDate) {
       const [hours, minutes] = time.split(':').map(Number)
       const newDate = new Date(selectedDate)
@@ -101,6 +117,7 @@ export function DateTimePicker({
   }
 
   const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return
     const newTime = e.target.value
     setTime(newTime)
 
@@ -114,6 +131,7 @@ export function DateTimePicker({
   }
 
   const handleClear = () => {
+    if (disabled) return
     setDate(undefined)
     setMonth(undefined)
     setTime('00:00')
@@ -122,7 +140,12 @@ export function DateTimePicker({
 
   return (
     <div className={cn('flex gap-2', className)}>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(requestedOpen) =>
+          setOpen(getDateTimePickerOpenState(disabled, requestedOpen))
+        }
+      >
         <PopoverTrigger
           render={
             <Button
@@ -149,6 +172,7 @@ export function DateTimePicker({
             onMonthChange={setMonth}
             captionLayout='dropdown'
             onSelect={handleDateSelect}
+            disabled={disabled}
             locale={calendarLocale}
           />
         </PopoverContent>

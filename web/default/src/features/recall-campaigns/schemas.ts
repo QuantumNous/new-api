@@ -591,6 +591,17 @@ export const recallCampaignDraftSchema = z
           message: 'Fixed promotion expiry must be in the future',
         })
       }
+      if (
+        draft.execution_mode === 'scheduled_once' &&
+        draft.promotion_expires_at <= draft.schedule.scheduled_at
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['promotion_expires_at'],
+          message:
+            'Fixed promotion expiry must be after the scheduled run time',
+        })
+      }
       if (draft.promotion_valid_seconds !== 0) {
         context.addIssue({
           code: 'custom',

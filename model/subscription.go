@@ -589,6 +589,7 @@ type SubscriptionOrder struct {
 	RecallRecipientId         int64  `json:"recall_recipient_id" gorm:"type:bigint;not null;default:0;index"`
 	RecallPromotionCodeId     string `json:"recall_promotion_code_id" gorm:"type:varchar(128);not null;default:'';index"`
 	RecallDiscountAmountMinor int64  `json:"recall_discount_amount_minor" gorm:"type:bigint;not null;default:0"`
+	RecallOfferResolved       bool   `json:"recall_offer_resolved" gorm:"not null;default:false"`
 
 	ProviderPayload    string `json:"provider_payload" gorm:"type:text"`
 	ChangeIntentId     int64  `json:"change_intent_id" gorm:"type:bigint;default:0;index"`

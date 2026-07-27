@@ -512,7 +512,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 			if !released {
 				return ErrRecallEmailLeaseLost
 			}
-		} else if attempt.Quota.ResetsAt > expectedLeaseUntil {
+		} else {
 			deferred, deferErr := model.DeferRecallMessageLeaseWithContext(
 				ctx,
 				item.Message.Id,

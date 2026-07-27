@@ -6,8 +6,8 @@ import {
   type FieldPath,
   type UseFormReturn,
 } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 import type { InterfaceLanguageCode } from '@/i18n/languages'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -82,9 +82,7 @@ export function getRecallTranslationSummary(
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function getRecallManualLocaleCount(
-  stages: RecallEmailStage[]
-): number {
+export function getRecallManualLocaleCount(stages: RecallEmailStage[]): number {
   return stages.reduce(
     (count, stage) =>
       count +
@@ -112,7 +110,8 @@ export function markRecallManualLocale(
   locale: string
 ): void {
   if (!isRecallTargetLocale(locale)) return
-  const path = `email_sequence.${stageIndex}.manual_locales` as FieldPath<RecallCampaignDraft>
+  const path =
+    `email_sequence.${stageIndex}.manual_locales` as FieldPath<RecallCampaignDraft>
   const manualLocales = new Set(
     form.getValues(path) as RecallEmailStage['manual_locales']
   )
@@ -165,10 +164,7 @@ export function CampaignTranslationWorkspace(
       englishDirtyStages.add(index)
     }
   }
-  const summary = getRecallTranslationSummary(
-    watchedStages,
-    englishDirtyStages
-  )
+  const summary = getRecallTranslationSummary(watchedStages, englishDirtyStages)
   const manualCount = getRecallManualLocaleCount(watchedStages)
 
   useEffect(() => {
@@ -235,7 +231,7 @@ export function CampaignTranslationWorkspace(
           </span>
         </div>
         {targetLocale ? (
-          <div className='rounded-md bg-muted p-3 text-sm'>
+          <div className='bg-muted rounded-md p-3 text-sm'>
             <p className='font-medium'>{t('English context')}</p>
             <p className='text-muted-foreground'>
               {watchedStages[index]?.templates.en?.subject ?? ''}
@@ -248,11 +244,10 @@ export function CampaignTranslationWorkspace(
             <Input
               type='number'
               min={0}
-              disabled={props.immutable}
-              {...props.form.register(
-                `email_sequence.${index}.delay_seconds`,
-                { valueAsNumber: true }
-              )}
+              disabled={props.disabled || props.immutable}
+              {...props.form.register(`email_sequence.${index}.delay_seconds`, {
+                valueAsNumber: true,
+              })}
             />
           </div>
           <div className='space-y-2'>
@@ -360,9 +355,7 @@ export function CampaignTranslationWorkspace(
                 key={locale}
                 type='button'
                 size='sm'
-                variant={
-                  activeTargetLocale === locale ? 'default' : 'outline'
-                }
+                variant={activeTargetLocale === locale ? 'default' : 'outline'}
                 aria-pressed={activeTargetLocale === locale}
                 onClick={() => setActiveTargetLocale(locale)}
               >
@@ -412,9 +405,7 @@ export function CampaignTranslationWorkspace(
           {t(generationError)}
         </p>
       ) : null}
-      <p className='font-medium'>
-        {t('{{ready}} / {{total}} ready', summary)}
-      </p>
+      <p className='font-medium'>{t('{{ready}} / {{total}} ready', summary)}</p>
       <Button
         id='recall-generate-translations'
         type='button'

@@ -1079,7 +1079,7 @@ func TestListRecallOfferCandidatesDropsEmailMatchTransitionedBeforeBind(t *testi
 	require.Equal(t, RecallRecipientConverted, stored.State)
 }
 
-func TestListRecallOfferCandidatesDropsCampaignCancelledBeforeFinalAppend(t *testing.T) {
+func TestListRecallOfferCandidatesDoesNotBindEmailMatchCancelledBeforeBind(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 
 	const now int64 = 1_800_000_000
@@ -1093,7 +1093,7 @@ func TestListRecallOfferCandidatesDropsCampaignCancelledBeforeFinalAppend(t *tes
 	require.NoError(t, DB.Create(&campaign).Error)
 	promotionID := "promo_cancel_race"
 	recipient := RecallRecipient{
-		CampaignId: campaign.Id, UserId: user.Id, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+		CampaignId: campaign.Id, UserId: 0, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
 		LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: &promotionID,
 		PromotionCode: "CANCELRACE123", PromotionExpiresAt: now + 100, CreatedAt: now - 50,
 	}
@@ -1118,6 +1118,9 @@ func TestListRecallOfferCandidatesDropsCampaignCancelledBeforeFinalAppend(t *tes
 	var stored RecallCampaign
 	require.NoError(t, DB.First(&stored, campaign.Id).Error)
 	require.Equal(t, RecallCampaignCancelled, stored.Status)
+	var storedRecipient RecallRecipient
+	require.NoError(t, DB.First(&storedRecipient, recipient.Id).Error)
+	require.Zero(t, storedRecipient.UserId)
 }
 
 func TestRecallOfferCandidateEffectiveIssuedAtFallsBackToCreatedAt(t *testing.T) {
@@ -2179,7 +2182,7 @@ func TestReleaseRecallMessageLeaseRestoresScheduledAndRetryStates(t *testing.T) 
 		require.NoError(t, DB.First(&stored, candidate.ID).Error)
 		if candidate.State == RecallMessageLeased {
 			require.Equal(t, RecallMessageRetryWait, stored.State)
-			require.Equal(t, candidate.EffectiveDueAt, stored.NextAttemptAt)
+			require.Equal(t, leaseUntil, stored.NextAttemptAt)
 		} else {
 			require.Equal(t, candidate.State, stored.State)
 		}

@@ -1031,6 +1031,25 @@ func TestRecallEmailProcessLeasedDefersOwnedLeaseUntilQuotaReset(t *testing.T) {
 	require.Equal(t, waitErr.ResetsAt, stored.LeaseExpiresAt)
 }
 
+func TestRecallEmailProcessLeasedShortensOwnedLeaseToEarlierQuotaReset(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	setRecallEmailHourlyLimit(t, 1)
+	_, reserved, err := model.ReserveRecallEmailQuotaWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	require.True(t, reserved)
+	farFutureLease := recallEmailTestNow + 30*24*3600
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).
+		Update("lease_expires_at", farFutureLease).Error)
+
+	err = fixture.worker.ProcessLeased(context.Background(), fixture.message.Id)
+
+	var waitErr *RecallEmailQuotaWaitError
+	require.ErrorAs(t, err, &waitErr)
+	require.Less(t, waitErr.ResetsAt, farFutureLease)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, waitErr.ResetsAt, stored.LeaseExpiresAt)
+}
+
 func TestRecallEmailWorkerPreSMTPCancellationDoesNotConsumeQuota(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
 	setRecallEmailHourlyLimit(t, 1)
