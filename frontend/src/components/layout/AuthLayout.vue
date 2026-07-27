@@ -2,14 +2,17 @@
 // 编辑式认证布局（随想式）：整页同一纸底（texture-paper），顶部一条极简
 // 品牌栏，左侧编辑排版叙事（AuthEditorialPanel），右侧悬浮表单卡。
 // 双主题依旧全令牌驱动 —— 日间暖纸、夜间炭蓝，无恒深面板。
+// 站名从 useAppStore.systemName 读取，与控制台侧边栏/Topbar 保持一致。
 import { useI18n } from 'vue-i18n'
 
 import AuthEditorialPanel from '@/components/auth/AuthEditorialPanel.vue'
 import BrandMark from '@/components/console/BrandMark.vue'
 import LanguageSelector from '@/components/common/LanguageSelector.vue'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
+import { useAppStore } from '@/stores'
 
 const { t } = useI18n()
+const app = useAppStore()
 </script>
 
 <template>
@@ -28,7 +31,7 @@ const { t } = useI18n()
         <BrandMark class="h-8 w-8 rounded-lg" />
         <span
           class="display-title text-lg font-bold tracking-tight text-[var(--text-primary)]"
-          >Ren2Hub</span
+          >{{ app.systemName }}</span
         >
       </RouterLink>
       <div class="flex items-center gap-1 sm:gap-2">

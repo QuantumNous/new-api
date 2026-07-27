@@ -231,6 +231,19 @@
     rgba(192, 139, 87, 0.34) 70%,
     transparent
   );
+  /* ===== 登录页中转动画（日间：墨线手绘，芯片带铅笔投影与朱砂印点） ===== */
+  --relay-line: rgba(56, 55, 43, 0.28);
+  /* 铅笔回描：主线下方半像素的第二道淡痕，只有日间存在 */
+  --relay-line-echo: rgba(56, 55, 43, 0.1);
+  --relay-guide-dash: 5 3 2 4;
+  --relay-chip-fill: #fffdf8;
+  --relay-chip-border: rgba(56, 55, 43, 0.34);
+  --relay-chip-radius: 3px 5px 4px 3px / 4px 3px 5px 3px;
+  --relay-chip-shadow: 2px 2px 0 rgba(56, 55, 43, 0.12);
+  --relay-packet-cap: butt;
+  --relay-packet-glow: none;
+  --relay-label-weight: 600;
+
   /* AI 和纸纹理：真实纤维 tile（透明度已烘焙），叠加于页面底色 */
   --paper-texture-img: url('../assets/textures/paper-day.webp');
   --night-texture-img: none;
@@ -436,6 +449,19 @@ html.dark {
     rgba(226, 188, 85, 0.34) 70%,
     transparent
   );
+  /* ===== 登录页中转动画（夜间：金色发丝线 + MD 芯片，手绘退为微弱余韵） ===== */
+  --relay-line: rgba(226, 188, 85, 0.3);
+  --relay-line-echo: transparent;
+  --relay-guide-dash: 7 5;
+  --relay-chip-fill: #373941;
+  --relay-chip-border: rgba(226, 188, 85, 0.36);
+  --relay-chip-radius: 5px;
+  --relay-chip-shadow:
+    0 1px 2px rgba(0, 4, 16, 0.44), 0 2px 6px 2px rgba(0, 4, 16, 0.3);
+  --relay-packet-cap: round;
+  --relay-packet-glow: drop-shadow(0 0 3px rgba(226, 188, 85, 0.55));
+  --relay-label-weight: 500;
+
   /* 夜间丝绒暗纹：极淡（alpha 0.05 已烘焙），只在页面底，卡面保持纯净 */
   --paper-texture-img: url('../assets/textures/velvet-night.webp');
   --night-texture-img: none;

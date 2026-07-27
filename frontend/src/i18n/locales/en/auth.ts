@@ -38,8 +38,9 @@ export default {
     cardMotto: 'The AI relay you can trust',
     relay: {
       prompt: 'Your prompt',
-      passthrough: 'Byte-level relay',
+      passthrough: 'Byte relay',
       upstream: 'Official upstream',
+      fanout: 'Aggregated',
     },
     editorial: {
       word1: 'Private',

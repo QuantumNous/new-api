@@ -40,6 +40,7 @@ export default {
       prompt: '提示词原文',
       passthrough: '字节级直通',
       upstream: '官方上游',
+      fanout: '聚合转发',
     },
     editorial: {
       word1: '隐私',

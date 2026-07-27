@@ -1,11 +1,13 @@
 <script setup lang="ts">
 // 登录页左栏 — 编辑级排版叙事（随想式）：
-// 中转链路图（提示词 → 网关直通 → 官方上游）、衬线诗意大标题、
+// 中转动画（提示词 → 网关 → 多上游聚合转发）、衬线诗意大标题、
 // 信任要点清单、点阵地球（AI 中转的世界意象）、真实运行数据脚注。
+// 三个内容块与动画共用 --panel-measure，右边缘对齐成一条编辑级竖线。
 // 全部颜色走语义令牌，与站点整页纸底/炭蓝双主题同源。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AuthRelayFlow from '@/components/auth/AuthRelayFlow.vue'
 import type { DotGlobe } from '@/canvas/DotGlobe'
 import { useTheme } from '@/composables/useTheme'
 import { useAppStore } from '@/stores'
@@ -71,108 +73,24 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="relative hidden min-h-full flex-col justify-between overflow-hidden px-12 py-12 lg:flex xl:px-16"
+    class="auth-panel relative hidden min-h-full flex-col overflow-hidden px-10 py-12 lg:flex xl:px-16"
   >
-    <!-- 点阵地球：右下沉入，纸面上的静谧星球 -->
+    <!-- 点阵地球：右下角落沉入，纸面上的静谧星球。收到角落后不再压信任清单，
+         也不再被 overflow-hidden 裁掉半个球。 -->
     <canvas
       ref="globeEl"
-      class="pointer-events-none absolute -bottom-[30%] -right-[22%] h-[76%] w-[100%] transition-opacity duration-1000"
-      :class="ready ? 'opacity-100' : 'opacity-0'"
+      class="pointer-events-none absolute -bottom-[16%] -right-[8%] h-[58%] w-[72%] opacity-0 transition-opacity duration-1000"
+      :class="{ 'opacity-55': ready }"
       aria-hidden="true"
     />
 
-    <!-- 顶部：中转链路图 — 提示词 → 网关 → 官方上游 -->
-    <div class="relative z-10">
-      <div
-        class="flex items-end gap-0 text-[11px] tracking-[0.08em] text-[var(--text-tertiary)]"
-        aria-hidden="true"
-      >
-        <!-- node: prompt -->
-        <div class="flex flex-col items-start gap-2.5">
-          <svg
-            width="72"
-            height="30"
-            viewBox="0 0 72 30"
-            fill="none"
-            class="text-[var(--text-secondary)]"
-          >
-            <path d="M2 24 h44" stroke="currentColor" stroke-width="1" />
-            <path
-              d="M6 24 c2 -8 6 -14 14 -16"
-              stroke="currentColor"
-              stroke-width="1"
-              opacity="0.5"
-            />
-            <path
-              d="M52 24 l7 -18 M58 24 l7 -18"
-              stroke="currentColor"
-              stroke-width="1"
-            />
-          </svg>
-          <span>{{ t('auth.relay.prompt') }}</span>
-        </div>
-        <div
-          class="mx-3 mb-[22px] h-px w-16 bg-[var(--border-default)] xl:w-24"
-        />
-        <!-- node: gateway passthrough -->
-        <div class="flex flex-col items-start gap-2.5">
-          <svg
-            width="60"
-            height="30"
-            viewBox="0 0 60 30"
-            fill="none"
-            class="text-[var(--text-secondary)]"
-          >
-            <path
-              d="M6 24 l7 -18 M13 24 l7 -18"
-              stroke="currentColor"
-              stroke-width="1"
-            />
-            <path
-              d="M30 24 l7 -18 M37 24 l7 -18"
-              stroke="currentColor"
-              stroke-width="1"
-              opacity="0.5"
-            />
-          </svg>
-          <span>{{ t('auth.relay.passthrough') }}</span>
-        </div>
-        <div
-          class="mx-3 mb-[22px] h-px w-16 bg-[var(--border-default)] xl:w-24"
-        />
-        <!-- node: official upstream -->
-        <div class="flex flex-col items-start gap-2.5">
-          <svg
-            width="34"
-            height="34"
-            viewBox="0 0 34 34"
-            fill="none"
-            class="text-[var(--text-secondary)]"
-          >
-            <rect
-              x="8"
-              y="3"
-              width="18"
-              height="26"
-              rx="2.5"
-              stroke="currentColor"
-              stroke-width="1.1"
-            />
-            <circle cx="21.5" cy="8" r="1.4" fill="var(--accent)" />
-            <path
-              d="M12 14 h10 M12 19 h10 M12 24 h6"
-              stroke="currentColor"
-              stroke-width="1"
-              opacity="0.55"
-            />
-          </svg>
-          <span>{{ t('auth.relay.upstream') }}</span>
-        </div>
-      </div>
+    <!-- 顶部：中转动画 — 提示词 → 网关 → 多上游聚合转发 -->
+    <div class="panel-measure relative z-10">
+      <AuthRelayFlow />
     </div>
 
     <!-- 中部：标语 + 诗意大标题 + 信任要点 -->
-    <div class="relative z-10 max-w-xl">
+    <div class="panel-measure panel-gap relative z-10">
       <p
         class="flex items-center gap-3 text-xs tracking-[0.3em] text-[var(--text-tertiary)]"
       >
@@ -193,7 +111,7 @@ onBeforeUnmount(() => {
         >
       </h1>
 
-      <div class="mt-10 h-px w-full max-w-md bg-[var(--border-default)]" />
+      <div class="mt-10 h-px w-full bg-[var(--border-default)]" />
 
       <ul class="mt-8 space-y-4 text-sm text-[var(--text-secondary)]">
         <li class="flex items-center gap-3.5">
@@ -249,8 +167,8 @@ onBeforeUnmount(() => {
       </ul>
     </div>
 
-    <!-- 底部：SUPPORT 标注 + 真实运行数据 -->
-    <div class="relative z-10 max-w-md">
+    <!-- 底部：SUPPORT 标注 + 真实运行数据（mt-auto 贴底，间距不再随视口高度漂移） -->
+    <div class="panel-measure panel-gap-pad relative z-10 mt-auto">
       <div class="h-px w-full bg-[var(--border-default)]" />
       <p
         class="mt-5 flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--text-tertiary)]"
@@ -276,3 +194,30 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 单一测量线：动画、标题块、脚注共用同一宽度，右边缘对齐。
+   1024 档留出余量给中转动画的上游簇；1280 起放宽到编辑级行长。 */
+.panel-measure {
+  width: 100%;
+  max-width: 34rem;
+}
+
+/* 块间距随视口高度收放：矮屏（英文四行标题的压力位）收紧到 24px 不多撑滚动，
+   高屏放开到 4rem 的编辑级呼吸。定值 margin 在 1024×820 + 英文下会多溢出 40px。 */
+.panel-gap {
+  margin-top: clamp(1.5rem, 3.5vh, 4rem);
+}
+
+/* stats 用 padding 而不是 margin 表达最小间距：scoped 选择器的特异性高于
+   Tailwind 的 .mt-auto，写成 margin-top 会把 mt-auto 覆盖掉、脚注就不贴底了。 */
+.panel-gap-pad {
+  padding-top: clamp(1.5rem, 3.5vh, 4rem);
+}
+
+@media (min-width: 1280px) {
+  .panel-measure {
+    max-width: 38rem;
+  }
+}
+</style>
