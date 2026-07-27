@@ -682,6 +682,10 @@ func grantInviteeRegistrationSubscriptionDiscountInTx(tx *gorm.DB, user *User) e
 	return err
 }
 
+func RepairInviteeRegistrationSubscriptionDiscountTx(tx *gorm.DB, user *User) error {
+	return grantInviteeRegistrationSubscriptionDiscountInTx(tx, user)
+}
+
 // InsertWithTx inserts a new user within an existing transaction.
 // This is used for OAuth registration where user creation and binding need to be atomic.
 // Post-creation tasks (sidebar config, logs, inviter rewards) are handled after the transaction commits.

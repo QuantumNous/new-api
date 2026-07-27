@@ -45,18 +45,25 @@ type PurchaseSubscriptionResult struct {
 }
 
 type SubscriptionPurchaseQuote struct {
-	Currency                 string
-	UnitPrice                float64
-	UnitAmountMinor          int64
-	OriginalTotal            float64
-	OriginalTotalAmountMinor int64
-	DiscountAmount           float64
-	DiscountAmountMinor      int64
-	Total                    float64
-	PaymentAmountMinor       int64
-	RecallCampaignID         int64
-	RecallRecipientID        int64
-	RecallPromotionCodeID    string
+	Currency                      string
+	UnitPrice                     float64
+	UnitAmountMinor               int64
+	OriginalTotal                 float64
+	OriginalTotalAmountMinor      int64
+	DiscountKind                  string
+	DiscountAmount                float64
+	DiscountAmountMinor           int64
+	Total                         float64
+	PaymentAmountMinor            int64
+	InvitationAvailableUSDMinor   int64
+	InvitationDiscountUSDMinor    int64
+	InvitationDiscountAmountMinor int64
+	InvitationRemainingUSDMinor   int64
+	OtherDiscountKind             string
+	OtherDiscountAmountMinor      int64
+	RecallCampaignID              int64
+	RecallRecipientID             int64
+	RecallPromotionCodeID         string
 }
 
 type PrepaidTermAllocation struct {
@@ -69,19 +76,26 @@ var subscriptionPurchaseAfterQuoteValidationHook func()
 var ErrSubscriptionPurchaseQuoteUnavailable = errors.New("subscription purchase quote unavailable")
 
 type SubscriptionPurchaseQuoteResult struct {
-	Available                bool    `json:"available"`
-	UnavailableReason        string  `json:"unavailable_reason,omitempty"`
-	Currency                 string  `json:"currency,omitempty"`
-	UnitPrice                float64 `json:"unit_price,omitempty"`
-	UnitAmountMinor          int64   `json:"unit_amount_minor,omitempty"`
-	OriginalTotal            float64 `json:"original_total,omitempty"`
-	OriginalTotalAmountMinor int64   `json:"original_total_amount_minor,omitempty"`
-	DiscountAmount           float64 `json:"discount_amount,omitempty"`
-	DiscountAmountMinor      int64   `json:"discount_amount_minor,omitempty"`
-	Total                    float64 `json:"total,omitempty"`
-	PaymentAmountMinor       int64   `json:"payment_amount_minor,omitempty"`
-	RecallCampaignID         int64   `json:"recall_campaign_id,omitempty"`
-	RecallRecipientID        int64   `json:"recall_recipient_id,omitempty"`
+	Available                     bool    `json:"available"`
+	UnavailableReason             string  `json:"unavailable_reason,omitempty"`
+	Currency                      string  `json:"currency,omitempty"`
+	UnitPrice                     float64 `json:"unit_price,omitempty"`
+	UnitAmountMinor               int64   `json:"unit_amount_minor,omitempty"`
+	OriginalTotal                 float64 `json:"original_total,omitempty"`
+	OriginalTotalAmountMinor      int64   `json:"original_total_amount_minor,omitempty"`
+	DiscountKind                  string  `json:"discount_kind,omitempty"`
+	DiscountAmount                float64 `json:"discount_amount,omitempty"`
+	DiscountAmountMinor           int64   `json:"discount_amount_minor,omitempty"`
+	Total                         float64 `json:"total,omitempty"`
+	PaymentAmountMinor            int64   `json:"payment_amount_minor,omitempty"`
+	InvitationAvailableUSDMinor   int64   `json:"invitation_available_usd_minor,omitempty"`
+	InvitationDiscountUSDMinor    int64   `json:"invitation_discount_usd_minor,omitempty"`
+	InvitationDiscountAmountMinor int64   `json:"invitation_discount_amount_minor,omitempty"`
+	InvitationRemainingUSDMinor   int64   `json:"invitation_remaining_usd_minor,omitempty"`
+	OtherDiscountKind             string  `json:"other_discount_kind,omitempty"`
+	OtherDiscountAmountMinor      int64   `json:"other_discount_amount_minor,omitempty"`
+	RecallCampaignID              int64   `json:"recall_campaign_id,omitempty"`
+	RecallRecipientID             int64   `json:"recall_recipient_id,omitempty"`
 }
 
 type purchasePlanSnapshot struct {
@@ -104,37 +118,29 @@ func QuoteSubscriptionPurchase(cmd PurchaseSubscriptionCommand) (*SubscriptionPu
 	if err := cmd.validateQuote(); err != nil {
 		return nil, err
 	}
-	if cmd.PaymentChoice == SubscriptionPaymentChoiceStripeRecurring {
-		plan, err := model.GetSubscriptionPlanById(cmd.PlanID)
-		if err != nil {
-			return nil, err
-		}
-		plan.NormalizeDefaults()
-		quote, err := resolveSubscriptionPurchaseQuote(*plan, cmd.PaymentChoice, cmd.Months)
-		if err != nil {
-			if errors.Is(err, ErrSubscriptionPurchaseQuoteUnavailable) {
-				return &SubscriptionPurchaseQuoteResult{Available: false, UnavailableReason: err.Error()}, nil
-			}
-			return nil, err
-		}
-		return subscriptionPurchaseQuoteResult(quote), nil
-	}
 	var result *SubscriptionPurchaseQuoteResult
 	var planSnapshot *model.SubscriptionPlan
+	var baseQuote SubscriptionPurchaseQuote
+	var invitationAvailableUSDMinor int64
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		var user model.User
 		if err := tx.Where("id = ?", cmd.UserID).First(&user).Error; err != nil {
+			return err
+		}
+		if err := model.RepairInviteeRegistrationSubscriptionDiscountTx(tx, &user); err != nil {
 			return err
 		}
 		plan, err := loadEnabledSubscriptionPlanTx(tx, cmd.PlanID)
 		if err != nil {
 			return err
 		}
-		if err := validateFlexiblePrepaidPlan(plan); err != nil {
-			return err
-		}
-		if cmd.PaymentChoice == SubscriptionPaymentChoiceBalance && plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
-			return errors.New("subscription plan does not allow balance payment")
+		if cmd.PaymentChoice != SubscriptionPaymentChoiceStripeRecurring {
+			if err := validateFlexiblePrepaidPlan(plan); err != nil {
+				return err
+			}
+			if cmd.PaymentChoice == SubscriptionPaymentChoiceBalance && plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
+				return errors.New("subscription plan does not allow balance payment")
+			}
 		}
 		quote, err := resolveSubscriptionPurchaseQuote(*plan, cmd.PaymentChoice, cmd.Months)
 		if err != nil {
@@ -144,27 +150,21 @@ func QuoteSubscriptionPurchase(cmd PurchaseSubscriptionCommand) (*SubscriptionPu
 			}
 			return err
 		}
+		account, err := model.GetSubscriptionDiscountAccountTx(tx, user.Id)
+		if err != nil {
+			return err
+		}
 		planCopy := *plan
 		planSnapshot = &planCopy
-		result = subscriptionPurchaseQuoteResult(quote)
+		baseQuote = quote
+		invitationAvailableUSDMinor = account.AvailableUSDMinor
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	if result != nil && result.Available && strings.TrimSpace(cmd.RecallClaim) != "" && planSnapshot != nil {
-		quote := SubscriptionPurchaseQuote{
-			Currency:                 result.Currency,
-			UnitPrice:                result.UnitPrice,
-			UnitAmountMinor:          result.UnitAmountMinor,
-			OriginalTotal:            result.OriginalTotal,
-			OriginalTotalAmountMinor: result.OriginalTotalAmountMinor,
-			DiscountAmount:           result.DiscountAmount,
-			DiscountAmountMinor:      result.DiscountAmountMinor,
-			Total:                    result.Total,
-			PaymentAmountMinor:       result.PaymentAmountMinor,
-		}
-		discounted, err := applyRecallFirstMonthDiscount(context.Background(), cmd.UserID, cmd.RecallClaim, *planSnapshot, quote)
+	if planSnapshot != nil {
+		discounted, err := applySubscriptionPurchaseDiscounts(context.Background(), cmd.UserID, cmd.RecallClaim, *planSnapshot, baseQuote, invitationAvailableUSDMinor, cmd.Months)
 		if err != nil {
 			return nil, err
 		}
@@ -833,14 +833,13 @@ func validateAuthoritativeSubscriptionPurchaseQuote(ctx context.Context, cmd Pur
 	if err != nil {
 		return SubscriptionPurchaseQuote{}, err
 	}
-	if cmd.VerifiedQuote.DiscountAmountMinor > 0 && strings.TrimSpace(cmd.RecallClaim) == "" {
-		return SubscriptionPurchaseQuote{}, errors.New("recall claim is required for discounted subscription purchase quote")
+	account, err := model.GetSubscriptionDiscountAccount(cmd.UserID)
+	if err != nil {
+		return SubscriptionPurchaseQuote{}, err
 	}
-	if strings.TrimSpace(cmd.RecallClaim) != "" {
-		expected, err = applyRecallFirstMonthDiscount(ctx, cmd.UserID, cmd.RecallClaim, *plan, expected)
-		if err != nil {
-			return SubscriptionPurchaseQuote{}, err
-		}
+	expected, err = applySubscriptionPurchaseDiscounts(ctx, cmd.UserID, cmd.RecallClaim, *plan, expected, account.AvailableUSDMinor, cmd.Months)
+	if err != nil {
+		return SubscriptionPurchaseQuote{}, err
 	}
 	tokenQuote, err := validateSubscriptionPurchaseQuoteForChoice(*cmd.VerifiedQuote, cmd.PaymentChoice, cmd.Months)
 	if err != nil {
@@ -896,14 +895,70 @@ func applyRecallFirstMonthDiscount(ctx context.Context, userID int, claim string
 	return quote, nil
 }
 
+func applySubscriptionPurchaseDiscounts(ctx context.Context, userID int, recallClaim string, plan model.SubscriptionPlan, quote SubscriptionPurchaseQuote, invitationAvailableUSDMinor int64, months int) (SubscriptionPurchaseQuote, error) {
+	recallQuote := quote
+	var err error
+	if strings.TrimSpace(recallClaim) != "" {
+		recallQuote, err = applyRecallFirstMonthDiscount(ctx, userID, recallClaim, plan, quote)
+		if err != nil {
+			return SubscriptionPurchaseQuote{}, err
+		}
+	}
+	otherKind := ""
+	otherAmountMinor := int64(0)
+	if recallQuote.DiscountAmountMinor > 0 {
+		otherKind = SubscriptionDiscountKindRecall
+		otherAmountMinor = recallQuote.DiscountAmountMinor
+	}
+	canonicalUSDQuote := subscriptionPurchaseQuoteFromUnitPrice(plan.Currency, plan.PriceAmount, months)
+	discountQuote, err := BuildSubscriptionDiscountQuote(SubscriptionDiscountQuoteInput{
+		Currency:                 quote.Currency,
+		OriginalAmountMinor:      quote.OriginalTotalAmountMinor,
+		OriginalUSDMinor:         canonicalUSDQuote.OriginalTotalAmountMinor,
+		AvailableUSDMinor:        invitationAvailableUSDMinor,
+		OtherDiscountKind:        otherKind,
+		OtherDiscountAmountMinor: otherAmountMinor,
+	})
+	if err != nil {
+		return SubscriptionPurchaseQuote{}, err
+	}
+	quote.DiscountKind = discountQuote.SelectedKind
+	quote.DiscountAmountMinor = discountQuote.SelectedDiscountAmountMinor
+	quote.DiscountAmount = float64(quote.DiscountAmountMinor) / 100
+	quote.PaymentAmountMinor = discountQuote.FinalAmountMinor
+	quote.Total = float64(quote.PaymentAmountMinor) / 100
+	quote.InvitationAvailableUSDMinor = discountQuote.InvitationAvailableUSDMinor
+	quote.InvitationDiscountUSDMinor = discountQuote.InvitationDiscountUSDMinor
+	quote.InvitationDiscountAmountMinor = discountQuote.InvitationDiscountAmountMinor
+	quote.InvitationRemainingUSDMinor = discountQuote.InvitationRemainingUSDMinor
+	quote.OtherDiscountKind = discountQuote.OtherDiscountKind
+	quote.OtherDiscountAmountMinor = discountQuote.OtherDiscountAmountMinor
+	if discountQuote.SelectedKind == SubscriptionDiscountKindRecall {
+		quote.RecallCampaignID = recallQuote.RecallCampaignID
+		quote.RecallRecipientID = recallQuote.RecallRecipientID
+		quote.RecallPromotionCodeID = recallQuote.RecallPromotionCodeID
+	}
+	return quote, nil
+}
+
 func compareSubscriptionPurchaseQuotes(expected SubscriptionPurchaseQuote, actual SubscriptionPurchaseQuote) error {
 	if expected.Currency != actual.Currency ||
 		expected.UnitAmountMinor != actual.UnitAmountMinor ||
 		expected.OriginalTotalAmountMinor != actual.OriginalTotalAmountMinor ||
+		expected.DiscountKind != actual.DiscountKind ||
 		expected.DiscountAmountMinor != actual.DiscountAmountMinor ||
 		expected.PaymentAmountMinor != actual.PaymentAmountMinor ||
+		expected.InvitationAvailableUSDMinor != actual.InvitationAvailableUSDMinor ||
+		expected.InvitationDiscountUSDMinor != actual.InvitationDiscountUSDMinor ||
+		expected.InvitationDiscountAmountMinor != actual.InvitationDiscountAmountMinor ||
+		expected.InvitationRemainingUSDMinor != actual.InvitationRemainingUSDMinor ||
 		expected.RecallCampaignID != actual.RecallCampaignID ||
 		expected.RecallRecipientID != actual.RecallRecipientID {
+		return errors.New("subscription purchase quote mismatch")
+	}
+	if expected.DiscountKind == SubscriptionDiscountKindRecall &&
+		(expected.OtherDiscountKind != actual.OtherDiscountKind ||
+			expected.OtherDiscountAmountMinor != actual.OtherDiscountAmountMinor) {
 		return errors.New("subscription purchase quote mismatch")
 	}
 	return nil
@@ -919,6 +974,11 @@ func validateSubscriptionPurchaseQuoteForChoice(quote SubscriptionPurchaseQuote,
 	}
 	if quote.UnitPrice < 0 || quote.Total < 0 || quote.PaymentAmountMinor < 0 || quote.DiscountAmountMinor < 0 {
 		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote price cannot be negative")
+	}
+	if quote.InvitationAvailableUSDMinor < 0 || quote.InvitationDiscountUSDMinor < 0 ||
+		quote.InvitationDiscountAmountMinor < 0 || quote.InvitationRemainingUSDMinor < 0 ||
+		quote.OtherDiscountAmountMinor < 0 {
+		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote discount amount cannot be negative")
 	}
 	if quote.Total > 0 && quote.PaymentAmountMinor == 0 {
 		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote minor amount is required")
@@ -943,13 +1003,44 @@ func validateSubscriptionPurchaseQuoteForChoice(quote SubscriptionPurchaseQuote,
 	if quote.PaymentAmountMinor != originalTotalMinor-quote.DiscountAmountMinor {
 		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote discounted total does not match original total")
 	}
-	if quote.DiscountAmountMinor > 0 {
+	quote.DiscountKind = strings.TrimSpace(quote.DiscountKind)
+	if quote.DiscountKind == "" {
+		if quote.DiscountAmountMinor > 0 {
+			quote.DiscountKind = SubscriptionDiscountKindRecall
+		} else {
+			quote.DiscountKind = SubscriptionDiscountKindNone
+		}
+	}
+	quote.OtherDiscountKind = strings.TrimSpace(quote.OtherDiscountKind)
+	switch quote.DiscountKind {
+	case SubscriptionDiscountKindNone:
+		if quote.DiscountAmountMinor != 0 {
+			return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote discount kind is invalid")
+		}
+	case SubscriptionDiscountKindInvitation:
+		if quote.RecallCampaignID != 0 || quote.RecallRecipientID != 0 || strings.TrimSpace(quote.RecallPromotionCodeID) != "" {
+			return SubscriptionPurchaseQuote{}, errors.New("subscription purchase invitation discount cannot carry recall identity")
+		}
+	case SubscriptionDiscountKindRecall:
+		if quote.DiscountAmountMinor <= 0 {
+			return SubscriptionPurchaseQuote{}, errors.New("subscription purchase recall discount requires discount")
+		}
 		if quote.RecallCampaignID <= 0 || quote.RecallRecipientID <= 0 {
 			return SubscriptionPurchaseQuote{}, errors.New("subscription purchase recall identity is required")
 		}
+		if quote.OtherDiscountKind == "" {
+			quote.OtherDiscountKind = SubscriptionDiscountKindRecall
+		}
+		if quote.OtherDiscountAmountMinor == 0 {
+			quote.OtherDiscountAmountMinor = quote.DiscountAmountMinor
+		}
 		quote.RecallPromotionCodeID = strings.TrimSpace(quote.RecallPromotionCodeID)
-	} else if quote.RecallCampaignID != 0 || quote.RecallRecipientID != 0 || strings.TrimSpace(quote.RecallPromotionCodeID) != "" {
-		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase recall identity requires discount")
+	default:
+		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote discount kind is invalid")
+	}
+	if quote.DiscountKind != SubscriptionDiscountKindRecall &&
+		(quote.RecallCampaignID != 0 || quote.RecallRecipientID != 0 || strings.TrimSpace(quote.RecallPromotionCodeID) != "") {
+		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase recall identity requires recall discount")
 	}
 	switch choice {
 	case SubscriptionPaymentChoicePix:
@@ -1003,18 +1094,25 @@ func subscriptionPurchaseQuoteFromUnitPrice(currency string, unitPrice float64, 
 
 func subscriptionPurchaseQuoteResult(quote SubscriptionPurchaseQuote) *SubscriptionPurchaseQuoteResult {
 	return &SubscriptionPurchaseQuoteResult{
-		Available:                true,
-		Currency:                 quote.Currency,
-		UnitPrice:                quote.UnitPrice,
-		UnitAmountMinor:          quote.UnitAmountMinor,
-		OriginalTotal:            quote.OriginalTotal,
-		OriginalTotalAmountMinor: quote.OriginalTotalAmountMinor,
-		DiscountAmount:           quote.DiscountAmount,
-		DiscountAmountMinor:      quote.DiscountAmountMinor,
-		Total:                    quote.Total,
-		PaymentAmountMinor:       quote.PaymentAmountMinor,
-		RecallCampaignID:         quote.RecallCampaignID,
-		RecallRecipientID:        quote.RecallRecipientID,
+		Available:                     true,
+		Currency:                      quote.Currency,
+		UnitPrice:                     quote.UnitPrice,
+		UnitAmountMinor:               quote.UnitAmountMinor,
+		OriginalTotal:                 quote.OriginalTotal,
+		OriginalTotalAmountMinor:      quote.OriginalTotalAmountMinor,
+		DiscountKind:                  quote.DiscountKind,
+		DiscountAmount:                quote.DiscountAmount,
+		DiscountAmountMinor:           quote.DiscountAmountMinor,
+		Total:                         quote.Total,
+		PaymentAmountMinor:            quote.PaymentAmountMinor,
+		InvitationAvailableUSDMinor:   quote.InvitationAvailableUSDMinor,
+		InvitationDiscountUSDMinor:    quote.InvitationDiscountUSDMinor,
+		InvitationDiscountAmountMinor: quote.InvitationDiscountAmountMinor,
+		InvitationRemainingUSDMinor:   quote.InvitationRemainingUSDMinor,
+		OtherDiscountKind:             quote.OtherDiscountKind,
+		OtherDiscountAmountMinor:      quote.OtherDiscountAmountMinor,
+		RecallCampaignID:              quote.RecallCampaignID,
+		RecallRecipientID:             quote.RecallRecipientID,
 	}
 }
 

@@ -108,11 +108,15 @@ type SubscriptionDiscountReservationInput struct {
 }
 
 func GetSubscriptionDiscountAccount(userID int) (*SubscriptionDiscountAccount, error) {
+	return GetSubscriptionDiscountAccountTx(DB, userID)
+}
+
+func GetSubscriptionDiscountAccountTx(tx *gorm.DB, userID int) (*SubscriptionDiscountAccount, error) {
 	if userID <= 0 {
 		return nil, ErrSubscriptionDiscountInvalidAccountState
 	}
 	var account SubscriptionDiscountAccount
-	err := DB.Where("user_id = ?", userID).First(&account).Error
+	err := tx.Where("user_id = ?", userID).First(&account).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return &SubscriptionDiscountAccount{UserID: userID}, nil
 	}

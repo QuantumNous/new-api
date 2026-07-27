@@ -73,6 +73,8 @@ func setupSubscriptionControllerTestDB(t *testing.T) {
 		&model.SubscriptionChangeIntent{},
 		&model.SubscriptionTermSegment{},
 		&model.WalletLedgerEntry{},
+		&model.SubscriptionDiscountAccount{},
+		&model.SubscriptionDiscountEntry{},
 	))
 }
 

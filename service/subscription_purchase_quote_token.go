@@ -20,20 +20,27 @@ var (
 )
 
 type SubscriptionPurchaseQuoteTokenClaims struct {
-	Version             int    `json:"v"`
-	UserID              int    `json:"uid"`
-	PlanID              int    `json:"pid"`
-	PaymentChoice       string `json:"payment_choice"`
-	Months              int    `json:"months"`
-	RequestID           string `json:"request_id"`
-	Currency            string `json:"currency"`
-	UnitAmountMinor     int64  `json:"unit_amount_minor"`
-	TotalAmountMinor    int64  `json:"total_amount_minor"`
-	DiscountAmountMinor int64  `json:"discount_amount_minor,omitempty"`
-	RecallCampaignID    int64  `json:"recall_campaign_id,omitempty"`
-	RecallRecipientID   int64  `json:"recall_recipient_id,omitempty"`
-	PlanRevision        int64  `json:"plan_revision"`
-	ExpiresAt           int64  `json:"expires_at"`
+	Version                       int    `json:"v"`
+	UserID                        int    `json:"uid"`
+	PlanID                        int    `json:"pid"`
+	PaymentChoice                 string `json:"payment_choice"`
+	Months                        int    `json:"months"`
+	RequestID                     string `json:"request_id"`
+	Currency                      string `json:"currency"`
+	UnitAmountMinor               int64  `json:"unit_amount_minor"`
+	TotalAmountMinor              int64  `json:"total_amount_minor"`
+	DiscountKind                  string `json:"discount_kind,omitempty"`
+	DiscountAmountMinor           int64  `json:"discount_amount_minor,omitempty"`
+	InvitationAvailableUSDMinor   int64  `json:"invitation_available_usd_minor,omitempty"`
+	InvitationDiscountUSDMinor    int64  `json:"invitation_discount_usd_minor,omitempty"`
+	InvitationDiscountAmountMinor int64  `json:"invitation_discount_amount_minor,omitempty"`
+	InvitationRemainingUSDMinor   int64  `json:"invitation_remaining_usd_minor,omitempty"`
+	OtherDiscountKind             string `json:"other_discount_kind,omitempty"`
+	OtherDiscountAmountMinor      int64  `json:"other_discount_amount_minor,omitempty"`
+	RecallCampaignID              int64  `json:"recall_campaign_id,omitempty"`
+	RecallRecipientID             int64  `json:"recall_recipient_id,omitempty"`
+	PlanRevision                  int64  `json:"plan_revision"`
+	ExpiresAt                     int64  `json:"expires_at"`
 }
 
 func SignSubscriptionPurchaseQuoteToken(claims SubscriptionPurchaseQuoteTokenClaims) (string, error) {
@@ -91,22 +98,55 @@ func validateSubscriptionPurchaseQuoteTokenClaims(claims SubscriptionPurchaseQuo
 	if claims.Currency != strings.ToUpper(strings.TrimSpace(claims.Currency)) || len(claims.Currency) != 3 {
 		return fmt.Errorf("%w: currency must be canonical", ErrSubscriptionPurchaseQuoteInvalid)
 	}
-	if claims.UnitAmountMinor < 0 || claims.TotalAmountMinor < 0 || claims.DiscountAmountMinor < 0 {
+	if claims.UnitAmountMinor < 0 || claims.TotalAmountMinor < 0 || claims.DiscountAmountMinor < 0 ||
+		claims.InvitationAvailableUSDMinor < 0 || claims.InvitationDiscountUSDMinor < 0 ||
+		claims.InvitationDiscountAmountMinor < 0 || claims.InvitationRemainingUSDMinor < 0 ||
+		claims.OtherDiscountAmountMinor < 0 {
 		return fmt.Errorf("%w: amount cannot be negative", ErrSubscriptionPurchaseQuoteInvalid)
-	}
-	if claims.DiscountAmountMinor > claims.UnitAmountMinor {
-		return fmt.Errorf("%w: discount exceeds monthly unit amount", ErrSubscriptionPurchaseQuoteInvalid)
 	}
 	if claims.UnitAmountMinor > math.MaxInt64/int64(claims.Months) ||
 		claims.TotalAmountMinor != claims.UnitAmountMinor*int64(claims.Months)-claims.DiscountAmountMinor {
 		return fmt.Errorf("%w: total does not match unit amount and months", ErrSubscriptionPurchaseQuoteInvalid)
 	}
-	if claims.DiscountAmountMinor > 0 {
+	claims.DiscountKind = strings.TrimSpace(claims.DiscountKind)
+	if claims.DiscountKind == "" {
+		if claims.DiscountAmountMinor > 0 {
+			claims.DiscountKind = SubscriptionDiscountKindRecall
+		} else {
+			claims.DiscountKind = SubscriptionDiscountKindNone
+		}
+	}
+	claims.OtherDiscountKind = strings.TrimSpace(claims.OtherDiscountKind)
+	switch claims.DiscountKind {
+	case SubscriptionDiscountKindNone:
+		if claims.DiscountAmountMinor != 0 {
+			return fmt.Errorf("%w: discount kind does not match amount", ErrSubscriptionPurchaseQuoteInvalid)
+		}
+	case SubscriptionDiscountKindInvitation:
+		if claims.RecallCampaignID != 0 || claims.RecallRecipientID != 0 {
+			return fmt.Errorf("%w: invitation quote cannot include recall identity", ErrSubscriptionPurchaseQuoteInvalid)
+		}
+	case SubscriptionDiscountKindRecall:
+		if claims.DiscountAmountMinor <= 0 {
+			return fmt.Errorf("%w: recall discount requires amount", ErrSubscriptionPurchaseQuoteInvalid)
+		}
+		if claims.DiscountAmountMinor > claims.UnitAmountMinor {
+			return fmt.Errorf("%w: recall discount exceeds monthly unit amount", ErrSubscriptionPurchaseQuoteInvalid)
+		}
 		if claims.RecallCampaignID <= 0 || claims.RecallRecipientID <= 0 {
 			return fmt.Errorf("%w: discounted quote requires recall identity", ErrSubscriptionPurchaseQuoteInvalid)
 		}
-	} else if claims.RecallCampaignID != 0 || claims.RecallRecipientID != 0 {
-		return fmt.Errorf("%w: recall identity requires discount", ErrSubscriptionPurchaseQuoteInvalid)
+		if claims.OtherDiscountKind == "" {
+			claims.OtherDiscountKind = SubscriptionDiscountKindRecall
+		}
+		if claims.OtherDiscountAmountMinor == 0 {
+			claims.OtherDiscountAmountMinor = claims.DiscountAmountMinor
+		}
+	default:
+		return fmt.Errorf("%w: unsupported discount kind", ErrSubscriptionPurchaseQuoteInvalid)
+	}
+	if claims.DiscountKind != SubscriptionDiscountKindRecall && (claims.RecallCampaignID != 0 || claims.RecallRecipientID != 0) {
+		return fmt.Errorf("%w: recall identity requires recall discount", ErrSubscriptionPurchaseQuoteInvalid)
 	}
 	if claims.ExpiresAt <= 0 {
 		return fmt.Errorf("%w: expiry is required", ErrSubscriptionPurchaseQuoteInvalid)

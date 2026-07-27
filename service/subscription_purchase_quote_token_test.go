@@ -73,6 +73,42 @@ func TestSubscriptionPurchaseQuoteTokenRoundTripWithFirstMonthDiscount(t *testin
 	require.Equal(t, claims, verified)
 }
 
+func TestSubscriptionPurchaseQuoteTokenRoundTripWithInvitationDiscount(t *testing.T) {
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "subscription-quote-test-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+
+	claims := SubscriptionPurchaseQuoteTokenClaims{
+		Version:                       1,
+		UserID:                        17,
+		PlanID:                        3,
+		PaymentChoice:                 SubscriptionPaymentChoicePix,
+		Months:                        3,
+		RequestID:                     "purchase-request-17",
+		Currency:                      "BRL",
+		UnitAmountMinor:               10000,
+		DiscountKind:                  SubscriptionDiscountKindInvitation,
+		DiscountAmountMinor:           20000,
+		TotalAmountMinor:              10000,
+		InvitationAvailableUSDMinor:   500,
+		InvitationDiscountUSDMinor:    500,
+		InvitationDiscountAmountMinor: 20000,
+		InvitationRemainingUSDMinor:   0,
+		PlanRevision:                  1_753_268_400,
+		ExpiresAt:                     1_753_269_000,
+	}
+
+	token, err := SignSubscriptionPurchaseQuoteToken(claims)
+	require.NoError(t, err)
+
+	verified, err := VerifySubscriptionPurchaseQuoteToken(
+		token,
+		time.Unix(1_753_268_500, 0),
+	)
+	require.NoError(t, err)
+	require.Equal(t, claims, verified)
+}
+
 func TestSubscriptionPurchaseQuoteTokenRejectsTampering(t *testing.T) {
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "subscription-quote-test-secret"
@@ -225,6 +261,27 @@ func TestSubscriptionPurchaseQuoteTokenRequiresRecallIDsWithDiscount(t *testing.
 
 	base.RecallCampaignID = 42
 	_, err = SignSubscriptionPurchaseQuoteToken(base)
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+}
+
+func TestSubscriptionPurchaseQuoteTokenRejectsInvitationDiscountWithRecallIDs(t *testing.T) {
+	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
+		Version:             1,
+		UserID:              17,
+		PlanID:              3,
+		PaymentChoice:       SubscriptionPaymentChoicePix,
+		Months:              3,
+		RequestID:           "purchase-request-17",
+		Currency:            "BRL",
+		UnitAmountMinor:     10000,
+		DiscountKind:        SubscriptionDiscountKindInvitation,
+		DiscountAmountMinor: 2000,
+		TotalAmountMinor:    28000,
+		RecallCampaignID:    42,
+		RecallRecipientID:   99,
+		PlanRevision:        1_753_268_400,
+		ExpiresAt:           1_753_269_000,
+	})
 	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
 }
 
