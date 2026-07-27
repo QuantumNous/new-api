@@ -862,11 +862,6 @@ func buildSubscriptionCapabilitiesDTO(
 			}
 		}
 	}
-	if !capabilities.IsCancelAtPeriodEnd {
-		if recurring := currentRecurringForSubscription(contract, currentEntitlement, recurringSubscriptions); recurring != nil {
-			capabilities.IsCancelAtPeriodEnd = recurring.CancelAtPeriodEnd
-		}
-	}
 	return capabilities
 }
 

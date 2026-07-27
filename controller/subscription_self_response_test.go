@@ -646,6 +646,7 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 			entitlement: activeEntitlement,
 			bindings: []RecurringSubscriptionDTO{func() RecurringSubscriptionDTO {
 				binding := activeBinding
+				binding.CancelAtPeriodEnd = true
 				binding.RequiresSupport = true
 				return binding
 			}()},
@@ -665,6 +666,7 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 				PlanId:                 activeBinding.PlanId,
 				ProviderSubscriptionId: "sub_incomplete_requires_support",
 				ProviderStatus:         "incomplete",
+				CancelAtPeriodEnd:      true,
 				CurrentPeriodEnd:       now + 3600,
 			}}),
 			wantSupport: true,
@@ -677,14 +679,22 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 				return contract
 			}(),
 			entitlement: activeEntitlement,
-			bindings:    []RecurringSubscriptionDTO{activeBinding},
+			bindings: []RecurringSubscriptionDTO{func() RecurringSubscriptionDTO {
+				binding := activeBinding
+				binding.CancelAtPeriodEnd = true
+				return binding
+			}()},
 			wantSupport: true,
 		},
 		{
 			name:        "ambiguous migration conflict requires support",
 			contract:    activeContract,
 			entitlement: activeEntitlement,
-			bindings:    []RecurringSubscriptionDTO{activeBinding},
+			bindings: []RecurringSubscriptionDTO{func() RecurringSubscriptionDTO {
+				binding := activeBinding
+				binding.CancelAtPeriodEnd = true
+				return binding
+			}()},
 			migration:   SubscriptionMigrationDTO{RequiresAdminReview: true},
 			wantSupport: true,
 		},
