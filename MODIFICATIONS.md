@@ -10,6 +10,7 @@ and remains licensed under GNU AGPL-3.0.
   user's explicit language selection.
 - Synchronized the HTML document language with the selected interface language.
 - Added a Russian-first product description.
+- Refined the Russian homepage copy for a developer-facing API gateway.
 - Added a GitHub Container Registry workflow for the fork's amd64 image.
 
 The original New API attribution and project link remain visible in the
