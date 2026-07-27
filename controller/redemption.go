@@ -188,6 +188,10 @@ func DeleteRedemptionBatch(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	if len(redemptionBatch.Ids) > 100 {
+		common.ApiErrorI18n(c, i18n.MsgBatchTooMany, map[string]any{"Max": 100})
+		return
+	}
 	count, err := model.BatchDeleteRedemptions(redemptionBatch.Ids)
 	if err != nil {
 		common.ApiError(c, err)

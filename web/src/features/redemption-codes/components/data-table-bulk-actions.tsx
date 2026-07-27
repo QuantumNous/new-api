@@ -49,13 +49,17 @@ export function DataTableBulkActions<TData>({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const selectedRows = table.getSelectedRowModel().rows
 
-  const selectedIds = selectedRows.reduce<number[]>((ids, row) => {
-    const id = (row.original as Redemption).id
-    if (typeof id === 'number') {
-      ids.push(id)
-    }
-    return ids
-  }, [])
+  const selectedIds = useMemo(
+    () =>
+      selectedRows.reduce<number[]>((ids, row) => {
+        const id = (row.original as Redemption).id
+        if (typeof id === 'number') {
+          ids.push(id)
+        }
+        return ids
+      }, []),
+    [selectedRows]
+  )
 
   const contentToCopy = useMemo(() => {
     const selectedCodes = selectedRows.map((row) => {
