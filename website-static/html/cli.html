@@ -1,61 +1,80 @@
 <!doctype html><html lang="en-US"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>flatkey CLI — Use every media model from one terminal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>flatkey CLI for AI Media Teams</title>
 <link rel="icon" type="image/png" sizes="64x64" href="assets/favicon-64.png?v=3">
 <link rel="icon" type="image/svg+xml" href="assets/flatkey-mark.svg?v=4">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="fk2.css?v=728b"><style>
-.cliHero{background:linear-gradient(180deg,#fff 0%,#F7F5FD 100%);border-bottom:1px solid var(--line)}
-.cliHeroIn{max-width:1180px;margin:0 auto;padding:70px 40px 66px;display:grid;grid-template-columns:minmax(0,1fr) 500px;gap:48px;align-items:center}
-.cliHero h1{font-family:var(--disp);font-size:68px;line-height:1;letter-spacing:-2.6px;font-weight:650;text-wrap:balance}
-.cliHero h1 span{color:var(--violet-deep)}
-.cliHero p{font-size:18px;line-height:1.65;color:var(--ink2);max-width:620px;margin-top:20px}
-.cliCtas{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap}
-.term{background:var(--dark);color:#E8E8F0;border-radius:14px;padding:22px 24px;font-family:var(--mono);font-size:13px;line-height:1.8;box-shadow:0 24px 60px -18px rgba(46,16,101,.22);overflow-x:auto}
-.term .muted{color:#8E8E9C}.term .ok{color:#86EFAC}.term .cmd{color:#B7A3F0}
-.cliBand{border-bottom:1px solid var(--line);background:#fff}
-.cliIn{max-width:1180px;margin:0 auto;padding:58px 40px}
-.cliGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.cliCard{border:1px solid var(--line);border-radius:12px;background:#fff;padding:24px 24px}
-.cliCard h3{font-family:var(--disp);font-size:20px;letter-spacing:-.45px;margin-bottom:8px}
-.cliCard p{font-size:14px;line-height:1.62;color:var(--ink2)}
-.workflow{display:grid;grid-template-columns:320px minmax(0,1fr);gap:28px;align-items:start}
-.workflow h2{font-family:var(--disp);font-size:44px;line-height:1.05;letter-spacing:-1.5px;font-weight:620}
-.steps{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
-.step{display:grid;grid-template-columns:92px minmax(0,1fr);gap:18px;padding:22px 24px;border-top:1px solid var(--line)}
-.step:first-child{border-top:none}
-.step b{font-family:var(--mono);font-size:12px;color:var(--violet-deep)}
-.step h3{font-size:17px;font-weight:750;letter-spacing:-.25px;margin-bottom:5px}
-.step p{font-size:14px;line-height:1.6;color:var(--ink2)}
-.darkCta{background:var(--dark);color:#fff}
-.darkCta .cliIn{display:flex;align-items:center;justify-content:space-between;gap:28px}
-.darkCta h2{font-family:var(--disp);font-size:42px;line-height:1.05;letter-spacing:-1.4px;font-weight:620}
-.darkCta p{color:#C9C9CF;font-size:15px;line-height:1.6;margin-top:10px;max-width:640px}
+body{background:#F8F7F2;color:#151615}
+.cliHero{padding:86px 40px 74px}
+.cliHeroIn{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:.95fr 1.05fr;gap:46px;align-items:center}
+.eyepill{display:inline-flex;border:1px solid #04785733;background:#DDF7E6;border-radius:999px;padding:7px 12px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:1.7px;color:#065F46;text-transform:uppercase;margin-bottom:18px}
+.cliHero h1{font-family:var(--disp);font-size:64px;line-height:1.04;letter-spacing:-2.2px;font-weight:650;text-wrap:balance}
+.cliHero h1 span{display:block;color:#047857}
+.cliHero p{font-size:18px;line-height:1.65;color:#5F665F;max-width:650px;margin-top:22px}
+.cliCtas{display:flex;gap:12px;margin-top:30px;flex-wrap:wrap}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:560px;margin-top:36px}
+.stat{border-left:1px solid #0B0B0F20;padding-left:14px}
+.stat b{display:block;font-size:27px;letter-spacing:-.7px}
+.stat span{display:block;margin-top:4px;font-size:12px;line-height:1.45;color:#6D736C}
+.codeShell{border:1px solid #0B0B0F18;background:#fff;border-radius:8px;padding:16px;box-shadow:0 24px 70px -50px rgba(0,0,0,.45)}
+.codeTop{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.codeBrand{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700}
+.codeBrand img{width:28px;height:28px}
+.codeTop a{font-size:12px;font-weight:700;color:#047857;text-decoration:none}
+.term{overflow:hidden;border:1px solid #ffffff18;background:#111412;border-radius:8px;color:#DDFBE9}
+.termHead{display:flex;justify-content:space-between;border-bottom:1px solid #ffffff18;padding:12px 16px;color:#ffffff8c;font-size:12px}
+.termHead .dol{font-family:var(--mono);color:#86EFAC}
+.term pre{margin:0;padding:16px;font-family:var(--mono);font-size:12px;line-height:1.85;white-space:pre-wrap;overflow-x:auto}
+.cliBand{border-top:1px solid #0B0B0F18;background:#fff7}
+.cliIn{max-width:1180px;margin:0 auto;padding:72px 40px}
+.split{display:grid;grid-template-columns:.9fr 1.1fr;gap:36px;align-items:end}
+.kicker{font-family:var(--mono);font-size:11px;letter-spacing:1.9px;color:#047857;font-weight:800;text-transform:uppercase;margin-bottom:12px}
+.split h2,.use h2,.faq h2{font-family:var(--disp);font-size:38px;line-height:1.1;letter-spacing:-1.2px;font-weight:650}
+.split p{font-size:16px;line-height:1.7;color:#5F665F;margin-top:16px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{border:1px solid #0B0B0F18;background:#FBFAF6;border-radius:8px;padding:20px}
+.icon{width:20px;height:20px;margin-bottom:16px;color:#047857}
+.card h3,.panel h2,.use h3,.faq h3{font-size:16px;font-weight:760;letter-spacing:-.25px}
+.card p,.panel p,.use p,.faq p{font-size:14px;line-height:1.65;color:#626861;margin-top:8px}
+.panelGrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.panel{border:1px solid #0B0B0F18;background:#fff;border-radius:8px;padding:26px}
+.panelIcon{width:40px;height:40px;border:1px solid #04785733;background:#DDF7E6;color:#065F46;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:18px}
+.panel ul{margin:18px 0 0;padding:0;list-style:none;display:grid;gap:9px}
+.panel li{display:flex;gap:9px;font-size:14px;line-height:1.55}.panel li:before{content:"✓";color:#047857;font-weight:800}
+.use{background:#EBE8DE;border-top:1px solid #0B0B0F18;border-bottom:1px solid #0B0B0F18}
+.useGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:30px}
+.use article{border:1px solid #0B0B0F18;background:#F8F7F2;border-radius:8px;padding:20px}
+.faqBox{margin-top:28px;border:1px solid #0B0B0F18;background:#fff;border-radius:8px;overflow:hidden}
+.faqItem{padding:20px;border-top:1px solid #0B0B0F18}.faqItem:first-child{border-top:none}
+.finalCta{border-top:1px solid #0B0B0F18;background:#F8F7F2}
+.finalBox{max-width:1180px;margin:0 auto;padding:72px 40px}
+.finalIn{border-radius:8px;background:#151615;color:#fff;padding:34px;display:flex;justify-content:space-between;gap:28px;align-items:center}
+.finalIn h2{font-family:var(--disp);font-size:34px;line-height:1.12;letter-spacing:-1px;font-weight:650}
+.finalIn p{color:#ffffffb3;margin-top:10px;font-size:14px;line-height:1.65;max-width:660px}
 @media(max-width:900px){
-  .cliHeroIn,.workflow{grid-template-columns:1fr}
-  .cliHero h1{font-size:48px}
-  .cliGrid{grid-template-columns:1fr}
-  .darkCta .cliIn{display:block}
-  .darkCta .cliCtas{margin-top:24px}
+  .cliHero{padding:56px 22px 48px}.cliHeroIn,.split,.panelGrid{grid-template-columns:1fr}
+  .cliHero h1{font-size:43px}.stats,.useGrid,.cards{grid-template-columns:1fr}
+  .cliIn,.finalBox{padding:52px 22px}.finalIn{display:block}.finalIn .cliCtas{margin-top:24px}
 }
 </style><!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-5T5LPLSZ');</script>
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-NKH9LPX9');</script>
 <!-- End Google Tag Manager -->
-<meta name="description" content="Use the flatkey CLI to run GPT, Claude, Seedance, image, video and audio models from one terminal, one balance and one key.">
+<meta name="description" content="Generate images, videos, audio, and text from one command-line workflow with one Flatkey API key, one balance, local outputs, and agent-ready JSON.">
 <link rel="canonical" href="https://flatkey.ai/cli">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="flatkey.ai">
-<meta property="og:title" content="flatkey CLI — One command line for every media model">
-<meta property="og:description" content="Install flatkey CLI, authenticate once, and run text, image, video and audio workflows across official models from one terminal.">
+<meta property="og:title" content="Flatkey CLI for AI Media Teams">
+<meta property="og:description" content="Generate images, videos, audio, and text from one command-line workflow with one Flatkey API key, one balance, local outputs, and agent-ready JSON.">
 <meta property="og:url" content="https://flatkey.ai/cli">
 <meta property="og:image" content="https://flatkey.ai/assets/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@flatkey101">
-<meta name="twitter:title" content="flatkey CLI — One command line for every media model">
-<meta name="twitter:description" content="Run text, image, video and audio models from one terminal, one balance and one key.">
+<meta name="twitter:title" content="Flatkey CLI for AI Media Teams">
+<meta name="twitter:description" content="Run text, image, video and audio workflows from one terminal, one balance and one key.">
 <meta name="twitter:image" content="https://flatkey.ai/assets/og-image.png">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"flatkey CLI","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux, Windows","url":"https://flatkey.ai/cli"}</script>
 </head><body>
@@ -70,53 +89,78 @@
   <a class="btn black" href="/login">Start free -></a>
 </nav>
 
-<header class="cliHero">
+<main>
+<section class="cliHero">
   <div class="cliHeroIn">
     <div>
-      <div class="kick2">FLATKEY CLI</div>
-      <h1>One terminal for <span>every media model.</span></h1>
-      <p>flatkey CLI gives media teams one command line for prompt iteration, asset generation, batch jobs and handoff. Use GPT, Claude, Seedance, image, video and audio models behind one key and one balance.</p>
-      <div class="cliCtas"><a class="btn black big" href="https://github.com/flatkey-ai/flatkey-cli">Install CLI</a><a class="btn white big" href="/docs">Read docs</a></div>
+      <div class="eyepill">Flatkey CLI for media teams</div>
+      <h1>One CLI for every media generation job <span>from brief to files</span></h1>
+      <p>Generate images, videos, voiceovers, sound effects, music, and text from one Flatkey balance. Use it manually from the terminal, or wire it into Claude Code, Codex, Cursor, OpenClaw, and other agents.</p>
+      <div class="cliCtas"><a class="btn black big" href="https://www.npmjs.com/package/@flatkey-ai/cli">Install CLI</a><a class="btn white big" href="https://console.flatkey.ai/keys">Get API key</a></div>
+      <div class="stats">
+        <div class="stat"><b>1</b><span>API key for every command</span></div>
+        <div class="stat"><b>4</b><span>media types from one workflow</span></div>
+        <div class="stat"><b>JSON</b><span>clean output for agents</span></div>
+      </div>
     </div>
-    <pre class="term"><span class="muted"># install</span>
-<span class="cmd">npm install -g flatkey</span>
+    <div class="codeShell">
+      <div class="codeTop"><div class="codeBrand"><img src="assets/flatkey-mark.svg?v=4" alt="Flatkey">flatkey-cli</div><a href="https://github.com/flatkey-ai/flatkey-cli">GitHub</a></div>
+      <div class="term"><div class="termHead"><span>Install and create</span><span class="dol">$</span></div><pre>npm i -g @flatkey-ai/cli
+export FLATKEY_API_KEY=&lt;your-flatkey-api-key&gt;
 
-<span class="muted"># authenticate once</span>
-<span class="cmd">flatkey login</span>
-
-<span class="muted"># generate a campaign asset</span>
-<span class="cmd">flatkey generate image</span> "cinematic product shot"
-<span class="ok">saved ./flatkey-output/hero-001.png</span></pre>
-  </div>
-</header>
-
-<section class="cliBand">
-  <div class="cliIn">
-    <div class="cliGrid">
-      <div class="cliCard"><h3>Prompt once, switch models fast</h3><p>Move between image, video, audio and text models without rebuilding prompts in a different web app every time.</p></div>
-      <div class="cliCard"><h3>Batch the boring work</h3><p>Generate variants, storyboards, captions and exports from scripts, folders or spreadsheets instead of clicking through every asset.</p></div>
-      <div class="cliCard"><h3>Keep teams on one bill</h3><p>Every run uses your flatkey account, budget controls and official-model routing, so creative experiments stay visible.</p></div>
+flatkey image generate --prompt "editorial cover, neon city at dawn" -o cover.png
+flatkey video generate --prompt "cinematic product launch clip" --model seedance2 -o launch.mp4
+flatkey audio generate --prompt "Product launch voiceover" -o voice.mp3
+flatkey credits --json</pre></div>
     </div>
   </div>
 </section>
 
 <section class="cliBand">
-  <div class="cliIn workflow">
-    <div><div class="kick2">WORKFLOW</div><h2>From idea to deliverable without app hopping.</h2></div>
-    <div class="steps">
-      <div class="step"><b>01</b><div><h3>Start from a prompt or brief</h3><p>Paste the concept, reference notes or shot list. The CLI keeps the job reproducible for the next iteration.</p></div></div>
-      <div class="step"><b>02</b><div><h3>Generate across modalities</h3><p>Create stills, motion clips, copy, audio stems and variations through the same command surface.</p></div></div>
-      <div class="step"><b>03</b><div><h3>Export into the team workflow</h3><p>Save assets locally, wire commands into automation, and rerun the exact job when a client asks for one more version.</p></div></div>
+  <div class="cliIn split">
+    <div>
+      <div class="kicker">Production workflow</div>
+      <h2>From creative brief to local files</h2>
+      <p>Flatkey CLI gives media teams a repeatable production surface. Generate stills, video clips, voiceover, music, SFX, and copy without switching between dashboards or rebuilding the same prompt by hand.</p>
+    </div>
+    <div class="cards">
+      <article class="card"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 10l4.5-2.5v9L15 14"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg><h3>Video generation</h3><p>Create 9:16 clips, product reveals, first-frame/last-frame transitions, and reference-image video jobs from local files.</p></article>
+      <article class="card"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.9 5.7L20 10.5l-5 3.7L16.8 20 12 16.5 7.2 20 9 14.2l-5-3.7 6.1-1.8L12 3z"/></svg><h3>Image generation</h3><p>Make campaign stills, thumbnails, product concepts, covers, and visual options with saved local outputs.</p></article>
+      <article class="card"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg><h3>Audio generation</h3><p>Generate voiceover, sound effects, and music beds from the same CLI workflow.</p></article>
+      <article class="card"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 17l6-10 4 6 2-3 4 7"/><path d="M4 20h16"/></svg><h3>Text generation</h3><p>Draft hooks, titles, captions, scripts, and prompt variants before generating media.</p></article>
     </div>
   </div>
 </section>
 
-<section class="darkCta">
+<section class="cliBand">
   <div class="cliIn">
-    <div><h2>Use the models. Keep the workflow.</h2><p>flatkey CLI is built for operators who already know what they want to make. The terminal becomes the control plane for media generation.</p></div>
-    <div class="cliCtas"><a class="btn white big" href="https://github.com/flatkey-ai/flatkey-cli">Install CLI</a><a class="btn black big" href="/contact">Talk to us</a></div>
+    <div class="panelGrid">
+      <article class="panel"><div class="panelIcon">K</div><h2>One key. One balance. One ledger.</h2><p>Every command runs through Flatkey. Teams can see credits, model usage, request history, and cost behavior in one place instead of spreading media production across separate subscriptions.</p><ul><li>Check credits before a run.</li><li>Use dry-run before spending.</li><li>Keep generated files and request output tied to the same job folder.</li></ul></article>
+      <article class="panel"><div class="panelIcon">$</div><h2>Human-friendly. Agent-ready.</h2><p>Run Flatkey directly when you want control. Add --json, --dry-run, and --output when an AI agent or script needs predictable behavior.</p><ul><li>Predictable stdout for automation.</li><li>Local outputs for editing and review.</li><li>Model discovery before choosing a generation route.</li></ul><div class="term" style="margin-top:20px"><div class="termHead"><span>automation</span><span class="dol">$</span></div><pre>flatkey video generate \
+  --prompt "UGC product demo, handheld, 9:16" \
+  --model seedance2 \
+  --ratio 9:16 \
+  --dry-run \
+  --json</pre></div></article>
+    </div>
   </div>
 </section>
+
+<section class="use"><div class="cliIn"><h2>What media teams run with it</h2><div class="useGrid">
+  <article><h3>Batch ad concepts</h3><p>Generate multiple hooks, thumbnails, clips, and voiceover options for a campaign folder.</p></article>
+  <article><h3>Product launch assets</h3><p>Turn one brief into hero images, short videos, captions, and audio in one local workflow.</p></article>
+  <article><h3>Localization</h3><p>Create region-specific prompts, voiceovers, captions, and creative variants for US, Brazil, Japan, and other markets.</p></article>
+  <article><h3>AI agent production</h3><p>Let Claude Code, Codex, or another agent plan the creative, run Flatkey commands, save files, and report cost.</p></article>
+</div></div></section>
+
+<section class="cliBand faq"><div class="cliIn"><h2>CLI questions</h2><div class="faqBox">
+  <div class="faqItem"><h3>Is Flatkey CLI only for developers?</h3><p>No. It is a terminal workflow, but the job is media production: generate files, compare outputs, and keep costs visible.</p></div>
+  <div class="faqItem"><h3>Does it replace creative suites?</h3><p>No. Use creative suites when you need their visual editor. Use Flatkey CLI when you need repeatable generation, local outputs, automation, and one balance across models.</p></div>
+  <div class="faqItem"><h3>Can it generate video from local images?</h3><p>Yes. The CLI can upload local reference images and use image, first-frame, or last-frame inputs for supported video models.</p></div>
+</div></div></section>
+
+<section class="finalCta"><div class="finalBox"><div class="finalIn"><div><h2>Turn one brief into a production run</h2><p>Install Flatkey CLI, create a key, and start generating media files from one balance.</p></div><div class="cliCtas"><a class="btn white big" href="https://www.npmjs.com/package/@flatkey-ai/cli">Install CLI</a><a class="btn black big" href="https://console.flatkey.ai/keys">Create API key</a></div></div></div></section>
+</main>
 
 <footer class="megafoot">
   <div class="cols">

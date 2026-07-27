@@ -98,7 +98,7 @@ type CompareCopy = {
   };
 };
 
-const installCode = `npm install -g @flatkey-ai/cli
+const installCode = `npm i -g @flatkey-ai/cli
 export FLATKEY_API_KEY=<your-flatkey-api-key>
 
 flatkey image generate --prompt "editorial cover, neon city at dawn" -o cover.png
@@ -113,7 +113,7 @@ const agentCode = `flatkey video generate \\
   --dry-run \\
   --json`;
 
-const compareCode = `npm install -g @flatkey-ai/cli
+const compareCode = `npm i -g @flatkey-ai/cli
 flatkey onboard --api-key <your-flatkey-api-key>
 
 flatkey models --type video --json

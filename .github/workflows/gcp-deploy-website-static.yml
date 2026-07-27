@@ -126,13 +126,13 @@ jobs:
         run: |
           C="https://canary---newapi-web-5qjldqffdq-uw.a.run.app"
           # canonical static pages and assets
-          for p in "" models models/gpt-5.5 models/grok-imagine-image docs playground pricing compute usecases contact status terms privacy refund-policy sla about zh/about careers zh/careers install.sh llms.txt assets/team/amazon-accelerate-team.jpg assets/team/team-dinner.jpg; do
+          for p in "" models models/gpt-5.5 models/grok-imagine-image cli docs playground pricing compute usecases contact status terms privacy refund-policy sla about zh/about careers zh/careers install.sh llms.txt assets/team/amazon-accelerate-team.jpg assets/team/team-dinner.jpg; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 20 "$C/$p")
             echo "/$p -> $code"; [ "$code" = "200" ] || exit 1
           done
           # Every historical .html page permanently consolidates into one clean
           # canonical URL instead of returning a second indexable 200.
-          for pair in "models.html models" "docs.html docs" "playground.html playground" "topup.html pricing" "compute.html compute" "terms.html terms" "about.html about" "careers.html careers" "about-zh.html zh/about" "careers-zh.html zh/careers"; do
+          for pair in "models.html models" "cli.html cli" "docs.html docs" "playground.html playground" "topup.html pricing" "compute.html compute" "terms.html terms" "about.html about" "careers.html careers" "about-zh.html zh/about" "careers-zh.html zh/careers"; do
             set -- $pair
             curl -s -o /dev/null -w "%{http_code} %{redirect_url}" -m 20 "$C/$1" | grep -q "^301 $C/$2$" || { echo "/$1 redirect broken"; exit 1; }
           done
