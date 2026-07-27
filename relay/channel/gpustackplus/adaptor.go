@@ -220,6 +220,16 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		body["negative_prompt"] = np
 	}
 
+	// HunyuanImage-3.0 提示词模式(bot_task / sys_type / system_prompt)。门面对这些键
+	// 是通用透传(既不在 _CONTROL_KEYS 也不在 _ENGINE_OWNED_FIELDS),引擎的
+	// ImageTaskRequest 已声明它们,所以这里放进 body 就能一路到底。不传即快档:
+	// 引擎侧 bot_task 缺省为 None,requires_ar_generation(None) 为 False,AR 不唤醒。
+	for _, key := range hunyuanPromptKeys {
+		if v := imageStringExtraFrom(c, request, key); v != "" {
+			body[key] = v
+		}
+	}
+
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
 		body["task_type"] = "t2i"
@@ -393,6 +403,32 @@ func imageNegativePromptFrom(c *gin.Context, request dto.ImageRequest) string {
 		}
 	}
 	return strings.TrimSpace(c.PostForm("negative_prompt"))
+}
+
+// hunyuanPromptKeys HunyuanImage-3.0 的提示词模式开关(仅本渠道消费,不放共享 dto)。
+//
+// bot_task 决定引擎的自回归阶段跑不跑:image/vanilla 直接去噪(快档),
+// recaption/think/think_recaption 先让 AR 看图并改写提示词、预测输出比例(质量档)。
+// 实测两档差 2.8 倍耗时,收益随场景变化很大,所以必须是请求级参数而不是部署期固定。
+// sys_type / system_prompt 是配套的系统提示词覆盖。
+//
+// 白名单而非全量透传 Extra:Extra 装的是客户端发来的任意字段,而引擎侧的
+// ImageTaskRequest 是 extra="allow" 的,会照单全收——全量透传等于把引擎的参数面
+// 完全暴露给外部调用方。加字段只是往这个数组里补一行。
+var hunyuanPromptKeys = []string{"bot_task", "sys_type", "system_prompt"}
+
+// imageStringExtraFrom 取一个仅本渠道消费的字符串参数:
+// JSON 请求 → dto.Extra[key];multipart(edits)→ 表单字段。空则返回 ""。
+// 与 imageSeedFrom / imageNegativePromptFrom 同构:未知字段落在 dto.Extra 且其
+// MarshalJSON 不外泄 Extra,所以这里挑出来塞进本渠道 body 不会污染其它渠道。
+func imageStringExtraFrom(c *gin.Context, request dto.ImageRequest, key string) string {
+	if raw, ok := request.Extra[key]; ok && len(raw) > 0 {
+		var s string
+		if err := common.Unmarshal(raw, &s); err == nil {
+			return strings.TrimSpace(s)
+		}
+	}
+	return strings.TrimSpace(c.PostForm(key))
 }
 
 // userIDStr new-api 终端用户 id(字符串);与门面 user_id / NFS 路径 <user_id> 段一致。
