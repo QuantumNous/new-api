@@ -94,9 +94,6 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 	if err != nil {
 		return nil, err
 	}
-	if lo.FromPtr(openAIRequest.Stream) && len(openAIRequest.Tools) > 0 && supportsGLMToolStream(openAIRequest.Model) {
-		openAIRequest.ToolStream = lo.ToPtr(true)
-	}
 
 	// Convert messages
 	openAIMessages := make([]dto.Message, 0)
@@ -261,13 +258,6 @@ func claudeToolChoiceToOpenAI(rawChoice any) (any, *bool, error) {
 	default:
 		return nil, nil, fmt.Errorf("unsupported Claude tool_choice type %q", choice.Type)
 	}
-}
-
-func supportsGLMToolStream(model string) bool {
-	normalized := strings.ToLower(model)
-	return strings.Contains(normalized, "glm-4.6") ||
-		strings.Contains(normalized, "glm-4.7") ||
-		strings.Contains(normalized, "glm-5")
 }
 
 func generateStopBlock(index int) *dto.ClaudeResponse {
