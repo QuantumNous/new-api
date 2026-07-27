@@ -37,6 +37,7 @@ func TestSubscriptionPurchaseQuoteTokenRoundTrip(t *testing.T) {
 		time.Unix(1_753_268_500, 0),
 	)
 	require.NoError(t, err)
+	claims.DiscountKind = SubscriptionDiscountKindNone
 	require.Equal(t, claims, verified)
 }
 
@@ -70,6 +71,9 @@ func TestSubscriptionPurchaseQuoteTokenRoundTripWithFirstMonthDiscount(t *testin
 		time.Unix(1_753_268_500, 0),
 	)
 	require.NoError(t, err)
+	claims.DiscountKind = SubscriptionDiscountKindRecall
+	claims.OtherDiscountKind = SubscriptionDiscountKindRecall
+	claims.OtherDiscountAmountMinor = claims.DiscountAmountMinor
 	require.Equal(t, claims, verified)
 }
 
@@ -408,8 +412,44 @@ func TestSubscriptionPurchaseQuoteTokenVerifiesLegacyTokenWithoutDiscountFields(
 
 	verified, err := VerifySubscriptionPurchaseQuoteToken(token, time.Unix(1_753_268_500, 0))
 	require.NoError(t, err)
+	require.Equal(t, SubscriptionDiscountKindNone, verified.DiscountKind)
 	require.Zero(t, verified.DiscountAmountMinor)
+	require.Zero(t, verified.OtherDiscountAmountMinor)
 	require.Zero(t, verified.RecallCampaignID)
 	require.Zero(t, verified.RecallRecipientID)
 	require.Equal(t, int64(29940), verified.TotalAmountMinor)
+}
+
+func TestSubscriptionPurchaseQuoteTokenNormalizesLegacyRecallToken(t *testing.T) {
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "subscription-quote-test-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+
+	legacyPayload, err := common.Marshal(map[string]any{
+		"v":                     1,
+		"uid":                   17,
+		"pid":                   3,
+		"payment_choice":        SubscriptionPaymentChoicePix,
+		"months":                3,
+		"request_id":            "purchase-request-17",
+		"currency":              "BRL",
+		"unit_amount_minor":     10000,
+		"discount_amount_minor": 2000,
+		"total_amount_minor":    28000,
+		"recall_campaign_id":    42,
+		"recall_recipient_id":   99,
+		"plan_revision":         1_753_268_400,
+		"expires_at":            1_753_269_000,
+	})
+	require.NoError(t, err)
+	encodedPayload := base64.RawURLEncoding.EncodeToString(legacyPayload)
+	token := encodedPayload + "." + common.GenerateHMAC(encodedPayload)
+
+	verified, err := VerifySubscriptionPurchaseQuoteToken(token, time.Unix(1_753_268_500, 0))
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionDiscountKindRecall, verified.DiscountKind)
+	require.Equal(t, SubscriptionDiscountKindRecall, verified.OtherDiscountKind)
+	require.Equal(t, int64(2000), verified.OtherDiscountAmountMinor)
+	require.Equal(t, int64(42), verified.RecallCampaignID)
+	require.Equal(t, int64(99), verified.RecallRecipientID)
 }

@@ -178,6 +178,10 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		common.ApiError(c, service.ErrSubscriptionPurchaseInvitationReservationRequired)
 		return
 	}
+	if choice == service.SubscriptionPaymentChoiceStripeRecurring && claims.DiscountKind == service.SubscriptionDiscountKindRecall {
+		common.ApiErrorMsg(c, "subscription purchase quote mismatch")
+		return
+	}
 
 	result, err := service.PurchaseSubscription(service.PurchaseSubscriptionCommand{
 		UserID:        userID,
@@ -233,39 +237,6 @@ func validateSubscriptionSelfPurchaseResultQuote(result *service.PurchaseSubscri
 	}
 	if order == nil {
 		return nil
-	}
-	if claims.PaymentChoice == service.SubscriptionPaymentChoiceStripeRecurring {
-		updates := map[string]interface{}{
-			"payment_currency":     claims.Currency,
-			"payment_amount_minor": order.PaymentAmountMinor,
-			"money":                order.Money,
-		}
-		if order.PaymentAmountMinor != claims.TotalAmountMinor {
-			updates["payment_amount_minor"] = claims.TotalAmountMinor
-			updates["money"] = float64(claims.TotalAmountMinor) / 100
-		}
-		if claims.DiscountKind == service.SubscriptionDiscountKindRecall {
-			updates["recall_campaign_id"] = claims.RecallCampaignID
-			updates["recall_recipient_id"] = claims.RecallRecipientID
-			updates["recall_discount_amount_minor"] = claims.DiscountAmountMinor
-		} else {
-			updates["recall_campaign_id"] = int64(0)
-			updates["recall_recipient_id"] = int64(0)
-			updates["recall_promotion_code_id"] = ""
-			updates["recall_discount_amount_minor"] = int64(0)
-		}
-		if err := model.DB.Model(&model.SubscriptionOrder{}).Where("id = ?", order.Id).Updates(updates).Error; err != nil {
-			return err
-		}
-		order.PaymentCurrency = claims.Currency
-		order.PaymentAmountMinor = claims.TotalAmountMinor
-		order.Money = float64(claims.TotalAmountMinor) / 100
-		order.RecallCampaignId = claims.RecallCampaignID
-		order.RecallRecipientId = claims.RecallRecipientID
-		order.RecallDiscountAmountMinor = claims.DiscountAmountMinor
-		if claims.DiscountKind != service.SubscriptionDiscountKindRecall {
-			order.RecallPromotionCodeId = ""
-		}
 	}
 	if strings.ToUpper(strings.TrimSpace(order.PaymentCurrency)) != claims.Currency ||
 		order.PaymentAmountMinor != claims.TotalAmountMinor {

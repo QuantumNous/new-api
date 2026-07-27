@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
@@ -454,7 +455,7 @@ func TestSubscriptionSelfPurchaseCreatesOneTimeStripeCheckoutAndReplaysURL(t *te
 	require.Equal(t, "cs_test_self_purchase", topUps[0].GatewayTradeNo)
 }
 
-func TestSubscriptionSelfPurchaseStripeRecurringForwardsRecallClaimToCheckout(t *testing.T) {
+func TestSubscriptionSelfPurchaseStripeRecurringRecallFailsClosedBeforeCheckout(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
 	require.NoError(t, model.DB.AutoMigrate(
@@ -540,10 +541,11 @@ func TestSubscriptionSelfPurchaseStripeRecurringForwardsRecallClaimToCheckout(t 
 	)
 
 	require.Equal(t, http.StatusOK, purchase.Code)
-	require.Contains(t, purchase.Body.String(), "https://checkout.example/self-recall")
-	require.Equal(t, "promo_self_purchase_recall", form.Get("discounts[0][promotion_code]"))
-	require.Equal(t, strconv.FormatInt(campaign.Id, 10), form.Get("metadata[recall_campaign_id]"))
-	require.Equal(t, strconv.FormatInt(recipient.Id, 10), form.Get("subscription_data[metadata][recall_recipient_id]"))
+	require.Contains(t, purchase.Body.String(), "subscription purchase quote mismatch")
+	require.Nil(t, form)
+	var count int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9117).Count(&count).Error)
+	require.Zero(t, count)
 }
 
 func TestSubscriptionSelfOneTimeReplayRejectsSessionWithoutURLOrClientSecret(t *testing.T) {
@@ -839,6 +841,101 @@ func TestSubscriptionSelfPurchaseStripeRecurringRequiresQuote(t *testing.T) {
 	var count int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9118).Count(&count).Error)
 	require.Zero(t, count)
+}
+
+func TestSubscriptionSelfPurchaseRejectsRecurringOrderMismatchWithoutMutation(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	insertSubscriptionControllerUser(t, 9120)
+	insertSubscriptionSelfPurchasePlan(t, 9220)
+	intent := model.SubscriptionChangeIntent{
+		UserId:      9120,
+		ToPlanId:    9220,
+		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+		Status:      model.SubscriptionChangeIntentStatusAwaitingPayment,
+	}
+	require.NoError(t, model.DB.Create(&intent).Error)
+	order := model.SubscriptionOrder{
+		UserId:             9120,
+		PlanId:             9220,
+		Money:              9.99,
+		TradeNo:            "SUBSTRUSR9120INT1",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		PaymentCurrency:    "USD",
+		PaymentAmountMinor: 999,
+		Status:             common.TopUpStatusPending,
+		CreateTime:         common.GetTimestamp(),
+		ChangeIntentId:     intent.Id,
+	}
+	require.NoError(t, model.DB.Create(&order).Error)
+	claims := service.SubscriptionPurchaseQuoteTokenClaims{
+		Version:             2,
+		UserID:              9120,
+		PlanID:              9220,
+		PaymentChoice:       service.SubscriptionPaymentChoiceStripeRecurring,
+		Months:              1,
+		RequestID:           "recurring-recall-mismatch",
+		Currency:            "USD",
+		UnitAmountMinor:     999,
+		DiscountKind:        service.SubscriptionDiscountKindRecall,
+		DiscountAmountMinor: 200,
+		TotalAmountMinor:    799,
+		RecallCampaignID:    42,
+		RecallRecipientID:   99,
+	}
+
+	err := validateSubscriptionSelfPurchaseResultQuote(&service.PurchaseSubscriptionResult{
+		Status: service.ChangePlanStatusCheckoutRequired,
+		Intent: &intent,
+	}, claims)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "quote mismatch")
+	var stored model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&stored, order.Id).Error)
+	require.Equal(t, int64(999), stored.PaymentAmountMinor)
+	require.Equal(t, float64(9.99), stored.Money)
+	require.Zero(t, stored.RecallCampaignId)
+	require.Zero(t, stored.RecallRecipientId)
+	require.Zero(t, stored.RecallDiscountAmountMinor)
+}
+
+func TestSubscriptionSelfPurchaseAcceptsLegacyNoDiscountQuoteAfterNormalization(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "controller-subscription-legacy-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+	insertSubscriptionControllerUser(t, 9122)
+	plan := insertSubscriptionSelfPurchasePlan(t, 9222)
+	legacyPayload, err := common.Marshal(map[string]any{
+		"v":                  1,
+		"uid":                9122,
+		"pid":                9222,
+		"payment_choice":     service.SubscriptionPaymentChoicePix,
+		"months":             1,
+		"request_id":         "legacy-no-discount",
+		"currency":           "BRL",
+		"unit_amount_minor":  4990,
+		"total_amount_minor": 4990,
+		"plan_revision":      subscriptionPurchasePlanRevision(&plan),
+		"expires_at":         time.Now().Add(time.Minute).Unix(),
+	})
+	require.NoError(t, err)
+	encodedPayload := base64.RawURLEncoding.EncodeToString(legacyPayload)
+	token := encodedPayload + "." + common.GenerateHMAC(encodedPayload)
+
+	claims, err := validateSubscriptionSelfPurchaseQuote(SubscriptionSelfPurchaseRequest{
+		PlanID:        9222,
+		PaymentMethod: service.SubscriptionPaymentChoicePix,
+		PaymentChoice: service.SubscriptionPaymentChoicePix,
+		Months:        1,
+		RequestID:     "legacy-no-discount",
+		QuoteID:       token,
+	}, 9122, service.SubscriptionPaymentChoicePix)
+
+	require.NoError(t, err)
+	require.Equal(t, service.SubscriptionDiscountKindNone, claims.DiscountKind)
 }
 
 func TestSubscriptionSelfPurchaseRejectsRecurringInvitationQuoteUntilReservationSupport(t *testing.T) {
