@@ -438,10 +438,15 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 type MediaResolution string
 
 type GeminiChatCandidate struct {
-	Content       GeminiChatContent        `json:"content"`
-	FinishReason  *string                  `json:"finishReason"`
-	Index         int64                    `json:"index"`
-	SafetyRatings []GeminiChatSafetyRating `json:"safetyRatings"`
+	Content           GeminiChatContent        `json:"content"`
+	FinishReason      *string                  `json:"finishReason"`
+	Index             int64                    `json:"index"`
+	SafetyRatings     []GeminiChatSafetyRating `json:"safetyRatings"`
+	GroundingMetadata *GeminiGroundingMetadata `json:"groundingMetadata,omitempty"`
+}
+
+type GeminiGroundingMetadata struct {
+	WebSearchQueries []string `json:"webSearchQueries,omitempty"`
 }
 
 type GeminiChatSafetyRating struct {

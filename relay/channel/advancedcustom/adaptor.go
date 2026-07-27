@@ -193,6 +193,51 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return a.routeURL(info)
 }
 
+func (a *Adaptor) BuildModelListRequest(info *relaycommon.RelayInfo) (string, http.Header, error) {
+	if info == nil {
+		return "", nil, errors.New("missing relay info")
+	}
+	config := info.ChannelOtherSettings.AdvancedCustom
+	if config == nil {
+		return "", nil, errors.New("advanced_custom is required")
+	}
+	if err := config.Validate(); err != nil {
+		return "", nil, err
+	}
+	route, ok := config.ModelListRoute()
+	if !ok {
+		return "", nil, errors.New("advanced custom channel does not configure a /v1/models route")
+	}
+	converter := strings.TrimSpace(route.Converter)
+	if converter == "" {
+		converter = relayconvert.ConverterNone
+	}
+	if converter != relayconvert.ConverterNone {
+		return "", nil, fmt.Errorf("converter %q does not support model list requests", converter)
+	}
+
+	requestURL, err := buildRouteURL(route, converter, info)
+	if err != nil {
+		return "", nil, err
+	}
+
+	header := http.Header{}
+	auth := route.Auth
+	if auth == nil {
+		header.Set("Authorization", "Bearer "+info.ApiKey)
+		return requestURL, header, nil
+	}
+
+	switch strings.TrimSpace(auth.Type) {
+	case dto.AdvancedCustomAuthTypeNone, dto.AdvancedCustomAuthTypeQuery:
+	case dto.AdvancedCustomAuthTypeHeader:
+		header.Set(strings.TrimSpace(auth.Name), applyAuthTemplate(auth.Value, info.ApiKey))
+	default:
+		return "", nil, fmt.Errorf("invalid advanced custom auth type: %s", auth.Type)
+	}
+	return requestURL, header, nil
+}
+
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	if err := a.resolve(c, info); err != nil {
 		return err
@@ -343,11 +388,15 @@ func incomingRequestPath(c *gin.Context, info *relaycommon.RelayInfo) string {
 }
 
 func (a *Adaptor) routeURL(info *relaycommon.RelayInfo) (string, error) {
-	parsedURL, err := resolveUpstreamTargetURL(applyUpstreamPathTemplate(strings.TrimSpace(a.route.UpstreamPath), info), info)
+	return buildRouteURL(a.route, a.converter, info)
+}
+
+func buildRouteURL(route dto.AdvancedCustomRoute, converter string, info *relaycommon.RelayInfo) (string, error) {
+	parsedURL, err := resolveUpstreamTargetURL(applyUpstreamPathTemplate(strings.TrimSpace(route.UpstreamPath), info), info)
 	if err != nil {
 		return "", err
 	}
-	if shouldUseGeminiStreamURL(a.converter, info) {
+	if shouldUseGeminiStreamURL(converter, info) {
 		useGeminiStreamGenerateContentURL(parsedURL)
 	}
 	if info != nil && info.RelayMode == relayconstant.RelayModeRealtime {
@@ -358,9 +407,9 @@ func (a *Adaptor) routeURL(info *relaycommon.RelayInfo) (string, error) {
 			parsedURL.Scheme = "ws"
 		}
 	}
-	if a.route.Auth != nil && strings.TrimSpace(a.route.Auth.Type) == dto.AdvancedCustomAuthTypeQuery {
+	if route.Auth != nil && strings.TrimSpace(route.Auth.Type) == dto.AdvancedCustomAuthTypeQuery {
 		query := parsedURL.Query()
-		query.Set(strings.TrimSpace(a.route.Auth.Name), applyAuthTemplate(a.route.Auth.Value, info.ApiKey))
+		query.Set(strings.TrimSpace(route.Auth.Name), applyAuthTemplate(route.Auth.Value, info.ApiKey))
 		parsedURL.RawQuery = query.Encode()
 	}
 	return parsedURL.String(), nil

@@ -505,6 +505,13 @@ func InvalidateUserTokensCache(userId int) error {
 		Find(&tokens).Error; err != nil {
 		return err
 	}
+	return invalidateTokensCache(tokens)
+}
+
+func invalidateTokensCache(tokens []Token) error {
+	if !common.RedisEnabled {
+		return nil
+	}
 	var firstErr error
 	for _, t := range tokens {
 		if t.Key == "" {
