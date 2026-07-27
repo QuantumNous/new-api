@@ -226,6 +226,7 @@ export const channelFormSchema = z
       .optional()
       .refine(isOptionalProxyURL, ERROR_MESSAGES.INVALID_PROXY),
     pass_through_body_enabled: z.boolean().optional(),
+    enable_thinking_signature_fallback: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
     // Type-specific settings (stored in settings JSON)
@@ -379,6 +380,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   thinking_to_content: false,
   proxy: '',
   pass_through_body_enabled: false,
+  enable_thinking_signature_fallback: false,
   system_prompt: '',
   system_prompt_override: false,
   // Type-specific settings
@@ -417,6 +419,7 @@ export function transformChannelToFormDefaults(
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    enable_thinking_signature_fallback: false,
     system_prompt: '',
     system_prompt_override: false,
   }
@@ -429,6 +432,8 @@ export function transformChannelToFormDefaults(
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
+        enable_thinking_signature_fallback:
+          parsed.enable_thinking_signature_fallback === true,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
       }
@@ -546,6 +551,8 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.proxy?.trim() || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
+    enable_thinking_signature_fallback:
+      formData.enable_thinking_signature_fallback || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
   }
