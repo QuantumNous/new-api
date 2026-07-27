@@ -152,7 +152,10 @@ export function touchSession<T extends PlaygroundSession>(session: T): T {
 export function sortSessionsByUpdatedAt(
   sessions: PlaygroundSession[]
 ): PlaygroundSession[] {
-  return [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)
+  return [...sessions].sort((a, b) => {
+    if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1
+    return b.updatedAt - a.updatedAt
+  })
 }
 
 export function listSessionsForModality(

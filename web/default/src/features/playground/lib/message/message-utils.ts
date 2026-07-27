@@ -39,10 +39,25 @@ export function createMessageVersion(content: string): MessageVersion {
 }
 
 /**
- * Get current version from message (always returns the first version)
+ * Index of the version being displayed/streamed. Defaults to the latest
+ * version so regenerated answers surface immediately.
+ */
+export function getActiveVersionIndex(message: Message): number {
+  const lastIndex = Math.max(message.versions.length - 1, 0)
+  const index = message.activeVersion ?? lastIndex
+  return Math.min(Math.max(index, 0), lastIndex)
+}
+
+/**
+ * Get the active version from a message.
  */
 export function getCurrentVersion(message: Message): MessageVersion {
-  return message.versions[0] || { id: 'default', content: '' }
+  return (
+    message.versions[getActiveVersionIndex(message)] || {
+      id: 'default',
+      content: '',
+    }
+  )
 }
 
 /**
@@ -60,17 +75,64 @@ export function hasMessageContent(message: Message): boolean {
 }
 
 /**
- * Update current version content in message
+ * Update the active version's content, preserving the other versions.
  */
 export function updateCurrentVersionContent(
   message: Message,
   content: string
 ): Message {
-  const currentVersion = getCurrentVersion(message)
+  if (message.versions.length === 0) {
+    return { ...message, versions: [createMessageVersion(content)] }
+  }
+  const index = getActiveVersionIndex(message)
+  const versions = [...message.versions]
+  versions[index] = { ...versions[index], content }
+  return { ...message, versions }
+}
+
+export const MAX_MESSAGE_VERSIONS = 8
+
+/**
+ * Start a fresh regeneration on an assistant message: append an empty
+ * version, make it active, and reset streaming state. Oldest versions are
+ * dropped beyond MAX_MESSAGE_VERSIONS to bound storage.
+ */
+export function addAssistantMessageVersion(
+  message: Message,
+  model?: string
+): Message {
+  const startedAt = Date.now()
+  const versions = [...message.versions, createMessageVersion('')]
+  while (versions.length > MAX_MESSAGE_VERSIONS) versions.shift()
   return {
     ...message,
-    versions: [{ ...currentVersion, content }],
+    versions,
+    activeVersion: versions.length - 1,
+    startedAt,
+    completedAt: undefined,
+    durationMs: undefined,
+    usage: undefined,
+    sources: undefined,
+    model: model || message.model,
+    reasoning: undefined,
+    isReasoningComplete: false,
+    isContentComplete: false,
+    isReasoningStreaming: false,
+    status: MESSAGE_STATUS.LOADING,
   }
+}
+
+/**
+ * Switch which stored version an assistant message displays.
+ */
+export function setMessageActiveVersion(
+  message: Message,
+  index: number
+): Message {
+  if (index < 0 || index >= message.versions.length) {
+    return message
+  }
+  return { ...message, activeVersion: index }
 }
 
 /**

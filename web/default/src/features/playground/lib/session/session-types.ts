@@ -30,6 +30,8 @@ export type PlaygroundSessionBase = {
   draft?: string
   /** True for empty drafts that should stay out of the history list. */
   isDraft?: boolean
+  /** Pinned threads sort above the rest of the history list. */
+  pinned?: boolean
 }
 
 /** Immutable studio generation attached to a project. */

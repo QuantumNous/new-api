@@ -102,6 +102,11 @@ export interface Message {
   key: string
   from: MessageRole
   versions: MessageVersion[]
+  /**
+   * Index of the displayed version. Regenerate appends a version instead of
+   * overwriting; absent means the latest version.
+   */
+  activeVersion?: number
   /** Inline images and PDFs attached to a user turn */
   attachments?: ChatAttachment[]
   createdAt?: number

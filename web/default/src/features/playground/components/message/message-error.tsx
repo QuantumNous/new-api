@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { AlertCircle, AlertTriangle, Settings } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Settings, Wallet } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -47,6 +47,7 @@ import {
   getMessageErrorState,
   isAdminRole,
   MODEL_PRICING_SETTINGS_PATH,
+  TOPUP_PATH,
 } from '../../lib'
 import type { Message } from '../../types'
 
@@ -95,6 +96,47 @@ export function MessageError({
               {t('Go to Settings')}
             </Button>
           )}
+          {actions}
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (errorState.kind === 'quota') {
+    return (
+      <Alert variant='default' className={className}>
+        <Wallet className='text-orange-500' />
+        <AlertTitle>{t('Insufficient balance')}</AlertTitle>
+        <AlertDescription className='space-y-2'>
+          <p>
+            {t(
+              'Your balance is not enough to run this model. Top up to continue the conversation.'
+            )}
+          </p>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => window.open(TOPUP_PATH, '_blank')}
+          >
+            {t('Top up')}
+          </Button>
+          {actions}
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (errorState.kind === 'model-unavailable') {
+    return (
+      <Alert variant='default' className={className}>
+        <AlertTriangle className='text-orange-500' />
+        <AlertTitle>{t('Model unavailable')}</AlertTitle>
+        <AlertDescription className='space-y-2'>
+          <p>
+            {t(
+              'This model is temporarily unavailable. Pick another model from the catalog and try again.'
+            )}
+          </p>
           {actions}
         </AlertDescription>
       </Alert>

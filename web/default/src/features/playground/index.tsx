@@ -66,15 +66,17 @@ import {
   usePlaygroundOptions,
   useSessionCloudSync,
 } from './hooks'
+import { useAutoChatTitle } from './hooks/use-auto-chat-title'
 import { useStudio } from './hooks/use-studio'
 import { persistGeneratedMediaAsset } from './lib/download-generated-media'
 import {
   extractManagedSearchResult,
   updateManagedAssistant,
 } from './lib/managed-tools'
+import { setMessageActiveVersion } from './lib/message/message-utils'
 import { isPlaygroundImageModel } from './lib/studio/image-request-schema'
 import { getModelModality } from './lib/studio/model-modality'
-import type { PlaygroundConfig, StudioModality } from './types'
+import type { Message, PlaygroundConfig, StudioModality } from './types'
 
 export function Playground() {
   const { t } = useTranslation()
@@ -126,6 +128,7 @@ export function Playground() {
   const clearMessages = usePlaygroundStore((state) => state.clearMessages)
 
   useSessionCloudSync(isAuthenticated)
+  useAutoChatTitle(isAuthenticated)
   const updateConfig = useCallback(
     <K extends keyof PlaygroundConfig>(key: K, value: PlaygroundConfig[K]) => {
       patchConfig({ [key]: value })
@@ -421,6 +424,17 @@ export function Playground() {
     activeModel: config.model,
   })
 
+  const handleSelectMessageVersion = useCallback(
+    (message: Message, index: number) => {
+      updateMessages((prev) =>
+        prev.map((item) =>
+          item.key === message.key ? setMessageActiveVersion(item, index) : item
+        )
+      )
+    },
+    [updateMessages]
+  )
+
   const handleClearMessages = () => {
     handleEditOpenChange(false)
     clearMessages()
@@ -662,6 +676,7 @@ export function Playground() {
               onRegenerateMessage={handleRegenerateMessage}
               onEditMessage={handleEditMessage}
               onDeleteMessage={handleDeleteMessage}
+              onSelectMessageVersion={handleSelectMessageVersion}
               onSelectPrompt={handleSendMessage}
               isGenerating={isGenerating}
               editingKey={editingMessageKey}

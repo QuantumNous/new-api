@@ -37,6 +37,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ChatAttachment, Message } from '../../types'
 import {
+  addAssistantMessageVersion,
   createLoadingAssistantMessage,
   createUserMessage,
   getMessageContent,
@@ -82,7 +83,16 @@ export function createRegeneratedMessages(
     return null
   }
 
-  if (messages[messageIndex].from === MESSAGE_ROLES.USER) {
+  const target = messages[messageIndex]
+
+  if (target.from === MESSAGE_ROLES.USER) {
+    const next = messages[messageIndex + 1]
+    if (next && next.from === MESSAGE_ROLES.ASSISTANT) {
+      return [
+        ...messages.slice(0, messageIndex + 1),
+        addAssistantMessageVersion(next, model),
+      ]
+    }
     return [
       ...messages.slice(0, messageIndex + 1),
       createLoadingAssistantMessage(Date.now(), model),
@@ -91,7 +101,7 @@ export function createRegeneratedMessages(
 
   return [
     ...messages.slice(0, messageIndex),
-    createLoadingAssistantMessage(Date.now(), model),
+    addAssistantMessageVersion(target, model),
   ]
 }
 

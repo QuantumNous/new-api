@@ -112,7 +112,11 @@ type PlaygroundConversation struct {
 	// Kind distinguishes plain chat threads from multi-model (duo) sessions.
 	Kind string `json:"kind" gorm:"type:varchar(20);index"` // chat | duo
 	// MetaJson stores kind-specific config (e.g. duo answer/summary models).
-	MetaJson  string `json:"meta_json" gorm:"type:text"`
+	MetaJson string `json:"meta_json" gorm:"type:text"`
+	Pinned   bool   `json:"pinned"`
+	// Source is the client that created the thread: "web" | "desktop".
+	// Empty on legacy rows (treated as web).
+	Source    string `json:"source" gorm:"type:varchar(20)"`
 	CreatedAt int64  `json:"created_at" gorm:"bigint;index"`
 	UpdatedAt int64  `json:"updated_at" gorm:"bigint;index"`
 }
@@ -140,6 +144,8 @@ type PlaygroundMessage struct {
 	ToolJson string `json:"tool_json" gorm:"type:text"`
 	// ClientKey is the frontend message key used for idempotent merge.
 	ClientKey string `json:"client_key" gorm:"type:varchar(64)"`
+	// Source is the client that wrote the turn: "web" | "desktop". Empty = web.
+	Source    string `json:"source" gorm:"type:varchar(20)"`
 	Seq       int    `json:"seq" gorm:"not null;index"`
 	CreatedAt int64  `json:"created_at" gorm:"bigint"`
 }
@@ -467,8 +473,17 @@ func ListPlaygroundConversations(userId int, offset, limit int) ([]PlaygroundCon
 		return nil, 0, err
 	}
 	var items []PlaygroundConversation
-	err := q.Order("updated_at DESC").Offset(offset).Limit(limit).Find(&items).Error
+	err := q.Order("pinned DESC, updated_at DESC").Offset(offset).Limit(limit).Find(&items).Error
 	return items, total, err
+}
+
+// ListPlaygroundConversationsSince returns threads changed at or after the
+// cursor, oldest change first so clients can advance the cursor as they page.
+func ListPlaygroundConversationsSince(userId int, since int64, limit int) ([]PlaygroundConversation, error) {
+	var items []PlaygroundConversation
+	err := DB.Where("user_id = ? AND updated_at >= ?", userId, since).
+		Order("updated_at ASC, id ASC").Limit(limit).Find(&items).Error
+	return items, err
 }
 
 func UpdatePlaygroundConversation(c *PlaygroundConversation) error {
@@ -479,6 +494,7 @@ func UpdatePlaygroundConversation(c *PlaygroundConversation) error {
 		"group":      c.Group,
 		"kind":       c.Kind,
 		"meta_json":  c.MetaJson,
+		"pinned":     c.Pinned,
 		"updated_at": c.UpdatedAt,
 	}).Error
 }
@@ -613,6 +629,84 @@ func ListPlaygroundMessages(conversationId, userId int) ([]PlaygroundMessage, er
 	var items []PlaygroundMessage
 	err := DB.Where("conversation_id = ? AND user_id = ?", conversationId, userId).
 		Order("seq ASC, id ASC").Find(&items).Error
+	return items, err
+}
+
+// AppendPlaygroundMessages adds turns to the end of a conversation.
+// Rows whose client_key already exists in the thread are skipped, so clients
+// can retry the same batch safely. Returns the rows actually inserted.
+func AppendPlaygroundMessages(conversationId, userId int, messages []PlaygroundMessage) ([]PlaygroundMessage, error) {
+	var inserted []PlaygroundMessage
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var conv PlaygroundConversation
+		// Lock the thread row to serialize seq assignment across clients.
+		if err := lockForUpdate(tx).Where("id = ? AND user_id = ?", conversationId, userId).First(&conv).Error; err != nil {
+			return err
+		}
+
+		keys := make([]string, 0, len(messages))
+		for _, m := range messages {
+			if m.ClientKey != "" {
+				keys = append(keys, m.ClientKey)
+			}
+		}
+		existing := make(map[string]bool, len(keys))
+		if len(keys) > 0 {
+			var found []string
+			if err := tx.Model(&PlaygroundMessage{}).
+				Where("conversation_id = ? AND client_key IN ?", conversationId, keys).
+				Pluck("client_key", &found).Error; err != nil {
+				return err
+			}
+			for _, k := range found {
+				existing[k] = true
+			}
+		}
+
+		var maxSeq int
+		row := tx.Model(&PlaygroundMessage{}).
+			Where("conversation_id = ?", conversationId).
+			Select("COALESCE(MAX(seq), -1)").Row()
+		if err := row.Scan(&maxSeq); err != nil {
+			return err
+		}
+
+		now := time.Now().Unix()
+		for _, m := range messages {
+			if m.ClientKey != "" && existing[m.ClientKey] {
+				continue
+			}
+			maxSeq++
+			m.Id = 0
+			m.ConversationId = conversationId
+			m.UserId = userId
+			m.Seq = maxSeq
+			if m.CreatedAt == 0 {
+				m.CreatedAt = now
+			}
+			if err := tx.Create(&m).Error; err != nil {
+				return err
+			}
+			if m.ClientKey != "" {
+				existing[m.ClientKey] = true
+			}
+			inserted = append(inserted, m)
+		}
+		return tx.Model(&PlaygroundConversation{}).Where("id = ?", conversationId).Update("updated_at", now).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return inserted, nil
+}
+
+// ListPlaygroundMessagesPage returns up to limit rows with id > sinceId in
+// thread order, so clients can both bootstrap (sinceId=0, loop) and poll for
+// turns written after the ones they already hold.
+func ListPlaygroundMessagesPage(conversationId, userId, sinceId, limit int) ([]PlaygroundMessage, error) {
+	var items []PlaygroundMessage
+	err := DB.Where("conversation_id = ? AND user_id = ? AND id > ?", conversationId, userId, sinceId).
+		Order("id ASC").Limit(limit).Find(&items).Error
 	return items, err
 }
 

@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Edit,
   FileCode2,
@@ -43,6 +45,7 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { MESSAGE_ACTION_LABELS } from '../../constants'
 import { useMessageActionGuard } from '../../hooks/use-message-action-guard'
 import {
+  getActiveVersionIndex,
   getMessageActionState,
   getMessageActionsVisibilityClass,
 } from '../../lib'
@@ -56,10 +59,51 @@ interface MessageActionsProps {
   onToggleSource?: (message: Message) => void
   onEdit?: (message: Message) => void
   onDelete?: (message: Message) => void
+  onSelectVersion?: (message: Message, index: number) => void
   isSourceVisible?: boolean
   isGenerating?: boolean
   alwaysVisible?: boolean
   className?: string
+}
+
+function MessageVersionSwitcher({
+  message,
+  disabled,
+  onSelectVersion,
+}: {
+  message: Message
+  disabled: boolean
+  onSelectVersion: (message: Message, index: number) => void
+}) {
+  const { t } = useTranslation()
+  const activeIndex = getActiveVersionIndex(message)
+  const total = message.versions.length
+
+  return (
+    <div className='text-muted-foreground flex items-center text-xs tabular-nums'>
+      <button
+        type='button'
+        aria-label={t('Previous version')}
+        disabled={disabled || activeIndex === 0}
+        onClick={() => onSelectVersion(message, activeIndex - 1)}
+        className='hover:text-foreground flex size-6 items-center justify-center rounded disabled:opacity-40'
+      >
+        <ChevronLeft className='size-3.5' aria-hidden='true' />
+      </button>
+      <span>
+        {activeIndex + 1}/{total}
+      </span>
+      <button
+        type='button'
+        aria-label={t('Next version')}
+        disabled={disabled || activeIndex === total - 1}
+        onClick={() => onSelectVersion(message, activeIndex + 1)}
+        className='hover:text-foreground flex size-6 items-center justify-center rounded disabled:opacity-40'
+      >
+        <ChevronRight className='size-3.5' aria-hidden='true' />
+      </button>
+    </div>
+  )
 }
 
 type MessageActionItem = {
@@ -78,6 +122,7 @@ export function MessageActions({
   onToggleSource,
   onEdit,
   onDelete,
+  onSelectVersion,
   isSourceVisible = false,
   isGenerating = false,
   alwaysVisible = false,
@@ -157,7 +202,19 @@ export function MessageActions({
     })
   }
 
-  if (actions.length === 0) return null
+  const versionSwitcher =
+    isAssistant &&
+    !isLoading &&
+    message.versions.length > 1 &&
+    onSelectVersion ? (
+      <MessageVersionSwitcher
+        message={message}
+        disabled={isGenerating}
+        onSelectVersion={onSelectVersion}
+      />
+    ) : null
+
+  if (actions.length === 0 && !versionSwitcher) return null
 
   return (
     <>
@@ -165,6 +222,7 @@ export function MessageActions({
         <div
           className={`hidden items-center gap-0.5 transition-opacity md:flex ${visibilityClass} ${className}`}
         >
+          {versionSwitcher}
           {actions.map((action) => (
             <MessageActionButton
               className={action.className}
@@ -179,7 +237,8 @@ export function MessageActions({
         </div>
       </TooltipProvider>
 
-      <div className={`md:hidden ${className}`}>
+      <div className={`flex items-center gap-1 md:hidden ${className}`}>
+        {versionSwitcher}
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger
             render={

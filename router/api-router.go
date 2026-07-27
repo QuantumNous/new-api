@@ -401,6 +401,8 @@ func SetApiRouter(router *gin.Engine) {
 			playgroundDataRoute.PUT("/conversations/:id", controller.UpdatePlaygroundConversation)
 			playgroundDataRoute.DELETE("/conversations/:id", controller.DeletePlaygroundConversation)
 			playgroundDataRoute.PUT("/conversations/:id/messages", controller.PutPlaygroundConversationMessages)
+			playgroundDataRoute.POST("/conversations/:id/messages", controller.AppendPlaygroundConversationMessages)
+			playgroundDataRoute.GET("/conversations/:id/messages", controller.ListPlaygroundConversationMessages)
 
 			playgroundDataRoute.GET("/projects", controller.ListPlaygroundProjects)
 			playgroundDataRoute.POST("/projects", controller.CreatePlaygroundProject)

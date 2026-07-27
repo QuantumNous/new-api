@@ -11,7 +11,10 @@ import {
   History,
   ImageIcon,
   MessageSquare,
+  Pin,
+  PinOff,
   Plus,
+  Search,
   Trash2,
   Video,
   type LucideIcon,
@@ -85,14 +88,22 @@ export function SessionHistoryPanel(props: SessionHistoryPanelProps) {
   const startNewSession = usePlaygroundStore((state) => state.startNewSession)
   const deleteSession = usePlaygroundStore((state) => state.deleteSession)
   const renameSession = usePlaygroundStore((state) => state.renameSession)
+  const togglePinSession = usePlaygroundStore((state) => state.togglePinSession)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [query, setQuery] = useState('')
 
-  const items = useMemo(
-    () => listSessionsForModality(sessions, activeModality),
-    [sessions, activeModality]
-  )
+  const items = useMemo(() => {
+    const list = listSessionsForModality(sessions, activeModality)
+    const needle = query.trim().toLowerCase()
+    if (!needle) return list
+    return list.filter((session) => {
+      if (session.title.toLowerCase().includes(needle)) return true
+      if (session.model.toLowerCase().includes(needle)) return true
+      return false
+    })
+  }, [sessions, activeModality, query])
 
   const meta = MODALITY_META[activeModality]
   const Icon = meta.Icon
@@ -143,9 +154,30 @@ export function SessionHistoryPanel(props: SessionHistoryPanelProps) {
         </Button>
       </div>
 
+      <div className='border-border/60 shrink-0 border-b px-3 py-2'>
+        <div className='relative'>
+          <Search
+            className='text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2'
+            aria-hidden='true'
+          />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t('Search history')}
+            aria-label={t('Search history')}
+            className='border-border/60 bg-background/60 focus-visible:ring-ring h-8 w-full rounded-lg border pr-2 pl-8 text-sm outline-none focus-visible:ring-2'
+          />
+        </div>
+      </div>
+
       <ScrollArea className='min-h-0 flex-1'>
         <div className='flex flex-col gap-0.5 p-2'>
-          {items.length === 0 && (
+          {items.length === 0 && query.trim() !== '' && (
+            <div className='text-muted-foreground px-3 py-8 text-center text-xs'>
+              {t('No sessions match your search.')}
+            </div>
+          )}
+          {items.length === 0 && query.trim() === '' && (
             <div className='text-muted-foreground flex flex-col items-center gap-2 px-3 py-10 text-center text-xs'>
               <span className='bg-primary/10 text-primary flex size-10 items-center justify-center rounded-xl'>
                 <Icon className='size-5' aria-hidden='true' />
@@ -204,11 +236,17 @@ export function SessionHistoryPanel(props: SessionHistoryPanelProps) {
                   >
                     <span
                       className={cn(
-                        'block truncate text-sm font-medium',
+                        'flex items-center gap-1 text-sm font-medium',
                         active ? 'text-primary' : 'text-foreground'
                       )}
                     >
-                      {session.title}
+                      {session.pinned && (
+                        <Pin
+                          className='text-primary size-3 shrink-0'
+                          aria-label={t('Pinned')}
+                        />
+                      )}
+                      <span className='truncate'>{session.title}</span>
                     </span>
                     <span className='text-muted-foreground mt-0.5 flex items-center gap-1.5 text-[11px]'>
                       <span className='truncate font-mono'>{subtitle}</span>
@@ -221,20 +259,39 @@ export function SessionHistoryPanel(props: SessionHistoryPanelProps) {
                 )}
 
                 {hasSessionContent(session) && !isRenaming && (
-                  <button
-                    type='button'
-                    aria-label={t('Delete session')}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      setDeleteId(session.id)
-                    }}
+                  <div
                     className={cn(
-                      'text-muted-foreground hover:text-destructive hover:bg-destructive/10 absolute top-1.5 right-1.5 flex size-7 items-center justify-center rounded-md opacity-0 transition-opacity outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100',
+                      'absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100',
                       active && 'opacity-70'
                     )}
                   >
-                    <Trash2 className='size-3.5' aria-hidden='true' />
-                  </button>
+                    <button
+                      type='button'
+                      aria-label={session.pinned ? t('Unpin') : t('Pin')}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        togglePinSession(session.id)
+                      }}
+                      className='text-muted-foreground hover:text-primary hover:bg-primary/10 focus-visible:ring-ring flex size-7 items-center justify-center rounded-md outline-none focus-visible:ring-2'
+                    >
+                      {session.pinned ? (
+                        <PinOff className='size-3.5' aria-hidden='true' />
+                      ) : (
+                        <Pin className='size-3.5' aria-hidden='true' />
+                      )}
+                    </button>
+                    <button
+                      type='button'
+                      aria-label={t('Delete session')}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setDeleteId(session.id)
+                      }}
+                      className='text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-ring flex size-7 items-center justify-center rounded-md outline-none focus-visible:ring-2'
+                    >
+                      <Trash2 className='size-3.5' aria-hidden='true' />
+                    </button>
+                  </div>
                 )}
               </div>
             )

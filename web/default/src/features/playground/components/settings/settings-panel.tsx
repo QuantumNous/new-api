@@ -6,10 +6,15 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { X } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { useMediaQuery } from '@/hooks/use-media-query'
@@ -35,24 +40,50 @@ export function SettingsSections(props: {
 
   return (
     <div className='space-y-5'>
-      <GroupSection />
       {chatMode ? (
         <>
           <Section title={t('Chat tools')}>
             <ChatToolsSection />
           </Section>
-          <Section title={t('Parameter settings')}>
+          <AdvancedSection>
+            <GroupSection />
             <ChatParametersSection />
-          </Section>
+          </AdvancedSection>
         </>
       ) : (
-        <Section title={t('Generation parameters')}>
-          <GenerationSettingsSection
-            modality={props.modality as Exclude<StudioModality, 'chat'>}
-          />
-        </Section>
+        <>
+          <GroupSection />
+          <Section title={t('Generation parameters')}>
+            <GenerationSettingsSection
+              modality={props.modality as Exclude<StudioModality, 'chat'>}
+            />
+          </Section>
+        </>
       )}
     </div>
+  )
+}
+
+/**
+ * Sampling parameters and channel selection are power-user knobs; fold them
+ * away so the default settings surface stays approachable.
+ */
+function AdvancedSection(props: { children: React.ReactNode }) {
+  const { t } = useTranslation()
+
+  return (
+    <Collapsible>
+      <CollapsibleTrigger className='text-muted-foreground hover:text-foreground group flex w-full items-center justify-between py-1 text-[11px] font-semibold tracking-wide uppercase'>
+        {t('Advanced')}
+        <ChevronDown
+          className='size-3.5 transition-transform group-data-[panel-open]:rotate-180'
+          aria-hidden='true'
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent className='space-y-4 pt-2'>
+        {props.children}
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 

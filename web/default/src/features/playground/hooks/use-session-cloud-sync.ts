@@ -11,18 +11,21 @@ import { useCallback, useEffect, useRef } from 'react'
 import { usePlaygroundStore } from '@/stores/playground-store'
 
 import {
+  appendConversationMessages,
   createConversation,
   createProject,
   deleteConversation,
   deleteProject,
-  getConversation,
   getProject,
+  listConversationMessages,
   listConversations,
+  listConversationsSince,
   listProjects,
   putConversationMessages,
   updateConversation,
   updateProject,
   type PlaygroundRun,
+  type ServerConversation,
   type ServerConversationMessageInput,
   type ServerMessage,
   type ServerProject,
@@ -41,7 +44,9 @@ import {
 } from '../lib'
 import type { Message } from '../types'
 
-const SYNC_DEBOUNCE_MS = 1200
+const SYNC_DEBOUNCE_MS = 300
+const CONVERSATION_POLL_MS = 60_000
+const APPEND_BATCH_SIZE = 40
 
 type ToolPayload = {
   managedTool?: Message['managedTool']
@@ -77,6 +82,7 @@ function toServerMessages(
         content: getMessageContent(message),
         model: message.model || undefined,
         client_key: message.key,
+        source: 'web',
         created_at:
           message.createdAt && message.createdAt > 1_000_000_000_000
             ? Math.floor(message.createdAt / 1000)
@@ -180,6 +186,47 @@ function studioFromServerProject(
   })
 }
 
+function chatSessionFromServerConversation(
+  item: ServerConversation,
+  messages: Message[]
+): ChatSession {
+  let duoMeta: ChatSession['duoMeta']
+  if (item.meta_json) {
+    try {
+      const meta = JSON.parse(item.meta_json) as {
+        answerModels?: string[]
+        summaryModel?: string
+      }
+      if (Array.isArray(meta.answerModels)) {
+        duoMeta = {
+          answerModels: meta.answerModels.filter(
+            (m): m is string => typeof m === 'string'
+          ),
+          summaryModel:
+            typeof meta.summaryModel === 'string' ? meta.summaryModel : '',
+        }
+      }
+    } catch {
+      duoMeta = undefined
+    }
+  }
+  const session = createChatSession({
+    id: `cloud_${item.id}`,
+    serverId: item.id,
+    title: item.title || 'Cloud chat',
+    model: item.model || '',
+    group: item.group || '',
+    messages,
+    kind: item.kind === 'duo' ? 'duo' : 'chat',
+    duoMeta,
+    isDraft: false,
+    createdAt: (item.created_at || 0) * 1000 || Date.now(),
+    updatedAt: (item.updated_at || 0) * 1000 || Date.now(),
+  })
+  session.pinned = Boolean(item.pinned)
+  return session
+}
+
 function patchSessionById(
   sessionId: string,
   patch: Partial<PlaygroundSession>
@@ -194,15 +241,96 @@ function patchSessionById(
   })
 }
 
+type ChatSyncState = {
+  reconciled: boolean
+  maxServerMsgId: number
+  /** client_key -> content fingerprint of turns known to exist server-side. */
+  acked: Map<string, string>
+  lastMetaFingerprint: string
+  lastLocalFingerprint: string
+  inflight: boolean
+  rerun: boolean
+}
+
+function freshChatSyncState(): ChatSyncState {
+  return {
+    reconciled: false,
+    maxServerMsgId: 0,
+    acked: new Map(),
+    lastMetaFingerprint: '',
+    lastLocalFingerprint: '',
+    inflight: false,
+    rerun: false,
+  }
+}
+
+function finalizedChatMessages(messages: Message[]): Message[] {
+  return messages.filter(
+    (message) =>
+      (message.from === 'user' || message.from === 'assistant') &&
+      message.status !== 'loading' &&
+      message.status !== 'streaming'
+  )
+}
+
+function chatMetaFingerprint(session: ChatSession): string {
+  return JSON.stringify([
+    session.title,
+    session.model,
+    session.group,
+    session.kind === 'duo' ? 'duo' : 'chat',
+    session.duoMeta ?? null,
+    session.pinned ?? false,
+  ])
+}
+
+function chatLocalFingerprint(session: ChatSession): string {
+  const finalized = finalizedChatMessages(session.messages)
+  let contentBytes = 0
+  for (const message of finalized) {
+    contentBytes += getMessageContent(message).length
+  }
+  return `${finalized.length}:${finalized.at(-1)?.key ?? ''}:${contentBytes}:${chatMetaFingerprint(session)}`
+}
+
+/** Append cross-device turns pulled from the server onto the local cache. */
+function mergeRemoteMessagesIntoSession(
+  sessionId: string,
+  remote: Message[]
+): void {
+  if (remote.length === 0) return
+  const state = usePlaygroundStore.getState()
+  usePlaygroundStore.setState({
+    sessions: state.sessions.map((item) => {
+      if (item.id !== sessionId || !isChatSession(item)) return item
+      const known = new Set(item.messages.map((message) => message.key))
+      const additions = remote.filter((message) => !known.has(message.key))
+      if (additions.length === 0) return item
+      return {
+        ...item,
+        messages: [...item.messages, ...additions],
+        isDraft: false,
+        updatedAt: Date.now(),
+      }
+    }),
+  })
+}
+
 /**
- * Cloud sync for chat + studio sessions:
- * - Lazy-create server conversation/project on first meaningful content
- * - Debounced push of finalized chat messages / studio project metadata
- * - On login, merge remote conversations + projects into local sessions
+ * Cloud sync for chat + studio sessions. Chat threads are server-first for
+ * logged-in users:
+ * - user/assistant turns are appended per turn (client_key idempotent) as soon
+ *   as they finalize; local edits/regenerates fall back to a snapshot replace
+ * - opening a thread and window focus pull turns written by other devices
+ * - the thread list is polled with an updated_at cursor to pick up new threads
+ * - Studio projects keep the debounced metadata push
  * - Best-effort delete of cloud records when a local session is removed
  */
 export function useSessionCloudSync(isAuthenticated: boolean) {
   const sessions = usePlaygroundStore((state) => state.sessions)
+  const activeChatId = usePlaygroundStore(
+    (state) => state.activeSessionByModality.chat
+  )
   const timerRef = useRef<number | null>(null)
   const inflightRef = useRef(false)
   const importedRef = useRef(false)
@@ -210,14 +338,31 @@ export function useSessionCloudSync(isAuthenticated: boolean) {
   const serverBindingsRef = useRef<
     Map<string, { kind: 'chat' | 'project'; serverId: number }>
   >(new Map())
+  const chatStatesRef = useRef<Map<string, ChatSyncState>>(new Map())
+  const convCursorRef = useRef<number>(0)
 
-  const syncChatSession = useCallback(
-    async (session: ChatSession) => {
+  const reconcileChatSession = useCallback(
+    async (sessionId: string, options?: { pull?: boolean }) => {
       if (!isAuthenticated) return
-      if (session.messages.length === 0) return
-      const payload = toServerMessages(session.messages)
-      if (payload.length === 0) return
+      const findSession = () => {
+        const found = usePlaygroundStore
+          .getState()
+          .sessions.find((item) => item.id === sessionId)
+        return found && isChatSession(found) ? found : undefined
+      }
+      let session = findSession()
+      if (!session) return
 
+      let st = chatStatesRef.current.get(sessionId)
+      if (!st) {
+        st = freshChatSyncState()
+        chatStatesRef.current.set(sessionId, st)
+      }
+      if (st.inflight) {
+        st.rerun = true
+        return
+      }
+      st.inflight = true
       try {
         let serverId = session.serverId
         const kind = session.kind === 'duo' ? 'duo' : 'chat'
@@ -229,33 +374,127 @@ export function useSessionCloudSync(isAuthenticated: boolean) {
               }
             : undefined
         if (!serverId) {
+          if (finalizedChatMessages(session.messages).length === 0) return
           const created = await createConversation({
             title: session.title,
             model: session.model,
             group: session.group,
             kind,
             meta_json: meta,
+            source: 'web',
           })
           serverId = created.id
           patchSessionById(session.id, { serverId, isDraft: false })
-          serverBindingsRef.current.set(session.id, {
-            kind: 'chat',
-            serverId,
-          })
+          serverBindingsRef.current.set(session.id, { kind: 'chat', serverId })
+          st.reconciled = true
+          st.lastMetaFingerprint = chatMetaFingerprint(session)
+        }
+
+        // Pull turns this client has not seen yet (bootstrap or cross-device).
+        if (!st.reconciled || options?.pull) {
+          if (!st.reconciled) {
+            st.maxServerMsgId = 0
+            st.acked = new Map()
+          }
+          const fetched: ServerMessage[] = []
+          for (;;) {
+            const page = await listConversationMessages(serverId, {
+              since_id: st.maxServerMsgId,
+              limit: 200,
+            })
+            fetched.push(...page.messages)
+            const tail = page.messages.at(-1)
+            if (tail) {
+              st.maxServerMsgId = tail.id
+            }
+            if (!page.has_more) break
+          }
+          const localKeys = new Set(session.messages.map((m) => m.key))
+          const remoteOnly: ServerMessage[] = []
+          for (const item of fetched) {
+            const key = item.client_key || `srv-${item.id}`
+            st.acked.set(key, item.content || '')
+            if (!localKeys.has(key)) remoteOnly.push(item)
+          }
+          st.reconciled = true
+          if (remoteOnly.length > 0) {
+            mergeRemoteMessagesIntoSession(
+              sessionId,
+              fromServerMessages(remoteOnly)
+            )
+            session = findSession()
+            if (!session) return
+          }
+        }
+
+        // Local rewrite (edit / regenerate / delete) invalidates append-only
+        // sync; fall back to a full snapshot replace.
+        const finalized = finalizedChatMessages(session.messages)
+        const localByKey = new Map(
+          finalized.map((message) => [message.key, message])
+        )
+        let rewritten = false
+        for (const [key, ackedContent] of st.acked) {
+          const local = localByKey.get(key)
+          if (!local || getMessageContent(local) !== ackedContent) {
+            rewritten = true
+            break
+          }
+        }
+
+        if (rewritten) {
+          await putConversationMessages(serverId, toServerMessages(finalized))
+          st.acked = new Map(
+            finalized.map((message) => [
+              message.key,
+              getMessageContent(message),
+            ])
+          )
+          // Server ids were recreated by the replace; refetch on next pull.
+          st.reconciled = false
+          st.maxServerMsgId = 0
         } else {
+          const pending = finalized.filter(
+            (message) => !st.acked.has(message.key)
+          )
+          for (let i = 0; i < pending.length; i += APPEND_BATCH_SIZE) {
+            const batch = pending.slice(i, i + APPEND_BATCH_SIZE)
+            const result = await appendConversationMessages(
+              serverId,
+              toServerMessages(batch)
+            )
+            for (const message of batch) {
+              st.acked.set(message.key, getMessageContent(message))
+            }
+            for (const inserted of result.messages) {
+              if (inserted.id > st.maxServerMsgId) {
+                st.maxServerMsgId = inserted.id
+              }
+            }
+          }
+        }
+
+        const metaFingerprint = chatMetaFingerprint(session)
+        if (metaFingerprint !== st.lastMetaFingerprint) {
           await updateConversation(serverId, {
             title: session.title,
             model: session.model,
             group: session.group,
             kind,
             meta_json: meta,
+            pinned: session.pinned ?? false,
           })
+          st.lastMetaFingerprint = metaFingerprint
         }
-        if (serverId) {
-          await putConversationMessages(serverId, payload)
-        }
+        st.lastLocalFingerprint = chatLocalFingerprint(session)
       } catch {
-        // Offline / API errors are non-fatal; local session remains source of truth.
+        // Offline / API errors are non-fatal; retry on the next store change.
+      } finally {
+        st.inflight = false
+        if (st.rerun) {
+          st.rerun = false
+          void reconcileChatSession(sessionId, options)
+        }
       }
     },
     [isAuthenticated]
@@ -299,15 +538,21 @@ export function useSessionCloudSync(isAuthenticated: boolean) {
     [isAuthenticated]
   )
 
-  // Debounced push of active chat + studio sessions that have content.
+  // Debounced push: chat turns append as soon as they finalize in the store;
+  // studio projects keep the metadata upsert.
   useEffect(() => {
     if (!isAuthenticated) return
     if (timerRef.current != null) window.clearTimeout(timerRef.current)
     timerRef.current = window.setTimeout(() => {
       const state = usePlaygroundStore.getState()
       for (const session of state.sessions) {
-        if (isChatSession(session) && session.messages.length > 0) {
-          void syncChatSession(session)
+        if (isChatSession(session)) {
+          if (session.messages.length === 0 && !session.serverId) continue
+          const st = chatStatesRef.current.get(session.id)
+          if (st && st.lastLocalFingerprint === chatLocalFingerprint(session)) {
+            continue
+          }
+          void reconcileChatSession(session.id)
         } else if (isStudioSession(session) && hasSessionContent(session)) {
           void syncStudioSession(session)
         }
@@ -317,7 +562,76 @@ export function useSessionCloudSync(isAuthenticated: boolean) {
     return () => {
       if (timerRef.current != null) window.clearTimeout(timerRef.current)
     }
-  }, [isAuthenticated, sessions, syncChatSession, syncStudioSession])
+  }, [isAuthenticated, sessions, reconcileChatSession, syncStudioSession])
+
+  // Opening a thread pulls turns other devices appended since we last looked.
+  useEffect(() => {
+    if (!isAuthenticated || !activeChatId) return
+    void reconcileChatSession(activeChatId, { pull: true })
+  }, [isAuthenticated, activeChatId, reconcileChatSession])
+
+  // Thread-list cursor poll (focus + interval): metadata changes, new threads.
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const pullConversationList = async () => {
+      if (convCursorRef.current === 0) return // wait for the initial import
+      try {
+        const { items } = await listConversationsSince(convCursorRef.current)
+        if (items.length === 0) return
+        for (const item of items) {
+          convCursorRef.current = Math.max(
+            convCursorRef.current,
+            item.updated_at
+          )
+        }
+        const state = usePlaygroundStore.getState()
+        const additions: PlaygroundSession[] = []
+        for (const item of items) {
+          const local = state.sessions.find(
+            (s) => isChatSession(s) && s.serverId === item.id
+          )
+          if (local) {
+            const remoteUpdatedAt = (item.updated_at || 0) * 1000
+            if (remoteUpdatedAt > local.updatedAt) {
+              patchSessionById(local.id, {
+                title: item.title || local.title,
+                pinned: Boolean(item.pinned),
+              })
+              if (
+                local.id ===
+                usePlaygroundStore.getState().activeSessionByModality.chat
+              ) {
+                void reconcileChatSession(local.id, { pull: true })
+              }
+            }
+            continue
+          }
+          if (state.sessions.some((s) => s.id === `cloud_${item.id}`)) continue
+          additions.push(chatSessionFromServerConversation(item, []))
+        }
+        if (additions.length > 0) {
+          const latest = usePlaygroundStore.getState()
+          usePlaygroundStore.setState({
+            sessions: [...additions, ...latest.sessions],
+          })
+        }
+      } catch {
+        // Poll failures are non-fatal.
+      }
+    }
+
+    const onFocus = () => void pullConversationList()
+    window.addEventListener('focus', onFocus)
+    const interval = window.setInterval(
+      () => void pullConversationList(),
+      CONVERSATION_POLL_MS
+    )
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.clearInterval(interval)
+    }
+  }, [isAuthenticated, reconcileChatSession])
 
   // Track deletions → best-effort cloud delete.
   useEffect(() => {
@@ -380,50 +694,8 @@ export function useSessionCloudSync(isAuthenticated: boolean) {
         const { items: convItems } = await listConversations({ page_size: 50 })
         for (const item of convItems.slice(0, 40)) {
           if (existingChatServerIds.has(item.id)) continue
-          let messages: Message[] = []
-          try {
-            const detail = await getConversation(item.id)
-            messages = fromServerMessages(detail.messages)
-          } catch {
-            messages = []
-          }
-          let duoMeta: ChatSession['duoMeta']
-          if (item.meta_json) {
-            try {
-              const meta = JSON.parse(item.meta_json) as {
-                answerModels?: string[]
-                summaryModel?: string
-              }
-              if (Array.isArray(meta.answerModels)) {
-                duoMeta = {
-                  answerModels: meta.answerModels.filter(
-                    (m): m is string => typeof m === 'string'
-                  ),
-                  summaryModel:
-                    typeof meta.summaryModel === 'string'
-                      ? meta.summaryModel
-                      : '',
-                }
-              }
-            } catch {
-              duoMeta = undefined
-            }
-          }
-          additions.push(
-            createChatSession({
-              id: `cloud_${item.id}`,
-              serverId: item.id,
-              title: item.title || 'Cloud chat',
-              model: item.model || '',
-              group: item.group || '',
-              messages,
-              kind: item.kind === 'duo' ? 'duo' : 'chat',
-              duoMeta,
-              isDraft: messages.length === 0,
-              createdAt: (item.created_at || 0) * 1000 || Date.now(),
-              updatedAt: (item.updated_at || 0) * 1000 || Date.now(),
-            })
-          )
+          // Messages hydrate lazily when the thread is opened (activation pull).
+          additions.push(chatSessionFromServerConversation(item, []))
         }
 
         const { items: projectItems } = await listProjects({ page_size: 50 })
@@ -456,6 +728,7 @@ export function useSessionCloudSync(isAuthenticated: boolean) {
           })
         }
         importedRef.current = true
+        convCursorRef.current = Math.floor(Date.now() / 1000)
       } catch {
         // Ignore list failures; user can still work offline.
       } finally {

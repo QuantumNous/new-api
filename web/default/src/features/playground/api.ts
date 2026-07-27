@@ -585,6 +585,8 @@ export type ServerConversation = {
   group: string
   kind?: string
   meta_json?: string
+  pinned?: boolean
+  source?: string
   created_at: number
   updated_at: number
 }
@@ -608,6 +610,7 @@ export type ServerConversationMessageInput = {
   model?: string
   tool_json?: string
   client_key?: string
+  source?: string
   created_at?: number
 }
 
@@ -629,6 +632,7 @@ export async function createConversation(input: {
   group?: string
   kind?: 'chat' | 'duo'
   meta_json?: string | Record<string, unknown>
+  source?: string
 }): Promise<ServerConversation> {
   const res = await api.post(API_ENDPOINTS.CONVERSATIONS, input)
   if (!res.data?.success) throw new Error(res.data?.message || 'Create failed')
@@ -656,6 +660,7 @@ export async function updateConversation(
     group?: string
     kind?: 'chat' | 'duo'
     meta_json?: string | Record<string, unknown>
+    pinned?: boolean
   }
 ): Promise<ServerConversation> {
   const res = await api.patch(`${API_ENDPOINTS.CONVERSATIONS}/${id}`, input)
@@ -668,6 +673,42 @@ export async function putConversationMessages(
   messages: ServerConversationMessageInput[]
 ): Promise<void> {
   await api.put(`${API_ENDPOINTS.CONVERSATIONS}/${id}/messages`, { messages })
+}
+
+export async function appendConversationMessages(
+  id: number,
+  messages: ServerConversationMessageInput[]
+): Promise<{ messages: ServerMessage[]; appended: number; skipped: number }> {
+  const res = await api.post(`${API_ENDPOINTS.CONVERSATIONS}/${id}/messages`, {
+    messages,
+  })
+  if (!res.data?.success) throw new Error(res.data?.message || 'Append failed')
+  return res.data.data
+}
+
+export async function listConversationMessages(
+  id: number,
+  params?: { since_id?: number; limit?: number }
+): Promise<{ messages: ServerMessage[]; has_more: boolean }> {
+  const res = await api.get(`${API_ENDPOINTS.CONVERSATIONS}/${id}/messages`, {
+    params,
+  })
+  if (!res.data?.success) throw new Error(res.data?.message || 'Load failed')
+  return {
+    messages: (res.data.data?.messages ?? []) as ServerMessage[],
+    has_more: Boolean(res.data.data?.has_more),
+  }
+}
+
+export async function listConversationsSince(
+  since: number
+): Promise<{ items: ServerConversation[]; has_more: boolean }> {
+  const res = await api.get(API_ENDPOINTS.CONVERSATIONS, { params: { since } })
+  if (!res.data?.success) return { items: [], has_more: false }
+  return {
+    items: (res.data.data?.items ?? []) as ServerConversation[],
+    has_more: Boolean(res.data.data?.has_more),
+  }
 }
 
 // ---- Studio projects ----

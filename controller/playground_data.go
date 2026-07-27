@@ -504,6 +504,23 @@ func PlaygroundEstimate(c *gin.Context) {
 
 func ListPlaygroundConversations(c *gin.Context) {
 	userId := c.GetInt("id")
+	if sinceStr := c.Query("since"); sinceStr != "" {
+		since, err := strconv.ParseInt(sinceStr, 10, 64)
+		if err != nil || since < 0 {
+			common.ApiErrorMsg(c, "invalid since")
+			return
+		}
+		items, err := model.ListPlaygroundConversationsSince(userId, since, 200)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, gin.H{
+			"items":    items,
+			"has_more": len(items) == 200,
+		})
+		return
+	}
 	pageInfo := common.GetPageQuery(c)
 	items, total, err := model.ListPlaygroundConversations(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
@@ -523,6 +540,7 @@ func CreatePlaygroundConversation(c *gin.Context) {
 		Group    string          `json:"group"`
 		Kind     string          `json:"kind"`
 		MetaJson json.RawMessage `json:"meta_json"`
+		Source   string          `json:"source"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		common.ApiError(c, err)
@@ -554,6 +572,10 @@ func CreatePlaygroundConversation(c *gin.Context) {
 		}
 		metaJson = string(body.MetaJson)
 	}
+	source := strings.TrimSpace(body.Source)
+	if source != "web" && source != "desktop" {
+		source = ""
+	}
 	conv := &model.PlaygroundConversation{
 		UserId:   userId,
 		Title:    title,
@@ -561,6 +583,7 @@ func CreatePlaygroundConversation(c *gin.Context) {
 		Group:    body.Group,
 		Kind:     kind,
 		MetaJson: metaJson,
+		Source:   source,
 	}
 	if err := model.CreatePlaygroundConversation(conv); err != nil {
 		common.ApiError(c, err)
@@ -610,10 +633,14 @@ func UpdatePlaygroundConversation(c *gin.Context) {
 		Group    *string         `json:"group"`
 		Kind     *string         `json:"kind"`
 		MetaJson json.RawMessage `json:"meta_json"`
+		Pinned   *bool           `json:"pinned"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if body.Pinned != nil {
+		conv.Pinned = *body.Pinned
 	}
 	if body.Title != nil {
 		conv.Title = truncateRunes(strings.TrimSpace(*body.Title), 200)
@@ -672,34 +699,22 @@ func DeletePlaygroundConversation(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
-func PutPlaygroundConversationMessages(c *gin.Context) {
-	userId := c.GetInt("id")
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiErrorMsg(c, "invalid id")
-		return
-	}
-	var body struct {
-		Messages []struct {
-			Role        string          `json:"role"`
-			Content     string          `json:"content"`
-			ContentJson json.RawMessage `json:"content_json"`
-			Model       string          `json:"model"`
-			ToolJson    json.RawMessage `json:"tool_json"`
-			ClientKey   string          `json:"client_key"`
-			CreatedAt   int64           `json:"created_at"`
-		} `json:"messages"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if len(body.Messages) > 500 {
-		common.ApiErrorMsg(c, "too many messages (max 500)")
-		return
-	}
-	msgs := make([]model.PlaygroundMessage, 0, len(body.Messages))
-	for _, m := range body.Messages {
+type playgroundMessageInput struct {
+	Role        string          `json:"role"`
+	Content     string          `json:"content"`
+	ContentJson json.RawMessage `json:"content_json"`
+	Model       string          `json:"model"`
+	ToolJson    json.RawMessage `json:"tool_json"`
+	ClientKey   string          `json:"client_key"`
+	Source      string          `json:"source"`
+	CreatedAt   int64           `json:"created_at"`
+}
+
+// validatePlaygroundMessages converts API message inputs into rows, enforcing
+// the shared role/size caps for both the snapshot PUT and the append POST.
+func validatePlaygroundMessages(inputs []playgroundMessageInput) ([]model.PlaygroundMessage, string) {
+	msgs := make([]model.PlaygroundMessage, 0, len(inputs))
+	for _, m := range inputs {
 		role := strings.TrimSpace(m.Role)
 		if role != "user" && role != "assistant" && role != "system" {
 			continue
@@ -710,13 +725,11 @@ func PutPlaygroundConversationMessages(c *gin.Context) {
 		if len(m.ContentJson) > 0 && string(m.ContentJson) != "null" {
 			raw := string(m.ContentJson)
 			if len(raw) > 400_000 {
-				common.ApiErrorMsg(c, "content_json too large")
-				return
+				return nil, "content_json too large"
 			}
 			var parts []map[string]any
 			if err := common.Unmarshal(m.ContentJson, &parts); err != nil {
-				common.ApiErrorMsg(c, "invalid content_json")
-				return
+				return nil, "invalid content_json"
 			}
 			contentJson = raw
 		}
@@ -724,13 +737,11 @@ func PutPlaygroundConversationMessages(c *gin.Context) {
 		if len(m.ToolJson) > 0 && string(m.ToolJson) != "null" {
 			raw := string(m.ToolJson)
 			if len(raw) > 100_000 {
-				common.ApiErrorMsg(c, "tool_json too large")
-				return
+				return nil, "tool_json too large"
 			}
 			var probe any
 			if err := common.Unmarshal(m.ToolJson, &probe); err != nil {
-				common.ApiErrorMsg(c, "invalid tool_json")
-				return
+				return nil, "invalid tool_json"
 			}
 			toolJson = raw
 		}
@@ -738,19 +749,63 @@ func PutPlaygroundConversationMessages(c *gin.Context) {
 		if len(clientKey) > 64 {
 			clientKey = clientKey[:64]
 		}
-		modelName := truncateRunes(strings.TrimSpace(m.Model), 191)
+		source := strings.TrimSpace(m.Source)
+		if source != "web" && source != "desktop" {
+			source = ""
+		}
 		msg := model.PlaygroundMessage{
 			Role:        role,
 			Content:     content,
 			ContentJson: contentJson,
-			Model:       modelName,
+			Model:       truncateRunes(strings.TrimSpace(m.Model), 191),
 			ToolJson:    toolJson,
 			ClientKey:   clientKey,
+			Source:      source,
 		}
 		if m.CreatedAt > 0 {
 			msg.CreatedAt = m.CreatedAt
 		}
 		msgs = append(msgs, msg)
+	}
+	return msgs, ""
+}
+
+func autoTitlePlaygroundConversation(id, userId int, msgs []model.PlaygroundMessage) {
+	conv, err := model.GetPlaygroundConversation(id, userId)
+	if err != nil || (conv.Title != "" && conv.Title != "New chat") {
+		return
+	}
+	for _, m := range msgs {
+		if m.Role == "user" && strings.TrimSpace(m.Content) != "" {
+			conv.Title = truncateRunes(strings.TrimSpace(m.Content), 48)
+			_ = model.UpdatePlaygroundConversation(conv)
+			return
+		}
+	}
+}
+
+func PutPlaygroundConversationMessages(c *gin.Context) {
+	userId := c.GetInt("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid id")
+		return
+	}
+	var body struct {
+		Messages []playgroundMessageInput `json:"messages"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(body.Messages) > 500 {
+		common.ApiErrorMsg(c, "too many messages (max 500)")
+		return
+	}
+	msgs, invalid := validatePlaygroundMessages(body.Messages)
+	if invalid != "" {
+		common.ApiErrorMsg(c, invalid)
+		return
 	}
 	if err := model.ReplacePlaygroundMessages(id, userId, msgs); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -760,17 +815,82 @@ func PutPlaygroundConversationMessages(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	// auto-title from first user message when still default
-	if conv, err := model.GetPlaygroundConversation(id, userId); err == nil && (conv.Title == "" || conv.Title == "New chat") {
-		for _, m := range msgs {
-			if m.Role == "user" && strings.TrimSpace(m.Content) != "" {
-				conv.Title = truncateRunes(strings.TrimSpace(m.Content), 48)
-				_ = model.UpdatePlaygroundConversation(conv)
-				break
-			}
-		}
-	}
+	autoTitlePlaygroundConversation(id, userId, msgs)
 	common.ApiSuccess(c, gin.H{"count": len(msgs)})
+}
+
+func AppendPlaygroundConversationMessages(c *gin.Context) {
+	userId := c.GetInt("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid id")
+		return
+	}
+	var body struct {
+		Messages []playgroundMessageInput `json:"messages"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(body.Messages) == 0 {
+		common.ApiErrorMsg(c, "messages is required")
+		return
+	}
+	if len(body.Messages) > 40 {
+		common.ApiErrorMsg(c, "too many messages (max 40 per append)")
+		return
+	}
+	msgs, invalid := validatePlaygroundMessages(body.Messages)
+	if invalid != "" {
+		common.ApiErrorMsg(c, invalid)
+		return
+	}
+	inserted, err := model.AppendPlaygroundMessages(id, userId, msgs)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorMsg(c, "conversation not found")
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	autoTitlePlaygroundConversation(id, userId, msgs)
+	common.ApiSuccess(c, gin.H{
+		"messages": inserted,
+		"appended": len(inserted),
+		"skipped":  len(msgs) - len(inserted),
+	})
+}
+
+func ListPlaygroundConversationMessages(c *gin.Context) {
+	userId := c.GetInt("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid id")
+		return
+	}
+	if _, err := model.GetPlaygroundConversation(id, userId); err != nil {
+		common.ApiErrorMsg(c, "conversation not found")
+		return
+	}
+	sinceId, _ := strconv.Atoi(c.Query("since_id"))
+	if sinceId < 0 {
+		sinceId = 0
+	}
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if limit <= 0 || limit > 200 {
+		limit = 200
+	}
+	items, err := model.ListPlaygroundMessagesPage(id, userId, sinceId, limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"messages": items,
+		"has_more": len(items) == limit,
+	})
 }
 
 // ---------- Personas ----------

@@ -128,6 +128,7 @@ interface PlaygroundStoreState extends PersistedPlaygroundState {
   openSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => void
   renameSession: (sessionId: string, title: string) => void
+  togglePinSession: (sessionId: string) => void
   updateActiveSession: (
     patch:
       | Partial<PlaygroundSession>
@@ -567,6 +568,17 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
             sessions: upsertSession(
               state.sessions,
               touchSession({ ...session, title: trimmed, isDraft: false })
+            ),
+          }
+        }),
+      togglePinSession: (sessionId) =>
+        set((state) => {
+          const session = findSession(state.sessions, sessionId)
+          if (!session) return {}
+          return {
+            sessions: upsertSession(
+              state.sessions,
+              touchSession({ ...session, pinned: !session.pinned })
             ),
           }
         }),
