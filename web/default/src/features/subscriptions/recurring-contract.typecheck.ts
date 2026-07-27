@@ -7,6 +7,7 @@ import {
 import type {
   RecurringSubscription,
   SelfSubscriptionData,
+  SelfSubscriptionDataResponse,
   SubscriptionRenewalLifecycleResult,
   UserSubscriptionRecord,
 } from './types'
@@ -104,3 +105,8 @@ export const walletRenewalResultContract = {
   is_cancel_at_period_end: true,
   sync_pending: false,
 } satisfies SubscriptionRenewalLifecycleResult
+
+export const legacySelfSubscriptionResponseContract = {
+  renewal_source: 'balance',
+  renewal_status: 'legacy_paused',
+} satisfies SelfSubscriptionDataResponse

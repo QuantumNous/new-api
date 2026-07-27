@@ -237,6 +237,9 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 			return ErrSubscriptionProviderBindingConflict
 		}
 		if binding.EndedAt > 0 || isTerminalProviderSubscriptionStatus(binding.ProviderStatus) {
+			if expectedLifecycleActionSeq != nil {
+				return ErrSubscriptionProviderLifecycleConflict
+			}
 			return nil
 		}
 		if expectedLifecycleActionSeq != nil && binding.LifecycleActionSeq != *expectedLifecycleActionSeq {
@@ -305,6 +308,9 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 		updated, err := ApplyProviderSubscriptionSnapshot(bindingID, snapshot)
 		if err != nil {
 			return nil, err
+		}
+		if updated.EndedAt > 0 || isTerminalProviderSubscriptionStatus(updated.ProviderStatus) {
+			return nil, ErrSubscriptionProviderLifecycleConflict
 		}
 		if updated.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
 			return updated, nil

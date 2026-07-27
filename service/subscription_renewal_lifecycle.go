@@ -73,10 +73,14 @@ func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus st
 		if contract.RenewalStatus != fromStatus {
 			return errors.New("subscription renewal status cannot be changed")
 		}
-		if err := tx.Model(&model.UserSubscriptionContract{}).
+		update := tx.Model(&model.UserSubscriptionContract{}).
 			Where("id = ? AND user_id = ? AND renewal_status = ?", contract.Id, userID, fromStatus).
-			Update("renewal_status", toStatus).Error; err != nil {
-			return err
+			Update("renewal_status", toStatus)
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected != 1 {
+			return errors.New("subscription renewal status cannot be changed")
 		}
 		contract.RenewalStatus = toStatus
 		result = buildSubscriptionRenewalLifecycleResult(contract)
@@ -209,6 +213,9 @@ func confirmStripeRenewalMutationAfterError(
 	if err != nil || strings.TrimSpace(snapshot.ProviderSubscriptionId) != strings.TrimSpace(binding.ProviderSubscriptionId) {
 		return nil, false
 	}
+	if !stripeRenewalMutationTargetIsCurrent(binding) {
+		return nil, false
+	}
 	targetCancelAtPeriodEnd := toStatus == model.SubscriptionRenewalStatusCancelledByUser
 	providerStatus := strings.ToLower(strings.TrimSpace(snapshot.ProviderStatus))
 	terminal := isTerminalStripeSubscriptionStatus(providerStatus) || snapshot.EndedAt > 0
@@ -251,6 +258,31 @@ func confirmStripeRenewalMutationAfterError(
 		mutationErr,
 	))
 	return result, true
+}
+
+func stripeRenewalMutationTargetIsCurrent(binding *model.SubscriptionProviderBinding) bool {
+	if binding == nil {
+		return false
+	}
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		contract, err := loadRenewalLifecycleContractTx(tx, binding.UserId)
+		if err != nil {
+			return err
+		}
+		if contract.RenewalSource != model.SubscriptionRenewalSourceProvider || contract.CurrentProviderBindingId != binding.Id {
+			return errors.New("subscription renewal target changed")
+		}
+		currentBinding, err := validateStripeRenewalLifecycleTargetTx(tx, contract)
+		if err != nil {
+			return err
+		}
+		if currentBinding.Id != binding.Id ||
+			strings.TrimSpace(currentBinding.ProviderSubscriptionId) != strings.TrimSpace(binding.ProviderSubscriptionId) ||
+			currentBinding.LifecycleActionSeq != binding.LifecycleActionSeq {
+			return errors.New("subscription renewal target changed")
+		}
+		return nil
+	}) == nil
 }
 
 func isIncompleteStripeSubscriptionStatus(status string) bool {

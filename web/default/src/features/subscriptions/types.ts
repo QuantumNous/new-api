@@ -369,7 +369,10 @@ export interface RecurringSubscription {
 
 export type SubscriptionRenewalSource = 'provider_recurring' | 'wallet_auto'
 
-export type SelfSubscriptionRenewalSource = SubscriptionRenewalSource | ''
+export type SelfSubscriptionRenewalSource =
+  | SubscriptionRenewalSource
+  | ''
+  | (string & {})
 
 export type SubscriptionRenewalStatus =
   | 'enabled'
@@ -377,7 +380,10 @@ export type SubscriptionRenewalStatus =
   | 'paused_insufficient_balance'
   | 'paused_plan_unavailable'
 
-export type SelfSubscriptionRenewalStatus = SubscriptionRenewalStatus | ''
+export type SelfSubscriptionRenewalStatus =
+  | SubscriptionRenewalStatus
+  | ''
+  | (string & {})
 
 export interface SubscriptionRenewalLifecycleResult {
   renewal_source: SubscriptionRenewalSource

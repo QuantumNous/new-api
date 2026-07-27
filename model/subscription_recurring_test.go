@@ -520,6 +520,44 @@ func TestApplyProviderSubscriptionLifecycleSnapshotSameTargetRetryRefreshesSafeM
 	require.Equal(t, int64(3000), updated.CurrentPeriodEnd)
 }
 
+func TestApplyProviderSubscriptionLifecycleSnapshotRejectsTerminalSameTarget(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+	insertUserForSubscriptionRecurringTest(t, 511)
+	insertPlanForSubscriptionRecurringTest(t, 611, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-terminal-lifecycle", 511, 611)
+
+	binding, err := CompleteSubscriptionOrderWithProviderBinding(
+		"recurring-order-terminal-lifecycle",
+		"{}",
+		PaymentProviderStripe,
+		PaymentMethodStripe,
+		stripeSnapshotForSubscriptionRecurringTest("sub_terminal_lifecycle"),
+	)
+	require.NoError(t, err)
+
+	terminated, err := ApplyProviderSubscriptionTermination(binding.Id, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId: binding.ProviderSubscriptionId,
+		ProviderStatus:         "canceled",
+		CurrentPeriodStart:     1000,
+		CurrentPeriodEnd:       2000,
+		CanceledAt:             1500,
+		EndedAt:                1500,
+	})
+	require.NoError(t, err)
+	require.False(t, terminated.CancelAtPeriodEnd)
+
+	updated, err := ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId: binding.ProviderSubscriptionId,
+		ProviderStatus:         "active",
+		CancelAtPeriodEnd:      false,
+		CurrentPeriodStart:     2000,
+		CurrentPeriodEnd:       3000,
+	})
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, updated)
+}
+
 func TestApplyProviderSubscriptionSnapshotDoesNotReviveTerminalBinding(t *testing.T) {
 	setupSubscriptionRecurringTestDB(t)
 	migrateSubscriptionRecurringTestDB(t)

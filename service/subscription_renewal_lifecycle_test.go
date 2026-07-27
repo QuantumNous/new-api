@@ -483,6 +483,40 @@ func TestCancelCurrentSubscriptionRenewalDoesNotConfirmLifecycleConflictFromProv
 	require.Nil(t, result)
 }
 
+func TestCancelCurrentSubscriptionRenewalDoesNotConfirmAfterBindingSequenceAdvances(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7931, false, "sub_unified_cancel_sequence_advanced")
+	originalCancel := cancelCurrentStripeRecurringSubscription
+	originalGet := stripeSubscriptionSnapshotGetter
+	t.Cleanup(func() {
+		cancelCurrentStripeRecurringSubscription = originalCancel
+		stripeSubscriptionSnapshotGetter = originalGet
+	})
+	localSyncErr := errors.New("local subscription snapshot apply failed")
+	cancelCurrentStripeRecurringSubscription = func(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+		require.Equal(t, contract.UserId, userID)
+		require.Equal(t, binding.Id, bindingID)
+		require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).
+			Where("id = ?", binding.Id).
+			Update("lifecycle_action_seq", binding.LifecycleActionSeq+1).Error)
+		return nil, localSyncErr
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderStatus:         "active",
+			CancelAtPeriodEnd:      true,
+			CurrentPeriodStart:     binding.CurrentPeriodStart,
+			CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+		}, nil
+	}
+
+	result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
+
+	require.ErrorIs(t, err, localSyncErr)
+	require.Nil(t, result)
+}
+
 func TestCancelCurrentSubscriptionRenewalDoesNotTreatUnpaidSnapshotAsConfirmedCancellation(t *testing.T) {
 	setupSubscriptionPurchaseServiceTestDB(t)
 	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7948, false, "sub_unified_cancel_unpaid")
@@ -543,6 +577,32 @@ func TestCancelCurrentSubscriptionRenewalMarksWalletAutoCancelledAndIsIdempotent
 	require.NoError(t, model.DB.First(&stored, "id = ?", contract.Id).Error)
 	require.Equal(t, firstUpdatedAt, stored.UpdatedAt)
 	require.Zero(t, *contractUpdates)
+}
+
+func TestCancelCurrentSubscriptionRenewalRejectsZeroRowWalletCAS(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	plan := insertPurchaseServicePlan(t, 7831, 1, 7, 700)
+	periodEnd := common.GetTimestamp() + 3600
+	contract, _ := seedWalletRenewalContract(t, 7932, 700, plan, periodEnd)
+
+	require.NoError(t, model.DB.Exec(`
+		CREATE TRIGGER ignore_wallet_renewal_status_update
+		BEFORE UPDATE OF renewal_status ON user_subscription_contracts
+		BEGIN
+			SELECT RAISE(IGNORE);
+		END
+	`).Error)
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS ignore_wallet_renewal_status_update").Error)
+	})
+
+	result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
+
+	require.ErrorContains(t, err, "subscription renewal status cannot be changed")
+	require.Nil(t, result)
+	var stored model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&stored, contract.Id).Error)
+	require.Equal(t, model.SubscriptionRenewalStatusEnabled, stored.RenewalStatus)
 }
 
 func TestResumeCurrentSubscriptionRenewalRestoresWalletAutoEnabledAndIsIdempotent(t *testing.T) {
