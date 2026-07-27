@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -199,6 +200,19 @@ func GrantSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountGrantInp
 		return false, ErrSubscriptionDiscountInvalidAccountState
 	}
 	return true, nil
+}
+
+func subscriptionDiscountUSDToMinor(usd float64) (int64, error) {
+	if math.IsNaN(usd) || math.IsInf(usd, 0) || usd < 0 {
+		return 0, ErrSubscriptionDiscountInvalidAmount
+	}
+	minor := decimal.NewFromFloat(usd).
+		Mul(decimal.NewFromInt(100)).
+		Round(0)
+	if minor.GreaterThan(decimal.NewFromInt(math.MaxInt64)) {
+		return 0, ErrSubscriptionDiscountInvalidAmount
+	}
+	return minor.IntPart(), nil
 }
 
 func ReserveSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountReservationInput) (bool, error) {

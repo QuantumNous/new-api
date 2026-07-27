@@ -635,10 +635,51 @@ func (user *User) insertWithTx(tx *gorm.DB, inviterId int, registrationIP string
 		return result.Error
 	}
 
+	if err := grantInviteeRegistrationSubscriptionDiscountInTx(tx, user); err != nil {
+		return err
+	}
+
 	if err := claimRegistrationIPNewUserBonusInTx(tx, user); err != nil {
 		return err
 	}
 	return EnqueueAdsSignupInTx(tx, user)
+}
+
+func grantInviteeRegistrationSubscriptionDiscountInTx(tx *gorm.DB, user *User) error {
+	if !common.InviteRewardSubscriptionMode || user == nil || user.Id <= 0 || user.InviterId <= 0 {
+		return nil
+	}
+	configuredDiscount := common.InviteFirstSubDiscountUSD
+	amountMinor, err := subscriptionDiscountUSDToMinor(configuredDiscount)
+	if err != nil {
+		return err
+	}
+	if amountMinor == 0 {
+		return nil
+	}
+	var inviter User
+	if err := tx.Select("id").Where("id = ?", user.InviterId).First(&inviter).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	snapshot, err := common.Marshal(map[string]string{
+		"invite_first_sub_discount_usd": strconv.FormatFloat(configuredDiscount, 'f', -1, 64),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+		UserID:          user.Id,
+		USDMinor:        amountMinor,
+		EntryType:       SubscriptionDiscountEntryTypeGrantInvitee,
+		SourceType:      "invitee_registration",
+		SourceKey:       strconv.Itoa(user.Id),
+		IdempotencyKey:  fmt.Sprintf("invitee:%d", user.Id),
+		PricingSnapshot: string(snapshot),
+	})
+	return err
 }
 
 // InsertWithTx inserts a new user within an existing transaction.

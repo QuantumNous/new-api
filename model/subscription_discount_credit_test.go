@@ -116,6 +116,41 @@ func countSubscriptionDiscountEntriesForUserTest(t *testing.T, userID int) int64
 	return rows
 }
 
+func TestSubscriptionDiscountUSDToMinor(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		usd  float64
+		want int64
+	}{
+		{name: "zero", usd: 0, want: 0},
+		{name: "whole", usd: 5, want: 500},
+		{name: "fractional", usd: 5.25, want: 525},
+		{name: "round_half_up", usd: 1.235, want: 124},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := subscriptionDiscountUSDToMinor(tc.usd)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+
+	for _, tc := range []struct {
+		name string
+		usd  float64
+	}{
+		{name: "negative", usd: -0.01},
+		{name: "nan", usd: math.NaN()},
+		{name: "positive_inf", usd: math.Inf(1)},
+		{name: "negative_inf", usd: math.Inf(-1)},
+		{name: "overflow", usd: float64(math.MaxInt64)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := subscriptionDiscountUSDToMinor(tc.usd)
+			require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidAmount)
+		})
+	}
+}
+
 func TestSubscriptionDiscountGrantCreatesAccountAndImmutableEntry(t *testing.T) {
 	setupSubscriptionDiscountCreditMemoryDB(t)
 
