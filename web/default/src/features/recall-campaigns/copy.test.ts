@@ -108,6 +108,42 @@ const recallEmailPlaceholderHelpKeys = [
   'Preview uses sample recipient and offer data.',
 ] as const
 
+const activityEmailLocalizationAndQuotaKeys = [
+  'Coupon redeem-by',
+  'Select coupon redeem-by',
+  'Promotion expiry mode',
+  'Relative duration',
+  'Fixed date',
+  'Promotion expires at',
+  'Select promotion expiry',
+  'Validity days',
+  'Validity hours',
+  'Effective expiry: {{date}} (local time)',
+  'English content',
+  'Translation review',
+  'English context',
+  'Generate 7 translations',
+  'Generating translations',
+  '{{ready}} / {{total}} ready',
+  'Regenerating will replace {{count}} manually edited translations.',
+  'Replace and regenerate',
+  'Translation generation failed',
+  'Translations must be complete and current before activation.',
+  'Generate or fix translations',
+  'stale',
+  'manual',
+  'missing',
+  'invalid',
+  'Activity email hourly limit',
+  'All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.',
+  'Attempts count when SMTP sending starts and are not refunded.',
+  '{{used}} / {{limit}} sent this hour',
+  'Hourly limit reached. Queued activity emails will resume at {{time}}.',
+  'Quota resets at {{time}}.',
+  'Hourly limit must be between 1 and 100000.',
+  'Save hourly limit',
+] as const
+
 const recallHelpKeys = [
   'Subject must be 200 characters or fewer',
   'Leave empty to use the campaign name.',
@@ -128,6 +164,7 @@ const recallHelpKeys = [
   ...dynamicAudienceTemplateValueKeys,
   ...specifiedUsersSelectorKeys,
   ...recallEmailPlaceholderHelpKeys,
+  ...activityEmailLocalizationAndQuotaKeys,
   ...translatedAudienceTemplateDescriptionKeys,
 ] as const
 

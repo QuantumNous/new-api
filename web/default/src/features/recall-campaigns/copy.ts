@@ -50,3 +50,18 @@ export const recallCampaignEditorCopyKeys = [
   'Emails are invalid',
   'Up to 500 users or emails are supported',
 ] as const
+
+export const recallActivityEmailCopyKeys = [
+  'stale',
+  'manual',
+  'missing',
+  'invalid',
+  'Activity email hourly limit',
+  'All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.',
+  'Attempts count when SMTP sending starts and are not refunded.',
+  '{{used}} / {{limit}} sent this hour',
+  'Hourly limit reached. Queued activity emails will resume at {{time}}.',
+  'Quota resets at {{time}}.',
+  'Hourly limit must be between 1 and 100000.',
+  'Save hourly limit',
+] as const
