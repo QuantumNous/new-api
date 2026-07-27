@@ -704,7 +704,7 @@ func calculateRecallDiscountAmountMinor(discount RecallDiscountConfig, currency 
 	currencyMatches := func(configured string) bool {
 		configured = strings.TrimSpace(configured)
 		if exactCurrency {
-			return configured == currency
+			return strings.ToUpper(configured) == strings.ToUpper(currency)
 		}
 		return strings.EqualFold(configured, currency)
 	}

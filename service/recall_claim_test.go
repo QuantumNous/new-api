@@ -703,6 +703,33 @@ func TestRecallResolveBestOfferActualDiscountAndOrdering(t *testing.T) {
 	require.Equal(t, *larger.recipient.StripePromotionCodeId, resolved.PromotionCodeID)
 }
 
+func TestRecallResolveBestOfferCanonicalizesPersistedCurrencyConfig(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "canonical-offer-user", AffCode: "canonical-offer-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "canonical@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+	option := createRecallOfferFixture(t, user, now, "canonical option", model.RecallCampaignRunning,
+		RecallDiscountConfig{
+			Type:                  "fixed",
+			AmountOff:             500,
+			Currency:              "usd",
+			CurrencyOptions:       map[string]int64{"brl": 2500},
+			MinimumAmount:         10000,
+			MinimumAmountCurrency: "brl",
+		},
+		RecallProductScope{TopUpPriceIDs: []string{"price_topup"}}, nil)
+
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+	resolved, err := claimService.ResolveBestRecallOffer(context.Background(), user.Id, RecallPurchaseKindTopUp, "price_topup", "BRL", 10000)
+
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+	require.Equal(t, option.recipient.Id, resolved.View.RecipientID)
+	require.Equal(t, int64(2500), resolved.DiscountMinor)
+}
+
 func TestRecallResolveBestOfferTiesByIssuedAtThenRecipientID(t *testing.T) {
 	db := setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -932,14 +959,26 @@ func TestRecallActualDiscountAmountMinorUsesExactCheckoutFacts(t *testing.T) {
 			want:     125,
 		},
 		{
-			name: "fixed requires exact uppercase checkout currency for options",
+			name: "fixed canonicalizes persisted lowercase currency option",
 			discount: RecallDiscountConfig{
 				Type:            "fixed",
 				AmountOff:       500,
-				Currency:        "USD",
-				CurrencyOptions: map[string]int64{"BRL": 2500},
+				Currency:        "usd",
+				CurrencyOptions: map[string]int64{"brl": 2500},
 			},
-			currency: "brl",
+			currency: "BRL",
+			subtotal: 10000,
+			want:     2500,
+		},
+		{
+			name: "fixed still requires semantic currency match after canonicalization",
+			discount: RecallDiscountConfig{
+				Type:            "fixed",
+				AmountOff:       500,
+				Currency:        "usd",
+				CurrencyOptions: map[string]int64{"brl": 2500},
+			},
+			currency: "JPY",
 			subtotal: 10000,
 			want:     0,
 		},
@@ -956,17 +995,17 @@ func TestRecallActualDiscountAmountMinorUsesExactCheckoutFacts(t *testing.T) {
 			want:     2500,
 		},
 		{
-			name: "minimum requires exact currency",
+			name: "minimum canonicalizes persisted lowercase currency",
 			discount: RecallDiscountConfig{
 				Type:                  "fixed",
 				AmountOff:             500,
-				Currency:              "USD",
+				Currency:              "usd",
 				MinimumAmount:         10000,
-				MinimumAmountCurrency: "USD",
+				MinimumAmountCurrency: "usd",
 			},
-			currency: "usd",
+			currency: "USD",
 			subtotal: 10000,
-			want:     0,
+			want:     500,
 		},
 		{
 			name:     "fixed clamps to subtotal",
