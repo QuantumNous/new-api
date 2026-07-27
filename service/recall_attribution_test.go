@@ -266,6 +266,44 @@ func TestRecallAttributionClickAloneNeverConverts(t *testing.T) {
 	_ = campaign
 }
 
+func TestRecallContentOnlyAttributionIgnoresPromotionAndClaimMetadata(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	campaign, recipient := createRecallAttributionRecipient(t, "promo_content_only")
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Update("campaign_type", model.RecallCampaignTypeContentOnly).Error)
+	service := NewRecallAttributionService(&recallStripeFakeClient{})
+
+	require.NoError(t, service.Attribute(context.Background(), RecallPaymentFact{
+		SourceEventID:         "evt_content_direct",
+		TradeNo:               "trade_content_direct",
+		UserID:                recipient.UserId,
+		AmountTotal:           1200,
+		Currency:              "USD",
+		DiscountAmount:        200,
+		PromotionCodeID:       "promo_content_only",
+		hasDiscount:           true,
+		discountDetailsLoaded: true,
+	}))
+	require.NoError(t, service.Attribute(context.Background(), RecallPaymentFact{
+		SourceEventID:         "evt_content_claim",
+		TradeNo:               "trade_content_claim",
+		UserID:                recipient.UserId,
+		AmountTotal:           1200,
+		Currency:              "USD",
+		ClaimCampaignID:       campaign.Id,
+		ClaimRecipientID:      recipient.Id,
+		discountDetailsLoaded: true,
+	}))
+
+	var stored model.RecallRecipient
+	require.NoError(t, model.DB.First(&stored, recipient.Id).Error)
+	require.Zero(t, stored.ConvertedAt)
+	require.Empty(t, stored.ConversionKind)
+	var eventCount int64
+	require.NoError(t, model.DB.Model(&model.RecallEvent{}).Where("recipient_id = ? AND event_type = ?", recipient.Id, "conversion").Count(&eventCount).Error)
+	require.Zero(t, eventCount)
+}
+
 func TestRecallAttributionReplayAndLaterOrderCannotOverwriteFirstConversion(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	campaign, recipient := createRecallAttributionRecipient(t, "promo_owned")

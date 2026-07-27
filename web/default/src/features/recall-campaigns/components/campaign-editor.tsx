@@ -31,6 +31,7 @@ import {
 } from '../audience-inputs'
 import { audienceTemplateDescriptionKeys } from '../copy'
 import {
+  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   RECALL_EMAIL_STARTER_HTML,
   formatRecallMinorAmount,
   normalizeRecallCouponSource,
@@ -93,12 +94,17 @@ const recallEmailLanguageOptions = recallEmailLocaleOrder.map((code) => ({
 }))
 
 function createRecallEmailTemplates(
-  templates: Record<string, RecallEmailTemplate> = {}
+  templates: Record<string, RecallEmailTemplate> = {},
+  campaignType: RecallCampaignDraft['campaign_type'] = 'promotion'
 ): Record<string, RecallEmailTemplate> {
+  const starterHtml =
+    campaignType === 'content_only'
+      ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
+      : RECALL_EMAIL_STARTER_HTML
   const englishTemplate = templates.en ?? {
     subject: '',
     body_text: '',
-    body_html: RECALL_EMAIL_STARTER_HTML,
+    body_html: starterHtml,
   }
   return Object.fromEntries(
     recallEmailLocaleOrder.map((locale) => [
@@ -154,7 +160,10 @@ export function createRecallCampaignFormDraft(
     ...preparedDraft,
     email_sequence: preparedDraft.email_sequence.map((stage) => ({
       ...stage,
-      templates: createRecallEmailTemplates(stage.templates),
+      templates: createRecallEmailTemplates(
+        stage.templates,
+        preparedDraft.campaign_type
+      ),
     })),
   }
 }
@@ -220,6 +229,7 @@ const audienceFields: Record<
 
 function createRecallCampaignDefaults(): RecallCampaignDraft {
   return {
+    campaign_type: 'promotion',
     name: '',
     audience_template: 'first_purchase',
     audience_config: {
@@ -309,6 +319,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
     control: form.control,
     name: 'email_sequence',
   })
+  const campaignType = form.watch('campaign_type')
   const audienceTemplate = form.watch('audience_template')
   const couponSource = form.watch('coupon_source')
   const discountType = form.watch('discount_config.type')
@@ -324,6 +335,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const automaticFixed =
     couponSource === 'automatic' && discountType === 'fixed'
   const terminal = props.status === 'cancelled' || props.status === 'completed'
+  const isPromotionCampaign = campaignType === 'promotion'
   const isSaving = mutations.create.isPending || mutations.update.isPending
   const SpecifiedUsersSelector =
     props.specifiedUsersSelector ?? LazyCampaignSpecifiedUsersSelector
@@ -441,6 +453,34 @@ export function CampaignEditor(props: CampaignEditorProps) {
     )
   }
 
+  const setCampaignType = (value: RecallCampaignDraft['campaign_type']) => {
+    const current = form.getValues()
+    form.setValue('campaign_type', value, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    const nextStarter =
+      value === 'content_only'
+        ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
+        : RECALL_EMAIL_STARTER_HTML
+    current.email_sequence.forEach((stage, index) => {
+      recallEmailLocaleOrder.forEach((locale) => {
+        const path =
+          `email_sequence.${index}.templates.${locale}.body_html` as FieldPath<RecallCampaignDraft>
+        const currentBody = stage.templates[locale]?.body_html ?? ''
+        if (
+          currentBody === RECALL_EMAIL_STARTER_HTML ||
+          currentBody === RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
+        ) {
+          form.setValue(path, nextStarter, {
+            shouldDirty: true,
+            shouldValidate: true,
+          })
+        }
+      })
+    })
+  }
+
   return (
     <form
       className='space-y-4'
@@ -459,6 +499,33 @@ export function CampaignEditor(props: CampaignEditorProps) {
               disabled={immutable}
               {...form.register('name')}
             />
+          </div>
+          <div className='space-y-2'>
+            <Label>{t('Campaign type')}</Label>
+            <Select
+              disabled={immutable}
+              value={campaignType}
+              onValueChange={(value) =>
+                value &&
+                setCampaignType(value as RecallCampaignDraft['campaign_type'])
+              }
+              items={[
+                { value: 'promotion', label: t('Promotion') },
+                { value: 'content_only', label: t('Content only') },
+              ]}
+            >
+              <SelectTrigger className='w-full'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value='promotion'>{t('Promotion')}</SelectItem>
+                  <SelectItem value='content_only'>
+                    {t('Content only')}
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
           <div className='space-y-2'>
             <Label>{t('Audience template')}</Label>
@@ -759,199 +826,207 @@ export function CampaignEditor(props: CampaignEditorProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('3. Stripe Coupon')}</CardTitle>
-        </CardHeader>
-        <CardContent className='grid gap-4 md:grid-cols-3'>
-          <div className='space-y-2'>
-            <Label>{t('Coupon source')}</Label>
-            <Select
-              disabled={immutable}
-              value={couponSource}
-              onValueChange={(value) =>
-                value &&
-                setCouponSource(value as RecallCampaignDraft['coupon_source'])
-              }
-              items={[
-                { value: 'automatic', label: t('Automatic Coupon') },
-                { value: 'existing', label: t('Existing Coupon') },
-              ]}
-            >
-              <SelectTrigger className='w-full'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value='automatic'>
-                    {t('Automatic Coupon')}
-                  </SelectItem>
-                  <SelectItem value='existing'>
-                    {t('Existing Coupon')}
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          {couponSource === 'existing' ? (
-            <div className='space-y-2 md:col-span-2'>
-              <Label>{t('Existing Coupon ID')}</Label>
-              <Input
-                disabled={immutable}
-                {...form.register('existing_coupon_id')}
-              />
-            </div>
-          ) : null}
-          <div className='space-y-2'>
-            <Label>{t('Discount type')}</Label>
-            <Select
-              disabled={immutable}
-              value={discountType}
-              onValueChange={(value) =>
-                value &&
-                setDiscountType(
-                  value as RecallCampaignDraft['discount_config']['type']
-                )
-              }
-              items={[
-                { value: 'percent', label: t('Percent') },
-                { value: 'fixed', label: t('Fixed amount') },
-              ]}
-            >
-              <SelectTrigger className='w-full'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value='percent'>{t('Percent')}</SelectItem>
-                  <SelectItem value='fixed'>{t('Fixed amount')}</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          {discountType === 'percent' ? (
+      {isPromotionCampaign ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('3. Stripe Coupon')}</CardTitle>
+          </CardHeader>
+          <CardContent className='grid gap-4 md:grid-cols-3'>
             <div className='space-y-2'>
-              <Label>{t('Percent off')}</Label>
-              <Input
-                type='number'
-                min={0.01}
-                max={100}
-                step='0.01'
+              <Label>{t('Coupon source')}</Label>
+              <Select
                 disabled={immutable}
-                {...form.register('discount_config.percent_off', {
-                  valueAsNumber: true,
-                })}
-              />
+                value={couponSource}
+                onValueChange={(value) =>
+                  value &&
+                  setCouponSource(value as RecallCampaignDraft['coupon_source'])
+                }
+                items={[
+                  { value: 'automatic', label: t('Automatic Coupon') },
+                  { value: 'existing', label: t('Existing Coupon') },
+                ]}
+              >
+                <SelectTrigger className='w-full'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value='automatic'>
+                      {t('Automatic Coupon')}
+                    </SelectItem>
+                    <SelectItem value='existing'>
+                      {t('Existing Coupon')}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
-          ) : automaticFixed ? (
-            <>
-              <p className='text-muted-foreground text-sm md:col-span-3'>
-                {t(
-                  'Stripe does not convert fixed Coupon amounts automatically. Configure each checkout currency explicitly.'
-                )}
-              </p>
-              {recallFixedCurrencies.map((currency) => (
-                <div className='space-y-2' key={currency}>
-                  <Label>{t('{{currency}} amount off', { currency })}</Label>
-                  <Input
-                    type='number'
-                    min={currency === 'JPY' ? 1 : 0.01}
-                    step={currency === 'JPY' ? '1' : '0.01'}
-                    disabled={immutable}
-                    value={fixedAmountInputs[currency]}
-                    onChange={(event) =>
-                      setFixedAmount(currency, event.target.value)
-                    }
-                  />
-                </div>
-              ))}
-            </>
-          ) : (
-            <>
+            {couponSource === 'existing' ? (
+              <div className='space-y-2 md:col-span-2'>
+                <Label>{t('Existing Coupon ID')}</Label>
+                <Input
+                  disabled={immutable}
+                  {...form.register('existing_coupon_id')}
+                />
+              </div>
+            ) : null}
+            <div className='space-y-2'>
+              <Label>{t('Discount type')}</Label>
+              <Select
+                disabled={immutable}
+                value={discountType}
+                onValueChange={(value) =>
+                  value &&
+                  setDiscountType(
+                    value as RecallCampaignDraft['discount_config']['type']
+                  )
+                }
+                items={[
+                  { value: 'percent', label: t('Percent') },
+                  { value: 'fixed', label: t('Fixed amount') },
+                ]}
+              >
+                <SelectTrigger className='w-full'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value='percent'>{t('Percent')}</SelectItem>
+                    <SelectItem value='fixed'>{t('Fixed amount')}</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            {discountType === 'percent' ? (
               <div className='space-y-2'>
-                <Label>{t('Amount off')}</Label>
+                <Label>{t('Percent off')}</Label>
                 <Input
                   type='number'
-                  min={1}
+                  min={0.01}
+                  max={100}
+                  step='0.01'
                   disabled={immutable}
-                  {...form.register('discount_config.amount_off', {
+                  {...form.register('discount_config.percent_off', {
                     valueAsNumber: true,
                   })}
                 />
               </div>
-              <div className='space-y-2'>
-                <Label>{t('Currency')}</Label>
-                <Input
-                  maxLength={3}
-                  placeholder='USD'
-                  disabled={immutable}
-                  {...form.register('discount_config.currency')}
-                />
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            ) : automaticFixed ? (
+              <>
+                <p className='text-muted-foreground text-sm md:col-span-3'>
+                  {t(
+                    'Stripe does not convert fixed Coupon amounts automatically. Configure each checkout currency explicitly.'
+                  )}
+                </p>
+                {recallFixedCurrencies.map((currency) => (
+                  <div className='space-y-2' key={currency}>
+                    <Label>{t('{{currency}} amount off', { currency })}</Label>
+                    <Input
+                      type='number'
+                      min={currency === 'JPY' ? 1 : 0.01}
+                      step={currency === 'JPY' ? '1' : '0.01'}
+                      disabled={immutable}
+                      value={fixedAmountInputs[currency]}
+                      onChange={(event) =>
+                        setFixedAmount(currency, event.target.value)
+                      }
+                    />
+                  </div>
+                ))}
+              </>
+            ) : (
+              <>
+                <div className='space-y-2'>
+                  <Label>{t('Amount off')}</Label>
+                  <Input
+                    type='number'
+                    min={1}
+                    disabled={immutable}
+                    {...form.register('discount_config.amount_off', {
+                      valueAsNumber: true,
+                    })}
+                  />
+                </div>
+                <div className='space-y-2'>
+                  <Label>{t('Currency')}</Label>
+                  <Input
+                    maxLength={3}
+                    placeholder='USD'
+                    disabled={immutable}
+                    {...form.register('discount_config.currency')}
+                  />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
-          <CardTitle>{t('4. Products, minimum, and validity')}</CardTitle>
+          <CardTitle>{t('4. Activity delivery')}</CardTitle>
         </CardHeader>
         <CardContent className='grid gap-4 md:grid-cols-2'>
-          <CampaignProductSelector
-            topUpPriceIDs={topUpPrices}
-            subscriptionPriceIDs={subscriptionPrices}
-            onTopUpChange={(value) =>
-              form.setValue('product_scope.topup_price_ids', value, {
-                shouldDirty: true,
-                shouldValidate: true,
-              })
-            }
-            onSubscriptionChange={(value) =>
-              form.setValue('product_scope.subscription_price_ids', value, {
-                shouldDirty: true,
-                shouldValidate: true,
-              })
-            }
-            immutable={immutable}
-          />
-          {!automaticFixed ? (
+          {isPromotionCampaign ? (
             <>
+              <CampaignProductSelector
+                topUpPriceIDs={topUpPrices}
+                subscriptionPriceIDs={subscriptionPrices}
+                onTopUpChange={(value) =>
+                  form.setValue('product_scope.topup_price_ids', value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                onSubscriptionChange={(value) =>
+                  form.setValue('product_scope.subscription_price_ids', value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                immutable={immutable}
+              />
+              {!automaticFixed ? (
+                <>
+                  <div className='space-y-2'>
+                    <Label>{t('Minimum amount')}</Label>
+                    <Input
+                      type='number'
+                      min={0}
+                      disabled={immutable}
+                      {...form.register('discount_config.minimum_amount', {
+                        valueAsNumber: true,
+                      })}
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label>{t('Minimum amount currency')}</Label>
+                    <Input
+                      maxLength={3}
+                      placeholder='USD'
+                      disabled={immutable}
+                      {...form.register(
+                        'discount_config.minimum_amount_currency'
+                      )}
+                    />
+                  </div>
+                </>
+              ) : null}
               <div className='space-y-2'>
-                <Label>{t('Minimum amount')}</Label>
+                <Label>{t('Coupon redeem-by timestamp')}</Label>
                 <Input
                   type='number'
                   min={0}
                   disabled={immutable}
-                  {...form.register('discount_config.minimum_amount', {
+                  {...form.register('discount_config.coupon_redeem_by', {
                     valueAsNumber: true,
                   })}
-                />
-              </div>
-              <div className='space-y-2'>
-                <Label>{t('Minimum amount currency')}</Label>
-                <Input
-                  maxLength={3}
-                  placeholder='USD'
-                  disabled={immutable}
-                  {...form.register('discount_config.minimum_amount_currency')}
                 />
               </div>
             </>
           ) : null}
           <div className='space-y-2'>
-            <Label>{t('Coupon redeem-by timestamp')}</Label>
-            <Input
-              type='number'
-              min={0}
-              disabled={immutable}
-              {...form.register('discount_config.coupon_redeem_by', {
-                valueAsNumber: true,
-              })}
-            />
-          </div>
-          <div className='space-y-2'>
-            <Label>{t('Promotion validity seconds')}</Label>
+            <Label>{t('Activity delivery validity seconds')}</Label>
             <Input
               type='number'
               min={1}
@@ -978,7 +1053,9 @@ export function CampaignEditor(props: CampaignEditorProps) {
               min={1}
               max={20}
               disabled={immutable}
-              {...form.register('worker_concurrency', { valueAsNumber: true })}
+              {...form.register('worker_concurrency', {
+                valueAsNumber: true,
+              })}
             />
           </div>
         </CardContent>
@@ -1231,7 +1308,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
                   stage_no: stages.fields.length + 1,
                   delay_seconds: stages.fields.length * 86400,
                   template_version: 1,
-                  templates: createRecallEmailTemplates(),
+                  templates: createRecallEmailTemplates({}, campaignType),
                 })
               }
             >

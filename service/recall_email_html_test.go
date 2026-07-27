@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +39,7 @@ func TestRecallEmailTemplateBodyContract(t *testing.T) {
 				BodyHTML: testCase.html,
 			}
 
-			_, err := validateRecallEmailTemplateBodyContract(template)
+			_, err := validateRecallEmailTemplateBodyContract(model.RecallCampaignTypePromotion, template)
 
 			if testCase.wantErr == "" {
 				require.NoError(t, err)
@@ -47,6 +48,43 @@ func TestRecallEmailTemplateBodyContract(t *testing.T) {
 			require.ErrorContains(t, err, testCase.wantErr)
 		})
 	}
+}
+
+func TestRecallContentOnlyHTMLUsesSharedSafetyPolicyWithoutPromotionActions(t *testing.T) {
+	source := strings.ReplaceAll(validRecallHTML,
+		`<a class="cta" href="{{.ClaimURL}}">Claim offer</a>`,
+		`<a class="cta" href="https://flatkey.ai/console">Open Flatkey</a>`)
+	source = strings.ReplaceAll(source, "{{.PromotionCodeMasked}}", "Welcome back")
+	source = strings.ReplaceAll(source, "{{.ProductSummary}}", "your account")
+	source = strings.ReplaceAll(source, "{{.ExpiresAt}}", "today")
+
+	_, err := validateRecallEmailTemplateBodyContract(
+		model.RecallCampaignTypeContentOnly,
+		RecallEmailTemplate{Subject: "News", BodyHTML: source},
+	)
+	require.NoError(t, err)
+
+	_, err = validateRecallEmailTemplateBodyContract(
+		model.RecallCampaignTypeContentOnly,
+		RecallEmailTemplate{Subject: "Bad", BodyHTML: validRecallHTML},
+	)
+	require.ErrorContains(t, err, "ClaimURL")
+}
+
+func TestRecallPromotionHTMLStillRequiresClaimAndUnsubscribeActions(t *testing.T) {
+	noClaim := strings.Replace(validRecallHTML, `<a class="cta" href="{{.ClaimURL}}">Claim offer</a>`, "", 1)
+	_, err := validateRecallEmailTemplateBodyContract(
+		model.RecallCampaignTypePromotion,
+		RecallEmailTemplate{Subject: "Offer", BodyHTML: noClaim},
+	)
+	require.ErrorContains(t, err, "ClaimURL")
+
+	noUnsubscribe := strings.Replace(validRecallHTML, `<a href="{{.UnsubscribeURL}}">Unsubscribe</a>`, "", 1)
+	_, err = validateRecallEmailTemplateBodyContract(
+		model.RecallCampaignTypePromotion,
+		RecallEmailTemplate{Subject: "Offer", BodyHTML: noUnsubscribe},
+	)
+	require.ErrorContains(t, err, "UnsubscribeURL")
 }
 
 func TestRecallEmailHTMLValidate(t *testing.T) {

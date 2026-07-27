@@ -33,7 +33,7 @@ export function CampaignPreviewDialog(props: CampaignPreviewDialogProps) {
           <DialogTitle>{t('Campaign preview')}</DialogTitle>
           <DialogDescription>
             {t(
-              'Review eligibility, exclusions, Stripe Products, and Coupon validation before activation.'
+              'Review eligibility, exclusions, and promotion validation before activation.'
             )}
           </DialogDescription>
         </DialogHeader>
@@ -61,45 +61,54 @@ export function CampaignPreviewDialog(props: CampaignPreviewDialogProps) {
                 </dl>
               </div>
               <div className='rounded-lg border p-3'>
-                <h3 className='font-medium'>{t('Stripe validation')}</h3>
-                <p>
-                  {t('Coupon source')}: {t(data.stripe.coupon_source)}
-                </p>
-                <p>
-                  {t('Coupon ID')}:{' '}
-                  {data.stripe.coupon_id || t('Created automatically')}
-                </p>
-                {data.stripe.discount.type === 'fixed' ? (
-                  <div>
-                    <p className='font-medium'>{t('Fixed discount amounts')}</p>
-                    {recallFixedCurrencies.map((currency) => {
-                      const amount =
-                        currency === 'USD'
-                          ? data.stripe.discount.amount_off
-                          : (data.stripe.discount.currency_options[
-                              currency.toLowerCase()
-                            ] ?? 0)
-                      return (
-                        <p key={currency}>
-                          {currency}:{' '}
-                          {formatRecallMinorAmount(currency, amount) || '-'}
+                <h3 className='font-medium'>{t('Promotion validation')}</h3>
+                {data.stripe ? (
+                  <>
+                    <p>
+                      {t('Coupon source')}: {t(data.stripe.coupon_source)}
+                    </p>
+                    <p>
+                      {t('Coupon ID')}:{' '}
+                      {data.stripe.coupon_id || t('Created automatically')}
+                    </p>
+                    {data.stripe.discount.type === 'fixed' ? (
+                      <div>
+                        <p className='font-medium'>
+                          {t('Fixed discount amounts')}
                         </p>
-                      )
-                    })}
-                  </div>
-                ) : null}
-                <p>
-                  {t('Resolved Products')}:{' '}
-                  {data.stripe.product_ids.join(', ') || '-'}
-                </p>
-                <p>
-                  {t('Top-up Stripe Price IDs')}:{' '}
-                  {data.stripe.topup_price_ids.join(', ') || '-'}
-                </p>
-                <p>
-                  {t('Subscription Stripe Price IDs')}:{' '}
-                  {data.stripe.subscription_price_ids.join(', ') || '-'}
-                </p>
+                        {recallFixedCurrencies.map((currency) => {
+                          const amount =
+                            currency === 'USD'
+                              ? data.stripe?.discount.amount_off
+                              : (data.stripe?.discount.currency_options?.[
+                                  currency.toLowerCase()
+                                ] ?? 0)
+                          return (
+                            <p key={currency}>
+                              {currency}:{' '}
+                              {formatRecallMinorAmount(currency, amount ?? 0) ||
+                                '-'}
+                            </p>
+                          )
+                        })}
+                      </div>
+                    ) : null}
+                    <p>
+                      {t('Resolved Products')}:{' '}
+                      {data.stripe.product_ids.join(', ') || '-'}
+                    </p>
+                    <p>
+                      {t('Top-up Stripe Price IDs')}:{' '}
+                      {data.stripe.topup_price_ids.join(', ') || '-'}
+                    </p>
+                    <p>
+                      {t('Subscription Stripe Price IDs')}:{' '}
+                      {data.stripe.subscription_price_ids.join(', ') || '-'}
+                    </p>
+                  </>
+                ) : (
+                  <p>{t('Not applicable')}</p>
+                )}
               </div>
             </div>
             <div>

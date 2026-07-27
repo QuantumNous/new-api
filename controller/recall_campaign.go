@@ -26,7 +26,7 @@ type recallRetryRequest struct {
 
 type recallPreviewResponse struct {
 	service.RecallAudiencePreview
-	Stripe service.RecallStripePreview `json:"stripe"`
+	Stripe *service.RecallStripePreview `json:"stripe"`
 }
 
 type recallAudienceUserOption struct {

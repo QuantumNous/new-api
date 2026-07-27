@@ -19,6 +19,7 @@ const testI18n = createInstance()
 
 function makeDraft(): RecallCampaignDraft {
   return {
+    campaign_type: 'promotion',
     name: 'Test campaign',
     audience_template: 'first_purchase',
     audience_config: {
@@ -128,6 +129,7 @@ beforeAll(async () => {
 describe('recall email preview race guard', () => {
   const latest = {
     requestId: 2,
+    campaignType: 'promotion' as const,
     subject: 'Current subject',
     bodyHTML: '<p>Current body</p>',
   }
@@ -137,6 +139,7 @@ describe('recall email preview race guard', () => {
       shouldApplyRecallEmailPreviewResult({
         candidate: latest,
         latest,
+        currentCampaignType: latest.campaignType,
         currentSubject: 'Edited subject',
         currentBodyHTML: latest.bodyHTML,
       })
@@ -145,6 +148,7 @@ describe('recall email preview race guard', () => {
       shouldApplyRecallEmailPreviewResult({
         candidate: latest,
         latest,
+        currentCampaignType: latest.campaignType,
         currentSubject: latest.subject,
         currentBodyHTML: '<p>Edited body</p>',
       })
@@ -156,10 +160,12 @@ describe('recall email preview race guard', () => {
       shouldApplyRecallEmailPreviewResult({
         candidate: {
           requestId: 1,
+          campaignType: 'promotion',
           subject: 'Older subject',
           bodyHTML: '<p>Older body</p>',
         },
         latest,
+        currentCampaignType: latest.campaignType,
         currentSubject: latest.subject,
         currentBodyHTML: latest.bodyHTML,
       })
@@ -171,10 +177,23 @@ describe('recall email preview race guard', () => {
       shouldApplyRecallEmailPreviewResult({
         candidate: latest,
         latest,
+        currentCampaignType: latest.campaignType,
         currentSubject: latest.subject,
         currentBodyHTML: latest.bodyHTML,
       })
     ).toBe(true)
+  })
+
+  test('ignores a preview result after the campaign type changes', () => {
+    expect(
+      shouldApplyRecallEmailPreviewResult({
+        candidate: { ...latest, campaignType: 'promotion' },
+        latest: { ...latest, campaignType: 'promotion' },
+        currentCampaignType: 'content_only',
+        currentSubject: latest.subject,
+        currentBodyHTML: latest.bodyHTML,
+      })
+    ).toBe(false)
   })
 
   test('clears backend errors for local validation without removing last preview', () => {
@@ -212,6 +231,7 @@ describe('recall email preview race guard', () => {
   test('prepares a plain-text preview without replacing the operator input', async () => {
     const operatorBody = 'Plain preview\n2 < 3'
     const prepared = await prepareRecallEmailPreviewRequest({
+      campaignType: 'promotion',
       nextRequestId: () => 3,
       subject: '',
       bodyHTML: operatorBody,
@@ -220,19 +240,36 @@ describe('recall email preview race guard', () => {
 
     expect(prepared?.snapshot).toEqual({
       requestId: 3,
+      campaignType: 'promotion',
       subject: '',
       bodyHTML: operatorBody,
     })
+    expect(prepared?.campaign_type).toBe('promotion')
     expect(prepared?.template.subject).toBe('Recall email preview')
     expect(prepared?.template.body_html).toContain('<p>Plain preview</p>')
     expect(prepared?.template.body_html).toContain('<p>2 &lt; 3</p>')
     expect(operatorBody).toBe('Plain preview\n2 < 3')
   })
 
+  test('prepares content-only plain-text preview without a claim action', async () => {
+    const prepared = await prepareRecallEmailPreviewRequest({
+      campaignType: 'content_only',
+      nextRequestId: () => 4,
+      subject: 'Product update',
+      bodyHTML: 'Product update\nRead the details',
+      validateBody: async () => true,
+    })
+
+    expect(prepared?.template.body_html).toContain('<p>Product update</p>')
+    expect(prepared?.template.body_html).not.toContain('{{.ClaimURL}}')
+    expect(prepared?.template.body_html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
   test('assigns the preview request id only after body validation completes', async () => {
     let resolveValidation: ((valid: boolean) => void) | undefined
     let nextRequestId = 0
     const preparing = prepareRecallEmailPreviewRequest({
+      campaignType: 'promotion',
       nextRequestId: () => (nextRequestId += 1),
       subject: 'Subject',
       bodyHTML: '<p>Body</p>',
@@ -281,6 +318,20 @@ describe('CampaignEmailHtmlEditor', () => {
       expect(html).toContain(`aria-label="Insert ${action}"`)
       expect(html).toContain('type="button"')
     }
+  })
+
+  test('renders only content-safe insertion buttons for content-only campaigns', () => {
+    const draft = makeDraft()
+    draft.campaign_type = 'content_only'
+    const html = renderEditor(false, draft)
+
+    expect(html).toContain('aria-label="Insert {{.RecipientName}}"')
+    expect(html).toContain('aria-label="Insert {{.UnsubscribeURL}}"')
+    expect(html).not.toContain('aria-label="Insert {{.PromotionCodeMasked}}"')
+    expect(html).not.toContain('aria-label="Insert {{.ProductSummary}}"')
+    expect(html).not.toContain('aria-label="Insert {{.ExpiresAt}}"')
+    expect(html).not.toContain('aria-label="Insert {{.ClaimURL}}"')
+    expect(html).not.toContain('Preview uses sample recipient and offer data.')
   })
 
   test('explains every placeholder directly in the editor', () => {

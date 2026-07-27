@@ -353,6 +353,89 @@ func TestRecallWorkerEmailOnlyRecipientSkipsCustomerAndSchedulesStageOne(t *test
 	require.Equal(t, model.RecallMessageScheduled, message.State)
 }
 
+func TestRecallWorkerContentOnlyRecipientsScheduleStageOneWithoutStripe(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	client := &recallStripeFakeClient{
+		getCustomerFn: func(context.Context, string) (*stripe.Customer, error) {
+			t.Fatal("content-only recipient looked up a Stripe Customer")
+			return nil, nil
+		},
+		createCustomerFn: func(context.Context, *stripe.CustomerParams) (*stripe.Customer, error) {
+			t.Fatal("content-only recipient created a Stripe Customer")
+			return nil, nil
+		},
+		updateCustomerFn: func(context.Context, string, *stripe.CustomerParams) (*stripe.Customer, error) {
+			t.Fatal("content-only recipient updated a Stripe Customer")
+			return nil, nil
+		},
+		createPromotionCodeFn: func(context.Context, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+			t.Fatal("content-only recipient created a Stripe Promotion Code")
+			return nil, nil
+		},
+		getPromotionCodeFn: func(context.Context, string) (*stripe.PromotionCode, error) {
+			t.Fatal("content-only recipient looked up a Stripe Promotion Code")
+			return nil, nil
+		},
+	}
+	worker := newRecallWorkerForTest(client, "node-a")
+	modes := []struct {
+		name          string
+		status        string
+		executionMode string
+	}{
+		{name: "manual", status: model.RecallCampaignRunning, executionMode: "manual"},
+		{name: "scheduled", status: model.RecallCampaignScheduled, executionMode: "scheduled_once"},
+		{name: "recurring", status: model.RecallCampaignRunning, executionMode: "recurring"},
+	}
+	recipientIDs := make([]int64, 0, len(modes)*2)
+	for _, mode := range modes {
+		campaign := createRecallWorkerContentOnlyCampaign(t, mode.status, mode.executionMode)
+		user := model.User{
+			Username:       "recall-content-worker-" + mode.name,
+			Password:       "password",
+			Email:          mode.name + "@example.com",
+			AffCode:        "content-worker-" + mode.name,
+			StripeCustomer: "cus_should_not_be_used",
+		}
+		require.NoError(t, model.DB.Create(&user).Error)
+		for _, userID := range []int{user.Id, 0} {
+			recipient := createRecallWorkerRecipient(t, campaign.Id, userID, model.RecallRecipientQueued)
+			require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", recipient.Id).Updates(map[string]any{
+				"promotion_expires_at": int64(0),
+				"created_at":           recallWorkerTestNow - 60,
+			}).Error)
+			recipientIDs = append(recipientIDs, recipient.Id)
+		}
+	}
+
+	processed, err := worker.RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, len(recipientIDs), processed)
+	processed, err = worker.RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, processed)
+
+	var recipients []model.RecallRecipient
+	require.NoError(t, model.DB.Where("id IN ?", recipientIDs).Order("id ASC").Find(&recipients).Error)
+	require.Len(t, recipients, len(recipientIDs))
+	for _, recipient := range recipients {
+		require.Equal(t, model.RecallRecipientContacting, recipient.State)
+		require.Empty(t, recipient.StripeCustomerId)
+		require.Nil(t, recipient.StripePromotionCodeId)
+		require.Empty(t, recipient.PromotionCode)
+		require.Zero(t, recipient.PromotionExpiresAt)
+	}
+	var messages []model.RecallMessage
+	require.NoError(t, model.DB.Where("recipient_id IN ?", recipientIDs).Order("recipient_id ASC").Find(&messages).Error)
+	require.Len(t, messages, len(recipientIDs))
+	for _, message := range messages {
+		require.Equal(t, 1, message.StageNo)
+		require.Equal(t, model.RecallMessageScheduled, message.State)
+		require.Nil(t, message.ClaimTokenHash)
+	}
+}
+
 func TestRecallWorkerResolvesCompetingCustomerWinnerByReloadAndValidation(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -1502,6 +1585,35 @@ func createRecallWorkerCampaign(t *testing.T, status string) model.RecallCampaig
 		EmailSequenceConfig: string(emailJSON), EnrollmentLimit: 100, WorkerConcurrency: 2,
 	}
 	require.NoError(t, model.DB.Create(&campaign).Error)
+	return campaign
+}
+
+func createRecallWorkerContentOnlyCampaign(t *testing.T, status string, executionMode string) model.RecallCampaign {
+	t.Helper()
+	campaign := createRecallWorkerCampaign(t, status)
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Updates(map[string]any{
+		"campaign_type":           model.RecallCampaignTypeContentOnly,
+		"execution_mode":          executionMode,
+		"coupon_source":           "",
+		"stripe_coupon_id":        "",
+		"discount_config":         `{}`,
+		"product_scope":           `{}`,
+		"promotion_valid_seconds": int64(0),
+		"recurrence_config":       `{}`,
+		"scheduled_at":            int64(0),
+		"next_run_at":             int64(0),
+		"worker_concurrency":      2,
+		"email_sequence_config":   campaign.EmailSequenceConfig,
+		"audience_template":       campaign.AudienceTemplate,
+		"audience_config":         campaign.AudienceConfig,
+		"enrollment_limit":        campaign.EnrollmentLimit,
+		"completed_at":            campaign.CompletedAt,
+		"created_by":              campaign.CreatedBy,
+		"config_revision":         campaign.ConfigRevision,
+		"name":                    campaign.Name,
+		"status":                  status,
+	}).Error)
+	require.NoError(t, model.DB.First(&campaign, campaign.Id).Error)
 	return campaign
 }
 

@@ -2,6 +2,9 @@ import { z } from 'zod'
 import { isRecallSpecifiedEmail } from './audience-inputs'
 import type { RecallCampaignDraft } from './types'
 
+const campaignTypeSchema = z
+  .enum(['promotion', 'content_only'])
+  .default('promotion')
 const nonNegativeInteger = z.number().int().min(0)
 const nonNegativeNumber = z.number().min(0)
 const integer = z.number().int()
@@ -209,7 +212,7 @@ const scheduleSchema = z
   })
   .strict()
 
-const discountSchema = z
+const promotionDiscountSchema = z
   .object({
     type: z.enum(['percent', 'fixed']),
     percent_off: z.number().min(0),
@@ -302,17 +305,25 @@ const discountSchema = z
     }
   })
 
+const discountSchema = z
+  .object({
+    type: z.enum(['percent', 'fixed']),
+    percent_off: z.number().min(0),
+    amount_off: nonNegativeInteger,
+    currency: z.string(),
+    currency_options: z.record(z.string(), nonNegativeInteger),
+    minimum_amount: nonNegativeInteger,
+    minimum_amount_currency: z.string(),
+    coupon_redeem_by: nonNegativeInteger,
+  })
+  .strict()
+
 const productScopeSchema = z
   .object({
     topup_price_ids: z.array(z.string().trim().min(1)),
     subscription_price_ids: z.array(z.string().trim().min(1)),
   })
   .strict()
-  .refine(
-    (scope) =>
-      scope.topup_price_ids.length + scope.subscription_price_ids.length > 0,
-    { message: 'At least one Stripe Price is required' }
-  )
 
 const MAX_BODY_HTML_BYTES = 100 * 1024
 
@@ -416,6 +427,7 @@ export const recallCampaignActivatedUpdateSchema =
 
 export const recallCampaignDraftSchema = z
   .object({
+    campaign_type: campaignTypeSchema,
     name: z.string().trim().min(1).max(128),
     audience_template: z.enum([
       'first_purchase',
@@ -432,7 +444,7 @@ export const recallCampaignDraftSchema = z
     existing_coupon_id: z.string(),
     discount_config: discountSchema,
     product_scope: productScopeSchema,
-    promotion_valid_seconds: z.number().int().positive(),
+    promotion_valid_seconds: z.number().int().min(0),
     enrollment_limit: z.number().int().min(1).max(100_000),
     worker_concurrency: z.number().int().min(1).max(20),
     email_sequence: emailSequenceSchema,
@@ -455,6 +467,16 @@ export const recallCampaignDraftSchema = z
     if (draft.audience_template === 'specified_users') {
       validateSpecifiedUsersAudience(draft.audience_config, context)
     }
+    if (draft.promotion_valid_seconds <= 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['promotion_valid_seconds'],
+        message: 'Activity delivery validity is required',
+      })
+    }
+    if (draft.campaign_type === 'content_only') {
+      return
+    }
     if (
       draft.coupon_source === 'automatic' &&
       draft.existing_coupon_id.trim() !== ''
@@ -463,6 +485,28 @@ export const recallCampaignDraftSchema = z
         code: 'custom',
         path: ['existing_coupon_id'],
         message: 'Automatic coupons cannot use an existing coupon ID',
+      })
+    }
+    const discountResult = promotionDiscountSchema.safeParse(
+      draft.discount_config
+    )
+    if (!discountResult.success) {
+      for (const issue of discountResult.error.issues) {
+        context.addIssue({
+          ...issue,
+          path: ['discount_config', ...issue.path],
+        })
+      }
+    }
+    if (
+      draft.product_scope.topup_price_ids.length +
+        draft.product_scope.subscription_price_ids.length ===
+      0
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['product_scope'],
+        message: 'At least one Stripe Price is required',
       })
     }
     if (

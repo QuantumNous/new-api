@@ -22,7 +22,12 @@ import {
   listRecallRecipients,
   recallCampaignKeys,
 } from '../api'
-import { getRecallPageCount, getRecallRecipientRetry } from '../helpers'
+import {
+  formatRecallCampaignType,
+  getRecallPageCount,
+  getRecallRecipientRetry,
+  isRecallPromotionCampaign,
+} from '../helpers'
 import type {
   RecallCampaignAction,
   RecallCampaignStatus,
@@ -86,6 +91,9 @@ export function CampaignDetail(props: CampaignDetailProps) {
   const recipients = recipientsQuery.data?.data?.items ?? []
   const events = eventsQuery.data?.data?.items ?? []
   const metrics = metricsQuery.data?.data
+  const isPromotion = isRecallPromotionCampaign(
+    detail?.campaign_type ?? 'promotion'
+  )
   const recipientPageCount = getRecallPageCount(
     recipientsQuery.data?.data?.total ?? 0,
     DETAIL_PAGE_SIZE
@@ -130,6 +138,9 @@ export function CampaignDetail(props: CampaignDetailProps) {
       </SectionPageLayout.Breadcrumb>
       <SectionPageLayout.Title>{detail.name}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
+        <Badge variant='outline'>
+          {t(formatRecallCampaignType(detail.campaign_type))}
+        </Badge>
         <Badge variant='secondary'>{t(detail.status)}</Badge>
         <Button variant='outline' onClick={() => setPreviewOpen(true)}>
           {t('Preview')}
@@ -162,9 +173,13 @@ export function CampaignDetail(props: CampaignDetailProps) {
                       ['Enrolled', metrics.enrolled_count],
                       ['Excluded', metrics.excluded_count],
                       ['Observed clicks', metrics.observed_click_count],
-                      ['Direct conversions', metrics.direct_count],
-                      ['Assisted conversions', metrics.assisted_count],
-                      ['No-coupon conversions', metrics.no_coupon_count],
+                      ...(isPromotion
+                        ? [
+                            ['Direct conversions', metrics.direct_count],
+                            ['Assisted conversions', metrics.assisted_count],
+                            ['No-coupon conversions', metrics.no_coupon_count],
+                          ]
+                        : []),
                       ['Accepted messages', metrics.messages_accepted_count],
                     ].map(([label, value]) => (
                       <div
@@ -178,29 +193,35 @@ export function CampaignDetail(props: CampaignDetailProps) {
                       </div>
                     ))}
                   </div>
-                  <div className='mt-4 grid gap-3 md:grid-cols-2'>
-                    {metrics.currency_metrics.map((currency) => (
-                      <div
-                        className='rounded-lg border p-3'
-                        key={currency.currency}
-                      >
-                        <h4 className='font-medium'>
-                          {currency.currency.toUpperCase()}
-                        </h4>
-                        <p>
-                          {t('Payment amount')}: {currency.payment_amount}
-                        </p>
-                        <p>
-                          {t('Discount amount')}: {currency.discount_amount}
-                        </p>
-                        <p>
-                          {t('Direct / assisted / no coupon')}:{' '}
-                          {currency.direct_count} / {currency.assisted_count} /{' '}
-                          {currency.no_coupon_count}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                  {isPromotion ? (
+                    <div className='mt-4 grid gap-3 md:grid-cols-2'>
+                      {metrics.currency_metrics.map((currency) => (
+                        <div
+                          className='rounded-lg border p-3'
+                          key={currency.currency}
+                        >
+                          <h4 className='font-medium'>
+                            {currency.currency.toUpperCase()}
+                          </h4>
+                          <p>
+                            {t('Payment amount')}: {currency.payment_amount}
+                          </p>
+                          <p>
+                            {t('Discount amount')}: {currency.discount_amount}
+                          </p>
+                          <p>
+                            {t('Direct / assisted / no coupon')}:{' '}
+                            {currency.direct_count} / {currency.assisted_count}{' '}
+                            / {currency.no_coupon_count}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className='text-muted-foreground mt-4 text-sm'>
+                      {t('Promotion conversion metrics are not applicable.')}
+                    </p>
+                  )}
                 </>
               ) : (
                 <p>{t('Loading')}</p>
@@ -217,7 +238,11 @@ export function CampaignDetail(props: CampaignDetailProps) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t('Recipient')}</TableHead>
-                    <TableHead>{t('Stripe details')}</TableHead>
+                    <TableHead>
+                      {isPromotion
+                        ? t('Stripe details')
+                        : t('Promotion details')}
+                    </TableHead>
                     <TableHead>{t('Delivery and conversion')}</TableHead>
                     <TableHead>{t('Messages and errors')}</TableHead>
                     <TableHead>{t('Actions')}</TableHead>
@@ -234,18 +259,26 @@ export function CampaignDetail(props: CampaignDetailProps) {
                         <Badge variant='outline'>{t(recipient.state)}</Badge>
                       </TableCell>
                       <TableCell>
-                        <div>
-                          {t('Customer ID')}:{' '}
-                          {recipient.stripe_customer_id || '-'}
-                        </div>
-                        <div>
-                          {t('Masked code')}:{' '}
-                          {recipient.promotion_code_masked || '-'}
-                        </div>
-                        <div>
-                          {t('Expires')}:{' '}
-                          {formatTimestamp(recipient.promotion_expires_at)}
-                        </div>
+                        {isPromotion ? (
+                          <>
+                            <div>
+                              {t('Customer ID')}:{' '}
+                              {recipient.stripe_customer_id || '-'}
+                            </div>
+                            <div>
+                              {t('Masked code')}:{' '}
+                              {recipient.promotion_code_masked || '-'}
+                            </div>
+                            <div>
+                              {t('Expires')}:{' '}
+                              {formatTimestamp(recipient.promotion_expires_at)}
+                            </div>
+                          </>
+                        ) : (
+                          <span className='text-muted-foreground'>
+                            {t('Not applicable')}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div>

@@ -50,6 +50,7 @@ type RecallCampaignService struct {
 
 type RecallCampaignSummary struct {
 	Id                    int64  `json:"id"`
+	CampaignType          string `json:"campaign_type"`
 	Name                  string `json:"name"`
 	Status                string `json:"status"`
 	AudienceTemplate      string `json:"audience_template"`
@@ -155,7 +156,11 @@ func (s *RecallCampaignService) List(ctx context.Context, page *common.PageInfo,
 		if err != nil {
 			return nil, 0, err
 		}
-		summaries = append(summaries, recallCampaignSummary(campaigns[i], recipientTotal))
+		summary, err := recallCampaignSummary(campaigns[i], recipientTotal)
+		if err != nil {
+			return nil, 0, err
+		}
+		summaries = append(summaries, summary)
 	}
 	return summaries, total, nil
 }
@@ -176,8 +181,12 @@ func (s *RecallCampaignService) GetDetail(ctx context.Context, id int64) (Recall
 	if err != nil {
 		return RecallCampaignDetail{}, err
 	}
+	summary, err := recallCampaignSummary(*campaign, recipientTotal)
+	if err != nil {
+		return RecallCampaignDetail{}, err
+	}
 	return RecallCampaignDetail{
-		RecallCampaignSummary: recallCampaignSummary(*campaign, recipientTotal),
+		RecallCampaignSummary: summary,
 		Draft:                 draft,
 	}, nil
 }
@@ -237,6 +246,14 @@ func (s *RecallCampaignService) RetryRecipient(ctx context.Context, actorID int,
 	if actorID <= 0 || campaignID <= 0 || recipientID <= 0 {
 		return fmt.Errorf("recall campaign actor, campaign, and recipient IDs must be positive")
 	}
+	campaign, err := model.GetRecallCampaignByIDWithContext(ctx, campaignID)
+	if err != nil {
+		return err
+	}
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return err
+	}
 	recipient, err := model.GetRecallRecipientByCampaignWithContext(ctx, campaignID, recipientID)
 	if err != nil {
 		return err
@@ -258,6 +275,7 @@ func (s *RecallCampaignService) RetryRecipient(ctx context.Context, actorID int,
 			EventData: recallAdminEventData(actorID, map[string]any{
 				"action":           "retry",
 				"target":           "recipient",
+				"campaign_type":    campaignType,
 				"previous_state":   recipient.State,
 				"previous_updated": recipient.UpdatedAt,
 				"next_state":       nextState,
@@ -312,6 +330,7 @@ func (s *RecallCampaignService) RetryRecipient(ctx context.Context, actorID int,
 	eventFields := map[string]any{
 		"action":                    "retry",
 		"target":                    "message",
+		"campaign_type":             campaignType,
 		"message_id":                selected.Id,
 		"previous_state":            selected.State,
 		"previous_attempt_count":    selected.AttemptCount,
@@ -350,7 +369,12 @@ func (s *RecallCampaignService) Export(ctx context.Context, id int64) ([]byte, e
 	if id <= 0 {
 		return nil, fmt.Errorf("recall campaign ID must be positive")
 	}
-	if _, err := model.GetRecallCampaignByIDWithContext(ctx, id); err != nil {
+	campaign, err := model.GetRecallCampaignByIDWithContext(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
 		return nil, err
 	}
 	snapshot, err := model.GetRecallRecipientExportSnapshotWithContext(ctx, id)
@@ -362,7 +386,7 @@ func (s *RecallCampaignService) Export(ctx context.Context, id int64) ([]byte, e
 	}
 	buffer := recallExportBuffer{maxBytes: s.exportMaxBytes}
 	writer := csv.NewWriter(&buffer)
-	if err := writer.Write([]string{"recipient_id", "user_id", "state", "promotion_code_masked", "conversion_kind", "currency", "conversion_amount", "discount_amount", "converted_at"}); err != nil {
+	if err := writer.Write([]string{"campaign_type", "recipient_id", "user_id", "state", "promotion_code_masked", "conversion_kind", "currency", "conversion_amount", "discount_amount", "converted_at"}); err != nil {
 		return nil, err
 	}
 	afterID := int64(0)
@@ -379,6 +403,7 @@ func (s *RecallCampaignService) Export(ctx context.Context, id int64) ([]byte, e
 				return nil, err
 			}
 			row := []string{
+				campaignType,
 				strconv.FormatInt(recipients[i].Id, 10),
 				strconv.Itoa(recipients[i].UserId),
 				recipients[i].State,
@@ -429,12 +454,20 @@ func (s *RecallCampaignService) ValidateStripe(ctx context.Context, draft Recall
 	if err != nil {
 		return RecallStripePreview{}, err
 	}
+	if normalized.CampaignType == model.RecallCampaignTypeContentOnly {
+		return RecallStripePreview{}, nil
+	}
 	return s.validateStripe(ctx, normalized)
 }
 
-func recallCampaignSummary(campaign model.RecallCampaign, recipientTotal int64) RecallCampaignSummary {
+func recallCampaignSummary(campaign model.RecallCampaign, recipientTotal int64) (RecallCampaignSummary, error) {
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return RecallCampaignSummary{}, err
+	}
 	return RecallCampaignSummary{
 		Id:                    campaign.Id,
+		CampaignType:          campaignType,
 		Name:                  campaign.Name,
 		Status:                campaign.Status,
 		AudienceTemplate:      campaign.AudienceTemplate,
@@ -453,7 +486,7 @@ func recallCampaignSummary(campaign model.RecallCampaign, recipientTotal int64) 
 		ActivatedAt:           campaign.ActivatedAt,
 		CompletedAt:           campaign.CompletedAt,
 		RecipientTotal:        recipientTotal,
-	}
+	}, nil
 }
 
 func recallRecipientView(recipient model.RecallRecipient, messages []RecallMessageView) RecallRecipientView {
@@ -544,7 +577,7 @@ func (s *RecallCampaignService) SaveDraft(ctx context.Context, actorID int, draf
 	if err != nil {
 		return nil, err
 	}
-	normalized.Emails, err = s.localizeRecallEmailStages(ctx, normalized.Emails, nil)
+	normalized.Emails, err = s.localizeRecallEmailStages(ctx, normalized.CampaignType, normalized.Emails, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -582,7 +615,7 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 		if err != nil {
 			return nil, err
 		}
-		normalized.Emails, err = s.localizeRecallEmailStages(ctx, normalized.Emails, current.Emails)
+		normalized.Emails, err = s.localizeRecallEmailStages(ctx, normalized.CampaignType, normalized.Emails, current.Emails)
 		if err != nil {
 			return nil, err
 		}
@@ -621,11 +654,15 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 		return nil, fmt.Errorf("recall campaign name must contain 1 to 128 characters")
 	}
 	applyRecallEmailSubjectFallbacks(canonical.Emails, name)
-	normalizedEmails, err := normalizeRecallEmailStages(canonical.Emails)
+	campaignType, err := normalizeRecallCampaignType(canonical.CampaignType)
 	if err != nil {
 		return nil, err
 	}
-	normalizedEmails, err = s.localizeRecallEmailStages(ctx, normalizedEmails, current.Emails)
+	normalizedEmails, err := normalizeRecallEmailStages(campaignType, canonical.Emails)
+	if err != nil {
+		return nil, err
+	}
+	normalizedEmails, err = s.localizeRecallEmailStages(ctx, campaignType, normalizedEmails, current.Emails)
 	if err != nil {
 		return nil, err
 	}
@@ -647,30 +684,33 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 	return model.GetRecallCampaignByIDWithContext(ctx, id)
 }
 
-func (s *RecallCampaignService) Preview(ctx context.Context, id int64, sampleSize int) (RecallAudiencePreview, RecallStripePreview, error) {
+func (s *RecallCampaignService) Preview(ctx context.Context, id int64, sampleSize int) (RecallAudiencePreview, *RecallStripePreview, error) {
 	if err := validateRecallCampaignContext(ctx); err != nil {
-		return RecallAudiencePreview{}, RecallStripePreview{}, err
+		return RecallAudiencePreview{}, nil, err
 	}
 	if id <= 0 {
-		return RecallAudiencePreview{}, RecallStripePreview{}, fmt.Errorf("recall campaign ID must be positive")
+		return RecallAudiencePreview{}, nil, fmt.Errorf("recall campaign ID must be positive")
 	}
 	campaign, err := model.GetRecallCampaignByIDWithContext(ctx, id)
 	if err != nil {
-		return RecallAudiencePreview{}, RecallStripePreview{}, err
+		return RecallAudiencePreview{}, nil, err
 	}
 	draft, err := recallCampaignDraftFromModel(campaign)
 	if err != nil {
-		return RecallAudiencePreview{}, RecallStripePreview{}, err
+		return RecallAudiencePreview{}, nil, err
 	}
 	audiencePreview, err := s.audience.Preview(ctx, draft, sampleSize, s.now())
 	if err != nil {
-		return RecallAudiencePreview{}, RecallStripePreview{}, err
+		return RecallAudiencePreview{}, nil, err
+	}
+	if draft.CampaignType == model.RecallCampaignTypeContentOnly {
+		return audiencePreview, nil, nil
 	}
 	stripePreview, err := s.validateStripe(ctx, draft)
 	if err != nil {
-		return RecallAudiencePreview{}, RecallStripePreview{}, err
+		return RecallAudiencePreview{}, nil, err
 	}
-	return audiencePreview, stripePreview, nil
+	return audiencePreview, &stripePreview, nil
 }
 
 func (s *RecallCampaignService) validateStripe(ctx context.Context, draft RecallCampaignDraft) (RecallStripePreview, error) {
@@ -731,35 +771,39 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 	if err != nil {
 		return err
 	}
-	resolved, err := s.stripe.ValidateAndResolveProducts(ctx, draft.Products)
-	if err != nil {
-		return err
+	couponID := ""
+	if draft.CampaignType == model.RecallCampaignTypePromotion {
+		resolved, err := s.stripe.ValidateAndResolveProducts(ctx, draft.Products)
+		if err != nil {
+			return err
+		}
+		draft.Products.TopUpPriceIDs = resolved.TopUpPriceIDs
+		draft.Products.SubscriptionPriceIDs = resolved.SubscriptionPriceIDs
+		draft.Products, err = resolveRecallProductDisplaySnapshots(ctx, draft.Products)
+		if err != nil {
+			return err
+		}
+		coupon, discount, err := s.stripe.EnsureCoupon(
+			ctx,
+			campaign.Id,
+			campaign.ConfigRevision,
+			draft.CouponSource,
+			draft.ExistingCouponID,
+			draft.Discount,
+			resolved,
+			draft.EnrollmentLimit,
+		)
+		if err != nil {
+			return err
+		}
+		couponID = coupon.ID
+		draft.Discount = discount
+		if draft.ExecutionMode == "scheduled_once" && draft.Discount.CouponRedeemBy > 0 &&
+			draft.Schedule.ScheduledAt >= draft.Discount.CouponRedeemBy {
+			return fmt.Errorf("scheduled recall campaign must run before the Stripe Coupon redeem-by time")
+		}
 	}
-	draft.Products.TopUpPriceIDs = resolved.TopUpPriceIDs
-	draft.Products.SubscriptionPriceIDs = resolved.SubscriptionPriceIDs
-	draft.Products, err = resolveRecallProductDisplaySnapshots(ctx, draft.Products)
-	if err != nil {
-		return err
-	}
-	coupon, discount, err := s.stripe.EnsureCoupon(
-		ctx,
-		campaign.Id,
-		campaign.ConfigRevision,
-		draft.CouponSource,
-		draft.ExistingCouponID,
-		draft.Discount,
-		resolved,
-		draft.EnrollmentLimit,
-	)
-	if err != nil {
-		return err
-	}
-	draft.Discount = discount
-	if draft.ExecutionMode == "scheduled_once" && draft.Discount.CouponRedeemBy > 0 &&
-		draft.Schedule.ScheduledAt >= draft.Discount.CouponRedeemBy {
-		return fmt.Errorf("scheduled recall campaign must run before the Stripe Coupon redeem-by time")
-	}
-	fields, err := recallCampaignActivationFields(draft, coupon.ID, activationNow.Unix())
+	fields, err := recallCampaignActivationFields(draft, couponID, activationNow.Unix())
 	if err != nil {
 		return err
 	}
@@ -799,7 +843,7 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 		if err != nil {
 			return err
 		}
-		if draft.Discount.CouponRedeemBy > 0 && nextRun.Unix() >= draft.Discount.CouponRedeemBy {
+		if draft.CampaignType == model.RecallCampaignTypePromotion && draft.Discount.CouponRedeemBy > 0 && nextRun.Unix() >= draft.Discount.CouponRedeemBy {
 			return fmt.Errorf("recurring recall campaign must first run before the Stripe Coupon redeem-by time")
 		}
 		fields["next_run_at"] = nextRun.Unix()
@@ -844,6 +888,10 @@ func (s *RecallCampaignService) Cancel(ctx context.Context, actorID int, id int6
 	if campaign.Status == model.RecallCampaignCompleted {
 		return fmt.Errorf("completed recall campaign %d cannot be cancelled", id)
 	}
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return err
+	}
 	now := s.now().Unix()
 	event := model.RecallEvent{
 		CampaignId:    id,
@@ -852,6 +900,7 @@ func (s *RecallCampaignService) Cancel(ctx context.Context, actorID int, id int6
 		SourceEventId: recallAdminSourceEventID(ctx, "cancel", fmt.Sprintf("actor:%d:campaign:%d:state:%s:updated:%d", actorID, id, campaign.Status, campaign.UpdatedAt)),
 		EventData: recallAdminEventData(actorID, map[string]any{
 			"action":         "cancel",
+			"campaign_type":  campaignType,
 			"previous_state": campaign.Status,
 		}),
 		CreatedAt: now,
@@ -889,6 +938,10 @@ func (s *RecallCampaignService) Complete(ctx context.Context, actorID int, id in
 	if !containsRecallCampaignStatus(from, campaign.Status) {
 		return fmt.Errorf("recall campaign %d cannot transition from %s to %s", id, campaign.Status, model.RecallCampaignCompleted)
 	}
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return err
+	}
 	now := s.now().Unix()
 	event := model.RecallEvent{
 		CampaignId:    id,
@@ -897,6 +950,7 @@ func (s *RecallCampaignService) Complete(ctx context.Context, actorID int, id in
 		SourceEventId: recallAdminSourceEventID(ctx, "complete", fmt.Sprintf("actor:%d:campaign:%d:state:%s:updated:%d", actorID, id, campaign.Status, campaign.UpdatedAt)),
 		EventData: recallAdminEventData(actorID, map[string]any{
 			"action":         "complete",
+			"campaign_type":  campaignType,
 			"previous_state": campaign.Status,
 		}),
 		CreatedAt: now,
@@ -1009,7 +1063,7 @@ func (s *RecallCampaignService) runDueCampaign(ctx context.Context, campaign *mo
 	if err != nil {
 		return false, permanentRecallCampaignRunError(err)
 	}
-	if draft.Discount.CouponRedeemBy > 0 && now.Unix() >= draft.Discount.CouponRedeemBy {
+	if draft.CampaignType == model.RecallCampaignTypePromotion && draft.Discount.CouponRedeemBy > 0 && now.Unix() >= draft.Discount.CouponRedeemBy {
 		_, err := model.CompleteDueRecallCampaignWithContext(ctx, campaign.Id, campaign.NextRunAt, now.Unix())
 		return false, err
 	}
@@ -1036,7 +1090,7 @@ func (s *RecallCampaignService) runDueCampaign(ctx context.Context, campaign *mo
 		expected := campaign.NextRunAt
 		runKey := fmt.Sprintf("recurring:%d:%d", campaign.Id, expected)
 		fields := map[string]any{"next_run_at": next.Unix()}
-		if draft.Discount.CouponRedeemBy > 0 && next.Unix() >= draft.Discount.CouponRedeemBy {
+		if draft.CampaignType == model.RecallCampaignTypePromotion && draft.Discount.CouponRedeemBy > 0 && next.Unix() >= draft.Discount.CouponRedeemBy {
 			fields["next_run_at"] = int64(0)
 		}
 		return s.commitCampaignRun(
@@ -1091,16 +1145,19 @@ func (s *RecallCampaignService) commitCampaignRun(
 		return false, err
 	}
 	expiresAt := runAt.Add(time.Duration(campaign.PromotionValidSeconds) * time.Second).Unix()
-	if draft.Discount.CouponRedeemBy > 0 && draft.Discount.CouponRedeemBy < expiresAt {
-		expiresAt = draft.Discount.CouponRedeemBy
+	if draft.CampaignType == model.RecallCampaignTypePromotion {
+		if draft.Discount.CouponRedeemBy > 0 && draft.Discount.CouponRedeemBy < expiresAt {
+			expiresAt = draft.Discount.CouponRedeemBy
+		}
 	}
 	if expiresAt <= runAt.Unix() {
-		return false, fmt.Errorf("recall promotion expiry must be after its campaign run")
+		return false, fmt.Errorf("recall activity delivery expiry must be after its campaign run")
 	}
 	for i := range recipients {
 		recipients[i].PromotionExpiresAt = expiresAt
 	}
 	eventData, err := common.Marshal(map[string]any{
+		"campaign_type":  draft.CampaignType,
 		"eligible_total": len(recipients),
 		"exclusions":     exclusions,
 	})
@@ -1234,6 +1291,11 @@ func validateRecallCampaignContext(ctx context.Context) error {
 }
 
 func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time.Time) (RecallCampaignDraft, error) {
+	campaignType, err := normalizeRecallCampaignType(draft.CampaignType)
+	if err != nil {
+		return RecallCampaignDraft{}, err
+	}
+	draft.CampaignType = campaignType
 	draft.Name = strings.TrimSpace(draft.Name)
 	if draft.Name == "" || len(draft.Name) > 128 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign name must contain 1 to 128 characters")
@@ -1269,6 +1331,33 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 		return RecallCampaignDraft{}, fmt.Errorf("unsupported recall execution mode %q", draft.ExecutionMode)
 	}
 
+	if draft.PromotionValidSeconds <= 0 {
+		return RecallCampaignDraft{}, fmt.Errorf("recall activity delivery validity must be positive")
+	}
+	if draft.CampaignType == model.RecallCampaignTypePromotion {
+		var err error
+		draft, err = validateAndNormalizeRecallPromotionDraft(draft, now)
+		if err != nil {
+			return RecallCampaignDraft{}, err
+		}
+	} else {
+		draft = normalizeRecallInactivePromotionDraft(draft)
+	}
+	if draft.EnrollmentLimit < 1 || draft.EnrollmentLimit > 100000 {
+		return RecallCampaignDraft{}, fmt.Errorf("recall enrollment limit must be between 1 and 100000")
+	}
+	if draft.WorkerConcurrency < 1 || draft.WorkerConcurrency > 20 {
+		return RecallCampaignDraft{}, fmt.Errorf("recall worker concurrency must be between 1 and 20")
+	}
+	emails, err := normalizeRecallEmailStages(draft.CampaignType, draft.Emails)
+	if err != nil {
+		return RecallCampaignDraft{}, err
+	}
+	draft.Emails = emails
+	return draft, nil
+}
+
+func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now time.Time) (RecallCampaignDraft, error) {
 	draft.CouponSource = strings.ToLower(strings.TrimSpace(draft.CouponSource))
 	draft.ExistingCouponID = strings.TrimSpace(draft.ExistingCouponID)
 	switch draft.CouponSource {
@@ -1307,21 +1396,20 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 	if len(draft.Products.TopUpPriceIDs)+len(draft.Products.SubscriptionPriceIDs) == 0 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign requires at least one Stripe Price")
 	}
-	if draft.PromotionValidSeconds <= 0 {
-		return RecallCampaignDraft{}, fmt.Errorf("recall promotion validity must be positive")
-	}
-	if draft.EnrollmentLimit < 1 || draft.EnrollmentLimit > 100000 {
-		return RecallCampaignDraft{}, fmt.Errorf("recall enrollment limit must be between 1 and 100000")
-	}
-	if draft.WorkerConcurrency < 1 || draft.WorkerConcurrency > 20 {
-		return RecallCampaignDraft{}, fmt.Errorf("recall worker concurrency must be between 1 and 20")
-	}
-	emails, err := normalizeRecallEmailStages(draft.Emails)
-	if err != nil {
-		return RecallCampaignDraft{}, err
-	}
-	draft.Emails = emails
 	return draft, nil
+}
+
+func normalizeRecallInactivePromotionDraft(draft RecallCampaignDraft) RecallCampaignDraft {
+	draft.CouponSource = strings.ToLower(strings.TrimSpace(draft.CouponSource))
+	draft.ExistingCouponID = strings.TrimSpace(draft.ExistingCouponID)
+	draft.Discount.Type = strings.ToLower(strings.TrimSpace(draft.Discount.Type))
+	draft.Discount.Currency = strings.ToLower(strings.TrimSpace(draft.Discount.Currency))
+	draft.Discount.MinimumAmountCurrency = strings.ToLower(strings.TrimSpace(draft.Discount.MinimumAmountCurrency))
+	draft.Products.TopUpPriceIDs = normalizeRecallStripeIDs(draft.Products.TopUpPriceIDs)
+	draft.Products.SubscriptionPriceIDs = normalizeRecallStripeIDs(draft.Products.SubscriptionPriceIDs)
+	draft.Products.TopUpDisplaySnapshots = nil
+	draft.Products.SubscriptionDisplaySnapshots = nil
+	return draft
 }
 
 func applyRecallEmailSubjectFallbacks(stages []RecallEmailStage, campaignName string) {
@@ -1407,9 +1495,13 @@ func validateRecallEmailTemplateLocaleSet(stageNo int, templates map[string]Reca
 	return nil
 }
 
-func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, incoming []RecallEmailStage, stored []RecallEmailStage) ([]RecallEmailStage, error) {
+func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, campaignType string, incoming []RecallEmailStage, stored []RecallEmailStage) ([]RecallEmailStage, error) {
 	if s.emailTranslator == nil {
 		return incoming, nil
+	}
+	campaignType, err := normalizeRecallCampaignType(campaignType)
+	if err != nil {
+		return nil, err
 	}
 
 	storedByStage := make(map[int]RecallEmailStage, len(stored))
@@ -1420,14 +1512,14 @@ func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, i
 	needsTranslation := make([]RecallEmailStage, 0, len(incoming))
 	for i, stage := range incoming {
 		localized[i] = stage
-		if templates, complete, err := completeManualRecallEmailTemplates(stage); complete || err != nil {
+		if templates, complete, err := completeManualRecallEmailTemplates(campaignType, stage); complete || err != nil {
 			if err != nil {
 				return nil, err
 			}
 			localized[i].Templates = templates
 			continue
 		}
-		if templates, reusable := reusableRecallEmailTemplates(stage, storedByStage[stage.StageNo]); reusable {
+		if templates, reusable := reusableRecallEmailTemplates(campaignType, stage, storedByStage[stage.StageNo]); reusable {
 			localized[i].Templates = templates
 			continue
 		}
@@ -1437,12 +1529,21 @@ func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, i
 		return localized, nil
 	}
 
-	translated, err := s.emailTranslator.Translate(ctx, needsTranslation)
-	if err != nil {
-		if errors.Is(err, errRecallEmailTranslationNotConfigured) {
+	var translated map[int]map[string]RecallEmailTemplate
+	var translateErr error
+	if campaignTranslator, ok := s.emailTranslator.(RecallEmailCampaignTranslator); ok {
+		translated, translateErr = campaignTranslator.TranslateForCampaign(ctx, campaignType, needsTranslation)
+	} else {
+		if campaignType != model.RecallCampaignTypePromotion {
+			return nil, fmt.Errorf("recall email translator does not support campaign type %q", campaignType)
+		}
+		translated, translateErr = s.emailTranslator.Translate(ctx, needsTranslation)
+	}
+	if translateErr != nil {
+		if errors.Is(translateErr, errRecallEmailTranslationNotConfigured) {
 			return localized, nil
 		}
-		return nil, fmt.Errorf("translate recall campaign email templates: %w", err)
+		return nil, fmt.Errorf("translate recall campaign email templates: %w", translateErr)
 	}
 	if len(translated) != len(needsTranslation) {
 		return nil, fmt.Errorf("recall email translation returned %d stages; expected %d", len(translated), len(needsTranslation))
@@ -1460,7 +1561,7 @@ func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, i
 		if _, needs := expected[localized[i].StageNo]; !needs {
 			continue
 		}
-		templates, err := canonicalRecallEmailTemplates(localized[i].StageNo, localized[i].Templates["en"], translated[localized[i].StageNo])
+		templates, err := canonicalRecallEmailTemplates(campaignType, localized[i].StageNo, localized[i].Templates["en"], translated[localized[i].StageNo])
 		if err != nil {
 			return nil, err
 		}
@@ -1469,7 +1570,7 @@ func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, i
 	return localized, nil
 }
 
-func completeManualRecallEmailTemplates(stage RecallEmailStage) (map[string]RecallEmailTemplate, bool, error) {
+func completeManualRecallEmailTemplates(campaignType string, stage RecallEmailStage) (map[string]RecallEmailTemplate, bool, error) {
 	if len(stage.Templates) != len(recallEmailTranslationLanguages)+1 {
 		return nil, false, nil
 	}
@@ -1481,11 +1582,11 @@ func completeManualRecallEmailTemplates(stage RecallEmailStage) (map[string]Reca
 		}
 		targets[language] = template
 	}
-	templates, err := canonicalRecallEmailTemplates(stage.StageNo, stage.Templates["en"], targets)
+	templates, err := canonicalRecallEmailTemplates(campaignType, stage.StageNo, stage.Templates["en"], targets)
 	return templates, true, err
 }
 
-func reusableRecallEmailTemplates(incoming RecallEmailStage, stored RecallEmailStage) (map[string]RecallEmailTemplate, bool) {
+func reusableRecallEmailTemplates(campaignType string, incoming RecallEmailStage, stored RecallEmailStage) (map[string]RecallEmailTemplate, bool) {
 	if stored.StageNo != incoming.StageNo || len(stored.Templates) != len(recallEmailTranslationLanguages)+1 {
 		return nil, false
 	}
@@ -1493,7 +1594,7 @@ func reusableRecallEmailTemplates(incoming RecallEmailStage, stored RecallEmailS
 	if !exists {
 		return nil, false
 	}
-	storedEnglish, err := normalizeRecallEmailTemplate(stored.StageNo, "en", storedEnglish)
+	storedEnglish, err := normalizeRecallEmailTemplate(campaignType, stored.StageNo, "en", storedEnglish)
 	if err != nil || storedEnglish != incoming.Templates["en"] {
 		return nil, false
 	}
@@ -1503,21 +1604,21 @@ func reusableRecallEmailTemplates(incoming RecallEmailStage, stored RecallEmailS
 		if !exists {
 			return nil, false
 		}
-		template, err = normalizeRecallEmailTemplate(stored.StageNo, language, template)
+		template, err = normalizeRecallEmailTemplate(campaignType, stored.StageNo, language, template)
 		if err != nil {
 			return nil, false
 		}
 		targets[language] = template
 	}
-	templates, err := canonicalRecallEmailTemplates(stored.StageNo, storedEnglish, targets)
+	templates, err := canonicalRecallEmailTemplates(campaignType, stored.StageNo, storedEnglish, targets)
 	return templates, err == nil
 }
 
-func canonicalRecallEmailTemplates(stageNo int, english RecallEmailTemplate, targets map[string]RecallEmailTemplate) (map[string]RecallEmailTemplate, error) {
+func canonicalRecallEmailTemplates(campaignType string, stageNo int, english RecallEmailTemplate, targets map[string]RecallEmailTemplate) (map[string]RecallEmailTemplate, error) {
 	if len(targets) != len(recallEmailTranslationLanguages) {
 		return nil, fmt.Errorf("recall email translation stage %d must contain exactly seven target languages", stageNo)
 	}
-	english, err := normalizeRecallEmailTemplate(stageNo, "en", english)
+	english, err := normalizeRecallEmailTemplate(campaignType, stageNo, "en", english)
 	if err != nil {
 		return nil, err
 	}
@@ -1528,7 +1629,7 @@ func canonicalRecallEmailTemplates(stageNo int, english RecallEmailTemplate, tar
 		if !exists {
 			return nil, fmt.Errorf("recall email translation stage %d is missing language %s", stageNo, language)
 		}
-		template, err = normalizeRecallEmailTemplate(stageNo, language, template)
+		template, err = normalizeRecallEmailTemplate(campaignType, stageNo, language, template)
 		if err != nil {
 			return nil, err
 		}
@@ -1537,7 +1638,7 @@ func canonicalRecallEmailTemplates(stageNo int, english RecallEmailTemplate, tar
 	return templates, nil
 }
 
-func normalizeRecallEmailTemplate(stageNo int, language string, template RecallEmailTemplate) (RecallEmailTemplate, error) {
+func normalizeRecallEmailTemplate(campaignType string, stageNo int, language string, template RecallEmailTemplate) (RecallEmailTemplate, error) {
 	template.Subject = strings.TrimSpace(template.Subject)
 	template.BodyText = strings.TrimSpace(template.BodyText)
 	template.BodyHTML = strings.TrimSpace(template.BodyHTML)
@@ -1556,7 +1657,7 @@ func normalizeRecallEmailTemplate(stageNo int, language string, template RecallE
 		return RecallEmailTemplate{}, fmt.Errorf("recall email stage %d language %q requires exactly one of body_text or body_html", stageNo, language)
 	}
 	if hasHTML {
-		if _, err := parseRecallEmailHTML(template.BodyHTML); err != nil {
+		if _, err := parseRecallEmailHTMLForCampaign(campaignType, template.BodyHTML); err != nil {
 			return RecallEmailTemplate{}, fmt.Errorf("recall email stage %d language %q body_html: %w", stageNo, language, err)
 		}
 		return template, nil
@@ -1567,7 +1668,11 @@ func normalizeRecallEmailTemplate(stageNo int, language string, template RecallE
 	return template, nil
 }
 
-func normalizeRecallEmailStages(stages []RecallEmailStage) ([]RecallEmailStage, error) {
+func normalizeRecallEmailStages(campaignType string, stages []RecallEmailStage) ([]RecallEmailStage, error) {
+	campaignType, err := normalizeRecallCampaignType(campaignType)
+	if err != nil {
+		return nil, err
+	}
 	if len(stages) < 1 || len(stages) > 3 {
 		return nil, fmt.Errorf("recall campaign requires one to three email stages")
 	}
@@ -1592,7 +1697,7 @@ func normalizeRecallEmailStages(stages []RecallEmailStage) ([]RecallEmailStage, 
 			if _, exists := templates[language]; exists {
 				return nil, fmt.Errorf("recall email stage %d has duplicate language %q", stage.StageNo, language)
 			}
-			template, err := normalizeRecallEmailTemplate(stage.StageNo, language, template)
+			template, err := normalizeRecallEmailTemplate(campaignType, stage.StageNo, language, template)
 			if err != nil {
 				return nil, err
 			}
@@ -1638,6 +1743,7 @@ func recallCampaignModelFromDraft(draft RecallCampaignDraft, actorID int) (*mode
 		recurrenceJSON = string(encoded)
 	}
 	return &model.RecallCampaign{
+		CampaignType:          draft.CampaignType,
 		Name:                  draft.Name,
 		Status:                model.RecallCampaignDraft,
 		AudienceTemplate:      draft.AudienceTemplate,
@@ -1646,7 +1752,7 @@ func recallCampaignModelFromDraft(draft RecallCampaignDraft, actorID int) (*mode
 		ScheduledAt:           draft.Schedule.ScheduledAt,
 		RecurrenceConfig:      recurrenceJSON,
 		CouponSource:          draft.CouponSource,
-		StripeCouponId:        draft.ExistingCouponID,
+		StripeCouponId:        recallCampaignDraftStripeCouponID(draft),
 		DiscountConfig:        string(discountJSON),
 		ProductScope:          string(productJSON),
 		PromotionValidSeconds: draft.PromotionValidSeconds,
@@ -1657,11 +1763,19 @@ func recallCampaignModelFromDraft(draft RecallCampaignDraft, actorID int) (*mode
 	}, nil
 }
 
+func recallCampaignDraftStripeCouponID(draft RecallCampaignDraft) string {
+	if draft.CampaignType == model.RecallCampaignTypePromotion && draft.CouponSource == "existing" {
+		return draft.ExistingCouponID
+	}
+	return ""
+}
+
 func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaignDraft, error) {
 	if campaign == nil {
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign is nil")
 	}
 	draft := RecallCampaignDraft{
+		CampaignType:          "",
 		Name:                  campaign.Name,
 		AudienceTemplate:      campaign.AudienceTemplate,
 		ExecutionMode:         campaign.ExecutionMode,
@@ -1673,6 +1787,11 @@ func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaig
 	if campaign.CouponSource == "existing" {
 		draft.ExistingCouponID = campaign.StripeCouponId
 	}
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return RecallCampaignDraft{}, err
+	}
+	draft.CampaignType = campaignType
 	if err := common.Unmarshal([]byte(campaign.AudienceConfig), &draft.Audience); err != nil {
 		return RecallCampaignDraft{}, fmt.Errorf("decode recall audience config: %w", err)
 	}
@@ -1697,6 +1816,7 @@ func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaig
 }
 
 type recallImmutableCampaignDraft struct {
+	CampaignType          string
 	AudienceTemplate      string
 	Audience              RecallAudienceConfig
 	ExecutionMode         string
@@ -1717,6 +1837,11 @@ type recallImmutableEmailStage struct {
 }
 
 func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCampaignDraft {
+	if campaignType, err := normalizeRecallCampaignType(draft.CampaignType); err == nil {
+		draft.CampaignType = campaignType
+	} else {
+		draft.CampaignType = strings.ToLower(strings.TrimSpace(draft.CampaignType))
+	}
 	draft.AudienceTemplate = strings.ToLower(strings.TrimSpace(draft.AudienceTemplate))
 	draft.Audience = normalizeRecallAudienceConfig(draft.Audience)
 	draft.ExecutionMode = strings.ToLower(strings.TrimSpace(draft.ExecutionMode))
@@ -1750,6 +1875,7 @@ func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCamp
 		emailStages[i] = recallImmutableEmailStage{StageNo: stage.StageNo, DelaySeconds: stage.DelaySeconds}
 	}
 	return recallImmutableCampaignDraft{
+		CampaignType:          draft.CampaignType,
 		AudienceTemplate:      draft.AudienceTemplate,
 		Audience:              draft.Audience,
 		ExecutionMode:         draft.ExecutionMode,

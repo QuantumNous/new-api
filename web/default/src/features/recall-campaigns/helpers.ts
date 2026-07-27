@@ -1,11 +1,13 @@
 import type { UseFormReturn } from 'react-hook-form'
 import {
+  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   RECALL_EMAIL_STARTER_HTML,
   convertRecallBodyTextToHtml,
   normalizeRecallBodyInputToHtml,
 } from './email-html'
 import type {
   RecallCampaignDraft,
+  RecallCampaignType,
   RecallCouponSource,
   RecallDiscountType,
   RecallEmailStage,
@@ -14,6 +16,8 @@ import type {
 } from './types'
 
 export {
+  RECALL_CONTENT_ONLY_EMAIL_ACTIONS,
+  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   RECALL_EMAIL_ACTION_DESCRIPTIONS,
   RECALL_EMAIL_ACTIONS,
   RECALL_EMAIL_STARTER_HTML,
@@ -23,6 +27,14 @@ export {
 } from './email-html'
 
 export const recallFixedCurrencies = ['USD', 'INR', 'BRL', 'JPY'] as const
+
+export function formatRecallCampaignType(type: RecallCampaignType): string {
+  return type === 'content_only' ? 'Content only' : 'Promotion'
+}
+
+export function isRecallPromotionCampaign(type: RecallCampaignType): boolean {
+  return type === 'promotion'
+}
 
 export const recallFixedCurrencyDefaults = {
   amount_off: 500,
@@ -118,6 +130,11 @@ export function setRecallCampaignGroups(
 export function prepareRecallCampaignSubmitDraft(
   draft: RecallCampaignDraft
 ): RecallCampaignDraft {
+  const starterHtml =
+    draft.campaign_type === 'content_only'
+      ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
+      : RECALL_EMAIL_STARTER_HTML
+
   return {
     ...draft,
     audience_config: {
@@ -140,7 +157,8 @@ export function prepareRecallCampaignSubmitDraft(
                 subject: template.subject.trim() || draft.name.trim(),
                 body_text: '',
                 body_html: normalizeRecallBodyInputToHtml(
-                  template.body_html ?? ''
+                  template.body_html ?? '',
+                  draft.campaign_type
                 ),
               },
             ]
@@ -149,10 +167,11 @@ export function prepareRecallCampaignSubmitDraft(
           let normalizedBodyHTML = ''
           if (bodyText) {
             normalizedBodyHTML = convertRecallBodyTextToHtml(
-              template.body_text ?? ''
+              template.body_text ?? '',
+              draft.campaign_type
             )
           } else if (locale === 'en') {
-            normalizedBodyHTML = RECALL_EMAIL_STARTER_HTML
+            normalizedBodyHTML = starterHtml
           }
           return [
             locale,

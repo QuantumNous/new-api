@@ -141,6 +141,13 @@ func (s *RecallClaimService) validateClaim(ctx context.Context, userID int, clai
 	if record.Campaign.Id != record.Recipient.CampaignId || !activeRecallCampaignStatus(record.Campaign.Status) {
 		return nil, nil, ErrRecallClaimInactive
 	}
+	campaignType, err := normalizeRecallCampaignType(record.Campaign.CampaignType)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: campaign type", ErrRecallClaimInvalidConfig)
+	}
+	if campaignType != model.RecallCampaignTypePromotion {
+		return nil, nil, ErrRecallClaimPromotionInvalid
+	}
 	if record.Recipient.ConvertedAt != 0 || record.Recipient.State == model.RecallRecipientConverted {
 		return nil, nil, ErrRecallClaimConverted
 	}

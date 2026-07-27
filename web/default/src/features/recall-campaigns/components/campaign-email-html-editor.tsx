@@ -8,12 +8,13 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { previewRecallEmail } from '../api'
 import {
+  RECALL_CONTENT_ONLY_EMAIL_ACTIONS,
   insertRecallEmailAction,
   normalizeRecallBodyInputToHtml,
   RECALL_EMAIL_ACTION_DESCRIPTIONS,
   RECALL_EMAIL_ACTIONS,
 } from '../helpers'
-import type { RecallCampaignDraft } from '../types'
+import type { RecallCampaignDraft, RecallCampaignType } from '../types'
 
 interface CampaignEmailHtmlEditorProps {
   form: UseFormReturn<RecallCampaignDraft>
@@ -29,6 +30,7 @@ interface RecallEmailPreviewFrameProps {
 
 interface RecallEmailPreviewSnapshot {
   requestId: number
+  campaignType: RecallCampaignType
   subject: string
   bodyHTML: string
 }
@@ -39,23 +41,29 @@ interface RecallEmailPreviewState {
 }
 
 interface RecallEmailPreviewPreparedRequest {
+  campaign_type: RecallCampaignType
   snapshot: RecallEmailPreviewSnapshot
   template: { subject: string; body_html: string }
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function createRecallEmailPreviewTemplate(props: {
+  campaignType?: RecallCampaignType
   subject: string
   bodyHTML: string
 }): { subject: string; body_html: string } {
   return {
     subject: props.subject.trim() || 'Recall email preview',
-    body_html: normalizeRecallBodyInputToHtml(props.bodyHTML),
+    body_html: normalizeRecallBodyInputToHtml(
+      props.bodyHTML,
+      props.campaignType ?? 'promotion'
+    ),
   }
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
 export async function prepareRecallEmailPreviewRequest(props: {
+  campaignType: RecallCampaignType
   nextRequestId: () => number
   subject: string
   bodyHTML: string
@@ -65,12 +73,17 @@ export async function prepareRecallEmailPreviewRequest(props: {
 
   const snapshot = {
     requestId: props.nextRequestId(),
+    campaignType: props.campaignType,
     subject: props.subject,
     bodyHTML: props.bodyHTML,
   }
   return {
+    campaign_type: props.campaignType,
     snapshot,
-    template: createRecallEmailPreviewTemplate(snapshot),
+    template: createRecallEmailPreviewTemplate({
+      ...snapshot,
+      campaignType: props.campaignType,
+    }),
   }
 }
 
@@ -78,14 +91,17 @@ export async function prepareRecallEmailPreviewRequest(props: {
 export function shouldApplyRecallEmailPreviewResult(props: {
   candidate: RecallEmailPreviewSnapshot
   latest: RecallEmailPreviewSnapshot | null
+  currentCampaignType: RecallCampaignType
   currentSubject: string
   currentBodyHTML: string
 }): boolean {
   return (
     props.latest !== null &&
     props.candidate.requestId === props.latest.requestId &&
+    props.candidate.campaignType === props.latest.campaignType &&
     props.candidate.subject === props.latest.subject &&
     props.candidate.bodyHTML === props.latest.bodyHTML &&
+    props.currentCampaignType === props.candidate.campaignType &&
     props.currentSubject === props.candidate.subject &&
     props.currentBodyHTML === props.candidate.bodyHTML
   )
@@ -155,6 +171,11 @@ export function CampaignEmailHtmlEditor(
   ).error
   const bodyHTML = String(props.form.getValues(bodyPath) ?? '')
   const bodyText = String(props.form.getValues(legacyBodyPath) ?? '')
+  const campaignType = props.form.watch('campaign_type')
+  const availableActions =
+    campaignType === 'content_only'
+      ? RECALL_CONTENT_ONLY_EMAIL_ACTIONS
+      : RECALL_EMAIL_ACTIONS
   const localBodyError =
     !bodyHTML.trim() && !bodyText.trim()
       ? 'Exactly one email body is required'
@@ -188,6 +209,7 @@ export function CampaignEmailHtmlEditor(
   const previewEmail = async () => {
     setPreviewState(clearRecallEmailPreviewError)
     const prepared = await prepareRecallEmailPreviewRequest({
+      campaignType,
       nextRequestId: () => (previewRequestIdRef.current += 1),
       subject: String(props.form.getValues(subjectPath) ?? ''),
       bodyHTML: String(props.form.getValues(bodyPath) ?? ''),
@@ -198,12 +220,14 @@ export function CampaignEmailHtmlEditor(
     latestPreviewRequestRef.current = snapshot
     try {
       const response = await previewMutation.mutateAsync({
+        campaign_type: prepared.campaign_type,
         template: prepared.template,
       })
       if (
         shouldApplyRecallEmailPreviewResult({
           candidate: snapshot,
           latest: latestPreviewRequestRef.current,
+          currentCampaignType: props.form.getValues('campaign_type'),
           currentSubject: String(props.form.getValues(subjectPath) ?? ''),
           currentBodyHTML: String(props.form.getValues(bodyPath) ?? ''),
         })
@@ -218,6 +242,7 @@ export function CampaignEmailHtmlEditor(
         shouldApplyRecallEmailPreviewResult({
           candidate: snapshot,
           latest: latestPreviewRequestRef.current,
+          currentCampaignType: props.form.getValues('campaign_type'),
           currentSubject: String(props.form.getValues(subjectPath) ?? ''),
           currentBodyHTML: String(props.form.getValues(bodyPath) ?? ''),
         })
@@ -261,7 +286,7 @@ export function CampaignEmailHtmlEditor(
           </p>
         </div>
         <div className='grid gap-2 md:grid-cols-2'>
-          {RECALL_EMAIL_ACTIONS.map((action) => (
+          {availableActions.map((action) => (
             <Button
               aria-label={t('Insert {{action}}', { action })}
               className='h-auto w-full justify-start px-3 py-2 text-left whitespace-normal'
@@ -287,9 +312,11 @@ export function CampaignEmailHtmlEditor(
             </Button>
           ))}
         </div>
-        <p className='text-muted-foreground text-xs'>
-          {t('Preview uses sample recipient and offer data.')}
-        </p>
+        {campaignType === 'promotion' ? (
+          <p className='text-muted-foreground text-xs'>
+            {t('Preview uses sample recipient and offer data.')}
+          </p>
+        ) : null}
       </div>
       <Button
         aria-label={t('Recall email preview')}

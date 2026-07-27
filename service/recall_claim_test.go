@@ -220,6 +220,23 @@ func TestRecallClaimValidateReturnsInternalSubscriptionPlanIDs(t *testing.T) {
 	require.Equal(t, []string{"price_subscription"}, view.Products.SubscriptionPriceIDs)
 }
 
+func TestRecallContentOnlyClaimValidationFailsClosedWithoutClick(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	fixture := createRecallClaimFixture(t, now)
+	require.NoError(t, db.Model(&model.RecallCampaign{}).Where("id = ?", fixture.campaign.Id).Update("campaign_type", model.RecallCampaignTypeContentOnly).Error)
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+
+	_, err := claimService.ValidateClaim(context.Background(), fixture.recipient.UserId, fixture.claim)
+
+	require.ErrorIs(t, err, ErrRecallClaimPromotionInvalid)
+	var eventCount int64
+	require.NoError(t, db.Model(&model.RecallEvent{}).Where("recipient_id = ? AND event_type = ?", fixture.recipient.Id, "observed_click").Count(&eventCount).Error)
+	require.Zero(t, eventCount)
+}
+
 func TestRecallClaimValidateAcceptsStageOneRecipientLookupAfterMessageAcceptance(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
