@@ -178,8 +178,8 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		common.ApiError(c, service.ErrSubscriptionPurchaseInvitationReservationRequired)
 		return
 	}
-	if choice == service.SubscriptionPaymentChoiceStripeRecurring && claims.DiscountKind == service.SubscriptionDiscountKindRecall {
-		common.ApiErrorMsg(c, "subscription purchase quote mismatch")
+	if choice == service.SubscriptionPaymentChoiceStripeRecurring {
+		common.ApiErrorMsg(c, "signed recurring order snapshot support is required")
 		return
 	}
 
@@ -222,19 +222,6 @@ func validateSubscriptionSelfPurchaseResultQuote(result *service.PurchaseSubscri
 		return nil
 	}
 	order := result.Order
-	if order == nil && result.Intent != nil && result.Intent.Id > 0 {
-		var stored model.SubscriptionOrder
-		query := model.DB.Where("change_intent_id = ? AND payment_provider = ?", result.Intent.Id, model.PaymentProviderStripe).
-			Order("id desc").
-			Limit(1).
-			Find(&stored)
-		if query.Error != nil {
-			return query.Error
-		}
-		if query.RowsAffected > 0 {
-			order = &stored
-		}
-	}
 	if order == nil {
 		return nil
 	}

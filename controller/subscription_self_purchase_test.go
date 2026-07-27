@@ -541,10 +541,85 @@ func TestSubscriptionSelfPurchaseStripeRecurringRecallFailsClosedBeforeCheckout(
 	)
 
 	require.Equal(t, http.StatusOK, purchase.Code)
-	require.Contains(t, purchase.Body.String(), "subscription purchase quote mismatch")
+	require.Contains(t, purchase.Body.String(), "signed recurring order snapshot support is required")
 	require.Nil(t, form)
 	var count int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9117).Count(&count).Error)
+	require.Zero(t, count)
+	require.NoError(t, model.DB.Model(&model.TopUp{}).Where("user_id = ?", 9117).Count(&count).Error)
+	require.Zero(t, count)
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", 9117).Count(&count).Error)
+	require.Zero(t, count)
+}
+
+func TestSubscriptionSelfPurchaseStripeRecurringNoDiscountFailsClosedBeforeCheckout(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "controller-subscription-recurring-no-discount-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+	insertSubscriptionControllerUser(t, 9123)
+	plan := insertSubscriptionSelfPurchasePlan(t, 9223)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription_no_discount").Error)
+	model.InvalidateSubscriptionPlanCache(plan.Id)
+
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	originalSecretKey := setting.StripeApiSecret
+	originalKey := stripe.Key
+	var form url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/checkout/sessions", r.URL.Path)
+		require.NoError(t, r.ParseForm())
+		form = r.PostForm
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"cs_self_recurring_no_discount","object":"checkout.session","url":"https://checkout.example/self-recurring-no-discount"}`))
+	}))
+	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
+		URL:               stripe.String(server.URL),
+		HTTPClient:        server.Client(),
+		MaxNetworkRetries: stripe.Int64(0),
+		LeveledLogger:     &stripe.LeveledLogger{Level: stripe.LevelNull},
+	}))
+	setting.StripeApiSecret = "sk_test_self_recurring_no_discount"
+	t.Cleanup(func() {
+		server.Close()
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		setting.StripeApiSecret = originalSecretKey
+		stripe.Key = originalKey
+	})
+
+	quote := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9223,"payment_choice":"stripe_recurring","months":1,"request_id":"self-recurring-no-discount"}`,
+		QuoteSubscriptionSelfPurchase,
+		9123,
+	)
+	var quoteEnvelope struct {
+		Data struct {
+			PaymentQuotes map[string]SubscriptionSelfPaymentQuote `json:"payment_quotes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(quote.Body.Bytes(), &quoteEnvelope))
+	recurringQuote := quoteEnvelope.Data.PaymentQuotes[service.SubscriptionPaymentChoiceStripeRecurring]
+	require.NotEmpty(t, recurringQuote.QuoteID)
+	require.Zero(t, recurringQuote.DiscountAmount)
+
+	purchase := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9223,"payment_choice":"stripe_recurring","months":1,"request_id":"self-recurring-no-discount","quote_id":"`+recurringQuote.QuoteID+`"}`,
+		PurchaseSubscriptionSelf,
+		9123,
+	)
+
+	require.Equal(t, http.StatusOK, purchase.Code)
+	require.Contains(t, purchase.Body.String(), "signed recurring order snapshot support is required")
+	require.Nil(t, form)
+	var count int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9123).Count(&count).Error)
+	require.Zero(t, count)
+	require.NoError(t, model.DB.Model(&model.TopUp{}).Where("user_id = ?", 9123).Count(&count).Error)
+	require.Zero(t, count)
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", 9123).Count(&count).Error)
 	require.Zero(t, count)
 }
 
@@ -843,7 +918,7 @@ func TestSubscriptionSelfPurchaseStripeRecurringRequiresQuote(t *testing.T) {
 	require.Zero(t, count)
 }
 
-func TestSubscriptionSelfPurchaseRejectsRecurringOrderMismatchWithoutMutation(t *testing.T) {
+func TestSubscriptionSelfPurchaseResultQuoteRejectsOrderMismatchWithoutMutation(t *testing.T) {
 	setupSubscriptionControllerTestDB(t)
 	insertSubscriptionControllerUser(t, 9120)
 	insertSubscriptionSelfPurchasePlan(t, 9220)
@@ -886,11 +961,67 @@ func TestSubscriptionSelfPurchaseRejectsRecurringOrderMismatchWithoutMutation(t 
 
 	err := validateSubscriptionSelfPurchaseResultQuote(&service.PurchaseSubscriptionResult{
 		Status: service.ChangePlanStatusCheckoutRequired,
-		Intent: &intent,
+		Order:  &order,
 	}, claims)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "quote mismatch")
+	var stored model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&stored, order.Id).Error)
+	require.Equal(t, int64(999), stored.PaymentAmountMinor)
+	require.Equal(t, float64(9.99), stored.Money)
+	require.Zero(t, stored.RecallCampaignId)
+	require.Zero(t, stored.RecallRecipientId)
+	require.Zero(t, stored.RecallDiscountAmountMinor)
+}
+
+func TestSubscriptionSelfPurchaseResultQuoteDoesNotUseIntentDBFallback(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+	insertSubscriptionControllerUser(t, 9124)
+	insertSubscriptionSelfPurchasePlan(t, 9224)
+	intent := model.SubscriptionChangeIntent{
+		UserId:      9124,
+		ToPlanId:    9224,
+		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+		Status:      model.SubscriptionChangeIntentStatusAwaitingPayment,
+	}
+	require.NoError(t, model.DB.Create(&intent).Error)
+	order := model.SubscriptionOrder{
+		UserId:             9124,
+		PlanId:             9224,
+		Money:              9.99,
+		TradeNo:            "SUBSTRUSR9124INT1",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		PaymentCurrency:    "USD",
+		PaymentAmountMinor: 999,
+		Status:             common.TopUpStatusPending,
+		CreateTime:         common.GetTimestamp(),
+		ChangeIntentId:     intent.Id,
+	}
+	require.NoError(t, model.DB.Create(&order).Error)
+	claims := service.SubscriptionPurchaseQuoteTokenClaims{
+		Version:             2,
+		UserID:              9124,
+		PlanID:              9224,
+		PaymentChoice:       service.SubscriptionPaymentChoiceStripeRecurring,
+		Months:              1,
+		RequestID:           "recurring-no-fallback",
+		Currency:            "USD",
+		UnitAmountMinor:     999,
+		DiscountKind:        service.SubscriptionDiscountKindRecall,
+		DiscountAmountMinor: 200,
+		TotalAmountMinor:    799,
+		RecallCampaignID:    42,
+		RecallRecipientID:   99,
+	}
+
+	err := validateSubscriptionSelfPurchaseResultQuote(&service.PurchaseSubscriptionResult{
+		Status: service.ChangePlanStatusCheckoutRequired,
+		Intent: &intent,
+	}, claims)
+
+	require.NoError(t, err)
 	var stored model.SubscriptionOrder
 	require.NoError(t, model.DB.First(&stored, order.Id).Error)
 	require.Equal(t, int64(999), stored.PaymentAmountMinor)
