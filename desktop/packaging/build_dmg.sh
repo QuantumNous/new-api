@@ -24,9 +24,10 @@
 # NOTARIZATION (step 5, runs only when the identity is set): signs the .dmg CONTAINER, submits
 # to Apple's notary service, staples the ticket, and verifies with spctl. Signing alone is NOT
 # enough for public downloads — un-notarized apps get macOS's "Apple could not verify… Move to
-# Trash?" dialog. Auth is an App Store Connect API key via NOTARYTOOL_API_KEY_PATH /
-# NOTARYTOOL_API_KEY_ID / NOTARYTOOL_API_ISSUER_ID — exported, or in $OCW_NOTARY_ENV, or in
-# `.ocw-notary.env` one directory ABOVE the repo (shared by every clone/worktree on a machine,
+# Trash?" dialog. Auth is either an App Store Connect API key via NOTARYTOOL_API_KEY_PATH /
+# NOTARYTOOL_API_KEY_ID / NOTARYTOOL_API_ISSUER_ID, or an Apple ID via APPLE_ID /
+# APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID — exported, or in $OCW_NOTARY_ENV, or in
+# `.ocw-notary.env` next to the repo root (shared by every clone/worktree on a machine,
 # never committed). Vars missing → the DMG is still produced, with a loud warning.
 #
 # LOCAL ITERATION: leave APPLE_SIGNING_IDENTITY unset for a fully unsigned dev build, or set
@@ -67,6 +68,19 @@ if [ -n "${APPLE_CERTIFICATE:-}" ] && [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
   # Allow codesign to use the key headlessly (no UI prompt exists on a runner).
   security set-key-partition-list -S "apple-tool:,apple:" -s -k "$KC_PASS" "$KC" >/dev/null
   security list-keychains -d user -s "$KC" login.keychain-db
+fi
+
+# Notary credentials are loaded here, not at step 5, because `tauri build` notarizes the .app
+# itself when it sees them — the updater payload (.app.tar.gz) is built from that .app and never
+# passes through the DMG notarization below.
+NOTARY_ENV="${OCW_NOTARY_ENV:-$PLATFORM/../.ocw-notary.env}"
+if [ -z "${NOTARYTOOL_API_KEY_PATH:-}" ] && [ -z "${APPLE_ID:-}" ] && [ -f "$NOTARY_ENV" ]; then
+  set -a; # shellcheck disable=SC1090
+  source "$NOTARY_ENV"; set +a
+fi
+# tauri reads APPLE_PASSWORD; the notary env uses Apple's own name for the same secret.
+if [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -z "${APPLE_PASSWORD:-}" ]; then
+  export APPLE_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD"
 fi
 
 echo "==> [1/5] PyInstaller: bundling openworker-server ($TRIPLE)"
@@ -128,17 +142,20 @@ if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
 fi
 
 echo "==> [3/5] tauri build (.app)"
-# Auto-update remains disabled until BoxAI provisions its own Tauri signing key and public key.
-# Never sign BoxAI artifacts with the upstream OpenWorker key.
-UPDATER_OVERLAY=()
-if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
-  echo "    WARNING: updater signing is disabled until the BoxAI public key is configured."
-else
-  echo "    Building WITHOUT auto-update artifacts (BoxAI updater key not configured)."
+# Updater artifacts (BoxAI Desktop.app.tar.gz + .sig) need the BoxAI minisign private key.
+# Default to the local key file so a developer build produces the same artifacts CI does;
+# without a key tauri still builds, it just emits no .sig and the release is manual-only.
+if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ] && [ -z "${TAURI_SIGNING_PRIVATE_KEY_PATH:-}" ]; then
+  DEFAULT_KEY="${BOXAI_UPDATER_KEY_PATH:-$HOME/.config/boxai/desktop-updater.key}"
+  if [ -f "$DEFAULT_KEY" ]; then
+    export TAURI_SIGNING_PRIVATE_KEY="$DEFAULT_KEY"
+    export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+    echo "    updater signing key: $DEFAULT_KEY"
+  else
+    echo "    WARNING: no updater signing key — this build cannot be published as an update."
+  fi
 fi
-# ${arr[@]+…} guard: plain "${arr[@]}" on an EMPTY array is an "unbound variable"
-# under set -u on macOS's stock bash 3.2 — hit by keyless (fresh-clone) builds.
-( cd "$GUI" && npm run tauri build -- --bundles app ${UPDATER_OVERLAY[@]+"${UPDATER_OVERLAY[@]}"} )
+( cd "$GUI" && npm run tauri build -- --bundles app )
 
 echo "==> [4/5] hdiutil: wrapping into .dmg"
 BUNDLE="$GUI/src-tauri/target/release/bundle"
@@ -232,18 +249,20 @@ elif [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
   NOTARYTOOL_API_KEY_ID="${NOTARYTOOL_API_KEY_ID:-${APPLE_API_KEY:-}}"
   NOTARYTOOL_API_ISSUER_ID="${NOTARYTOOL_API_ISSUER_ID:-${APPLE_API_ISSUER:-}}"
 
-  NOTARY_ENV="${OCW_NOTARY_ENV:-$PLATFORM/../.ocw-notary.env}"
-  if [ -z "${NOTARYTOOL_API_KEY_PATH:-}" ] && [ -f "$NOTARY_ENV" ]; then
-    set -a; # shellcheck disable=SC1090
-    source "$NOTARY_ENV"; set +a
-  fi
+  # Two accepted credential shapes: an App Store Connect API key (preferred, works
+  # unattended in CI) or an Apple ID + app-specific password + team id.
+  NOTARY_AUTH=()
   if [ -n "${NOTARYTOOL_API_KEY_PATH:-}" ] && [ -n "${NOTARYTOOL_API_KEY_ID:-}" ] \
      && [ -n "${NOTARYTOOL_API_ISSUER_ID:-}" ]; then
-    xcrun notarytool submit "$DMG" \
-      --key "$NOTARYTOOL_API_KEY_PATH" \
-      --key-id "$NOTARYTOOL_API_KEY_ID" \
-      --issuer "$NOTARYTOOL_API_ISSUER_ID" \
-      --wait
+    NOTARY_AUTH=(--key "$NOTARYTOOL_API_KEY_PATH" --key-id "$NOTARYTOOL_API_KEY_ID"
+                 --issuer "$NOTARYTOOL_API_ISSUER_ID")
+  elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] \
+       && [ -n "${APPLE_TEAM_ID:-}" ]; then
+    NOTARY_AUTH=(--apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
+                 --team-id "$APPLE_TEAM_ID")
+  fi
+  if [ ${#NOTARY_AUTH[@]} -gt 0 ]; then
+    xcrun notarytool submit "$DMG" "${NOTARY_AUTH[@]}" --wait
     xcrun stapler staple "$DMG"
     # The same check Gatekeeper runs on download — fail the build rather than ship a
     # DMG that greets users with the "Move to Trash" malware dialog.
@@ -252,6 +271,7 @@ elif [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
   else
     echo "    WARNING: DMG is signed but NOT notarized — public downloads will see the"
     echo "    'Move to Trash' dialog. Provide NOTARYTOOL_API_KEY_PATH/_KEY_ID/_ISSUER_ID"
+    echo "    or APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD/APPLE_TEAM_ID"
     echo "    (env, \$OCW_NOTARY_ENV, or $NOTARY_ENV)."
   fi
 else

@@ -138,7 +138,7 @@ export function ScheduledView({ onOpenRun, onRunNow, initialOpenId }: Props) {
       <div className="text-[12px] text-faint flex gap-1.5 mb-4">
         <span aria-hidden>ⓘ</span>
         <span>
-          {t("Runs only while openworker-server is up — a missed schedule catches up once when it next starts.")}
+          {t("Runs only while BoxAI Desktop is running — a missed schedule catches up once when it next starts.")}
         </span>
       </div>
 

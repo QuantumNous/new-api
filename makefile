@@ -1,6 +1,8 @@
 WEB_DIR = ./web/default
 WEB_CLASSIC_DIR = ./web/classic
 API_DIR = .
+DESKTOP_DIR = ./desktop
+DESKTOP_GUI_DIR = ./desktop/surfaces/gui
 DEV_WEB_DEFAULT_PORT ?= 5173
 DEV_WEB_CLASSIC_PORT ?= 5174
 DEV_COMPOSE_FILE = docker-compose.dev.yml
@@ -15,7 +17,8 @@ export REDIS_CONN_STRING ?= redis://127.0.0.1:6379/0
 
 .PHONY: all build-web build-web-classic build-all-web start-api \
 	dev-infra dev-api dev-web dev-web-local dev-web-classic dev \
-	reset-setup deploy deploy-bootstrap
+	reset-setup deploy deploy-bootstrap \
+	desktop-build desktop-stage desktop-publish desktop-screenshots
 
 all: build-all-web start-api
 
@@ -74,6 +77,23 @@ deploy:
 
 deploy-bootstrap:
 	@bash ./scripts/deploy-prod.sh --bootstrap
+
+# Desktop release: build on this machine, stage under desktop/release/<version>/, then
+# publish to Cloudflare R2 (https://dl.you-box.com). Windows artifacts are built on the LAN
+# Windows machine with packaging/build_windows.ps1 and copied into the same staging folder
+# before `make desktop-publish`.
+desktop-build:
+	@cd $(DESKTOP_DIR) && bash packaging/build_dmg.sh
+
+desktop-stage:
+	@cd $(DESKTOP_DIR) && bash packaging/stage_release.sh
+
+desktop-publish:
+	@cd $(DESKTOP_DIR) && bash packaging/publish_release.sh
+
+# Regenerate the marketing screenshots the download page uses (hermetic, no backend).
+desktop-screenshots:
+	@cd $(DESKTOP_GUI_DIR) && npm run screenshots
 
 reset-setup:
 	@echo "Resetting local setup wizard state..."

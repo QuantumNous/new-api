@@ -6,3 +6,6 @@ __pycache__/
 build/
 dist/
 .coverage
+
+# Staged installers waiting to be published to R2 (packaging/stage_release.sh)
+release/

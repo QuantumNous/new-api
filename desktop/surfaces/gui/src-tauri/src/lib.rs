@@ -478,8 +478,14 @@ fn show_main(app: &tauri::AppHandle) {
 }
 
 // --- Auto-update -----------------------------------------------------------------
-// Keep the GUI command contract stable, but report no update until BoxAI provisions its own
-// Tauri signing key and manifest endpoint. The upstream OpenWorker key must not be reused.
+// Releases are published to https://dl.you-box.com/desktop/latest.json and signed with the
+// BoxAI minisign key whose public half is compiled in via tauri.conf.json. The banner drives
+// this as check → background download → install-on-click, so the fetched bytes are held here
+// between the download and the install.
+
+/// The release offered by the last successful check, plus its pre-fetched bytes once the
+/// background download completes.
+struct PendingUpdate(Mutex<Option<(tauri_plugin_updater::Update, Option<Vec<u8>>)>>);
 
 #[derive(serde::Serialize)]
 struct UpdateInfo {
@@ -488,21 +494,81 @@ struct UpdateInfo {
 }
 
 #[tauri::command]
-async fn check_for_update() -> Result<Option<UpdateInfo>, String> {
-    Ok(None)
+async fn check_for_update(
+    app: tauri::AppHandle,
+    pending: tauri::State<'_, PendingUpdate>,
+) -> Result<Option<UpdateInfo>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let update = app
+        .updater()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?;
+    let Some(update) = update else {
+        return Ok(None);
+    };
+    let info = UpdateInfo {
+        version: update.version.clone(),
+        notes: update.body.clone().unwrap_or_default(),
+    };
+    // A newer release supersedes whatever was cached, including its downloaded bytes.
+    let mut slot = pending.0.lock().map_err(|_| "update state poisoned")?;
+    let keep_bytes = slot
+        .take()
+        .filter(|(prev, _)| prev.version == update.version)
+        .and_then(|(_, bytes)| bytes);
+    *slot = Some((update, keep_bytes));
+    Ok(Some(info))
 }
 
 #[tauri::command]
-async fn download_update() -> Result<(), String> {
-    Err("BoxAI Desktop automatic updates are not configured".into())
+async fn download_update(pending: tauri::State<'_, PendingUpdate>) -> Result<(), String> {
+    let update = {
+        let slot = pending.0.lock().map_err(|_| "update state poisoned")?;
+        match slot.as_ref() {
+            Some((_, Some(_))) => return Ok(()),
+            Some((update, None)) => update.clone(),
+            None => return Err("no update has been offered".into()),
+        }
+    };
+    let bytes = update
+        .download(|_, _| {}, || {})
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut slot = pending.0.lock().map_err(|_| "update state poisoned")?;
+    if let Some((current, cached)) = slot.as_mut() {
+        if current.version == update.version {
+            *cached = Some(bytes);
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
-fn clear_pending_update() {}
+fn clear_pending_update(pending: tauri::State<'_, PendingUpdate>) {
+    if let Ok(mut slot) = pending.0.lock() {
+        *slot = None;
+    }
+}
 
 #[tauri::command]
-async fn install_update() -> Result<(), String> {
-    Err("BoxAI Desktop automatic updates are not configured".into())
+async fn install_update(
+    app: tauri::AppHandle,
+    pending: tauri::State<'_, PendingUpdate>,
+) -> Result<(), String> {
+    let (update, bytes) = {
+        let mut slot = pending.0.lock().map_err(|_| "update state poisoned")?;
+        slot.take().ok_or("no update has been offered")?
+    };
+    match bytes {
+        Some(bytes) => update.install(bytes).map_err(|e| e.to_string())?,
+        None => update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|e| e.to_string())?,
+    }
+    app.restart()
 }
 
 pub fn run() {
@@ -526,8 +592,8 @@ pub fn run() {
             show_main(app);
         }))
         .plugin(tauri_plugin_dialog::init())
-        // Auto-update intentionally remains unregistered until BoxAI provisions and configures
-        // its own Tauri updater key pair. The upstream OpenWorker key must not be reused.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(PendingUpdate(Mutex::new(None)))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,

@@ -58,11 +58,13 @@ const baseProps = {
   onOpenAutomation: vi.fn(),
   onOpenIntegrations: vi.fn(),
   onOpenSkills: vi.fn(),
+  onOpenMcp: vi.fn(),
   onOpenAudit: vi.fn(),
   onOpenInbox: vi.fn(),
   scheduledActive: false,
   integrationsActive: false,
   skillsActive: false,
+  mcpActive: false,
   auditActive: false,
   inboxActive: false,
 };
@@ -197,6 +199,23 @@ describe("From Slack group (§31)", () => {
     // …wearing the Slack logo in the row's indicator cluster.
     const cluster = row.closest(".group");
     expect(cluster?.querySelector('[data-logo="slack"]')).toBeTruthy();
+  });
+});
+
+describe("Primary nav: Automations / Skills / MCP", () => {
+  it("exposes Skills and MCP as left-nav rows next to Automations", async () => {
+    stubFetch([
+      { match: "/v1/personas", method: "GET", json: PERSONAS },
+      { match: "/v1/settings", method: "GET", json: { nav_layout: "flat" } },
+    ]);
+    render(<Sidebar {...baseProps} />);
+    await screen.findByTestId("nav-automations");
+
+    fireEvent.click(screen.getByTestId("nav-skills"));
+    expect(baseProps.onOpenSkills).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("nav-mcp"));
+    expect(baseProps.onOpenMcp).toHaveBeenCalled();
   });
 });
 

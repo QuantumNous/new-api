@@ -18,6 +18,7 @@ web/dist
 .env.migrated
 .env.boxai-admin
 .env.cloudflare
+.ocw-notary.env
 .wrangler/
 one-api
 new-api

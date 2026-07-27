@@ -92,6 +92,7 @@ export interface SystemStatus {
     version?: string
     system_name?: string
     logo?: string
+    desktop_release_manifest_url?: string
     desktop_download_url?: string
     desktop_min_version?: string
     github_oauth?: boolean
@@ -137,6 +138,7 @@ export interface SystemStatus {
   version?: string
   system_name?: string
   logo?: string
+  desktop_release_manifest_url?: string
   desktop_download_url?: string
   desktop_min_version?: string
   github_oauth?: boolean

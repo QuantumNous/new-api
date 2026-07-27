@@ -80,12 +80,6 @@ export function SkillsTab() {
 
   return (
     <div className="space-y-3">
-      <p className="text-[12.5px] text-muted leading-relaxed">
-        {t(
-          "Reusable instruction packs (SKILL.md) your coworkers load on demand. Built-in skills ship with the app; install more from a folder, GitHub, or the marketplace. Changes apply to new sessions.",
-        )}
-      </p>
-
       {skills.length === 0 ? (
         <div className={CARD + " p-4 text-[13px] text-muted"}>{t("No skills found.")}</div>
       ) : (

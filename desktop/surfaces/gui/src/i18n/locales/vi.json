@@ -453,7 +453,7 @@
   "Run everything without asking": "Chạy mọi thứ mà không hỏi",
   "Run setup again": "Chạy lại thiết lập",
   "Runs": "Lần chạy",
-  "Runs only while openworker-server is up — a missed schedule catches up once when it next starts.": "Chỉ chạy khi openworker-server bật — lịch lỡ được bù một lần khi khởi động lại.",
+  "Runs only while BoxAI Desktop is running — a missed schedule catches up once when it next starts.": "Chỉ chạy khi BoxAI Desktop đang mở — lịch lỡ được bù một lần khi khởi động lại.",
   "Sandbox": "Sandbox",
   "Save": "Lưu",
   "Scheduled": "Đã lên lịch",

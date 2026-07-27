@@ -1276,11 +1276,16 @@ export function App() {
           setIntegrationsTab("skills");
           setSurface("integrations");
         }}
+        onOpenMcp={() => {
+          setIntegrationsTab("mcp");
+          setSurface("integrations");
+        }}
         onOpenAudit={() => setSurface("audit")}
         onOpenInbox={() => setSurface("inbox")}
         scheduledActive={surface === "scheduled"}
-        integrationsActive={surface === "integrations" && integrationsTab !== "skills"}
+        integrationsActive={surface === "integrations" && integrationsTab === "connectors"}
         skillsActive={surface === "integrations" && integrationsTab === "skills"}
+        mcpActive={surface === "integrations" && integrationsTab === "mcp"}
         auditActive={surface === "audit"}
         inboxActive={surface === "inbox"}
         collapsed={navCollapsed}

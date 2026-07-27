@@ -84,25 +84,9 @@ jobs:
         run: ./packaging/build_windows.ps1
 
       - name: Stage artifacts (versioned + stable names)
-        run: |
-          mkdir -p out
-          BUNDLE=surfaces/gui/src-tauri/target/release/bundle
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            cp "$BUNDLE"/nsis/*.exe out/
-            cp "$BUNDLE"/nsis/*.exe out/BoxAI-Desktop-windows-setup.exe
-            cp "$BUNDLE"/msi/*.msi out/
-            cp "$BUNDLE"/msi/*.msi out/BoxAI-Desktop-windows.msi
-            SIG=$(ls "$BUNDLE"/nsis/*.exe.sig 2>/dev/null | head -1 || true)
-            [ -n "$SIG" ] && cp "$SIG" out/BoxAI-Desktop-windows-setup.exe.sig
-          else
-            cp "$BUNDLE"/dmg/*.dmg out/
-            cp "$BUNDLE"/dmg/*.dmg out/BoxAI-Desktop-${{ matrix.slug }}.dmg
-            if [ -f "$BUNDLE/macos/BoxAI Desktop.app.tar.gz" ]; then
-              cp "$BUNDLE/macos/BoxAI Desktop.app.tar.gz" out/BoxAI-Desktop-${{ matrix.slug }}.app.tar.gz
-              cp "$BUNDLE/macos/BoxAI Desktop.app.tar.gz.sig" out/BoxAI-Desktop-${{ matrix.slug }}.app.tar.gz.sig
-            fi
-          fi
-          ls -la out
+        env:
+          BOXAI_RELEASE_STAGE: ${{ github.workspace }}/desktop/out
+        run: bash packaging/stage_release.sh
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -110,21 +94,30 @@ jobs:
           path: desktop/out/*
           if-no-files-found: error
 
+  # Releases are served from Cloudflare R2 at https://dl.you-box.com, not from GitHub
+  # Releases: GitHub asset downloads are unusably slow from mainland China, and both the
+  # desktop updater and the website read from this one origin.
   release:
     if: startsWith(github.ref, 'refs/tags/desktop-v')
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          path: desktop/dist
+          path: desktop/release/staged
           merge-multiple: true
 
-      - name: Compose the auto-update manifest (latest.json)
+      - name: Publish to R2
+        env:
+          BOXAI_RELEASE_STAGE: ${{ github.workspace }}/desktop/release/staged
+          BOXAI_CLOUDFLARE_ENV: /dev/null
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_DESKTOP_ACCESS_KEY_ID: ${{ secrets.R2_DESKTOP_ACCESS_KEY_ID }}
+          R2_DESKTOP_SECRET_ACCESS_KEY: ${{ secrets.R2_DESKTOP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#desktop-v}"
@@ -133,17 +126,4 @@ jobs:
             echo "::error::tag $TAG != tauri.conf.json version $CONF_VERSION — bump the config before tagging"
             exit 1
           fi
-          if ls dist/*.sig >/dev/null 2>&1; then
-            python3 packaging/make_update_manifest.py \
-              --version "$VERSION" --tag "$TAG" --repo "$GITHUB_REPOSITORY" \
-              --dist dist --out dist/latest.json \
-              --notes "BoxAI Desktop $VERSION"
-          else
-            echo "::warning::no updater signatures in dist/ — release ships WITHOUT auto-update manifest"
-          fi
-
-      - uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
-        with:
-          draft: true
-          files: desktop/dist/*
-          generate_release_notes: true
+          bash packaging/publish_release.sh

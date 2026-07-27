@@ -82,24 +82,25 @@ Copy-Item -Recurse -Force $Src $Dst
 Write-Host "    -> $Dst"
 
 Write-Host "==> [3/3] tauri build (--bundles $Bundles)" -ForegroundColor Cyan
-# Auto-update is disabled until BoxAI provisions its own Tauri signing/public key pair.
-$UpdaterArgs = @()
-if ($env:TAURI_SIGNING_PRIVATE_KEY) {
-    Write-Host "    WARNING: updater signing is disabled until the BoxAI public key is configured." -ForegroundColor Yellow
-} else {
-    Write-Host "    Building WITHOUT auto-update artifacts (BoxAI updater key not configured)."
+# Updater artifacts (setup .exe + .sig) need the BoxAI minisign private key. Fall back to the
+# local key file so a developer build produces the same artifacts CI does.
+if (-not $env:TAURI_SIGNING_PRIVATE_KEY -and -not $env:TAURI_SIGNING_PRIVATE_KEY_PATH) {
+    $DefaultKey = if ($env:BOXAI_UPDATER_KEY_PATH) { $env:BOXAI_UPDATER_KEY_PATH } `
+                  else { Join-Path $env:USERPROFILE ".config\boxai\desktop-updater.key" }
+    if (Test-Path $DefaultKey) {
+        $env:TAURI_SIGNING_PRIVATE_KEY = $DefaultKey
+        Write-Host "    updater signing key: $DefaultKey"
+    } else {
+        throw "No updater signing key at $DefaultKey. tauri.conf.json enables updater artifacts, so the build cannot sign them."
+    }
 }
-Push-Location $Gui
-try {
-    & npm run tauri build -- --bundles $Bundles @UpdaterArgs
-    if ($LASTEXITCODE -ne 0) { throw "tauri build failed (exit $LASTEXITCODE)" }
-}
-finally {
-    Pop-Location
-}
+# Launched through node: the key has an empty passphrase, and only a process built by node can
+# pass an empty TAURI_SIGNING_PRIVATE_KEY_PASSWORD down to tauri on Windows (see the script).
+& node (Join-Path $Here "win_tauri_build.mjs") $Gui $Bundles
+if ($LASTEXITCODE -ne 0) { throw "tauri build failed (exit $LASTEXITCODE)" }
 
 $BundleDir = Join-Path $Gui "src-tauri\target\release\bundle"
 Write-Host ""
 Write-Host "Done. Installers under: $BundleDir" -ForegroundColor Green
-Get-ChildItem -Path $BundleDir -Recurse -Include *.exe, *.msi -ErrorAction SilentlyContinue |
+Get-ChildItem -Path $BundleDir -Recurse -Include *.exe, *.msi, *.sig -ErrorAction SilentlyContinue |
     ForEach-Object { Write-Host "  $($_.FullName)" }

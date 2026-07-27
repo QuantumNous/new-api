@@ -100,6 +100,7 @@ func GetStatus(c *gin.Context) {
 		"password_register_enabled":     common.PasswordRegisterEnabled,
 		"default_use_auto_group":        setting.DefaultUseAutoGroup,
 		"desktop_enabled":               desktopSetting.Enabled,
+		"desktop_release_manifest_url":  desktopSetting.ReleaseManifestURL,
 		"desktop_download_url":          desktopSetting.DownloadURL,
 		"desktop_min_version":           desktopSetting.MinVersion,
 

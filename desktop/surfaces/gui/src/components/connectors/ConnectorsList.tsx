@@ -4,6 +4,7 @@ import { ConnectorBadge } from "../../connectors/ConnectorIcon";
 import { AddConnectionModal } from "./AddConnectionModal";
 import { CHIP_OK, CHIP_OFF, CHIP_WARN, GRP, GRP_H, FOOT, PILL_QUIET, ROW } from "./ui";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 // The Connectors LIST (UX-DECISIONS §21): connected first in their own inset group —
 // rows navigate to the connector's detail subpage; problems surface as a chip in the
@@ -65,7 +66,7 @@ export function ConnectorsList({
                   <span className="font-medium text-[13.5px]">{c.title}</span>
                   <span className="block text-[12px] text-muted">{statusLine(c)}</span>
                 </span>
-                {healthChip(c, slack)}
+                {healthChip(c, slack, t)}
                 <span className="text-faint text-[15px] shrink-0">›</span>
               </button>
             ))}
@@ -137,8 +138,10 @@ function statusLine(c: Connector): string {
   return c.account || "Connected";
 }
 
-function healthChip(c: Connector, slack: SlackStatus | null) {
-  const { t } = useTranslation();
+// `t` is threaded in rather than pulled from useTranslation here: this runs once per connected
+// connector inside ConnectorsList's render, so a hook of its own would make the caller's hook
+// count follow the list length and crash the page the moment that length changes.
+function healthChip(c: Connector, slack: SlackStatus | null, t: TFunction) {
   // Slack relay gets a LIVE chip from /v1/connectors/slack/status — problems
   // surface in the list, never one click deep. Named honestly per layer; we
   // never claim "Slack↔cloud down" (the desktop can't see that leg).

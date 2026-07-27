@@ -7,3 +7,7 @@ dist/
 /test-results/
 /playwright-report/
 /e2e/_dbg.png
+
+# Marketing screenshot captures — the committed artifacts are the optimized .webp set
+# under web/default/public/desktop-screenshots/.
+/screenshots/out/

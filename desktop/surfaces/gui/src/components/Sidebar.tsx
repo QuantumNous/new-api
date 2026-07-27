@@ -142,11 +142,13 @@ interface Props {
   onOpenAutomation: (id: string) => void;
   onOpenIntegrations: () => void;
   onOpenSkills: () => void;
+  onOpenMcp: () => void;
   onOpenAudit: () => void;
   onOpenInbox: () => void;
   scheduledActive: boolean;
   integrationsActive: boolean;
   skillsActive: boolean;
+  mcpActive: boolean;
   auditActive: boolean;
   inboxActive: boolean;
   // Collapse controls (⌘B / hover-peek). `onCollapse` docks/undocks; `onPeekLeave` hides the
@@ -1039,9 +1041,9 @@ export function Sidebar(props: Props) {
         </button>
       </div>
 
-      {/* Automations: a first-class nav row (UX-023) — the account menu keeps its entry.
-          The badge is the cross-automation unseen-run total. */}
-      <div className="px-2.5 mt-1">
+      {/* Capability / schedule chrome (UX-023 + skills/MCP discoverability): first-class rows
+          under Search so Skills and MCP sit next to Automations, not only in the account menu. */}
+      <div className="px-2.5 mt-1 space-y-0.5">
         <button
           className={
             "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-paper hover:text-ink " +
@@ -1052,6 +1054,28 @@ export function Sidebar(props: Props) {
         >
           <Icon name="clock" size={15} className="shrink-0" />
           <span className="flex-1">{t("Automations")}</span>
+        </button>
+        <button
+          className={
+            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-paper hover:text-ink " +
+            (props.skillsActive ? "text-ink bg-paper" : "text-muted")
+          }
+          data-testid="nav-skills"
+          onClick={props.onOpenSkills}
+        >
+          <Icon name="sparkle" size={15} className="shrink-0" />
+          <span className="flex-1">{t("Skills")}</span>
+        </button>
+        <button
+          className={
+            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-paper hover:text-ink " +
+            (props.mcpActive ? "text-ink bg-paper" : "text-muted")
+          }
+          data-testid="nav-mcp"
+          onClick={props.onOpenMcp}
+        >
+          <Icon name="code" size={15} className="shrink-0" />
+          <span className="flex-1">{t("MCP servers")}</span>
         </button>
       </div>
 
@@ -1191,7 +1215,8 @@ export function Sidebar(props: Props) {
                   <AttnBadge n={totalAttention} />,
                 )}
                 {appMenuItem("plug", t("Connectors"), props.onOpenIntegrations, props.integrationsActive)}
-                {appMenuItem("file", t("Skills"), props.onOpenSkills, props.skillsActive)}
+                {appMenuItem("sparkle", t("Skills"), props.onOpenSkills, props.skillsActive)}
+                {appMenuItem("code", t("MCP servers"), props.onOpenMcp, props.mcpActive)}
                 <div className="h-px bg-line my-1 mx-2" />
                 {appMenuItem(
                   "gear",

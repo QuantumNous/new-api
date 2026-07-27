@@ -453,7 +453,7 @@
   "Run everything without asking": "无需询问即可运行全部操作",
   "Run setup again": "重新运行设置",
   "Runs": "运行记录",
-  "Runs only while openworker-server is up — a missed schedule catches up once when it next starts.": "仅在 openworker-server 运行时执行 — 错过的计划会在下次启动时补跑一次。",
+  "Runs only while BoxAI Desktop is running — a missed schedule catches up once when it next starts.": "仅在 BoxAI Desktop 运行时执行 — 错过的计划会在下次启动时补跑一次。",
   "Sandbox": "沙箱",
   "Save": "保存",
   "Scheduled": "已计划",
