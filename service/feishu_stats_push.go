@@ -221,7 +221,9 @@ func pushUserStats(token, baseToken, tableID, dateLabel string, startTimestamp, 
 			"额度CNY":     quotaToCNY(it.Quota),
 		})
 	}
-	batchCreateBaseRecords(token, baseToken, tableID, records)
+	if _, err := batchCreateBaseRecords(token, baseToken, tableID, records); err != nil {
+		common.SysError(fmt.Sprintf("feishu stats push: create user records failed: %s", err))
+	}
 }
 
 func pushModelStats(token, baseToken, tableID, dateLabel string, startTimestamp, endTimestamp int64) {
@@ -254,7 +256,9 @@ func pushModelStats(token, baseToken, tableID, dateLabel string, startTimestamp,
 			"额度CNY":     quotaToCNY(it.Quota),
 		})
 	}
-	batchCreateBaseRecords(token, baseToken, tableID, records)
+	if _, err := batchCreateBaseRecords(token, baseToken, tableID, records); err != nil {
+		common.SysError(fmt.Sprintf("feishu stats push: create model records failed: %s", err))
+	}
 }
 
 func pushOrgStats(token, baseToken, tableID, dateLabel string, startTimestamp, endTimestamp int64) {
@@ -288,7 +292,9 @@ func pushOrgStats(token, baseToken, tableID, dateLabel string, startTimestamp, e
 			"额度CNY":     quotaToCNY(it.Quota),
 		})
 	}
-	batchCreateBaseRecords(token, baseToken, tableID, records)
+	if _, err := batchCreateBaseRecords(token, baseToken, tableID, records); err != nil {
+		common.SysError(fmt.Sprintf("feishu stats push: create org records failed: %s", err))
+	}
 }
 
 func quotaToUSD(quota int) float64 {
@@ -338,6 +344,8 @@ func clearBaseTableRecords(token, baseToken, tableID string) error {
 	return nil
 }
 
+var feishuStatsAPIGet = feishuAPIGet
+
 func listAllBaseRecords(token, baseToken, tableID string) ([]map[string]any, error) {
 	url := fmt.Sprintf("https://open.feishu.cn/open-apis/bitable/v1/apps/%s/tables/%s/records?page_size=200", baseToken, tableID)
 	var allRecords []map[string]any
@@ -348,7 +356,7 @@ func listAllBaseRecords(token, baseToken, tableID string) ([]map[string]any, err
 		if pageToken != "" {
 			reqURL += "&page_token=" + pageToken
 		}
-		body, err := feishuAPIGet(token, reqURL)
+		body, err := feishuStatsAPIGet(token, reqURL)
 		if err != nil {
 			return nil, err
 		}
@@ -386,7 +394,7 @@ func deleteBaseRecords(token, baseToken, tableID string, recordIDs []string) err
 	if err != nil {
 		return err
 	}
-	respBody, err := feishuAPIPost(token, url, body)
+	respBody, err := feishuStatsAPIPost(token, url, body)
 	if err != nil {
 		return err
 	}
@@ -403,45 +411,107 @@ func deleteBaseRecords(token, baseToken, tableID string, recordIDs []string) err
 	return nil
 }
 
-func batchCreateBaseRecords(token, baseToken, tableID string, records []map[string]any) {
-	url := fmt.Sprintf("https://open.feishu.cn/open-apis/bitable/v1/apps/%s/tables/%s/records/batch_create", baseToken, tableID)
+type baseRecordCreateResult struct {
+	Index     int
+	Attempted bool
+	Success   bool
+	Error     string
+}
 
+var feishuStatsAPIPost = feishuAPIPost
+
+func batchCreateBaseRecords(token, baseToken, tableID string, records []map[string]any) ([]baseRecordCreateResult, error) {
+	results := make([]baseRecordCreateResult, len(records))
+	for i := range results {
+		results[i].Index = i
+	}
 	for i := 0; i < len(records); i += 200 {
 		end := i + 200
 		if end > len(records) {
 			end = len(records)
 		}
-		batch := records[i:end]
-
-		var fields []map[string]any
-		for _, r := range batch {
-			fields = append(fields, map[string]any{"fields": r})
-		}
-		payload := map[string]any{"records": fields}
-		body, err := common.Marshal(payload)
-		if err != nil {
-			common.SysLog(fmt.Sprintf("feishu stats push: marshal records failed: %s", err))
-			continue
-		}
-
-		respBody, err := feishuAPIPost(token, url, body)
-		if err != nil {
-			common.SysLog(fmt.Sprintf("feishu stats push: create records failed: %s", err))
-			continue
-		}
-		var resp struct {
-			Code int    `json:"code"`
-			Msg  string `json:"msg"`
-		}
-		if err := common.Unmarshal(respBody, &resp); err != nil {
-			common.SysLog(fmt.Sprintf("feishu stats push: parse response failed: %s", err))
-			continue
-		}
-		if resp.Code != 0 {
-			common.SysLog(fmt.Sprintf("feishu stats push: create records error: code=%d msg=%s", resp.Code, resp.Msg))
+		if err := createBaseRecordBatch(token, baseToken, tableID, records[i:end], i, results); err != nil {
+			return results, err
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
+	return results, nil
+}
+
+func createBaseRecordBatch(token, baseToken, tableID string, records []map[string]any, offset int, results []baseRecordCreateResult) error {
+	for i := range records {
+		results[offset+i].Attempted = true
+	}
+	url := fmt.Sprintf("https://open.feishu.cn/open-apis/bitable/v1/apps/%s/tables/%s/records/batch_create", baseToken, tableID)
+	fields := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		publicRecord := make(map[string]any, len(record))
+		for key, value := range record {
+			if !strings.HasPrefix(key, "__") {
+				publicRecord[key] = value
+			}
+		}
+		fields = append(fields, map[string]any{"fields": publicRecord})
+	}
+	body, err := common.Marshal(map[string]any{"records": fields})
+	if err != nil {
+		batchErr := fmt.Errorf("marshal records: %w", err)
+		setBaseRecordBatchError(results, offset, len(records), batchErr)
+		return batchErr
+	}
+	respBody, err := feishuStatsAPIPost(token, url, body)
+	if err != nil {
+		batchErr := fmt.Errorf("create records: %w", err)
+		setBaseRecordBatchError(results, offset, len(records), batchErr)
+		return batchErr
+	}
+	var resp struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+	}
+	if err := common.Unmarshal(respBody, &resp); err != nil {
+		batchErr := fmt.Errorf("parse create records response: %w", err)
+		setBaseRecordBatchError(results, offset, len(records), batchErr)
+		return batchErr
+	}
+	if resp.Code == 0 {
+		for i := range records {
+			results[offset+i].Success = true
+		}
+		return nil
+	}
+	if resp.Code != 1254066 || resp.Msg != "UserFieldConvFail" {
+		batchErr := fmt.Errorf("create records error: code=%d msg=%s", resp.Code, resp.Msg)
+		setBaseRecordBatchError(results, offset, len(records), batchErr)
+		return batchErr
+	}
+	if len(records) == 1 {
+		result := &results[offset]
+		result.Error = fmt.Sprintf("code=%d msg=%s", resp.Code, resp.Msg)
+		common.SysError(fmt.Sprintf("feishu stats push: skip invalid user record: table_id=%s snapshot=%v username=%v open_id=%v error=%s", tableID, records[0]["__snapshot_id"], records[0]["用户名"], recordFeishuOpenID(records[0]), result.Error))
+		return nil
+	}
+	mid := len(records) / 2
+	if err := createBaseRecordBatch(token, baseToken, tableID, records[:mid], offset, results); err != nil {
+		return err
+	}
+	return createBaseRecordBatch(token, baseToken, tableID, records[mid:], offset+mid, results)
+}
+
+func setBaseRecordBatchError(results []baseRecordCreateResult, offset, count int, err error) {
+	for i := 0; i < count; i++ {
+		results[offset+i].Error = err.Error()
+	}
+}
+
+func recordFeishuOpenID(record map[string]any) string {
+	for _, fieldName := range []string{"接收人员", "人员"} {
+		people, ok := record[fieldName].([]map[string]string)
+		if ok && len(people) > 0 {
+			return people[0]["id"]
+		}
+	}
+	return ""
 }
 
 func feishuAPIGet(token, url string) ([]byte, error) {

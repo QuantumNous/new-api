@@ -16,12 +16,12 @@ const (
 
 // 快照维度类型
 const (
-	ReportScopePlatform  = "platform"  // 平台总览
-	ReportScopeAccount   = "account"   // 账号(个人用户+组织类智能体账号)
-	ReportScopeToken     = "token"     // Token 维度
-	ReportScopeModel     = "model"     // 模型趋势
-	ReportScopeAnomaly   = "anomaly"   // 异常预警
-	ReportScopeOrgDept   = "department" // 部门维度(预留,第一版不做推送)
+	ReportScopePlatform = "platform"   // 平台总览
+	ReportScopeAccount  = "account"    // 账号(个人用户+组织类智能体账号)
+	ReportScopeToken    = "token"      // Token 维度
+	ReportScopeModel    = "model"      // 模型趋势
+	ReportScopeAnomaly  = "anomaly"    // 异常预警
+	ReportScopeOrgDept  = "department" // 部门维度(预留,第一版不做推送)
 )
 
 // 接收人类型
@@ -80,19 +80,19 @@ type UsageReportSnapshot struct {
 	ModelName string `json:"model_name" gorm:"column:model_name;type:varchar(255);default:'';index"`
 
 	// --- 用量 ---
-	RequestCount int `json:"request_count" gorm:"column:request_count;default:0"`
-	TokenUsed    int `json:"token_used" gorm:"column:token_used;default:0"`
-	Quota        int `json:"quota" gorm:"column:quota;default:0"`
+	RequestCount int     `json:"request_count" gorm:"column:request_count;default:0"`
+	TokenUsed    int     `json:"token_used" gorm:"column:token_used;default:0"`
+	Quota        int     `json:"quota" gorm:"column:quota;default:0"`
 	QuotaUSD     float64 `json:"quota_usd" gorm:"column:quota_usd;default:0"`
 	QuotaCNY     float64 `json:"quota_cny" gorm:"column:quota_cny;default:0"`
 
 	// --- 环比 ---
-	PreviousRequestCount     int     `json:"previous_request_count" gorm:"column:previous_request_count;default:0"`
-	PreviousTokenUsed        int     `json:"previous_token_used" gorm:"column:previous_token_used;default:0"`
-	PreviousQuota            int     `json:"previous_quota" gorm:"column:previous_quota;default:0"`
-	RequestCountGrowthRate   float64 `json:"request_count_growth_rate" gorm:"column:request_count_growth_rate;default:0"`
-	TokenGrowthRate          float64 `json:"token_growth_rate" gorm:"column:token_growth_rate;default:0"`
-	QuotaGrowthRate          float64 `json:"quota_growth_rate" gorm:"column:quota_growth_rate;default:0"`
+	PreviousRequestCount   int     `json:"previous_request_count" gorm:"column:previous_request_count;default:0"`
+	PreviousTokenUsed      int     `json:"previous_token_used" gorm:"column:previous_token_used;default:0"`
+	PreviousQuota          int     `json:"previous_quota" gorm:"column:previous_quota;default:0"`
+	RequestCountGrowthRate float64 `json:"request_count_growth_rate" gorm:"column:request_count_growth_rate;default:0"`
+	TokenGrowthRate        float64 `json:"token_growth_rate" gorm:"column:token_growth_rate;default:0"`
+	QuotaGrowthRate        float64 `json:"quota_growth_rate" gorm:"column:quota_growth_rate;default:0"`
 
 	// --- 平台总览专用(platform scope) ---
 	TotalUsers         int `json:"total_users" gorm:"column:total_users;default:0"`
@@ -106,28 +106,28 @@ type UsageReportSnapshot struct {
 	NewOrgAccounts     int `json:"new_org_accounts" gorm:"column:new_org_accounts;default:0"`
 
 	// --- 模型趋势专用 ---
-	UsageShare           float64 `json:"usage_share" gorm:"column:usage_share;default:0"`
-	RankNo               int     `json:"rank_no" gorm:"column:rank_no;default:0"`
-	Rolling7dAvgQuota    float64 `json:"rolling_7d_avg_quota" gorm:"column:rolling_7d_avg_quota;default:0"`
-	Rolling30dAvgQuota   float64 `json:"rolling_30d_avg_quota" gorm:"column:rolling_30d_avg_quota;default:0"`
-	ConsecutiveGrowthDays int    `json:"consecutive_growth_days" gorm:"column:consecutive_growth_days;default:0"`
-	IsPurchaseWarning    bool    `json:"is_purchase_warning" gorm:"column:is_purchase_warning;default:false"`
-	PurchaseWarningReason string `json:"purchase_warning_reason" gorm:"column:purchase_warning_reason;type:varchar(500);default:''"`
+	UsageShare            float64 `json:"usage_share" gorm:"column:usage_share;default:0"`
+	RankNo                int     `json:"rank_no" gorm:"column:rank_no;default:0"`
+	Rolling7dAvgQuota     float64 `json:"rolling_7d_avg_quota" gorm:"column:rolling_7d_avg_quota;default:0"`
+	Rolling30dAvgQuota    float64 `json:"rolling_30d_avg_quota" gorm:"column:rolling_30d_avg_quota;default:0"`
+	ConsecutiveGrowthDays int     `json:"consecutive_growth_days" gorm:"column:consecutive_growth_days;default:0"`
+	IsPurchaseWarning     bool    `json:"is_purchase_warning" gorm:"column:is_purchase_warning;default:false"`
+	PurchaseWarningReason string  `json:"purchase_warning_reason" gorm:"column:purchase_warning_reason;type:varchar(500);default:''"`
 
 	// --- 异常与预警 ---
-	IsAnomaly      bool   `json:"is_anomaly" gorm:"column:is_anomaly;default:false;index"`
-	AnomalyType    string `json:"anomaly_type" gorm:"column:anomaly_type;type:varchar(64);default:''"`
-	AnomalyReason  string `json:"anomaly_reason" gorm:"column:anomaly_reason;type:varchar(500);default:''"`
-	WarningLevel   string `json:"warning_level" gorm:"column:warning_level;type:varchar(32);default:''"`
+	IsAnomaly       bool   `json:"is_anomaly" gorm:"column:is_anomaly;default:false;index"`
+	AnomalyType     string `json:"anomaly_type" gorm:"column:anomaly_type;type:varchar(64);default:''"`
+	AnomalyReason   string `json:"anomaly_reason" gorm:"column:anomaly_reason;type:varchar(500);default:''"`
+	WarningLevel    string `json:"warning_level" gorm:"column:warning_level;type:varchar(32);default:''"`
 	SuggestedAction string `json:"suggested_action" gorm:"column:suggested_action;type:varchar(500);default:''"`
 
 	// --- 同步/推送状态 ---
-	BaseSyncedAt      *time.Time `json:"base_synced_at" gorm:"column:base_synced_at"`
-	BaseSyncStatus    string     `json:"base_sync_status" gorm:"column:base_sync_status;type:varchar(32);default:''"`
-	BaseSyncError     string     `json:"base_sync_error" gorm:"column:base_sync_error;type:varchar(500);default:''"`
-	AdminGroupPushedAt *time.Time `json:"admin_group_pushed_at" gorm:"column:admin_group_pushed_at"`
-	AdminGroupPushStatus string  `json:"admin_group_push_status" gorm:"column:admin_group_push_status;type:varchar(32);default:''"`
-	AdminGroupPushError string   `json:"admin_group_push_error" gorm:"column:admin_group_push_error;type:varchar(500);default:''"`
+	BaseSyncedAt         *time.Time `json:"base_synced_at" gorm:"column:base_synced_at"`
+	BaseSyncStatus       string     `json:"base_sync_status" gorm:"column:base_sync_status;type:varchar(32);default:''"`
+	BaseSyncError        string     `json:"base_sync_error" gorm:"column:base_sync_error;type:varchar(500);default:''"`
+	AdminGroupPushedAt   *time.Time `json:"admin_group_pushed_at" gorm:"column:admin_group_pushed_at"`
+	AdminGroupPushStatus string     `json:"admin_group_push_status" gorm:"column:admin_group_push_status;type:varchar(32);default:''"`
+	AdminGroupPushError  string     `json:"admin_group_push_error" gorm:"column:admin_group_push_error;type:varchar(500);default:''"`
 }
 
 func (UsageReportSnapshot) TableName() string {
@@ -136,12 +136,12 @@ func (UsageReportSnapshot) TableName() string {
 
 // 唯一标识键（用于幂等: 同周期+同维度+同主体不重复生成）
 type ReportSnapshotKey struct {
-	PeriodType string
+	PeriodType  string
 	PeriodStart int64
-	ScopeType  string
-	UserId     int
-	TokenId    int
-	ModelName  string
+	ScopeType   string
+	UserId      int
+	TokenId     int
+	ModelName   string
 }
 
 // DeleteReportSnapshotsByPeriod 删除指定周期+维度的快照（用于覆盖式重算）
@@ -183,7 +183,7 @@ func GetPlatformSnapshot(periodType string, periodStart int64) (*UsageReportSnap
 }
 
 // UpdateReportSnapshotSyncStatus 更新多维表格同步状态
-func UpdateReportSnapshotSyncStatus(id int64, status, errMsg string) {
+func UpdateReportSnapshotSyncStatus(id int64, status, errMsg string) error {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"base_sync_status": status,
@@ -195,11 +195,11 @@ func UpdateReportSnapshotSyncStatus(id int64, status, errMsg string) {
 	} else {
 		updates["base_sync_error"] = errMsg
 	}
-	DB.Model(&UsageReportSnapshot{}).Where("id = ?", id).Updates(updates)
+	return DB.Model(&UsageReportSnapshot{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // UpdateReportSnapshotAdminPushStatus 更新管理群推送状态
-func UpdateReportSnapshotAdminPushStatus(id int64, status, errMsg string) {
+func UpdateReportSnapshotAdminPushStatus(id int64, status, errMsg string) error {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"admin_group_push_status": status,
@@ -211,7 +211,7 @@ func UpdateReportSnapshotAdminPushStatus(id int64, status, errMsg string) {
 	} else {
 		updates["admin_group_push_error"] = errMsg
 	}
-	DB.Model(&UsageReportSnapshot{}).Where("id = ?", id).Updates(updates)
+	return DB.Model(&UsageReportSnapshot{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // 计算环比增长率（处理除零）

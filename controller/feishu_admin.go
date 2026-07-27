@@ -76,6 +76,12 @@ func ImportFeishuBindings(c *gin.Context) {
 	}
 
 	for _, item := range req.Bindings {
+		if item.UserID <= 0 {
+			result.Failed++
+			result.Errors = append(result.Errors, "user_id must be greater than 0")
+			continue
+		}
+
 		openID := strings.TrimSpace(item.OpenID)
 		unionID := strings.TrimSpace(item.UnionID)
 		if openID == "" && unionID == "" {
@@ -83,6 +89,15 @@ func ImportFeishuBindings(c *gin.Context) {
 			result.Errors = append(result.Errors, "open_id or union_id is required for user_id="+strconv.Itoa(item.UserID))
 			continue
 		}
+		identity, err := validateFeishuIdentity(c, openID, unionID, "")
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, "user_id="+strconv.Itoa(item.UserID)+" invalid feishu identity: "+err.Error())
+			continue
+		}
+		openID = identity.OpenID
+		unionID = identity.UnionID
+		feishuUserID := identity.UserID
 
 		var user model.User
 		if err := model.DB.Where("id = ?", item.UserID).First(&user).Error; err != nil {
@@ -114,6 +129,17 @@ func ImportFeishuBindings(c *gin.Context) {
 			}
 			updates["feishu_union_id"] = unionID
 		}
+		if feishuUserID != "" {
+			existingUser := model.User{}
+			if model.IsFeishuUserIdAlreadyTaken(feishuUserID) {
+				if err := model.DB.Where("feishu_user_id = ?", feishuUserID).First(&existingUser).Error; err == nil && existingUser.Id != item.UserID {
+					result.Failed++
+					result.Errors = append(result.Errors, "user_id="+feishuUserID+" already bound to user_id="+strconv.Itoa(existingUser.Id))
+					continue
+				}
+			}
+			updates["feishu_user_id"] = feishuUserID
+		}
 
 		if err := model.DB.Model(&model.User{}).Where("id = ?", item.UserID).Updates(updates).Error; err != nil {
 			result.Failed++
@@ -121,7 +147,7 @@ func ImportFeishuBindings(c *gin.Context) {
 			continue
 		}
 
-		model.RecordLog(user.Id, model.LogTypeSystem, "管理员导入飞书绑定，open_id="+openID+" union_id="+unionID)
+		model.RecordLog(user.Id, model.LogTypeSystem, "管理员导入飞书绑定，open_id="+openID+" union_id="+unionID+" user_id="+feishuUserID)
 		result.Success++
 	}
 

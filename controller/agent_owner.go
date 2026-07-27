@@ -19,12 +19,13 @@ import (
 
 // agentOwnerBindRequest 组织类智能体账号负责人绑定请求
 type agentOwnerBindRequest struct {
-	Mobile       string `json:"mobile"`
-	EmployeeNo   string `json:"employee_no"`
-	Email        string `json:"email"`
-	FeishuOpenId string `json:"feishu_open_id"`
-	FeishuUserId string `json:"feishu_user_id"`
-	Name         string `json:"name"`
+	Mobile        string `json:"mobile"`
+	EmployeeNo    string `json:"employee_no"`
+	Email         string `json:"email"`
+	FeishuOpenId  string `json:"feishu_open_id"`
+	FeishuUnionId string `json:"feishu_union_id"`
+	FeishuUserId  string `json:"feishu_user_id"`
+	Name          string `json:"name"`
 }
 
 // BindAgentOwner 为组织类智能体账号绑定负责人
@@ -46,10 +47,11 @@ func BindAgentOwner(c *gin.Context) {
 	req.EmployeeNo = strings.TrimSpace(req.EmployeeNo)
 	req.Email = strings.TrimSpace(req.Email)
 	req.FeishuOpenId = strings.TrimSpace(req.FeishuOpenId)
+	req.FeishuUnionId = strings.TrimSpace(req.FeishuUnionId)
 	req.FeishuUserId = strings.TrimSpace(req.FeishuUserId)
 	req.Name = strings.TrimSpace(req.Name)
 
-	if req.Mobile == "" && req.EmployeeNo == "" && req.Email == "" && req.FeishuOpenId == "" && req.FeishuUserId == "" && req.Name == "" {
+	if req.Mobile == "" && req.EmployeeNo == "" && req.Email == "" && req.FeishuOpenId == "" && req.FeishuUnionId == "" && req.FeishuUserId == "" && req.Name == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
@@ -66,25 +68,27 @@ func BindAgentOwner(c *gin.Context) {
 	}
 
 	// 通过飞书通讯录查询补全信息
-	openID, _, feishuUserID, name, orgName, _, employeeNo, resolveErr := resolveFeishuIdentifiersForAgentOwner(c, req)
+	openID, unionID, feishuUserID, name, orgName, _, employeeNo, resolveErr := resolveFeishuIdentifiersForAgentOwner(c, req)
 	if resolveErr != nil {
 		common.ApiErrorMsg(c, resolveErr.Error())
 		return
 	}
 
-	if openID == "" && feishuUserID == "" && req.FeishuOpenId == "" && req.FeishuUserId == "" {
+	if openID == "" && unionID == "" && feishuUserID == "" && req.FeishuOpenId == "" && req.FeishuUnionId == "" && req.FeishuUserId == "" {
 		common.ApiErrorMsg(c, "无法通过提供的信息查询到飞书人员，请检查姓名/手机号/工号/邮箱是否正确")
 		return
 	}
 
 	// 优先用查询到的信息，fallback 到请求里传入的
 	finalOpenID := firstNonEmpty(openID, req.FeishuOpenId)
+	finalUnionID := firstNonEmpty(unionID, req.FeishuUnionId)
 	finalFeishuUserID := firstNonEmpty(feishuUserID, req.FeishuUserId)
 	finalName := firstNonEmpty(name, req.Name)
 	finalEmployeeNo := firstNonEmpty(employeeNo, req.EmployeeNo)
 
 	updates := map[string]interface{}{
 		"agent_owner_feishu_open_id":  finalOpenID,
+		"agent_owner_feishu_union_id": finalUnionID,
 		"agent_owner_feishu_user_id":  finalFeishuUserID,
 		"agent_owner_name":            finalName,
 		"agent_owner_mobile":          req.Mobile,
@@ -99,12 +103,13 @@ func BindAgentOwner(c *gin.Context) {
 	}
 
 	common.ApiSuccess(c, gin.H{
-		"user_id":                    id,
-		"agent_owner_name":           finalName,
-		"agent_owner_feishu_open_id": finalOpenID,
-		"agent_owner_feishu_user_id": finalFeishuUserID,
-		"agent_owner_mobile":         req.Mobile,
-		"agent_owner_employee_no":    finalEmployeeNo,
+		"user_id":                     id,
+		"agent_owner_name":            finalName,
+		"agent_owner_feishu_open_id":  finalOpenID,
+		"agent_owner_feishu_union_id": finalUnionID,
+		"agent_owner_feishu_user_id":  finalFeishuUserID,
+		"agent_owner_mobile":          req.Mobile,
+		"agent_owner_employee_no":     finalEmployeeNo,
 	})
 }
 
@@ -158,6 +163,7 @@ func GetAgentOwner(c *gin.Context) {
 		"agent_owner_mobile":          user.AgentOwnerMobile,
 		"agent_owner_employee_no":     user.AgentOwnerEmployeeNo,
 		"agent_owner_feishu_open_id":  user.AgentOwnerFeishuOpenId,
+		"agent_owner_feishu_union_id": user.AgentOwnerFeishuUnionId,
 		"agent_owner_feishu_user_id":  user.AgentOwnerFeishuUserId,
 		"agent_owner_department_name": user.AgentOwnerDepartmentName,
 		"agent_owner_bound_at":        user.AgentOwnerBoundAt,
@@ -165,8 +171,12 @@ func GetAgentOwner(c *gin.Context) {
 }
 
 func resolveFeishuIdentifiersForAgentOwner(c *gin.Context, req agentOwnerBindRequest) (openID, unionID, userID, name, orgName, jobTitle, employeeNo string, err error) {
-	if req.FeishuOpenId != "" || req.FeishuUserId != "" {
-		openID, unionID, userID = resolveFeishuIdentifiers(c, req.FeishuOpenId, "", req.FeishuUserId)
+	if req.FeishuOpenId != "" || req.FeishuUnionId != "" || req.FeishuUserId != "" {
+		identity, validateErr := validateFeishuIdentity(c, req.FeishuOpenId, req.FeishuUnionId, req.FeishuUserId)
+		if validateErr != nil {
+			return "", "", "", "", "", "", "", validateErr
+		}
+		openID, unionID, userID = identity.OpenID, identity.UnionID, identity.UserID
 		if openID != "" || unionID != "" || userID != "" {
 			idType, idValue := pickFeishuIdType(openID, userID, unionID)
 			if idType != "" {

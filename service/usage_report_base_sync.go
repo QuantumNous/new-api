@@ -17,25 +17,27 @@ func SyncUsageReportToBase(periodType string) {
 
 // SyncUsageReportPeriodToBase 将指定周期快照同步到飞书多维表格。
 func SyncUsageReportPeriodToBase(rp ReportPeriod) {
-	SyncUsageReportPeriodToBaseWithDiagnostics(rp)
+	if _, err := SyncUsageReportPeriodToBaseWithDiagnostics(rp); err != nil {
+		common.SysError(fmt.Sprintf("usage report base sync failed: %s", err))
+	}
 }
 
 // SyncUsageReportPeriodToBaseWithDiagnostics 同步并返回诊断消息列表。
-func SyncUsageReportPeriodToBaseWithDiagnostics(rp ReportPeriod) []string {
+func SyncUsageReportPeriodToBaseWithDiagnostics(rp ReportPeriod) ([]string, error) {
 	var msgs []string
 	settings := system_setting.GetFeishuSettings()
 	baseToken := strings.TrimSpace(settings.StatsBaseToken)
 	if baseToken == "" {
 		msgs = append(msgs, "skip: stats_base_token is empty")
 		common.SysLog("usage report base sync: stats_base_token is empty, skip")
-		return msgs
+		return msgs, nil
 	}
 	appID := strings.TrimSpace(settings.AppID)
 	appSecret := strings.TrimSpace(settings.AppSecret)
 	if appID == "" || appSecret == "" {
 		msgs = append(msgs, "skip: app_id or app_secret is empty")
 		common.SysLog("usage report base sync: app_id/app_secret is empty, skip")
-		return msgs
+		return msgs, nil
 	}
 
 	token, err := getFeishuTenantAccessToken(appID, appSecret)
@@ -43,71 +45,83 @@ func SyncUsageReportPeriodToBaseWithDiagnostics(rp ReportPeriod) []string {
 		msg := fmt.Sprintf("get token failed: %s", err)
 		msgs = append(msgs, msg)
 		common.SysError("usage report base sync: " + msg)
-		return msgs
+		return msgs, fmt.Errorf("get tenant access token: %w", err)
 	}
 
 	if rp.PeriodType == "" {
 		msgs = append(msgs, "skip: period_type is empty")
-		return msgs
+		return msgs, fmt.Errorf("period_type is empty")
 	}
 
 	common.SysLog(fmt.Sprintf("usage report base sync: start syncing %s for %s", rp.PeriodType, rp.PeriodLabel))
 
 	// 同步5张表，收集各表的诊断信息
-	tableMsgs := syncTableWithDiagnostics("account", settings.ReportTableAccountID, func() {
-		syncAccountTable(token, baseToken, settings.ReportTableAccountID, rp)
-	})
-	msgs = append(msgs, tableMsgs...)
-
-	tableMsgs = syncTableWithDiagnostics("org", settings.ReportTableOrgID, func() {
-		syncOrgTable(token, baseToken, settings.ReportTableOrgID, rp)
-	})
-	msgs = append(msgs, tableMsgs...)
-
-	tableMsgs = syncTableWithDiagnostics("platform", settings.ReportTablePlatformID, func() {
-		syncPlatformTable(token, baseToken, settings.ReportTablePlatformID, rp)
-	})
-	msgs = append(msgs, tableMsgs...)
-
-	tableMsgs = syncTableWithDiagnostics("model", settings.ReportTableModelID, func() {
-		syncModelTable(token, baseToken, settings.ReportTableModelID, rp)
-	})
-	msgs = append(msgs, tableMsgs...)
-
-	tableMsgs = syncTableWithDiagnostics("anomaly", settings.ReportTableAnomalyID, func() {
-		syncAnomalyTable(token, baseToken, settings.ReportTableAnomalyID, rp)
-	})
-	msgs = append(msgs, tableMsgs...)
-
+	tables := []struct {
+		name string
+		id   string
+		sync func() error
+	}{
+		{"account", settings.ReportTableAccountID, func() error { return syncAccountTable(token, baseToken, settings.ReportTableAccountID, rp) }},
+		{"org", settings.ReportTableOrgID, func() error { return syncOrgTable(token, baseToken, settings.ReportTableOrgID, rp) }},
+		{"platform", settings.ReportTablePlatformID, func() error { return syncPlatformTable(token, baseToken, settings.ReportTablePlatformID, rp) }},
+		{"model", settings.ReportTableModelID, func() error { return syncModelTable(token, baseToken, settings.ReportTableModelID, rp) }},
+		{"anomaly", settings.ReportTableAnomalyID, func() error { return syncAnomalyTable(token, baseToken, settings.ReportTableAnomalyID, rp) }},
+	}
+	var syncErrs []string
+	for _, table := range tables {
+		tableMsgs, tableErr := syncTableWithDiagnostics(table.name, table.id, table.sync)
+		msgs = append(msgs, tableMsgs...)
+		if tableErr != nil {
+			syncErrs = append(syncErrs, tableErr.Error())
+		}
+	}
+	if len(syncErrs) > 0 {
+		return msgs, fmt.Errorf("usage report base sync failed: %s", strings.Join(syncErrs, "; "))
+	}
 	common.SysLog(fmt.Sprintf("usage report base sync: completed %s for %s", rp.PeriodType, rp.PeriodLabel))
-	return msgs
+	return msgs, nil
+}
+
+type partialSyncError struct {
+	skipped int
+}
+
+func (e *partialSyncError) Error() string {
+	return fmt.Sprintf("skipped %d records", e.skipped)
 }
 
 // syncTableWithDiagnostics 执行单表同步并返回诊断消息。
-func syncTableWithDiagnostics(tableName, tableID string, fn func()) []string {
+func syncTableWithDiagnostics(tableName, tableID string, fn func() error) ([]string, error) {
 	if tableID == "" {
-		return []string{fmt.Sprintf("table %s: skipped (table_id is empty)", tableName)}
+		return []string{fmt.Sprintf("table %s: skipped (table_id is empty)", tableName)}, nil
 	}
-	fn()
-	return []string{fmt.Sprintf("table %s: synced (table_id=%s)", tableName, tableID)}
+	if err := fn(); err != nil {
+		if partial, ok := err.(*partialSyncError); ok {
+			return []string{fmt.Sprintf("table %s: partial success (table_id=%s, skipped %d records)", tableName, tableID, partial.skipped)}, nil
+		}
+		common.SysError(fmt.Sprintf("usage report base sync: table %s failed: %s; remote table may be partially synchronized and requires rerun", tableName, err))
+		return []string{fmt.Sprintf("table %s: failed (table_id=%s): %s", tableName, tableID, err)}, fmt.Errorf("table %s: %w", tableName, err)
+	}
+	return []string{fmt.Sprintf("table %s: synced (table_id=%s)", tableName, tableID)}, nil
 }
 
 // syncAccountTable 同步账号周期统计表
-func syncAccountTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
+func syncAccountTable(tenantToken, baseToken, tableID string, rp ReportPeriod) error {
 	if tableID == "" {
-		return
+		return nil
 	}
 
 	// 按周期类型覆盖：先删除同 period_type 的所有旧记录
-	deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType)
+	if err := deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType); err != nil {
+		return err
+	}
 
 	items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeAccount)
 	if err != nil {
-		common.SysError(fmt.Sprintf("usage report base sync: query account snapshots failed: %s", err))
-		return
+		return fmt.Errorf("query account snapshots: %w", err)
 	}
 	if len(items) == 0 {
-		return
+		return nil
 	}
 
 	records := make([]map[string]any, 0, len(items))
@@ -118,28 +132,29 @@ func syncAccountTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 		}
 
 		record := map[string]any{
-			"统计周期类型":     rp.PeriodType,
-			"统计周期":       rp.PeriodLabel,
-			"周期开始":       formatUnix(rp.StartTimestamp),
-			"周期结束":       formatUnix(rp.EndTimestamp),
-			"账号类型":       accountTypeLabel,
-			"用户名":        it.Username,
-			"显示名称":       it.DisplayName,
-			"用户分组":       it.UserGroup,
-			"一级组织":       it.OrgLevel1Name,
-			"二级组织":       it.OrgLevel2Name,
-			"完整组织路径":     it.OrgPath,
-			"请求次数":       it.RequestCount,
-			"总Tokens":    it.TokenUsed,
-			"Tokens(M)":  tokenToM(it.TokenUsed),
-			"额度消耗":       it.Quota,
-			"额度CNY":      it.QuotaCNY,
-			"上周期Tokens":  it.PreviousTokenUsed,
-			"Token环比(%)": it.TokenGrowthRate,
-			"是否异常":       it.IsAnomaly,
-			"异常类型":       it.AnomalyType,
-			"异常原因":       it.AnomalyReason,
-			"预警等级":       it.WarningLevel,
+			"__snapshot_id": it.Id,
+			"统计周期类型":        rp.PeriodType,
+			"统计周期":          rp.PeriodLabel,
+			"周期开始":          formatUnix(rp.StartTimestamp),
+			"周期结束":          formatUnix(rp.EndTimestamp),
+			"账号类型":          accountTypeLabel,
+			"用户名":           it.Username,
+			"显示名称":          it.DisplayName,
+			"用户分组":          it.UserGroup,
+			"一级组织":          it.OrgLevel1Name,
+			"二级组织":          it.OrgLevel2Name,
+			"完整组织路径":        it.OrgPath,
+			"请求次数":          it.RequestCount,
+			"总Tokens":       it.TokenUsed,
+			"Tokens(M)":     tokenToM(it.TokenUsed),
+			"额度消耗":          it.Quota,
+			"额度CNY":         it.QuotaCNY,
+			"上周期Tokens":     it.PreviousTokenUsed,
+			"Token环比(%)":    it.TokenGrowthRate,
+			"是否异常":          it.IsAnomaly,
+			"异常类型":          it.AnomalyType,
+			"异常原因":          it.AnomalyReason,
+			"预警等级":          it.WarningLevel,
 		}
 
 		// 飞书人员字段（仅当 open_id 合法时写入，避免 UserFieldConvFail）
@@ -152,24 +167,67 @@ func syncAccountTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 		records = append(records, record)
 	}
 
-	batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
-
-	// 回写同步状态
-	for _, it := range items {
-		model.UpdateReportSnapshotSyncStatus(it.Id, model.SyncStatusSuccess, "")
+	results, err := batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
+	if statusErr := applySnapshotSyncResults(items, results); statusErr != nil {
+		return fmt.Errorf("update account snapshot sync status: %w", statusErr)
 	}
+	if err != nil {
+		return err
+	}
+	skipped := countSkippedSyncResults(results)
+	if skipped > 0 {
+		return &partialSyncError{skipped: skipped}
+	}
+	return nil
+}
+
+func applyAccountSyncResults(items []*model.UsageReportSnapshot, results []baseRecordCreateResult) {
+	_ = applySnapshotSyncResults(items, results)
+}
+
+func applySnapshotSyncResults(items []*model.UsageReportSnapshot, results []baseRecordCreateResult) error {
+	for i, it := range items {
+		if i >= len(results) || !results[i].Attempted {
+			continue
+		}
+		status := model.SyncStatusFailed
+		errMsg := results[i].Error
+		if results[i].Success {
+			status = model.SyncStatusSuccess
+			errMsg = ""
+		}
+		if err := model.UpdateReportSnapshotSyncStatus(it.Id, status, errMsg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func countSkippedSyncResults(results []baseRecordCreateResult) int {
+	count := 0
+	for _, result := range results {
+		if result.Attempted && !result.Success && strings.Contains(result.Error, "UserFieldConvFail") {
+			count++
+		}
+	}
+	return count
 }
 
 // syncOrgTable 同步组织用量周期统计表
-func syncOrgTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
+func syncOrgTable(tenantToken, baseToken, tableID string, rp ReportPeriod) error {
 	if tableID == "" {
-		return
+		return nil
 	}
-	deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType)
+	if err := deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType); err != nil {
+		return err
+	}
 
 	items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeOrgDept)
-	if err != nil || len(items) == 0 {
-		return
+	if err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		return nil
 	}
 
 	records := make([]map[string]any, 0, len(items))
@@ -192,19 +250,28 @@ func syncOrgTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 		records = append(records, record)
 	}
 
-	batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
+	results, err := batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
+	if statusErr := applySnapshotSyncResults(items, results); statusErr != nil {
+		return fmt.Errorf("update org snapshot sync status: %w", statusErr)
+	}
+	return err
 }
 
 // syncPlatformTable 同步平台总览表
-func syncPlatformTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
+func syncPlatformTable(tenantToken, baseToken, tableID string, rp ReportPeriod) error {
 	if tableID == "" {
-		return
+		return nil
 	}
-	deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType)
+	if err := deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType); err != nil {
+		return err
+	}
 
 	item, err := model.GetPlatformSnapshot(rp.PeriodType, rp.StartTimestamp)
-	if err != nil || item == nil {
-		return
+	if err != nil {
+		return err
+	}
+	if item == nil {
+		return nil
 	}
 
 	record := map[string]any{
@@ -230,21 +297,28 @@ func syncPlatformTable(tenantToken, baseToken, tableID string, rp ReportPeriod) 
 		"组织类智能体新增账号数": item.NewOrgAccounts,
 	}
 
-	batchCreateBaseRecords(tenantToken, baseToken, tableID, []map[string]any{record})
-
-	model.UpdateReportSnapshotSyncStatus(item.Id, model.SyncStatusSuccess, "")
+	results, err := batchCreateBaseRecords(tenantToken, baseToken, tableID, []map[string]any{record})
+	if statusErr := applySnapshotSyncResults([]*model.UsageReportSnapshot{item}, results); statusErr != nil {
+		return fmt.Errorf("update platform snapshot sync status: %w", statusErr)
+	}
+	return err
 }
 
 // syncModelTable 同步模型趋势表
-func syncModelTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
+func syncModelTable(tenantToken, baseToken, tableID string, rp ReportPeriod) error {
 	if tableID == "" {
-		return
+		return nil
 	}
-	deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType)
+	if err := deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType); err != nil {
+		return err
+	}
 
 	items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeModel)
-	if err != nil || len(items) == 0 {
-		return
+	if err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		return nil
 	}
 
 	records := make([]map[string]any, 0, len(items))
@@ -272,19 +346,28 @@ func syncModelTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 		records = append(records, record)
 	}
 
-	batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
+	results, err := batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
+	if statusErr := applySnapshotSyncResults(items, results); statusErr != nil {
+		return fmt.Errorf("update model snapshot sync status: %w", statusErr)
+	}
+	return err
 }
 
 // syncAnomalyTable 同步异常预警表
-func syncAnomalyTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
+func syncAnomalyTable(tenantToken, baseToken, tableID string, rp ReportPeriod) error {
 	if tableID == "" {
-		return
+		return nil
 	}
-	deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType)
+	if err := deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType); err != nil {
+		return err
+	}
 
 	items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeAnomaly)
-	if err != nil || len(items) == 0 {
-		return
+	if err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		return nil
 	}
 
 	records := make([]map[string]any, 0, len(items))
@@ -329,15 +412,25 @@ func syncAnomalyTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 		records = append(records, record)
 	}
 
-	batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
+	results, err := batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
+	if statusErr := applySnapshotSyncResults(items, results); statusErr != nil {
+		return fmt.Errorf("update anomaly snapshot sync status: %w", statusErr)
+	}
+	if err != nil {
+		return err
+	}
+	skipped := countSkippedSyncResults(results)
+	if skipped > 0 {
+		return &partialSyncError{skipped: skipped}
+	}
+	return nil
 }
 
 // deleteBaseRecordsByPeriodType 按周期类型删除多维表格旧记录（每个周期类型只保留最新一份）
-func deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, periodType string) {
+func deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, periodType string) error {
 	records, err := listAllBaseRecords(tenantToken, baseToken, tableID)
 	if err != nil {
-		common.SysError(fmt.Sprintf("usage report base sync: list records for cleanup failed: %s", err))
-		return
+		return fmt.Errorf("list records for cleanup: %w", err)
 	}
 
 	var idsToDelete []string
@@ -355,7 +448,7 @@ func deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, periodType s
 	}
 
 	if len(idsToDelete) == 0 {
-		return
+		return nil
 	}
 
 	// 批量删除
@@ -365,10 +458,11 @@ func deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, periodType s
 			end = len(idsToDelete)
 		}
 		if err := deleteBaseRecords(tenantToken, baseToken, tableID, idsToDelete[i:end]); err != nil {
-			common.SysError(fmt.Sprintf("usage report base sync: delete old records failed: %s", err))
+			return fmt.Errorf("delete old records: %w", err)
 		}
 		time.Sleep(300 * time.Millisecond)
 	}
+	return nil
 }
 
 // anomalyObjectType 判断异常对象类型

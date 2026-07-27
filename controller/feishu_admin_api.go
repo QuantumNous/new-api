@@ -294,6 +294,56 @@ func getFeishuUserIdentifiersByAnyID(ctx *gin.Context, tenantToken, idType, idVa
 	return openID, unionID, userID, nil
 }
 
+type feishuIdentity struct {
+	OpenID  string
+	UnionID string
+	UserID  string
+}
+
+var lookupOfficialFeishuIdentity = func(ctx *gin.Context, idType, idValue string) (feishuIdentity, error) {
+	settings := system_setting.GetFeishuSettings()
+	if strings.TrimSpace(settings.AppID) == "" || strings.TrimSpace(settings.AppSecret) == "" {
+		return feishuIdentity{}, fmt.Errorf("feishu app configuration is missing")
+	}
+	token, err := getFeishuTenantAccessToken(ctx, settings.AppID, settings.AppSecret)
+	if err != nil {
+		return feishuIdentity{}, err
+	}
+	openID, unionID, userID, err := getFeishuUserIdentifiersByAnyID(ctx, token, idType, idValue)
+	if err != nil {
+		return feishuIdentity{}, err
+	}
+	if openID == "" && unionID == "" && userID == "" {
+		return feishuIdentity{}, fmt.Errorf("feishu user not found")
+	}
+	return feishuIdentity{OpenID: openID, UnionID: unionID, UserID: userID}, nil
+}
+
+func validateFeishuIdentity(ctx *gin.Context, openID, unionID, userID string) (feishuIdentity, error) {
+	openID = strings.TrimSpace(openID)
+	unionID = strings.TrimSpace(unionID)
+	userID = strings.TrimSpace(userID)
+	idType, idValue := pickFeishuIdType(openID, userID, unionID)
+	if idType == "" {
+		return feishuIdentity{}, fmt.Errorf("at least one feishu identifier is required")
+	}
+	official, err := lookupOfficialFeishuIdentity(ctx, idType, idValue)
+	if err != nil {
+		return feishuIdentity{}, fmt.Errorf("validate feishu identity: %w", err)
+	}
+	checks := []struct{ name, input, official string }{
+		{"open_id", openID, official.OpenID},
+		{"union_id", unionID, official.UnionID},
+		{"user_id", userID, official.UserID},
+	}
+	for _, check := range checks {
+		if check.input != "" && check.input != check.official {
+			return feishuIdentity{}, fmt.Errorf("%s mismatch", check.name)
+		}
+	}
+	return official, nil
+}
+
 // enrichFeishuNameAndEmployeeNo 在已有飞书标识后，补充查询用户的 name 和 employee_no。
 // 用于调用方只传了 open_id/union_id/user_id 但没传 name 或工号的场景。
 func enrichFeishuNameAndEmployeeNo(ctx *gin.Context, idType, idValue string) (string, string) {
@@ -593,7 +643,19 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 	adminRole := c.GetInt("role")
 
 	for _, item := range req.Users {
-		openId, unionId, userId := resolveFeishuIdentifiers(c, item.FeishuOpenId, item.FeishuUnionId, item.FeishuUserId)
+		openId := strings.TrimSpace(item.FeishuOpenId)
+		unionId := strings.TrimSpace(item.FeishuUnionId)
+		userId := strings.TrimSpace(item.FeishuUserId)
+		if openId != "" || unionId != "" || userId != "" {
+			identity, err := validateFeishuIdentity(c, openId, unionId, userId)
+			if err != nil {
+				result.Failed++
+				result.Errors = append(result.Errors, "invalid feishu identity: "+err.Error())
+				result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, Action: "failed", Error: err.Error()})
+				continue
+			}
+			openId, unionId, userId = identity.OpenID, identity.UnionID, identity.UserID
+		}
 		resolvedName := strings.TrimSpace(item.DisplayName)
 		resolvedEmployeeNo := strings.TrimSpace(item.EmployeeID)
 		if openId == "" && unionId == "" && userId == "" {
@@ -1276,7 +1338,19 @@ func FeishuInitWebhook(c *gin.Context) {
 
 	for _, item := range req.Users {
 		item.Confirmed = true
-		openId, unionId, userId := resolveFeishuIdentifiers(c, item.FeishuOpenId, item.FeishuUnionId, item.FeishuUserId)
+		openId := strings.TrimSpace(item.FeishuOpenId)
+		unionId := strings.TrimSpace(item.FeishuUnionId)
+		userId := strings.TrimSpace(item.FeishuUserId)
+		if openId != "" || unionId != "" || userId != "" {
+			identity, err := validateFeishuIdentity(c, openId, unionId, userId)
+			if err != nil {
+				result.Failed++
+				result.Errors = append(result.Errors, "invalid feishu identity: "+err.Error())
+				result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, Action: "failed", Error: err.Error()})
+				continue
+			}
+			openId, unionId, userId = identity.OpenID, identity.UnionID, identity.UserID
+		}
 		resolvedName := strings.TrimSpace(item.DisplayName)
 		resolvedEmployeeNo := strings.TrimSpace(item.EmployeeID)
 		if openId == "" && unionId == "" && userId == "" {
@@ -1485,6 +1559,16 @@ func BatchUpdateFeishuUsers(c *gin.Context) {
 
 		feishuUserId := strings.TrimSpace(item.FeishuUserId)
 		feishuUnionId := strings.TrimSpace(item.FeishuUnionId)
+		if openId != "" || feishuUnionId != "" || feishuUserId != "" {
+			identity, err := validateFeishuIdentity(c, openId, feishuUnionId, feishuUserId)
+			if err != nil {
+				result.Failed++
+				result.Errors = append(result.Errors, "invalid feishu identity: "+err.Error())
+				result.Results = append(result.Results, FeishuUserUpdateResultItem{FeishuOpenId: openId, Action: "failed", Error: err.Error()})
+				continue
+			}
+			openId, feishuUnionId, feishuUserId = identity.OpenID, identity.UnionID, identity.UserID
+		}
 		if openId == "" && feishuUnionId == "" && feishuUserId == "" && item.UserId == nil && item.Username == "" {
 			result.Failed++
 			result.Errors = append(result.Errors, "at least one of feishu_open_id, feishu_union_id, feishu_user_id, user_id, username is required")
@@ -1583,11 +1667,12 @@ func BatchUpdateFeishuUsers(c *gin.Context) {
 			updates["password"] = hashedPassword
 		}
 
-		if item.Group != "" || user.FeishuId != "" {
+		finalOpenID := firstNonEmpty(openId, user.FeishuId)
+		if item.Group != "" || finalOpenID != "" {
 			requestedGroup := strings.TrimSpace(item.Group)
 			finalGroup := requestedGroup
-			if user.FeishuId != "" {
-				finalGroup, _ = service.ResolveAuthoritativeGroupForFeishuUser(user.Id, user.Group, requestedGroup, user.FeishuId, item.JobTitle)
+			if finalOpenID != "" {
+				finalGroup, _ = service.ResolveAuthoritativeGroupForFeishuUser(user.Id, user.Group, requestedGroup, finalOpenID, item.JobTitle)
 			}
 			if finalGroup != "" && finalGroup != user.Group {
 				updates["group"] = finalGroup

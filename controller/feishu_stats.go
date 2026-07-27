@@ -11,8 +11,12 @@ import (
 
 func ManualPushFeishuDailyStats(c *gin.Context) {
 	if shouldUseNewReport() {
-		service.ManualRunUsageReport(model.ReportPeriodDaily)
-		common.ApiSuccess(c, gin.H{"mode": "new", "period": "daily"})
+		result, err := service.ManualRunUsageReport(model.ReportPeriodDaily)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, result)
 		return
 	}
 	common.ApiSuccess(c, service.ManualPushFeishuStats("daily"))
@@ -20,8 +24,12 @@ func ManualPushFeishuDailyStats(c *gin.Context) {
 
 func ManualPushFeishuWeeklyStats(c *gin.Context) {
 	if shouldUseNewReport() {
-		service.ManualRunUsageReport(model.ReportPeriodWeekly)
-		common.ApiSuccess(c, gin.H{"mode": "new", "period": "weekly"})
+		result, err := service.ManualRunUsageReport(model.ReportPeriodWeekly)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, result)
 		return
 	}
 	common.ApiSuccess(c, service.ManualPushFeishuStats("weekly"))
@@ -29,8 +37,12 @@ func ManualPushFeishuWeeklyStats(c *gin.Context) {
 
 func ManualPushFeishuMonthlyStats(c *gin.Context) {
 	if shouldUseNewReport() {
-		service.ManualRunUsageReport(model.ReportPeriodMonthly)
-		common.ApiSuccess(c, gin.H{"mode": "new", "period": "monthly"})
+		result, err := service.ManualRunUsageReport(model.ReportPeriodMonthly)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, result)
 		return
 	}
 	common.ApiSuccess(c, service.ManualPushFeishuStats("monthly"))

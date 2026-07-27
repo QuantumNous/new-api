@@ -10,45 +10,72 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
+var usageReportAdminGetToken = getFeishuTenantAccessToken
+var usageReportAdminDeleteRecords = deleteBaseRecordsByPeriodType
+var usageReportAdminCreateRecords = batchCreateBaseRecords
+
 // PushUsageReportToAdminGroup 兼容旧调用：不再直接发群，改为写入管理推送任务表。
 func PushUsageReportToAdminGroup(periodType string) {
-	PushUsageReportAdminTaskToBase(BuildReportPeriod(periodType, time.Now()))
+	if err := PushUsageReportAdminTaskToBase(BuildReportPeriod(periodType, time.Now())); err != nil {
+		common.SysError(fmt.Sprintf("usage report admin push task failed: %s", err))
+	}
 }
 
 // PushUsageReportAdminTaskToBase 将平台报表摘要写入多维表格，由飞书自动化决定推送目标。
-func PushUsageReportAdminTaskToBase(rp ReportPeriod) {
+func PushUsageReportAdminTaskToBase(rp ReportPeriod) error {
 	settings := system_setting.GetFeishuSettings()
 	baseToken := strings.TrimSpace(settings.StatsBaseToken)
 	tableID := strings.TrimSpace(settings.ReportTableAdminPushID)
 	if baseToken == "" || tableID == "" {
 		common.SysLog("usage report admin push task: base token or table id is empty, skip")
-		return
+		return nil
 	}
 	appID := strings.TrimSpace(settings.AppID)
 	appSecret := strings.TrimSpace(settings.AppSecret)
 	if appID == "" || appSecret == "" {
 		common.SysLog("usage report admin push task: app_id/app_secret is empty, skip")
-		return
+		return nil
 	}
-	token, err := getFeishuTenantAccessToken(appID, appSecret)
+	text, platform, err := buildAdminGroupMessage(rp)
 	if err != nil {
-		common.SysError(fmt.Sprintf("usage report admin push task: get token failed: %s", err))
-		return
+		return err
 	}
-	text := buildAdminGroupMessage(rp)
-	if text == "" {
-		return
+	if text == "" || platform == nil {
+		return nil
 	}
-	deleteBaseRecordsByPeriodType(token, baseToken, tableID, rp.PeriodType)
-	batchCreateBaseRecords(token, baseToken, tableID, []map[string]any{buildAdminPushTaskRecord(rp, text, settings.StatsAdminChatID)})
-	if plat, _ := model.GetPlatformSnapshot(rp.PeriodType, rp.StartTimestamp); plat != nil {
-		model.UpdateReportSnapshotAdminPushStatus(plat.Id, model.SyncStatusSuccess, "")
+	fail := func(pushErr error) error {
+		if statusErr := model.UpdateReportSnapshotAdminPushStatus(platform.Id, model.SyncStatusFailed, pushErr.Error()); statusErr != nil {
+			return fmt.Errorf("%w; update admin push status: %v", pushErr, statusErr)
+		}
+		return pushErr
+	}
+	token, err := usageReportAdminGetToken(appID, appSecret)
+	if err != nil {
+		return fail(fmt.Errorf("usage report admin push task: get token: %w", err))
+	}
+	if err := usageReportAdminDeleteRecords(token, baseToken, tableID, rp.PeriodType); err != nil {
+		return fail(fmt.Errorf("usage report admin push task: cleanup: %w", err))
+	}
+	results, err := usageReportAdminCreateRecords(token, baseToken, tableID, []map[string]any{buildAdminPushTaskRecord(rp, text, settings.StatsAdminChatID)})
+	if err != nil {
+		common.SysError("usage report admin push task: create failed after cleanup; remote table may be partially synchronized and requires rerun")
+		return fail(fmt.Errorf("usage report admin push task: create: %w", err))
+	}
+	if len(results) != 1 {
+		return fail(fmt.Errorf("usage report admin push task: create returned %d results", len(results)))
+	}
+	if !results[0].Success {
+		return fail(fmt.Errorf("usage report admin push task: create: %s", results[0].Error))
+	}
+	if err := model.UpdateReportSnapshotAdminPushStatus(platform.Id, model.SyncStatusSuccess, ""); err != nil {
+		return fmt.Errorf("usage report admin push task: update success status: %w", err)
 	}
 	common.SysLog(fmt.Sprintf("usage report admin push task: wrote %s report task for %s", rp.PeriodType, rp.PeriodLabel))
+	return nil
 }
 
 // buildAdminGroupMessage 生成管理群推送文本
-func buildAdminGroupMessage(rp ReportPeriod) string {
+func buildAdminGroupMessage(rp ReportPeriod) (string, *model.UsageReportSnapshot, error) {
 	var sb strings.Builder
 
 	// 标题
@@ -64,7 +91,10 @@ func buildAdminGroupMessage(rp ReportPeriod) string {
 	sb.WriteString(fmt.Sprintf("周期：%s\n\n", rp.PeriodLabel))
 
 	// 平台总览
-	platform, _ := model.GetPlatformSnapshot(rp.PeriodType, rp.StartTimestamp)
+	platform, err := model.GetPlatformSnapshot(rp.PeriodType, rp.StartTimestamp)
+	if err != nil {
+		return "", nil, fmt.Errorf("usage report admin push task: query platform snapshot: %w", err)
+	}
 	if platform != nil {
 		sb.WriteString("━━━ 平台整体 ━━━\n")
 		sb.WriteString(fmt.Sprintf("总请求：%s 次\n", formatInt(platform.RequestCount)))
@@ -83,8 +113,20 @@ func buildAdminGroupMessage(rp ReportPeriod) string {
 		sb.WriteString("\n")
 	}
 
+	failPlatformQuery := func(queryErr error) (string, *model.UsageReportSnapshot, error) {
+		if platform != nil {
+			if statusErr := model.UpdateReportSnapshotAdminPushStatus(platform.Id, model.SyncStatusFailed, queryErr.Error()); statusErr != nil {
+				return "", platform, fmt.Errorf("%w; update admin push status: %v", queryErr, statusErr)
+			}
+		}
+		return "", platform, queryErr
+	}
+
 	// Top 用户/账号
-	accountItems, _ := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeAccount)
+	accountItems, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeAccount)
+	if err != nil {
+		return failPlatformQuery(fmt.Errorf("usage report admin push task: query account snapshots: %w", err))
+	}
 	if len(accountItems) > 0 {
 		sb.WriteString("━━━ Top 用户/账号 ━━━\n")
 		limit := 5
@@ -104,7 +146,10 @@ func buildAdminGroupMessage(rp ReportPeriod) string {
 	}
 
 	// Top 模型
-	modelItems, _ := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeModel)
+	modelItems, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeModel)
+	if err != nil {
+		return failPlatformQuery(fmt.Errorf("usage report admin push task: query model snapshots: %w", err))
+	}
 	if len(modelItems) > 0 {
 		sb.WriteString("━━━ Top 模型 ━━━\n")
 		limit := 5
@@ -162,7 +207,7 @@ func buildAdminGroupMessage(rp ReportPeriod) string {
 	sb.WriteString("━━━━━━━━━━━━━━━━\n")
 	sb.WriteString(fmt.Sprintf("数据生成时间：%s\n", time.Now().Format("2006-01-02 15:04:05")))
 
-	return sb.String()
+	return sb.String(), platform, nil
 }
 
 func displayName(s *model.UsageReportSnapshot) string {

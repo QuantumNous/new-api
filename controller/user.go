@@ -1063,6 +1063,16 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 	// Even for admin users, we cannot fully trust them!
+	if user.FeishuId != "" || user.FeishuUnionId != "" || user.FeishuUserId != "" {
+		identity, err := validateFeishuIdentity(c, user.FeishuId, user.FeishuUnionId, user.FeishuUserId)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		user.FeishuId = identity.OpenID
+		user.FeishuUnionId = identity.UnionID
+		user.FeishuUserId = identity.UserID
+	}
 	cleanUser := model.User{
 		Username:          user.Username,
 		Password:          user.Password,

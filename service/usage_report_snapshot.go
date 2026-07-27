@@ -35,25 +35,25 @@ func GenerateUsageReportForPeriod(rp ReportPeriod) error {
 		model.ReportScopeAnomaly,
 	} {
 		if err := model.DeleteReportSnapshotsByPeriod(rp.PeriodType, rp.StartTimestamp, scope); err != nil {
-			common.SysError(fmt.Sprintf("usage report: delete old %s snapshots failed: %s", scope, err))
+			return fmt.Errorf("delete old %s snapshots: %w", scope, err)
 		}
 	}
 
 	// 生成各维度快照
 	if err := generatePlatformSnapshot(rp); err != nil {
-		common.SysError(fmt.Sprintf("usage report: generate platform snapshot failed: %s", err))
+		return fmt.Errorf("generate platform snapshot: %w", err)
 	}
 	if err := generateAccountSnapshots(rp); err != nil {
-		common.SysError(fmt.Sprintf("usage report: generate account snapshots failed: %s", err))
+		return fmt.Errorf("generate account snapshots: %w", err)
 	}
 	if err := generateOrgSnapshots(rp); err != nil {
-		common.SysError(fmt.Sprintf("usage report: generate org snapshots failed: %s", err))
+		return fmt.Errorf("generate org snapshots: %w", err)
 	}
 	if err := generateModelSnapshots(rp); err != nil {
-		common.SysError(fmt.Sprintf("usage report: generate model snapshots failed: %s", err))
+		return fmt.Errorf("generate model snapshots: %w", err)
 	}
 	if err := generateAnomalySnapshots(rp); err != nil {
-		common.SysError(fmt.Sprintf("usage report: generate anomaly snapshots failed: %s", err))
+		return fmt.Errorf("generate anomaly snapshots: %w", err)
 	}
 
 	common.SysLog(fmt.Sprintf("usage report: completed %s report for %s", rp.PeriodType, rp.PeriodLabel))
@@ -738,9 +738,13 @@ func RunUsageReportFullPipeline(periodType string) {
 	})
 }
 
+var generateUsageReportForPeriod = GenerateUsageReportForPeriod
+var syncUsageReportPeriodToBaseWithDiagnostics = SyncUsageReportPeriodToBaseWithDiagnostics
+var pushUsageReportAdminTaskToBase = PushUsageReportAdminTaskToBase
+
 // RunUsageReportFullPipelineForPeriod 同步执行指定周期报表链路，用于定时任务和运维补跑。
 func RunUsageReportFullPipelineForPeriod(rp ReportPeriod, syncBase, adminPushTask bool) (*UsageReportRunResult, error) {
-	if err := GenerateUsageReportForPeriod(rp); err != nil {
+	if err := generateUsageReportForPeriod(rp); err != nil {
 		return nil, err
 	}
 	settings := system_setting.GetFeishuSettings()
@@ -748,14 +752,19 @@ func RunUsageReportFullPipelineForPeriod(rp ReportPeriod, syncBase, adminPushTas
 	var syncMessages []string
 
 	if syncBase && settings.UsageReportBaseSyncEnabled {
-		msgs := SyncUsageReportPeriodToBaseWithDiagnostics(rp)
+		msgs, err := syncUsageReportPeriodToBaseWithDiagnostics(rp)
 		syncMessages = append(syncMessages, msgs...)
+		if err != nil {
+			return nil, err
+		}
 	} else if syncBase && !settings.UsageReportBaseSyncEnabled {
 		syncMessages = append(syncMessages, "base sync skipped: usage_report_base_sync_enabled=false")
 	}
 
 	if adminPushTask && settings.UsageReportAdminGroupPushEnabled {
-		PushUsageReportAdminTaskToBase(rp)
+		if err := pushUsageReportAdminTaskToBase(rp); err != nil {
+			return nil, err
+		}
 	}
 
 	count := countUsageReportSnapshots(rp)
@@ -791,9 +800,9 @@ func RunUsageReportFullPipelineForPeriod(rp ReportPeriod, syncBase, adminPushTas
 }
 
 // ManualRunUsageReport 手动触发报表全链路（供 Controller 调用）
-func ManualRunUsageReport(periodType string) error {
-	RunUsageReportFullPipeline(periodType)
-	return nil
+func ManualRunUsageReport(periodType string) (*UsageReportRunResult, error) {
+	rp := BuildReportPeriod(periodType, time.Now())
+	return RunUsageReportFullPipelineForPeriod(rp, true, system_setting.GetFeishuSettings().UsageReportAdminGroupPushEnabled)
 }
 
 func countUsageReportSnapshots(rp ReportPeriod) int {
