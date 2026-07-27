@@ -245,14 +245,20 @@ export async function updateBillingPreference(
 export async function cancelSubscriptionRenewal(): Promise<
   ApiResponse<SubscriptionRenewalLifecycleResult>
 > {
-  const res = await api.post('/api/subscription/self/renewal/cancel')
+  const res = await api.post('/api/subscription/self/renewal/cancel', undefined, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
   return res.data
 }
 
 export async function resumeSubscriptionRenewal(): Promise<
   ApiResponse<SubscriptionRenewalLifecycleResult>
 > {
-  const res = await api.post('/api/subscription/self/renewal/resume')
+  const res = await api.post('/api/subscription/self/renewal/resume', undefined, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
   return res.data
 }
 

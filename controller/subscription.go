@@ -1135,11 +1135,15 @@ func recurringMatchesCurrentSubscription(
 	entitlement *model.UserSubscription,
 	recurring RecurringSubscriptionDTO,
 ) bool {
+	if entitlement == nil || entitlement.Id <= 0 {
+		return false
+	}
 	bindingID := entitlement.ProviderBindingId
 	planID := entitlement.PlanId
 	if contract != nil && contract.Id > 0 {
-		if contract.CurrentProviderBindingId > 0 {
-			bindingID = contract.CurrentProviderBindingId
+		bindingID = contract.CurrentProviderBindingId
+		if bindingID <= 0 || entitlement.ProviderBindingId != bindingID {
+			return false
 		}
 		if contract.CurrentPlanId > 0 {
 			planID = contract.CurrentPlanId

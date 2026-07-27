@@ -18,7 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test'
 import { api, type ApiRequestConfig } from '@/lib/api'
-import { getSelfSubscriptionFull } from './api'
+import {
+  cancelSubscriptionRenewal,
+  getSelfSubscriptionFull,
+  resumeSubscriptionRenewal,
+} from './api'
 
 afterEach(() => {
   mock.restore()
@@ -37,4 +41,29 @@ describe('getSelfSubscriptionFull', () => {
 
     expect(api.get).toHaveBeenCalledWith('/api/subscription/self', config)
   })
+})
+
+describe('subscription renewal lifecycle API', () => {
+  test.each([
+    ['cancel', cancelSubscriptionRenewal],
+    ['resume', resumeSubscriptionRenewal],
+  ] as const)(
+    '%s keeps renewal error toasts owned by the caller',
+    async (action, request) => {
+      const response = { success: false, message: `${action} failed` }
+      const post = spyOn(api, 'post').mockResolvedValue({
+        data: response,
+      } as never)
+
+      await expect(request()).resolves.toEqual(response)
+      expect(post).toHaveBeenCalledWith(
+        `/api/subscription/self/renewal/${action}`,
+        undefined,
+        {
+          skipBusinessError: true,
+          skipErrorHandler: true,
+        }
+      )
+    }
+  )
 })
