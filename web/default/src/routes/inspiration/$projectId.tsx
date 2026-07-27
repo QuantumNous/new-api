@@ -33,7 +33,7 @@ function InspirationProjectPage() {
   const { projectId } = useParams({ from: '/inspiration/$projectId' })
 
   return (
-    <div className='h-full'>
+    <div className='min-h-0 flex-1'>
       <WorkbenchEditor projectId={Number(projectId)} />
     </div>
   )

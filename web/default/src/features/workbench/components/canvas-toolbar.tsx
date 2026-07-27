@@ -93,7 +93,8 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
   return (
     <div
       data-canvas-no-zoom
-      className='absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border px-2 py-1.5 backdrop-blur'
+      data-guide='canvas-toolbar'
+      className='absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border px-2 py-1.5 shadow-lg backdrop-blur-xl'
       style={{
         background: theme.toolbar.panel,
         borderColor: theme.toolbar.border,

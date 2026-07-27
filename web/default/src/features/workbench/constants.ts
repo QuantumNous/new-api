@@ -109,6 +109,11 @@ export function getNodeSpec(type: CanvasNodeType) {
   return NODE_SPECS[type]
 }
 
+/** Card border plus the title bar every node renders above its body. */
+export const NODE_CHROME_TOP = 37
+/** Body bottom padding plus the card border. */
+export const NODE_CHROME_BOTTOM = 11
+
 export const STORYBOARD_ROW_HEIGHT = 48
 /**
  * Must match the rendered storyboard header exactly: row connection anchors are
@@ -117,10 +122,18 @@ export const STORYBOARD_ROW_HEIGHT = 48
 export const STORYBOARD_HEADER_HEIGHT = 78
 export const STORYBOARD_FOOTER_HEIGHT = 44
 
+/** Distance from the node origin to the first storyboard row. */
+export function storyboardTableTop() {
+  return NODE_CHROME_TOP + STORYBOARD_HEADER_HEIGHT
+}
+
 export function storyboardTableHeight(nodeHeight: number) {
   return Math.max(
     STORYBOARD_ROW_HEIGHT,
-    nodeHeight - STORYBOARD_HEADER_HEIGHT - STORYBOARD_FOOTER_HEIGHT
+    nodeHeight -
+      storyboardTableTop() -
+      STORYBOARD_FOOTER_HEIGHT -
+      NODE_CHROME_BOTTOM
   )
 }
 

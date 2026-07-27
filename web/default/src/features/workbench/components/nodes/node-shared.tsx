@@ -20,13 +20,13 @@ For commercial licensing, please contact support@quantumnous.com
 Adapted from open-ai-canvas (https://github.com/ddcat-ai/open-ai-canvas),
 based on basketikun/infinite-canvas. AGPL-3.0; see THIRD-PARTY-LICENSES.md.
 */
-import { Loader2 } from 'lucide-react'
+import { ArrowUp, Loader2, Square } from 'lucide-react'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 
 import {
   CANVAS_PROMPT_PRESETS,
@@ -118,13 +118,17 @@ export function NodePromptBar(props: {
   }
 
   return (
-    <div className='relative flex shrink-0 flex-col gap-2' data-canvas-no-zoom>
+    <div
+      className='border-border/60 bg-muted/40 focus-within:border-primary/50 focus-within:bg-background relative flex shrink-0 flex-col gap-1.5 rounded-2xl border p-1.5 transition-colors'
+      data-canvas-no-zoom
+      data-guide='node-prompt'
+    >
       <Textarea
         ref={textareaRef}
         value={props.value}
         placeholder={props.placeholder}
         rows={2}
-        className='min-h-[52px] resize-none text-xs'
+        className='min-h-[46px] resize-none border-none bg-transparent px-2 py-1 text-xs leading-relaxed shadow-none focus-visible:ring-0'
         onChange={(event) => {
           props.onChange(event.target.value)
           const before = event.target.value.slice(
@@ -164,12 +168,12 @@ export function NodePromptBar(props: {
         onPointerDown={(event) => event.stopPropagation()}
       />
       {menu && candidates.length ? (
-        <div className='bg-popover absolute inset-x-0 bottom-full z-20 mb-1 max-h-32 overflow-auto rounded-md border p-1 text-xs shadow-md'>
+        <div className='bg-popover absolute inset-x-0 bottom-full z-20 mb-1 max-h-32 overflow-auto rounded-xl border p-1 text-xs shadow-lg'>
           {candidates.map((candidate, index) => (
             <button
               key={candidate.id}
               type='button'
-              className={`block w-full rounded px-2 py-1 text-left ${index === activeIndex ? 'bg-accent' : ''}`}
+              className={`block w-full rounded-lg px-2 py-1 text-left ${index === activeIndex ? 'bg-accent' : ''}`}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => chooseCandidate(index)}
             >
@@ -178,26 +182,32 @@ export function NodePromptBar(props: {
           ))}
         </div>
       ) : null}
-      <div className='flex items-center gap-2'>
+      <div className='flex items-center gap-1.5'>
         {props.children}
         {props.isGenerating ? (
-          <Button
-            size='sm'
-            variant='outline'
-            className='ml-auto h-7 px-2 text-xs'
+          <button
+            type='button'
+            title={t('Cancel')}
+            aria-label={t('Cancel')}
+            className='border-border/70 text-muted-foreground hover:text-foreground ml-auto flex size-8 shrink-0 items-center justify-center rounded-full border transition-colors'
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={props.onCancel}
           >
-            {t('Cancel')}
-          </Button>
+            <Square className='size-3 fill-current' />
+          </button>
         ) : (
-          <Button
-            size='sm'
-            className='ml-auto h-7 px-3 text-xs'
+          <button
+            type='button'
+            title={t('Generate')}
+            aria-label={t('Generate')}
+            data-guide='node-generate'
             disabled={props.disabled}
+            className='ml-auto flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-sm transition-all hover:brightness-110 active:scale-95 disabled:from-slate-400 disabled:to-slate-400 disabled:opacity-50 disabled:active:scale-100'
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={props.onGenerate}
           >
-            {t('Generate')}
-          </Button>
+            <ArrowUp className='size-4' />
+          </button>
         )}
       </div>
     </div>
@@ -214,7 +224,10 @@ export function NodeModelSelect(props: {
   return (
     <NativeSelect
       size='sm'
-      className='min-w-0 flex-1'
+      className={cn(
+        'h-8 min-w-0 flex-1 rounded-full border-transparent text-[11px]',
+        props.value ? 'bg-foreground/5' : 'bg-amber-500/15 text-amber-700'
+      )}
       value={props.value ?? ''}
       onPointerDown={(event) => event.stopPropagation()}
       onChange={(event) => props.onChange(event.target.value)}
@@ -226,6 +239,25 @@ export function NodeModelSelect(props: {
         </option>
       ))}
     </NativeSelect>
+  )
+}
+
+/**
+ * Compact read-only summary of the generation settings. Keeps the dense
+ * selector grid out of the card until the user opts into professional mode.
+ */
+export function NodeSettingsChips(props: { items: string[] }) {
+  return (
+    <div className='flex shrink-0 flex-wrap items-center gap-1'>
+      {props.items.map((item) => (
+        <span
+          key={item}
+          className='bg-foreground/5 text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium'
+        >
+          {item}
+        </span>
+      ))}
+    </div>
   )
 }
 
@@ -241,20 +273,36 @@ export function NodeStatusOverlay(props: {
   if (props.status === 'loading') {
     return (
       <div
-        className='absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md text-xs'
+        className='absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl text-[11px] backdrop-blur-sm'
         style={{ background: theme.spatial.dropzone, color: theme.node.muted }}
       >
-        <Loader2 className='size-4 animate-spin' />
-        {typeof props.progress === 'number'
-          ? `${t(props.taskStatus || 'Generating')} · ${props.progress}%`
-          : t(props.taskStatus || 'Generating')}
+        <Loader2
+          className='size-5 animate-spin'
+          style={{ color: theme.accent.primary }}
+        />
+        <span className='font-medium'>
+          {typeof props.progress === 'number'
+            ? `${t(props.taskStatus || 'Generating')} · ${props.progress}%`
+            : t(props.taskStatus || 'Generating')}
+        </span>
+        {typeof props.progress === 'number' ? (
+          <span className='bg-foreground/10 h-1 w-24 overflow-hidden rounded-full'>
+            <span
+              className='block h-full rounded-full transition-[width] duration-500'
+              style={{
+                width: `${props.progress}%`,
+                background: theme.accent.primary,
+              }}
+            />
+          </span>
+        ) : null}
       </div>
     )
   }
   if (props.status === 'error') {
     return (
       <div
-        className='absolute inset-0 flex items-center justify-center rounded-md p-3 text-center text-xs'
+        className='absolute inset-0 flex items-center justify-center rounded-xl p-3 text-center text-[11px] backdrop-blur-sm'
         style={{
           background: theme.spatial.dropzone,
           color: theme.accent.danger,
@@ -269,14 +317,22 @@ export function NodeStatusOverlay(props: {
   return null
 }
 
-export function NodeEmptyMedia(props: { label: string }) {
+export function NodeEmptyMedia(props: {
+  label: string
+  icon?: React.ReactNode
+}) {
   const theme = useCanvasTheme()
   return (
     <div
-      className='flex h-full w-full items-center justify-center rounded-md border border-dashed text-xs'
-      style={{ borderColor: theme.node.stroke, color: theme.node.placeholder }}
+      className='flex h-full w-full flex-col items-center justify-center gap-2 rounded-xl px-4 text-center text-[11px]'
+      style={{ color: theme.node.placeholder }}
     >
-      {props.label}
+      {props.icon ? (
+        <span className='bg-foreground/5 flex size-9 items-center justify-center rounded-full'>
+          {props.icon}
+        </span>
+      ) : null}
+      <span className='text-pretty'>{props.label}</span>
     </div>
   )
 }

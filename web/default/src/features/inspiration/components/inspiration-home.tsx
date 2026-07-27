@@ -8,7 +8,13 @@ License, or (at your option) any later version.
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { FolderOpen, LayoutGrid } from 'lucide-react'
+import {
+  FolderOpen,
+  LayoutGrid,
+  MousePointerClick,
+  Play,
+  Wand2,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -46,6 +52,24 @@ const VIEW_TABS: Array<{
 const PROJECT_TARGETS: InspirationApplyOption[] = [
   { value: 'image', label: 'New project from template' },
 ]
+
+const HOW_IT_WORKS = [
+  {
+    icon: MousePointerClick,
+    title: 'Pick a starting point',
+    body: 'A template gives you a canvas that is already wired up. A blank project starts empty.',
+  },
+  {
+    icon: Wand2,
+    title: 'Edit the prompt',
+    body: 'Each card holds one prompt and one model. Change the words, change the result.',
+  },
+  {
+    icon: Play,
+    title: 'Run and chain',
+    body: 'Generate, then drag the card outlet into the next step to build a flow.',
+  },
+] as const
 
 export function InspirationHome(props: {
   view: InspirationView
@@ -119,6 +143,29 @@ export function InspirationHome(props: {
             )}
           </p>
         </div>
+
+        <ol className='relative mt-6 grid gap-3 sm:grid-cols-3'>
+          {HOW_IT_WORKS.map((item, index) => (
+            <li
+              key={item.title}
+              className='border-border/60 bg-background/70 rounded-2xl border p-4 backdrop-blur-sm'
+            >
+              <div className='flex items-center gap-2'>
+                <span className='bg-foreground/8 flex size-6 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums'>
+                  {index + 1}
+                </span>
+                <item.icon
+                  className='text-muted-foreground size-4'
+                  aria-hidden='true'
+                />
+              </div>
+              <p className='mt-2 text-sm font-semibold'>{t(item.title)}</p>
+              <p className='text-muted-foreground mt-1 text-xs text-pretty'>
+                {t(item.body)}
+              </p>
+            </li>
+          ))}
+        </ol>
       </section>
 
       <div

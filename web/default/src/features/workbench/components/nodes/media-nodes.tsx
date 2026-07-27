@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 Adapted from open-ai-canvas (https://github.com/ddcat-ai/open-ai-canvas),
 based on basketikun/infinite-canvas. AGPL-3.0; see THIRD-PARTY-LICENSES.md.
 */
-import { Layers } from 'lucide-react'
+import { Image as ImageIcon, Layers, Music, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -46,6 +46,7 @@ import {
   NodeEmptyMedia,
   NodeModelSelect,
   NodePromptBar,
+  NodeSettingsChips,
   NodeStatusOverlay,
   type CanvasNodeBodyProps,
 } from './node-shared'
@@ -60,26 +61,40 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-2'>
-      <div className='bg-muted/40 relative min-h-24 flex-1 overflow-hidden rounded-md'>
+      <div className='bg-muted/30 ring-border/50 relative min-h-24 flex-1 overflow-hidden rounded-xl ring-1 ring-inset'>
         {metadata.content ? (
           <img
             src={metadata.content}
             alt={props.node.title}
             draggable={false}
-            className='h-full w-full rounded-md object-contain'
+            className='h-full w-full rounded-xl object-contain'
           />
         ) : (
-          <NodeEmptyMedia label={t('Describe the image to generate')} />
+          <NodeEmptyMedia
+            icon={<ImageIcon className='size-4' />}
+            label={t('Describe the image to generate')}
+          />
         )}
         <NodeStatusOverlay
           status={metadata.status}
           errorDetails={metadata.errorDetails}
         />
+        {metadata.content ? (
+          <div className='absolute bottom-2 left-2'>
+            <NodeSettingsChips
+              items={[
+                metadata.size ?? 'auto',
+                metadata.quality ?? 'auto',
+                `×${metadata.count ?? 1}`,
+              ]}
+            />
+          </div>
+        ) : null}
         {batchChildIds.length ? (
           <Button
             size='sm'
             variant='secondary'
-            className='absolute right-2 bottom-2 h-6 gap-1 px-2 text-[11px]'
+            className='absolute right-2 bottom-2 h-6 gap-1 rounded-full px-2 text-[11px]'
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() =>
               updateNodeMetadata(props.node.id, {
@@ -113,10 +128,6 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
         />
       </NodePromptBar>
 
-      <p className='text-muted-foreground shrink-0 truncate text-[10px]'>
-        {t('Current settings')}: {metadata.size ?? 'auto'} ·{' '}
-        {metadata.quality ?? 'auto'} · {metadata.count ?? 1}
-      </p>
       <div
         className={
           experienceMode === 'professional'
@@ -208,16 +219,19 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-2'>
-      <div className='bg-muted/40 relative min-h-24 flex-1 overflow-hidden rounded-md'>
+      <div className='bg-muted/30 ring-border/50 relative min-h-24 flex-1 overflow-hidden rounded-xl ring-1 ring-inset'>
         {metadata.content ? (
           <video
             src={metadata.content}
             controls
-            className='h-full w-full rounded-md object-contain'
+            className='h-full w-full rounded-xl object-contain'
             onPointerDown={(event) => event.stopPropagation()}
           />
         ) : (
-          <NodeEmptyMedia label={t('Describe the video to generate')} />
+          <NodeEmptyMedia
+            icon={<Video className='size-4' />}
+            label={t('Describe the video to generate')}
+          />
         )}
         <NodeStatusOverlay
           status={metadata.status}
@@ -245,11 +259,12 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
         />
       </NodePromptBar>
 
-      <p className='text-muted-foreground shrink-0 truncate text-[10px]'>
-        {t('Current settings')}:{' '}
-        {videoSizeLabel(metadata.size ?? VIDEO_SIZES[0])} ·{' '}
-        {metadata.seconds ?? VIDEO_DURATIONS[0]}s
-      </p>
+      <NodeSettingsChips
+        items={[
+          videoSizeLabel(metadata.size ?? VIDEO_SIZES[0]),
+          `${metadata.seconds ?? VIDEO_DURATIONS[0]}s`,
+        ]}
+      />
       <div
         className={
           experienceMode === 'professional'
@@ -315,14 +330,13 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
 
 export function AudioNodeBody(props: CanvasNodeBodyProps) {
   const { t } = useTranslation()
-  const theme = useCanvasTheme()
   const models = useWorkbenchModels()
   const metadata = props.node.metadata ?? {}
   const experienceMode = useCanvasStore((state) => state.experienceMode)
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-2'>
-      <div className='relative flex min-h-14 flex-1 items-center'>
+      <div className='bg-muted/30 ring-border/50 relative flex min-h-14 flex-1 items-center overflow-hidden rounded-xl px-2 ring-1 ring-inset'>
         {metadata.content ? (
           <audio
             src={metadata.content}
@@ -331,15 +345,10 @@ export function AudioNodeBody(props: CanvasNodeBodyProps) {
             onPointerDown={(event) => event.stopPropagation()}
           />
         ) : (
-          <div
-            className='w-full rounded-md border border-dashed px-2 py-3 text-center text-xs'
-            style={{
-              borderColor: theme.node.stroke,
-              color: theme.node.placeholder,
-            }}
-          >
-            {t('Enter the text to speak')}
-          </div>
+          <NodeEmptyMedia
+            icon={<Music className='size-4' />}
+            label={t('Enter the text to speak')}
+          />
         )}
         <NodeStatusOverlay
           status={metadata.status}
@@ -364,10 +373,13 @@ export function AudioNodeBody(props: CanvasNodeBodyProps) {
           onChange={(model) => props.onMetadataChange({ model })}
         />
       </NodePromptBar>
-      <p className='text-muted-foreground shrink-0 truncate text-[10px]'>
-        {t('Current settings')}: {metadata.audioVoice ?? 'alloy'} ·{' '}
-        {metadata.audioFormat ?? 'mp3'} · {metadata.audioSpeed ?? '1'}×
-      </p>
+      <NodeSettingsChips
+        items={[
+          metadata.audioVoice ?? 'alloy',
+          metadata.audioFormat ?? 'mp3',
+          `${metadata.audioSpeed ?? '1'}×`,
+        ]}
+      />
       <div
         className={
           experienceMode === 'professional'

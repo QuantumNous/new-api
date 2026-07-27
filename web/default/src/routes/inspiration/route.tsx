@@ -18,12 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 
-import { InspirationHeader } from '@/features/inspiration/components/inspiration-header'
+import { PublicLayout } from '@/components/layout'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
 
 /**
- * Standalone shell for the Inspiration product. It deliberately avoids the
- * console layout (sidebar + console header) so the canvas owns the viewport.
+ * Inspiration runs on the marketing-site shell, not the console shell: it is a
+ * public-facing product surface, and the canvas needs the whole viewport.
  */
 export const Route = createFileRoute('/inspiration')({
   beforeLoad: async () => {
@@ -35,11 +35,11 @@ export const Route = createFileRoute('/inspiration')({
 
 function InspirationLayout() {
   return (
-    <div className='bg-background text-foreground flex h-dvh flex-col overflow-hidden'>
-      <InspirationHeader />
-      <main className='min-h-0 flex-1 overflow-hidden'>
+    <PublicLayout showMainContainer={false}>
+      {/* pt-16 matches the unscrolled PublicHeader, which floats over content. */}
+      <div className='flex h-dvh max-h-dvh flex-col overflow-hidden pt-16'>
         <Outlet />
-      </main>
-    </div>
+      </div>
+    </PublicLayout>
   )
 }

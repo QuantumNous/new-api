@@ -64,6 +64,7 @@ import {
   ImageNodeBody,
   VideoNodeBody,
 } from './nodes/media-nodes'
+import { nodeAccent } from './nodes/node-accent'
 import type { CanvasNodeBodyProps } from './nodes/node-shared'
 import { StoryboardNodeBody } from './nodes/storyboard-node'
 
@@ -118,7 +119,7 @@ function HeaderIconButton(props: {
       type='button'
       title={props.label}
       aria-label={props.label}
-      className='hover:bg-foreground/10 flex size-6 items-center justify-center rounded opacity-70 transition-opacity hover:opacity-100'
+      className='hover:bg-foreground/10 text-muted-foreground hover:text-foreground flex size-6 items-center justify-center rounded-md transition-colors'
       onPointerDown={(event) => event.stopPropagation()}
       onClick={props.onClick}
     >
@@ -149,7 +150,7 @@ function NodeActionMenu(props: {
             type='button'
             title={t('More actions')}
             aria-label={t('More actions')}
-            className='hover:bg-foreground/10 flex size-6 items-center justify-center rounded opacity-70 transition-opacity hover:opacity-100'
+            className='hover:bg-foreground/10 text-muted-foreground hover:text-foreground flex size-6 items-center justify-center rounded-md transition-colors'
             onPointerDown={(event) => event.stopPropagation()}
           >
             <MoreHorizontal className='size-3.5' />
@@ -256,31 +257,41 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
   const isMedia = MEDIA_NODE_TYPES.has(node.type)
   const hasContent = Boolean(node.metadata?.content)
   const minSize = nodeMinSize(node.type)
+  const accent = nodeAccent(node.type)
   const updateNodeMetadata = useCanvasStore((state) => state.updateNodeMetadata)
   const removeNodes = useCanvasStore((state) => state.removeNodes)
   const idleBorderColor = frame ? theme.frame.stroke : theme.node.stroke
 
+  let boxShadow: string | undefined
+  if (props.selected) {
+    boxShadow = `0 0 0 3px ${accent.ring}, 0 18px 40px -18px ${theme.spatial.shadow}`
+  } else if (!frame) {
+    boxShadow = `0 1px 2px ${theme.spatial.shadow}, 0 10px 30px -22px ${theme.spatial.shadow}`
+  }
+
   return (
     <div
       data-node-id={node.id}
+      data-guide='node-card'
       tabIndex={props.readOnly ? -1 : 0}
       role='group'
       aria-label={t('{{title}} canvas node', { title: node.title })}
       aria-selected={props.selected}
-      className='group absolute flex flex-col overflow-hidden rounded-xl border text-xs shadow-sm outline-none focus-visible:ring-2'
+      className={cn(
+        'group absolute flex flex-col overflow-hidden text-xs outline-none transition-shadow duration-200',
+        frame ? 'rounded-2xl border' : 'rounded-[18px] border'
+      )}
       style={{
         left: node.position.x,
         top: node.position.y,
         width: node.width,
         height: node.height,
         background: frame ? theme.frame.fill : theme.node.panel,
-        borderColor: props.selected ? theme.accent.primary : idleBorderColor,
+        borderColor: props.selected ? accent.ring : idleBorderColor,
         borderStyle: frame ? 'dashed' : 'solid',
         color: theme.node.text,
-        opacity: props.dragging ? 0.85 : 1,
-        boxShadow: props.selected
-          ? `0 0 0 2px ${theme.accent.primarySoft}`
-          : undefined,
+        opacity: props.dragging ? 0.9 : 1,
+        boxShadow,
       }}
       onPointerDown={(event) => {
         if (!props.readOnly) props.interactions.startNodeDrag(event, node.id)
@@ -315,21 +326,37 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
       }}
     >
       <div
-        className='flex h-8 shrink-0 items-center gap-1 px-2'
+        className={cn(
+          'relative flex h-9 shrink-0 items-center gap-2 px-2.5',
+          frame ? null : 'bg-gradient-to-r to-transparent',
+          frame ? null : accent.wash
+        )}
         style={{ color: theme.node.label }}
       >
-        <span className='min-w-0 flex-1 truncate font-medium'>
+        <span
+          className={cn(
+            'flex size-5 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white shadow-sm',
+            accent.chip
+          )}
+          aria-hidden='true'
+        >
+          <accent.icon className='size-3' />
+        </span>
+        <span
+          className='min-w-0 flex-1 truncate text-[12px] font-semibold tracking-tight'
+          style={{ color: theme.node.text }}
+        >
           {node.title}
         </span>
         {node.metadata?.versionLabel ? (
-          <span className='bg-muted shrink-0 rounded px-1 font-semibold'>
+          <span className='bg-foreground/8 shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold'>
             {node.metadata.versionLabel}
             {node.metadata.versionPrimary ? ' ★' : ''}
           </span>
         ) : null}
         <div
           className={cn(
-            'shrink-0 items-center gap-0.5 group-focus-within:flex group-hover:flex [@media(pointer:coarse)]:flex',
+            'shrink-0 items-center gap-0.5 rounded-lg group-focus-within:flex group-hover:flex [@media(pointer:coarse)]:flex',
             props.selected ? 'flex' : 'hidden'
           )}
           data-canvas-no-zoom
@@ -380,7 +407,7 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
 
       <fieldset
         disabled={props.readOnly}
-        className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-2 pb-2'
+        className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-2.5 pb-2.5'
       >
         <NodeBody
           type={node.type}
@@ -401,11 +428,13 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
           <button
             type='button'
             aria-label={t('Connect from this node')}
+            title={t('Drag to the next step')}
             data-handle-type='source'
-            className='absolute top-1/2 -right-3 size-6 -translate-y-1/2 rounded-full border sm:-right-2 sm:size-3'
+            data-guide='node-handle'
+            className='absolute top-1/2 -right-3 size-6 -translate-y-1/2 rounded-full border-2 opacity-60 transition-all group-focus-within:opacity-100 group-hover:scale-110 group-hover:opacity-100 sm:-right-2 sm:size-3.5'
             style={{
               background: theme.node.panel,
-              borderColor: theme.accent.primary,
+              borderColor: accent.ring,
             }}
             onPointerDown={(event) =>
               props.interactions.startConnection(event, {
@@ -418,10 +447,10 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
             type='button'
             aria-label={t('Connect into this node')}
             data-handle-type='target'
-            className='absolute top-1/2 -left-3 size-6 -translate-y-1/2 rounded-full border sm:-left-2 sm:size-3'
+            className='absolute top-1/2 -left-3 size-6 -translate-y-1/2 rounded-full border-2 opacity-60 transition-all group-focus-within:opacity-100 group-hover:scale-110 group-hover:opacity-100 sm:-left-2 sm:size-3.5'
             style={{
               background: theme.node.panel,
-              borderColor: theme.accent.primary,
+              borderColor: theme.node.faint,
             }}
             onPointerDown={(event) =>
               props.interactions.startConnection(event, {
@@ -439,10 +468,10 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
               type='button'
               key={corner}
               aria-label={t('Resize {{corner}} handle', { corner })}
-              className='absolute size-5 cursor-nwse-resize rounded-sm border sm:size-3'
+              className='absolute size-5 cursor-nwse-resize rounded-[4px] border-2 sm:size-3'
               style={{
                 background: theme.node.panel,
-                borderColor: theme.accent.primary,
+                borderColor: accent.ring,
                 left: corner.endsWith('w') ? -5 : undefined,
                 right: corner.endsWith('e') ? -5 : undefined,
                 top: corner.startsWith('n') ? -5 : undefined,

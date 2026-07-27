@@ -67,6 +67,8 @@ import {
 import { CanvasConnections } from './canvas-connections'
 import { CanvasContextMenu } from './canvas-context-menu'
 import { CanvasCropDialog } from './canvas-crop-dialog'
+import { CanvasEmptyState, type CanvasStarterKind } from './canvas-empty-state'
+import { CanvasGuide } from './canvas-guide'
 import { CanvasMinimap } from './canvas-minimap'
 import { CanvasNode } from './canvas-node'
 import { CanvasSelectionToolbar } from './canvas-selection-toolbar'
@@ -75,6 +77,15 @@ import { CanvasVersionCompare } from './canvas-version-compare'
 import { InfiniteCanvas } from './infinite-canvas'
 
 const PASTE_OFFSET = 32
+const GUIDE_SEEN_KEY = 'canvas_guide_seen'
+
+function guideAlreadySeen() {
+  try {
+    return window.localStorage.getItem(GUIDE_SEEN_KEY) === '1'
+  } catch {
+    return true
+  }
+}
 
 export function WorkbenchCanvas(props: { readOnly?: boolean } = {}) {
   const { t } = useTranslation()
@@ -84,9 +95,11 @@ export function WorkbenchCanvas(props: { readOnly?: boolean } = {}) {
   const replacementInputRef = useRef<HTMLInputElement>(null)
   const replacementNodeIdRef = useRef<string | null>(null)
   const clipboardRef = useRef('')
+  const autoGuideRef = useRef(false)
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [cropNodeId, setCropNodeId] = useState<string | null>(null)
+  const [guideOpen, setGuideOpen] = useState(false)
   const [pendingCreate, setPendingCreate] =
     useState<PendingConnectionCreate | null>(null)
   const interactions = useCanvasInteractions(containerRef, {
@@ -408,6 +421,51 @@ export function WorkbenchCanvas(props: { readOnly?: boolean } = {}) {
     [viewportSize]
   )
 
+  const startFlow = useCallback(
+    (kind: CanvasStarterKind) => {
+      const store = useCanvasStore.getState()
+      const center = {
+        x: (viewportSize.width / 2 - store.viewport.x) / store.viewport.k,
+        y: (viewportSize.height / 2 - store.viewport.y) / store.viewport.k,
+      }
+      if (kind === 'note') {
+        store.addNode(CanvasNodeType.Text, {
+          x: center.x - 170,
+          y: center.y - 120,
+        })
+        return
+      }
+      const image = store.addNode(CanvasNodeType.Image, {
+        x: kind === 'image' ? center.x - 180 : center.x - 440,
+        y: center.y - 200,
+      })
+      if (kind !== 'image-to-video') return
+      const video = useCanvasStore
+        .getState()
+        .addNode(CanvasNodeType.Video, { x: center.x + 40, y: center.y - 215 })
+      useCanvasStore.getState().connectNodes(image.id, video.id)
+    },
+    [viewportSize]
+  )
+
+  const openGuide = useCallback(() => {
+    if (!useCanvasStore.getState().nodes.length) startFlow('image')
+    window.requestAnimationFrame(() => setGuideOpen(true))
+  }, [startFlow])
+
+  useEffect(() => {
+    window.addEventListener('canvas:start-guide', openGuide)
+    return () => window.removeEventListener('canvas:start-guide', openGuide)
+  }, [openGuide])
+
+  useEffect(() => {
+    if (props.readOnly || autoGuideRef.current) return
+    if (!nodes.length || guideAlreadySeen()) return
+    autoGuideRef.current = true
+    const timer = window.setTimeout(() => setGuideOpen(true), 700)
+    return () => window.clearTimeout(timer)
+  }, [nodes.length, props.readOnly])
+
   const zoomBy = useCallback(
     (factor: number) => {
       const store = useCanvasStore.getState()
@@ -634,6 +692,22 @@ export function WorkbenchCanvas(props: { readOnly?: boolean } = {}) {
       )}
       {props.readOnly ? null : <CanvasSelectionToolbar />}
       {props.readOnly ? null : <CanvasVersionCompare />}
+
+      {!props.readOnly && nodes.length === 0 ? (
+        <CanvasEmptyState onStart={startFlow} onShowGuide={openGuide} />
+      ) : null}
+
+      <CanvasGuide
+        open={guideOpen}
+        onClose={() => {
+          setGuideOpen(false)
+          try {
+            window.localStorage.setItem(GUIDE_SEEN_KEY, '1')
+          } catch {
+            // Private browsing can reject writes; the guide simply replays.
+          }
+        }}
+      />
 
       <input
         ref={fileInputRef}

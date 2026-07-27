@@ -8,7 +8,14 @@ License, or (at your option) any later version.
 */
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, History, Search, Share2, Sparkles } from 'lucide-react'
+import {
+  ArrowLeft,
+  HelpCircle,
+  History,
+  Search,
+  Share2,
+  Sparkles,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -416,6 +423,17 @@ export function WorkbenchEditor(props: { projectId: number }) {
           >
             <History />
             <span className='hidden lg:inline'>{t('History')}</span>
+          </Button>
+          <Button
+            size='icon-sm'
+            variant='ghost'
+            title={t('Show me how')}
+            aria-label={t('Show me how')}
+            onClick={() =>
+              window.dispatchEvent(new CustomEvent('canvas:start-guide'))
+            }
+          >
+            <HelpCircle />
           </Button>
         </div>
       </div>

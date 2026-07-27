@@ -24,10 +24,10 @@ import { nanoid } from 'nanoid'
 
 import {
   NODE_DEFAULT_SIZE,
-  STORYBOARD_HEADER_HEIGHT,
   STORYBOARD_ROW_HEIGHT,
   getNodeSpec,
   storyboardTableHeight,
+  storyboardTableTop,
 } from '../constants'
 import {
   CanvasNodeType,
@@ -131,7 +131,7 @@ export function storyboardHandleAtY(
   scrollTop = 0
 ) {
   const rows = node.metadata?.storyboard?.rows || []
-  const localY = worldY - node.position.y - STORYBOARD_HEADER_HEIGHT
+  const localY = worldY - node.position.y - storyboardTableTop()
   const tableHeight = storyboardTableHeight(node.height)
   if (rows.length && localY >= 0 && localY <= tableHeight) {
     const index = Math.max(
@@ -166,7 +166,7 @@ export function storyboardHandleY(
     ),
     tableHeight - 4
   )
-  return node.position.y + STORYBOARD_HEADER_HEIGHT + localY
+  return node.position.y + storyboardTableTop() + localY
 }
 
 export function getConnectionTargetAnchor(
