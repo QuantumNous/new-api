@@ -215,14 +215,18 @@ func GetRecurringSubscriptionBindingsForUser(userID int) ([]SubscriptionProvider
 }
 
 func ApplyProviderSubscriptionSnapshot(bindingID int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
-	return applyProviderSubscriptionSnapshot(bindingID, nil, snapshot)
+	return applyProviderSubscriptionSnapshot(bindingID, nil, snapshot, false)
 }
 
 func ApplyProviderSubscriptionLifecycleSnapshot(bindingID int64, expectedLifecycleActionSeq int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
-	return applyProviderSubscriptionSnapshot(bindingID, &expectedLifecycleActionSeq, snapshot)
+	return applyProviderSubscriptionSnapshot(bindingID, &expectedLifecycleActionSeq, snapshot, false)
 }
 
-func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionSeq *int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+func ApplyProviderSubscriptionLifecycleSnapshotStrict(bindingID int64, expectedLifecycleActionSeq int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	return applyProviderSubscriptionSnapshot(bindingID, &expectedLifecycleActionSeq, snapshot, true)
+}
+
+func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionSeq *int64, snapshot ProviderSubscriptionSnapshot, strictLifecycleCAS bool) (*SubscriptionProviderBinding, error) {
 	if bindingID <= 0 {
 		return nil, errors.New("invalid binding id")
 	}
@@ -242,8 +246,12 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 			}
 			return nil
 		}
+		if expectedLifecycleActionSeq != nil &&
+			(snapshot.EndedAt > 0 || isTerminalProviderSubscriptionStatus(snapshot.ProviderStatus)) {
+			return ErrSubscriptionProviderLifecycleConflict
+		}
 		if expectedLifecycleActionSeq != nil && binding.LifecycleActionSeq != *expectedLifecycleActionSeq {
-			if binding.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
+			if !strictLifecycleCAS && binding.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
 				lifecycleSameTargetRetry = true
 				return nil
 			}
@@ -293,6 +301,9 @@ func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionS
 			return updateResult.Error
 		}
 		if expectedLifecycleActionSeq != nil && updateResult.RowsAffected != 1 {
+			if strictLifecycleCAS {
+				return ErrSubscriptionProviderLifecycleConflict
+			}
 			lifecycleCASMiss = true
 			return nil
 		}

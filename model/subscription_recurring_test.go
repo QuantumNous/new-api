@@ -558,6 +558,45 @@ func TestApplyProviderSubscriptionLifecycleSnapshotRejectsTerminalSameTarget(t *
 	require.Nil(t, updated)
 }
 
+func TestApplyProviderSubscriptionLifecycleSnapshotRejectsTerminalInputWithoutEndingEntitlement(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+	insertUserForSubscriptionRecurringTest(t, 512)
+	insertPlanForSubscriptionRecurringTest(t, 612, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-terminal-input", 512, 612)
+
+	binding, err := CompleteSubscriptionOrderWithProviderBinding(
+		"recurring-order-terminal-input",
+		"{}",
+		PaymentProviderStripe,
+		PaymentMethodStripe,
+		stripeSnapshotForSubscriptionRecurringTest("sub_terminal_input"),
+	)
+	require.NoError(t, err)
+
+	updated, err := ApplyProviderSubscriptionLifecycleSnapshot(binding.Id, binding.LifecycleActionSeq, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId: binding.ProviderSubscriptionId,
+		ProviderStatus:         "canceled",
+		CancelAtPeriodEnd:      true,
+		CurrentPeriodStart:     binding.CurrentPeriodStart,
+		CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+		CanceledAt:             1500,
+		EndedAt:                1500,
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, updated)
+	var storedBinding SubscriptionProviderBinding
+	require.NoError(t, DB.First(&storedBinding, binding.Id).Error)
+	require.Equal(t, "active", storedBinding.ProviderStatus)
+	require.Zero(t, storedBinding.EndedAt)
+	require.False(t, storedBinding.CancelAtPeriodEnd)
+	require.Equal(t, binding.LifecycleActionSeq, storedBinding.LifecycleActionSeq)
+	var storedEntitlement UserSubscription
+	require.NoError(t, DB.Where("provider_binding_id = ?", binding.Id).First(&storedEntitlement).Error)
+	require.Equal(t, SubscriptionEntitlementStatusActive, storedEntitlement.Status)
+}
+
 func TestApplyProviderSubscriptionSnapshotDoesNotReviveTerminalBinding(t *testing.T) {
 	setupSubscriptionRecurringTestDB(t)
 	migrateSubscriptionRecurringTestDB(t)

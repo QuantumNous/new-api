@@ -102,7 +102,11 @@ func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus st
 			}
 			return nil, err
 		}
-		return buildStripeSubscriptionRenewalLifecycleResult(binding), nil
+		result := buildStripeSubscriptionRenewalLifecycleResult(binding)
+		if result.RenewalStatus == "" {
+			return nil, errors.New("current Stripe renewal state requires support")
+		}
+		return result, nil
 	}
 	return result, nil
 }
@@ -220,38 +224,21 @@ func confirmStripeRenewalMutationAfterError(
 	providerStatus := strings.ToLower(strings.TrimSpace(snapshot.ProviderStatus))
 	terminal := isTerminalStripeSubscriptionStatus(providerStatus) || snapshot.EndedAt > 0
 	if terminal {
-		if !targetCancelAtPeriodEnd || providerStatus != "canceled" {
-			return nil, false
-		}
-		result := &SubscriptionRenewalLifecycleResult{
-			RenewalSource:    model.SubscriptionRenewalSourceProvider,
-			RenewalStatus:    model.SubscriptionRenewalStatusCancelledByUser,
-			CurrentPeriodEnd: snapshot.CurrentPeriodEnd,
-			SyncPending:      true,
-		}
-		common.SysError(fmt.Sprintf(
-			"Stripe renewal cancellation confirmed after local lifecycle failure: user_id=%d binding_id=%d err=%v",
-			binding.UserId,
-			binding.Id,
-			mutationErr,
-		))
-		return result, true
+		return nil, false
 	}
 	if snapshot.CancelAtPeriodEnd != targetCancelAtPeriodEnd {
 		return nil, false
 	}
-	confirmedBinding := *binding
-	confirmedBinding.ProviderStatus = snapshot.ProviderStatus
-	confirmedBinding.CancelAtPeriodEnd = snapshot.CancelAtPeriodEnd
-	confirmedBinding.CurrentPeriodStart = snapshot.CurrentPeriodStart
-	confirmedBinding.CurrentPeriodEnd = snapshot.CurrentPeriodEnd
-	confirmedBinding.GracePeriodEnd = snapshot.GracePeriodEnd
-	confirmedBinding.CanceledAt = snapshot.CanceledAt
-	confirmedBinding.EndedAt = snapshot.EndedAt
-	result := buildStripeSubscriptionRenewalLifecycleResult(&confirmedBinding)
-	result.SyncPending = true
+	updated, applyErr := model.ApplyProviderSubscriptionLifecycleSnapshotStrict(binding.Id, binding.LifecycleActionSeq, snapshot)
+	if applyErr != nil {
+		return nil, false
+	}
+	result := buildStripeSubscriptionRenewalLifecycleResult(updated)
+	if result.RenewalStatus == "" {
+		return nil, false
+	}
 	common.SysError(fmt.Sprintf(
-		"Stripe renewal mutation confirmed after local lifecycle failure: user_id=%d binding_id=%d cancel_at_period_end=%t err=%v",
+		"Stripe renewal mutation persisted after local lifecycle failure: user_id=%d binding_id=%d cancel_at_period_end=%t err=%v",
 		binding.UserId,
 		binding.Id,
 		snapshot.CancelAtPeriodEnd,
