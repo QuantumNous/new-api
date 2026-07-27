@@ -93,7 +93,7 @@ func setupInvitationControllerTest(t *testing.T) (*gorm.DB, model.User) {
 	var err error
 	db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.InviteRewardEvent{}, &model.InviteSubscriptionReward{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.InviteRewardEvent{}, &model.InviteSubscriptionReward{}, &model.SubscriptionDiscountAccount{}, &model.SubscriptionDiscountEntry{}))
 	model.DB = db
 	model.LOG_DB = db
 
@@ -189,8 +189,11 @@ func TestGetSelfInvitations(t *testing.T) {
 
 		var refreshed model.User
 		require.NoError(t, db.First(&refreshed, inviter.Id).Error)
-		require.Equal(t, 400, refreshed.Quota)
+		require.Zero(t, refreshed.Quota)
 		require.Zero(t, refreshed.AffQuota)
+		account, err := model.GetSubscriptionDiscountAccount(inviter.Id)
+		require.NoError(t, err)
+		require.EqualValues(t, 400, account.AvailableUSDMinor)
 	})
 
 	t.Run("caps pending reward at remaining inviter slots", func(t *testing.T) {

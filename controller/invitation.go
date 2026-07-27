@@ -142,7 +142,7 @@ func getInvitationPagination(c *gin.Context) (int, int) {
 func GetSelfInvitations(c *gin.Context) {
 	page, pageSize := getInvitationPagination(c)
 	userId := c.GetInt("id")
-	if err := model.MigrateUserLegacyAffQuotaToQuota(userId); err != nil {
+	if err := model.MigrateUserLegacyInvitationValueToSubscriptionDiscount(userId); err != nil {
 		common.ApiError(c, err)
 		return
 	}
