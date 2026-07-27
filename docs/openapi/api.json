@@ -5473,10 +5473,10 @@
             "type": "string"
           },
           "contract": {
-            "$ref": "#/components/schemas/SubscriptionContract"
+            "$ref": "#/components/schemas/SubscriptionSelfContract"
           },
           "current_entitlement": {
-            "$ref": "#/components/schemas/SubscriptionEntitlement"
+            "$ref": "#/components/schemas/SubscriptionSelfEntitlement"
           },
           "current_period": {
             "$ref": "#/components/schemas/SubscriptionCurrentPeriod"
@@ -5503,7 +5503,7 @@
             ]
           },
           "pending_change": {
-            "$ref": "#/components/schemas/SubscriptionPendingChange"
+            "$ref": "#/components/schemas/SubscriptionSelfPendingChange"
           },
           "capabilities": {
             "$ref": "#/components/schemas/SubscriptionCapabilities"
@@ -5545,6 +5545,121 @@
           "all_subscriptions",
           "recurring_subscriptions"
         ]
+      },
+      "SubscriptionSelfContract": {
+        "type": "object",
+        "description": "Canonical local self subscription contract. Contains local IDs only and omits provider binding IDs.",
+        "properties": {
+          "contract_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "grace",
+              "ended",
+              "needs_attention"
+            ]
+          },
+          "payment_mode": {
+            "type": "string",
+            "enum": [
+              "stripe_recurring",
+              "balance_one_period",
+              "external_one_period"
+            ]
+          },
+          "current_plan_id": {
+            "type": "integer"
+          },
+          "current_entitlement_id": {
+            "type": "integer"
+          },
+          "latest_change_intent_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pending_plan_id": {
+            "type": "integer"
+          },
+          "pending_effective_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "change_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SubscriptionSelfEntitlement": {
+        "type": "object",
+        "description": "Current local self entitlement and quota-bearing subscription row. Omits provider binding IDs.",
+        "properties": {
+          "entitlement_id": {
+            "type": "integer"
+          },
+          "plan_id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "payment_mode": {
+            "type": "string"
+          },
+          "start_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "access_end_time": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SubscriptionSelfPendingChange": {
+        "type": "object",
+        "description": "Pending local self change intent. Omits provider binding and schedule IDs.",
+        "properties": {
+          "intent_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "purchase",
+              "upgrade",
+              "downgrade",
+              "cancel",
+              "resume",
+              "terminate"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "from_plan_id": {
+            "type": "integer"
+          },
+          "to_plan_id": {
+            "type": "integer"
+          },
+          "effective_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payment_mode": {
+            "type": "string"
+          }
+        }
       },
       "SubscriptionContract": {
         "type": "object",

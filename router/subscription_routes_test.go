@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -119,4 +120,38 @@ func TestSubscriptionSelfLifecycleRoutesAreAuthenticatedAndCriticalLimited(t *te
 	require.Contains(t, routerSource, "subscriptionRoute.Use(middleware.UserAuth())")
 	require.Contains(t, routerSource, `subscriptionRoute.POST("/self/renewal/cancel", middleware.CriticalRateLimit(), controller.CancelSubscriptionRenewal)`)
 	require.Contains(t, routerSource, `subscriptionRoute.POST("/self/renewal/resume", middleware.CriticalRateLimit(), controller.ResumeSubscriptionRenewal)`)
+}
+
+func TestSubscriptionSelfOpenAPIUsesSelfSpecificSchemas(t *testing.T) {
+	raw, err := os.ReadFile("../docs/openapi/api.json")
+	require.NoError(t, err)
+	var document map[string]any
+	require.NoError(t, common.Unmarshal(raw, &document))
+
+	components := document["components"].(map[string]any)
+	schemas := components["schemas"].(map[string]any)
+	selfResponse := schemas["SubscriptionSelfResponse"].(map[string]any)
+	properties := selfResponse["properties"].(map[string]any)
+
+	expectedRefs := map[string]string{
+		"contract":            "#/components/schemas/SubscriptionSelfContract",
+		"current_entitlement": "#/components/schemas/SubscriptionSelfEntitlement",
+		"pending_change":      "#/components/schemas/SubscriptionSelfPendingChange",
+	}
+	for property, expectedRef := range expectedRefs {
+		schema := properties[property].(map[string]any)
+		require.Equal(t, expectedRef, schema["$ref"])
+	}
+
+	selfSchemas := []string{
+		"SubscriptionSelfContract",
+		"SubscriptionSelfEntitlement",
+		"SubscriptionSelfPendingChange",
+	}
+	for _, schemaName := range selfSchemas {
+		schema := schemas[schemaName].(map[string]any)
+		schemaProperties := schema["properties"].(map[string]any)
+		require.NotContains(t, schemaProperties, "current_provider_binding_id", schemaName)
+		require.NotContains(t, schemaProperties, "provider_binding_id", schemaName)
+	}
 }
