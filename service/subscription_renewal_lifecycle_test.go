@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -8,6 +9,173 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestCancelCurrentSubscriptionRenewalStripeUsesAuthoritativeCurrentBinding(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7941, false, "sub_unified_cancel")
+	originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+	t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
+	var calledBindingID int64
+	stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
+		require.True(t, cancelAtPeriodEnd)
+		calledBindingID = binding.Id
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderCustomerId:     binding.ProviderCustomerId,
+			ProviderPriceId:        binding.ProviderPriceId,
+			ProviderStatus:         "active",
+			CancelAtPeriodEnd:      true,
+			CurrentPeriodStart:     binding.CurrentPeriodStart,
+			CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+		}, nil
+	}
+
+	result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
+
+	require.NoError(t, err)
+	require.Equal(t, binding.Id, calledBindingID)
+	require.Equal(t, model.SubscriptionRenewalSourceProvider, result.RenewalSource)
+	require.Equal(t, model.SubscriptionRenewalStatusCancelledByUser, result.RenewalStatus)
+	require.Equal(t, binding.CurrentPeriodEnd, result.CurrentPeriodEnd)
+	require.False(t, result.CanCancel)
+	require.True(t, result.CanResume)
+	require.True(t, result.CancelAtPeriodEnd)
+	var storedContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&storedContract, contract.Id).Error)
+	require.Equal(t, model.SubscriptionRenewalStatusEnabled, storedContract.RenewalStatus)
+	var storedBinding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&storedBinding, binding.Id).Error)
+	require.True(t, storedBinding.CancelAtPeriodEnd)
+}
+
+func TestResumeCurrentSubscriptionRenewalStripeUsesAuthoritativeCurrentBinding(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7942, true, "sub_unified_resume")
+	originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+	t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
+	var called bool
+	stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+		called = true
+		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
+		require.False(t, cancelAtPeriodEnd)
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderCustomerId:     binding.ProviderCustomerId,
+			ProviderPriceId:        binding.ProviderPriceId,
+			ProviderStatus:         "active",
+			CancelAtPeriodEnd:      false,
+			CurrentPeriodStart:     binding.CurrentPeriodStart,
+			CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+		}, nil
+	}
+
+	result, err := ResumeCurrentSubscriptionRenewal(contract.UserId)
+
+	require.NoError(t, err)
+	require.True(t, called)
+	require.Equal(t, model.SubscriptionRenewalSourceProvider, result.RenewalSource)
+	require.Equal(t, model.SubscriptionRenewalStatusEnabled, result.RenewalStatus)
+	require.Equal(t, binding.CurrentPeriodEnd, result.CurrentPeriodEnd)
+	require.True(t, result.CanCancel)
+	require.False(t, result.CanResume)
+	require.False(t, result.CancelAtPeriodEnd)
+	var storedContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&storedContract, contract.Id).Error)
+	require.Equal(t, model.SubscriptionRenewalStatusEnabled, storedContract.RenewalStatus)
+}
+
+func TestCancelCurrentSubscriptionRenewalStripeRejectsUnsafeBindingStates(t *testing.T) {
+	testCases := []struct {
+		name   string
+		mutate func(t *testing.T, contract *model.UserSubscriptionContract, binding *model.SubscriptionProviderBinding)
+	}{
+		{
+			name: "missing_current_provider_binding",
+			mutate: func(t *testing.T, contract *model.UserSubscriptionContract, binding *model.SubscriptionProviderBinding) {
+				require.NoError(t, model.DB.Model(contract).Update("current_provider_binding_id", 0).Error)
+			},
+		},
+		{
+			name: "binding_other_user",
+			mutate: func(t *testing.T, contract *model.UserSubscriptionContract, binding *model.SubscriptionProviderBinding) {
+				require.NoError(t, model.DB.Create(&model.User{
+					Id:       contract.UserId + 1000,
+					Username: "stripe_lifecycle_other_user",
+					Status:   common.UserStatusEnabled,
+					AffCode:  "stripe_lifecycle_other_user",
+				}).Error)
+				require.NoError(t, model.DB.Model(binding).Update("user_id", contract.UserId+1000).Error)
+			},
+		},
+		{
+			name: "binding_other_contract",
+			mutate: func(t *testing.T, contract *model.UserSubscriptionContract, binding *model.SubscriptionProviderBinding) {
+				require.NoError(t, model.DB.Model(binding).Update("contract_id", contract.Id+1000).Error)
+			},
+		},
+		{
+			name: "terminal_binding",
+			mutate: func(t *testing.T, contract *model.UserSubscriptionContract, binding *model.SubscriptionProviderBinding) {
+				require.NoError(t, model.DB.Model(binding).Update("provider_status", "canceled").Error)
+			},
+		},
+		{
+			name: "blank_provider_subscription_id",
+			mutate: func(t *testing.T, contract *model.UserSubscriptionContract, binding *model.SubscriptionProviderBinding) {
+				require.NoError(t, model.DB.Model(binding).Update("provider_subscription_id", "   ").Error)
+			},
+		},
+		{
+			name: "multiple_non_terminal_bindings",
+			mutate: func(t *testing.T, contract *model.UserSubscriptionContract, binding *model.SubscriptionProviderBinding) {
+				_ = insertStripeRenewalLifecycleBinding(t, contract.UserId, contract.Id, contract.CurrentPlanId, "sub_unified_ambiguous_extra", false)
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupSubscriptionPurchaseServiceTestDB(t)
+			contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7943, false, "sub_unified_reject_"+tc.name)
+			tc.mutate(t, contract, binding)
+			originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+			t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
+			stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+				t.Fatal("unsafe unified Stripe cancel must perform zero remote writes")
+				return model.ProviderSubscriptionSnapshot{}, nil
+			}
+
+			result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
+
+			require.Error(t, err)
+			require.Nil(t, result)
+		})
+	}
+}
+
+func TestResumeCurrentSubscriptionRenewalStripeRejectsProviderFailureWithoutPseudoSuccess(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7944, true, "sub_unified_resume_failure")
+	originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+	t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
+	providerErr := errors.New("stripe update failed")
+	stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
+		require.False(t, cancelAtPeriodEnd)
+		return model.ProviderSubscriptionSnapshot{}, providerErr
+	}
+
+	result, err := ResumeCurrentSubscriptionRenewal(contract.UserId)
+
+	require.ErrorIs(t, err, providerErr)
+	require.Nil(t, result)
+	var storedBinding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&storedBinding, binding.Id).Error)
+	require.True(t, storedBinding.CancelAtPeriodEnd)
+	var storedContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&storedContract, contract.Id).Error)
+	require.Equal(t, model.SubscriptionRenewalStatusEnabled, storedContract.RenewalStatus)
+}
 
 func TestCancelCurrentSubscriptionRenewalMarksWalletAutoCancelledAndIsIdempotent(t *testing.T) {
 	setupSubscriptionPurchaseServiceTestDB(t)
@@ -171,7 +339,7 @@ func TestResumeCurrentSubscriptionRenewalRejectsHistoricalCurrentEntitlement(t *
 	require.Equal(t, model.SubscriptionRenewalStatusCancelledByUser, storedContract.RenewalStatus)
 }
 
-func TestCancelCurrentSubscriptionRenewalRejectsNonWalletSource(t *testing.T) {
+func TestCancelCurrentSubscriptionRenewalRejectsProviderSourceWithoutStripeRecurringMode(t *testing.T) {
 	setupSubscriptionPurchaseServiceTestDB(t)
 	plan := insertPurchaseServicePlan(t, 7825, 1, 7, 700)
 	periodEnd := common.GetTimestamp() + 3600
@@ -182,7 +350,7 @@ func TestCancelCurrentSubscriptionRenewalRejectsNonWalletSource(t *testing.T) {
 
 	result, err := CancelCurrentSubscriptionRenewal(contract.UserId)
 
-	require.ErrorContains(t, err, "wallet")
+	require.ErrorContains(t, err, "Stripe recurring")
 	require.Nil(t, result)
 }
 
@@ -221,4 +389,68 @@ func countSubscriptionContractUpdates(t *testing.T) *int {
 		require.NoError(t, model.DB.Callback().Update().Remove(callbackName))
 	})
 	return &count
+}
+
+func seedStripeRenewalLifecycleContract(t *testing.T, userID int, cancelAtPeriodEnd bool, providerSubscriptionID string) (*model.UserSubscriptionContract, *model.SubscriptionProviderBinding, *model.UserSubscription) {
+	t.Helper()
+	plan := insertPurchaseServicePlan(t, 7840+userID, 1, 7, 700)
+	insertPurchaseServiceUser(t, userID, 700)
+	now := common.GetTimestamp()
+	periodStart := now - 3600
+	periodEnd := now + 3600
+	binding := insertStripeRenewalLifecycleBinding(t, userID, 0, plan.Id, providerSubscriptionID, cancelAtPeriodEnd)
+	currentSlot := 1
+	entitlement := &model.UserSubscription{
+		UserId:            userID,
+		PlanId:            plan.Id,
+		ContractId:        0,
+		ProviderBindingId: binding.Id,
+		AmountTotal:       700,
+		StartTime:         periodStart,
+		EndTime:           periodEnd,
+		AccessEndTime:     periodEnd,
+		Status:            model.SubscriptionEntitlementStatusActive,
+		Source:            "order",
+		PaymentMode:       model.SubscriptionPaymentModeStripeRecurring,
+		CurrentSlot:       &currentSlot,
+	}
+	require.NoError(t, model.DB.Create(entitlement).Error)
+	contract := &model.UserSubscriptionContract{
+		UserId:                   userID,
+		Status:                   model.SubscriptionContractStatusActive,
+		PaymentMode:              model.SubscriptionPaymentModeStripeRecurring,
+		RenewalSource:            model.SubscriptionRenewalSourceProvider,
+		RenewalStatus:            model.SubscriptionRenewalStatusEnabled,
+		CurrentPlanId:            plan.Id,
+		CurrentEntitlementId:     entitlement.Id,
+		CurrentProviderBindingId: binding.Id,
+		CurrentPeriodStart:       periodStart,
+		CurrentPeriodEnd:         periodEnd,
+	}
+	require.NoError(t, model.DB.Create(contract).Error)
+	require.NoError(t, model.DB.Model(binding).Update("contract_id", contract.Id).Error)
+	require.NoError(t, model.DB.Model(entitlement).Update("contract_id", contract.Id).Error)
+	binding.ContractId = contract.Id
+	entitlement.ContractId = contract.Id
+	return contract, binding, entitlement
+}
+
+func insertStripeRenewalLifecycleBinding(t *testing.T, userID int, contractID int64, planID int, providerSubscriptionID string, cancelAtPeriodEnd bool) *model.SubscriptionProviderBinding {
+	t.Helper()
+	now := common.GetTimestamp()
+	binding := &model.SubscriptionProviderBinding{
+		UserId:                 userID,
+		PlanId:                 planID,
+		ContractId:             contractID,
+		Provider:               model.PaymentProviderStripe,
+		ProviderSubscriptionId: providerSubscriptionID,
+		ProviderCustomerId:     "cus_unified_lifecycle",
+		ProviderPriceId:        "price_unified_lifecycle",
+		ProviderStatus:         "active",
+		CancelAtPeriodEnd:      cancelAtPeriodEnd,
+		CurrentPeriodStart:     now - 3600,
+		CurrentPeriodEnd:       now + 3600,
+	}
+	require.NoError(t, model.DB.Create(binding).Error)
+	return binding
 }
