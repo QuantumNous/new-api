@@ -3608,6 +3608,7 @@
     "No system announcements": "暂无系统公告",
     "No system tasks yet.": "暂无系统任务。",
     "No templates found": "未找到模板",
+    "No text could be read from this PDF and this model cannot open PDF files, so it will not be sent.": "无法从该 PDF 中提取文本，且当前模型不能直接打开 PDF，因此不会发送该文件。",
     "No token found.": "未找到令牌。",
     "No tools configured": "未配置工具",
     "No Upgrade": "不升级",

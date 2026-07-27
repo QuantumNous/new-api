@@ -93,12 +93,20 @@ import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
 import type { Model } from '../../types'
 
-const MODALITIES: Modality[] = ['text', 'image', 'audio', 'video', 'file']
+const MODALITIES: Modality[] = [
+  'text',
+  'image',
+  'audio',
+  'video',
+  'pdf',
+  'file',
+]
 const MODALITY_LABELS: Record<Modality, string> = {
   text: 'Text',
   image: 'Image',
   audio: 'Audio',
   video: 'Video',
+  pdf: 'PDF',
   file: 'File',
 }
 const CAPABILITIES: ModelCapability[] = [

@@ -3608,6 +3608,7 @@
     "No system announcements": "Không có thông báo hệ thống",
     "No system tasks yet.": "Chưa có tác vụ hệ thống nào.",
     "No templates found": "Không tìm thấy mẫu",
+    "No text could be read from this PDF and this model cannot open PDF files, so it will not be sent.": "Không trích xuất được văn bản từ PDF này và mô hình không mở trực tiếp được PDF, nên tệp sẽ không được gửi.",
     "No token found.": "Không tìm thấy mã thông báo.",
     "No tools configured": "Chưa cấu hình công cụ nào",
     "No Upgrade": "Không nâng cấp",

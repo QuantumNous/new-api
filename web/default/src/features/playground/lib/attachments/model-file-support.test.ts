@@ -11,13 +11,13 @@ import { describe, expect, it } from 'vitest'
 import { supportsNativeFileInput } from './model-file-support'
 
 describe('supportsNativeFileInput', () => {
-  it('trusts explicit input modality metadata over the model name', () => {
+  it('accepts both spellings of the document input modality', () => {
     expect(
       supportsNativeFileInput({
-        model_name: 'claude-opus-4',
-        input_modalities: ['text', 'image'],
+        model_name: 'gemini-3.1-pro-preview',
+        input_modalities: ['text', 'image', 'pdf'],
       })
-    ).toBe(false)
+    ).toBe(true)
     expect(
       supportsNativeFileInput({
         model_name: 'some-private-model',
@@ -26,10 +26,29 @@ describe('supportsNativeFileInput', () => {
     ).toBe(true)
   })
 
-  it('falls back to known adaptor families when metadata is missing', () => {
-    expect(supportsNativeFileInput({ model_name: 'gemini-3-pro' })).toBe(true)
-    expect(supportsNativeFileInput({ model_name: 'gpt-5.6-luna' })).toBe(true)
-    expect(supportsNativeFileInput({ model_name: 'deepseek-v4-flash' })).toBe(
+  it('reads the tag list when modalities are unset', () => {
+    expect(
+      supportsNativeFileInput({
+        model_name: 'claude-opus-5',
+        tags: 'family:claude-opus,attachment,input:text,input:image,input:pdf',
+      })
+    ).toBe(true)
+  })
+
+  it('never infers file support from the model name', () => {
+    expect(
+      supportsNativeFileInput({
+        model_name: 'gpt-5.6',
+        input_modalities: ['text', 'image'],
+      })
+    ).toBe(false)
+    expect(
+      supportsNativeFileInput({
+        model_name: 'gemini-3.5-flash',
+        tags: 'family:gemini-flash,input:text',
+      })
+    ).toBe(false)
+    expect(supportsNativeFileInput({ model_name: 'claude-sonnet-5' })).toBe(
       false
     )
   })

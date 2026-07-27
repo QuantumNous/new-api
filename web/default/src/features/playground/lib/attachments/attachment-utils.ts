@@ -55,9 +55,20 @@ export function attachmentPreviewSrc(
   return `/api/playground/assets/${attachment.assetId}/content`
 }
 
-/** Attachments that need binary bytes fetched back before the next request. */
-export function needsAttachmentHydration(attachment: ChatAttachment): boolean {
+/**
+ * Attachments that need binary bytes fetched back before the next request.
+ * A PDF headed for a model without document input is sent as its extracted
+ * text, so refetching those bytes would only slow the turn down.
+ */
+export function needsAttachmentHydration(
+  attachment: ChatAttachment,
+  nativeFileInput = false
+): boolean {
   if (attachment.kind === 'document') return false
   if (attachment.dataUrl?.trim()) return false
-  return attachment.assetId !== undefined
+  if (attachment.assetId === undefined) return false
+  if (attachment.kind === 'file' && !nativeFileInput) {
+    return (attachment.text?.trim() ?? '') === ''
+  }
+  return true
 }

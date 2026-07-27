@@ -3608,6 +3608,7 @@
     "No system announcements": "Aucune annonce système",
     "No system tasks yet.": "Aucune tâche système pour le moment.",
     "No templates found": "Aucun modèle trouvé",
+    "No text could be read from this PDF and this model cannot open PDF files, so it will not be sent.": "Aucun texte n’a pu être extrait de ce PDF et ce modèle ne peut pas l’ouvrir : le fichier ne sera pas envoyé.",
     "No token found.": "Aucun jeton trouvé.",
     "No tools configured": "Aucun outil configuré",
     "No Upgrade": "Pas de mise à niveau",

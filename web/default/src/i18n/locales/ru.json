@@ -3608,6 +3608,7 @@
     "No system announcements": "Нет системных объявлений",
     "No system tasks yet.": "Пока нет системных задач.",
     "No templates found": "Шаблоны не найдены",
+    "No text could be read from this PDF and this model cannot open PDF files, so it will not be sent.": "Из этого PDF не удалось извлечь текст, а модель не открывает PDF напрямую, поэтому файл не будет отправлен.",
     "No token found.": "Токен не найден.",
     "No tools configured": "Нет настроенных инструментов",
     "No Upgrade": "Без повышения",

@@ -125,14 +125,16 @@ function documentTextPart(name: string, text: string): ContentPart {
 
 /**
  * Build message content with optional images, PDFs, and extracted documents.
- * `nativeFileInput` reflects whether the target model accepts a `file` part;
- * when it does not, PDFs fall back to their browser-extracted text so the
- * attachment still reaches the model instead of being silently ignored.
+ *
+ * `nativeFileInput` reflects whether the target model accepts a `file` part.
+ * It defaults to false because most OpenAI-compatible upstreams reject that
+ * part with a hard 400, so a PDF is sent as its browser-extracted text unless
+ * the model is known to read documents natively.
  */
 export function buildMessageContent(
   text: string,
   attachments: ChatAttachment[] = [],
-  nativeFileInput = true
+  nativeFileInput = false
 ): string | ContentPart[] {
   const validAttachments = attachments.filter(hasAttachmentPayload)
 
@@ -159,18 +161,17 @@ export function buildMessageContent(
       }
       continue
     }
-    const extracted = attachment.text?.trim() ?? ''
-    if (!dataUrl || (!nativeFileInput && extracted)) {
-      if (extracted) parts.push(documentTextPart(attachment.name, extracted))
+    if (nativeFileInput && dataUrl) {
+      parts.push({
+        type: 'file',
+        file: { filename: attachment.name, file_data: dataUrl },
+      })
       continue
     }
-    parts.push({
-      type: 'file',
-      file: {
-        filename: attachment.name,
-        file_data: dataUrl,
-      },
-    })
+    const extracted = attachment.text?.trim() ?? ''
+    if (extracted) {
+      parts.push(documentTextPart(attachment.name, extracted))
+    }
   }
 
   return parts
@@ -197,7 +198,7 @@ export function getTextContent(content: string | ContentPart[]): string {
  */
 export function formatMessageForAPI(
   message: Message,
-  nativeFileInput = true
+  nativeFileInput = false
 ): ChatCompletionMessage {
   const currentVersion = getCurrentVersion(message)
   if (message.from === MESSAGE_ROLES.USER && message.attachments?.length) {

@@ -21,21 +21,29 @@ export function ChatAttachmentStrip(props: {
   const { t } = useTranslation()
   if (props.attachments.length === 0) return null
 
-  const downgradedPdfs = props.attachments.filter(
-    (attachment) =>
-      attachment.kind === 'file' &&
-      props.nativeFileInput === false &&
-      (attachment.text?.trim() ?? '') !== ''
+  const textOnlyPdfs = props.nativeFileInput
+    ? []
+    : props.attachments.filter((attachment) => attachment.kind === 'file')
+  const unreadablePdfs = textOnlyPdfs.filter(
+    (attachment) => (attachment.text?.trim() ?? '') === ''
   )
 
   return (
     <div className='no-scrollbar flex flex-col gap-1 px-3 pb-2 sm:px-5'>
-      {downgradedPdfs.length > 0 && (
-        <p className='text-muted-foreground text-[11px]'>
+      {unreadablePdfs.length > 0 ? (
+        <p className='text-destructive text-[11px]'>
           {t(
-            'This model cannot read PDF files directly, so their extracted text will be sent instead.'
+            'No text could be read from this PDF and this model cannot open PDF files, so it will not be sent.'
           )}
         </p>
+      ) : (
+        textOnlyPdfs.length > 0 && (
+          <p className='text-muted-foreground text-[11px]'>
+            {t(
+              'This model cannot read PDF files directly, so their extracted text will be sent instead.'
+            )}
+          </p>
+        )
       )}
       <div className='no-scrollbar flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible'>
         {props.attachments.map((attachment, index) => (

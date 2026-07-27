@@ -14,6 +14,7 @@ import {
   MAX_CHAT_PAYLOAD_BYTES,
   buildChatCompletionPayload,
   VISUAL_OUTPUT_SYSTEM_PROMPT,
+  hasNativeFilePart,
   isChatCompletionPayloadTooLarge,
 } from './payload-builder'
 
@@ -178,7 +179,7 @@ describe('buildChatCompletionPayload', () => {
     expect(nonStreaming).not.toHaveProperty('stream_options')
   })
 
-  it('formats image and PDF attachments for chat completions', () => {
+  it('formats image and PDF attachments for a document-capable model', () => {
     const message = userMessage('Compare these files')
     message.attachments = [
       {
@@ -200,9 +201,11 @@ describe('buildChatCompletionPayload', () => {
     const payload = buildChatCompletionPayload(
       [message],
       DEFAULT_CONFIG,
-      DEFAULT_PARAMETER_ENABLED
+      DEFAULT_PARAMETER_ENABLED,
+      { nativeFileInput: true }
     )
 
+    expect(hasNativeFilePart(payload)).toBe(true)
     expect(payload.messages).toEqual([
       {
         role: 'user',
@@ -224,7 +227,7 @@ describe('buildChatCompletionPayload', () => {
     ])
   })
 
-  it('routes a PDF through extracted text for models without file input', () => {
+  it('routes a PDF through extracted text unless file input is declared', () => {
     const message = userMessage('Translate this')
     message.attachments = [
       {
@@ -240,10 +243,10 @@ describe('buildChatCompletionPayload', () => {
     const payload = buildChatCompletionPayload(
       [message],
       DEFAULT_CONFIG,
-      DEFAULT_PARAMETER_ENABLED,
-      { nativeFileInput: false }
+      DEFAULT_PARAMETER_ENABLED
     )
 
+    expect(hasNativeFilePart(payload)).toBe(false)
     expect(payload.messages).toEqual([
       {
         role: 'user',

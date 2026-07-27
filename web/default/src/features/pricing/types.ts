@@ -95,8 +95,12 @@ export type ModelIntegration = {
   source: 'explicit' | 'inferred'
 }
 
-/** Input/output modalities supported by a model. */
-export type Modality = 'text' | 'image' | 'audio' | 'video' | 'file'
+/**
+ * Input/output modalities supported by a model. `pdf` and `file` are both in
+ * use: imported model metadata spells document input as `pdf`, while models
+ * edited in the admin UI historically stored `file`.
+ */
+export type Modality = 'text' | 'image' | 'audio' | 'video' | 'file' | 'pdf'
 
 /** Functional capabilities a model exposes. */
 export type ModelCapability =

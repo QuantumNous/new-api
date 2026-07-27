@@ -88,11 +88,12 @@ describe('buildMessageContent', () => {
     )
   })
 
-  it('emits image and file parts from data URLs', () => {
-    const parts = buildMessageContent('look', [
-      imageAttachment(),
-      pdfAttachment(),
-    ])
+  it('emits a native file part only for a model that reads documents', () => {
+    const parts = buildMessageContent(
+      'look',
+      [imageAttachment(), pdfAttachment({ text: 'page one' })],
+      true
+    )
     expect(parts).toEqual([
       { type: 'text', text: 'look' },
       { type: 'image_url', image_url: { url: 'data:image/png;base64,AAA' } },
@@ -103,6 +104,16 @@ describe('buildMessageContent', () => {
           file_data: 'data:application/pdf;base64,BBB',
         },
       },
+    ])
+  })
+
+  it('defaults to extracted text, which every upstream accepts', () => {
+    const parts = buildMessageContent('look', [
+      pdfAttachment({ text: 'page one' }),
+    ])
+    expect(parts).toEqual([
+      { type: 'text', text: 'look' },
+      { type: 'text', text: 'Attached document "doc.pdf":\n\npage one' },
     ])
   })
 
@@ -129,17 +140,8 @@ describe('buildMessageContent', () => {
     ])
   })
 
-  it('still sends the raw PDF when no text could be extracted', () => {
+  it('drops an unreadable PDF instead of sending a part the model rejects', () => {
     const parts = buildMessageContent('summarize', [pdfAttachment()], false)
-    expect(parts).toEqual([
-      { type: 'text', text: 'summarize' },
-      {
-        type: 'file',
-        file: {
-          filename: 'doc.pdf',
-          file_data: 'data:application/pdf;base64,BBB',
-        },
-      },
-    ])
+    expect(parts).toEqual([{ type: 'text', text: 'summarize' }])
   })
 })

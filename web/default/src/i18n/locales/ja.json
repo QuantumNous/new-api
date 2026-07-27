@@ -3608,6 +3608,7 @@
     "No system announcements": "システムのお知らせがありません",
     "No system tasks yet.": "システムタスクはまだありません。",
     "No templates found": "テンプレートが見つかりません",
+    "No text could be read from this PDF and this model cannot open PDF files, so it will not be sent.": "この PDF からテキストを抽出できず、このモデルは PDF を直接開けないため、ファイルは送信されません。",
     "No token found.": "トークンが見つかりません。",
     "No tools configured": "ツールが未設定です",
     "No Upgrade": "アップグレードなし",

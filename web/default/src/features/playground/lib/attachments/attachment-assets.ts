@@ -54,9 +54,13 @@ async function resolveAttachmentDataUrl(assetId: number): Promise<string> {
 }
 
 async function hydrateAttachment(
-  attachment: ChatAttachment
+  attachment: ChatAttachment,
+  nativeFileInput: boolean
 ): Promise<ChatAttachment> {
-  if (!needsAttachmentHydration(attachment) || attachment.kind === 'document') {
+  if (
+    !needsAttachmentHydration(attachment, nativeFileInput) ||
+    attachment.kind === 'document'
+  ) {
     return attachment
   }
   try {
@@ -76,22 +80,26 @@ async function hydrateAttachment(
  * built after a page reload still carries the files the user attached.
  */
 export async function hydrateMessageAttachments(
-  messages: Message[]
+  messages: Message[],
+  nativeFileInput = false
 ): Promise<Message[]> {
-  if (
-    !messages.some((message) =>
-      message.attachments?.some(needsAttachmentHydration)
-    )
-  ) {
+  const needsHydration = (message: Message) =>
+    message.attachments?.some((attachment) =>
+      needsAttachmentHydration(attachment, nativeFileInput)
+    ) ?? false
+
+  if (!messages.some(needsHydration)) {
     return messages
   }
   return Promise.all(
     messages.map(async (message) => {
-      if (!message.attachments?.some(needsAttachmentHydration)) return message
+      if (!needsHydration(message)) return message
       return {
         ...message,
         attachments: await Promise.all(
-          message.attachments.map(hydrateAttachment)
+          message.attachments?.map((attachment) =>
+            hydrateAttachment(attachment, nativeFileInput)
+          ) ?? []
         ),
       }
     })

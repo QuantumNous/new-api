@@ -21,24 +21,24 @@ import type { PricingModel } from '@/features/pricing/types'
 type ModelFileMetadata = Pick<PricingModel, 'model_name'> &
   Partial<Pick<PricingModel, 'input_modalities' | 'tags'>>
 
-/**
- * Model families whose relay adaptors translate an OpenAI `file` content part
- * into a provider-native document block. Everything else forwards the part
- * unchanged, where upstreams typically drop or reject it.
- */
-const NATIVE_FILE_MODEL_PATTERN =
-  /^(claude|gemini|gpt-4o|gpt-4\.1|gpt-4\.5|gpt-5|o1|o3|o4)/
+/** Imported metadata spells document input `pdf`; the admin UI also allows `file`. */
+const DOCUMENT_INPUT_MODALITIES = new Set(['pdf', 'file'])
+
+const DOCUMENT_INPUT_TAG = /\binput:(pdf|file)\b/
 
 /**
- * Whether a PDF can be sent to this model as a native `file` part. When false
- * the caller must fall back to browser-extracted text, otherwise the
- * attachment reaches the upstream in a form it silently ignores.
+ * Whether a PDF can be sent to this model as a native `file` content part.
+ *
+ * Only curated model metadata counts. A model name says nothing about the
+ * channel a request is routed to, and most OpenAI-compatible upstreams reject
+ * an unknown `file` part outright, so an unknown model falls back to
+ * browser-extracted text, which every model accepts.
  */
 export function supportsNativeFileInput(model?: ModelFileMetadata): boolean {
   if (!model) return false
-  if (model.input_modalities?.length) {
-    return model.input_modalities.includes('file')
+  const modalities = model.input_modalities ?? []
+  if (modalities.some((modality) => DOCUMENT_INPUT_MODALITIES.has(modality))) {
+    return true
   }
-  if (/\binput:file\b/.test(model.tags?.toLowerCase() ?? '')) return true
-  return NATIVE_FILE_MODEL_PATTERN.test(model.model_name.toLowerCase())
+  return DOCUMENT_INPUT_TAG.test(model.tags?.toLowerCase() ?? '')
 }
