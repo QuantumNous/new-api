@@ -239,18 +239,27 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
   }, [])
 
-  const fetchSelfSubscription = useCallback(async (): Promise<boolean> => {
-    try {
-      const res = await getSelfSubscriptionFull()
-      setSelfData(
-        normalizeSelfSubscriptionData(res.success ? res.data : undefined)
-      )
-      return res.success
-    } catch {
-      setSelfData(normalizeSelfSubscriptionData(undefined))
-      return false
-    }
-  }, [])
+  const fetchSelfSubscription = useCallback(
+    async (options: { preserveOnFailure?: boolean } = {}): Promise<boolean> => {
+      try {
+        const res = await getSelfSubscriptionFull()
+        if (res.success) {
+          setSelfData(normalizeSelfSubscriptionData(res.data))
+          return true
+        }
+        if (!options.preserveOnFailure) {
+          setSelfData(normalizeSelfSubscriptionData(undefined))
+        }
+        return false
+      } catch {
+        if (!options.preserveOnFailure) {
+          setSelfData(normalizeSelfSubscriptionData(undefined))
+        }
+        return false
+      }
+    },
+    []
+  )
 
   useEffect(() => {
     if (props.initialLoading === false) return
@@ -325,7 +334,9 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   }
 
   const refreshAfterRenewal = async (syncPending: boolean) => {
-    let refreshFailed = !(await fetchSelfSubscription())
+    let refreshFailed = !(await fetchSelfSubscription({
+      preserveOnFailure: true,
+    }))
     try {
       await onPurchaseSuccess?.()
     } catch {

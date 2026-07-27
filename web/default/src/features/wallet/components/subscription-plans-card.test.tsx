@@ -643,7 +643,11 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(cardSource).toContain(
       "toast.info(t('Subscription updated; renewal status is still syncing'))"
     )
-    expect(cardSource).toContain(
+    expect(cardSource).toMatch(
+      /await fetchSelfSubscription\(\{\s*preserveOnFailure: true,\s*\}\)/
+    )
+    expect(cardSource).toContain('if (!options.preserveOnFailure)')
+    expect(cardSource).not.toContain(
       'let refreshFailed = !(await fetchSelfSubscription())'
     )
     expect(cardSource).not.toContain(
