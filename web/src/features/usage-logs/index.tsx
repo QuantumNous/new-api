@@ -117,8 +117,7 @@ function UsageLogsContent() {
     [setViewScope]
   )
 
-  const pageMeta =
-    activeCategory === 'common' ? SECTION_META.common : SECTION_META.task
+  const pageMeta = SECTION_META[activeCategory]
   const showTaskSwitcher =
     activeCategory !== 'common' && visibleSections.length > 1
 
