@@ -13,6 +13,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import {
   Sheet,
   SheetContent,
@@ -54,11 +56,66 @@ export type AppliedInspirationRecipe = {
   parameters: Record<string, unknown>
 }
 
+export type InspirationApplyTarget =
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'image-to-video'
+  | 'storyboard-row'
+  | 'note'
+
+const AUTORUN_STORAGE_KEY = 'workbench_inspiration_autorun'
+
 type Props = {
   isAuthenticated: boolean
   availableModels: Array<{ name: string; modality: string }>
   onRequireAuth: () => void
-  onApply: (recipe: AppliedInspirationRecipe) => void
+  onApply: (
+    recipe: AppliedInspirationRecipe,
+    options: { target: InspirationApplyTarget; autoRun: boolean }
+  ) => void
+}
+
+function defaultApplyTarget(modality: StudioModality): InspirationApplyTarget {
+  if (modality === 'image') return 'image'
+  if (modality === 'video') return 'image-to-video'
+  if (modality === 'audio') return 'audio'
+  return 'note'
+}
+
+function applyTargetsForModality(
+  modality: StudioModality
+): Array<{ value: InspirationApplyTarget; label: string }> {
+  if (modality === 'image') {
+    return [
+      { value: 'image', label: 'Image node' },
+      { value: 'storyboard-row', label: 'Storyboard row' },
+      { value: 'note', label: 'Note' },
+    ]
+  }
+  if (modality === 'video') {
+    return [
+      { value: 'video', label: 'Video node' },
+      { value: 'image-to-video', label: 'Image to video' },
+      { value: 'storyboard-row', label: 'Storyboard row' },
+      { value: 'note', label: 'Note' },
+    ]
+  }
+  if (modality === 'audio') {
+    return [
+      { value: 'audio', label: 'Audio node' },
+      { value: 'note', label: 'Note' },
+    ]
+  }
+  return [{ value: 'note', label: 'Note' }]
+}
+
+function readAutorunPreference(): boolean {
+  try {
+    return window.localStorage.getItem(AUTORUN_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 function RecipeCard(props: {
@@ -230,9 +287,13 @@ function RecipeDetail(props: {
   const queryClient = useQueryClient()
   const [values, setValues] = useState<RecipeValues>({})
   const [collectionName, setCollectionName] = useState('')
+  const [applyTarget, setApplyTarget] =
+    useState<InspirationApplyTarget>('image')
+  const [autoRun, setAutoRun] = useState(readAutorunPreference)
   useEffect(() => {
     if (props.recipe) {
       setValues(initialRecipeValues(props.recipe))
+      setApplyTarget(defaultApplyTarget(props.recipe.modality))
     }
   }, [props.recipe])
   const compiled = props.recipe ? compileRecipe(props.recipe, values) : null
@@ -262,6 +323,7 @@ function RecipeDetail(props: {
       .filter((item) => item.modality === props.recipe?.modality)
       .map((item) => item.name)
   )
+  const targetOptions = applyTargetsForModality(recipe.modality)
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(compiled.prompt)
@@ -434,6 +496,39 @@ function RecipeDetail(props: {
           </section>
         </div>
         <SheetFooter className='bg-background sticky bottom-0 border-t sm:flex-col sm:items-stretch'>
+          <div className='flex flex-wrap items-center gap-3'>
+            <NativeSelect
+              value={applyTarget}
+              aria-label={t('Apply target')}
+              onChange={(event) =>
+                setApplyTarget(event.target.value as InspirationApplyTarget)
+              }
+            >
+              {targetOptions.map((option) => (
+                <NativeSelectOption key={option.value} value={option.value}>
+                  {t(option.label)}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <label className='flex items-center gap-2 text-sm'>
+              <Checkbox
+                checked={autoRun}
+                onCheckedChange={(checked) => {
+                  const enabled = checked === true
+                  setAutoRun(enabled)
+                  try {
+                    window.localStorage.setItem(
+                      AUTORUN_STORAGE_KEY,
+                      enabled ? '1' : '0'
+                    )
+                  } catch {
+                    // The preference remains active for this session.
+                  }
+                }}
+              />
+              {t('Generate right away')}
+            </label>
+          </div>
           <div className='flex flex-wrap gap-2 sm:flex-row sm:justify-end'>
             <Button variant='outline' onClick={() => void copy()}>
               <Copy />
@@ -461,16 +556,24 @@ function RecipeDetail(props: {
                   toast.error(t('No compatible model is available'))
                   return
                 }
-                props.onApply({
-                  id: recipe.id,
-                  versionId: recipe.version_id,
-                  title: recipe.title,
-                  modality: recipe.modality,
-                  model,
-                  prompt: compiled.prompt,
-                  negativePrompt: recipe.negative_prompt,
-                  parameters: recipe.parameters,
-                })
+                const target = targetOptions.some(
+                  (option) => option.value === applyTarget
+                )
+                  ? applyTarget
+                  : (targetOptions[0]?.value ?? 'note')
+                props.onApply(
+                  {
+                    id: recipe.id,
+                    versionId: recipe.version_id,
+                    title: recipe.title,
+                    modality: recipe.modality,
+                    model,
+                    prompt: compiled.prompt,
+                    negativePrompt: recipe.negative_prompt,
+                    parameters: recipe.parameters,
+                  },
+                  { target, autoRun }
+                )
                 void recordInspirationEvents(recipe, 'apply')
                 props.onOpenChange(false)
               }}

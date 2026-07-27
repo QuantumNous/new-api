@@ -46,7 +46,7 @@ const PROJECTS_QUERY_KEY = ['workbench', 'canvas-projects']
 
 type SortMode = 'updated' | 'created' | 'title'
 
-export function WorkbenchProjects() {
+export function WorkbenchProjects(props: { openInspiration?: boolean }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -76,6 +76,7 @@ export function WorkbenchProjects() {
       void navigate({
         to: '/workbench/$projectId',
         params: { projectId: String(project.id) },
+        search: { inspiration: props.openInspiration },
       })
     },
     onError: () => toast.error(t('Failed to create the canvas')),
@@ -204,6 +205,7 @@ export function WorkbenchProjects() {
                   navigate({
                     to: '/workbench/$projectId',
                     params: { projectId: String(project.id) },
+                    search: { inspiration: props.openInspiration },
                   })
                 }
               >
@@ -225,6 +227,7 @@ export function WorkbenchProjects() {
                     navigate({
                       to: '/workbench/$projectId',
                       params: { projectId: String(project.id) },
+                      search: { inspiration: props.openInspiration },
                     })
                   }
                 >

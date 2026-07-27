@@ -18,22 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { PublicLayout } from '@/components/layout'
-import { Inspiration } from '@/features/inspiration'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
 
 export const Route = createFileRoute('/inspiration/')({
   beforeLoad: async () => {
     const access = await getFreshModuleAccess('inspiration')
     if (!access.enabled) throw redirect({ to: '/' })
+    throw redirect({
+      to: '/workbench',
+      search: { inspiration: true },
+    })
   },
-  component: InspirationPage,
+  component: () => null,
 })
-
-function InspirationPage() {
-  return (
-    <PublicLayout showMainContainer={false}>
-      <Inspiration />
-    </PublicLayout>
-  )
-}

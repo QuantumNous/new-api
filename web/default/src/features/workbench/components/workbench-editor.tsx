@@ -8,7 +8,7 @@ License, or (at your option) any later version.
 */
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, History, Search, Share2 } from 'lucide-react'
+import { ArrowLeft, History, Search, Share2, Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -30,6 +30,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Spinner } from '@/components/ui/spinner'
 
 import { getCanvasProject, updateCanvasProject } from '../api'
@@ -39,6 +45,7 @@ import { CanvasNodeType, type CanvasDocument } from '../types'
 import { CanvasShareDialog } from './canvas-share-dialog'
 import { CanvasVersionHistory } from './canvas-version-history'
 import { WorkbenchCanvas } from './workbench-canvas'
+import { WorkbenchInspiration } from './workbench-inspiration'
 
 const AUTOSAVE_DELAY_MS = 1500
 
@@ -54,13 +61,19 @@ function extractCover(doc: CanvasDocument): string {
   return imageNode?.metadata?.content ?? ''
 }
 
-export function WorkbenchEditor(props: { projectId: number }) {
+export function WorkbenchEditor(props: {
+  projectId: number
+  openInspiration?: boolean
+}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [title, setTitle] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [inspirationOpen, setInspirationOpen] = useState(
+    Boolean(props.openInspiration)
+  )
   const [conflictOpen, setConflictOpen] = useState(false)
   const [conflictBusy, setConflictBusy] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -307,6 +320,14 @@ export function WorkbenchEditor(props: { projectId: number }) {
           {saveState === 'error' ? t('Not saved') : null}
         </span>
         <div className='ml-auto flex items-center gap-2'>
+          <Button
+            size='sm'
+            variant='outline'
+            onClick={() => setInspirationOpen(true)}
+          >
+            <Sparkles />
+            {t('Inspiration')}
+          </Button>
           <div className='relative'>
             <Button
               size='sm'
@@ -408,6 +429,14 @@ export function WorkbenchEditor(props: { projectId: number }) {
         open={shareOpen}
         onOpenChange={setShareOpen}
       />
+      <Sheet open={inspirationOpen} onOpenChange={setInspirationOpen}>
+        <SheetContent side='right' className='w-full sm:max-w-3xl'>
+          <SheetHeader>
+            <SheetTitle>{t('Inspiration')}</SheetTitle>
+          </SheetHeader>
+          <WorkbenchInspiration onApplied={() => setInspirationOpen(false)} />
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog
         open={conflictOpen}
