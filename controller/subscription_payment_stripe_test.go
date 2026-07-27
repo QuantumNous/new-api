@@ -50,41 +50,6 @@ func setupSubscriptionStripeRecordingBackend(t *testing.T) *subscriptionStripeRe
 	return backend
 }
 
-func TestSubscriptionStripeOrdinaryPromotionCodes(t *testing.T) {
-	backend := setupSubscriptionStripeRecordingBackend(t)
-
-	checkoutSession, err := genStripeSubscriptionLink("sub_ref_ordinary", "", "buyer@example.com", "price_subscription", 7, 11, 0, nil)
-
-	require.NoError(t, err)
-	require.Equal(t, "https://checkout.stripe.test/subscription", checkoutSession.URL)
-	require.Len(t, backend.params, 1)
-	params := backend.params[0]
-	require.NotNil(t, params.AllowPromotionCodes)
-	require.True(t, *params.AllowPromotionCodes)
-	require.Empty(t, params.Discounts)
-}
-
-func TestSubscriptionStripeRecallPromotionCode(t *testing.T) {
-	backend := setupSubscriptionStripeRecordingBackend(t)
-
-	checkoutSession, err := genStripeSubscriptionLink("sub_ref_recall", "cus_123", "buyer@example.com", "price_subscription", 7, 11, 0, &service.RecallCheckoutDiscount{
-		PromotionCodeID: "promo_subscription_recall",
-		CampaignID:      42,
-		RecipientID:     84,
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, "https://checkout.stripe.test/subscription", checkoutSession.URL)
-	require.Len(t, backend.params, 1)
-	params := backend.params[0]
-	require.Nil(t, params.AllowPromotionCodes)
-	require.Len(t, params.Discounts, 1)
-	require.NotNil(t, params.Discounts[0].PromotionCode)
-	require.Equal(t, "promo_subscription_recall", *params.Discounts[0].PromotionCode)
-	require.Equal(t, "42", params.Metadata["recall_campaign_id"])
-	require.Equal(t, "84", params.Metadata["recall_recipient_id"])
-}
-
 func TestSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testing.T) {
 	for _, tc := range []struct {
 		language string
@@ -115,6 +80,7 @@ func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testin
 
 	const userID = 710001
 	const planID = 910001
+	rank := 1
 	require.NoError(t, model.DB.Create(&model.User{
 		Id:       userID,
 		Username: "subscription_recall_user",
@@ -129,6 +95,8 @@ func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testin
 		DurationUnit:  model.SubscriptionDurationMonth,
 		DurationValue: 1,
 		Enabled:       true,
+		TierRank:      &rank,
+		TotalAmount:   1000,
 		StripePriceId: "price_subscription",
 	}).Error)
 	model.InvalidateSubscriptionPlanCache(planID)
@@ -197,6 +165,8 @@ func setupSubscriptionRecallClaimDB(t *testing.T) {
 		&model.RecallRecipient{},
 		&model.RecallMessage{},
 		&model.RecallEvent{},
+		&model.SubscriptionDiscountAccount{},
+		&model.SubscriptionDiscountEntry{},
 	))
 	model.DB = db
 	model.LOG_DB = db

@@ -597,18 +597,21 @@ func TestSubscriptionSelfPurchaseStripeRecurringRecallFailsClosedBeforeCheckout(
 	)
 
 	require.Equal(t, http.StatusOK, purchase.Code)
-	require.Contains(t, purchase.Body.String(), "signed recurring order snapshot support is required")
-	require.Nil(t, form)
+	require.Contains(t, purchase.Body.String(), `"success":true`)
+	require.Contains(t, purchase.Body.String(), "https://checkout.example/self-recall")
+	require.NotNil(t, form)
+	require.Equal(t, "promo_self_purchase_recall", form.Get("discounts[0][promotion_code]"))
+	require.Empty(t, form.Get("allow_promotion_codes"))
 	var count int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9117).Count(&count).Error)
-	require.Zero(t, count)
+	require.Equal(t, int64(1), count)
 	require.NoError(t, model.DB.Model(&model.TopUp{}).Where("user_id = ?", 9117).Count(&count).Error)
-	require.Zero(t, count)
+	require.Equal(t, int64(1), count)
 	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", 9117).Count(&count).Error)
-	require.Zero(t, count)
+	require.Equal(t, int64(1), count)
 }
 
-func TestSubscriptionSelfPurchaseStripeRecurringNoDiscountFailsClosedBeforeCheckout(t *testing.T) {
+func TestSubscriptionSelfPurchaseStripeRecurringNoDiscountCreatesCheckout(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
@@ -668,15 +671,19 @@ func TestSubscriptionSelfPurchaseStripeRecurringNoDiscountFailsClosedBeforeCheck
 	)
 
 	require.Equal(t, http.StatusOK, purchase.Code)
-	require.Contains(t, purchase.Body.String(), "signed recurring order snapshot support is required")
-	require.Nil(t, form)
+	require.Contains(t, purchase.Body.String(), `"success":true`)
+	require.Contains(t, purchase.Body.String(), "https://checkout.example/self-recurring-no-discount")
+	require.NotNil(t, form)
+	require.Empty(t, form.Get("discounts[0][promotion_code]"))
+	require.Empty(t, form.Get("discounts[0][coupon]"))
+	require.Empty(t, form.Get("allow_promotion_codes"))
 	var count int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9123).Count(&count).Error)
-	require.Zero(t, count)
+	require.Equal(t, int64(1), count)
 	require.NoError(t, model.DB.Model(&model.TopUp{}).Where("user_id = ?", 9123).Count(&count).Error)
-	require.Zero(t, count)
+	require.Equal(t, int64(1), count)
 	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", 9123).Count(&count).Error)
-	require.Zero(t, count)
+	require.Equal(t, int64(1), count)
 }
 
 func TestSubscriptionSelfOneTimeReplayRejectsSessionWithoutURLOrClientSecret(t *testing.T) {
@@ -1125,15 +1132,53 @@ func TestSubscriptionSelfPurchaseAcceptsLegacyNoDiscountQuoteAfterNormalization(
 	require.Equal(t, service.SubscriptionDiscountKindNone, claims.DiscountKind)
 }
 
-func TestSubscriptionSelfPurchaseRejectsRecurringInvitationQuoteUntilReservationSupport(t *testing.T) {
+func TestSubscriptionSelfPurchaseRecurringInvitationQuoteCreatesReservedCheckout(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "controller-subscription-recurring-invitation-secret"
 	t.Cleanup(func() { common.CryptoSecret = originalSecret })
 	insertSubscriptionControllerUser(t, 9119)
-	insertSubscriptionSelfPurchasePlan(t, 9219)
+	plan := insertSubscriptionSelfPurchasePlan(t, 9219)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription_invitation").Error)
+	model.InvalidateSubscriptionPlanCache(plan.Id)
 	grantSubscriptionSelfPurchaseInvitationDiscount(t, 9119, 999, "controller-recurring-invitation-purchase")
+
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	originalSecretKey := setting.StripeApiSecret
+	originalKey := stripe.Key
+	var couponForm url.Values
+	var sessionForm url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.NoError(t, r.ParseForm())
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/coupons":
+			couponForm = r.PostForm
+			_, _ = w.Write([]byte(`{"id":"coupon_self_invitation","object":"coupon","valid":true}`))
+		case "/v1/checkout/sessions":
+			sessionForm = r.PostForm
+			_, _ = w.Write([]byte(`{"id":"cs_self_recurring_invitation","object":"checkout.session","url":"https://checkout.example/self-recurring-invitation"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
+		URL:               stripe.String(server.URL),
+		HTTPClient:        server.Client(),
+		MaxNetworkRetries: stripe.Int64(0),
+		LeveledLogger:     &stripe.LeveledLogger{Level: stripe.LevelNull},
+	}))
+	setting.StripeApiSecret = "sk_test_self_recurring_invitation"
+	t.Cleanup(func() {
+		server.Close()
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		setting.StripeApiSecret = originalSecretKey
+		stripe.Key = originalKey
+	})
 
 	quote := performSubscriptionSelfPurchaseRequest(
 		`{"plan_id":9219,"payment_method":"stripe_recurring","months":1,"request_id":"recurring-invitation"}`,
@@ -1156,10 +1201,18 @@ func TestSubscriptionSelfPurchaseRejectsRecurringInvitationQuoteUntilReservation
 	)
 
 	require.Equal(t, http.StatusOK, purchase.Code)
-	require.Contains(t, purchase.Body.String(), "reservation support")
+	require.Contains(t, purchase.Body.String(), `"success":true`)
+	require.Contains(t, purchase.Body.String(), "https://checkout.example/self-recurring-invitation")
+	require.Equal(t, "999", couponForm.Get("amount_off"))
+	require.Equal(t, "coupon_self_invitation", sessionForm.Get("discounts[0][coupon]"))
+	require.Empty(t, sessionForm.Get("allow_promotion_codes"))
 	var count int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9119).Count(&count).Error)
-	require.Zero(t, count)
+	require.Equal(t, int64(1), count)
+	account, err := model.GetSubscriptionDiscountAccount(9119)
+	require.NoError(t, err)
+	require.Zero(t, account.AvailableUSDMinor)
+	require.Equal(t, int64(999), account.ReservedUSDMinor)
 }
 
 func TestSubscriptionSelfPurchaseRejectsSameSecondPlanPriceChange(t *testing.T) {

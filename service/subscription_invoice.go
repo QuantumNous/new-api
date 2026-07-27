@@ -16,23 +16,28 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
+	stripecoupon "github.com/stripe/stripe-go/v86/coupon"
 	stripeinvoice "github.com/stripe/stripe-go/v86/invoice"
 	stripesubscription "github.com/stripe/stripe-go/v86/subscription"
 	"gorm.io/gorm"
 )
 
 type StripeSubscriptionCheckoutInput struct {
-	TradeNo        string
-	UserID         int
-	PlanID         int
-	ContractID     int64
-	ChangeIntentID int64
-	CustomerID     string
-	Email          string
-	PriceID        string
-	IdempotencyKey string
-	Presentation   StripeCheckoutPresentation
-	RecallDiscount *RecallCheckoutDiscount
+	TradeNo                string
+	UserID                 int
+	PlanID                 int
+	ContractID             int64
+	ChangeIntentID         int64
+	CustomerID             string
+	Email                  string
+	PriceID                string
+	IdempotencyKey         string
+	Presentation           StripeCheckoutPresentation
+	DiscountKind           string
+	DiscountAmountMinor    int64
+	DiscountCurrency       string
+	DiscountReservationKey string
+	RecallDiscount         *RecallCheckoutDiscount
 }
 
 type StripeSubscriptionCheckoutSession struct {
@@ -87,6 +92,8 @@ var stripeInvoiceGetter = getStripeInvoiceForReconcile
 var stripeInvoiceVoider = voidStripeInvoiceForReconcile
 var stripeSubscriptionGetter = getStripeSubscriptionForReconcile
 var stripeSubscriptionCheckoutCreator = createStripeSubscriptionCheckout
+var stripeSubscriptionCouponCreator = createStripeSubscriptionCoupon
+var stripeSubscriptionSessionCreator = createStripeSubscriptionSession
 var stripeCheckoutSessionGetter = getStripeCheckoutSessionForSubscription
 var stripeCheckoutSessionExpirer = expireStripeCheckoutSessionForSubscription
 
@@ -180,9 +187,19 @@ func createStripeSubscriptionCheckout(ctx context.Context, input StripeSubscript
 	}
 	stripe.Key = setting.StripeApiSecret
 	metadata := stripeSubscriptionAuthoritativeMetadata(input.TradeNo, input.UserID, input.PlanID, input.ContractID, input.ChangeIntentID)
+	if strings.TrimSpace(input.DiscountKind) != "" {
+		metadata["discount_kind"] = strings.TrimSpace(input.DiscountKind)
+	}
+	if strings.TrimSpace(input.DiscountReservationKey) != "" {
+		metadata["subscription_discount_reservation_key"] = strings.TrimSpace(input.DiscountReservationKey)
+	}
+	if input.DiscountAmountMinor > 0 {
+		metadata["subscription_discount_amount_minor"] = strconv.FormatInt(input.DiscountAmountMinor, 10)
+	}
 	if input.RecallDiscount != nil {
 		metadata["recall_campaign_id"] = strconv.FormatInt(input.RecallDiscount.CampaignID, 10)
 		metadata["recall_recipient_id"] = strconv.FormatInt(input.RecallDiscount.RecipientID, 10)
+		metadata["recall_promotion_code_id"] = strings.TrimSpace(input.RecallDiscount.PromotionCodeID)
 	}
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(input.TradeNo),
@@ -204,6 +221,33 @@ func createStripeSubscriptionCheckout(ctx context.Context, input StripeSubscript
 		params.Discounts = []*stripe.CheckoutSessionDiscountParams{
 			{PromotionCode: stripe.String(strings.TrimSpace(input.RecallDiscount.PromotionCodeID))},
 		}
+	} else if strings.TrimSpace(input.DiscountKind) == SubscriptionDiscountKindInvitation {
+		if input.DiscountAmountMinor <= 0 {
+			return nil, errors.New("Stripe invitation discount amount is invalid")
+		}
+		currency := strings.ToLower(strings.TrimSpace(input.DiscountCurrency))
+		if currency == "" {
+			return nil, errors.New("Stripe invitation discount currency is required")
+		}
+		couponParams := &stripe.CouponParams{
+			AmountOff: stripe.Int64(input.DiscountAmountMinor),
+			Currency:  stripe.String(currency),
+			Duration:  stripe.String(string(stripe.CouponDurationOnce)),
+			Name:      stripe.String("Flatkey invitation package credit"),
+		}
+		if strings.TrimSpace(input.IdempotencyKey) != "" {
+			couponParams.SetIdempotencyKey(strings.TrimSpace(input.IdempotencyKey) + ":invitation-coupon")
+		}
+		coupon, err := stripeSubscriptionCouponCreator(ctx, couponParams)
+		if err != nil {
+			return nil, err
+		}
+		if coupon == nil || strings.TrimSpace(coupon.ID) == "" {
+			return nil, errors.New("Stripe invitation coupon missing id")
+		}
+		params.Discounts = []*stripe.CheckoutSessionDiscountParams{
+			{Coupon: stripe.String(strings.TrimSpace(coupon.ID))},
+		}
 	}
 	ApplyStripeCheckoutPresentation(params, input.Presentation, input.TradeNo)
 	if strings.TrimSpace(input.CustomerID) != "" {
@@ -216,7 +260,7 @@ func createStripeSubscriptionCheckout(ctx context.Context, input StripeSubscript
 	if strings.TrimSpace(input.IdempotencyKey) != "" {
 		params.SetIdempotencyKey(strings.TrimSpace(input.IdempotencyKey))
 	}
-	created, err := session.New(params)
+	created, err := stripeSubscriptionSessionCreator(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -235,6 +279,14 @@ func createStripeSubscriptionCheckout(ctx context.Context, input StripeSubscript
 		URL:          strings.TrimSpace(created.URL),
 		ClientSecret: strings.TrimSpace(created.ClientSecret),
 	}, nil
+}
+
+func createStripeSubscriptionCoupon(ctx context.Context, params *stripe.CouponParams) (*stripe.Coupon, error) {
+	return stripecoupon.New(params)
+}
+
+func createStripeSubscriptionSession(ctx context.Context, params *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+	return session.New(params)
 }
 
 func getStripeCheckoutSessionForSubscription(ctx context.Context, sessionID string) (*stripe.CheckoutSession, error) {
@@ -407,6 +459,14 @@ func ReconcilePaidInvoice(ctx context.Context, invoiceID string) (*PaidInvoiceRe
 			return err
 		}
 		if err := model.GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, order); err != nil {
+			return err
+		}
+		if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+			if _, err := model.CommitSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
+				return err
+			}
+		}
+		if err := recordRecurringInvoiceRecallConversionTx(tx, order, facts, invoiceID); err != nil {
 			return err
 		}
 		result.Binding = binding
@@ -911,12 +971,19 @@ func validateLocalInvoiceFacts(facts paidInvoiceFacts, order *model.Subscription
 	if plan.Id != facts.PlanID || (!plan.Enabled && !planSnapshot.Found) {
 		return errors.New("local plan is not enabled")
 	}
-	if strings.TrimSpace(plan.StripePriceId) == "" || strings.TrimSpace(plan.StripePriceId) != facts.PriceID {
+	expectedPriceID := strings.TrimSpace(plan.StripePriceId)
+	if planSnapshot.Found && strings.TrimSpace(planSnapshot.Snapshot.StripePriceID) != "" {
+		expectedPriceID = strings.TrimSpace(planSnapshot.Snapshot.StripePriceID)
+	}
+	if expectedPriceID == "" || expectedPriceID != facts.PriceID {
 		return errors.New("Stripe price mismatch")
 	}
 	expectedCurrency := strings.ToUpper(strings.TrimSpace(plan.Currency))
 	if planSnapshot.Found {
 		expectedCurrency = strings.ToUpper(strings.TrimSpace(planSnapshot.Snapshot.Currency))
+	}
+	if strings.TrimSpace(order.PaymentCurrency) != "" {
+		expectedCurrency = strings.ToUpper(strings.TrimSpace(order.PaymentCurrency))
 	}
 	if expectedCurrency != facts.Currency {
 		return errors.New("Stripe invoice currency mismatch")
@@ -925,14 +992,56 @@ func validateLocalInvoiceFacts(facts paidInvoiceFacts, order *model.Subscription
 	if planSnapshot.Found {
 		expectedPrice = planSnapshot.Snapshot.PriceAmount
 	}
-	expectedMinor, err := stripeMinorUnitAmountForSubscription(expectedPrice, facts.Currency)
-	if err != nil {
-		return err
+	expectedMinor := order.PaymentAmountMinor
+	if expectedMinor <= 0 {
+		var err error
+		expectedMinor, err = stripeMinorUnitAmountForSubscription(expectedPrice, facts.Currency)
+		if err != nil {
+			return err
+		}
 	}
 	if expectedMinor != facts.AmountPaid {
 		return fmt.Errorf("Stripe invoice amount mismatch: expected %d got %d", expectedMinor, facts.AmountPaid)
 	}
 	return nil
+}
+
+func recordRecurringInvoiceRecallConversionTx(tx *gorm.DB, order *model.SubscriptionOrder, facts paidInvoiceFacts, invoiceID string) error {
+	if order == nil || strings.TrimSpace(order.DiscountKind) != SubscriptionDiscountKindRecall ||
+		order.RecallCampaignId <= 0 || order.RecallRecipientId <= 0 {
+		return nil
+	}
+	currency := strings.ToUpper(strings.TrimSpace(order.PaymentCurrency))
+	if currency == "" {
+		currency = facts.Currency
+	}
+	eventData, err := common.Marshal(map[string]any{
+		"invoice_id":      strings.TrimSpace(invoiceID),
+		"subscription_id": facts.SubscriptionID,
+		"trade_no":        strings.TrimSpace(order.TradeNo),
+		"conversion_kind": model.RecallConversionDirect,
+		"currency":        currency,
+		"amount_total":    order.PaymentAmountMinor,
+		"discount_amount": order.RecallDiscountAmountMinor,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = model.RecordRecallConversionTx(tx, model.RecallConversionRecord{
+		RecipientId:    order.RecallRecipientId,
+		CampaignId:     order.RecallCampaignId,
+		UserId:         order.UserId,
+		Kind:           model.RecallConversionDirect,
+		TradeNo:        strings.TrimSpace(order.TradeNo),
+		Currency:       currency,
+		Amount:         order.PaymentAmountMinor,
+		DiscountAmount: order.RecallDiscountAmountMinor,
+		Source:         "stripe",
+		SourceEventId:  "invoice:" + strings.TrimSpace(invoiceID),
+		EventData:      string(eventData),
+		ConvertedAt:    common.GetTimestamp(),
+	})
+	return err
 }
 
 type supersededStripeCheckout struct {
@@ -1172,6 +1281,10 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 	binding, contract, plan, user, err := lockRenewalBindingFactsTx(tx, commonFacts)
 	if err != nil {
 		return err
+	}
+	if strings.TrimSpace(binding.ProviderLatestInvoiceId) == facts.InvoiceID {
+		result.Binding = binding
+		return nil
 	}
 	plan, pendingDowngrade, err := resolveExpectedRenewalPlanTx(tx, commonFacts, binding, contract, plan)
 	if err != nil {

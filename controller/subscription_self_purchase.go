@@ -174,15 +174,6 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if choice == service.SubscriptionPaymentChoiceStripeRecurring && claims.DiscountKind == service.SubscriptionDiscountKindInvitation {
-		common.ApiError(c, service.ErrSubscriptionPurchaseInvitationReservationRequired)
-		return
-	}
-	if choice == service.SubscriptionPaymentChoiceStripeRecurring {
-		common.ApiErrorMsg(c, "signed recurring order snapshot support is required")
-		return
-	}
-
 	result, err := service.PurchaseSubscription(service.PurchaseSubscriptionCommand{
 		UserID:        userID,
 		PlanID:        req.PlanID,

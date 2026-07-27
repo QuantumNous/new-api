@@ -75,6 +75,7 @@ func setupSubscriptionControllerTestDB(t *testing.T) {
 		&model.WalletLedgerEntry{},
 		&model.SubscriptionDiscountAccount{},
 		&model.SubscriptionDiscountEntry{},
+		&model.TopUp{},
 	))
 }
 
@@ -168,7 +169,7 @@ func TestStableSubscriptionRequestIDRequiresCanonicalUUID(t *testing.T) {
 	require.False(t, isStableSubscriptionRequestID("{550e8400-e29b-41d4-a716-446655440000}"))
 }
 
-func TestSubscriptionStripePayReturnsUnsupportedWithoutLegacyState(t *testing.T) {
+func TestSubscriptionStripePayRequiresStripePriceBeforePersistingState(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
 	rank := 1
@@ -205,7 +206,7 @@ func TestSubscriptionStripePayReturnsUnsupportedWithoutLegacyState(t *testing.T)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Contains(t, recorder.Body.String(), `"success":false`)
-	require.Contains(t, recorder.Body.String(), "pending migration")
+	require.Contains(t, recorder.Body.String(), "StripePriceId")
 	var orderCount int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 902).Count(&orderCount).Error)
 	require.Zero(t, orderCount)
@@ -237,7 +238,7 @@ func TestChangeSubscriptionPlanStripeRecurringRequiresStripePriceBeforePersistin
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Contains(t, recorder.Body.String(), `"success":false`)
-	require.Contains(t, recorder.Body.String(), "Stripe price id")
+	require.Contains(t, recorder.Body.String(), "quote")
 	var user model.User
 	require.NoError(t, model.DB.First(&user, "id = ?", 903).Error)
 	require.Zero(t, user.Quota)
@@ -252,6 +253,45 @@ func TestChangeSubscriptionPlanStripeRecurringRequiresStripePriceBeforePersistin
 	require.Zero(t, orderCount)
 	var entitlementCount int64
 	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", 903).Count(&entitlementCount).Error)
+	require.Zero(t, entitlementCount)
+}
+
+func TestChangeSubscriptionPlanStripeRecurringRequiresSignedQuoteBeforePersistingState(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	insertSubscriptionControllerUser(t, 906)
+	insertSubscriptionControllerPlan(t, 9906)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 9906).Update("stripe_price_id", "price_direct_route_requires_quote").Error)
+	originalStripeSecret := setting.StripeApiSecret
+	setting.StripeApiSecret = "sk_test_direct_route_requires_quote"
+	t.Cleanup(func() { setting.StripeApiSecret = originalStripeSecret })
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("id", 906)
+	ctx.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/subscription/self/change-plan",
+		strings.NewReader(`{"plan_id":9906,"payment_mode":"stripe_recurring","request_id":"550e8400-e29b-41d4-a716-446655440006"}`),
+	)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	ChangeSubscriptionPlan(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), `"success":false`)
+	require.Contains(t, recorder.Body.String(), "quote")
+	var contractCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).Where("user_id = ?", 906).Count(&contractCount).Error)
+	require.Zero(t, contractCount)
+	var intentCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", 906).Count(&intentCount).Error)
+	require.Zero(t, intentCount)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 906).Count(&orderCount).Error)
+	require.Zero(t, orderCount)
+	var entitlementCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", 906).Count(&entitlementCount).Error)
 	require.Zero(t, entitlementCount)
 }
 

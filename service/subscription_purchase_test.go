@@ -237,6 +237,13 @@ func TestPurchaseSubscriptionStripeRecurringReturnsCheckoutURL(t *testing.T) {
 			URL: "https://checkout.stripe.test/purchase-subscription",
 		}, nil
 	}
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7318,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+	})
+	require.NoError(t, err)
 
 	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
 		UserID:        7318,
@@ -244,6 +251,7 @@ func TestPurchaseSubscriptionStripeRecurringReturnsCheckoutURL(t *testing.T) {
 		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
 		Months:        1,
 		RequestID:     "stripe-purchase-checkout",
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
 	})
 
 	require.NoError(t, err)
@@ -259,6 +267,8 @@ func TestPurchaseSubscriptionStripeRecurringResolvesRecallPromotionCode(t *testi
 		&model.SubscriptionChangeIntent{},
 		&model.SubscriptionTermSegment{},
 		&model.WalletLedgerEntry{},
+		&model.SubscriptionDiscountAccount{},
+		&model.SubscriptionDiscountEntry{},
 	))
 	setRecallCampaignEnabled(t, true)
 	now := time.Now().UTC()
@@ -286,6 +296,14 @@ func TestPurchaseSubscriptionStripeRecurringResolvesRecallPromotionCode(t *testi
 			URL: "https://checkout.stripe.test/purchase-recall",
 		}, nil
 	}
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RecallClaim:   fixture.claim,
+	})
+	require.NoError(t, err)
 
 	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
 		UserID:        fixture.recipient.UserId,
@@ -294,10 +312,254 @@ func TestPurchaseSubscriptionStripeRecurringResolvesRecallPromotionCode(t *testi
 		Months:        1,
 		RequestID:     "stripe-purchase-recall",
 		RecallClaim:   fixture.claim,
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, ChangePlanStatusCheckoutRequired, result.Status)
+}
+
+func TestPurchaseSubscriptionStripeRecurringInvitationReservesAndPersistsQuoteBeforeStripe(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	insertPurchaseServiceUser(t, 7326, 5000)
+	plan := insertPurchaseServicePlan(t, 7426, 1, 10, 1000)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_recurring_invitation").Error)
+	grantPurchaseServiceInvitationDiscount(t, 7326, 525, "purchase-recurring-invitation")
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7326,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionDiscountKindInvitation, quoteResult.DiscountKind)
+	require.Equal(t, int64(525), quoteResult.DiscountAmountMinor)
+
+	originalCreator := stripeSubscriptionCheckoutCreator
+	t.Cleanup(func() { stripeSubscriptionCheckoutCreator = originalCreator })
+	stripeSubscriptionCheckoutCreator = func(_ context.Context, input StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		require.Equal(t, SubscriptionDiscountKindInvitation, input.DiscountKind)
+		require.Equal(t, int64(525), input.DiscountAmountMinor)
+		require.Equal(t, "USD", input.DiscountCurrency)
+		require.NotEmpty(t, input.DiscountReservationKey)
+
+		var order model.SubscriptionOrder
+		require.NoError(t, model.DB.First(&order, "trade_no = ?", input.TradeNo).Error)
+		require.Equal(t, SubscriptionDiscountKindInvitation, order.DiscountKind)
+		require.Equal(t, int64(525), order.SubscriptionDiscountUSDMinor)
+		require.Equal(t, int64(525), order.SubscriptionDiscountAmountMinor)
+		require.Equal(t, input.DiscountReservationKey, order.SubscriptionDiscountReservationKey)
+		require.NotEmpty(t, order.PlanSnapshot)
+		require.NotEmpty(t, order.DiscountPricingSnapshot)
+		account, err := model.GetSubscriptionDiscountAccount(7326)
+		require.NoError(t, err)
+		require.Zero(t, account.AvailableUSDMinor)
+		require.Equal(t, int64(525), account.ReservedUSDMinor)
+		return &StripeSubscriptionCheckoutSession{ID: "cs_recurring_invitation", URL: "https://checkout.stripe.test/recurring-invitation"}, nil
+	}
+
+	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7326,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RequestID:     "stripe-recurring-invitation",
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ChangePlanStatusCheckoutRequired, result.Status)
+	require.Equal(t, "https://checkout.stripe.test/recurring-invitation", result.CheckoutURL)
+}
+
+func TestPurchaseSubscriptionStripeRecurringInvitationStaleQuoteHasNoSideEffects(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	insertPurchaseServiceUser(t, 7327, 5000)
+	plan := insertPurchaseServicePlan(t, 7427, 1, 10, 1000)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_recurring_invitation_stale").Error)
+	grantPurchaseServiceInvitationDiscount(t, 7327, 525, "purchase-recurring-invitation-stale")
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7327,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	staleQuote := purchaseQuoteFromResult(quoteResult)
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, reserveErr := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             7327,
+			USDMinor:           525,
+			OrderID:            0,
+			TradeNo:            "external",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 525,
+			PricingSnapshot:    `{"source":"external"}`,
+			IdempotencyKey:     "external-recurring-reservation",
+			ExpiresAt:          common.GetTimestamp() + 300,
+		})
+		return reserveErr
+	}))
+
+	originalCreator := stripeSubscriptionCheckoutCreator
+	var stripeCalls int
+	t.Cleanup(func() { stripeSubscriptionCheckoutCreator = originalCreator })
+	stripeSubscriptionCheckoutCreator = func(_ context.Context, _ StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		stripeCalls++
+		return &StripeSubscriptionCheckoutSession{ID: "cs_unexpected", URL: "https://checkout.stripe.test/unexpected"}, nil
+	}
+
+	_, err = PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7327,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RequestID:     "stripe-recurring-invitation-stale",
+		VerifiedQuote: staleQuote,
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "quote")
+	require.Zero(t, stripeCalls)
+	var intents int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", 7327).Count(&intents).Error)
+	require.Zero(t, intents)
+	var orders int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7327).Count(&orders).Error)
+	require.Zero(t, orders)
+}
+
+func TestPurchaseSubscriptionStripeRecurringNoDiscountStalePlanHasNoSideEffects(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	insertPurchaseServiceUser(t, 7328, 5000)
+	plan := insertPurchaseServicePlan(t, 7428, 1, 10, 1000)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_recurring_no_discount_stale").Error)
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7328,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionDiscountKindNone, quoteResult.DiscountKind)
+
+	originalHook := subscriptionPurchaseAfterQuoteValidationHook
+	originalCreator := stripeSubscriptionCheckoutCreator
+	var hookCalls int
+	var stripeCalls int
+	t.Cleanup(func() {
+		subscriptionPurchaseAfterQuoteValidationHook = originalHook
+		stripeSubscriptionCheckoutCreator = originalCreator
+	})
+	subscriptionPurchaseAfterQuoteValidationHook = func() {
+		hookCalls++
+		require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+			Update("price_amount", 12.00).Error)
+		model.InvalidateSubscriptionPlanCache(plan.Id)
+	}
+	stripeSubscriptionCheckoutCreator = func(_ context.Context, _ StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		stripeCalls++
+		return &StripeSubscriptionCheckoutSession{ID: "cs_unexpected_no_discount_stale", URL: "https://checkout.stripe.test/unexpected-no-discount-stale"}, nil
+	}
+
+	_, err = PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7328,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RequestID:     "stripe-recurring-no-discount-stale",
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
+	})
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+	require.Equal(t, 1, hookCalls)
+	require.Zero(t, stripeCalls)
+	assertNoRecurringCheckoutSideEffects(t, 7328)
+}
+
+func TestPurchaseSubscriptionStripeRecurringRecallStalePlanHasNoSideEffects(t *testing.T) {
+	setupSubscriptionRecallPurchaseTestDB(t)
+	now := time.Now().UTC()
+	fixture := createRecallClaimFixture(t, now)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       fixture.recipient.UserId,
+		Username: "purchase_recall_stale_user",
+		Email:    fixture.recipient.EmailSnapshot,
+		Status:   common.UserStatusEnabled,
+		Group:    "plg",
+		AffCode:  "purchase_recall_stale_aff",
+	}).Error)
+	plan := insertPurchaseServicePlan(t, 7429, 1, 10, 1000)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_subscription").Error)
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RecallClaim:   fixture.claim,
+	})
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionDiscountKindRecall, quoteResult.DiscountKind)
+
+	originalHook := subscriptionPurchaseAfterQuoteValidationHook
+	originalCreator := stripeSubscriptionCheckoutCreator
+	var hookCalls int
+	var stripeCalls int
+	t.Cleanup(func() {
+		subscriptionPurchaseAfterQuoteValidationHook = originalHook
+		stripeSubscriptionCheckoutCreator = originalCreator
+	})
+	subscriptionPurchaseAfterQuoteValidationHook = func() {
+		hookCalls++
+		require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+			Update("price_amount", 12.00).Error)
+		model.InvalidateSubscriptionPlanCache(plan.Id)
+	}
+	stripeSubscriptionCheckoutCreator = func(_ context.Context, _ StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		stripeCalls++
+		return &StripeSubscriptionCheckoutSession{ID: "cs_unexpected_recall_stale", URL: "https://checkout.stripe.test/unexpected-recall-stale"}, nil
+	}
+
+	_, err = PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        fixture.recipient.UserId,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RequestID:     "stripe-recurring-recall-stale",
+		RecallClaim:   fixture.claim,
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
+	})
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+	require.Equal(t, 1, hookCalls)
+	require.Zero(t, stripeCalls)
+	assertNoRecurringCheckoutSideEffects(t, fixture.recipient.UserId)
+	var recipient model.RecallRecipient
+	require.NoError(t, model.DB.First(&recipient, "id = ?", fixture.recipient.Id).Error)
+	require.NotEqual(t, model.RecallRecipientConverted, recipient.State)
+	require.Zero(t, recipient.ConvertedAt)
+}
+
+func assertNoRecurringCheckoutSideEffects(t *testing.T, userID int) {
+	t.Helper()
+	var contracts int64
+	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).Where("user_id = ?", userID).Count(&contracts).Error)
+	require.Zero(t, contracts)
+	var intents int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", userID).Count(&intents).Error)
+	require.Zero(t, intents)
+	var orders int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", userID).Count(&orders).Error)
+	require.Zero(t, orders)
+	var entries int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("user_id = ?", userID).Count(&entries).Error)
+	require.Zero(t, entries)
 }
 
 func setupSubscriptionRecallPurchaseTestDB(t *testing.T) {
@@ -1926,6 +2188,13 @@ func TestPurchaseSubscriptionStripeRecurringPropagatesClientSecret(t *testing.T)
 			ClientSecret: "cs_secret_purchase_embedded",
 		}, nil
 	}
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7324,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+	})
+	require.NoError(t, err)
 
 	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
 		UserID:        7324,
@@ -1934,6 +2203,7 @@ func TestPurchaseSubscriptionStripeRecurringPropagatesClientSecret(t *testing.T)
 		Months:        1,
 		RequestID:     "stripe-purchase-embedded",
 		UIMode:        "embedded",
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
 	})
 
 	require.NoError(t, err)
@@ -1974,6 +2244,13 @@ func TestPurchaseSubscriptionStripeRecurringReturnsHostedInvoiceURL(t *testing.T
 			},
 		}, nil
 	}
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7319,
+		PlanID:        targetPlan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+	})
+	require.NoError(t, err)
 
 	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
 		UserID:        7319,
@@ -1981,6 +2258,7 @@ func TestPurchaseSubscriptionStripeRecurringReturnsHostedInvoiceURL(t *testing.T
 		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
 		Months:        1,
 		RequestID:     "stripe-purchase-upgrade",
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
 	})
 
 	require.NoError(t, err)

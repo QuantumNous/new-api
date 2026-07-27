@@ -105,6 +105,7 @@ type purchasePlanSnapshot struct {
 	Title               string  `json:"title"`
 	PriceAmount         float64 `json:"price_amount"`
 	Currency            string  `json:"currency"`
+	StripePriceID       string  `json:"stripe_price_id,omitempty"`
 	DurationUnit        string  `json:"duration_unit"`
 	DurationValue       int     `json:"duration_value"`
 	TotalAmount         int64   `json:"total_amount"`
@@ -181,25 +182,52 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 		return nil, err
 	}
 	if cmd.PaymentChoice == SubscriptionPaymentChoiceStripeRecurring {
+		if existing, found, err := findRecurringPurchaseReplay(cmd.UserID, cmd.RequestID); err != nil {
+			return nil, err
+		} else if !found {
+			validatedQuote, err := validateAuthoritativeSubscriptionPurchaseQuote(context.Background(), cmd)
+			if err != nil {
+				return nil, err
+			}
+			cmd.VerifiedQuote = &validatedQuote
+			if subscriptionPurchaseAfterQuoteValidationHook != nil {
+				subscriptionPurchaseAfterQuoteValidationHook()
+			}
+		} else if existing.ToPlanId != cmd.PlanID {
+			return nil, errors.New("subscription purchase idempotency conflict")
+		}
 		change, err := ChangeSubscriptionPlan(ChangePlanCommand{
-			UserID:      cmd.UserID,
-			PlanID:      cmd.PlanID,
-			PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-			RequestID:   cmd.RequestID,
-			UIMode:      cmd.UIMode,
-			RecallClaim: cmd.RecallClaim,
+			UserID:        cmd.UserID,
+			PlanID:        cmd.PlanID,
+			PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+			RequestID:     cmd.RequestID,
+			UIMode:        cmd.UIMode,
+			RecallClaim:   cmd.RecallClaim,
+			VerifiedQuote: cmd.VerifiedQuote,
 		})
 		if err != nil {
 			return nil, err
 		}
-		return &PurchaseSubscriptionResult{
+		result := &PurchaseSubscriptionResult{
 			Status:           change.Status,
 			Contract:         change.Contract,
 			Intent:           change.Intent,
 			CheckoutURL:      change.CheckoutURL,
 			HostedInvoiceURL: change.HostedInvoiceURL,
 			ClientSecret:     change.ClientSecret,
-		}, nil
+		}
+		if change.Intent != nil {
+			var order model.SubscriptionOrder
+			query := model.DB.Where("change_intent_id = ? AND payment_provider = ?", change.Intent.Id, model.PaymentProviderStripe).
+				Order("id desc").Limit(1).Find(&order)
+			if query.Error != nil {
+				return nil, query.Error
+			}
+			if query.RowsAffected > 0 {
+				result.Order = &order
+			}
+		}
+		return result, nil
 	}
 	if replay, found, err := replayExistingSubscriptionPurchase(cmd); err != nil {
 		return nil, err
@@ -344,6 +372,13 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 	}
 	applyBalanceOnePeriodSideEffects(effects)
 	return result, nil
+}
+
+func findRecurringPurchaseReplay(userID int, requestID string) (*model.SubscriptionChangeIntent, bool, error) {
+	if userID <= 0 || strings.TrimSpace(requestID) == "" {
+		return nil, false, nil
+	}
+	return findIntentByRequestTx(model.DB, userID, strings.TrimSpace(requestID))
 }
 
 func (cmd *PurchaseSubscriptionCommand) normalize() {
@@ -1058,6 +1093,7 @@ func subscriptionPurchasePlanSnapshot(plan *model.SubscriptionPlan) (string, err
 		Title:               plan.Title,
 		PriceAmount:         plan.PriceAmount,
 		Currency:            plan.Currency,
+		StripePriceID:       strings.TrimSpace(plan.StripePriceId),
 		DurationUnit:        plan.DurationUnit,
 		DurationValue:       plan.DurationValue,
 		TotalAmount:         plan.TotalAmount,

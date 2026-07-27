@@ -414,10 +414,11 @@ func TestStripeRecurringChangePlanRequiresStripePriceBeforePersistingState(t *te
 	insertContractServicePlan(t, 7214, 1, 1, 1000)
 
 	_, err := ChangeSubscriptionPlan(ChangePlanCommand{
-		UserID:      7110,
-		PlanID:      7214,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "stripe-pending-migration",
+		UserID:        7110,
+		PlanID:        7214,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "stripe-pending-migration",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 1, 100),
 	})
 
 	require.Error(t, err)
@@ -452,10 +453,11 @@ func TestStripeRecurringCheckoutLeavesProviderRenewalUnsetUntilInvoiceApplies(t 
 	}
 
 	result, err := ChangeSubscriptionPlan(ChangePlanCommand{
-		UserID:      7112,
-		PlanID:      plan.Id,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "stripe-pending-renewal-state",
+		UserID:        7112,
+		PlanID:        plan.Id,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "stripe-pending-renewal-state",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
 	})
 
 	require.NoError(t, err)

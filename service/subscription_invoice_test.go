@@ -115,6 +115,135 @@ func TestCreateStripeSubscriptionCheckoutAppliesRecallDiscountAndMetadata(t *tes
 	require.Equal(t, "8609", form.Get("subscription_data[metadata][recall_recipient_id]"))
 }
 
+func TestCreateStripeSubscriptionCheckoutAppliesInvitationCouponOnce(t *testing.T) {
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	originalSecret := setting.StripeApiSecret
+	originalKey := stripe.Key
+	var couponForm url.Values
+	var couponIdempotency string
+	var sessionForm url.Values
+	var sessionIdempotency string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.NoError(t, r.ParseForm())
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/coupons":
+			couponForm = r.PostForm
+			couponIdempotency = r.Header.Get("Idempotency-Key")
+			_, _ = w.Write([]byte(`{"id":"coupon_invitation_once","object":"coupon","valid":true}`))
+		case "/v1/checkout/sessions":
+			sessionForm = r.PostForm
+			sessionIdempotency = r.Header.Get("Idempotency-Key")
+			_, _ = w.Write([]byte(`{"id":"cs_invitation_subscription","object":"checkout.session","url":"https://checkout.example/invitation"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
+		URL:               stripe.String(server.URL),
+		HTTPClient:        server.Client(),
+		MaxNetworkRetries: stripe.Int64(0),
+		LeveledLogger:     &stripe.LeveledLogger{Level: stripe.LevelNull},
+	}))
+	setting.StripeApiSecret = "sk_test_subscription_invitation"
+	t.Cleanup(func() {
+		server.Close()
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		setting.StripeApiSecret = originalSecret
+		stripe.Key = originalKey
+	})
+
+	session, err := createStripeSubscriptionCheckout(context.Background(), StripeSubscriptionCheckoutInput{
+		TradeNo:                "sub_invitation_checkout",
+		UserID:                 8110,
+		PlanID:                 8210,
+		ContractID:             8310,
+		ChangeIntentID:         8410,
+		Email:                  "invitation@example.com",
+		PriceID:                "price_invitation_subscription",
+		IdempotencyKey:         "idem-invitation-subscription",
+		DiscountKind:           SubscriptionDiscountKindInvitation,
+		DiscountAmountMinor:    525,
+		DiscountCurrency:       "USD",
+		DiscountReservationKey: "subscription-order:sub_invitation_checkout:reserve",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "cs_invitation_subscription", session.ID)
+	require.Equal(t, "525", couponForm.Get("amount_off"))
+	require.Equal(t, "usd", couponForm.Get("currency"))
+	require.Equal(t, string(stripe.CouponDurationOnce), couponForm.Get("duration"))
+	require.Equal(t, "Flatkey invitation package credit", couponForm.Get("name"))
+	require.Equal(t, "idem-invitation-subscription:invitation-coupon", couponIdempotency)
+	require.Equal(t, "coupon_invitation_once", sessionForm.Get("discounts[0][coupon]"))
+	require.Empty(t, sessionForm.Get("discounts[1][coupon]"))
+	require.Empty(t, sessionForm.Get("allow_promotion_codes"))
+	require.Equal(t, "idem-invitation-subscription", sessionIdempotency)
+	for _, prefix := range []string{"metadata", "subscription_data[metadata]"} {
+		require.Equal(t, "invitation", sessionForm.Get(prefix+"[discount_kind]"))
+		require.Equal(t, "525", sessionForm.Get(prefix+"[subscription_discount_amount_minor]"))
+		require.Equal(t, "subscription-order:sub_invitation_checkout:reserve", sessionForm.Get(prefix+"[subscription_discount_reservation_key]"))
+	}
+}
+
+func TestCreateStripeSubscriptionCheckoutDiscountSelectionVariants(t *testing.T) {
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	originalSecret := setting.StripeApiSecret
+	originalKey := stripe.Key
+	var couponCalls int
+	var sessionForms []url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.NoError(t, r.ParseForm())
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/coupons":
+			couponCalls++
+			_, _ = w.Write([]byte(`{"id":"coupon_unexpected","object":"coupon","valid":true}`))
+		case "/v1/checkout/sessions":
+			sessionForms = append(sessionForms, r.PostForm)
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"id":"cs_variant_%d","object":"checkout.session","url":"https://checkout.example/variant-%d"}`, len(sessionForms), len(sessionForms))))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
+		URL:               stripe.String(server.URL),
+		HTTPClient:        server.Client(),
+		MaxNetworkRetries: stripe.Int64(0),
+		LeveledLogger:     &stripe.LeveledLogger{Level: stripe.LevelNull},
+	}))
+	setting.StripeApiSecret = "sk_test_subscription_variants"
+	t.Cleanup(func() {
+		server.Close()
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		setting.StripeApiSecret = originalSecret
+		stripe.Key = originalKey
+	})
+
+	_, err := createStripeSubscriptionCheckout(context.Background(), StripeSubscriptionCheckoutInput{
+		TradeNo: "sub_recall_winner", UserID: 8111, PlanID: 8211, ContractID: 8311, ChangeIntentID: 8411,
+		Email: "recall@example.com", PriceID: "price_recall", DiscountKind: SubscriptionDiscountKindRecall,
+		RecallDiscount: &RecallCheckoutDiscount{PromotionCodeID: "promo_recall_winner", CampaignID: 1, RecipientID: 2},
+	})
+	require.NoError(t, err)
+	_, err = createStripeSubscriptionCheckout(context.Background(), StripeSubscriptionCheckoutInput{
+		TradeNo: "sub_no_discount", UserID: 8112, PlanID: 8212, ContractID: 8312, ChangeIntentID: 8412,
+		Email: "none@example.com", PriceID: "price_none", DiscountKind: SubscriptionDiscountKindNone,
+	})
+	require.NoError(t, err)
+
+	require.Zero(t, couponCalls)
+	require.Len(t, sessionForms, 2)
+	require.Equal(t, "promo_recall_winner", sessionForms[0].Get("discounts[0][promotion_code]"))
+	require.Empty(t, sessionForms[0].Get("discounts[0][coupon]"))
+	require.Empty(t, sessionForms[0].Get("allow_promotion_codes"))
+	require.Empty(t, sessionForms[1].Get("discounts[0][promotion_code]"))
+	require.Empty(t, sessionForms[1].Get("discounts[0][coupon]"))
+	require.Empty(t, sessionForms[1].Get("allow_promotion_codes"))
+}
+
 func setupSubscriptionInvoiceServiceTestDB(t *testing.T) {
 	t.Helper()
 
@@ -161,6 +290,11 @@ func setupSubscriptionInvoiceServiceTestDB(t *testing.T) {
 		&model.SubscriptionTermSegment{},
 		&model.WalletLedgerEntry{},
 		&model.TopUp{},
+		&model.SubscriptionDiscountAccount{},
+		&model.SubscriptionDiscountEntry{},
+		&model.RecallCampaign{},
+		&model.RecallRecipient{},
+		&model.RecallEvent{},
 	))
 }
 
@@ -265,6 +399,32 @@ func stripeSubscriptionFixture(subscriptionID string, metadata map[string]string
 			},
 		}},
 		LatestInvoice: &stripe.Invoice{ID: "in_first"},
+	}
+}
+
+func setStripeInvoiceFixtureAmountAndPrice(invoice *stripe.Invoice, subscription *stripe.Subscription, amountPaid int64, currency stripe.Currency, priceID string) {
+	invoice.AmountPaid = amountPaid
+	invoice.Total = amountPaid
+	invoice.Currency = currency
+	if len(invoice.Lines.Data) > 0 {
+		invoice.Lines.Data[0].Amount = amountPaid
+		invoice.Lines.Data[0].Currency = currency
+		setStripeInvoiceLinePrice(invoice.Lines.Data[0], priceID)
+	}
+	if len(subscription.Items.Data) > 0 && subscription.Items.Data[0] != nil {
+		subscription.Items.Data[0].Price = &stripe.Price{ID: priceID}
+	}
+}
+
+func verifiedRecurringQuoteForTest(currency string, price float64, amountMinor int64) *SubscriptionPurchaseQuote {
+	return &SubscriptionPurchaseQuote{
+		Currency:                 strings.ToUpper(strings.TrimSpace(currency)),
+		UnitPrice:                price,
+		Total:                    float64(amountMinor) / 100,
+		UnitAmountMinor:          amountMinor,
+		OriginalTotalAmountMinor: amountMinor,
+		PaymentAmountMinor:       amountMinor,
+		DiscountKind:             SubscriptionDiscountKindNone,
 	}
 }
 
@@ -408,6 +568,166 @@ func TestReconcilePaidInvoiceGrantsInvoiceFirstPurchase(t *testing.T) {
 	require.Equal(t, "in_first", applied.ProviderInvoiceId)
 }
 
+func TestReconcilePaidInvoiceInitialInvitationUsesDiscountedOrderPaymentAmount(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	userID := 8131
+	planID := 8231
+	contract, intent := seedStripeInvoicePurchase(t, userID, planID, "sub_invoice_invitation_discounted")
+	reservationKey := "subscription-order:sub_invoice_invitation_discounted:reserve"
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		if _, err := model.GrantSubscriptionDiscountTx(tx, model.SubscriptionDiscountGrantInput{
+			UserID:         userID,
+			USDMinor:       500,
+			SourceType:     "test",
+			SourceKey:      "initial-invoice-invitation",
+			EntryType:      model.SubscriptionDiscountEntryTypeGrantInvitee,
+			IdempotencyKey: "grant-initial-invoice-invitation",
+		}); err != nil {
+			return err
+		}
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             userID,
+			USDMinor:           500,
+			OrderID:            1,
+			TradeNo:            "sub_invoice_invitation_discounted",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 500,
+			IdempotencyKey:     reservationKey,
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("trade_no = ?", "sub_invoice_invitation_discounted").Updates(map[string]interface{}{
+		"payment_currency":                      "USD",
+		"payment_amount_minor":                  int64(734),
+		"plan_snapshot":                         `{"plan_id":8231,"title":"Invoice Plan","price_amount":12.34,"currency":"USD","stripe_price_id":"price_invoice_plan","duration_unit":"month","duration_value":1,"total_amount":1234}`,
+		"discount_kind":                         SubscriptionDiscountKindInvitation,
+		"subscription_discount_usd_minor":       int64(500),
+		"subscription_discount_amount_minor":    int64(500),
+		"subscription_discount_reservation_key": reservationKey,
+	}).Error)
+	invoice := stripeInvoiceFixture("in_invitation_discounted", "sub_invoice_invitation_discounted")
+	subscription := stripeSubscriptionFixture("sub_invoice_invitation_discounted", map[string]string{
+		"trade_no":         "sub_invoice_invitation_discounted",
+		"user_id":          strconv.Itoa(userID),
+		"plan_id":          strconv.Itoa(planID),
+		"contract_id":      strconv.FormatInt(contract.Id, 10),
+		"change_intent_id": strconv.FormatInt(intent.Id, 10),
+	})
+	setStripeInvoiceFixtureAmountAndPrice(invoice, subscription, 734, stripe.CurrencyUSD, "price_invoice_plan")
+	restore := replaceStripeInvoiceReconcilers(t, invoice, subscription)
+
+	first, err := ReconcilePaidInvoice(context.Background(), "in_invitation_discounted")
+	restore()
+	require.NoError(t, err)
+	duplicateInvoice := stripeInvoiceFixture("in_invitation_discounted", "sub_invoice_invitation_discounted")
+	duplicateSubscription := stripeSubscriptionFixture("sub_invoice_invitation_discounted", map[string]string{})
+	setStripeInvoiceFixtureAmountAndPrice(duplicateInvoice, duplicateSubscription, 734, stripe.CurrencyUSD, "price_invoice_plan")
+	restoreDuplicate := replaceStripeInvoiceReconcilers(t, duplicateInvoice, duplicateSubscription)
+	defer restoreDuplicate()
+	second, err := ReconcilePaidInvoice(context.Background(), "in_invitation_discounted")
+	require.NoError(t, err)
+
+	require.True(t, first.Applied)
+	require.False(t, second.Applied)
+	var account model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&account, "user_id = ?", userID).Error)
+	require.Zero(t, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var commitCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", reservationKey, model.SubscriptionDiscountEntryTypeCommit).
+		Count(&commitCount).Error)
+	require.Equal(t, int64(1), commitCount)
+	var releaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", reservationKey, model.SubscriptionDiscountEntryTypeRelease).
+		Count(&releaseCount).Error)
+	require.Zero(t, releaseCount)
+	var entitlementCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", userID).Count(&entitlementCount).Error)
+	require.Equal(t, int64(1), entitlementCount)
+}
+
+func TestReconcilePaidInvoiceInitialRecallUsesDiscountedOrderPaymentAmountAndConvertsOnce(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	userID := 8132
+	planID := 8232
+	contract, intent := seedStripeInvoicePurchase(t, userID, planID, "sub_invoice_recall_discounted")
+	promotionCode := "promo_invoice_recall"
+	campaign := model.RecallCampaign{
+		Name:                "invoice recall",
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "manual",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "stripe",
+		DiscountConfig:      `{}`,
+		ProductScope:        `{}`,
+		EmailSequenceConfig: `{}`,
+	}
+	require.NoError(t, model.DB.Create(&campaign).Error)
+	recipient := model.RecallRecipient{
+		CampaignId:            campaign.Id,
+		RecipientIdentity:     model.RecallRecipientIdentityForUser(userID),
+		UserId:                userID,
+		EligibilitySnapshot:   `{}`,
+		EmailSnapshot:         "invoice-recall@example.com",
+		LanguageSnapshot:      "en",
+		State:                 model.RecallRecipientCodeReady,
+		StripePromotionCodeId: &promotionCode,
+	}
+	require.NoError(t, model.DB.Create(&recipient).Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("trade_no = ?", "sub_invoice_recall_discounted").Updates(map[string]interface{}{
+		"payment_currency":             "USD",
+		"payment_amount_minor":         int64(934),
+		"plan_snapshot":                `{"plan_id":8232,"title":"Invoice Plan","price_amount":12.34,"currency":"USD","stripe_price_id":"price_invoice_plan","duration_unit":"month","duration_value":1,"total_amount":1234}`,
+		"discount_kind":                SubscriptionDiscountKindRecall,
+		"recall_campaign_id":           campaign.Id,
+		"recall_recipient_id":          recipient.Id,
+		"recall_promotion_code_id":     promotionCode,
+		"recall_discount_amount_minor": int64(300),
+	}).Error)
+	invoice := stripeInvoiceFixture("in_recall_discounted", "sub_invoice_recall_discounted")
+	subscription := stripeSubscriptionFixture("sub_invoice_recall_discounted", map[string]string{
+		"trade_no":         "sub_invoice_recall_discounted",
+		"user_id":          strconv.Itoa(userID),
+		"plan_id":          strconv.Itoa(planID),
+		"contract_id":      strconv.FormatInt(contract.Id, 10),
+		"change_intent_id": strconv.FormatInt(intent.Id, 10),
+	})
+	setStripeInvoiceFixtureAmountAndPrice(invoice, subscription, 934, stripe.CurrencyUSD, "price_invoice_plan")
+	restore := replaceStripeInvoiceReconcilers(t, invoice, subscription)
+
+	first, err := ReconcilePaidInvoice(context.Background(), "in_recall_discounted")
+	restore()
+	require.NoError(t, err)
+	duplicateInvoice := stripeInvoiceFixture("in_recall_discounted", "sub_invoice_recall_discounted")
+	duplicateSubscription := stripeSubscriptionFixture("sub_invoice_recall_discounted", map[string]string{})
+	setStripeInvoiceFixtureAmountAndPrice(duplicateInvoice, duplicateSubscription, 934, stripe.CurrencyUSD, "price_invoice_plan")
+	restoreDuplicate := replaceStripeInvoiceReconcilers(t, duplicateInvoice, duplicateSubscription)
+	defer restoreDuplicate()
+	second, err := ReconcilePaidInvoice(context.Background(), "in_recall_discounted")
+	require.NoError(t, err)
+
+	require.True(t, first.Applied)
+	require.False(t, second.Applied)
+	var converted model.RecallRecipient
+	require.NoError(t, model.DB.First(&converted, "id = ?", recipient.Id).Error)
+	require.Equal(t, model.RecallRecipientConverted, converted.State)
+	require.Equal(t, model.RecallConversionDirect, converted.ConversionKind)
+	require.Equal(t, "sub_invoice_recall_discounted", converted.ConversionTradeNo)
+	require.Equal(t, "USD", converted.ConversionCurrency)
+	require.Equal(t, int64(934), converted.ConversionAmount)
+	require.Equal(t, int64(300), converted.DiscountAmount)
+	var conversionCount int64
+	require.NoError(t, model.DB.Model(&model.RecallEvent{}).Where("recipient_id = ? AND event_type = ?", recipient.Id, "conversion").Count(&conversionCount).Error)
+	require.Equal(t, int64(1), conversionCount)
+	var discountEntries int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("user_id = ?", userID).Count(&discountEntries).Error)
+	require.Zero(t, discountEntries)
+}
+
 func TestReconcilePaidInvoiceFirstPurchaseUsesFrozenOrderPlanSnapshotAfterPlanEdit(t *testing.T) {
 	setupSubscriptionInvoiceServiceTestDB(t)
 	contract, intent := seedStripeInvoicePurchase(t, 8130, 8230, "sub_invoice_snapshot_first")
@@ -449,6 +769,55 @@ func TestReconcilePaidInvoiceFirstPurchaseUsesFrozenOrderPlanSnapshotAfterPlanEd
 	require.Equal(t, int64(125), *result.Entitlement.Window5hAmount)
 	require.Equal(t, int64(900), *result.Entitlement.WindowWeekAmount)
 	require.Equal(t, "snapshot_group", result.Entitlement.UpgradeGroup)
+}
+
+func TestReconcilePaidInvoiceInitialPurchaseMatchesSnapshotPriceAndDiscountedAmountAfterPlanEdit(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	contract, intent := seedStripeInvoicePurchase(t, 8133, 8233, "sub_invoice_discounted_snapshot_price")
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("trade_no = ?", "sub_invoice_discounted_snapshot_price").Updates(map[string]interface{}{
+		"payment_currency":     "USD",
+		"payment_amount_minor": int64(734),
+		"plan_snapshot":        `{"plan_id":8233,"title":"Invoice Plan","price_amount":12.34,"currency":"USD","stripe_price_id":"price_snapshot_invoice_plan","duration_unit":"month","duration_value":1,"total_amount":1234}`,
+	}).Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 8233).Updates(map[string]interface{}{
+		"price_amount":    99.99,
+		"stripe_price_id": "price_current_edited",
+		"total_amount":    int64(999999),
+		"enabled":         false,
+	}).Error)
+	subscriptionMetadata := map[string]string{
+		"trade_no":         "sub_invoice_discounted_snapshot_price",
+		"user_id":          "8133",
+		"plan_id":          "8233",
+		"contract_id":      strconv.FormatInt(contract.Id, 10),
+		"change_intent_id": strconv.FormatInt(intent.Id, 10),
+	}
+	invoice := stripeInvoiceFixture("in_discounted_snapshot_price", "sub_invoice_discounted_snapshot_price")
+	subscription := stripeSubscriptionFixture("sub_invoice_discounted_snapshot_price", subscriptionMetadata)
+	setStripeInvoiceFixtureAmountAndPrice(invoice, subscription, 734, stripe.CurrencyUSD, "price_snapshot_invoice_plan")
+	restore := replaceStripeInvoiceReconcilers(t, invoice, subscription)
+	defer restore()
+
+	result, err := ReconcilePaidInvoice(context.Background(), "in_discounted_snapshot_price")
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+
+	mismatchInvoice := stripeInvoiceFixture("in_discounted_snapshot_price_mismatch", "sub_invoice_discounted_snapshot_price_mismatch")
+	mismatchSubscription := stripeSubscriptionFixture("sub_invoice_discounted_snapshot_price_mismatch", map[string]string{
+		"trade_no":         "sub_invoice_discounted_snapshot_price",
+		"user_id":          "8133",
+		"plan_id":          "8233",
+		"contract_id":      strconv.FormatInt(contract.Id, 10),
+		"change_intent_id": strconv.FormatInt(intent.Id, 10),
+	})
+	setStripeInvoiceFixtureAmountAndPrice(mismatchInvoice, mismatchSubscription, 733, stripe.CurrencyUSD, "price_snapshot_invoice_plan")
+	restoreMismatch := replaceStripeInvoiceReconcilers(t, mismatchInvoice, mismatchSubscription)
+	defer restoreMismatch()
+
+	_, err = ReconcilePaidInvoice(context.Background(), "in_discounted_snapshot_price_mismatch")
+	require.Error(t, err)
+	require.True(t, IsPermanentPaidInvoiceError(err))
+	require.Contains(t, err.Error(), "amount mismatch")
 }
 
 func TestReconcilePaidInvoiceIsIdempotentForDuplicateAndCheckoutFirst(t *testing.T) {
@@ -1094,17 +1463,19 @@ func TestStripeRecurringChangePlanCreatesAndReplaysCheckoutSession(t *testing.T)
 	defer restore()
 
 	first, err := ChangeSubscriptionPlan(ChangePlanCommand{
-		UserID:      8104,
-		PlanID:      8204,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "550e8400-e29b-41d4-a716-446655440102",
+		UserID:        8104,
+		PlanID:        8204,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "550e8400-e29b-41d4-a716-446655440102",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
 	})
 	require.NoError(t, err)
 	second, err := ChangeSubscriptionPlan(ChangePlanCommand{
-		UserID:      8104,
-		PlanID:      8204,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "550e8400-e29b-41d4-a716-446655440102",
+		UserID:        8104,
+		PlanID:        8204,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "550e8400-e29b-41d4-a716-446655440102",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
 	})
 	require.NoError(t, err)
 
@@ -1144,19 +1515,21 @@ func TestStripeRecurringEmbeddedCheckoutAllowsEmptyURLAndReplaysClientSecretFrom
 	t.Cleanup(restoreStripeAccessors)
 
 	first, err := ChangeSubscriptionPlan(ChangePlanCommand{
-		UserID:      8114,
-		PlanID:      8214,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "550e8400-e29b-41d4-a716-446655440114",
-		UIMode:      "embedded",
+		UserID:        8114,
+		PlanID:        8214,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "550e8400-e29b-41d4-a716-446655440114",
+		UIMode:        "embedded",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
 	})
 	require.NoError(t, err)
 	second, err := ChangeSubscriptionPlan(ChangePlanCommand{
-		UserID:      8114,
-		PlanID:      8214,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "550e8400-e29b-41d4-a716-446655440114",
-		UIMode:      "embedded",
+		UserID:        8114,
+		PlanID:        8214,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "550e8400-e29b-41d4-a716-446655440114",
+		UIMode:        "embedded",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
 	})
 	require.NoError(t, err)
 
@@ -1196,21 +1569,23 @@ func TestStripeRecurringReplayRejectsSessionWithoutURLOrClientSecret(t *testing.
 	t.Cleanup(restoreStripeAccessors)
 
 	first, err := ChangeSubscriptionPlan(ChangePlanCommand{
-		UserID:      8116,
-		PlanID:      8216,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "550e8400-e29b-41d4-a716-446655440116",
-		UIMode:      "embedded",
+		UserID:        8116,
+		PlanID:        8216,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "550e8400-e29b-41d4-a716-446655440116",
+		UIMode:        "embedded",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
 	})
 	require.NoError(t, err)
 	require.Equal(t, "cs_secret_initial", first.ClientSecret)
 
 	second, err := ChangeSubscriptionPlan(ChangePlanCommand{
-		UserID:      8116,
-		PlanID:      8216,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "550e8400-e29b-41d4-a716-446655440116",
-		UIMode:      "embedded",
+		UserID:        8116,
+		PlanID:        8216,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "550e8400-e29b-41d4-a716-446655440116",
+		UIMode:        "embedded",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
 	})
 
 	require.Error(t, err)
