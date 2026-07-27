@@ -708,6 +708,74 @@ func TestPurchaseSubscriptionInvitationOrdersDoNotWriteRecallAttribution(t *test
 	}
 }
 
+func TestPurchaseSubscriptionMultiMonthInvitationDiscountCanExceedMonthlyUnit(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	userID := 7668
+	insertPurchaseServiceUser(t, userID, 100000)
+	plan := insertPurchaseServicePlan(t, 7768, 1, 20, 2000)
+	grantPurchaseServiceInvitationDiscount(t, userID, 5000, "multi-month-invitation")
+
+	quote, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        3,
+	})
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionDiscountKindInvitation, quote.DiscountKind)
+	require.Equal(t, int64(2000), quote.UnitAmountMinor)
+	require.Equal(t, int64(6000), quote.OriginalTotalAmountMinor)
+	require.Equal(t, int64(5000), quote.DiscountAmountMinor)
+	require.Greater(t, quote.DiscountAmountMinor, quote.UnitAmountMinor)
+	require.LessOrEqual(t, quote.DiscountAmountMinor, quote.OriginalTotalAmountMinor)
+
+	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceBalance,
+		Months:        3,
+		RequestID:     "multi-month-invitation",
+		VerifiedQuote: purchaseQuoteFromResult(quote),
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result.Order)
+	require.Equal(t, int64(1000), result.Order.PaymentAmountMinor)
+	require.Zero(t, result.Order.RecallDiscountAmountMinor)
+}
+
+func TestValidateSubscriptionPurchaseQuoteRejectsRecallDiscountGreaterThanMonthlyUnit(t *testing.T) {
+	tests := []struct {
+		name string
+		kind string
+	}{
+		{name: "explicit_recall", kind: SubscriptionDiscountKindRecall},
+		{name: "legacy_discount_defaults_to_recall", kind: ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := validateSubscriptionPurchaseQuoteForChoice(SubscriptionPurchaseQuote{
+				Currency:                 "USD",
+				UnitPrice:                1,
+				UnitAmountMinor:          100,
+				OriginalTotal:            3,
+				OriginalTotalAmountMinor: 300,
+				DiscountKind:             test.kind,
+				DiscountAmount:           1.01,
+				DiscountAmountMinor:      101,
+				Total:                    1.99,
+				PaymentAmountMinor:       199,
+				RecallCampaignID:         42,
+				RecallRecipientID:        99,
+			}, SubscriptionPaymentChoiceBalance, 3)
+
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "first month")
+		})
+	}
+}
+
 func TestPurchaseSubscriptionRecallBalanceRequiresClaimAndChargesDiscountedQuote(t *testing.T) {
 	setupSubscriptionRecallPurchaseTestDB(t)
 	now := time.Now().UTC()
