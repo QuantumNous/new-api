@@ -209,6 +209,7 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 			tool.ID = fmt.Sprintf("%s_call_%d", s.ID, chatIndex)
 		}
 		s.toolsByIndex[chatIndex] = tool
+		addedNs, addedName := splitNamespaceName(tool.Name)
 		events = append(events, responsesStreamEvent(responsesEventOutputItemAdded, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemAdded,
 			OutputIndex: intPtr(tool.OutputIndex),
@@ -218,7 +219,8 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 				ID:        tool.ID,
 				Status:    "in_progress",
 				CallId:    tool.ID,
-				Name:      tool.Name,
+				Name:      addedName,
+				Namespace: addedNs,
 				Arguments: []byte(`""`),
 			},
 		}))
@@ -406,12 +408,25 @@ func (s *ChatToResponsesStreamState) reasoningOutput(status string) *dto.Respons
 }
 
 func (s *ChatToResponsesStreamState) toolOutput(tool *chatToResponsesStreamTool, status string) *dto.ResponsesOutput {
+	ns, name := splitNamespaceName(tool.Name)
 	return &dto.ResponsesOutput{
 		Type:      responsesOutputTypeFunctionCall,
 		ID:        tool.ID,
 		Status:    status,
 		CallId:    tool.ID,
-		Name:      tool.Name,
+		Name:      name,
+		Namespace: ns,
 		Arguments: chatArgumentsRawMessage(tool.Arguments.String()),
 	}
+}
+
+
+// splitNamespaceName splits a flattened "ns__name" tool name back into
+// (namespace, name).  Returns ("", fullName) when no "__" separator is
+// present or the prefix is empty.
+func splitNamespaceName(fullName string) (namespace, name string) {
+	if idx := strings.LastIndex(fullName, "__"); idx > 0 {
+		return fullName[:idx], fullName[idx+2:]
+	}
+	return "", fullName
 }

@@ -279,6 +279,10 @@ func responsesFunctionCallItemToChatToolCall(item map[string]any) (dto.ToolCallR
 	if name == "" {
 		return dto.ToolCallRequest{}, errors.New("function_call item is missing name")
 	}
+	// Reconstruct flattened name when namespace is present (roundtrip).
+	if ns := strings.TrimSpace(common.Interface2String(item["namespace"])); ns != "" {
+		name = ns + "__" + name
+	}
 	return dto.ToolCallRequest{
 		ID:   responsesCallID(item),
 		Type: "function",
@@ -331,7 +335,8 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 	out := make([]dto.ToolCallRequest, 0, len(tools))
 	for _, tool := range tools {
 		toolType := strings.TrimSpace(common.Interface2String(tool["type"]))
-		if toolType == "function" {
+		switch toolType {
+		case "function":
 			out = append(out, dto.ToolCallRequest{
 				Type: "function",
 				Function: dto.FunctionRequest{
@@ -340,17 +345,37 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 					Parameters:  tool["parameters"],
 				},
 			})
-			continue
+		case "namespace", "mcp_server":
+			// Flatten inner tools into individual function entries
+			nsName := strings.TrimSpace(common.Interface2String(tool["name"]))
+			innerTools, _ := tool["tools"].([]any)
+			for _, rawInner := range innerTools {
+				inner, ok := rawInner.(map[string]any)
+				if !ok {
+					continue
+				}
+				innerName := strings.TrimSpace(common.Interface2String(inner["name"]))
+				if innerName == "" {
+					continue
+				}
+				fullName := innerName
+				if nsName != "" {
+					fullName = nsName + "__" + innerName
+				}
+				out = append(out, dto.ToolCallRequest{
+					Type: "function",
+					Function: dto.FunctionRequest{
+						Name:        fullName,
+						Description: common.Interface2String(inner["description"]),
+						Parameters:  inner["parameters"],
+					},
+				})
+			}
+		case "custom", "web_search", "tool_search", "file_search", "code_interpreter":
+			// No Chat Completions equivalent; drop to avoid upstream 400.
+		default:
+			// Unknown tool types: drop to avoid upstream 400.
 		}
-
-		rawTool, err := common.Marshal(tool)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, dto.ToolCallRequest{
-			Type:   toolType,
-			Custom: rawTool,
-		})
 	}
 	return out, nil
 }
@@ -424,8 +449,18 @@ func RequestTextToChatResponseFormat(raw json.RawMessage) (*dto.ResponseFormat, 
 }
 
 func responsesImagePartToChatImageURL(part map[string]any) any {
+	// If image_url is already an object (map), pass through.
 	if imageURL, ok := part["image_url"]; ok {
-		return imageURL
+		if m, isMap := imageURL.(map[string]any); isMap {
+			return m
+		}
+		// image_url is a string (e.g. data URI) — wrap into the
+		// {"url": ..., "detail": ...} object that Chat Completions expects.
+		wrapped := map[string]any{"url": imageURL}
+		if detail, ok := part["detail"]; ok {
+			wrapped["detail"] = detail
+		}
+		return wrapped
 	}
 	imageURL := map[string]any{}
 	for _, key := range []string{"url", "file_id", "detail"} {
