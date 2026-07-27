@@ -25,6 +25,7 @@ import { I18nextProvider, initReactI18next } from 'react-i18next'
 import { RecallClaimProvider } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
 import type {
   PlanRecord,
+  SelfSubscriptionDataResponse,
   SubscriptionPaymentQuote,
 } from '@/features/subscriptions/types'
 import {
@@ -159,6 +160,12 @@ function renderWalletCard(selfData = normalizeSelfSubscriptionData(undefined)) {
       />
     </I18nextProvider>
   )
+}
+
+function rawSelfSubscriptionResponse(
+  data: unknown
+): SelfSubscriptionDataResponse {
+  return data as SelfSubscriptionDataResponse
 }
 
 const subscriptionRecallClaim: RecallClaimView = {
@@ -407,26 +414,28 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
 
   test('does not infer wallet auto-renew from the legacy balance renewal source', () => {
     const html = renderWalletCard(
-      normalizeSelfSubscriptionData({
-        contract: {
-          contract_id: 16,
-          id: 16,
-          status: 'active',
-          payment_mode: 'prepaid',
-          current_plan_id: 2,
-          current_entitlement_id: 20,
-          current_provider_binding_id: 0,
-          latest_change_intent_id: 0,
-          pending_plan_id: 0,
-          pending_effective_at: 0,
-          current_period_start: 1717200000,
-          current_period_end: 1719792000,
-          grace_period_end: 0,
-          change_version: 1,
-        },
-        renewal_source: 'balance' as 'wallet_auto',
-        renewal_status: 'enabled',
-      })
+      normalizeSelfSubscriptionData(
+        rawSelfSubscriptionResponse({
+          contract: {
+            contract_id: 16,
+            id: 16,
+            status: 'active',
+            payment_mode: 'prepaid',
+            current_plan_id: 2,
+            current_entitlement_id: 20,
+            current_provider_binding_id: 0,
+            latest_change_intent_id: 0,
+            pending_plan_id: 0,
+            pending_effective_at: 0,
+            current_period_start: 1717200000,
+            current_period_end: 1719792000,
+            grace_period_end: 0,
+            change_version: 1,
+          },
+          renewal_source: 'balance',
+          renewal_status: 'enabled',
+        })
+      )
     )
 
     expect(html).toContain('Active')
