@@ -80,6 +80,12 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 	{
+		responsesResourceRouter := relayV1Router.Group("")
+		responsesResourceRouter.GET("/responses/:response_id", controller.RelayResponsesResource)
+		responsesResourceRouter.DELETE("/responses/:response_id", controller.RelayResponsesResource)
+		responsesResourceRouter.GET("/responses/:response_id/input_items", controller.RelayResponsesResource)
+	}
+	{
 		//http router
 		httpRouter := relayV1Router.Group("")
 		httpRouter.Use(middleware.Distribute())

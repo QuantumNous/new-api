@@ -33,6 +33,11 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
+	if resp.Request != nil && resp.Request.URL != nil {
+		if err := service.RecordResponsesResourceRoute(c, responsesResponse.ID, int64(responsesResponse.ExpiresAt), resp.Request.URL.String()); err != nil {
+			logger.LogWarn(c, "failed to record responses resource route")
+		}
+	}
 
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
@@ -95,6 +100,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			return
 		}
 		sendResponsesStreamData(c, streamResponse, data)
+		if streamResponse.Response != nil && resp.Request != nil && resp.Request.URL != nil {
+			if err := service.RecordResponsesResourceRoute(c, streamResponse.Response.ID, int64(streamResponse.Response.ExpiresAt), resp.Request.URL.String()); err != nil {
+				logger.LogWarn(c, "failed to record responses resource route")
+			}
+		}
 		switch streamResponse.Type {
 		case "response.completed", "response.done":
 			if streamResponse.Response != nil {
