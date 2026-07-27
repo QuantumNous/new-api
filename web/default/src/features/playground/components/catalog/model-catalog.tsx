@@ -131,8 +131,8 @@ export function ModelCatalog(props: ModelCatalogProps) {
     })
   }, [catalog, modality, query])
 
-  // Pinned models float to a dedicated section; the rest group by provider,
-  // larger providers first, unattributed models last.
+  // Pinned models float to a dedicated section; the rest group by provider
+  // in alphabetical order, unattributed models last.
   const groups = useMemo(() => {
     const byName = (a: PricingModel, b: PricingModel) =>
       a.model_name.localeCompare(b.model_name)
@@ -155,9 +155,6 @@ export function ModelCatalog(props: ModelCatalogProps) {
       .map(([vendor, models]) => ({ vendor, models: models.sort(byName) }))
       .sort((a, b) => {
         if (!a.vendor !== !b.vendor) return a.vendor ? -1 : 1
-        if (a.models.length !== b.models.length) {
-          return b.models.length - a.models.length
-        }
         return a.vendor.localeCompare(b.vendor)
       })
     return { pinned: pinned.sort(byName), vendorGroups }
@@ -270,7 +267,7 @@ export function ModelCatalog(props: ModelCatalogProps) {
           ['one', 'two', 'three', 'four', 'five', 'six'].map((key) => (
             <Skeleton
               key={key}
-              className='bg-muted/50 h-[4.5rem] w-full rounded-[11px]'
+              className='bg-muted/50 h-10 w-full rounded-[11px]'
             />
           ))}
         {props.error && (
@@ -375,6 +372,61 @@ function GroupHeader(props: {
   )
 }
 
+/**
+ * Provider card archetypes. Each provider deterministically maps to one of
+ * these so different providers read differently at a glance while models of
+ * the same provider stay visually consistent. All decorations derive from
+ * the brand color exposed as the `--brand` CSS variable.
+ */
+const CARD_VARIANT_COUNT = 4
+
+function providerVariant(seed: string): number {
+  let hash = 0
+  for (let index = 0; index < seed.length; index++) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0
+  }
+  return hash % CARD_VARIANT_COUNT
+}
+
+function variantTexture(variant: number): React.CSSProperties {
+  switch (variant) {
+    case 0:
+      // Diagonal brand wash from the icon side.
+      return {
+        background:
+          'linear-gradient(115deg, color-mix(in srgb, var(--brand) 16%, transparent), color-mix(in srgb, var(--brand) 5%, transparent) 45%, transparent 70%)',
+      }
+    case 1:
+      // Soft halo glowing from the top-right corner.
+      return {
+        background:
+          'radial-gradient(130px circle at 92% -20%, color-mix(in srgb, var(--brand) 26%, transparent), transparent 72%)',
+      }
+    case 2:
+      // Fine pinstripes plus a solid brand spine on the left edge.
+      return {
+        background:
+          'linear-gradient(to right, color-mix(in srgb, var(--brand) 60%, transparent) 0 3px, transparent 3px), repeating-linear-gradient(135deg, color-mix(in srgb, var(--brand) 7%, transparent) 0 1px, transparent 1px 8px)',
+      }
+    default:
+      // Dot grid fading out toward the text.
+      return {
+        backgroundImage:
+          'radial-gradient(color-mix(in srgb, var(--brand) 30%, transparent) 1px, transparent 1.5px)',
+        backgroundSize: '9px 9px',
+        maskImage: 'linear-gradient(to left, black 25%, transparent 75%)',
+        WebkitMaskImage: 'linear-gradient(to left, black 25%, transparent 75%)',
+      }
+  }
+}
+
+const WATERMARK_CLASSES = [
+  'top-1/2 -right-3 -translate-y-1/2 rotate-12',
+  '-top-4 right-6 -rotate-6',
+  '-bottom-4 right-8 rotate-6',
+  'top-1/2 right-10 -translate-y-1/2 -rotate-12',
+] as const
+
 function ModelCard(props: {
   model: PricingModel
   selected: boolean
@@ -388,87 +440,99 @@ function ModelCard(props: {
   const ModalityIcon = modalityIcons[modelModality]
   const isNew = isLikelyNewModel(model)
   const brand = getBrandColor(model.icon, model.vendor_icon)
+  const variant = providerVariant(
+    model.vendor_name?.trim() || model.model_name.split(/[-/.]/)[0]
+  )
 
   return (
     <div
       className={cn(
-        'group relative w-full rounded-[11px] border border-transparent transition-all',
+        'group border-border/50 bg-background/40 relative w-full overflow-hidden rounded-[11px] border transition-all',
         selected
-          ? 'border-primary/30 from-primary/12 to-primary/4 bg-gradient-to-br shadow-sm'
-          : 'hover:border-border hover:bg-muted/40 hover:shadow-sm'
+          ? 'border-primary/45 ring-primary/25 shadow-sm ring-1'
+          : 'hover:border-border hover:shadow-sm'
       )}
+      style={
+        {
+          '--brand': brand ?? 'var(--muted-foreground)',
+        } as React.CSSProperties
+      }
     >
+      <div
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-0'
+        style={variantTexture(variant)}
+      />
+      <div
+        aria-hidden='true'
+        className={cn(
+          'pointer-events-none absolute opacity-[0.09] saturate-150 transition-opacity duration-200 group-hover:opacity-[0.16] dark:opacity-[0.14] dark:group-hover:opacity-[0.22]',
+          WATERMARK_CLASSES[variant]
+        )}
+      >
+        <ModelBrandIcon
+          modelName={model.model_name}
+          icon={model.icon}
+          vendorIcon={model.vendor_icon}
+          size={56}
+        />
+      </div>
+
       <button
         type='button'
         onClick={() => props.onSelect(model)}
         aria-current={selected ? 'true' : undefined}
-        className='focus-visible:ring-ring w-full p-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset'
+        className='focus-visible:ring-ring relative flex w-full items-center gap-2 p-2 pr-9 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset'
       >
-        <div className='flex items-start justify-between gap-2'>
-          <span className='flex min-w-0 items-center gap-2'>
-            <span
-              className={cn(
-                'flex size-9 shrink-0 items-center justify-center rounded-lg ring-1',
-                !brand && MODALITY_COLORS[modelModality].tile
-              )}
-              style={
-                brand
-                  ? ({
-                      backgroundColor: `color-mix(in srgb, ${brand} 13%, transparent)`,
-                      '--tw-ring-color': `color-mix(in srgb, ${brand} 34%, transparent)`,
-                    } as React.CSSProperties)
-                  : undefined
-              }
-            >
-              <ModelBrandIcon
-                modelName={model.model_name}
-                icon={model.icon}
-                vendorIcon={model.vendor_icon}
-                size={22}
-              />
-            </span>
-            <span className='min-w-0'>
-              <span className='flex items-center gap-1.5'>
-                <span className='text-foreground block truncate font-mono text-xs font-semibold'>
-                  {model.model_name}
-                </span>
-                {isNew && (
-                  <span className='bg-chart-4/20 text-chart-4 ring-chart-4/30 shrink-0 rounded px-1 py-px text-[9px] font-bold tracking-wide ring-1'>
-                    {t('NEW')}
-                  </span>
-                )}
-              </span>
-              <span className='text-muted-foreground mt-0.5 flex items-center gap-1 truncate text-[11px]'>
-                <ModalityIcon className='size-3' aria-hidden='true' />
-                {model.vendor_name || t(modalityLabelKey(modelModality))}
-              </span>
-            </span>
-          </span>
+        <span
+          className='flex size-8 shrink-0 items-center justify-center rounded-lg ring-1'
+          style={{
+            backgroundColor:
+              'color-mix(in srgb, var(--brand) 13%, transparent)',
+            boxShadow:
+              'inset 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent)',
+          }}
+        >
+          <ModelBrandIcon
+            modelName={model.model_name}
+            icon={model.icon}
+            vendorIcon={model.vendor_icon}
+            size={20}
+          />
+        </span>
+        <span className='flex min-w-0 flex-1 items-center gap-1.5'>
           <span
             className={cn(
-              'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize',
-              MODALITY_COLORS[modelModality].tag,
-              // The pin button occupies the same corner; crossfade
-              // so the two never stack on top of each other.
-              props.onTogglePin &&
-                'transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0',
-              props.onTogglePin && pinned && 'opacity-0'
+              'truncate font-mono text-xs font-semibold',
+              selected ? 'text-primary' : 'text-foreground'
             )}
           >
-            {t(modalityLabelKey(modelModality))}
+            {model.model_name}
           </span>
-        </div>
-        <p className='text-muted-foreground mt-1.5 line-clamp-2 text-[11px] text-pretty'>
-          {model.description ||
-            model.vendor_description ||
-            t('Available for generation')}
-        </p>
+          {isNew && (
+            <span className='bg-chart-4/20 text-chart-4 ring-chart-4/30 shrink-0 rounded px-1 py-px text-[9px] font-bold tracking-wide ring-1'>
+              {t('NEW')}
+            </span>
+          )}
+        </span>
+        <ModalityIcon
+          className={cn(
+            'size-3.5 shrink-0',
+            MODALITY_COLORS[modelModality].text,
+            // The pin button occupies the same corner; crossfade so the two
+            // never stack on top of each other.
+            props.onTogglePin &&
+              'transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0',
+            props.onTogglePin && pinned && 'opacity-0'
+          )}
+          aria-label={t(modalityLabelKey(modelModality))}
+        />
       </button>
       {props.onTogglePin && (
         <button
           type='button'
           className={cn(
-            'focus-visible:ring-ring absolute top-2 right-2 rounded-md p-1 outline-none focus-visible:opacity-100 focus-visible:ring-2',
+            'focus-visible:ring-ring absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md p-1 outline-none focus-visible:opacity-100 focus-visible:ring-2',
             pinned
               ? 'text-primary'
               : 'text-muted-foreground hover:text-foreground/80 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
