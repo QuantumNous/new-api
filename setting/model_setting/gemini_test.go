@@ -14,36 +14,32 @@ func TestGeminiSafetySettingsReadNormalization(t *testing.T) {
 	})
 
 	tests := []struct {
-		name        string
-		settings    map[string]string
-		key         string
-		want        string
-		wantDefault string
+		name     string
+		settings map[string]string
+		key      string
+		want     string
 	}{
 		{
-			name:        "nil map gets OFF default",
-			settings:    nil,
-			key:         "HARM_CATEGORY_HATE_SPEECH",
-			want:        "OFF",
-			wantDefault: "OFF",
+			name:     "nil map gets OFF default",
+			settings: nil,
+			key:      "HARM_CATEGORY_HATE_SPEECH",
+			want:     "OFF",
 		},
 		{
 			name: "missing default gets OFF without replacing existing values",
 			settings: map[string]string{
 				"HARM_CATEGORY_HATE_SPEECH": "BLOCK_SOME",
 			},
-			key:         "HARM_CATEGORY_HATE_SPEECH",
-			want:        "BLOCK_SOME",
-			wantDefault: "OFF",
+			key:  "HARM_CATEGORY_HATE_SPEECH",
+			want: "BLOCK_SOME",
 		},
 		{
 			name: "empty default gets OFF",
 			settings: map[string]string{
 				"default": "",
 			},
-			key:         "HARM_CATEGORY_HATE_SPEECH",
-			want:        "OFF",
-			wantDefault: "OFF",
+			key:  "HARM_CATEGORY_HATE_SPEECH",
+			want: "OFF",
 		},
 		{
 			name: "empty override falls back to configured default",
@@ -51,18 +47,16 @@ func TestGeminiSafetySettingsReadNormalization(t *testing.T) {
 				"default":                   "BLOCK_ONLY_HIGH",
 				"HARM_CATEGORY_HATE_SPEECH": "",
 			},
-			key:         "HARM_CATEGORY_HATE_SPEECH",
-			want:        "BLOCK_ONLY_HIGH",
-			wantDefault: "BLOCK_ONLY_HIGH",
+			key:  "HARM_CATEGORY_HATE_SPEECH",
+			want: "BLOCK_ONLY_HIGH",
 		},
 		{
 			name: "historical invalid nonempty default is preserved",
 			settings: map[string]string{
 				"default": "BLOCK_SOME",
 			},
-			key:         "HARM_CATEGORY_HATE_SPEECH",
-			want:        "BLOCK_SOME",
-			wantDefault: "BLOCK_SOME",
+			key:  "HARM_CATEGORY_HATE_SPEECH",
+			want: "BLOCK_SOME",
 		},
 	}
 
@@ -70,10 +64,6 @@ func TestGeminiSafetySettingsReadNormalization(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			geminiSettings.SafetySettings = test.settings
 
-			settings := GetGeminiSettings()
-
-			require.NotNil(t, settings.SafetySettings)
-			assert.Equal(t, test.wantDefault, settings.SafetySettings["default"])
 			assert.Equal(t, test.want, GetGeminiSafetySetting(test.key))
 		})
 	}

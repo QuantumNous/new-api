@@ -22,5 +22,4 @@ func TestRelayInfoConvOptionsUsesNormalizedGeminiSafetySettings(t *testing.T) {
 
 	assert.Equal(t, "OFF", options.Gemini.SafetySetting("HARM_CATEGORY_HATE_SPEECH"))
 	assert.Equal(t, "BLOCK_ONLY_HIGH", options.Gemini.SafetySetting("HARM_CATEGORY_DANGEROUS_CONTENT"))
-	assert.Equal(t, "OFF", settings.SafetySettings["default"])
 }

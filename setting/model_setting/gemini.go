@@ -63,26 +63,23 @@ func init() {
 
 // GetGeminiSettings 获取Gemini配置
 func GetGeminiSettings() *GeminiSettings {
-	if geminiSettings.SafetySettings == nil {
-		geminiSettings.SafetySettings = make(map[string]string)
-	}
-	if geminiSettings.SafetySettings["default"] == "" {
-		geminiSettings.SafetySettings["default"] = defaultGeminiSafetySetting
-	}
 	return &geminiSettings
 }
 
 // GetGeminiSafetySetting 获取安全设置
 func GetGeminiSafetySetting(key string) string {
-	settings := GetGeminiSettings().SafetySettings
+	settings := geminiSettings.SafetySettings
 	if value := settings[key]; value != "" {
 		return value
 	}
-	return settings["default"]
+	if value := settings["default"]; value != "" {
+		return value
+	}
+	return defaultGeminiSafetySetting
 }
 
 // ValidateGeminiSafetySettings validates the JSON persisted by the option API.
-// Empty values remain valid because read-time normalization applies the default.
+// Empty values remain valid because read-time fallback returns the default.
 func ValidateGeminiSafetySettings(value string) error {
 	var settings map[string]string
 	if err := common.UnmarshalJsonStr(value, &settings); err != nil {
