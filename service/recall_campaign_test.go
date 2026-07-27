@@ -1281,6 +1281,130 @@ func TestRecallCampaignSaveDraftRejectsInvalidBoundaries(t *testing.T) {
 	}
 }
 
+func TestValidateRecallCampaignDraftSupportsFixedAndRelativePromotionExpiry(t *testing.T) {
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+
+	t.Run("relative clears fixed expiry", func(t *testing.T) {
+		draft := validRecallCampaignDraft(now)
+		draft.PromotionExpiryMode = RecallPromotionExpiryRelative
+		draft.PromotionValidSeconds = 2 * 60 * 60
+		draft.PromotionExpiresAt = now.Add(24 * time.Hour).Unix()
+
+		normalized, err := validateAndNormalizeRecallCampaignDraft(draft, now)
+
+		require.NoError(t, err)
+		require.Equal(t, RecallPromotionExpiryRelative, normalized.PromotionExpiryMode)
+		require.EqualValues(t, 2*60*60, normalized.PromotionValidSeconds)
+		require.Zero(t, normalized.PromotionExpiresAt)
+	})
+
+	t.Run("fixed clears relative validity", func(t *testing.T) {
+		draft := validRecallCampaignDraft(now)
+		draft.PromotionExpiryMode = RecallPromotionExpiryFixed
+		draft.PromotionExpiresAt = now.Add(24 * time.Hour).Unix()
+
+		normalized, err := validateAndNormalizeRecallCampaignDraft(draft, now)
+
+		require.NoError(t, err)
+		require.Equal(t, RecallPromotionExpiryFixed, normalized.PromotionExpiryMode)
+		require.Zero(t, normalized.PromotionValidSeconds)
+		require.Equal(t, now.Add(24*time.Hour).Unix(), normalized.PromotionExpiresAt)
+	})
+
+	for _, testCase := range []struct {
+		name   string
+		mutate func(*RecallCampaignDraft)
+	}{
+		{name: "relative requires positive validity", mutate: func(draft *RecallCampaignDraft) {
+			draft.PromotionExpiryMode = RecallPromotionExpiryRelative
+			draft.PromotionValidSeconds = 0
+		}},
+		{name: "fixed requires expiry", mutate: func(draft *RecallCampaignDraft) {
+			draft.PromotionExpiryMode = RecallPromotionExpiryFixed
+			draft.PromotionExpiresAt = 0
+		}},
+		{name: "fixed requires future expiry", mutate: func(draft *RecallCampaignDraft) {
+			draft.PromotionExpiryMode = RecallPromotionExpiryFixed
+			draft.PromotionExpiresAt = now.Unix()
+		}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			testCase.mutate(&draft)
+
+			_, err := validateAndNormalizeRecallCampaignDraft(draft, now)
+
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestRecallCampaignEffectiveExpiryUsesCouponAsHardUpperBound(t *testing.T) {
+	runAt := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	couponBound := runAt.Add(90 * time.Minute).Unix()
+
+	for _, testCase := range []struct {
+		name  string
+		draft RecallCampaignDraft
+	}{
+		{
+			name: "relative",
+			draft: RecallCampaignDraft{
+				PromotionExpiryMode:   RecallPromotionExpiryRelative,
+				PromotionValidSeconds: 2 * 60 * 60,
+				Discount:              RecallDiscountConfig{CouponRedeemBy: couponBound},
+			},
+		},
+		{
+			name: "fixed",
+			draft: RecallCampaignDraft{
+				PromotionExpiryMode: RecallPromotionExpiryFixed,
+				PromotionExpiresAt:  runAt.Add(3 * time.Hour).Unix(),
+				Discount:            RecallDiscountConfig{CouponRedeemBy: couponBound},
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			expiresAt, err := recallPromotionExpiryAt(testCase.draft, runAt)
+
+			require.NoError(t, err)
+			require.Equal(t, couponBound, expiresAt)
+		})
+	}
+}
+
+func TestNewAndEditableRecallMinimumAmountsCanonicalizeToUSD(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.Discount.MinimumAmount = 2500
+	draft.Discount.MinimumAmountCurrency = "eur"
+
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	storedDraft, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	require.Equal(t, "usd", storedDraft.Discount.MinimumAmountCurrency)
+
+	storedDraft.Discount.MinimumAmountCurrency = ""
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, storedDraft)
+	require.NoError(t, err)
+	updatedDraft, err := recallCampaignDraftFromModel(updated)
+	require.NoError(t, err)
+	require.Equal(t, "usd", updatedDraft.Discount.MinimumAmountCurrency)
+
+	updatedDraft.Discount.MinimumAmount = 0
+	updatedDraft.Discount.MinimumAmountCurrency = "eur"
+	updated, err = service.UpdateDraft(context.Background(), 7, campaign.Id, updatedDraft)
+	require.NoError(t, err)
+	updatedDraft, err = recallCampaignDraftFromModel(updated)
+	require.NoError(t, err)
+	require.Empty(t, updatedDraft.Discount.MinimumAmountCurrency)
+}
+
 func TestRecallCampaignSaveDraftUsesCampaignNameForEmptySubject(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -1915,6 +2039,7 @@ func TestRecallCampaignRecurringStopsSchedulingAfterLastValidRun(t *testing.T) {
 	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
 	stored, err := model.GetRecallCampaignByID(campaign.Id)
 	require.NoError(t, err)
+	firstRunAt := stored.NextRunAt
 
 	processed, err := service.RunDueCampaigns(context.Background(), time.Unix(stored.NextRunAt, 0), 10)
 
@@ -1922,15 +2047,49 @@ func TestRecallCampaignRecurringStopsSchedulingAfterLastValidRun(t *testing.T) {
 	require.Equal(t, 1, processed)
 	stored, err = model.GetRecallCampaignByID(campaign.Id)
 	require.NoError(t, err)
-	require.Equal(t, model.RecallCampaignRunning, stored.Status)
+	require.Equal(t, model.RecallCampaignCompleted, stored.Status)
 	require.Zero(t, stored.NextRunAt)
-	require.Zero(t, stored.CompletedAt)
+	require.Equal(t, firstRunAt, stored.CompletedAt)
 	var recipient model.RecallRecipient
 	require.NoError(t, db.First(&recipient).Error)
 	require.Equal(t, model.RecallRecipientQueued, recipient.State)
 	var messageCount int64
 	require.NoError(t, db.Model(&model.RecallMessage{}).Count(&messageCount).Error)
 	require.Zero(t, messageCount)
+}
+
+func TestRecurringFixedExpiryCompletesAfterFinalEligibleRun(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 0, 30, 0, 0, time.UTC)
+	createRecallCampaignEligibleUser(t, db, now, "recurring-fixed-expiry")
+	draft := validRecallCampaignDraft(now)
+	draft.Audience.LastAPICallAgeDays = 0
+	draft.ExecutionMode = "recurring"
+	draft.Schedule = RecallScheduleConfig{Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}
+	draft.PromotionExpiryMode = RecallPromotionExpiryFixed
+	draft.PromotionExpiresAt = time.Date(2026, 7, 17, 1, 0, 0, 0, time.UTC).Unix()
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	firstRunAt := stored.NextRunAt
+
+	processed, err := service.RunDueCampaigns(context.Background(), time.Unix(firstRunAt, 0), 10)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	stored, err = model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignCompleted, stored.Status)
+	require.Zero(t, stored.NextRunAt)
+	require.Equal(t, firstRunAt, stored.CompletedAt)
+	var recipient model.RecallRecipient
+	require.NoError(t, db.First(&recipient).Error)
+	require.Equal(t, draft.PromotionExpiresAt, recipient.PromotionExpiresAt)
 }
 
 func TestRecallCampaignDueRunCompletesWhenCouponRedeemByAlreadyReached(t *testing.T) {
@@ -2132,6 +2291,44 @@ func TestRecallCampaignActivatedEmailUpdateIgnoresPastImmutableTimestamps(t *tes
 	require.NoError(t, common.Unmarshal([]byte(updated.EmailSequenceConfig), &stages))
 	require.Equal(t, "Updated subject", stages[0].Templates["en"].Subject)
 	require.Equal(t, 2, stages[0].TemplateVersion)
+}
+
+func TestLegacyRunningRecallMinimumCurrencyIsNotRewritten(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	draft := validRecallCampaignDraft(now)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+
+	legacyDiscount := draft.Discount
+	legacyDiscount.MinimumAmount = 2500
+	legacyDiscount.MinimumAmountCurrency = "eur"
+	discountJSON, err := common.Marshal(legacyDiscount)
+	require.NoError(t, err)
+	require.NoError(t, db.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Updates(map[string]any{
+		"promotion_expiry_mode": "",
+		"discount_config":       string(discountJSON),
+	}).Error)
+
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	edit, err := recallCampaignDraftFromModel(stored)
+	require.NoError(t, err)
+	require.Equal(t, RecallPromotionExpiryRelative, edit.PromotionExpiryMode)
+	require.Equal(t, "eur", edit.Discount.MinimumAmountCurrency)
+	edit.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "Updated subject", BodyText: "Updated body"}
+
+	_, err = service.UpdateDraft(context.Background(), 7, campaign.Id, edit)
+	require.NoError(t, err)
+	stored, err = model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Empty(t, stored.PromotionExpiryMode)
+	require.NoError(t, common.Unmarshal([]byte(stored.DiscountConfig), &legacyDiscount))
+	require.Equal(t, "eur", legacyDiscount.MinimumAmountCurrency)
 }
 
 func TestRecallCampaignConcurrentEmailEditsUseConfigRevisionFence(t *testing.T) {

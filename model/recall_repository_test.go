@@ -1584,6 +1584,8 @@ func TestRecallRepositoryDraftUpdatePersistsZeroValuesAndPreservesImmutableField
 	campaign.StripeCouponId = "coupon_old"
 	campaign.DiscountConfig = `{"percent":25}`
 	campaign.ProductScope = `["pro"]`
+	campaign.PromotionExpiryMode = "relative"
+	campaign.PromotionExpiresAt = 302
 	campaign.PromotionValidSeconds = 303
 	campaign.EmailSequenceConfig = `[{"stage":1}]`
 	campaign.EnrollmentLimit = 404
@@ -1624,6 +1626,8 @@ func TestRecallRepositoryDraftUpdatePersistsZeroValuesAndPreservesImmutableField
 	require.Empty(t, stored.StripeCouponId)
 	require.Empty(t, stored.DiscountConfig)
 	require.Empty(t, stored.ProductScope)
+	require.Empty(t, stored.PromotionExpiryMode)
+	require.Zero(t, stored.PromotionExpiresAt)
 	require.Zero(t, stored.PromotionValidSeconds)
 	require.Empty(t, stored.EmailSequenceConfig)
 	require.Zero(t, stored.EnrollmentLimit)

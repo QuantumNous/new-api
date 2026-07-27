@@ -10,6 +10,8 @@ import (
 const (
 	RecallPurchaseKindTopUp        = "topup"
 	RecallPurchaseKindSubscription = "subscription"
+	RecallPromotionExpiryRelative  = "relative"
+	RecallPromotionExpiryFixed     = "fixed"
 )
 
 type RecallCheckoutDiscount struct {
@@ -48,6 +50,8 @@ type RecallCampaignDraft struct {
 	ExistingCouponID      string               `json:"existing_coupon_id"`
 	Discount              RecallDiscountConfig `json:"discount_config"`
 	Products              RecallProductScope   `json:"product_scope"`
+	PromotionExpiryMode   string               `json:"promotion_expiry_mode"`
+	PromotionExpiresAt    int64                `json:"promotion_expires_at"`
 	PromotionValidSeconds int64                `json:"promotion_valid_seconds"`
 	EnrollmentLimit       int                  `json:"enrollment_limit"`
 	WorkerConcurrency     int                  `json:"worker_concurrency"`

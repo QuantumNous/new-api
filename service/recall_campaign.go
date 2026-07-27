@@ -32,6 +32,8 @@ type recallCampaignPermanentRunError struct {
 	err error
 }
 
+var errRecallPromotionExpired = errors.New("recall promotion expiry has been reached")
+
 func (e *recallCampaignPermanentRunError) Error() string { return e.err.Error() }
 func (e *recallCampaignPermanentRunError) Unwrap() error { return e.err }
 
@@ -59,6 +61,8 @@ type RecallCampaignSummary struct {
 	NextRunAt             int64  `json:"next_run_at"`
 	CouponSource          string `json:"coupon_source"`
 	StripeCouponID        string `json:"stripe_coupon_id"`
+	PromotionExpiryMode   string `json:"promotion_expiry_mode"`
+	PromotionExpiresAt    int64  `json:"promotion_expires_at"`
 	PromotionValidSeconds int64  `json:"promotion_valid_seconds"`
 	EnrollmentLimit       int    `json:"enrollment_limit"`
 	WorkerConcurrency     int    `json:"worker_concurrency"`
@@ -476,6 +480,8 @@ func recallCampaignSummary(campaign model.RecallCampaign, recipientTotal int64) 
 		NextRunAt:             campaign.NextRunAt,
 		CouponSource:          campaign.CouponSource,
 		StripeCouponID:        campaign.StripeCouponId,
+		PromotionExpiryMode:   normalizedRecallPromotionExpiryMode(campaign.PromotionExpiryMode),
+		PromotionExpiresAt:    campaign.PromotionExpiresAt,
 		PromotionValidSeconds: campaign.PromotionValidSeconds,
 		EnrollmentLimit:       campaign.EnrollmentLimit,
 		WorkerConcurrency:     campaign.WorkerConcurrency,
@@ -828,6 +834,11 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 		}
 		return nil
 	case "scheduled_once":
+		if draft.CampaignType == model.RecallCampaignTypePromotion {
+			if _, err := recallPromotionExpiryAt(draft, time.Unix(draft.Schedule.ScheduledAt, 0)); err != nil {
+				return fmt.Errorf("scheduled recall campaign promotion expiry: %w", err)
+			}
+		}
 		fields["scheduled_at"] = draft.Schedule.ScheduledAt
 		fields["next_run_at"] = draft.Schedule.ScheduledAt
 		won, err := model.TransitionRecallCampaignRevisionWithContext(ctx, id, []string{model.RecallCampaignDraft}, model.RecallCampaignScheduled, campaign.ConfigRevision, fields)
@@ -843,8 +854,10 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 		if err != nil {
 			return err
 		}
-		if draft.CampaignType == model.RecallCampaignTypePromotion && draft.Discount.CouponRedeemBy > 0 && nextRun.Unix() >= draft.Discount.CouponRedeemBy {
-			return fmt.Errorf("recurring recall campaign must first run before the Stripe Coupon redeem-by time")
+		if draft.CampaignType == model.RecallCampaignTypePromotion {
+			if _, err := recallPromotionExpiryAt(draft, nextRun); err != nil {
+				return fmt.Errorf("recurring recall campaign first-run promotion expiry: %w", err)
+			}
 		}
 		fields["next_run_at"] = nextRun.Unix()
 		won, err := model.TransitionRecallCampaignRevisionWithContext(ctx, id, []string{model.RecallCampaignDraft}, model.RecallCampaignScheduled, campaign.ConfigRevision, fields)
@@ -1063,9 +1076,14 @@ func (s *RecallCampaignService) runDueCampaign(ctx context.Context, campaign *mo
 	if err != nil {
 		return false, permanentRecallCampaignRunError(err)
 	}
-	if draft.CampaignType == model.RecallCampaignTypePromotion && draft.Discount.CouponRedeemBy > 0 && now.Unix() >= draft.Discount.CouponRedeemBy {
-		_, err := model.CompleteDueRecallCampaignWithContext(ctx, campaign.Id, campaign.NextRunAt, now.Unix())
-		return false, err
+	if draft.CampaignType == model.RecallCampaignTypePromotion {
+		if _, err := recallPromotionExpiryAt(draft, now); err != nil {
+			if errors.Is(err, errRecallPromotionExpired) {
+				_, completeErr := model.CompleteDueRecallCampaignWithContext(ctx, campaign.Id, campaign.NextRunAt, now.Unix())
+				return false, completeErr
+			}
+			return false, permanentRecallCampaignRunError(err)
+		}
 	}
 	switch campaign.ExecutionMode {
 	case "scheduled_once":
@@ -1090,15 +1108,22 @@ func (s *RecallCampaignService) runDueCampaign(ctx context.Context, campaign *mo
 		expected := campaign.NextRunAt
 		runKey := fmt.Sprintf("recurring:%d:%d", campaign.Id, expected)
 		fields := map[string]any{"next_run_at": next.Unix()}
-		if draft.CampaignType == model.RecallCampaignTypePromotion && draft.Discount.CouponRedeemBy > 0 && next.Unix() >= draft.Discount.CouponRedeemBy {
-			fields["next_run_at"] = int64(0)
+		to := model.RecallCampaignRunning
+		if draft.CampaignType == model.RecallCampaignTypePromotion {
+			if _, expiryErr := recallPromotionExpiryAt(draft, next); errors.Is(expiryErr, errRecallPromotionExpired) {
+				fields["next_run_at"] = int64(0)
+				fields["completed_at"] = now.Unix()
+				to = model.RecallCampaignCompleted
+			} else if expiryErr != nil {
+				return false, permanentRecallCampaignRunError(expiryErr)
+			}
 		}
 		return s.commitCampaignRun(
 			ctx,
 			campaign,
 			draft,
 			[]string{model.RecallCampaignScheduled, model.RecallCampaignRunning},
-			model.RecallCampaignRunning,
+			to,
 			&expected,
 			fields,
 			runKey,
@@ -1146,8 +1171,9 @@ func (s *RecallCampaignService) commitCampaignRun(
 	}
 	expiresAt := runAt.Add(time.Duration(campaign.PromotionValidSeconds) * time.Second).Unix()
 	if draft.CampaignType == model.RecallCampaignTypePromotion {
-		if draft.Discount.CouponRedeemBy > 0 && draft.Discount.CouponRedeemBy < expiresAt {
-			expiresAt = draft.Discount.CouponRedeemBy
+		expiresAt, err = recallPromotionExpiryAt(draft, runAt)
+		if err != nil {
+			return false, err
 		}
 	}
 	if expiresAt <= runAt.Unix() {
@@ -1263,10 +1289,13 @@ func recallCampaignActivationFields(draft RecallCampaignDraft, couponID string, 
 		return nil, err
 	}
 	return map[string]any{
-		"stripe_coupon_id": couponID,
-		"discount_config":  string(discountJSON),
-		"product_scope":    string(productJSON),
-		"activated_at":     activatedAt,
+		"stripe_coupon_id":        couponID,
+		"discount_config":         string(discountJSON),
+		"product_scope":           string(productJSON),
+		"promotion_expiry_mode":   draft.PromotionExpiryMode,
+		"promotion_expires_at":    draft.PromotionExpiresAt,
+		"promotion_valid_seconds": draft.PromotionValidSeconds,
+		"activated_at":            activatedAt,
 	}, nil
 }
 
@@ -1373,6 +1402,11 @@ func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now tim
 		return RecallCampaignDraft{}, fmt.Errorf("unsupported recall coupon source %q", draft.CouponSource)
 	}
 
+	if draft.Discount.MinimumAmount > 0 {
+		draft.Discount.MinimumAmountCurrency = "usd"
+	} else {
+		draft.Discount.MinimumAmountCurrency = ""
+	}
 	discount, err := normalizeRecallDiscount(draft.Discount)
 	if err != nil {
 		return RecallCampaignDraft{}, err
@@ -1396,6 +1430,21 @@ func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now tim
 	if len(draft.Products.TopUpPriceIDs)+len(draft.Products.SubscriptionPriceIDs) == 0 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign requires at least one Stripe Price")
 	}
+	draft.PromotionExpiryMode = normalizedRecallPromotionExpiryMode(draft.PromotionExpiryMode)
+	switch draft.PromotionExpiryMode {
+	case RecallPromotionExpiryRelative:
+		draft.PromotionExpiresAt = 0
+		if draft.PromotionValidSeconds <= 0 {
+			return RecallCampaignDraft{}, fmt.Errorf("recall promotion validity must be positive")
+		}
+	case RecallPromotionExpiryFixed:
+		draft.PromotionValidSeconds = 0
+		if draft.PromotionExpiresAt <= now.Unix() {
+			return RecallCampaignDraft{}, fmt.Errorf("recall fixed promotion expiry must be in the future")
+		}
+	default:
+		return RecallCampaignDraft{}, fmt.Errorf("unsupported recall promotion expiry mode %q", draft.PromotionExpiryMode)
+	}
 	return draft, nil
 }
 
@@ -1405,11 +1454,46 @@ func normalizeRecallInactivePromotionDraft(draft RecallCampaignDraft) RecallCamp
 	draft.Discount.Type = strings.ToLower(strings.TrimSpace(draft.Discount.Type))
 	draft.Discount.Currency = strings.ToLower(strings.TrimSpace(draft.Discount.Currency))
 	draft.Discount.MinimumAmountCurrency = strings.ToLower(strings.TrimSpace(draft.Discount.MinimumAmountCurrency))
+	draft.PromotionExpiryMode = RecallPromotionExpiryRelative
+	draft.PromotionExpiresAt = 0
 	draft.Products.TopUpPriceIDs = normalizeRecallStripeIDs(draft.Products.TopUpPriceIDs)
 	draft.Products.SubscriptionPriceIDs = normalizeRecallStripeIDs(draft.Products.SubscriptionPriceIDs)
 	draft.Products.TopUpDisplaySnapshots = nil
 	draft.Products.SubscriptionDisplaySnapshots = nil
 	return draft
+}
+
+func normalizedRecallPromotionExpiryMode(mode string) string {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" {
+		return RecallPromotionExpiryRelative
+	}
+	return mode
+}
+
+func recallPromotionExpiryAt(draft RecallCampaignDraft, runAt time.Time) (int64, error) {
+	var expiresAt int64
+	switch normalizedRecallPromotionExpiryMode(draft.PromotionExpiryMode) {
+	case RecallPromotionExpiryRelative:
+		if draft.PromotionValidSeconds <= 0 {
+			return 0, fmt.Errorf("recall promotion validity must be positive")
+		}
+		expiresAt = runAt.Add(time.Duration(draft.PromotionValidSeconds) * time.Second).Unix()
+	case RecallPromotionExpiryFixed:
+		if draft.PromotionExpiresAt <= 0 {
+			return 0, fmt.Errorf("recall fixed promotion expiry is required")
+		}
+		expiresAt = draft.PromotionExpiresAt
+	default:
+		return 0, fmt.Errorf("unsupported recall promotion expiry mode %q", draft.PromotionExpiryMode)
+	}
+	if draft.Discount.CouponRedeemBy > 0 && draft.Discount.CouponRedeemBy < expiresAt {
+		expiresAt = draft.Discount.CouponRedeemBy
+	}
+	if expiresAt <= runAt.Unix() {
+		return 0, fmt.Errorf("%w: expiry must be after its campaign run", errRecallPromotionExpired)
+	}
+	return expiresAt, nil
 }
 
 func applyRecallEmailSubjectFallbacks(stages []RecallEmailStage, campaignName string) {
@@ -1755,6 +1839,8 @@ func recallCampaignModelFromDraft(draft RecallCampaignDraft, actorID int) (*mode
 		StripeCouponId:        recallCampaignDraftStripeCouponID(draft),
 		DiscountConfig:        string(discountJSON),
 		ProductScope:          string(productJSON),
+		PromotionExpiryMode:   draft.PromotionExpiryMode,
+		PromotionExpiresAt:    draft.PromotionExpiresAt,
 		PromotionValidSeconds: draft.PromotionValidSeconds,
 		EmailSequenceConfig:   string(emailJSON),
 		EnrollmentLimit:       draft.EnrollmentLimit,
@@ -1780,6 +1866,8 @@ func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaig
 		AudienceTemplate:      campaign.AudienceTemplate,
 		ExecutionMode:         campaign.ExecutionMode,
 		CouponSource:          campaign.CouponSource,
+		PromotionExpiryMode:   normalizedRecallPromotionExpiryMode(campaign.PromotionExpiryMode),
+		PromotionExpiresAt:    campaign.PromotionExpiresAt,
 		PromotionValidSeconds: campaign.PromotionValidSeconds,
 		EnrollmentLimit:       campaign.EnrollmentLimit,
 		WorkerConcurrency:     campaign.WorkerConcurrency,
@@ -1825,6 +1913,8 @@ type recallImmutableCampaignDraft struct {
 	ExistingCouponID      string
 	Discount              RecallDiscountConfig
 	Products              RecallProductScope
+	PromotionExpiryMode   string
+	PromotionExpiresAt    int64
 	PromotionValidSeconds int64
 	EnrollmentLimit       int
 	WorkerConcurrency     int
@@ -1860,6 +1950,12 @@ func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCamp
 	}
 	draft.CouponSource = strings.ToLower(strings.TrimSpace(draft.CouponSource))
 	draft.ExistingCouponID = strings.TrimSpace(draft.ExistingCouponID)
+	draft.PromotionExpiryMode = normalizedRecallPromotionExpiryMode(draft.PromotionExpiryMode)
+	if draft.PromotionExpiryMode == RecallPromotionExpiryRelative {
+		draft.PromotionExpiresAt = 0
+	} else if draft.PromotionExpiryMode == RecallPromotionExpiryFixed {
+		draft.PromotionValidSeconds = 0
+	}
 	draft.Discount.Type = strings.ToLower(strings.TrimSpace(draft.Discount.Type))
 	draft.Discount.Currency = strings.ToLower(strings.TrimSpace(draft.Discount.Currency))
 	draft.Discount.MinimumAmountCurrency = strings.ToLower(strings.TrimSpace(draft.Discount.MinimumAmountCurrency))
@@ -1884,6 +1980,8 @@ func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCamp
 		ExistingCouponID:      draft.ExistingCouponID,
 		Discount:              draft.Discount,
 		Products:              draft.Products,
+		PromotionExpiryMode:   draft.PromotionExpiryMode,
+		PromotionExpiresAt:    draft.PromotionExpiresAt,
 		PromotionValidSeconds: draft.PromotionValidSeconds,
 		EnrollmentLimit:       draft.EnrollmentLimit,
 		WorkerConcurrency:     draft.WorkerConcurrency,

@@ -36,6 +36,8 @@ type RecallCampaign struct {
 	StripeCouponId        string `json:"stripe_coupon_id" gorm:"type:varchar(128);index"`
 	DiscountConfig        string `json:"discount_config" gorm:"type:text;not null"`
 	ProductScope          string `json:"product_scope" gorm:"type:text;not null"`
+	PromotionExpiryMode   string `json:"promotion_expiry_mode" gorm:"type:varchar(16)"`
+	PromotionExpiresAt    int64  `json:"promotion_expires_at"`
 	PromotionValidSeconds int64  `json:"promotion_valid_seconds"`
 	EmailSequenceConfig   string `json:"email_sequence_config" gorm:"type:text;not null"`
 	EnrollmentLimit       int    `json:"enrollment_limit"`
@@ -130,6 +132,8 @@ func UpdateRecallCampaignDraftWithContext(ctx context.Context, campaign *RecallC
 			"stripe_coupon_id":        campaign.StripeCouponId,
 			"discount_config":         campaign.DiscountConfig,
 			"product_scope":           campaign.ProductScope,
+			"promotion_expiry_mode":   campaign.PromotionExpiryMode,
+			"promotion_expires_at":    campaign.PromotionExpiresAt,
 			"promotion_valid_seconds": campaign.PromotionValidSeconds,
 			"email_sequence_config":   campaign.EmailSequenceConfig,
 			"enrollment_limit":        campaign.EnrollmentLimit,
@@ -211,6 +215,8 @@ func recallCampaignTransitionUpdates(to string, fields map[string]any) (map[stri
 		"stripe_coupon_id":        {},
 		"discount_config":         {},
 		"product_scope":           {},
+		"promotion_expiry_mode":   {},
+		"promotion_expires_at":    {},
 		"promotion_valid_seconds": {},
 		"email_sequence_config":   {},
 		"enrollment_limit":        {},
