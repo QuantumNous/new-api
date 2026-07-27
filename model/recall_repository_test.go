@@ -862,6 +862,138 @@ func TestRecallRecipientBindCASDoesNotBindAlreadySuppressedRecipient(t *testing.
 	require.Equal(t, RecallRecipientSuppressed, stored.State)
 }
 
+func TestListRecallOfferCandidatesForUserFiltersAndBindsExactEmailMatches(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const now int64 = 1_800_000_000
+	user := User{
+		Username: "recall-offer-user", Password: "password", Status: common.UserStatusEnabled,
+		Email: "OfferOwner@example.com", AffCode: "recall-offer-user-aff", CreatedAt: now - 100,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	disabled := User{
+		Username: "recall-offer-disabled", Password: "password", Status: common.UserStatusDisabled,
+		Email: "disabled-offer@example.com", AffCode: "recall-offer-disabled-aff", CreatedAt: now - 100,
+	}
+	require.NoError(t, DB.Create(&disabled).Error)
+
+	createCampaign := func(status string) RecallCampaign {
+		campaign := newRecallRepositoryCampaign("offer " + status)
+		campaign.Status = status
+		require.NoError(t, DB.Create(&campaign).Error)
+		return campaign
+	}
+	campaigns := map[string]RecallCampaign{}
+	for _, status := range []string{RecallCampaignScheduled, RecallCampaignRunning, RecallCampaignPaused, RecallCampaignCompleted, RecallCampaignDraft, RecallCampaignCancelled} {
+		campaigns[status] = createCampaign(status)
+	}
+	promotionID := func(id string) *string { return &id }
+	createRecipient := func(campaign RecallCampaign, userID int, email string, state string, promotionIDValue *string, code string, expiresAt int64, issuedAt int64, createdAt int64) RecallRecipient {
+		recipient := RecallRecipient{
+			CampaignId: campaign.Id, UserId: userID, EligibilitySnapshot: `{}`, EmailSnapshot: email,
+			LanguageSnapshot: "en", State: state, StripePromotionCodeId: promotionIDValue,
+			PromotionCode: code, PromotionExpiresAt: expiresAt, PromotionIssuedAt: issuedAt, CreatedAt: createdAt,
+		}
+		require.NoError(t, DB.Create(&recipient).Error)
+		return recipient
+	}
+
+	bound := createRecipient(campaigns[RecallCampaignRunning], user.Id, "legacy@example.com", RecallRecipientContacting, promotionID("promo_bound"), "BOUND123", now+100, 0, now-90)
+	emailOnly := createRecipient(campaigns[RecallCampaignPaused], 0, strings.ToLower(user.Email), RecallRecipientCodeReady, promotionID("promo_email"), "EMAIL123", now+200, now-50, now-80)
+	conflict := createRecipient(campaigns[RecallCampaignScheduled], 0, strings.ToLower(user.Email), RecallRecipientCodeReady, promotionID("promo_conflict"), "CONFLICT123", now+200, now-40, now-70)
+	var conflictOnce sync.Once
+	callbackName := "recall_offer_candidate_conflict_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table != "recall_recipients" || !strings.Contains(tx.Statement.SQL.String(), "JOIN recall_campaigns") {
+			return
+		}
+		conflictOnce.Do(func() {
+			require.NoError(t, DB.Exec("UPDATE recall_recipients SET user_id = ? WHERE id = ? AND user_id = 0", user.Id+1000, conflict.Id).Error)
+		})
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Query().Remove(callbackName) })
+	for index, status := range []string{RecallCampaignScheduled, RecallCampaignCompleted} {
+		createRecipient(campaigns[status], user.Id, "status-usable@example.com", RecallRecipientContacting, promotionID(fmt.Sprintf("promo_status_%d", index)), fmt.Sprintf("STATUS%d", index), now+100, now+int64(index+1), now-60+int64(index))
+	}
+	createRecipient(campaigns[RecallCampaignDraft], user.Id, "draft@example.com", RecallRecipientContacting, promotionID("promo_draft"), "DRAFT123", now+100, now+1, now-10)
+	createRecipient(campaigns[RecallCampaignCancelled], user.Id, "cancelled@example.com", RecallRecipientContacting, promotionID("promo_cancelled"), "CANCEL123", now+100, now+1, now-10)
+	for _, state := range []string{RecallRecipientConverted, RecallRecipientSuppressed, RecallRecipientIneligible, RecallRecipientExpired, RecallRecipientFailed} {
+		createRecipient(createCampaign(RecallCampaignRunning), user.Id, state+"@example.com", state, promotionID("promo_"+state), "STATE123", now+100, now+1, now-10)
+	}
+	createRecipient(createCampaign(RecallCampaignRunning), user.Id, "missing-id@example.com", RecallRecipientContacting, nil, "NOID123", now+100, now+1, now-10)
+	createRecipient(createCampaign(RecallCampaignRunning), user.Id, "missing-code@example.com", RecallRecipientContacting, promotionID("promo_missing_code"), "", now+100, now+1, now-10)
+	createRecipient(createCampaign(RecallCampaignRunning), user.Id, "expired-code@example.com", RecallRecipientContacting, promotionID("promo_expired_code"), "EXPIRED123", now, now+1, now-10)
+
+	candidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now)
+
+	require.NoError(t, err)
+	require.Len(t, candidates, 4)
+	ids := make([]int64, 0, len(candidates))
+	for _, candidate := range candidates {
+		ids = append(ids, candidate.Recipient.Id)
+		require.NotContains(t, []string{RecallCampaignDraft, RecallCampaignCancelled}, candidate.Campaign.Status)
+		require.NotContains(t, []string{RecallRecipientConverted, RecallRecipientSuppressed, RecallRecipientIneligible, RecallRecipientExpired, RecallRecipientFailed}, candidate.Recipient.State)
+		require.NotEmpty(t, candidate.Recipient.PromotionCode)
+		require.NotNil(t, candidate.Recipient.StripePromotionCodeId)
+		require.Greater(t, candidate.Recipient.PromotionExpiresAt, now)
+		require.Equal(t, user.Id, candidate.Recipient.UserId)
+	}
+	require.Contains(t, ids, bound.Id)
+	require.Contains(t, ids, emailOnly.Id)
+	require.NotContains(t, ids, conflict.Id)
+	require.Equal(t, bound.CreatedAt, candidates[0].EffectiveIssuedAt())
+	for _, candidate := range candidates {
+		if candidate.Recipient.Id == emailOnly.Id {
+			require.Equal(t, emailOnly.PromotionIssuedAt, candidate.EffectiveIssuedAt())
+		}
+	}
+
+	disabledCandidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), disabled.Id, strings.ToLower(disabled.Email), now)
+	require.NoError(t, err)
+	require.Empty(t, disabledCandidates)
+}
+
+func TestRecallOfferCandidateEffectiveIssuedAtFallsBackToCreatedAt(t *testing.T) {
+	candidate := RecallOfferCandidate{Recipient: RecallRecipient{PromotionIssuedAt: 0, CreatedAt: 123}}
+	require.Equal(t, int64(123), candidate.EffectiveIssuedAt())
+	candidate.Recipient.PromotionIssuedAt = 456
+	require.Equal(t, int64(456), candidate.EffectiveIssuedAt())
+}
+
+func TestPersistRecallRecipientPromotionSetsImmutableIssuedAt(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	recipient := RecallRecipient{
+		CampaignId:          53,
+		UserId:              7101,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       "issued-once@example.com",
+		LanguageSnapshot:    "en",
+		State:               RecallRecipientCustomerReady,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+
+	persisted, err := PersistRecallRecipientPromotion(context.Background(), recipient.Id, "promo_once", "ONCE123", 1_800_000_000)
+	require.NoError(t, err)
+	require.True(t, persisted)
+	persisted, err = PersistRecallRecipientPromotion(context.Background(), recipient.Id, "promo_once", "ONCE123", 1_800_000_999)
+	require.NoError(t, err)
+	require.True(t, persisted)
+
+	var stored RecallRecipient
+	require.NoError(t, DB.First(&stored, recipient.Id).Error)
+	require.NotNil(t, stored.StripePromotionCodeId)
+	require.Equal(t, "promo_once", *stored.StripePromotionCodeId)
+	require.Equal(t, "ONCE123", stored.PromotionCode)
+	require.Equal(t, int64(1_800_000_000), stored.PromotionIssuedAt)
+
+	conflict, err := PersistRecallRecipientPromotion(context.Background(), recipient.Id, "promo_other", "OTHER123", 1_800_001_000)
+	require.NoError(t, err)
+	require.False(t, conflict)
+	require.NoError(t, DB.First(&stored, recipient.Id).Error)
+	require.Equal(t, int64(1_800_000_000), stored.PromotionIssuedAt)
+}
+
 func TestListRecallCampaignRecipientKeysWithContext(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 

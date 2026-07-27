@@ -47,6 +47,7 @@ type RecallRecipient struct {
 	StripePromotionCodeId *string `json:"-" gorm:"type:varchar(128);uniqueIndex"`
 	PromotionCode         string  `json:"-" gorm:"type:varchar(64)"`
 	PromotionExpiresAt    int64   `json:"promotion_expires_at" gorm:"index"`
+	PromotionIssuedAt     int64   `json:"promotion_issued_at" gorm:"index"`
 	ClaimTokenHash        *string `json:"-" gorm:"type:char(64);uniqueIndex"`
 	FirstSentAt           int64   `json:"first_sent_at"`
 	LastSentAt            int64   `json:"last_sent_at"`
@@ -76,6 +77,18 @@ type RecallClaimRecord struct {
 	Recipient      RecallRecipient
 	Campaign       RecallCampaign
 	ClaimTokenHash string
+}
+
+type RecallOfferCandidate struct {
+	Recipient RecallRecipient `json:"-"`
+	Campaign  RecallCampaign  `json:"-"`
+}
+
+func (candidate RecallOfferCandidate) EffectiveIssuedAt() int64 {
+	if candidate.Recipient.PromotionIssuedAt != 0 {
+		return candidate.Recipient.PromotionIssuedAt
+	}
+	return candidate.Recipient.CreatedAt
 }
 
 type RecallRecipientWorkItem struct {
@@ -192,6 +205,93 @@ func BindRecallRecipientUserWithContext(ctx context.Context, recipientID int64, 
 		return &stored, false, nil
 	}
 	return nil, false, ErrRecallRecipientBindingConflict
+}
+
+func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int, normalizedEmail string, now int64) ([]RecallOfferCandidate, error) {
+	candidates := make([]RecallOfferCandidate, 0)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if userID <= 0 {
+		return candidates, nil
+	}
+	email, ok := normalizeRecallRecipientEmail(normalizedEmail)
+	if !ok {
+		return candidates, nil
+	}
+	var user User
+	result := DB.WithContext(ctx).
+		Where("id = ? AND status = ? AND LOWER(email) = ?", userID, common.UserStatusEnabled, email).
+		Limit(1).
+		Find(&user)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return candidates, nil
+	}
+
+	usableStatuses := []string{RecallCampaignScheduled, RecallCampaignRunning, RecallCampaignPaused, RecallCampaignCompleted}
+	excludedRecipientStates := []string{
+		RecallRecipientConverted,
+		RecallRecipientSuppressed,
+		RecallRecipientIneligible,
+		RecallRecipientExpired,
+		RecallRecipientFailed,
+	}
+	var recipients []RecallRecipient
+	err := DB.WithContext(ctx).
+		Model(&RecallRecipient{}).
+		Select("recall_recipients.*").
+		Joins("JOIN recall_campaigns ON recall_campaigns.id = recall_recipients.campaign_id").
+		Where("recall_campaigns.status IN ?", usableStatuses).
+		Where("(recall_recipients.user_id = ? OR (recall_recipients.user_id = 0 AND LOWER(recall_recipients.email_snapshot) = ?))", userID, email).
+		Where("recall_recipients.state NOT IN ?", excludedRecipientStates).
+		Where("recall_recipients.stripe_promotion_code_id IS NOT NULL AND recall_recipients.stripe_promotion_code_id <> ''").
+		Where("recall_recipients.promotion_code <> ''").
+		Where("recall_recipients.promotion_expires_at > ?", now).
+		Order("recall_recipients.id ASC").
+		Find(&recipients).Error
+	if err != nil {
+		return nil, err
+	}
+	campaignIDs := make([]int64, 0, len(recipients))
+	seenCampaigns := make(map[int64]struct{}, len(recipients))
+	for _, recipient := range recipients {
+		if _, seen := seenCampaigns[recipient.CampaignId]; seen {
+			continue
+		}
+		seenCampaigns[recipient.CampaignId] = struct{}{}
+		campaignIDs = append(campaignIDs, recipient.CampaignId)
+	}
+	campaigns := make([]RecallCampaign, 0, len(campaignIDs))
+	if len(campaignIDs) > 0 {
+		if err := DB.WithContext(ctx).Where("id IN ?", campaignIDs).Find(&campaigns).Error; err != nil {
+			return nil, err
+		}
+	}
+	campaignByID := make(map[int64]RecallCampaign, len(campaigns))
+	for _, campaign := range campaigns {
+		campaignByID[campaign.Id] = campaign
+	}
+	for _, recipient := range recipients {
+		if recipient.UserId == 0 {
+			bound, _, bindErr := BindRecallRecipientUserWithContext(ctx, recipient.Id, userID, email)
+			if bindErr != nil {
+				if errors.Is(bindErr, ErrRecallRecipientBindingConflict) || errors.Is(bindErr, gorm.ErrRecordNotFound) {
+					continue
+				}
+				return nil, bindErr
+			}
+			recipient = *bound
+		}
+		campaign, ok := campaignByID[recipient.CampaignId]
+		if !ok {
+			continue
+		}
+		candidates = append(candidates, RecallOfferCandidate{Recipient: recipient, Campaign: campaign})
+	}
+	return candidates, nil
 }
 
 func ListDueRecallRecipientIDs(now int64, limit int) ([]int64, error) {
@@ -432,18 +532,22 @@ func PrepareRecallRecipientPromotion(ctx context.Context, id int64, owner string
 	return result.RowsAffected == 1, nil
 }
 
-func PersistRecallRecipientPromotion(ctx context.Context, id int64, promotionID string, code string) (bool, error) {
+func PersistRecallRecipientPromotion(ctx context.Context, id int64, promotionID string, code string, issuedAt int64) (bool, error) {
 	promotionID = strings.TrimSpace(promotionID)
 	code = strings.TrimSpace(code)
 	if promotionID == "" || code == "" {
 		return false, fmt.Errorf("Stripe Promotion Code ID and code must not be empty")
 	}
+	updates := map[string]any{
+		"stripe_promotion_code_id": promotionID,
+		"promotion_code":           code,
+	}
+	if issuedAt > 0 {
+		updates["promotion_issued_at"] = gorm.Expr("CASE WHEN promotion_issued_at = 0 THEN ? ELSE promotion_issued_at END", issuedAt)
+	}
 	result := DB.WithContext(ctx).Model(&RecallRecipient{}).
 		Where("id = ? AND (stripe_promotion_code_id IS NULL OR stripe_promotion_code_id = '' OR stripe_promotion_code_id = ?)", id, promotionID).
-		Updates(map[string]any{
-			"stripe_promotion_code_id": promotionID,
-			"promotion_code":           code,
-		})
+		Updates(updates)
 	if result.Error != nil {
 		return false, result.Error
 	}

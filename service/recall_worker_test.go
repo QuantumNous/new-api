@@ -284,6 +284,7 @@ func TestRecallWorkerReusesCustomerCreatesBoundPromotionAndSchedulesStageOne(t *
 	require.NotNil(t, stored.StripePromotionCodeId)
 	require.Equal(t, "promo_reuse", *stored.StripePromotionCodeId)
 	require.Equal(t, "FKWXRKER234", stored.PromotionCode)
+	require.Equal(t, recallWorkerTestNow, stored.PromotionIssuedAt)
 	var message model.RecallMessage
 	require.NoError(t, model.DB.Where("recipient_id = ? AND stage_no = 1", stored.Id).First(&message).Error)
 	require.Nil(t, message.ClaimTokenHash)
@@ -535,6 +536,7 @@ func TestRecallWorkerReconcilesExistingPromotionWithoutCreate(t *testing.T) {
 	var stored model.RecallRecipient
 	require.NoError(t, model.DB.First(&stored, recipient.Id).Error)
 	require.Equal(t, model.RecallRecipientContacting, stored.State)
+	require.Zero(t, stored.PromotionIssuedAt)
 }
 
 func TestRecallWorkerRejectsMismatchedPersistedPromotionID(t *testing.T) {
