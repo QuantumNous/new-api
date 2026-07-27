@@ -115,10 +115,13 @@ func (s *RecallClaimService) ListOffers(ctx context.Context, userID int) ([]Reca
 		return nil, err
 	}
 	for _, candidate := range candidates {
-		offer, err := s.recallOfferFromCandidate(ctx, candidate)
+		offer, err := s.recallOfferFromCandidate(ctx, candidate, true)
 		if err != nil {
-			logRecallOfferCandidateSkip(candidate, err)
-			continue
+			if isSkippableRecallOfferCandidateError(err) {
+				logRecallOfferCandidateSkip(candidate, err)
+				continue
+			}
+			return nil, err
 		}
 		offers = append(offers, offer.View)
 	}
@@ -160,10 +163,13 @@ func (s *RecallClaimService) ResolveBestRecallOffer(ctx context.Context, userID 
 	}
 	resolved := make([]RecallResolvedOffer, 0, len(candidates))
 	for _, candidate := range candidates {
-		offer, err := s.recallOfferFromCandidate(ctx, candidate)
+		offer, err := s.recallOfferFromCandidate(ctx, candidate, false)
 		if err != nil {
-			logRecallOfferCandidateSkip(candidate, err)
-			continue
+			if isSkippableRecallOfferCandidateError(err) {
+				logRecallOfferCandidateSkip(candidate, err)
+				continue
+			}
+			return nil, err
 		}
 		if !recallOfferAppliesToPrice(offer.View.Products, purchaseKind, priceID) {
 			continue
@@ -319,7 +325,7 @@ func recallEnabledUserIdentity(ctx context.Context, userID int) (*model.User, bo
 	return user, true, nil
 }
 
-func (s *RecallClaimService) recallOfferFromCandidate(ctx context.Context, candidate model.RecallOfferCandidate) (*RecallResolvedOffer, error) {
+func (s *RecallClaimService) recallOfferFromCandidate(ctx context.Context, candidate model.RecallOfferCandidate, hydrateSubscriptionPlanIDs bool) (*RecallResolvedOffer, error) {
 	if candidate.Campaign.Id != candidate.Recipient.CampaignId || !activeRecallCampaignStatus(candidate.Campaign.Status) {
 		return nil, ErrRecallClaimInactive
 	}
@@ -355,11 +361,13 @@ func (s *RecallClaimService) recallOfferFromCandidate(ctx context.Context, candi
 	if len(products.TopUpPriceIDs)+len(products.SubscriptionPriceIDs) == 0 {
 		return nil, fmt.Errorf("%w: products", ErrRecallClaimInvalidConfig)
 	}
-	subscriptionPlanIDs, err := resolveRecallSubscriptionPlanIDs(ctx, products.SubscriptionPriceIDs)
-	if err != nil {
-		return nil, err
+	if hydrateSubscriptionPlanIDs {
+		subscriptionPlanIDs, err := resolveRecallSubscriptionPlanIDs(ctx, products.SubscriptionPriceIDs)
+		if err != nil {
+			return nil, err
+		}
+		products.SubscriptionPlanIDs = subscriptionPlanIDs
 	}
-	products.SubscriptionPlanIDs = subscriptionPlanIDs
 	view := RecallOfferView{
 		RecallClaimView: RecallClaimView{
 			CampaignID:          candidate.Campaign.Id,
@@ -664,6 +672,18 @@ func logRecallOfferCandidateSkip(candidate model.RecallOfferCandidate, err error
 		candidate.Recipient.Id,
 		sanitizeRecallOfferSkipReason(err),
 	))
+}
+
+func isSkippableRecallOfferCandidateError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, ErrRecallClaimInactive) ||
+		errors.Is(err, ErrRecallClaimConverted) ||
+		errors.Is(err, ErrRecallClaimSuppressed) ||
+		errors.Is(err, ErrRecallClaimPromotionInvalid) ||
+		errors.Is(err, ErrRecallClaimExpired) ||
+		errors.Is(err, ErrRecallClaimInvalidConfig)
 }
 
 func sanitizeRecallOfferSkipReason(err error) string {

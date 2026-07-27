@@ -621,6 +621,32 @@ func TestRecallListOffersSkipsMalformedAndUnsafeFields(t *testing.T) {
 	require.NotContains(t, string(raw), valid.recipient.StripeCustomerId)
 }
 
+func TestRecallListOffersPropagatesSubscriptionPlanHydrationErrors(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "offer-plan-error-user", AffCode: "offer-plan-error-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "offer-plan-error@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+	createRecallOfferFixture(t, user, now, "plan hydration error", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 25},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}},
+		nil)
+	sentinel := errors.New("subscription plan lookup failed")
+	callbackName := "recall_offer_plan_hydration_error_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, db.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "subscription_plans" {
+			tx.AddError(sentinel)
+		}
+	}))
+	t.Cleanup(func() { _ = db.Callback().Query().Remove(callbackName) })
+
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+	_, err := claimService.ListOffers(context.Background(), user.Id)
+
+	require.ErrorIs(t, err, sentinel)
+}
+
 func TestRecallOfferStatusEligibilitySharedByListResolveAndClaim(t *testing.T) {
 	for _, status := range []string{model.RecallCampaignScheduled, model.RecallCampaignRunning, model.RecallCampaignPaused, model.RecallCampaignCompleted} {
 		t.Run(status, func(t *testing.T) {
@@ -728,6 +754,38 @@ func TestRecallResolveBestOfferCanonicalizesPersistedCurrencyConfig(t *testing.T
 	require.NotNil(t, resolved)
 	require.Equal(t, option.recipient.Id, resolved.View.RecipientID)
 	require.Equal(t, int64(2500), resolved.DiscountMinor)
+}
+
+func TestRecallResolveBestOfferSkipsSubscriptionPlanHydration(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "resolve-no-plan-user", AffCode: "resolve-no-plan-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "resolve-no-plan@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+	fixture := createRecallOfferFixture(t, user, now, "resolve no plan hydration", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 25},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}},
+		nil)
+	sentinel := errors.New("subscription plan lookup must not run")
+	var planLookupCalled atomic.Bool
+	callbackName := "recall_resolve_no_plan_hydration_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, db.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "subscription_plans" {
+			planLookupCalled.Store(true)
+			tx.AddError(sentinel)
+		}
+	}))
+	t.Cleanup(func() { _ = db.Callback().Query().Remove(callbackName) })
+
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+	resolved, err := claimService.ResolveBestRecallOffer(context.Background(), user.Id, RecallPurchaseKindSubscription, "price_subscription", "USD", 10000)
+
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+	require.Equal(t, fixture.recipient.Id, resolved.View.RecipientID)
+	require.Equal(t, int64(2500), resolved.DiscountMinor)
+	require.False(t, planLookupCalled.Load())
 }
 
 func TestRecallResolveBestOfferTiesByIssuedAtThenRecipientID(t *testing.T) {
