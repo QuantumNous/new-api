@@ -231,6 +231,12 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	// tool_choice without tools is invalid for stricter OpenAI-compatible
+	// upstreams (e.g. vLLM), which reject it. Drop it so tool-less requests
+	// (such as Codex context compaction) don't get rejected.
+	if len(request.Tools) == 0 && request.ToolChoice != nil {
+		request.ToolChoice = nil
+	}
 	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
 		request.StreamOptions = nil
 	}
