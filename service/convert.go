@@ -495,15 +495,12 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	} else {
 		chosenChoice := openAIResponse.Choices[0]
 		doneChunk := chosenChoice.FinishReason != nil && *chosenChoice.FinishReason != ""
+		// Upstreams may carry content (text/thinking/tool_calls) in the same chunk that sets
+		// finish_reason. The delta below must still be converted; closing the stream is deferred
+		// by finishStream when usage is not available yet (some upstreams send a final
+		// usage-only chunk after finish_reason).
 		if doneChunk {
 			info.FinishReason = *chosenChoice.FinishReason
-			oaiUsage := openAIResponse.Usage
-			if oaiUsage == nil {
-				oaiUsage = info.ClaudeConvertInfo.Usage
-				// Some upstreams emit finish_reason first, then send a final usage-only chunk.
-				// Defer closing until usage is available so the final message_delta carries it.
-				return claudeResponses
-			}
 		}
 
 		var claudeResponse dto.ClaudeResponse

@@ -148,6 +148,57 @@ func TestStreamResponseOpenAI2ClaudeFinishesAfterUsageOnlyChunk(t *testing.T) {
 	require.Equal(t, "message_stop", usageResponses[2].Type)
 }
 
+// 上游把 tool_calls 与 finish_reason 放在同一个 chunk 时（GLM 未开启 tool_stream 时的常见形态），
+// 该 chunk 的工具调用内容必须照常转换，不能因为 chunk 自身没带 usage 就被整块丢弃。
+func TestStreamResponseOpenAI2ClaudeKeepsToolCallsOnFinishChunk(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{
+			LastMessagesType: relaycommon.LastMessageTypeThinking,
+		},
+		SendResponseCount: 2,
+	}
+
+	finishReason := "tool_calls"
+	toolIndex := 0
+	responses := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{
+						{
+							Index: &toolIndex,
+							ID:    "call_bash",
+							Type:  "function",
+							Function: dto.FunctionResponse{
+								Name:      "Bash",
+								Arguments: `{"command":"ls -la"}`,
+							},
+						},
+					},
+				},
+				FinishReason: &finishReason,
+			},
+		},
+	}, info)
+
+	require.Len(t, responses, 3)
+	require.Equal(t, "content_block_stop", responses[0].Type)
+	require.Equal(t, "tool_use", responses[1].ContentBlock.Type)
+	require.Equal(t, "Bash", responses[1].ContentBlock.Name)
+	require.Equal(t, "input_json_delta", responses[2].Delta.Type)
+	require.Equal(t, "tool_calls", info.FinishReason)
+	// 本 chunk 没有 usage，关闭动作延后到 usage-only chunk
+	require.False(t, info.ClaudeConvertInfo.Done)
+
+	usageResponses := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Usage: &dto.Usage{CompletionTokens: 54},
+	}, info)
+	require.True(t, info.ClaudeConvertInfo.Done)
+	require.Equal(t, "message_delta", usageResponses[len(usageResponses)-2].Type)
+	require.Equal(t, "tool_use", *usageResponses[len(usageResponses)-2].Delta.StopReason)
+	require.Equal(t, "message_stop", usageResponses[len(usageResponses)-1].Type)
+}
+
 func TestStreamResponseOpenAI2ClaudeConvertsThinkingToolCallFlow(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{
