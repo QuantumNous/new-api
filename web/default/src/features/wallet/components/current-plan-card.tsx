@@ -44,17 +44,8 @@ function getRemainingDays(selfData: WalletSelfSubscriptionData): number {
 }
 
 function isWalletAutoRenew(selfData: WalletSelfSubscriptionData): boolean {
-  if (selfData.renewal_source === 'provider_recurring') return false
-  if (
-    selfData.renewal_source === 'wallet_auto' &&
-    selfData.renewal_status === 'enabled'
-  ) {
-    return true
-  }
-  if (selfData.contract?.payment_mode === 'stripe_recurring') return false
-  if (selfData.contract?.payment_mode === 'balance_one_period') return true
   return (
-    selfData.renewal_source === 'balance' ||
+    selfData.renewal_source === 'wallet_auto' &&
     selfData.renewal_status === 'enabled'
   )
 }

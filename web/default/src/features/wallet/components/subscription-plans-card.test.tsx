@@ -16,18 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { readdirSync, readFileSync } from 'node:fs'
+import zh from '@/i18n/locales/zh.json'
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { createInstance } from 'i18next'
+import { readdirSync, readFileSync } from 'node:fs'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
-import zh from '@/i18n/locales/zh.json'
+import { RecallClaimProvider } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
 import type {
   PlanRecord,
   SubscriptionPaymentQuote,
 } from '@/features/subscriptions/types'
-import { RecallClaimProvider } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
-import type { RecallClaimView, TopupInfo } from '../types'
 import {
   buildFlexiblePurchaseRequest,
   buildFlexibleQuoteRequest,
@@ -36,6 +35,7 @@ import {
   normalizeSelfSubscriptionData,
   requiresSignedCheckoutQuote,
 } from '../lib/subscription-plan-lifecycle'
+import type { RecallClaimView, TopupInfo } from '../types'
 import {
   PlanPurchaseDialogContent,
   normalizePurchaseMonths,
@@ -379,6 +379,60 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('Auto-renew on')
   })
 
+  test('does not infer wallet auto-renew from a balance one-period contract without canonical renewal state', () => {
+    const html = renderWalletCard(
+      normalizeSelfSubscriptionData({
+        contract: {
+          contract_id: 15,
+          id: 15,
+          status: 'active',
+          payment_mode: 'balance_one_period',
+          current_plan_id: 2,
+          current_entitlement_id: 20,
+          current_provider_binding_id: 0,
+          latest_change_intent_id: 0,
+          pending_plan_id: 0,
+          pending_effective_at: 0,
+          current_period_start: 1717200000,
+          current_period_end: 1719792000,
+          grace_period_end: 0,
+          change_version: 1,
+        },
+      })
+    )
+
+    expect(html).toContain('Active')
+    expect(html).not.toContain('Auto-renew on')
+  })
+
+  test('does not infer wallet auto-renew from the legacy balance renewal source', () => {
+    const html = renderWalletCard(
+      normalizeSelfSubscriptionData({
+        contract: {
+          contract_id: 16,
+          id: 16,
+          status: 'active',
+          payment_mode: 'prepaid',
+          current_plan_id: 2,
+          current_entitlement_id: 20,
+          current_provider_binding_id: 0,
+          latest_change_intent_id: 0,
+          pending_plan_id: 0,
+          pending_effective_at: 0,
+          current_period_start: 1717200000,
+          current_period_end: 1719792000,
+          grace_period_end: 0,
+          change_version: 1,
+        },
+        renewal_source: 'balance' as 'wallet_auto',
+        renewal_status: 'enabled',
+      })
+    )
+
+    expect(html).toContain('Active')
+    expect(html).not.toContain('Auto-renew on')
+  })
+
   test('renders Chinese remaining days without a replacement question mark', async () => {
     await testI18n.changeLanguage('zh')
     try {
@@ -512,8 +566,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
   })
 
   test('keeps media generation credits visible when the plan field is absent', () => {
-    const { media_credits_monthly: _media, ...planWithoutMedia } =
-      plans[0].plan
+    const { media_credits_monthly: _media, ...planWithoutMedia } = plans[0].plan
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <SubscriptionPlansCard
@@ -1072,8 +1125,7 @@ describe('PlanPurchaseDialog payment choices', () => {
   })
 
   test('treats invalid local quotes as unavailable without a USD fallback', () => {
-    const { quote_id: _quoteId, ...pixWithoutToken } =
-      localPaymentQuote('pix')
+    const { quote_id: _quoteId, ...pixWithoutToken } = localPaymentQuote('pix')
     const invalidQuotes = [
       {
         name: 'Pix with the wrong currency',
@@ -1275,17 +1327,21 @@ describe('flexible payment quote interaction helpers', () => {
     ).toBeUndefined()
     expect(
       getMatchingPaymentQuote('pix', quotes, 1, TEST_NOW_SECONDS)?.quote_id
-    ).toBe(
-      'quote-pix-1'
-    )
+    ).toBe('quote-pix-1')
   })
 
   test('rejects Pix and UPI quotes with the wrong local currency', () => {
     expect(
-      matchLocalPaymentQuote('pix', localPaymentQuote('pix', { currency: 'INR' }))
+      matchLocalPaymentQuote(
+        'pix',
+        localPaymentQuote('pix', { currency: 'INR' })
+      )
     ).toBeUndefined()
     expect(
-      matchLocalPaymentQuote('upi', localPaymentQuote('upi', { currency: 'BRL' }))
+      matchLocalPaymentQuote(
+        'upi',
+        localPaymentQuote('upi', { currency: 'BRL' })
+      )
     ).toBeUndefined()
   })
 
@@ -1293,9 +1349,7 @@ describe('flexible payment quote interaction helpers', () => {
     const { quote_id: _quoteId, ...quoteWithoutToken } =
       localPaymentQuote('pix')
 
-    expect(
-      matchLocalPaymentQuote('pix', quoteWithoutToken)
-    ).toBeUndefined()
+    expect(matchLocalPaymentQuote('pix', quoteWithoutToken)).toBeUndefined()
     expect(
       matchLocalPaymentQuote(
         'upi',

@@ -27,6 +27,8 @@ import type {
   SubscriptionPaymentAvailability,
   SubscriptionPaymentQuote,
   SubscriptionPaymentQuotes,
+  SubscriptionRenewalSource,
+  SubscriptionRenewalStatus,
   SubscriptionUsageWindow,
   SubscriptionContract,
   SubscriptionCurrentPeriod,
@@ -109,8 +111,8 @@ export type WalletSelfSubscriptionData = Omit<
   window_7d?: SubscriptionUsageWindow
   media_credits?: SubscriptionUsageWindow
   remaining_days?: number
-  renewal_source?: string
-  renewal_status?: string
+  renewal_source?: SubscriptionRenewalSource
+  renewal_status?: SubscriptionRenewalStatus
   payment_availability?: SubscriptionPaymentAvailability
   payment_quotes?: SubscriptionPaymentQuotes
   capabilities: WalletSubscriptionCapabilities

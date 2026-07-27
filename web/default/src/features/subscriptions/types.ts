@@ -367,6 +367,23 @@ export interface RecurringSubscription {
   requires_support: boolean
 }
 
+export type SubscriptionRenewalSource = 'provider_recurring' | 'wallet_auto'
+
+export type SubscriptionRenewalStatus =
+  | 'enabled'
+  | 'cancelled_by_user'
+  | 'paused_insufficient_balance'
+  | 'paused_plan_unavailable'
+
+export interface SubscriptionRenewalLifecycleResult {
+  renewal_source: SubscriptionRenewalSource
+  renewal_status: SubscriptionRenewalStatus
+  current_period_end: number
+  can_cancel: boolean
+  can_resume: boolean
+  is_cancel_at_period_end: boolean
+}
+
 // ============================================================================
 // Self Subscription Data (user-facing)
 // ============================================================================
@@ -413,8 +430,8 @@ export interface SelfSubscriptionData {
   window_7d?: SubscriptionUsageWindow
   media_credits?: SubscriptionUsageWindow
   remaining_days?: number
-  renewal_source?: string
-  renewal_status?: string
+  renewal_source?: SubscriptionRenewalSource
+  renewal_status?: SubscriptionRenewalStatus
   payment_availability?: SubscriptionPaymentAvailability
   payment_quotes?: SubscriptionPaymentQuotes
   pending_change?: SubscriptionPendingChange | null

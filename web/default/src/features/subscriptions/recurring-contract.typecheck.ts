@@ -1,7 +1,13 @@
-import { cancelRecurringSubscription, resumeRecurringSubscription } from './api'
+import {
+  cancelRecurringSubscription,
+  cancelSubscriptionRenewal,
+  resumeRecurringSubscription,
+  resumeSubscriptionRenewal,
+} from './api'
 import type {
   RecurringSubscription,
   SelfSubscriptionData,
+  SubscriptionRenewalLifecycleResult,
   UserSubscriptionRecord,
 } from './types'
 
@@ -61,3 +67,38 @@ export const recurringApiContract = {
   cancelRecurringSubscription,
   resumeRecurringSubscription,
 }
+
+type ParameterlessCancel = () => Promise<{
+  success: boolean
+  message?: string
+  data?: SubscriptionRenewalLifecycleResult
+}>
+
+type ParameterlessResume = () => Promise<{
+  success: boolean
+  message?: string
+  data?: SubscriptionRenewalLifecycleResult
+}>
+
+export const providerNeutralRenewalApiContract = {
+  cancel: cancelSubscriptionRenewal satisfies ParameterlessCancel,
+  resume: resumeSubscriptionRenewal satisfies ParameterlessResume,
+}
+
+export const providerNeutralRenewalResultContract = {
+  renewal_source: 'provider_recurring',
+  renewal_status: 'enabled',
+  current_period_end: 2000,
+  can_cancel: true,
+  can_resume: false,
+  is_cancel_at_period_end: false,
+} satisfies SubscriptionRenewalLifecycleResult
+
+export const walletRenewalResultContract = {
+  renewal_source: 'wallet_auto',
+  renewal_status: 'cancelled_by_user',
+  current_period_end: 2000,
+  can_cancel: false,
+  can_resume: true,
+  is_cancel_at_period_end: true,
+} satisfies SubscriptionRenewalLifecycleResult
