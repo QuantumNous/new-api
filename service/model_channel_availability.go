@@ -88,9 +88,9 @@ func syncModelChannelAvailability(reason string, forceFull bool) ModelChannelAva
 		res := model.DB.Model(&model.Model{}).
 			Where("id IN ? AND status = ?", disableIDs, modelStatusEnabled).
 			Updates(map[string]interface{}{
-				"status":                 modelStatusDisabled,
-				"auto_disabled_by_rule":  true,
-				"updated_time":           now,
+				"status":                modelStatusDisabled,
+				"auto_disabled_by_rule": true,
+				"updated_time":          now,
 			})
 		if res.Error != nil {
 			common.SysError(fmt.Sprintf("model channel availability sync disable failed: %v", res.Error))
@@ -205,23 +205,19 @@ func ClearModelAutoDisabledByRule(ids ...int) {
 }
 
 // MaybeSyncModelChannelAvailabilityAfterOptionChange triggers full calibration when model auto switches change.
-// Turning AutomaticDisableModelEnabled off also forces AutomaticEnableModelEnabled off (paired automation).
 func MaybeSyncModelChannelAvailabilityAfterOptionChange(key string, value string) {
-	if key == "AutomaticDisableModelEnabled" && value != "true" {
-		// Keep enable subordinate to disable in runtime + persisted options.
-		common.AutomaticEnableModelEnabled = false
-		if err := model.UpdateOption("AutomaticEnableModelEnabled", "false"); err != nil {
-			common.SysError(fmt.Sprintf("failed to pair-disable AutomaticEnableModelEnabled: %v", err))
-		}
-		return
-	}
 	if key != "AutomaticDisableModelEnabled" && key != "AutomaticEnableModelEnabled" {
 		return
 	}
-	if value != "true" {
+	if value != "1" && !strings.EqualFold(value, "true") {
 		return
 	}
-	// Enable-only activation is a no-op unless disable is already on (gated inside sync).
+	if key == "AutomaticDisableModelEnabled" && !common.AutomaticDisableModelEnabled {
+		return
+	}
+	if key == "AutomaticEnableModelEnabled" && !common.AutomaticEnableModelEnabled {
+		return
+	}
 	SyncModelChannelAvailabilityFull(fmt.Sprintf("option.%s=true", key))
 }
 

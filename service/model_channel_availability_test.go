@@ -12,7 +12,7 @@ import (
 
 func resetModelChannelAvailabilityFixtures(t *testing.T) {
 	t.Helper()
-	for _, table := range []string{"abilities", "channels", "models", "vendors"} {
+	for _, table := range []string{"abilities", "channels", "models", "vendors", "options"} {
 		require.NoError(t, model.DB.Exec("DELETE FROM "+table).Error)
 	}
 	common.AutomaticDisableModelEnabled = false
@@ -395,19 +395,68 @@ func TestManualEnableModelsWithChannels_OnlyAutoDisabled(t *testing.T) {
 	assert.False(t, loadModel(t, 2).AutoDisabledByRule)
 }
 
-func TestMaybeSyncPairsEnableOffWhenDisableOff(t *testing.T) {
+func TestUpdateOptionPairsEnableOffWhenDisableOff(t *testing.T) {
 	resetModelChannelAvailabilityFixtures(t)
-	common.AutomaticDisableModelEnabled = true
-	common.AutomaticEnableModelEnabled = true
 	if common.OptionMap == nil {
 		common.OptionMap = map[string]string{}
 	}
-	require.NoError(t, model.DB.Save(&model.Option{Key: "AutomaticEnableModelEnabled", Value: "true"}).Error)
+	require.NoError(t, model.UpdateOptionsBulk(map[string]string{
+		"AutomaticDisableModelEnabled": "1",
+		"AutomaticEnableModelEnabled":  "1",
+	}))
+	assert.True(t, common.AutomaticDisableModelEnabled)
+	assert.True(t, common.AutomaticEnableModelEnabled)
 
-	MaybeSyncModelChannelAvailabilityAfterOptionChange("AutomaticDisableModelEnabled", "false")
+	require.NoError(t, model.UpdateOption("AutomaticDisableModelEnabled", "false"))
+	assert.False(t, common.AutomaticDisableModelEnabled)
 	assert.False(t, common.AutomaticEnableModelEnabled)
-	var opt model.Option
-	require.NoError(t, model.DB.Where("key = ?", "AutomaticEnableModelEnabled").First(&opt).Error)
-	assert.Equal(t, "false", opt.Value)
+	var options []model.Option
+	require.NoError(t, model.DB.Where("key IN ?", []string{
+		"AutomaticDisableModelEnabled",
+		"AutomaticEnableModelEnabled",
+	}).Order("key").Find(&options).Error)
+	require.Len(t, options, 2)
+	assert.Equal(t, "false", options[0].Value)
+	assert.Equal(t, "false", options[1].Value)
 }
 
+func TestUpdateOptionRejectsModelAutoEnableWithoutAutoDisable(t *testing.T) {
+	resetModelChannelAvailabilityFixtures(t)
+	if common.OptionMap == nil {
+		common.OptionMap = map[string]string{}
+	}
+
+	require.NoError(t, model.UpdateOption("AutomaticEnableModelEnabled", "1"))
+
+	assert.False(t, common.AutomaticDisableModelEnabled)
+	assert.False(t, common.AutomaticEnableModelEnabled)
+	var options []model.Option
+	require.NoError(t, model.DB.Where("key IN ?", []string{
+		"AutomaticDisableModelEnabled",
+		"AutomaticEnableModelEnabled",
+	}).Order("key").Find(&options).Error)
+	require.Len(t, options, 2)
+	assert.Equal(t, "false", options[0].Value)
+	assert.Equal(t, "false", options[1].Value)
+}
+
+func TestInitOptionMapNormalizesStoredModelAvailabilityPair(t *testing.T) {
+	resetModelChannelAvailabilityFixtures(t)
+	require.NoError(t, model.DB.Create(&[]model.Option{
+		{Key: "AutomaticDisableModelEnabled", Value: "false"},
+		{Key: "AutomaticEnableModelEnabled", Value: "1"},
+	}).Error)
+
+	model.InitOptionMap()
+
+	assert.False(t, common.AutomaticDisableModelEnabled)
+	assert.False(t, common.AutomaticEnableModelEnabled)
+	var options []model.Option
+	require.NoError(t, model.DB.Where("key IN ?", []string{
+		"AutomaticDisableModelEnabled",
+		"AutomaticEnableModelEnabled",
+	}).Order("key").Find(&options).Error)
+	require.Len(t, options, 2)
+	assert.Equal(t, "false", options[0].Value)
+	assert.Equal(t, "false", options[1].Value)
+}
