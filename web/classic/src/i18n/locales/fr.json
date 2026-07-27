@@ -3992,6 +3992,9 @@
     "选择要绑定的令牌": "Sélectionner le jeton à lier",
     "重置密码": "Réinitialiser le mot de passe",
     "画布": "Canevas",
-    "内置无限画布 AI 创作空间": "Espace de création IA sur canevas infini intégré"
+    "内置无限画布 AI 创作空间": "Espace de création IA sur canevas infini intégré",
+    "质量档": "Mode qualité",
+    "仅对 hunyuan-image-3 生效：开启后模型会先思考并改写提示词再生成，出图更贴合描述，但生成时长会明显增加（约 2.8 倍）。其他图片模型（如 z-image、qwen-image-edit）没有该能力，开启也不会有任何效果。默认关闭。": "Uniquement effectif pour hunyuan-image-3 : une fois activé, le modèle raisonne et réécrit d'abord votre invite avant de générer, l'image respecte donc mieux la description, mais la génération est nettement plus longue (environ 2,8x). Les autres modèles d'image (comme z-image et qwen-image-edit) n'ont pas cette capacité et l'activer n'a aucun effet. Désactivé par défaut.",
+    "当前模型不是 hunyuan-image-3，仅在渠道已映射到该模型时生效": "Le modèle actuel n'est pas hunyuan-image-3 ; cela ne prend effet que si le canal le redirige vers ce modèle."
   }
 }

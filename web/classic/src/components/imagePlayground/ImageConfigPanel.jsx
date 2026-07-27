@@ -6,6 +6,7 @@ import {
   Tooltip,
   InputNumber,
   TextArea,
+  Switch,
 } from '@douyinfe/semi-ui';
 import {
   Settings,
@@ -15,11 +16,15 @@ import {
   HelpCircle,
   Shuffle,
   Ban,
+  Gauge,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
 import ImageUrlInput from '../playground/ImageUrlInput';
-import { IMAGE_MAX_EDIT_IMAGES } from '../../constants/imagePlayground.constants';
+import {
+  IMAGE_MAX_EDIT_IMAGES,
+  supportsImageQualityMode,
+} from '../../constants/imagePlayground.constants';
 
 const ImageConfigPanel = ({
   isI2I = false,
@@ -203,6 +208,41 @@ const ImageConfigPanel = ({
             disabled={disabled}
             className='!rounded-lg'
           />
+        </div>
+
+        {/* 质量档(bot_task)—— 常驻,默认关。开关不按模型名拦截:渠道映射可能把当前
+            模型指向 HunyuanImage-3.0,前端看不到映射结果,只用模型名做提示。 */}
+        <div>
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
+              <Gauge size={16} className='text-gray-500' />
+              <Typography.Text strong className='text-sm'>
+                {t('质量档')}
+              </Typography.Text>
+              <Tooltip
+                content={t(
+                  '仅对 hunyuan-image-3 生效：开启后模型会先思考并改写提示词再生成，出图更贴合描述，但生成时长会明显增加（约 2.8 倍）。其他图片模型（如 z-image、qwen-image-edit）没有该能力，开启也不会有任何效果。默认关闭。',
+                )}
+                position='top'
+                style={{ maxWidth: 320 }}
+              >
+                <HelpCircle size={14} className='text-gray-400 cursor-help' />
+              </Tooltip>
+            </div>
+            <Switch
+              checked={!!inputs.qualityMode}
+              onChange={(checked) => onInputChange('qualityMode', checked)}
+              checkedText={t('开')}
+              uncheckedText={t('关')}
+              size='small'
+              disabled={disabled}
+            />
+          </div>
+          {!supportsImageQualityMode(inputs.model) && (
+            <Typography.Text className='text-xs text-gray-400'>
+              {t('当前模型不是 hunyuan-image-3，仅在渠道已映射到该模型时生效')}
+            </Typography.Text>
+          )}
         </div>
 
         {/* 随机种子(seed)—— 常驻,留空为随机 */}
