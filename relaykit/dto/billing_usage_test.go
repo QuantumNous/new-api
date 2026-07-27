@@ -54,7 +54,7 @@ func TestOpenAIOutputTokensDetailsJSONAndClone(t *testing.T) {
 	billingUsage := NewOpenAIChatBillingUsage(usage)
 	require.NotNil(t, billingUsage)
 
-	data, err := common.Marshal(usage)
+	data, err := kitutil.Marshal(usage)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `"output_tokens_details":{"text_tokens":0,"audio_tokens":0,"image_tokens":9,"reasoning_tokens":0}`)
 
