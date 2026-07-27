@@ -26,6 +26,7 @@ const (
 	SubscriptionRenewalSourceProvider = "provider_recurring"
 
 	SubscriptionRenewalStatusEnabled                   = "enabled"
+	SubscriptionRenewalStatusCancelledByUser           = "cancelled_by_user"
 	SubscriptionRenewalStatusPausedInsufficientBalance = "paused_insufficient_balance"
 	SubscriptionRenewalStatusPausedPlanUnavailable     = "paused_plan_unavailable"
 
