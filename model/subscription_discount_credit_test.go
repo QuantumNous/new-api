@@ -100,6 +100,13 @@ func readSubscriptionDiscountEntries(t *testing.T) []SubscriptionDiscountEntry {
 	return entries
 }
 
+func countSubscriptionDiscountAccountsForTest(t *testing.T, userID int) int64 {
+	t.Helper()
+	var rows int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountAccount{}).Where("user_id = ?", userID).Count(&rows).Error)
+	return rows
+}
+
 func TestSubscriptionDiscountGrantCreatesAccountAndImmutableEntry(t *testing.T) {
 	setupSubscriptionDiscountCreditMemoryDB(t)
 
@@ -140,6 +147,29 @@ func TestSubscriptionDiscountDuplicateGrantIsIdempotent(t *testing.T) {
 	require.Len(t, readSubscriptionDiscountEntries(t), 1)
 }
 
+func TestSubscriptionDiscountDuplicateGlobalGrantKeyDoesNotCreateSecondAccount(t *testing.T) {
+	setupSubscriptionDiscountCreditMemoryDB(t)
+
+	require.True(t, grantSubscriptionDiscountForTest(t, 121, 500, "global-grant-key"))
+
+	var changed bool
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		changed, err = GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+			UserID:         122,
+			USDMinor:       100,
+			EntryType:      SubscriptionDiscountEntryTypeGrantInvitee,
+			SourceType:     "test",
+			SourceKey:      "global-grant-key",
+			IdempotencyKey: "global-grant-key",
+		})
+		return err
+	}))
+	require.False(t, changed)
+	require.EqualValues(t, 0, countSubscriptionDiscountAccountsForTest(t, 122))
+	require.Len(t, readSubscriptionDiscountEntries(t), 1)
+}
+
 func TestSubscriptionDiscountZeroGrantNoOpAndNegativeGrantRejected(t *testing.T) {
 	setupSubscriptionDiscountCreditMemoryDB(t)
 
@@ -171,6 +201,52 @@ func TestSubscriptionDiscountZeroGrantNoOpAndNegativeGrantRejected(t *testing.T)
 	})
 	require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidAmount)
 	require.Len(t, readSubscriptionDiscountEntries(t), 0)
+}
+
+func TestSubscriptionDiscountGrantRejectsInvalidEntryTypesWithoutMutation(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		entryType string
+		valid     bool
+	}{
+		{name: "grant_invitee", entryType: SubscriptionDiscountEntryTypeGrantInvitee, valid: true},
+		{name: "grant_inviter", entryType: SubscriptionDiscountEntryTypeGrantInviter, valid: true},
+		{name: "migration", entryType: SubscriptionDiscountEntryTypeMigration, valid: true},
+		{name: "empty", entryType: "", valid: false},
+		{name: "reserve", entryType: SubscriptionDiscountEntryTypeReserve, valid: false},
+		{name: "commit", entryType: SubscriptionDiscountEntryTypeCommit, valid: false},
+		{name: "release", entryType: SubscriptionDiscountEntryTypeRelease, valid: false},
+		{name: "arbitrary", entryType: "manual_adjustment", valid: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setupSubscriptionDiscountCreditMemoryDB(t)
+
+			var changed bool
+			err := DB.Transaction(func(tx *gorm.DB) error {
+				var err error
+				changed, err = GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+					UserID:         123,
+					USDMinor:       100,
+					EntryType:      tc.entryType,
+					SourceType:     "test",
+					SourceKey:      "grant-type-" + tc.name,
+					IdempotencyKey: "grant-type-" + tc.name,
+				})
+				return err
+			})
+			if tc.valid {
+				require.NoError(t, err)
+				require.True(t, changed)
+				require.EqualValues(t, 1, countSubscriptionDiscountAccountsForTest(t, 123))
+				require.Len(t, readSubscriptionDiscountEntries(t), 1)
+				return
+			}
+			require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidEntryType)
+			require.False(t, changed)
+			require.EqualValues(t, 0, countSubscriptionDiscountAccountsForTest(t, 123))
+			require.Len(t, readSubscriptionDiscountEntries(t), 0)
+		})
+	}
 }
 
 func TestSubscriptionDiscountReserveMovesAvailableToReserved(t *testing.T) {
@@ -228,6 +304,27 @@ func TestSubscriptionDiscountDuplicateReserveIsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 300, account.AvailableUSDMinor)
 	require.EqualValues(t, 200, account.ReservedUSDMinor)
+	require.Len(t, readSubscriptionDiscountEntries(t), 2)
+}
+
+func TestSubscriptionDiscountDuplicateGlobalReserveKeyDoesNotCreateSecondAccount(t *testing.T) {
+	setupSubscriptionDiscountCreditMemoryDB(t)
+
+	require.True(t, grantSubscriptionDiscountForTest(t, 124, 500, "grant-global-reserve"))
+	require.True(t, reserveSubscriptionDiscountForTest(t, 124, 200, "global-reserve-key"))
+
+	var changed bool
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		changed, err = ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+			UserID:         125,
+			USDMinor:       100,
+			IdempotencyKey: "global-reserve-key",
+		})
+		return err
+	}))
+	require.False(t, changed)
+	require.EqualValues(t, 0, countSubscriptionDiscountAccountsForTest(t, 125))
 	require.Len(t, readSubscriptionDiscountEntries(t), 2)
 }
 
@@ -360,7 +457,7 @@ func TestSubscriptionDiscountMissingAccountReadsAsZeroWithoutCreatingRow(t *test
 
 func TestSubscriptionDiscountConcurrentSQLiteReservationsDoNotOverspend(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "subscription-discount.db")
-	setupSubscriptionDiscountCreditTestDB(t, dbPath+"?_pragma=busy_timeout(10000)", 2)
+	setupSubscriptionDiscountCreditTestDB(t, dbPath+"?_pragma=busy_timeout(10000)&_txlock=immediate", 2)
 	require.True(t, grantSubscriptionDiscountForTest(t, 112, 500, "grant-concurrent"))
 
 	start := make(chan struct{})
@@ -410,4 +507,71 @@ func TestSubscriptionDiscountConcurrentSQLiteReservationsDoNotOverspend(t *testi
 	require.NoError(t, err)
 	require.EqualValues(t, 100, account.AvailableUSDMinor)
 	require.EqualValues(t, 400, account.ReservedUSDMinor)
+}
+
+func TestSubscriptionDiscountConcurrentCommitReleaseSingleWinner(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "subscription-discount-terminal.db")
+	setupSubscriptionDiscountCreditTestDB(t, dbPath+"?_pragma=busy_timeout(10000)&_txlock=immediate", 2)
+	require.True(t, grantSubscriptionDiscountForTest(t, 126, 500, "grant-terminal-concurrent"))
+	require.True(t, reserveSubscriptionDiscountForTest(t, 126, 200, "reserve-terminal-concurrent"))
+
+	start := make(chan struct{})
+	results := make(chan struct {
+		applied bool
+		err     error
+	}, 2)
+	var wg sync.WaitGroup
+	for _, fn := range []func(*gorm.DB, string) (bool, error){CommitSubscriptionDiscountTx, ReleaseSubscriptionDiscountTx} {
+		fn := fn
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			var applied bool
+			err := DB.Transaction(func(tx *gorm.DB) error {
+				var err error
+				applied, err = fn(tx, "reserve-terminal-concurrent")
+				return err
+			})
+			results <- struct {
+				applied bool
+				err     error
+			}{applied: applied, err: err}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var applied, noops int
+	for result := range results {
+		require.NoError(t, result.err)
+		if result.applied {
+			applied++
+		} else {
+			noops++
+		}
+	}
+	require.Equal(t, 1, applied)
+	require.Equal(t, 1, noops)
+
+	var terminals []SubscriptionDiscountEntry
+	require.NoError(t, DB.Where("source_key = ? AND entry_type IN ?", "reserve-terminal-concurrent",
+		[]string{SubscriptionDiscountEntryTypeCommit, SubscriptionDiscountEntryTypeRelease}).Find(&terminals).Error)
+	require.Len(t, terminals, 1)
+	require.NotNil(t, terminals[0].TerminalReservationKey)
+	require.Equal(t, "reserve-terminal-concurrent", *terminals[0].TerminalReservationKey)
+
+	account, err := GetSubscriptionDiscountAccount(126)
+	require.NoError(t, err)
+	switch terminals[0].EntryType {
+	case SubscriptionDiscountEntryTypeCommit:
+		require.EqualValues(t, 300, account.AvailableUSDMinor)
+		require.Zero(t, account.ReservedUSDMinor)
+	case SubscriptionDiscountEntryTypeRelease:
+		require.EqualValues(t, 500, account.AvailableUSDMinor)
+		require.Zero(t, account.ReservedUSDMinor)
+	default:
+		t.Fatalf("unexpected terminal entry type %q", terminals[0].EntryType)
+	}
 }

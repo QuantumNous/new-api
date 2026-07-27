@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
@@ -26,6 +27,7 @@ var (
 	ErrSubscriptionDiscountReservationNotFound = errors.New("subscription discount reservation not found")
 	ErrSubscriptionDiscountInvalidAccountState = errors.New("subscription discount invalid account state")
 	ErrSubscriptionDiscountImmutableEntry      = errors.New("subscription discount entry is immutable")
+	ErrSubscriptionDiscountInvalidEntryType    = errors.New("subscription discount invalid entry type")
 )
 
 type SubscriptionDiscountAccount struct {
@@ -50,22 +52,23 @@ func (a *SubscriptionDiscountAccount) BeforeUpdate(tx *gorm.DB) error {
 type SubscriptionDiscountEntry struct {
 	ID int64 `json:"id"`
 
-	UserID                 int    `json:"user_id" gorm:"not null;index"`
-	EntryType              string `json:"entry_type" gorm:"type:varchar(32);not null;default:'';index"`
-	AvailableDeltaUSDMinor int64  `json:"available_delta_usd_minor" gorm:"type:bigint;not null;default:0"`
-	ReservedDeltaUSDMinor  int64  `json:"reserved_delta_usd_minor" gorm:"type:bigint;not null;default:0"`
-	AvailableAfterUSDMinor int64  `json:"available_after_usd_minor" gorm:"type:bigint;not null;default:0"`
-	ReservedAfterUSDMinor  int64  `json:"reserved_after_usd_minor" gorm:"type:bigint;not null;default:0"`
-	SourceType             string `json:"source_type" gorm:"type:varchar(64);not null;default:'';index"`
-	SourceKey              string `json:"source_key" gorm:"type:varchar(255);not null;default:'';index"`
-	OrderID                int    `json:"order_id" gorm:"not null;default:0;index"`
-	TradeNo                string `json:"trade_no" gorm:"type:varchar(255);not null;default:'';index"`
-	PaymentCurrency        string `json:"payment_currency" gorm:"type:varchar(16);not null;default:''"`
-	AppliedAmountMinor     int64  `json:"applied_amount_minor" gorm:"type:bigint;not null;default:0"`
-	PricingSnapshot        string `json:"pricing_snapshot" gorm:"type:text"`
-	IdempotencyKey         string `json:"idempotency_key" gorm:"type:varchar(255);not null;uniqueIndex"`
-	ExpiresAt              int64  `json:"expires_at" gorm:"type:bigint;not null;default:0;index"`
-	CreatedAt              int64  `json:"created_at" gorm:"type:bigint;not null;default:0;index"`
+	UserID                 int     `json:"user_id" gorm:"not null;index"`
+	EntryType              string  `json:"entry_type" gorm:"type:varchar(32);not null;default:'';index"`
+	AvailableDeltaUSDMinor int64   `json:"available_delta_usd_minor" gorm:"type:bigint;not null;default:0"`
+	ReservedDeltaUSDMinor  int64   `json:"reserved_delta_usd_minor" gorm:"type:bigint;not null;default:0"`
+	AvailableAfterUSDMinor int64   `json:"available_after_usd_minor" gorm:"type:bigint;not null;default:0"`
+	ReservedAfterUSDMinor  int64   `json:"reserved_after_usd_minor" gorm:"type:bigint;not null;default:0"`
+	SourceType             string  `json:"source_type" gorm:"type:varchar(64);not null;default:'';index"`
+	SourceKey              string  `json:"source_key" gorm:"type:varchar(255);not null;default:'';index"`
+	OrderID                int     `json:"order_id" gorm:"not null;default:0;index"`
+	TradeNo                string  `json:"trade_no" gorm:"type:varchar(255);not null;default:'';index"`
+	PaymentCurrency        string  `json:"payment_currency" gorm:"type:varchar(16);not null;default:''"`
+	AppliedAmountMinor     int64   `json:"applied_amount_minor" gorm:"type:bigint;not null;default:0"`
+	PricingSnapshot        string  `json:"pricing_snapshot" gorm:"type:text"`
+	IdempotencyKey         string  `json:"idempotency_key" gorm:"type:varchar(255);not null;uniqueIndex"`
+	TerminalReservationKey *string `json:"terminal_reservation_key,omitempty" gorm:"type:varchar(255);uniqueIndex"`
+	ExpiresAt              int64   `json:"expires_at" gorm:"type:bigint;not null;default:0;index"`
+	CreatedAt              int64   `json:"created_at" gorm:"type:bigint;not null;default:0;index"`
 }
 
 func (e *SubscriptionDiscountEntry) BeforeUpdate(tx *gorm.DB) error {
@@ -130,14 +133,18 @@ func GrantSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountGrantInp
 		return false, ErrSubscriptionDiscountInvalidReservation
 	}
 	entryType := strings.TrimSpace(input.EntryType)
-	if entryType == "" {
-		entryType = SubscriptionDiscountEntryTypeGrantInvitee
+	if !isValidSubscriptionDiscountGrantEntryType(entryType) {
+		return false, ErrSubscriptionDiscountInvalidEntryType
 	}
 	if err := validateSubscriptionDiscountPricingSnapshot(input.PricingSnapshot); err != nil {
 		return false, err
 	}
+	exists, err := subscriptionDiscountIdempotencyExistsTx(tx, input.IdempotencyKey)
+	if err != nil || exists {
+		return false, err
+	}
 
-	account, now, err := lockSubscriptionDiscountAccountTx(tx, input.UserID)
+	account, now, accountCreated, err := lockSubscriptionDiscountAccountTx(tx, input.UserID)
 	if err != nil {
 		return false, err
 	}
@@ -157,6 +164,11 @@ func GrantSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountGrantInp
 	}
 	created, err := createSubscriptionDiscountEntryTx(tx, &entry)
 	if err != nil || !created {
+		if !created && accountCreated {
+			if cleanupErr := deleteNewEmptySubscriptionDiscountAccountTx(tx, input.UserID); cleanupErr != nil {
+				return false, cleanupErr
+			}
+		}
 		return created, err
 	}
 	if err := tx.Model(&SubscriptionDiscountAccount{}).
@@ -184,12 +196,21 @@ func ReserveSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountReserv
 	if err := validateSubscriptionDiscountPricingSnapshot(input.PricingSnapshot); err != nil {
 		return false, err
 	}
+	exists, err := subscriptionDiscountIdempotencyExistsTx(tx, input.IdempotencyKey)
+	if err != nil || exists {
+		return false, err
+	}
 
-	account, now, err := lockSubscriptionDiscountAccountTx(tx, input.UserID)
+	account, now, accountCreated, err := lockSubscriptionDiscountAccountTx(tx, input.UserID)
 	if err != nil {
 		return false, err
 	}
 	if account.AvailableUSDMinor < input.USDMinor {
+		if accountCreated {
+			if cleanupErr := deleteNewEmptySubscriptionDiscountAccountTx(tx, input.UserID); cleanupErr != nil {
+				return false, cleanupErr
+			}
+		}
 		return false, ErrSubscriptionDiscountInsufficient
 	}
 	afterAvailable := account.AvailableUSDMinor - input.USDMinor
@@ -214,6 +235,11 @@ func ReserveSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountReserv
 	}
 	created, err := createSubscriptionDiscountEntryTx(tx, &entry)
 	if err != nil || !created {
+		if !created && accountCreated {
+			if cleanupErr := deleteNewEmptySubscriptionDiscountAccountTx(tx, input.UserID); cleanupErr != nil {
+				return false, cleanupErr
+			}
+		}
 		return created, err
 	}
 	if err := tx.Model(&SubscriptionDiscountAccount{}).
@@ -244,21 +270,17 @@ func closeSubscriptionDiscountReservationTx(tx *gorm.DB, reservationKey string, 
 	if err != nil {
 		return false, err
 	}
-	account, now, err := lockSubscriptionDiscountAccountTx(tx, reservation.UserID)
+	account, now, _, err := lockSubscriptionDiscountAccountTx(tx, reservation.UserID)
 	if err != nil {
 		return false, err
 	}
-	terminalExists, err := subscriptionDiscountTerminalExistsTx(tx, reservationKey)
+	terminalExists, err := subscriptionDiscountTerminalMarkerExistsTx(tx, reservationKey)
 	if err != nil || terminalExists {
 		return false, err
 	}
-
 	amount := reservation.ReservedDeltaUSDMinor
 	if amount <= 0 {
 		return false, ErrSubscriptionDiscountInvalidReservation
-	}
-	if account.ReservedUSDMinor < amount {
-		return false, ErrSubscriptionDiscountInvalidAccountState
 	}
 
 	availableDelta := int64(0)
@@ -272,6 +294,7 @@ func closeSubscriptionDiscountReservationTx(tx *gorm.DB, reservationKey string, 
 		return false, ErrSubscriptionDiscountInvalidAccountState
 	}
 
+	terminalReservationKey := reservationKey
 	entry := SubscriptionDiscountEntry{
 		UserID:                 reservation.UserID,
 		EntryType:              entryType,
@@ -287,11 +310,15 @@ func closeSubscriptionDiscountReservationTx(tx *gorm.DB, reservationKey string, 
 		AppliedAmountMinor:     reservation.AppliedAmountMinor,
 		PricingSnapshot:        reservation.PricingSnapshot,
 		IdempotencyKey:         reservationKey + ":" + entryType,
+		TerminalReservationKey: &terminalReservationKey,
 		CreatedAt:              now,
 	}
 	created, err := createSubscriptionDiscountEntryTx(tx, &entry)
 	if err != nil || !created {
 		return created, err
+	}
+	if account.ReservedUSDMinor < amount {
+		return false, ErrSubscriptionDiscountInvalidAccountState
 	}
 	if err := tx.Model(&SubscriptionDiscountAccount{}).
 		Where("user_id = ? AND reserved_usd_minor >= ?", reservation.UserID, amount).
@@ -305,7 +332,7 @@ func closeSubscriptionDiscountReservationTx(tx *gorm.DB, reservationKey string, 
 	return true, nil
 }
 
-func lockSubscriptionDiscountAccountTx(tx *gorm.DB, userID int) (*SubscriptionDiscountAccount, int64, error) {
+func lockSubscriptionDiscountAccountTx(tx *gorm.DB, userID int) (*SubscriptionDiscountAccount, int64, bool, error) {
 	now := getDBTimestampTx(tx)
 	account := SubscriptionDiscountAccount{
 		UserID:            userID,
@@ -314,27 +341,55 @@ func lockSubscriptionDiscountAccountTx(tx *gorm.DB, userID int) (*SubscriptionDi
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	}
-	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&account).Error; err != nil {
-		return nil, 0, err
-	}
 	if common.UsingSQLite {
-		if err := tx.Model(&SubscriptionDiscountAccount{}).
-			Where("user_id = ?", userID).
-			Update("updated_at", gorm.Expr("updated_at")).Error; err != nil {
-			return nil, 0, err
+		err := tx.Where("user_id = ?", userID).First(&account).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			insert := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&account)
+			if insert.Error != nil {
+				return nil, 0, false, insert.Error
+			}
+			if err := tx.Where("user_id = ?", userID).First(&account).Error; err != nil {
+				return nil, 0, false, err
+			}
+			if err := validateSubscriptionDiscountAccount(&account); err != nil {
+				return nil, 0, false, err
+			}
+			return &account, now, insert.RowsAffected > 0, nil
 		}
+		if err != nil {
+			return nil, 0, false, err
+		}
+		if err := retrySQLiteBusy(func() error {
+			return tx.Model(&SubscriptionDiscountAccount{}).
+				Where("user_id = ?", userID).
+				Update("updated_at", gorm.Expr("updated_at")).Error
+		}); err != nil {
+			return nil, 0, false, err
+		}
+		if err := tx.Where("user_id = ?", userID).First(&account).Error; err != nil {
+			return nil, 0, false, err
+		}
+		if err := validateSubscriptionDiscountAccount(&account); err != nil {
+			return nil, 0, false, err
+		}
+		return &account, now, false, nil
 	}
+	insert := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&account)
+	if insert.Error != nil {
+		return nil, 0, false, insert.Error
+	}
+	accountCreated := insert.RowsAffected > 0
 	query := tx
 	if common.UsingMySQL || common.UsingPostgreSQL {
 		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
 	}
 	if err := query.Where("user_id = ?", userID).First(&account).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, false, err
 	}
 	if err := validateSubscriptionDiscountAccount(&account); err != nil {
-		return nil, 0, err
+		return nil, 0, false, err
 	}
-	return &account, now, nil
+	return &account, now, accountCreated, nil
 }
 
 func createSubscriptionDiscountEntryTx(tx *gorm.DB, entry *SubscriptionDiscountEntry) (bool, error) {
@@ -360,13 +415,54 @@ func getSubscriptionDiscountReservationEntryTx(tx *gorm.DB, reservationKey strin
 	return &entry, nil
 }
 
-func subscriptionDiscountTerminalExistsTx(tx *gorm.DB, reservationKey string) (bool, error) {
+func subscriptionDiscountIdempotencyExistsTx(tx *gorm.DB, idempotencyKey string) (bool, error) {
 	var count int64
 	err := tx.Model(&SubscriptionDiscountEntry{}).
-		Where("source_key = ? AND entry_type IN ?", reservationKey,
-			[]string{SubscriptionDiscountEntryTypeCommit, SubscriptionDiscountEntryTypeRelease}).
+		Where("idempotency_key = ?", idempotencyKey).
 		Count(&count).Error
 	return count > 0, err
+}
+
+func subscriptionDiscountTerminalMarkerExistsTx(tx *gorm.DB, reservationKey string) (bool, error) {
+	var count int64
+	err := tx.Model(&SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ?", reservationKey).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func deleteNewEmptySubscriptionDiscountAccountTx(tx *gorm.DB, userID int) error {
+	return tx.Where("user_id = ? AND available_usd_minor = 0 AND reserved_usd_minor = 0", userID).
+		Delete(&SubscriptionDiscountAccount{}).Error
+}
+
+func isValidSubscriptionDiscountGrantEntryType(entryType string) bool {
+	switch entryType {
+	case SubscriptionDiscountEntryTypeGrantInvitee, SubscriptionDiscountEntryTypeGrantInviter, SubscriptionDiscountEntryTypeMigration:
+		return true
+	default:
+		return false
+	}
+}
+
+func retrySQLiteBusy(fn func() error) error {
+	var err error
+	for attempt := 0; attempt < 50; attempt++ {
+		err = fn()
+		if !common.UsingSQLite || !isSQLiteBusyError(err) {
+			return err
+		}
+		time.Sleep(time.Duration(attempt+1) * 5 * time.Millisecond)
+	}
+	return err
+}
+
+func isSQLiteBusyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "database is locked") || strings.Contains(message, "sqlite_busy")
 }
 
 func validateSubscriptionDiscountAccount(account *SubscriptionDiscountAccount) error {
