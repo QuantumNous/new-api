@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
@@ -189,6 +190,10 @@ func CreateAdminEntitlementToken(c *gin.Context) {
 		return
 	}
 	if _, err := model.GetUserById(req.UserId, false); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := service.ValidateUserSelectableTokenGroup(req.UserId, req.Group); err != nil {
 		common.ApiError(c, err)
 		return
 	}

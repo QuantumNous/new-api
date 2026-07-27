@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
+import { TokenGroupVisibilityEditor } from './token-group-visibility-editor'
 
 type GroupFormValues = {
   GroupRatio: string
@@ -93,6 +94,8 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 handleFieldChange('GroupSpecialUsableGroup', value)
               }
             />
+
+            <TokenGroupVisibilityEditor />
 
             <FormField
               control={form.control}

@@ -1,0 +1,64 @@
+package service
+
+import (
+	"errors"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+)
+
+// GetUserSelectableTokenGroups intersects the established usable-group
+// permission with optional visibility policies. With the flag off it returns
+// the exact legacy result.
+func GetUserSelectableTokenGroups(userId int) (map[string]string, error) {
+	user, err := model.GetUserById(userId, false)
+	if err != nil {
+		return nil, err
+	}
+	groups := GetUserUsableGroups(user.Group)
+	if !model.TokenGroupVisibilityEnabled() {
+		return groups, nil
+	}
+	policies, err := model.GetTokenGroupVisibilityPolicies()
+	if err != nil {
+		return nil, err
+	}
+	now := common.GetTimestamp()
+	for _, policy := range policies {
+		if _, usable := groups[policy.Group]; !usable ||
+			(policy.StartTime != 0 && now < policy.StartTime) ||
+			(policy.EndTime != 0 && now >= policy.EndTime) {
+			continue
+		}
+		switch policy.Visibility {
+		case model.TokenGroupVisibilityHidden:
+			delete(groups, policy.Group)
+		case model.TokenGroupVisibilityTargeted:
+			allowed := false
+			for _, username := range policy.Usernames {
+				if username == user.Username {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				delete(groups, policy.Group)
+			}
+		}
+	}
+	return groups, nil
+}
+
+func ValidateUserSelectableTokenGroup(userId int, group string) error {
+	if !model.TokenGroupVisibilityEnabled() || group == "" {
+		return nil
+	}
+	groups, err := GetUserSelectableTokenGroups(userId)
+	if err != nil {
+		return err
+	}
+	if _, ok := groups[group]; !ok {
+		return errors.New("所选令牌分组当前不可用")
+	}
+	return nil
+}

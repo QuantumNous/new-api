@@ -278,6 +278,8 @@ func migrateDB() error {
 	err := DB.AutoMigrate(
 		&Channel{},
 		&Token{},
+		&TokenGroupVisibility{},
+		&TokenGroupVisibilityTarget{},
 		&User{},
 		&PasskeyCredential{},
 		&Option{},
@@ -331,6 +333,8 @@ func migrateDBFast() error {
 	}{
 		{&Channel{}, "Channel"},
 		{&Token{}, "Token"},
+		{&TokenGroupVisibility{}, "TokenGroupVisibility"},
+		{&TokenGroupVisibilityTarget{}, "TokenGroupVisibilityTarget"},
 		{&User{}, "User"},
 		{&PasskeyCredential{}, "PasskeyCredential"},
 		{&Option{}, "Option"},

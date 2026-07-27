@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
@@ -229,6 +230,10 @@ func AddToken(c *gin.Context) {
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
 	}
+	if err := service.ValidateUserSelectableTokenGroup(cleanToken.UserId, cleanToken.Group); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	packageIds := []int{}
 	if req.EntitlementPackageIds != nil {
 		packageIds = *req.EntitlementPackageIds
@@ -311,6 +316,10 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		if err := service.ValidateUserSelectableTokenGroup(userId, cleanToken.Group); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	var entitlementPackageIds *[]int
 	if statusOnly == "" {
