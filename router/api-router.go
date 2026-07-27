@@ -366,6 +366,7 @@ func SetApiRouter(router *gin.Engine) {
 		playgroundMediaRoute.Use(middleware.UserSessionAuth())
 		{
 			playgroundMediaRoute.GET("/assets/:id/content", controller.GetPlaygroundAssetContent)
+			playgroundMediaRoute.GET("/assets/:id/parse/pages/:page", controller.GetPlaygroundAssetParsePage)
 		}
 
 		// Playground data APIs (assets, estimate, conversations, personas, etc.)
@@ -385,6 +386,9 @@ func SetApiRouter(router *gin.Engine) {
 			playgroundDataRoute.POST("/assets/:id/publish", controller.PublishPlaygroundAsset)
 			playgroundDataRoute.POST("/assets/:id/unpublish", controller.UnpublishPlaygroundAsset)
 			playgroundDataRoute.DELETE("/assets/:id", controller.DeletePlaygroundAsset)
+			playgroundDataRoute.POST("/assets/:id/parse", controller.StartPlaygroundAssetParse)
+			playgroundDataRoute.GET("/assets/:id/parse", controller.GetPlaygroundAssetParse)
+			playgroundDataRoute.POST("/assets/:id/parse/import", controller.ImportPlaygroundAssetParse)
 			playgroundDataRoute.POST("/assets/backfill-r2", middleware.AdminAuth(), controller.BackfillPlaygroundAssetsToR2)
 
 			playgroundDataRoute.POST("/upload-sessions", controller.CreatePlaygroundUploadSession)

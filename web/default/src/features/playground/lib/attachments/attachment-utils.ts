@@ -26,9 +26,7 @@ import type { ChatAttachment } from '../../types'
  */
 export function hasAttachmentPayload(attachment: ChatAttachment): boolean {
   if (attachment.kind === 'document') return attachment.text.trim() !== ''
-  if (attachment.dataUrl?.trim()) return true
-  if (attachment.kind === 'file' && attachment.text?.trim()) return true
-  return false
+  return Boolean(attachment.dataUrl?.trim())
 }
 
 /**
@@ -37,8 +35,7 @@ export function hasAttachmentPayload(attachment: ChatAttachment): boolean {
  */
 export function isAttachmentPersistable(attachment: ChatAttachment): boolean {
   if (attachment.kind === 'document') return attachment.text.trim() !== ''
-  if (attachment.assetId !== undefined) return true
-  return attachment.kind === 'file' && (attachment.text?.trim() ?? '') !== ''
+  return attachment.assetId !== undefined
 }
 
 /**
@@ -56,19 +53,12 @@ export function attachmentPreviewSrc(
 }
 
 /**
- * Attachments that need binary bytes fetched back before the next request.
- * A PDF headed for a model without document input is sent as its extracted
- * text, so refetching those bytes would only slow the turn down.
+ * Images that need their bytes fetched back before the next request (after a
+ * reload only the asset id survives). Documents never hydrate binary: only
+ * their parsed text is ever sent.
  */
-export function needsAttachmentHydration(
-  attachment: ChatAttachment,
-  nativeFileInput = false
-): boolean {
-  if (attachment.kind === 'document') return false
+export function needsAttachmentHydration(attachment: ChatAttachment): boolean {
+  if (attachment.kind !== 'image') return false
   if (attachment.dataUrl?.trim()) return false
-  if (attachment.assetId === undefined) return false
-  if (attachment.kind === 'file' && !nativeFileInput) {
-    return (attachment.text?.trim() ?? '') === ''
-  }
-  return true
+  return attachment.assetId !== undefined
 }

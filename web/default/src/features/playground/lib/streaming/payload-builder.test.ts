@@ -14,7 +14,6 @@ import {
   MAX_CHAT_PAYLOAD_BYTES,
   buildChatCompletionPayload,
   VISUAL_OUTPUT_SYSTEM_PROMPT,
-  hasNativeFilePart,
   isChatCompletionPayloadTooLarge,
 } from './payload-builder'
 
@@ -179,7 +178,7 @@ describe('buildChatCompletionPayload', () => {
     expect(nonStreaming).not.toHaveProperty('stream_options')
   })
 
-  it('formats image and PDF attachments for a document-capable model', () => {
+  it('formats image and parsed PDF attachments as image_url plus text parts', () => {
     const message = userMessage('Compare these files')
     message.attachments = [
       {
@@ -193,50 +192,9 @@ describe('buildChatCompletionPayload', () => {
         id: 'pdf-1',
         name: 'report.pdf',
         mimeType: 'application/pdf',
-        dataUrl: 'data:application/pdf;base64,cGRm',
-        kind: 'file',
-      },
-    ]
-
-    const payload = buildChatCompletionPayload(
-      [message],
-      DEFAULT_CONFIG,
-      DEFAULT_PARAMETER_ENABLED,
-      { nativeFileInput: true }
-    )
-
-    expect(hasNativeFilePart(payload)).toBe(true)
-    expect(payload.messages).toEqual([
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Compare these files' },
-          {
-            type: 'image_url',
-            image_url: { url: 'data:image/png;base64,aW1hZ2U=' },
-          },
-          {
-            type: 'file',
-            file: {
-              filename: 'report.pdf',
-              file_data: 'data:application/pdf;base64,cGRm',
-            },
-          },
-        ],
-      },
-    ])
-  })
-
-  it('routes a PDF through extracted text unless file input is declared', () => {
-    const message = userMessage('Translate this')
-    message.attachments = [
-      {
-        id: 'pdf-1',
-        name: 'report.pdf',
-        mimeType: 'application/pdf',
-        dataUrl: 'data:application/pdf;base64,cGRm',
-        kind: 'file',
+        kind: 'document',
         text: 'Revenue up 12%',
+        assetId: 9,
       },
     ]
 
@@ -246,12 +204,15 @@ describe('buildChatCompletionPayload', () => {
       DEFAULT_PARAMETER_ENABLED
     )
 
-    expect(hasNativeFilePart(payload)).toBe(false)
     expect(payload.messages).toEqual([
       {
         role: 'user',
         content: [
-          { type: 'text', text: 'Translate this' },
+          { type: 'text', text: 'Compare these files' },
+          {
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,aW1hZ2U=' },
+          },
           {
             type: 'text',
             text: 'Attached document "report.pdf":\n\nRevenue up 12%',

@@ -94,24 +94,38 @@ const attachmentAssetSchema = {
   assetId: z.number().int().positive().optional(),
 }
 
-const chatAttachmentSchema = z.discriminatedUnion('kind', [
-  z.object({
-    ...attachmentIdentitySchema,
-    ...attachmentAssetSchema,
-    kind: z.literal('image'),
-  }),
-  z.object({
-    ...attachmentIdentitySchema,
-    ...attachmentAssetSchema,
-    kind: z.literal('file'),
-    text: z.string().optional(),
-  }),
-  z.object({
-    ...attachmentIdentitySchema,
-    kind: z.literal('document'),
-    text: z.string(),
-  }),
-])
+const chatAttachmentSchema = z
+  .discriminatedUnion('kind', [
+    z.object({
+      ...attachmentIdentitySchema,
+      ...attachmentAssetSchema,
+      kind: z.literal('image'),
+    }),
+    // Legacy native-PDF attachment kind; migrated to document on load.
+    z.object({
+      ...attachmentIdentitySchema,
+      ...attachmentAssetSchema,
+      kind: z.literal('file'),
+      text: z.string().optional(),
+    }),
+    z.object({
+      ...attachmentIdentitySchema,
+      kind: z.literal('document'),
+      text: z.string(),
+      assetId: z.number().int().positive().optional(),
+    }),
+  ])
+  .transform((attachment) => {
+    if (attachment.kind !== 'file') return attachment
+    return {
+      id: attachment.id,
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      kind: 'document' as const,
+      text: attachment.text ?? '',
+      assetId: attachment.assetId,
+    }
+  })
 
 const reasoningSchema = z.object({
   content: z.string(),

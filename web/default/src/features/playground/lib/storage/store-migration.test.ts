@@ -249,18 +249,18 @@ describe('preparePersistedPlaygroundState', () => {
     return { live: chat, persisted, persistedChat }
   }
 
-  it('keeps the asset reference but never the inline bytes', () => {
+  it('keeps the asset reference but never the inline image bytes', () => {
     const result = persistChatMessages([
       {
         ...userMessage,
         attachments: [
           {
-            id: 'pdf-1',
-            name: 'report.pdf',
-            mimeType: 'application/pdf',
-            dataUrl: 'data:application/pdf;base64,cGRm',
+            id: 'img-9',
+            name: 'shot.png',
+            mimeType: 'image/png',
+            dataUrl: 'data:image/png;base64,aW1n',
             assetId: 12,
-            kind: 'file',
+            kind: 'image',
           },
         ],
       },
@@ -268,18 +268,52 @@ describe('preparePersistedPlaygroundState', () => {
 
     expect(result.persistedChat.messages[0].attachments).toEqual([
       {
-        id: 'pdf-1',
-        name: 'report.pdf',
-        mimeType: 'application/pdf',
+        id: 'img-9',
+        name: 'shot.png',
+        mimeType: 'image/png',
         dataUrl: undefined,
         assetId: 12,
-        kind: 'file',
+        kind: 'image',
       },
     ])
     expect(result.live.messages[0].attachments?.[0]).toHaveProperty('dataUrl')
-    expect(JSON.stringify(result.persisted)).not.toContain(
-      'data:application/pdf'
-    )
+    expect(JSON.stringify(result.persisted)).not.toContain('data:image/png')
+  })
+
+  it('persists parsed documents without transient parse state', () => {
+    const result = persistChatMessages([
+      {
+        ...userMessage,
+        attachments: [
+          {
+            id: 'doc-9',
+            name: 'report.pdf',
+            mimeType: 'application/pdf',
+            kind: 'document',
+            text: 'parsed body',
+            assetId: 3,
+            status: 'done',
+            ocrDone: 4,
+            ocrTotal: 4,
+          },
+        ],
+      },
+    ])
+
+    expect(result.persistedChat.messages[0].attachments).toEqual([
+      {
+        id: 'doc-9',
+        name: 'report.pdf',
+        mimeType: 'application/pdf',
+        kind: 'document',
+        text: 'parsed body',
+        assetId: 3,
+        status: undefined,
+        error: undefined,
+        ocrDone: undefined,
+        ocrTotal: undefined,
+      },
+    ])
   })
 
   it('drops binary attachments that were never uploaded', () => {

@@ -109,7 +109,16 @@ export type PersistedPlaygroundState = {
 }
 
 function stripAttachmentForPersist(attachment: ChatAttachment): ChatAttachment {
-  if (attachment.kind === 'document') return attachment
+  if (attachment.kind === 'document') {
+    // Parse lifecycle state is transient; only the settled text persists.
+    return {
+      ...attachment,
+      status: undefined,
+      error: undefined,
+      ocrDone: undefined,
+      ocrTotal: undefined,
+    }
+  }
   // Inline base64 would blow the localStorage budget; the asset id is enough to
   // refetch the bytes before the next request.
   return { ...attachment, dataUrl: undefined }
@@ -117,7 +126,6 @@ function stripAttachmentForPersist(attachment: ChatAttachment): ChatAttachment {
 
 function attachmentTextLength(attachment: ChatAttachment): number {
   if (attachment.kind === 'document') return attachment.text.length
-  if (attachment.kind === 'file') return attachment.text?.length ?? 0
   return 0
 }
 

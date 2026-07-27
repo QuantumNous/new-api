@@ -40,8 +40,6 @@ type ChatComposerProps = {
   isModelLoading?: boolean
   hasMessages?: boolean
   onClearMessages?: () => void
-  /** Whether the active model accepts a PDF as a native file input. */
-  nativeFileInput?: boolean
 }
 
 /**
@@ -66,7 +64,9 @@ export function ChatComposer(props: ChatComposerProps) {
     groups,
     hasAttachments: attachments.attachments.length > 0,
     hasStopHandler: Boolean(props.onStop),
-    isAddingAttachments: attachments.isAdding,
+    // Documents must finish server-side parsing before the turn can be sent,
+    // otherwise their text would be silently missing from the request.
+    isAddingAttachments: attachments.isAdding || attachments.isParsing,
     isGenerating: props.isGenerating,
     isModelLoading: props.isModelLoading,
     models,
@@ -74,7 +74,7 @@ export function ChatComposer(props: ChatComposerProps) {
   })
 
   const handleSubmit = (message: PromptInputMessage) => {
-    if (attachments.isAdding) return
+    if (attachments.isAdding || attachments.isParsing) return
     const submittableText = getSubmittableInputText(message, props.disabled)
     if (!submittableText && attachments.attachments.length === 0) return
     if (props.onSubmit(submittableText ?? '', attachments.attachments)) {
@@ -107,7 +107,7 @@ export function ChatComposer(props: ChatComposerProps) {
           <ChatAttachmentStrip
             attachments={attachments.attachments}
             onRemove={attachments.removeAt}
-            nativeFileInput={props.nativeFileInput}
+            onRetry={attachments.retryAt}
           />
         }
         tools={
@@ -115,7 +115,7 @@ export function ChatComposer(props: ChatComposerProps) {
             <input
               ref={fileInputRef}
               type='file'
-              accept={`image/*,application/pdf,${DOCUMENT_ACCEPT}`}
+              accept={`image/*,${DOCUMENT_ACCEPT}`}
               multiple
               disabled={props.disabled || attachments.isAdding}
               className='hidden'

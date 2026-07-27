@@ -124,17 +124,13 @@ function documentTextPart(name: string, text: string): ContentPart {
 }
 
 /**
- * Build message content with optional images, PDFs, and extracted documents.
- *
- * `nativeFileInput` reflects whether the target model accepts a `file` part.
- * It defaults to false because most OpenAI-compatible upstreams reject that
- * part with a hard 400, so a PDF is sent as its browser-extracted text unless
- * the model is known to read documents natively.
+ * Build message content with optional images and parsed document text.
+ * Documents always contribute plain text (extracted server-side), so any
+ * chat model can consume them.
  */
 export function buildMessageContent(
   text: string,
-  attachments: ChatAttachment[] = [],
-  nativeFileInput = false
+  attachments: ChatAttachment[] = []
 ): string | ContentPart[] {
   const validAttachments = attachments.filter(hasAttachmentPayload)
 
@@ -155,22 +151,8 @@ export function buildMessageContent(
       continue
     }
     const dataUrl = attachment.dataUrl?.trim() ?? ''
-    if (attachment.kind === 'image') {
-      if (dataUrl) {
-        parts.push({ type: 'image_url', image_url: { url: dataUrl } })
-      }
-      continue
-    }
-    if (nativeFileInput && dataUrl) {
-      parts.push({
-        type: 'file',
-        file: { filename: attachment.name, file_data: dataUrl },
-      })
-      continue
-    }
-    const extracted = attachment.text?.trim() ?? ''
-    if (extracted) {
-      parts.push(documentTextPart(attachment.name, extracted))
+    if (dataUrl) {
+      parts.push({ type: 'image_url', image_url: { url: dataUrl } })
     }
   }
 
@@ -196,19 +178,12 @@ export function getTextContent(content: string | ContentPart[]): string {
 /**
  * Format message for API request
  */
-export function formatMessageForAPI(
-  message: Message,
-  nativeFileInput = false
-): ChatCompletionMessage {
+export function formatMessageForAPI(message: Message): ChatCompletionMessage {
   const currentVersion = getCurrentVersion(message)
   if (message.from === MESSAGE_ROLES.USER && message.attachments?.length) {
     return {
       role: message.from,
-      content: buildMessageContent(
-        currentVersion.content,
-        message.attachments,
-        nativeFileInput
-      ),
+      content: buildMessageContent(currentVersion.content, message.attachments),
     }
   }
   return {

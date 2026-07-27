@@ -11,5 +11,6 @@
   "Image processing failed. The original was kept.": "Image processing failed. The original was kept.",
   "Nothing selected": "Nothing selected",
   "Prompt copied": "Prompt copied",
-  "Resize {{corner}} handle": "Resize {{corner}} handle"
+  "Resize {{corner}} handle": "Resize {{corner}} handle",
+  "Windows": "Windows"
 }

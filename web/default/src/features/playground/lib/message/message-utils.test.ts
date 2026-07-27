@@ -8,11 +8,7 @@ License, or (at your option) any later version.
 */
 import { describe, expect, it } from 'vitest'
 
-import type {
-  ChatDocumentAttachment,
-  ChatFileAttachment,
-  ChatImageAttachment,
-} from '../../types'
+import type { ChatDocumentAttachment, ChatImageAttachment } from '../../types'
 import { buildMessageContent, createUserMessage } from './message-utils'
 
 function imageAttachment(
@@ -24,19 +20,6 @@ function imageAttachment(
     name: 'shot.png',
     mimeType: 'image/png',
     dataUrl: 'data:image/png;base64,AAA',
-    ...overrides,
-  }
-}
-
-function pdfAttachment(
-  overrides: Partial<ChatFileAttachment> = {}
-): ChatFileAttachment {
-  return {
-    id: 'f1',
-    kind: 'file',
-    name: 'doc.pdf',
-    mimeType: 'application/pdf',
-    dataUrl: 'data:application/pdf;base64,BBB',
     ...overrides,
   }
 }
@@ -56,19 +39,9 @@ function documentAttachment(
 }
 
 describe('createUserMessage', () => {
-  it('keeps extracted documents, which carry no binary payload', () => {
+  it('keeps parsed documents, which carry no binary payload', () => {
     const message = createUserMessage('summarize', 1, [documentAttachment()])
     expect(message.attachments).toEqual([documentAttachment()])
-  })
-
-  it('keeps a PDF restored without inline bytes but with extracted text', () => {
-    const restored = pdfAttachment({
-      dataUrl: undefined,
-      assetId: 7,
-      text: 'page one',
-    })
-    const message = createUserMessage('summarize', 1, [restored])
-    expect(message.attachments).toEqual([restored])
   })
 
   it('drops attachments with no usable payload at all', () => {
@@ -88,60 +61,32 @@ describe('buildMessageContent', () => {
     )
   })
 
-  it('emits a native file part only for a model that reads documents', () => {
-    const parts = buildMessageContent(
-      'look',
-      [imageAttachment(), pdfAttachment({ text: 'page one' })],
-      true
-    )
+  it('emits images as image_url parts', () => {
+    const parts = buildMessageContent('look', [imageAttachment()])
     expect(parts).toEqual([
       { type: 'text', text: 'look' },
       { type: 'image_url', image_url: { url: 'data:image/png;base64,AAA' } },
-      {
-        type: 'file',
-        file: {
-          filename: 'doc.pdf',
-          file_data: 'data:application/pdf;base64,BBB',
-        },
-      },
     ])
   })
 
-  it('defaults to extracted text, which every upstream accepts', () => {
-    const parts = buildMessageContent('look', [
-      pdfAttachment({ text: 'page one' }),
+  it('emits parsed document text as a labeled text part', () => {
+    const parts = buildMessageContent('summarize', [
+      documentAttachment({ name: 'doc.pdf', text: 'page one' }),
     ])
-    expect(parts).toEqual([
-      { type: 'text', text: 'look' },
-      { type: 'text', text: 'Attached document "doc.pdf":\n\npage one' },
-    ])
-  })
-
-  it('emits extracted document text as a labeled text part', () => {
-    const parts = buildMessageContent('summarize', [documentAttachment()])
-    expect(parts).toEqual([
-      { type: 'text', text: 'summarize' },
-      {
-        type: 'text',
-        text: 'Attached document "report.docx":\n\nQuarterly numbers\nRevenue up',
-      },
-    ])
-  })
-
-  it('sends a PDF as extracted text when the model has no file input', () => {
-    const parts = buildMessageContent(
-      'summarize',
-      [pdfAttachment({ text: 'page one' })],
-      false
-    )
     expect(parts).toEqual([
       { type: 'text', text: 'summarize' },
       { type: 'text', text: 'Attached document "doc.pdf":\n\npage one' },
     ])
   })
 
-  it('drops an unreadable PDF instead of sending a part the model rejects', () => {
-    const parts = buildMessageContent('summarize', [pdfAttachment()], false)
-    expect(parts).toEqual([{ type: 'text', text: 'summarize' }])
+  it('drops an unreadable document instead of sending an empty part', () => {
+    const parts = buildMessageContent('summarize', [
+      documentAttachment({ text: '' }),
+      imageAttachment(),
+    ])
+    expect(parts).toEqual([
+      { type: 'text', text: 'summarize' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,AAA' } },
+    ])
   })
 })

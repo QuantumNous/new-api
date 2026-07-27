@@ -54,13 +54,9 @@ async function resolveAttachmentDataUrl(assetId: number): Promise<string> {
 }
 
 async function hydrateAttachment(
-  attachment: ChatAttachment,
-  nativeFileInput: boolean
+  attachment: ChatAttachment
 ): Promise<ChatAttachment> {
-  if (
-    !needsAttachmentHydration(attachment, nativeFileInput) ||
-    attachment.kind === 'document'
-  ) {
+  if (attachment.kind !== 'image' || !needsAttachmentHydration(attachment)) {
     return attachment
   }
   try {
@@ -69,24 +65,22 @@ async function hydrateAttachment(
       dataUrl: await resolveAttachmentDataUrl(attachment.assetId as number),
     }
   } catch {
-    // A missing or expired asset must not block the turn; the attachment falls
-    // back to its extracted text, or is dropped by the payload filter.
+    // A missing or expired asset must not block the turn; the attachment is
+    // dropped by the payload filter.
     return attachment
   }
 }
 
 /**
- * Refill inline bytes for attachments restored from persistence, so a request
- * built after a page reload still carries the files the user attached.
+ * Refill inline image bytes for attachments restored from persistence, so a
+ * request built after a page reload still carries the images the user
+ * attached. Document text persists directly and needs no hydration.
  */
 export async function hydrateMessageAttachments(
-  messages: Message[],
-  nativeFileInput = false
+  messages: Message[]
 ): Promise<Message[]> {
   const needsHydration = (message: Message) =>
-    message.attachments?.some((attachment) =>
-      needsAttachmentHydration(attachment, nativeFileInput)
-    ) ?? false
+    message.attachments?.some(needsAttachmentHydration) ?? false
 
   if (!messages.some(needsHydration)) {
     return messages
@@ -97,9 +91,7 @@ export async function hydrateMessageAttachments(
       return {
         ...message,
         attachments: await Promise.all(
-          message.attachments?.map((attachment) =>
-            hydrateAttachment(attachment, nativeFileInput)
-          ) ?? []
+          message.attachments?.map(hydrateAttachment) ?? []
         ),
       }
     })

@@ -67,7 +67,6 @@ import {
   useSessionCloudSync,
 } from './hooks'
 import { useStudio } from './hooks/use-studio'
-import { supportsNativeFileInput } from './lib/attachments/model-file-support'
 import { persistGeneratedMediaAsset } from './lib/download-generated-media'
 import {
   extractManagedSearchResult,
@@ -169,27 +168,13 @@ export function Playground() {
     return false
   }, [user])
 
-  const nativeFileInput = useMemo(
-    () =>
-      supportsNativeFileInput(
-        playgroundModels.find((model) => model.model_name === config.model)
-      ),
-    [playgroundModels, config.model]
-  )
-
   const payloadOptions = useMemo(
     () => ({
       systemPrompt: chatTools.systemPrompt,
       carryHistory: chatTools.carryHistory,
       visualOutput: chatTools.visualOutput,
-      nativeFileInput,
     }),
-    [
-      chatTools.systemPrompt,
-      chatTools.carryHistory,
-      chatTools.visualOutput,
-      nativeFileInput,
-    ]
+    [chatTools.systemPrompt, chatTools.carryHistory, chatTools.visualOutput]
   )
 
   const { sendChat, stopGeneration, isGenerating } = useChatHandler({
@@ -694,7 +679,6 @@ export function Playground() {
               onStop={stopGeneration}
               onSubmit={handleSendMessage}
               hasMessages={messages.length > 0}
-              nativeFileInput={nativeFileInput}
             />
           </div>
         </>

@@ -151,6 +151,35 @@ func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel
 	return result, nil
 }
 
+// GetImageInputModelSet reports which of the given models declare image input
+// in their metadata. Only enabled metadata rows count.
+func GetImageInputModelSet(names []string) map[string]bool {
+	result := map[string]bool{}
+	if len(names) == 0 {
+		return result
+	}
+	var metas []Model
+	if err := DB.Select("model_name", "input_modalities", "status").Where("model_name IN ?", names).Find(&metas).Error; err != nil {
+		return result
+	}
+	for _, meta := range metas {
+		if meta.Status != 1 {
+			continue
+		}
+		var modalities []string
+		if common.Unmarshal([]byte(meta.InputModalities), &modalities) != nil {
+			continue
+		}
+		for _, modality := range modalities {
+			if strings.EqualFold(strings.TrimSpace(modality), "image") {
+				result[meta.ModelName] = true
+				break
+			}
+		}
+	}
+	return result
+}
+
 func normalizeLookupValues(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	normalized := make([]string, 0, len(values))

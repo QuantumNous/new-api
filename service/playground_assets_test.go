@@ -23,12 +23,17 @@ func TestDetectPlaygroundAssetKind(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "document", kind)
 
-	// Office and plain-text formats are extracted client-side and must never be
-	// hosted back from our own origin.
+	// OOXML documents go through the server-side parse pipeline.
+	for _, mimeType := range []string{MimeDocx, MimeXlsx, MimePptx} {
+		kind, err = DetectPlaygroundAssetKind(mimeType)
+		require.NoError(t, err, mimeType)
+		assert.Equal(t, "document", kind)
+	}
+
+	// Plain-text formats are read client-side; active content stays rejected.
 	for _, mimeType := range []string{
 		"text/html",
 		"text/plain",
-		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	} {
 		_, err = DetectPlaygroundAssetKind(mimeType)
 		assert.Error(t, err, mimeType)
@@ -85,7 +90,7 @@ func TestSaveAndResolvePlaygroundAssetFile(t *testing.T) {
 		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
 		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
 	}
-	key, backend, mimeType, kind, err := SavePlaygroundAssetFile(42, "shot.png", "image/png", bytes.NewReader(data), int64(len(data)))
+	key, backend, mimeType, kind, _, err := SavePlaygroundAssetFile(42, "shot.png", "image/png", bytes.NewReader(data), int64(len(data)))
 	require.NoError(t, err)
 	assert.Equal(t, "image", kind)
 	assert.Equal(t, "image/png", mimeType)
@@ -132,7 +137,7 @@ func TestPublishPlaygroundAssetObjectLocal(t *testing.T) {
 		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
 		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
 	}
-	key, _, mimeType, _, err := SavePlaygroundAssetFile(7, "shot.png", "image/png", bytes.NewReader(data), int64(len(data)))
+	key, _, mimeType, _, _, err := SavePlaygroundAssetFile(7, "shot.png", "image/png", bytes.NewReader(data), int64(len(data)))
 	require.NoError(t, err)
 
 	publicKey, publicURL, err := PublishPlaygroundAssetObject(context.Background(), 7, "local", key, mimeType, int64(len(data)))
@@ -161,7 +166,7 @@ func TestSavePlaygroundAssetFile_SizeLimit(t *testing.T) {
 	storage.Reset()
 	t.Cleanup(storage.Reset)
 	big := bytes.Repeat([]byte("a"), int(PlaygroundAssetMaxImageBytes)+10)
-	_, _, _, _, err := SavePlaygroundAssetFile(1, "big.png", "image/png", bytes.NewReader(big), int64(len(big)))
+	_, _, _, _, _, err := SavePlaygroundAssetFile(1, "big.png", "image/png", bytes.NewReader(big), int64(len(big)))
 	assert.Error(t, err)
 }
 
@@ -176,7 +181,7 @@ func TestOpenPlaygroundAssetContentNeverPresignRedirects(t *testing.T) {
 		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
 		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
 	}
-	key, backend, _, _, err := SavePlaygroundAssetFile(3, "a.png", "image/png", bytes.NewReader(data), int64(len(data)))
+	key, backend, _, _, _, err := SavePlaygroundAssetFile(3, "a.png", "image/png", bytes.NewReader(data), int64(len(data)))
 	require.NoError(t, err)
 	require.Equal(t, "local", backend)
 

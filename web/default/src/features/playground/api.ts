@@ -480,6 +480,63 @@ export async function fetchPlaygroundAssetBlob(id: number): Promise<Blob> {
   return res.data as Blob
 }
 
+export type PlaygroundParseOCRContract = {
+  model: string
+  prompt: string
+  page_count: number
+  page_urls: string[]
+  execution_token: string
+}
+
+export type PlaygroundDocumentParseState = {
+  status: 'processing' | 'needs_ocr' | 'done' | 'failed'
+  parser?: string
+  page_count?: number
+  text?: string
+  error?: string
+  ocr?: PlaygroundParseOCRContract
+}
+
+/** Start (or resume) the server-side parse of an uploaded document asset. */
+export async function startPlaygroundAssetParse(
+  id: number,
+  group?: string
+): Promise<PlaygroundDocumentParseState> {
+  const res = await api.post(`${API_ENDPOINTS.ASSETS}/${id}/parse`, { group })
+  if (!res.data?.success) {
+    throw new Error(res.data?.message || 'Parse failed')
+  }
+  return res.data.data as PlaygroundDocumentParseState
+}
+
+export async function getPlaygroundAssetParse(
+  id: number
+): Promise<PlaygroundDocumentParseState> {
+  const res = await api.get(`${API_ENDPOINTS.ASSETS}/${id}/parse`)
+  if (!res.data?.success) {
+    throw new Error(res.data?.message || 'Parse unavailable')
+  }
+  return res.data.data as PlaygroundDocumentParseState
+}
+
+/** Import the client-executed OCR transcription (or failure) for a parse. */
+export async function importPlaygroundAssetParse(
+  id: number,
+  body: { execution_token: string; text?: string; error?: string }
+): Promise<PlaygroundDocumentParseState> {
+  const res = await api.post(`${API_ENDPOINTS.ASSETS}/${id}/parse/import`, body)
+  if (!res.data?.success) {
+    throw new Error(res.data?.message || 'Import failed')
+  }
+  return res.data.data as PlaygroundDocumentParseState
+}
+
+/** Fetch one rendered OCR page image (same-origin, session auth). */
+export async function fetchPlaygroundParsePageBlob(url: string): Promise<Blob> {
+  const res = await api.get(url, { responseType: 'blob' })
+  return res.data as Blob
+}
+
 export async function importPlaygroundAsset(
   sourceUrl: string,
   kind: 'image' | 'video' | 'audio'

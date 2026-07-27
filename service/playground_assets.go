@@ -3,6 +3,8 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"mime"
@@ -51,14 +53,21 @@ var playgroundAudioMimes = map[string]bool{
 	"audio/m4a":    true,
 }
 
-// playgroundDocumentMimes covers binary chat attachments that must survive a
-// reload because the model consumes the file itself. Office and plain-text
-// formats are deliberately absent: they are extracted to text in the browser and
-// persisted as text, so storing them would only add an active-content hosting
-// surface on our own origin for no gain.
+// playgroundDocumentMimes covers chat attachments that go through the
+// server-side document parse pipeline. Content is only ever delivered back
+// with attachment disposition, never rendered inline on our origin.
 var playgroundDocumentMimes = map[string]bool{
 	"application/pdf": true,
+	MimeDocx:          true,
+	MimeXlsx:          true,
+	MimePptx:          true,
 }
+
+const (
+	MimeDocx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	MimeXlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	MimePptx = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+)
 
 // PlaygroundAssetsRoot returns the absolute directory for the local storage
 // backend. Kept for the local content path and backfill tooling.
@@ -160,6 +169,13 @@ func sniffPlaygroundContainer(header []byte, declared string) (string, string, b
 	if len(header) >= 5 && bytes.Equal(header[0:5], []byte("%PDF-")) {
 		return "application/pdf", "document", true
 	}
+	// OOXML documents are ZIP containers; the magic bytes cannot distinguish
+	// docx/xlsx/pptx, so the declared type picks among the office allowlist.
+	if len(header) >= 4 && bytes.Equal(header[0:4], []byte{'P', 'K', 0x03, 0x04}) {
+		if playgroundDocumentMimes[declared] && declared != "application/pdf" {
+			return declared, "document", true
+		}
+	}
 	if len(header) >= 4 && bytes.Equal(header[0:4], []byte("OggS")) {
 		return "audio/ogg", "audio", true
 	}
@@ -216,36 +232,46 @@ func MaxBytesForPlaygroundKind(kind string) int64 {
 // SavePlaygroundAssetFile stores uploaded content through the configured asset
 // store under a user-scoped "uploads/" key. It sniffs the first bytes to
 // enforce the MIME allowlist (declared is only a hint) and caps size by kind.
-// Returns the storage key and the backend that persisted it.
-func SavePlaygroundAssetFile(userId int, originalName, declaredMime string, r io.Reader, size int64) (storageKey string, backend string, mimeType string, kind string, err error) {
+// contentHash (sha256 hex) is only computed for document kinds, where it keys
+// the shared parse cache.
+func SavePlaygroundAssetFile(userId int, originalName, declaredMime string, r io.Reader, size int64) (storageKey string, backend string, mimeType string, kind string, contentHash string, err error) {
+	// Browsers report an empty or generic type for office files picked from
+	// some file managers; the extension is then the only usable hint.
+	declaredMime = normalizeDeclaredDocumentMime(originalName, declaredMime)
+
 	// Peek for sniff
 	header := make([]byte, 512)
 	n, readErr := io.ReadFull(r, header)
 	if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
-		return "", "", "", "", readErr
+		return "", "", "", "", "", readErr
 	}
 	header = header[:n]
 	mimeType, kind, err = SniffPlaygroundMime(header, declaredMime)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
 
 	max := MaxBytesForPlaygroundKind(kind)
 	if size > 0 && size > max {
-		return "", "", "", "", fmt.Errorf("file exceeds size limit (%d bytes)", max)
+		return "", "", "", "", "", fmt.Errorf("file exceeds size limit (%d bytes)", max)
 	}
 
 	// Read the remaining bytes with a hard cap (media sizes are bounded).
 	limitedRest := io.LimitReader(r, max+1-int64(len(header)))
 	rest, err := io.ReadAll(limitedRest)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
 	content := make([]byte, 0, len(header)+len(rest))
 	content = append(content, header...)
 	content = append(content, rest...)
 	if int64(len(content)) > max {
-		return "", "", "", "", fmt.Errorf("file exceeds size limit (%d bytes)", max)
+		return "", "", "", "", "", fmt.Errorf("file exceeds size limit (%d bytes)", max)
+	}
+
+	if kind == "document" {
+		sum := sha256.Sum256(content)
+		contentHash = hex.EncodeToString(sum[:])
 	}
 
 	ext := safeExtFromName(originalName, mimeType)
@@ -253,9 +279,27 @@ func SavePlaygroundAssetFile(userId int, originalName, declaredMime string, r io
 
 	store := storage.Default()
 	if err := store.Put(context.Background(), storageKey, bytes.NewReader(content), int64(len(content)), mimeType); err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
-	return storageKey, store.Backend(), mimeType, kind, nil
+	return storageKey, store.Backend(), mimeType, kind, contentHash, nil
+}
+
+func normalizeDeclaredDocumentMime(originalName, declared string) string {
+	if playgroundDocumentMimes[NormalizePlaygroundMime(declared)] {
+		return declared
+	}
+	switch strings.ToLower(path.Ext(originalName)) {
+	case ".pdf":
+		return "application/pdf"
+	case ".docx":
+		return MimeDocx
+	case ".xlsx":
+		return MimeXlsx
+	case ".pptx":
+		return MimePptx
+	default:
+		return declared
+	}
 }
 
 // OpenPlaygroundAssetContent resolves an asset for same-origin delivery.
@@ -359,7 +403,7 @@ func safeExtFromName(name, mimeType string) string {
 	case ".jpg", ".jpeg", ".png", ".webp", ".gif",
 		".mp4", ".webm", ".mov",
 		".mp3", ".wav", ".ogg", ".m4a", ".mpeg", ".aac", ".flac",
-		".pdf":
+		".pdf", ".docx", ".xlsx", ".pptx":
 		return ext
 	default:
 		return ".bin"

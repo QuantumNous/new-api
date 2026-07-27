@@ -26,7 +26,11 @@ type PlaygroundAsset struct {
 	URL        string `json:"url" gorm:"type:varchar(1024)"` // public or app-relative URL
 	Mime       string `json:"mime" gorm:"type:varchar(128)"`
 	Size       int64  `json:"size"`
-	CreatedAt  int64  `json:"created_at" gorm:"bigint;index"`
+	// ContentHash (sha256 hex) links document assets to their cached parse, so
+	// the same file uploaded twice is only ever parsed once. Empty on legacy
+	// rows and on non-document kinds.
+	ContentHash string `json:"-" gorm:"type:varchar(64);index"`
+	CreatedAt   int64  `json:"created_at" gorm:"bigint;index"`
 }
 
 func (PlaygroundAsset) TableName() string { return "playground_assets" }
@@ -35,6 +39,66 @@ const (
 	PlaygroundAssetSourceLibrary    = "library"
 	PlaygroundAssetSourceAttachment = "attachment"
 )
+
+// PlaygroundDocumentParse caches the model-agnostic text extracted from a
+// document asset, keyed by content hash. Chat requests only ever carry this
+// text, never the document bytes, so any model can consume any document.
+type PlaygroundDocumentParse struct {
+	Id          int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	ContentHash string `json:"-" gorm:"type:varchar(64);not null;uniqueIndex"`
+	// Status: processing | needs_ocr | done | failed
+	Status string `json:"status" gorm:"type:varchar(20);not null;index"`
+	// Parser: text-layer | office | vlm-ocr
+	Parser string `json:"parser,omitempty" gorm:"type:varchar(20)"`
+	// Text is capped in the service layer to stay inside MySQL's 64KB TEXT.
+	Text         string `json:"-" gorm:"type:text"`
+	ErrorMessage string `json:"error,omitempty" gorm:"type:text"`
+	PageCount    int    `json:"page_count,omitempty"`
+	// OCR contract: pages are rendered server-side, transcribed by the client
+	// through the normal /pg relay (billed to the requesting user), and
+	// imported back with the execution token.
+	OcrPageCount   int    `json:"ocr_page_count,omitempty"`
+	OcrModel       string `json:"ocr_model,omitempty" gorm:"type:varchar(191)"`
+	ExecutionToken string `json:"-" gorm:"type:varchar(64)"`
+	PagesBackend   string `json:"-" gorm:"type:varchar(16)"`
+	PagesPrefix    string `json:"-" gorm:"type:varchar(512)"`
+	CreatedAt      int64  `json:"created_at" gorm:"bigint;index"`
+	UpdatedAt      int64  `json:"updated_at" gorm:"bigint"`
+}
+
+func (PlaygroundDocumentParse) TableName() string { return "playground_document_parses" }
+
+const (
+	PlaygroundParseStatusProcessing = "processing"
+	PlaygroundParseStatusNeedsOCR   = "needs_ocr"
+	PlaygroundParseStatusDone       = "done"
+	PlaygroundParseStatusFailed     = "failed"
+)
+
+func CreatePlaygroundDocumentParse(parse *PlaygroundDocumentParse) error {
+	now := time.Now().Unix()
+	parse.CreatedAt = now
+	parse.UpdatedAt = now
+	return DB.Create(parse).Error
+}
+
+func GetPlaygroundDocumentParseByHash(contentHash string) (*PlaygroundDocumentParse, error) {
+	var parse PlaygroundDocumentParse
+	err := DB.Where("content_hash = ?", contentHash).First(&parse).Error
+	return &parse, err
+}
+
+func UpdatePlaygroundDocumentParseCAS(id int, from string, updates map[string]any) error {
+	updates["updated_at"] = time.Now().Unix()
+	res := DB.Model(&PlaygroundDocumentParse{}).Where("id = ? AND status = ?", id, from).Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
 
 // PlaygroundConversation is a cloud-synced chat or duo session.
 // Kind: "chat" (default) | "duo". Empty kind is treated as chat for legacy rows.

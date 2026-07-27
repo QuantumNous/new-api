@@ -33,12 +33,6 @@ export type BuildChatPayloadOptions = {
   carryHistory?: boolean
   /** When true, appends the platform visual-output capability prompt */
   visualOutput?: boolean
-  /**
-   * Whether the target model accepts native `file` content parts. Defaults to
-   * false, so PDFs are sent as their extracted text unless model metadata
-   * declares document input.
-   */
-  nativeFileInput?: boolean
 }
 
 /**
@@ -67,19 +61,6 @@ export function isChatCompletionPayloadTooLarge(
 }
 
 /**
- * Whether the payload carries a native `file` content part. Model metadata can
- * claim document input that the upstream channel does not actually accept, so
- * the caller keeps a text-only retry ready for exactly these payloads.
- */
-export function hasNativeFilePart(payload: ChatCompletionRequest): boolean {
-  return payload.messages.some(
-    (message) =>
-      Array.isArray(message.content) &&
-      message.content.some((part) => part.type === 'file')
-  )
-}
-
-/**
  * Build API request payload from messages and config
  */
 export function buildChatCompletionPayload(
@@ -102,10 +83,8 @@ export function buildChatCompletionPayload(
         : sourceMessages.slice(lastUserIndex, lastUserIndex + 1)
   }
 
-  const nativeFileInput = options?.nativeFileInput ?? false
-  const processedMessages: ChatCompletionMessage[] = sourceMessages.map(
-    (message) => formatMessageForAPI(message, nativeFileInput)
-  )
+  const processedMessages: ChatCompletionMessage[] =
+    sourceMessages.map(formatMessageForAPI)
 
   const personaPrompt = clampSystemPrompt(options?.systemPrompt).trim()
   const systemPrompt = [

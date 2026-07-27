@@ -6,35 +6,36 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { usePlaygroundStore } from '@/stores/playground-store'
 
 import { uploadPlaygroundAsset } from '../../../api'
 import { rememberAttachmentAsset } from '../../../lib/attachments/attachment-assets'
 import {
-  extractDocumentText,
-  isDocumentFile,
+  isServerParsedDocument,
+  isTextDocumentFile,
+  readTextDocument,
 } from '../../../lib/attachments/document-extract'
-import { extractPdfText } from '../../../lib/attachments/pdf-extract'
-import type { ChatAttachment } from '../../../types'
+import {
+  DocumentParseError,
+  parseDocumentAsset,
+} from '../../../lib/attachments/document-parse'
+import type { ChatAttachment, ChatDocumentAttachment } from '../../../types'
 
 const MAX_CHAT_ATTACHMENTS = 4
 const MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024
-const MAX_CHAT_PDF_BYTES = 10 * 1024 * 1024
-const MAX_CHAT_DOCUMENT_BYTES = 10 * 1024 * 1024
+const MAX_CHAT_DOCUMENT_BYTES = 20 * 1024 * 1024
+const MAX_CHAT_TEXT_BYTES = 10 * 1024 * 1024
 
-type AttachmentKind = 'image' | 'pdf' | 'document'
+type AttachmentKind = 'image' | 'document' | 'text'
 
 function classifyFile(file: File): AttachmentKind | null {
-  if (
-    file.type === 'application/pdf' ||
-    (file.type === '' && /\.pdf$/i.test(file.name))
-  ) {
-    return 'pdf'
-  }
   if (file.type.startsWith('image/')) return 'image'
-  if (isDocumentFile(file)) return 'document'
+  if (isServerParsedDocument(file)) return 'document'
+  if (isTextDocumentFile(file)) return 'text'
   return null
 }
 
@@ -49,88 +50,44 @@ function readAsDataUrl(file: File): Promise<string> {
   })
 }
 
-/**
- * Upload the attachment so it survives a reload. Failures are non-fatal: the
- * turn still sends the inline bytes, only cross-reload replay is lost.
- */
-async function persistAttachmentAsset(
-  file: File,
-  dataUrl: string
-): Promise<number | undefined> {
+async function buildImageAttachment(file: File): Promise<ChatAttachment> {
+  const dataUrl = await readAsDataUrl(file)
+  const attachment: ChatAttachment = {
+    id: crypto.randomUUID(),
+    kind: 'image',
+    name: file.name,
+    mimeType: file.type,
+    dataUrl,
+  }
+  // Upload so the image survives a reload. Failure is non-fatal: the turn
+  // still sends the inline bytes, only cross-reload replay is lost.
   try {
     const asset = await uploadPlaygroundAsset(file, undefined, 'attachment')
     rememberAttachmentAsset(asset.id, dataUrl)
-    return asset.id
+    attachment.assetId = asset.id
   } catch {
-    return undefined
+    // keep inline-only attachment
   }
-}
-
-async function buildAttachment(
-  file: File,
-  kind: AttachmentKind
-): Promise<ChatAttachment> {
-  const id = crypto.randomUUID()
-  if (kind === 'document') {
-    return {
-      id,
-      kind: 'document',
-      name: file.name,
-      mimeType: file.type || 'text/plain',
-      text: await extractDocumentText(file),
-    }
-  }
-
-  const rawDataUrl = await readAsDataUrl(file)
-  if (kind === 'image') {
-    const attachment: ChatAttachment = {
-      id,
-      kind: 'image',
-      name: file.name,
-      mimeType: file.type,
-      dataUrl: rawDataUrl,
-    }
-    attachment.assetId = await persistAttachmentAsset(file, rawDataUrl)
-    return attachment
-  }
-
-  // Browsers report an empty type for PDFs picked from some file managers, and
-  // upstreams key document handling off the declared MIME.
-  const dataUrl = rawDataUrl.replace(
-    /^data:[^;]*;base64,/,
-    'data:application/pdf;base64,'
-  )
-  const attachment: ChatAttachment = {
-    id,
-    kind: 'file',
-    name: file.name,
-    mimeType: 'application/pdf',
-    dataUrl,
-  }
-  // Extract eagerly: the target model can change between turns, and the payload
-  // builder must be able to choose text over a native file part synchronously.
-  const [text, assetId] = await Promise.all([
-    extractPdfText(await file.arrayBuffer()).catch(() => ''),
-    persistAttachmentAsset(file, dataUrl),
-  ])
-  if (text) attachment.text = text
-  attachment.assetId = assetId
   return attachment
 }
 
 /**
- * Chat attachments (images, PDFs, and office/text documents) with
- * file-dialog, paste, and drag-drop ingestion paths. Images and PDFs are
- * uploaded to the playground asset store so they survive reloads; documents
- * and PDFs are also extracted to plain text in the browser so models without
- * native file input still receive their content.
+ * Chat attachments: images, documents (PDF/Word/Excel/PowerPoint), and
+ * plain-text files, with file-dialog, paste, and drag-drop ingestion.
+ *
+ * Documents are uploaded and parsed server-side into plain text (with a
+ * client-driven OCR pass for scanned PDFs), so their content reaches any
+ * model as text. Sending is blocked while a document is still parsing.
  */
 export function useChatAttachments() {
   const { t } = useTranslation()
+  const group = usePlaygroundStore((state) => state.config.group)
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [isAdding, setIsAdding] = useState(false)
   const isAddingRef = useRef(false)
   const operationRef = useRef(0)
+  const groupRef = useRef(group)
+  groupRef.current = group
 
   useEffect(
     () => () => {
@@ -138,6 +95,81 @@ export function useChatAttachments() {
     },
     []
   )
+
+  const updateDocument = (
+    id: string,
+    patch: Partial<ChatDocumentAttachment>
+  ) => {
+    setAttachments((prev) =>
+      prev.map((attachment) =>
+        attachment.id === id && attachment.kind === 'document'
+          ? { ...attachment, ...patch }
+          : attachment
+      )
+    )
+  }
+
+  const runParse = async (id: string, assetId: number) => {
+    updateDocument(id, {
+      status: 'processing',
+      error: undefined,
+      ocrDone: undefined,
+      ocrTotal: undefined,
+    })
+    try {
+      const text = await parseDocumentAsset(
+        assetId,
+        groupRef.current,
+        (progress) =>
+          updateDocument(id, {
+            status: 'ocr',
+            ocrDone: progress.done,
+            ocrTotal: progress.total,
+          })
+      )
+      if (text.trim() === '') {
+        updateDocument(id, {
+          status: 'failed',
+          error: t('No readable text found in this document.'),
+        })
+        return
+      }
+      updateDocument(id, { status: 'done', text })
+    } catch (error) {
+      const message =
+        error instanceof DocumentParseError
+          ? error.message
+          : t('Could not read this document.')
+      updateDocument(id, { status: 'failed', error: message })
+    }
+  }
+
+  const addDocumentFile = async (file: File): Promise<void> => {
+    let assetId: number
+    try {
+      const asset = await uploadPlaygroundAsset(file, 'document', 'attachment')
+      assetId = asset.id
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      toast.error(
+        message || t('Could not upload {{name}}.', { name: file.name })
+      )
+      return
+    }
+    const attachment: ChatDocumentAttachment = {
+      id: crypto.randomUUID(),
+      kind: 'document',
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      text: '',
+      assetId,
+      status: 'processing',
+    }
+    setAttachments((prev) =>
+      prev.length < MAX_CHAT_ATTACHMENTS ? [...prev, attachment] : prev
+    )
+    void runParse(attachment.id, assetId)
+  }
 
   const addFiles = async (files: FileList | File[] | null) => {
     if (!files || files.length === 0 || isAddingRef.current) return
@@ -156,11 +188,11 @@ export function useChatAttachments() {
         toast.error(t('Image is too large (max 8MB).'))
         continue
       }
-      if (kind === 'pdf' && file.size > MAX_CHAT_PDF_BYTES) {
-        toast.error(t('PDF is too large (max 10MB).'))
+      if (kind === 'document' && file.size > MAX_CHAT_DOCUMENT_BYTES) {
+        toast.error(t('Document is too large (max 20MB).'))
         continue
       }
-      if (kind === 'document' && file.size > MAX_CHAT_DOCUMENT_BYTES) {
+      if (kind === 'text' && file.size > MAX_CHAT_TEXT_BYTES) {
         toast.error(t('Document is too large (max 10MB).'))
         continue
       }
@@ -190,40 +222,47 @@ export function useChatAttachments() {
     operationRef.current = operation
     isAddingRef.current = true
     setIsAdding(true)
-    const results = await Promise.allSettled(
-      acceptedFiles.map((entry) => buildAttachment(entry.file, entry.kind))
-    )
 
-    if (operationRef.current !== operation) return
-    const failedIndex = results.findIndex(
-      (result) => result.status === 'rejected'
-    )
-    if (failedIndex >= 0) {
-      toast.error(
-        t('Could not read {{name}}.', {
-          name: acceptedFiles[failedIndex].file.name,
-        })
-      )
-    } else {
-      const loaded = results.map(
-        (result) => (result as PromiseFulfilledResult<ChatAttachment>).value
-      )
-      // An empty extraction would be filtered out when the request is built, so
-      // reject it here instead of showing a chip that silently sends nothing.
-      const readable = loaded.filter((attachment) => {
-        if (attachment.kind !== 'document' || attachment.text.trim() !== '') {
-          return true
+    for (const entry of acceptedFiles) {
+      if (operationRef.current !== operation) return
+      if (entry.kind === 'document') {
+        await addDocumentFile(entry.file)
+        continue
+      }
+      try {
+        if (entry.kind === 'image') {
+          const attachment = await buildImageAttachment(entry.file)
+          setAttachments((prev) =>
+            prev.length < MAX_CHAT_ATTACHMENTS ? [...prev, attachment] : prev
+          )
+          continue
         }
-        toast.error(
-          t('No readable text found in {{name}}.', { name: attachment.name })
+        const text = await readTextDocument(entry.file)
+        if (text.trim() === '') {
+          toast.error(
+            t('No readable text found in {{name}}.', { name: entry.file.name })
+          )
+          continue
+        }
+        setAttachments((prev) =>
+          prev.length < MAX_CHAT_ATTACHMENTS
+            ? [
+                ...prev,
+                {
+                  id: crypto.randomUUID(),
+                  kind: 'document',
+                  name: entry.file.name,
+                  mimeType: entry.file.type || 'text/plain',
+                  text,
+                },
+              ]
+            : prev
         )
-        return false
-      })
-      setAttachments((prev) => [
-        ...prev,
-        ...readable.slice(0, MAX_CHAT_ATTACHMENTS - prev.length),
-      ])
+      } catch {
+        toast.error(t('Could not read {{name}}.', { name: entry.file.name }))
+      }
     }
+
     if (operationRef.current === operation) {
       isAddingRef.current = false
       setIsAdding(false)
@@ -232,6 +271,17 @@ export function useChatAttachments() {
 
   const removeAt = (index: number) =>
     setAttachments((prev) => prev.filter((_, i) => i !== index))
+
+  const retryAt = (index: number) => {
+    const attachment = attachments[index]
+    if (
+      attachment?.kind === 'document' &&
+      attachment.assetId !== undefined &&
+      attachment.status === 'failed'
+    ) {
+      void runParse(attachment.id, attachment.assetId)
+    }
+  }
 
   const clear = () => {
     operationRef.current += 1
@@ -261,15 +311,27 @@ export function useChatAttachments() {
     }
   }
 
+  const isParsing = useMemo(
+    () =>
+      attachments.some(
+        (attachment) =>
+          attachment.kind === 'document' &&
+          (attachment.status === 'processing' || attachment.status === 'ocr')
+      ),
+    [attachments]
+  )
+
   return {
     attachments,
     addFiles,
     removeAt,
+    retryAt,
     clear,
     handlePaste,
     handleDrop,
     handleDragOver,
     isAdding,
+    isParsing,
     isFull: attachments.length >= MAX_CHAT_ATTACHMENTS,
   }
 }

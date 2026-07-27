@@ -67,42 +67,36 @@ type ChatAttachmentBase = {
 }
 
 /**
- * Binary attachment backed by a playground asset. `dataUrl` holds the bytes for
- * the current tab; after a reload only `assetId` survives and the bytes are
+ * Image backed by a playground asset. `dataUrl` holds the bytes for the
+ * current tab; after a reload only `assetId` survives and the bytes are
  * refetched before the next request.
  */
-type ChatBinaryAttachment = ChatAttachmentBase & {
+export type ChatImageAttachment = ChatAttachmentBase & {
+  kind: 'image'
   dataUrl?: string
   assetId?: number
 }
 
-/** Image sent to the model as an `image_url` content part. */
-export type ChatImageAttachment = ChatBinaryAttachment & {
-  kind: 'image'
-}
+export type ChatDocumentParseStatus = 'processing' | 'ocr' | 'done' | 'failed'
 
 /**
- * PDF sent as a native `file` content part. `text` is the browser-extracted
- * fallback used for models without native file input.
- */
-export type ChatFileAttachment = ChatBinaryAttachment & {
-  kind: 'file'
-  text?: string
-}
-
-/**
- * Office or plain-text document. Only the browser-extracted text is ever sent
- * or stored, so this variant deliberately has no binary payload.
+ * Document attachment. Only extracted text ever reaches the model, so any
+ * chat model can consume any document. Plain-text files are read in the
+ * browser; PDF/Office files are uploaded (`assetId`) and parsed server-side,
+ * with `status` tracking that pipeline. Absent status means done (legacy).
  */
 export type ChatDocumentAttachment = ChatAttachmentBase & {
   kind: 'document'
   text: string
+  assetId?: number
+  status?: ChatDocumentParseStatus
+  error?: string
+  /** OCR progress while status is 'ocr' */
+  ocrDone?: number
+  ocrTotal?: number
 }
 
-export type ChatAttachment =
-  | ChatImageAttachment
-  | ChatFileAttachment
-  | ChatDocumentAttachment
+export type ChatAttachment = ChatImageAttachment | ChatDocumentAttachment
 
 export interface Message {
   key: string
@@ -148,13 +142,6 @@ export interface ChatCompletionMessage {
 export type ContentPart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } }
-  | {
-      type: 'file'
-      file: {
-        filename: string
-        file_data: string
-      }
-    }
 
 export interface ChatCompletionRequest {
   model: string

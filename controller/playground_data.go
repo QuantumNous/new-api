@@ -68,7 +68,7 @@ func UploadPlaygroundAsset(c *gin.Context) {
 	}
 	defer src.Close()
 
-	storageKey, backend, mimeType, kind, err := service.SavePlaygroundAssetFile(userId, file.Filename, declared, src, file.Size)
+	storageKey, backend, mimeType, kind, contentHash, err := service.SavePlaygroundAssetFile(userId, file.Filename, declared, src, file.Size)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -79,14 +79,15 @@ func UploadPlaygroundAsset(c *gin.Context) {
 		return
 	}
 	asset := &model.PlaygroundAsset{
-		UserId:     userId,
-		Kind:       kind,
-		Source:     source,
-		Name:       filepath.Base(file.Filename),
-		StorageKey: storageKey,
-		Backend:    backend,
-		Mime:       mimeType,
-		Size:       file.Size,
+		UserId:      userId,
+		Kind:        kind,
+		Source:      source,
+		Name:        filepath.Base(file.Filename),
+		StorageKey:  storageKey,
+		Backend:     backend,
+		Mime:        mimeType,
+		Size:        file.Size,
+		ContentHash: contentHash,
 	}
 	if err := model.CreatePlaygroundAsset(asset); err != nil {
 		service.DeletePlaygroundAssetFile(backend, storageKey)
@@ -445,7 +446,7 @@ func UploadPlaygroundUploadSessionFile(c *gin.Context) {
 		return
 	}
 	defer src.Close()
-	storageKey, backend, mimeType, kind, err := service.SavePlaygroundAssetFile(s.UserId, file.Filename, declared, src, file.Size)
+	storageKey, backend, mimeType, kind, contentHash, err := service.SavePlaygroundAssetFile(s.UserId, file.Filename, declared, src, file.Size)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -456,13 +457,14 @@ func UploadPlaygroundUploadSessionFile(c *gin.Context) {
 		return
 	}
 	asset := &model.PlaygroundAsset{
-		UserId:     s.UserId,
-		Kind:       kind,
-		Name:       filepath.Base(file.Filename),
-		StorageKey: storageKey,
-		Backend:    backend,
-		Mime:       mimeType,
-		Size:       file.Size,
+		UserId:      s.UserId,
+		Kind:        kind,
+		Name:        filepath.Base(file.Filename),
+		StorageKey:  storageKey,
+		Backend:     backend,
+		Mime:        mimeType,
+		Size:        file.Size,
+		ContentHash: contentHash,
 	}
 	if err := model.CreatePlaygroundAsset(asset); err != nil {
 		service.DeletePlaygroundAssetFile(backend, storageKey)
@@ -1276,7 +1278,7 @@ func CreatePlaygroundVoice(c *gin.Context) {
 		return
 	}
 	defer src.Close()
-	storageKey, backend, mimeType, kind, err := service.SavePlaygroundAssetFile(userId, file.Filename, declared, src, file.Size)
+	storageKey, backend, mimeType, kind, _, err := service.SavePlaygroundAssetFile(userId, file.Filename, declared, src, file.Size)
 	if err != nil {
 		common.ApiError(c, err)
 		return

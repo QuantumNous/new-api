@@ -61,7 +61,25 @@ install_bun() {
   bun --version
 }
 
+install_poppler() {
+  # Document parsing (playground attachments) shells out to pdftotext/pdftoppm.
+  if need_cmd pdftotext && need_cmd pdftoppm; then
+    return 0
+  fi
+  echo "installing poppler-utils..."
+  if need_cmd apt-get; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq poppler-utils
+  elif need_cmd dnf; then
+    dnf install -y poppler-utils
+  else
+    echo "install poppler-utils manually (pdftotext/pdftoppm required)" >&2
+  fi
+}
+
 export PATH="/usr/local/go/bin:${HOME}/.bun/bin:/usr/local/bin:${PATH}"
 install_go
 install_bun
+install_poppler
 echo "toolchain ready"

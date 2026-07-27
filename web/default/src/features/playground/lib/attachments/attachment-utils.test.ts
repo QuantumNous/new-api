@@ -8,18 +8,20 @@ License, or (at your option) any later version.
 */
 import { describe, expect, it } from 'vitest'
 
-import type { ChatFileAttachment, ChatImageAttachment } from '../../types'
+import type { ChatDocumentAttachment, ChatImageAttachment } from '../../types'
 import {
   hasAttachmentPayload,
   needsAttachmentHydration,
 } from './attachment-utils'
 
-const restoredPdf: ChatFileAttachment = {
-  id: 'f1',
-  kind: 'file',
+const parsedDocument: ChatDocumentAttachment = {
+  id: 'd1',
+  kind: 'document',
   name: 'doc.pdf',
   mimeType: 'application/pdf',
+  text: 'page one',
   assetId: 4,
+  status: 'done',
 }
 
 const restoredImage: ChatImageAttachment = {
@@ -31,19 +33,15 @@ const restoredImage: ChatImageAttachment = {
 }
 
 describe('needsAttachmentHydration', () => {
-  it('refetches a PDF only when the model reads documents natively', () => {
-    const withText = { ...restoredPdf, text: 'page one' }
-    expect(needsAttachmentHydration(withText, true)).toBe(true)
-    expect(needsAttachmentHydration(withText, false)).toBe(false)
+  it('never refetches documents: only their parsed text is sent', () => {
+    expect(needsAttachmentHydration(parsedDocument)).toBe(false)
+    expect(needsAttachmentHydration({ ...parsedDocument, text: '' })).toBe(
+      false
+    )
   })
 
-  it('refetches a PDF with no extracted text so the model can still see it', () => {
-    expect(needsAttachmentHydration(restoredPdf, true)).toBe(true)
-    expect(needsAttachmentHydration(restoredPdf, false)).toBe(true)
-  })
-
-  it('always refetches images, which have no text representation', () => {
-    expect(needsAttachmentHydration(restoredImage, false)).toBe(true)
+  it('refetches images restored without inline bytes', () => {
+    expect(needsAttachmentHydration(restoredImage)).toBe(true)
     expect(
       needsAttachmentHydration({
         ...restoredImage,
@@ -54,10 +52,18 @@ describe('needsAttachmentHydration', () => {
 })
 
 describe('hasAttachmentPayload', () => {
-  it('keeps a PDF that only carries extracted text', () => {
-    expect(hasAttachmentPayload({ ...restoredPdf, text: 'page one' })).toBe(
-      true
-    )
-    expect(hasAttachmentPayload(restoredPdf)).toBe(false)
+  it('keeps a document only when its parsed text is non-empty', () => {
+    expect(hasAttachmentPayload(parsedDocument)).toBe(true)
+    expect(hasAttachmentPayload({ ...parsedDocument, text: '  ' })).toBe(false)
+  })
+
+  it('keeps an image only when inline bytes are present', () => {
+    expect(hasAttachmentPayload(restoredImage)).toBe(false)
+    expect(
+      hasAttachmentPayload({
+        ...restoredImage,
+        dataUrl: 'data:image/png;base64,AAA',
+      })
+    ).toBe(true)
   })
 })

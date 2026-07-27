@@ -36,7 +36,6 @@ import {
 } from '../lib'
 import { hydrateMessageAttachments } from '../lib/attachments/attachment-assets'
 import {
-  hasNativeFilePart,
   isChatCompletionPayloadTooLarge,
   type BuildChatPayloadOptions,
 } from '../lib/streaming/payload-builder'
@@ -97,8 +96,6 @@ export function useChatHandler({
     reasoning: '',
   })
   const streamFlushTimerRef = useRef<number | null>(null)
-  const textOnlyRetryRef = useRef<(() => void) | null>(null)
-  const receivedContentRef = useRef(false)
 
   const flushStreamUpdates = useCallback(() => {
     if (streamFlushTimerRef.current !== null) {
@@ -186,7 +183,6 @@ export function useChatHandler({
   // Handle stream update
   const handleStreamUpdate = useCallback(
     (update: StreamMessageUpdate) => {
-      receivedContentRef.current = true
       if (update.type === 'usage') {
         pendingStreamChunksRef.current.usage = update.usage
       } else {
@@ -216,16 +212,6 @@ export function useChatHandler({
   // Handle stream error
   const handleStreamError = useCallback(
     (error: string, errorCode?: string) => {
-      const textOnlyRetry = textOnlyRetryRef.current
-      textOnlyRetryRef.current = null
-      // An upstream that rejects the native document part fails before any
-      // token arrives, so resending the extracted text costs nothing and turns
-      // an outdated capability flag into a working answer.
-      if (textOnlyRetry && !receivedContentRef.current) {
-        textOnlyRetry()
-        return
-      }
-
       flushStreamUpdates()
       setIsRequesting(false)
       const displayError = getDisplayError(error)
@@ -244,14 +230,12 @@ export function useChatHandler({
   )
 
   const buildValidatedPayload = useCallback(
-    (messages: Message[], nativeFileInput?: boolean) => {
+    (messages: Message[]) => {
       const payload = buildChatCompletionPayload(
         messages,
         config,
         parameterEnabled,
-        nativeFileInput === undefined
-          ? payloadOptions
-          : { ...payloadOptions, nativeFileInput }
+        payloadOptions
       )
 
       if (isChatCompletionPayloadTooLarge(payload)) {
@@ -264,56 +248,23 @@ export function useChatHandler({
     [config, handleStreamError, parameterEnabled, payloadOptions]
   )
 
-  /**
-   * Arms the text-only retry for payloads that carry a native document part,
-   * so a model whose metadata overstates its document support still answers.
-   */
-  const armTextOnlyRetry = useCallback(
-    (
-      payload: ChatCompletionRequest,
-      messages: Message[],
-      resend: (payload: ChatCompletionRequest) => void
-    ) => {
-      receivedContentRef.current = false
-      if (!hasNativeFilePart(payload)) {
-        textOnlyRetryRef.current = null
-        return
-      }
-      textOnlyRetryRef.current = () => {
-        const fallback = buildValidatedPayload(messages, false)
-        if (fallback) resend(fallback)
-      }
-    },
-    [buildValidatedPayload]
-  )
-
   // Send streaming chat request
   const sendStreamingChat = useCallback(
     async (messages: Message[]) => {
-      const hydrated = await hydrateMessageAttachments(
-        messages,
-        payloadOptions?.nativeFileInput
-      )
+      const hydrated = await hydrateMessageAttachments(messages)
       const payload = buildValidatedPayload(hydrated)
       if (!payload) return
 
-      const startStream = (request: ChatCompletionRequest) => {
-        setIsRequesting(true)
-        sendStreamRequest(
-          request,
-          handleStreamUpdate,
-          handleStreamComplete,
-          handleStreamError
-        )
-      }
-
-      armTextOnlyRetry(payload, hydrated, startStream)
-      startStream(payload)
+      setIsRequesting(true)
+      sendStreamRequest(
+        payload,
+        handleStreamUpdate,
+        handleStreamComplete,
+        handleStreamError
+      )
     },
     [
-      armTextOnlyRetry,
       buildValidatedPayload,
-      payloadOptions?.nativeFileInput,
       sendStreamRequest,
       handleStreamUpdate,
       handleStreamComplete,
@@ -370,24 +321,13 @@ export function useChatHandler({
   // Send non-streaming chat request
   const sendNonStreamingChat = useCallback(
     async (messages: Message[]) => {
-      const hydrated = await hydrateMessageAttachments(
-        messages,
-        payloadOptions?.nativeFileInput
-      )
+      const hydrated = await hydrateMessageAttachments(messages)
       const payload = buildValidatedPayload(hydrated)
       if (!payload) return
 
-      armTextOnlyRetry(payload, hydrated, (request) => {
-        void requestCompletion(request)
-      })
       await requestCompletion(payload)
     },
-    [
-      armTextOnlyRetry,
-      buildValidatedPayload,
-      payloadOptions?.nativeFileInput,
-      requestCompletion,
-    ]
+    [buildValidatedPayload, requestCompletion]
   )
 
   // Send chat request (stream or non-stream based on config)
@@ -404,7 +344,6 @@ export function useChatHandler({
 
   // Stop generation
   const stopGeneration = useCallback(() => {
-    textOnlyRetryRef.current = null
     stopStream()
     flushStreamUpdates()
     abortControllerRef.current?.abort()
