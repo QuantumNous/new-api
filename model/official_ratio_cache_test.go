@@ -126,8 +126,8 @@ func TestParseModelsDevSnapshotConvertsUSDPer1M(t *testing.T) {
 	wantFlash := 0.14 * float64(ratio_setting.USD) / modelsDevInputCostRatioBase
 	assert.InDelta(t, wantFlash, snap.modelRatio["deepseek-v4-flash"], 1e-9)
 
-	// duplicate gpt-5.6-sol → cheapest input ($4 from "other")
-	wantSol := 4.0 * float64(ratio_setting.USD) / modelsDevInputCostRatioBase
+	// duplicate gpt-5.6-sol → prefer first-party openai ($5), not cheaper reseller ($4)
+	wantSol := 5.0 * float64(ratio_setting.USD) / modelsDevInputCostRatioBase
 	assert.InDelta(t, wantSol, snap.modelRatio["gpt-5.6-sol"], 1e-9)
 
 	// no fixed prices from models.dev

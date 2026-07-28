@@ -151,7 +151,9 @@ func parseModelsDevSnapshot(body []byte) (*officialRatioSnapshot, error) {
 	}
 	sort.Strings(providers)
 
-	// model id → cheapest non-zero input cost across providers (same policy as ratio sync).
+	// model id → official-provider baseline when available; otherwise cheapest non-zero.
+	// Prefer first-party vendors so marketplace "official price" badges match list rates
+	// rather than the lowest reseller quote on models.dev.
 	selected := make(map[string]modelsDevCandidate)
 	for _, provider := range providers {
 		providerData := upstream[provider]
@@ -216,8 +218,41 @@ func parseModelsDevSnapshot(body []byte) (*officialRatioSnapshot, error) {
 	}, nil
 }
 
+// firstPartyModelsDevProviders are vendor list-price sources on models.dev.
+var firstPartyModelsDevProviders = map[string]struct{}{
+	"openai":        {},
+	"anthropic":     {},
+	"google":        {},
+	"xai":           {},
+	"deepseek":      {},
+	"zhipuai":       {},
+	"moonshotai":    {},
+	"moonshotai-cn": {},
+}
+
+func isFirstPartyModelsDevProvider(provider string) bool {
+	_, ok := firstPartyModelsDevProviders[provider]
+	return ok
+}
+
 func shouldPreferModelsDevCandidate(current, next modelsDevCandidate) bool {
-	// Prefer cheaper non-zero input; stable provider name tie-break.
+	// Prefer first-party vendor list prices over reseller quotes.
+	curOfficial := isFirstPartyModelsDevProvider(current.provider)
+	nextOfficial := isFirstPartyModelsDevProvider(next.provider)
+	if curOfficial != nextOfficial {
+		return nextOfficial
+	}
+	if curOfficial && nextOfficial {
+		// Both official: stable provider name, then higher list price as baseline.
+		if current.provider != next.provider {
+			return next.provider < current.provider
+		}
+		if !nearlyEqualFloat(next.input, current.input) {
+			return next.input > current.input
+		}
+		return false
+	}
+	// Reseller-only: cheapest non-zero input; stable provider name tie-break.
 	if !nearlyEqualFloat(next.input, current.input) {
 		return next.input < current.input
 	}
