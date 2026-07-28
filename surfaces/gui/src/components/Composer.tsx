@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import type { Attachment } from "../types";
+import type { Attachment, SessionUsage } from "../types";
 import { isPdfFile, readFile } from "../attach";
 import { getSettings, inspectPdf } from "../api";
+import { formatTokens, totalTokens } from "../usage";
 import { Dropdown, type Option } from "./Dropdown";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
@@ -77,6 +78,12 @@ interface Props {
   resetKey?: string;
   // Surface-specific hint shown in the empty textarea.
   placeholder?: string;
+  // Per-session token usage (OPE-42) — absent/empty hides the usage chip entirely
+  // (older servers, backends that don't report usage, fresh sessions).
+  usage?: SessionUsage;
+  // Context-window size (tokens) of the ACTIVE model, from the curated matrix;
+  // undefined hides the fill meter (unverified/custom models) but keeps the counts.
+  contextWindow?: number;
 }
 
 export function Composer(props: Props) {
@@ -462,6 +469,18 @@ export function Composer(props: Props) {
 
           <span className="ml-auto" />
 
+          {/* token usage (OPE-42) — a quiet meter+count chip; hidden until the server
+              reports usage. Fill = context-window occupancy (bounded), count = session
+              consumption (unbounded, so never a fill). */}
+          {!dictation?.recording && props.usage && totalTokens(props.usage) > 0 && (
+            <UsageChip
+              usage={props.usage}
+              contextWindow={props.contextWindow}
+              model={props.model}
+              modelLabels={props.modelLabels}
+            />
+          )}
+
           {/* model — a quiet chip, now for the session's whole life (§17 rev 2026-07-22:
               mid-session switching shipped, so the picker stays actionable; the topbar
               subtitle still states the current model). */}
@@ -542,6 +561,121 @@ export function Composer(props: Props) {
       <span className="sr-only" role="status" aria-live="polite">
         {dictation?.recording ? `Listening, ${recordingTime}` : dictationBusy || ""}
       </span>
+    </div>
+  );
+}
+
+// Token-usage chip + popover (OPE-42). Trigger: a tiny context-fill meter (only when the
+// active model's window is known) + the session's total token count. Click → per-model
+// breakdown. Tokens only, never dollars (true cost is unknowable client-side — discounted
+// pricing, per-provider cache billing).
+function UsageChip({
+  usage,
+  contextWindow,
+  model,
+  modelLabels,
+}: {
+  usage: SessionUsage;
+  contextWindow?: number;
+  model: string;
+  modelLabels?: Record<string, string>;
+}) {
+  const [open, setOpen] = useState(false);
+  const total = totalTokens(usage);
+  const pct = contextWindow
+    ? Math.min(100, Math.round((usage.context / contextWindow) * 100))
+    : null;
+  const labelFor = (id: string) =>
+    id === "unknown" ? "Unknown model" : modelLabels?.[id] || shortModel(id);
+  const stat = (label: string, value: number) => (
+    <span className="inline-flex items-baseline gap-1">
+      <span className="text-faint">{label}</span>
+      <span className="text-ink tabular-nums">{formatTokens(value)}</span>
+    </span>
+  );
+  return (
+    <div className="relative">
+      <button
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11.5px] text-muted hover:text-ink hover:bg-paper shrink-0"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Token usage"
+        title={
+          pct !== null
+            ? `Token usage — ${pct}% of the context window used`
+            : "Token usage this session"
+        }
+        data-testid="usage-chip"
+      >
+        {pct !== null && (
+          <span className="w-7 h-1 rounded-full bg-line overflow-hidden" aria-hidden="true">
+            <span
+              className="block h-full bg-accent transition-all"
+              style={{ width: `${Math.max(pct, 4)}%` }}
+            />
+          </span>
+        )}
+        <span className="tabular-nums">{formatTokens(total)}</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div
+            className="absolute z-40 bottom-full mb-1 right-0 w-[280px] rounded-xl border border-line bg-panel shadow-2xl p-3"
+            role="menu"
+            data-testid="usage-popover"
+          >
+            {contextWindow ? (
+              <div className="mb-2.5">
+                <div className="text-[10.5px] uppercase tracking-[0.06em] text-faint font-semibold mb-1">
+                  Context window
+                </div>
+                <div className="h-1.5 rounded-full bg-line overflow-hidden">
+                  <div
+                    className="h-full bg-accent transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <div className="mt-1 text-[11.5px] text-muted tabular-nums">
+                  {formatTokens(usage.context)} of {formatTokens(contextWindow)} · {pct}%
+                </div>
+              </div>
+            ) : usage.context > 0 ? (
+              <div className="mb-2.5 text-[11.5px] text-muted tabular-nums">
+                In context now: {formatTokens(usage.context)} tokens
+              </div>
+            ) : null}
+            <div className="text-[10.5px] uppercase tracking-[0.06em] text-faint font-semibold mb-1">
+              This session
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {Object.entries(usage.byModel).map(([id, t]) => (
+                <div key={id}>
+                  <div className="text-[12px] text-ink font-medium truncate" title={id}>
+                    {labelFor(id)}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 text-[11.5px] leading-snug">
+                    {stat("Input", t.input)}
+                    {stat("Output", t.output)}
+                    {t.cache_read > 0 && stat("Cache read", t.cache_read)}
+                    {t.cache_write > 0 && stat("Cache write", t.cache_write)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 pt-2 border-t border-line flex items-baseline justify-between text-[11.5px]">
+              <span className="text-faint">Total</span>
+              <span className="text-ink tabular-nums">{formatTokens(total)} tokens</span>
+            </div>
+            {model && !modelLabels?.[model] && contextWindow === undefined && (
+              <div className="mt-1 text-[10.5px] text-faint leading-snug">
+                Context meter unavailable for custom models.
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

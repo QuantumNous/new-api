@@ -46,6 +46,11 @@ const SETTINGS = {
     "anthropic:claude-opus-4-8": "Claude Opus 4.8 · Anthropic",
     "zai:glm-5.2": "GLM-5.2 · Z AI",
   },
+  // Context windows (subset — mirrors /v1/settings.model_context_windows); drives the
+  // composer usage chip's context-fill meter.
+  model_context_windows: {
+    "anthropic:claude-opus-4-8": 200_000,
+  },
 };
 
 const PERSONAS = {
@@ -704,7 +709,18 @@ export async function mockApi(page: import("@playwright/test").Page) {
         send("assistant_delta", { text: msg.text });
         // Echo the model the message carried — pins the model-per-message contract (the
         // composer's visible model must ride on every user_message; 2026-07-04 fix).
-        send("assistant_message", { text: `Echo: ${msg.text} [model=${msg.model || "none"}]` });
+        // `usage` mirrors the real engine's assistant_message sidecar (OPE-42): fixed
+        // counts per turn so the usage-chip specs can assert exact accumulation.
+        send("assistant_message", {
+          text: `Echo: ${msg.text} [model=${msg.model || "none"}]`,
+          usage: {
+            model: msg.model || "anthropic:claude-opus-4-8",
+            input: 1_000,
+            output: 200,
+            cache_read: 8_000,
+            cache_write: 800,
+          },
+        });
         send("turn_done");
       } else if (msg.type === "approval") {
         if (pendingTool === "run_shell") {
