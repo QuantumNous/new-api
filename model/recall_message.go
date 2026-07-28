@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"gorm.io/gorm"
@@ -61,27 +62,53 @@ func ListDueRecallMessages(now int64, limit int) ([]RecallDueMessage, error) {
 	if limit <= 0 {
 		return due, nil
 	}
-	const effectiveDueExpression = "CASE WHEN state = ? THEN scheduled_at WHEN state = ? THEN next_attempt_at ELSE lease_expires_at END"
+	scheduled, err := listDueRecallMessagesForState(RecallMessageScheduled, "scheduled_at", "scheduled_at <= ?", now, limit)
+	if err != nil {
+		return nil, err
+	}
+	retryWait, err := listDueRecallMessagesForState(RecallMessageRetryWait, "next_attempt_at", "next_attempt_at <= ?", now, limit)
+	if err != nil {
+		return nil, err
+	}
+	leased, err := listDueRecallMessagesForState(RecallMessageLeased, "lease_expires_at", "lease_expires_at < ?", now, limit)
+	if err != nil {
+		return nil, err
+	}
+	return mergeDueRecallMessages(limit, scheduled, retryWait, leased), nil
+}
+
+func listDueRecallMessagesForState(state string, dueColumn string, duePredicate string, now int64, limit int) ([]RecallDueMessage, error) {
+	due := make([]RecallDueMessage, 0, limit)
 	err := DB.Model(&RecallMessage{}).
-		Select(
-			"id, state, lease_expires_at AS previous_lease_expires, "+effectiveDueExpression+" AS effective_due_at",
-			RecallMessageScheduled,
-			RecallMessageRetryWait,
-		).
-		Where(
-			"(state = ? AND scheduled_at <= ?) OR (state = ? AND next_attempt_at <= ?) OR (state = ? AND lease_expires_at < ?)",
-			RecallMessageScheduled,
-			now,
-			RecallMessageRetryWait,
-			now,
-			RecallMessageLeased,
-			now,
-		).
-		Order("effective_due_at ASC").
+		Select("id, state, lease_expires_at AS previous_lease_expires, "+dueColumn+" AS effective_due_at").
+		Where("state = ?", state).
+		Where(duePredicate, now).
+		Order(dueColumn + " ASC").
 		Order("id ASC").
 		Limit(limit).
 		Find(&due).Error
 	return due, err
+}
+
+func mergeDueRecallMessages(limit int, sources ...[]RecallDueMessage) []RecallDueMessage {
+	total := 0
+	for _, source := range sources {
+		total += len(source)
+	}
+	due := make([]RecallDueMessage, 0, total)
+	for _, source := range sources {
+		due = append(due, source...)
+	}
+	sort.SliceStable(due, func(i int, j int) bool {
+		if due[i].EffectiveDueAt != due[j].EffectiveDueAt {
+			return due[i].EffectiveDueAt < due[j].EffectiveDueAt
+		}
+		return due[i].ID < due[j].ID
+	})
+	if len(due) > limit {
+		due = due[:limit]
+	}
+	return due
 }
 
 func LeaseDueRecallMessage(candidate RecallDueMessage, owner string, now int64, leaseUntil int64) (bool, error) {
@@ -151,20 +178,14 @@ func ListDueRecallMessageIDs(now int64, limit int) ([]int64, error) {
 	if limit <= 0 {
 		return ids, nil
 	}
-	err := DB.Model(&RecallMessage{}).
-		Where(
-			"(state = ? AND scheduled_at <= ?) OR (state = ? AND next_attempt_at <= ?) OR (state = ? AND lease_expires_at < ?)",
-			RecallMessageScheduled,
-			now,
-			RecallMessageRetryWait,
-			now,
-			RecallMessageLeased,
-			now,
-		).
-		Order("id ASC").
-		Limit(limit).
-		Pluck("id", &ids).Error
-	return ids, err
+	due, err := ListDueRecallMessages(now, limit)
+	if err != nil {
+		return nil, err
+	}
+	for _, candidate := range due {
+		ids = append(ids, candidate.ID)
+	}
+	return ids, nil
 }
 
 func LeaseRecallMessage(id int64, owner string, now int64, leaseUntil int64) (bool, error) {
