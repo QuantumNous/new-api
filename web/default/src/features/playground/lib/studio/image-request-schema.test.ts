@@ -187,15 +187,22 @@ describe('buildImageGenerationRequestBody', () => {
     }
   })
 
-  it('attaches reference image fields when provided', () => {
+  it('attaches all unique reference images while preserving the primary image', () => {
     const body = buildImageGenerationRequestBody({
       model: 'gpt-image-2',
       group: 'default',
       prompt: 'edit this',
       settings: { imageCount: 1, imageSize: 'auto', imageQuality: 'auto' },
       referenceImage: 'data:image/png;base64,abc',
+      referenceImages: [
+        'data:image/png;base64,def',
+        'data:image/png;base64,abc',
+      ],
     })
     expect(body.image).toBe('data:image/png;base64,abc')
-    expect(body.images).toEqual(['data:image/png;base64,abc'])
+    expect(body.images).toEqual([
+      'data:image/png;base64,abc',
+      'data:image/png;base64,def',
+    ])
   })
 })

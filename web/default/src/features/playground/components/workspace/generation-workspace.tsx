@@ -49,7 +49,7 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
   const { t } = useTranslation()
   const shouldReduce = useReducedMotion()
   const { studio } = props
-  const [reference, setReference] = useState<MediaReference | null>(null)
+  const [references, setReferences] = useState<MediaReference[]>([])
   const [referenceKey, setReferenceKey] = useState('')
   const [downloading, setDownloading] = useState('')
   const [downloadDone, setDownloadDone] = useState('')
@@ -67,7 +67,7 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
   const currentKey = `${props.modality}:${model}`
   if (referenceKey !== currentKey) {
     setReferenceKey(currentKey)
-    setReference(null)
+    setReferences([])
   }
 
   const videoTaskId = studio.video?.taskId ?? ''
@@ -139,14 +139,16 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
     }
     setLastPrompt(prompt)
     const settings = usePlaygroundStore.getState().studioSettings
-    const refUrl = reference?.dataUrl || null
+    const referenceUrls = references.map((reference) => reference.dataUrl)
+    const refUrl = referenceUrls[0] ?? null
     const common = { model, group, settings }
     if (props.modality === 'image') {
       studio.imageMutation.mutate({
         ...common,
         prompt,
         referenceImage: refUrl,
-        editMode: Boolean(refUrl),
+        referenceImages: referenceUrls.slice(1),
+        editMode: referenceUrls.length > 0,
       })
     } else if (props.modality === 'video') {
       studio.videoMutation.mutate({
@@ -362,8 +364,8 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
           modality={props.modality}
           pricingModel={props.pricingModel}
           isPending={showProgress}
-          reference={reference}
-          onReferenceChange={setReference}
+          references={references}
+          onReferencesChange={setReferences}
           onSubmit={submit}
         />
       </div>

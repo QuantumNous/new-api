@@ -24,8 +24,8 @@ type GenerationComposerProps = {
   modality: Exclude<StudioModality, 'chat'>
   pricingModel?: PricingModel
   isPending: boolean
-  reference: MediaReference | null
-  onReferenceChange: (value: MediaReference | null) => void
+  references: MediaReference[]
+  onReferencesChange: (value: MediaReference[]) => void
   onSubmit: (prompt: string) => void
 }
 
@@ -78,10 +78,11 @@ export function GenerationComposer(props: GenerationComposerProps) {
           showMediaSlot ? (
             <MediaReferenceSlot
               label={mediaLabel}
-              value={props.reference}
-              onChange={props.onReferenceChange}
+              value={props.references}
+              onChange={props.onReferencesChange}
               attachable
               kind='image'
+              maxFiles={props.modality === 'image' ? 4 : 1}
             />
           ) : undefined
         }
@@ -99,7 +100,7 @@ export function GenerationComposer(props: GenerationComposerProps) {
                   : settings.imageSize,
               duration:
                 props.modality === 'video' ? settings.videoDuration : undefined,
-              has_reference: Boolean(props.reference),
+              has_reference: props.references.length > 0,
             }}
           />
         }

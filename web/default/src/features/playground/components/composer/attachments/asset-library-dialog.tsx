@@ -52,8 +52,10 @@ export function AssetLibraryDialog(props: AssetLibraryDialogProps) {
   })
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) =>
-      uploadPlaygroundAsset(file, props.kind, 'library'),
+    mutationFn: (files: File[]) =>
+      Promise.all(
+        files.map((file) => uploadPlaygroundAsset(file, props.kind, 'library'))
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['playground', 'assets'] })
       toast.success(t('Asset uploaded'))
@@ -107,10 +109,11 @@ export function AssetLibraryDialog(props: AssetLibraryDialogProps) {
             ref={inputRef}
             type='file'
             accept={acceptForKind(props.kind)}
+            multiple
             className='sr-only'
             onChange={(event) => {
-              const file = event.target.files?.[0]
-              if (file) uploadMutation.mutate(file)
+              const files = [...(event.target.files ?? [])]
+              if (files.length > 0) uploadMutation.mutate(files)
               event.target.value = ''
             }}
           />
