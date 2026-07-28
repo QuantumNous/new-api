@@ -16,13 +16,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, mock, test } from 'bun:test'
+import type { ApiRequestConfig } from '@/lib/api'
 import type {
   ApiResponse,
   CurrentSubscriptionRecord,
   SelfSubscriptionDataResponse,
 } from '@/features/subscriptions/types'
-import * as profileHooks from './index'
+import type { ProfileSubscriptionSummary } from '../lib'
+
+type UseQueryOptions = {
+  queryKey: readonly unknown[]
+  queryFn: () => Promise<ProfileSubscriptionSummary | null>
+  retry: boolean
+  enabled?: boolean
+}
+
+const useQueryCalls: UseQueryOptions[] = []
+
+mock.module('@tanstack/react-query', () => ({
+  useQuery: (options: UseQueryOptions) => {
+    useQueryCalls.push(options)
+    return { data: null }
+  },
+}))
+
+const profileHooks = await import('./index')
+
+afterEach(() => {
+  useQueryCalls.length = 0
+})
 
 const buildCurrentSubscription = (
   overrides: Partial<CurrentSubscriptionRecord> = {}
@@ -66,7 +89,9 @@ const expectLoaderExport = () => {
 
   return (profileHooks as typeof profileHooks & {
     loadProfileSubscriptionSummary: (
-      fetcher: () => Promise<ApiResponse<SelfSubscriptionDataResponse>>
+      fetcher: (
+        config?: ApiRequestConfig
+      ) => Promise<ApiResponse<SelfSubscriptionDataResponse>>
     ) => Promise<unknown>
   }).loadProfileSubscriptionSummary
 }
@@ -137,5 +162,59 @@ describe('loadProfileSubscriptionSummary', () => {
         },
       }))
     ).resolves.toBeNull()
+  })
+
+  test('uses a silent request config for the subscription API lookup', async () => {
+    const loadProfileSubscriptionSummary = expectLoaderExport()
+    const configs: (ApiRequestConfig | undefined)[] = []
+
+    await loadProfileSubscriptionSummary(async (config) => {
+      configs.push(config)
+      return { success: false }
+    })
+
+    expect(configs).toEqual([
+      {
+        skipBusinessError: true,
+        skipErrorHandler: true,
+      },
+    ])
+  })
+})
+
+describe('useProfileSubscriptionSummary', () => {
+  test('keys subscription cache by authenticated user id', () => {
+    profileHooks.useProfileSubscriptionSummary(42)
+
+    expect(useQueryCalls).toHaveLength(1)
+    expect(useQueryCalls[0].queryKey).toEqual([
+      'profile',
+      'subscription-summary',
+      42,
+    ])
+    expect(useQueryCalls[0].enabled).toBe(true)
+    expect(useQueryCalls[0].retry).toBe(false)
+  })
+
+  test('disables subscription loading until a user id is available', () => {
+    profileHooks.useProfileSubscriptionSummary(undefined)
+    profileHooks.useProfileSubscriptionSummary(null)
+
+    expect(useQueryCalls.map((options) => options.queryKey)).toEqual([
+      ['profile', 'subscription-summary', null],
+      ['profile', 'subscription-summary', null],
+    ])
+    expect(useQueryCalls.map((options) => options.enabled)).toEqual([
+      false,
+      false,
+    ])
+  })
+})
+
+describe('Profile subscription wiring', () => {
+  test('passes the loaded profile id into the subscription summary hook', async () => {
+    const source = await Bun.file(new URL('../index.tsx', import.meta.url)).text()
+
+    expect(source).toContain('useProfileSubscriptionSummary(profile?.id)')
   })
 })

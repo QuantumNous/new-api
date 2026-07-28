@@ -35,7 +35,7 @@ import { useProfile, useProfileSubscriptionSummary } from './hooks'
 
 export function Profile() {
   const { profile, loading, refreshProfile } = useProfile()
-  const subscription = useProfileSubscriptionSummary()
+  const subscription = useProfileSubscriptionSummary(profile?.id)
   const { status } = useStatus()
   const permissions = useAuthStore((s) => s.auth.user?.permissions)
 

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import type { ApiRequestConfig } from '@/lib/api'
 import { getSelfSubscriptionFull } from '@/features/subscriptions/api'
 import type {
   ApiResponse,
@@ -32,15 +33,20 @@ export const PROFILE_SUBSCRIPTION_QUERY_KEY = [
   'subscription-summary',
 ] as const
 
-type ProfileSubscriptionFetcher = () => Promise<
-  ApiResponse<SelfSubscriptionDataResponse>
->
+type ProfileSubscriptionFetcher = (
+  config?: ApiRequestConfig
+) => Promise<ApiResponse<SelfSubscriptionDataResponse>>
+
+const PROFILE_SUBSCRIPTION_REQUEST_CONFIG = {
+  skipBusinessError: true,
+  skipErrorHandler: true,
+} satisfies ApiRequestConfig
 
 export async function loadProfileSubscriptionSummary(
   fetcher: ProfileSubscriptionFetcher = getSelfSubscriptionFull
 ): Promise<ProfileSubscriptionSummary | null> {
   try {
-    const response = await fetcher()
+    const response = await fetcher(PROFILE_SUBSCRIPTION_REQUEST_CONFIG)
     if (!response.success) return null
     return buildProfileSubscriptionSummary(response.data)
   } catch {
@@ -48,10 +54,14 @@ export async function loadProfileSubscriptionSummary(
   }
 }
 
-export function useProfileSubscriptionSummary(): ProfileSubscriptionSummary | null {
+export function useProfileSubscriptionSummary(
+  userId: number | null | undefined
+): ProfileSubscriptionSummary | null {
+  const resolvedUserId = userId ?? null
   const query = useQuery({
-    queryKey: PROFILE_SUBSCRIPTION_QUERY_KEY,
+    queryKey: [...PROFILE_SUBSCRIPTION_QUERY_KEY, resolvedUserId],
     queryFn: () => loadProfileSubscriptionSummary(),
+    enabled: resolvedUserId !== null,
     retry: false,
   })
 
