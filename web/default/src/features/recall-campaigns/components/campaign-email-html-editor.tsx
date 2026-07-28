@@ -178,7 +178,7 @@ export function CampaignEmailHtmlEditor(
       ? RECALL_CONTENT_ONLY_EMAIL_ACTIONS
       : RECALL_EMAIL_ACTIONS
   const localBodyError =
-    !bodyHTML.trim() && !bodyText.trim()
+    props.locale === 'en' && !bodyHTML.trim() && !bodyText.trim()
       ? 'Exactly one email body is required'
       : ''
   const activeBodyError = bodyError?.message

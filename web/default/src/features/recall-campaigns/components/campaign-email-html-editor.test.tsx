@@ -79,7 +79,11 @@ function makeDraft(): RecallCampaignDraft {
   }
 }
 
-function renderEditor(disabled = false, draft = makeDraft()): string {
+function renderEditor(
+  disabled = false,
+  draft = makeDraft(),
+  locale: 'en' | 'zh' = 'en'
+): string {
   function Harness() {
     const form = useForm<RecallCampaignDraft>({
       defaultValues: draft,
@@ -95,7 +99,7 @@ function renderEditor(disabled = false, draft = makeDraft()): string {
       <CampaignEmailHtmlEditor
         form={form}
         index={0}
-        locale='en'
+        locale={locale}
         disabled={disabled}
       />
     )
@@ -384,6 +388,17 @@ describe('CampaignEmailHtmlEditor', () => {
       'aria-describedby="recall-email-0-en-body-html-error"'
     )
     expect(html).toContain('Exactly one email body is required')
+  })
+
+  test('does not require an untouched target-language body before generation', () => {
+    const html = renderEditor(false, makeDraft(), 'zh')
+    const textarea = getElement(
+      html,
+      /<textarea[^>]*name="email_sequence\.0\.templates\.zh\.body_html"[^>]*>/
+    )
+
+    expect(textarea).not.toContain('aria-invalid="true"')
+    expect(html).not.toContain('Exactly one email body is required')
   })
 })
 
