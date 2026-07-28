@@ -28,6 +28,26 @@ body{background:#F8F7F2;color:#151615}
 .term pre{margin:0;padding:16px;font-family:var(--mono);font-size:12px;line-height:1.85;white-space:pre-wrap;overflow-x:auto}
 .cliBand{border-top:1px solid #0B0B0F18;background:#fff7}
 .cliIn{max-width:1180px;margin:0 auto;padding:72px 40px}
+.caseBand{border-top:1px solid #0B0B0F18;border-bottom:1px solid #0B0B0F18;background:#EBE8DE}
+.caseHead{display:flex;justify-content:space-between;gap:28px;align-items:end}
+.caseHead h2{font-family:var(--disp);font-size:42px;line-height:1.08;letter-spacing:-1.35px;font-weight:650;max-width:650px}
+.caseHead p{font-size:15px;line-height:1.65;color:#626861;max-width:420px}
+.caseHead code{background:#0B0B0F14;border-radius:5px;padding:2px 6px;font-family:var(--mono);font-size:12px;color:#151615}
+.caseGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:34px}
+.caseCard{overflow:hidden;border:1px solid #0B0B0F18;border-radius:10px;background:#F8F7F2}
+.caseVisual{position:relative;aspect-ratio:4/3;overflow:hidden;background:linear-gradient(135deg,#FCA5A5,#FED7AA,#FEF3C7)}
+.caseVisual.c2{background:linear-gradient(135deg,#6EE7B7,#A5F3FC,#E2E8F0)}
+.caseVisual.c3{background:linear-gradient(135deg,#C4B5FD,#F0ABFC,#FBCFE8)}
+.caseVisual.c4{background:linear-gradient(135deg,#BEF264,#FEF08A,#E7E5E4)}
+.caseVisual.c5{background:linear-gradient(135deg,#7DD3FC,#BFDBFE,#C7D2FE)}
+.caseVisual.c6{background:linear-gradient(135deg,#D4D4D8,#E7E5E4,#F5F5F4)}
+.caseVisual:before{content:"";position:absolute;inset:14px;border:1px solid #ffffff80;border-radius:8px;background:#ffffff24;box-shadow:inset 0 0 80px #ffffff30}
+.caseKind{position:absolute;top:16px;left:16px;border-radius:999px;background:#000000b8;color:#fff;padding:5px 10px;font-size:11px;font-weight:750}
+.play{position:absolute;right:16px;bottom:16px;width:42px;height:42px;border-radius:50%;background:#000000bf}
+.play:after{content:"";position:absolute;left:17px;top:13px;border-top:8px solid transparent;border-bottom:8px solid transparent;border-left:12px solid #fff}
+.bars{position:absolute;left:16px;right:16px;bottom:18px;display:grid;gap:7px}.bars i{display:block;height:8px;border-radius:999px;background:#00000026}.bars i:nth-child(2){width:62%;background:#ffffffa0}
+.caseBody{padding:20px}.caseBody h3{font-size:16px;font-weight:760;letter-spacing:-.25px}.caseBody p{font-size:14px;line-height:1.62;color:#626861;margin-top:8px}
+.caseBody code{display:block;margin-top:14px;border-radius:8px;background:#111412;color:#DDFBE9;padding:12px;font-family:var(--mono);font-size:11px;line-height:1.6;white-space:pre-wrap}
 .split{display:grid;grid-template-columns:.9fr 1.1fr;gap:36px;align-items:end}
 .kicker{font-family:var(--mono);font-size:11px;letter-spacing:1.9px;color:#047857;font-weight:800;text-transform:uppercase;margin-bottom:12px}
 .split h2,.use h2,.faq h2{font-family:var(--disp);font-size:38px;line-height:1.1;letter-spacing:-1.2px;font-weight:650}
@@ -54,7 +74,8 @@ body{background:#F8F7F2;color:#151615}
 .finalIn p{color:#ffffffb3;margin-top:10px;font-size:14px;line-height:1.65;max-width:660px}
 @media(max-width:900px){
   .cliHero{padding:56px 22px 48px}.cliHeroIn,.split,.panelGrid{grid-template-columns:1fr}
-  .cliHero h1{font-size:43px}.stats,.useGrid,.cards{grid-template-columns:1fr}
+  .cliHero h1{font-size:43px}.stats,.useGrid,.cards,.caseGrid{grid-template-columns:1fr}
+  .caseHead{display:block}.caseHead h2{font-size:34px}.caseHead p{margin-top:14px}
   .cliIn,.finalBox{padding:52px 22px}.finalIn{display:block}.finalIn .cliCtas{margin-top:24px}
 }
 </style><!-- Google Tag Manager -->
@@ -106,12 +127,29 @@ body{background:#F8F7F2;color:#151615}
     <div class="codeShell">
       <div class="codeTop"><div class="codeBrand"><img src="assets/flatkey-mark.svg?v=4" alt="Flatkey">flatkey-cli</div><a href="https://github.com/flatkey-ai/flatkey-cli">GitHub</a></div>
       <div class="term"><div class="termHead"><span>Install and create</span><span class="dol">$</span></div><pre>npm i -g @flatkey-ai/cli
-export FLATKEY_API_KEY=&lt;your-flatkey-api-key&gt;
+flatkey login
 
 flatkey image generate --prompt "editorial cover, neon city at dawn" -o cover.png
 flatkey video generate --prompt "cinematic product launch clip" --model seedance2 -o launch.mp4
 flatkey audio generate --prompt "Product launch voiceover" -o voice.mp3
 flatkey credits --json</pre></div>
+    </div>
+  </div>
+</section>
+
+<section class="caseBand">
+  <div class="cliIn">
+    <div class="caseHead">
+      <div><div class="kicker">Real media jobs</div><h2>Use the CLI to produce files, not just prompts</h2></div>
+      <p>Install once, run <code>flatkey login</code>, then batch images and videos from briefs, folders, CSVs, or agents.</p>
+    </div>
+    <div class="caseGrid">
+      <article class="caseCard"><div class="caseVisual"><span class="caseKind">Video</span><span class="play"></span><div class="bars"><i style="width:72%"></i><i></i></div></div><div class="caseBody"><h3>9:16 UGC ad clips</h3><p>Batch product demos, hooks, creator-style intros, and first-frame variations for paid social.</p><code>flatkey video generate --ratio 9:16 --prompt-file briefs/ugc.txt -o outputs/ads/</code></div></article>
+      <article class="caseCard"><div class="caseVisual c2"><span class="caseKind">Image</span><div class="bars"><i style="width:84%"></i><i></i></div></div><div class="caseBody"><h3>Campaign hero images</h3><p>Turn a launch brief into covers, landing-page visuals, product scenes, and thumbnail options.</p><code>flatkey image generate --prompt "premium skincare launch hero" -o hero.png</code></div></article>
+      <article class="caseCard"><div class="caseVisual c3"><span class="caseKind">Video</span><span class="play"></span><div class="bars"><i style="width:66%"></i><i></i></div></div><div class="caseBody"><h3>Product reveal sequences</h3><p>Use first-frame and last-frame inputs to make repeatable reveal clips for the same SKU.</p><code>flatkey video generate --first-frame packshot.png --last-frame reveal.png -o reveal.mp4</code></div></article>
+      <article class="caseCard"><div class="caseVisual c4"><span class="caseKind">Image</span><div class="bars"><i style="width:92%"></i><i></i></div></div><div class="caseBody"><h3>Thumbnail test sets</h3><p>Generate twenty visual directions, save them locally, and let an agent rank or caption them.</p><code>flatkey image batch --prompts thumbnails.csv -o outputs/thumbs/</code></div></article>
+      <article class="caseCard"><div class="caseVisual c5"><span class="caseKind">Video</span><span class="play"></span><div class="bars"><i style="width:58%"></i><i></i></div></div><div class="caseBody"><h3>Localized market variants</h3><p>Create Brazil, Japan, and US versions with different text overlays, mood, and aspect ratios.</p><code>flatkey video batch --brief launch.md --markets us,br,jp --json</code></div></article>
+      <article class="caseCard"><div class="caseVisual c6"><span class="caseKind">Image + Video</span><span class="play"></span><div class="bars"><i style="width:76%"></i><i></i></div></div><div class="caseBody"><h3>Storyboard to motion</h3><p>Generate still frames first, pick the best shots, then turn them into short motion clips.</p><code>flatkey storyboard run --brief storyboard.md -o outputs/story/</code></div></article>
     </div>
   </div>
 </section>

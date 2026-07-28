@@ -25,6 +25,50 @@ const CLI_GITHUB_URL = "https://github.com/flatkey-ai/flatkey-cli";
 
 const workflowIcons = [FileVideo2, WandSparkles, MonitorPlay, Terminal] as const;
 const painIcons = [BadgeDollarSign, GitBranch, Layers3, Check] as const;
+const mediaExamples = [
+  {
+    kind: "Video",
+    title: "9:16 UGC ad clips",
+    body: "Batch product demos, hooks, creator-style intros, and first-frame variations for paid social.",
+    command: "flatkey video generate --ratio 9:16 --prompt-file briefs/ugc.txt -o outputs/ads/",
+    tone: "from-rose-300 via-orange-200 to-amber-100",
+  },
+  {
+    kind: "Image",
+    title: "Campaign hero images",
+    body: "Turn a launch brief into covers, landing-page visuals, product scenes, and thumbnail options.",
+    command: "flatkey image generate --prompt \"premium skincare launch hero\" -o hero.png",
+    tone: "from-emerald-300 via-cyan-200 to-slate-100",
+  },
+  {
+    kind: "Video",
+    title: "Product reveal sequences",
+    body: "Use first-frame and last-frame inputs to make repeatable reveal clips for the same SKU.",
+    command: "flatkey video generate --first-frame packshot.png --last-frame reveal.png -o reveal.mp4",
+    tone: "from-violet-300 via-fuchsia-200 to-pink-100",
+  },
+  {
+    kind: "Image",
+    title: "Thumbnail test sets",
+    body: "Generate twenty visual directions, save them locally, and let an agent rank or caption them.",
+    command: "flatkey image batch --prompts thumbnails.csv -o outputs/thumbs/",
+    tone: "from-lime-300 via-yellow-200 to-stone-100",
+  },
+  {
+    kind: "Video",
+    title: "Localized market variants",
+    body: "Create Brazil, Japan, and US versions with different text overlays, mood, and aspect ratios.",
+    command: "flatkey video batch --brief launch.md --markets us,br,jp --json",
+    tone: "from-sky-300 via-blue-200 to-indigo-100",
+  },
+  {
+    kind: "Image + Video",
+    title: "Storyboard to motion",
+    body: "Generate still frames first, pick the best shots, then turn them into short motion clips.",
+    command: "flatkey storyboard run --brief storyboard.md -o outputs/story/",
+    tone: "from-zinc-300 via-stone-200 to-neutral-100",
+  },
+] as const;
 
 export function CliLandingPage(props: CliLandingPageProps) {
   const copy = cliLandingCopy[props.locale];
@@ -45,6 +89,7 @@ export function CliLandingPage(props: CliLandingPageProps) {
           stats={copy.stats}
           code={copy.codeSamples[0]}
         />
+        <MediaExamples />
 
         <section className="border-y border-black/10 bg-white/70 px-6 py-18 dark:border-white/10 dark:bg-white/[0.03]">
           <div className="mx-auto max-w-6xl">
@@ -204,6 +249,48 @@ export function HiggsfieldAlternativePage(props: HiggsfieldAlternativePageProps)
         />
       </main>
     </SiteShell>
+  );
+}
+
+function MediaExamples() {
+  return (
+    <section className="border-y border-black/10 bg-[#ebe8de] px-6 py-18 dark:border-white/10 dark:bg-white/[0.03]">
+      <div className="mx-auto max-w-6xl">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="mb-3 text-xs font-semibold tracking-[0.18em] text-emerald-700 uppercase dark:text-emerald-300">Real media jobs</p>
+            <h2 className="max-w-2xl text-3xl leading-tight font-semibold tracking-tight md:text-4xl">Use the CLI to produce files, not just prompts</h2>
+          </div>
+          <p className="max-w-md text-sm leading-6 text-[#626861] dark:text-[#b7bdb4]">
+            Install once, run <code className="rounded bg-black/8 px-1.5 py-0.5 dark:bg-white/10">flatkey login</code>, then batch images and videos from briefs, folders, CSVs, or agents.
+          </p>
+        </div>
+        <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {mediaExamples.map((example, index) => (
+            <article key={example.title} className="overflow-hidden rounded-lg border border-black/10 bg-[#f8f7f2] dark:border-white/10 dark:bg-white/[0.05]">
+              <div className={`relative aspect-[4/3] bg-gradient-to-br ${example.tone}`}>
+                <div className="absolute inset-3 rounded-md border border-white/45 bg-white/15 shadow-inner" />
+                <div className="absolute top-4 left-4 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white">{example.kind}</div>
+                {example.kind.includes("Video") ? (
+                  <div className="absolute right-4 bottom-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/75 text-white">
+                    <span className="ml-0.5 h-0 w-0 border-y-[7px] border-y-transparent border-l-[11px] border-l-white" />
+                  </div>
+                ) : null}
+                <div className="absolute right-4 left-4 bottom-4">
+                  <div className="h-2 rounded bg-black/15" style={{ width: `${72 - index * 5}%` }} />
+                  <div className="mt-2 h-2 rounded bg-white/55" style={{ width: `${46 + index * 6}%` }} />
+                </div>
+              </div>
+              <div className="p-5">
+                <h3 className="font-semibold tracking-tight">{example.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#626861] dark:text-[#b7bdb4]">{example.body}</p>
+                <code className="mt-4 block rounded-md bg-[#111412] p-3 text-[11px] leading-5 whitespace-pre-wrap text-emerald-100">{example.command}</code>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
