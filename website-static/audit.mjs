@@ -46,7 +46,16 @@ for (const file of files) {
   if (/\bdata-i18n(?:-ph)?=/.test(html) && !/assets\/i18n\.js\?v=/.test(html)) {
     fail(file, "uses i18n keys without loading assets/i18n.js");
   }
-  const i18nVersion = i18nVersionOverrides.get(file) ?? (localizedHomepages.has(file) ? "726b" : "724a");
+  if (/\bdata-home-i18n=/.test(html) && !/assets\/home-tools-i18n\.js\?v=/.test(html)) {
+    fail(file, "uses homepage tools i18n keys without loading assets/home-tools-i18n.js");
+  }
+  if (
+    /data-i18n="ft\.brand"/.test(html)
+    && !/<p data-i18n="ft\.brand">One key\. More models\. More tools\. Lower cost\.<\/p>/.test(html)
+  ) {
+    fail(file, "footer brand slogan has drifted from the approved copy");
+  }
+  const i18nVersion = i18nVersionOverrides.get(file) ?? (localizedHomepages.has(file) ? "727b" : "724a");
   const i18nScript = html.indexOf(`assets/i18n.js?v=${i18nVersion}`);
   const shellScript = html.indexOf("assets/site-shell.js?v=720a");
   const trackScript = html.indexOf("assets/track.js?v=721a");
