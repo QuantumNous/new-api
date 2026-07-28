@@ -32,6 +32,7 @@ import {
   MailCheck,
   MessageSquare,
   Radio,
+  Rocket,
   Settings,
   ShieldAlert,
   Ticket,
@@ -39,10 +40,11 @@ import {
   UserPlus,
   Users,
   Wallet,
+  Wrench,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { type SidebarData } from '@/components/layout/types'
 import { useSystemConfigStore } from '@/stores/system-config-store'
+import { type SidebarData } from '@/components/layout/types'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -74,7 +76,7 @@ export function buildSidebarData(
       },
       {
         id: 'general',
-        title: t('General'),
+        title: t('Models'),
         items: [
           {
             title: t('Overview'),
@@ -97,11 +99,6 @@ export function buildSidebarData(
             icon: Cpu,
           },
           {
-            title: t('API Keys'),
-            url: '/keys',
-            icon: Key,
-          },
-          {
             title: t('Usage Logs'),
             url: '/usage-logs/common',
             icon: FileText,
@@ -112,6 +109,33 @@ export function buildSidebarData(
             activeUrls: ['/usage-logs/drawing'],
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
+          },
+        ],
+      },
+      {
+        id: 'tools',
+        title: t('Tools'),
+        items: [
+          {
+            title: t('Get Started'),
+            url: '/quickstart',
+            icon: Rocket,
+          },
+          {
+            title: t('API Marketplace'),
+            url: '/api-marketplace',
+            icon: Wrench,
+          },
+        ],
+      },
+      {
+        id: 'credentials',
+        title: t('Credentials'),
+        items: [
+          {
+            title: t('API Keys'),
+            url: '/keys',
+            icon: Key,
           },
         ],
       },
@@ -212,9 +236,7 @@ export function useSidebarData(): SidebarData {
   // Direct money stimulus beats prose: show "+$50" when the reward amount is
   // known, fall back to the generic promo text otherwise.
   const inviteBadge =
-    badgeUsd && badgeUsd > 0
-      ? `+$${Math.round(badgeUsd)}`
-      : undefined
+    badgeUsd && badgeUsd > 0 ? `+$${Math.round(badgeUsd)}` : undefined
 
   return buildSidebarData(t, { inviteBadge })
 }

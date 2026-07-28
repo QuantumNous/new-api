@@ -9,6 +9,34 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func TestIsBackendOrAssetPath(t *testing.T) {
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{path: "/api", want: true},
+		{path: "/api/test", want: true},
+		{path: "/v1", want: true},
+		{path: "/v1/test", want: true},
+		{path: "/v1beta", want: true},
+		{path: "/v1beta/models/test", want: true},
+		{path: "/assets", want: true},
+		{path: "/assets/app.js", want: true},
+		{path: "/api-marketplace", want: false},
+		{path: "/api-marketplace/", want: false},
+		{path: "/v1-models", want: false},
+		{path: "/assets-library", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			if got := isBackendOrAssetPath(tt.path); got != tt.want {
+				t.Fatalf("isBackendOrAssetPath(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestShouldInjectGoogleTagManager(t *testing.T) {
 	tests := []struct {
 		name string
