@@ -70,10 +70,10 @@ const activeSubscription: ProfileSubscriptionSummary = {
   },
   window7d: {
     totalQuota: 80000,
-    usedQuota: 20000,
-    remainingQuota: 60000,
+    usedQuota: 32000,
+    remainingQuota: 48000,
     unlimited: false,
-    usagePercent: 25,
+    usagePercent: 40,
   },
 }
 
@@ -109,6 +109,24 @@ function classForDataSlot(html: string, slot: string): string {
     new RegExp(`<[^>]+data-slot="${slot}"[^>]*class="([^"]*)"`)
   )
   return match?.[1] ?? ''
+}
+
+function tokensForDataSlot(html: string, slot: string): string[] {
+  return classForDataSlot(html, slot).split(/\s+/).filter(Boolean)
+}
+
+function sliceBetweenDataSlots(
+  html: string,
+  startSlot: string,
+  endSlot: string
+): string {
+  const start = html.indexOf(`data-slot="${startSlot}"`)
+  const end = html.indexOf(`data-slot="${endSlot}"`, start + 1)
+
+  expect(start).toBeGreaterThan(-1)
+  expect(end).toBeGreaterThan(start)
+
+  return html.slice(start, end)
 }
 
 describe('ProfileHeader', () => {
@@ -157,7 +175,7 @@ describe('ProfileHeader', () => {
     const statsStart = html.indexOf('data-slot="profile-stats"', topRowStart)
 
     expect(topRowStart).toBeGreaterThan(-1)
-    expect(html).toContain('max-w-[860px]')
+    expect(html).not.toContain('max-w-[860px]')
     expect(identityStart).toBeGreaterThan(topRowStart)
     expect(balanceStart).toBeGreaterThan(identityStart)
     expect(planStart).toBeGreaterThan(balanceStart)
@@ -167,6 +185,7 @@ describe('ProfileHeader', () => {
   test('keeps the loading header aligned to the desktop balance column', () => {
     const html = renderLoadingHeader()
 
+    expect(html).not.toContain('max-w-[860px]')
     expect(classForDataSlot(html, 'profile-header-top-row')).toContain(
       'lg:grid-cols-[minmax(0,1fr)_390px]'
     )
@@ -193,14 +212,117 @@ describe('ProfileHeader', () => {
     expect(progressStart).toBeGreaterThan(remainingStart)
   })
 
+  test('renders the 5-hour and 7-day windows before monthly quota', () => {
+    const html = renderHeader(activeSubscription)
+    const shortRowStart = html.indexOf(
+      'data-slot="profile-plan-short-window-row"'
+    )
+    const window5hStart = html.indexOf(
+      'data-slot="profile-plan-window-5h"',
+      shortRowStart
+    )
+    const window7dStart = html.indexOf(
+      'data-slot="profile-plan-window-7d"',
+      shortRowStart
+    )
+    const quotaRowStart = html.indexOf(
+      'data-slot="profile-plan-quota-row"',
+      shortRowStart
+    )
+
+    expect(shortRowStart).toBeGreaterThan(-1)
+    expect(window5hStart).toBeGreaterThan(shortRowStart)
+    expect(window7dStart).toBeGreaterThan(window5hStart)
+    expect(quotaRowStart).toBeGreaterThan(window7dStart)
+  })
+
+  test('renders finite 5-hour and 7-day quota meters', () => {
+    const html = renderHeader(activeSubscription)
+    const shortRowClass = classForDataSlot(
+      html,
+      'profile-plan-short-window-row'
+    )
+    const shortRowTokens = tokensForDataSlot(
+      html,
+      'profile-plan-short-window-row'
+    )
+
+    expect(shortRowClass).toContain('grid')
+    expect(shortRowClass).toContain('sm:grid-cols-2')
+    expect(shortRowTokens).not.toContain('grid-cols-2')
+    expect(shortRowClass).not.toContain('overflow')
+    expect(shortRowClass).not.toContain('flex-row')
+    expect(shortRowClass).not.toContain('whitespace-nowrap')
+    expect(shortRowClass).not.toContain('truncate')
+    expect(shortRowClass).not.toContain('line-clamp')
+    const window5hHtml = sliceBetweenDataSlots(
+      html,
+      'profile-plan-window-5h',
+      'profile-plan-window-7d'
+    )
+    const window7dHtml = sliceBetweenDataSlots(
+      html,
+      'profile-plan-window-7d',
+      'profile-plan-quota-row'
+    )
+
+    expect(window5hHtml).toContain('5-hour limit')
+    expect(window5hHtml).toContain(
+      `${formatQuota(activeSubscription.window5h.usedQuota)} / ${formatQuota(activeSubscription.window5h.totalQuota)} used`
+    )
+    expect(window5hHtml).toContain(
+      `${formatQuota(activeSubscription.window5h.remainingQuota)} remaining`
+    )
+    expect(window5hHtml).toContain('aria-label="5-hour limit"')
+    expect(window5hHtml).toContain('aria-valuenow="25"')
+    expect(window7dHtml).toContain('7-day limit')
+    expect(window7dHtml).toContain(
+      `${formatQuota(activeSubscription.window7d.usedQuota)} / ${formatQuota(activeSubscription.window7d.totalQuota)} used`
+    )
+    expect(window7dHtml).toContain(
+      `${formatQuota(activeSubscription.window7d.remainingQuota)} remaining`
+    )
+    expect(window7dHtml).toContain('aria-label="7-day limit"')
+    expect(window7dHtml).toContain('aria-valuenow="40"')
+  })
+
+  test('keeps loading short-window skeleton slots in the plan band', () => {
+    const html = renderLoadingHeader()
+    const shortRowStart = html.indexOf(
+      'data-slot="profile-plan-short-window-row"'
+    )
+    const window5hStart = html.indexOf(
+      'data-slot="profile-plan-window-5h"',
+      shortRowStart
+    )
+    const window7dStart = html.indexOf(
+      'data-slot="profile-plan-window-7d"',
+      shortRowStart
+    )
+    const quotaRowStart = html.indexOf(
+      'data-slot="profile-plan-quota-row"',
+      shortRowStart
+    )
+
+    expect(shortRowStart).toBeGreaterThan(-1)
+    expect(window5hStart).toBeGreaterThan(shortRowStart)
+    expect(window7dStart).toBeGreaterThan(window5hStart)
+    expect(quotaRowStart).toBeGreaterThan(window7dStart)
+    expect(classForDataSlot(html, 'profile-plan-short-window-row')).toContain(
+      'sm:grid-cols-2'
+    )
+  })
+
   test('does not render a subscription placeholder when no summary exists', () => {
     const html = renderHeader(null)
 
     expect(html).not.toContain('profile-plan-summary')
     expect(html).not.toContain('profile-plan-quota-row')
+    expect(html).not.toContain('profile-plan-short-window-row')
+    expect(html).not.toContain('profile-plan-window-5h')
+    expect(html).not.toContain('profile-plan-window-7d')
     expect(html).not.toContain('Pro')
     expect(html).not.toContain('No plan')
-    expect(html).not.toContain('未订阅')
     expect(html).toContain('Ada Lovelace')
     expect(html).toContain('Available balance')
     expect(html).toContain(formatQuota(profile.quota))
@@ -258,8 +380,12 @@ describe('ProfileHeader', () => {
     const html = renderHeader(subscription)
 
     expect(html).toContain('Unlimited')
+    expect(html).toContain('No usage limit')
+    expect(html).toContain('aria-label="5-hour limit"')
+    expect(html).toContain('aria-label="7-day limit"')
     expect(html).toContain('aria-valuenow="0"')
     expect(html).toContain('aria-valuetext="Unlimited"')
     expect(html).not.toContain('aria-valuetext="0%"')
+    expect(html).not.toContain('0 / 0 used')
   })
 })

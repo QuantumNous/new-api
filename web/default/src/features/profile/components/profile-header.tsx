@@ -28,6 +28,7 @@ import {
   getUserInitials,
   getDisplayName,
   type ProfileSubscriptionSummary,
+  type ProfileUsageWindowSummary,
 } from '../lib'
 import type { UserProfile } from '../types'
 
@@ -41,12 +42,74 @@ interface ProfileHeaderProps {
   subscription: ProfileSubscriptionSummary | null
 }
 
+interface ProfileUsageWindowMeterProps {
+  label: string
+  summary: ProfileUsageWindowSummary
+  slot: 'profile-plan-window-5h' | 'profile-plan-window-7d'
+}
+
+function ProfileUsageWindowMeter(props: ProfileUsageWindowMeterProps) {
+  const { t } = useTranslation()
+
+  if (props.summary.unlimited) {
+    return (
+      <div
+        data-slot={props.slot}
+        className='bg-background/60 min-w-0 rounded-lg border p-3'
+      >
+        <div className='text-muted-foreground text-xs font-medium'>
+          {props.label}
+        </div>
+        <div className='text-foreground mt-1 font-mono text-sm font-semibold tabular-nums sm:text-base'>
+          {t('Unlimited')}
+        </div>
+        <div className='text-muted-foreground mt-1 text-xs'>
+          {t('No usage limit')}
+        </div>
+        <Progress
+          value={0}
+          aria-label={props.label}
+          getAriaValueText={() => t('Unlimited')}
+          className='mt-3 h-1.5'
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div
+      data-slot={props.slot}
+      className='bg-background/60 min-w-0 rounded-lg border p-3'
+    >
+      <div className='text-muted-foreground text-xs font-medium'>
+        {props.label}
+      </div>
+      <div className='text-foreground mt-1 font-mono text-sm font-semibold tabular-nums sm:text-base'>
+        {t('{{used}} / {{total}} used', {
+          used: formatQuota(props.summary.usedQuota),
+          total: formatQuota(props.summary.totalQuota),
+        })}
+      </div>
+      <div className='text-muted-foreground mt-1 text-xs'>
+        {t('{{remaining}} remaining', {
+          remaining: formatQuota(props.summary.remainingQuota),
+        })}
+      </div>
+      <Progress
+        value={props.summary.usagePercent}
+        aria-label={props.label}
+        className='mt-3 h-1.5'
+      />
+    </div>
+  )
+}
+
 export function ProfileHeader(props: ProfileHeaderProps) {
   const { t } = useTranslation()
 
   if (props.loading) {
     return (
-      <div className='bg-card mx-auto w-full max-w-[860px] overflow-hidden rounded-lg border'>
+      <div className='bg-card w-full overflow-hidden rounded-lg border'>
         <div className='p-4 sm:p-5'>
           <div
             data-slot='profile-header-top-row'
@@ -92,6 +155,25 @@ export function ProfileHeader(props: ProfileHeaderProps) {
                 <Skeleton className='h-4 w-40' />
               </div>
               <Skeleton className='h-5 w-16 rounded-full' />
+            </div>
+            <div
+              data-slot='profile-plan-short-window-row'
+              className='mt-4 grid gap-3 sm:grid-cols-2'
+            >
+              {['profile-plan-window-5h', 'profile-plan-window-7d'].map(
+                (slot) => (
+                  <div
+                    key={slot}
+                    data-slot={slot}
+                    className='bg-background/60 rounded-lg border p-3'
+                  >
+                    <Skeleton className='h-4 w-24' />
+                    <Skeleton className='mt-2 h-5 w-32' />
+                    <Skeleton className='mt-2 h-4 w-28' />
+                    <Skeleton className='mt-3 h-1.5 w-full rounded-full' />
+                  </div>
+                )
+              )}
             </div>
             <div
               data-slot='profile-plan-quota-row'
@@ -156,7 +238,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
     subscription?.unlimited === true ? 0 : (subscription?.usagePercent ?? 0)
 
   return (
-    <div className='bg-card mx-auto w-full max-w-[860px] overflow-hidden rounded-lg border'>
+    <div className='bg-card w-full overflow-hidden rounded-lg border'>
       <div className='p-3 sm:p-5'>
         <div
           data-slot='profile-header-top-row'
@@ -267,6 +349,22 @@ export function ProfileHeader(props: ProfileHeaderProps) {
                 label={t('Active')}
                 variant='success'
                 copyable={false}
+              />
+            </div>
+
+            <div
+              data-slot='profile-plan-short-window-row'
+              className='mt-4 grid gap-3 sm:grid-cols-2'
+            >
+              <ProfileUsageWindowMeter
+                slot='profile-plan-window-5h'
+                label={t('5-hour limit')}
+                summary={subscription.window5h}
+              />
+              <ProfileUsageWindowMeter
+                slot='profile-plan-window-7d'
+                label={t('7-day limit')}
+                summary={subscription.window7d}
               />
             </div>
 
