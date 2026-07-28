@@ -100,11 +100,17 @@ func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *d
 	return usage.ClaudeCacheCreation5mTokens > 0 || usage.ClaudeCacheCreation1hTokens > 0
 }
 
+// collectToolSurchargeItem resolves a model-aware tool price before appending it.
 func collectToolSurchargeItem(items []ToolSurchargeItem, name string, count int, modelName string) []ToolSurchargeItem {
+	price := operation_setting.GetToolPriceForModel(name, modelName)
+	return collectToolSurchargeItemWithPrice(items, name, count, price)
+}
+
+// collectToolSurchargeItemWithPrice appends one validated, explicitly priced tool charge.
+func collectToolSurchargeItemWithPrice(items []ToolSurchargeItem, name string, count int, price float64) []ToolSurchargeItem {
 	if count <= 0 {
 		return items
 	}
-	price := operation_setting.GetToolPriceForModel(name, modelName)
 	if price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
 		return items
 	}
@@ -154,6 +160,26 @@ func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.Rel
 	if relayInfo.ResponsesUsageInfo != nil {
 		for name, tool := range relayInfo.ResponsesUsageInfo.BuiltInTools {
 			if tool == nil {
+				continue
+			}
+			if name == dto.BuildInToolImageGeneration {
+				if len(tool.ImageGenerationTiers) == 0 {
+					price := operation_setting.GetImageGenerationToolPriceForModel(
+						summary.ModelName,
+						tool.ImageGenerationQuality,
+						tool.ImageGenerationSize,
+					)
+					items = collectToolSurchargeItemWithPrice(items, name, tool.CallCount, price)
+					continue
+				}
+				for tier, count := range tool.ImageGenerationTiers {
+					price := operation_setting.GetImageGenerationToolPriceForModel(
+						summary.ModelName,
+						tier.Quality,
+						tier.Size,
+					)
+					items = collectToolSurchargeItemWithPrice(items, name, count, price)
+				}
 				continue
 			}
 			items = collectToolSurchargeItem(items, name, tool.CallCount, summary.ModelName)
