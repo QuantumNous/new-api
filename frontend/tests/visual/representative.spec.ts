@@ -64,6 +64,12 @@ async function captureScenario(
     await assertHomeNavbarInitialState(page)
     await freezeAndInspectHomeCanvas(page)
   }
+  if (scenario.path === '/console/dashboard') {
+    const brandLinks = page.locator('[data-console-brand-link]')
+    await expect(brandLinks).toHaveCount(2)
+    await expect(brandLinks.nth(0)).toHaveAttribute('aria-current', 'false')
+    await expect(brandLinks.nth(1)).toHaveAttribute('aria-current', 'false')
+  }
 
   await expect(page).toHaveScreenshot(
     `${theme}-${viewport}-${scenario.name}.png`,

@@ -65,6 +65,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
         <RouterLink
           :to="{ name: 'dashboard' }"
           class="flex items-center gap-2.5"
+          aria-current-value="false"
+          data-console-brand-link
           :aria-label="`${app.systemName} ${t('nav.dashboard')}`"
         >
           <img
