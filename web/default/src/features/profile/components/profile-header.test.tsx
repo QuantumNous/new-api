@@ -53,6 +53,16 @@ const profile: UserProfile = {
   created_time: 1710000000,
 }
 
+const activeSubscription: ProfileSubscriptionSummary = {
+  planTitle: 'Pro',
+  totalQuota: 5000000,
+  usedQuota: 1900000,
+  remainingQuota: 3100000,
+  unlimited: false,
+  remainingDays: 19,
+  usagePercent: 38,
+}
+
 function renderHeader(subscription: ProfileSubscriptionSummary | null): string {
   return renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
@@ -72,19 +82,16 @@ function extractBalanceGuidance(html: string): string {
   return match?.[0] ?? ''
 }
 
-describe('ProfileHeader', () => {
-  test('renders an active subscription panel beside the compact balance guidance', () => {
-    const subscription: ProfileSubscriptionSummary = {
-      planTitle: 'Pro',
-      totalQuota: 5000000,
-      usedQuota: 1900000,
-      remainingQuota: 3100000,
-      unlimited: false,
-      remainingDays: 19,
-      usagePercent: 38,
-    }
+function classForDataSlot(html: string, slot: string): string {
+  const match = html.match(
+    new RegExp(`<[^>]+data-slot="${slot}"[^>]*class="([^"]*)"`)
+  )
+  return match?.[1] ?? ''
+}
 
-    const html = renderHeader(subscription)
+describe('ProfileHeader', () => {
+  test('renders an active subscription and compact balance guidance', () => {
+    const html = renderHeader(activeSubscription)
 
     expect(html).toContain('aria-label="Current Plan"')
     expect(html).toContain('data-slot="profile-plan-summary"')
@@ -94,9 +101,9 @@ describe('ProfileHeader', () => {
     expect(html).toContain('Remaining days')
     expect(html).toContain('19')
     expect(html).toContain('Monthly model quota')
-    expect(html).toContain(formatQuota(subscription.totalQuota))
+    expect(html).toContain(formatQuota(activeSubscription.totalQuota))
     expect(html).toContain('Remaining')
-    expect(html).toContain(formatQuota(subscription.remainingQuota))
+    expect(html).toContain(formatQuota(activeSubscription.remainingQuota))
     expect(html).toContain('aria-label="Progress"')
     expect(html).toContain('aria-valuenow="38"')
     expect(html).toContain('Available balance')
@@ -109,10 +116,55 @@ describe('ProfileHeader', () => {
     expect(html).toContain('API Requests')
   })
 
+  test('renders identity and balance in the top row before the full-width plan band', () => {
+    const html = renderHeader(activeSubscription)
+
+    const topRowStart = html.indexOf('data-slot="profile-header-top-row"')
+    const identityStart = html.indexOf(
+      'data-slot="profile-identity"',
+      topRowStart
+    )
+    const balanceStart = html.indexOf(
+      'data-slot="profile-balance-column"',
+      topRowStart
+    )
+    const planStart = html.indexOf(
+      'data-slot="profile-plan-summary"',
+      topRowStart
+    )
+    const statsStart = html.indexOf('data-slot="profile-stats"', topRowStart)
+
+    expect(topRowStart).toBeGreaterThan(-1)
+    expect(html).toContain('max-w-[860px]')
+    expect(identityStart).toBeGreaterThan(topRowStart)
+    expect(balanceStart).toBeGreaterThan(identityStart)
+    expect(planStart).toBeGreaterThan(balanceStart)
+    expect(statsStart).toBeGreaterThan(planStart)
+  })
+
+  test('renders plan quota and remaining amount in one horizontal band', () => {
+    const html = renderHeader(activeSubscription)
+    const planClass = classForDataSlot(html, 'profile-plan-summary')
+    const quotaRowClass = classForDataSlot(html, 'profile-plan-quota-row')
+    const quotaRowStart = html.indexOf('data-slot="profile-plan-quota-row"')
+    const totalStart = html.indexOf('Monthly model quota', quotaRowStart)
+    const remainingStart = html.indexOf('Remaining', quotaRowStart)
+    const progressStart = html.indexOf('aria-label="Progress"', quotaRowStart)
+
+    expect(planClass).toContain('mt-4')
+    expect(planClass).not.toContain('shadow-sm')
+    expect(quotaRowClass).toContain('grid-cols-2')
+    expect(quotaRowClass).not.toContain('lg:grid-cols-1')
+    expect(totalStart).toBeGreaterThan(quotaRowStart)
+    expect(remainingStart).toBeGreaterThan(totalStart)
+    expect(progressStart).toBeGreaterThan(remainingStart)
+  })
+
   test('does not render a subscription placeholder when no summary exists', () => {
     const html = renderHeader(null)
 
     expect(html).not.toContain('profile-plan-summary')
+    expect(html).not.toContain('profile-plan-quota-row')
     expect(html).not.toContain('Pro')
     expect(html).not.toContain('No plan')
     expect(html).not.toContain('未订阅')
@@ -121,6 +173,7 @@ describe('ProfileHeader', () => {
     expect(html).toContain(formatQuota(profile.quota))
     expect(html).toContain('Total Usage')
     expect(html).toContain('API Requests')
+    expect(html).toContain('data-slot="profile-stats"')
   })
 
   test('renders two complete balance guidance paragraphs without clipping utilities', () => {

@@ -30,8 +30,17 @@ The summary adapter accepts a plan only when `current_subscription` exists and i
   - secondary available-balance pill and its two guidance rows;
   - conditional active-plan summary;
   - total usage and API request statistics.
+- The approved desktop composition is fixed:
+  1. one top row with identity on the left and the compact balance plus two guidance rows on the right;
+  2. one full-width horizontal plan band below the complete top row;
+  3. two compact usage statistics below the optional plan band.
+- The header card remains centered and compact at a maximum width of 860px, matching the approved browser reference rather than stretching across the full profile canvas.
+- The plan must not render as a right-side vertical card or as a peer column beside identity.
+- Plan quota and remaining quota share one horizontal row. The progress bar renders beneath them without nested metric cards.
+- On narrow screens, identity, balance guidance, plan band, and statistics stack in that order.
+- When no active subscription exists, the plan band is omitted and statistics follow the top row directly.
 - The plan progress percentage is clamped between 0 and 100. Unlimited quotas display the existing translated `Unlimited` label without an artificial finite percentage.
-- The responsive layout is mobile-first. The plan summary may stack on small screens, and the guidance sentences remain normal block text without `truncate`, `line-clamp`, or fixed-height clipping.
+- The responsive layout is mobile-first. The guidance sentences remain normal block text without `truncate`, `line-clamp`, or fixed-height clipping.
 
 ## Error and loading behavior
 
