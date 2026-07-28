@@ -529,6 +529,50 @@ describe('CampaignTranslationWorkspace', () => {
     dispose(root)
   })
 
+  test.each(['rejects', 'throws'] as const)(
+    'releases the generate lock after onGenerate %s',
+    async (failureMode) => {
+      let resolveGeneration: (() => void) | undefined
+      const onGenerate = mock(() => {
+        if (onGenerate.mock.calls.length === 1) {
+          if (failureMode === 'throws') {
+            throw new Error('Generation exploded')
+          }
+          return Promise.reject(new Error('Generation rejected'))
+        }
+        return new Promise<void>((resolve) => {
+          resolveGeneration = resolve
+        })
+      })
+      const { container, root } = renderWorkspaceDom(
+        makeDraft([makeStage()]),
+        onGenerate
+      )
+
+      await clickByID(container, 'recall-generate-translations')
+      expect(onGenerate).toHaveBeenCalledTimes(1)
+      expect(container.textContent).toContain(
+        failureMode === 'throws'
+          ? 'Generation exploded'
+          : 'Generation rejected'
+      )
+
+      await clickByID(container, 'recall-generate-translations')
+
+      expect(onGenerate).toHaveBeenCalledTimes(2)
+      expect(container.textContent).toContain('Generating translations')
+      resolveGeneration?.()
+      await React.act(async () => {
+        await Promise.resolve()
+      })
+      const button = container.querySelector(
+        '#recall-generate-translations'
+      ) as HTMLButtonElement | null
+      expect(button?.disabled).toBe(false)
+      dispose(root)
+    }
+  )
+
   test('suppresses rapid confirmed regeneration clicks', async () => {
     let resolveGeneration: (() => void) | undefined
     const onGenerate = mock(
@@ -557,6 +601,42 @@ describe('CampaignTranslationWorkspace', () => {
     await React.act(async () => {
       await Promise.resolve()
     })
+    dispose(root)
+  })
+
+  test('restores regeneration controls after confirmed regeneration succeeds', async () => {
+    let resolveGeneration: (() => void) | undefined
+    const onGenerate = mock(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveGeneration = resolve
+        })
+    )
+    const stage = makeStage()
+    stage.manual_locales = ['es']
+    const { container, root } = renderWorkspaceDom(makeDraft([stage]), onGenerate)
+
+    await clickByID(container, 'recall-generate-translations')
+    await clickByID(container, 'recall-confirm-regenerate-translations')
+    expect(onGenerate).toHaveBeenCalledTimes(1)
+
+    resolveGeneration?.()
+    await React.act(async () => {
+      await Promise.resolve()
+    })
+    let button = container.querySelector(
+      '#recall-generate-translations'
+    ) as HTMLButtonElement | null
+    expect(button?.disabled).toBe(false)
+
+    await clickByID(container, 'recall-generate-translations')
+    button = container.querySelector(
+      '#recall-confirm-regenerate-translations'
+    ) as HTMLButtonElement | null
+    expect(button?.disabled).toBe(false)
+    await clickByID(container, 'recall-confirm-regenerate-translations')
+
+    expect(onGenerate).toHaveBeenCalledTimes(2)
     dispose(root)
   })
 })
