@@ -334,6 +334,13 @@ func TestSubscriptionSelfQuoteSignsRecurringZeroTotalInvitationQuote(t *testing.
 	require.Equal(t, float64(9.99), recurringQuote.UnitPrice)
 	require.Equal(t, float64(9.99), recurringQuote.OriginalTotal)
 	require.Equal(t, float64(9.99), recurringQuote.DiscountAmount)
+	require.Equal(t, service.SubscriptionDiscountKindInvitation, recurringQuote.DiscountKind)
+	require.Equal(t, float64(9.99), recurringQuote.InvitationAvailableUSD)
+	require.Equal(t, float64(9.99), recurringQuote.InvitationDiscountUSD)
+	require.Equal(t, float64(9.99), recurringQuote.InvitationDiscountAmount)
+	require.Zero(t, recurringQuote.InvitationRemainingUSD)
+	require.Empty(t, recurringQuote.OtherDiscountKind)
+	require.Zero(t, recurringQuote.OtherDiscountAmount)
 	require.Zero(t, recurringQuote.Total)
 	require.NotEmpty(t, recurringQuote.QuoteID)
 

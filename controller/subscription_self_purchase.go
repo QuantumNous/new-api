@@ -42,14 +42,21 @@ type SubscriptionSelfPurchaseQuoteResponse struct {
 }
 
 type SubscriptionSelfPaymentQuote struct {
-	Currency       string  `json:"currency"`
-	Months         int     `json:"months"`
-	UnitPrice      float64 `json:"unit_price"`
-	OriginalTotal  float64 `json:"original_total"`
-	DiscountAmount float64 `json:"discount_amount"`
-	Total          float64 `json:"total"`
-	QuoteID        string  `json:"quote_id,omitempty"`
-	ExpiresAt      int64   `json:"expires_at,omitempty"`
+	Currency                 string  `json:"currency"`
+	Months                   int     `json:"months"`
+	UnitPrice                float64 `json:"unit_price"`
+	OriginalTotal            float64 `json:"original_total"`
+	DiscountAmount           float64 `json:"discount_amount"`
+	DiscountKind             string  `json:"discount_kind"`
+	InvitationAvailableUSD   float64 `json:"invitation_available_usd"`
+	InvitationDiscountUSD    float64 `json:"invitation_discount_usd"`
+	InvitationDiscountAmount float64 `json:"invitation_discount_amount"`
+	InvitationRemainingUSD   float64 `json:"invitation_remaining_usd"`
+	OtherDiscountKind        string  `json:"other_discount_kind"`
+	OtherDiscountAmount      float64 `json:"other_discount_amount"`
+	Total                    float64 `json:"total"`
+	QuoteID                  string  `json:"quote_id,omitempty"`
+	ExpiresAt                int64   `json:"expires_at,omitempty"`
 }
 
 type SubscriptionSelfPurchaseResponse struct {
@@ -134,17 +141,36 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 	common.ApiSuccess(c, SubscriptionSelfPurchaseQuoteResponse{
 		PaymentQuotes: map[string]SubscriptionSelfPaymentQuote{
 			choice: {
-				Currency:       strings.ToUpper(strings.TrimSpace(quote.Currency)),
-				Months:         req.Months,
-				UnitPrice:      quote.UnitPrice,
-				OriginalTotal:  quote.OriginalTotal,
-				DiscountAmount: quote.DiscountAmount,
-				Total:          quote.Total,
-				QuoteID:        token,
-				ExpiresAt:      expiresAt,
+				Currency:                 strings.ToUpper(strings.TrimSpace(quote.Currency)),
+				Months:                   req.Months,
+				UnitPrice:                quote.UnitPrice,
+				OriginalTotal:            quote.OriginalTotal,
+				DiscountAmount:           quote.DiscountAmount,
+				DiscountKind:             normalizeSubscriptionSelfDiscountKind(quote.DiscountKind),
+				InvitationAvailableUSD:   subscriptionSelfMinorToAmount(quote.InvitationAvailableUSDMinor),
+				InvitationDiscountUSD:    subscriptionSelfMinorToAmount(quote.InvitationDiscountUSDMinor),
+				InvitationDiscountAmount: subscriptionSelfMinorToAmount(quote.InvitationDiscountAmountMinor),
+				InvitationRemainingUSD:   subscriptionSelfMinorToAmount(quote.InvitationRemainingUSDMinor),
+				OtherDiscountKind:        strings.TrimSpace(quote.OtherDiscountKind),
+				OtherDiscountAmount:      subscriptionSelfMinorToAmount(quote.OtherDiscountAmountMinor),
+				Total:                    quote.Total,
+				QuoteID:                  token,
+				ExpiresAt:                expiresAt,
 			},
 		},
 	})
+}
+
+func normalizeSubscriptionSelfDiscountKind(kind string) string {
+	kind = strings.TrimSpace(kind)
+	if kind == "" {
+		return service.SubscriptionDiscountKindNone
+	}
+	return kind
+}
+
+func subscriptionSelfMinorToAmount(minor int64) float64 {
+	return float64(minor) / 100
 }
 
 func PurchaseSubscriptionSelf(c *gin.Context) {

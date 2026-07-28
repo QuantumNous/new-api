@@ -298,7 +298,7 @@ func prepareOptionUpdate(c *gin.Context, option *OptionUpdateRequest) bool {
 			common.ApiErrorI18n(c, i18n.MsgQuotaInviterRewardLimitInvalid)
 			return false
 		}
-	case "QuotaForInviter", "QuotaForInvitee":
+	case "QuotaForInviter", "QuotaForInvitee", "InviteFirstSubDiscountUSD":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
 			return false

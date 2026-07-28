@@ -40,6 +40,11 @@ import {
   type PlanRecord,
   type SubscriptionPaymentAvailability,
 } from '@/features/subscriptions/types'
+import type {
+  StripeCheckoutOpenResult,
+  StripeCheckoutPresentation,
+} from '../hooks/use-payment'
+import { isRecallPriceEligible } from '../lib/recall-claim'
 import {
   type LifecyclePlanRecord,
   type WalletSelfSubscriptionData,
@@ -50,16 +55,7 @@ import {
   mergeFlexibleQuoteProjection,
   normalizeSelfSubscriptionData,
 } from '../lib/subscription-plan-lifecycle'
-import {
-  getRecallPriceDiscount,
-  isRecallPriceEligible,
-  type RecallPriceDiscount,
-} from '../lib/recall-claim'
 import type { TopupInfo } from '../types'
-import type {
-  StripeCheckoutOpenResult,
-  StripeCheckoutPresentation,
-} from '../hooks/use-payment'
 import { CurrentPlanCard } from './current-plan-card'
 import { PlanPurchaseDialog } from './plan-purchase-dialog'
 
@@ -105,18 +101,6 @@ function getPlanDisplayOrder(title: string): number {
 
 function formatPlanPrice(amount: number): string {
   return `$${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`
-}
-
-function getRecallDiscountLabel(
-  discount: RecallPriceDiscount,
-  percentOff: number,
-  t: Translate
-): string {
-  if (discount.type === 'percent') return `${percentOff}% OFF`
-  return t('{{amount}} {{currency}} off', {
-    amount: discount.discountAmount.toFixed(2),
-    currency: discount.currency,
-  }).toUpperCase()
 }
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
@@ -213,6 +197,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseProjection, setPurchaseProjection] =
     useState<FlexiblePurchaseResponse | null>(null)
+  const [quoteError, setQuoteError] = useState(false)
   const quoteRequestSequenceRef = useRef(0)
   const latestQuoteRequestRef = useRef<{
     sequence: number
@@ -324,13 +309,17 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
       toast.error(t('Payment choice is unavailable'))
       return
     }
+    const selectedQuote = getMatchingPaymentQuote(
+      paymentChoice,
+      purchaseProjection?.payment_quotes,
+      months
+    )
+    if (!selectedQuote) {
+      toast.error(t('Payment quote is unavailable.'))
+      return
+    }
     setPurchasing(true)
     try {
-      const selectedQuote = getMatchingPaymentQuote(
-        paymentChoice,
-        purchaseProjection?.payment_quotes ?? selfData.payment_quotes,
-        months
-      )
       const eligibleRecallClaim =
         recallClaim.claim &&
         isRecallPriceEligible(
@@ -346,7 +335,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
           paymentChoice,
           months,
           requestId: purchaseTarget.requestId,
-          quoteId: selectedQuote?.quote_id,
+          quoteId: selectedQuote.quote_id,
           orderId: selectedQuote?.order_id,
           recallClaim: eligibleRecallClaim,
         }),
@@ -385,57 +374,77 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
   }
 
+  const requestQuoteForTarget = useCallback(
+    async (
+      target: {
+        plan: PlanRecord
+        requestId: string
+      },
+      paymentChoice: FlexiblePaymentChoice,
+      months: number
+    ) => {
+      const requestBody = buildFlexibleQuoteRequest({
+        planId: target.plan.plan.id,
+        paymentChoice,
+        months,
+        requestId: target.requestId,
+        recallClaim:
+          recallClaim.claim &&
+          isRecallPriceEligible(
+            recallClaim.view,
+            target.plan.plan.id,
+            'subscription'
+          )
+            ? recallClaim.claim
+            : undefined,
+      })
+      const sequence = quoteRequestSequenceRef.current + 1
+      quoteRequestSequenceRef.current = sequence
+      const latestRequest = {
+        sequence,
+        paymentChoice: requestBody.payment_choice,
+        months: requestBody.months,
+        requestId: requestBody.request_id,
+      }
+      latestQuoteRequestRef.current = latestRequest
+      setPurchaseProjection(null)
+      setQuoteError(false)
+      setQuoteLoading(true)
+      try {
+        const res = await quoteSubscriptionPlanFlexible(requestBody)
+        if (latestQuoteRequestRef.current !== latestRequest) return
+        if (res.success && res.data) {
+          setPurchaseProjection((current) =>
+            mergeFlexibleQuoteProjection(
+              current,
+              res.data ?? {},
+              latestRequest,
+              latestQuoteRequestRef.current
+            )
+          )
+        } else {
+          setPurchaseProjection(null)
+          setQuoteError(true)
+        }
+      } catch {
+        if (latestQuoteRequestRef.current !== latestRequest) return
+        setPurchaseProjection(null)
+        setQuoteError(true)
+      } finally {
+        if (latestQuoteRequestRef.current === latestRequest) {
+          setQuoteLoading(false)
+        }
+      }
+    },
+    [recallClaim.claim, recallClaim.view]
+  )
+
   const handleQuoteRequest = async (
     paymentChoice: FlexiblePaymentChoice,
     months: number
   ) => {
     if (!purchaseTarget) return
-    const requestBody = buildFlexibleQuoteRequest({
-      planId: purchaseTarget.plan.plan.id,
-      paymentChoice,
-      months,
-      requestId: purchaseTarget.requestId,
-      recallClaim:
-        recallClaim.claim &&
-        isRecallPriceEligible(
-          recallClaim.view,
-          purchaseTarget.plan.plan.id,
-          'subscription'
-        )
-          ? recallClaim.claim
-          : undefined,
-    })
-    const sequence = quoteRequestSequenceRef.current + 1
-    quoteRequestSequenceRef.current = sequence
-    const latestRequest = {
-      sequence,
-      paymentChoice: requestBody.payment_choice,
-      months: requestBody.months,
-      requestId: requestBody.request_id,
-    }
-    latestQuoteRequestRef.current = latestRequest
-    setQuoteLoading(true)
-    try {
-      const res = await quoteSubscriptionPlanFlexible(requestBody)
-      if (latestQuoteRequestRef.current !== latestRequest) return
-      if (res.success && res.data) {
-        setPurchaseProjection((current) =>
-          mergeFlexibleQuoteProjection(
-            current,
-            res.data ?? {},
-            latestRequest,
-            latestQuoteRequestRef.current
-          )
-        )
-      }
-    } catch {
-      if (latestQuoteRequestRef.current !== latestRequest) return
-      setPurchaseProjection((current) => current)
-    } finally {
-      if (latestQuoteRequestRef.current === latestRequest) {
-        setQuoteLoading(false)
-      }
-    }
+    await requestQuoteForTarget(purchaseTarget, paymentChoice, months)
   }
 
   if (loading) {
@@ -488,13 +497,6 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
             {orderedPlans.map((item) => {
               const plan = item.plan
               const price = formatPlanPrice(Number(plan.price_amount || 0))
-              const recallDiscount = getRecallPriceDiscount(
-                recallClaim.view,
-                plan.id,
-                'subscription',
-                Number(plan.price_amount || 0),
-                plan.currency || 'USD'
-              )
               const isRecommended =
                 plan.title.trim().toLowerCase() === 'go' &&
                 orderedPlans.length > 1
@@ -537,15 +539,6 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                         ) : null}
                       </div>
                       <div className='flex shrink-0 flex-col items-end gap-1'>
-                        {recallDiscount ? (
-                          <span className='inline-flex rounded-full bg-[#dcfce7] px-2 py-1 text-[11px] font-semibold text-[#166534] uppercase dark:bg-[#14532d]/40 dark:text-[#86efac]'>
-                            {getRecallDiscountLabel(
-                              recallDiscount,
-                              Number(recallClaim.view?.discount.percent_off || 0),
-                              t
-                            )}
-                          </span>
-                        ) : null}
                         {isRecommended ? (
                           <span className='inline-flex items-center gap-1 rounded-full bg-[#f0ebfa] px-2 py-1 text-[11px] font-semibold text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'>
                             <Sparkles className='h-3 w-3' />
@@ -557,15 +550,8 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
 
                     <div className='mt-6 flex items-end gap-2'>
                       <span className='text-5xl font-semibold tracking-tight tabular-nums'>
-                        {recallDiscount
-                          ? formatPlanPrice(recallDiscount.discountedAmount)
-                          : price}
+                        {price}
                       </span>
-                      {recallDiscount ? (
-                        <span className='text-muted-foreground mb-2 text-sm line-through tabular-nums'>
-                          {price}
-                        </span>
-                      ) : null}
                       <span className='text-muted-foreground mb-1 text-sm'>
                         {t('per month')}
                       </span>
@@ -593,13 +579,20 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                       variant={action === 'switch' ? 'outline' : 'default'}
                       disabled={isCurrentRecurring}
                       onClick={() => {
-                        setPurchaseProjection(null)
-                        latestQuoteRequestRef.current = null
-                        setQuoteLoading(false)
-                        setPurchaseTarget({
+                        const target = {
                           plan: item,
                           requestId: createStableSubscriptionRequestId(),
-                        })
+                        }
+                        setPurchaseProjection(null)
+                        latestQuoteRequestRef.current = null
+                        setQuoteError(false)
+                        setQuoteLoading(false)
+                        setPurchaseTarget(target)
+                        void requestQuoteForTarget(
+                          target,
+                          'stripe_recurring',
+                          1
+                        )
                       }}
                     >
                       {isCurrentRecurring
@@ -626,6 +619,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
             setPurchaseTarget(null)
             setPurchaseProjection(null)
             latestQuoteRequestRef.current = null
+            setQuoteError(false)
             setQuoteLoading(false)
           }
         }}
@@ -637,20 +631,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         projectedStart={purchaseProjection?.start_time}
         projectedEnd={purchaseProjection?.end_time}
         projectedRemainingDays={purchaseProjection?.remaining_days}
-        paymentQuotes={
-          purchaseProjection?.payment_quotes ?? selfData.payment_quotes
-        }
-        recallDiscount={
-          purchaseTarget
-            ? getRecallPriceDiscount(
-                recallClaim.view,
-                purchaseTarget.plan.plan.id,
-                'subscription',
-                Number(purchaseTarget.plan.plan.price_amount || 0),
-                purchaseTarget.plan.plan.currency || 'USD'
-              )
-            : null
-        }
+        paymentQuotes={quoteError ? {} : purchaseProjection?.payment_quotes}
         onConfirm={handleConfirmPurchase}
         onQuoteRequest={handleQuoteRequest}
       />

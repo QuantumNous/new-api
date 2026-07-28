@@ -212,6 +212,13 @@ export interface SubscriptionPaymentQuote {
   total: number
   original_total?: number
   discount_amount?: number
+  discount_kind?: 'none' | 'invitation' | 'recall'
+  invitation_available_usd?: number
+  invitation_discount_usd?: number
+  invitation_discount_amount?: number
+  invitation_remaining_usd?: number
+  other_discount_kind?: 'recall' | ''
+  other_discount_amount?: number
   quote_id?: string
   order_id?: string
   expires_at?: number

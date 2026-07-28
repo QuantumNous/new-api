@@ -59,6 +59,18 @@ const lifecycleAdminKeys = [
   'Migration Conflict',
   'No current entitlement',
   'No pending intent',
+  'Invitee Reward',
+  'Inviter Reward',
+  'Inviter Reward Limit',
+  'Quota given to users who invite others',
+  'Quota given to invited users',
+  'Maximum inviter rewards one account can receive. Set 0 for no limit.',
+  'Inviter subscription package credit',
+  'Invitee first subscription package credit',
+  'Reward limit',
+  '0 means unlimited.',
+  'Granted immediately after a friend successfully buys any paid plan for the first time. The credit never expires and can only be used for subscription purchases and renewals.',
+  "Discount applied to the invited user's first paid subscription package purchase.",
 ] as const
 
 describe('subscription admin lifecycle i18n', () => {
@@ -80,6 +92,15 @@ describe('subscription admin lifecycle i18n', () => {
       'Stripe recurring payment mode requires Stripe Price ID.',
       'Current Entitlement',
       'Migration Conflict',
+      'Invitee Reward',
+      'Inviter Reward',
+      'Inviter Reward Limit',
+      'Quota given to users who invite others',
+      'Quota given to invited users',
+      'Maximum inviter rewards one account can receive. Set 0 for no limit.',
+      'Inviter subscription package credit',
+      'Invitee first subscription package credit',
+      'Granted immediately after a friend successfully buys any paid plan for the first time. The credit never expires and can only be used for subscription purchases and renewals.',
     ] as const
 
     for (const [locale, translations] of Object.entries(localeTranslations)) {

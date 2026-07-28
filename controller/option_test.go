@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -189,6 +190,88 @@ func TestUpdateOptionRejectsNullInviterRewardLimit(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected rejected inviter reward limit not to persist, got %d rows", count)
+	}
+}
+
+func TestUpdateOptionGuardsInviteFirstSubscriptionDiscountByPaymentCompliance(t *testing.T) {
+	db := setupOptionControllerTestDB(t)
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalComplianceConfirmed := paymentSetting.ComplianceConfirmed
+	originalComplianceTermsVersion := paymentSetting.ComplianceTermsVersion
+	originalInviteFirstSubDiscountUSD := common.InviteFirstSubDiscountUSD
+	t.Cleanup(func() {
+		paymentSetting.ComplianceConfirmed = originalComplianceConfirmed
+		paymentSetting.ComplianceTermsVersion = originalComplianceTermsVersion
+		common.InviteFirstSubDiscountUSD = originalInviteFirstSubDiscountUSD
+	})
+
+	paymentSetting.ComplianceConfirmed = false
+	paymentSetting.ComplianceTermsVersion = ""
+	common.InviteFirstSubDiscountUSD = 3.75
+
+	ctx, recorder := newOptionRequestContext(t, map[string]any{
+		"key":   "InviteFirstSubDiscountUSD",
+		"value": "5.25",
+	})
+	UpdateOption(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected positive invitee subscription discount to require payment compliance")
+	}
+	var count int64
+	if err := db.Model(&model.Option{}).Where("key = ?", "InviteFirstSubDiscountUSD").Count(&count).Error; err != nil {
+		t.Fatalf("failed to count invitee subscription discount option rows: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected rejected invitee subscription discount not to persist, got %d rows", count)
+	}
+	if common.InviteFirstSubDiscountUSD != 3.75 {
+		t.Fatalf("expected rejected update not to change global discount, got %v", common.InviteFirstSubDiscountUSD)
+	}
+
+	zeroCtx, zeroRecorder := newOptionRequestContext(t, map[string]any{
+		"key":   "InviteFirstSubDiscountUSD",
+		"value": "0",
+	})
+	UpdateOption(zeroCtx)
+
+	zeroResponse := decodeAPIResponse(t, zeroRecorder)
+	if !zeroResponse.Success {
+		t.Fatalf("expected zero invitee subscription discount to remain allowed, got message: %s", zeroResponse.Message)
+	}
+	var zeroOption model.Option
+	if err := db.First(&zeroOption, "key = ?", "InviteFirstSubDiscountUSD").Error; err != nil {
+		t.Fatalf("failed to load zero invitee subscription discount option: %v", err)
+	}
+	if zeroOption.Value != "0" {
+		t.Fatalf("unexpected zero invitee subscription discount value: %q", zeroOption.Value)
+	}
+	if common.InviteFirstSubDiscountUSD != 0 {
+		t.Fatalf("expected zero update to change global discount to 0, got %v", common.InviteFirstSubDiscountUSD)
+	}
+
+	paymentSetting.ComplianceConfirmed = true
+	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	positiveCtx, positiveRecorder := newOptionRequestContext(t, map[string]any{
+		"key":   "InviteFirstSubDiscountUSD",
+		"value": "6.25",
+	})
+	UpdateOption(positiveCtx)
+
+	positiveResponse := decodeAPIResponse(t, positiveRecorder)
+	if !positiveResponse.Success {
+		t.Fatalf("expected confirmed positive invitee subscription discount to succeed, got message: %s", positiveResponse.Message)
+	}
+	var positiveOption model.Option
+	if err := db.First(&positiveOption, "key = ?", "InviteFirstSubDiscountUSD").Error; err != nil {
+		t.Fatalf("failed to load positive invitee subscription discount option: %v", err)
+	}
+	if positiveOption.Value != "6.25" {
+		t.Fatalf("unexpected positive invitee subscription discount value: %q", positiveOption.Value)
+	}
+	if common.InviteFirstSubDiscountUSD != 6.25 {
+		t.Fatalf("expected confirmed update to change global discount to 6.25, got %v", common.InviteFirstSubDiscountUSD)
 	}
 }
 

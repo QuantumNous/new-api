@@ -30,6 +30,8 @@ const defaultBillingSettings: BillingSettings = {
   QuotaForInviter: 0,
   QuotaForInviterMaxCount: 5,
   QuotaForInvitee: 0,
+  InviteFirstSubDiscountUSD: 0,
+  InviteRewardSubscriptionModeEnabled: false,
   TopUpLink: '',
   'general_setting.docs_link': '',
   'quota_setting.enable_free_model_pre_consume': true,

@@ -63,6 +63,7 @@ const BILLING_SECTIONS = [
           QuotaForInviter: settings.QuotaForInviter,
           QuotaForInviterMaxCount: settings.QuotaForInviterMaxCount,
           QuotaForInvitee: settings.QuotaForInvitee,
+          InviteFirstSubDiscountUSD: settings.InviteFirstSubDiscountUSD,
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],
@@ -75,6 +76,9 @@ const BILLING_SECTIONS = [
         complianceConfirmed={
           (settings['payment_setting.compliance_confirmed'] ?? false) &&
           settings['payment_setting.compliance_terms_version'] === 'v1'
+        }
+        inviteRewardSubscriptionMode={
+          settings.InviteRewardSubscriptionModeEnabled ?? false
         }
       />
     ),
