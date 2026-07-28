@@ -1,9 +1,9 @@
 name: GCP Deploy Website Static (v2)
 
-# Deploys the static marketing site (website-static/) to Cloud Run newapi-web,
-# and guarantees the legacy Next.js site stays alive as newapi-website-legacy —
-# it serves the entire historical SEO surface (blog, model pages, locale routes,
-# landing pages, sitemap/robots) via nginx fallback proxy from the static site.
+# Deploys both public website surfaces:
+# - website/ Next.js image to Cloud Run newapi-website-legacy, which serves the
+#   historical SEO surface through the static site's nginx fallback proxy.
+# - website-static/ nginx image to Cloud Run newapi-web, which owns flatkey.ai.
 # Deploy is gated by the "production" GitHub Environment — requires approval.
 #
 # Notes:
@@ -19,6 +19,7 @@ on:
     branches: [main]
     paths:
       - "website-static/**"
+      - "website/**"
       - ".github/workflows/gcp-deploy-website-static.yml"
   workflow_dispatch:
 
@@ -32,14 +33,14 @@ env:
   AR_REPO_URL: ${{ vars.GCP_AR_REPO_URL }}
   RUN_SERVICE: ${{ vars.GCP_WEB_RUN_SERVICE }}   # newapi-web
   LEGACY_SERVICE: newapi-website-legacy
-  # Pinned pre-redesign production image (rollback anchor newapi-web-memory-1gi-20260715-103546)
-  LEGACY_IMAGE_DIGEST: sha256:d6c4eac9b29556009f3d4133eb1cc5b7ba83211bdd82c08a5d0d129b8aa4c8c4
   LEGACY_SECRET: newapi-website-blogger-access-key
   RUNTIME_SA: newapi-web-runtime@vocai-gemini-prod.iam.gserviceaccount.com
   APP_CONSOLE_ORIGIN: ${{ vars.WEBSITE_APP_CONSOLE_ORIGIN }}
   ROUTER_ORIGIN:      ${{ vars.WEBSITE_ROUTER_ORIGIN }}
   SITE_ORIGIN:        ${{ vars.WEBSITE_SITE_ORIGIN }}
   COOKIE_SESSION_DOMAIN: ${{ secrets.COOKIE_SESSION_DOMAIN || '.flatkey.ai' }}
+  BLOGGER_API_URL:    ${{ vars.BLOGGER_API_URL || 'https://blogger-api-528088078482.us-central1.run.app' }}
+  BLOGGER_SITE_SLUG:  ${{ vars.BLOGGER_SITE_SLUG || 'flatkey' }}
 
 jobs:
   build-deploy:
@@ -72,20 +73,33 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Ensure legacy SEO service (create or verify)
+      - name: Configure docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build & push legacy Next.js image
         run: |
-          if ! gcloud run services describe "$LEGACY_SERVICE" --project "$PROJECT_ID" --region "$REGION" >/dev/null 2>&1; then
-            gcloud run deploy "$LEGACY_SERVICE" \
-              --project "$PROJECT_ID" --region "$REGION" \
-              --image "$AR_REPO_URL/website@$LEGACY_IMAGE_DIGEST" \
-              --port 4000 --memory 1Gi --cpu 1 --min-instances 1 --max-instances 4 \
-              --service-account "$RUNTIME_SA" \
-              --set-secrets "BLOGGER_ACCESS_KEY=$LEGACY_SECRET:latest" \
-              --set-env-vars "NODE_ENV=production,TZ=UTC,APP_CONSOLE_ORIGIN=${APP_CONSOLE_ORIGIN},ROUTER_ORIGIN=${ROUTER_ORIGIN},SITE_ORIGIN=${SITE_ORIGIN},COOKIE_SESSION_DOMAIN=${COOKIE_SESSION_DOMAIN}"
-            echo "NOTE: deployer SA cannot grant run.invoker; an operator must run:" \
-                 "gcloud run services add-iam-policy-binding $LEGACY_SERVICE --member=allUsers --role=roles/run.invoker"
-          fi
-          # verify wiring regardless of create/exists path
+          short_sha="${GITHUB_SHA::12}"
+          LEGACY_IMAGE="$AR_REPO_URL/website:sha-$short_sha"
+          echo "LEGACY_IMAGE=$LEGACY_IMAGE" >> "$GITHUB_ENV"
+          docker build \
+            --build-arg "APP_CONSOLE_ORIGIN=${APP_CONSOLE_ORIGIN}" \
+            --build-arg "ROUTER_ORIGIN=${ROUTER_ORIGIN}" \
+            --build-arg "SITE_ORIGIN=${SITE_ORIGIN}" \
+            --build-arg "COOKIE_SESSION_DOMAIN=${COOKIE_SESSION_DOMAIN}" \
+            --build-arg "BLOGGER_API_URL=${BLOGGER_API_URL}" \
+            --build-arg "BLOGGER_SITE_SLUG=${BLOGGER_SITE_SLUG}" \
+            -t "$LEGACY_IMAGE" website
+          docker push "$LEGACY_IMAGE"
+
+      - name: Deploy legacy Next.js canary
+        run: |
+          gcloud run deploy "$LEGACY_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --image "$LEGACY_IMAGE" --no-traffic --tag canary \
+            --port 4000 --memory 1Gi --cpu 1 --min-instances 1 --max-instances 4 \
+            --service-account "$RUNTIME_SA" \
+            --set-secrets "BLOGGER_ACCESS_KEY=$LEGACY_SECRET:latest" \
+            --set-env-vars "NODE_ENV=production,TZ=UTC,APP_CONSOLE_ORIGIN=${APP_CONSOLE_ORIGIN},ROUTER_ORIGIN=${ROUTER_ORIGIN},SITE_ORIGIN=${SITE_ORIGIN},COOKIE_SESSION_DOMAIN=${COOKIE_SESSION_DOMAIN},BLOGGER_API_URL=${BLOGGER_API_URL},BLOGGER_SITE_SLUG=${BLOGGER_SITE_SLUG}"
           sa=$(gcloud run services describe "$LEGACY_SERVICE" --project "$PROJECT_ID" --region "$REGION" \
                --format="value(spec.template.spec.serviceAccountName)")
           [ "$sa" = "$RUNTIME_SA" ] || { echo "wrong service account: $sa"; exit 1; }
@@ -93,19 +107,27 @@ jobs:
             --format="value(spec.template.spec.containers[0].env)" | grep -q "$LEGACY_SECRET" \
             || { echo "BLOGGER_ACCESS_KEY is not a Secret Manager reference"; exit 1; }
 
-      - name: Smoke test legacy SEO surface
+      - name: Smoke test legacy Next.js canary
         run: |
-          L="https://newapi-website-legacy-5qjldqffdq-uw.a.run.app"
+          L="$(gcloud run services describe "$LEGACY_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --format='value(status.traffic[].url)' | tr ';' '\n' | grep canary || true)"
+          if [ -z "$L" ]; then
+            echo "Could not resolve legacy canary URL" >&2
+            exit 1
+          fi
           for p in blog zh models pricing gpt-api-alternative about sitemap.xml; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 30 "$L/$p")
             echo "/$p -> $code"
             case "$code" in 200|301|302|308) ;; *) echo "legacy smoke failed (403 = missing allUsers invoker binding)"; exit 1 ;; esac
           done
 
-      - name: Configure docker for Artifact Registry
-        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+      - name: Shift legacy Next.js traffic
+        run: |
+          gcloud run services update-traffic "$LEGACY_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" --to-latest
 
-      - name: Build & push image
+      - name: Build & push static website image
         run: |
           short_sha="${GITHUB_SHA::12}"
           IMAGE="$AR_REPO_URL/website-static:sha-$short_sha"
@@ -113,7 +135,7 @@ jobs:
           docker build -t "$IMAGE" website-static
           docker push "$IMAGE"
 
-      - name: Deploy canary (no traffic)
+      - name: Deploy static website canary
         run: |
           gcloud run deploy "$RUN_SERVICE" --project "$PROJECT_ID" --region "$REGION" \
             --image "$IMAGE" --no-traffic --tag canary --port 8080 \
