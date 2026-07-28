@@ -26,32 +26,32 @@ func TestGetChannelReportsNoChannelAfterLastAbilityDisabled(t *testing.T) {
 	})
 
 	priority := int64(100)
-	require.NoError(t, DB.Create(&Channel{
-		Id:       1,
+	channel := &Channel{
 		Status:   common.ChannelStatusEnabled,
 		Name:     "only-channel",
 		Group:    "chat",
 		Models:   "gpt-test",
 		Priority: &priority,
-	}).Error)
+	}
+	require.NoError(t, DB.Create(channel).Error)
 	require.NoError(t, DB.Create(&Ability{
 		Group:     "chat",
 		Model:     "gpt-test",
-		ChannelId: 1,
+		ChannelId: channel.Id,
 		Enabled:   true,
 		Priority:  &priority,
 	}).Error)
 
-	channel, err := GetChannel("chat", "gpt-test", 0, "")
+	selected, err := GetChannel("chat", "gpt-test", 0, "")
 	require.NoError(t, err)
-	require.NotNil(t, channel, "the first attempt must find the only channel")
+	require.NotNil(t, selected, "the first attempt must find the only channel")
 
 	// The channel fails and auto-ban disables it, exactly as UpdateAbilityStatus
 	// does when a relay error trips the disable threshold.
-	require.NoError(t, UpdateAbilityStatus(1, false))
+	require.NoError(t, UpdateAbilityStatus(channel.Id, false))
 
 	// The in-flight request now retries against a group that has become empty.
-	channel, err = GetChannel("chat", "gpt-test", 1, "")
+	selected, err = GetChannel("chat", "gpt-test", 1, "")
 	assert.NoError(t, err, "an emptied group is an ordinary no-channel result, not a database consistency failure")
-	assert.Nil(t, channel)
+	assert.Nil(t, selected)
 }

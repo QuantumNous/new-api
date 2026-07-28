@@ -60,9 +60,7 @@ func GetAllEnableAbilities() []Ability {
 	return abilities
 }
 
-// getPriority reports the priority to use for this retry step, and whether the
-// group still serves the model.
-func getPriority(group string, model string, retry int) (int, bool, error) {
+func getPriority(group string, model string, retry int) (int, error) {
 
 	var priorities []int
 	err := DB.Model(&Ability{}).
@@ -73,13 +71,12 @@ func getPriority(group string, model string, retry int) (int, bool, error) {
 
 	if err != nil {
 		// 处理错误
-		return 0, false, err
+		return 0, err
 	}
 
 	if len(priorities) == 0 {
-		// 分组内已无该模型的启用渠道，属于正常的无可用渠道。
-		// 重试期间可达：自动禁用会把刚失败的渠道置为禁用。
-		return 0, false, nil
+		// 如果没有查询到优先级，则返回错误
+		return 0, errors.New("数据库一致性被破坏")
 	}
 
 	// 确定要使用的优先级
@@ -90,21 +87,19 @@ func getPriority(group string, model string, retry int) (int, bool, error) {
 	} else {
 		priorityToUse = priorities[retry]
 	}
-	return priorityToUse, true, nil
+	return priorityToUse, nil
 }
 
 func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
 	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
 	if retry != 0 {
-		priority, found, err := getPriority(group, model, retry)
+		priority, err := getPriority(group, model, retry)
 		if err != nil {
 			return nil, err
+		} else {
+			channelQuery = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priority)
 		}
-		if !found {
-			return nil, nil
-		}
-		channelQuery = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priority)
 	}
 
 	return channelQuery, nil
@@ -117,9 +112,6 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 	channelQuery, err := getChannelQuery(group, model, retry)
 	if err != nil {
 		return nil, err
-	}
-	if channelQuery == nil {
-		return nil, nil
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) || common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		err = channelQuery.Order("weight DESC").Find(&abilities).Error
