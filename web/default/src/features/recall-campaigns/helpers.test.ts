@@ -588,13 +588,13 @@ describe('recall campaign editor normalization', () => {
     ).toEqual({ enabled: true, amounts: { inr: 90_000 } })
   })
 
-  test('does not guess USD for unsupported legacy minimum amount currencies', () => {
+  test('hydrates unsupported legacy minimum amount as enabled but incomplete', () => {
     expect(
       hydrateRecallMinimumSpendConfig({
         minimum_amount: 1_000,
         minimum_amount_currency: 'EUR',
       })
-    ).toEqual({ enabled: false, amounts: {} })
+    ).toEqual({ enabled: true, amounts: {} })
   })
 
   test('dual-writes canonical minimum spend at submit without filling missing currencies', () => {
@@ -663,6 +663,88 @@ describe('recall campaign editor normalization', () => {
     expect(percent.discount_config.minimum_amount).toBe(1_000)
     expect(percent.discount_config.minimum_amount_currency).toBe('USD')
   })
+
+  test.each([
+    ['INR', 90_000],
+    ['BRL', 5_000],
+    ['JPY', 1_500],
+  ] as const)(
+    'preserves legacy %s minimum spend when switching to automatic percent',
+    (currency, amount) => {
+      const draft = makeValidDraft()
+      draft.coupon_source = 'automatic'
+      draft.discount_config = {
+        ...draft.discount_config,
+        type: 'fixed',
+        percent_off: 0,
+        amount_off: 500,
+        currency: 'USD',
+        currency_options: { inr: 45_000, brl: 2_500, jpy: 750 },
+        minimum_amount: amount,
+        minimum_amount_currency: currency,
+      }
+
+      const normalized = normalizeRecallDiscountType(draft, 'percent')
+
+      expect(normalized.discount_config).toMatchObject({
+        type: 'percent',
+        minimum_amount: amount,
+        minimum_amount_currency: currency,
+      })
+    }
+  )
+
+  test.each([
+    ['INR', 90_000],
+    ['BRL', 5_000],
+    ['JPY', 1_500],
+  ] as const)(
+    'preserves legacy %s minimum spend when switching to automatic fixed',
+    (currency, amount) => {
+      const draft = makeValidDraft()
+      draft.coupon_source = 'automatic'
+      draft.discount_config.minimum_amount = amount
+      draft.discount_config.minimum_amount_currency = currency
+
+      const normalized = normalizeRecallDiscountType(draft, 'fixed')
+
+      expect(normalized.discount_config).toMatchObject({
+        type: 'fixed',
+        minimum_amount: amount,
+        minimum_amount_currency: currency,
+      })
+    }
+  )
+
+  test.each([
+    ['INR', 90_000],
+    ['BRL', 5_000],
+    ['JPY', 1_500],
+  ] as const)(
+    'preserves legacy %s minimum spend when switching an existing coupon to fixed',
+    (currency, amount) => {
+      const draft = makeDraft()
+      draft.coupon_source = 'existing'
+      draft.discount_config = {
+        ...draft.discount_config,
+        type: 'percent',
+        percent_off: 20,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: amount,
+        minimum_amount_currency: currency,
+      }
+
+      const normalized = normalizeRecallDiscountType(draft, 'fixed')
+
+      expect(normalized.discount_config).toMatchObject({
+        type: 'fixed',
+        minimum_amount: amount,
+        minimum_amount_currency: currency,
+      })
+    }
+  )
 
   test('converts relative validity between days, hours, and seconds', () => {
     expect(recallPromotionDurationToSeconds({ days: 2, hours: 3 })).toBe(

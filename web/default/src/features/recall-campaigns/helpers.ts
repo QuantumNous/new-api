@@ -40,6 +40,7 @@ const legacyMinimumSpendCurrencyMap: Record<
   BRL: 'brl',
   JPY: 'jpy',
 }
+const legacyMinimumSpendCurrencyPattern = /^[A-Z]{3}$/
 
 export function formatRecallCampaignType(type: RecallCampaignType): string {
   return type === 'content_only' ? 'Content only' : 'Promotion'
@@ -109,10 +110,15 @@ export function hydrateRecallMinimumSpendConfig(
   const supportedCurrency =
     legacyMinimumSpendCurrencyMap[legacyCurrency as RecallFixedCurrency]
   if (!supportedCurrency) {
-    return createDefaultRecallMinimumSpendConfig()
+    return { enabled: true, amounts: {} }
   }
 
   return { enabled: true, amounts: { [supportedCurrency]: legacyAmount } }
+}
+
+function normalizeRecallLegacyMinimumSpendCurrency(currency: string): string {
+  const normalized = currency.trim().toUpperCase()
+  return legacyMinimumSpendCurrencyPattern.test(normalized) ? normalized : ''
 }
 
 function normalizeRecallMinimumSpendForSubmit(
@@ -146,10 +152,25 @@ function preserveRecallMinimumSpendDualWrite(
   RecallCampaignDraft['discount_config'],
   'minimum_spend' | 'minimum_amount' | 'minimum_amount_currency'
 > {
+  if (discount.minimum_spend === undefined) {
+    if (discount.minimum_amount <= 0) {
+      return {
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      }
+    }
+    return {
+      minimum_amount: discount.minimum_amount,
+      minimum_amount_currency: normalizeRecallLegacyMinimumSpendCurrency(
+        discount.minimum_amount_currency
+      ),
+    }
+  }
+
   const minimumSpend = hydrateRecallMinimumSpendConfig(discount)
   if (!minimumSpend.enabled) {
     return {
-      minimum_spend: discount.minimum_spend,
+      minimum_spend: { enabled: false, amounts: {} },
       minimum_amount: 0,
       minimum_amount_currency: '',
     }

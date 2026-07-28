@@ -361,11 +361,11 @@ const promotionDiscountSchema = z
     }
     validateRecallMinimumSpend(discount, context)
     if (discount.minimum_spend === undefined && discount.minimum_amount > 0) {
-      if (discount.minimum_amount_currency !== 'USD') {
+      if (!currencySchema.safeParse(discount.minimum_amount_currency).success) {
         context.addIssue({
           code: 'custom',
           path: ['minimum_amount_currency'],
-          message: 'Minimum amount currency must be USD',
+          message: 'Minimum amount currency is invalid',
         })
       }
     } else if (

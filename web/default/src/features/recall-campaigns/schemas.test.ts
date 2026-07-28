@@ -644,12 +644,36 @@ describe('recallCampaignDraftSchema', () => {
     }
   })
 
-  test('allows legacy minimum spend when canonical object is absent', () => {
+  test.each([
+    ['USD', 1_000],
+    ['INR', 90_000],
+    ['BRL', 5_000],
+    ['JPY', 1_500],
+  ] as const)(
+    'allows and preserves legacy %s minimum spend when canonical object is absent',
+    (currency, amount) => {
+      const draft = makeDraft()
+      draft.discount_config.minimum_amount = amount
+      draft.discount_config.minimum_amount_currency = currency
+
+      const result = recallCampaignDraftSchema.safeParse(draft)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.discount_config.minimum_amount).toBe(amount)
+        expect(result.data.discount_config.minimum_amount_currency).toBe(
+          currency
+        )
+      }
+    }
+  )
+
+  test('rejects malformed legacy minimum spend currency when canonical object is absent', () => {
     const draft = makeDraft()
     draft.discount_config.minimum_amount = 1_000
-    draft.discount_config.minimum_amount_currency = 'USD'
+    draft.discount_config.minimum_amount_currency = 'usd'
 
-    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
   })
 
   test('requires canonical enabled minimum spend to match the legacy USD pair', () => {
