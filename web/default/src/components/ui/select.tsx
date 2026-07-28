@@ -28,7 +28,7 @@ import {
 import { HugeiconsIcon } from '@hugeicons/react'
 import * as React from 'react'
 
-import { useMediaQuery } from '@/hooks'
+import { useSmDown } from '@/hooks'
 import { cn } from '@/lib/utils'
 
 const Select = SelectPrimitive.Root
@@ -99,7 +99,7 @@ function SelectContent({
     SelectPrimitive.Positioner.Props,
     'align' | 'alignOffset' | 'side' | 'sideOffset' | 'alignItemWithTrigger'
   >) {
-  const isMobile = useMediaQuery('(max-width: 640px)')
+  const isMobile = useSmDown()
 
   const content = (
     <SelectPrimitive.Positioner

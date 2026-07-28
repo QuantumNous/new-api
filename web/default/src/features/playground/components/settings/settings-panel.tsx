@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/collapsible'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { useMediaQuery } from '@/hooks/use-media-query'
+import { useXlUp } from '@/hooks'
 import { cn } from '@/lib/utils'
 import { usePlaygroundStore } from '@/stores/playground-store'
 
@@ -100,7 +100,7 @@ export function SettingsPanel(props: {
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const isWide = useMediaQuery('(min-width: 1280px)')
+  const isWide = useXlUp()
 
   if (!props.open) return null
 

@@ -12,6 +12,8 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import {
   getInspirationLibrary,
   listInspirationCategories,
@@ -103,42 +105,42 @@ export function InspirationGallery(props: InspirationGalleryProps) {
     <div className='space-y-4'>
       <div className='flex flex-col gap-3 md:flex-row'>
         <label className='relative flex-1'>
-          <Search className='text-muted-foreground absolute top-2.5 left-3 size-4' />
+          <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2' />
           <span className='sr-only'>{t('Search')}</span>
-          <input
+          <Input
             type='search'
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t('Search')}
-            className='border-input h-9 w-full rounded-md border pl-9 text-sm'
+            className='pl-9'
           />
         </label>
-        <select
+        <NativeSelect
           aria-label={t('Category')}
           value={category}
           onChange={(event) => setCategory(event.target.value)}
-          className='border-input h-9 rounded-md border px-3 text-sm'
+          className='w-full md:w-auto'
         >
-          <option value='all'>{t('All')}</option>
+          <NativeSelectOption value='all'>{t('All')}</NativeSelectOption>
           {categories.data?.map((item) => (
-            <option key={item.slug} value={item.slug}>
+            <NativeSelectOption key={item.slug} value={item.slug}>
               {item.name}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
-        <select
+        </NativeSelect>
+        <NativeSelect
           aria-label={t('Modality')}
           value={modality}
           onChange={(event) => setModality(event.target.value)}
-          className='border-input h-9 rounded-md border px-3 text-sm'
+          className='w-full md:w-auto'
         >
-          <option value='all'>{t('All')}</option>
+          <NativeSelectOption value='all'>{t('All')}</NativeSelectOption>
           {['chat', 'image', 'video', 'audio'].map((item) => (
-            <option key={item} value={item}>
+            <NativeSelectOption key={item} value={item}>
               {t(item.charAt(0).toUpperCase() + item.slice(1))}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       {recipes.isLoading && (
         <div className='text-muted-foreground flex justify-center gap-2 py-16 text-sm'>

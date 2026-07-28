@@ -122,7 +122,7 @@ export function WorkbenchInspiration(props: { onApplied?: () => void }) {
   )
 
   return (
-    <div className='overflow-y-auto px-4 pb-6'>
+    <div className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5'>
       <InspirationGallery
         isAuthenticated={Boolean(user)}
         availableModels={availableModels}

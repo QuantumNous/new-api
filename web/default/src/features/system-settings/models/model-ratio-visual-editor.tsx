@@ -48,7 +48,7 @@ import {
 } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
-import { useMediaQuery } from '@/hooks'
+import { useMdDown } from '@/hooks'
 
 import { safeJsonParse } from '../utils/json-parser'
 import type { PricingMode } from './model-pricing-core'
@@ -136,7 +136,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
   ref
 ) {
   const { t } = useTranslation()
-  const isMobile = useMediaQuery('(max-width: 767px)')
+  const isMobile = useMdDown()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editData, setEditData] = useState<ModelRatioData | null>(null)

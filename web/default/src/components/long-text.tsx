@@ -46,13 +46,23 @@ export function LongText({
   const [isOverflown, setIsOverflown] = useState(false)
 
   useEffect(() => {
-    if (checkOverflow(ref.current)) {
-      setIsOverflown(true)
+    const element = ref.current
+    if (!element) {
       return
     }
 
-    setIsOverflown(false)
-  }, [])
+    const updateOverflow = () => {
+      setIsOverflown(checkOverflow(element))
+    }
+
+    updateOverflow()
+
+    // Re-check when the content (e.g. language switch) or the
+    // container size changes, not only on mount.
+    const observer = new ResizeObserver(updateOverflow)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [children])
 
   if (!isOverflown) {
     return (

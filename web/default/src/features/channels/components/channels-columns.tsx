@@ -34,10 +34,10 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { BadgeListCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
+import { LongText } from '@/components/long-text'
 import { ProviderBadge } from '@/components/provider-badge'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
-import { TruncatedText } from '@/components/truncated-text'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -628,11 +628,9 @@ export function useChannelsColumns(
             <div className='flex max-w-full min-w-0 items-center gap-2'>
               <div className='flex max-w-full min-w-0 flex-col gap-1'>
                 <div className='flex max-w-full min-w-0 items-center gap-1.5'>
-                  <TruncatedText
-                    text={sensitiveVisible ? name : SENSITIVE_MASK}
-                    className='font-medium'
-                    maxWidth='max-w-full'
-                  />
+                  <LongText className='max-w-full font-medium'>
+                    {sensitiveVisible ? name : SENSITIVE_MASK}
+                  </LongText>
                   {isPassThrough && (
                     <TooltipProvider delay={100}>
                       <Tooltip>

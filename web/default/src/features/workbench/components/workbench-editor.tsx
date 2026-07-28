@@ -21,6 +21,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
+  sideDrawerContentClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
+import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogDescription,
@@ -453,8 +457,11 @@ export function WorkbenchEditor(props: { projectId: number }) {
         onOpenChange={setShareOpen}
       />
       <Sheet open={inspirationOpen} onOpenChange={setInspirationOpen}>
-        <SheetContent side='right' className='w-full sm:max-w-3xl'>
-          <SheetHeader>
+        <SheetContent
+          side='right'
+          className={sideDrawerContentClassName('sm:max-w-3xl')}
+        >
+          <SheetHeader className={sideDrawerHeaderClassName()}>
             <SheetTitle>{t('Inspiration')}</SheetTitle>
           </SheetHeader>
           <WorkbenchInspiration onApplied={() => setInspirationOpen(false)} />

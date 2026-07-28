@@ -19,7 +19,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { useMediaQuery } from '@/hooks/use-media-query'
+import { useLgUp } from '@/hooks'
 import { cn } from '@/lib/utils'
 
 import type { PricingModel } from '../../../pricing/types'
@@ -63,7 +63,7 @@ const MEDIA_TOOL: Record<
  */
 export function WorkspaceHeader(props: WorkspaceHeaderProps) {
   const { t } = useTranslation()
-  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  const isDesktop = useLgUp()
   const modality = props.modality
   const mediaTool =
     modality === 'image' || modality === 'video' || modality === 'audio'

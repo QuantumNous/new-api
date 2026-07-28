@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import {
   getInspirationLibrary,
   listInspirationCategories,
@@ -21,10 +22,10 @@ import {
   setInspirationFavorite,
 } from '@/features/playground/api'
 import type { InspirationRecipe } from '@/features/playground/inspiration/types'
-import { cn } from '@/lib/utils'
 
 import type { InspirationSeries } from '../types'
 import { RecipeCard } from './recipe-card'
+import { SegmentedTabs } from './segmented-tabs'
 
 const SERIES_TABS: Array<{
   value: InspirationSeries
@@ -101,35 +102,17 @@ export function InspirationTemplates(props: InspirationTemplatesProps) {
   return (
     <section className='space-y-5'>
       <div className='flex flex-col gap-3 lg:flex-row lg:items-center'>
-        <div
-          role='tablist'
-          aria-label={t('Template series')}
-          className='bg-muted/60 inline-flex shrink-0 rounded-full p-1'
-        >
-          {SERIES_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              type='button'
-              role='tab'
-              aria-selected={series === tab.value}
-              onClick={() => setSeries(tab.value)}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
-                series === tab.value
-                  ? 'bg-background text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <tab.icon className='size-4' aria-hidden='true' />
-              {t(tab.label)}
-            </button>
-          ))}
-        </div>
+        <SegmentedTabs
+          value={series}
+          onChange={setSeries}
+          options={SERIES_TABS}
+          ariaLabel={t('Template series')}
+        />
 
         <div className='flex flex-1 flex-col gap-3 sm:flex-row lg:justify-end'>
           <label className='relative sm:w-64'>
             <Search
-              className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2'
+              className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2'
               aria-hidden='true'
             />
             <span className='sr-only'>{t('Search templates')}</span>
@@ -138,27 +121,29 @@ export function InspirationTemplates(props: InspirationTemplatesProps) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t('Search templates')}
-              className='rounded-full pl-9'
+              className='pl-9'
             />
           </label>
-          <select
+          <NativeSelect
             aria-label={t('Category')}
             value={category}
             onChange={(event) => setCategory(event.target.value)}
-            className='border-input bg-background h-9 rounded-full border px-4 text-sm'
+            className='w-full sm:w-auto'
           >
-            <option value='all'>{t('All categories')}</option>
+            <NativeSelectOption value='all'>
+              {t('All categories')}
+            </NativeSelectOption>
             {categories.data?.map((item) => (
-              <option key={item.slug} value={item.slug}>
+              <NativeSelectOption key={item.slug} value={item.slug}>
                 {item.name}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       </div>
 
       {recipes.isError ? (
-        <div className='border-border/60 rounded-2xl border border-dashed py-16 text-center'>
+        <div className='border-border/60 rounded-xl border border-dashed py-16 text-center'>
           <p className='text-muted-foreground mb-3 text-sm'>
             {t('Could not load recipes')}
           </p>
@@ -173,9 +158,9 @@ export function InspirationTemplates(props: InspirationTemplatesProps) {
           type='button'
           disabled={props.creating}
           onClick={props.onCreateBlank}
-          className='border-border/70 hover:border-primary/60 hover:bg-accent/40 group focus-visible:ring-ring flex min-h-[16rem] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-colors outline-none focus-visible:ring-2 disabled:opacity-60'
+          className='border-border/70 hover:border-primary/60 hover:bg-accent/40 group focus-visible:ring-ring flex min-h-[16rem] flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-6 text-center transition-colors outline-none focus-visible:ring-2 disabled:opacity-60'
         >
-          <span className='bg-primary/10 text-primary flex size-12 items-center justify-center rounded-full transition-transform group-hover:scale-105'>
+          <span className='bg-primary/10 text-primary flex size-12 items-center justify-center rounded-xl transition-transform group-hover:scale-105'>
             {props.creating ? (
               <Loader2 className='size-5 animate-spin' />
             ) : (

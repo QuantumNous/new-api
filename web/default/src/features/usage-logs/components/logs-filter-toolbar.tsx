@@ -34,7 +34,7 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer'
 import { Input } from '@/components/ui/input'
-import { useMediaQuery } from '@/hooks'
+import { useSmDown } from '@/hooks'
 import { cn } from '@/lib/utils'
 
 interface LogsFilterToolbarProps<TData> {
@@ -89,7 +89,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [mobilePanelCollapsed, setMobilePanelCollapsed] = useState(false)
-  const isMobile = useMediaQuery('(max-width: 640px)')
+  const isMobile = useSmDown()
 
   const hasAdvancedFilters = props.advancedFilters != null
   const activeAdvancedCount =

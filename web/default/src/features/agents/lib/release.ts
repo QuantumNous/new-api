@@ -27,8 +27,9 @@ export function detectPlatform(): DesktopPlatform | null {
   const signature = `${navigator.platform} ${navigator.userAgent}`.toLowerCase()
   if (signature.includes('mac')) return 'macos'
   if (signature.includes('win')) return 'windows'
-  if (signature.includes('linux') || signature.includes('android'))
+  if (signature.includes('linux') || signature.includes('android')) {
     return 'linux'
+  }
   return null
 }
 

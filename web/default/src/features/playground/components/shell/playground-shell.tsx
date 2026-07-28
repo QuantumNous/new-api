@@ -17,7 +17,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { useMediaQuery } from '@/hooks/use-media-query'
+import { useLgUp } from '@/hooks'
 import { cn } from '@/lib/utils'
 
 import { SessionHistoryPanel } from './session-history-panel'
@@ -80,7 +80,7 @@ type PlaygroundShellProps = {
  */
 export function PlaygroundShell(props: PlaygroundShellProps) {
   const { t } = useTranslation()
-  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  const isDesktop = useLgUp()
   const { catalogOpen, onCatalogOpenChange, historyOpen, onHistoryOpenChange } =
     props
   const [railTab, setRailTab] = useState<RailTab>('models')

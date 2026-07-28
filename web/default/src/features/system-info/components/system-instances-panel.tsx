@@ -55,6 +55,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useSmDown } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -232,7 +233,291 @@ type SystemInstancesTableProps = {
   onDeleteStaleInstance: (instance: SystemInstance) => void
 }
 
-function SystemInstancesList(props: SystemInstancesTableProps) {
+function InstanceNameCell(props: {
+  instance: SystemInstance
+  showStatusDot?: boolean
+}) {
+  const { t } = useTranslation()
+  const shouldConfigure =
+    props.instance.info?.node?.should_configure_manually === true
+
+  return (
+    <div className='flex min-w-0 items-center gap-2'>
+      {props.showStatusDot ? (
+        <span
+          className={cn(
+            'size-2 shrink-0 rounded-full',
+            STATUS_DOT_CLASS_NAME[props.instance.status]
+          )}
+          aria-hidden='true'
+        />
+      ) : null}
+      <div className='min-w-0'>
+        <div className='flex min-w-0 items-center gap-1.5'>
+          <span className='truncate text-sm font-medium'>
+            {getNodeName(props.instance)}
+          </span>
+          {shouldConfigure ? (
+            <Popover>
+              <PopoverTrigger
+                className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
+                aria-label={t('Configure NODE_NAME')}
+              >
+                <Badge
+                  variant='outline'
+                  className='border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300'
+                >
+                  <AlertTriangle className='size-3' aria-hidden='true' />
+                </Badge>
+              </PopoverTrigger>
+              <PopoverContent align='start' className='w-80'>
+                <PopoverHeader>
+                  <PopoverTitle>{t('Configure NODE_NAME')}</PopoverTitle>
+                  <PopoverDescription>
+                    {t(
+                      'This instance is using an automatic hostname. Set NODE_NAME to a stable unique value for multi-instance management.'
+                    )}
+                  </PopoverDescription>
+                </PopoverHeader>
+                <div className='space-y-2 text-xs'>
+                  <div>
+                    <div className='mb-1 font-medium'>{t('Example')}</div>
+                    <code className='bg-muted block rounded-md px-2 py-1.5 font-mono text-[11px] break-all'>
+                      NODE_NAME=new-api-master-1
+                    </code>
+                  </div>
+                  <p className='text-muted-foreground'>
+                    {t(
+                      'Use a different stable value for each instance, then restart the service.'
+                    )}
+                  </p>
+                </div>
+              </PopoverContent>
+            </Popover>
+          ) : null}
+        </div>
+        <div className='text-muted-foreground truncate font-mono text-[11px]'>
+          {props.instance.info?.host?.hostname || '-'}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InstanceStatusBadge(props: { status: SystemInstanceStatus }) {
+  const { t } = useTranslation()
+  return (
+    <Badge
+      variant='secondary'
+      className={cn('gap-1.5', STATUS_CLASS_NAME[props.status])}
+    >
+      <span
+        className={cn(
+          'size-1.5 rounded-full',
+          STATUS_DOT_CLASS_NAME[props.status]
+        )}
+        aria-hidden='true'
+      />
+      {t(props.status)}
+    </Badge>
+  )
+}
+
+function InstanceRoleBadge(props: { instance: SystemInstance }) {
+  const { t } = useTranslation()
+  return (
+    <TooltipProvider delay={100}>
+      <Tooltip>
+        <TooltipTrigger
+          className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
+          aria-label={t('Node role')}
+        >
+          <Badge variant='outline'>{roleLabel(props.instance)}</Badge>
+        </TooltipTrigger>
+        <TooltipContent>{t(roleDescriptionKey(props.instance))}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+function InstanceDeleteAction(props: {
+  instance: SystemInstance
+  deletingNodeName: string | null
+  isDeletingInstance: boolean
+  onDeleteStaleInstance: (instance: SystemInstance) => void
+}) {
+  const { t } = useTranslation()
+  if (props.instance.status !== 'stale') {
+    return <span className='text-muted-foreground text-xs'>-</span>
+  }
+
+  const isDeletingThisInstance =
+    props.isDeletingInstance &&
+    props.deletingNodeName === props.instance.node_name
+
+  return (
+    <TooltipProvider delay={100}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type='button'
+              variant='destructive'
+              size='icon-xs'
+              onClick={() => props.onDeleteStaleInstance(props.instance)}
+              disabled={props.isDeletingInstance || isDeletingThisInstance}
+              aria-label={t('Delete stale instance')}
+            >
+              {isDeletingThisInstance ? (
+                <Loader2 className='size-3 animate-spin' aria-hidden='true' />
+              ) : (
+                <Trash2 className='size-3' aria-hidden='true' />
+              )}
+            </Button>
+          }
+        />
+        <TooltipContent>{t('Delete stale instance')}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+function InstanceResourceFields(props: { instance: SystemInstance }) {
+  const { t } = useTranslation()
+  const resources = props.instance.info?.resources
+  const storage = resources?.storage
+
+  return (
+    <>
+      <div className='min-w-0 overflow-hidden'>
+        <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+          {t('CPU')}
+        </div>
+        <ResourceCell value={resources?.cpu?.usage_percent} />
+      </div>
+      <div className='min-w-0 overflow-hidden'>
+        <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+          {t('Memory')}
+        </div>
+        <ResourceCell value={resources?.memory?.usage_percent} />
+      </div>
+      <div className='min-w-0 overflow-hidden'>
+        <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+          {t('Storage')}
+        </div>
+        <ResourceCell
+          value={storage?.used_percent}
+          tooltip={
+            storage ? (
+              <div className='space-y-1 text-xs'>
+                <div className='grid grid-cols-[auto_1fr] gap-x-3 gap-y-1'>
+                  <span className='text-muted-foreground'>{t('Used')}</span>
+                  <span className='font-mono'>
+                    {formatBytes(storage.used_bytes)}
+                  </span>
+                  <span className='text-muted-foreground'>{t('Free')}</span>
+                  <span className='font-mono'>
+                    {formatBytes(storage.free_bytes)}
+                  </span>
+                  <span className='text-muted-foreground'>{t('Total')}</span>
+                  <span className='font-mono'>
+                    {formatBytes(storage.total_bytes)}
+                  </span>
+                </div>
+              </div>
+            ) : undefined
+          }
+        />
+      </div>
+      <div className='min-w-0 overflow-hidden'>
+        <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+          {t('Role')}
+        </div>
+        <InstanceRoleBadge instance={props.instance} />
+      </div>
+      <div className='min-w-0 overflow-hidden'>
+        <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+          {t('Version')}
+        </div>
+        <div className='truncate font-mono text-xs'>
+          {props.instance.info?.runtime?.version || '-'}
+        </div>
+      </div>
+      <div className='min-w-0 overflow-hidden'>
+        <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+          {t('Runtime')}
+        </div>
+        <div className='truncate font-mono text-xs'>
+          {runtimeLabel(props.instance)}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function SystemInstancesMobileList(props: SystemInstancesTableProps) {
+  const { t, i18n } = useTranslation()
+
+  return (
+    <div className='divide-y overflow-hidden rounded-lg border'>
+      {props.instances.map((instance) => (
+        <div
+          key={instance.node_name}
+          className='[background-color:var(--data-table-card-bg,var(--table-row))] px-3 py-2.5'
+        >
+          <div className='flex items-center justify-between gap-2'>
+            <div className='min-w-0 flex-1'>
+              <InstanceNameCell instance={instance} />
+            </div>
+            <div className='flex-none'>
+              <InstanceStatusBadge status={instance.status} />
+            </div>
+          </div>
+
+          <div className='mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5'>
+            <InstanceResourceFields instance={instance} />
+            <div className='min-w-0 overflow-hidden'>
+              <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+                {t('Started')}
+              </div>
+              <div className='text-muted-foreground text-xs'>
+                {formatTimestampToDate(instance.started_at)}
+              </div>
+            </div>
+            <div className='min-w-0 overflow-hidden'>
+              <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+                {t('Last Seen')}
+              </div>
+              <div
+                className='text-muted-foreground text-xs'
+                title={formatTimestampToDate(instance.last_seen_at)}
+              >
+                {formatTimestampRelative(
+                  instance.last_seen_at,
+                  'seconds',
+                  toIntlLocale(i18n.language)
+                )}
+              </div>
+            </div>
+          </div>
+
+          {instance.status === 'stale' ? (
+            <div className='mt-1 -mb-0.5 flex justify-end'>
+              <InstanceDeleteAction
+                instance={instance}
+                deletingNodeName={props.deletingNodeName}
+                isDeletingInstance={props.isDeletingInstance}
+                onDeleteStaleInstance={props.onDeleteStaleInstance}
+              />
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SystemInstancesDesktopTable(props: SystemInstancesTableProps) {
   const { t, i18n } = useTranslation()
 
   return (
@@ -273,113 +558,18 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
         </TableHeader>
         <TableBody>
           {props.instances.map((instance) => {
-            const shouldConfigure =
-              instance.info?.node?.should_configure_manually === true
             const resources = instance.info?.resources
             const storage = resources?.storage
-            const isDeletingThisInstance =
-              props.isDeletingInstance &&
-              props.deletingNodeName === instance.node_name
             return (
               <TableRow key={instance.node_name} className='hover:bg-muted/30'>
                 <TableCell className='px-4 py-2.5 align-middle'>
-                  <div className='flex min-w-0 items-center gap-2'>
-                    <span
-                      className={cn(
-                        'size-2 shrink-0 rounded-full',
-                        STATUS_DOT_CLASS_NAME[instance.status]
-                      )}
-                      aria-hidden='true'
-                    />
-                    <div className='min-w-0'>
-                      <div className='flex min-w-0 items-center gap-1.5'>
-                        <span className='truncate text-sm font-medium'>
-                          {getNodeName(instance)}
-                        </span>
-                        {shouldConfigure && (
-                          <Popover>
-                            <PopoverTrigger
-                              className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
-                              aria-label={t('Configure NODE_NAME')}
-                            >
-                              <Badge
-                                variant='outline'
-                                className='border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300'
-                              >
-                                <AlertTriangle
-                                  className='size-3'
-                                  aria-hidden='true'
-                                />
-                              </Badge>
-                            </PopoverTrigger>
-                            <PopoverContent align='start' className='w-80'>
-                              <PopoverHeader>
-                                <PopoverTitle>
-                                  {t('Configure NODE_NAME')}
-                                </PopoverTitle>
-                                <PopoverDescription>
-                                  {t(
-                                    'This instance is using an automatic hostname. Set NODE_NAME to a stable unique value for multi-instance management.'
-                                  )}
-                                </PopoverDescription>
-                              </PopoverHeader>
-                              <div className='space-y-2 text-xs'>
-                                <div>
-                                  <div className='mb-1 font-medium'>
-                                    {t('Example')}
-                                  </div>
-                                  <code className='bg-muted block rounded-md px-2 py-1.5 font-mono text-[11px] break-all'>
-                                    NODE_NAME=new-api-master-1
-                                  </code>
-                                </div>
-                                <p className='text-muted-foreground'>
-                                  {t(
-                                    'Use a different stable value for each instance, then restart the service.'
-                                  )}
-                                </p>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        )}
-                      </div>
-                      <div className='text-muted-foreground truncate font-mono text-[11px]'>
-                        {instance.info?.host?.hostname || '-'}
-                      </div>
-                    </div>
-                  </div>
+                  <InstanceNameCell instance={instance} showStatusDot />
                 </TableCell>
                 <TableCell className='py-2.5 align-middle'>
-                  <Badge
-                    variant='secondary'
-                    className={cn(
-                      'gap-1.5',
-                      STATUS_CLASS_NAME[instance.status]
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'size-1.5 rounded-full',
-                        STATUS_DOT_CLASS_NAME[instance.status]
-                      )}
-                      aria-hidden='true'
-                    />
-                    {t(instance.status)}
-                  </Badge>
+                  <InstanceStatusBadge status={instance.status} />
                 </TableCell>
                 <TableCell className='py-2.5 align-middle'>
-                  <TooltipProvider delay={100}>
-                    <Tooltip>
-                      <TooltipTrigger
-                        className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
-                        aria-label={t('Node role')}
-                      >
-                        <Badge variant='outline'>{roleLabel(instance)}</Badge>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {t(roleDescriptionKey(instance))}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <InstanceRoleBadge instance={instance} />
                 </TableCell>
                 <TableCell className='py-2.5 align-middle'>
                   <ResourceCell value={resources?.cpu?.usage_percent} />
@@ -442,43 +632,12 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                   )}
                 </TableCell>
                 <TableCell className='py-2.5 pr-4 text-right align-middle'>
-                  {instance.status === 'stale' ? (
-                    <TooltipProvider delay={100}>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              type='button'
-                              variant='destructive'
-                              size='icon-xs'
-                              onClick={() =>
-                                props.onDeleteStaleInstance(instance)
-                              }
-                              disabled={
-                                props.isDeletingInstance ||
-                                isDeletingThisInstance
-                              }
-                              aria-label={t('Delete stale instance')}
-                            >
-                              {isDeletingThisInstance ? (
-                                <Loader2
-                                  className='size-3 animate-spin'
-                                  aria-hidden='true'
-                                />
-                              ) : (
-                                <Trash2 className='size-3' aria-hidden='true' />
-                              )}
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>
-                          {t('Delete stale instance')}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ) : (
-                    <span className='text-muted-foreground text-xs'>-</span>
-                  )}
+                  <InstanceDeleteAction
+                    instance={instance}
+                    deletingNodeName={props.deletingNodeName}
+                    isDeletingInstance={props.isDeletingInstance}
+                    onDeleteStaleInstance={props.onDeleteStaleInstance}
+                  />
                 </TableCell>
               </TableRow>
             )
@@ -487,6 +646,14 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
       </Table>
     </div>
   )
+}
+
+function SystemInstancesList(props: SystemInstancesTableProps) {
+  const isMobile = useSmDown()
+  if (isMobile) {
+    return <SystemInstancesMobileList {...props} />
+  }
+  return <SystemInstancesDesktopTable {...props} />
 }
 
 export function SystemInstancesPanel() {

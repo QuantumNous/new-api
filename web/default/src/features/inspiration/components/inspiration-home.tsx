@@ -25,7 +25,6 @@ import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { canTryInPlayground } from '@/features/pricing/lib/playground-eligibility'
 import { createCanvasProject } from '@/features/workbench/api'
 import type { CanvasDocument } from '@/features/workbench/types'
-import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CANVAS_PROJECTS_QUERY_KEY } from '../constants'
@@ -37,6 +36,7 @@ import type { AppliedInspirationRecipe, InspirationApplyOption } from '../types'
 import { InspirationProjects } from './inspiration-projects'
 import { InspirationTemplates } from './inspiration-templates'
 import { RecipeDetail } from './recipe-detail'
+import { SegmentedTabs } from './segmented-tabs'
 
 export type InspirationView = 'templates' | 'projects'
 
@@ -128,7 +128,7 @@ export function InspirationHome(props: {
 
   return (
     <div className='mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8'>
-      <section className='border-border/60 relative overflow-hidden rounded-3xl border bg-gradient-to-br from-violet-500/12 via-blue-500/8 to-transparent p-6 sm:p-9'>
+      <section className='border-border/60 relative overflow-hidden rounded-2xl border bg-gradient-to-br from-violet-500/12 via-blue-500/8 to-transparent p-6 sm:p-9'>
         <div
           aria-hidden='true'
           className='pointer-events-none absolute -top-24 -right-16 size-64 rounded-full bg-violet-500/20 blur-3xl'
@@ -148,10 +148,10 @@ export function InspirationHome(props: {
           {HOW_IT_WORKS.map((item, index) => (
             <li
               key={item.title}
-              className='border-border/60 bg-background/70 rounded-2xl border p-4 backdrop-blur-sm'
+              className='border-border/60 bg-background/70 rounded-xl border p-4 backdrop-blur-sm'
             >
               <div className='flex items-center gap-2'>
-                <span className='bg-foreground/8 flex size-6 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums'>
+                <span className='bg-foreground/8 flex size-6 items-center justify-center rounded-md text-[11px] font-semibold tabular-nums'>
                   {index + 1}
                 </span>
                 <item.icon
@@ -168,30 +168,13 @@ export function InspirationHome(props: {
         </ol>
       </section>
 
-      <div
-        role='tablist'
-        aria-label={t('Inspiration sections')}
-        className='bg-muted/60 mt-6 inline-flex rounded-full p-1'
-      >
-        {VIEW_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            type='button'
-            role='tab'
-            aria-selected={props.view === tab.value}
-            onClick={() => props.onViewChange(tab.value)}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
-              props.view === tab.value
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <tab.icon className='size-4' aria-hidden='true' />
-            {t(tab.label)}
-          </button>
-        ))}
-      </div>
+      <SegmentedTabs
+        className='mt-6'
+        value={props.view}
+        onChange={props.onViewChange}
+        options={VIEW_TABS}
+        ariaLabel={t('Inspiration sections')}
+      />
 
       <div className='mt-6'>
         {props.view === 'templates' ? (

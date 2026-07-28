@@ -9,15 +9,8 @@ License, or (at your option) any later version.
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -100,82 +93,80 @@ export function VersionEditor(props: Props) {
   }
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-3xl'>
-        <DialogHeader>
-          <DialogTitle>
-            {props.editingExistingDraft ? t('Edit draft') : t('Create draft')}
-          </DialogTitle>
-          <DialogDescription>
-            {t(
-              'Edit structured recipe data. Publishing performs strict server validation.'
-            )}
-          </DialogDescription>
-        </DialogHeader>
-        <div className='grid gap-4'>
-          <div className='grid gap-2'>
-            <Label htmlFor='prompt-template'>{t('Prompt template')}</Label>
-            <Textarea
-              id='prompt-template'
-              className='min-h-32 font-mono'
-              value={value.prompt_template}
-              onChange={(event) =>
-                setValue({ ...value, prompt_template: event.target.value })
-              }
-            />
-          </div>
-          <div className='grid gap-2 sm:grid-cols-2'>
-            <div className='grid gap-2'>
-              <Label htmlFor='negative-prompt'>{t('Negative prompt')}</Label>
-              <Textarea
-                id='negative-prompt'
-                value={value.negative_prompt}
-                onChange={(event) =>
-                  setValue({ ...value, negative_prompt: event.target.value })
-                }
-              />
-            </div>
-            <div className='grid gap-2'>
-              <Label htmlFor='explanation'>{t('Explanation')}</Label>
-              <Textarea
-                id='explanation'
-                value={value.explanation}
-                onChange={(event) =>
-                  setValue({ ...value, explanation: event.target.value })
-                }
-              />
-            </div>
-          </div>
-          <div className='grid gap-4 sm:grid-cols-2'>
-            {jsonKeys.map((key) => (
-              <div className='grid gap-2' key={key}>
-                <Label htmlFor={`json-${key}`}>{jsonLabels[key]}</Label>
-                <Textarea
-                  id={`json-${key}`}
-                  className='min-h-32 font-mono text-xs'
-                  value={json[key]}
-                  onChange={(event) =>
-                    setJson({ ...json, [key]: event.target.value })
-                  }
-                />
-              </div>
-            ))}
-          </div>
-          {error && (
-            <p className='text-destructive text-sm' role='alert'>
-              {error}
-            </p>
-          )}
-        </div>
-        <DialogFooter>
+    <Dialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={props.editingExistingDraft ? t('Edit draft') : t('Create draft')}
+      description={t(
+        'Edit structured recipe data. Publishing performs strict server validation.'
+      )}
+      contentClassName='sm:max-w-3xl'
+      footer={
+        <>
           <Button variant='outline' onClick={() => props.onOpenChange(false)}>
             {t('Cancel')}
           </Button>
           <Button disabled={props.pending} onClick={submit}>
             {props.pending ? t('Saving...') : t('Save draft')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </>
+      }
+    >
+      <div className='grid gap-4'>
+        <div className='grid gap-2'>
+          <Label htmlFor='prompt-template'>{t('Prompt template')}</Label>
+          <Textarea
+            id='prompt-template'
+            className='min-h-32 font-mono'
+            value={value.prompt_template}
+            onChange={(event) =>
+              setValue({ ...value, prompt_template: event.target.value })
+            }
+          />
+        </div>
+        <div className='grid gap-2 sm:grid-cols-2'>
+          <div className='grid gap-2'>
+            <Label htmlFor='negative-prompt'>{t('Negative prompt')}</Label>
+            <Textarea
+              id='negative-prompt'
+              value={value.negative_prompt}
+              onChange={(event) =>
+                setValue({ ...value, negative_prompt: event.target.value })
+              }
+            />
+          </div>
+          <div className='grid gap-2'>
+            <Label htmlFor='explanation'>{t('Explanation')}</Label>
+            <Textarea
+              id='explanation'
+              value={value.explanation}
+              onChange={(event) =>
+                setValue({ ...value, explanation: event.target.value })
+              }
+            />
+          </div>
+        </div>
+        <div className='grid gap-4 sm:grid-cols-2'>
+          {jsonKeys.map((key) => (
+            <div className='grid gap-2' key={key}>
+              <Label htmlFor={`json-${key}`}>{jsonLabels[key]}</Label>
+              <Textarea
+                id={`json-${key}`}
+                className='min-h-32 font-mono text-xs'
+                value={json[key]}
+                onChange={(event) =>
+                  setJson({ ...json, [key]: event.target.value })
+                }
+              />
+            </div>
+          ))}
+        </div>
+        {error && (
+          <p className='text-destructive text-sm' role='alert'>
+            {error}
+          </p>
+        )}
+      </div>
     </Dialog>
   )
 }

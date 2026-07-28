@@ -42,7 +42,7 @@ For commercial licensing, please contact support@quantumnous.com
 import * as React from 'react'
 
 import { PageFooterPortal } from '@/components/layout/components/page-footer'
-import { useMediaQuery } from '@/hooks'
+import { useSmDown } from '@/hooks'
 import { cn } from '@/lib/utils'
 
 import {
@@ -308,7 +308,7 @@ export type DataTablePageProps<TData> = {
  * `toolbar` / `mobile` / `renderRow` slots instead of the `*Props` variants.
  */
 export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
-  const isMobile = useMediaQuery('(max-width: 640px)')
+  const isMobile = useSmDown()
   const showMobile = isMobile && !props.hideMobile
 
   const [internalViewMode, setInternalViewMode] = useDataTableViewMode({

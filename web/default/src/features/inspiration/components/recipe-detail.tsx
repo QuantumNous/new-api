@@ -12,8 +12,14 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import {
   Sheet,
@@ -23,6 +29,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Textarea } from '@/components/ui/textarea'
 import {
   createInspirationCollection,
   getInspirationLibrary,
@@ -41,6 +48,7 @@ import type {
   InspirationRecipe,
   InspirationVariable,
 } from '@/features/playground/inspiration/types'
+import { cn } from '@/lib/utils'
 
 import {
   applyTargetsForModality,
@@ -61,21 +69,17 @@ function VariableField(props: {
 }) {
   const { t } = useTranslation()
   const id = `recipe-${props.variable.key}`
-  const common = {
-    id,
-    value: props.value,
-    required: props.variable.required,
-    'aria-invalid': Boolean(props.error),
-    'aria-describedby': props.error ? `${id}-error` : undefined,
-    className:
-      'border-input bg-background h-9 w-full rounded-md border px-3 text-sm',
-  }
+  const describedBy = props.error ? `${id}-error` : undefined
   let field
   if (props.variable.type === 'textarea') {
     field = (
-      <textarea
-        {...common}
-        className={`${common.className} min-h-24 py-2`}
+      <Textarea
+        id={id}
+        value={props.value}
+        required={props.variable.required}
+        aria-invalid={Boolean(props.error)}
+        aria-describedby={describedBy}
+        className='min-h-24'
         maxLength={props.variable.max_length ?? undefined}
         placeholder={props.variable.placeholder}
         onChange={(event) => props.onChange(event.target.value)}
@@ -83,19 +87,28 @@ function VariableField(props: {
     )
   } else if (props.variable.type === 'select') {
     field = (
-      <select
-        {...common}
+      <NativeSelect
+        id={id}
+        value={props.value}
+        required={props.variable.required}
+        aria-invalid={Boolean(props.error)}
+        aria-describedby={describedBy}
+        className='w-full'
         onChange={(event) => props.onChange(event.target.value)}
       >
         {props.variable.options.map((option) => (
-          <option key={option}>{option}</option>
+          <NativeSelectOption key={option}>{option}</NativeSelectOption>
         ))}
-      </select>
+      </NativeSelect>
     )
   } else {
     field = (
-      <input
-        {...common}
+      <Input
+        id={id}
+        value={props.value}
+        required={props.variable.required}
+        aria-invalid={Boolean(props.error)}
+        aria-describedby={describedBy}
         type={props.variable.type}
         min={props.variable.min ?? undefined}
         max={props.variable.max ?? undefined}
@@ -207,15 +220,15 @@ export function RecipeDetail(props: RecipeDetailProps) {
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
       <SheetContent
         side='right'
-        className='w-full overflow-y-auto sm:max-w-2xl'
+        className={sideDrawerContentClassName('sm:max-w-2xl')}
       >
-        <SheetHeader>
+        <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle className='text-balance'>{recipe.title}</SheetTitle>
           <SheetDescription className='text-pretty'>
             {recipe.description}
           </SheetDescription>
         </SheetHeader>
-        <div className='space-y-5 px-4 pb-4'>
+        <div className='flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5'>
           <img
             src={recipe.covers.large}
             srcSet={`${recipe.covers.medium} 960w, ${recipe.covers.large} 1536w`}
@@ -313,10 +326,9 @@ export function RecipeDetail(props: RecipeDetailProps) {
                   key={collection.id}
                   className='flex items-center gap-2 text-sm'
                 >
-                  <input
-                    type='checkbox'
+                  <Checkbox
                     checked={saved}
-                    onChange={() =>
+                    onCheckedChange={() =>
                       mutateLibrary.mutate(() =>
                         setInspirationCollectionTemplate(
                           collection.id,
@@ -331,11 +343,11 @@ export function RecipeDetail(props: RecipeDetailProps) {
               )
             })}
             <div className='flex gap-2'>
-              <input
+              <Input
                 value={collectionName}
                 onChange={(event) => setCollectionName(event.target.value)}
                 placeholder={t('Collection name')}
-                className='border-input h-9 min-w-0 flex-1 rounded-md border px-3 text-sm'
+                className='min-w-0 flex-1'
               />
               <Button
                 variant='outline'
@@ -360,7 +372,12 @@ export function RecipeDetail(props: RecipeDetailProps) {
             </div>
           </section>
         </div>
-        <SheetFooter className='bg-background sticky bottom-0 border-t sm:flex-col sm:items-stretch'>
+        <SheetFooter
+          className={cn(
+            sideDrawerFooterClassName(),
+            'flex flex-col gap-3 sm:flex-col sm:items-stretch'
+          )}
+        >
           {targetOptions.length > 1 || props.showAutoRun !== false ? (
             <div className='flex flex-wrap items-center gap-3'>
               {targetOptions.length > 1 ? (

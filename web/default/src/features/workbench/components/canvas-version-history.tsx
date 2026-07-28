@@ -11,6 +11,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import {
+  sideDrawerContentClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -66,11 +70,14 @@ export function CanvasVersionHistory(props: CanvasVersionHistoryProps) {
 
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <SheetContent side='right' className='w-full sm:max-w-md'>
-        <SheetHeader>
+      <SheetContent
+        side='right'
+        className={sideDrawerContentClassName('sm:max-w-md')}
+      >
+        <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>{t('Version history')}</SheetTitle>
         </SheetHeader>
-        <div className='mt-4 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-4'>
+        <div className='flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5'>
           {versions.isLoading ? (
             <div className='flex justify-center py-12'>
               <Spinner />

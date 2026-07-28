@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/sheet'
 import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { canTryInPlayground } from '@/features/pricing/lib/playground-eligibility'
-import { useMediaQuery } from '@/hooks/use-media-query'
+import { useLgUp, useXlUp } from '@/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import {
   selectActiveChatMessages,
@@ -90,8 +90,8 @@ export function Playground() {
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false)
   // Settings panel: persisted open state on wide desktop, ephemeral overlay
   // between 1024–1279px, bottom sheet below 1024px.
-  const isDesktop = useMediaQuery('(min-width: 1024px)')
-  const isWideDesktop = useMediaQuery('(min-width: 1280px)')
+  const isDesktop = useLgUp()
+  const isWideDesktop = useXlUp()
   const [narrowSettingsOpen, setNarrowSettingsOpen] = useState(false)
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false)
 

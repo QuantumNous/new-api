@@ -39,6 +39,7 @@ import type {
   SystemTask,
   SystemTaskStatus,
 } from '@/features/system-settings/types'
+import { useSmDown } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -105,7 +106,138 @@ type SystemTasksTableProps = {
   tasks: SystemTask[]
 }
 
-function SystemTasksTable(props: SystemTasksTableProps) {
+function TaskTypeCell(props: { task: SystemTask }) {
+  const { t } = useTranslation()
+  return (
+    <div className='space-y-0.5'>
+      <div className='font-medium'>
+        {t(TYPE_LABEL[props.task.type] ?? props.task.type)}
+      </div>
+      <div className='text-muted-foreground font-mono text-[11px]'>
+        {TYPE_DISPLAY_ID[props.task.type] ?? props.task.type}
+      </div>
+    </div>
+  )
+}
+
+function TaskStatusBadge(props: { status: SystemTaskStatus }) {
+  const { t } = useTranslation()
+  return (
+    <Badge
+      variant={STATUS_VARIANT[props.status]}
+      className={cn('gap-1.5', STATUS_CLASS_NAME[props.status])}
+    >
+      <span
+        className={cn(
+          'size-1.5 rounded-full',
+          STATUS_DOT_CLASS_NAME[props.status]
+        )}
+        aria-hidden='true'
+      />
+      {t(props.status)}
+    </Badge>
+  )
+}
+
+function TaskProgressCell(props: {
+  status: SystemTaskStatus
+  progress: number | null
+  compact?: boolean
+}) {
+  return (
+    <div className='flex items-center gap-2'>
+      <Progress
+        value={props.progress ?? 0}
+        className={cn(
+          props.compact ? 'min-w-0 flex-1' : 'w-24',
+          PROGRESS_BAR_CLASS_NAME[props.status]
+        )}
+      />
+      <span className='text-muted-foreground w-10 shrink-0 text-right text-xs tabular-nums'>
+        {props.progress === null ? '-' : `${props.progress}%`}
+      </span>
+    </div>
+  )
+}
+
+function SystemTasksMobileList(props: SystemTasksTableProps) {
+  const { t, i18n } = useTranslation()
+
+  return (
+    <div className='divide-y overflow-hidden rounded-lg border'>
+      {props.tasks.map((task) => {
+        const progress = getProgress(task)
+        return (
+          <div
+            key={task.task_id}
+            className='[background-color:var(--data-table-card-bg,var(--table-row))] px-3 py-2.5'
+          >
+            <div className='flex items-center justify-between gap-2'>
+              <div className='min-w-0 flex-1 text-sm font-medium'>
+                <TaskTypeCell task={task} />
+              </div>
+              <div className='flex-none'>
+                <TaskStatusBadge status={task.status} />
+              </div>
+            </div>
+
+            <div className='mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5'>
+              <div className='col-span-2 min-w-0 overflow-hidden'>
+                <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+                  {t('Progress')}
+                </div>
+                <TaskProgressCell
+                  status={task.status}
+                  progress={progress}
+                  compact
+                />
+              </div>
+              <div className='min-w-0 overflow-hidden'>
+                <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+                  {t('Executor')}
+                </div>
+                <div className='text-muted-foreground truncate font-mono text-xs'>
+                  {task.locked_by || '-'}
+                </div>
+              </div>
+              <div className='min-w-0 overflow-hidden'>
+                <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+                  {t('Updated')}
+                </div>
+                <div
+                  className='text-muted-foreground text-xs'
+                  title={formatTimestampToDate(task.updated_at)}
+                >
+                  {formatTimestampRelative(
+                    task.updated_at,
+                    'seconds',
+                    toIntlLocale(i18n.language)
+                  )}
+                </div>
+              </div>
+              <div className='col-span-2 min-w-0 overflow-hidden'>
+                <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+                  {t('Detail')}
+                </div>
+                <div
+                  className={cn(
+                    'text-xs break-words',
+                    task.error ? 'text-destructive' : 'text-muted-foreground'
+                  )}
+                  title={task.error || undefined}
+                >
+                  {task.error || '-'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function SystemTasksDesktopTable(props: SystemTasksTableProps) {
   const { t, i18n } = useTranslation()
 
   return (
@@ -139,43 +271,13 @@ function SystemTasksTable(props: SystemTasksTableProps) {
             return (
               <TableRow key={task.task_id} className='hover:bg-muted/30'>
                 <TableCell className='px-4 py-3 align-middle'>
-                  <div className='space-y-0.5'>
-                    <div className='font-medium'>
-                      {t(TYPE_LABEL[task.type] ?? task.type)}
-                    </div>
-                    <div className='text-muted-foreground font-mono text-[11px]'>
-                      {TYPE_DISPLAY_ID[task.type] ?? task.type}
-                    </div>
-                  </div>
+                  <TaskTypeCell task={task} />
                 </TableCell>
                 <TableCell className='py-3 align-middle'>
-                  <Badge
-                    variant={STATUS_VARIANT[task.status]}
-                    className={cn('gap-1.5', STATUS_CLASS_NAME[task.status])}
-                  >
-                    <span
-                      className={cn(
-                        'size-1.5 rounded-full',
-                        STATUS_DOT_CLASS_NAME[task.status]
-                      )}
-                      aria-hidden='true'
-                    />
-                    {t(task.status)}
-                  </Badge>
+                  <TaskStatusBadge status={task.status} />
                 </TableCell>
                 <TableCell className='py-3 align-middle'>
-                  <div className='flex items-center gap-2'>
-                    <Progress
-                      value={progress ?? 0}
-                      className={cn(
-                        'w-24',
-                        PROGRESS_BAR_CLASS_NAME[task.status]
-                      )}
-                    />
-                    <span className='text-muted-foreground w-10 text-right text-xs tabular-nums'>
-                      {progress === null ? '-' : `${progress}%`}
-                    </span>
-                  </div>
+                  <TaskProgressCell status={task.status} progress={progress} />
                 </TableCell>
                 <TableCell className='text-muted-foreground max-w-[280px] truncate py-3 align-middle font-mono text-xs'>
                   {task.locked_by || '-'}
@@ -203,6 +305,14 @@ function SystemTasksTable(props: SystemTasksTableProps) {
       </Table>
     </div>
   )
+}
+
+function SystemTasksTable(props: SystemTasksTableProps) {
+  const isMobile = useSmDown()
+  if (isMobile) {
+    return <SystemTasksMobileList {...props} />
+  }
+  return <SystemTasksDesktopTable {...props} />
 }
 
 const SYSTEM_TASK_SKELETON_IDS = ['t1', 't2', 't3', 't4'] as const

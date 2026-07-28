@@ -22,7 +22,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTablePage, useDataTable } from '@/components/data-table'
-import { useMediaQuery } from '@/hooks'
+import { useSmDown } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 
 import { getModels, searchModels, getVendors } from '../api'
@@ -41,7 +41,7 @@ const route = getRouteApi('/_authenticated/models/$section')
 export function ModelsTable() {
   const { t } = useTranslation()
   const { selectedVendor } = useModels()
-  const isMobile = useMediaQuery('(max-width: 640px)')
+  const isMobile = useSmDown()
 
   // URL state management
   const {

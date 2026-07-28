@@ -13,14 +13,8 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -126,7 +120,7 @@ export function InspirationProjects(props: {
 
   if (!props.isAuthenticated) {
     return (
-      <section className='border-border/60 rounded-2xl border border-dashed py-16 text-center'>
+      <section className='border-border/60 rounded-xl border border-dashed py-16 text-center'>
         <p className='text-muted-foreground mb-3 text-sm'>
           {t('Sign in to keep your projects across devices.')}
         </p>
@@ -142,13 +136,13 @@ export function InspirationProjects(props: {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder={t('Search canvases')}
-          className='rounded-full sm:max-w-xs'
+          className='sm:max-w-xs'
         />
         <Select
           value={sortMode}
           onValueChange={(value) => setSortMode(value as SortMode)}
         >
-          <SelectTrigger className='w-full rounded-full sm:w-48'>
+          <SelectTrigger className='w-full sm:w-48'>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -158,7 +152,7 @@ export function InspirationProjects(props: {
           </SelectContent>
         </Select>
         <Button
-          className='rounded-full sm:ml-auto'
+          className='sm:ml-auto'
           disabled={props.creating}
           onClick={props.onCreateBlank}
         >
@@ -175,7 +169,7 @@ export function InspirationProjects(props: {
       ) : null}
 
       {!projects.isLoading && !filteredProjects.length ? (
-        <div className='border-border/60 rounded-2xl border border-dashed py-16 text-center'>
+        <div className='border-border/60 rounded-xl border border-dashed py-16 text-center'>
           <p className='text-muted-foreground text-sm text-pretty'>
             {projects.data?.length
               ? t('No canvases match your search.')
@@ -188,7 +182,7 @@ export function InspirationProjects(props: {
         {filteredProjects.map((project) => (
           <article
             key={project.id}
-            className='group border-border/70 bg-card overflow-hidden rounded-2xl border shadow-xs transition-shadow hover:shadow-lg'
+            className='group border-border/70 bg-card overflow-hidden rounded-xl border shadow-xs transition-shadow hover:shadow-lg'
           >
             <button
               type='button'
@@ -259,27 +253,10 @@ export function InspirationProjects(props: {
         onOpenChange={(open) => {
           if (!open) setRenaming(null)
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('Rename canvas')}</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={renameTitle}
-            onChange={(event) => setRenameTitle(event.target.value)}
-            autoFocus
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter' || !renaming) return
-              const nextTitle = renameTitle.trim()
-              if (!nextTitle) return
-              renameProject.mutate({
-                id: renaming.id,
-                title: nextTitle,
-                baseUpdatedAt: renaming.updated_at,
-              })
-            }}
-          />
-          <DialogFooter>
+        title={t('Rename canvas')}
+        contentClassName='sm:max-w-md'
+        footer={
+          <>
             <Button variant='outline' onClick={() => setRenaming(null)}>
               {t('Cancel')}
             </Button>
@@ -302,8 +279,24 @@ export function InspirationProjects(props: {
             >
               {t('Save')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <Input
+          value={renameTitle}
+          onChange={(event) => setRenameTitle(event.target.value)}
+          autoFocus
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || !renaming) return
+            const nextTitle = renameTitle.trim()
+            if (!nextTitle) return
+            renameProject.mutate({
+              id: renaming.id,
+              title: nextTitle,
+              baseUpdatedAt: renaming.updated_at,
+            })
+          }}
+        />
       </Dialog>
     </section>
   )

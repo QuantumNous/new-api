@@ -27,7 +27,7 @@ import {
   DataTableRow,
   useDataTable,
 } from '@/components/data-table'
-import { useMediaQuery } from '@/hooks'
+import { useSmDown } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { cn } from '@/lib/utils'
 
@@ -82,7 +82,7 @@ interface UsageLogsTableProps {
 export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const { t } = useTranslation()
   const { isAdminView: isAdmin } = useLogsViewScope()
-  const isMobile = useMediaQuery('(max-width: 640px)')
+  const isMobile = useSmDown()
   const searchParams = route.useSearch()
 
   const {

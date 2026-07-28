@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
-import { SectionPageLayout } from '@/components/layout'
+import { PageFooterPortal, SectionPageLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -143,14 +143,14 @@ export function TopUpReviews() {
         <SectionPageLayout.Content>
           <div className='space-y-4'>
             <form
-              className='flex flex-col gap-2 sm:flex-row'
+              className='flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center'
               onSubmit={(event) => {
                 event.preventDefault()
                 setPage(1)
                 setSearch(keyword.trim())
               }}
             >
-              <div className='relative flex-1'>
+              <div className='relative min-w-0 flex-1'>
                 <Search
                   className='text-muted-foreground absolute top-2 left-2.5 size-4'
                   aria-hidden='true'
@@ -176,7 +176,7 @@ export function TopUpReviews() {
                   setPage(1)
                 }}
               >
-                <SelectTrigger className='sm:w-44'>
+                <SelectTrigger className='w-full sm:w-44'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
@@ -186,7 +186,9 @@ export function TopUpReviews() {
                   <SelectItem value=''>{t('All statuses')}</SelectItem>
                 </SelectContent>
               </Select>
-              <Button type='submit'>{t('Search')}</Button>
+              <Button type='submit' className='w-full sm:w-auto'>
+                {t('Search')}
+              </Button>
             </form>
             {loading && (
               <div className='grid gap-3 md:grid-cols-2'>
@@ -205,10 +207,10 @@ export function TopUpReviews() {
                 {items.map((item) => (
                   <Card key={item.id}>
                     <CardContent className='space-y-3 p-4'>
-                      <div className='flex items-start justify-between gap-2'>
-                        <div>
+                      <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
+                        <div className='min-w-0'>
                           <p className='font-medium'>{item.username}</p>
-                          <code className='text-muted-foreground text-xs'>
+                          <code className='text-muted-foreground text-xs break-all'>
                             {item.trade_no}
                           </code>
                         </div>
@@ -218,7 +220,7 @@ export function TopUpReviews() {
                           copyable={false}
                         />
                       </div>
-                      <dl className='grid grid-cols-2 gap-2 text-sm'>
+                      <dl className='grid grid-cols-1 gap-2 text-sm sm:grid-cols-2'>
                         <div>
                           <dt className='text-muted-foreground'>
                             {t('Target')}
@@ -281,10 +283,11 @@ export function TopUpReviews() {
                         </a>
                       ) : null}
                       {item.status === 'submitted' && (
-                        <div className='flex justify-end gap-2'>
+                        <div className='flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end'>
                           <Button
                             variant='destructive'
                             size='sm'
+                            className='w-full sm:w-auto'
                             onClick={() => setRejectItem(item)}
                             disabled={acting}
                           >
@@ -292,6 +295,7 @@ export function TopUpReviews() {
                           </Button>
                           <Button
                             size='sm'
+                            className='w-full sm:w-auto'
                             onClick={() => void approve(item)}
                             disabled={acting}
                           >
@@ -309,11 +313,13 @@ export function TopUpReviews() {
                 ))}
               </div>
             )}
-            <div className='flex items-center justify-between'>
+          </div>
+          <PageFooterPortal>
+            <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
               <p className='text-muted-foreground text-sm'>
                 {t('Total')}: {total}
               </p>
-              <div className='flex items-center gap-2'>
+              <div className='flex items-center justify-end gap-2'>
                 <Button
                   variant='outline'
                   size='icon'
@@ -322,7 +328,7 @@ export function TopUpReviews() {
                 >
                   <ChevronLeft aria-hidden='true' />
                 </Button>
-                <span className='text-sm'>
+                <span className='text-sm tabular-nums'>
                   {page} / {totalPages}
                 </span>
                 <Button
@@ -335,7 +341,7 @@ export function TopUpReviews() {
                 </Button>
               </div>
             </div>
-          </div>
+          </PageFooterPortal>
         </SectionPageLayout.Content>
       </SectionPageLayout>
       <Dialog
@@ -353,12 +359,17 @@ export function TopUpReviews() {
             onChange={(event) => setReason(event.target.value)}
             required
           />
-          <div className='flex justify-end gap-2'>
-            <Button variant='outline' onClick={() => setRejectItem(null)}>
+          <div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
+            <Button
+              variant='outline'
+              className='w-full sm:w-auto'
+              onClick={() => setRejectItem(null)}
+            >
               {t('Cancel')}
             </Button>
             <Button
               variant='destructive'
+              className='w-full sm:w-auto'
               disabled={!reason.trim() || acting}
               onClick={() => void reject()}
             >

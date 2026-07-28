@@ -33,7 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { useMediaQuery } from '@/hooks'
+import { useSmDown } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 
 import { deleteDeployment, listDeployments, searchDeployments } from '../api'
@@ -52,7 +52,7 @@ const route = getRouteApi('/_authenticated/models/$section')
 export function DeploymentsTable() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const isMobile = useMediaQuery('(max-width: 640px)')
+  const isMobile = useSmDown()
 
   // URL state (use dedicated keys so it won't collide with metadata table)
   const {

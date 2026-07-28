@@ -47,7 +47,7 @@ export function RecipeCard(props: RecipeCardProps) {
   return (
     <article
       ref={ref}
-      className='group border-border/70 bg-card relative isolate overflow-hidden rounded-2xl border shadow-xs transition-shadow duration-300 hover:shadow-lg'
+      className='group border-border/70 bg-card relative isolate overflow-hidden rounded-xl border shadow-xs transition-shadow duration-300 hover:shadow-lg'
     >
       <button
         type='button'
@@ -72,7 +72,7 @@ export function RecipeCard(props: RecipeCardProps) {
             className='size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]'
           />
           <div className='absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
-          <span className='bg-background/85 text-foreground absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium backdrop-blur'>
+          <span className='bg-background/85 text-foreground absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium backdrop-blur'>
             {isVideo ? (
               <Play className='size-3' aria-hidden='true' />
             ) : (
@@ -100,7 +100,7 @@ export function RecipeCard(props: RecipeCardProps) {
             {props.recipe.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className='bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px]'
+                className='bg-muted text-muted-foreground rounded-md px-2 py-0.5 text-[10px]'
               >
                 {tag}
               </span>

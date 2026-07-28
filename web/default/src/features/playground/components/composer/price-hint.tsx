@@ -76,7 +76,7 @@ export function PriceHintBadge(props: PriceHintBadgeProps) {
     <span
       className={cn(
         // Stay in the footer flow — never absolute/float over the textarea.
-        'relative z-10 inline-flex max-w-[9.5rem] shrink-0 items-center gap-1 truncate rounded-full bg-warning/10 px-2 py-0.5 text-[11px] leading-none font-medium text-warning ring-1 ring-warning/20 sm:max-w-[14rem]',
+        'relative z-10 inline-flex max-w-[9.5rem] shrink-0 items-center gap-1 truncate rounded-md bg-warning/10 px-2 py-0.5 text-[11px] leading-none font-medium text-warning ring-1 ring-warning/20 sm:max-w-[14rem]',
         props.className
       )}
       title={formatHintTitle(hint, t)}

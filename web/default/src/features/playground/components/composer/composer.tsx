@@ -65,7 +65,7 @@ export function ComposerShell(props: ComposerShellProps) {
       <PromptInput
         className='relative'
         groupClassName={cn(
-          'playground-composer-surface bg-background/95 dark:bg-background/85 border-border/70 ring-1 ring-foreground/5 rounded-2xl overflow-hidden',
+          'playground-composer-surface bg-background/95 dark:bg-background/85 border-border/70 ring-1 ring-foreground/5 rounded-xl overflow-hidden',
           // The composer manages its own disabled look; keep the InputGroup
           // from dimming the whole surface (and the Stop button) with it.
           'has-[[data-slot=input-group-control]:disabled]:opacity-100 has-[[data-slot=input-group-control]:disabled]:bg-background/95 dark:has-[[data-slot=input-group-control]:disabled]:bg-background/85',

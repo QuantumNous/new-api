@@ -797,8 +797,8 @@ export function PaymentSettingsSection({
             saveLabel='Save all settings'
           />
           <Tabs defaultValue='general' className='min-w-0'>
-            <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[52rem] grid-cols-7'>
+            <div className='pb-1'>
+              <TabsList className='flex h-auto flex-wrap justify-start gap-1'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
                 <TabsTrigger value='bank-qr'>{t('Bank QR')}</TabsTrigger>
