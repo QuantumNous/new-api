@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Tabs, TabPane, Tag } from '@douyinfe/semi-ui';
 import { CHANNEL_OPTIONS } from '../../../constants';
-import { getChannelIcon } from '../../../helpers';
+import { getChannelIcon } from '../../../helpers/lobe-icons';
 
 const ChannelsTabs = ({
   enableTagMode,

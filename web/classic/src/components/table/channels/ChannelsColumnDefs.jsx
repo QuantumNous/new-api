@@ -29,16 +29,8 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import {
-  timestamp2string,
-  renderGroup,
-  renderQuota,
-  getChannelIcon,
-  renderQuotaWithAmount,
-  showSuccess,
-  showError,
-  showInfo,
-} from '../../../helpers';
+import { timestamp2string, renderGroup, renderQuota, renderQuotaWithAmount, showSuccess, showError, showInfo } from '../../../helpers';
+import { getChannelIcon } from '../../../helpers/lobe-icons';
 import {
   CHANNEL_OPTIONS,
   MODEL_FETCHABLE_CHANNEL_TYPES,

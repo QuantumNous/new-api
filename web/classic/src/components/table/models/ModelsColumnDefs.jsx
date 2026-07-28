@@ -26,11 +26,8 @@ import {
   Modal,
   Tooltip,
 } from '@douyinfe/semi-ui';
-import {
-  timestamp2string,
-  getLobeHubIcon,
-  stringToColor,
-} from '../../../helpers';
+import { timestamp2string, stringToColor } from '../../../helpers';
+import { getLobeHubIcon } from '../../../helpers/lobe-icons';
 import {
   renderLimitedItems,
   renderDescription,

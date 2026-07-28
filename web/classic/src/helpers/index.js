@@ -23,6 +23,8 @@ export * from './utils';
 export * from './base64';
 export * from './api';
 export * from './render';
+// lobe-icons 勿从此 barrel 再导出：否则布局等入口 import helpers 时会把 @lobehub/icons 打进主包。
+// 请从 '@/helpers/lobe-icons' 或 '../../helpers/lobe-icons' 按需引入。
 export * from './log';
 export * from './data';
 export * from './token';

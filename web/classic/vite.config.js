@@ -83,6 +83,15 @@ export default defineConfig({
             'react-i18next',
             'i18next-browser-languagedetector',
           ],
+          // Keep @lobehub/icons out of manualChunks so named imports can tree-shake;
+          // full-library load stays behind import() in getLobeHubIcon.
+          // Do not force-split mermaid here: it can pull shared deps into a sync
+          // entry preload. Dynamic import() in MarkdownRenderer is enough.
+          vchart: [
+            '@visactor/vchart',
+            '@visactor/react-vchart',
+            '@visactor/vchart-semi-theme',
+          ],
         },
       },
     },

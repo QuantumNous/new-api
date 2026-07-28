@@ -34,13 +34,8 @@ import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
-import {
-  stringToColor,
-  calculateModelPrice,
-  formatPriceInfo,
-  formatDynamicPriceSummary,
-  getLobeHubIcon,
-} from '../../../../../helpers';
+import { stringToColor, calculateModelPrice, formatPriceInfo, formatDynamicPriceSummary } from '../../../../../helpers';
+import { getLobeHubIcon } from '../../../../../helpers/lobe-icons';
 import PricingCardSkeleton from './PricingCardSkeleton';
 import { useMinimumLoadingTime } from '../../../../../hooks/common/useMinimumLoadingTime';
 import { renderLimitedItems } from '../../../../common/ui/RenderUtils';

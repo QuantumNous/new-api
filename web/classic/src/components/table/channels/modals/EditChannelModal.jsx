@@ -50,13 +50,8 @@ import {
   Collapse,
   Dropdown,
 } from '@douyinfe/semi-ui';
-import {
-  getChannelModels,
-  copy,
-  getChannelIcon,
-  getModelCategories,
-  selectFilter,
-} from '../../../../helpers';
+import { getChannelModels, copy, selectFilter } from '../../../../helpers';
+import { getChannelIcon, getModelCategories } from '../../../../helpers/lobe-icons';
 import ModelSelectModal from './ModelSelectModal';
 import SingleModelSelectModal from './SingleModelSelectModal';
 import OllamaModelModal from './OllamaModelModal';

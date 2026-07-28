@@ -18,16 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useContext, useRef } from 'react';
-import {
-  API,
-  showError,
-  showSuccess,
-  timestamp2string,
-  renderGroupOption,
-  getCurrencyConfig,
-  getModelCategories,
-  selectFilter,
-} from '../../../../helpers';
+import { API, showError, showSuccess, timestamp2string, renderGroupOption, getCurrencyConfig, selectFilter } from '../../../../helpers';
+import { getModelCategories } from '../../../../helpers/lobe-icons';
 import {
   quotaToDisplayAmount,
   displayAmountToQuota,

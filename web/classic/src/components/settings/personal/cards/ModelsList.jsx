@@ -35,7 +35,7 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { IconChevronDown, IconChevronUp } from '@douyinfe/semi-icons';
 import { Settings } from 'lucide-react';
-import { renderModelTag, getModelCategories } from '../../../../helpers';
+import { renderModelTag, getModelCategories } from '../../../../helpers/lobe-icons';
 
 const ModelsList = ({ t, models, modelsLoading, copyText }) => {
   const [isModelsExpanded, setIsModelsExpanded] = useState(() => {

@@ -20,13 +20,8 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Tag, Space, Tooltip } from '@douyinfe/semi-ui';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
-import {
-  renderModelTag,
-  stringToColor,
-  calculateModelPrice,
-  getModelPriceItems,
-  getLobeHubIcon,
-} from '../../../../../helpers';
+import { stringToColor, calculateModelPrice, getModelPriceItems } from '../../../../../helpers';
+import { renderModelTag, getLobeHubIcon } from '../../../../../helpers/lobe-icons';
 import {
   renderLimitedItems,
   renderDescription,

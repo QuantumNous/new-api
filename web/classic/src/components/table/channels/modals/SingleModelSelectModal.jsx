@@ -33,7 +33,7 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { IconSearch } from '@douyinfe/semi-icons';
-import { getModelCategories } from '../../../../helpers/render';
+import { getModelCategories } from '../../../../helpers/lobe-icons';
 
 const SingleModelSelectModal = ({
   visible,
