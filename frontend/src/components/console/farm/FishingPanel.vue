@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import type { FishingState } from '@/types/farm'
+import { formatQuota } from '@/utils/format'
 
 defineProps<{
   fishing: FishingState
@@ -39,7 +40,7 @@ const rarityTone = (r: string): RarityTone =>
           {{ fishing.last_catch.name }}
         </p>
         <p class="text-xs text-[var(--text-tertiary)]">
-          +{{ (fishing.last_catch.quota / 500000).toFixed(4) }}$
+          +{{ formatQuota(fishing.last_catch.quota, 4) }}
         </p>
       </div>
       <StatusChip :tone="rarityTone(fishing.last_catch.rarity)">

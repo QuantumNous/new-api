@@ -4,7 +4,7 @@
 
 - `web/` 仍是当前生产前端，本轮不修改其构建和交付方式。
 - `frontend/` 独立开发、测试和构建，产物输出到 `frontend/dist/`。
-- 首页访问现有公开接口；Console 与 Lab 目前明确使用本地 Mock，不代表已经接入真实认证或后台业务接口。
+- 首页、认证、Console 与 Lab 默认统一使用本地 Mock，不代表已经接入真实认证或后台业务接口。
 
 ## 本地开发
 
@@ -13,7 +13,7 @@ bun install
 bun run dev
 ```
 
-开发服务器默认监听 `5175`，可通过 `VITE_DEV_PORT` 修改。`VITE_API_TARGET` 用于代理首页访问的现有公开 API。外部文档、发票和图片默认只允许同源地址；确需使用可信外部资源时，通过逗号分隔的 `VITE_TRUSTED_EXTERNAL_ORIGINS` 显式声明来源。
+开发服务器默认监听 `5175`，可通过 `VITE_DEV_PORT` 修改。`VITE_API_MODE=http` 可显式切换到同源 HTTP 后端，`VITE_API_TARGET` 配置开发代理目标；`VITE_PUBLIC_API_MODE` 仅在需要单独覆盖公开接口传输时使用，默认继承主模式。外部文档、发票和图片默认只允许同源地址；确需使用可信外部资源时，通过逗号分隔的 `VITE_TRUSTED_EXTERNAL_ORIGINS` 显式声明来源。
 
 ## 验证
 

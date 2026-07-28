@@ -99,9 +99,10 @@ const rightCells = computed(() =>
 )
 
 const monthTitle = (year: number, month: number) =>
-  locale.value.startsWith('zh')
-    ? `${year} 年 ${month + 1} 月`
-    : `${year}-${String(month + 1).padStart(2, '0')}`
+  new Intl.DateTimeFormat(locale.value, {
+    year: 'numeric',
+    month: 'long',
+  }).format(new Date(year, month, 1))
 
 const weekDays = computed(() => {
   // Monday-first labels; pick short localized names.
@@ -309,6 +310,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
           : 'border-transparent bg-[var(--surface-muted)] hover:bg-[var(--surface-hover)]',
         hasValue ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]',
       ]"
+      :style="hasValue ? { paddingRight: '2.75rem' } : undefined"
       aria-haspopup="dialog"
       :aria-label="t('logs.selectDateRange')"
       :aria-expanded="open"
@@ -329,28 +331,8 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
         <path d="M8 3v4M16 3v4M3 10h18" />
       </svg>
       <span class="min-w-0 flex-1 truncate">{{ triggerLabel }}</span>
-      <span
-        v-if="hasValue"
-        role="button"
-        tabindex="-1"
-        class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-        :aria-label="t('logs.clear')"
-        @click.stop="clear"
-      >
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          aria-hidden="true"
-        >
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
-      </span>
       <svg
-        v-else
+        v-if="!hasValue"
         class="shrink-0 text-[var(--text-tertiary)] transition-transform"
         :class="open ? 'rotate-180' : ''"
         width="14"
@@ -362,6 +344,25 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
         aria-hidden="true"
       >
         <path d="m6 9 6 6 6-6" />
+      </svg>
+    </button>
+    <button
+      v-if="hasValue"
+      type="button"
+      class="absolute right-2 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-ring"
+      :aria-label="t('logs.clear')"
+      @click="clear"
+    >
+      <svg
+        width="11"
+        height="11"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        aria-hidden="true"
+      >
+        <path d="M18 6 6 18M6 6l12 12" />
       </svg>
     </button>
 

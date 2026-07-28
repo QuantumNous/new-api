@@ -35,5 +35,8 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: true,
     timeout: 60_000,
+    // Visual fixtures intercept public same-origin API calls while Console/Lab
+    // routes continue to use the stateful mock transport.
+    env: { ...process.env, VITE_PUBLIC_API_MODE: 'http' },
   },
 })

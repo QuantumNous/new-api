@@ -4,6 +4,8 @@ import { authApi } from '@/api/auth'
 import { api } from '@/api/console'
 import { readDemoUser, writeDemoUser } from '@/api/demoStorage'
 import { resetMockState, setMockDelay } from '@/api/mock/state'
+import { adminRedemptionCodes, adminUsers } from '@/api/mock/data'
+import { farmPlots, ranchAnimals } from '@/api/mock/farm'
 import type { PageResult } from '@/api/types'
 import type { UserInfo } from '@/types/auth'
 import type { InviteInfo, MarketListing, TokenSummary } from '@/types/console'
@@ -232,17 +234,23 @@ describe('mock API input boundaries', () => {
 
   it('credits successful transfers and prevents redeem-code reuse', async () => {
     const before = await api.get<{ quota: number }>('/api/data/self')
+    const redeemable = adminRedemptionCodes.find(
+      (item) => item.type === 'quota' && item.status === 'unused'
+    )
+    if (!redeemable) throw new Error('expected an unused quota redemption code')
 
     await api.post('/api/invite/transfer', { amount: 1_000 })
     expect((await api.get<{ quota: number }>('/api/data/self')).quota).toBe(
       before.quota + 1_000
     )
 
-    await api.post('/api/user/topup/redeem', { code: 'PROMO-2026' })
+    await api.post('/api/user/topup/redeem', { code: redeemable.code })
     const afterRedeem = await api.get<{ quota: number }>('/api/data/self')
-    expect(afterRedeem.quota).toBe(before.quota + 5_001_000)
+    expect(afterRedeem.quota).toBe(
+      before.quota + 1_000 + (redeemable.quota ?? 0)
+    )
     await expect(
-      api.post('/api/user/topup/redeem', { code: 'promo-2026' })
+      api.post('/api/user/topup/redeem', { code: redeemable.code })
     ).rejects.toMatchObject({ business: true })
     expect((await api.get<{ quota: number }>('/api/data/self')).quota).toBe(
       afterRedeem.quota
@@ -274,6 +282,58 @@ describe('mock API input boundaries', () => {
     expect(spin.prize.type).toBe('quota')
     expect((await api.get<{ quota: number }>('/api/data/self')).quota).toBe(
       before.quota + checkin.reward + spin.prize.value
+    )
+  })
+
+  it('redeems only issued codes and applies the configured code value', async () => {
+    const before = await api.get<{ quota: number }>('/api/data/self')
+    await expect(
+      api.post('/api/user/topup/redeem', { code: 'NOT-A-REAL-CODE' })
+    ).rejects.toMatchObject({ business: true })
+
+    const code = adminRedemptionCodes.find(
+      (item) => item.type === 'concurrency' && item.status === 'unused'
+    )
+    if (!code) throw new Error('expected an unused concurrency code')
+    const response = await api.post<{ quota: number }>(
+      '/api/user/topup/redeem',
+      { code: code.code }
+    )
+    expect(response.quota).toBe(0)
+    expect((await api.get<{ quota: number }>('/api/data/self')).quota).toBe(
+      before.quota
+    )
+    expect(code.status).toBe('used')
+  })
+
+  it('credits farm quota rewards without inflating game coins', async () => {
+    const before = await api.get<{ quota: number }>('/api/data/self')
+    const farmBefore = await api.get<{ state: { coins: number } }>(
+      '/api/farm/self'
+    )
+    const readyPlot = farmPlots.find((plot) => plot.stage === 'ready')
+    if (!readyPlot) throw new Error('expected a ready farm plot')
+    const gained = readyPlot.yield_quota
+
+    await api.post(`/api/farm/harvest/${readyPlot.id}`)
+
+    expect((await api.get<{ quota: number }>('/api/data/self')).quota).toBe(
+      before.quota + gained
+    )
+    expect(
+      (await api.get<{ state: { coins: number } }>('/api/farm/self')).state
+        .coins
+    ).toBe(farmBefore.state.coins)
+
+    const readyAnimal = ranchAnimals.find((animal) => animal.yield_ready)
+    if (!readyAnimal) throw new Error('expected a collectible ranch animal')
+    const animalGained = readyAnimal.yield_quota
+    await api.post(`/api/farm/collect/animal/${readyAnimal.id}`)
+    expect((await api.get<{ quota: number }>('/api/data/self')).quota).toBe(
+      before.quota + gained + animalGained
+    )
+    expect(adminUsers.find((user) => user.id === 1)?.quota).toBe(
+      before.quota + gained + animalGained
     )
   })
 })

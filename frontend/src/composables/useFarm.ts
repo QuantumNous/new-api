@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
+import { useAuthStore } from '@/stores/auth'
 import type {
   FarmState,
   FarmPlot,
@@ -26,6 +27,7 @@ import { formatQuota } from '@/utils/format'
 export function useFarm() {
   const { t } = useI18n()
   const toast = useToast()
+  const auth = useAuthStore()
 
   const loading = ref(true)
   const acting = ref(false)
@@ -118,6 +120,7 @@ export function useFarm() {
       const res = await api.post<{ coins: number; gained: number }>(
         `/api/farm/harvest/${plotId}`
       )
+      await auth.fetchSelf()
       if (farmState.value) farmState.value.coins = res.coins
       const plot = plots.value.find((p) => p.id === plotId)
       if (plot) {
@@ -159,6 +162,7 @@ export function useFarm() {
       const res = await api.post<{ coins: number; gained: number }>(
         `/api/farm/collect/animal/${animalId}`
       )
+      await auth.fetchSelf()
       if (farmState.value) farmState.value.coins = res.coins
       const animal = animals.value.find((a) => a.id === animalId)
       if (animal) animal.yield_ready = false
@@ -180,6 +184,7 @@ export function useFarm() {
         daily_left: number
         coins: number
       }>('/api/farm/fish')
+      await auth.fetchSelf()
       if (farmState.value) farmState.value.coins = res.coins
       if (fishing.value) {
         fishing.value.daily_left = res.daily_left
@@ -187,7 +192,11 @@ export function useFarm() {
       }
       if (res.catch) {
         toast.success(
-          `${res.catch.emoji} ${res.catch.name} — ${res.catch.rarity}`
+          t('farm.fishing.catchToast', {
+            emoji: res.catch.emoji,
+            name: res.catch.name,
+            rarity: t(`farm.fishing.rarity.${res.catch.rarity}`),
+          })
         )
       }
     } catch (e) {

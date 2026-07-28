@@ -4,7 +4,18 @@ import {
   parsePricingModels,
   parsePublicStatus,
   parseUptimeGroups,
+  publicApi,
 } from '@/api/public'
+import { resetMockState, setMockDelay } from '@/api/mock/state'
+
+import { afterEach, beforeEach } from 'vitest'
+
+beforeEach(() => {
+  resetMockState()
+  setMockDelay(0)
+})
+
+afterEach(() => resetMockState())
 
 describe('public API response boundaries', () => {
   it('normalizes valid public response data', () => {
@@ -31,5 +42,19 @@ describe('public API response boundaries', () => {
     expect(() =>
       parseUptimeGroups([{ monitors: [{ uptime: 'offline', status: 0 }] }])
     ).toThrow()
+  })
+
+  it('serves every public endpoint from the mock transport', async () => {
+    const [status, notice, pricing, uptime] = await Promise.all([
+      publicApi.status(),
+      publicApi.notice(),
+      publicApi.pricing(),
+      publicApi.uptime(),
+    ])
+
+    expect(status.system_name).toBe('Ren2Hub')
+    expect(notice).toContain('gpt-image-2')
+    expect(pricing.length).toBeGreaterThan(0)
+    expect(uptime[0]?.monitors[0]?.uptime).toBeGreaterThan(0.99)
   })
 })

@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 
 import { useToast } from '@/composables/useToast'
 
+import { runEndpointProbe } from './endpointProbe'
+
 type ProbeStatus = 'idle' | 'testing' | 'success' | 'timeout' | 'error'
 
 interface ProbeResult {
@@ -66,7 +68,6 @@ async function probeEndpoint(id: string, url: string) {
   let timedOut = false
   controllers.set(id, controller)
   results[id] = { status: 'testing' }
-  const startedAt = performance.now()
   const timer = window.setTimeout(() => {
     timedOut = true
     controller.abort()
@@ -74,15 +75,10 @@ async function probeEndpoint(id: string, url: string) {
   timers.set(id, timer)
 
   try {
-    await fetch(url, {
-      method: 'HEAD',
-      mode: 'no-cors',
-      cache: 'no-store',
-      signal: controller.signal,
-    })
+    const latency = await runEndpointProbe(id, url, controller.signal)
     results[id] = {
       status: 'success',
-      latency: Math.max(1, Math.round(performance.now() - startedAt)),
+      latency,
     }
   } catch {
     results[id] = { status: timedOut ? 'timeout' : 'error' }

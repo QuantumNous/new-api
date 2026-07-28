@@ -1760,6 +1760,7 @@ export default {
       noLeft: '今日次数已用完',
       dailyLeft: '今日剩余 {n} 次',
       lastCatch: '上次收获',
+      catchToast: '{emoji} {name} · {rarity}',
       rarity: {
         common: '普通',
         rare: '稀有',

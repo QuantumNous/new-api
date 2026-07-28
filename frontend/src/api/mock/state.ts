@@ -17,7 +17,7 @@ export interface MockRuntime {
   nextListingId: number
   nextRedemptionCodeId: number
   marketSelfEarnings: number
-  redeemedCodes: Set<string>
+  concurrencyBonus: number
 }
 
 export interface MockState {
@@ -59,7 +59,7 @@ export const mockRuntime: MockRuntime = {
   nextRedemptionCodeId:
     Math.max(0, ...data.adminRedemptionCodes.map((c) => c.id)) + 1,
   marketSelfEarnings: 3_260_000,
-  redeemedCodes: new Set<string>(),
+  concurrencyBonus: 0,
 }
 
 export function createMockState(): MockState {
@@ -91,7 +91,7 @@ export function createMockState(): MockState {
         nextRedemptionCodeId:
           Math.max(0, ...data.adminRedemptionCodes.map((c) => c.id)) + 1,
         marketSelfEarnings: 3_260_000,
-        redeemedCodes: new Set<string>(),
+        concurrencyBonus: 0,
       })
       data.resetMockDataCounters()
       state.latencyMs = defaultLatencyMs

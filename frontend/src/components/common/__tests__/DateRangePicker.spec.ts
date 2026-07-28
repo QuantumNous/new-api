@@ -15,6 +15,11 @@ describe('DateRangePicker keyboard model', () => {
 
     const trigger = wrapper.get('button[aria-haspopup="dialog"]')
     expect(trigger.attributes('data-handdrawn')).toBe('control')
+    expect(trigger.find('button').exists()).toBe(false)
+    expect(
+      wrapper.get(`button[aria-label="${i18n.global.t('logs.clear')}"]`).element
+        .tagName
+    ).toBe('BUTTON')
 
     await trigger.trigger('click')
     await nextTick()

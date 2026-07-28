@@ -56,6 +56,7 @@ import type {
   Plan,
 } from '@/types/console'
 import { formatTime } from '@/utils/format'
+import { serializeSpreadsheet } from '@/utils/spreadsheetExport'
 
 const { t } = useI18n()
 
@@ -314,7 +315,7 @@ function cancelBulkDelete() {
 
 // CSV export (client-side, current filtered dataset)
 function exportCsv() {
-  const header = [
+  const headers = [
     'ID',
     'Code',
     'Type',
@@ -324,28 +325,24 @@ function exportCsv() {
     'UsedTime',
     'CreatedTime',
     'ExpiredTime',
-  ].join(',')
-  const lines = rows.value.map((c) =>
-    [
-      c.id,
-      c.code,
-      c.type,
-      formatRedemptionValue(c),
-      c.status,
-      c.redeemer_email || '',
-      c.used_time > 0 ? formatTime(c.used_time) : '',
-      formatTime(c.created_time),
-      c.expired_time === -1 ? 'never' : formatTime(c.expired_time),
-    ]
-      .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-      .join(',')
-  )
-  const csv = [header, ...lines].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  ]
+  const exportRows = rows.value.map((c) => [
+    c.id,
+    c.code,
+    c.type,
+    formatRedemptionValue(c),
+    c.status,
+    c.redeemer_email || '',
+    c.used_time > 0 ? formatTime(c.used_time) : '',
+    formatTime(c.created_time),
+    c.expired_time === -1 ? 'never' : formatTime(c.expired_time),
+  ])
+  const [content, mime, ext] = serializeSpreadsheet(headers, exportRows, 'csv')
+  const blob = new Blob([content], { type: mime })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `redemption-codes-${new Date().toISOString().slice(0, 10)}.csv`
+  a.download = `redemption-codes-${new Date().toISOString().slice(0, 10)}.${ext}`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)

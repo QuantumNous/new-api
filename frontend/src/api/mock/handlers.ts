@@ -221,6 +221,8 @@ function creditAccountQuota(amount: number): boolean {
   const quota = stored.quota + amount
   if (!Number.isSafeInteger(quota) || quota < 0) return false
   writeDemoUser({ ...stored, quota })
+  const adminRecord = adminUsers.find((user) => user.id === stored.id)
+  if (adminRecord) adminRecord.quota = quota
   return true
 }
 
@@ -245,7 +247,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 function ok<T>(data: T, message = ''): ApiResponse<T> {
-  return { success: true, message, data }
+  return { success: true, message, data: structuredClone(data) }
 }
 
 function fail<T = never>(message: string): ApiResponse<T> {
@@ -404,7 +406,12 @@ function parseAdminChannelPatch(
 
   if (Object.hasOwn(source, 'channel_ratio')) {
     const value = source.channel_ratio
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    if (
+      typeof value !== 'number' ||
+      !Number.isFinite(value) ||
+      value < 0 ||
+      value > 1_000
+    ) {
       return { error: '渠道倍率格式不正确' }
     }
     patch.channel_ratio = Math.round(value * 100) / 100
@@ -936,12 +943,31 @@ export async function dispatchMock<T>(
       logo: BRAND_LOGO_PATH,
       register_enabled: true,
       uptime_kuma_enabled: true,
+      HeaderNavModules: {
+        pricing: { enabled: true, requireAuth: false },
+        docs: true,
+        about: true,
+      },
     }) as ApiResponse<T>
   }
   if (path === '/api/notice' && method === 'GET') {
     return ok(
       'gpt-image-2 图像接口已上线；全线模型价格下调，透明计费。'
     ) as ApiResponse<T>
+  }
+  if (path === '/api/pricing' && method === 'GET') {
+    return ok(MODELS.map((_, index) => ({ id: index + 1 }))) as ApiResponse<T>
+  }
+  if (path === '/api/uptime/status' && method === 'GET') {
+    return ok([
+      {
+        monitors: [
+          { uptime: 0.9998, status: 1 },
+          { uptime: 0.9986, status: 1 },
+          { uptime: 0.9974, status: 1 },
+        ],
+      },
+    ]) as ApiResponse<T>
   }
 
   /* ---------------- auth ---------------- */
@@ -1032,7 +1058,9 @@ export async function dispatchMock<T>(
       quota: stored.quota,
       used_quota: stored.used_quota,
       model_share: modelShare,
-      limits: buildDashboardLimits(summary.subscription?.rate_limit),
+      limits: buildDashboardLimits(
+        (summary.subscription?.rate_limit ?? 60) + mockRuntime.concurrencyBonus
+      ),
       discounts: buildDashboardDiscounts(activePlan?.ratio ?? 1.0),
     }) as ApiResponse<T>
   }
@@ -1970,30 +1998,89 @@ export async function dispatchMock<T>(
     const code = String(body.code ?? '')
       .trim()
       .toUpperCase()
-    if (
-      !/^[A-Z0-9-]{8,64}$/.test(code) ||
-      mockRuntime.redeemedCodes.has(code)
-    ) {
+    if (!/^[A-Z0-9-]{8,64}$/.test(code)) {
       return fail('兑换码无效或已被使用') as ApiResponse<T>
     }
-    const redeemedQuota = 5_000_000
-    if (!creditAccountQuota(redeemedQuota)) {
-      return fail('账户余额更新失败') as ApiResponse<T>
+    const redemption = adminRedemptionCodes.find(
+      (item) => item.code.toUpperCase() === code
+    )
+    if (!redemption) {
+      return fail('兑换码不存在') as ApiResponse<T>
     }
-    mockRuntime.redeemedCodes.add(code)
-    topupRecords.unshift({
-      id: 1000 + topupRecords.length,
-      trade_no: `R${Date.now()}`,
-      amount: 10,
-      money: redeemedQuota,
-      method: 'redeem',
-      status: 'success',
-      created: Math.floor(Date.now() / 1000),
-    })
-    return ok({
-      message: '兑换成功，$10 已入账',
-      quota: redeemedQuota,
-    }) as ApiResponse<T>
+
+    const now = Math.floor(Date.now() / 1000)
+    if (
+      redemption.status !== 'unused' ||
+      (redemption.expired_time !== -1 && redemption.expired_time <= now)
+    ) {
+      if (
+        redemption.status === 'unused' &&
+        redemption.expired_time !== -1 &&
+        redemption.expired_time <= now
+      ) {
+        redemption.status = 'expired'
+      }
+      return fail('兑换码无效或已被使用') as ApiResponse<T>
+    }
+
+    let message: string
+    let creditedQuota = 0
+    if (redemption.type === 'quota') {
+      creditedQuota = redemption.quota ?? 0
+      if (!creditAccountQuota(creditedQuota)) {
+        return fail('账户余额更新失败') as ApiResponse<T>
+      }
+      topupRecords.unshift({
+        id: 1000 + topupRecords.length,
+        trade_no: `R${Date.now()}`,
+        amount: creditedQuota / 500_000,
+        money: creditedQuota,
+        method: 'redeem',
+        status: 'success',
+        created: now,
+      })
+      message = `兑换成功，${(creditedQuota / 500_000).toFixed(2)} 美元已入账`
+    } else if (redemption.type === 'concurrency') {
+      const bonus = redemption.concurrency ?? 0
+      if (!Number.isSafeInteger(bonus) || bonus <= 0) {
+        return fail('兑换码配置无效') as ApiResponse<T>
+      }
+      mockRuntime.concurrencyBonus += bonus
+      message = `兑换成功，已增加 ${bonus} 个并发额度`
+    } else if (redemption.type === 'subscription') {
+      const plan = findAdminPlan(redemption.plan_id ?? 0)
+      if (!plan) return fail('关联套餐不存在') as ApiResponse<T>
+      if (plan.kind === 'traffic') {
+        trafficEntitlements.unshift({
+          id: Math.max(0, ...trafficEntitlements.map((grant) => grant.id)) + 1,
+          plan_id: plan.id,
+          total_quota: plan.quota,
+          remain_quota: plan.quota,
+          granted_at: now,
+          expire_time: plan.validity
+            ? now + durationToSeconds(plan.validity)
+            : -1,
+        })
+      } else if (subscriptionEntitlement) {
+        subscriptionEntitlement.plan_id = plan.id
+        subscriptionEntitlement.period_used = 0
+        subscriptionEntitlement.period_start = now
+        subscriptionEntitlement.expire_time = now + durationToSeconds(plan.term)
+        subscriptionEntitlement.auto_renew = false
+      } else {
+        return fail('订阅状态不可用') as ApiResponse<T>
+      }
+      message = `兑换成功，${plan.name} 已生效`
+    } else {
+      message = '兑换成功，邀请资格已记录'
+    }
+
+    redemption.status = 'used'
+    redemption.used_time = now
+    const user = readDemoUser()
+    redemption.redeemer_id = user?.id ?? 0
+    redemption.redeemer_email = user?.email ?? ''
+    return ok({ message, quota: creditedQuota }) as ApiResponse<T>
   }
 
   /* ---------------- subscription ---------------- */
@@ -2705,7 +2792,9 @@ export async function dispatchMock<T>(
     if (!plot) return fail('地块不存在') as ApiResponse<T>
     if (plot.stage !== 'ready') return fail('作物尚未成熟') as ApiResponse<T>
     const gained = plot.yield_quota
-    farmState.coins += gained
+    if (!creditAccountQuota(gained)) {
+      return fail('账户余额更新失败') as ApiResponse<T>
+    }
     plot.stage = 'empty'
     plot.seed = null
     plot.planted_at = null
@@ -2733,7 +2822,9 @@ export async function dispatchMock<T>(
     if (!animal) return fail('动物不存在') as ApiResponse<T>
     if (!animal.yield_ready) return fail('暂无可收取的产出') as ApiResponse<T>
     const gained = animal.yield_quota
-    farmState.coins += gained
+    if (!creditAccountQuota(gained)) {
+      return fail('账户余额更新失败') as ApiResponse<T>
+    }
     animal.yield_ready = false
     return ok({ coins: farmState.coins, gained }) as ApiResponse<T>
   }
@@ -2760,9 +2851,11 @@ export async function dispatchMock<T>(
       rarityRoll < 70 ? 'common' : rarityRoll < 95 ? 'rare' : 'legendary'
     const pool = catchPool.filter((f) => f.rarity === rarity)
     const caught = pool[Math.floor(Math.random() * pool.length)]
+    if (!creditAccountQuota(caught.quota)) {
+      return fail('账户余额更新失败') as ApiResponse<T>
+    }
     fishingState.daily_left -= 1
     fishingState.last_catch = caught
-    farmState.coins += caught.quota
     return ok({
       catch: fishingState.last_catch,
       daily_left: fishingState.daily_left,

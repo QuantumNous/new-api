@@ -224,6 +224,7 @@ onBeforeUnmount(() => {
         ref="popoverRef"
         data-log-usage-popover
         role="dialog"
+        aria-modal="false"
         :aria-labelledby="popoverTitleId"
         class="fixed z-[100] w-64 rounded-lg border border-[var(--overlay-border)] bg-[var(--surface-overlay)] p-3 shadow-[var(--overlay-shadow)] backdrop-blur-xl"
         :class="

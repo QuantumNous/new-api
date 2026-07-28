@@ -1,5 +1,7 @@
 import { createApiClient } from './createClient'
 import { httpTransport } from './httpTransport'
+import { publicApiMode } from './mode'
+import { mockTransport } from './mock/transport'
 import { ApiError } from './types'
 
 export interface PublicStatus {
@@ -27,7 +29,9 @@ export interface UptimeGroup {
   monitors: UptimeMonitor[]
 }
 
-const publicClient = createApiClient(httpTransport)
+const publicClient = createApiClient(
+  publicApiMode === 'mock' ? mockTransport : httpTransport
+)
 
 function invalidResponse(endpoint: string): never {
   throw new ApiError(`Invalid public API response: ${endpoint}`, {

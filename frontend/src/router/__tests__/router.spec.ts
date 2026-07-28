@@ -47,7 +47,7 @@ describe('application router', () => {
     expect(router.currentRoute.value.name).toBe('models')
   })
 
-  it('opens the administrator channel list without a permission gate', async () => {
+  it('protects the administrator channel list with the permission gate', async () => {
     writeDemoUser(demoUser)
     await router.push('/console/channels')
 
@@ -55,6 +55,7 @@ describe('application router', () => {
     expect(router.currentRoute.value.meta).toMatchObject({
       wide: true,
       noPageScroll: true,
+      requiresAdmin: true,
     })
   })
 

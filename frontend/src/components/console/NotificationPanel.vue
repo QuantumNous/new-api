@@ -138,6 +138,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
       v-if="open"
       ref="panel"
       role="dialog"
+      aria-modal="false"
       :aria-label="t('nav.notifications')"
       class="absolute right-0 top-12 z-40 w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] shadow-[var(--overlay-shadow)] animate-scale-in"
       data-handdrawn="menu"

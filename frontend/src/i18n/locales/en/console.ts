@@ -1787,6 +1787,7 @@ export default {
       noLeft: 'No casts left today',
       dailyLeft: '{n} casts left today',
       lastCatch: 'Last catch',
+      catchToast: '{emoji} {name} · {rarity}',
       rarity: {
         common: 'Common',
         rare: 'Rare',

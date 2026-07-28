@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import KeyEndpointStrip from '@/components/console/keys/KeyEndpointStrip.vue'
+import { runEndpointProbe } from '@/components/console/keys/endpointProbe'
 import i18n, { loadMessageDomain } from '@/i18n'
 
 beforeAll(async () => {
@@ -52,8 +53,9 @@ describe('KeyEndpointStrip', () => {
     wrapper.unmount()
   })
 
-  it('shows measured latency after a successful probe', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response())
+  it('simulates endpoint latency without network access in mock mode', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     const wrapper = mountStrip()
 
@@ -62,18 +64,29 @@ describe('KeyEndpointStrip', () => {
         `[aria-label="${i18n.global.t('keys.endpoints.test', { name: i18n.global.t('keys.endpoints.defaultName') })}"]`
       )
       .trigger('click')
+    await vi.advanceTimersByTimeAsync(100)
     await flushPromises()
 
     expect(wrapper.text()).toMatch(/\d+ ms/)
+    expect(fetchMock).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('uses a cancellable HEAD request only in explicit HTTP mode', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response())
+    vi.stubGlobal('fetch', fetchMock)
+    const controller = new AbortController()
+
+    await expect(
+      runEndpointProbe('default', 'https://renai.uno', controller.signal, false)
+    ).resolves.toBeGreaterThan(0)
     expect(fetchMock).toHaveBeenCalledWith(
       'https://renai.uno',
       expect.objectContaining({ method: 'HEAD', mode: 'no-cors' })
     )
-    wrapper.unmount()
   })
 
-  it('reports a timeout when a probe exceeds five seconds', async () => {
-    vi.useFakeTimers()
+  it('cancels an in-flight HTTP probe', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((_url: string, init?: RequestInit) => {
@@ -84,17 +97,16 @@ describe('KeyEndpointStrip', () => {
         })
       })
     )
-    const wrapper = mountStrip()
+    const controller = new AbortController()
+    const pending = runEndpointProbe(
+      'default',
+      'https://renai.uno',
+      controller.signal,
+      false
+    )
 
-    await wrapper
-      .get(
-        `[aria-label="${i18n.global.t('keys.endpoints.test', { name: i18n.global.t('keys.endpoints.defaultName') })}"]`
-      )
-      .trigger('click')
-    await vi.advanceTimersByTimeAsync(5_000)
-    await flushPromises()
+    controller.abort()
 
-    expect(wrapper.text()).toContain(i18n.global.t('keys.endpoints.timeout'))
-    wrapper.unmount()
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

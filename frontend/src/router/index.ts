@@ -112,7 +112,11 @@ const router = createRouter({
           path: 'channels',
           name: 'channels',
           component: () => import('@/views/console/ChannelsView.vue'),
-          meta: { wide: true, noPageScroll: true },
+          meta: {
+            wide: true,
+            noPageScroll: true,
+            requiresAdmin: true,
+          },
         },
         {
           path: 'users',

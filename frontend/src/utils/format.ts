@@ -51,18 +51,20 @@ export function dateInputValue(offsetDays = 0): string {
 
 export function relativeTime(epochSec: number, locale = 'zh-CN'): string {
   const diff = Math.floor(Date.now() / 1000) - epochSec
+  const absolute = Math.abs(diff)
   const zh = locale.startsWith('zh')
-  if (diff < 60) return zh ? '刚刚' : 'just now'
-  if (diff < 3600) {
-    const m = Math.floor(diff / 60)
-    return zh ? `${m} 分钟前` : `${m}m ago`
+  if (absolute < 60) return zh ? '刚刚' : 'just now'
+  const direction = diff >= 0 ? (zh ? '前' : ' ago') : zh ? '后' : ' from now'
+  if (absolute < 3600) {
+    const minutes = Math.floor(absolute / 60)
+    return zh ? `${minutes} 分钟${direction}` : `${minutes}m${direction}`
   }
-  if (diff < 86_400) {
-    const h = Math.floor(diff / 3600)
-    return zh ? `${h} 小时前` : `${h}h ago`
+  if (absolute < 86_400) {
+    const hours = Math.floor(absolute / 3600)
+    return zh ? `${hours} 小时${direction}` : `${hours}h${direction}`
   }
-  const days = Math.floor(diff / 86_400)
-  if (days < 30) return zh ? `${days} 天前` : `${days}d ago`
+  const days = Math.floor(absolute / 86_400)
+  if (days < 30) return zh ? `${days} 天${direction}` : `${days}d${direction}`
   return formatDate(epochSec)
 }
 

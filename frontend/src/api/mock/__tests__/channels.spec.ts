@@ -250,6 +250,12 @@ describe('administrator channel mock API', () => {
         channel_ratio: Number.NaN,
       })
     ).rejects.toThrow('渠道倍率格式不正确')
+    await expect(
+      api.put('/api/channel/', {
+        id: created.id,
+        channel_ratio: 1_001,
+      })
+    ).rejects.toThrow('渠道倍率格式不正确')
 
     await api.delete(`/api/channel/${created.id}`)
     expect(adminChannels.some((channel) => channel.id === created.id)).toBe(
