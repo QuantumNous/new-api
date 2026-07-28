@@ -70,6 +70,8 @@ func TestSubscriptionStripeOrdinaryPromotionCodes(t *testing.T) {
 	require.Equal(t, "https://checkout.stripe.test/subscription", checkoutSession.URL)
 	require.Len(t, backend.params, 1)
 	params := backend.params[0]
+	require.NotNil(t, params.IdempotencyKey)
+	require.Equal(t, "subscription-stripe:sub_ref_ordinary", *params.IdempotencyKey)
 	require.NotNil(t, params.AllowPromotionCodes)
 	require.True(t, *params.AllowPromotionCodes)
 	require.Empty(t, params.Discounts)

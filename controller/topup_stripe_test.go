@@ -467,6 +467,10 @@ func TestStripeCheckoutSessionNoClaimAppliesBestAccountRecallOffer(t *testing.T)
 
 	require.Len(t, backend.params, 1)
 	params := backend.params[0]
+	require.NotNil(t, params.IdempotencyKey)
+	var persisted model.TopUp
+	require.NoError(t, model.DB.Where("user_id = ?", userID).First(&persisted).Error)
+	require.Equal(t, "topup-stripe:"+persisted.TradeNo, *params.IdempotencyKey)
 	require.Len(t, params.Discounts, 1)
 	require.Equal(t, "promo_topup_strong", *params.Discounts[0].PromotionCode)
 	require.Equal(t, fmt.Sprintf("%d", strongerCampaign.Id), params.Metadata["recall_campaign_id"])

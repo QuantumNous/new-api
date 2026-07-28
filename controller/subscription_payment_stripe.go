@@ -186,6 +186,7 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 	stripe.Key = setting.StripeApiSecret
 
 	params := buildStripeSubscriptionCheckoutSessionParams(referenceId, customerId, email, priceId, userId, planId)
+	params.SetIdempotencyKey("subscription-stripe:" + strings.TrimSpace(referenceId))
 	if recall != nil {
 		params.Discounts = append(params.Discounts, &stripe.CheckoutSessionDiscountParams{
 			PromotionCode: stripe.String(recall.PromotionCodeID),

@@ -2566,6 +2566,7 @@ func genStripeLink(referenceId string, customerId string, email string, checkout
 	}
 
 	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, checkout.PaymentCurrency, successURL, cancelURL, invoiceRequested, saveCard, embedded, submitMessage, recall)
+	params.SetIdempotencyKey("topup-stripe:" + strings.TrimSpace(referenceId))
 
 	result, err := session.New(params)
 	if err != nil {
