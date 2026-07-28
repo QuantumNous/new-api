@@ -45,26 +45,7 @@ func EmailMessageIDDomain() (string, error) {
 }
 
 func effectiveSMTPSender() (string, string, error) {
-	sender := strings.TrimSpace(SMTPFrom)
-	if sender == "" {
-		sender = strings.TrimSpace(SMTPAccount)
-	}
-	if sender == "" || containsEmailHeaderBreak(sender) {
-		return "", "", fmt.Errorf("invalid SMTP account")
-	}
-	parsed, err := mail.ParseAddress(sender)
-	if err != nil || parsed.Address != sender {
-		return "", "", fmt.Errorf("invalid SMTP account")
-	}
-	at := strings.LastIndexByte(sender, '@')
-	if at <= 0 || at == len(sender)-1 {
-		return "", "", fmt.Errorf("invalid SMTP account")
-	}
-	domain := strings.ToLower(sender[at+1:])
-	if !validEmailDomain(domain) {
-		return "", "", fmt.Errorf("invalid SMTP account")
-	}
-	return sender, domain, nil
+	return effectiveSMTPSenderFromConfig(SMTPFrom, SMTPAccount)
 }
 
 func validEmailDomain(domain string) bool {
@@ -115,14 +96,22 @@ func SendEmail(subject string, receiver string, content string) error {
 }
 
 func SendEmailWithMessageID(subject string, receiver string, content string, messageID string) error {
-	if SMTPServer == "" && SMTPAccount == "" {
-		return fmt.Errorf("SMTP 服务器未配置")
-	}
 	sender, _, err := effectiveSMTPSender()
 	if err != nil {
 		return err
 	}
-	message, err := buildEmailMessage(subject, receiver, content, messageID)
+	return SendEmailFromWithMessageID(sender, subject, receiver, content, messageID)
+}
+
+func SendEmailFromWithMessageID(from string, subject string, receiver string, content string, messageID string) error {
+	if SMTPServer == "" && SMTPAccount == "" {
+		return fmt.Errorf("SMTP 服务器未配置")
+	}
+	sender, _, err := parsePlainMailbox(from, "invalid SMTP sender")
+	if err != nil {
+		return err
+	}
+	message, err := buildEmailMessageFrom(sender, subject, receiver, content, messageID)
 	if err != nil {
 		return err
 	}
@@ -145,13 +134,21 @@ func SendEmailWithMessageID(subject string, receiver string, content string, mes
 }
 
 func buildEmailMessage(subject string, receiver string, content string, messageID string) ([]byte, error) {
+	sender, _, err := effectiveSMTPSender()
+	if err != nil {
+		return nil, err
+	}
+	return buildEmailMessageFrom(sender, subject, receiver, content, messageID)
+}
+
+func buildEmailMessageFrom(fromAddress string, subject string, receiver string, content string, messageID string) ([]byte, error) {
 	if containsEmailHeaderBreak(subject) || containsEmailHeaderBreak(receiver) || containsEmailHeaderBreak(messageID) {
 		return nil, fmt.Errorf("email headers must not contain CR or LF")
 	}
 	if err := ValidateEmailMessageID(messageID); err != nil {
 		return nil, err
 	}
-	sender, _, err := effectiveSMTPSender()
+	sender, _, err := parsePlainMailbox(fromAddress, "invalid SMTP sender")
 	if err != nil {
 		return nil, err
 	}
