@@ -587,11 +587,14 @@ function UsageChip({
     : null;
   const labelFor = (id: string) =>
     id === "unknown" ? "Unknown model" : modelLabels?.[id] || shortModel(id);
+  // One field per line, session-summed (owner ask 2026-07-28). Values are cumulative
+  // across the whole session, never just the last turn; "Input" is the fresh
+  // (uncached) share — the cached share sits in the cache rows at its own price.
   const stat = (label: string, value: number) => (
-    <span className="inline-flex items-baseline gap-1">
+    <div className="flex items-baseline justify-between text-[11.5px] leading-snug">
       <span className="text-faint">{label}</span>
       <span className="text-ink tabular-nums">{formatTokens(value)}</span>
-    </span>
+    </div>
   );
   return (
     <div className="relative">
@@ -655,7 +658,7 @@ function UsageChip({
                   <div className="text-[12px] text-ink font-medium truncate" title={id}>
                     {labelFor(id)}
                   </div>
-                  <div className="flex flex-wrap gap-x-3 text-[11.5px] leading-snug">
+                  <div className="mt-0.5 flex flex-col gap-0.5">
                     {stat("Input", t.input)}
                     {stat("Output", t.output)}
                     {t.cache_read > 0 && stat("Cache read", t.cache_read)}
