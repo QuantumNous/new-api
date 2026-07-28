@@ -69,6 +69,8 @@ function getConfiguredPresetAmounts(
 
 export function RechargeFormCard(props: RechargeFormCardProps) {
   const { t } = useTranslation()
+  const checkoutCurrency = props.checkoutCurrency ?? 'USD'
+  const checkoutCurrencySymbol = CURRENCY_SYMBOLS[checkoutCurrency]
   const stripeEnabled =
     props.topupInfo?.enable_stripe_topup ||
     props.topupInfo?.pay_methods?.some((method) => method.type === 'stripe')
@@ -130,7 +132,7 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
             stripePriceId,
             'topup',
             preset.value,
-            props.checkoutCurrency ?? 'USD'
+            checkoutCurrency
           )
           return (
             <Button
@@ -147,12 +149,13 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
               <span className='flex flex-col leading-tight'>
                 <span>
                   {recallDiscount
-                    ? `${CURRENCY_SYMBOLS[props.checkoutCurrency ?? 'USD']}${formatNumber(recallDiscount.discountedAmount)}`
+                    ? `${checkoutCurrencySymbol}${formatNumber(recallDiscount.discountedAmount)}`
                     : `$${formatNumber(preset.value)}`}
                 </span>
                 {recallDiscount ? (
                   <span className='text-[10px] font-medium line-through opacity-75'>
-                    ${formatNumber(preset.value)}
+                    {checkoutCurrencySymbol}
+                    {formatNumber(preset.value)}
                   </span>
                 ) : null}
               </span>

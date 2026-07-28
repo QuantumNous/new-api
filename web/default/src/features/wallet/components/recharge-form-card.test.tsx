@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from 'bun:test'
 import i18n from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { initReactI18next } from 'react-i18next'
-import type { TopupInfo } from '../types'
+import type { RecallOfferView, TopupInfo } from '../types'
 import { RechargeFormCard } from './recharge-form-card'
 
 const topupInfoWithStripe: TopupInfo = {
@@ -15,6 +15,31 @@ const topupInfoWithStripe: TopupInfo = {
   discount: {},
   bonus: {},
   enable_redemption: false,
+}
+
+const brlRecallOffer: RecallOfferView = {
+  campaign_id: 1,
+  recipient_id: 2,
+  issued_at: 1_700_000_000,
+  campaign_name: 'Come back',
+  promotion_code_masked: 'FKSE****34',
+  expires_at: 4_100_000_000,
+  discount: {
+    type: 'fixed',
+    percent_off: 0,
+    amount_off: 0,
+    currency: 'USD',
+    currency_options: { BRL: 200 },
+    minimum_amount: 0,
+    minimum_amount_currency: '',
+    coupon_redeem_by: 4_100_000_000,
+  },
+  products: {
+    topup_price_ids: ['price_topup_10'],
+    subscription_price_ids: [],
+    subscription_plan_ids: [],
+  },
+  redeemed: false,
 }
 
 describe('RechargeFormCard', () => {
@@ -77,5 +102,26 @@ describe('RechargeFormCard', () => {
     expect(html).not.toContain('$10')
     expect(html).toContain('$20')
     expect(html).toContain('$50')
+  })
+
+  test('uses checkout currency for both discounted and original recall top-up amounts', () => {
+    const html = renderToStaticMarkup(
+      <RechargeFormCard
+        topupInfo={{
+          ...topupInfoWithStripe,
+          stripe_price_ids: { 10: 'price_topup_10' },
+        }}
+        presetAmounts={[{ value: 10 }]}
+        selectedPreset={10}
+        onSelectPreset={() => undefined}
+        onStripeTopUp={() => undefined}
+        checkoutCurrency='BRL'
+        recallOffers={[brlRecallOffer]}
+      />
+    )
+
+    expect(html).toContain('R$8')
+    expect(html).toContain('R$10')
+    expect(html).not.toContain('>$10</span>')
   })
 })
