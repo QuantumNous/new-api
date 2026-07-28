@@ -38,7 +38,7 @@ import type { UserProfile } from '../types'
 interface ProfileHeaderProps {
   profile: UserProfile | null
   loading: boolean
-  subscription?: ProfileSubscriptionSummary | null
+  subscription: ProfileSubscriptionSummary | null
 }
 
 export function ProfileHeader(props: ProfileHeaderProps) {
@@ -101,7 +101,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
   const displayName = getDisplayName(props.profile)
   const initials = getUserInitials(props.profile)
   const roleLabel = getRoleLabel(props.profile.role)
-  const subscription = props.subscription ?? null
+  const subscription = props.subscription
   const stats = [
     {
       label: t('Total Usage'),
