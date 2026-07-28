@@ -24,7 +24,7 @@ import { buildSidebarData } from './use-sidebar-data'
 const t = ((key: string) => key) as TFunction
 
 describe('buildSidebarData', () => {
-  test('places available models between dashboard and API keys', () => {
+  test('hides compute from the user dashboard navigation', () => {
     const generalGroup = buildSidebarData(t).navGroups.find(
       (group) => group.id === 'general'
     )
@@ -36,7 +36,6 @@ describe('buildSidebarData', () => {
       '/dashboard/overview',
       '/dashboard/models',
       '/available-models',
-      '/compute',
       '/usage-logs/common',
       '/usage-logs/task',
     ])

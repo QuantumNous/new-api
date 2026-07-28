@@ -12,13 +12,8 @@ const fail = (file, message) => errors.push(`${file}: ${message}`);
 
 const appOnly = new Set(["console.html", "login.html", "onboarding.html", "signup.html"]);
 const localizedHomepages = new Set(["index.html", "zh.html", "es.html", "fr.html", "pt.html", "ru.html", "ja.html", "vi.html", "de.html", "id.html"]);
-const cssVersionOverrides = new Map([
-  ["index.html", "726d"],
-  ["cli.html", "728b"],
-  ["model.html", "726d"],
-  ["models.html", "726d"],
-  ["playground.html", "726d"],
-]);
+const sharedCssVersion = "728n";
+const shellScriptVersion = "728n";
 const i18nVersionOverrides = new Map([
   ["cli.html", "724b"],
   ["model.html", "726b"],
@@ -38,8 +33,7 @@ for (const file of files) {
   const viewports = [...html.matchAll(/<meta\s+name="viewport"\s+content="([^"]+)"/gi)];
   if (viewports.length !== 1) fail(file, `expected one viewport meta, found ${viewports.length}`);
   else if (!viewports[0][1].includes("width=device-width")) fail(file, `non-responsive viewport: ${viewports[0][1]}`);
-  const cssVersion = cssVersionOverrides.get(file) ?? (localizedHomepages.has(file) ? "726d" : "723c");
-  if (!html.includes(`fk2.css?v=${cssVersion}`)) fail(file, "missing the current shared CSS cache version");
+  if (!html.includes(`fk2.css?v=${sharedCssVersion}`)) fail(file, "missing the current shared CSS cache version");
   if (/\bid=""/.test(html)) fail(file, "contains an empty id");
   if (/<script\b[^>]*\bsrc=""/i.test(html)) fail(file, "contains an empty script src");
   if (/href="(?:#|javascript:[^"]*)"/i.test(html)) fail(file, "contains a placeholder or javascript link");
@@ -57,7 +51,7 @@ for (const file of files) {
   }
   const i18nVersion = i18nVersionOverrides.get(file) ?? (localizedHomepages.has(file) ? "727b" : "724a");
   const i18nScript = html.indexOf(`assets/i18n.js?v=${i18nVersion}`);
-  const shellScript = html.indexOf("assets/site-shell.js?v=720a");
+  const shellScript = html.indexOf(`assets/site-shell.js?v=${shellScriptVersion}`);
   const trackScript = html.indexOf("assets/track.js?v=721a");
   if (i18nScript === -1) fail(file, "missing the current locale-routing script version");
   if (shellScript === -1) fail(file, "missing the current responsive shell version");

@@ -88,6 +88,39 @@ test("website navigation applies the shared responsive Flatkey lockup", () => {
   }
 });
 
+test("desktop navigation folds destinations into accessible product, developer, and resource menus", () => {
+  const shell = read("../html/assets/site-shell.js");
+  const css = read("../html/fk2.css");
+
+  for (const group of ["products", "developers", "resources"]) {
+    assert.match(shell, new RegExp(`${group}: "[^"]+"`), `English ${group} label must exist`);
+    assert.match(shell, new RegExp(`desktop-nav-" \\+ key`));
+  }
+  for (const destination of [
+    "/models",
+    "/playground",
+    "/compute",
+    "/cli",
+    "/docs",
+    "/rankings",
+    "/usecases",
+    "/status",
+    "/api-marketplace",
+  ]) {
+    assert.match(shell, new RegExp(destination.replace("/", "\\/")));
+  }
+
+  assert.match(shell, /aria-haspopup/);
+  assert.match(shell, /aria-expanded/);
+  assert.match(shell, /event\.key === "ArrowDown"/);
+  assert.match(shell, /event\.key !== "Escape"/);
+  assert.match(shell, /!desktopGroups\.contains\(event\.target\)/);
+  assert.match(css, /\.desktop-nav-groups\{display:flex/);
+  assert.match(css, /\.nav-group\.is-open \.nav-group-menu/);
+  assert.match(css, /@media \(min-width:901px\) and \(max-width:1180px\)/);
+  assert.match(css, /@media \(max-width:900px\)\{\s*\.desktop-nav-groups\{display:none\}/);
+});
+
 test("legacy proxied pages visually use the shared responsive Flatkey lockup", () => {
   const css = read("../html/assets/legacy-skin.css");
   const nginx = read("../nginx.conf");

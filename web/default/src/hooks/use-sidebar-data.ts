@@ -94,11 +94,6 @@ export function buildSidebarData(
             icon: Box,
           },
           {
-            title: t('Compute'),
-            url: '/compute',
-            icon: Cpu,
-          },
-          {
             title: t('Usage Logs'),
             url: '/usage-logs/common',
             icon: FileText,

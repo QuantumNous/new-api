@@ -16,11 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
-import { ComputeDeploy } from '@/features/compute-deploy'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { DASHBOARD_DEFAULT_SECTION } from '@/features/dashboard/section-registry'
 
-// User-facing compute product line: any authenticated user can deploy compute
-// and reach the model catalog. Admin fleet management lives at /compute/nodes.
+// Keep the route reserved while self-service compute is unavailable. This
+// prevents saved links from exposing the hidden deployment dashboard.
 export const Route = createFileRoute('/_authenticated/compute/')({
-  component: ComputeDeploy,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/dashboard/$section',
+      params: { section: DASHBOARD_DEFAULT_SECTION },
+    })
+  },
 })
