@@ -1,0 +1,10 @@
+services:
+  new-api:
+    platform: linux/amd64
+    image: new-api:hide-user-ratios-amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TARGETOS: linux
+        TARGETARCH: amd64

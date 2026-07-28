@@ -64,7 +64,7 @@ import { ModelBadge } from '../model-badge'
 import { TimingMetricsCell, StreamTpsCell } from '../timing-metrics-cell'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
-interface DetailSegment {
+export interface DetailSegment {
   text: string
   muted?: boolean
   danger?: boolean
@@ -103,24 +103,21 @@ function buildDetailSegments(
   showRatio: boolean
 ): DetailSegment[] {
   const segments = buildTypeDetailSegments(log, other, t, showRatio)
-  // Quota saturation is a rare, admin-only anomaly marker; surface it first
-  // and in danger styling so it stands out on the related billing log. The
-  // backend already strips admin_info for non-admins; gate on isAdmin too as
-  // defense in depth so the marker never leaks if that changes.
+  // 配额钳制是少见的管理员异常标记，优先用危险样式展示，便于在相关计费日志中定位。
+  // 后端已经会为非管理员剥离 admin_info；这里继续按管理员身份判断，避免后续行为变化时泄露。
   if (isAdmin && other?.admin_info?.quota_saturation) {
     return [{ text: t('Quota clamped'), danger: true }, ...segments]
   }
   return segments
 }
 
-function buildTypeDetailSegments(
+export function buildTypeDetailSegments(
   log: UsageLog,
   other: LogOtherData | null,
   t: (key: string, opts?: Record<string, unknown>) => string,
   showRatio: boolean
 ): DetailSegment[] {
-  // Audit (type=3) and login (type=7) logs: render localized content from the
-  // structured op descriptor instead of the raw (English-fallback) content.
+  // 审计日志（type=3）和登录日志（type=7）使用结构化操作描述渲染本地化内容。
   if (log.type === 3 || log.type === 7) {
     const text = renderAuditContent(other, t)
     return text ? [{ text }] : []
