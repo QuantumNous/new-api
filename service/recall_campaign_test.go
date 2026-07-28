@@ -1907,7 +1907,7 @@ func TestNewAndEditableRecallMinimumAmountsCanonicalizeToUSD(t *testing.T) {
 				Enabled: false,
 				Amounts: map[string]int64{"usd": 2500, "inr": 200000, "brl": 12500, "jpy": 3750},
 			},
-			wantSpend: &RecallMinimumSpendConfig{},
+			wantSpend: &RecallMinimumSpendConfig{Amounts: map[string]int64{}},
 		},
 		{
 			name:             "legacy pair keeps exact requested currency when canonical missing",
@@ -1941,6 +1941,13 @@ func TestNewAndEditableRecallMinimumAmountsCanonicalizeToUSD(t *testing.T) {
 			require.Equal(t, tt.wantSpend, storedDraft.Discount.MinimumSpend)
 			require.Equal(t, tt.wantLegacyAmount, storedDraft.Discount.MinimumAmount)
 			require.Equal(t, tt.wantLegacyCurr, storedDraft.Discount.MinimumAmountCurrency)
+			if tt.wantSpend != nil && !tt.wantSpend.Enabled {
+				var persisted map[string]any
+				require.NoError(t, common.Unmarshal([]byte(campaign.DiscountConfig), &persisted))
+				minimumSpend, ok := persisted["minimum_spend"].(map[string]any)
+				require.True(t, ok)
+				require.Equal(t, map[string]any{}, minimumSpend["amounts"])
+			}
 
 			updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, storedDraft)
 			require.NoError(t, err)
@@ -1949,6 +1956,13 @@ func TestNewAndEditableRecallMinimumAmountsCanonicalizeToUSD(t *testing.T) {
 			require.Equal(t, tt.wantSpend, updatedDraft.Discount.MinimumSpend)
 			require.Equal(t, tt.wantLegacyAmount, updatedDraft.Discount.MinimumAmount)
 			require.Equal(t, tt.wantLegacyCurr, updatedDraft.Discount.MinimumAmountCurrency)
+			if tt.wantSpend != nil && !tt.wantSpend.Enabled {
+				var persisted map[string]any
+				require.NoError(t, common.Unmarshal([]byte(updated.DiscountConfig), &persisted))
+				minimumSpend, ok := persisted["minimum_spend"].(map[string]any)
+				require.True(t, ok)
+				require.Equal(t, map[string]any{}, minimumSpend["amounts"])
+			}
 		})
 	}
 }

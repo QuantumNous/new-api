@@ -336,7 +336,7 @@ func TestRecallStripeMinimumSpendNormalization(t *testing.T) {
 				MinimumAmountCurrency: "eur",
 				MinimumSpend:          &RecallMinimumSpendConfig{Enabled: false, Amounts: validAmounts()},
 			},
-			want: &RecallMinimumSpendConfig{},
+			want: &RecallMinimumSpendConfig{Amounts: map[string]int64{}},
 		},
 		{
 			name: "duplicate normalized key",

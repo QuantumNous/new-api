@@ -471,7 +471,7 @@ func normalizeRecallMinimumSpend(config *RecallMinimumSpendConfig) (*RecallMinim
 		return nil, nil
 	}
 	if !config.Enabled {
-		return &RecallMinimumSpendConfig{}, nil
+		return &RecallMinimumSpendConfig{Amounts: map[string]int64{}}, nil
 	}
 	amounts := make(map[string]int64, len(config.Amounts))
 	for rawCurrency, amount := range config.Amounts {
