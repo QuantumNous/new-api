@@ -9,7 +9,8 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 ## Tech Stack
 
 - **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
-- **Frontend**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
+- **Production frontend (`web/`)**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
+- **Vue frontend rewrite (`frontend/`)**: Vue 3.5, Vite 8, TypeScript, Pinia, Vue Router, Vue I18n, Tailwind CSS, ECharts, Axios, Vitest
 - **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
 - **Cache**: Redis (go-redis) + in-memory cache
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
@@ -35,22 +36,46 @@ types/         — Type definitions (relay formats, file sources, errors)
 i18n/          — Backend internationalization (go-i18n, en/zh)
 oauth/         — OAuth provider implementations
 pkg/           — Internal packages (cachex, ionet)
-web/           — Frontend (React 19, Rsbuild, Base UI, Tailwind)
+web/           — Production frontend (React 19, Rsbuild, Base UI, Tailwind)
   src/i18n/    — Frontend internationalization (i18next, en/zh/zh-TW/fr/ru/ja/vi)
+frontend/      — Vue rewrite under active development; not yet wired into the production Docker/Go embed path
+  src/api/         — Real public HTTP client plus stateful mock Console/Lab transport
+  src/canvas/      — Landing-page routing scene and animation engine
+  src/charts/      — ECharts adapters
+  src/components/  — common, home, auth, console, lab, and layout components
+  src/composables/ — Page-domain state and request lifecycles
+  src/constants/   — Home data and shared navigation definitions
+  src/i18n/        — Vue I18n setup and domain-split locale modules
+  src/router/      — Route definitions, lazy domains, and access guards
+  src/stores/      — Cross-route Pinia state (application and demo auth)
+  src/styles/      — Fonts, semantic tokens, base, home, and console styles
+  src/types/       — API and domain contracts
+  src/utils/       — Formatting and URL-safety helpers
+  src/views/       — Home, auth, Console, and Lab route views
 ```
 
 ## Internationalization (i18n)
 
 ### Backend (`i18n/`)
+
 - Library: `nicksnyder/go-i18n/v2`
 - Languages: en, zh
 
 ### Frontend (`web/src/i18n/`)
+
 - Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
 - Languages: en (base), zh (fallback), zh-TW, fr, ru, ja, vi
 - Translation files: `web/src/i18n/locales/{lang}.json` — flat JSON, keys are English source strings
 - Usage: `useTranslation()` hook, call `t('English key')` in components
 - CLI tools: `bun run i18n:sync` (from `web/`)
+
+### Vue Frontend (`frontend/src/i18n/`)
+
+- Library: `vue-i18n`
+- Languages: zh-CN and en
+- `common` and `home` are loaded with the initial bundle; `auth`, `console`, and `lab` are merged lazily by route domain.
+- Translation files: `frontend/src/i18n/locales/{en,zh-CN}/{common,auth,console,lab,home}.ts`
+- User-facing strings in Vue components must use `useI18n()` and stable translation keys.
 
 ## Rules
 
@@ -129,14 +154,21 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 
 ### Frontend Rules
 
-- Use `bun` as the preferred package manager and script runner for the frontend (`web/`):
+- Use `bun` as the package manager and script runner in both frontend directories:
   - `bun install` for dependency installation
   - `bun run dev` for development server
   - `bun run build` for production build
-  - `bun run i18n:*` for i18n tooling
-- Frontend UI text must support i18n with `i18next`/`react-i18next`. Use flat JSON locale files in `web/src/i18n/locales/{lang}.json`, with English source strings as keys.
-- In React components, use `useTranslation()` and call `t('English key')` for user-facing text.
-- Follow `web/AGENTS.md` for detailed frontend conventions, including TypeScript, component structure, styling, accessibility, testing, and build checks.
+  - Run commands from the frontend directory they target; do not share lockfiles or dependency trees between `web/` and `frontend/`.
+- For `web/`, UI text must use `i18next`/`react-i18next` and the flat JSON locales in `web/src/i18n/locales/{lang}.json`. Follow `web/AGENTS.md` for its React-specific conventions and checks.
+- For `frontend/`:
+  - Use Vue SFCs with `<script setup lang="ts">`, Composition API, and typed props/emits.
+  - Keep navigation definitions, API contracts, validation, and cross-route state single-sourced. Do not duplicate route menus or permission rules in components.
+  - All user-facing text must use Vue I18n. Keep `common` and `home` suitable for the initial bundle and add domain text to the matching lazy locale module.
+  - Public landing data uses real same-origin HTTP endpoints. Auth, Console, and Lab currently use the stateful mock transport and demo local storage; neither is proof of server-side authorization. Do not present mock guards or role flags as production security.
+  - Use semantic CSS tokens from `src/styles/tokens.css`; preserve light/dark parity and reduced-motion behavior.
+  - Abort or sequence-guard route/filter requests that can overlap, and clear timers/listeners on scope disposal.
+  - Validate in this order when applicable: `bun run test:run`, `bun run typecheck`, `bun run lint`, `bun run format:check`, then `bun run build`.
+  - Verify UI changes with Playwright at desktop and mobile sizes, in both light and dark themes for affected surfaces. Check overflow, focus/keyboard behavior, loading/error/empty states, and image failures.
 
 ### Project Governance
 

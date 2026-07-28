@@ -1,0 +1,10 @@
+node_modules/
+dist/
+output/
+tmp/
+*.local
+*.tsbuildinfo
+
+# illustration pipeline artifacts (candidates + run log)
+src/assets/illustrations/_review/
+illustrations-gen.log

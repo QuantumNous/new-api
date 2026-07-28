@@ -1,0 +1,600 @@
+/* Shared Desert Ledger / One Night semantic tokens. */
+:root {
+  color-scheme: light;
+
+  /* ===== 间距令牌 ===== */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --letter-spacing-wide: 0.12em;
+
+  /* ===== 字号令牌 ===== */
+  --text-label-sm: 14px;
+
+  /* ===== 日间主题：Desert Ledger（温和暖土） ===== */
+  --page-background: #f6f3eb;
+  --surface-solid: #fffdf8;
+  --surface-raised: rgba(255, 253, 248, 0.88);
+  --surface-table-header: #faf5ed;
+  --surface-muted: rgba(192, 139, 87, 0.07);
+  --surface-hover: rgba(192, 139, 87, 0.12);
+  --surface-overlay: #fbf6ec;
+  --overlay-border: rgba(192, 139, 87, 0.2);
+  --overlay-shadow:
+    2px 2px 0 rgba(56, 55, 43, 0.11), 5px 6px 0 rgba(56, 55, 43, 0.035),
+    0 16px 44px rgba(56, 55, 43, 0.12);
+  --surface-footer: #38372b;
+  /* Neutral surface contract consumed by shared components. Light aliases
+     preserve the existing Desert Ledger rendering exactly. */
+  --surface-container-lowest: var(--page-background);
+  --surface-container-low: var(--surface-raised);
+  --surface-container: var(--surface-solid);
+  --surface-container-high: var(--surface-table-header);
+  --surface-container-highest: var(--surface-overlay);
+  --outline: var(--border-default);
+  --outline-variant: var(--border-subtle);
+  --shape-control: var(--sketch-border-radius-sm);
+  --shape-card: var(--sketch-border-radius-lg);
+  --shape-overlay: var(--sketch-border-radius-lg);
+  --state-focus-layer: rgba(192, 139, 87, 0.14);
+  --focus-halo: 0 0 0 4px var(--state-focus-layer);
+  --brand-icon-shadow: drop-shadow(0 1px 2px rgba(56, 55, 43, 0.18));
+  --media-scrim-strong: rgba(0, 0, 0, 0.62);
+  --media-scrim-medium: rgba(0, 0, 0, 0.32);
+  --media-scrim-soft: rgba(0, 0, 0, 0.05);
+  --chart-grid-line: rgba(56, 55, 43, 0.08);
+  --button-shadow:
+    2px 3px 0 rgba(56, 55, 43, 0.18), 0 4px 14px var(--shadow-color);
+  --button-shadow-hover:
+    3px 4px 0 rgba(56, 55, 43, 0.18), 0 8px 20px var(--shadow-color);
+  --stamp-shadow: 2px 2px 0 rgba(56, 55, 43, 0.22);
+  --menu-shadow: 0 24px 46px var(--shadow-color);
+  --ink-surface-muted: rgba(244, 242, 232, 0.08);
+  --text-primary: #38372b;
+  --text-secondary: #5c5946;
+  --text-tertiary: #6c6955;
+  --text-tertiary-base: #6c6955;
+  --text-inverse: #f6f3eb;
+  --border-default: rgba(56, 55, 43, 0.14);
+  --border-subtle: rgba(56, 55, 43, 0.08);
+  --border-strong: rgba(192, 139, 87, 0.42);
+  --accent: #d8984c;
+  --accent-text: #805a32;
+  --accent-rgb: 216 152 76;
+  --accent-hover: #c08b57;
+  --accent-active: #a87643;
+  --accent-soft: rgba(216, 152, 76, 0.16);
+  --accent-contrast: #403728;
+  --signal: #74765a;
+  --signal-rgb: 116 118 90;
+  --signal-strong: #5c5e45;
+  --signal-bright: #9a9c7c;
+  --signal-soft: #e9e9da;
+  --signal-deep: #38372b;
+  --support: #cfaf6b;
+  --support-strong: #a98c4e;
+  --on-colored: #f4f2e8;
+  /* 草甸绿点缀族：田园航拍（草甸中绿/树篱深绿/麦茬金）推导，仅作点缀、暖土基调不动 */
+  --glow: #7fa463;
+  --glow-strong: #5f7d47;
+  --glow-bright: #a9c68a;
+  --glow-rgb: 127 164 99;
+  --live-dot: #5f7d47;
+  --live-dot-rgb: 95 125 71;
+  --hero-title-gradient-start: #c8a030;
+  --hero-title-gradient-middle: #5ea898;
+  --hero-title-gradient-end: #9a3d1c;
+  --hero-title-cursor: #9a3d1c;
+  --focus-ring: #c08b57;
+  --shadow-color: rgba(56, 55, 43, 0.16);
+  --card-shadow:
+    2px 2px 0 rgba(56, 55, 43, 0.11), 5px 6px 0 rgba(56, 55, 43, 0.035),
+    0 12px 28px rgba(56, 55, 43, 0.075);
+  --card-shadow-hover:
+    3px 3px 0 rgba(56, 55, 43, 0.14), 6px 7px 0 rgba(56, 55, 43, 0.04),
+    0 16px 34px rgba(56, 55, 43, 0.09);
+  --status-success: #64764b;
+  --status-success-text: #52623d;
+  --status-success-soft: rgba(100, 118, 75, 0.14);
+  --status-warning: #a87b2a;
+  --status-warning-text: #7a5618;
+  --status-warning-soft: rgba(168, 123, 42, 0.14);
+  --status-danger: #9d3017;
+  --status-danger-text: #9d3017;
+  --status-danger-soft: rgba(157, 48, 23, 0.12);
+  --status-info: #74765a;
+  --status-info-text: #5c5e45;
+  --status-info-soft: rgba(116, 118, 90, 0.12);
+  --footer-text-primary: #f4f2e8;
+  --footer-text-secondary: #d1d3bf;
+  --footer-text-tertiary: #9b9c86;
+  --footer-accent: #d8984c;
+  --footer-border: rgba(209, 211, 191, 0.18);
+
+  /* Signal Console：账本文字压在浅色地图上的亮色光晕（夜间为深色）。 */
+  --console-glow: rgba(246, 243, 235, 0.96);
+
+  /* 移动端光学玻璃令牌（Ticker 材质） */
+  --glass-bg: rgba(255, 253, 248, 0.52);
+  --glass-border: rgba(56, 55, 43, 0.1);
+
+  /* Hero overlays change tone without changing the layer structure. */
+  --hero-depth-overlay:
+    radial-gradient(
+      980px 660px at 42% 52%,
+      rgba(216, 152, 76, 0.14),
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(246, 243, 235, 0.22) 0%,
+      rgba(236, 230, 212, 0.06) 35%,
+      rgba(246, 243, 235, 0.42) 100%
+    );
+  /* Keep the routing scene visible while preventing model nodes from crossing
+     desktop copy. The fade remains unframed and disappears before the hub. */
+  --hero-copy-overlay:
+    radial-gradient(
+      760px 590px at 82% 49%,
+      rgba(246, 243, 235, 0.94) 0%,
+      rgba(246, 243, 235, 0.82) 54%,
+      rgba(246, 243, 235, 0.24) 76%,
+      transparent 90%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 38%,
+      rgba(246, 243, 235, 0.12) 54%,
+      rgba(246, 243, 235, 0.68) 100%
+    );
+  --home-hero-copy-overlay: none;
+  --hero-mobile-depth-overlay:
+    radial-gradient(
+      780px 560px at 50% 26%,
+      rgba(216, 152, 76, 0.16),
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(246, 243, 235, 0.22) 0%,
+      rgba(236, 230, 212, 0.06) 35%,
+      rgba(246, 243, 235, 0.42) 100%
+    );
+  --hero-vignette: inset 0 0 220px 60px rgba(56, 55, 43, 0.12);
+  --drawer-backdrop: rgba(43, 42, 32, 0.42);
+  --scroll-track: #f6f3eb;
+  --scroll-thumb: rgba(192, 139, 87, 0.28);
+  --scroll-thumb-hover: rgba(192, 139, 87, 0.52);
+
+  /* ===== 手账质感令牌（雅致 × 手绘装饰层） ===== */
+  /* 展示字型仅用于 hero 级标题；正文与工作区维持 sans。 */
+  --font-display:
+    'Ren2NotoSerifSC', 'Noto Serif SC', 'Source Han Serif SC', 'STZhongsong',
+    'SimSun', Georgia, serif;
+  --surface-tile: #f6e8c9;
+  --border-dashed-color: rgba(56, 55, 43, 0.24);
+  /* 静态纸纹噪点：作为 background-image 叠在页面底色上，无层级成本。 */
+  --paper-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.22 0 0 0 0 0.215 0 0 0 0 0.17 0 0 0 0.055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  /* Legacy Tailwind colour slots are aliases to the semantic theme. */
+  --color-white: 255 253 248;
+  --color-black: 56 55 43;
+  --color-brand-50: 244 244 236;
+  --color-brand-100: 233 233 218;
+  --color-brand-200: 209 211 191;
+  --color-brand-300: 178 181 152;
+  --color-brand-400: 148 151 116;
+  --color-brand-500: 116 118 90;
+  --color-brand-600: 92 94 69;
+  --color-brand-700: 72 73 53;
+  --color-brand-800: 56 55 43;
+  --color-brand-900: 38 37 28;
+  --color-accent-50: 251 244 230;
+  --color-accent-100: 246 232 201;
+  --color-accent-200: 238 214 160;
+  --color-accent-300: 228 194 118;
+  --color-accent-400: 222 173 88;
+  --color-accent-500: 216 152 76;
+  --color-accent-600: 192 139 87;
+  --color-accent-700: 168 118 67;
+  --color-accent-800: 128 90 50;
+  --color-accent-900: 84 59 33;
+
+  --brand-scan: var(--accent);
+  --brand-soft: var(--accent-soft);
+  --foreground: var(--text-primary);
+
+  /* ===== 手绘装饰令牌 — Desert Ledger（日间：浓墨手账） ===== */
+  /* 歪斜幅度加大 40%：手持绘制感更明显 */
+  --sketch-border-radius-sm: 7px 10px 8px 5px / 5px 8px 10px 7px;
+  --sketch-border-radius-md: 12px 16px 13px 15px / 14px 12px 16px 13px;
+  --sketch-border-radius-lg: 18px 22px 16px 20px / 17px 21px 18px 22px;
+  --sketch-border-width: 1.5px;
+  /* Graphite system: the first line defines structure, the second pass stays
+     visibly imperfect, and construction marks remain quieter than content. */
+  --pencil-line: rgba(56, 55, 43, 0.58);
+  --pencil-line-strong: rgba(56, 55, 43, 0.72);
+  --pencil-line-soft: rgba(56, 55, 43, 0.27);
+  --pencil-line-faint: rgba(56, 55, 43, 0.12);
+  --pencil-line-erased: rgba(246, 243, 235, 0.72);
+  --pencil-wash: rgba(192, 139, 87, 0.055);
+  --pencil-wash-strong: rgba(216, 152, 76, 0.12);
+  --pencil-construction: rgba(56, 55, 43, 0.075);
+  --pencil-echo-offset: 2px;
+  --pencil-dash-length: 7px;
+  --pencil-dash-gap: 5px;
+  --pencil-surface-shadow:
+    2px 2px 0 rgba(56, 55, 43, 0.11), 5px 6px 0 rgba(56, 55, 43, 0.035),
+    0 12px 28px rgba(56, 55, 43, 0.075);
+  --pencil-surface-shadow-hover:
+    3px 3px 0 rgba(56, 55, 43, 0.14), 6px 7px 0 rgba(56, 55, 43, 0.04),
+    0 16px 34px rgba(56, 55, 43, 0.09);
+  --pencil-control-shadow:
+    1px 1.5px 0 rgba(56, 55, 43, 0.12), 0 4px 12px rgba(56, 55, 43, 0.055);
+  --pencil-progress-track: rgba(56, 55, 43, 0.11);
+  /* 马克笔投影：offset 更实 */
+  --card-sketch-shadow:
+    3px 4px 0 rgba(56, 55, 43, 0.13), 0 10px 28px rgba(56, 55, 43, 0.1);
+  --card-sketch-shadow-hover:
+    4px 5px 0 rgba(56, 55, 43, 0.16), 0 16px 40px rgba(56, 55, 43, 0.15);
+  --dec-stamp: rgba(157, 48, 23, 0.18);
+  --dec-gold-line: rgba(192, 139, 87, 0.32);
+  --dec-leaf: rgba(127, 164, 99, 0.26);
+  --dec-grid-line: rgba(56, 55, 43, 0.07);
+  --surface-warm-tile: #fdf6e3;
+  --brush-highlight-bg: var(--accent-soft);
+  /* brush-highlight 形态参数：日间 = 笔刷色块；夜间覆盖为细金下划线 */
+  --brush-highlight-height: 38%;
+  --brush-highlight-skew: -5deg;
+  --brush-highlight-clip: polygon(
+    0% 20%,
+    4% 0%,
+    97% 8%,
+    100% 55%,
+    96% 100%,
+    2% 92%
+  );
+  /* 墨线分隔：AI 生成干刷笔触 PNG（夜间退化为金色 hairline） */
+  --divider-ink: url('../assets/textures/divider-ink.png');
+  --divider-ink-height: 5px;
+  /* 统一交互状态层（日间暖土系；夜间覆盖为星辉金 MD state layer） */
+  --state-hover-layer: rgba(192, 139, 87, 0.1);
+  --state-press-layer: rgba(192, 139, 87, 0.16);
+  /* MD elevation 别名：日间映射回铅笔投影体系 */
+  --elevation-1:
+    0 1px 2px rgba(56, 55, 43, 0.07), 0 2px 6px rgba(56, 55, 43, 0.05);
+  --elevation-2: var(--card-sketch-shadow);
+  --elevation-3: var(--card-sketch-shadow-hover);
+  --elevation-5: var(--overlay-shadow);
+  /* 表格行分隔样式参数（日间虚线账本；夜间 solid hairline） */
+  --row-divider-style: dashed;
+  --row-divider-color: var(--dec-grid-line);
+  /* 台账 ruling：日间横线格；夜间 none */
+  --ledger-ruling: repeating-linear-gradient(
+    transparent 0 39px,
+    var(--dec-grid-line) 39px 40px
+  );
+  /* StatusChip 左色条宽度（夜间归零转 MD tonal chip） */
+  --chip-bar-width: 2.5px;
+  --chip-radius: 4px 6px 5px 5px / 5px 4px 6px 4px;
+  /* 大数字字重：日间浓墨 700；夜间雅致 500 */
+  --display-number-weight: 700;
+  /* Tab 激活条形态：日间收边刷痕；夜间金色圆头光晕 */
+  --tab-bar-clip: inset(0 8% round 9999px);
+  --tab-bar-glow: none;
+  /* 图表线发光（夜间启用） */
+  --chart-line-glow: transparent;
+  /* 金色 hairline 渐变（夜间分隔线用） */
+  --hairline-gold: linear-gradient(
+    90deg,
+    transparent,
+    rgba(192, 139, 87, 0.34) 30%,
+    rgba(192, 139, 87, 0.34) 70%,
+    transparent
+  );
+  /* ===== 登录页中转动画（日间：墨线手绘，芯片带铅笔投影与朱砂印点） ===== */
+  --relay-line: rgba(56, 55, 43, 0.28);
+  /* 铅笔回描：主线下方半像素的第二道淡痕，只有日间存在 */
+  --relay-line-echo: rgba(56, 55, 43, 0.1);
+  --relay-guide-dash: 5 3 2 4;
+  --relay-chip-fill: #fffdf8;
+  --relay-chip-border: rgba(56, 55, 43, 0.34);
+  --relay-chip-radius: 3px 5px 4px 3px / 4px 3px 5px 3px;
+  --relay-chip-shadow: 2px 2px 0 rgba(56, 55, 43, 0.12);
+  --relay-packet-cap: butt;
+  --relay-packet-glow: none;
+  --relay-label-weight: 600;
+
+  /* AI 和纸纹理：真实纤维 tile（透明度已烘焙），叠加于页面底色 */
+  --paper-texture-img: url('../assets/textures/paper-day.webp');
+  --night-texture-img: none;
+}
+
+html.dark {
+  color-scheme: dark;
+
+  /* ===== 夜间主题：One Night（沉静炭蓝） ===== */
+  --page-background: #262a34;
+  --surface-solid: #2e3240;
+  --surface-raised: rgba(46, 50, 64, 0.88);
+  --surface-table-header: #373b4c;
+  --surface-muted: rgba(106, 140, 184, 0.07);
+  --surface-hover: rgba(106, 140, 184, 0.12);
+  --surface-overlay: #343948;
+  --overlay-border: rgba(152, 164, 192, 0.18);
+  --overlay-shadow:
+    0 1px 2px rgba(0, 4, 16, 0.5), 0 18px 48px rgba(0, 4, 16, 0.55);
+  --surface-footer: #181b24;
+  --text-primary: #dee3f0;
+  --text-secondary: #98a4c0;
+  --text-tertiary: #96a2bf;
+  --text-tertiary-base: #96a2bf;
+  --text-inverse: #262a34;
+  --border-default: rgba(152, 164, 192, 0.13);
+  --border-subtle: rgba(152, 164, 192, 0.07);
+  --border-strong: rgba(226, 188, 85, 0.42);
+  --accent: #e2bc55;
+  --accent-text: #e2bc55;
+  --accent-rgb: 226 188 85;
+  --accent-hover: #efd27e;
+  --accent-active: #c9a243;
+  --accent-soft: rgba(226, 188, 85, 0.16);
+  --accent-contrast: #1f1a08;
+  --signal: #6a8cb8;
+  --signal-rgb: 106 140 184;
+  --signal-strong: #364f72;
+  --signal-bright: #a8c4e8;
+  --signal-soft: #232d42;
+  --signal-deep: #1a2236;
+  --support: #e8a4c4;
+  --support-strong: #d484ae;
+  --on-colored: #e8edf8;
+  /* 薄荷绿点缀族：炭蓝底 + 星辉金主色之外的活力补色，
+     柔化霓虹感（比旧萤绿更哑、更专业）。 */
+  --glow: #8ec8aa;
+  --glow-strong: #6db897;
+  --glow-bright: #b8e8d0;
+  --glow-rgb: 142 200 170;
+  --live-dot: #8ec8aa;
+  --live-dot-rgb: 142 200 170;
+  --hero-title-gradient-start: #efd27e;
+  --hero-title-gradient-middle: #8ec8aa;
+  --hero-title-gradient-end: #a8c4e8;
+  --hero-title-cursor: #e2bc55;
+  --focus-ring: #efd27e;
+  --shadow-color: rgba(0, 4, 16, 0.62);
+  --card-shadow:
+    0 1px 2px rgba(0, 4, 16, 0.4), 0 12px 36px rgba(0, 4, 16, 0.48);
+  --card-shadow-hover:
+    0 2px 6px rgba(0, 4, 16, 0.5), 0 20px 52px rgba(0, 4, 16, 0.6);
+  --status-success: #7ec49a;
+  --status-success-text: #7ec49a;
+  --status-success-soft: rgba(126, 196, 154, 0.14);
+  --status-warning: #c9a95c;
+  --status-warning-text: #d8bb70;
+  --status-warning-soft: rgba(201, 169, 92, 0.14);
+  --status-danger: #e89898;
+  --status-danger-text: #f0a8a8;
+  --status-danger-soft: rgba(232, 152, 152, 0.15);
+  --status-info: #7aacdc;
+  --status-info-text: #8dc4f0;
+  --status-info-soft: rgba(122, 172, 220, 0.14);
+  --footer-text-primary: #dee3f0;
+  --footer-text-secondary: #98a4c0;
+  --footer-text-tertiary: #636e8a;
+  --footer-accent: #e2bc55;
+  --footer-border: rgba(152, 164, 192, 0.12);
+
+  --console-glow: rgba(22, 26, 40, 0.96);
+
+  /* 移动端光学玻璃令牌（Ticker 材质） */
+  --glass-bg: rgba(46, 50, 64, 0.4);
+  --glass-border: rgba(152, 164, 192, 0.14);
+
+  --hero-depth-overlay:
+    radial-gradient(
+      980px 660px at 42% 52%,
+      rgba(226, 188, 85, 0.1),
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(22, 26, 40, 0.5) 0%,
+      rgba(38, 42, 52, 0.1) 35%,
+      rgba(38, 42, 52, 0.5) 100%
+    );
+  --hero-copy-overlay:
+    radial-gradient(
+      720px 560px at 81% 51%,
+      rgba(22, 26, 40, 0.78) 0%,
+      rgba(22, 26, 40, 0.54) 56%,
+      rgba(22, 26, 40, 0.12) 78%,
+      transparent 90%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 32%,
+      rgba(22, 26, 40, 0.12) 51%,
+      rgba(22, 26, 40, 0.64) 100%
+    );
+  --home-hero-copy-overlay:
+    radial-gradient(
+      720px 560px at 81% 51%,
+      rgba(22, 26, 40, 0.48) 0%,
+      rgba(22, 26, 40, 0.24) 56%,
+      transparent 78%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 32%,
+      rgba(22, 26, 40, 0.06) 51%,
+      rgba(22, 26, 40, 0.38) 100%
+    );
+  --hero-mobile-depth-overlay:
+    radial-gradient(
+      780px 560px at 50% 26%,
+      rgba(226, 188, 85, 0.1),
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(22, 26, 40, 0.5) 0%,
+      rgba(38, 42, 52, 0.1) 35%,
+      rgba(38, 42, 52, 0.5) 100%
+    );
+  --hero-vignette: inset 0 0 220px 60px rgba(8, 10, 20, 0.78);
+  --drawer-backdrop: rgba(8, 10, 20, 0.65);
+  --scroll-track: #262a34;
+  --scroll-thumb: #3c4258;
+  --scroll-thumb-hover: #4c5470;
+
+  /* 手账质感令牌：夜间为浅色噪点与星辉金砖底。 */
+  --surface-tile: rgba(226, 188, 85, 0.12);
+  --border-dashed-color: rgba(152, 164, 192, 0.28);
+  --paper-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.87 0 0 0 0 0.89 0 0 0 0 0.94 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  --color-white: 222 227 240;
+  --color-black: 38 42 52;
+  --color-brand-50: 236 240 250;
+  --color-brand-100: 210 222 240;
+  --color-brand-200: 168 196 232;
+  --color-brand-300: 130 168 208;
+  --color-brand-400: 106 140 184;
+  --color-brand-500: 82 112 156;
+  --color-brand-600: 54 79 114;
+  --color-brand-700: 38 56 88;
+  --color-brand-800: 35 45 66;
+  --color-brand-900: 26 34 54;
+  --color-accent-50: 253 248 230;
+  --color-accent-100: 250 239 199;
+  --color-accent-200: 245 228 156;
+  --color-accent-300: 239 210 126;
+  --color-accent-400: 232 196 88;
+  --color-accent-500: 226 188 85;
+  --color-accent-600: 201 162 67;
+  --color-accent-700: 160 128 52;
+  --color-accent-800: 117 94 40;
+  --color-accent-900: 74 60 26;
+
+  --brand-scan: var(--accent);
+  --brand-soft: var(--accent-soft);
+  --foreground: var(--text-primary);
+
+  /* ===== 夜间覆盖 — One Night：Material × Elegant ===== */
+  /* 去歪斜：MD shape scale（uniform 圆角），手绘骨架保留、形态收敛 */
+  --sketch-border-radius-sm: 8px;
+  --sketch-border-radius-md: 12px;
+  --sketch-border-radius-lg: 16px;
+  /* Shared components can consume these without branching. Their values match
+     the existing night material treatment and do not introduce sketch marks. */
+  --pencil-line: var(--border-default);
+  --pencil-line-strong: var(--border-default);
+  --pencil-line-soft: transparent;
+  --pencil-line-faint: transparent;
+  --pencil-line-erased: transparent;
+  --pencil-wash: transparent;
+  --pencil-wash-strong: transparent;
+  --pencil-construction: transparent;
+  --pencil-echo-offset: 0px;
+  --pencil-dash-length: 0px;
+  --pencil-dash-gap: 0px;
+  --pencil-surface-shadow: var(--elevation-2);
+  --pencil-surface-shadow-hover: var(--elevation-3);
+  --pencil-control-shadow: none;
+  --pencil-progress-track: var(--border-default);
+  /* MD3 elevation：key(umbra) + ambient(penumbra) 双层 */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgba(0, 4, 16, 0.34), 0 1px 3px rgba(0, 4, 16, 0.2);
+  --elevation-2:
+    0 1px 2px rgba(0, 4, 16, 0.38), 0 4px 10px rgba(0, 4, 16, 0.28);
+  --elevation-3: 0 2px 4px rgba(0, 4, 16, 0.42), 0 8px 20px rgba(0, 4, 16, 0.3);
+  --elevation-5:
+    0 4px 8px rgba(0, 4, 16, 0.48), 0 18px 42px rgba(0, 4, 16, 0.36);
+  --card-sketch-shadow: var(--elevation-2);
+  --card-sketch-shadow-hover: var(--elevation-3);
+  /* MD surface tint：海拔越高表面越暖亮（炭蓝 + 星辉金 5%/8%/11% 预计算） */
+  --surface-tint-1: #373941;
+  --surface-tint-2: #3c3d42;
+  --surface-tint-3: #424144;
+  --surface-solid: #32363f;
+  --surface-container-lowest: #1f232c;
+  --surface-container-low: #292e39;
+  --surface-container: var(--surface-solid);
+  --surface-container-high: var(--surface-tint-1);
+  --surface-container-highest: var(--surface-tint-3);
+  --surface-raised: rgba(55, 59, 70, 0.92);
+  --surface-table-header: var(--surface-container-high);
+  --surface-overlay: var(--surface-container-highest);
+  --outline: rgba(152, 164, 192, 0.18);
+  --outline-variant: rgba(152, 164, 192, 0.09);
+  --shape-control: 10px;
+  --shape-card: 16px;
+  --shape-overlay: 20px;
+  --overlay-shadow: var(--elevation-5);
+  --card-shadow: var(--elevation-1);
+  --card-shadow-hover: var(--elevation-2);
+  --button-shadow: var(--elevation-1);
+  --button-shadow-hover: var(--elevation-2);
+  --stamp-shadow: var(--elevation-1);
+  --menu-shadow: var(--elevation-5);
+  --brand-icon-shadow: drop-shadow(0 2px 5px rgba(0, 4, 16, 0.42));
+  --media-scrim-strong: rgba(8, 10, 20, 0.72);
+  --media-scrim-medium: rgba(8, 10, 20, 0.42);
+  --media-scrim-soft: rgba(8, 10, 20, 0.08);
+  --chart-grid-line: rgba(152, 164, 192, 0.08);
+  --ink-surface-muted: rgba(222, 227, 240, 0.08);
+  /* MD state layer：hover 8% / press 12% 星辉金 */
+  --state-hover-layer: rgba(226, 188, 85, 0.08);
+  --state-press-layer: rgba(226, 188, 85, 0.12);
+  --state-focus-layer: rgba(226, 188, 85, 0.14);
+  --focus-halo: 0 0 0 4px var(--state-focus-layer);
+  --surface-hover: var(--state-hover-layer);
+  --surface-warm-tile: var(--state-hover-layer);
+  /* 手绘装饰在夜间熄灭/收敛 */
+  --dec-stamp: transparent;
+  --dec-gold-line: rgba(226, 188, 85, 0.28);
+  --dec-leaf: rgba(142, 200, 170, 0.24);
+  --dec-grid-line: rgba(152, 164, 192, 0.07);
+  --divider-ink: none;
+  --divider-ink-height: 1px;
+  --brush-highlight-bg: var(--accent);
+  --brush-highlight-height: 1.5px;
+  --brush-highlight-skew: 0deg;
+  --brush-highlight-clip: none;
+  --row-divider-style: solid;
+  --row-divider-color: rgba(152, 164, 192, 0.09);
+  --ledger-ruling: none;
+  --chip-bar-width: 0px;
+  --chip-radius: 6px;
+  --display-number-weight: 500;
+  --tab-bar-clip: none;
+  --tab-bar-glow: 0 0 8px rgba(226, 188, 85, 0.35);
+  --chart-line-glow: rgba(226, 188, 85, 0.35);
+  --hairline-gold: linear-gradient(
+    90deg,
+    transparent,
+    rgba(226, 188, 85, 0.34) 30%,
+    rgba(226, 188, 85, 0.34) 70%,
+    transparent
+  );
+  /* ===== 登录页中转动画（夜间：金色发丝线 + MD 芯片，手绘退为微弱余韵） ===== */
+  --relay-line: rgba(226, 188, 85, 0.3);
+  --relay-line-echo: transparent;
+  --relay-guide-dash: 7 5;
+  --relay-chip-fill: #373941;
+  --relay-chip-border: rgba(226, 188, 85, 0.36);
+  --relay-chip-radius: 5px;
+  --relay-chip-shadow:
+    0 1px 2px rgba(0, 4, 16, 0.44), 0 2px 6px 2px rgba(0, 4, 16, 0.3);
+  --relay-packet-cap: round;
+  --relay-packet-glow: drop-shadow(0 0 3px rgba(226, 188, 85, 0.55));
+  --relay-label-weight: 500;
+
+  /* 夜间丝绒暗纹：极淡（alpha 0.05 已烘焙），只在页面底，卡面保持纯净 */
+  --paper-texture-img: url('../assets/textures/velvet-night.webp');
+  --night-texture-img: var(--paper-texture-img);
+}

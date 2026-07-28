@@ -1,0 +1,124 @@
+/* Console and Lab scroll surfaces. Global focus treatment lives in base.css.
+   手账质感工具类（texture-paper / display-title）在 base.css：认证页与 404
+   不经过懒加载布局，也要能用。 */
+
+/* Round selection checkbox shared by DataTable and the admin mobile lists.
+   Single source of truth — do not re-declare this in component styles.
+   日间：微不圆手绘圈 + 粗勾线；夜间：uniform 圆 + MD state 感。 */
+.checkbox-round {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 45% 55% 50% 48% / 52% 46% 54% 48%;
+  border: 1.5px solid var(--border-default);
+  background: var(--surface-solid);
+  cursor: pointer;
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+html.dark .checkbox-round {
+  border-radius: 9999px;
+}
+.checkbox-round:hover {
+  border-color: var(--accent);
+  background: var(--state-hover-layer);
+}
+.checkbox-round:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.checkbox-round:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.checkbox-round:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 0.3rem;
+  height: 0.55rem;
+  border: solid var(--accent-contrast);
+  border-width: 0 2.2px 2.2px 0;
+  transform: translate(-50%, -50%) rotate(43deg);
+}
+.checkbox-round:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.scroll-zone.no-page-scroll::-webkit-scrollbar {
+  display: none;
+}
+.scroll-zone.no-page-scroll {
+  scrollbar-width: none;
+}
+.scroll-zone {
+  scrollbar-width: thin;
+}
+.scroll-zone::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-zone::-webkit-scrollbar-button {
+  display: none;
+}
+.scroll-zone::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-zone::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.scroll-zone::-webkit-scrollbar-thumb {
+  transition: background 0.4s ease;
+}
+.scroll-zone:not(.scrolling)::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+/* Firefox */
+.scroll-zone {
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.4s ease;
+}
+.scroll-zone.scrolling {
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+/* Subtle scrollbar for panels, modals, dropdowns — invisible until hover */
+.subtle-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.35s ease;
+}
+.subtle-scroll:hover {
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+.subtle-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.subtle-scroll::-webkit-scrollbar-button {
+  display: none;
+}
+.subtle-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.subtle-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.subtle-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition: background 0.35s ease;
+}
+.subtle-scroll:hover::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  background-clip: padding-box;
+}

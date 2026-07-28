@@ -1,0 +1,957 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+  scrollbar-width: thin;
+}
+
+*,
+*::before,
+*::after {
+  transition-duration: 250ms;
+  transition-property:
+    background-color, border-color, color, fill, stroke, box-shadow;
+  transition-timing-function: ease;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background: var(--scroll-thumb);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+html {
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  overflow-x: clip;
+  background-color: var(--page-background);
+  color: var(--text-primary);
+  font-family:
+    'Ren2Inter',
+    'Ren2NotoSansSC',
+    Inter,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition:
+    background-color 250ms ease,
+    color 250ms ease;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* 手账纸纹：AI 和纸 tile（日间）/ 丝绒暗纹（夜间），透明度已烘焙进素材。 */
+.texture-paper {
+  background-image: var(--paper-texture-img);
+  background-repeat: repeat;
+  background-size: 512px 512px;
+}
+
+/* Night texture belongs to page canvases only. Elevated surfaces remain
+   optically clean so their hierarchy comes from tone, outline and elevation. */
+html.dark .texture-paper {
+  background-image: none;
+}
+
+html.dark .night-page-texture,
+html.dark .texture-paper[data-handdrawn-scope] {
+  background-image: var(--night-texture-img);
+  background-repeat: repeat;
+  background-size: 512px 512px;
+}
+
+/* 展示级标题：衬线字型，仅用于 hero 级大标题与 404 等呼吸区。 */
+.display-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+/* ===== 手绘风格工具类 ===== */
+
+/* 不均匀圆角 — 模拟手持绘制微妙歪斜 */
+.sketch-sm {
+  border-radius: var(--sketch-border-radius-sm) !important;
+}
+.sketch-md {
+  border-radius: var(--sketch-border-radius-md) !important;
+}
+.sketch-lg {
+  border-radius: var(--sketch-border-radius-lg) !important;
+}
+
+/* 手账卡片：歪斜圆角 + 马克笔投影（夜间令牌自动换成 MD elevation）。
+   hover 抬升走 CSS，组件不需要写 inline style 或 JS。 */
+.sketch-card {
+  border-radius: var(--sketch-border-radius-lg);
+  box-shadow: var(--card-sketch-shadow);
+}
+.sketch-card:hover,
+.sketch-card:focus-within {
+  box-shadow: var(--card-sketch-shadow-hover);
+}
+
+/* ===== Pencil-first day language =====
+   All expressive geometry is scoped to html.light. Night keeps the existing
+   Material surfaces because none of these selectors apply there. */
+html.light .pencil-surface,
+html.light .pencil-surface-strong,
+html.light .pencil-control,
+html.light .gesture-mark,
+html.light .pencil-underline {
+  position: relative;
+}
+
+html.light .pencil-surface,
+html.light .pencil-surface-strong {
+  isolation: isolate;
+  border-color: var(--pencil-line-soft) !important;
+  border-radius: var(--sketch-border-radius-lg) !important;
+  box-shadow: var(--pencil-surface-shadow) !important;
+}
+
+html.light .pencil-surface:hover,
+html.light .pencil-surface:focus-within,
+html.light .pencil-surface-strong:hover,
+html.light .pencil-surface-strong:focus-within {
+  box-shadow: var(--pencil-surface-shadow-hover) !important;
+}
+
+html.light .pencil-surface:focus-within,
+html.light .pencil-surface-strong:focus-within {
+  z-index: 5;
+}
+
+html.light .pencil-surface::before,
+html.light .pencil-surface-strong::before {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  inset: -2px -1px -1px -2px;
+  border: 1px solid var(--pencil-line-soft);
+  border-radius: inherit;
+  clip-path: polygon(
+    0 0,
+    38% 0,
+    38% 1px,
+    71% 1px,
+    71% 0,
+    94% 0,
+    94% 1px,
+    100% 1px,
+    100% 76%,
+    calc(100% - 1px) 76%,
+    calc(100% - 1px) 100%,
+    61% 100%,
+    61% calc(100% - 1px),
+    14% calc(100% - 1px),
+    14% 100%,
+    0 100%
+  );
+  opacity: 0.82;
+  transform: rotate(-0.08deg) translate(0.7px, 0.5px);
+  pointer-events: none;
+}
+
+html.light [data-handdrawn='modal']::before,
+html.light [data-handdrawn='modal']::after,
+html.light [data-handdrawn='surface-clipped']::before,
+html.light [data-handdrawn='surface-clipped']::after {
+  inset: 2px;
+}
+
+html.light .pencil-surface::after,
+html.light .pencil-surface-strong::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  inset: 4px;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+        92deg,
+        transparent 0 7%,
+        var(--pencil-line-faint) 7% 34%,
+        transparent 34% 100%
+      )
+      top left / 100% 1px no-repeat,
+    linear-gradient(
+        89deg,
+        transparent 0 58%,
+        var(--pencil-line-faint) 58% 91%,
+        transparent 91% 100%
+      )
+      bottom left / 100% 1px no-repeat,
+    linear-gradient(
+        181deg,
+        transparent 0 18%,
+        var(--pencil-line-faint) 18% 54%,
+        transparent 54% 100%
+      )
+      top right / 1px 100% no-repeat;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+html.light .pencil-surface-strong::before {
+  border-width: 1.5px;
+  border-color: var(--pencil-line);
+  opacity: 0.88;
+  transform: rotate(-0.12deg) translate(1px, 0.8px);
+}
+
+html.light .pencil-control {
+  border-color: var(--pencil-line-soft) !important;
+  border-radius: var(--sketch-border-radius-sm) !important;
+  box-shadow: var(--pencil-control-shadow) !important;
+}
+
+html.light .pencil-control::after {
+  content: '';
+  position: absolute;
+  right: 8%;
+  bottom: -1px;
+  left: 5%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--pencil-line-faint) 9% 48%,
+    transparent 48% 53%,
+    var(--pencil-line-soft) 53% 91%,
+    transparent
+  );
+  transform: rotate(-0.35deg);
+  pointer-events: none;
+}
+
+html.light .pencil-underline::after {
+  content: '';
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(
+    91deg,
+    transparent 0 3%,
+    var(--pencil-line-faint) 3% 44%,
+    transparent 44% 48%,
+    var(--pencil-line-soft) 48% 94%,
+    transparent 94%
+  );
+  transform: rotate(-0.18deg);
+  pointer-events: none;
+}
+
+html.light .pencil-rule {
+  height: 5px;
+  border: 0;
+}
+
+html.light .pencil-rule {
+  background:
+    linear-gradient(
+        91deg,
+        transparent 0 2%,
+        var(--pencil-line-soft) 2% 46%,
+        transparent 46% 49%,
+        var(--pencil-line-faint) 49% 96%,
+        transparent 96% 100%
+      )
+      center 1px / 100% 1px no-repeat,
+    linear-gradient(
+        89deg,
+        transparent 0 9%,
+        var(--pencil-line-faint) 9% 67%,
+        transparent 67% 100%
+      )
+      center 3px / 100% 1px no-repeat;
+}
+
+html.light .gesture-mark::after {
+  content: '';
+  position: absolute;
+  left: -0.2em;
+  right: 18%;
+  bottom: -0.24em;
+  height: 0.42em;
+  border-bottom: 2px solid var(--pencil-line-soft);
+  border-radius: 44% 56% 48% 52%;
+  transform: rotate(-1.2deg);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+html.light .draft-grid {
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 31px,
+      var(--pencil-construction) 31px 32px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 47px,
+      var(--pencil-construction) 47px 48px
+    ),
+    var(--paper-texture-img);
+  background-size:
+    auto,
+    auto,
+    512px 512px;
+}
+
+/* Broad coverage stays inside explicit route/layout scopes. Semantic circles
+   stay round; only rectangular surfaces gain imperfect geometry. */
+html.light
+  [data-handdrawn-scope]
+  :where(
+    section,
+    article,
+    [role='dialog'],
+    .rounded-2xl.border,
+    .rounded-xl.border
+  ):not(.no-handdrawn):not(.no-handdrawn *) {
+  border-color: var(--pencil-line-soft) !important;
+  border-radius: var(--sketch-border-radius-lg) !important;
+}
+
+html.light
+  [data-handdrawn-scope]
+  :where(button, a, [role='button'], [role='tab'], [role='option']):where(
+    .rounded-xl,
+    .rounded-lg,
+    .rounded-md
+  ):not(.no-handdrawn):not(.no-handdrawn *) {
+  border-radius: var(--sketch-border-radius-sm) !important;
+}
+
+html.light
+  [data-handdrawn-scope]
+  :where([role='listbox'], [role='menu'], .subtle-scroll):where(
+    .rounded-2xl,
+    .rounded-xl,
+    .rounded-lg
+  ):not(.no-handdrawn):not(.no-handdrawn *) {
+  border-radius: var(--sketch-border-radius-md) !important;
+  box-shadow: var(--pencil-surface-shadow) !important;
+}
+
+html.light
+  [data-handdrawn-scope]
+  :where(.border-b, .border-t):not(input):not(textarea):not(.no-handdrawn):not(
+    .no-handdrawn *
+  ) {
+  border-style: dashed;
+  border-color: var(--pencil-line-faint);
+}
+
+html.light [data-handdrawn='ledger'] .data-table-header-clip {
+  border-bottom: 0;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      var(--pencil-line-soft) 0 var(--pencil-dash-length),
+      transparent var(--pencil-dash-length)
+        calc(var(--pencil-dash-length) + var(--pencil-dash-gap))
+    ),
+    linear-gradient(var(--surface-table-header), var(--surface-table-header));
+  background-position:
+    bottom left,
+    center;
+  background-repeat: repeat-x, no-repeat;
+  background-size:
+    auto 1px,
+    100% 100%;
+}
+
+html.light [data-handdrawn='ledger'] tr[data-selected='true'] {
+  background: var(--pencil-wash-strong);
+  box-shadow: inset 3px 0 0 var(--pencil-line-strong);
+}
+
+html.light [data-handdrawn='ledger'] [data-table-group-row] {
+  background-image: linear-gradient(
+    96deg,
+    var(--pencil-wash-strong),
+    transparent 72%
+  );
+}
+
+html.light [data-handdrawn='navigation'] {
+  border-color: var(--pencil-line-faint) !important;
+  box-shadow:
+    1px 0 0 var(--pencil-line-faint),
+    3px 0 0 var(--pencil-line-erased);
+}
+
+html.light [data-handdrawn='navigation-top'] {
+  border-color: var(--pencil-line-faint) !important;
+  box-shadow:
+    0 1px 0 var(--pencil-line-soft),
+    0 3px 0 var(--pencil-line-erased) !important;
+}
+
+html.light [data-handdrawn='navigation-strip'] {
+  border-color: var(--pencil-line-faint) !important;
+  box-shadow: inset 0 -1px 0 var(--pencil-line-soft);
+}
+
+html.light [data-handdrawn='navigation-drawer'] {
+  border-color: var(--pencil-line-soft) !important;
+  box-shadow:
+    inset 2px 0 0 var(--pencil-line-faint),
+    -3px 0 0 var(--pencil-line-erased),
+    -12px 0 28px rgba(56, 55, 43, 0.12) !important;
+  background-image: var(--paper-texture-img);
+  background-size: 512px 512px;
+}
+
+html.light [data-handdrawn^='navigation'] [aria-current='page'] {
+  position: relative;
+  isolation: isolate;
+}
+
+html.light [data-handdrawn^='navigation'] [aria-current='page']::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 2px -1px 1px 1px;
+  border: 1px solid var(--pencil-line-soft);
+  border-radius: var(--sketch-border-radius-sm);
+  transform: rotate(-0.45deg);
+  pointer-events: none;
+}
+
+html.light [data-handdrawn='page-hero'] h1::before {
+  content: '';
+  position: absolute;
+  top: -0.2rem;
+  right: 7%;
+  left: -0.35rem;
+  height: calc(100% + 0.35rem);
+  border-top: 1px solid var(--pencil-line-faint);
+  border-bottom: 1px solid var(--pencil-line-soft);
+  clip-path: polygon(
+    0 8%,
+    83% 0,
+    83% 1px,
+    100% 4%,
+    99% 96%,
+    64% 100%,
+    64% calc(100% - 1px),
+    0 94%
+  );
+  transform: rotate(-0.22deg);
+  pointer-events: none;
+}
+
+html.light .pencil-progress {
+  border: 1px solid var(--pencil-line-faint);
+  border-radius: var(--sketch-border-radius-sm) !important;
+  background: var(--pencil-progress-track) !important;
+  box-shadow: inset 1px 1px 0 var(--pencil-line-soft);
+}
+
+html.light .pencil-progress > * {
+  border-radius: var(--sketch-border-radius-sm) !important;
+  clip-path: polygon(0 12%, 99% 0, 100% 82%, 2% 100%);
+}
+
+html.light [data-handdrawn='empty-state'] svg {
+  filter: drop-shadow(1px 1px 0 var(--pencil-line-faint));
+}
+
+html.light .pencil-brand-frame {
+  outline: 1px solid var(--pencil-line-faint);
+  outline-offset: 2px;
+  box-shadow: 1px 1px 0 var(--pencil-line-soft);
+}
+
+html.light [data-handdrawn='menu'] {
+  border-color: var(--pencil-line-soft) !important;
+  border-radius: var(--sketch-border-radius-md) !important;
+  box-shadow: var(--pencil-surface-shadow) !important;
+  background-image:
+    linear-gradient(92deg, var(--pencil-wash), transparent 62%),
+    var(--paper-texture-img);
+  background-size:
+    auto,
+    512px 512px;
+}
+
+html.light [data-handdrawn='pagination'] button[aria-current='page'] {
+  box-shadow:
+    1px 1px 0 var(--pencil-line-soft),
+    0 3px 8px var(--pencil-wash-strong);
+}
+
+html.light [data-handdrawn='tabs'] {
+  min-width: 0;
+  overflow-x: auto;
+  border-image: repeating-linear-gradient(
+      90deg,
+      var(--pencil-line-soft) 0 var(--pencil-dash-length),
+      transparent var(--pencil-dash-length)
+        calc(var(--pencil-dash-length) + var(--pencil-dash-gap))
+    )
+    1;
+}
+
+html.light [data-handdrawn='segments'] {
+  border: 1px solid var(--pencil-line-faint);
+  border-radius: var(--sketch-border-radius-md) !important;
+  box-shadow: inset 1px 1px 0 var(--pencil-line-erased);
+}
+
+html.light [data-handdrawn='toggle'] {
+  border: 1px solid var(--pencil-line-soft);
+  box-shadow: 1px 1px 0 var(--pencil-line-faint);
+}
+
+html.light [data-handdrawn='chip'] {
+  outline: 1px solid var(--pencil-line-faint);
+  outline-offset: 1px;
+}
+
+html.light [data-handdrawn='brand-option'] {
+  border-color: var(--pencil-line-soft) !important;
+  box-shadow: 1px 1px 0 var(--pencil-line-faint);
+}
+
+html.light [data-handdrawn='ledger-list'] {
+  border-color: var(--pencil-line-soft) !important;
+  border-radius: var(--sketch-border-radius-lg) !important;
+  box-shadow: var(--pencil-surface-shadow);
+}
+
+html.light [data-handdrawn='ledger-list'] > :where(div, li) {
+  border-bottom-style: dashed;
+  border-bottom-color: var(--pencil-line-faint);
+}
+
+html.light [data-handdrawn='ledger-rows'] > * {
+  border-color: var(--pencil-line-faint);
+  border-top-style: dashed;
+  border-bottom-style: dashed;
+}
+
+html.light .profile-identity {
+  background:
+    linear-gradient(103deg, var(--pencil-wash-strong), transparent 54%),
+    var(--surface-solid) !important;
+}
+
+html.light .profile-row-value {
+  min-width: 0;
+  max-width: 62%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.light .profile-binding-row {
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+html.light .profile-binding-value {
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+html.light .profile-binding-text {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.light .lab-assistant-message {
+  position: relative;
+  padding-left: 1.1rem;
+}
+
+html.light .lab-message-content {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+html.light .lab-assistant-message::before {
+  content: '';
+  position: absolute;
+  top: 0.35rem;
+  bottom: 0.2rem;
+  left: 0;
+  width: 3px;
+  background: linear-gradient(
+    180deg,
+    var(--pencil-line-soft),
+    var(--pencil-line-faint) 72%,
+    transparent
+  );
+  clip-path: polygon(32% 0, 100% 4%, 76% 93%, 0 100%);
+  transform: rotate(0.7deg);
+  pointer-events: none;
+}
+
+html.light
+  :where(
+    [data-handdrawn-page='studio'],
+    [data-handdrawn-page='assets'],
+    [data-handdrawn-page='plugins']
+  )
+  > .mx-auto {
+  padding-top: 3.5rem;
+}
+
+html.light [data-handdrawn-page='chat'] .subtle-scroll > .mx-auto:first-child {
+  padding-top: 3.5rem;
+}
+
+/* ===== Elegant Material night language =====
+   The day theme keeps the expressive pencil system above. Night uses a
+   compact tonal hierarchy, regular geometry and elevation only where it
+   communicates interaction or stacking. */
+html.dark :focus-visible {
+  outline-color: var(--focus-ring);
+  box-shadow: var(--focus-halo);
+}
+
+html.dark .pencil-surface,
+html.dark .pencil-surface-strong {
+  border-color: var(--outline-variant) !important;
+  border-radius: var(--shape-card) !important;
+  background-color: var(--surface-container);
+  box-shadow: var(--elevation-1) !important;
+}
+
+html.dark .pencil-surface-strong {
+  border-color: var(--outline) !important;
+  background-color: var(--surface-container-high);
+  box-shadow: var(--elevation-2) !important;
+}
+
+html.dark .pencil-surface:hover,
+html.dark .pencil-surface:focus-within {
+  box-shadow: var(--elevation-2) !important;
+}
+
+html.dark .pencil-surface-strong:hover,
+html.dark .pencil-surface-strong:focus-within {
+  box-shadow: var(--elevation-3) !important;
+}
+
+html.dark [data-surface-variant='default'] {
+  background-color: var(--surface-container-low);
+  box-shadow: var(--elevation-0) !important;
+}
+
+html.dark [data-surface-variant='sketch'] {
+  background-color: var(--surface-container-high);
+  box-shadow: var(--elevation-2) !important;
+}
+
+html.dark .pencil-control {
+  border-color: var(--outline-variant) !important;
+  border-radius: var(--shape-control) !important;
+}
+
+html.dark [data-handdrawn='underline'] input {
+  border: 1px solid var(--outline-variant) !important;
+  border-radius: var(--shape-control);
+  background: var(--surface-container-low);
+}
+
+html.dark [data-handdrawn='underline'] input:hover {
+  border-color: var(--outline) !important;
+  background: var(--surface-container);
+}
+
+html.dark [data-handdrawn='underline'] input:focus {
+  border-color: var(--accent) !important;
+  background: var(--surface-container);
+}
+
+html.dark [data-handdrawn='menu'],
+html.dark [data-handdrawn='modal'],
+html.dark [data-handdrawn='toast'] {
+  border-color: var(--outline) !important;
+  border-radius: var(--shape-overlay) !important;
+  background-color: var(--surface-container-highest) !important;
+  background-image: none !important;
+  box-shadow: var(--elevation-5) !important;
+}
+
+html.dark [data-handdrawn='toast'] {
+  border-radius: var(--shape-card) !important;
+}
+
+html.dark [data-handdrawn='menu']:hover,
+html.dark [data-handdrawn='menu']:focus-within,
+html.dark [data-handdrawn='modal']:hover,
+html.dark [data-handdrawn='modal']:focus-within,
+html.dark [data-handdrawn='toast']:hover,
+html.dark [data-handdrawn='toast']:focus-within {
+  box-shadow: var(--elevation-5) !important;
+}
+
+html.dark [data-handdrawn^='navigation'] {
+  border-color: var(--outline-variant) !important;
+  background-color: var(--surface-container-low) !important;
+  background-image: none !important;
+}
+
+html.dark [data-handdrawn^='navigation'] [aria-current='page'] {
+  border-radius: var(--shape-control) !important;
+  background: var(--state-press-layer) !important;
+  box-shadow: inset 2px 0 0 var(--accent);
+  color: var(--text-primary) !important;
+}
+
+html.dark [data-handdrawn='navigation-strip'] [aria-current='page'] {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+html.dark [data-handdrawn='navigation-drawer'] {
+  border-color: var(--outline) !important;
+  border-radius: var(--shape-overlay) 0 0 var(--shape-overlay) !important;
+  background-color: var(--surface-container-highest) !important;
+  box-shadow: var(--elevation-5) !important;
+}
+
+html.dark [data-handdrawn='ledger'] {
+  border-color: var(--outline-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+html.dark [data-handdrawn='ledger'] .data-table-header-clip {
+  border-bottom: 1px solid var(--outline-variant);
+  background: var(--surface-container-high);
+}
+
+html.dark [data-handdrawn='ledger'] tr {
+  border-color: var(--outline-variant) !important;
+  border-style: solid !important;
+}
+
+html.dark [data-handdrawn='ledger'] tbody tr:hover {
+  background: var(--state-hover-layer);
+}
+
+html.dark [data-handdrawn='ledger'] tr[data-selected='true'] {
+  background: var(--state-press-layer);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+html.dark [data-handdrawn='ledger-list'],
+html.dark [data-handdrawn='ledger-rows'] > * {
+  border-color: var(--outline-variant) !important;
+  border-radius: var(--shape-card) !important;
+  background-color: var(--surface-container);
+  box-shadow: var(--elevation-1);
+}
+
+html.dark [data-handdrawn='ledger-list'] > :where(div, li) {
+  border-bottom-color: var(--outline-variant);
+  border-bottom-style: solid;
+}
+
+html.dark [data-handdrawn='tabs'] {
+  border-color: var(--outline-variant);
+}
+
+html.dark [data-handdrawn='segments'] {
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-control) !important;
+  background: var(--surface-container-low);
+}
+
+html.dark [data-handdrawn='toggle'] {
+  border: 1px solid var(--outline-variant);
+}
+
+html.dark [data-handdrawn='chip'],
+html.dark [data-handdrawn='brand-option'] {
+  border-color: var(--outline-variant) !important;
+}
+
+html.dark .pencil-progress {
+  border: 1px solid var(--outline-variant);
+  background: var(--surface-container-low) !important;
+  box-shadow: none;
+}
+
+html.dark .pencil-brand-frame {
+  filter: var(--brand-icon-shadow);
+}
+
+@media (max-width: 639px) {
+  html.light .touch-row-action {
+    opacity: 1 !important;
+  }
+}
+
+/* 刷痕高亮：日间为笔刷多边形色块；夜间由令牌退化为细金下划线 */
+.brush-highlight {
+  position: relative;
+  display: inline-block;
+}
+.brush-highlight::after {
+  content: '';
+  position: absolute;
+  bottom: 1px;
+  left: -3px;
+  right: -3px;
+  height: var(--brush-highlight-height, 38%);
+  background: var(--brush-highlight-bg);
+  transform: skewX(var(--brush-highlight-skew, -5deg));
+  clip-path: var(--brush-highlight-clip, none);
+  z-index: -1;
+  border-radius: 2px;
+}
+
+/* 墨线分隔：日间 AI 干刷笔触；夜间金色 hairline */
+.ink-divider {
+  height: var(--divider-ink-height, 5px);
+  background: var(--divider-ink) no-repeat center / contain;
+  border: 0;
+  opacity: 0.55;
+}
+html.dark .ink-divider {
+  background: var(--hairline-gold);
+  opacity: 1;
+}
+
+/* 展示级大数字：日间浓墨粗体；夜间雅致轻字重 + 宽字距 */
+.display-number {
+  font-weight: var(--display-number-weight, 700);
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 手账格线背景 — 用于 journal 型卡片内容区 */
+.grid-paper {
+  background-image:
+    linear-gradient(var(--dec-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--dec-grid-line) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+html.dark .grid-paper {
+  background-image: none;
+}
+
+/* 分组标题「金线双侧 + 宽字距」 */
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.section-heading::before {
+  content: '';
+  flex: 0 0 18px;
+  height: 1px;
+  background: var(--dec-gold-line);
+}
+.section-heading::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--dec-gold-line);
+}
+
+/* 印章水印 — AI 篆刻印图，极低透明度旋转叠底；夜间由 --dec-stamp 熄灭 */
+.stamp-watermark {
+  position: relative;
+  overflow: hidden;
+}
+.stamp-watermark-art {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  width: 84px;
+  height: 88px;
+  background: url('../assets/textures/seal-stamp.png') no-repeat center /
+    contain;
+  opacity: 0.14;
+  transform: rotate(-7deg);
+  pointer-events: none;
+}
+html.dark .stamp-watermark-art {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}

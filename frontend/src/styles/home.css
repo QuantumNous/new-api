@@ -1,0 +1,1123 @@
+/* Home route styles. HomeView provides the .landing-shell namespace. */
+html:not(.dark) .landing-shell::before {
+  position: fixed;
+  z-index: 65;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  content: '';
+  mix-blend-mode: multiply;
+  opacity: 0.028;
+  pointer-events: none;
+}
+
+html:not(.dark) .landing-shell .hero-title {
+  font-family: 'Ren2NotoSerifSC', 'Songti SC', 'SimSun', serif;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+html.light .landing-shell .hero-title {
+  position: relative;
+}
+
+html.light .landing-shell .hero-title::after {
+  content: '';
+  position: absolute;
+  right: 2%;
+  bottom: -0.14em;
+  left: 9%;
+  height: 0.32em;
+  border-top: 2px solid var(--pencil-line-soft);
+  border-radius: 51% 49% 43% 57%;
+  box-shadow: 0 -3px 0 -2px var(--pencil-line-faint);
+  transform: rotate(-0.65deg);
+  pointer-events: none;
+}
+
+html.light .landing-shell .hero-pledge {
+  border-color: var(--pencil-line-soft);
+  border-radius: var(--sketch-border-radius-sm);
+  box-shadow: 1px 1px 0 var(--pencil-line-faint);
+}
+
+html.light .landing-shell .hero-cta-primary,
+html.light .landing-shell .hero-cta-secondary,
+html.light .landing-shell .hero-stage-hint {
+  position: relative;
+  border-radius: var(--sketch-border-radius-md);
+  box-shadow: var(--pencil-control-shadow);
+}
+
+html.light .landing-shell .hero-cta-primary::before,
+html.light .landing-shell .hero-cta-secondary::before,
+html.light .landing-shell .hero-stage-hint::before {
+  content: '';
+  position: absolute;
+  inset: 2px 3px 1px 2px;
+  border: 1px solid var(--pencil-line-soft);
+  border-radius: inherit;
+  clip-path: polygon(
+    0 4%,
+    64% 0,
+    64% 1px,
+    100% 6%,
+    99% 92%,
+    37% 100%,
+    37% calc(100% - 1px),
+    1% 94%
+  );
+  transform: rotate(-0.22deg);
+  pointer-events: none;
+}
+
+html.light .landing-shell .hero-integration-boundary {
+  border-top-color: transparent;
+  background: repeating-linear-gradient(
+      91deg,
+      var(--pencil-line-soft) 0 var(--pencil-dash-length),
+      transparent var(--pencil-dash-length)
+        calc(var(--pencil-dash-length) + var(--pencil-dash-gap))
+    )
+    top left / 100% 1px no-repeat;
+}
+
+html.light .landing-shell .hero-scroll-cue {
+  border-color: var(--pencil-line-soft);
+  box-shadow:
+    1px 1px 0 var(--pencil-line-faint),
+    inset 1px 0 0 var(--pencil-line-faint);
+}
+
+html.light .landing-shell .signal-console__rail {
+  background: repeating-linear-gradient(
+    180deg,
+    var(--pencil-line-soft) 0 var(--pencil-dash-length),
+    transparent var(--pencil-dash-length)
+      calc(var(--pencil-dash-length) + var(--pencil-dash-gap))
+  );
+  box-shadow: 2px 0 0 var(--pencil-line-faint);
+}
+
+.landing-shell {
+  font-family: 'Ren2Inter', 'Ren2NotoSansSC', system-ui, sans-serif;
+  --hero-copy-overlay: var(--home-hero-copy-overlay);
+  --surface-overlay: rgba(246, 243, 235, 0.96);
+  --text-tertiary: #827e66;
+}
+
+html.dark .landing-shell {
+  --surface-overlay: var(--surface-container-highest);
+  --text-tertiary: var(--text-tertiary-base);
+}
+
+html.dark .landing-shell .hero-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+html.dark .landing-shell .app-navbar[data-scrolled='false'],
+html.light .landing-shell .app-navbar[data-scrolled='false'] {
+  border-color: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.dark .landing-shell .app-navbar[data-scrolled='true'] {
+  background-color: var(--surface-raised) !important;
+}
+
+html.dark .landing-shell .app-navbar .home-brand,
+html.light .landing-shell .app-navbar .home-brand {
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.landing-shell .app-navbar .home-brand img {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+html.dark .landing-shell .app-navbar .home-brand::before,
+html.dark .landing-shell .app-navbar .home-brand::after,
+html.light .landing-shell .app-navbar .home-brand::before,
+html.light .landing-shell .app-navbar .home-brand::after {
+  display: none !important;
+}
+
+html.dark .landing-shell .hero-pledge {
+  border-color: var(--outline-variant);
+  border-radius: var(--shape-control);
+  background: var(--surface-container-low);
+}
+
+html.dark .landing-shell .hero-cta-primary,
+html.dark .landing-shell .hero-cta-secondary,
+html.dark .landing-shell .hero-stage-hint,
+html.dark .landing-shell .home-nav-cta {
+  border-radius: var(--shape-control);
+}
+
+html.dark .landing-shell .hero-cta-primary,
+html.dark .landing-shell .home-nav-cta {
+  box-shadow: var(--button-shadow);
+}
+
+html.dark .landing-shell .hero-cta-primary:hover,
+html.dark .landing-shell .home-nav-cta:hover {
+  box-shadow: var(--button-shadow-hover);
+}
+
+html.dark .landing-shell .hero-cta-secondary,
+html.dark .landing-shell .hero-stage-hint {
+  border-color: var(--outline-variant);
+  background: var(--surface-container-low);
+  box-shadow: none;
+}
+
+html.dark .landing-shell .hero-integration-boundary {
+  border-top-color: var(--outline-variant);
+}
+
+html.dark .landing-shell .signal-console {
+  opacity: 0.82;
+  text-shadow: none;
+}
+
+html.dark .landing-shell .signal-console__telemetry-row,
+html.dark .landing-shell .signal-console__capability,
+html.dark .landing-shell .signal-console__trace-record {
+  opacity: 0.72;
+}
+
+html.dark .landing-shell .signal-console__telemetry-row.is-target,
+html.dark .landing-shell .signal-console__capability.is-active,
+html.dark .landing-shell .signal-console__trace-record.is-focus {
+  opacity: 1;
+}
+
+html.dark .landing-shell .signal-console__rule {
+  opacity: 0.34;
+}
+
+html.dark .landing-shell .signal-console__trace-record {
+  border-top-style: solid;
+}
+
+html.dark .landing-shell .signal-dot-matrix {
+  opacity: 0.66;
+}
+
+.mobile-nav-drawer {
+  font-family: 'Ren2Inter', 'Ren2NotoSansSC', system-ui, sans-serif;
+  --surface-overlay: rgba(246, 243, 235, 0.96);
+  --text-tertiary: #827e66;
+}
+
+html.dark .mobile-nav-drawer {
+  --surface-overlay: var(--surface-container-highest);
+  --text-tertiary: var(--text-tertiary-base);
+}
+
+.landing-shell :where(.hero-title, .hero-copy-glow) {
+  font-family: inherit;
+}
+
+.landing-shell .font-mono,
+.mobile-nav-drawer .font-mono {
+  font-family:
+    'Ren2JetBrainsMono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+/* HomeView owns its scroll rail. Native chrome is removed rather than merely
+   made transparent, so it cannot leave a blank gutter beside the custom rail. */
+html.hero-scrollbar-hidden {
+  scrollbar-gutter: auto;
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+html.hero-scrollbar-hidden::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+html.hero-scrollbar-hidden::-webkit-scrollbar-track,
+html.hero-scrollbar-hidden::-webkit-scrollbar-thumb,
+html.hero-scrollbar-hidden::-webkit-scrollbar-thumb:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* ===== 工具图标跑马灯由 JS(rAF) 驱动（见 IntegrationMarquee.vue） ===== */
+
+/* ===== CTA 流光 ===== */
+.landing-shell .cta-sheen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.landing-shell .cta-sheen::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 40%;
+  height: 200%;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 70%
+  );
+  transform: skewX(-12deg);
+  animation: cta-sheen-move 3.8s ease-in-out infinite;
+}
+@keyframes cta-sheen-move {
+  0% {
+    left: -60%;
+  }
+  55%,
+  100% {
+    left: 130%;
+  }
+}
+
+/* ===== 品牌渐变文字 ===== */
+.landing-shell .gradient-text {
+  display: inline-block; /* 使包含块宽度 = 文字内容宽，布局预测性更好 */
+  position: relative;
+  background: linear-gradient(
+    118deg,
+    var(--hero-title-gradient-start) 0%,
+    var(--hero-title-gradient-start) 24%,
+    var(--hero-title-gradient-middle) 49%,
+    var(--hero-title-gradient-end) 76%,
+    var(--hero-title-gradient-end) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* ===== 桌面 Hero 文字光晕 =====
+   The light theme keeps the map transparent and lifts copy at glyph level;
+   the dark theme retains its restrained route-level scrim. */
+@media (min-width: 1024px) {
+  html:not(.dark) .landing-shell .hero-copy-glow {
+    text-shadow:
+      0 1px 14px var(--console-glow),
+      0 0 5px var(--console-glow);
+  }
+  /* 渐变打字行参照夜间实现：Chromium 会把 text-shadow 压在 background-clip:text
+     渐变之上（0.96 不透明奶白 = 罩死渐变，呈"幽灵字"），故摘除 text-shadow；
+     改用 drop-shadow 滤镜光晕——滤镜在裁剪绘制之后才应用，只沿渐变字形外轮廓
+     发光、不遮字面。 */
+  html:not(.dark) .landing-shell .hero-copy-glow .gradient-text {
+    text-shadow: none;
+    filter: drop-shadow(0 1px 10px var(--console-glow))
+      drop-shadow(0 0 3px var(--console-glow));
+  }
+}
+
+/* 打字行缩放值（HeroContent 内联暴露）：注册为 <number> 后才能随过渡平滑
+   插值，PC 端光标的反缩放才能与父级 transform 的 100ms 过渡逐帧同步。 */
+@property --type-scale {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+/* 打字行缩放容器：--type-scale 与 transform 同步过渡（供光标反缩放使用）。 */
+.landing-shell .typewriter-scale-box {
+  transition:
+    transform 100ms ease-out,
+    --type-scale 100ms ease-out;
+}
+
+/* ===== 打字机光标 =====
+   绝对定位于渐变文字右缘之外，不占行内宽度：文本本体在移动端精确居中，
+   生长缩放从正中心放大；桌面右对齐时光标自然悬在文字右缘外。
+   双形态：移动端 = 0.94em 长竖条（随文字缩放，现状不动）；
+   PC 端（lg+）= 贴基线下划线，且用 scale(1 / --type-scale) 反缩放锁定
+   视觉尺寸——打字生长与逐词变化全程光标大小恒定。
+   终端式连续柔闪：亮 0.55s → 快淡 → 暗 0.3s → 快淡回，打字/停顿全程忽闪忽亮；
+   圆角 + 令牌自适应微光晕。 */
+.landing-shell .type-cursor {
+  position: absolute;
+  bottom: -0.1em;
+  right: 0;
+  left: auto;
+  display: inline-block;
+  width: 0.5em;
+  height: 0.08em;
+  border-radius: 2px;
+  background: var(--hero-title-cursor);
+  box-shadow: 0 0 6px
+    color-mix(in srgb, var(--hero-title-cursor) 45%, transparent);
+  animation: type-cursor-blink 1.1s ease-in-out infinite;
+}
+@media (min-width: 1024px) {
+  .landing-shell .type-cursor {
+    transform: scale(calc(1 / var(--type-scale)));
+    transform-origin: right bottom;
+  }
+}
+/* 专属柔闪（共用 @keyframes blink 供信号账本光标使用，不动）：
+   连续终端节律，50% 亮段 → 8% 淡落 → 28% 暗段 → 8% 淡回。 */
+@keyframes type-cursor-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  58%,
+  86% {
+    opacity: 0.15;
+  }
+  94%,
+  100% {
+    opacity: 1;
+  }
+}
+/* 打字/删除进行中：光标保持常亮，停顿等待时才开始闪烁 */
+.landing-shell .type-cursor.is-typing {
+  animation-play-state: paused;
+  opacity: 1;
+}
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ===== Hero Gateway Signal Rail ===== */
+/* A transparent, bottom-anchored telemetry rail.  The map remains visible
+   beneath every piece of copy; only the signal itself gets a glow.
+   All colours are token-driven: the same structure renders both themes. */
+.landing-shell .signal-console {
+  --signal-top: clamp(112px, 15vh, 164px);
+  --signal-bottom: clamp(52px, 8vh, 90px);
+  position: absolute;
+  z-index: 11;
+  top: var(--signal-top);
+  bottom: auto;
+  left: clamp(20px, 3vw, 48px);
+  width: min(360px, 25vw);
+  height: calc(100vh - var(--signal-top) - var(--signal-bottom));
+  min-height: 420px;
+  color: var(--text-secondary);
+  font-size: clamp(12px, 0.77vw, 13px);
+  line-height: 1.42;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 12px var(--console-glow);
+}
+.landing-shell .signal-console__rail {
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: 0;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgb(var(--signal-rgb) / 0.68) 8%,
+    rgb(var(--signal-rgb) / 0.24) 82%,
+    transparent 100%
+  );
+}
+.landing-shell .signal-console__rail::before,
+.landing-shell .signal-console__rail::after {
+  position: absolute;
+  left: -3px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgb(var(--signal-rgb) / 0.72);
+  border-radius: 999px;
+  background: var(--page-background);
+  box-shadow: 0 0 12px rgb(var(--signal-rgb) / 0.22);
+  content: '';
+}
+.landing-shell .signal-console__rail::before {
+  top: 0;
+}
+.landing-shell .signal-console__rail::after {
+  bottom: 0;
+}
+.landing-shell .signal-console__body {
+  display: grid;
+  height: 100%;
+  grid-template-rows: auto minmax(116px, 1fr) auto;
+  gap: clamp(15px, 2vh, 22px);
+  padding-left: clamp(22px, 1.8vw, 30px);
+}
+.landing-shell .signal-console__telemetry-head {
+  position: relative;
+  display: grid;
+  width: 100%;
+  gap: 14px;
+  align-self: start;
+  padding: 2px 8px 2px 0;
+  margin: 0;
+  pointer-events: auto;
+  outline: none;
+  cursor: default;
+}
+.landing-shell .signal-console__telemetry-trigger {
+  display: grid;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.landing-shell .signal-console__telemetry-content {
+  display: grid;
+  gap: 14px;
+}
+.landing-shell .signal-console__telemetry-trigger:focus-visible {
+  outline: 1px solid rgb(var(--accent-rgb) / 0.66);
+  outline-offset: 5px;
+}
+.landing-shell .signal-console__telemetry-head:focus-visible::after {
+  position: absolute;
+  top: -5px;
+  right: 0;
+  bottom: -5px;
+  left: -7px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.66);
+  content: '';
+  pointer-events: none;
+}
+.landing-shell .signal-console__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+.landing-shell .signal-console__phase {
+  margin-left: 2px;
+  color: rgb(var(--signal-rgb) / 0.78);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.11em;
+}
+.landing-shell .signal-console__live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--live-dot);
+  box-shadow: 0 0 12px rgb(var(--live-dot-rgb) / 0.6);
+  animation: signal-console-dot 3s ease-in-out infinite;
+}
+.landing-shell .signal-console__telemetry {
+  display: grid;
+  gap: 8px;
+}
+.landing-shell .signal-console__telemetry-row {
+  display: grid;
+  grid-template-columns: 34px 58px minmax(0, 1fr);
+  gap: 5px;
+  align-items: baseline;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.045em;
+  transition:
+    color 600ms ease,
+    opacity 600ms ease;
+}
+.landing-shell .signal-console__telemetry-index {
+  color: rgb(var(--signal-rgb) / 0.66);
+  font-size: 9px;
+}
+.landing-shell .signal-console__telemetry-label {
+  color: var(--text-secondary);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+.landing-shell .signal-console__telemetry-value {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    color 600ms ease,
+    text-shadow 600ms ease;
+}
+.landing-shell
+  .signal-console--route
+  .signal-console__telemetry-row.is-target
+  .signal-console__telemetry-value,
+.landing-shell
+  .signal-console--respond
+  .signal-console__telemetry-row.is-target
+  .signal-console__telemetry-value {
+  color: var(--accent);
+  text-shadow: 0 0 13px rgb(var(--accent-rgb) / 0.38);
+}
+.landing-shell .signal-console__telemetry-row.is-more {
+  opacity: 0.58;
+}
+.landing-shell
+  .signal-console__telemetry-head:hover
+  .signal-console__telemetry-row.is-more,
+.landing-shell
+  .signal-console__telemetry-head:focus-within
+  .signal-console__telemetry-row.is-more {
+  opacity: 0.92;
+}
+.landing-shell .signal-console__more-dots {
+  grid-column: 3;
+  color: rgb(var(--signal-rgb) / 0.74);
+  letter-spacing: 0.2em;
+}
+.landing-shell .signal-console__trace-drawer {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 13px);
+  left: 0;
+  display: grid;
+  width: min(360px, 25vw);
+  max-height: min(38vh, 330px);
+  gap: 10px;
+  padding: 0 0 2px clamp(12px, 1.25vw, 18px);
+  overflow: auto;
+  border-left: 1px solid rgb(var(--signal-rgb) / 0.54);
+  color: var(--text-secondary);
+  overscroll-behavior: contain;
+  text-shadow: 0 1px 12px var(--console-glow);
+}
+.landing-shell .signal-console__trace-drawer::before {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.72);
+  border-radius: 999px;
+  background: var(--page-background);
+  box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.26);
+  content: '';
+}
+.landing-shell .signal-console__trace-drawer-title,
+.landing-shell .signal-console__trace-meta,
+.landing-shell .signal-console__trace-chain,
+.landing-shell .signal-console__trace-empty {
+  margin: 0;
+}
+.landing-shell .signal-console__trace-drawer-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 1px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.landing-shell .signal-console__trace-drawer-title span:last-child {
+  color: rgb(var(--signal-rgb) / 0.7);
+  font-weight: 500;
+}
+.landing-shell .signal-console__trace-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 5px 0 0;
+  margin: 0;
+  list-style: none;
+}
+.landing-shell .signal-console__trace-record {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+  border-top: 1px dotted rgb(var(--signal-rgb) / 0.28);
+  color: var(--text-tertiary);
+  opacity: 0.68;
+  transition:
+    color 620ms ease,
+    opacity 620ms ease,
+    border-color 620ms ease;
+}
+.landing-shell .signal-console__trace-record.is-focus {
+  border-color: rgb(var(--accent-rgb) / 0.62);
+  color: var(--text-primary);
+  opacity: 1;
+}
+.landing-shell
+  .signal-console__trace-record.is-pointer
+  .signal-console__trace-meta
+  span:first-child {
+  color: var(--accent);
+}
+.landing-shell .signal-console__trace-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: rgb(var(--signal-rgb) / 0.72);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+.landing-shell .signal-console__trace-latency {
+  margin-left: auto;
+  color: var(--text-primary);
+}
+.landing-shell .signal-console__trace-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  font-size: 10px;
+  line-height: 1.55;
+  letter-spacing: 0.035em;
+}
+.landing-shell .signal-console__trace-source {
+  color: var(--text-secondary);
+}
+.landing-shell .signal-console__trace-arrow {
+  color: rgb(var(--signal-rgb) / 0.52);
+}
+.landing-shell .signal-console__trace-hub {
+  color: var(--accent);
+  font-weight: 700;
+}
+.landing-shell .signal-console__trace-hop {
+  color: var(--text-secondary);
+  transition:
+    color 580ms ease,
+    text-shadow 580ms ease;
+}
+.landing-shell .signal-console__trace-hop[data-state='processing'],
+.landing-shell .signal-console__trace-hop[data-state='returning'] {
+  color: var(--text-primary);
+  text-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.3);
+}
+.landing-shell .signal-console__trace-response {
+  color: var(--accent);
+  font-weight: 700;
+}
+.landing-shell .signal-console__trace-empty {
+  color: rgb(var(--signal-rgb) / 0.66);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+}
+.landing-shell .signal-trace-drawer-enter-active,
+.landing-shell .signal-trace-drawer-leave-active {
+  transition:
+    opacity 560ms ease,
+    transform 620ms cubic-bezier(0.22, 0.72, 0.25, 1);
+}
+.landing-shell .signal-trace-drawer-enter-from,
+.landing-shell .signal-trace-drawer-leave-to {
+  opacity: 0;
+  transform: translateY(-9px);
+}
+.landing-shell .signal-console__canvas-window {
+  min-height: 0;
+}
+.landing-shell .signal-console__lower-deck {
+  display: grid;
+  width: 100%;
+  gap: clamp(13px, 1.7vh, 18px);
+  align-self: end;
+}
+.landing-shell .signal-console__trace {
+  display: flex;
+  min-height: 38px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  color: var(--text-primary);
+  font-size: clamp(13px, 0.9vw, 15px);
+  line-height: 1.5;
+}
+.landing-shell .signal-console__prompt,
+.landing-shell .signal-console__capability.is-active .signal-console__node,
+.landing-shell
+  .signal-console__capability.is-active
+  .signal-console__capability-index {
+  color: var(--accent);
+}
+.landing-shell .signal-console__prompt {
+  font-weight: 800;
+}
+.landing-shell .signal-console__route {
+  color: rgb(var(--signal-rgb) / 0.88);
+}
+.landing-shell .signal-console__model {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.landing-shell .signal-console__latency {
+  color: var(--text-secondary);
+}
+.landing-shell .signal-console__cursor {
+  display: inline-block;
+  width: 5px;
+  height: 1em;
+  margin-left: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.68);
+  animation: blink 1.05s step-end infinite;
+}
+.landing-shell .signal-console__rule {
+  max-width: 100%;
+  overflow: hidden;
+  margin: 0;
+  color: rgb(var(--signal-rgb) / 0.5);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.landing-shell .signal-console__capabilities {
+  display: flex;
+  width: 100%;
+  flex-direction: column-reverse;
+  gap: clamp(9px, 1.25vh, 13px);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.landing-shell .signal-console__capability {
+  position: relative;
+  display: grid;
+  grid-template-columns: 33px 28px minmax(0, 1fr);
+  gap: 5px;
+  align-items: start;
+  color: var(--text-tertiary);
+  transition: color 600ms ease;
+}
+.landing-shell .signal-console__capability::before {
+  position: absolute;
+  top: 10px;
+  left: calc(-1 * clamp(22px, 1.8vw, 30px));
+  width: calc(clamp(22px, 1.8vw, 30px) - 7px);
+  border-top: 1px solid rgb(var(--signal-rgb) / 0.28);
+  content: '';
+  transition: border-color 600ms ease;
+}
+.landing-shell .signal-console__capability-index {
+  color: rgb(var(--signal-rgb) / 0.62);
+  font-size: 10px;
+  line-height: 1.75;
+  letter-spacing: 0.08em;
+  transition: color 600ms ease;
+}
+.landing-shell .signal-console__node {
+  color: rgb(var(--signal-rgb) / 0.9);
+  font-size: 12px;
+  line-height: 1.52;
+  transition: color 600ms ease;
+}
+.landing-shell .signal-console__capability-title {
+  display: block;
+  color: var(--text-secondary);
+  font-size: clamp(13px, 0.82vw, 14px);
+  font-weight: 600;
+  line-height: 1.35;
+  transition: color 600ms ease;
+}
+.landing-shell .signal-console__capability-detail {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 1.45;
+  transition: color 600ms ease;
+}
+.landing-shell .signal-console__capability.is-active::before {
+  border-color: rgb(var(--accent-rgb) / 0.68);
+}
+.landing-shell
+  .signal-console__capability.is-active
+  .signal-console__capability-title {
+  color: var(--text-primary);
+}
+.landing-shell
+  .signal-console__capability.is-active
+  .signal-console__capability-detail {
+  color: var(--text-secondary);
+}
+.landing-shell .signal-console__baseline {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  gap: clamp(12px, 1.2vw, 18px);
+  padding-top: 2px;
+}
+.landing-shell .signal-console__baseline-readout {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+  gap: clamp(8px, 0.8vw, 12px);
+}
+.landing-shell .signal-latency-meter {
+  display: flex;
+  align-items: baseline;
+  width: fit-content;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.landing-shell .signal-latency-meter__glyph {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  color: rgb(var(--signal-rgb) / 0.9);
+  line-height: 1;
+  letter-spacing: -0.1em;
+}
+.landing-shell .signal-latency-meter__bar {
+  display: inline-block;
+  min-width: 5px;
+  transform-origin: center bottom;
+}
+.landing-shell .signal-latency-meter__value {
+  color: var(--text-primary);
+  transition: color 600ms ease;
+}
+.landing-shell .signal-console__origin {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.landing-shell .signal-console__origin-label {
+  color: rgb(var(--signal-rgb) / 0.7);
+}
+.landing-shell .signal-console__origin-value {
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  transition: color 600ms ease;
+}
+.landing-shell .signal-latency-meter.is-elevated .signal-latency-meter__glyph {
+  color: var(--accent);
+}
+.landing-shell .signal-latency-meter.is-high .signal-latency-meter__glyph {
+  color: var(--text-primary);
+  text-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.68);
+}
+.landing-shell
+  .signal-latency-meter__glyph.is-pulsing
+  .signal-latency-meter__bar {
+  animation: signal-latency-wave var(--latency-wave-duration) ease-out both;
+}
+.landing-shell
+  .signal-latency-meter__glyph.is-pulsing
+  .signal-latency-meter__bar:nth-child(2) {
+  animation-delay: var(--latency-wave-step);
+}
+.landing-shell
+  .signal-latency-meter__glyph.is-pulsing
+  .signal-latency-meter__bar:nth-child(3) {
+  animation-delay: calc(var(--latency-wave-step) + var(--latency-wave-step));
+}
+@keyframes signal-latency-wave {
+  0% {
+    opacity: 0.54;
+    transform: translateY(2px) scaleY(0.56);
+  }
+  42% {
+    opacity: 1;
+    transform: translateY(-2px) scaleY(1.3);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+@keyframes signal-console-dot {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ===== Signal Console：移动端单行 Live Ticker（桌面端隐藏） ===== */
+.landing-shell .signal-console__ticker {
+  display: none;
+}
+
+/* ===== 降低动效偏好 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .landing-shell *,
+  .landing-shell *::before,
+  .landing-shell *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .landing-shell .hero-integration-marquee {
+    transform: none !important;
+  }
+}
+
+/* 移动端舞台聚光：枢纽上移至顶部舞台区，聚光中心同步上移（线性 scrim 不变）。
+   光池下缘漫到下方直排内容区顶缘，与净底排版自然相接。 */
+@media (max-width: 1023px) {
+  .landing-shell {
+    --hero-depth-overlay: var(--hero-mobile-depth-overlay);
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 780px) {
+  .landing-shell .signal-console {
+    --signal-top: 100px;
+    --signal-bottom: 48px;
+    min-height: 0;
+    width: min(330px, 23vw);
+  }
+  .landing-shell .signal-console__body {
+    grid-template-rows: auto minmax(68px, 1fr) auto;
+    gap: 10px;
+  }
+  .landing-shell .signal-console__telemetry {
+    gap: 5px;
+  }
+  .landing-shell .signal-console__trace-drawer {
+    max-height: min(30vh, 210px);
+    gap: 7px;
+  }
+  .landing-shell .signal-console__trace-list {
+    gap: 7px;
+  }
+  .landing-shell .signal-console__capabilities {
+    gap: 8px;
+  }
+  .landing-shell .signal-console__capability-detail {
+    display: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  .landing-shell .signal-console {
+    top: auto;
+    bottom: max(20px, env(safe-area-inset-bottom));
+    left: 50%;
+    width: calc(100vw - 32px);
+    min-height: 0;
+    height: auto;
+    transform: translateX(-50%);
+    white-space: normal;
+  }
+  .landing-shell .signal-console__rail,
+  .landing-shell .signal-console__telemetry-head,
+  .landing-shell .signal-console__canvas-window,
+  .landing-shell .signal-console__rule,
+  .landing-shell .signal-console__capabilities,
+  .landing-shell .signal-console__baseline,
+  .landing-shell .signal-dot-matrix {
+    display: none;
+  }
+  .landing-shell .signal-console__body {
+    display: block;
+    height: auto;
+    padding-left: 0;
+  }
+  .landing-shell .signal-console__lower-deck {
+    display: block;
+  }
+  /* 单行 Live Ticker：● PHASE · 目标 · 延迟，沿用 --glass-* 玻璃令牌 */
+  .landing-shell .signal-console__ticker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    gap: 8px;
+    padding: 8px 14px;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    background: var(--glass-bg);
+    box-shadow: 0 8px 24px var(--shadow-color);
+    backdrop-filter: blur(16px) saturate(1.6);
+    -webkit-backdrop-filter: blur(16px) saturate(1.6);
+    color: var(--text-secondary);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-shadow: none;
+    white-space: nowrap;
+    transition:
+      opacity 240ms ease,
+      transform 240ms ease,
+      visibility 0s 0s;
+  }
+  .landing-shell .signal-console__ticker-dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--live-dot);
+    box-shadow: 0 0 10px rgb(var(--live-dot-rgb) / 0.6);
+    animation: signal-console-dot 3s ease-in-out infinite;
+  }
+  .landing-shell .signal-console__ticker-phase {
+    flex: none;
+    color: rgb(var(--signal-rgb) / 0.9);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+  .landing-shell .signal-console__ticker-target {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-weight: 600;
+    text-overflow: ellipsis;
+  }
+  .landing-shell .signal-console__ticker-latency {
+    flex: none;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  /* 沉浸态：Ticker 抬到召回钮上方，去玻璃壳、文字光晕融入背景 */
+  .landing-shell .signal-console.is-immersive {
+    bottom: calc(max(20px, env(safe-area-inset-bottom)) + 52px);
+  }
+  .landing-shell .signal-console.is-immersive .signal-console__ticker {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    text-shadow: 0 1px 12px var(--console-glow);
+  }
+}
