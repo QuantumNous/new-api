@@ -230,10 +230,8 @@ export function ProfileHeader(props: ProfileHeaderProps) {
               data-slot='profile-balance-guidance'
               className='text-muted-foreground space-y-1 text-xs leading-relaxed'
             >
-              <p className='lg:whitespace-nowrap'>
-                {t('Balance can be used to purchase plans directly.')}
-              </p>
-              <p className='lg:whitespace-nowrap'>
+              <p>{t('Balance can be used to purchase plans directly.')}</p>
+              <p>
                 {t(
                   'After plan quota is exhausted, balance is used automatically for API usage billing.'
                 )}

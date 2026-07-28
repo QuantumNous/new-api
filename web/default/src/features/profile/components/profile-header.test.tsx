@@ -75,6 +75,14 @@ function renderHeader(subscription: ProfileSubscriptionSummary | null): string {
   )
 }
 
+function renderLoadingHeader(): string {
+  return renderToStaticMarkup(
+    <I18nextProvider i18n={testI18n}>
+      <ProfileHeader profile={null} loading subscription={null} />
+    </I18nextProvider>
+  )
+}
+
 function extractBalanceGuidance(html: string): string {
   const match = html.match(
     /<div[^>]*data-slot="profile-balance-guidance"[^>]*>[\s\S]*?<\/div>/
@@ -142,6 +150,17 @@ describe('ProfileHeader', () => {
     expect(statsStart).toBeGreaterThan(planStart)
   })
 
+  test('keeps the loading header aligned to the desktop balance column', () => {
+    const html = renderLoadingHeader()
+
+    expect(classForDataSlot(html, 'profile-header-top-row')).toContain(
+      'lg:grid-cols-[minmax(0,1fr)_390px]'
+    )
+    expect(classForDataSlot(html, 'profile-balance-column')).toContain(
+      'lg:w-[390px]'
+    )
+  })
+
   test('renders plan quota and remaining amount in one horizontal band', () => {
     const html = renderHeader(activeSubscription)
     const planClass = classForDataSlot(html, 'profile-plan-summary')
@@ -192,7 +211,7 @@ describe('ProfileHeader', () => {
     expect(balanceColumnClass).toContain('lg:w-[390px]')
     expect(guidanceClass).toContain('text-xs')
     expect(guidanceClass).not.toContain('sm:text-sm')
-    expect((guidance.match(/lg:whitespace-nowrap/g) ?? []).length).toBe(2)
+    expect(guidance).not.toContain('whitespace-nowrap')
     expect(guidance).not.toContain('truncate')
     expect(guidance).not.toContain('line-clamp')
   })
