@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -41,29 +42,167 @@ import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
-const createEmailSchema = (t: (key: string) => string) =>
-  z.object({
-    SMTPServer: z.string(),
-    SMTPPort: z.string().refine((value) => {
-      const trimmed = value.trim()
-      if (!trimmed) return true
-      return /^\d+$/.test(trimmed)
-    }, t('Port must be a positive integer')),
-    SMTPAccount: z.string(),
-    SMTPFrom: z.string().refine((value) => {
-      const trimmed = value.trim()
-      if (!trimmed) return true
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
-    }, t('Enter a valid email or leave blank')),
-    SMTPToken: z.string(),
-    SMTPSSLEnabled: z.boolean(),
-    SMTPForceAuthLogin: z.boolean(),
-  })
+type SMTPFromAliasesResult = {
+  aliases: string[]
+  persisted: string
+}
 
-type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
+type EmailOptionUpdate = {
+  key: string
+  value: string | boolean
+}
+
+const PLAIN_MAILBOX_PATTERN = /^[^\s@<>,"]+@[^\s@<>,"]+\.[^\s@<>,"]+$/
+
+export function parseSMTPFromAliases(
+  input: string,
+  smtpFrom: string
+): SMTPFromAliasesResult {
+  const aliases: string[] = []
+  const seen = new Set<string>()
+  const normalizedSMTPFrom = smtpFrom.trim().toLowerCase()
+
+  for (const rawLine of input.split(/\r\n|\n|\r/)) {
+    const alias = rawLine.trim()
+    if (!alias) continue
+
+    if (!PLAIN_MAILBOX_PATTERN.test(alias)) {
+      throw new Error('Each alias must be a plain email address.')
+    }
+
+    const normalizedAlias = alias.toLowerCase()
+    if (normalizedAlias === normalizedSMTPFrom) {
+      throw new Error('Sender aliases must not duplicate the From address.')
+    }
+
+    if (seen.has(normalizedAlias)) {
+      throw new Error('Sender aliases must be unique.')
+    }
+
+    seen.add(normalizedAlias)
+    aliases.push(alias)
+  }
+
+  return {
+    aliases,
+    persisted: aliases.join(','),
+  }
+}
+
+const createEmailSchema = (t: (key: string) => string) =>
+  z
+    .object({
+      SMTPServer: z.string(),
+      SMTPPort: z.string().refine((value) => {
+        const trimmed = value.trim()
+        if (!trimmed) return true
+        return /^\d+$/.test(trimmed)
+      }, t('Port must be a positive integer')),
+      SMTPAccount: z.string(),
+      SMTPFrom: z.string().refine((value) => {
+        const trimmed = value.trim()
+        if (!trimmed) return true
+        return PLAIN_MAILBOX_PATTERN.test(trimmed)
+      }, t('Enter a valid email or leave blank')),
+      SMTPFromAliases: z.string(),
+      SMTPToken: z.string(),
+      SMTPSSLEnabled: z.boolean(),
+      SMTPForceAuthLogin: z.boolean(),
+    })
+    .superRefine((values, context) => {
+      try {
+        parseSMTPFromAliases(values.SMTPFromAliases, values.SMTPFrom)
+      } catch (error) {
+        context.addIssue({
+          code: 'custom',
+          path: ['SMTPFromAliases'],
+          message: t(error instanceof Error ? error.message : String(error)),
+        })
+      }
+    })
+
+export type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
 
 type EmailSettingsSectionProps = {
   defaultValues: EmailFormValues
+}
+
+export function buildEmailOptionUpdates(
+  defaultValues: EmailFormValues,
+  values: EmailFormValues
+): EmailOptionUpdate[] {
+  const sanitized = {
+    SMTPServer: values.SMTPServer.trim(),
+    SMTPPort: values.SMTPPort.trim(),
+    SMTPAccount: values.SMTPAccount.trim(),
+    SMTPFrom: values.SMTPFrom.trim(),
+    SMTPFromAliases: parseSMTPFromAliases(
+      values.SMTPFromAliases,
+      values.SMTPFrom
+    ).persisted,
+    SMTPToken: values.SMTPToken.trim(),
+    SMTPSSLEnabled: values.SMTPSSLEnabled,
+    SMTPForceAuthLogin: values.SMTPForceAuthLogin,
+  }
+
+  const initial = {
+    SMTPServer: defaultValues.SMTPServer.trim(),
+    SMTPPort: defaultValues.SMTPPort.trim(),
+    SMTPAccount: defaultValues.SMTPAccount.trim(),
+    SMTPFrom: defaultValues.SMTPFrom.trim(),
+    SMTPFromAliases: parseSMTPFromAliases(
+      defaultValues.SMTPFromAliases,
+      defaultValues.SMTPFrom
+    ).persisted,
+    SMTPToken: defaultValues.SMTPToken.trim(),
+    SMTPSSLEnabled: defaultValues.SMTPSSLEnabled,
+    SMTPForceAuthLogin: defaultValues.SMTPForceAuthLogin,
+  }
+
+  const updates: EmailOptionUpdate[] = []
+
+  if (sanitized.SMTPServer !== initial.SMTPServer) {
+    updates.push({ key: 'SMTPServer', value: sanitized.SMTPServer })
+  }
+
+  if (sanitized.SMTPPort !== initial.SMTPPort) {
+    updates.push({ key: 'SMTPPort', value: sanitized.SMTPPort })
+  }
+
+  if (sanitized.SMTPAccount !== initial.SMTPAccount) {
+    updates.push({ key: 'SMTPAccount', value: sanitized.SMTPAccount })
+  }
+
+  if (sanitized.SMTPFrom !== initial.SMTPFrom) {
+    updates.push({ key: 'SMTPFrom', value: sanitized.SMTPFrom })
+  }
+
+  if (sanitized.SMTPFromAliases !== initial.SMTPFromAliases) {
+    updates.push({
+      key: 'SMTPFromAliases',
+      value: sanitized.SMTPFromAliases,
+    })
+  }
+
+  if (sanitized.SMTPToken && sanitized.SMTPToken !== initial.SMTPToken) {
+    updates.push({ key: 'SMTPToken', value: sanitized.SMTPToken })
+  }
+
+  if (sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled) {
+    updates.push({
+      key: 'SMTPSSLEnabled',
+      value: sanitized.SMTPSSLEnabled,
+    })
+  }
+
+  if (sanitized.SMTPForceAuthLogin !== initial.SMTPForceAuthLogin) {
+    updates.push({
+      key: 'SMTPForceAuthLogin',
+      value: sanitized.SMTPForceAuthLogin,
+    })
+  }
+
+  return updates
 }
 
 export function EmailSettingsSection({
@@ -81,61 +220,7 @@ export function EmailSettingsSection({
   useResetForm(form, defaultValues)
 
   const onSubmit = async (values: EmailFormValues) => {
-    const sanitized = {
-      SMTPServer: values.SMTPServer.trim(),
-      SMTPPort: values.SMTPPort.trim(),
-      SMTPAccount: values.SMTPAccount.trim(),
-      SMTPFrom: values.SMTPFrom.trim(),
-      SMTPToken: values.SMTPToken.trim(),
-      SMTPSSLEnabled: values.SMTPSSLEnabled,
-      SMTPForceAuthLogin: values.SMTPForceAuthLogin,
-    }
-
-    const initial = {
-      SMTPServer: defaultValues.SMTPServer.trim(),
-      SMTPPort: defaultValues.SMTPPort.trim(),
-      SMTPAccount: defaultValues.SMTPAccount.trim(),
-      SMTPFrom: defaultValues.SMTPFrom.trim(),
-      SMTPToken: defaultValues.SMTPToken.trim(),
-      SMTPSSLEnabled: defaultValues.SMTPSSLEnabled,
-      SMTPForceAuthLogin: defaultValues.SMTPForceAuthLogin,
-    }
-
-    const updates: Array<{ key: string; value: string | boolean }> = []
-
-    if (sanitized.SMTPServer !== initial.SMTPServer) {
-      updates.push({ key: 'SMTPServer', value: sanitized.SMTPServer })
-    }
-
-    if (sanitized.SMTPPort !== initial.SMTPPort) {
-      updates.push({ key: 'SMTPPort', value: sanitized.SMTPPort })
-    }
-
-    if (sanitized.SMTPAccount !== initial.SMTPAccount) {
-      updates.push({ key: 'SMTPAccount', value: sanitized.SMTPAccount })
-    }
-
-    if (sanitized.SMTPFrom !== initial.SMTPFrom) {
-      updates.push({ key: 'SMTPFrom', value: sanitized.SMTPFrom })
-    }
-
-    if (sanitized.SMTPToken && sanitized.SMTPToken !== initial.SMTPToken) {
-      updates.push({ key: 'SMTPToken', value: sanitized.SMTPToken })
-    }
-
-    if (sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled) {
-      updates.push({
-        key: 'SMTPSSLEnabled',
-        value: sanitized.SMTPSSLEnabled,
-      })
-    }
-
-    if (sanitized.SMTPForceAuthLogin !== initial.SMTPForceAuthLogin) {
-      updates.push({
-        key: 'SMTPForceAuthLogin',
-        value: sanitized.SMTPForceAuthLogin,
-      })
-    }
+    const updates = buildEmailOptionUpdates(defaultValues, values)
 
     for (const update of updates) {
       await updateOption.mutateAsync(update)
@@ -278,6 +363,32 @@ export function EmailSettingsSection({
                 </FormControl>
                 <FormDescription>
                   {t('Display name and email used in outgoing messages')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='SMTPFromAliases'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Allowed From aliases')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    autoComplete='off'
+                    placeholder={t(
+                      'Enter one authorized email address per line.'
+                    )}
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Aliases must already be authorized by your SMTP provider.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

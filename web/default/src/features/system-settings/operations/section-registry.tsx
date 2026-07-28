@@ -26,6 +26,14 @@ import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
+function displaySMTPFromAliases(value: string): string {
+  return value
+    .split(',')
+    .map((alias) => alias.trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
 const OPERATIONS_SECTIONS = [
   {
     id: 'behavior',
@@ -109,6 +117,7 @@ const OPERATIONS_SECTIONS = [
           SMTPPort: settings.SMTPPort,
           SMTPAccount: settings.SMTPAccount,
           SMTPFrom: settings.SMTPFrom,
+          SMTPFromAliases: displaySMTPFromAliases(settings.SMTPFromAliases),
           SMTPToken: settings.SMTPToken,
           SMTPSSLEnabled: settings.SMTPSSLEnabled,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
