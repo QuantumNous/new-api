@@ -43,9 +43,22 @@ from .base import (
     ModelCapabilities,
     ProviderClient,
     StreamChunk,
+    TokenUsage,
     ToolCall,
 )
 from .capabilities import capabilities_for
+
+
+def _usage_from(usage: Any) -> Optional[TokenUsage]:
+    """Converse `usage` dict → normalized counts (`inputTokens` excludes cache)."""
+    if not isinstance(usage, dict):
+        return None
+    return TokenUsage(
+        input=int(usage.get("inputTokens") or 0),
+        output=int(usage.get("outputTokens") or 0),
+        cache_read=int(usage.get("cacheReadInputTokens") or 0),
+        cache_write=int(usage.get("cacheWriteInputTokens") or 0),
+    )
 
 # Converse has no required max token param but per-model defaults vary wildly (Meta's is
 # 512 — an agent turn gets truncated mid-tool-call); 4096 fits every family's ceiling.
@@ -381,6 +394,7 @@ class _BedrockConverseClient(ProviderClient):
             finish_reason=_STOP_REASON_MAP.get(stop_reason, stop_reason),
             raw=response,
             reasoning="".join(reasoning_parts) or None,
+            usage=_usage_from(response.get("usage")),
         )
 
     def stream(
@@ -400,6 +414,7 @@ class _BedrockConverseClient(ProviderClient):
         reasoning_parts: list[str] = []
         tool_accum: dict[int, dict[str, str]] = {}
         stop_reason = None
+        usage: Optional[TokenUsage] = None
 
         for event in response.get("stream") or []:
             if "contentBlockStart" in event:
@@ -427,6 +442,8 @@ class _BedrockConverseClient(ProviderClient):
                         yield StreamChunk(reasoning_delta=thought)
             elif "messageStop" in event:
                 stop_reason = event["messageStop"].get("stopReason") or stop_reason
+            elif "metadata" in event:
+                usage = _usage_from(event["metadata"].get("usage")) or usage
 
         tool_calls = [
             ToolCall(
@@ -442,6 +459,7 @@ class _BedrockConverseClient(ProviderClient):
                 tool_calls=tool_calls,
                 finish_reason=_STOP_REASON_MAP.get(stop_reason, stop_reason),
                 reasoning="".join(reasoning_parts) or None,
+                usage=usage,
             )
         )
 

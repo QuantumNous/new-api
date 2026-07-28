@@ -263,7 +263,11 @@ def test_complete_text_turn_with_defaults():
         and not turn.has_tool_calls
     )
     assert fake.kwargs["model"] == "claude-sonnet-4-6"
-    assert fake.kwargs["system"] == "sys"
+    # System rides as a block list so the last block can carry the prompt-cache
+    # breakpoint (see _add_cache_breakpoints).
+    assert fake.kwargs["system"] == [
+        {"type": "text", "text": "sys", "cache_control": {"type": "ephemeral"}}
+    ]
     assert fake.kwargs["max_tokens"] == DEFAULT_MAX_TOKENS  # required param, injected
     assert "tools" not in fake.kwargs
 

@@ -141,6 +141,9 @@ export interface ConversationMessage {
   tool_calls?: any[];
   tool_call_id?: string;
   source?: MessageSource;
+  // Token counts for the round-trip that produced an assistant message
+  // ({model, input, output, cache_read, cache_write}); absent on older servers.
+  usage?: import("./types").TurnUsage;
   [key: string]: any;
 }
 
@@ -691,6 +694,9 @@ export interface ModelSettings {
   sessions_peek?: number;
   // Curated-matrix display names ({full id → "GLM-5.2 · via Together"}); custom models absent.
   model_labels?: Record<string, string>;
+  // {full id → context window in tokens}, verified matrix entries only — drives the
+  // composer's context-fill meter (absent id → the meter hides). Optional for older backends.
+  model_context_windows?: Record<string, number>;
   // Token savings (PDF attachments): fallback for models without native PDF support,
   // and attach-time thresholds. Optional so the GUI is robust to an older backend.
   pdf_fallback?: "text" | "images";
