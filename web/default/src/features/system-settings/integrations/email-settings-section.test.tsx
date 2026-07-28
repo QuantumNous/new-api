@@ -25,6 +25,7 @@ import {
   EmailSettingsSection,
   buildEmailOptionUpdates,
   parseSMTPFromAliases,
+  saveEmailOptionUpdates,
   type EmailFormValues,
 } from './email-settings-section'
 
@@ -128,6 +129,26 @@ describe('SMTP email settings', () => {
     ])
   })
 
+  test('allows replacing a malformed persisted alias value with valid aliases', () => {
+    expect(
+      buildEmailOptionUpdates(
+        {
+          ...defaultEmailValues,
+          SMTPFromAliases: 'Sales <sales@example.com>',
+        },
+        {
+          ...defaultEmailValues,
+          SMTPFromAliases: 'sales@example.com',
+        }
+      )
+    ).toEqual([
+      {
+        key: 'SMTPFromAliases',
+        value: 'sales@example.com',
+      },
+    ])
+  })
+
   test('updates From before aliases when both sender settings change', () => {
     const updates = buildEmailOptionUpdates(defaultEmailValues, {
       ...defaultEmailValues,
@@ -155,5 +176,28 @@ describe('SMTP email settings', () => {
     )
 
     expect(updates).toEqual([{ key: 'SMTPSSLEnabled', value: true }])
+  })
+
+  test('stops sequential option updates when one response is unsuccessful', async () => {
+    const calls: string[] = []
+    const updateOption = async (update: { key: string }) => {
+      calls.push(update.key)
+      return {
+        success: false,
+        message: 'SMTP From rejected',
+      }
+    }
+
+    await expect(
+      saveEmailOptionUpdates(
+        [
+          { key: 'SMTPFrom', value: 'sender@example.com' },
+          { key: 'SMTPFromAliases', value: 'sales@example.com' },
+        ],
+        updateOption
+      )
+    ).rejects.toThrow('SMTP From rejected')
+
+    expect(calls).toEqual(['SMTPFrom'])
   })
 })

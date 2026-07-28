@@ -41,6 +41,7 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import type { UpdateOptionResponse } from '../types'
 
 type SMTPFromAliasesResult = {
   aliases: string[]
@@ -51,6 +52,10 @@ type EmailOptionUpdate = {
   key: string
   value: string | boolean
 }
+
+type EmailOptionUpdater = (
+  update: EmailOptionUpdate
+) => Promise<UpdateOptionResponse>
 
 const PLAIN_MAILBOX_PATTERN = /^[^\s@<>,"]+@[^\s@<>,"]+\.[^\s@<>,"]+$/
 
@@ -86,6 +91,17 @@ export function parseSMTPFromAliases(
   return {
     aliases,
     persisted: aliases.join(','),
+  }
+}
+
+function normalizeSavedSMTPFromAliases(
+  value: string,
+  smtpFrom: string
+): string | null {
+  try {
+    return parseSMTPFromAliases(value.replaceAll(',', '\n'), smtpFrom).persisted
+  } catch {
+    return null
   }
 }
 
@@ -150,10 +166,10 @@ export function buildEmailOptionUpdates(
     SMTPPort: defaultValues.SMTPPort.trim(),
     SMTPAccount: defaultValues.SMTPAccount.trim(),
     SMTPFrom: defaultValues.SMTPFrom.trim(),
-    SMTPFromAliases: parseSMTPFromAliases(
+    SMTPFromAliases: normalizeSavedSMTPFromAliases(
       defaultValues.SMTPFromAliases,
       defaultValues.SMTPFrom
-    ).persisted,
+    ),
     SMTPToken: defaultValues.SMTPToken.trim(),
     SMTPSSLEnabled: defaultValues.SMTPSSLEnabled,
     SMTPForceAuthLogin: defaultValues.SMTPForceAuthLogin,
@@ -205,6 +221,18 @@ export function buildEmailOptionUpdates(
   return updates
 }
 
+export async function saveEmailOptionUpdates(
+  updates: EmailOptionUpdate[],
+  updateOption: EmailOptionUpdater
+): Promise<void> {
+  for (const update of updates) {
+    const response = await updateOption(update)
+    if (!response.success) {
+      throw new Error(response.message || 'Failed to update setting')
+    }
+  }
+}
+
 export function EmailSettingsSection({
   defaultValues,
 }: EmailSettingsSectionProps) {
@@ -221,10 +249,7 @@ export function EmailSettingsSection({
 
   const onSubmit = async (values: EmailFormValues) => {
     const updates = buildEmailOptionUpdates(defaultValues, values)
-
-    for (const update of updates) {
-      await updateOption.mutateAsync(update)
-    }
+    await saveEmailOptionUpdates(updates, updateOption.mutateAsync)
   }
 
   return (
