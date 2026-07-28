@@ -408,7 +408,7 @@ export interface SelfSubscriptionData {
   current_entitlement?: SubscriptionEntitlement | null
   current_period?: SubscriptionCurrentPeriod
   quota?: SubscriptionQuota
-  monthly_bucket?: SubscriptionQuota
+  monthly_bucket?: SubscriptionUsageWindow
   window_5h?: SubscriptionUsageWindow
   window_7d?: SubscriptionUsageWindow
   media_credits?: SubscriptionUsageWindow
