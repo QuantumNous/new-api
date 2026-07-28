@@ -34,6 +34,10 @@ interface LoginSessionItemProps {
 
 export function LoginSessionItem({ session, onRevoke }: LoginSessionItemProps) {
   const { t } = useTranslation()
+  const maxTouchPoints =
+    session.current && typeof navigator !== 'undefined'
+      ? navigator.maxTouchPoints
+      : 0
 
   return (
     <div className='flex flex-col gap-3 py-4 sm:flex-row sm:items-center'>
@@ -46,7 +50,8 @@ export function LoginSessionItem({ session, onRevoke }: LoginSessionItemProps) {
             {sessionDevice(
               session.user_agent,
               t('Unknown device'),
-              t('Browser')
+              t('Browser'),
+              maxTouchPoints
             )}
           </p>
           {session.current && <Badge variant='secondary'>{t('Current')}</Badge>}
