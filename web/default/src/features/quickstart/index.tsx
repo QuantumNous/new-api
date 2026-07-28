@@ -89,10 +89,10 @@ export function Quickstart() {
 
   return (
     <Main className='overflow-auto'>
-      <div className='mx-auto flex min-h-full w-full max-w-5xl items-center px-5 py-12 sm:px-8 lg:py-20'>
-        <section className='grid w-full gap-8'>
+      <div className='mx-auto flex min-h-full w-full max-w-6xl items-center px-5 py-12 sm:px-8 lg:py-16'>
+        <section className='grid w-full gap-9 font-sans'>
           <div>
-            <div className='text-muted-foreground flex items-center gap-2 text-sm'>
+            <div className='text-muted-foreground flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-sm'>
               {apiKeyCount > 0 ? (
                 <CheckCircle2 className='size-5 text-emerald-500' />
               ) : (
@@ -101,37 +101,43 @@ export function Quickstart() {
               {keyStatus}
             </div>
 
-            <h1 className='mt-5 max-w-4xl text-4xl leading-[1.05] font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl'>
+            <h1 className='mt-6 max-w-4xl text-4xl leading-[1.04] font-semibold tracking-[-0.035em] sm:text-5xl lg:text-6xl'>
               {t('Put {{count}} APIs to work in one prompt.', {
                 count: toolCount,
               })}
             </h1>
-            <p className='text-muted-foreground mt-6 max-w-3xl text-base leading-7 sm:text-lg'>
+            <p className='text-muted-foreground mt-5 max-w-3xl text-base leading-7 sm:text-lg'>
               {t(
                 'Copy one into Claude, ChatGPT, or your coding agent. It connects Flatkey with the key you already have, then runs your first call.'
               )}
             </p>
           </div>
 
-          <div className='border-primary/15 bg-primary/8 overflow-hidden rounded-3xl border shadow-2xl'>
-            <div className='text-muted-foreground border-primary/10 border-b px-5 py-4 font-mono text-sm sm:px-7'>
-              <span className='text-primary mr-2'>&gt;</span>
-              {setupPrompt}
+          <div className='animate-in fade-in slide-in-from-bottom-3 relative overflow-hidden rounded-[28px] border border-violet-300/10 bg-[#170b2b] text-[#f4effc] shadow-[0_28px_70px_-34px_rgba(40,18,68,0.75)] duration-500'>
+            <div
+              aria-hidden='true'
+              className='pointer-events-none absolute -top-32 left-1/2 h-64 w-3/4 -translate-x-1/2 rounded-full bg-violet-400/10 blur-3xl'
+            />
+            <div className='relative px-6 pt-7 pb-5 font-mono text-base text-[#9e93ad] sm:px-9 sm:text-lg'>
+              <span className='mr-3 text-[#756987]'>&gt;</span>
+              /flatkey-tools
             </div>
-            <div className='divide-primary/10 divide-y'>
+            <div className='relative mx-3 mb-3 overflow-hidden rounded-2xl border border-white/[0.04] bg-[#241636] sm:mx-4 sm:mb-4'>
               {promptExamples.map((prompt) => (
                 <div
                   key={prompt}
-                  className='group flex items-center gap-3 px-5 py-5 sm:px-7'
+                  className='group flex min-h-20 items-center gap-3 border-b border-white/10 px-5 py-5 transition-colors duration-200 last:border-b-0 hover:bg-[#2d1d41] sm:px-8'
                 >
-                  <p className='min-w-0 flex-1 truncate font-mono text-sm sm:text-base'>
+                  <p className='min-w-0 flex-1 truncate font-mono text-base leading-7 text-[#eee9f4] sm:text-lg'>
                     {prompt}
                   </p>
                   <CopyButton
                     value={`${setupPrompt}\n\n${prompt}`}
                     tooltip={t('Copy prompt')}
+                    successTooltip={t('Copied!')}
                     aria-label={t('Copy prompt')}
-                    className='text-muted-foreground hover:text-foreground'
+                    className='group/copy size-10 rounded-xl text-[#a69daf] opacity-75 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/10 hover:text-white hover:opacity-100 active:translate-y-0 active:scale-95'
+                    iconClassName='animate-in zoom-in-75 size-[19px] duration-200 group-hover/copy:scale-110'
                   />
                 </div>
               ))}
@@ -140,7 +146,7 @@ export function Quickstart() {
 
           <Link
             to='/api-marketplace'
-            className='text-muted-foreground hover:text-foreground w-fit text-sm underline underline-offset-4'
+            className='text-muted-foreground hover:border-foreground/30 hover:bg-muted hover:text-foreground w-fit rounded-full border px-4 py-2 text-sm transition-colors'
           >
             {t('Or browse all endpoints')}
           </Link>

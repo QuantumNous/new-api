@@ -19,7 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useMediaQuery } from '@/hooks'
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Search,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { formatQuota } from '@/lib/format'
@@ -183,7 +189,10 @@ export function DataToolsPage() {
               <p className='text-muted-foreground mb-3 text-xs font-semibold tracking-[0.14em] uppercase'>
                 {t('Platforms')}
               </p>
-              <div className='flex flex-wrap justify-center gap-2'>
+              <div
+                id='marketplace-platform-list'
+                className='flex flex-wrap justify-center gap-2'
+              >
                 <Button
                   type='button'
                   size='sm'
@@ -219,15 +228,27 @@ export function DataToolsPage() {
                     </span>
                   </Button>
                 ))}
-                {!showAllPlatforms && remainingPlatforms > 0 && (
+                {remainingPlatforms > 0 && (
                   <Button
                     type='button'
                     size='sm'
                     variant='ghost'
-                    className='rounded-full'
-                    onClick={() => setShowAllPlatforms(true)}
+                    className='gap-1 rounded-full'
+                    aria-controls='marketplace-platform-list'
+                    aria-expanded={showAllPlatforms}
+                    onClick={() => setShowAllPlatforms((current) => !current)}
                   >
-                    {t('+{{count}} more', { count: remainingPlatforms })}
+                    {showAllPlatforms ? (
+                      <>
+                        <ChevronUp className='size-3.5' />
+                        {t('Show less')}
+                      </>
+                    ) : (
+                      <>
+                        {t('+{{count}} more', { count: remainingPlatforms })}
+                        <ChevronDown className='size-3.5' />
+                      </>
+                    )}
                   </Button>
                 )}
               </div>

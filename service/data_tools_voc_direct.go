@@ -437,7 +437,11 @@ func listDirectDataTools(
 	for _, tool := range catalog {
 		toolPlatform := directDataToolPlatform(tool.Description)
 		platformCounts[toolPlatform]++
-		if platform != "" && !strings.EqualFold(platform, toolPlatform) {
+		// Platform facets are case-sensitive because names such as "TikHub"
+		// (the provider) and "tikhub" (a provider-owned API group) are distinct
+		// entries in the catalog. Filtering must use the same identity rule as
+		// facet counting so the selected badge count matches the result count.
+		if platform != "" && platform != toolPlatform {
 			continue
 		}
 		searchText := strings.ToLower(tool.Name + " " + directDataToolDisplayName(tool.Name) + " " + tool.Description)

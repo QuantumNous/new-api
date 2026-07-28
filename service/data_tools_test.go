@@ -127,6 +127,56 @@ func TestDirectDataToolsListInspectAndFilterOpenVOCTenant(t *testing.T) {
 	require.Equal(t, int32(3), requests.Load(), "inspect should reuse the tenant-scoped catalog cache")
 }
 
+func TestDirectDataToolsPlatformFilterMatchesFacetCaseExactly(t *testing.T) {
+	resetDirectDataToolCatalogCacheForTest()
+	t.Cleanup(resetDirectDataToolCatalogCacheForTest)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var envelope struct {
+			ID     int    `json:"id"`
+			Method string `json:"method"`
+		}
+		require.NoError(t, common.DecodeJson(request.Body, &envelope))
+		switch envelope.Method {
+		case "initialize":
+			writer.Header().Set("Mcp-Session-Id", "case-sensitive-platform-session")
+			writeDirectDataToolMCPResult(t, writer, envelope.ID, map[string]any{
+				"protocolVersion": directDataToolMCPProtocolVersion,
+			})
+		case "notifications/initialized":
+			writer.WriteHeader(http.StatusAccepted)
+		case "tools/list":
+			writeDirectDataToolMCPResult(t, writer, envelope.ID, map[string]any{
+				"tools": []map[string]any{
+					{
+						"name":        "tikhub_provider_tool",
+						"description": "Provider endpoint. Platform: TikHub.",
+						"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+					},
+					{
+						"name":        "tikhub_group_tool",
+						"description": "Provider-owned group endpoint. Platform: tikhub.",
+						"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+					},
+				},
+			})
+		default:
+			t.Fatalf("unexpected direct MCP method %q", envelope.Method)
+		}
+	}))
+	defer server.Close()
+	t.Setenv("VOC_DATA_MCP_URL", server.URL)
+	t.Setenv("VOC_DATA_MCP_SERVICE_KEY", "tenant-key")
+	t.Setenv("VOC_DATA_MCP_MODE", "direct")
+
+	list, err := ListDataTools(t.Context(), "", "TikHub", 1, 24, "")
+	require.NoError(t, err)
+	require.Equal(t, 1, list.Matched)
+	require.Len(t, list.Tools, 1)
+	require.Equal(t, "tikhub_provider_tool", list.Tools[0].ID)
+	require.Equal(t, "TikHub", list.Tools[0].Platform)
+	require.Len(t, list.Platforms, 2)
+}
+
 func TestDirectDataToolRunParsesTextJSONAndForwardsIdempotencyKey(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var envelope struct {
