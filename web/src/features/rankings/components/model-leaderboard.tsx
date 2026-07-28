@@ -134,9 +134,9 @@ function ModelList(props: {
                   ? 'text-muted-foreground/80 font-mono text-[10px] tabular-nums'
                   : 'text-muted-foreground/80 font-mono text-[11px] tabular-nums'
               }
-              aria-label={`${t('Usage')}: ${formatLogQuota(row.total_quota)}`}
+              aria-label={`${t('Usage')}: ${formatLogQuota(row.total_quota ?? 0)}`}
             >
-              {formatLogQuota(row.total_quota)}
+              {formatLogQuota(row.total_quota ?? 0)}
             </div>
             <GrowthText
               value={row.growth_pct}

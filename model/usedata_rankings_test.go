@@ -10,51 +10,52 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestRankingUsageComesFromConsumeLogs(t *testing.T) {
-	logDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, logDB.AutoMigrate(&Log{}))
-
+func TestRankingUsageComesFromQuotaData(t *testing.T) {
 	mainDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, mainDB.AutoMigrate(&QuotaData{}))
-	require.NoError(t, mainDB.Create(&QuotaData{
-		ModelName: "quota-data-only",
-		CreatedAt: 3600,
-		TokenUsed: 1000,
-		Quota:     1000,
+
+	logDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, logDB.AutoMigrate(&Log{}))
+	// Ranking must not read the raw logs table; a row that exists only there
+	// has to stay out of the leaderboard.
+	require.NoError(t, logDB.Create(&Log{
+		CreatedAt: 3601, Type: LogTypeConsume, ModelName: "logs-only",
+		PromptTokens: 1000, CompletionTokens: 1000, Quota: 1000,
 	}).Error)
 
 	originalDB := DB
 	originalLogDB := LOG_DB
-	originalLogDatabaseType := common.LogDatabaseType()
+	originalMainDatabaseType := common.MainDatabaseType()
 	DB = mainDB
 	LOG_DB = logDB
-	common.SetLogDatabaseType(common.DatabaseTypeSQLite)
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	t.Cleanup(func() {
 		DB = originalDB
 		LOG_DB = originalLogDB
-		common.SetLogDatabaseType(originalLogDatabaseType)
+		common.SetMainDatabaseType(originalMainDatabaseType)
 	})
 
-	logs := []Log{
-		{CreatedAt: 3601, Type: LogTypeConsume, ModelName: "model-a", PromptTokens: 10, CompletionTokens: 5, Quota: 100},
-		{CreatedAt: 3700, Type: LogTypeConsume, ModelName: "model-a", PromptTokens: 3, CompletionTokens: 2, Quota: 50},
-		{CreatedAt: 7201, Type: LogTypeConsume, ModelName: "model-b", PromptTokens: 20, CompletionTokens: 5, Quota: 300},
-		{CreatedAt: 3800, Type: LogTypeRefund, ModelName: "model-a", PromptTokens: 100, CompletionTokens: 100, Quota: 500},
-		{CreatedAt: 3900, Type: LogTypeError, ModelName: "model-a", PromptTokens: 100, CompletionTokens: 100, Quota: 500},
-		{CreatedAt: 4000, Type: LogTypeConsume, ModelName: "", PromptTokens: 100, CompletionTokens: 100, Quota: 500},
-		{CreatedAt: 4100, Type: LogTypeConsume, ModelName: "quota-only", Quota: 500},
-		{CreatedAt: 3599, Type: LogTypeConsume, ModelName: "before-range", PromptTokens: 100, Quota: 500},
-		{CreatedAt: 10801, Type: LogTypeConsume, ModelName: "after-range", PromptTokens: 100, Quota: 500},
+	rows := []QuotaData{
+		{ModelName: "model-a", CreatedAt: 3600, TokenUsed: 15, Quota: 100, Count: 1},
+		{ModelName: "model-a", CreatedAt: 3600, TokenUsed: 5, Quota: 50, Count: 1, Username: "second-row"},
+		{ModelName: "model-b", CreatedAt: 7200, TokenUsed: 25, Quota: 300, Count: 1},
+		// Per-request billing bills quota without reporting tokens.
+		{ModelName: "quota-only", CreatedAt: 3600, TokenUsed: 0, Quota: 500, Count: 1},
+		{ModelName: "", CreatedAt: 3600, TokenUsed: 100, Quota: 100, Count: 1},
+		{ModelName: "empty-usage", CreatedAt: 3600, TokenUsed: 0, Quota: 0, Count: 1},
+		{ModelName: "before-range", CreatedAt: 0, TokenUsed: 100, Quota: 100, Count: 1},
+		{ModelName: "after-range", CreatedAt: 14400, TokenUsed: 100, Quota: 100, Count: 1},
 	}
-	require.NoError(t, logDB.Create(&logs).Error)
+	require.NoError(t, mainDB.Create(&rows).Error)
 
 	totals, err := GetRankingQuotaTotals(3600, 10800)
 	require.NoError(t, err)
 	require.Equal(t, []RankingQuotaTotal{
 		{ModelName: "model-b", TotalTokens: 25, TotalQuota: 300},
 		{ModelName: "model-a", TotalTokens: 20, TotalQuota: 150},
+		{ModelName: "quota-only", TotalTokens: 0, TotalQuota: 500},
 	}, totals)
 
 	buckets, err := GetRankingQuotaBuckets(3600, 10800, 3600)
@@ -65,10 +66,10 @@ func TestRankingUsageComesFromConsumeLogs(t *testing.T) {
 	}, buckets)
 }
 
-func TestRankingBucketExpressionUsesLogDatabaseDialect(t *testing.T) {
-	originalLogDatabaseType := common.LogDatabaseType()
+func TestRankingBucketExpressionUsesMainDatabaseDialect(t *testing.T) {
+	originalMainDatabaseType := common.MainDatabaseType()
 	t.Cleanup(func() {
-		common.SetLogDatabaseType(originalLogDatabaseType)
+		common.SetMainDatabaseType(originalMainDatabaseType)
 	})
 
 	tests := []struct {
@@ -84,8 +85,36 @@ func TestRankingBucketExpressionUsesLogDatabaseDialect(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			common.SetLogDatabaseType(test.databaseType)
+			common.SetMainDatabaseType(test.databaseType)
 			assert.Equal(t, test.want, rankingBucketExpr(3600))
 		})
 	}
+}
+
+// A leaderboard entry that only ever charged quota still needs a share and a
+// visible rank, so token-share math must not divide it away.
+func TestRankingQuotaOnlyModelKeepsRank(t *testing.T) {
+	mainDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, mainDB.AutoMigrate(&QuotaData{}))
+
+	originalDB := DB
+	originalMainDatabaseType := common.MainDatabaseType()
+	DB = mainDB
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	t.Cleanup(func() {
+		DB = originalDB
+		common.SetMainDatabaseType(originalMainDatabaseType)
+	})
+
+	require.NoError(t, mainDB.Create(&[]QuotaData{
+		{ModelName: "midjourney", CreatedAt: 3600, TokenUsed: 0, Quota: 900, Count: 3},
+	}).Error)
+
+	totals, err := GetRankingQuotaTotals(3600, 10800)
+	require.NoError(t, err)
+	require.Len(t, totals, 1)
+	assert.Equal(t, "midjourney", totals[0].ModelName)
+	assert.Zero(t, totals[0].TotalTokens)
+	assert.Equal(t, int64(900), totals[0].TotalQuota)
 }
