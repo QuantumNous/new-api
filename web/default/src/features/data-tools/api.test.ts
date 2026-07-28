@@ -40,10 +40,40 @@ describe('data tools API', () => {
     } as never)
 
     await expect(
-      getDataTools({ platform: 'Monid', page: 1, page_size: 24 })
+      getDataTools({ platform: 'TikHub', page: 1, page_size: 24 })
     ).resolves.toEqual(data)
     expect(api.get).toHaveBeenCalledWith('/api/data-tools', {
-      params: { platform: 'Monid', page: 1, page_size: 24 },
+      params: { platform: 'TikHub', page: 1, page_size: 24 },
+    })
+  })
+
+  test('sends Marketplace search queries to the catalogue API', async () => {
+    const data = {
+      total: 4581,
+      matched: 1,
+      page: 1,
+      pageSize: 24,
+      nextCursor: null,
+      tools: [],
+      platforms: [],
+    }
+    spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, message: '', data },
+    } as never)
+
+    await expect(
+      getDataTools({
+        q: 'gateway:monid:akta:/v1/news',
+        page: 1,
+        page_size: 24,
+      })
+    ).resolves.toEqual(data)
+    expect(api.get).toHaveBeenCalledWith('/api/data-tools', {
+      params: {
+        q: 'gateway:monid:akta:/v1/news',
+        page: 1,
+        page_size: 24,
+      },
     })
   })
 
