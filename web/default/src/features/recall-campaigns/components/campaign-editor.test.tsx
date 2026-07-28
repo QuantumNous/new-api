@@ -1441,6 +1441,44 @@ describe('CampaignEditor offer validity', () => {
     expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.00')
     dispose(root)
   })
+
+  test('minimum spend raw values clear when form reset keeps invalid canonical zero', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1200, inr: 90050, brl: 2599, jpy: 750 },
+    }
+    draft.discount_config.minimum_amount = 1200
+    draft.discount_config.minimum_amount_currency = 'USD'
+    const { form, root } = renderOfferValidityFieldsDom(draft)
+
+    await changeInputProp('recall-minimum-spend-usd', '12.345')
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.345')
+    expect(form.getValues('discount_config.minimum_spend.amounts.usd')).toBe(0)
+
+    const resetDraft = form.getValues()
+    await React.act(async () => {
+      form.reset({
+        ...resetDraft,
+        discount_config: {
+          ...resetDraft.discount_config,
+          minimum_amount: 0,
+          minimum_amount_currency: '',
+          minimum_spend: {
+            enabled: true,
+            amounts: {
+              ...resetDraft.discount_config.minimum_spend.amounts,
+              usd: 0,
+            },
+          },
+        },
+      })
+      await Promise.resolve()
+    })
+
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('')
+    dispose(root)
+  })
 })
 
 describe('CampaignEditor email sequence', () => {
