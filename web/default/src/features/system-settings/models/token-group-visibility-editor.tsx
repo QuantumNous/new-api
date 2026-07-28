@@ -40,10 +40,14 @@ export function TokenGroupVisibilityEditor() {
     }
     setSaving(true)
     try {
-      for (const policy of policies) await api.put('/api/group/token-visibility', policy)
+      for (const policy of policies)
+        await api.put('/api/group/token-visibility', policy)
       const remaining = new Set(policies.map((policy) => policy.group))
       for (const group of existingGroups) {
-        if (!remaining.has(group)) await api.delete(`/api/group/token-visibility/${encodeURIComponent(group)}`)
+        if (!remaining.has(group))
+          await api.delete(
+            `/api/group/token-visibility/${encodeURIComponent(group)}`
+          )
       }
       setExistingGroups([...remaining])
       toast.success(t('Token group visibility policies saved.'))
@@ -57,10 +61,16 @@ export function TokenGroupVisibilityEditor() {
       <div>
         <h3 className='text-base font-medium'>{t('Token group visibility')}</h3>
         <p className='text-muted-foreground text-sm'>
-          {t('Optional policies: public, targeted (with usernames), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.')}
+          {t(
+            'Optional policies: public, targeted (with usernames), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.'
+          )}
         </p>
       </div>
-      <Textarea value={value} onChange={(event) => setValue(event.target.value)} rows={10} />
+      <Textarea
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        rows={10}
+      />
       <div>
         <Button type='button' onClick={save} disabled={saving}>
           {saving ? t('Saving...') : t('Save visibility policies')}

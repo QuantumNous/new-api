@@ -73,8 +73,8 @@ export default function GroupRatioSettings(props) {
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState('visual');
   const [showGuide, setShowGuide] = useState(false);
-	const [visibilityPolicies, setVisibilityPolicies] = useState('[]');
-	const [existingVisibilityGroups, setExistingVisibilityGroups] = useState([]);
+  const [visibilityPolicies, setVisibilityPolicies] = useState('[]');
+  const [existingVisibilityGroups, setExistingVisibilityGroups] = useState([]);
 
   const [inputs, setInputs] = useState({
     GroupRatio: '',
@@ -97,7 +97,9 @@ export default function GroupRatioSettings(props) {
     const res = await API.get('/api/group/token-visibility');
     if (res.data.success) {
       setVisibilityPolicies(JSON.stringify(res.data.data.policies, null, 2));
-      setExistingVisibilityGroups(res.data.data.policies.map((policy) => policy.group));
+      setExistingVisibilityGroups(
+        res.data.data.policies.map((policy) => policy.group),
+      );
     }
   }, []);
 
@@ -105,12 +107,22 @@ export default function GroupRatioSettings(props) {
     try {
       const policies = JSON.parse(visibilityPolicies);
       if (!Array.isArray(policies)) throw new Error('not array');
-      await Promise.all(policies.map((policy) => API.put('/api/group/token-visibility', policy)));
-	  const remaining = new Set(policies.map((policy) => policy.group));
-	  await Promise.all(existingVisibilityGroups
-	    .filter((group) => !remaining.has(group))
-	    .map((group) => API.delete(`/api/group/token-visibility/${encodeURIComponent(group)}`)));
-	  setExistingVisibilityGroups([...remaining]);
+      await Promise.all(
+        policies.map((policy) =>
+          API.put('/api/group/token-visibility', policy),
+        ),
+      );
+      const remaining = new Set(policies.map((policy) => policy.group));
+      await Promise.all(
+        existingVisibilityGroups
+          .filter((group) => !remaining.has(group))
+          .map((group) =>
+            API.delete(
+              `/api/group/token-visibility/${encodeURIComponent(group)}`,
+            ),
+          ),
+      );
+      setExistingVisibilityGroups([...remaining]);
       showSuccess(t('令牌分组可见性策略已保存'));
     } catch {
       showError(t('可见性策略必须是 JSON 数组'));
@@ -278,8 +290,14 @@ export default function GroupRatioSettings(props) {
       </Form.Section>
 
       <Form.Section text={t('令牌分组可见性')}>
-        <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 12 }}>
-          {t('可选策略为 public、targeted（需要 usernames）和 hidden；仅在启用 TOKEN_GROUP_VISIBILITY_ENABLED 后生效。')}
+        <Text
+          type='tertiary'
+          size='small'
+          style={{ display: 'block', marginBottom: 12 }}
+        >
+          {t(
+            '可选策略为 public、targeted（需要 usernames）和 hidden；仅在启用 TOKEN_GROUP_VISIBILITY_ENABLED 后生效。',
+          )}
         </Text>
         <Form.TextArea
           value={visibilityPolicies}
@@ -299,7 +317,9 @@ export default function GroupRatioSettings(props) {
     }
   }, [editMode]);
 
-  useEffect(() => { loadVisibilityPolicies(); }, [loadVisibilityPolicies]);
+  useEffect(() => {
+    loadVisibilityPolicies();
+  }, [loadVisibilityPolicies]);
 
   const renderManualMode = () => (
     <Form
