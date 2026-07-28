@@ -2293,7 +2293,6 @@ func stripeSubscriptionIdFromInvoice(inv *stripe.Invoice) (string, error) {
 	}
 	return strings.TrimSpace(inv.Parent.SubscriptionDetails.Subscription.ID), nil
 }
-
 func sessionExpired(ctx context.Context, event stripe.Event) error {
 	referenceId := event.GetObjectValue("client_reference_id")
 	status := event.GetObjectValue("status")

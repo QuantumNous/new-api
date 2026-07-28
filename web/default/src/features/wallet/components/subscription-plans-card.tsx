@@ -44,7 +44,6 @@ import type {
   StripeCheckoutOpenResult,
   StripeCheckoutPresentation,
 } from '../hooks/use-payment'
-import { isRecallPriceEligible } from '../lib/recall-claim'
 import {
   type LifecyclePlanRecord,
   type WalletSelfSubscriptionData,
@@ -320,15 +319,6 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
     setPurchasing(true)
     try {
-      const eligibleRecallClaim =
-        recallClaim.claim &&
-        isRecallPriceEligible(
-          recallClaim.view,
-          purchaseTarget.plan.plan.id,
-          'subscription'
-        )
-          ? recallClaim.claim
-          : undefined
       const res = await purchaseSubscriptionPlanFlexible({
         ...buildFlexiblePurchaseRequest({
           planId: purchaseTarget.plan.plan.id,
@@ -337,7 +327,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
           requestId: purchaseTarget.requestId,
           quoteId: selectedQuote.quote_id,
           orderId: selectedQuote?.order_id,
-          recallClaim: eligibleRecallClaim,
+          recallClaim: recallClaim.claim,
         }),
       })
       if (!res.success || !res.data) {
@@ -388,15 +378,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         paymentChoice,
         months,
         requestId: target.requestId,
-        recallClaim:
-          recallClaim.claim &&
-          isRecallPriceEligible(
-            recallClaim.view,
-            target.plan.plan.id,
-            'subscription'
-          )
-            ? recallClaim.claim
-            : undefined,
+        recallClaim: recallClaim.claim,
       })
       const sequence = quoteRequestSequenceRef.current + 1
       quoteRequestSequenceRef.current = sequence
@@ -436,7 +418,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         }
       }
     },
-    [recallClaim.claim, recallClaim.view]
+    [recallClaim.claim]
   )
 
   const handleQuoteRequest = async (

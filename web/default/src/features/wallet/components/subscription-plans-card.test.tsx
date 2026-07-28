@@ -318,6 +318,10 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
         },
         renewal_source: 'wallet_auto',
         renewal_status: 'enabled',
+        capabilities: {
+          can_cancel: true,
+          requires_support: false,
+        },
         current_entitlement: {
           entitlement_id: 20,
           plan_id: 2,

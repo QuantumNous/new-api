@@ -348,7 +348,11 @@ func (w *RecallRecipientWorker) ensureRecipientPromotion(ctx context.Context, re
 	if promotion == nil || strings.TrimSpace(promotion.ID) == "" || strings.TrimSpace(promotion.Code) == "" {
 		return recallStripePermanent("persist Stripe Promotion Code", "Stripe returned an unavailable Promotion Code")
 	}
-	persisted, err := model.PersistRecallRecipientPromotion(ctx, recipient.Id, promotion.ID, promotion.Code)
+	issuedAt := int64(0)
+	if recipient.StripePromotionCodeId == nil || strings.TrimSpace(*recipient.StripePromotionCodeId) == "" {
+		issuedAt = w.now().Unix()
+	}
+	persisted, err := model.PersistRecallRecipientPromotion(ctx, recipient.Id, promotion.ID, promotion.Code, issuedAt)
 	if err != nil {
 		return err
 	}

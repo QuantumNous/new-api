@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -17,6 +18,7 @@ import (
 
 const (
 	SubscriptionPaymentChoiceStripeRecurring = "stripe_recurring"
+	SubscriptionPaymentChoiceEpay            = "epay"
 	SubscriptionPaymentChoiceAlipay          = "alipay"
 	SubscriptionPaymentChoicePix             = "pix"
 	SubscriptionPaymentChoiceUPI             = "upi"
@@ -27,6 +29,7 @@ type PurchaseSubscriptionCommand struct {
 	UserID        int
 	PlanID        int
 	PaymentChoice string
+	PaymentMethod string
 	Months        int
 	RequestID     string
 	VerifiedQuote *SubscriptionPurchaseQuote
@@ -98,6 +101,7 @@ type SubscriptionPurchaseQuoteResult struct {
 	OtherDiscountAmountMinor      int64   `json:"other_discount_amount_minor,omitempty"`
 	RecallCampaignID              int64   `json:"recall_campaign_id,omitempty"`
 	RecallRecipientID             int64   `json:"recall_recipient_id,omitempty"`
+	RecallPromotionCodeID         string  `json:"recall_promotion_code_id,omitempty"`
 }
 
 type purchasePlanSnapshot struct {
@@ -260,7 +264,6 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 			result = replay
 			return nil
 		}
-
 		plan, err := loadEnabledSubscriptionPlanTx(tx, cmd.PlanID)
 		if err != nil {
 			return err
@@ -278,7 +281,7 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 			return err
 		}
 		var replacementReleasedDiscountUSDMinor int64
-		if cmd.PaymentChoice == SubscriptionPaymentChoiceAlipay || cmd.PaymentChoice == SubscriptionPaymentChoicePix || cmd.PaymentChoice == SubscriptionPaymentChoiceUPI || cmd.PaymentChoice == SubscriptionPaymentChoiceBalance {
+		if cmd.PaymentChoice == SubscriptionPaymentChoiceEpay || cmd.PaymentChoice == SubscriptionPaymentChoiceAlipay || cmd.PaymentChoice == SubscriptionPaymentChoicePix || cmd.PaymentChoice == SubscriptionPaymentChoiceUPI || cmd.PaymentChoice == SubscriptionPaymentChoiceBalance {
 			superseded, err := supersedeReplaceablePendingStripeCheckoutsLocallyTx(tx, cmd.UserID, cmd.RequestID)
 			if err != nil {
 				return err
@@ -286,6 +289,15 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 			supersededCheckouts = superseded
 			for _, checkout := range superseded {
 				replacementReleasedDiscountUSDMinor += checkout.ReleasedDiscountUSDMinor
+			}
+		}
+		if common.SubscriptionSingleContractEnabled {
+			migration, err := auditLegacySubscriptionForUserTx(tx, cmd.UserID)
+			if err != nil {
+				return err
+			}
+			if IsLegacySubscriptionMigrationBlocking(migration.Classification) {
+				return ErrSubscriptionMigrationRequiresAdmin
 			}
 		}
 		contract, err := getOrCreateContractForUserTx(tx, cmd.UserID)
@@ -383,6 +395,7 @@ func findRecurringPurchaseReplay(userID int, requestID string) (*model.Subscript
 
 func (cmd *PurchaseSubscriptionCommand) normalize() {
 	cmd.PaymentChoice = strings.TrimSpace(cmd.PaymentChoice)
+	cmd.PaymentMethod = strings.TrimSpace(cmd.PaymentMethod)
 	cmd.RequestID = strings.TrimSpace(cmd.RequestID)
 	cmd.UIMode = strings.ToLower(strings.TrimSpace(cmd.UIMode))
 	cmd.RecallClaim = strings.TrimSpace(cmd.RecallClaim)
@@ -410,6 +423,13 @@ func (cmd PurchaseSubscriptionCommand) validateQuote() error {
 		if cmd.Months != 1 {
 			return errors.New("stripe_recurring requires months to be 1")
 		}
+	case SubscriptionPaymentChoiceEpay:
+		if cmd.PaymentMethod == "" {
+			return errors.New("epay payment method is required")
+		}
+		if cmd.Months < 1 || cmd.Months > 12 {
+			return errors.New("months must be between 1 and 12")
+		}
 	case SubscriptionPaymentChoiceAlipay, SubscriptionPaymentChoicePix, SubscriptionPaymentChoiceUPI, SubscriptionPaymentChoiceBalance:
 		if cmd.Months < 1 || cmd.Months > 12 {
 			return errors.New("months must be between 1 and 12")
@@ -431,7 +451,8 @@ func buildPurchaseReplayResultTx(tx *gorm.DB, cmd PurchaseSubscriptionCommand, i
 		First(&order).Error; err != nil {
 		return nil, err
 	}
-	if order.UserId != cmd.UserID || order.PlanId != cmd.PlanID || order.PurchaseMonths != cmd.Months || order.PaymentMethod != cmd.PaymentChoice {
+	expectedMethod := subscriptionPurchaseOrderPaymentMethod(cmd)
+	if order.UserId != cmd.UserID || order.PlanId != cmd.PlanID || order.PurchaseMonths != cmd.Months || order.PaymentMethod != expectedMethod {
 		return nil, errors.New("subscription purchase idempotency conflict")
 	}
 	var contract model.UserSubscriptionContract
@@ -604,7 +625,7 @@ func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract
 		PlanId:                    plan.Id,
 		Money:                     quote.Total,
 		TradeNo:                   subscriptionPurchaseTradeNo(user.Id, intent.Id),
-		PaymentMethod:             cmd.PaymentChoice,
+		PaymentMethod:             subscriptionPurchaseOrderPaymentMethod(cmd),
 		PaymentProvider:           paymentProviderForPurchaseChoice(cmd.PaymentChoice),
 		Status:                    common.TopUpStatusPending,
 		CreateTime:                now,
@@ -619,7 +640,7 @@ func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract
 		RecallRecipientId:         recallRecipientID,
 		RecallPromotionCodeId:     recallPromotionCodeID,
 		RecallDiscountAmountMinor: recallDiscountAmountMinor,
-		ProviderPayload:           fmt.Sprintf("choice=%s;months=%d;contract_id=%d;change_intent_id=%d", cmd.PaymentChoice, cmd.Months, contract.Id, intent.Id),
+		ProviderPayload:           fmt.Sprintf("choice=%s;method=%s;months=%d;contract_id=%d;change_intent_id=%d", cmd.PaymentChoice, subscriptionPurchaseOrderPaymentMethod(cmd), cmd.Months, contract.Id, intent.Id),
 		ChangeIntentId:            intent.Id,
 	}
 	if err := tx.Create(order).Error; err != nil {
@@ -690,6 +711,9 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 		return nil, nil, err
 	}
 	if err := reserveSubscriptionDiscountForOrderTx(tx, order, plan, cmd, quote, discountFacts, subscriptionPurchaseOrderExpiresAt(now)); err != nil {
+		return nil, nil, err
+	}
+	if err := tx.Save(order).Error; err != nil {
 		return nil, nil, err
 	}
 	if quote.DiscountKind == SubscriptionDiscountKindRecall && quote.DiscountAmountMinor > 0 {
@@ -764,7 +788,7 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 	}, periodStart, cmd.Months); err != nil {
 		return nil, nil, err
 	}
-	if err := markPrepaidPurchaseAppliedTx(tx, contract, intent, plan, periodStart, periodEnd, order.TradeNo); err != nil {
+	if err := markPrepaidPurchaseAppliedTx(tx, contract, intent, plan, periodStart, periodEnd, order.TradeNo, order.PaymentMethod); err != nil {
 		return nil, nil, err
 	}
 	if err := model.GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, order); err != nil {
@@ -798,6 +822,13 @@ func subscriptionPurchaseRecallAttribution(quote SubscriptionPurchaseQuote) (int
 		return 0, 0, "", 0
 	}
 	return quote.RecallCampaignID, quote.RecallRecipientID, quote.RecallPromotionCodeID, quote.DiscountAmountMinor
+}
+
+func subscriptionPurchaseOrderPaymentMethod(cmd PurchaseSubscriptionCommand) string {
+	if cmd.PaymentChoice == SubscriptionPaymentChoiceEpay && strings.TrimSpace(cmd.PaymentMethod) != "" {
+		return strings.TrimSpace(cmd.PaymentMethod)
+	}
+	return strings.TrimSpace(cmd.PaymentChoice)
 }
 
 type subscriptionDiscountPricingSnapshot struct {
@@ -1059,7 +1090,7 @@ func createPrepaidTermSegmentsTx(tx *gorm.DB, contractID int64, orderID int, pla
 	return nil
 }
 
-func markPrepaidPurchaseAppliedTx(tx *gorm.DB, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, periodStart int64, periodEnd int64, tradeNo string) error {
+func markPrepaidPurchaseAppliedTx(tx *gorm.DB, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, periodStart int64, periodEnd int64, tradeNo string, paymentMethod string) error {
 	intent.Status = model.SubscriptionChangeIntentStatusApplied
 	intent.WalletDebitTradeNo = tradeNo
 	intent.EffectiveAt = periodStart
@@ -1071,6 +1102,11 @@ func markPrepaidPurchaseAppliedTx(tx *gorm.DB, contract *model.UserSubscriptionC
 	}).Error; err != nil {
 		return err
 	}
+	renewalSource, renewalStatus := "", ""
+	if strings.TrimSpace(paymentMethod) == model.PaymentMethodBalance {
+		renewalSource = model.SubscriptionRenewalSourceWallet
+		renewalStatus = model.SubscriptionRenewalStatusEnabled
+	}
 	return tx.Model(&model.UserSubscriptionContract{}).Where("id = ?", contract.Id).Updates(map[string]interface{}{
 		"current_plan_id":             plan.Id,
 		"current_provider_binding_id": 0,
@@ -1080,8 +1116,8 @@ func markPrepaidPurchaseAppliedTx(tx *gorm.DB, contract *model.UserSubscriptionC
 		"current_period_start":        periodStart,
 		"current_period_end":          periodEnd,
 		"payment_mode":                model.SubscriptionPaymentModePrepaid,
-		"renewal_source":              model.SubscriptionRenewalSourceWallet,
-		"renewal_status":              model.SubscriptionRenewalStatusEnabled,
+		"renewal_source":              renewalSource,
+		"renewal_status":              renewalStatus,
 		"status":                      model.SubscriptionContractStatusActive,
 		"change_version":              intent.ChangeVersion,
 	}).Error
@@ -1194,6 +1230,11 @@ func validateAuthoritativeSubscriptionPurchaseQuote(ctx context.Context, cmd Pur
 	if err := compareSubscriptionPurchaseQuotes(expected, tokenQuote); err != nil {
 		return SubscriptionPurchaseQuote{}, fmt.Errorf("%w: %v", ErrSubscriptionPurchaseQuoteInvalid, err)
 	}
+	if cmd.PaymentChoice == SubscriptionPaymentChoiceStripeRecurring &&
+		expected.DiscountKind == SubscriptionDiscountKindRecall &&
+		strings.TrimSpace(expected.RecallPromotionCodeID) != strings.TrimSpace(tokenQuote.RecallPromotionCodeID) {
+		return SubscriptionPurchaseQuote{}, fmt.Errorf("%w: subscription purchase quote mismatch", ErrSubscriptionPurchaseQuoteInvalid)
+	}
 	return expected, nil
 }
 
@@ -1212,13 +1253,37 @@ func validateSubscriptionPurchaseQuoteMatchesPlan(plan model.SubscriptionPlan, c
 
 func applyRecallFirstMonthDiscount(ctx context.Context, userID int, claim string, plan model.SubscriptionPlan, quote SubscriptionPurchaseQuote) (SubscriptionPurchaseQuote, error) {
 	claim = strings.TrimSpace(claim)
-	if claim == "" {
+	if !operation_setting.IsRecallCampaignEnabled() || strings.TrimSpace(plan.StripePriceId) == "" {
 		return quote, nil
 	}
-	discount, err := GetRecallRuntime().Claims.BuildFirstMonthPurchaseDiscount(
+	if claim != "" {
+		discount, err := GetRecallRuntime().Claims.BuildFirstMonthPurchaseDiscount(
+			ctx,
+			userID,
+			claim,
+			RecallPurchaseKindSubscription,
+			strings.TrimSpace(plan.StripePriceId),
+			quote.Currency,
+			quote.UnitAmountMinor,
+		)
+		if err != nil {
+			return SubscriptionPurchaseQuote{}, err
+		}
+		if discount == nil || discount.DiscountAmountMinor <= 0 {
+			return quote, nil
+		}
+		quote.DiscountAmountMinor = discount.DiscountAmountMinor
+		quote.DiscountAmount = subscriptionPurchaseAmountFromMinor(discount.DiscountAmountMinor, quote.Currency)
+		quote.PaymentAmountMinor = quote.OriginalTotalAmountMinor - discount.DiscountAmountMinor
+		quote.Total = subscriptionPurchaseAmountFromMinor(quote.PaymentAmountMinor, quote.Currency)
+		quote.RecallCampaignID = discount.CampaignID
+		quote.RecallRecipientID = discount.RecipientID
+		quote.RecallPromotionCodeID = discount.PromotionCodeID
+		return quote, nil
+	}
+	offer, err := GetRecallRuntime().Claims.ResolveBestRecallOffer(
 		ctx,
 		userID,
-		claim,
 		RecallPurchaseKindSubscription,
 		strings.TrimSpace(plan.StripePriceId),
 		quote.Currency,
@@ -1227,28 +1292,24 @@ func applyRecallFirstMonthDiscount(ctx context.Context, userID int, claim string
 	if err != nil {
 		return SubscriptionPurchaseQuote{}, err
 	}
-	if discount == nil || discount.DiscountAmountMinor <= 0 {
+	if offer == nil || offer.DiscountMinor <= 0 {
 		return quote, nil
 	}
-	discountMinor := discount.DiscountAmountMinor
+	discountMinor := offer.DiscountMinor
 	quote.DiscountAmountMinor = discountMinor
-	quote.DiscountAmount = float64(discountMinor) / 100
+	quote.DiscountAmount = subscriptionPurchaseAmountFromMinor(discountMinor, quote.Currency)
 	quote.PaymentAmountMinor = quote.OriginalTotalAmountMinor - discountMinor
-	quote.Total = float64(quote.PaymentAmountMinor) / 100
-	quote.RecallCampaignID = discount.CampaignID
-	quote.RecallRecipientID = discount.RecipientID
-	quote.RecallPromotionCodeID = discount.PromotionCodeID
+	quote.Total = subscriptionPurchaseAmountFromMinor(quote.PaymentAmountMinor, quote.Currency)
+	quote.RecallCampaignID = offer.View.CampaignID
+	quote.RecallRecipientID = offer.View.RecipientID
+	quote.RecallPromotionCodeID = offer.PromotionCodeID
 	return quote, nil
 }
 
 func applySubscriptionPurchaseDiscounts(ctx context.Context, userID int, recallClaim string, plan model.SubscriptionPlan, quote SubscriptionPurchaseQuote, invitationAvailableUSDMinor int64, months int) (SubscriptionPurchaseQuote, error) {
-	recallQuote := quote
-	var err error
-	if strings.TrimSpace(recallClaim) != "" {
-		recallQuote, err = applyRecallFirstMonthDiscount(ctx, userID, recallClaim, plan, quote)
-		if err != nil {
-			return SubscriptionPurchaseQuote{}, err
-		}
+	recallQuote, err := applyRecallFirstMonthDiscount(ctx, userID, recallClaim, plan, quote)
+	if err != nil {
+		return SubscriptionPurchaseQuote{}, err
 	}
 	otherKind := ""
 	otherAmountMinor := int64(0)
@@ -1270,9 +1331,9 @@ func applySubscriptionPurchaseDiscounts(ctx context.Context, userID int, recallC
 	}
 	quote.DiscountKind = discountQuote.SelectedKind
 	quote.DiscountAmountMinor = discountQuote.SelectedDiscountAmountMinor
-	quote.DiscountAmount = float64(quote.DiscountAmountMinor) / 100
+	quote.DiscountAmount = subscriptionPurchaseAmountFromMinor(quote.DiscountAmountMinor, quote.Currency)
 	quote.PaymentAmountMinor = discountQuote.FinalAmountMinor
-	quote.Total = float64(quote.PaymentAmountMinor) / 100
+	quote.Total = subscriptionPurchaseAmountFromMinor(quote.PaymentAmountMinor, quote.Currency)
 	quote.InvitationAvailableUSDMinor = discountQuote.InvitationAvailableUSDMinor
 	quote.InvitationDiscountUSDMinor = discountQuote.InvitationDiscountUSDMinor
 	quote.InvitationDiscountAmountMinor = discountQuote.InvitationDiscountAmountMinor
@@ -1326,12 +1387,12 @@ func validateSubscriptionPurchaseQuoteForChoice(quote SubscriptionPurchaseQuote,
 	if quote.Total > 0 && quote.PaymentAmountMinor == 0 {
 		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote minor amount is required")
 	}
-	if quote.PaymentAmountMinor != subscriptionPurchaseMinorAmount(quote.Total) {
+	if quote.PaymentAmountMinor != subscriptionPurchaseMinorAmountForCurrency(quote.Total, quote.Currency) {
 		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote minor amount does not match total")
 	}
 	unitAmountMinor := quote.UnitAmountMinor
 	if unitAmountMinor == 0 {
-		unitAmountMinor = subscriptionPurchaseMinorAmount(quote.UnitPrice)
+		unitAmountMinor = subscriptionPurchaseMinorAmountForCurrency(quote.UnitPrice, quote.Currency)
 	}
 	originalTotalMinor := quote.OriginalTotalAmountMinor
 	if originalTotalMinor == 0 {
@@ -1400,10 +1461,10 @@ func validateSubscriptionPurchaseQuoteForChoice(quote SubscriptionPurchaseQuote,
 	}
 	quote.UnitAmountMinor = unitAmountMinor
 	quote.OriginalTotalAmountMinor = originalTotalMinor
-	quote.UnitPrice = float64(unitAmountMinor) / 100
-	quote.OriginalTotal = float64(originalTotalMinor) / 100
-	quote.DiscountAmount = float64(quote.DiscountAmountMinor) / 100
-	quote.Total = float64(quote.PaymentAmountMinor) / 100
+	quote.UnitPrice = subscriptionPurchaseAmountFromMinor(unitAmountMinor, quote.Currency)
+	quote.OriginalTotal = subscriptionPurchaseAmountFromMinor(originalTotalMinor, quote.Currency)
+	quote.DiscountAmount = subscriptionPurchaseAmountFromMinor(quote.DiscountAmountMinor, quote.Currency)
+	quote.Total = subscriptionPurchaseAmountFromMinor(quote.PaymentAmountMinor, quote.Currency)
 	return quote, nil
 }
 
@@ -1425,15 +1486,16 @@ func defaultSubscriptionPurchaseQuote(plan model.SubscriptionPlan, choice string
 }
 
 func subscriptionPurchaseQuoteFromUnitPrice(currency string, unitPrice float64, months int) SubscriptionPurchaseQuote {
-	unitAmountMinor := subscriptionPurchaseMinorAmount(unitPrice)
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	unitAmountMinor := subscriptionPurchaseMinorAmountForCurrency(unitPrice, currency)
 	totalAmountMinor := unitAmountMinor * int64(months)
 	return SubscriptionPurchaseQuote{
 		Currency:                 currency,
-		UnitPrice:                float64(unitAmountMinor) / 100,
+		UnitPrice:                subscriptionPurchaseAmountFromMinor(unitAmountMinor, currency),
 		UnitAmountMinor:          unitAmountMinor,
-		OriginalTotal:            float64(totalAmountMinor) / 100,
+		OriginalTotal:            subscriptionPurchaseAmountFromMinor(totalAmountMinor, currency),
 		OriginalTotalAmountMinor: totalAmountMinor,
-		Total:                    float64(totalAmountMinor) / 100,
+		Total:                    subscriptionPurchaseAmountFromMinor(totalAmountMinor, currency),
 		PaymentAmountMinor:       totalAmountMinor,
 	}
 }
@@ -1459,11 +1521,26 @@ func subscriptionPurchaseQuoteResult(quote SubscriptionPurchaseQuote) *Subscript
 		OtherDiscountAmountMinor:      quote.OtherDiscountAmountMinor,
 		RecallCampaignID:              quote.RecallCampaignID,
 		RecallRecipientID:             quote.RecallRecipientID,
+		RecallPromotionCodeID:         quote.RecallPromotionCodeID,
 	}
 }
 
 func subscriptionPurchaseMinorAmount(total float64) int64 {
 	return decimal.NewFromFloat(total).Mul(decimal.NewFromInt(100)).Round(0).IntPart()
+}
+
+func subscriptionPurchaseMinorAmountForCurrency(total float64, currency string) int64 {
+	amount, _ := stripeMinorUnitAmountForSubscription(total, currency)
+	return amount
+}
+
+func subscriptionPurchaseAmountFromMinor(minor int64, currency string) float64 {
+	scale := int32(2)
+	switch strings.ToUpper(strings.TrimSpace(currency)) {
+	case "BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF":
+		scale = 0
+	}
+	return decimal.NewFromInt(minor).Shift(-scale).InexactFloat64()
 }
 
 func subscriptionMoneyQuota(money float64) (int, error) {
@@ -1478,6 +1555,8 @@ func paymentProviderForPurchaseChoice(choice string) string {
 	switch choice {
 	case SubscriptionPaymentChoiceBalance:
 		return model.PaymentProviderBalance
+	case SubscriptionPaymentChoiceEpay:
+		return model.PaymentProviderEpay
 	case SubscriptionPaymentChoiceAlipay, SubscriptionPaymentChoicePix, SubscriptionPaymentChoiceUPI:
 		return model.PaymentProviderStripe
 	default:

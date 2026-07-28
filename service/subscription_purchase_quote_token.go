@@ -39,6 +39,7 @@ type SubscriptionPurchaseQuoteTokenClaims struct {
 	OtherDiscountAmountMinor      int64  `json:"other_discount_amount_minor,omitempty"`
 	RecallCampaignID              int64  `json:"recall_campaign_id,omitempty"`
 	RecallRecipientID             int64  `json:"recall_recipient_id,omitempty"`
+	RecallPromotionCodeID         string `json:"recall_promotion_code_id,omitempty"`
 	PlanRevision                  int64  `json:"plan_revision"`
 	ExpiresAt                     int64  `json:"expires_at"`
 }
@@ -115,6 +116,7 @@ func normalizeSubscriptionPurchaseQuoteTokenClaims(claims SubscriptionPurchaseQu
 		return SubscriptionPurchaseQuoteTokenClaims{}, fmt.Errorf("%w: total does not match unit amount and months", ErrSubscriptionPurchaseQuoteInvalid)
 	}
 	claims.DiscountKind = strings.TrimSpace(claims.DiscountKind)
+	claims.RecallPromotionCodeID = strings.TrimSpace(claims.RecallPromotionCodeID)
 	if claims.DiscountKind == "" {
 		if claims.DiscountAmountMinor > 0 {
 			claims.DiscountKind = SubscriptionDiscountKindRecall
@@ -143,7 +145,7 @@ func normalizeSubscriptionPurchaseQuoteTokenClaims(claims SubscriptionPurchaseQu
 			claims.InvitationAvailableUSDMinor != claims.InvitationDiscountUSDMinor+claims.InvitationRemainingUSDMinor {
 			return SubscriptionPurchaseQuoteTokenClaims{}, fmt.Errorf("%w: invitation USD facts are inconsistent", ErrSubscriptionPurchaseQuoteInvalid)
 		}
-		if claims.RecallCampaignID != 0 || claims.RecallRecipientID != 0 {
+		if claims.RecallCampaignID != 0 || claims.RecallRecipientID != 0 || claims.RecallPromotionCodeID != "" {
 			return SubscriptionPurchaseQuoteTokenClaims{}, fmt.Errorf("%w: invitation quote cannot include recall identity", ErrSubscriptionPurchaseQuoteInvalid)
 		}
 	case SubscriptionDiscountKindRecall:
@@ -174,7 +176,8 @@ func normalizeSubscriptionPurchaseQuoteTokenClaims(claims SubscriptionPurchaseQu
 	if claims.OtherDiscountKind != "" && claims.OtherDiscountKind != SubscriptionDiscountKindRecall {
 		return SubscriptionPurchaseQuoteTokenClaims{}, fmt.Errorf("%w: unsupported other discount kind", ErrSubscriptionPurchaseQuoteInvalid)
 	}
-	if claims.DiscountKind != SubscriptionDiscountKindRecall && (claims.RecallCampaignID != 0 || claims.RecallRecipientID != 0) {
+	if claims.DiscountKind != SubscriptionDiscountKindRecall &&
+		(claims.RecallCampaignID != 0 || claims.RecallRecipientID != 0 || claims.RecallPromotionCodeID != "") {
 		return SubscriptionPurchaseQuoteTokenClaims{}, fmt.Errorf("%w: recall identity requires recall discount", ErrSubscriptionPurchaseQuoteInvalid)
 	}
 	if claims.ExpiresAt <= 0 {

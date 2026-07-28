@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLegacySubscriptionPurchaseGateDisabledUsesLegacyHandler(t *testing.T) {
+func TestSubscriptionEpayUsesUnifiedHandlerWhenSingleContractGateDisabled(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
 	insertSubscriptionControllerUser(t, 906)
@@ -39,6 +39,11 @@ func TestLegacySubscriptionPurchaseGateDisabledUsesLegacyHandler(t *testing.T) {
 	var orderCount int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 906).Count(&orderCount).Error)
 	require.Equal(t, int64(1), orderCount)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "user_id = ?", 906).Error)
+	require.Equal(t, model.PaymentProviderEpay, order.PaymentProvider)
+	require.NotZero(t, order.ChangeIntentId)
+	require.Zero(t, order.DiscountUSD)
 }
 
 func TestChangeSubscriptionPlanBlocksMigrationConflict(t *testing.T) {

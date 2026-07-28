@@ -144,6 +144,7 @@ func requestStripeRecurringSubscriptionViaPurchasePath(userID int, legacyUserID 
 		OtherDiscountAmountMinor:      quoteResult.OtherDiscountAmountMinor,
 		RecallCampaignID:              quoteResult.RecallCampaignID,
 		RecallRecipientID:             quoteResult.RecallRecipientID,
+		RecallPromotionCodeID:         quoteResult.RecallPromotionCodeID,
 		PlanRevision:                  subscriptionPurchasePlanRevision(plan),
 		ExpiresAt:                     expiresAt,
 	})

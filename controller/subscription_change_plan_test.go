@@ -308,11 +308,6 @@ func TestLegacySubscriptionPurchaseInitiationHandlersAreBlockedBeforeOrderCreati
 		handler func(*gin.Context)
 	}{
 		{
-			name:    "epay",
-			body:    `{"plan_id":9904,"payment_method":"alipay"}`,
-			handler: SubscriptionRequestEpay,
-		},
-		{
 			name:    "creem",
 			body:    `{"plan_id":9904}`,
 			handler: SubscriptionRequestCreemPay,

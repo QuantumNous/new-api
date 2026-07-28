@@ -131,6 +131,7 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 		OtherDiscountAmountMinor:      quote.OtherDiscountAmountMinor,
 		RecallCampaignID:              quote.RecallCampaignID,
 		RecallRecipientID:             quote.RecallRecipientID,
+		RecallPromotionCodeID:         quote.RecallPromotionCodeID,
 		PlanRevision:                  subscriptionPurchasePlanRevision(plan),
 		ExpiresAt:                     expiresAt,
 	})
@@ -328,7 +329,8 @@ func subscriptionSelfQuoteMatchesClaims(quote *service.SubscriptionPurchaseQuote
 		quote.OtherDiscountKind == claims.OtherDiscountKind &&
 		quote.OtherDiscountAmountMinor == claims.OtherDiscountAmountMinor &&
 		quote.RecallCampaignID == claims.RecallCampaignID &&
-		quote.RecallRecipientID == claims.RecallRecipientID
+		quote.RecallRecipientID == claims.RecallRecipientID &&
+		strings.TrimSpace(quote.RecallPromotionCodeID) == strings.TrimSpace(claims.RecallPromotionCodeID)
 }
 
 func subscriptionPurchaseQuoteFromClaims(claims service.SubscriptionPurchaseQuoteTokenClaims, required bool) *service.SubscriptionPurchaseQuote {
@@ -354,6 +356,7 @@ func subscriptionPurchaseQuoteFromClaims(claims service.SubscriptionPurchaseQuot
 		OtherDiscountAmountMinor:      claims.OtherDiscountAmountMinor,
 		RecallCampaignID:              claims.RecallCampaignID,
 		RecallRecipientID:             claims.RecallRecipientID,
+		RecallPromotionCodeID:         claims.RecallPromotionCodeID,
 	}
 }
 

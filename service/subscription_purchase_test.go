@@ -85,6 +85,8 @@ func insertPurchaseServiceUser(t *testing.T, id int, quota int) {
 
 func insertPurchaseServicePlan(t *testing.T, id int, rank int, price float64, total int64) model.SubscriptionPlan {
 	t.Helper()
+	model.InvalidateSubscriptionPlanCache(id)
+	t.Cleanup(func() { model.InvalidateSubscriptionPlanCache(id) })
 	plan := model.SubscriptionPlan{
 		Id:                  id,
 		Title:               "Purchase Plan",
@@ -179,6 +181,7 @@ func purchaseQuoteFromResult(result *SubscriptionPurchaseQuoteResult) *Subscript
 		OtherDiscountAmountMinor:      result.OtherDiscountAmountMinor,
 		RecallCampaignID:              result.RecallCampaignID,
 		RecallRecipientID:             result.RecallRecipientID,
+		RecallPromotionCodeID:         result.RecallPromotionCodeID,
 	}
 }
 
@@ -1745,7 +1748,7 @@ func TestValidateSubscriptionPurchaseQuoteRejectsRecallDiscountGreaterThanMonthl
 	}
 }
 
-func TestPurchaseSubscriptionRecallBalanceRequiresClaimAndChargesDiscountedQuote(t *testing.T) {
+func TestPurchaseSubscriptionRecallBalanceChargesDiscountedQuoteFromAccountOffer(t *testing.T) {
 	setupSubscriptionRecallPurchaseTestDB(t)
 	now := time.Now().UTC()
 	fixture := createRecallClaimFixture(t, now)
@@ -1754,48 +1757,12 @@ func TestPurchaseSubscriptionRecallBalanceRequiresClaimAndChargesDiscountedQuote
 	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
 		Update("stripe_price_id", "price_subscription").Error)
 
-	_, err := PurchaseSubscription(PurchaseSubscriptionCommand{
-		UserID:        fixture.recipient.UserId,
-		PlanID:        plan.Id,
-		PaymentChoice: SubscriptionPaymentChoiceBalance,
-		Months:        3,
-		RequestID:     "recall-balance-missing-claim",
-		VerifiedQuote: &SubscriptionPurchaseQuote{
-			Currency:                 "USD",
-			UnitPrice:                1,
-			UnitAmountMinor:          100,
-			OriginalTotal:            3,
-			OriginalTotalAmountMinor: 300,
-			DiscountAmount:           0.20,
-			DiscountAmountMinor:      20,
-			Total:                    2.80,
-			PaymentAmountMinor:       280,
-			RecallCampaignID:         fixture.campaign.Id,
-			RecallRecipientID:        fixture.recipient.Id,
-		},
-	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "recall")
-	var orderCount int64
-	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", fixture.recipient.UserId).Count(&orderCount).Error)
-	require.Zero(t, orderCount)
-	var intentCount int64
-	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", fixture.recipient.UserId).Count(&intentCount).Error)
-	require.Zero(t, intentCount)
-	var ledgerCount int64
-	require.NoError(t, model.DB.Model(&model.WalletLedgerEntry{}).Where("user_id = ?", fixture.recipient.UserId).Count(&ledgerCount).Error)
-	require.Zero(t, ledgerCount)
-	var conversionCount int64
-	require.NoError(t, model.DB.Model(&model.RecallEvent{}).Where("recipient_id = ? AND event_type = ?", fixture.recipient.Id, "conversion").Count(&conversionCount).Error)
-	require.Zero(t, conversionCount)
-
 	result, err := PurchaseSubscription(PurchaseSubscriptionCommand{
 		UserID:        fixture.recipient.UserId,
 		PlanID:        plan.Id,
 		PaymentChoice: SubscriptionPaymentChoiceBalance,
 		Months:        3,
-		RequestID:     "recall-balance-discounted",
-		RecallClaim:   fixture.claim,
+		RequestID:     "recall-balance-account-offer-discounted",
 		VerifiedQuote: &SubscriptionPurchaseQuote{
 			Currency:                 "USD",
 			UnitPrice:                1,
@@ -1819,6 +1786,9 @@ func TestPurchaseSubscriptionRecallBalanceRequiresClaimAndChargesDiscountedQuote
 	require.Equal(t, 49720, user.Quota)
 	require.NotEqual(t, 49700, user.Quota)
 	require.NotEqual(t, 49760, user.Quota)
+	var conversionCount int64
+	require.NoError(t, model.DB.Model(&model.RecallEvent{}).Where("recipient_id = ? AND event_type = ?", fixture.recipient.Id, "conversion").Count(&conversionCount).Error)
+	require.Equal(t, int64(1), conversionCount)
 }
 
 func TestPurchaseSubscriptionRecallOneTimeOrderPersistsAttributionFields(t *testing.T) {
