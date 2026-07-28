@@ -30,6 +30,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useIsAdmin } from '@/hooks/use-admin'
 import { toIntlLocale } from '@/i18n/languages'
 import { getUserGroups } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
@@ -53,10 +54,11 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
-function useGroupRatios(): Record<string, number> {
+function useGroupRatios(enabled: boolean): Record<string, number> {
   const { data } = useQuery({
     queryKey: ['user-groups'],
     queryFn: getUserGroups,
+    enabled,
     staleTime: 0,
     select: (res) => {
       if (!res.success || !res.data) return {}
@@ -75,7 +77,8 @@ function useGroupRatios(): Record<string, number> {
 
 export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
   const { t, i18n } = useTranslation()
-  const groupRatios = useGroupRatios()
+  const isAdmin = useIsAdmin()
+  const groupRatios = useGroupRatios(isAdmin)
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const justNowLabel = t('Just now')
   const staleAccessThreshold = dayjs(now).subtract(3, 'month').valueOf()
@@ -228,7 +231,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
             tooltipContent={group || '-'}
             tooltipClassName='break-all'
           >
-            <GroupBadge group={group} ratio={ratio} />
+            <GroupBadge group={group} ratio={isAdmin ? ratio : undefined} />
           </TruncatedCell>
         )
       },

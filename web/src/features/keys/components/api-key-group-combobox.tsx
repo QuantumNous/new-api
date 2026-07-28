@@ -50,6 +50,7 @@ type ApiKeyGroupComboboxProps = {
   onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  showRatio?: boolean
 }
 
 function formatGroupRatio(
@@ -102,6 +103,7 @@ export function ApiKeyGroupCombobox({
   onValueChange,
   placeholder,
   disabled,
+  showRatio = true,
 }: ApiKeyGroupComboboxProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -113,7 +115,9 @@ export function ApiKeyGroupCombobox({
     if (!search) return options
 
     return options.filter((option) => {
-      const ratioText = String(option.ratio ?? '').toLowerCase()
+      const ratioText = showRatio
+        ? String(option.ratio ?? '').toLowerCase()
+        : ''
       return (
         option.value.toLowerCase().includes(search) ||
         option.label.toLowerCase().includes(search) ||
@@ -121,7 +125,7 @@ export function ApiKeyGroupCombobox({
         ratioText.includes(search)
       )
     })
-  }, [options, searchValue])
+  }, [options, searchValue, showRatio])
 
   const handleSelect = (selectedValue: string) => {
     onValueChange(selectedValue)
@@ -154,9 +158,11 @@ export function ApiKeyGroupCombobox({
               </span>
             )}
           </span>
-          <span className='hidden sm:block'>
-            <GroupRatioBadge ratio={selectedOption?.ratio} />
-          </span>
+          {showRatio && (
+            <span className='hidden sm:block'>
+              <GroupRatioBadge ratio={selectedOption?.ratio} />
+            </span>
+          )}
         </span>
         <ChevronsUpDown className='h-4 w-4 shrink-0 opacity-50' />
       </PopoverTrigger>
@@ -198,7 +204,7 @@ export function ApiKeyGroupCombobox({
                       </span>
                     )}
                   </span>
-                  <GroupRatioBadge ratio={option.ratio} />
+                  {showRatio && <GroupRatioBadge ratio={option.ratio} />}
                 </CommandItem>
               ))}
             </CommandGroup>
