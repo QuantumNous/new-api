@@ -14,6 +14,7 @@ import type {
   RecallEmailGenerationRequest,
   RecallEmailGenerationResponse,
   RecallEmailQuotaStatus,
+  RecallEmailSenderStatus,
   RecallEvent,
   RecallPage,
   RecallAudienceUserOption,
@@ -26,6 +27,7 @@ import type {
 export const recallCampaignKeys = {
   all: ['recall-campaigns'] as const,
   emailQuota: ['recall-campaigns', 'email-quota'] as const,
+  emailSender: ['recall-campaigns', 'email-sender'] as const,
   list: (search: RecallCampaignSearch) =>
     ['recall-campaigns', 'list', search] as const,
   detail: (id: number) => ['recall-campaigns', 'detail', id] as const,
@@ -140,6 +142,22 @@ export async function updateRecallEmailQuotaLimit(
   limit: number
 ): Promise<ApiResponse<RecallEmailQuotaStatus>> {
   const response = await api.put('/api/recall-campaigns/email-quota', { limit })
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallEmailSenderStatus(): Promise<
+  ApiResponse<RecallEmailSenderStatus>
+> {
+  const response = await api.get('/api/recall-campaigns/email-sender')
+  return requireRecallSuccess(response.data)
+}
+
+export async function updateRecallEmailSender(
+  emailFrom: string
+): Promise<ApiResponse<RecallEmailSenderStatus>> {
+  const response = await api.put('/api/recall-campaigns/email-sender', {
+    email_from: emailFrom,
+  })
   return requireRecallSuccess(response.data)
 }
 

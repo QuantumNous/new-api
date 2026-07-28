@@ -146,6 +146,16 @@ const activityEmailLocalizationAndQuotaKeys = [
   'Save hourly limit',
 ] as const
 
+const activityEmailSenderCopyKeys = [
+  'Activity sender address',
+  'All Activity Configuration campaigns share this sender. Other system emails are unaffected.',
+  'Default SMTP sender ({{email}})',
+  'Failed to load sender addresses.',
+  'Failed to update sender address.',
+  'Sender address choices changed. Review and save again.',
+  'Save sender address',
+] as const
+
 const recallHelpKeys = [
   'Subject must be 200 characters or fewer',
   'Leave empty to use the campaign name.',
@@ -205,6 +215,12 @@ describe('recall campaign copy', () => {
     ).toEqual(expect.arrayContaining([...exactAudienceControlKeys]))
     expect(recallCopy.recallCampaignEditorCopyKeys).not.toContain(
       'Registration end must be after start'
+    )
+  })
+
+  test('registers source copy for the activity email sender control without owning locale translations', () => {
+    expect(recallCopy.recallActivityEmailCopyKeys).toEqual(
+      expect.arrayContaining([...activityEmailSenderCopyKeys])
     )
   })
 
