@@ -18,7 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Activity, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatCompactNumber, formatQuota } from '@/lib/format'
+import {
+  formatCompactNumber,
+  formatQuota,
+  formatTimestampToDate,
+} from '@/lib/format'
 import { getRoleLabel } from '@/lib/roles'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
@@ -45,61 +49,115 @@ interface ProfileHeaderProps {
 interface ProfileUsageWindowMeterProps {
   label: string
   summary: ProfileUsageWindowSummary
-  slot: 'profile-plan-window-5h' | 'profile-plan-window-7d'
+  slot:
+    | 'profile-plan-window-5h'
+    | 'profile-plan-window-7d'
+    | 'profile-plan-window-media'
+  media?: boolean
+}
+
+function formatUsageWindowValue(
+  summary: ProfileUsageWindowSummary,
+  media: boolean
+): string {
+  if (media) return String(Math.max(0, Math.round(summary.totalQuota)))
+  return formatQuota(summary.totalQuota)
+}
+
+function formatUsageWindowUsedValue(
+  summary: ProfileUsageWindowSummary,
+  media: boolean
+): string {
+  if (media) return String(Math.max(0, Math.round(summary.usedQuota)))
+  return formatQuota(summary.usedQuota)
+}
+
+function formatUsageWindowRemainingValue(
+  summary: ProfileUsageWindowSummary,
+  media: boolean
+): string {
+  if (media) return String(Math.max(0, Math.round(summary.remainingQuota)))
+  return formatQuota(summary.remainingQuota)
 }
 
 function ProfileUsageWindowMeter(props: ProfileUsageWindowMeterProps) {
   const { t } = useTranslation()
+  const isMedia = props.media === true
 
   if (props.summary.unlimited) {
     return (
-      <div
-        data-slot={props.slot}
-        className='bg-background/60 min-w-0 rounded-lg border p-3'
-      >
-        <div className='text-muted-foreground text-xs font-medium'>
-          {props.label}
-        </div>
-        <div className='text-foreground mt-1 font-mono text-sm font-semibold tabular-nums sm:text-base'>
-          {t('Unlimited')}
-        </div>
-        <div className='text-muted-foreground mt-1 text-xs'>
-          {t('No usage limit')}
+      <div data-slot={props.slot} className='min-w-0 space-y-1.5'>
+        <div className='flex min-h-5 items-center justify-between gap-3 text-xs'>
+          <span className='font-medium'>{props.label}</span>
+          <span className='text-muted-foreground tabular-nums'>
+            {t('Unlimited')}
+          </span>
         </div>
         <Progress
           value={0}
           aria-label={props.label}
           getAriaValueText={() => t('Unlimited')}
-          className='mt-3 h-1.5'
+          className='h-1.5'
         />
+        <div className='text-muted-foreground min-h-4 text-xs'>
+          {t('No usage limit')}
+        </div>
       </div>
     )
   }
 
+  if (props.summary.notIncluded) {
+    return (
+      <div data-slot={props.slot} className='min-w-0 space-y-1.5'>
+        <div className='flex min-h-5 items-center justify-between gap-3 text-xs'>
+          <span className='font-medium'>{props.label}</span>
+          <span className='text-muted-foreground tabular-nums'>
+            {t('Not included')}
+          </span>
+        </div>
+        <Progress
+          value={0}
+          aria-label={props.label}
+          getAriaValueText={() => t('Not included')}
+          className='h-1.5'
+        />
+        <div className='text-muted-foreground min-h-4 text-xs'>
+          {t('{{remaining}} remaining', { remaining: '0' })}
+        </div>
+      </div>
+    )
+  }
+
+  const usedValue = formatUsageWindowUsedValue(props.summary, isMedia)
+  const totalValue = formatUsageWindowValue(props.summary, isMedia)
+  const remainingValue = formatUsageWindowRemainingValue(props.summary, isMedia)
+
   return (
-    <div
-      data-slot={props.slot}
-      className='bg-background/60 min-w-0 rounded-lg border p-3'
-    >
-      <div className='text-muted-foreground text-xs font-medium'>
-        {props.label}
-      </div>
-      <div className='text-foreground mt-1 font-mono text-sm font-semibold tabular-nums sm:text-base'>
-        {t('{{used}} / {{total}} used', {
-          used: formatQuota(props.summary.usedQuota),
-          total: formatQuota(props.summary.totalQuota),
-        })}
-      </div>
-      <div className='text-muted-foreground mt-1 text-xs'>
-        {t('{{remaining}} remaining', {
-          remaining: formatQuota(props.summary.remainingQuota),
-        })}
+    <div data-slot={props.slot} className='min-w-0 space-y-1.5'>
+      <div className='flex min-h-5 items-center justify-between gap-3 text-xs'>
+        <span className='font-medium'>{props.label}</span>
+        <span className='text-muted-foreground tabular-nums'>
+          {t('{{used}} / {{total}} used', {
+            used: usedValue,
+            total: totalValue,
+          })}
+        </span>
       </div>
       <Progress
         value={props.summary.usagePercent}
         aria-label={props.label}
-        className='mt-3 h-1.5'
+        className='h-1.5'
       />
+      <div className='text-muted-foreground min-h-4 text-xs'>
+        {props.summary.resetAt > 0
+          ? t('{{remaining}} remaining, resets {{date}}', {
+              remaining: remainingValue,
+              date: formatTimestampToDate(props.summary.resetAt),
+            })
+          : t('{{remaining}} remaining', {
+              remaining: remainingValue,
+            })}
+      </div>
     </div>
   )
 }
@@ -110,7 +168,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
   if (props.loading) {
     return (
       <div className='bg-card w-full overflow-hidden rounded-lg border'>
-        <div className='p-4 sm:p-5'>
+        <div className='p-3 sm:p-5'>
           <div
             data-slot='profile-header-top-row'
             className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_390px] lg:items-start'
@@ -146,7 +204,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
 
           <section
             data-slot='profile-plan-summary'
-            className='border-primary/20 bg-primary/5 mt-4 rounded-lg border p-3 sm:p-4'
+            className='mt-5 border-t pt-4 sm:pt-5'
           >
             <div className='flex items-start justify-between gap-3'>
               <div className='min-w-0 space-y-2'>
@@ -158,26 +216,28 @@ export function ProfileHeader(props: ProfileHeaderProps) {
             </div>
             <div
               data-slot='profile-plan-short-window-row'
-              className='mt-4 grid gap-3 sm:grid-cols-2'
+              className='mt-4 grid gap-4 lg:grid-cols-3'
             >
-              {['profile-plan-window-5h', 'profile-plan-window-7d'].map(
-                (slot) => (
-                  <div
-                    key={slot}
-                    data-slot={slot}
-                    className='bg-background/60 rounded-lg border p-3'
-                  >
-                    <Skeleton className='h-4 w-24' />
-                    <Skeleton className='mt-2 h-5 w-32' />
-                    <Skeleton className='mt-2 h-4 w-28' />
-                    <Skeleton className='mt-3 h-1.5 w-full rounded-full' />
-                  </div>
-                )
-              )}
+              {[
+                'profile-plan-window-5h',
+                'profile-plan-window-7d',
+                'profile-plan-window-media',
+              ].map((slot) => (
+                <div
+                  key={slot}
+                  data-slot={slot}
+                  className='min-w-0 space-y-1.5'
+                >
+                  <Skeleton className='h-4 w-24' />
+                  <Skeleton className='h-5 w-32' />
+                  <Skeleton className='h-1.5 w-full rounded-full' />
+                  <Skeleton className='h-4 w-28' />
+                </div>
+              ))}
             </div>
             <div
               data-slot='profile-plan-quota-row'
-              className='mt-4 grid grid-cols-2 gap-4 sm:items-end'
+              className='mt-4 grid grid-cols-2 gap-4 border-t pt-4 sm:items-end'
             >
               <div>
                 <Skeleton className='h-4 w-24' />
@@ -188,7 +248,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
                 <Skeleton className='mt-2 h-6 w-24' />
               </div>
             </div>
-            <Skeleton className='mt-4 h-2 w-full rounded-full' />
+            <Skeleton className='mt-3 h-1.5 w-full rounded-full' />
           </section>
 
           <div
@@ -326,14 +386,14 @@ export function ProfileHeader(props: ProfileHeaderProps) {
           <section
             data-slot='profile-plan-summary'
             aria-label={t('Current Plan')}
-            className='border-primary/20 bg-primary/5 mt-4 rounded-lg border p-3 sm:p-4'
+            className='mt-5 border-t pt-4 sm:pt-5'
           >
             <div className='flex items-start justify-between gap-3'>
               <div className='min-w-0'>
-                <div className='text-primary text-xs font-medium tracking-wider uppercase'>
+                <div className='text-muted-foreground text-xs font-medium'>
                   {t('Current Plan')}
                 </div>
-                <div className='text-foreground mt-1 truncate text-2xl font-semibold tracking-tight'>
+                <div className='text-foreground mt-1 truncate text-xl font-semibold tracking-tight'>
                   {subscription.planTitle}
                 </div>
                 {subscription.remainingDays !== null && (
@@ -354,7 +414,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
 
             <div
               data-slot='profile-plan-short-window-row'
-              className='mt-4 grid gap-3 sm:grid-cols-2'
+              className='mt-4 grid gap-4 lg:grid-cols-3'
             >
               <ProfileUsageWindowMeter
                 slot='profile-plan-window-5h'
@@ -366,11 +426,17 @@ export function ProfileHeader(props: ProfileHeaderProps) {
                 label={t('7-day limit')}
                 summary={subscription.window7d}
               />
+              <ProfileUsageWindowMeter
+                slot='profile-plan-window-media'
+                label={t('Media generation credits')}
+                summary={subscription.mediaCredits}
+                media
+              />
             </div>
 
             <div
               data-slot='profile-plan-quota-row'
-              className='mt-4 grid grid-cols-2 gap-4 sm:items-end'
+              className='mt-4 grid grid-cols-2 gap-4 border-t pt-4 sm:items-end'
             >
               <div className='min-w-0'>
                 <div className='text-muted-foreground text-xs font-medium'>
@@ -384,20 +450,20 @@ export function ProfileHeader(props: ProfileHeaderProps) {
                 <div className='text-muted-foreground text-xs font-medium'>
                   {t('Remaining')}
                 </div>
-                <div className='text-primary mt-1 truncate font-mono text-lg font-semibold tabular-nums'>
+                <div className='text-foreground mt-1 truncate font-mono text-lg font-semibold tabular-nums'>
                   {planRemainingValue}
                 </div>
               </div>
             </div>
 
-            <div className='mt-4'>
+            <div className='mt-3'>
               <Progress
                 value={planProgressValue}
                 aria-label={t('Progress')}
                 getAriaValueText={
                   subscription.unlimited ? () => t('Unlimited') : undefined
                 }
-                className='h-2'
+                className='h-1.5'
               />
             </div>
           </section>
