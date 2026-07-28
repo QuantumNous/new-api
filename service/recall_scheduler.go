@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -85,7 +86,10 @@ func RunRecallMaintenanceTick(ctx context.Context) {
 	}
 	if runtime.Emails != nil {
 		if _, err := runtime.Emails.RunBatch(ctx, setting.BatchSize); err != nil {
-			logger.LogWarn(ctx, "recall email maintenance failed")
+			var quotaWait *RecallEmailQuotaWaitError
+			if !errors.As(err, &quotaWait) {
+				logger.LogWarn(ctx, "recall email maintenance failed")
+			}
 		}
 	}
 	if runtime.Attribution != nil {

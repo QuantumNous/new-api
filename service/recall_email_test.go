@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -966,8 +967,8 @@ func TestRecallEmailWorkerStopsAtSharedHourlyLimit(t *testing.T) {
 
 	processed, err := fixture.worker.RunBatch(context.Background(), 10)
 	var waitErr *RecallEmailQuotaWaitError
-	require.ErrorAs(t, err, &waitErr)
-	require.Positive(t, waitErr.ResetsAt)
+	require.NotErrorAs(t, err, &waitErr)
+	require.NoError(t, err)
 	require.Equal(t, 2, processed)
 	require.Len(t, *fixture.sent, 2)
 
@@ -978,13 +979,8 @@ func TestRecallEmailWorkerStopsAtSharedHourlyLimit(t *testing.T) {
 			require.Equal(t, 1, stored.AttemptCount)
 			continue
 		}
-		if index == 2 {
-			require.Equal(t, model.RecallMessageRetryWait, stored.State)
-			require.Equal(t, waitErr.ResetsAt, stored.NextAttemptAt)
-		} else {
-			require.Equal(t, model.RecallMessageScheduled, stored.State)
-			require.Zero(t, stored.NextAttemptAt)
-		}
+		require.Equal(t, model.RecallMessageScheduled, stored.State)
+		require.Zero(t, stored.NextAttemptAt)
 		require.Zero(t, stored.AttemptCount)
 		require.Empty(t, stored.LeaseOwner)
 		require.Zero(t, stored.LeaseExpiresAt)
@@ -1018,6 +1014,35 @@ func TestRecallEmailRunBatchDoesNotChurnExpiredLeaseWhileQuotaIsExhausted(t *tes
 	require.Equal(t, model.RecallMessageLeased, stored.State)
 	require.Equal(t, "expired-owner", stored.LeaseOwner)
 	require.Equal(t, expiredLease, stored.LeaseExpiresAt)
+}
+
+func TestRecallMaintenanceTreatsEmailQuotaWaitAsBackpressure(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	setRecallEmailHourlyLimit(t, 1)
+	_, reserved, err := model.ReserveRecallEmailQuotaWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	require.True(t, reserved)
+	setRecallRuntimeForTest(t, &RecallRuntime{
+		Campaigns:  NewRecallCampaignService(NewRecallAudienceSelector(), NewRecallStripeService(&recallStripeFakeClient{})),
+		Claims:     fixture.claims,
+		Recipients: NewRecallRecipientWorker(NewRecallStripeService(&recallStripeFakeClient{}), fixture.claims, fixture.worker.owner),
+		Emails:     fixture.worker,
+	})
+
+	var logOutput bytes.Buffer
+	common.LogWriterMu.Lock()
+	originalErrorWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logOutput
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultErrorWriter = originalErrorWriter
+		common.LogWriterMu.Unlock()
+	})
+
+	RunRecallMaintenanceTick(context.Background())
+
+	require.NotContains(t, logOutput.String(), "recall email maintenance failed")
 }
 
 func TestRecallEmailProcessLeasedDefersOwnedLeaseUntilQuotaReset(t *testing.T) {
@@ -1106,13 +1131,13 @@ func TestRecallEmailWorkerPreSMTPCancellationDoesNotConsumeQuota(t *testing.T) {
 
 	processed, err := fixture.worker.RunBatch(context.Background(), 10)
 	require.NoError(t, err)
-	require.Equal(t, 2, processed)
-	require.Len(t, *fixture.sent, 1)
+	require.Equal(t, 1, processed)
+	require.Empty(t, *fixture.sent)
 	require.Equal(t, model.RecallMessageCancelled, loadRecallEmailMessageByID(t, fixture.message.Id).State)
-	require.Equal(t, model.RecallMessageAccepted, loadRecallEmailMessageByID(t, validMessage.Id).State)
+	require.Equal(t, model.RecallMessageScheduled, loadRecallEmailMessageByID(t, validMessage.Id).State)
 	status, err := model.GetRecallEmailQuotaStatusWithContext(context.Background(), 1)
 	require.NoError(t, err)
-	require.Equal(t, 1, status.Used)
+	require.Zero(t, status.Used)
 }
 
 func TestRecallEmailWorkerSenderInvalidStopsBeforeLeaseAndQuota(t *testing.T) {

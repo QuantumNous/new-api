@@ -180,13 +180,17 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 	if err != nil {
 		return 0, err
 	}
-	if quotaStatus.Exhausted {
-		return 0, &RecallEmailQuotaWaitError{ResetsAt: quotaStatus.ResetsAt}
+	candidateLimit := limit
+	if quotaStatus.Remaining < candidateLimit {
+		candidateLimit = quotaStatus.Remaining
 	}
 	now := w.now().Unix()
-	candidates, err := model.ListDueRecallMessages(now, limit)
+	candidates, err := model.ListDueRecallMessages(now, candidateLimit)
 	if err != nil {
 		return 0, err
+	}
+	if quotaStatus.Exhausted {
+		return 0, &RecallEmailQuotaWaitError{ResetsAt: quotaStatus.ResetsAt}
 	}
 	type leasedEmail struct {
 		item      *model.RecallEmailWorkItem
