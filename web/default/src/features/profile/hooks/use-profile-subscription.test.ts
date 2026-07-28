@@ -85,10 +85,28 @@ describe('loadProfileSubscriptionSummary', () => {
         success: true,
         data: {
           current_subscription: buildCurrentSubscription(),
+          monthly_bucket: {
+            total: 200_000,
+            used: 50_000,
+            remaining: 150_000,
+            unlimited: false,
+          },
           quota: {
             amount_total: 100_000,
             amount_used: 25_000,
             amount_remaining: 75_000,
+            unlimited: false,
+          },
+          window_5h: {
+            total: 20_000,
+            used: 5_000,
+            remaining: 15_000,
+            unlimited: false,
+          },
+          window_7d: {
+            total: 80_000,
+            used: 20_000,
+            remaining: 60_000,
             unlimited: false,
           },
           remaining_days: 19,
@@ -96,12 +114,26 @@ describe('loadProfileSubscriptionSummary', () => {
       }))
     ).resolves.toEqual({
       planTitle: 'Pro',
-      totalQuota: 100_000,
-      usedQuota: 25_000,
-      remainingQuota: 75_000,
+      totalQuota: 200_000,
+      usedQuota: 50_000,
+      remainingQuota: 150_000,
       unlimited: false,
       remainingDays: 19,
       usagePercent: 25,
+      window5h: {
+        totalQuota: 20_000,
+        usedQuota: 5_000,
+        remainingQuota: 15_000,
+        unlimited: false,
+        usagePercent: 25,
+      },
+      window7d: {
+        totalQuota: 80_000,
+        usedQuota: 20_000,
+        remainingQuota: 60_000,
+        unlimited: false,
+        usagePercent: 25,
+      },
     })
   })
 

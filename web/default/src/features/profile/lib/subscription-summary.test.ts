@@ -73,7 +73,64 @@ const expectAdapterExport = () => {
 }
 
 describe('buildProfileSubscriptionSummary', () => {
-  test('builds an active Pro summary from canonical top-level quota', () => {
+  test('builds an active Pro summary from canonical monthly and window buckets', () => {
+    const buildProfileSubscriptionSummary = expectAdapterExport()
+
+    expect(
+      buildProfileSubscriptionSummary({
+        current_subscription: buildCurrentSubscription(),
+        monthly_bucket: {
+          total: 200_000,
+          used: 50_000,
+          remaining: 150_000,
+          unlimited: false,
+        },
+        quota: {
+          amount_total: 100_000,
+          amount_used: 25_000,
+          amount_remaining: 75_000,
+          unlimited: false,
+        },
+        window_5h: {
+          total: 20_000,
+          used: 5_000,
+          remaining: 15_000,
+          unlimited: false,
+        },
+        window_7d: {
+          total: 80_000,
+          used: 20_000,
+          remaining: 60_000,
+          unlimited: false,
+        },
+        remaining_days: 19,
+      })
+    ).toEqual({
+      planTitle: 'Pro',
+      totalQuota: 200_000,
+      usedQuota: 50_000,
+      remainingQuota: 150_000,
+      unlimited: false,
+      remainingDays: 19,
+      usagePercent: 25,
+      window5h: {
+        totalQuota: 20_000,
+        usedQuota: 5_000,
+        remainingQuota: 15_000,
+        unlimited: false,
+        usagePercent: 25,
+      },
+      window7d: {
+        totalQuota: 80_000,
+        usedQuota: 20_000,
+        remainingQuota: 60_000,
+        unlimited: false,
+        usagePercent: 25,
+      },
+    })
+  })
+
+  test('falls back to canonical top-level quota when monthly bucket is missing', () => {
     const buildProfileSubscriptionSummary = expectAdapterExport()
 
     expect(
@@ -87,8 +144,7 @@ describe('buildProfileSubscriptionSummary', () => {
         },
         remaining_days: 19,
       })
-    ).toEqual({
-      planTitle: 'Pro',
+    ).toMatchObject({
       totalQuota: 100_000,
       usedQuota: 25_000,
       remainingQuota: 75_000,
@@ -245,6 +301,102 @@ describe('buildProfileSubscriptionSummary', () => {
       remainingQuota: 0,
       remainingDays: 0,
       usagePercent: 0,
+    })
+  })
+
+  test('normalizes short usage windows at adapter boundaries', () => {
+    const buildProfileSubscriptionSummary = expectAdapterExport()
+
+    expect(
+      buildProfileSubscriptionSummary({
+        current_subscription: buildCurrentSubscription(),
+        window_5h: {
+          total: 10,
+          used: 4,
+          remaining: 6,
+          unlimited: false,
+        },
+        window_7d: {
+          total: 0,
+          used: 4,
+          remaining: 0,
+          unlimited: false,
+        },
+      })
+    ).toMatchObject({
+      window5h: {
+        totalQuota: 10,
+        usedQuota: 4,
+        remainingQuota: 6,
+        unlimited: false,
+        usagePercent: 40,
+      },
+      window7d: {
+        totalQuota: 0,
+        usedQuota: 4,
+        remainingQuota: 0,
+        unlimited: true,
+        usagePercent: 0,
+      },
+    })
+
+    expect(
+      buildProfileSubscriptionSummary({
+        current_subscription: buildCurrentSubscription(),
+        window_5h: {
+          total: 10,
+          used: 12,
+          unlimited: false,
+        },
+        window_7d: {
+          total: -10,
+          used: -1,
+          remaining: -5,
+          unlimited: false,
+        },
+      })
+    ).toMatchObject({
+      window5h: {
+        totalQuota: 10,
+        usedQuota: 12,
+        remainingQuota: 0,
+        unlimited: false,
+        usagePercent: 100,
+      },
+      window7d: {
+        totalQuota: 0,
+        usedQuota: 0,
+        remainingQuota: 0,
+        unlimited: true,
+        usagePercent: 0,
+      },
+    })
+
+    expect(
+      buildProfileSubscriptionSummary({
+        current_subscription: buildCurrentSubscription(),
+        window_5h: {
+          total: Number.NaN,
+          used: Number.POSITIVE_INFINITY,
+          remaining: Number.NEGATIVE_INFINITY,
+          unlimited: false,
+        },
+      })
+    ).toMatchObject({
+      window5h: {
+        totalQuota: 0,
+        usedQuota: 0,
+        remainingQuota: 0,
+        unlimited: true,
+        usagePercent: 0,
+      },
+      window7d: {
+        totalQuota: 0,
+        usedQuota: 0,
+        remainingQuota: 0,
+        unlimited: true,
+        usagePercent: 0,
+      },
     })
   })
 })

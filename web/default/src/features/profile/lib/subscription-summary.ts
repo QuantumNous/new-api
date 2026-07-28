@@ -16,16 +16,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { SelfSubscriptionDataResponse } from '@/features/subscriptions/types'
+import type {
+  SelfSubscriptionDataResponse,
+  SubscriptionQuota,
+  SubscriptionUsageWindow,
+} from '@/features/subscriptions/types'
 
-export type ProfileSubscriptionSummary = {
-  planTitle: string
+export type ProfileUsageWindowSummary = {
   totalQuota: number
   usedQuota: number
   remainingQuota: number
   unlimited: boolean
-  remainingDays: number | null
   usagePercent: number
+}
+
+export type ProfileSubscriptionSummary = ProfileUsageWindowSummary & {
+  planTitle: string
+  remainingDays: number | null
+  window5h: ProfileUsageWindowSummary
+  window7d: ProfileUsageWindowSummary
 }
 
 function finiteNonNegative(value: unknown): number {
@@ -83,6 +92,78 @@ function normalizeUsagePercent(
   return Math.min(100, Math.max(0, (usedQuota / totalQuota) * 100))
 }
 
+function normalizeUsageWindow(
+  window: SubscriptionUsageWindow | undefined
+): ProfileUsageWindowSummary {
+  const totalQuota = finiteNonNegative(window?.total)
+  const usedQuota = finiteNonNegative(window?.used)
+  const remainingQuota =
+    window?.remaining === undefined
+      ? Math.max(0, totalQuota - usedQuota)
+      : finiteNonNegative(window.remaining)
+  const unlimited = window?.unlimited === true || totalQuota === 0
+
+  return {
+    totalQuota,
+    usedQuota,
+    remainingQuota,
+    unlimited,
+    usagePercent: normalizeUsagePercent(usedQuota, totalQuota, unlimited),
+  }
+}
+
+function normalizeQuotaWindow(quota: SubscriptionQuota): ProfileUsageWindowSummary {
+  const totalQuota = finiteNonNegative(quota.amount_total)
+  const usedQuota = finiteNonNegative(quota.amount_used)
+  const remainingQuota =
+    quota.amount_remaining === undefined
+      ? Math.max(0, totalQuota - usedQuota)
+      : finiteNonNegative(quota.amount_remaining)
+  const unlimited = quota.unlimited === true || totalQuota === 0
+
+  return {
+    totalQuota,
+    usedQuota,
+    remainingQuota,
+    unlimited,
+    usagePercent: normalizeUsagePercent(usedQuota, totalQuota, unlimited),
+  }
+}
+
+function fallbackUsageWindow(
+  data: NonNullable<SelfSubscriptionDataResponse['current_subscription']>
+): ProfileUsageWindowSummary {
+  const totalQuota = fallbackTotalQuota(data)
+  const usedQuota = finiteNonNegative(data.subscription.amount_used)
+  const remainingQuota = Math.max(0, totalQuota - usedQuota)
+  const unlimited = fallbackUnlimited(data)
+
+  return {
+    totalQuota,
+    usedQuota,
+    remainingQuota,
+    unlimited,
+    usagePercent: normalizeUsagePercent(usedQuota, totalQuota, unlimited),
+  }
+}
+
+function normalizeMonthlySummary(
+  data: SelfSubscriptionDataResponse,
+  currentSubscription: NonNullable<
+    SelfSubscriptionDataResponse['current_subscription']
+  >
+): ProfileUsageWindowSummary {
+  if (data.monthly_bucket !== undefined) {
+    return normalizeUsageWindow(data.monthly_bucket)
+  }
+
+  if (data.quota !== undefined) {
+    return normalizeQuotaWindow(data.quota)
+  }
+
+  return fallbackUsageWindow(currentSubscription)
+}
+
 export function buildProfileSubscriptionSummary(
   data: SelfSubscriptionDataResponse | undefined
 ): ProfileSubscriptionSummary | null {
@@ -90,30 +171,17 @@ export function buildProfileSubscriptionSummary(
   if (!currentSubscription) return null
   if (currentSubscription.subscription.status !== 'active') return null
 
-  const totalQuota =
-    data?.quota?.amount_total === undefined
-      ? fallbackTotalQuota(currentSubscription)
-      : finiteNonNegative(data.quota.amount_total)
-  const usedQuota =
-    data?.quota?.amount_used === undefined
-      ? finiteNonNegative(currentSubscription.subscription.amount_used)
-      : finiteNonNegative(data.quota.amount_used)
-  const remainingQuota =
-    data?.quota?.amount_remaining === undefined
-      ? Math.max(0, totalQuota - usedQuota)
-      : finiteNonNegative(data.quota.amount_remaining)
-  const unlimited =
-    data?.quota === undefined
-      ? fallbackUnlimited(currentSubscription)
-      : data.quota.unlimited === true
+  const monthlySummary = normalizeMonthlySummary(data, currentSubscription)
 
   return {
     planTitle: normalizePlanTitle(currentSubscription),
-    totalQuota,
-    usedQuota,
-    remainingQuota,
-    unlimited,
+    totalQuota: monthlySummary.totalQuota,
+    usedQuota: monthlySummary.usedQuota,
+    remainingQuota: monthlySummary.remainingQuota,
+    unlimited: monthlySummary.unlimited,
     remainingDays: normalizeRemainingDays(data?.remaining_days),
-    usagePercent: normalizeUsagePercent(usedQuota, totalQuota, unlimited),
+    usagePercent: monthlySummary.usagePercent,
+    window5h: normalizeUsageWindow(data?.window_5h),
+    window7d: normalizeUsageWindow(data?.window_7d),
   }
 }

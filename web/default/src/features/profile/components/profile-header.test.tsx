@@ -61,6 +61,20 @@ const activeSubscription: ProfileSubscriptionSummary = {
   unlimited: false,
   remainingDays: 19,
   usagePercent: 38,
+  window5h: {
+    totalQuota: 20000,
+    usedQuota: 5000,
+    remainingQuota: 15000,
+    unlimited: false,
+    usagePercent: 25,
+  },
+  window7d: {
+    totalQuota: 80000,
+    usedQuota: 20000,
+    remainingQuota: 60000,
+    unlimited: false,
+    usagePercent: 25,
+  },
 }
 
 function renderHeader(subscription: ProfileSubscriptionSummary | null): string {
@@ -225,6 +239,20 @@ describe('ProfileHeader', () => {
       unlimited: true,
       remainingDays: null,
       usagePercent: 0,
+      window5h: {
+        totalQuota: 0,
+        usedQuota: 0,
+        remainingQuota: 0,
+        unlimited: true,
+        usagePercent: 0,
+      },
+      window7d: {
+        totalQuota: 0,
+        usedQuota: 0,
+        remainingQuota: 0,
+        unlimited: true,
+        usagePercent: 0,
+      },
     }
 
     const html = renderHeader(subscription)
