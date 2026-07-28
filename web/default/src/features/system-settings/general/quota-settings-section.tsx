@@ -46,6 +46,7 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { getInvitationRewardModeConfiguration } from './invitation-reward-mode'
 
 const quotaSchema = z.object({
   QuotaForNewUser: z.coerce.number().min(0),
@@ -103,18 +104,9 @@ export function QuotaSettingsSection({
         }
       },
     })
-  const inviterRewardLabel = inviteRewardSubscriptionMode
-    ? 'Inviter subscription package credit'
-    : 'Inviter Reward'
-  const inviterRewardDescription = inviteRewardSubscriptionMode
-    ? 'Granted immediately after a friend successfully buys any paid plan for the first time. The credit never expires and can only be used for subscription purchases and renewals.'
-    : 'Quota given to users who invite others'
-  const maxRewardCountLabel = inviteRewardSubscriptionMode
-    ? 'Reward limit'
-    : 'Inviter Reward Limit'
-  const maxRewardCountDescription = inviteRewardSubscriptionMode
-    ? '0 means unlimited.'
-    : 'Maximum inviter rewards one account can receive. Set 0 for no limit.'
+  const invitationRewardMode = getInvitationRewardModeConfiguration(
+    inviteRewardSubscriptionMode
+  )
 
   return (
     <SettingsSection title={t('Quota Settings')}>
@@ -191,7 +183,7 @@ export function QuotaSettingsSection({
               name='QuotaForInviter'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t(inviterRewardLabel)}</FormLabel>
+                  <FormLabel>{t(invitationRewardMode.inviterLabel)}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -203,73 +195,43 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t(inviterRewardDescription)}
+                    {t(invitationRewardMode.inviterDescription)}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {inviteRewardSubscriptionMode ? (
-              <FormField
-                control={form.control}
-                name='InviteFirstSubDiscountUSD'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {t('Invitee first subscription package credit')}
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type='number'
-                        value={field.value ?? ''}
-                        onChange={handleNumberChange(field.onChange)}
-                        name={field.name}
-                        onBlur={field.onBlur}
-                        ref={field.ref}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        "Discount applied to the invited user's first paid subscription package purchase."
-                      )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            ) : (
-              <FormField
-                control={form.control}
-                name='QuotaForInvitee'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Invitee Reward')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type='number'
-                        value={field.value ?? ''}
-                        onChange={handleNumberChange(field.onChange)}
-                        name={field.name}
-                        onBlur={field.onBlur}
-                        ref={field.ref}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t('Quota given to invited users')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+            <FormField
+              control={form.control}
+              name={invitationRewardMode.inviteeField}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t(invitationRewardMode.inviteeLabel)}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(invitationRewardMode.inviteeDescription)}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
               name='QuotaForInviterMaxCount'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t(maxRewardCountLabel)}</FormLabel>
+                  <FormLabel>{t(invitationRewardMode.maxCountLabel)}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -283,7 +245,7 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t(maxRewardCountDescription)}
+                    {t(invitationRewardMode.maxCountDescription)}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

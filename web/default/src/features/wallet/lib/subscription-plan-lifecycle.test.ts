@@ -123,6 +123,17 @@ function createCanonicalLifecycleWithContract(
 }
 
 describe('normalizeSelfSubscriptionData', () => {
+  test('preserves the legacy balance renewal source used by the wallet fallback', () => {
+    const normalized = normalizeSelfSubscriptionData({
+      ...createBackendSelfData(false, false),
+      renewal_source: 'balance',
+      renewal_status: 'enabled',
+    })
+
+    expect(normalized.renewal_source).toBe('balance')
+    expect(normalized.renewal_status).toBe('enabled')
+  })
+
   test('fails closed when canonical self-subscription data is unavailable', () => {
     const normalized = normalizeSelfSubscriptionData(undefined)
 

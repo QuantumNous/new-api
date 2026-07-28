@@ -16,25 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'bun:test'
-import { getInvitationRewardModeConfiguration } from './invitation-reward-mode'
-
-describe('QuotaSettingsSection invitation reward modes', () => {
-  test('selects legacy top-up invitee quota when subscription invitation mode is disabled', () => {
-    expect(getInvitationRewardModeConfiguration(false)).toEqual({
-      inviterLabel: 'Inviter Reward',
-      inviterDescription: 'Quota given to users who invite others',
-      inviteeField: 'QuotaForInvitee',
-      inviteeLabel: 'Invitee Reward',
-      inviteeDescription: 'Quota given to invited users',
-      maxCountLabel: 'Inviter Reward Limit',
-      maxCountDescription:
-        'Maximum inviter rewards one account can receive. Set 0 for no limit.',
-    })
-  })
-
-  test('selects subscription invitee discount when subscription invitation mode is enabled', () => {
-    expect(getInvitationRewardModeConfiguration(true)).toEqual({
+export function getInvitationRewardModeConfiguration(
+  subscriptionMode: boolean
+) {
+  if (subscriptionMode) {
+    return {
       inviterLabel: 'Inviter subscription package credit',
       inviterDescription:
         'Granted immediately after a friend successfully buys any paid plan for the first time. The credit never expires and can only be used for subscription purchases and renewals.',
@@ -44,6 +30,17 @@ describe('QuotaSettingsSection invitation reward modes', () => {
         "Discount applied to the invited user's first paid subscription package purchase.",
       maxCountLabel: 'Reward limit',
       maxCountDescription: '0 means unlimited.',
-    })
-  })
-})
+    } as const
+  }
+
+  return {
+    inviterLabel: 'Inviter Reward',
+    inviterDescription: 'Quota given to users who invite others',
+    inviteeField: 'QuotaForInvitee',
+    inviteeLabel: 'Invitee Reward',
+    inviteeDescription: 'Quota given to invited users',
+    maxCountLabel: 'Inviter Reward Limit',
+    maxCountDescription:
+      'Maximum inviter rewards one account can receive. Set 0 for no limit.',
+  } as const
+}

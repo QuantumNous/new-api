@@ -374,34 +374,6 @@ export interface RecurringSubscription {
   requires_support: boolean
 }
 
-export type SubscriptionRenewalSource = 'provider_recurring' | 'wallet_auto'
-
-export type SelfSubscriptionRenewalSource =
-  | SubscriptionRenewalSource
-  | ''
-  | (string & {})
-
-export type SubscriptionRenewalStatus =
-  | 'enabled'
-  | 'cancelled_by_user'
-  | 'paused_insufficient_balance'
-  | 'paused_plan_unavailable'
-
-export type SelfSubscriptionRenewalStatus =
-  | SubscriptionRenewalStatus
-  | ''
-  | (string & {})
-
-export interface SubscriptionRenewalLifecycleResult {
-  renewal_source: SubscriptionRenewalSource
-  renewal_status: SubscriptionRenewalStatus
-  current_period_end: number
-  can_cancel: boolean
-  can_resume: boolean
-  is_cancel_at_period_end: boolean
-  sync_pending: boolean
-}
-
 // ============================================================================
 // Self Subscription Data (user-facing)
 // ============================================================================
@@ -448,8 +420,8 @@ export interface SelfSubscriptionData {
   window_7d?: SubscriptionUsageWindow
   media_credits?: SubscriptionUsageWindow
   remaining_days?: number
-  renewal_source?: SubscriptionRenewalSource
-  renewal_status?: SubscriptionRenewalStatus
+  renewal_source?: string
+  renewal_status?: string
   payment_availability?: SubscriptionPaymentAvailability
   payment_quotes?: SubscriptionPaymentQuotes
   pending_change?: SubscriptionPendingChange | null
@@ -461,13 +433,8 @@ export interface SelfSubscriptionData {
 }
 
 export interface SelfSubscriptionDataResponse extends Partial<
-  Omit<
-    SelfSubscriptionData,
-    'capabilities' | 'migration' | 'renewal_source' | 'renewal_status'
-  >
+  Omit<SelfSubscriptionData, 'capabilities' | 'migration'>
 > {
-  renewal_source?: SelfSubscriptionRenewalSource
-  renewal_status?: SelfSubscriptionRenewalStatus
   capabilities?: Partial<SelfSubscriptionCapabilities> & {
     has_migration_conflict?: boolean
   }
