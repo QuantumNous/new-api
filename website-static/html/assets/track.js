@@ -67,8 +67,7 @@
   document.addEventListener("click", function (e) {
     var a = e.target.closest && e.target.closest("a"); if (!a) return;
     var h = a.getAttribute("href") || "";
-    if (h.indexOf("console.flatkey.ai/api-marketplace") >= 0) push("tools_marketplace_click", { cta_text: (a.textContent || "").trim().slice(0, 40) });
-    else if (h.indexOf("console.flatkey.ai/sign-up") >= 0) push("sign_up_click", { cta_text: (a.textContent || "").trim().slice(0, 40) });
+    if (h.indexOf("console.flatkey.ai/sign-up") >= 0) push("sign_up_click", { cta_text: (a.textContent || "").trim().slice(0, 40) });
     else if (h.indexOf("login.html") >= 0) push("login_cta_click", { cta_text: (a.textContent || "").trim().slice(0, 40) });
     else if (h.indexOf("discord.gg") >= 0) push("discord_click", {});
     else if (h.indexOf("mailto:") === 0) push("email_click", {});
