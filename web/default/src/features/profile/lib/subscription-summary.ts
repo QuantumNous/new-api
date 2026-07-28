@@ -38,9 +38,35 @@ function finiteNonNegative(value: unknown): number {
 function fallbackTotalQuota(
   data: NonNullable<SelfSubscriptionDataResponse['current_subscription']>
 ): number {
-  const subscriptionTotal = finiteNonNegative(data.subscription.amount_total)
-  if (subscriptionTotal > 0) return subscriptionTotal
+  if (
+    typeof data.subscription.amount_total === 'number' &&
+    Number.isFinite(data.subscription.amount_total) &&
+    data.subscription.amount_total >= 0
+  ) {
+    return data.subscription.amount_total
+  }
   return finiteNonNegative(data.plan.total_amount)
+}
+
+function fallbackUnlimited(
+  data: NonNullable<SelfSubscriptionDataResponse['current_subscription']>
+): boolean {
+  if (
+    typeof data.subscription.amount_total === 'number' &&
+    Number.isFinite(data.subscription.amount_total) &&
+    data.subscription.amount_total >= 0
+  ) {
+    return data.subscription.amount_total === 0
+  }
+  return finiteNonNegative(data.plan.total_amount) === 0
+}
+
+function normalizePlanTitle(
+  data: NonNullable<SelfSubscriptionDataResponse['current_subscription']>
+): string {
+  const title = data.plan.title.trim()
+  if (title) return title
+  return `#${data.subscription.plan_id}`
 }
 
 function normalizeRemainingDays(value: unknown): number | null {
@@ -76,10 +102,13 @@ export function buildProfileSubscriptionSummary(
     data?.quota?.amount_remaining === undefined
       ? Math.max(0, totalQuota - usedQuota)
       : finiteNonNegative(data.quota.amount_remaining)
-  const unlimited = data?.quota?.unlimited === true
+  const unlimited =
+    data?.quota === undefined
+      ? fallbackUnlimited(currentSubscription)
+      : data.quota.unlimited === true
 
   return {
-    planTitle: currentSubscription.plan.title,
+    planTitle: normalizePlanTitle(currentSubscription),
     totalQuota,
     usedQuota,
     remainingQuota,

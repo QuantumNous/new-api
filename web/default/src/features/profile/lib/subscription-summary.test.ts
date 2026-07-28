@@ -126,7 +126,34 @@ describe('buildProfileSubscriptionSummary', () => {
     ).toBeNull()
   })
 
-  test('falls back to current subscription quota when top-level quota is missing', () => {
+  test('falls back to finite current subscription quota when top-level quota is missing', () => {
+    const buildProfileSubscriptionSummary = expectAdapterExport()
+
+    expect(
+      buildProfileSubscriptionSummary({
+        current_subscription: buildCurrentSubscription({
+          subscription: {
+            ...buildCurrentSubscription().subscription,
+            amount_total: 120,
+            amount_used: 30,
+          },
+          plan: {
+            ...buildCurrentSubscription().plan,
+            total_amount: 200,
+          },
+        }),
+        remaining_days: 7.9,
+      })
+    ).toMatchObject({
+      totalQuota: 120,
+      usedQuota: 30,
+      remainingQuota: 90,
+      remainingDays: 7,
+      usagePercent: 25,
+    })
+  })
+
+  test('preserves unlimited current subscription quota when top-level quota is missing', () => {
     const buildProfileSubscriptionSummary = expectAdapterExport()
 
     expect(
@@ -142,14 +169,34 @@ describe('buildProfileSubscriptionSummary', () => {
             total_amount: 200,
           },
         }),
-        remaining_days: 7.9,
       })
     ).toMatchObject({
-      totalQuota: 200,
+      totalQuota: 0,
       usedQuota: 40,
-      remainingQuota: 160,
-      remainingDays: 7,
-      usagePercent: 20,
+      remainingQuota: 0,
+      unlimited: true,
+      usagePercent: 0,
+    })
+  })
+
+  test('falls back to subscription plan id when the title is blank', () => {
+    const buildProfileSubscriptionSummary = expectAdapterExport()
+
+    expect(
+      buildProfileSubscriptionSummary({
+        current_subscription: buildCurrentSubscription({
+          subscription: {
+            ...buildCurrentSubscription().subscription,
+            plan_id: 42,
+          },
+          plan: {
+            ...buildCurrentSubscription().plan,
+            title: '   ',
+          },
+        }),
+      })
+    ).toMatchObject({
+      planTitle: '#42',
     })
   })
 
