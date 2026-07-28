@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import * as React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createFormControl, type UseFormReturn } from 'react-hook-form'
 import {
   afterAll,
   beforeAll,
@@ -119,6 +120,14 @@ const latestInputProps: Record<
   string,
   React.InputHTMLAttributes<HTMLInputElement>
 > = {}
+const latestSwitchProps: Record<
+  string,
+  {
+    checked?: boolean
+    disabled?: boolean
+    onCheckedChange?: (checked: boolean) => void
+  }
+> = {}
 
 spyOn(recallApi, 'useRecallCampaignMutations').mockImplementation(() => ({
   create: { isPending: false, mutateAsync: createMutation },
@@ -203,6 +212,29 @@ mock.module('@/components/ui/input', () => ({
   },
 }))
 
+mock.module('@/components/ui/switch', () => ({
+  Switch: (props: {
+    checked?: boolean
+    disabled?: boolean
+    id?: string
+    onCheckedChange?: (checked: boolean) => void
+  }) => {
+    if (props.id) latestSwitchProps[props.id] = props
+    return (
+      <input
+        checked={props.checked}
+        disabled={props.disabled}
+        id={props.id}
+        onChange={(event) =>
+          props.onCheckedChange?.(event.currentTarget.checked)
+        }
+        role='switch'
+        type='checkbox'
+      />
+    )
+  },
+}))
+
 mock.module('@/components/multi-select', () => ({
   MultiSelect: (props: {
     disabled?: boolean
@@ -227,6 +259,9 @@ mock.module('@/components/multi-select', () => ({
   ),
 }))
 
+const { CampaignOfferValidityFields } = await import(
+  './campaign-offer-validity-fields'
+)
 const { CampaignEditor, createRecallCampaignFormDraft } =
   await import('./campaign-editor')
 
@@ -616,6 +651,57 @@ function renderEditorDom(
   return { root, container }
 }
 
+function createOfferValidityForm(
+  draft: RecallCampaignDraft
+): UseFormReturn<RecallCampaignDraft> {
+  const form = createFormControl<RecallCampaignDraft>({
+    defaultValues: createRecallCampaignFormDraft(draft),
+  })
+  form.subscribe({
+    formState: { errors: true, values: true },
+    callback: () => undefined,
+  })
+  for (const field of [
+    'discount_config.minimum_amount',
+    'discount_config.minimum_amount_currency',
+    'discount_config.minimum_spend.enabled',
+    'discount_config.minimum_spend.amounts.usd',
+    'discount_config.minimum_spend.amounts.inr',
+    'discount_config.minimum_spend.amounts.brl',
+    'discount_config.minimum_spend.amounts.jpy',
+    'discount_config.coupon_redeem_by',
+    'promotion_expiry_mode',
+    'promotion_expires_at',
+    'promotion_valid_seconds',
+  ] as const) {
+    form.register(field)
+  }
+  return form as unknown as UseFormReturn<RecallCampaignDraft>
+}
+
+function renderOfferValidityFieldsDom(draft: RecallCampaignDraft): {
+  form: UseFormReturn<RecallCampaignDraft>
+  root: Root
+} {
+  const form = createOfferValidityForm(draft)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+
+  React.act(() => {
+    root.render(
+      <I18nextProvider i18n={testI18n}>
+        <CampaignOfferValidityFields
+          form={form}
+          immutable={false}
+          nowSeconds={2_000_000_000}
+        />
+      </I18nextProvider>
+    )
+  })
+
+  return { form, root }
+}
+
 function dispose(root: Root) {
   React.act(() => {
     root.unmount()
@@ -636,6 +722,23 @@ async function clickByID(container: HTMLElement, id: string) {
     element?.dispatchEvent(
       new Event('click', { bubbles: true, cancelable: true })
     )
+    await Promise.resolve()
+  })
+}
+
+async function changeInputProp(id: string, value: string) {
+  await React.act(async () => {
+    latestInputProps[id]?.onChange?.({
+      target: { name: latestInputProps[id]?.name, value },
+      type: 'change',
+    } as React.ChangeEvent<HTMLInputElement>)
+    await Promise.resolve()
+  })
+}
+
+async function setSwitchProp(id: string, checked: boolean) {
+  await React.act(async () => {
+    latestSwitchProps[id]?.onCheckedChange?.(checked)
     await Promise.resolve()
   })
 }
@@ -689,6 +792,9 @@ beforeEach(() => {
   latestCampaignTypeChange = undefined
   for (const key of Object.keys(latestInputProps)) {
     delete latestInputProps[key]
+  }
+  for (const key of Object.keys(latestSwitchProps)) {
+    delete latestSwitchProps[key]
   }
   createMutation.mockClear()
   updateMutation.mockClear()
@@ -1211,6 +1317,129 @@ describe('CampaignEditor offer validity', () => {
 
     expect(html).toContain('Set minimum spend')
     expect(html).toContain('id="recall-minimum-spend-enabled"')
+  })
+
+  test('minimum spend switch and inputs submit canonical values and clear when disabled', async () => {
+    const draft = makeDraft('first_purchase')
+    const { root, container } = renderEditorDom(draft)
+
+    expect(latestInputProps['recall-minimum-spend-usd']).toBeUndefined()
+
+    await setSwitchProp('recall-minimum-spend-enabled', true)
+    for (const currency of ['usd', 'inr', 'brl', 'jpy']) {
+      expect(latestInputProps[`recall-minimum-spend-${currency}`]).toBeTruthy()
+    }
+
+    await changeInputProp('recall-minimum-spend-usd', '12.34')
+    await changeInputProp('recall-minimum-spend-inr', '900.50')
+    await changeInputProp('recall-minimum-spend-brl', '25.99')
+    await changeInputProp('recall-minimum-spend-jpy', '750')
+    await submit(container)
+
+    expect(createMutation).toHaveBeenCalledTimes(1)
+    let submitted = createMutation.mock.calls[0][0] as RecallCampaignDraft
+    expect(submitted.discount_config.minimum_spend).toEqual({
+      enabled: true,
+      amounts: { usd: 1234, inr: 90050, brl: 2599, jpy: 750 },
+    })
+    expect(submitted.discount_config.minimum_amount).toBe(1234)
+    expect(submitted.discount_config.minimum_amount_currency).toBe('USD')
+
+    createMutation.mockClear()
+    updateMutation.mockClear()
+    await setSwitchProp('recall-minimum-spend-enabled', false)
+    expect(container.querySelector('#recall-minimum-spend-usd')).toBeNull()
+    await submit(container)
+
+    expect(createMutation).not.toHaveBeenCalled()
+    expect(updateMutation).toHaveBeenCalledTimes(1)
+    submitted = updateMutation.mock.calls[0][0].draft as RecallCampaignDraft
+    expect(submitted.discount_config.minimum_spend).toEqual({
+      enabled: false,
+      amounts: {},
+    })
+    expect(submitted.discount_config.minimum_amount).toBe(0)
+    expect(submitted.discount_config.minimum_amount_currency).toBe('')
+
+    await setSwitchProp('recall-minimum-spend-enabled', true)
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('')
+    dispose(root)
+  })
+
+  test('minimum spend inputs preserve raw typing while canonical values validate', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1200, inr: 90050, brl: 2599, jpy: 750 },
+    }
+    draft.discount_config.minimum_amount = 1200
+    draft.discount_config.minimum_amount_currency = 'USD'
+    const { root, container } = renderEditorDom(draft)
+
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.00')
+    expect(latestInputProps['recall-minimum-spend-jpy']?.value).toBe('750')
+
+    for (const value of ['1', '12', '12.', '12.3', '12.34']) {
+      await changeInputProp('recall-minimum-spend-usd', value)
+      expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe(value)
+    }
+
+    await changeInputProp('recall-minimum-spend-jpy', '7')
+    expect(latestInputProps['recall-minimum-spend-jpy']?.value).toBe('7')
+
+    await changeInputProp('recall-minimum-spend-usd', '12.345')
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.345')
+    await submit(container)
+    expect(createMutation).not.toHaveBeenCalled()
+    expect(container.textContent).toContain(
+      'Please correct the highlighted fields.'
+    )
+
+    await changeInputProp('recall-minimum-spend-usd', '12.34')
+    await submit(container)
+    expect(createMutation).toHaveBeenCalledTimes(1)
+    const submitted = createMutation.mock.calls[0][0] as RecallCampaignDraft
+    expect(submitted.discount_config.minimum_spend).toEqual({
+      enabled: true,
+      amounts: { usd: 1234, inr: 90050, brl: 2599, jpy: 7 },
+    })
+    expect(submitted.discount_config.minimum_amount).toBe(1234)
+    expect(submitted.discount_config.minimum_amount_currency).toBe('USD')
+    dispose(root)
+  })
+
+  test('minimum spend raw values sync after same-value input and external amount changes', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1200, inr: 90050, brl: 2599, jpy: 750 },
+    }
+    draft.discount_config.minimum_amount = 1200
+    draft.discount_config.minimum_amount_currency = 'USD'
+    const { form, root } = renderOfferValidityFieldsDom(draft)
+
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.00')
+    await changeInputProp('recall-minimum-spend-usd', '12.00')
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.00')
+
+    await React.act(async () => {
+      form.setValue('discount_config.minimum_spend.amounts.usd', 0, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+      await Promise.resolve()
+    })
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('')
+
+    await React.act(async () => {
+      form.setValue('discount_config.minimum_spend.amounts.usd', 1200, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+      await Promise.resolve()
+    })
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.00')
+    dispose(root)
   })
 })
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Controller,
   useFormState,
@@ -170,6 +170,19 @@ function MinimumSpendAmountInput({
   const path = `discount_config.minimum_spend.amounts.${currencyKey}` as const
   const errorID = fieldErrorID(id, error)
   const amount = useWatch({ control: form.control, name: path })
+  const [rawValue, setRawValue] = useState(() =>
+    formatRecallMinorAmount(currency, amount ?? 0)
+  )
+  const lastWrittenAmountRef = useRef<number | undefined>(undefined)
+
+  useEffect(() => {
+    if (lastWrittenAmountRef.current === amount) {
+      lastWrittenAmountRef.current = undefined
+      return
+    }
+    lastWrittenAmountRef.current = undefined
+    setRawValue(formatRecallMinorAmount(currency, amount ?? 0))
+  }, [amount, currency])
 
   return (
     <div className='space-y-2'>
@@ -180,12 +193,16 @@ function MinimumSpendAmountInput({
         min={currency === 'JPY' ? 1 : 0.01}
         step={currency === 'JPY' ? '1' : '0.01'}
         disabled={immutable}
-        value={formatRecallMinorAmount(currency, amount ?? 0)}
+        value={rawValue}
         aria-invalid={Boolean(error)}
         aria-describedby={errorID}
-        onChange={(event) =>
-          setRecallMinimumSpendAmount(form, currency, event.target.value)
-        }
+        onChange={(event) => {
+          const nextValue = event.target.value
+          const nextAmount = parseRecallMajorAmount(currency, nextValue) ?? 0
+          lastWrittenAmountRef.current = nextAmount
+          setRawValue(nextValue)
+          setRecallMinimumSpendAmount(form, currency, nextValue)
+        }}
         name={path}
       />
       <FieldError id={id} message={error ? t(String(error)) : undefined} />
