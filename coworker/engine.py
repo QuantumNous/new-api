@@ -353,13 +353,15 @@ class TurnEngine:
             if turn is None:
                 turn = AssistantTurn()
 
-            self.messages.append(_assistant_message(turn))
+            self.messages.append(_assistant_message(turn, model=self.model))
             payload: dict[str, Any] = {
                 "text": turn.text,
                 "tool_calls": [tc.name for tc in turn.tool_calls],
             }
             if turn.reasoning:
                 payload["reasoning"] = turn.reasoning
+            if turn.usage is not None:
+                payload["usage"] = {"model": self.model, **turn.usage.as_dict()}
             yield Event(EventType.ASSISTANT_MESSAGE, payload)
 
             if not turn.tool_calls:
@@ -886,10 +888,11 @@ class TurnEngine:
         persisted/replayed.
         """
         # Strip the display-only sidecars — `source` (connector cards), `_display`
-        # (e.g. filter-hidden counts), `ts` (append-time timestamps), and `reasoning`
-        # (thinking text) — copying only messages that carry one. Whole `notice` messages
-        # (error/interrupted/model-switch markers) are display-only too: dropped entirely.
-        _SIDECARS = ("source", "_display", "ts", "reasoning")
+        # (e.g. filter-hidden counts), `ts` (append-time timestamps), `reasoning`
+        # (thinking text), and `usage` (token counts) — copying only messages that carry
+        # one. Whole `notice` messages (error/interrupted/model-switch markers) are
+        # display-only too: dropped entirely.
+        _SIDECARS = ("source", "_display", "ts", "reasoning", "usage")
         out = [
             (
                 {k: v for k, v in msg.items() if k not in _SIDECARS}
@@ -982,12 +985,17 @@ class TurnEngine:
         return out
 
 
-def _assistant_message(turn: AssistantTurn) -> dict[str, Any]:
+def _assistant_message(turn: AssistantTurn, model: Optional[str] = None) -> dict[str, Any]:
     message: dict[str, Any] = {
         "role": "assistant",
         "content": turn.text or "",
         "ts": time.time(),
     }
+    if turn.usage is not None:
+        # Display/aggregation sidecar (like `reasoning`): persisted with the message,
+        # stripped before provider calls. Tagged with the model that produced it so
+        # per-model rollups survive mid-session model switches.
+        message["usage"] = {"model": model, **turn.usage.as_dict()}
     if turn.reasoning:
         # Display-only thinking text — rendered by the GUI, stripped for every provider
         # (`_outbound_messages`); provider-private replay blocks go via `extras` instead.
