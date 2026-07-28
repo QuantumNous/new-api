@@ -1274,7 +1274,9 @@ export function ModelDetails() {
   } = usePricingData()
 
   const tokenUnit: TokenUnit =
-    search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
+    search.tokenUnit === 'K' || search.tokenUnit === 'M'
+      ? search.tokenUnit
+      : DEFAULT_TOKEN_UNIT
 
   const model = useMemo(() => {
     if (!models || !modelId) return null

@@ -130,8 +130,8 @@ export const TOKEN_UNIT_DIVISORS = {
   K: 1000,
 } as const
 
-/** Default token unit for pricing display (Apilio-style per-K tokens) */
-export const DEFAULT_TOKEN_UNIT: TokenUnit = 'K'
+/** Default token unit for pricing display (per 1M tokens) */
+export const DEFAULT_TOKEN_UNIT: TokenUnit = 'M'
 
 /** View mode options */
 export const VIEW_MODES = {
