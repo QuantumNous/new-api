@@ -21,7 +21,8 @@ import type { TFunction } from 'i18next'
 export function sessionDevice(
   userAgent: string,
   unknownDevice: string,
-  browserLabel: string
+  browserLabel: string,
+  maxTouchPoints = 0
 ): string {
   if (!userAgent) return unknownDevice
   let browser = browserLabel
@@ -31,12 +32,15 @@ export function sessionDevice(
   else if (userAgent.includes('Safari/')) browser = 'Safari'
 
   let system = ''
-  if (userAgent.includes('Windows')) system = 'Windows'
-  else if (userAgent.includes('Mac OS')) system = 'macOS'
-  else if (userAgent.includes('Android')) system = 'Android'
-  else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+  const isIPad =
+    userAgent.includes('iPad') ||
+    (userAgent.includes('Macintosh') && maxTouchPoints > 1)
+  if (userAgent.includes('iPhone') || isIPad) {
     system = 'iOS'
-  } else if (userAgent.includes('Linux')) system = 'Linux'
+  } else if (userAgent.includes('Android')) system = 'Android'
+  else if (userAgent.includes('Windows')) system = 'Windows'
+  else if (userAgent.includes('Mac OS')) system = 'macOS'
+  else if (userAgent.includes('Linux')) system = 'Linux'
   return system ? `${browser} · ${system}` : browser
 }
 
