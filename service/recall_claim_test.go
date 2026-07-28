@@ -647,6 +647,46 @@ func TestRecallListOffersPropagatesSubscriptionPlanHydrationErrors(t *testing.T)
 	require.ErrorIs(t, err, sentinel)
 }
 
+func TestRecallListOffersHydratesSubscriptionPlansInOneBatch(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "offer-plan-batch-user", AffCode: "offer-plan-batch-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "offer-plan-batch@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+	plans := []model.SubscriptionPlan{
+		{Id: 91, Title: "Plan A", Enabled: true, StripePriceId: "price_subscription_a"},
+		{Id: 92, Title: "Plan B", Enabled: true, StripePriceId: "price_subscription_b"},
+	}
+	require.NoError(t, db.Create(&plans).Error)
+	createRecallOfferFixture(t, user, now, "plan batch first", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 25},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription_a", "price_subscription_b"}},
+		func(recipient *model.RecallRecipient) { recipient.PromotionIssuedAt = now.Add(time.Second).Unix() })
+	createRecallOfferFixture(t, user, now, "plan batch second", model.RecallCampaignRunning,
+		RecallDiscountConfig{Type: "percent", PercentOff: 15},
+		RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription_b"}},
+		nil)
+
+	subscriptionPlanQueries := 0
+	callbackName := "recall_offer_plan_batch_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "subscription_plans" {
+			subscriptionPlanQueries++
+		}
+	}))
+	t.Cleanup(func() { _ = db.Callback().Query().Remove(callbackName) })
+
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+	offers, err := claimService.ListOffers(context.Background(), user.Id)
+
+	require.NoError(t, err)
+	require.Len(t, offers, 2)
+	require.Equal(t, 1, subscriptionPlanQueries, "ListOffers must batch subscription plan hydration instead of querying per candidate")
+	require.ElementsMatch(t, []int{plans[0].Id, plans[1].Id}, offers[0].Products.SubscriptionPlanIDs)
+	require.Equal(t, []int{plans[1].Id}, offers[1].Products.SubscriptionPlanIDs)
+}
+
 func TestRecallOfferStatusEligibilitySharedByListResolveAndClaim(t *testing.T) {
 	for _, status := range []string{model.RecallCampaignScheduled, model.RecallCampaignRunning, model.RecallCampaignPaused, model.RecallCampaignCompleted} {
 		t.Run(status, func(t *testing.T) {

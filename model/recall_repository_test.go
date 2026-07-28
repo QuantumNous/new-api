@@ -1039,8 +1039,50 @@ func TestListRecallOfferCandidatesChunksLargeSetBasedFinalLoads(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, candidates, candidateCount)
-	require.Equal(t, 3, queryCounts["RecallRecipient"], "initial lookup plus two bounded final recipient loads")
+	require.Equal(t, 4, queryCounts["RecallRecipient"], "two bounded cursor scans plus two bounded final recipient loads")
 	require.Equal(t, 2, queryCounts["RecallCampaign"], "campaign hydration must use the same bounded batching")
+}
+
+func TestListRecallOfferCandidatePageForUserUsesCursorWithoutOmittingLaterOffers(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const now int64 = 1_800_000_000
+	user := User{
+		Username: "recall-offer-page-user", Password: "password", Status: common.UserStatusEnabled,
+		Email: "page-owner@example.com", AffCode: "recall-offer-page-aff", CreatedAt: now - 100,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	recipients := make([]RecallRecipient, 0, 3)
+	for index := 0; index < 3; index++ {
+		campaign := newRecallRepositoryCampaign(fmt.Sprintf("offer page %d", index))
+		campaign.Status = RecallCampaignRunning
+		require.NoError(t, DB.Create(&campaign).Error)
+		promotionID := fmt.Sprintf("promo_page_%d", index)
+		recipient := RecallRecipient{
+			CampaignId: campaign.Id, UserId: user.Id, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+			LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: &promotionID,
+			PromotionCode: fmt.Sprintf("PAGE%d", index), PromotionExpiresAt: now + 100, PromotionIssuedAt: now + int64(index),
+		}
+		require.NoError(t, DB.Create(&recipient).Error)
+		recipients = append(recipients, recipient)
+	}
+
+	firstPage, err := ListRecallOfferCandidatePageForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now, 0, 2)
+	require.NoError(t, err)
+	require.True(t, firstPage.HasMore)
+	require.Len(t, firstPage.Candidates, 2)
+	require.Equal(t, []int64{recipients[0].Id, recipients[1].Id}, []int64{firstPage.Candidates[0].Recipient.Id, firstPage.Candidates[1].Recipient.Id})
+
+	secondPage, err := ListRecallOfferCandidatePageForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now, firstPage.NextAfterRecipientID, 2)
+	require.NoError(t, err)
+	require.False(t, secondPage.HasMore)
+	require.Len(t, secondPage.Candidates, 1)
+	require.Equal(t, recipients[2].Id, secondPage.Candidates[0].Recipient.Id)
+
+	emptyPage, err := ListRecallOfferCandidatePageForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now, secondPage.NextAfterRecipientID, 2)
+	require.NoError(t, err)
+	require.Empty(t, emptyPage.Candidates)
+	require.False(t, emptyPage.HasMore)
 }
 
 func TestListRecallOfferCandidatesDropsEmailMatchTransitionedBeforeBind(t *testing.T) {

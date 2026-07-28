@@ -86,6 +86,12 @@ type RecallOfferCandidate struct {
 	Campaign  RecallCampaign  `json:"-"`
 }
 
+type RecallOfferCandidatePage struct {
+	Candidates           []RecallOfferCandidate
+	NextAfterRecipientID int64
+	HasMore              bool
+}
+
 func (candidate RecallOfferCandidate) EffectiveIssuedAt() int64 {
 	if candidate.Recipient.PromotionIssuedAt != 0 {
 		return candidate.Recipient.PromotionIssuedAt
@@ -211,15 +217,37 @@ func BindRecallRecipientUserWithContext(ctx context.Context, recipientID int64, 
 
 func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int, normalizedEmail string, now int64) ([]RecallOfferCandidate, error) {
 	candidates := make([]RecallOfferCandidate, 0)
+	afterRecipientID := int64(0)
+	for {
+		page, err := ListRecallOfferCandidatePageForUserWithContext(ctx, userID, normalizedEmail, now, afterRecipientID, recallOfferCandidateIDBatchSize)
+		if err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, page.Candidates...)
+		if !page.HasMore {
+			return candidates, nil
+		}
+		afterRecipientID = page.NextAfterRecipientID
+	}
+}
+
+func ListRecallOfferCandidatePageForUserWithContext(ctx context.Context, userID int, normalizedEmail string, now int64, afterRecipientID int64, limit int) (RecallOfferCandidatePage, error) {
+	page := RecallOfferCandidatePage{Candidates: make([]RecallOfferCandidate, 0)}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return page, err
 	}
 	if userID <= 0 {
-		return candidates, nil
+		return page, nil
 	}
 	email, ok := normalizeRecallRecipientEmail(normalizedEmail)
 	if !ok {
-		return candidates, nil
+		return page, nil
+	}
+	if limit <= 0 {
+		return page, nil
+	}
+	if limit > recallOfferCandidateIDBatchSize {
+		limit = recallOfferCandidateIDBatchSize
 	}
 	var user User
 	result := DB.WithContext(ctx).
@@ -227,10 +255,10 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 		Limit(1).
 		Find(&user)
 	if result.Error != nil {
-		return nil, result.Error
+		return page, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return candidates, nil
+		return page, nil
 	}
 
 	usableStatuses := recallOfferUsableCampaignStatuses()
@@ -242,12 +270,20 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 		Where("recall_campaigns.campaign_type = ?", RecallCampaignTypePromotion).
 		Where("recall_campaigns.status IN ?", usableStatuses).
 		Where("(recall_recipients.user_id = ? OR (recall_recipients.user_id = 0 AND LOWER(recall_recipients.email_snapshot) = ?))", userID, email)
+	if afterRecipientID > 0 {
+		query = query.Where("recall_recipients.id > ?", afterRecipientID)
+	}
 	query = applyRecallOfferRecipientFilters(query, "recall_recipients", now)
 	err := query.
 		Order("recall_recipients.id ASC").
+		Limit(limit).
 		Find(&recipients).Error
 	if err != nil {
-		return nil, err
+		return page, err
+	}
+	if len(recipients) > 0 {
+		page.NextAfterRecipientID = recipients[len(recipients)-1].Id
+		page.HasMore = len(recipients) == limit
 	}
 	recipientIDs := make([]int64, 0, len(recipients))
 	for _, recipient := range recipients {
@@ -257,13 +293,13 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 				if errors.Is(bindErr, ErrRecallRecipientBindingConflict) || errors.Is(bindErr, gorm.ErrRecordNotFound) {
 					continue
 				}
-				return nil, bindErr
+				return page, bindErr
 			}
 		}
 		recipientIDs = append(recipientIDs, recipient.Id)
 	}
 	if len(recipientIDs) == 0 {
-		return candidates, nil
+		return page, nil
 	}
 
 	finalRecipients := make([]RecallRecipient, 0, len(recipientIDs))
@@ -282,12 +318,12 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 			Where("recall_campaigns.status IN ?", usableStatuses)
 		finalQuery = applyRecallOfferRecipientFilters(finalQuery, "recall_recipients", now)
 		if err := finalQuery.Order("recall_recipients.id ASC").Find(&batch).Error; err != nil {
-			return nil, err
+			return page, err
 		}
 		finalRecipients = append(finalRecipients, batch...)
 	}
 	if len(finalRecipients) == 0 {
-		return candidates, nil
+		return page, nil
 	}
 
 	campaignIDs := make([]int64, 0, len(finalRecipients))
@@ -309,7 +345,7 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 		if err := DB.WithContext(ctx).
 			Where("id IN ? AND campaign_type = ? AND status IN ?", campaignIDs[start:end], RecallCampaignTypePromotion, usableStatuses).
 			Find(&batch).Error; err != nil {
-			return nil, err
+			return page, err
 		}
 		campaigns = append(campaigns, batch...)
 	}
@@ -322,9 +358,9 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 		if !ok {
 			continue
 		}
-		candidates = append(candidates, RecallOfferCandidate{Recipient: recipient, Campaign: campaign})
+		page.Candidates = append(page.Candidates, RecallOfferCandidate{Recipient: recipient, Campaign: campaign})
 	}
-	return candidates, nil
+	return page, nil
 }
 
 func recallOfferUsableCampaignStatuses() []string {
