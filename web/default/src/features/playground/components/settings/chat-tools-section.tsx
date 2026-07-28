@@ -27,7 +27,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { usePlaygroundStore } from '@/stores/playground-store'
 
 import { createPersona, deletePersona, listPersonas } from '../../api'
-import { MAX_SYSTEM_PROMPT_CHARS } from '../../lib/workbench/workbench-prefs'
+import {
+  BUILTIN_ASSISTANT_SYSTEM_PROMPT,
+  MAX_SYSTEM_PROMPT_CHARS,
+} from '../../lib/workbench/workbench-prefs'
 
 /**
  * Chat tool preferences: web search, history carry-over, long memory,
@@ -64,7 +67,10 @@ export function ChatToolsSection() {
     onError: (err: Error) => toast.error(err.message),
   })
 
-  const hasPersona = chatTools.systemPrompt.trim().length > 0
+  // Built-in assistant prompt is the default, not a custom "persona".
+  const hasPersona =
+    chatTools.systemPrompt.trim().length > 0 &&
+    chatTools.systemPrompt.trim() !== BUILTIN_ASSISTANT_SYSTEM_PROMPT
 
   return (
     <div className='space-y-3'>
