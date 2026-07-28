@@ -50,7 +50,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
         <div className='p-4 sm:p-5'>
           <div
             data-slot='profile-header-top-row'
-            className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.42fr)] lg:items-start'
+            className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_390px] lg:items-start'
           >
             <div
               data-slot='profile-identity'
@@ -71,7 +71,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
 
             <aside
               data-slot='profile-balance-column'
-              className='min-w-0 space-y-2 lg:max-w-md lg:justify-self-end'
+              className='min-w-0 space-y-2 lg:w-[390px] lg:justify-self-end'
             >
               <Skeleton className='h-8 w-44 rounded-full lg:ml-auto' />
               <div className='space-y-2 lg:flex lg:flex-col lg:items-end'>
@@ -160,7 +160,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
       <div className='p-3 sm:p-5'>
         <div
           data-slot='profile-header-top-row'
-          className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.42fr)] lg:items-start'
+          className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_390px] lg:items-start'
         >
           <div
             data-slot='profile-identity'
@@ -209,7 +209,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
 
           <aside
             data-slot='profile-balance-column'
-            className='min-w-0 space-y-2 lg:max-w-md lg:justify-self-end lg:text-right'
+            className='min-w-0 space-y-2 lg:w-[390px] lg:justify-self-end lg:text-right'
           >
             <div
               data-slot='profile-balance'
@@ -228,10 +228,12 @@ export function ProfileHeader(props: ProfileHeaderProps) {
             </div>
             <div
               data-slot='profile-balance-guidance'
-              className='text-muted-foreground space-y-1 text-xs leading-relaxed sm:text-sm'
+              className='text-muted-foreground space-y-1 text-xs leading-relaxed'
             >
-              <p>{t('Balance can be used to purchase plans directly.')}</p>
-              <p>
+              <p className='lg:whitespace-nowrap'>
+                {t('Balance can be used to purchase plans directly.')}
+              </p>
+              <p className='lg:whitespace-nowrap'>
                 {t(
                   'After plan quota is exhausted, balance is used automatically for API usage billing.'
                 )}

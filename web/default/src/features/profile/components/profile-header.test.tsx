@@ -179,12 +179,20 @@ describe('ProfileHeader', () => {
   test('renders two complete balance guidance paragraphs without clipping utilities', () => {
     const html = renderHeader(null)
     const guidance = extractBalanceGuidance(html)
+    const topRowClass = classForDataSlot(html, 'profile-header-top-row')
+    const balanceColumnClass = classForDataSlot(html, 'profile-balance-column')
+    const guidanceClass = classForDataSlot(html, 'profile-balance-guidance')
 
     expect(guidance).not.toBe('')
     expect((guidance.match(/<p/g) ?? []).length).toBe(2)
     expect(guidance).toMatch(
       /<p[^>]*>Balance can be used to purchase plans directly\.<\/p>[\s\S]*<p[^>]*>After plan quota is exhausted, balance is used automatically for API usage billing\.<\/p>/
     )
+    expect(topRowClass).toContain('lg:grid-cols-[minmax(0,1fr)_390px]')
+    expect(balanceColumnClass).toContain('lg:w-[390px]')
+    expect(guidanceClass).toContain('text-xs')
+    expect(guidanceClass).not.toContain('sm:text-sm')
+    expect((guidance.match(/lg:whitespace-nowrap/g) ?? []).length).toBe(2)
     expect(guidance).not.toContain('truncate')
     expect(guidance).not.toContain('line-clamp')
   })
