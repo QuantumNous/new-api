@@ -33,6 +33,9 @@ test("usage chip appears after a turn and opens the breakdown popover", async ({
   await expect(pop).toContainText("Claude Opus 4.8 · Anthropic");
   await expect(pop).toContainText("Input");
   await expect(pop).toContainText("Cache read");
+  // Total input = fresh 1k + cache_read 8k + cache_write 800 (cumulative billed input).
+  await expect(pop).toContainText("Total input");
+  await expect(pop).toContainText("9.8k");
   await expect(pop).toContainText("10k tokens");
 
   // Second turn accumulates (totals double), and the scrim click closes the popover.
