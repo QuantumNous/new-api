@@ -17,12 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { ChevronRight, Copy, Play } from 'lucide-react'
-import { memo, type ReactNode } from 'react'
+import { ChevronRight, Play } from 'lucide-react'
+import { memo, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ModelBrandIcon } from '@/features/playground/components/catalog/model-brand-icon'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { cn } from '@/lib/utils'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
@@ -34,7 +33,6 @@ import { getGroupSavingsPercent, isTokenBasedModel } from '../lib/model-helpers'
 import { canTryInPlayground } from '../lib/playground-eligibility'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
-import type { ModelPerfBadgeData } from './model-perf-badge'
 
 export interface ModelCardProps {
   model: PricingModel
@@ -44,7 +42,6 @@ export interface ModelCardProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
-  perf?: ModelPerfBadgeData
 }
 
 function isRecentlyReleased(model: PricingModel): boolean {
@@ -56,26 +53,31 @@ function isRecentlyReleased(model: PricingModel): boolean {
   return days >= 0 && days <= 30
 }
 
+function formatDiscountPercent(value: number): string {
+  if (Number.isInteger(value)) return String(value)
+  const tenths = Math.round(value * 10) / 10
+  if (Math.abs(tenths - value) < 1e-9) {
+    return value.toFixed(1)
+  }
+  return value.toFixed(2)
+}
+
 /**
- * Apilio-style Model Hub card: name, capability tags, unit price, group, details.
- * All prices come from /api/pricing fields via formatPrice helpers — no mock rates.
+ * Compact Model Hub card: identity, price, optional discount.
+ * Tags, description, groups, availability, and integration live in details.
  */
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const { t } = useTranslation()
-  const { copyToClipboard } = useCopyToClipboard()
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
   const priceRate = props.priceRate ?? 1
   const usdExchangeRate = props.usdExchangeRate ?? 1
   const showRechargePrice = props.showRechargePrice ?? false
   const isTokenBased = isTokenBasedModel(props.model)
   const tokenUnitLabel = tokenUnit === 'K' ? t('/K tokens') : t('/M tokens')
-  const metadata = [
-    ...(props.model.input_modalities ?? []),
-    ...(props.model.output_modalities ?? []),
-    ...(props.model.capabilities ?? []),
-  ].slice(0, 3)
-  const groups = props.model.enable_groups || []
   const isNew = isRecentlyReleased(props.model)
+  const title = props.model.display_name || props.model.model_name
+  const canTry = canTryInPlayground(props.model)
+
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
@@ -102,9 +104,16 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     props.model.official_discount < 100
       ? Number(props.model.official_discount.toFixed(2))
       : null
-
-  const handleCopy = () => {
-    copyToClipboard(props.model.model_name || '')
+  const cornerDiscount = officialDiscount ?? savingsPercent
+  let cornerDiscountTitle: string | undefined
+  if (officialDiscount != null) {
+    cornerDiscountTitle = t('{{percent}}% below official price', {
+      percent: formatDiscountPercent(officialDiscount),
+    })
+  } else if (savingsPercent != null) {
+    cornerDiscountTitle = t('Group {{percent}}% off', {
+      percent: savingsPercent,
+    })
   }
 
   let priceLine: ReactNode
@@ -119,7 +128,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       const entry = dynamicSummary.primaryEntries[0]
       priceLine = (
         <>
-          <span className='text-foreground font-mono text-base font-semibold tabular-nums'>
+          <span className='text-foreground font-mono text-sm font-semibold tabular-nums sm:text-base'>
             {entry.formatted}
           </span>
           <span className='text-muted-foreground text-xs'>
@@ -136,7 +145,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     }
   } else if (isTokenBased) {
     priceLine = (
-      <div className='flex flex-wrap gap-x-3 gap-y-1'>
+      <>
         <span className='text-xs'>
           <span className='text-muted-foreground'>{t('Input')} </span>
           <strong className='text-foreground font-mono text-sm tabular-nums'>
@@ -150,6 +159,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               props.selectedGroup
             )}
           </strong>
+        </span>
+        <span className='text-muted-foreground/40' aria-hidden>
+          /
         </span>
         <span className='text-xs'>
           <span className='text-muted-foreground'>{t('Output')} </span>
@@ -166,12 +178,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           </strong>
         </span>
         <span className='text-muted-foreground text-xs'>{tokenUnitLabel}</span>
-      </div>
+      </>
     )
   } else {
     priceLine = (
       <>
-        <span className='text-foreground font-mono text-base font-semibold tabular-nums'>
+        <span className='text-foreground font-mono text-sm font-semibold tabular-nums sm:text-base'>
           {formatRequestPrice(
             props.model,
             showRechargePrice,
@@ -185,128 +197,75 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     )
   }
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      props.onClick()
+    }
+  }
+
   return (
     <article
+      role='button'
+      tabIndex={0}
+      onClick={props.onClick}
+      onKeyDown={handleKeyDown}
       className={cn(
-        'group bg-card hover:bg-muted/30 focus-visible:ring-ring relative flex w-full flex-col rounded-xl border p-3.5 text-left transition-colors sm:p-4',
+        'group bg-card hover:bg-muted/30 focus-visible:ring-ring relative flex w-full cursor-pointer flex-col rounded-xl border p-3.5 text-left transition-colors sm:p-4',
         'focus-visible:ring-2 focus-visible:outline-none'
       )}
+      aria-label={`${t('Details')}: ${title}`}
     >
-      <div className='flex items-start justify-between gap-2'>
+      <div className='flex items-start gap-2.5'>
         <ModelBrandIcon
           modelName={props.model.model_name}
           icon={props.model.icon}
           vendorIcon={props.model.vendor_icon}
-          size={24}
+          size={28}
         />
         <div className='min-w-0 flex-1'>
-          {props.model.vendor_name && (
-            <p className='text-muted-foreground mb-1 text-[11px] font-medium'>
-              {props.model.vendor_name}
-            </p>
-          )}
-          <div className='flex min-w-0 flex-wrap items-center gap-1.5'>
-            {isNew && (
-              <span className='bg-primary/10 text-primary inline-flex shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide uppercase'>
-                {t('NEW')}
+          <div className='flex min-w-0 items-start gap-1.5'>
+            <h3 className='text-foreground min-w-0 flex-1 truncate text-sm leading-snug font-semibold sm:text-[15px]'>
+              {isNew && (
+                <span className='bg-primary/10 text-primary mr-1.5 inline-flex rounded px-1 py-px align-middle text-[10px] font-bold tracking-wide uppercase'>
+                  {t('NEW')}
+                </span>
+              )}
+              {title}
+            </h3>
+            {cornerDiscount != null && (
+              <span
+                className='inline-flex shrink-0 items-center rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-rose-700 uppercase dark:text-rose-300'
+                title={cornerDiscountTitle}
+              >
+                -{formatDiscountPercent(cornerDiscount)}%
               </span>
             )}
-            <h3 className='text-foreground truncate text-sm leading-tight font-semibold sm:text-[15px]'>
-              {props.model.display_name || props.model.model_name}
-            </h3>
           </div>
-
-          <div className='text-muted-foreground mt-1 flex items-center gap-1 font-mono text-xs'>
-            <span className='truncate'>{props.model.model_name}</span>
+          <div className='mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5'>
+            {priceLine}
           </div>
-          {metadata.length > 0 && (
-            <div className='mt-1.5 flex flex-wrap gap-1'>
-              {metadata.map((tag) => (
-                <span
-                  key={tag}
-                  className='bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 text-[11px]'
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
-
-        <button
-          type='button'
-          onClick={handleCopy}
-          className='text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-7 shrink-0 items-center justify-center rounded-md border opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100'
-          title={t('Copy')}
-          aria-label={t('Copy model name')}
-        >
-          <Copy className='size-3.5' />
-        </button>
       </div>
 
-      {props.model.description && (
-        <p className='text-muted-foreground mt-2 line-clamp-1 text-xs'>
-          {props.model.description}
-        </p>
-      )}
-
-      <div className='mt-3 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5'>
-        {priceLine}
-        {groups.length > 0 && (
-          <span className='text-muted-foreground text-xs'>
-            ·{' '}
-            {props.selectedGroup && groups.includes(props.selectedGroup)
-              ? props.selectedGroup
-              : t('Available in {{count}} groups', { count: groups.length })}
-          </span>
-        )}
-        {savingsPercent != null && (
-          <span className='inline-flex items-center rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300'>
-            {t('{{percent}}% off', { percent: savingsPercent })}
-          </span>
-        )}
-        {officialDiscount != null && (
-          <span className='inline-flex items-center rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:text-sky-300'>
-            {t('{{percent}}% below official price', {
-              percent: officialDiscount,
-            })}
-          </span>
-        )}
-      </div>
-
-      {props.perf && Number.isFinite(props.perf.success_rate) && (
-        <p className='text-muted-foreground mt-1.5 font-mono text-[11px] tabular-nums'>
-          {t('Availability')} {props.perf.success_rate.toFixed(2)}%
-        </p>
-      )}
-
-      <div className='mt-3 flex flex-wrap items-center gap-2 text-xs font-medium'>
-        {canTryInPlayground(props.model) && (
+      <div className='mt-3 flex items-center justify-between gap-2'>
+        {canTry ? (
           <Link
             to='/playground'
             search={{ model: props.model.model_name }}
-            className='bg-primary text-primary-foreground inline-flex items-center gap-1 rounded-md px-2.5 py-1.5'
+            onClick={(event) => event.stopPropagation()}
+            className='bg-primary text-primary-foreground inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium'
           >
             <Play className='size-3' />
             {t('Try')}
           </Link>
+        ) : (
+          <span />
         )}
-        <Link
-          to='/pricing/$modelId'
-          params={{ modelId: props.model.model_name }}
-          search={{ tab: 'integration' }}
-          className='hover:bg-muted rounded-md border px-2.5 py-1.5'
-        >
-          {t('Integration guide')}
-        </Link>
-        <button
-          type='button'
-          onClick={props.onClick}
-          className='hover:bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-md px-2 py-1.5'
-        >
+        <span className='text-muted-foreground group-hover:text-foreground inline-flex items-center gap-0.5 text-xs font-medium transition-colors'>
           {t('Details')}
           <ChevronRight className='size-3.5' />
-        </button>
+        </span>
       </div>
     </article>
   )

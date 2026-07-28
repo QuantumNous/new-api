@@ -29,11 +29,14 @@ export interface SearchBarProps {
   onClear: () => void
   placeholder?: string
   className?: string
+  /** Compact height for embedding inside the filter toolbar */
+  size?: 'default' | 'sm'
 }
 
 export function SearchBar(props: SearchBarProps) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
+  const compact = props.size === 'sm'
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -50,8 +53,13 @@ export function SearchBar(props: SearchBarProps) {
   }, [])
 
   return (
-    <div className={cn('relative', props.className)}>
-      <Search className='text-muted-foreground/60 pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2' />
+    <div className={cn('relative min-w-0', props.className)}>
+      <Search
+        className={cn(
+          'text-muted-foreground/60 pointer-events-none absolute top-1/2 -translate-y-1/2',
+          compact ? 'left-2.5 size-3.5' : 'left-3.5 size-4'
+        )}
+      />
       <input
         ref={inputRef}
         type='text'
@@ -62,20 +70,24 @@ export function SearchBar(props: SearchBarProps) {
           'border-border/60 bg-background placeholder:text-muted-foreground/50',
           'hover:border-border',
           'focus:border-primary/50 focus:ring-primary/20 focus:ring-2',
-          'h-10 w-full rounded-lg border pr-16 pl-10 text-sm transition-all outline-none'
+          'w-full rounded-lg border text-sm transition-all outline-none',
+          compact ? 'h-8 pr-14 pl-8' : 'h-10 pr-16 pl-10'
         )}
         aria-label={t('Search models')}
       />
-      <div className='absolute top-1/2 right-2.5 flex -translate-y-1/2 items-center gap-1'>
+      <div className='absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1'>
         {props.value ? (
           <Button
             variant='ghost'
             size='icon'
             onClick={props.onClear}
-            className='text-muted-foreground/60 hover:text-foreground size-7'
+            className={cn(
+              'text-muted-foreground/60 hover:text-foreground',
+              compact ? 'size-6' : 'size-7'
+            )}
             aria-label={t('Clear search')}
           >
-            <X className='size-4' />
+            <X className={compact ? 'size-3.5' : 'size-4'} />
           </Button>
         ) : (
           <kbd className='bg-muted text-muted-foreground pointer-events-none hidden rounded border px-1.5 py-0.5 font-mono text-[10px] sm:inline-block'>

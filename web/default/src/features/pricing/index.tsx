@@ -25,7 +25,6 @@ import { PageTransition } from '@/components/page-transition'
 import {
   LoadingSkeleton,
   EmptyState,
-  SearchBar,
   PricingTable,
   PricingToolbar,
   ModelCardGrid,
@@ -177,80 +176,47 @@ export function Pricing() {
           }}
         />
         <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
-          <header className='mx-auto mb-5 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10'>
-            <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'>
-              {t('Model Hub')}
-            </h1>
-            <p className='text-muted-foreground/80 mt-3 text-sm sm:mt-4 sm:text-base'>
-              {t(
-                'Explore AI services across the platform — transparent pricing, ready to use'
-              )}
-            </p>
-            <div className='text-muted-foreground mt-4 flex items-center justify-center gap-6 text-xs tracking-wide uppercase sm:gap-10 sm:text-sm'>
-              <div>
-                <p className='text-muted-foreground/70 text-[10px] font-medium tracking-[0.14em]'>
-                  {t('Services')}
-                </p>
-                <p className='text-foreground mt-0.5 font-mono text-xl font-semibold tabular-nums sm:text-2xl'>
-                  {models?.length || 0}
-                </p>
-              </div>
-              <div className='bg-border h-8 w-px' aria-hidden />
-              <div>
-                <p className='text-muted-foreground/70 text-[10px] font-medium tracking-[0.14em]'>
-                  {t('Sources')}
-                </p>
-                <p className='text-foreground mt-0.5 font-mono text-xl font-semibold tabular-nums sm:text-2xl'>
-                  {vendors?.length || 0}
-                </p>
-              </div>
-            </div>
-            <SearchBar
-              value={searchInput}
-              onChange={setSearchInput}
-              onClear={clearSearch}
-              placeholder={t('Search service name, tags, source...')}
-              className='mx-auto mt-4 max-w-2xl sm:mt-6'
+          <main className='min-w-0 space-y-4'>
+            <h1 className='sr-only'>{t('Model Hub')}</h1>
+            <PricingToolbar
+              filteredCount={filteredModels.length}
+              totalCount={models?.length}
+              serviceCount={models?.length || 0}
+              sourceCount={vendors?.length || 0}
+              searchValue={searchInput}
+              onSearchChange={setSearchInput}
+              onSearchClear={clearSearch}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              tokenUnit={tokenUnit}
+              onTokenUnitChange={setTokenUnit}
+              showRechargePrice={showRechargePrice}
+              onRechargePriceChange={setShowRechargePrice}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              quotaTypeFilter={quotaTypeFilter}
+              endpointTypeFilter={endpointTypeFilter}
+              vendorFilter={vendorFilter}
+              groupFilter={groupFilter}
+              tagFilter={tagFilter}
+              onQuotaTypeChange={setQuotaTypeFilter}
+              onEndpointTypeChange={setEndpointTypeFilter}
+              onVendorChange={setVendorFilter}
+              onGroupChange={setGroupFilter}
+              onTagChange={setTagFilter}
+              vendors={vendors || []}
+              groups={availableGroups}
+              groupRatios={groupRatio}
+              tags={availableTags}
+              models={models || []}
+              integrationProfiles={integrationProfiles}
+              hasActiveFilters={hasActiveFilters}
+              activeFilterCount={activeFilterCount}
+              onClearFilters={clearFilters}
             />
-          </header>
 
-          <div>
-            <main className='min-w-0 space-y-4'>
-              <PricingToolbar
-                filteredCount={filteredModels.length}
-                totalCount={models?.length}
-                sortBy={sortBy}
-                onSortChange={setSortBy}
-                tokenUnit={tokenUnit}
-                onTokenUnitChange={setTokenUnit}
-                showRechargePrice={showRechargePrice}
-                onRechargePriceChange={setShowRechargePrice}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                quotaTypeFilter={quotaTypeFilter}
-                endpointTypeFilter={endpointTypeFilter}
-                vendorFilter={vendorFilter}
-                groupFilter={groupFilter}
-                tagFilter={tagFilter}
-                onQuotaTypeChange={setQuotaTypeFilter}
-                onEndpointTypeChange={setEndpointTypeFilter}
-                onVendorChange={setVendorFilter}
-                onGroupChange={setGroupFilter}
-                onTagChange={setTagFilter}
-                vendors={vendors || []}
-                groups={availableGroups}
-                groupRatios={groupRatio}
-                tags={availableTags}
-                models={models || []}
-                integrationProfiles={integrationProfiles}
-                hasActiveFilters={hasActiveFilters}
-                activeFilterCount={activeFilterCount}
-                onClearFilters={clearFilters}
-              />
-
-              {renderPricingContent()}
-            </main>
-          </div>
+            {renderPricingContent()}
+          </main>
 
           {selectedModel && (
             <ModelDetailsDrawer
