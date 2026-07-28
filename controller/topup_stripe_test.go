@@ -1953,6 +1953,132 @@ func TestStripeInvoicePaymentFailedWebhookCallsFailedInvoiceReconcile(t *testing
 	require.Equal(t, "in_route_failed", reconciledInvoiceID)
 }
 
+func TestStripeInvoiceCreatedWebhookCallsDiscountInvoicePrepare(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalPrepare := prepareStripeSubscriptionDiscountInvoice
+	t.Cleanup(func() { prepareStripeSubscriptionDiscountInvoice = originalPrepare })
+	var preparedInvoiceID string
+	prepareStripeSubscriptionDiscountInvoice = func(ctx context.Context, invoiceID string) error {
+		preparedInvoiceID = invoiceID
+		return nil
+	}
+
+	event := stripe.Event{
+		ID:   "evt_invoice_created",
+		Type: stripe.EventTypeInvoiceCreated,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "in_route_created",
+		}},
+	}
+
+	require.NoError(t, handleStripeInvoiceCreated(context.Background(), event))
+	require.Equal(t, "in_route_created", preparedInvoiceID)
+}
+
+func TestStripeInvoiceCreatedDuplicateProcessedAckWithoutPrepare(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalPrepare := prepareStripeSubscriptionDiscountInvoice
+	t.Cleanup(func() { prepareStripeSubscriptionDiscountInvoice = originalPrepare })
+	calls := 0
+	prepareStripeSubscriptionDiscountInvoice = func(ctx context.Context, invoiceID string) error {
+		calls++
+		return nil
+	}
+	event := stripe.Event{
+		ID:   "evt_invoice_created_duplicate",
+		Type: stripe.EventTypeInvoiceCreated,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "in_route_created_duplicate",
+		}},
+	}
+
+	require.NoError(t, handleStripeInvoiceCreated(context.Background(), event))
+	require.NoError(t, handleStripeInvoiceCreated(context.Background(), event))
+
+	require.Equal(t, 1, calls)
+	var webhook model.PaymentWebhookEvent
+	require.NoError(t, model.DB.First(&webhook, "event_id = ?", "evt_invoice_created_duplicate").Error)
+	require.Equal(t, model.PaymentWebhookEventStatusProcessed, webhook.Status)
+}
+
+func TestStripeInvoiceCreatedWebhookRetriesPrepareErrorAndKeepsLeaseFailed(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalPrepare := prepareStripeSubscriptionDiscountInvoice
+	t.Cleanup(func() { prepareStripeSubscriptionDiscountInvoice = originalPrepare })
+	prepareStripeSubscriptionDiscountInvoice = func(ctx context.Context, invoiceID string) error {
+		require.Equal(t, "in_route_created_retry", invoiceID)
+		return errors.New("prepare retry")
+	}
+
+	err := handleStripeInvoiceCreated(context.Background(), stripe.Event{
+		ID:   "evt_invoice_created_retry",
+		Type: stripe.EventTypeInvoiceCreated,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "in_route_created_retry",
+		}},
+	})
+
+	require.Error(t, err)
+	var event model.PaymentWebhookEvent
+	require.NoError(t, model.DB.First(&event, "event_id = ?", "evt_invoice_created_retry").Error)
+	require.Equal(t, model.PaymentWebhookEventStatusFailed, event.Status)
+	require.Contains(t, event.LastError, "prepare retry")
+}
+
+func TestStripeInvoiceTerminalWebhookReleasesDiscountReservation(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalRelease := releaseStripeSubscriptionDiscountInvoice
+	t.Cleanup(func() { releaseStripeSubscriptionDiscountInvoice = originalRelease })
+	var released []string
+	releaseStripeSubscriptionDiscountInvoice = func(ctx context.Context, invoiceID string) error {
+		released = append(released, invoiceID)
+		return nil
+	}
+
+	voided := stripe.Event{
+		ID:   "evt_invoice_voided",
+		Type: stripe.EventTypeInvoiceVoided,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "in_voided",
+		}},
+	}
+	uncollectible := stripe.Event{
+		ID:   "evt_invoice_uncollectible",
+		Type: stripe.EventTypeInvoiceMarkedUncollectible,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "in_uncollectible",
+		}},
+	}
+
+	require.NoError(t, handleStripeInvoiceVoided(context.Background(), voided))
+	require.NoError(t, handleStripeInvoiceMarkedUncollectible(context.Background(), uncollectible))
+	require.Equal(t, []string{"in_voided", "in_uncollectible"}, released)
+}
+
+func TestStripeInvoicePaymentFailedDoesNotReleaseDiscountReservation(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalReconcile := reconcileFailedStripeInvoice
+	originalRelease := releaseStripeSubscriptionDiscountInvoice
+	t.Cleanup(func() {
+		reconcileFailedStripeInvoice = originalReconcile
+		releaseStripeSubscriptionDiscountInvoice = originalRelease
+	})
+	reconcileFailedStripeInvoice = func(ctx context.Context, invoiceID string) error {
+		return nil
+	}
+	releaseStripeSubscriptionDiscountInvoice = func(ctx context.Context, invoiceID string) error {
+		return errors.New("payment_failed must retain reservation")
+	}
+
+	require.NoError(t, handleStripeInvoicePaymentFailed(context.Background(), stripe.Event{
+		ID:   "evt_invoice_failed_retain",
+		Type: stripe.EventTypeInvoicePaymentFailed,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": "in_failed_retain",
+		}},
+	}))
+}
+
 func TestStripeWebhookRoutesInvoicePaymentFailedToRetryableReconcile(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	confirmPaymentComplianceForTest(t)

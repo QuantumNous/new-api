@@ -77,6 +77,7 @@ func RunStripeSubscriptionReconciliationOnce() (int, error) {
 		reconcileCancelDowngradeCompensations,
 		reconcileStripeToBalanceCompensations,
 		reconcileUnresolvedStripeInvoiceIntents,
+		ReconcileStaleStripeSubscriptionDiscountInvoices,
 		reconcileStalePendingStripePurchases,
 		reconcilePendingStripeDowngrades,
 		reconcileStripeBindingPointerDrift,

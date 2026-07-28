@@ -832,8 +832,14 @@ func StripeWebhook(c *gin.Context) {
 		processingErr = chargeReversed(ctx, event, model.InviteSubRewardReasonDisputed, callerIp)
 	case stripe.EventTypeInvoicePaid:
 		processingErr = handleStripeInvoicePaid(ctx, event)
+	case stripe.EventTypeInvoiceCreated:
+		processingErr = handleStripeInvoiceCreated(ctx, event)
 	case stripe.EventTypeInvoicePaymentFailed:
 		processingErr = handleStripeInvoicePaymentFailed(ctx, event)
+	case stripe.EventTypeInvoiceVoided:
+		processingErr = handleStripeInvoiceVoided(ctx, event)
+	case stripe.EventTypeInvoiceMarkedUncollectible:
+		processingErr = handleStripeInvoiceMarkedUncollectible(ctx, event)
 	case stripe.EventTypeCustomerSubscriptionUpdated:
 		processingErr = handleStripeSubscriptionUpdated(ctx, event)
 	case stripe.EventTypeCustomerSubscriptionDeleted:
@@ -1153,6 +1159,8 @@ var stripeSubscriptionSnapshotFromSubscriptionEvent = getStripeSubscriptionSnaps
 var notifyStripePaymentProcessingFailure = service.NotifyDingTalkPaymentProcessingFailure
 var reconcilePaidStripeInvoice = service.ReconcilePaidInvoice
 var reconcileFailedStripeInvoice = service.ReconcileFailedInvoice
+var prepareStripeSubscriptionDiscountInvoice = service.PrepareStripeSubscriptionDiscountInvoice
+var releaseStripeSubscriptionDiscountInvoice = service.ReleaseStripeSubscriptionDiscountInvoice
 var terminatePendingStripePurchase = service.TerminatePendingStripePurchase
 var fulfillOneTimeStripeSubscriptionPurchase = service.CompleteOneTimeStripeSubscriptionPurchase
 
@@ -1184,6 +1192,48 @@ func handleStripeInvoicePaymentFailed(ctx context.Context, event stripe.Event) (
 		return permanentStripeWebhookProcessingError(errors.New("Stripe invoice.payment_failed missing invoice id"))
 	}
 	err = reconcileFailedStripeInvoice(ctx, invoiceID)
+	if service.IsPermanentPaidInvoiceError(err) {
+		return permanentStripeWebhookProcessingError(err)
+	}
+	return err
+}
+
+func handleStripeInvoiceCreated(ctx context.Context, event stripe.Event) (err error) {
+	first, processingToken, err := recordStripeSubscriptionWebhookEvent(event)
+	if err != nil || !first {
+		return err
+	}
+	defer finishStripeSubscriptionWebhookEvent(event, processingToken, &err)
+	invoiceID := strings.TrimSpace(stripeEventObjectValue(event, "id"))
+	if invoiceID == "" {
+		return permanentStripeWebhookProcessingError(errors.New("Stripe invoice.created missing invoice id"))
+	}
+	err = prepareStripeSubscriptionDiscountInvoice(ctx, invoiceID)
+	if service.IsPermanentPaidInvoiceError(err) {
+		return permanentStripeWebhookProcessingError(err)
+	}
+	return err
+}
+
+func handleStripeInvoiceVoided(ctx context.Context, event stripe.Event) (err error) {
+	return handleStripeInvoiceTerminalForDiscountRelease(ctx, event, "invoice.voided")
+}
+
+func handleStripeInvoiceMarkedUncollectible(ctx context.Context, event stripe.Event) (err error) {
+	return handleStripeInvoiceTerminalForDiscountRelease(ctx, event, "invoice.marked_uncollectible")
+}
+
+func handleStripeInvoiceTerminalForDiscountRelease(ctx context.Context, event stripe.Event, eventName string) (err error) {
+	first, processingToken, err := recordStripeSubscriptionWebhookEvent(event)
+	if err != nil || !first {
+		return err
+	}
+	defer finishStripeSubscriptionWebhookEvent(event, processingToken, &err)
+	invoiceID := strings.TrimSpace(stripeEventObjectValue(event, "id"))
+	if invoiceID == "" {
+		return permanentStripeWebhookProcessingError(fmt.Errorf("Stripe %s missing invoice id", eventName))
+	}
+	err = releaseStripeSubscriptionDiscountInvoice(ctx, invoiceID)
 	if service.IsPermanentPaidInvoiceError(err) {
 		return permanentStripeWebhookProcessingError(err)
 	}
