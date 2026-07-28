@@ -8,12 +8,66 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/cachex"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/savings_setting"
 	"github.com/QuantumNous/new-api/types"
 
+	"github.com/samber/hot"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/singleflight"
 )
+
+func TestLoadCachedSavingsResultReusesCachedValue(t *testing.T) {
+	cache := cachex.NewHybridCache[int](cachex.HybridCacheConfig[int]{
+		Namespace: "test:user_savings",
+		Memory: func() *hot.HotCache[string, int] {
+			return hot.NewHotCache[string, int](hot.LRU, 2).Build()
+		},
+	})
+	var group singleflight.Group
+	loadCalls := 0
+	load := func() (int, error) {
+		loadCalls++
+		return 42, nil
+	}
+
+	first, err := loadCachedSavingsResult(cache, &group, "same-window", load)
+	require.NoError(t, err)
+	second, err := loadCachedSavingsResult(cache, &group, "same-window", load)
+	require.NoError(t, err)
+
+	assert.Equal(t, 42, first)
+	assert.Equal(t, 42, second)
+	assert.Equal(t, 1, loadCalls)
+}
+
+func TestBuildUserSavingsCacheKeyTracksNormalizedSetting(t *testing.T) {
+	setting := savings_setting.Setting{
+		Enabled: true,
+		OfficialPrices: map[string]savings_setting.OfficialPrice{
+			"model-b": {Source: "source-b"},
+			"model-a": {Source: "source-a"},
+		},
+	}
+	key, err := buildUserSavingsCacheKey(savingsSummaryCacheKind, 7, 100, 200, "", 0, setting)
+	require.NoError(t, err)
+
+	reordered := setting
+	reordered.OfficialPrices = map[string]savings_setting.OfficialPrice{
+		"model-a": {Source: "source-a"},
+		"model-b": {Source: "source-b"},
+	}
+	reorderedKey, err := buildUserSavingsCacheKey(savingsSummaryCacheKind, 7, 100, 200, "", 0, reordered)
+	require.NoError(t, err)
+	assert.Equal(t, key, reorderedKey)
+
+	reordered.ShowOnDashboard = true
+	changedKey, err := buildUserSavingsCacheKey(savingsSummaryCacheKind, 7, 100, 200, "", 0, reordered)
+	require.NoError(t, err)
+	assert.NotEqual(t, key, changedKey)
+}
 
 func TestBuildTextSavingsEstimateSkipsWhenDisabled(t *testing.T) {
 	require.NoError(t, savings_setting.UpdateSettingByJSONString(""))
@@ -356,7 +410,7 @@ func TestNormalizeSavingsSummaryWindowClampsSmallClockSkew(t *testing.T) {
 	require.InDelta(t, time.Now().Unix(), effectiveEnd, 1)
 
 	_, err = NormalizeSavingsSummaryWindow(now-3600, now+5*60+10)
-	require.EqualError(t, err, "结束时间不能晚于当前时间")
+	require.ErrorIs(t, err, ErrSavingsEndAfterNow)
 }
 
 func TestBuildSavingsTrendBucketsAlignsToLocalCalendar(t *testing.T) {
@@ -383,13 +437,13 @@ func TestBuildSavingsTrendBucketsAlignsToLocalCalendar(t *testing.T) {
 
 func TestBuildSavingsTrendBucketsRejectsInvalidBoundaries(t *testing.T) {
 	_, _, err := buildSavingsTrendBuckets(1_000, 2_000, "minute", 0)
-	require.EqualError(t, err, "趋势粒度无效")
+	require.ErrorIs(t, err, ErrSavingsGranularity)
 
 	_, _, err = buildSavingsTrendBuckets(1_000, 2_000, SavingsTrendGranularityHour, 841)
-	require.EqualError(t, err, "时区偏移无效")
+	require.ErrorIs(t, err, ErrSavingsUTCOffsetInvalid)
 
 	_, _, err = buildSavingsTrendBuckets(1_000, 1_000+49*3600, SavingsTrendGranularityHour, 0)
-	require.EqualError(t, err, "小时粒度最多查询 48 小时")
+	require.ErrorIs(t, err, ErrSavingsHourRangeTooLarge)
 }
 
 func TestSavingsTrendAggregationPreservesPerRequestNonNegativeSavings(t *testing.T) {
@@ -453,7 +507,7 @@ func TestNormalizeSavingsTrendWindowValidatesGranularityAndClockSkew(t *testing.
 	require.InDelta(t, time.Now().Unix(), effectiveEnd, 1)
 
 	_, err = NormalizeSavingsTrendWindow(now-3600, now, "minute", 8*60)
-	require.EqualError(t, err, "趋势粒度无效")
+	require.ErrorIs(t, err, ErrSavingsGranularity)
 }
 
 func configureSavingsSetting(t *testing.T, prices map[string]savings_setting.OfficialPrice) {
@@ -478,9 +532,9 @@ func configureSavingsSetting(t *testing.T, prices map[string]savings_setting.Off
 	require.NoError(t, savings_setting.UpdateSettingByJSONString(string(jsonBytes)))
 }
 
-func savingsRelayInfo(model string) *relaycommon.RelayInfo {
+func savingsRelayInfo(modelName string) *relaycommon.RelayInfo {
 	return &relaycommon.RelayInfo{
-		OriginModelName: model,
+		OriginModelName: modelName,
 		PriceData: types.PriceData{
 			ModelRatio:      0.5,
 			CompletionRatio: 1,

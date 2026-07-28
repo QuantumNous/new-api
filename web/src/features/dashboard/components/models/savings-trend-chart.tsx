@@ -329,7 +329,7 @@ export function SavingsTrendChart(props: SavingsTrendChartProps) {
       <div className='flex flex-col gap-2 border-b px-3 py-2.5 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex min-w-0 items-center gap-2'>
           <IconBadge tone='success' size='sm'>
-            <BadgeDollarSign />
+            <BadgeDollarSign aria-hidden='true' />
           </IconBadge>
           <div className='min-w-0'>
             <div className='flex flex-wrap items-center gap-x-2 gap-y-0.5'>
@@ -447,7 +447,7 @@ export function SavingsTrendChart(props: SavingsTrendChartProps) {
                     />
                   }
                 >
-                  <Info className='size-3' />
+                  <Info className='size-3' aria-hidden='true' />
                 </TooltipTrigger>
                 <TooltipContent>
                   {t(

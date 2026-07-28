@@ -25,12 +25,14 @@ import {
 } from '../savings.ts'
 
 describe('getRollingSavingsTimeRange', () => {
-  it('returns a rolling 24 hour window at request time', () => {
-    const first = getRollingSavingsTimeRange(1_700_000_000_000)
-    const second = getRollingSavingsTimeRange(1_700_000_060_000)
+  it('returns a rolling 24 hour window aligned to minute boundaries', () => {
+    const first = getRollingSavingsTimeRange(1_700_000_001_000)
+    const sameMinute = getRollingSavingsTimeRange(1_700_000_019_000)
+    const nextMinute = getRollingSavingsTimeRange(1_700_000_061_000)
 
     assert.equal(first.end_timestamp - first.start_timestamp, 24 * 60 * 60)
-    assert.equal(second.end_timestamp - first.end_timestamp, 60)
+    assert.deepEqual(sameMinute, first)
+    assert.equal(nextMinute.end_timestamp - first.end_timestamp, 60)
   })
 })
 

@@ -6,20 +6,25 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/cachex"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/savings_setting"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/hot"
 	"github.com/shopspring/decimal"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -48,6 +53,31 @@ const (
 	SavingsTrendGranularityDay  = "day"
 	savingsTrendMaxBuckets      = 64
 	savingsTrendMaxHourSeconds  = 48 * 3600
+	savingsResultCacheTTL       = time.Minute
+	savingsResultCacheCapacity  = 5000
+	savingsSummaryCacheKind     = "summary"
+	savingsTrendCacheKind       = "trend"
+	savingsSummaryCacheNS       = "new-api:user_savings_summary:v1"
+	savingsTrendCacheNS         = "new-api:user_savings_trend:v1"
+)
+
+var (
+	ErrSavingsTimeRangeRequired = errors.New("savings time range is required")
+	ErrSavingsUTCOffsetRequired = errors.New("savings UTC offset is required")
+	ErrSavingsUTCOffsetInvalid  = errors.New("savings UTC offset is invalid")
+	ErrSavingsEndAfterNow       = errors.New("savings end time is after current time")
+	ErrSavingsTimeRangeInvalid  = errors.New("savings time range is invalid")
+	ErrSavingsTimeRangeTooLarge = errors.New("savings time range is too large")
+	ErrSavingsHourRangeTooLarge = errors.New("hourly savings time range is too large")
+	ErrSavingsGranularity       = errors.New("savings trend granularity is invalid")
+	ErrSavingsTooManyBuckets    = errors.New("savings trend has too many buckets")
+
+	savingsSummaryCacheOnce sync.Once
+	savingsSummaryCache     *cachex.HybridCache[SavingsSummary]
+	savingsSummaryGroup     singleflight.Group
+	savingsTrendCacheOnce   sync.Once
+	savingsTrendCache       *cachex.HybridCache[SavingsTrend]
+	savingsTrendGroup       singleflight.Group
 )
 
 type SavingsEstimate struct {
@@ -251,6 +281,32 @@ func buildTextSavingsEstimate(ctx *gin.Context, relayInfo *relaycommon.RelayInfo
 
 func GetUserSavingsSummary(userId int, startTimestamp int64, endTimestamp int64) (*SavingsSummary, error) {
 	setting := savings_setting.GetSetting()
+	cacheKey, err := buildUserSavingsCacheKey(
+		savingsSummaryCacheKind,
+		userId,
+		startTimestamp,
+		endTimestamp,
+		"",
+		0,
+		setting,
+	)
+	if err != nil {
+		return nil, err
+	}
+	result, err := loadCachedSavingsResult(getUserSavingsSummaryCache(), &savingsSummaryGroup, cacheKey, func() (SavingsSummary, error) {
+		summary, err := buildUserSavingsSummary(setting, userId, startTimestamp, endTimestamp)
+		if err != nil {
+			return SavingsSummary{}, err
+		}
+		return *summary, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func buildUserSavingsSummary(setting savings_setting.Setting, userId int, startTimestamp int64, endTimestamp int64) (*SavingsSummary, error) {
 	summary := newSavingsSummary(setting, startTimestamp, endTimestamp)
 	if !summary.Enabled {
 		return summary, nil
@@ -286,6 +342,32 @@ func GetUserSavingsSummary(userId int, startTimestamp int64, endTimestamp int64)
 
 func GetUserSavingsTrend(userId int, startTimestamp int64, endTimestamp int64, granularity string, utcOffsetMinutes int) (*SavingsTrend, error) {
 	setting := savings_setting.GetSetting()
+	cacheKey, err := buildUserSavingsCacheKey(
+		savingsTrendCacheKind,
+		userId,
+		startTimestamp,
+		endTimestamp,
+		granularity,
+		utcOffsetMinutes,
+		setting,
+	)
+	if err != nil {
+		return nil, err
+	}
+	result, err := loadCachedSavingsResult(getUserSavingsTrendCache(), &savingsTrendGroup, cacheKey, func() (SavingsTrend, error) {
+		trend, err := buildUserSavingsTrend(setting, userId, startTimestamp, endTimestamp, granularity, utcOffsetMinutes)
+		if err != nil {
+			return SavingsTrend{}, err
+		}
+		return *trend, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func buildUserSavingsTrend(setting savings_setting.Setting, userId int, startTimestamp int64, endTimestamp int64, granularity string, utcOffsetMinutes int) (*SavingsTrend, error) {
 	summary := newSavingsSummary(setting, startTimestamp, endTimestamp)
 	buckets, bucketSize, err := buildSavingsTrendBuckets(startTimestamp, endTimestamp, granularity, utcOffsetMinutes)
 	if err != nil {
@@ -350,6 +432,89 @@ func GetUserSavingsTrend(userId int, startTimestamp int64, endTimestamp int64, g
 	trend.Summary = *summary
 	trend.Buckets = buckets
 	return trend, nil
+}
+
+func getUserSavingsSummaryCache() *cachex.HybridCache[SavingsSummary] {
+	savingsSummaryCacheOnce.Do(func() {
+		savingsSummaryCache = cachex.NewHybridCache[SavingsSummary](cachex.HybridCacheConfig[SavingsSummary]{
+			Namespace: cachex.Namespace(savingsSummaryCacheNS),
+			Redis:     common.RDB,
+			RedisEnabled: func() bool {
+				return common.RedisEnabled && common.RDB != nil
+			},
+			RedisCodec: cachex.JSONCodec[SavingsSummary]{},
+			Memory: func() *hot.HotCache[string, SavingsSummary] {
+				return hot.NewHotCache[string, SavingsSummary](hot.LRU, savingsResultCacheCapacity).
+					WithTTL(savingsResultCacheTTL).
+					WithJanitor().
+					Build()
+			},
+		})
+	})
+	return savingsSummaryCache
+}
+
+func getUserSavingsTrendCache() *cachex.HybridCache[SavingsTrend] {
+	savingsTrendCacheOnce.Do(func() {
+		savingsTrendCache = cachex.NewHybridCache[SavingsTrend](cachex.HybridCacheConfig[SavingsTrend]{
+			Namespace: cachex.Namespace(savingsTrendCacheNS),
+			Redis:     common.RDB,
+			RedisEnabled: func() bool {
+				return common.RedisEnabled && common.RDB != nil
+			},
+			RedisCodec: cachex.JSONCodec[SavingsTrend]{},
+			Memory: func() *hot.HotCache[string, SavingsTrend] {
+				return hot.NewHotCache[string, SavingsTrend](hot.LRU, savingsResultCacheCapacity).
+					WithTTL(savingsResultCacheTTL).
+					WithJanitor().
+					Build()
+			},
+		})
+	})
+	return savingsTrendCache
+}
+
+func loadCachedSavingsResult[V any](cache *cachex.HybridCache[V], group *singleflight.Group, key string, load func() (V, error)) (V, error) {
+	if cached, found, err := cache.Get(key); err == nil && found {
+		return cached, nil
+	} else if err != nil {
+		common.SysError("failed to read user savings cache: " + err.Error())
+	}
+
+	result, err, _ := group.Do(cache.FullKey(key), func() (interface{}, error) {
+		loaded, loadErr := load()
+		if loadErr != nil {
+			return loaded, loadErr
+		}
+		if cacheErr := cache.SetWithTTL(key, loaded, savingsResultCacheTTL); cacheErr != nil {
+			common.SysError("failed to write user savings cache: " + cacheErr.Error())
+		}
+		return loaded, nil
+	})
+	if err != nil {
+		var zero V
+		return zero, err
+	}
+	return result.(V), nil
+}
+
+func buildUserSavingsCacheKey(kind string, userId int, startTimestamp int64, endTimestamp int64, granularity string, utcOffsetMinutes int, setting savings_setting.Setting) (string, error) {
+	settingJSON, err := common.Marshal(setting)
+	if err != nil {
+		return "", err
+	}
+	settingHash := sha256.Sum256(settingJSON)
+	return fmt.Sprintf(
+		"%s:%d:%d:%d:%d:%s:%d:%s",
+		kind,
+		savingsEstimateSchemaVersion,
+		userId,
+		startTimestamp,
+		endTimestamp,
+		granularity,
+		utcOffsetMinutes,
+		hex.EncodeToString(settingHash[:]),
+	), nil
 }
 
 func newSavingsSummary(setting savings_setting.Setting, startTimestamp int64, endTimestamp int64) *SavingsSummary {
@@ -428,7 +593,7 @@ func (a *savingsSummaryAccumulator) add(result savingsLogEstimate) error {
 	if !addSavingsSummaryQuota(&a.summary.OfficialQuota, result.Estimate.OfficialQuota) ||
 		!addSavingsSummaryQuota(&a.summary.ActualQuota, result.Estimate.ActualQuota) ||
 		!addSavingsSummaryQuota(&a.summary.SavingsQuota, result.Estimate.SavingsQuota) {
-		return errors.New("节省金额汇总超出安全范围")
+		return errors.New("user savings summary exceeds safe range")
 	}
 	a.summary.EstimatedRequestCount++
 	if result.CalculationMode == savingsCalculationHistorical {
@@ -473,7 +638,7 @@ func addSavingsTrendBucket(bucket *SavingsTrendBucket, result savingsLogEstimate
 	if !addSavingsSummaryQuota(&bucket.OfficialQuota, result.Estimate.OfficialQuota) ||
 		!addSavingsSummaryQuota(&bucket.ActualQuota, result.Estimate.ActualQuota) ||
 		!addSavingsSummaryQuota(&bucket.SavingsQuota, result.Estimate.SavingsQuota) {
-		return errors.New("节省趋势汇总超出安全范围")
+		return errors.New("user savings trend exceeds safe range")
 	}
 	bucket.EstimatedRequestCount++
 	if result.CalculationMode == savingsCalculationHistorical {
@@ -486,7 +651,7 @@ func addSavingsTrendBucket(bucket *SavingsTrendBucket, result savingsLogEstimate
 
 func buildSavingsTrendBuckets(startTimestamp int64, endTimestamp int64, granularity string, utcOffsetMinutes int) ([]SavingsTrendBucket, int64, error) {
 	if utcOffsetMinutes < -720 || utcOffsetMinutes > 840 {
-		return nil, 0, errors.New("时区偏移无效")
+		return nil, 0, ErrSavingsUTCOffsetInvalid
 	}
 	duration := endTimestamp - startTimestamp
 	var bucketSize int64
@@ -494,22 +659,22 @@ func buildSavingsTrendBuckets(startTimestamp int64, endTimestamp int64, granular
 	case SavingsTrendGranularityHour:
 		bucketSize = 3600
 		if duration > savingsTrendMaxHourSeconds {
-			return nil, 0, errors.New("小时粒度最多查询 48 小时")
+			return nil, 0, ErrSavingsHourRangeTooLarge
 		}
 	case SavingsTrendGranularityDay:
 		bucketSize = 24 * 3600
 	default:
-		return nil, 0, errors.New("趋势粒度无效")
+		return nil, 0, ErrSavingsGranularity
 	}
 	if duration <= 0 {
-		return nil, 0, errors.New("时间范围无效")
+		return nil, 0, ErrSavingsTimeRangeInvalid
 	}
 
 	offsetSeconds := int64(utcOffsetMinutes) * 60
 	firstBucketStart := ((startTimestamp + offsetSeconds) / bucketSize * bucketSize) - offsetSeconds
 	bucketCount := int((endTimestamp - firstBucketStart + bucketSize - 1) / bucketSize)
 	if bucketCount <= 0 || bucketCount > savingsTrendMaxBuckets {
-		return nil, 0, errors.New("趋势时间桶过多，请缩小时间范围")
+		return nil, 0, ErrSavingsTooManyBuckets
 	}
 	buckets := make([]SavingsTrendBucket, bucketCount)
 	for i := range buckets {
@@ -539,21 +704,21 @@ func savingsSummarySource(source string) string {
 
 func NormalizeSavingsSummaryWindow(startTimestamp int64, endTimestamp int64) (int64, error) {
 	if startTimestamp <= 0 || endTimestamp <= 0 {
-		return 0, errors.New("必须传入开始和结束时间")
+		return 0, ErrSavingsTimeRangeRequired
 	}
 	now := time.Now().Unix()
 	if endTimestamp > now+5*60 {
-		return 0, errors.New("结束时间不能晚于当前时间")
+		return 0, ErrSavingsEndAfterNow
 	}
 	if endTimestamp > now {
 		endTimestamp = now
 	}
 	if endTimestamp <= startTimestamp {
-		return 0, errors.New("时间范围无效")
+		return 0, ErrSavingsTimeRangeInvalid
 	}
 	maxDays := savings_setting.MaxSummaryDays()
 	if maxDays > 0 && endTimestamp-startTimestamp > int64(maxDays)*24*3600 {
-		return 0, errors.New("时间范围过大，请缩小时间范围")
+		return 0, ErrSavingsTimeRangeTooLarge
 	}
 	return endTimestamp, nil
 }
@@ -639,15 +804,19 @@ func matchSavingsOfficialPriceCandidates(setting savings_setting.Setting, candid
 	}
 	if setting.LocalPricingOfficialConfirmed {
 		for _, candidate := range candidates {
-			price, ok := localPrices[candidate]
+			var price savings_setting.OfficialPrice
+			var ok bool
 			if localPrices == nil {
-				if localPricing, found := model.GetPricingByModel(candidate); found {
-					price = savingsOfficialPriceFromPricing(localPricing, priceSnapshotAt)
-					ok = true
+				localPricing, found := model.GetPricingByModel(candidate)
+				if !found {
+					continue
 				}
-			}
-			if !ok {
-				continue
+				price = savingsOfficialPriceFromPricing(localPricing, priceSnapshotAt)
+			} else {
+				price, ok = localPrices[candidate]
+				if !ok {
+					continue
+				}
 			}
 			if !finalizeSavingsOfficialPrice(&price, candidate) {
 				return price, candidate, SavingsSkipInvalidSnapshot
@@ -915,6 +1084,7 @@ func savingsPricingMode(price savings_setting.OfficialPrice) string {
 
 func calculateSavingsTieredTextQuota(summary textQuotaSummary, expr string, groupRatio float64) (int, string) {
 	expr = strings.TrimSpace(expr)
+	// Request rules after ||| depend on headers, parameters, or time context that usage logs do not retain.
 	if expr == "" || strings.Contains(expr, "|||") || !validSavingsRatio(groupRatio, true) {
 		return 0, SavingsSkipUnsupportedBillingMode
 	}

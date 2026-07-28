@@ -21,10 +21,9 @@ import type {
   SavingsTrend,
   SavingsTrendGranularity,
 } from '@/features/dashboard/types'
+import type { TimeGranularity } from '@/lib/time'
 
 import { savingsQuotaToCNY } from './savings.ts'
-
-type DashboardTimeGranularity = 'hour' | 'day' | 'week'
 
 export interface SavingsTrendChartPoint {
   Time: string
@@ -40,7 +39,7 @@ export interface SavingsTrendChartPoint {
 }
 
 export function normalizeSavingsTrendGranularity(
-  granularity?: DashboardTimeGranularity,
+  granularity?: TimeGranularity,
   durationSeconds = 0
 ): SavingsTrendGranularity {
   return granularity === 'hour' && durationSeconds <= 48 * 3600 ? 'hour' : 'day'

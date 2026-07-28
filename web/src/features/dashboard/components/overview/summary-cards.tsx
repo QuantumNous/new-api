@@ -52,6 +52,7 @@ import { formatNumber, formatQuota, formatTimestampToDate } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { StatCard } from '../ui/stat-card'
 
@@ -158,6 +159,7 @@ const HEALTH_CONFIG: Record<
 export function SummaryCards() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
+  const currency = useSystemConfigStore((state) => state.config.currency)
   const { status, loading } = useStatus()
 
   const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
@@ -243,8 +245,8 @@ export function SummaryCards() {
       ? ''
       : formatSavingsQuotaAsCNY(
           savingsSummary.savings_quota,
-          Number(status?.quota_per_unit),
-          Number(status?.usd_exchange_rate)
+          currency.quotaPerUnit,
+          currency.usdExchangeRate
         )
   const reconstructedSavingsCount =
     savingsSummary?.reconstructed_request_count ?? 0
@@ -449,7 +451,7 @@ export function SummaryCards() {
                           />
                         }
                       >
-                        <ArrowUpRight className='size-3.5' />
+                        <ArrowUpRight className='size-3.5' aria-hidden='true' />
                       </TooltipTrigger>
                       <TooltipContent>{t('View savings trend')}</TooltipContent>
                     </Tooltip>

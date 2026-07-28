@@ -1,6 +1,7 @@
 package savings_setting
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -52,6 +53,8 @@ const (
 	defaultOfficialPriceStaleDays = 90
 	defaultMaxSummaryDays         = 31
 	defaultMaxSummaryLogRows      = 50000
+	maxSummaryDaysLimit           = 31
+	maxSummaryLogRowsLimit        = 50000
 )
 
 var (
@@ -101,7 +104,7 @@ func ShowOnUsageLogs() bool {
 func MaxSummaryDays() int {
 	settingMu.RLock()
 	defer settingMu.RUnlock()
-	if setting.MaxSummaryDays <= 0 {
+	if setting.MaxSummaryDays <= 0 || setting.MaxSummaryDays > maxSummaryDaysLimit {
 		return defaultMaxSummaryDays
 	}
 	return setting.MaxSummaryDays
@@ -110,7 +113,7 @@ func MaxSummaryDays() int {
 func MaxSummaryLogRows() int {
 	settingMu.RLock()
 	defer settingMu.RUnlock()
-	if setting.MaxSummaryLogRows <= 0 {
+	if setting.MaxSummaryLogRows <= 0 || setting.MaxSummaryLogRows > maxSummaryLogRowsLimit {
 		return defaultMaxSummaryLogRows
 	}
 	return setting.MaxSummaryLogRows
@@ -150,7 +153,9 @@ func UpdateSettingByJSONString(jsonStr string) error {
 			return err
 		}
 	}
-	normalizeSetting(&next)
+	if err := normalizeSetting(&next); err != nil {
+		return err
+	}
 
 	settingMu.Lock()
 	setting = next
@@ -165,8 +170,7 @@ func ValidateSettingJSONString(jsonStr string) error {
 			return err
 		}
 	}
-	normalizeSetting(&next)
-	return nil
+	return normalizeSetting(&next)
 }
 
 func copySetting(src Setting) Setting {
@@ -178,34 +182,42 @@ func copySetting(src Setting) Setting {
 	return dst
 }
 
-func normalizeSetting(s *Setting) {
+func normalizeSetting(s *Setting) error {
 	if s.OfficialPriceStaleDays <= 0 {
 		s.OfficialPriceStaleDays = defaultOfficialPriceStaleDays
 	}
 	if s.MaxSummaryDays <= 0 {
 		s.MaxSummaryDays = defaultMaxSummaryDays
 	}
+	if s.MaxSummaryDays > maxSummaryDaysLimit {
+		return fmt.Errorf("max_summary_days must not exceed %d", maxSummaryDaysLimit)
+	}
 	if s.MaxSummaryLogRows <= 0 {
 		s.MaxSummaryLogRows = defaultMaxSummaryLogRows
 	}
+	if s.MaxSummaryLogRows > maxSummaryLogRowsLimit {
+		return fmt.Errorf("max_summary_log_rows must not exceed %d", maxSummaryLogRowsLimit)
+	}
 	if s.OfficialPrices == nil {
 		s.OfficialPrices = map[string]OfficialPrice{}
-		return
+		return nil
 	}
+	normalizedPrices := make(map[string]OfficialPrice, len(s.OfficialPrices))
 	for rawModel, price := range s.OfficialPrices {
 		model := strings.TrimSpace(rawModel)
 		if model == "" {
-			delete(s.OfficialPrices, rawModel)
 			continue
 		}
-		if model != rawModel {
-			delete(s.OfficialPrices, rawModel)
+		if _, exists := normalizedPrices[model]; exists {
+			return fmt.Errorf("duplicate official price model after normalization: %q", model)
 		}
 		price.SourceURL = publicSourceURL(price.SourceURL)
 		price.Source = strings.TrimSpace(price.Source)
 		price.BillingMode = strings.TrimSpace(price.BillingMode)
-		s.OfficialPrices[model] = price
+		normalizedPrices[model] = price
 	}
+	s.OfficialPrices = normalizedPrices
+	return nil
 }
 
 func publicSourceURL(raw string) string {

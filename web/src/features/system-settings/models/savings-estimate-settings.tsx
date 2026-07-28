@@ -33,99 +33,21 @@ import {
   SettingsSwitchRow,
 } from '../components/settings-form-layout'
 import { useUpdateOption } from '../hooks/use-update-option'
+import {
+  DEFAULT_SAVINGS_SETTING,
+  formatSavingsSetting,
+  isPlainObject,
+  parseSavingsSetting,
+  type BooleanSettingKey,
+  type NumberSettingKey,
+  type SavingsEstimateSetting,
+} from './savings-estimate-setting'
 import { normalizeJsonString, validateJsonString } from './utils'
 
 const OPTION_KEY = 'SavingsEstimateSetting'
 
-const DEFAULT_SETTING = {
-  enabled: false,
-  show_on_dashboard: true,
-  show_on_usage_logs: true,
-  local_pricing_official_confirmed: true,
-  rebuild_legacy_logs: true,
-  require_official_confirmation: true,
-  official_price_stale_days: 90,
-  max_summary_days: 31,
-  max_summary_log_rows: 50000,
-  official_prices: {},
-}
-
-type SavingsEstimateSetting = Record<string, unknown> & typeof DEFAULT_SETTING
-
-type BooleanSettingKey =
-  | 'enabled'
-  | 'show_on_dashboard'
-  | 'show_on_usage_logs'
-  | 'local_pricing_official_confirmed'
-  | 'rebuild_legacy_logs'
-  | 'require_official_confirmation'
-
-type NumberSettingKey =
-  | 'official_price_stale_days'
-  | 'max_summary_days'
-  | 'max_summary_log_rows'
-
 type SavingsEstimateSettingsProps = {
   defaultValue: string
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === 'object' && !Array.isArray(value)
-}
-
-function parseSavingsSetting(value: string): SavingsEstimateSetting | null {
-  try {
-    const parsed: unknown = JSON.parse(value.trim() || '{}')
-    if (!isObject(parsed)) return null
-
-    const setting = {
-      ...DEFAULT_SETTING,
-      ...parsed,
-    } as SavingsEstimateSetting
-    delete setting.reference_price_source
-    delete setting.include_unpriced_models
-
-    for (const key of [
-      'enabled',
-      'show_on_dashboard',
-      'show_on_usage_logs',
-      'local_pricing_official_confirmed',
-      'rebuild_legacy_logs',
-      'require_official_confirmation',
-    ] satisfies BooleanSettingKey[]) {
-      if (typeof setting[key] !== 'boolean') {
-        setting[key] = DEFAULT_SETTING[key]
-      }
-    }
-
-    for (const key of [
-      'official_price_stale_days',
-      'max_summary_days',
-      'max_summary_log_rows',
-    ] satisfies NumberSettingKey[]) {
-      if (
-        typeof setting[key] !== 'number' ||
-        !Number.isFinite(setting[key]) ||
-        setting[key] <= 0
-      ) {
-        setting[key] = DEFAULT_SETTING[key]
-      } else {
-        setting[key] = Math.floor(setting[key])
-      }
-    }
-
-    if (!isObject(setting.official_prices)) {
-      setting.official_prices = {}
-    }
-    return setting
-  } catch {
-    return null
-  }
-}
-
-function formatSavingsSetting(value: string): string {
-  const setting = parseSavingsSetting(value)
-  return setting ? JSON.stringify(setting, null, 2) : value
 }
 
 export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
@@ -135,7 +57,7 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
   const updateOption = useUpdateOption()
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
   const [setting, setSetting] = useState<SavingsEstimateSetting>(
-    () => parseSavingsSetting(defaultValue) ?? { ...DEFAULT_SETTING }
+    () => parseSavingsSetting(defaultValue) ?? { ...DEFAULT_SAVINGS_SETTING }
   )
   const [jsonText, setJsonText] = useState(() =>
     formatSavingsSetting(defaultValue)
@@ -150,7 +72,7 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
   const validation = useMemo(
     () =>
       validateJsonString(jsonText, {
-        predicate: isObject,
+        predicate: isPlainObject,
         predicateMessage: 'JSON must be an object',
       }),
     [jsonText]
