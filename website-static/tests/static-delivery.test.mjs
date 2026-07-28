@@ -174,9 +174,46 @@ test("localized homepages keep the final models-and-tools value proposition", ()
     const homepage = read(`../html/${file}`);
 
     assert.match(homepage, /heroSavings/, `${file} must keep the unified-balance savings card`);
+    assert.match(homepage, /class="tools-intro"/, `${file} must keep the tools setup screen`);
+    assert.match(homepage, /class="tool-universe"/, `${file} must keep the models-and-tools universe`);
     assert.match(homepage, /toolLine/, `${file} must keep the More Tools headline`);
     assert.match(homepage, /1[,. ]000\+/, `${file} must keep the 1,000+ tools proof point`);
     assert.doesNotMatch(homepage, /<section class="v" id="trust">/, `${file} must keep the removed trust screen out`);
+  }
+});
+
+test("localized homepages keep exactly the English homepage section structure", () => {
+  const sectionSignature = (html) => [...html.matchAll(
+    /<(header|section|footer)\b([^>]*)>/g,
+  )].map((match) => {
+    const className = match[2].match(/\bclass="([^"]*)"/)?.[1] ?? "";
+    const id = match[2].match(/\bid="([^"]*)"/)?.[1] ?? "";
+    return `${match[1]}#${id}.${className}`;
+  });
+  const english = sectionSignature(read("../html/index.html"));
+
+  for (const file of ["zh.html", "es.html", "pt.html", "fr.html", "id.html", "de.html", "vi.html", "ru.html", "ja.html"]) {
+    assert.deepEqual(
+      sectionSignature(read(`../html/${file}`)),
+      english,
+      `${file} must not drift from the English homepage screens`,
+    );
+  }
+});
+
+test("every localized homepage has reviewed copy for every new tools value", () => {
+  const homepage = read("../html/index.html");
+  const keys = [...homepage.matchAll(/data-home-i18n="([^"]+)"/g)].map((match) => match[1]);
+  const context = { window: {} };
+  vm.runInNewContext(read("../html/assets/home-tools-i18n.js"), context);
+
+  for (const locale of ["zh", "es", "pt", "fr", "id", "de", "vi", "ru", "ja"]) {
+    const dictionary = context.window.FLATKEY_HOME_TOOLS_COPY[locale];
+    for (const key of keys) {
+      const value = key.split(".").reduce((current, part) => current?.[part], dictionary);
+      assert.equal(typeof value, "string", `${locale} is missing ${key}`);
+      assert.ok(value.length > 0, `${locale} has empty copy for ${key}`);
+    }
   }
 });
 

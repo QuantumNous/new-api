@@ -115,6 +115,7 @@ body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-u
 .tools-kicker:before{content:"";width:28px;height:2px;background:#706aff}
 .tools-title{margin:27px 0 0;max-width:700px;font-family:var(--disp);font-size:clamp(58px,6vw,94px);line-height:1.02;font-weight:700;letter-spacing:-.065em}
 .tools-title-line{white-space:nowrap}
+html:not(:lang(en)) .tools-title{font-size:clamp(48px,3.8vw,62px)}
 .tools-copy{max-width:690px;margin:30px 0 0;color:#615b64;font-size:18px;line-height:1.7}
 .agent-label{display:flex;align-items:center;gap:8px;margin-top:30px;font-size:12px;font-weight:700}
 .agent-marks{display:flex;margin-left:auto;gap:5px}
@@ -208,6 +209,7 @@ body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-u
 @media(max-width:700px){
   .tools-intro-inner{padding:64px 20px}
   .tools-title{font-size:clamp(39px,11.2vw,49px)}.tools-copy{font-size:15.5px}
+  html:not(:lang(en)) .tools-title{font-size:clamp(34px,9vw,43px)}
   .agent-marks{display:none}.agent-command{font-size:10px;padding:14px}.copy-label{display:none}.copy-state{min-width:24px}
   .terminal-body{min-height:430px;padding:20px 17px;font-size:10px}
   .term-summary{grid-template-columns:1fr}
@@ -263,7 +265,7 @@ body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-u
 
 <nav class="nav pricing-nav">
   <a class="logo" href="/"><img src="assets/flatkey-mark.svg?v=4" alt="flatkey">flatkey</a>
-  <a href="/models">Models</a><a href="https://console.flatkey.ai/api-marketplace">Tools</a><a href="/cli" data-i18n="nav.cli">CLI</a><a href="https://docs.flatkey.ai/" target="_blank" rel="noopener noreferrer">Docs</a><a href="/playground">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing">Pricing</a><a href="/compute">Compute</a><a href="/usecases">Use cases</a><a href="/status">Status</a>
+  <a href="/models">Models</a><a href="https://console.flatkey.ai/api-marketplace" data-home-i18n="tools.nav">Tools</a><a href="/cli" data-i18n="nav.cli">CLI</a><a href="https://docs.flatkey.ai/" target="_blank" rel="noopener noreferrer">Docs</a><a href="/playground">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing">Pricing</a><a href="/compute">Compute</a><a href="/usecases">Use cases</a><a href="/status">Status</a>
   <div class="sp"></div>
   <a href="/login">Sign in</a>
   <a class="btn white" href="/contact">Contact sales</a>
@@ -283,9 +285,9 @@ body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-u
       </div>
     </div>
     <div class="heroSavings" aria-label="Flatkey replaces separate AI subscriptions">
-      <div class="saveRow"><s data-i18n="hero.save1">Model subscriptions</s><small>$20–200 / seat</small></div>
-      <div class="saveRow"><s data-i18n="hero.save2">Data tool subscriptions</s><small>$49–500 / month</small></div>
-      <div class="saveRow"><s data-i18n="hero.save3">Automation subscriptions</s><small>$20–250 / month</small></div>
+      <div class="saveRow"><s data-i18n="hero.save1">Model subscriptions</s><small data-home-i18n="tools.hero.modelPrice">$20–200 / seat</small></div>
+      <div class="saveRow"><s data-i18n="hero.save2">Data tool subscriptions</s><small data-home-i18n="tools.hero.toolPrice">$49–500 / month</small></div>
+      <div class="saveRow"><s data-i18n="hero.save3">Automation subscriptions</s><small data-home-i18n="tools.hero.automationPrice">$20–250 / month</small></div>
       <div class="balanceCard"><span data-i18n="hero.balance">FLATKEY BALANCE</span><strong data-i18n="hero.pay">Pay per successful call.</strong><p data-i18n="hero.invoice">Every model. Every tool. One invoice.</p></div>
     </div>
   </div>
@@ -294,15 +296,15 @@ body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-u
 <section class="tools-intro" id="screen-two">
   <div class="tools-intro-inner">
     <div>
-      <div class="tools-kicker">SDK · CLI · API · 1,000+ TOOLS</div>
-      <h2 class="tools-title"><span class="tools-title-line">One key, one bill,</span><br>1,000+ tools.</h2>
-      <p class="tools-copy">Build with Claude Code, Codex, OpenClaw, or any app. Flatkey runs search, browsers, enrichment, media generation, and actions through one balance—then bills only successful calls.</p>
-      <div class="agent-label">Give this to your agent<div class="agent-marks"><span class="agent-mark openai">AI</span><span class="agent-mark claude">C</span><span class="agent-mark codex">⌘</span><span class="agent-mark more">+ more</span></div></div>
+      <div class="tools-kicker" data-home-i18n="tools.intro.kicker">SDK · CLI · API · 1,000+ TOOLS</div>
+      <h2 class="tools-title" data-home-i18n="tools.intro.title"><span class="tools-title-line">One key, one bill,</span><br>1,000+ tools.</h2>
+      <p class="tools-copy" data-home-i18n="tools.intro.copy">Build with Claude Code, Codex, OpenClaw, or any app. Flatkey runs search, browsers, enrichment, media generation, and actions through one balance—then bills only successful calls.</p>
+      <div class="agent-label"><span data-home-i18n="tools.intro.agent">Give this to your agent</span><div class="agent-marks"><span class="agent-mark openai">AI</span><span class="agent-mark claude">C</span><span class="agent-mark codex">⌘</span><span class="agent-mark more" data-home-i18n="tools.intro.more">+ more</span></div></div>
       <button class="agent-command" id="copy-flatkey-setup" type="button" data-action="copy-flatkey-setup" aria-label="Copy Flatkey setup prompt" data-copy="Set up Flatkey from https://flatkey.ai/SKILL.md">
         <span class="prompt" aria-hidden="true">&gt;</span>
         <code>Set up Flatkey from https://flatkey.ai/SKILL.md</code>
         <span class="copy-state" aria-hidden="true">
-          <span class="copy-label">Copy</span>
+          <span class="copy-label" data-home-i18n="tools.intro.copyButton">Copy</span>
           <span class="copy-icon-wrap">
             <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
             <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -310,24 +312,24 @@ body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-u
         </span>
         <span class="copy-announcement" aria-live="polite" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0"></span>
       </button>
-      <div class="agent-note">No new seat. No separate provider keys. Every model and tool call lands on the same ledger.</div>
-      <div class="agent-links"><a href="https://console.flatkey.ai/api-marketplace">Explore tools →</a><a href="https://docs.flatkey.ai/" target="_blank" rel="noopener noreferrer">Read the docs</a></div>
+      <div class="agent-note" data-home-i18n="tools.intro.note">No new seat. No separate provider keys. Every model and tool call lands on the same ledger.</div>
+      <div class="agent-links"><a href="https://console.flatkey.ai/api-marketplace" data-home-i18n="tools.intro.explore">Explore tools →</a><a href="https://docs.flatkey.ai/" target="_blank" rel="noopener noreferrer" data-home-i18n="tools.intro.docs">Read the docs</a></div>
     </div>
     <div class="terminal">
-      <div class="terminal-head"><i class="terminal-dot red"></i><i class="terminal-dot yellow"></i><i class="terminal-dot green"></i><span>Flatkey Tools · agent run</span></div>
+      <div class="terminal-head"><i class="terminal-dot red"></i><i class="terminal-dot yellow"></i><i class="terminal-dot green"></i><span data-home-i18n="tools.terminal.header">Flatkey Tools · agent run</span></div>
       <div class="terminal-body">
-        <div class="term-brand"><div class="term-bot"></div><div><b>flatkey tools</b><span>one key · models + tools</span></div></div>
-        <div class="term-command">❯ Find 14 competitors, research their launches, identify decision makers, waterfall-enrich contacts, and prepare a sourced GTM brief.</div>
-        <div class="term-line">→ 14 competitors found via live web search</div>
-        <div class="term-line">→ 4,857 public signals scanned across 349 sources</div>
-        <div class="term-line ok">✓ 489 contacts waterfall enriched across 5 providers</div>
-        <div class="term-line ok">✓ 5 persona briefs generated with citations</div>
-        <div class="term-line bill">✓ $0.83 billed · failed calls $0.00</div>
+        <div class="term-brand"><div class="term-bot"></div><div><b>flatkey tools</b><span data-home-i18n="tools.terminal.tagline">one key · models + tools</span></div></div>
+        <div class="term-command" data-home-i18n="tools.terminal.command">❯ Find 14 competitors, research their launches, identify decision makers, waterfall-enrich contacts, and prepare a sourced GTM brief.</div>
+        <div class="term-line" data-home-i18n="tools.terminal.line1">→ 14 competitors found via live web search</div>
+        <div class="term-line" data-home-i18n="tools.terminal.line2">→ 4,857 public signals scanned across 349 sources</div>
+        <div class="term-line ok" data-home-i18n="tools.terminal.line3">✓ 489 contacts waterfall enriched across 5 providers</div>
+        <div class="term-line ok" data-home-i18n="tools.terminal.line4">✓ 5 persona briefs generated with citations</div>
+        <div class="term-line bill" data-home-i18n="tools.terminal.line5">✓ $0.83 billed · failed calls $0.00</div>
         <div class="term-divider"></div>
         <div class="term-summary">
-          <div class="term-stat"><small>Successful tools</small><b>23 / 23</b></div>
-          <div class="term-stat"><small>Total runtime</small><b>18.4 sec</b></div>
-          <div class="term-stat"><small>One invoice</small><b>$0.83</b></div>
+          <div class="term-stat"><small data-home-i18n="tools.terminal.success">Successful tools</small><b>23 / 23</b></div>
+          <div class="term-stat"><small data-home-i18n="tools.terminal.runtime">Total runtime</small><b>18.4 sec</b></div>
+          <div class="term-stat"><small data-home-i18n="tools.terminal.invoice">One invoice</small><b>$0.83</b></div>
         </div>
       </div>
     </div>
@@ -336,20 +338,20 @@ body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-u
 
 <section class="tool-universe" id="screen-three">
   <div class="universe-inner">
-    <div class="tools-kicker" style="justify-content:center">300+ MODELS · 1,000+ TOOLS</div>
-    <h2 class="universe-title" style="margin-top:20px">Every model. Every tool.<br>One key.</h2>
-    <p class="universe-copy">Use one Flatkey interface for leading AI models, social platforms, web data, crawlers, GTM intelligence, and more.</p>
+    <div class="tools-kicker" style="justify-content:center" data-home-i18n="tools.universe.kicker">300+ MODELS · 1,000+ TOOLS</div>
+    <h2 class="universe-title" style="margin-top:20px" data-home-i18n="tools.universe.title">Every model. Every tool.<br>One key.</h2>
+    <p class="universe-copy" data-home-i18n="tools.universe.copy">Use one Flatkey interface for leading AI models, social platforms, web data, crawlers, GTM intelligence, and more.</p>
     <div class="hub" aria-hidden="true">
       <div class="hub-core">
         <div class="hub-brand">
           <img class="hub-logo" src="assets/flatkey-mark.svg?v=4" alt="">
-          <div class="hub-brand-copy"><strong>flatkey</strong><span>Unified model + tool router</span></div>
-          <span class="hub-live">ROUTING LIVE</span>
+          <div class="hub-brand-copy"><strong>flatkey</strong><span data-home-i18n="tools.universe.router">Unified model + tool router</span></div>
+          <span class="hub-live" data-home-i18n="tools.universe.live">ROUTING LIVE</span>
         </div>
         <div class="hub-metrics">
-          <span class="hub-metric"><b>300+</b><small>official models</small></span>
-          <span class="hub-metric"><b>1,000+</b><small>AI tools</small></span>
-          <span class="hub-metric"><b>1</b><small>shared balance</small></span>
+          <span class="hub-metric"><b>300+</b><small data-home-i18n="tools.universe.models">official models</small></span>
+          <span class="hub-metric"><b>1,000+</b><small data-home-i18n="tools.universe.tools">AI tools</small></span>
+          <span class="hub-metric"><b>1</b><small data-home-i18n="tools.universe.balance">shared balance</small></span>
         </div>
       </div>
     </div>
@@ -394,16 +396,16 @@ body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-u
           <article class="provider-card"><i class="provider-icon"><img src="assets/tools/wokelo.png" alt="Wokelo"></i><div><b>Wokelo</b><span>private markets</span></div></article>
           <article class="provider-card"><i class="provider-icon"><img src="assets/tools/saperly.png" alt="Saperly"></i><div><b>Saperly</b><span>agent phone</span></div></article>
           <article class="provider-card"><i class="provider-icon"><img src="assets/tools/openweather.svg" alt="OpenWeather"></i><div><b>OpenWeather</b><span>real-time signals</span></div></article>
-          <a class="provider-card more-card models-more" href="/models" aria-label="Explore more than 300 official AI models"><i class="provider-icon more-icon" aria-hidden="true"><span></span></i><div><b><em>More</em> models</b><span>300+ official models</span></div></a>
-          <a class="provider-card more-card tools-more" href="https://console.flatkey.ai/api-marketplace" aria-label="Explore more than 1,000 AI tools"><i class="provider-icon more-icon" aria-hidden="true"><span></span></i><div><b><em>More</em> tools</b><span>1,000+ available</span></div></a>
+          <a class="provider-card more-card models-more" href="/models" aria-label="Explore more than 300 official AI models"><i class="provider-icon more-icon" aria-hidden="true"><span></span></i><div><b data-home-i18n="tools.universe.moreModels"><em>More</em> models</b><span data-home-i18n="tools.universe.moreModelsCount">300+ official models</span></div></a>
+          <a class="provider-card more-card tools-more" href="https://console.flatkey.ai/api-marketplace" aria-label="Explore more than 1,000 AI tools"><i class="provider-icon more-icon" aria-hidden="true"><span></span></i><div><b data-home-i18n="tools.universe.moreTools"><em>More</em> tools</b><span data-home-i18n="tools.universe.moreToolsCount">1,000+ available</span></div></a>
         </div>
       </div>
     </div>
     <div class="tool-values">
-      <article class="tool-value"><small>ONE AUTH</small><b>One Flatkey key</b><p>No provider credentials scattered across agents, repos, and environments.</p></article>
-      <article class="tool-value"><small>ONE CONTRACT</small><b>Normalized calls and results</b><p>Consistent schemas, error envelopes, request IDs, and usage records.</p></article>
-      <article class="tool-value"><small>ONE POLICY</small><b>Budgets and allowlists</b><p>Control which agents can call which tools and how much they may spend.</p></article>
-      <article class="tool-value"><small>ONE BILL</small><b>Pay for successful work</b><p>Models and tools share one balance; failed Flatkey-side calls cost nothing.</p></article>
+      <article class="tool-value"><small data-home-i18n="tools.value.authEye">ONE AUTH</small><b data-home-i18n="tools.value.authTitle">One Flatkey key</b><p data-home-i18n="tools.value.authCopy">No provider credentials scattered across agents, repos, and environments.</p></article>
+      <article class="tool-value"><small data-home-i18n="tools.value.contractEye">ONE CONTRACT</small><b data-home-i18n="tools.value.contractTitle">Normalized calls and results</b><p data-home-i18n="tools.value.contractCopy">Consistent schemas, error envelopes, request IDs, and usage records.</p></article>
+      <article class="tool-value"><small data-home-i18n="tools.value.policyEye">ONE POLICY</small><b data-home-i18n="tools.value.policyTitle">Budgets and allowlists</b><p data-home-i18n="tools.value.policyCopy">Control which agents can call which tools and how much they may spend.</p></article>
+      <article class="tool-value"><small data-home-i18n="tools.value.billEye">ONE BILL</small><b data-home-i18n="tools.value.billTitle">Pay for successful work</b><p data-home-i18n="tools.value.billCopy">Models and tools share one balance; failed Flatkey-side calls cost nothing.</p></article>
     </div>
   </div>
 </section>
@@ -600,7 +602,7 @@ body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-u
   <div class="cols">
     <div class="col brandcol">
       <a class="logo" href="/"><img src="assets/flatkey-mark.svg?v=4" alt="flatkey">flatkey</a>
-      <p data-i18n="ft.brand">The official-model gateway. More AI, less cost — every frontier model behind one key, verified hourly.</p>
+      <p data-i18n="ft.brand">One key. More models. More tools. Lower cost.</p>
     </div>
     <div class="col"><h5 data-i18n="ft.product">Product</h5><a href="/models">Models</a><a href="/playground">Playground</a><a href="/rankings">Rankings</a><a href="/pricing">Pricing</a><a href="/compute">Compute</a><a href="/usecases">Use cases</a><a href="https://console.flatkey.ai/dashboard" data-i18n="ft.console">Console ↗</a></div>
     <div class="col"><h5 data-i18n="ft.dev">Developers</h5><a href="/cli" data-i18n="nav.cli">CLI</a><a href="/docs">Docs</a><a href="/docs#community">gateway-bench</a><a href="/status">API status</a><a href="https://docs.flatkey.ai/llms.txt">llms.txt</a><a href="/blog">Blog ↗</a></div>
@@ -679,7 +681,8 @@ body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-u
 })();
 </script>
 <script src="assets/pixels.js?v=719h"></script>
-<script src="assets/i18n.js?v=726b"></script>
+<script src="assets/home-tools-i18n.js?v=727a"></script>
+<script src="assets/i18n.js?v=727b"></script>
 <script src="assets/track.js?v=721a"></script>
 <script src="assets/site-shell.js?v=720a"></script>
 </body></html>

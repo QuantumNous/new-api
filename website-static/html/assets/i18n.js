@@ -408,7 +408,7 @@
 "sup.sms.i": "发短信,我们回",
 "sup.x": "X (Twitter)",
 "sup.x.i": "关注或私信",
-"ft.brand": "官方模型网关。More AI, less cost——全部前沿模型一个 key,逐小时验证。",
+"ft.brand": "One key. More models. More tools. Lower cost.",
 "ft.product": "产品",
 "ft.dev": "开发者",
 "ft.company": "公司",
@@ -834,7 +834,7 @@
 "sup.sms.i": "Escríbenos y respondemos",
 "sup.x": "X (Twitter)",
 "sup.x.i": "Síguenos o envía un DM",
-"ft.brand": "El gateway de modelos oficiales. More AI, less cost — cada modelo puntero tras una key, verificado cada hora.",
+"ft.brand": "One key. More models. More tools. Lower cost.",
 "ft.product": "Producto",
 "ft.dev": "Desarrolladores",
 "ft.company": "Empresa",
@@ -1260,7 +1260,7 @@
 "sup.sms.i": "Écrivez-nous, on répond",
 "sup.x": "X (Twitter)",
 "sup.x.i": "Suivez-nous ou envoyez un DM",
-"ft.brand": "La gateway des modèles officiels. More AI, less cost — chaque modèle de pointe derrière une clé, vérifié chaque heure.",
+"ft.brand": "One key. More models. More tools. Lower cost.",
 "ft.product": "Produit",
 "ft.dev": "Développeurs",
 "ft.company": "Entreprise",
@@ -1686,7 +1686,7 @@
 "sup.sms.i": "Mande um SMS, a gente responde",
 "sup.x": "X (Twitter)",
 "sup.x.i": "Siga ou mande DM",
-"ft.brand": "O gateway de modelos oficiais. More AI, less cost — cada modelo de ponta atrás de uma key, verificado a cada hora.",
+"ft.brand": "One key. More models. More tools. Lower cost.",
 "ft.product": "Produto",
 "ft.dev": "Desenvolvedores",
 "ft.company": "Empresa",
@@ -2112,7 +2112,7 @@
 "sup.sms.i": "Напишите SMS — ответим",
 "sup.x": "X (Twitter)",
 "sup.x.i": "Подпишитесь или напишите в DM",
-"ft.brand": "Шлюз официальных моделей. More AI, less cost — все передовые модели за одним ключом, проверка каждый час.",
+"ft.brand": "One key. More models. More tools. Lower cost.",
 "ft.product": "Продукт",
 "ft.dev": "Разработчикам",
 "ft.company": "Компания",
@@ -2538,7 +2538,7 @@
 "sup.sms.i": "SMS を送れば返信します",
 "sup.x": "X (Twitter)",
 "sup.x.i": "フォローまたは DM",
-"ft.brand": "公式モデルのゲートウェイ。More AI, less cost——すべてのフロンティアモデルをひとつのキーで、毎時検証。",
+"ft.brand": "One key. More models. More tools. Lower cost.",
 "ft.product": "プロダクト",
 "ft.dev": "開発者",
 "ft.company": "会社",
@@ -2964,7 +2964,7 @@
 "sup.sms.i": "Nhắn tin, chúng tôi trả lời",
 "sup.x": "X (Twitter)",
 "sup.x.i": "Theo dõi hoặc nhắn DM",
-"ft.brand": "Gateway mô hình chính thức. More AI, less cost — mọi mô hình hàng đầu sau một key, xác minh mỗi giờ.",
+"ft.brand": "One key. More models. More tools. Lower cost.",
 "ft.product": "Sản phẩm",
 "ft.dev": "Nhà phát triển",
 "ft.company": "Công ty",
@@ -3390,7 +3390,7 @@
 "sup.sms.i": "Schreib uns, wir antworten",
 "sup.x": "X (Twitter)",
 "sup.x.i": "Folgen oder DM senden",
-"ft.brand": "Das Gateway für offizielle Modelle. More AI, less cost — jedes Frontier-Modell hinter einem Key, stündlich verifiziert.",
+"ft.brand": "One key. More models. More tools. Lower cost.",
 "ft.product": "Produkt",
 "ft.dev": "Entwickler",
 "ft.company": "Unternehmen",
@@ -3816,7 +3816,7 @@
 "sup.sms.i": "Kirim SMS, kami balas",
 "sup.x": "X (Twitter)",
 "sup.x.i": "Ikuti atau kirim DM",
-"ft.brand": "Gateway model resmi. More AI, less cost — semua model terdepan di balik satu key, diverifikasi tiap jam.",
+"ft.brand": "One key. More models. More tools. Lower cost.",
 "ft.product": "Produk",
 "ft.dev": "Developer",
 "ft.company": "Perusahaan",
@@ -3965,6 +3965,14 @@
       var d = DICTS[l];
       var v = d && d[el.dataset.i18n];
       el.innerHTML = v !== undefined ? v : el.dataset.orig;
+    });
+    document.querySelectorAll("[data-home-i18n]").forEach(function (el) {
+      if (el.dataset.homeOrig === undefined) el.dataset.homeOrig = el.innerHTML;
+      var copy = window.FLATKEY_HOME_TOOLS_COPY && window.FLATKEY_HOME_TOOLS_COPY[l];
+      var value = (el.dataset.homeI18n || "").split(".").reduce(function (current, part) {
+        return current && current[part];
+      }, copy);
+      el.innerHTML = value !== undefined ? value : el.dataset.homeOrig;
     });
     document.documentElement.lang = LANG_TAGS[l] || "en-US";
     document.documentElement.dataset.locale = l;
