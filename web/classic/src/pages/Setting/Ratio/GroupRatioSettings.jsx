@@ -104,28 +104,30 @@ export default function GroupRatioSettings(props) {
   }, []);
 
   const saveVisibilityPolicies = async () => {
+    let policies;
     try {
-      const policies = JSON.parse(visibilityPolicies);
+      policies = JSON.parse(visibilityPolicies);
       if (!Array.isArray(policies)) throw new Error('not array');
-      await Promise.all(
-        policies.map((policy) =>
-          API.put('/api/group/token-visibility', policy),
-        ),
-      );
-      const remaining = new Set(policies.map((policy) => policy.group));
-      await Promise.all(
-        existingVisibilityGroups
-          .filter((group) => !remaining.has(group))
-          .map((group) =>
-            API.delete(
-              `/api/group/token-visibility/${encodeURIComponent(group)}`,
-            ),
-          ),
-      );
-      setExistingVisibilityGroups([...remaining]);
-      showSuccess(t('令牌分组可见性策略已保存'));
     } catch {
       showError(t('可见性策略必须是 JSON 数组'));
+      return;
+    }
+    try {
+      const res = await API.put('/api/group/token-visibility/batch', {
+        policies,
+      });
+      if (!res.data.success) {
+        throw new Error(res.data.message || t('保存令牌分组可见性策略失败'));
+      }
+      await loadVisibilityPolicies();
+      showSuccess(t('令牌分组可见性策略已保存'));
+    } catch (error) {
+      await loadVisibilityPolicies();
+      showError(
+        error.response?.data?.message ||
+          error.message ||
+          t('保存令牌分组可见性策略失败'),
+      );
     }
   };
 

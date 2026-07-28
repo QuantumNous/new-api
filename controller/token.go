@@ -306,6 +306,7 @@ func UpdateToken(c *gin.Context) {
 	if statusOnly != "" {
 		cleanToken.Status = token.Status
 	} else {
+		previousGroup := cleanToken.Group
 		// If you add more fields, please also update token.Update()
 		cleanToken.Name = token.Name
 		cleanToken.ExpiredTime = token.ExpiredTime
@@ -316,9 +317,11 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
-		if err := service.ValidateUserSelectableTokenGroup(userId, cleanToken.Group); err != nil {
-			common.ApiError(c, err)
-			return
+		if cleanToken.Group != previousGroup {
+			if err := service.ValidateUserSelectableTokenGroup(userId, cleanToken.Group); err != nil {
+				common.ApiError(c, err)
+				return
+			}
 		}
 	}
 	var entitlementPackageIds *[]int

@@ -338,6 +338,7 @@ func SetApiRouter(router *gin.Engine) {
 			groupRoute.GET("/", controller.GetGroups)
 			groupRoute.GET("/token-visibility", controller.GetTokenGroupVisibilityPolicies)
 			groupRoute.PUT("/token-visibility", controller.SaveTokenGroupVisibilityPolicy)
+			groupRoute.PUT("/token-visibility/batch", controller.ReplaceTokenGroupVisibilityPolicies)
 			groupRoute.DELETE("/token-visibility/:group", controller.DeleteTokenGroupVisibilityPolicy)
 		}
 

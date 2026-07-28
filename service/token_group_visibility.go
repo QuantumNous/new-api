@@ -25,15 +25,21 @@ func GetUserSelectableTokenGroups(userId int) (map[string]string, error) {
 	}
 	now := common.GetTimestamp()
 	for _, policy := range policies {
-		if _, usable := groups[policy.Group]; !usable ||
-			(policy.StartTime != 0 && now < policy.StartTime) ||
-			(policy.EndTime != 0 && now >= policy.EndTime) {
+		if _, usable := groups[policy.Group]; !usable {
 			continue
 		}
+		inWindow := (policy.StartTime == 0 || now >= policy.StartTime) &&
+			(policy.EndTime == 0 || now < policy.EndTime)
 		switch policy.Visibility {
 		case model.TokenGroupVisibilityHidden:
-			delete(groups, policy.Group)
+			if inWindow {
+				delete(groups, policy.Group)
+			}
 		case model.TokenGroupVisibilityTargeted:
+			if !inWindow {
+				delete(groups, policy.Group)
+				continue
+			}
 			allowed := false
 			for _, username := range policy.Usernames {
 				if username == user.Username {

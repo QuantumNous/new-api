@@ -82,6 +82,22 @@ func SaveTokenGroupVisibilityPolicy(c *gin.Context) {
 	common.ApiSuccess(c, policy)
 }
 
+func ReplaceTokenGroupVisibilityPolicies(c *gin.Context) {
+	var request struct {
+		Policies []model.TokenGroupVisibilityPolicy `json:"policies"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.ReplaceTokenGroupVisibilityPolicies(request.Policies); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.RecordLog(c.GetInt("id"), model.LogTypeSystem, "管理员批量替换令牌分组可见性策略")
+	common.ApiSuccess(c, request.Policies)
+}
+
 func DeleteTokenGroupVisibilityPolicy(c *gin.Context) {
 	if err := model.DeleteTokenGroupVisibilityPolicy(c.Param("group")); err != nil {
 		common.ApiError(c, err)

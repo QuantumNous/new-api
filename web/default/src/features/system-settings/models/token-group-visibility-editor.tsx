@@ -17,16 +17,18 @@ export function TokenGroupVisibilityEditor() {
   const { t } = useTranslation()
   const [value, setValue] = useState('[]')
   const [saving, setSaving] = useState(false)
-  const [existingGroups, setExistingGroups] = useState<string[]>([])
 
-  useEffect(() => {
-    api.get('/api/group/token-visibility').then((res) => {
+  const loadPolicies = async () => {
+    await api.get('/api/group/token-visibility').then((res) => {
       if (res.data.success) {
         const policies = res.data.data.policies as TokenGroupVisibilityPolicy[]
         setValue(JSON.stringify(policies, null, 2))
-        setExistingGroups(policies.map((policy) => policy.group))
       }
     })
+  }
+
+  useEffect(() => {
+    void loadPolicies()
   }, [])
 
   const save = async () => {
@@ -40,17 +42,22 @@ export function TokenGroupVisibilityEditor() {
     }
     setSaving(true)
     try {
-      for (const policy of policies)
-        await api.put('/api/group/token-visibility', policy)
-      const remaining = new Set(policies.map((policy) => policy.group))
-      for (const group of existingGroups) {
-        if (!remaining.has(group))
-          await api.delete(
-            `/api/group/token-visibility/${encodeURIComponent(group)}`
-          )
-      }
-      setExistingGroups([...remaining])
+      const response = await api.put('/api/group/token-visibility/batch', {
+        policies,
+      })
+      if (!response.data.success)
+        throw new Error(
+          response.data.message || t('Failed to save visibility policies.')
+        )
+      await loadPolicies()
       toast.success(t('Token group visibility policies saved.'))
+    } catch (error) {
+      await loadPolicies()
+      const message =
+        error instanceof Error
+          ? error.message
+          : t('Failed to save visibility policies.')
+      toast.error(message)
     } finally {
       setSaving(false)
     }
