@@ -46,6 +46,10 @@ func GetStatus(c *gin.Context) {
 	cs := console_setting.GetConsoleSetting()
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
+	// Invitation settings and OptionMap are updated while holding the option-map
+	// write lock. Take the locks in the same order so /status and /option expose
+	// the same committed invitation snapshot during an online reload.
+	invitationCodeSettings := common.GetInvitationCodeSettings()
 
 	passkeySetting := system_setting.GetPasskeySettings()
 	legalSetting := system_setting.GetLegalSettings()
@@ -92,6 +96,8 @@ func GetStatus(c *gin.Context) {
 		"register_enabled":              common.RegisterEnabled,
 		"password_login_enabled":        common.PasswordLoginEnabled,
 		"password_register_enabled":     common.PasswordRegisterEnabled,
+		"invitation_code_required":      invitationCodeSettings.Required,
+		"invitation_code_methods":       invitationCodeSettings.Methods,
 		"default_use_auto_group":        setting.DefaultUseAutoGroup,
 
 		"usd_exchange_rate": operation_setting.USDExchangeRate,

@@ -1,0 +1,19 @@
+diff a/model/main.go b/model/main.go	(rejected hunks)
+@@ -150,7 +206,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error)
+ 		}
+ 		if strings.HasPrefix(dsn, "local") {
+ 			common.SysLog("SQL_DSN not set, using SQLite as database")
+-			db, err := gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
++			db, err := gorm.Open(sqlite.Open(normalizeSQLiteDSN(common.SQLitePath)), &gorm.Config{
+ 				PrepareStmt: true, // precompile SQL
+ 			})
+ 			return db, common.DatabaseTypeSQLite, err
+@@ -172,7 +228,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error)
+ 	}
+ 	// Use SQLite
+ 	common.SysLog("SQL_DSN not set, using SQLite as database")
+-	db, err := gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
++	db, err := gorm.Open(sqlite.Open(normalizeSQLiteDSN(common.SQLitePath)), &gorm.Config{
+ 		PrepareStmt: true, // precompile SQL
+ 	})
+ 	return db, common.DatabaseTypeSQLite, err
