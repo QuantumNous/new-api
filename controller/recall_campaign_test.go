@@ -169,7 +169,7 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 		Campaigns:   service.NewRecallCampaignServiceWithTranslator(audience, stripeService, translator),
 		Claims:      claims,
 		Recipients:  service.NewRecallRecipientWorker(stripeService, claims, "controller-test"),
-		Emails:      service.NewRecallEmailWorker(func(_, _, _, _ string) error { harness.sendCount++; return nil }, audience, claims, "controller-test"),
+		Emails:      service.NewRecallEmailWorker(func(_, _, _, _, _ string) error { harness.sendCount++; return nil }, audience, claims, "controller-test"),
 		Attribution: service.NewRecallAttributionService(stripeFake),
 	}
 	originalProvider := recallRuntimeProvider
