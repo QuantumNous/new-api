@@ -658,15 +658,21 @@ function UsageChip({
                   <div className="text-[12px] text-ink font-medium truncate" title={id}>
                     {labelFor(id)}
                   </div>
+                  {/* Every row is a session sum. With a cache split, the input rows are
+                      the three BILLING CLASSES of input (each priced differently) and
+                      read as components: uncached + cache reads + cache writes = total.
+                      Without one (Ollama, compat vendors), plain "Input" says it all. */}
                   <div className="mt-0.5 flex flex-col gap-0.5">
-                    {stat("Input", t.input)}
-                    {t.cache_read > 0 && stat("Cache reads", t.cache_read)}
-                    {t.cache_write > 0 && stat("Cache writes", t.cache_write)}
-                    {/* Cumulative billed input volume = fresh + cache reads + cache
-                        writes (each class bills at its own rate). Shown only when a
-                        cache split exists — otherwise it would duplicate Input. */}
-                    {t.cache_read + t.cache_write > 0 &&
-                      stat("Total input", t.input + t.cache_read + t.cache_write)}
+                    {t.cache_read + t.cache_write > 0 ? (
+                      <>
+                        {stat("Uncached input", t.input)}
+                        {stat("Cache reads", t.cache_read)}
+                        {stat("Cache writes", t.cache_write)}
+                        {stat("Total input", t.input + t.cache_read + t.cache_write)}
+                      </>
+                    ) : (
+                      stat("Input", t.input)
+                    )}
                     {stat("Output", t.output)}
                   </div>
                 </div>
