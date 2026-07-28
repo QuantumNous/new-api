@@ -150,6 +150,25 @@ test("production homepage cannot regress behind the models and tools launch", ()
   assert.match(homepage, /id="screen-three"/);
 });
 
+test("homepage tools CTAs lead directly to the Flatkey API Marketplace", () => {
+  const homepage = read("../html/index.html");
+  const tracking = read("../html/assets/track.js");
+  const marketplaceHref = 'href="https://console.flatkey.ai/api-marketplace"';
+  const marketplace = /href="https:\/\/console\.flatkey\.ai\/api-marketplace"/;
+
+  assert.equal(homepage.split(marketplaceHref).length - 1, 3);
+  assert.doesNotMatch(homepage, /href="#screen-three"/);
+  assert.match(tracking, /tools_marketplace_click/);
+
+  for (const file of ["zh.html", "es.html", "pt.html", "fr.html", "id.html", "de.html", "vi.html", "ru.html", "ja.html"]) {
+    assert.match(
+      read(`../html/${file}`),
+      marketplace,
+      `${file} must expose the localized Marketplace navigation CTA`,
+    );
+  }
+});
+
 test("localized homepages keep the final models-and-tools value proposition", () => {
   for (const file of ["zh.html", "es.html", "pt.html", "fr.html", "id.html", "de.html", "vi.html", "ru.html", "ja.html"]) {
     const homepage = read(`../html/${file}`);
