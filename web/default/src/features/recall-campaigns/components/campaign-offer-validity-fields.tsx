@@ -9,24 +9,46 @@ import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DateTimePicker } from '@/components/datetime-picker'
+import { Switch } from '@/components/ui/switch'
 import {
+  formatRecallMinorAmount,
   getRecallEffectivePromotionExpiry,
+  parseRecallMajorAmount,
+  recallFixedCurrencies,
   recallPromotionDurationToSeconds,
   recallPromotionSecondsToDuration,
 } from '../helpers'
-import type { RecallCampaignDraft, RecallPromotionExpiryMode } from '../types'
+import type {
+  RecallCampaignDraft,
+  RecallFixedCurrency,
+  RecallMinimumSpendCurrency,
+  RecallPromotionExpiryMode,
+} from '../types'
 
 interface CampaignOfferValidityFieldsProps {
   form: UseFormReturn<RecallCampaignDraft>
   immutable: boolean
   nowSeconds?: number
-  showMinimumAmount: boolean
 }
 
 type RecallPromotionModeForm = Pick<
   UseFormReturn<RecallCampaignDraft>,
   'getValues' | 'setValue'
 >
+type RecallMinimumSpendForm = Pick<
+  UseFormReturn<RecallCampaignDraft>,
+  'getValues' | 'setValue'
+>
+
+const recallMinimumSpendCurrencyKeys: Record<
+  RecallFixedCurrency,
+  RecallMinimumSpendCurrency
+> = {
+  USD: 'usd',
+  INR: 'inr',
+  BRL: 'brl',
+  JPY: 'jpy',
+}
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function setRecallPromotionExpiryMode(
@@ -56,6 +78,60 @@ export function setRecallPromotionExpiryMode(
   }
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export function setRecallMinimumSpendEnabled(
+  form: RecallMinimumSpendForm,
+  enabled: boolean
+): void {
+  if (enabled) {
+    const current = form.getValues('discount_config.minimum_spend')
+    form.setValue(
+      'discount_config.minimum_spend',
+      { enabled: true, amounts: { ...(current?.amounts ?? {}) } },
+      { shouldDirty: true, shouldValidate: true }
+    )
+    return
+  }
+
+  form.setValue(
+    'discount_config.minimum_spend',
+    { enabled: false, amounts: {} },
+    { shouldDirty: true, shouldValidate: true }
+  )
+  form.setValue('discount_config.minimum_amount', 0, {
+    shouldDirty: true,
+    shouldValidate: true,
+  })
+  form.setValue('discount_config.minimum_amount_currency', '', {
+    shouldDirty: true,
+    shouldValidate: true,
+  })
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function setRecallMinimumSpendAmount(
+  form: RecallMinimumSpendForm,
+  currency: RecallFixedCurrency,
+  value: string
+): void {
+  const currencyKey = recallMinimumSpendCurrencyKeys[currency]
+  const amount = parseRecallMajorAmount(currency, value) ?? 0
+  form.setValue(`discount_config.minimum_spend.amounts.${currencyKey}`, amount, {
+    shouldDirty: true,
+    shouldValidate: true,
+  })
+  if (currency === 'USD') {
+    form.setValue('discount_config.minimum_amount', amount, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('discount_config.minimum_amount_currency', amount ? 'USD' : '', {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }
+}
+
 function unixSecondsToDate(value: number): Date | undefined {
   return value > 0 ? new Date(value * 1_000) : undefined
 }
@@ -77,16 +153,56 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   )
 }
 
+function MinimumSpendAmountInput({
+  currency,
+  error,
+  form,
+  immutable,
+}: {
+  currency: RecallFixedCurrency
+  error?: string
+  form: UseFormReturn<RecallCampaignDraft>
+  immutable: boolean
+}) {
+  const { t } = useTranslation()
+  const currencyKey = recallMinimumSpendCurrencyKeys[currency]
+  const id = `recall-minimum-spend-${currencyKey}`
+  const path = `discount_config.minimum_spend.amounts.${currencyKey}` as const
+  const errorID = fieldErrorID(id, error)
+  const amount = useWatch({ control: form.control, name: path })
+
+  return (
+    <div className='space-y-2'>
+      <Label htmlFor={id}>{t('{{currency}} minimum spend', { currency })}</Label>
+      <Input
+        id={id}
+        type='number'
+        min={currency === 'JPY' ? 1 : 0.01}
+        step={currency === 'JPY' ? '1' : '0.01'}
+        disabled={immutable}
+        value={formatRecallMinorAmount(currency, amount ?? 0)}
+        aria-invalid={Boolean(error)}
+        aria-describedby={errorID}
+        onChange={(event) =>
+          setRecallMinimumSpendAmount(form, currency, event.target.value)
+        }
+        name={path}
+      />
+      <FieldError id={id} message={error ? t(String(error)) : undefined} />
+    </div>
+  )
+}
+
 export function CampaignOfferValidityFields({
   form,
   immutable,
   nowSeconds,
-  showMinimumAmount,
 }: CampaignOfferValidityFieldsProps) {
   const { t } = useTranslation()
   const [mountedAtSeconds] = useState(() => Math.floor(Date.now() / 1_000))
   const effectiveNowSeconds = nowSeconds ?? mountedAtSeconds
   const [
+    minimumSpendEnabled,
     mode,
     promotionExpiresAt,
     promotionValidSeconds,
@@ -96,6 +212,7 @@ export function CampaignOfferValidityFields({
   ] = useWatch({
     control: form.control,
     name: [
+      'discount_config.minimum_spend.enabled',
       'promotion_expiry_mode',
       'promotion_expires_at',
       'promotion_valid_seconds',
@@ -108,6 +225,10 @@ export function CampaignOfferValidityFields({
     control: form.control,
     name: [
       'discount_config.minimum_amount',
+      'discount_config.minimum_spend.amounts.usd',
+      'discount_config.minimum_spend.amounts.inr',
+      'discount_config.minimum_spend.amounts.brl',
+      'discount_config.minimum_spend.amounts.jpy',
       'discount_config.coupon_redeem_by',
       'promotion_expires_at',
       'promotion_valid_seconds',
@@ -116,7 +237,6 @@ export function CampaignOfferValidityFields({
   const couponError = errors.discount_config?.coupon_redeem_by?.message
   const fixedError = errors.promotion_expires_at?.message
   const durationError = errors.promotion_valid_seconds?.message
-  const minimumError = errors.discount_config?.minimum_amount?.message
   const previewBaseSeconds =
     executionMode === 'scheduled_once' && scheduledAt > 0
       ? scheduledAt
@@ -143,39 +263,45 @@ export function CampaignOfferValidityFields({
 
   return (
     <>
-      {showMinimumAmount ? (
-        <div className='space-y-2'>
-          <Label htmlFor='recall-minimum-amount'>{t('Minimum amount')}</Label>
-          <div className='flex'>
-            <Input
-              id='recall-minimum-amount'
-              type='number'
-              min={0}
-              disabled={immutable}
-              aria-describedby={fieldErrorID(
-                'recall-minimum-amount',
-                minimumError
-              )}
-              {...form.register('discount_config.minimum_amount', {
-                valueAsNumber: true,
-                onChange: (event) => {
-                  const amount = Number(event.target.value)
-                  form.setValue(
-                    'discount_config.minimum_amount_currency',
-                    amount > 0 ? 'USD' : '',
-                    { shouldDirty: true }
-                  )
-                },
-              })}
-              className='rounded-r-none'
-            />
-            <span className='border-input bg-muted text-muted-foreground flex items-center rounded-r-md border border-l-0 px-3 text-sm'>
-              USD
-            </span>
-          </div>
-          <FieldError id='recall-minimum-amount' message={minimumError} />
+      <div className='space-y-3 md:col-span-2'>
+        <div className='flex items-center gap-3'>
+          <Switch
+            id='recall-minimum-spend-enabled'
+            checked={Boolean(minimumSpendEnabled)}
+            disabled={immutable}
+            onCheckedChange={(checked) =>
+              setRecallMinimumSpendEnabled(form, checked)
+            }
+          />
+          <Label htmlFor='recall-minimum-spend-enabled'>
+            {t('Set minimum spend')}
+          </Label>
         </div>
-      ) : null}
+        {minimumSpendEnabled ? (
+          <>
+            <p className='text-muted-foreground text-sm'>
+              {t(
+                'Enter the minimum spend in each checkout currency. Amounts are not converted automatically.'
+              )}
+            </p>
+            <div className='grid gap-4 sm:grid-cols-2'>
+              {recallFixedCurrencies.map((currency) => (
+                <MinimumSpendAmountInput
+                  key={currency}
+                  currency={currency}
+                  error={
+                    errors.discount_config?.minimum_spend?.amounts?.[
+                      recallMinimumSpendCurrencyKeys[currency]
+                    ]?.message
+                  }
+                  form={form}
+                  immutable={immutable}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+      </div>
 
       <div className='space-y-2'>
         <Label htmlFor='recall-coupon-redeem-by'>{t('Coupon redeem-by')}</Label>

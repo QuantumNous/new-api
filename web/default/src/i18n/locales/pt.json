@@ -6307,6 +6307,13 @@
     "Quota resets at {{time}}.": "A cota é redefinida às {{time}}.",
     "Hourly limit must be between 1 and 100000.": "O limite horário deve ficar entre 1 e 100000.",
     "Failed to load email quota.": "Não foi possível carregar a cota de e-mails.",
-    "Save hourly limit": "Salvar limite horário"
+    "Save hourly limit": "Salvar limite horário",
+    "Set minimum spend": "Definir gasto m?nimo",
+    "{{currency}} minimum spend": "Gasto m?nimo em {{currency}}",
+    "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.": "Informe o gasto m?nimo em cada moeda de checkout. Os valores n?o s?o convertidos automaticamente.",
+    "USD minimum spend is required": "O gasto m?nimo em USD ? obrigat?rio",
+    "INR minimum spend is required": "O gasto m?nimo em INR ? obrigat?rio",
+    "BRL minimum spend is required": "O gasto m?nimo em BRL ? obrigat?rio",
+    "JPY minimum spend is required": "O gasto m?nimo em JPY ? obrigat?rio"
   }
 }

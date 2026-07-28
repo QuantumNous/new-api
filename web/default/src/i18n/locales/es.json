@@ -6307,6 +6307,13 @@
     "Quota resets at {{time}}.": "La cuota se restablece a las {{time}}.",
     "Hourly limit must be between 1 and 100000.": "El límite horario debe estar entre 1 y 100000.",
     "Failed to load email quota.": "No se pudo cargar la cuota de correo electrónico.",
-    "Save hourly limit": "Guardar límite horario"
+    "Save hourly limit": "Guardar límite horario",
+    "Set minimum spend": "Definir gasto m?nimo",
+    "{{currency}} minimum spend": "Gasto m?nimo en {{currency}}",
+    "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.": "Introduce el gasto m?nimo en cada moneda de pago. Los importes no se convierten autom?ticamente.",
+    "USD minimum spend is required": "El gasto m?nimo en USD es obligatorio",
+    "INR minimum spend is required": "El gasto m?nimo en INR es obligatorio",
+    "BRL minimum spend is required": "El gasto m?nimo en BRL es obligatorio",
+    "JPY minimum spend is required": "El gasto m?nimo en JPY es obligatorio"
   }
 }

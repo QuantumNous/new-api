@@ -6307,6 +6307,13 @@
     "Quota resets at {{time}}.": "Le quota est réinitialisé à {{time}}.",
     "Hourly limit must be between 1 and 100000.": "La limite horaire doit être comprise entre 1 et 100000.",
     "Failed to load email quota.": "Échec du chargement du quota d’e-mails.",
-    "Save hourly limit": "Enregistrer la limite horaire"
+    "Save hourly limit": "Enregistrer la limite horaire",
+    "Set minimum spend": "D?finir un minimum de d?pense",
+    "{{currency}} minimum spend": "Minimum de d?pense en {{currency}}",
+    "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.": "Saisissez le minimum de d?pense dans chaque devise de paiement. Les montants ne sont pas convertis automatiquement.",
+    "USD minimum spend is required": "Le minimum de d?pense en USD est requis",
+    "INR minimum spend is required": "Le minimum de d?pense en INR est requis",
+    "BRL minimum spend is required": "Le minimum de d?pense en BRL est requis",
+    "JPY minimum spend is required": "Le minimum de d?pense en JPY est requis"
   }
 }

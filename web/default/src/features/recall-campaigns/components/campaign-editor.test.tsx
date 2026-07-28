@@ -805,7 +805,9 @@ describe('CampaignEditor audience rules', () => {
     expect(submitted.campaign_type).toBe('content_only')
     expect(submitted.coupon_source).toBe('existing')
     expect(submitted.existing_coupon_id).toBe('coupon_preserve')
-    expect(submitted.discount_config).toEqual(draft.discount_config)
+    expect(submitted.discount_config).toEqual(
+      createRecallCampaignFormDraft(draft).discount_config
+    )
     expect(submitted.product_scope).toEqual(draft.product_scope)
     for (const template of Object.values(
       submitted.email_sequence[0].templates
@@ -1187,10 +1189,28 @@ describe('CampaignEditor offer validity', () => {
     expect(html).toContain('Coupon redeem-by')
     expect(html).toContain('Promotion expiry mode')
     expect(html).toContain('Relative duration')
-    expect(html).toContain('USD')
+    expect(html).toContain('Set minimum spend')
     expect(html).not.toContain('Coupon redeem-by timestamp')
     expect(html).not.toContain('Promotion validity seconds')
     expect(html).not.toContain('Minimum amount currency')
+  })
+
+  test('shows minimum spend toggle for automatic fixed coupons', () => {
+    const draft = makeDraft('first_purchase')
+    draft.discount_config.type = 'fixed'
+    draft.discount_config.percent_off = 0
+    draft.discount_config.amount_off = 500
+    draft.discount_config.currency = 'USD'
+    draft.discount_config.currency_options = {
+      inr: 45_000,
+      brl: 2_500,
+      jpy: 750,
+    }
+
+    const html = renderEditor('first_purchase', draft)
+
+    expect(html).toContain('Set minimum spend')
+    expect(html).toContain('id="recall-minimum-spend-enabled"')
   })
 })
 

@@ -1027,7 +1027,6 @@ export function CampaignEditor(props: CampaignEditorProps) {
               <CampaignOfferValidityFields
                 form={form}
                 immutable={immutable}
-                showMinimumAmount={!automaticFixed}
               />
             </>
           ) : (

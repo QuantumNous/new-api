@@ -6307,6 +6307,13 @@
     "Quota resets at {{time}}.": "Quota resets at {{time}}.",
     "Hourly limit must be between 1 and 100000.": "Hourly limit must be between 1 and 100000.",
     "Failed to load email quota.": "Failed to load email quota.",
-    "Save hourly limit": "Save hourly limit"
+    "Save hourly limit": "Save hourly limit",
+    "Set minimum spend": "Set minimum spend",
+    "{{currency}} minimum spend": "{{currency}} minimum spend",
+    "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.": "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.",
+    "USD minimum spend is required": "USD minimum spend is required",
+    "INR minimum spend is required": "INR minimum spend is required",
+    "BRL minimum spend is required": "BRL minimum spend is required",
+    "JPY minimum spend is required": "JPY minimum spend is required"
   }
 }

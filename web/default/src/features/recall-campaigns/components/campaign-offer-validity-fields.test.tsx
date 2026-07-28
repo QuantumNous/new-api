@@ -26,8 +26,12 @@ mock.module('@/components/datetime-picker', () => ({
   ),
 }))
 
-const { CampaignOfferValidityFields, setRecallPromotionExpiryMode } =
-  await import('./campaign-offer-validity-fields')
+const {
+  CampaignOfferValidityFields,
+  setRecallMinimumSpendAmount,
+  setRecallMinimumSpendEnabled,
+  setRecallPromotionExpiryMode,
+} = await import('./campaign-offer-validity-fields')
 
 const testI18n = createInstance()
 await testI18n.use(initReactI18next).init({
@@ -77,8 +81,9 @@ function makeDraft(): RecallCampaignDraft {
       amount_off: 0,
       currency: '',
       currency_options: {},
-      minimum_amount: 25,
-      minimum_amount_currency: 'USD',
+      minimum_amount: 0,
+      minimum_amount_currency: '',
+      minimum_spend: { enabled: false, amounts: {} },
       coupon_redeem_by: 2_000_003_600,
     },
     product_scope: {
@@ -108,6 +113,11 @@ function createForm(
   for (const field of [
     'discount_config.minimum_amount',
     'discount_config.minimum_amount_currency',
+    'discount_config.minimum_spend.enabled',
+    'discount_config.minimum_spend.amounts.usd',
+    'discount_config.minimum_spend.amounts.inr',
+    'discount_config.minimum_spend.amounts.brl',
+    'discount_config.minimum_spend.amounts.jpy',
     'discount_config.coupon_redeem_by',
     'promotion_expiry_mode',
     'promotion_expires_at',
@@ -130,7 +140,6 @@ function renderFields(
         form={form}
         immutable={false}
         nowSeconds={2_000_000_000}
-        showMinimumAmount
       />
     </I18nextProvider>
   )
@@ -214,12 +223,121 @@ describe('CampaignOfferValidityFields', () => {
     expect(html).toContain(expected)
   })
 
-  test('renders a fixed USD suffix without an editable currency field', () => {
+  test('hides minimum spend amount inputs by default', () => {
     const html = renderFields(makeDraft())
 
-    expect(html).toContain('name="discount_config.minimum_amount"')
-    expect(html).toContain('USD')
+    expect(html).toContain('Set minimum spend')
+    expect(html).toContain('id="recall-minimum-spend-enabled"')
+    expect(html).not.toContain(
+      'name="discount_config.minimum_spend.amounts.usd"'
+    )
+    expect(html).not.toContain(
+      'name="discount_config.minimum_spend.amounts.inr"'
+    )
+    expect(html).not.toContain(
+      'name="discount_config.minimum_spend.amounts.brl"'
+    )
+    expect(html).not.toContain(
+      'name="discount_config.minimum_spend.amounts.jpy"'
+    )
     expect(html).not.toContain('name="discount_config.minimum_amount_currency"')
+  })
+
+  test('shows four associated minimum spend currency inputs when enabled', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 2500, inr: 90_000, brl: 2_500, jpy: 750 },
+    }
+    draft.discount_config.minimum_amount = 2500
+    draft.discount_config.minimum_amount_currency = 'USD'
+
+    const html = renderFields(draft)
+
+    for (const [currency, value] of [
+      ['usd', '25.00'],
+      ['inr', '900.00'],
+      ['brl', '25.00'],
+      ['jpy', '750'],
+    ]) {
+      expect(html).toContain(`for="recall-minimum-spend-${currency}"`)
+      expect(html).toContain(
+        `name="discount_config.minimum_spend.amounts.${currency}"`
+      )
+      expect(html).toContain(`value="${value}"`)
+    }
+    expect(html).toContain('min="0.01"')
+    expect(html).toContain('step="0.01"')
+    expect(html).toContain('min="1"')
+    expect(html).toContain('step="1"')
+  })
+
+  test('associates minimum spend field errors with each currency input', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 2500 },
+    }
+    draft.discount_config.minimum_amount = 2500
+    draft.discount_config.minimum_amount_currency = 'USD'
+
+    const html = renderFields(draft, (form) => {
+      form.setError('discount_config.minimum_spend.amounts.usd', {
+        message: 'USD minimum spend is required',
+      })
+      form.setError('discount_config.minimum_spend.amounts.inr', {
+        message: 'INR minimum spend is required',
+      })
+      form.setError('discount_config.minimum_spend.amounts.brl', {
+        message: 'BRL minimum spend is required',
+      })
+      form.setError('discount_config.minimum_spend.amounts.jpy', {
+        message: 'JPY minimum spend is required',
+      })
+    })
+
+    for (const currency of ['usd', 'inr', 'brl', 'jpy']) {
+      expect(html).toContain(`aria-invalid="true"`)
+      expect(html).toContain(
+        `aria-describedby="recall-minimum-spend-${currency}-error"`
+      )
+      expect(html).toContain(`id="recall-minimum-spend-${currency}-error"`)
+    }
+    expect(html).toContain('USD minimum spend is required')
+    expect(html).toContain('INR minimum spend is required')
+    expect(html).toContain('BRL minimum spend is required')
+    expect(html).toContain('JPY minimum spend is required')
+  })
+
+  test('minimum spend helpers enable, write canonical minor units, and clear legacy fields', () => {
+    const form = createForm(makeDraft())
+
+    setRecallMinimumSpendEnabled(form, true)
+    expect(form.getValues('discount_config.minimum_spend')).toEqual({
+      enabled: true,
+      amounts: {},
+    })
+
+    setRecallMinimumSpendAmount(form, 'USD', '12.34')
+    setRecallMinimumSpendAmount(form, 'JPY', '750')
+    expect(form.getValues('discount_config.minimum_spend.amounts.usd')).toBe(
+      1234
+    )
+    expect(form.getValues('discount_config.minimum_spend.amounts.jpy')).toBe(
+      750
+    )
+    expect(form.getValues('discount_config.minimum_amount')).toBe(1234)
+    expect(form.getValues('discount_config.minimum_amount_currency')).toBe(
+      'USD'
+    )
+
+    setRecallMinimumSpendEnabled(form, false)
+    expect(form.getValues('discount_config.minimum_spend')).toEqual({
+      enabled: false,
+      amounts: {},
+    })
+    expect(form.getValues('discount_config.minimum_amount')).toBe(0)
+    expect(form.getValues('discount_config.minimum_amount_currency')).toBe('')
   })
 
   test('associates field labels and validation errors with their controls', () => {
