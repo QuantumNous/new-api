@@ -38,6 +38,7 @@ type ProfileSubscriptionFetcher = (
 ) => Promise<ApiResponse<SelfSubscriptionDataResponse>>
 
 const PROFILE_SUBSCRIPTION_REQUEST_CONFIG = {
+  disableDuplicate: true,
   skipBusinessError: true,
   skipErrorHandler: true,
 } satisfies ApiRequestConfig

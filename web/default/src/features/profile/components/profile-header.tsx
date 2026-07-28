@@ -217,7 +217,11 @@ export function ProfileHeader(props: ProfileHeaderProps) {
                     {subscription.planTitle}
                   </div>
                 </div>
-                <StatusBadge label={t('Active')} variant='success' />
+                <StatusBadge
+                  label={t('Active')}
+                  variant='success'
+                  copyable={false}
+                />
               </div>
 
               {subscription.remainingDays !== null && (

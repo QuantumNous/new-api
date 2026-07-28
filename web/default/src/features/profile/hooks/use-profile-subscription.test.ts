@@ -144,7 +144,7 @@ describe('loadProfileSubscriptionSummary', () => {
     ).resolves.toBeNull()
   })
 
-  test('uses a silent request config for the subscription API lookup', async () => {
+  test('uses an isolated silent request config for the subscription API lookup', async () => {
     const loadProfileSubscriptionSummary = expectLoaderExport()
     const configs: (ApiRequestConfig | undefined)[] = []
 
@@ -155,6 +155,7 @@ describe('loadProfileSubscriptionSummary', () => {
 
     expect(configs).toEqual([
       {
+        disableDuplicate: true,
         skipBusinessError: true,
         skipErrorHandler: true,
       },

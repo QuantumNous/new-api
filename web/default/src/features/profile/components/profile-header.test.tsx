@@ -90,6 +90,7 @@ describe('ProfileHeader', () => {
     expect(html).toContain('data-slot="profile-plan-summary"')
     expect(html).toContain('Pro')
     expect(html).toContain('Active')
+    expect(html).not.toContain('Click to copy: Active')
     expect(html).toContain('Remaining days')
     expect(html).toContain('19')
     expect(html).toContain('Monthly model quota')
