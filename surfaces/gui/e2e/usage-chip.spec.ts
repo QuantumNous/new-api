@@ -30,9 +30,11 @@ test("usage chip appears after a turn and opens the breakdown popover", async ({
   await expect(pop).toBeVisible();
   await expect(pop).toContainText("Context window");
   await expect(pop).toContainText("9.8k of 200k · 5%");
+  await expect(pop).toContainText("Session totals");
   await expect(pop).toContainText("Claude Opus 4.8 · Anthropic");
   await expect(pop).toContainText("Input");
-  await expect(pop).toContainText("Cache read");
+  await expect(pop).toContainText("Cache reads");
+  await expect(pop).toContainText("Cache writes");
   // Total input = fresh 1k + cache_read 8k + cache_write 800 (cumulative billed input).
   await expect(pop).toContainText("Total input");
   await expect(pop).toContainText("9.8k");
