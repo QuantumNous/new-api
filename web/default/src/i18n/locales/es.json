@@ -5815,6 +5815,8 @@
     "Top up to deploy": "Recarga para desplegar",
     "Plans & wallet": "Planes y monedero",
     "Available balance": "Saldo disponible",
+    "Balance can be used to purchase plans directly.": "El saldo se puede usar para comprar planes directamente.",
+    "After plan quota is exhausted, balance is used automatically for API usage billing.": "Cuando se agota la cuota del plan, el saldo se usa automáticamente para facturar según el uso de la API.",
     "Top-ups": "Recargas",
     "Current plan": "Plan actual",
     "Current subscription": "Suscripción actual",

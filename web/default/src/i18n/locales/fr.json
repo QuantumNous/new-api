@@ -5815,6 +5815,8 @@
     "Top up to deploy": "Rechargez pour déployer",
     "Plans & wallet": "Forfaits et portefeuille",
     "Available balance": "Solde disponible",
+    "Balance can be used to purchase plans directly.": "Le solde peut être utilisé pour acheter directement des forfaits.",
+    "After plan quota is exhausted, balance is used automatically for API usage billing.": "Une fois le quota du forfait épuisé, le solde est automatiquement utilisé pour la facturation selon l’utilisation de l’API.",
     "Top-ups": "Recharges",
     "Current plan": "Forfait actuel",
     "Current subscription": "Abonnement actuel",

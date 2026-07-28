@@ -5815,6 +5815,8 @@
     "Top up to deploy": "Top up to deploy",
     "Plans & wallet": "Plans & wallet",
     "Available balance": "Available balance",
+    "Balance can be used to purchase plans directly.": "Balance can be used to purchase plans directly.",
+    "After plan quota is exhausted, balance is used automatically for API usage billing.": "After plan quota is exhausted, balance is used automatically for API usage billing.",
     "Top-ups": "Top-ups",
     "Current plan": "Current plan",
     "Current subscription": "Current subscription",

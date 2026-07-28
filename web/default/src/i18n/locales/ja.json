@@ -5815,6 +5815,8 @@
     "Top up to deploy": "チャージしてデプロイ",
     "Plans & wallet": "プランとウォレット",
     "Available balance": "利用可能残高",
+    "Balance can be used to purchase plans directly.": "残高はプランの直接購入に使用できます。",
+    "After plan quota is exhausted, balance is used automatically for API usage billing.": "プランの割り当てを使い切ると、API の使用量に応じた課金に残高が自動的に使用されます。",
     "Top-ups": "チャージ",
     "Current plan": "現在のプラン",
     "Current subscription": "現在のサブスクリプション",

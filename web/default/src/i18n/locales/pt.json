@@ -5815,6 +5815,8 @@
     "Top up to deploy": "Recarregue para implantar",
     "Plans & wallet": "Planos e carteira",
     "Available balance": "Saldo disponível",
+    "Balance can be used to purchase plans directly.": "O saldo pode ser usado para comprar planos diretamente.",
+    "After plan quota is exhausted, balance is used automatically for API usage billing.": "Depois que a cota do plano se esgota, o saldo é usado automaticamente na cobrança conforme o uso da API.",
     "Top-ups": "Recargas",
     "Current plan": "Plano atual",
     "Current subscription": "Assinatura atual",

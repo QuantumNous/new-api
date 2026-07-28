@@ -5815,6 +5815,8 @@
     "Top up to deploy": "充值后部署",
     "Plans & wallet": "套餐与钱包",
     "Available balance": "可用余额",
+    "Balance can be used to purchase plans directly.": "余额可直接购买套餐。",
+    "After plan quota is exhausted, balance is used automatically for API usage billing.": "套餐配额用尽后，将自动使用余额按 API 用量计费。",
     "Top-ups": "充值",
     "Current plan": "当前套餐",
     "Current subscription": "当前订阅",
