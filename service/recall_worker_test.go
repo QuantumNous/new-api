@@ -86,7 +86,7 @@ func TestRecallMaintenanceRunsRecipientBeforeEmailInSameTick(t *testing.T) {
 	recipientWorker := NewRecallRecipientWorker(stripeService, claims, "maintenance-worker")
 	recipientWorker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
 	sent := 0
-	emailWorker := NewRecallEmailWorker(func(subject, receiver, content, messageID string) error {
+	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
 		sent++
 		return nil
 	}, audience, claims, "maintenance-worker")
@@ -137,7 +137,7 @@ func TestRecallMaintenanceRecipientErrorStillRunsEmailBatch(t *testing.T) {
 	recipientWorker := NewRecallRecipientWorker(stripeService, claims, "maintenance-worker")
 	recipientWorker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
 	sent := 0
-	emailWorker := NewRecallEmailWorker(func(subject, receiver, content, messageID string) error {
+	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
 		sent++
 		return nil
 	}, audience, claims, "maintenance-worker")
@@ -189,7 +189,7 @@ func TestRecallMaintenanceCampaignErrorStillRunsRecipientsAndEmail(t *testing.T)
 	recipientWorker := NewRecallRecipientWorker(stripeService, claims, "maintenance-worker")
 	recipientWorker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
 	sent := 0
-	emailWorker := NewRecallEmailWorker(func(subject, receiver, content, messageID string) error {
+	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
 		sent++
 		return nil
 	}, audience, claims, "maintenance-worker")
