@@ -30,6 +30,7 @@ describe('savings estimate setting serialization', () => {
     const setting = parseSavingsSetting(`{
       "enabled": true,
       "show_on_dashboard": "yes",
+      "official_price_stale_days": 0.5,
       "max_summary_days": 7.9,
       "max_summary_log_rows": 0,
       "official_prices": [],
@@ -43,6 +44,10 @@ describe('savings estimate setting serialization', () => {
     assert.equal(
       setting.show_on_dashboard,
       DEFAULT_SAVINGS_SETTING.show_on_dashboard
+    )
+    assert.equal(
+      setting.official_price_stale_days,
+      DEFAULT_SAVINGS_SETTING.official_price_stale_days
     )
     assert.equal(setting.max_summary_days, 7)
     assert.equal(

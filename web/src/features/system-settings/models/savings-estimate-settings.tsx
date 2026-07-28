@@ -119,13 +119,14 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
   )
 
   const handleSave = useCallback(async () => {
-    const currentText =
-      editMode === 'visual' ? JSON.stringify(setting) : jsonText
-    if (editMode === 'json' && !validation.valid) {
+    const currentSetting =
+      editMode === 'visual' ? setting : parseSavingsSetting(jsonText)
+    if (!currentSetting) {
       toast.error(validationMessage)
       return
     }
 
+    const currentText = JSON.stringify(currentSetting)
     const normalized = normalizeJsonString(currentText)
     const saved = normalizeJsonString(formatSavingsSetting(defaultValue))
     if (normalized === saved) {
@@ -133,10 +134,14 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
       return
     }
 
-    await updateOption.mutateAsync({
-      key: OPTION_KEY,
-      value: normalized,
-    })
+    try {
+      await updateOption.mutateAsync({
+        key: OPTION_KEY,
+        value: normalized,
+      })
+    } catch {
+      // useUpdateOption handles the user-facing error toast.
+    }
   }, [
     defaultValue,
     editMode,
@@ -144,7 +149,6 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
     setting,
     t,
     updateOption,
-    validation,
     validationMessage,
   ])
 
@@ -326,7 +330,7 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
               size='sm'
               onClick={() => handleModeChange('json')}
             >
-              <Code2 data-icon='inline-start' />
+              <Code2 data-icon='inline-start' aria-hidden='true' />
               {t('Manage in JSON')}
             </Button>
           </section>
@@ -347,7 +351,7 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
             updateOption.isPending || (editMode === 'json' && !validation.valid)
           }
         >
-          <Save data-icon='inline-start' />
+          <Save data-icon='inline-start' aria-hidden='true' />
           {updateOption.isPending
             ? t('Saving...')
             : t('Save savings estimate settings')}

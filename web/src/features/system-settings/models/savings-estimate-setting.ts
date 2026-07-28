@@ -86,7 +86,7 @@ export function parseSavingsSetting(
       if (
         typeof setting[key] !== 'number' ||
         !Number.isFinite(setting[key]) ||
-        setting[key] <= 0
+        setting[key] < 1
       ) {
         setting[key] = DEFAULT_SAVINGS_SETTING[key]
       } else {
