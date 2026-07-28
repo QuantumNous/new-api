@@ -5,7 +5,7 @@
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="fk2.css?v=728b"><style>
+<link rel="stylesheet" href="fk2.css?v=723c"><style>
 .wrap{max-width:1180px;margin:0 auto;padding:60px 48px}
 .tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin:38px 0 26px}
 .tier{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:26px 24px;position:relative}
@@ -25,11 +25,19 @@
 .tdiv{border-top:1px dashed #D8D0F2;margin:12px 0}
 .tcta{margin-top:auto;text-align:center;display:block}
 .tier p{font-size:13px;color:var(--ink2);line-height:1.6}
+.gopayg{display:block;margin:12px 0 14px;padding:12px 13px;border:1px solid #D8D0F2;border-radius:12px;background:linear-gradient(135deg,#F8F6FF,#F0EBFF);color:var(--ink);text-decoration:none;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.gopayg:hover{transform:translateY(-1px);border-color:var(--violet);box-shadow:0 8px 20px rgba(109,92,255,.11)}
+.gopaygtop{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.gopaygtop strong{font-family:var(--disp);font-size:13.5px;letter-spacing:-.15px;color:var(--violet-deep)}
+.gopaygtop span{font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.55px;color:var(--ink3);text-transform:uppercase}
+.goamounts{margin-top:6px;font-family:var(--mono);font-size:9.5px;line-height:1.5;color:var(--ink2)}
+.goamounts:after{content:"  →";font-family:var(--disp);font-size:12px;font-weight:800;color:var(--violet-deep)}
 .pay{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:26px;display:flex;align-items:center;gap:18px}
 .pm{display:flex;align-items:center;gap:9px;border:1.5px solid var(--line);border-radius:12px;padding:12px 18px;font-weight:750;font-size:14px}
 .pm.on{border-color:var(--ink);background:#FAFAF6}
 .local{font-size:13px;color:var(--ink3);margin-top:14px}
 .curr{position:absolute;top:22px;right:22px;font-family:var(--mono);font-size:12px;color:var(--ink3)}
+@media(max-width:620px){.wrap{padding-left:20px;padding-right:20px}}
 </style><!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-5T5LPLSZ');</script>
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-NKH9LPX9');</script>
@@ -62,10 +70,15 @@
   <a class="btn black" href="/login">Start free →</a>
 </nav>
 <div class="wrap">
-  <h2 class="display" data-i18n="pr.h2">One subscription.<br>Every model included.</h2>
-  <p class="sub" style="margin-top:16px"><span data-i18n="pr.sub">Go, Pro and Max include all 328+ models — GPT, Claude, Gemini, DeepSeek, Kimi, GLM, plus Seedance image &amp; video. New users get $1 free credit. <b>Enterprise interfaces price below self-serve</b> — committed volume, custom routing discounts.</span></p>
+  <h2 class="display" data-i18n="pr.h2">Flexible pricing.<br>Every model included.</h2>
+  <p class="sub" style="margin-top:16px"><span data-i18n="pr.sub">Pay as you go with no monthly commitment, or subscribe to Go, Pro or Max for more model usage. All 328+ models are included — GPT, Claude, Gemini, DeepSeek, Kimi, GLM, plus Seedance image &amp; video. <b>Enterprise interfaces price below self-serve</b>.</span></p>
   <div class="tiers">
-    <div class="tier hot"><div class="badge">MOST POPULAR</div><div class="curr" data-i18n="tu.cur1"></div><div class="tname">Go</div><div class="taud" data-i18n="tu.aud1">For individuals &amp; light daily use</div><div><b>$10</b><span class="per">/mo</span></div>
+    <div class="tier hot"><div class="badge">MOST POPULAR</div><div class="curr" data-i18n="tu.cur1"></div><div class="tname">Go</div><div class="taud" data-i18n="tu.aud1">For individuals &amp; light daily use</div>
+      <div><b>$10</b><span class="per">/mo</span></div>
+      <a class="gopayg" href="https://console.flatkey.ai/sign-up?redirect=%2Fwallet">
+        <div class="gopaygtop"><strong data-i18n="tu.paygtitle">Pay as you go</strong><span data-i18n="tu.paygeye">No subscription required</span></div>
+        <div class="goamounts">$10 → $13 · $20 → $28 · $200 → $300</div>
+      </a>
       <div class="tval">
         <span class="tglabel" data-i18n="tu.gtext">Text models</span>
         <div class="tgmain" data-i18n="tu.tm1">Up to $45 model usage / mo</div>
@@ -74,6 +87,10 @@
         <span class="tglabel" data-i18n="tu.gmedia">Image · video models</span>
         <div class="tgmain" data-i18n="tu.mc1">300 media credits / mo</div>
         <div class="tgsub" data-i18n="tu.mv1">≈ 100 images, or 75s of video</div>
+        <div class="tdiv"></div>
+        <span class="tglabel" data-i18n="tu.gtools">Tools Credits</span>
+        <div class="tgmain" data-i18n="tu.tc23">Pay per run</div>
+        <div class="tgsub" data-i18n="tu.tv23">1,000+ data APIs &amp; MCP tools · uses Flatkey Credits</div>
       </div>
       <a class="btn primary tcta" href="https://console.flatkey.ai/sign-up?redirect=%2Fwallet%3Fplan%3Dgo%26intent%3Dsubscribe" data-i18n="tu.cta">Subscribe →</a>
     </div>
@@ -86,6 +103,10 @@
         <span class="tglabel" data-i18n="tu.gmedia">Image · video models</span>
         <div class="tgmain" data-i18n="tu.mc2">1,200 media credits / mo</div>
         <div class="tgsub" data-i18n="tu.mv2">≈ 400 images, or 5 min of video</div>
+        <div class="tdiv"></div>
+        <span class="tglabel" data-i18n="tu.gtools">Tools Credits</span>
+        <div class="tgmain" data-i18n="tu.tc23">Pay per run</div>
+        <div class="tgsub" data-i18n="tu.tv23">1,000+ data APIs &amp; MCP tools · uses Flatkey Credits</div>
       </div>
       <a class="btn white tcta" href="https://console.flatkey.ai/sign-up?redirect=%2Fwallet%3Fplan%3Dpro%26intent%3Dsubscribe" data-i18n="tu.cta">Subscribe →</a>
     </div>
@@ -98,6 +119,10 @@
         <span class="tglabel" data-i18n="tu.gmedia">Image · video models</span>
         <div class="tgmain" data-i18n="tu.mc3">5,000 media credits / mo</div>
         <div class="tgsub" data-i18n="tu.mv3">≈ 1,600 images, or 20 min of video</div>
+        <div class="tdiv"></div>
+        <span class="tglabel" data-i18n="tu.gtools">Tools Credits</span>
+        <div class="tgmain" data-i18n="tu.tc23">Pay per run</div>
+        <div class="tgsub" data-i18n="tu.tv23">1,000+ data APIs &amp; MCP tools · uses Flatkey Credits</div>
       </div>
       <a class="btn white tcta" href="https://console.flatkey.ai/sign-up?redirect=%2Fwallet%3Fplan%3Dmax%26intent%3Dsubscribe" data-i18n="tu.cta">Subscribe →</a>
     </div>
@@ -117,7 +142,7 @@
     <h3 id="faq" style="font-family:var(--disp);font-size:24px;letter-spacing:-.8px;font-weight:700;margin-bottom:18px" data-i18n="tu.faqh">Pricing FAQ</h3>
     <div class="faq">
       <details open><summary data-i18n="tu.q1">What does a plan include?</summary><p data-i18n="tu.a1">A monthly model-usage allowance — up to $45 on Go, $90 on Pro, $300 on Max — spendable across all 328+ models, plus media credits for image and video generation. Short 5-hour and 7-day windows keep the service fast for everyone.</p></details>
-      <details><summary data-i18n="tu.q2">Is this a monthly subscription?</summary><p data-i18n="tu.a2">Yes. Plans renew monthly and you can cancel anytime. If you use up the monthly allowance, you can keep going on a pay-as-you-go balance with the same key.</p></details>
+      <details><summary data-i18n="tu.q2">Is this a monthly subscription?</summary><p data-i18n="tu.a2">Pay as you go has no subscription or expiry. Go, Pro and Max renew monthly and can be cancelled anytime; after the monthly allowance, the same key continues on your pay-as-you-go balance.</p></details>
       <details><summary data-i18n="tu.q3">Which models does a plan cover?</summary><p data-i18n="tu.a3">Every plan covers GPT, Claude, Gemini, DeepSeek and the image, audio and video models — all through one OpenAI-compatible gateway.</p></details>
       <details><summary data-i18n="tu.q4">Can I see how the balance is consumed?</summary><p data-i18n="tu.a4">Yes. Usage is metered by model, token type and request logs, so teams can review spend and control cost.</p></details>
       <details><summary data-i18n="tu.q5">When should I choose Enterprise?</summary><p data-i18n="tu.a5">Choose Enterprise for larger monthly usage, invoicing, procurement, custom routing discounts, or team-level controls.</p></details>
@@ -150,7 +175,7 @@
 <div class="stripe"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><i class="s5"></i></div>
 <div class="pxgrid" data-seed="79" data-cell="20" data-cols="8" data-rows="4" data-n="11" style="top:110px;right:56px"></div>
 <script src="assets/pixels.js?v=719h"></script>
-<script src="assets/i18n.js?v=724b"></script>
+<script src="assets/i18n.js?v=724a"></script>
 <script src="assets/track.js?v=721a"></script>
 <script>
 (function(){

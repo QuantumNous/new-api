@@ -49,6 +49,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Enforce main as the only production source
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Production website deploys must come from main, not $GITHUB_REF."
+            echo "Merge the reviewed homepage into main before deploying so a later main push cannot overwrite it."
+            exit 1
+          fi
+
       - name: Audit static website
         run: node website-static/audit.mjs
 
@@ -189,6 +197,11 @@ jobs:
           curl -s -m 20 "$C/" | grep -q 'hreflang="en-US"' || { echo "regional hreflang cluster missing"; exit 1; }
           curl -s -m 20 "$C/" | grep -q 'hreflang="zh-CN"' || { echo "hreflang cluster missing"; exit 1; }
           curl -s -m 20 "$C/" | grep -q 'og:image' || { echo "og tags missing"; exit 1; }
+          curl -s -m 20 "$C/" | grep -q 'More tools\.' || { echo "models-and-tools homepage marker missing"; exit 1; }
+          curl -s -m 20 "$C/" | grep -q '1,000+ tools\.' || { echo "tools value screen missing"; exit 1; }
+          curl -s -m 20 "$C/" | grep -q 'https://flatkey.ai/SKILL.md' || { echo "SKILL.md setup CTA missing"; exit 1; }
+          curl -s -m 20 "$C/zh" | grep -q '更多工具。' || { echo "localized models-and-tools homepage marker missing"; exit 1; }
+          curl -s -m 20 "$C/zh" | grep -q '1,000+ AI 工具' || { echo "localized tools proof point missing"; exit 1; }
           curl -s -m 20 "$C/docs" | grep -q 'canonical" href="https://flatkey.ai/docs"' || { echo "docs canonical missing"; exit 1; }
           curl -s -m 20 "$C/contact" | grep -q 'class="nav"' || { echo "contact nav missing"; exit 1; }
           # slim footer legal links must be real anchors; assets must be version-busted

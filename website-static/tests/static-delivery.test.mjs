@@ -127,6 +127,7 @@ test("public static pages use one extensionless canonical route", () => {
 
   for (const [route, file] of [
     ["models", "models.html"],
+    ["cli", "cli.html"],
     ["docs", "docs.html"],
     ["playground", "playground.html"],
     ["pricing", "topup.html"],
@@ -137,6 +138,27 @@ test("public static pages use one extensionless canonical route", () => {
   assert.match(nginx, /location = \/topup\.html \{ return 301 \/pricing; \}/);
   assert.doesNotMatch(sitemap, /\.html</);
   assert.doesNotMatch(sitemap, /<loc>https:\/\/flatkey\.ai\/login<\/loc>/);
+});
+
+test("production homepage cannot regress behind the models and tools launch", () => {
+  const homepage = read("../html/index.html");
+
+  assert.match(homepage, /More models\./);
+  assert.match(homepage, /More tools\./);
+  assert.match(homepage, /1,000\+ tools\./);
+  assert.match(homepage, /https:\/\/flatkey\.ai\/SKILL\.md/);
+  assert.match(homepage, /id="screen-three"/);
+});
+
+test("localized homepages keep the final models-and-tools value proposition", () => {
+  for (const file of ["zh.html", "es.html", "pt.html", "fr.html", "id.html", "de.html", "vi.html", "ru.html", "ja.html"]) {
+    const homepage = read(`../html/${file}`);
+
+    assert.match(homepage, /heroSavings/, `${file} must keep the unified-balance savings card`);
+    assert.match(homepage, /toolLine/, `${file} must keep the More Tools headline`);
+    assert.match(homepage, /1[,. ]000\+/, `${file} must keep the 1,000+ tools proof point`);
+    assert.doesNotMatch(homepage, /<section class="v" id="trust">/, `${file} must keep the removed trust screen out`);
+  }
 });
 
 test("legacy HTML and sitemap responses normalize regional language tags", () => {

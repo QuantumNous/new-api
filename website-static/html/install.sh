@@ -7,6 +7,8 @@ RED='\033[0;31m'
 NC='\033[0m'
 BASE_URL="https://router.flatkey.ai"
 KEY_URL="https://console.flatkey.ai/keys"
+FLATKEY_CONFIG_DIR="$HOME/.config/flatkey"
+FLATKEY_ENV_FILE="$FLATKEY_CONFIG_DIR/env"
 
 echo ""
 echo "==========================================="
@@ -17,7 +19,14 @@ echo "Which coding agent do you want to install?"
 echo "  1) Claude Code"
 echo "  2) Codex CLI"
 echo ""
-AGENT=""
+AGENT="${FLATKEY_AGENT:-}"
+case "$AGENT" in
+  ""|claude|codex) ;;
+  *)
+    echo -e "${RED}FLATKEY_AGENT must be 'claude' or 'codex'.${NC}"
+    exit 1
+    ;;
+esac
 while [ -z "$AGENT" ]; do
   read -r -p "Enter 1 or 2 (default: 1): " CHOICE < /dev/tty
   CHOICE="${CHOICE:-1}"
@@ -68,57 +77,62 @@ fi
 echo "Create or copy your Flatkey API key:"
 echo "  $KEY_URL"
 echo ""
-read -r -p "Paste Flatkey API key: " API_KEY < /dev/tty
+API_KEY="${FLATKEY_API_KEY:-}"
+if [ -z "$API_KEY" ]; then
+  read -r -s -p "Paste Flatkey API key (input hidden): " API_KEY < /dev/tty
+  echo ""
+fi
 if [ -z "$API_KEY" ]; then
   echo -e "${RED}API key required.${NC}"
   exit 1
 fi
 
+echo -n "Verifying Flatkey API key... "
+if curl -fsS "$BASE_URL/v1/models" \
+  -H "Authorization: Bearer $API_KEY" >/dev/null; then
+  echo -e "${GREEN}ok${NC}"
+else
+  echo -e "${RED}failed${NC}"
+  echo "The key could not access $BASE_URL/v1/models. No configuration was changed."
+  exit 1
+fi
+
 if [ -f "$RC_FILE" ]; then
   sed -i.bak '/# Flatkey — Claude Code proxy/,/# End Flatkey — Claude Code proxy/d' "$RC_FILE" 2>/dev/null || true
+  sed -i.bak '/# Flatkey — Codex CLI proxy/,/# End Flatkey — Codex CLI proxy/d' "$RC_FILE" 2>/dev/null || true
+  sed -i.bak '/# Flatkey environment/,/# End Flatkey environment/d' "$RC_FILE" 2>/dev/null || true
   rm -f "${RC_FILE}.bak"
 fi
 
-if [ "$AGENT" = "claude" ]; then
-  {
-    echo ""
-    echo "# Flatkey — Claude Code proxy"
-    echo "export FLATKEY_API_KEY=\"$API_KEY\""
-    echo "export ANTHROPIC_BASE_URL=\"https://router.flatkey.ai\""
-    echo "export ANTHROPIC_AUTH_TOKEN=\"$API_KEY\""
-    echo "export ANTHROPIC_API_KEY=\"\""
-    echo "# End Flatkey — Claude Code proxy"
-  } >> "$RC_FILE"
-else
-  {
-    echo ""
-    echo "# Flatkey — Codex CLI proxy"
-    echo "export FLATKEY_API_KEY=\"$API_KEY\""
-    echo "# End Flatkey — Codex CLI proxy"
-  } >> "$RC_FILE"
-fi
+mkdir -p "$FLATKEY_CONFIG_DIR"
+chmod 700 "$FLATKEY_CONFIG_DIR"
+umask 077
 
 if [ "$AGENT" = "claude" ]; then
-FLATKEY_API_KEY="$API_KEY" FLATKEY_BASE_URL="$BASE_URL" node <<'NODE'
-const fs = require('fs');
-const path = require('path');
-const dir = path.join(process.env.HOME, '.claude');
-const file = path.join(dir, 'settings.json');
-fs.mkdirSync(dir, { recursive: true });
-let settings = {};
-try { settings = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-settings.env = {
-  ...(settings.env || {}),
-  FLATKEY_API_KEY: process.env.FLATKEY_API_KEY,
-  ANTHROPIC_BASE_URL: process.env.FLATKEY_BASE_URL,
-  ANTHROPIC_AUTH_TOKEN: process.env.FLATKEY_API_KEY,
-  ANTHROPIC_API_KEY: ''
-};
-fs.writeFileSync(file, `${JSON.stringify(settings, null, 2)}\n`);
-NODE
+  {
+    printf 'export FLATKEY_API_KEY=%q\n' "$API_KEY"
+    printf 'export ANTHROPIC_BASE_URL=%q\n' "$BASE_URL"
+    echo 'export ANTHROPIC_AUTH_TOKEN="$FLATKEY_API_KEY"'
+    echo 'export ANTHROPIC_API_KEY=""'
+  } > "$FLATKEY_ENV_FILE"
 else
+  {
+    printf 'export FLATKEY_API_KEY=%q\n' "$API_KEY"
+  } > "$FLATKEY_ENV_FILE"
+fi
+chmod 600 "$FLATKEY_ENV_FILE"
+unset API_KEY
+
+{
+  echo ""
+  echo "# Flatkey environment"
+  echo 'if [ -f "$HOME/.config/flatkey/env" ]; then . "$HOME/.config/flatkey/env"; fi'
+  echo "# End Flatkey environment"
+} >> "$RC_FILE"
+
+if [ "$AGENT" = "codex" ]; then
   mkdir -p "$HOME/.codex"
-  cat > "$HOME/.codex/config.toml" <<EOF
+  cat > "$HOME/.codex/flatkey.config.toml" <<EOF
 model_provider = "flatkey"
 model = "gpt-5.5"
 
@@ -126,6 +140,7 @@ model = "gpt-5.5"
 name = "Flatkey"
 base_url = "https://router.flatkey.ai/v1"
 env_key = "FLATKEY_API_KEY"
+wire_api = "responses"
 EOF
 fi
 
@@ -134,5 +149,5 @@ echo -e "${GREEN}Done.${NC} Restart your terminal or run: source $RC_FILE"
 if [ "$AGENT" = "claude" ]; then
   echo "Start Claude Code with: claude"
 else
-  echo "Start Codex CLI with: codex"
+  echo "Start Codex CLI with: codex -p flatkey"
 fi

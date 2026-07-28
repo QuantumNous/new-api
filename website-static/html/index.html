@@ -1,12 +1,12 @@
 <!doctype html><html lang="en-US"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>flatkey — More AI, Less Cost. Every official model, one key.</title>
+<title>flatkey — One key. More models. More tools. Lower costs.</title>
 <link rel="icon" type="image/png" sizes="64x64" href="assets/favicon-64.png?v=3">
 <link rel="icon" type="image/svg+xml" href="assets/flatkey-mark.svg?v=4">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="fk2.css?v=728b"><style>
+<link rel="stylesheet" href="fk2.css?v=726d"><style>
 /* ---------- hero ---------- */
 .hero{background:linear-gradient(180deg,#FFFFFF 0%,#F7F5FD 100%);border-bottom:1px solid var(--line)}
 .heroGrid{max-width:1240px;margin:0 auto;padding:56px 40px 52px;display:grid;grid-template-columns:minmax(0,1fr) 560px;gap:48px;align-items:start}
@@ -100,6 +100,131 @@ p.d{font-size:17.5px;line-height:1.65;color:#C9C9CF;margin-top:20px;max-width:62
 .tile span{font-family:var(--mono);font-size:10px;color:#77778A}
 .tile .pr{font-family:var(--mono);font-size:11px;color:#B7A3F0;margin-top:11px;display:block}
 @keyframes slide{to{transform:translateX(-50%)}}
+
+/* ---------- tools screens ---------- */
+:root{--tool-acid:#dff36e;--tool-violet:#7627df;--tool-ink:#111014;--tool-muted:#706a74;--tool-line:#ded7e7;--tool-soft:#faf9fb;--home-surface:#f8f6fc;--home-gradient:radial-gradient(ellipse 62% 52% at 50% 8%,rgba(124,58,237,.18),transparent 72%),linear-gradient(135deg,#fbfaff 0 56%,#f0e8ff 56% 100%)}
+body{font-family:var(--sans);background:var(--home-surface)}
+button,input,select,textarea{font-family:var(--sans)}
+h1,h2,h3,h4,h5,h6{font-family:var(--disp)}
+body:has(> header.hero.heroUnified)>header.hero.heroUnified,.tools-intro,.tool-universe{background:var(--home-gradient)}
+.tools-intro{position:relative;min-height:100svh;overflow:hidden;border-bottom:1px solid var(--tool-line)}
+.tools-intro:before{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(to right,rgba(124,58,237,.065) 1px,transparent 1px),linear-gradient(to bottom,rgba(124,58,237,.065) 1px,transparent 1px);background-size:72px 72px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.78),transparent 88%)}
+.tools-intro:after{display:none}
+.tools-intro-inner{position:relative;z-index:2;max-width:1440px;min-height:inherit;margin:0 auto;padding:92px 64px 70px;display:grid;grid-template-columns:minmax(0,.94fr) minmax(520px,1.06fr);gap:76px;align-items:center}
+.tools-kicker{display:flex;align-items:center;gap:13px;color:#4d49ff;font:500 12px/1.4 "JetBrains Mono",monospace;letter-spacing:.04em}
+.tools-kicker:before{content:"";width:28px;height:2px;background:#706aff}
+.tools-title{margin:27px 0 0;max-width:700px;font-family:var(--disp);font-size:clamp(58px,6vw,94px);line-height:1.02;font-weight:700;letter-spacing:-.065em}
+.tools-title-line{white-space:nowrap}
+.tools-copy{max-width:690px;margin:30px 0 0;color:#615b64;font-size:18px;line-height:1.7}
+.agent-label{display:flex;align-items:center;gap:8px;margin-top:30px;font-size:12px;font-weight:700}
+.agent-marks{display:flex;margin-left:auto;gap:5px}
+.agent-mark{width:25px;height:25px;border-radius:7px;display:grid;place-items:center;color:#fff;font:700 10px/1 "JetBrains Mono",monospace}
+.agent-mark.openai{background:#4e4652}.agent-mark.claude{background:#dc866c}.agent-mark.codex{background:#111}.agent-mark.more{width:auto;padding:0 8px;background:#f0edf2;color:#78717c}
+.agent-command{width:100%;display:flex;align-items:center;gap:14px;min-height:76px;margin-top:14px;padding:12px 18px 12px 24px;border:0;border-radius:14px;background:#0d0d10;color:#eee;text-align:left;font:500 13px/1.5 "JetBrains Mono",monospace;box-shadow:0 26px 60px -34px #000;cursor:pointer;transition:scale .15s cubic-bezier(0,0,.2,1),background-color .15s cubic-bezier(0,0,.2,1),box-shadow .15s cubic-bezier(0,0,.2,1)}
+.agent-command:hover{background:#141416;box-shadow:0 0 0 1px rgba(255,255,255,.12),0 26px 60px -34px #000}
+.agent-command:active{scale:.96}
+.agent-command .prompt{color:#827b87}
+.agent-command code{flex:1;white-space:normal}
+.copy-state{min-width:72px;flex:none;display:flex;align-items:center;justify-content:flex-end;gap:8px;color:#aaa4ae;font-size:10px}
+.copy-icon-wrap{position:relative;width:20px;height:20px;display:grid;place-items:center}
+.copy-icon-wrap svg{position:absolute;width:16px;height:16px;transition:opacity .3s cubic-bezier(.2,0,0,1),scale .3s cubic-bezier(.2,0,0,1),filter .3s cubic-bezier(.2,0,0,1),color .3s cubic-bezier(.2,0,0,1)}
+.copy-icon{color:#88818d;opacity:1;scale:1;filter:blur(0)}
+.check-icon{color:#4ade80;opacity:0;scale:.25;filter:blur(4px)}
+.agent-command:hover .copy-icon{color:#d4ced7}
+.agent-command.copied .copy-icon{opacity:0;scale:.25;filter:blur(4px)}
+.agent-command.copied .check-icon{opacity:1;scale:1;filter:blur(0)}
+.copy-label{min-width:38px;text-align:right}
+.copy-toast{position:fixed;z-index:120;left:50%;bottom:24px;display:flex;align-items:center;gap:10px;min-width:260px;max-width:calc(100vw - 32px);padding:13px 16px;border:1px solid #302d34;border-radius:11px;background:#111;color:#fff;box-shadow:0 22px 55px -28px #000;opacity:0;transform:translate(-50%,18px);pointer-events:none;transition:opacity .2s ease,transform .25s cubic-bezier(.2,0,0,1);font:500 11px/1.35 "JetBrains Mono",monospace}
+.copy-toast.show{opacity:1;transform:translate(-50%,0)}
+.copy-toast.error{border-color:#7b2e32;background:#2b1113}
+.copy-toast-icon{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#dff36e;color:#111;font-size:12px;font-weight:800}
+.copy-toast.error .copy-toast-icon{background:#ff8e94}
+.agent-note{margin-top:13px;color:#99929d;font:400 10px/1.5 "JetBrains Mono",monospace}
+.agent-links{display:flex;gap:34px;margin-top:30px;color:#4b454e;font-size:13px;font-weight:600}
+.terminal{position:relative;border:1px solid #dadfe8;border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 36px 90px -48px rgba(37,21,54,.45);overflow:hidden}
+.terminal-head{height:58px;display:flex;align-items:center;gap:9px;padding:0 18px;background:#f4f7fa;color:#708096;font:500 11px/1 "JetBrains Mono",monospace}
+.terminal-dot{width:11px;height:11px;border-radius:50%}.terminal-dot.red{background:#ff675f}.terminal-dot.yellow{background:#ffbd2e}.terminal-dot.green{background:#29c940}
+.terminal-head span:last-child{margin-left:7px}
+.terminal-body{min-height:485px;padding:28px 29px 34px;color:#4e5c71;font:400 13px/1.72 "JetBrains Mono",monospace}
+.term-brand{display:flex;align-items:center;gap:15px;margin:6px 0 25px}
+.term-bot{width:55px;height:39px;position:relative;background:#7627df;clip-path:polygon(16% 0,40% 0,40% 18%,60% 18%,60% 0,84% 0,84% 18%,100% 18%,100% 82%,84% 82%,84% 100%,68% 100%,68% 82%,32% 82%,32% 100%,16% 100%,16% 82%,0 82%,0 18%,16% 18%)}
+.term-brand b{display:block;color:#2c3543;font-size:13px}.term-brand span{display:block;color:#7e8ba0;font-size:11px}
+.term-command{color:#354356;margin-bottom:20px}
+.term-line{margin:7px 0;color:#718097}.term-line.ok{color:#1ba850}.term-line.bill{color:#6f22cf;font-weight:600}
+.term-divider{height:1px;margin:22px 0;background:#e3e7ec}
+.term-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.term-stat{border:1px solid #e1e5eb;border-radius:10px;padding:11px}
+.term-stat small{display:block;color:#8b96a6;font-size:8px;text-transform:uppercase;letter-spacing:.08em}.term-stat b{display:block;color:#354152;font-size:13px;margin-top:5px}
+.tool-universe{position:relative;min-height:100svh;overflow:hidden;border-bottom:1px solid var(--tool-line)}
+.tool-universe:before{content:"";position:absolute;inset:0;background-image:linear-gradient(to right,rgba(124,58,237,.05) 1px,transparent 1px),linear-gradient(to bottom,rgba(124,58,237,.05) 1px,transparent 1px);background-size:72px 72px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.64),transparent 94%);pointer-events:none}
+.universe-inner{position:relative;z-index:1;max-width:1450px;margin:0 auto;padding:90px 44px 82px;text-align:center}
+.universe-title{font-family:var(--disp);font-size:clamp(46px,5vw,76px);line-height:1.03;font-weight:700;letter-spacing:-.055em}
+.universe-copy{max-width:790px;margin:20px auto 0;color:#6d6770;font-size:17px;line-height:1.65}
+.hub{position:relative;height:168px;margin-top:34px}
+.hub-core{position:absolute;z-index:3;top:8px;left:50%;transform:translateX(-50%);width:460px;padding:16px 18px 14px;border:1px solid #d8cee2;border-radius:19px;background:rgba(255,255,255,.96);box-shadow:0 28px 70px -42px rgba(65,24,98,.6),0 0 0 7px rgba(118,39,223,.035);text-align:left}
+.hub-core:before{content:"";position:absolute;width:1px;height:22px;left:50%;top:-22px;background:linear-gradient(#dcd6de,#a56ee6)}
+.hub-core:after{content:"";position:absolute;width:1px;height:34px;left:50%;bottom:-34px;background:linear-gradient(#a56ee6,#e4dfe6)}
+.hub-brand{display:flex;align-items:center;gap:12px}
+.hub-logo{width:48px;height:48px;flex:none;filter:drop-shadow(0 10px 14px rgba(109,40,217,.18))}
+.hub-brand-copy{min-width:0}
+.hub-brand-copy strong{display:block;font-size:23px;line-height:1;font-weight:800;letter-spacing:-1px}
+.hub-brand-copy span{display:block;margin-top:5px;color:#796f7e;font:500 8.5px/1.3 "JetBrains Mono",monospace;letter-spacing:.08em;text-transform:uppercase}
+.hub-live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border:1px solid #d9ecd9;border-radius:999px;background:#f3fbf3;color:#277748;font:600 8px/1 "JetBrains Mono",monospace;letter-spacing:.05em}
+.hub-live:before{content:"";width:6px;height:6px;border-radius:50%;background:#2db76b;box-shadow:0 0 0 4px rgba(45,183,107,.1)}
+.hub-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin-top:13px;border:1px solid #e7e0eb;border-radius:10px;overflow:hidden;background:#e7e0eb}
+.hub-metric{display:flex;align-items:baseline;gap:6px;justify-content:center;padding:10px 8px;background:#faf8fc}
+.hub-metric b{color:#5f1db5;font:700 13px/1 "JetBrains Mono",monospace}
+.hub-metric small{color:#827a86;font:500 7.5px/1 "JetBrains Mono",monospace;text-transform:uppercase;letter-spacing:.05em}
+.capability-map{position:relative;z-index:2;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:2px}
+.capability-row,.provider-cards{display:contents}
+.provider-card{position:relative;min-width:0;height:84px;display:flex;align-items:center;gap:12px;padding:14px 15px;border:1px solid #e2dce4;border-radius:13px;background:rgba(255,255,255,.96);text-align:left;box-shadow:0 12px 30px -29px rgba(33,19,42,.5);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.provider-card:hover{transform:translateY(-2px);border-color:#d5c8db;box-shadow:0 20px 40px -31px rgba(33,19,42,.6)}
+.provider-icon{width:38px;height:38px;flex:none;border-radius:9px;display:grid;place-items:center;background:#fff}
+.provider-icon img{display:block;width:32px;height:32px;object-fit:contain}
+.provider-icon.voc-mark{background:#111;color:#fff;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+.provider-icon.voc-mark span{margin:0;color:#fff;font:800 10px/1 "JetBrains Mono",monospace;letter-spacing:-.05em}
+.provider-card>div{min-width:0}.provider-card b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.2}.provider-card div>span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:5px;color:#8d8591;font:400 8.3px/1.3 "JetBrains Mono",monospace}
+.provider-card.more-card{overflow:hidden;border-color:#d7c9e8;background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(246,240,255,.98));color:#17131c;text-decoration:none;box-shadow:0 16px 36px -28px rgba(82,32,137,.48)}
+.provider-card.more-card:after{content:"↗";position:absolute;right:15px;top:50%;transform:translateY(-50%);color:#7340ac;font:600 15px/1 var(--mono);transition:transform .2s ease}
+.provider-card.more-card:hover{border-color:#bca0dc;box-shadow:0 21px 42px -28px rgba(82,32,137,.58)}
+.provider-card.more-card:hover:after{transform:translate(2px,-2px)}
+.more-icon{position:relative;overflow:visible;background:linear-gradient(145deg,#22172e,#7933c5);box-shadow:0 8px 20px -10px rgba(81,25,143,.72)}
+.more-icon:before,.more-icon:after,.more-icon span{content:"";position:absolute;width:13px;height:13px;border:1px solid rgba(255,255,255,.72);border-radius:4px;background:rgba(255,255,255,.14);box-shadow:0 3px 8px rgba(27,11,41,.15)}
+.more-icon:before{left:7px;top:7px}.more-icon span{left:17px;top:11px}.more-icon:after{left:11px;top:19px}
+.more-card.tools-more .more-icon{background:linear-gradient(145deg,#3b2451,#9b58e3)}
+.more-card b em{font-style:normal;color:#6c2bad}
+.tool-values{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:22px;border:1px solid #e2dce4;background:#e2dce4;border-radius:14px;overflow:hidden}
+.tool-value{background:#fff;padding:21px;text-align:left}.tool-value small{color:#6f27c4;font:600 9px/1 "JetBrains Mono",monospace;letter-spacing:.08em}.tool-value b{display:block;margin-top:15px;font-size:14px}.tool-value p{margin:7px 0 0;color:#78717b;font-size:11px;line-height:1.55}
+.tools-kicker,.agent-mark,.agent-command,.copy-toast,.agent-note,.terminal-head,.terminal-body,.hub-brand-copy span,.hub-live,.hub-metric b,.hub-metric small,.provider-icon.voc-mark span,.provider-card div>span,.tool-value small{font-family:var(--mono)}
+.rel,.why,.media,.steps,.support,.ctaWrap,.megafoot{background-color:var(--home-surface)}
+@media(max-width:1050px){
+  .tools-intro-inner{grid-template-columns:1fr;padding:78px 34px;gap:50px}
+  .tools-title{max-width:850px}
+  .terminal{max-width:780px}
+  .hub{height:164px}
+  .hub-core{top:4px}
+  .tool-values{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:700px){
+  .tools-intro-inner{padding:64px 20px}
+  .tools-title{font-size:clamp(39px,11.2vw,49px)}.tools-copy{font-size:15.5px}
+  .agent-marks{display:none}.agent-command{font-size:10px;padding:14px}.copy-label{display:none}.copy-state{min-width:24px}
+  .terminal-body{min-height:430px;padding:20px 17px;font-size:10px}
+  .term-summary{grid-template-columns:1fr}
+  .universe-inner{padding:68px 18px}
+  .universe-title{font-size:43px}.universe-copy{font-size:14px}
+  .provider-card{height:82px;padding:13px 12px}.provider-icon{width:30px;height:30px}.provider-card b{font-size:11px}
+  .capability-map{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .tool-values{grid-template-columns:1fr}
+  .hub{height:166px}
+  .hub-core{width:100%;padding:14px}
+  .hub-logo{width:42px;height:42px}
+  .hub-brand-copy strong{font-size:20px}
+  .hub-live{padding:6px 8px}
+  .hub-metric{display:block;text-align:center;padding:9px 4px}
+  .hub-metric b,.hub-metric small{display:block}
+  .hub-metric small{margin-top:5px;font-size:6.8px}
+}
 </style><!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-5T5LPLSZ');</script>
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-NKH9LPX9');</script>
@@ -119,7 +244,7 @@ p.d{font-size:17.5px;line-height:1.65;color:#C9C9CF;margin-top:20px;max-width:62
 <link rel="alternate" hreflang="x-default" href="https://flatkey.ai/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="flatkey.ai">
-<meta property="og:title" content="flatkey — More AI, Less Cost. Every official model, one key.">
+<meta property="og:title" content="flatkey — One key. More models. More tools. Lower costs.">
 <meta property="og:description" content="flatkey routes your requests to official GPT, Claude, Gemini, DeepSeek, Qwen and GLM APIs — 300+ frontier models behind one key — top-up bonus credit on every recharge, national-lab models from 60% of list, verified hourly.">
 <meta property="og:url" content="https://flatkey.ai/">
 <meta property="og:image" content="https://flatkey.ai/assets/og-image.png">
@@ -127,7 +252,7 @@ p.d{font-size:17.5px;line-height:1.65;color:#C9C9CF;margin-top:20px;max-width:62
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@flatkey101">
-<meta name="twitter:title" content="flatkey — More AI, Less Cost. Every official model, one key.">
+<meta name="twitter:title" content="flatkey — One key. More models. More tools. Lower costs.">
 <meta name="twitter:description" content="flatkey routes your requests to official GPT, Claude, Gemini, DeepSeek, Qwen and GLM APIs — 300+ frontier models behind one key — top-up bonus credit on every recharge, national-lab models from 60% of list, verified hourly.">
 <meta name="twitter:image" content="https://flatkey.ai/assets/og-image.png">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Organization", "name": "flatkey.ai", "url": "https://flatkey.ai/", "logo": "https://flatkey.ai/assets/flatkey-mark.svg?v=4", "sameAs": ["https://x.com/flatkey101", "https://discord.gg/VrbZFDXj5g", "https://www.linkedin.com/company/flatkey/"], "contactPoint": {"@type": "ContactPoint", "email": "support@flatkey.ai", "contactType": "customer support"}}</script>
@@ -138,7 +263,7 @@ p.d{font-size:17.5px;line-height:1.65;color:#C9C9CF;margin-top:20px;max-width:62
 
 <nav class="nav pricing-nav">
   <a class="logo" href="/"><img src="assets/flatkey-mark.svg?v=4" alt="flatkey">flatkey</a>
-  <a href="/models">Models</a><a href="/cli" data-i18n="nav.cli" data-orig="CLI">CLI</a><a href="https://docs.flatkey.ai/" target="_blank" rel="noopener noreferrer">Docs</a><a href="/playground">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing">Pricing</a><a href="/compute">Compute</a><a href="/usecases">Use cases</a><a href="/status">Status</a>
+  <a href="/models">Models</a><a href="#screen-three">Tools</a><a href="/cli" data-i18n="nav.cli">CLI</a><a href="https://docs.flatkey.ai/" target="_blank" rel="noopener noreferrer">Docs</a><a href="/playground">Playground</a><a href="/models#leaderboard">Rankings</a><a href="/pricing">Pricing</a><a href="/compute">Compute</a><a href="/usecases">Use cases</a><a href="/status">Status</a>
   <div class="sp"></div>
   <a href="/login">Sign in</a>
   <a class="btn white" href="/contact">Contact sales</a>
@@ -149,16 +274,139 @@ p.d{font-size:17.5px;line-height:1.65;color:#C9C9CF;margin-top:20px;max-width:62
 <div class="pxgrid" data-seed="11" data-cell="22" data-cols="16" data-rows="3" data-n="15" style="top:0;right:30px"></div>
   <div class="heroGrid">
     <div class="heroCopy">
-      <span class="eyebrow" data-i18n="hero.eyebrow">300+ OFFICIAL MODELS · ALL MAJOR API PROTOCOLS</span>
-      <h1 class="display" data-i18n="hero.h1">One key.<br><span class="price">More AI, less cost.</span></h1>
-      <p class="sub" data-i18n="hero.sub">One key for the official APIs of GPT, Claude, Seedance, DeepSeek, Kimi, GLM, Gemini, and more — plus compute to deploy open-source models, with prices as low as 50% of official.</p>
+      <span class="eyebrow" data-i18n="hero.eyebrow">300+ OFFICIAL MODELS · 1,000+ AI TOOLS</span>
+      <h1 class="display" data-i18n="hero.h1">One key.<br><span class="price">More models.<span class="toolLine"> More tools.</span><span class="costLine">Lower costs.</span></span></h1>
+      <p class="sub" data-i18n="hero.sub">One balance across 300+ official models and 1,000+ pay-per-call tools. No idle seats, duplicate contracts, or scattered provider keys.</p>
       <div class="heroCtas">
         <a class="btn big heroPrimary" href="/login" data-i18n="hero.cta1">Get API Key</a>
         <a class="btn big heroSecondary" href="/models" data-i18n="hero.cta2">Explore Models</a>
       </div>
     </div>
+    <div class="heroSavings" aria-label="Flatkey replaces separate AI subscriptions">
+      <div class="saveRow"><s data-i18n="hero.save1">Model subscriptions</s><small>$20–200 / seat</small></div>
+      <div class="saveRow"><s data-i18n="hero.save2">Data tool subscriptions</s><small>$49–500 / month</small></div>
+      <div class="saveRow"><s data-i18n="hero.save3">Automation subscriptions</s><small>$20–250 / month</small></div>
+      <div class="balanceCard"><span data-i18n="hero.balance">FLATKEY BALANCE</span><strong data-i18n="hero.pay">Pay per successful call.</strong><p data-i18n="hero.invoice">Every model. Every tool. One invoice.</p></div>
+    </div>
   </div>
 </header>
+
+<section class="tools-intro" id="screen-two">
+  <div class="tools-intro-inner">
+    <div>
+      <div class="tools-kicker">SDK · CLI · API · 1,000+ TOOLS</div>
+      <h2 class="tools-title"><span class="tools-title-line">One key, one bill,</span><br>1,000+ tools.</h2>
+      <p class="tools-copy">Build with Claude Code, Codex, OpenClaw, or any app. Flatkey runs search, browsers, enrichment, media generation, and actions through one balance—then bills only successful calls.</p>
+      <div class="agent-label">Give this to your agent<div class="agent-marks"><span class="agent-mark openai">AI</span><span class="agent-mark claude">C</span><span class="agent-mark codex">⌘</span><span class="agent-mark more">+ more</span></div></div>
+      <button class="agent-command" id="copy-flatkey-setup" type="button" data-action="copy-flatkey-setup" aria-label="Copy Flatkey setup prompt" data-copy="Set up Flatkey from https://flatkey.ai/SKILL.md">
+        <span class="prompt" aria-hidden="true">&gt;</span>
+        <code>Set up Flatkey from https://flatkey.ai/SKILL.md</code>
+        <span class="copy-state" aria-hidden="true">
+          <span class="copy-label">Copy</span>
+          <span class="copy-icon-wrap">
+            <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          </span>
+        </span>
+        <span class="copy-announcement" aria-live="polite" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0"></span>
+      </button>
+      <div class="agent-note">No new seat. No separate provider keys. Every model and tool call lands on the same ledger.</div>
+      <div class="agent-links"><a href="#screen-three">Explore tools →</a><a href="https://docs.flatkey.ai/" target="_blank" rel="noopener noreferrer">Read the docs</a></div>
+    </div>
+    <div class="terminal">
+      <div class="terminal-head"><i class="terminal-dot red"></i><i class="terminal-dot yellow"></i><i class="terminal-dot green"></i><span>Flatkey Tools · agent run</span></div>
+      <div class="terminal-body">
+        <div class="term-brand"><div class="term-bot"></div><div><b>flatkey tools</b><span>one key · models + tools</span></div></div>
+        <div class="term-command">❯ Find 14 competitors, research their launches, identify decision makers, waterfall-enrich contacts, and prepare a sourced GTM brief.</div>
+        <div class="term-line">→ 14 competitors found via live web search</div>
+        <div class="term-line">→ 4,857 public signals scanned across 349 sources</div>
+        <div class="term-line ok">✓ 489 contacts waterfall enriched across 5 providers</div>
+        <div class="term-line ok">✓ 5 persona briefs generated with citations</div>
+        <div class="term-line bill">✓ $0.83 billed · failed calls $0.00</div>
+        <div class="term-divider"></div>
+        <div class="term-summary">
+          <div class="term-stat"><small>Successful tools</small><b>23 / 23</b></div>
+          <div class="term-stat"><small>Total runtime</small><b>18.4 sec</b></div>
+          <div class="term-stat"><small>One invoice</small><b>$0.83</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tool-universe" id="screen-three">
+  <div class="universe-inner">
+    <div class="tools-kicker" style="justify-content:center">300+ MODELS · 1,000+ TOOLS</div>
+    <h2 class="universe-title" style="margin-top:20px">Every model. Every tool.<br>One key.</h2>
+    <p class="universe-copy">Use one Flatkey interface for leading AI models, social platforms, web data, crawlers, GTM intelligence, and more.</p>
+    <div class="hub" aria-hidden="true">
+      <div class="hub-core">
+        <div class="hub-brand">
+          <img class="hub-logo" src="assets/flatkey-mark.svg?v=4" alt="">
+          <div class="hub-brand-copy"><strong>flatkey</strong><span>Unified model + tool router</span></div>
+          <span class="hub-live">ROUTING LIVE</span>
+        </div>
+        <div class="hub-metrics">
+          <span class="hub-metric"><b>300+</b><small>official models</small></span>
+          <span class="hub-metric"><b>1,000+</b><small>AI tools</small></span>
+          <span class="hub-metric"><b>1</b><small>shared balance</small></span>
+        </div>
+      </div>
+    </div>
+    <div class="capability-map">
+      <div class="capability-row models" data-section="models">
+        <div class="provider-cards">
+          <article class="provider-card"><i class="provider-icon"><img src="assets/logos/claude.svg" alt="Claude"></i><div><b>Claude</b><span>reasoning + coding</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/logos/openai.svg" alt="OpenAI"></i><div><b>GPT</b><span>language + multimodal</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/logos/bytedance.svg" alt="ByteDance"></i><div><b>Seedance 2.0</b><span>video generation</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/logos/zai.svg" alt="Z.ai"></i><div><b>GLM 5.2</b><span>reasoning + agents</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/logos/moonshotai.svg" alt="Moonshot AI"></i><div><b>Kimi</b><span>long context + agents</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/logos/googlegemini.svg" alt="Google Gemini"></i><div><b>Gemini</b><span>multimodal intelligence</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/logos/minimax.svg" alt="MiniMax"></i><div><b>MiniMax</b><span>image + music</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/logos/deepseek.svg" alt="DeepSeek"></i><div><b>DeepSeek</b><span>reasoning + coding</span></div></article>
+        </div>
+      </div>
+      <div class="capability-row social" data-section="social">
+        <div class="provider-cards">
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/x.svg" alt="X"></i><div><b>X / Twitter</b><span>posts + profiles</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/linkedin.svg" alt="LinkedIn"></i><div><b>LinkedIn</b><span>people + companies</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/tiktok.svg" alt="TikTok"></i><div><b>TikTok</b><span>videos + trends</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/instagram.svg" alt="Instagram"></i><div><b>Instagram</b><span>posts + creators</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/youtube.svg" alt="YouTube"></i><div><b>YouTube</b><span>videos + transcripts</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/reddit.svg" alt="Reddit"></i><div><b>Reddit</b><span>communities + intent</span></div></article>
+        </div>
+      </div>
+      <div class="capability-row crawl" data-section="crawl">
+        <div class="provider-cards">
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/apify.png" alt="Apify"></i><div><b>Apify</b><span>actors + crawlers</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/browserbase.png" alt="Browserbase"></i><div><b>Browserbase</b><span>browser automation</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/exa.png" alt="Exa"></i><div><b>Exa</b><span>neural web search</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/google.png" alt="Google"></i><div><b>Google Reviews</b><span>local review data</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/amazon.svg" alt="Amazon"></i><div><b>Amazon</b><span>products + reviews</span></div></article>
+          <article class="provider-card"><i class="provider-icon voc-mark"><span>VOC</span></i><div><b>VOC AI</b><span>voice of customer</span></div></article>
+        </div>
+      </div>
+      <div class="capability-row gtm" data-section="gtm">
+        <div class="provider-cards">
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/apollo.svg" alt="Apollo"></i><div><b>Apollo</b><span>sales intelligence</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/pdl.png" alt="People Data Labs"></i><div><b>People Data Labs</b><span>people enrichment</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/semrush.svg" alt="Semrush"></i><div><b>Semrush</b><span>search intelligence</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/wokelo.png" alt="Wokelo"></i><div><b>Wokelo</b><span>private markets</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/saperly.png" alt="Saperly"></i><div><b>Saperly</b><span>agent phone</span></div></article>
+          <article class="provider-card"><i class="provider-icon"><img src="assets/tools/openweather.svg" alt="OpenWeather"></i><div><b>OpenWeather</b><span>real-time signals</span></div></article>
+          <a class="provider-card more-card models-more" href="/models" aria-label="Explore more than 300 official AI models"><i class="provider-icon more-icon" aria-hidden="true"><span></span></i><div><b><em>More</em> models</b><span>300+ official models</span></div></a>
+          <a class="provider-card more-card tools-more" href="https://docs.flatkey.ai/" target="_blank" rel="noopener noreferrer" aria-label="Explore more than 1,000 AI tools"><i class="provider-icon more-icon" aria-hidden="true"><span></span></i><div><b><em>More</em> tools</b><span>1,000+ available</span></div></a>
+        </div>
+      </div>
+    </div>
+    <div class="tool-values">
+      <article class="tool-value"><small>ONE AUTH</small><b>One Flatkey key</b><p>No provider credentials scattered across agents, repos, and environments.</p></article>
+      <article class="tool-value"><small>ONE CONTRACT</small><b>Normalized calls and results</b><p>Consistent schemas, error envelopes, request IDs, and usage records.</p></article>
+      <article class="tool-value"><small>ONE POLICY</small><b>Budgets and allowlists</b><p>Control which agents can call which tools and how much they may spend.</p></article>
+      <article class="tool-value"><small>ONE BILL</small><b>Pay for successful work</b><p>Models and tools share one balance; failed Flatkey-side calls cost nothing.</p></article>
+    </div>
+  </div>
+</section>
 
 <section class="rel" id="reliability">
 <div class="pxgrid" data-seed="139" data-cell="18" data-cols="8" data-rows="3" data-n="9" style="top:20px;right:38px"></div>
@@ -215,13 +463,14 @@ p.d{font-size:17.5px;line-height:1.65;color:#C9C9CF;margin-top:20px;max-width:62
         </div>
       </div>
       <div class="wcard dark">
-        <h3 data-i18n="why.c3h">One SDK, every modality</h3>
-        <p data-i18n="why.c3p">Text, video, audio and image behind the same OpenAI-compatible gateway — and an Anthropic-shaped API for Claude Code.</p>
-        <pre class="wcode">client = OpenAI(
-  base_url=<span>"https://router.flatkey.ai/v1"</span>)
-client.chat.completions.create(
-  model=<span>"doubao/doubao-seedance-2-0-260128"</span>,
-  messages=[…])  <em># video, same SDK</em></pre>
+        <h3 data-i18n="why.c3h">CLI-native. Powered by SKILL.md.</h3>
+        <p data-i18n="why.c3p">Point Codex, Claude Code, OpenClaw, or any agent CLI at Flatkey’s SKILL.md. It learns how to discover and call 300+ official models and 1,000+ pay-per-call tools with one key.</p>
+        <pre class="wcode"><span>$</span> codex <em>"Set up Flatkey from</em>
+  <em>https://flatkey.ai/SKILL.md"</em>
+
+<span>✓</span> 300+ official models connected
+<span>✓</span> 1,000+ tools discovered
+<span>✓</span> one key · one balance</pre>
       </div>
       <div class="wcard">
         <h3 data-i18n="why.c4h">Enterprise-grade governance</h3>
@@ -232,28 +481,6 @@ client.chat.completions.create(
       </div>
     </div>
   </div>
-</section>
-
-<section class="v" id="trust">
-  <div class="pxgrid" data-seed="41" data-cell="24" data-cols="12" data-rows="6" data-n="20" data-colors="#7C3AED66,#8B5CF64D,#A78BFA59" data-accent="#22C55E" style="right:34px;top:48px;z-index:1"></div>
-  <div class="bgv"><div class="radar"><i></i><i></i><i></i><i></i><div class="sweep"></div>
-    <div class="blip" style="left:32%;top:38%"></div><div class="blip" style="left:58%;top:26%;animation-delay:.7s"></div><div class="blip" style="left:47%;top:62%;animation-delay:1.3s"></div><div class="blip" style="left:70%;top:52%;animation-delay:.4s"></div>
-  </div></div>
-  <div class="shade"></div>
-  <div class="in">
-    <div class="kick" data-i18n="trust.kick">TRUST · HOURLY MODEL-AUTHENTICITY PROBES</div>
-    <h2 class="big" data-i18n="trust.h2">0 model swaps. <em>Ever.</em><br>And we prove it.</h2>
-    <p class="d" data-i18n="trust.p">Every hour, every model is probed against its official API fingerprint — logits, tokenizer, refusal shape. The log is public. Cheap gateways ask for trust; flatkey shows receipts.</p>
-    <div class="rows">
-      <div><span class="t">14:00</span><b>claude-opus-4-8</b> fingerprint ✓ · official anthropic · 388ms<span class="ok">PASS</span></div>
-      <div><span class="t">LIVE</span><b>claude-opus-5</b> fingerprint ✓ · official anthropic<span class="ok">PASS</span></div>
-      <div><span class="t">14:00</span><b>gpt-5.5</b> fingerprint ✓ · official openai · 412ms<span class="ok">PASS</span></div>
-      <div><span class="t">14:00</span><b>glm-5.2</b> fingerprint ✓ · official zhipu · 241ms<span class="ok">PASS</span></div>
-      <div><span class="t">14:00</span><b>seedance-2.0</b> fingerprint ✓ · official bytedance · video<span class="ok">PASS</span></div>
-      <div><span class="t">13:00</span>300+ models probed hourly · 30-day log public<span class="ok">PASS</span></div>
-    </div>
-  </div>
-  <div class="vtag"><span class="p">▶</span>BACKGROUND VIDEO · hourly-probe radar · 12s loop</div>
 </section>
 
 <section class="v" id="compliance">
@@ -334,61 +561,6 @@ client.chat.completions.create(
   </div>
   </section>
 
-<section class="media alt" id="audio">
-<div class="pxgrid" data-seed="107" data-cell="20" data-cols="9" data-rows="3" data-n="10" style="bottom:16px;left:36px"></div>
-  <div class="mediaIn">
-    <div class="kick2" data-i18n="aud.kick">AUDIO MODELS · VOICE IN, VOICE OUT</div>
-    <h2 class="display" data-i18n="aud.h2">Speech, on the record too.</h2>
-    <p class="sub" style="margin-top:12px;max-width:620px" data-i18n="aud.sub">Realtime voice, TTS and transcription from the official labs — same key, same ledger, priced per minute or per million characters.</p>
-    <div class="mgrid five">
-      <div class="mcard"><b>gpt-realtime</b><span>openai · speech ⇄ speech</span><i><span data-i18n="md.soon">Coming soon</span></i></div>
-      <div class="mcard"><b>whisper-v4</b><span>openai · transcription</span><i><span data-i18n="md.soon">Coming soon</span></i></div>
-      <div class="mcard"><b>elevenlabs-v3-turbo</b><span>elevenlabs · tts</span><i><span data-i18n="md.soon">Coming soon</span></i></div>
-      <div class="mcard"><b>minimax-speech-2.6</b><span>minimax · tts</span><i><span data-i18n="md.soon">Coming soon</span></i></div>
-      <div class="mcard"><b>cosyvoice-3</b><span>alibaba · tts</span><i><span data-i18n="md.soon">Coming soon</span></i></div>
-      <div class="mcard"><b>seed-tts-2</b><span>bytedance · tts</span><i><span data-i18n="md.soon">Coming soon</span></i></div>
-      <div class="mcard"><b>gemini-2.5-flash-tts</b><span>google · tts</span><i>$0.50/M in · $10/M out</i></div>
-      <div class="mcard more"><a href="/models" data-i18n="aud.more">+ 12 more audio models →</a></div>
-    </div>
-  </div>
-</section>
-
-
-<section class="loved" id="customers">
-<div class="pxgrid" data-seed="127" data-cell="18" data-cols="8" data-rows="3" data-n="9" style="top:26px;right:40px"></div>
-  <div class="lovedIn">
-    <div class="tcard t1">
-      <div class="tlogo">Anker</div>
-      <p>“We route support and product-copy workloads across GPT and Claude through one flatkey balance. Same SDK we already had — roughly half the bill.”</p>
-      <div class="twho"><span class="av" style="background:linear-gradient(135deg,#0EA5E9,#1D4ED8)">A</span><span class="who2"><b>AI Platform Team</b><span>Anker Innovations</span></span></div>
-    </div>
-    <div class="tcard t2">
-      <div class="tlogo">Lockin</div>
-      <p>“The hourly authenticity probes ended the &lsquo;is this the real model?&rsquo; debate. Procurement gets one invoice; engineers get official endpoints.”</p>
-      <div class="twho"><span class="av" style="background:linear-gradient(135deg,#F59E0B,#B45309)">L</span><span class="who2"><b>Smart-Home AI Lead</b><span>Lockin</span></span></div>
-    </div>
-    <h2 class="lovedH" data-i18n="lov.h2">Built on flatkey,<br>loved by builders.</h2>
-    <div class="tcard t3">
-      <div class="tlogo">iHealth</div>
-      <p>“Compliance was the blocker until flatkey: zero retention of request content, SOC 2 controls, and a per-request ledger. Our health-data reviews finally pass — and the bill dropped 47% in the first month.”</p>
-      <div class="twho"><span class="av" style="background:linear-gradient(135deg,#10B981,#047857)">iH</span><span class="who2"><b>Data &amp; AI Lead</b><span>iHealth Labs</span></span></div>
-    </div>
-  </div>
-</section>
-
-<section class="steps" id="how">
-<div class="pxgrid" data-seed="59" data-cell="18" data-cols="8" data-rows="3" data-n="9" style="top:24px;right:40px"></div>
-  <div class="stepsIn">
-    <div class="kick2" data-i18n="steps.kick">HOW IT FITS TOGETHER</div>
-    <h2 class="display" data-i18n="steps.h2">From homepage to production calls.</h2>
-    <div class="stepGrid">
-      <div><span class="n num">1</span><h3 data-i18n="steps.h31">Get one key</h3><p data-i18n="steps.p1">Create a flatkey account, open the console, and generate an API key for your app.</p></div>
-      <div><span class="n num">2</span><h3 data-i18n="steps.h32">Change the base URL</h3><p data-i18n="steps.p2">Point your existing SDK — OpenAI or Anthropic protocol, GPT, Claude, Gemini alike — at <code>router.flatkey.ai</code>. Nothing else changes.</p></div>
-      <div><span class="n num">3</span><h3 data-i18n="steps.h33">Monitor and optimize</h3><p data-i18n="steps.p3">Review usage, cost, routing and errors from the same dashboard — per model, per token, per request.</p></div>
-    </div>
-  </div>
-</section>
-
 <section class="support" id="support">
 <div class="pxgrid" data-seed="97" data-cell="18" data-cols="7" data-rows="3" data-n="8" style="bottom:20px;left:40px"></div>
   <div class="supportIn">
@@ -431,7 +603,7 @@ client.chat.completions.create(
       <p data-i18n="ft.brand">The official-model gateway. More AI, less cost — every frontier model behind one key, verified hourly.</p>
     </div>
     <div class="col"><h5 data-i18n="ft.product">Product</h5><a href="/models">Models</a><a href="/playground">Playground</a><a href="/rankings">Rankings</a><a href="/pricing">Pricing</a><a href="/compute">Compute</a><a href="/usecases">Use cases</a><a href="https://console.flatkey.ai/dashboard" data-i18n="ft.console">Console ↗</a></div>
-    <div class="col"><h5 data-i18n="ft.dev">Developers</h5><a href="/cli" data-i18n="nav.cli" data-orig="CLI">CLI</a><a href="/docs">Docs</a><a href="/docs#community">gateway-bench</a><a href="/status">API status</a><a href="https://docs.flatkey.ai/llms.txt">llms.txt</a><a href="/blog">Blog ↗</a></div>
+    <div class="col"><h5 data-i18n="ft.dev">Developers</h5><a href="/cli" data-i18n="nav.cli">CLI</a><a href="/docs">Docs</a><a href="/docs#community">gateway-bench</a><a href="/status">API status</a><a href="https://docs.flatkey.ai/llms.txt">llms.txt</a><a href="/blog">Blog ↗</a></div>
     <div class="col"><h5 data-i18n="ft.company">Company</h5><a href="/careers" data-i18n="ft.careers">Careers</a><a href="/contact" data-i18n="ft.contact">Contact us</a><a href="/about" data-i18n="ft.about">About</a><a href="/terms" data-i18n="ft.terms">Terms of Service</a><a href="/privacy" data-i18n="ft.privacy">Privacy Policy</a><a href="/sla" data-i18n="ft.sla">Service Level Agreement</a><a href="/refund-policy" data-i18n="ft.refund">Refund Policy</a></div>
     <div class="col"><h5 data-i18n="ft.social">Socials</h5><a href="https://x.com/flatkey101">X @flatkey101</a><a href="mailto:support@flatkey.ai">support@flatkey.ai</a><a href="/docs#community">GitHub</a><a href="https://www.linkedin.com/company/flatkey/">LinkedIn</a><a href="https://discord.gg/VrbZFDXj5g">Discord</a></div>
   </div>
@@ -448,8 +620,66 @@ client.chat.completions.create(
   </div>
 </footer>
 <div class="stripe"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><i class="s5"></i></div>
+<div class="copy-toast" id="copy-toast" role="status" aria-live="polite"><span class="copy-toast-icon">✓</span><span class="copy-toast-message">Setup prompt copied to clipboard</span></div>
+<script>
+(function(){
+  const setupCopyButton=document.querySelector("#copy-flatkey-setup");
+  const copyToast=document.querySelector("#copy-toast");
+  if(!setupCopyButton||!copyToast)return;
+  let copyResetTimer;
+  let copyToastTimer;
+  function showCopyToast(message,isError){
+    copyToast.querySelector(".copy-toast-icon").textContent=isError?"!":"✓";
+    copyToast.querySelector(".copy-toast-message").textContent=message;
+    copyToast.classList.toggle("error",Boolean(isError));
+    copyToast.classList.add("show");
+    clearTimeout(copyToastTimer);
+    copyToastTimer=setTimeout(function(){copyToast.classList.remove("show")},2400);
+  }
+  async function writeClipboardText(text){
+    if(navigator.clipboard&&typeof navigator.clipboard.writeText==="function"){
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const textarea=document.createElement("textarea");
+    textarea.value=text;
+    textarea.setAttribute("readonly","");
+    textarea.style.position="fixed";
+    textarea.style.left="-9999px";
+    textarea.style.top="0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(0,textarea.value.length);
+    const copied=document.execCommand("copy");
+    textarea.remove();
+    if(!copied)throw new Error("Clipboard write failed");
+  }
+  async function copySetupPrompt(){
+    try{
+      await writeClipboardText(setupCopyButton.dataset.copy||"");
+      setupCopyButton.classList.add("copied");
+      setupCopyButton.querySelector(".copy-label").textContent="Copied";
+      setupCopyButton.querySelector(".copy-announcement").textContent="Copied. Paste it into your agent to start setup.";
+      showCopyToast("Setup prompt copied to clipboard",false);
+    }catch(error){
+      setupCopyButton.classList.remove("copied");
+      setupCopyButton.querySelector(".copy-label").textContent="Try again";
+      setupCopyButton.querySelector(".copy-announcement").textContent="Copy failed. Please try again.";
+      showCopyToast("Copy failed — please try again",true);
+    }
+    clearTimeout(copyResetTimer);
+    copyResetTimer=setTimeout(function(){
+      setupCopyButton.classList.remove("copied");
+      setupCopyButton.querySelector(".copy-label").textContent="Copy";
+      setupCopyButton.querySelector(".copy-announcement").textContent="";
+    },2200);
+  }
+  setupCopyButton.addEventListener("click",copySetupPrompt);
+})();
+</script>
 <script src="assets/pixels.js?v=719h"></script>
-<script src="assets/i18n.js?v=724b"></script>
+<script src="assets/i18n.js?v=726b"></script>
 <script src="assets/track.js?v=721a"></script>
 <script src="assets/site-shell.js?v=720a"></script>
 </body></html>

@@ -31,25 +31,10 @@ function tileSignatures(lane) {
   return [...lane.matchAll(/<div class="tile"[^>]*>[\s\S]*?<\/div>/g)].map((match) => match[0]);
 }
 
-function trustRows(html) {
-  const trustSection = html.match(/<section class="v" id="trust">[\s\S]*?<\/section>/)?.[0];
-  assert.ok(trustSection, "homepage must include the trust section");
-
-  const lines = trustSection.split(/\r?\n/);
-  const rowsStart = lines.findIndex((line) => line.includes('<div class="rows">'));
-  assert.notEqual(rowsStart, -1, "trust section must include a rows block");
-
-  const rowsEnd = lines.findIndex((line, index) => index > rowsStart && line.trim() === "</div>");
-  assert.notEqual(rowsEnd, -1, "trust rows block must close");
-
-  return lines.slice(rowsStart + 1, rowsEnd).map((line) => line.trim()).filter(Boolean);
-}
-
-test("localized homepages list claude-opus-5 in repeated model wall data and trust log", () => {
+test("localized homepages list claude-opus-5 in repeated model wall data without restoring the removed trust screen", () => {
   const check = "\u2713";
   const dot = "\u00b7";
   const opus5Tile = `<div class="tile"><b>claude-opus-5</b><span><i style="font-style:normal;color:var(--green)">${check} verified</i> ${dot} anthropic ${dot} 1M</span><span class="pr">$4.50/M ${dot} 90% of list</span></div>`;
-  const opus5TrustLine = `<div><span class="t">LIVE</span><b>claude-opus-5</b> fingerprint ${check} ${dot} official anthropic<span class="ok">PASS</span></div>`;
 
   for (const file of homepages) {
     const html = readHomepage(file);
@@ -73,10 +58,10 @@ test("localized homepages list claude-opus-5 in repeated model wall data and tru
       `${file} must use the approved claude-opus-5 card copy in both lane halves`,
     );
     assert.match(lane, /<b>claude-opus-4-8<\/b>/, `${file} must retain claude-opus-4-8`);
-
-    const opus5TrustRows = trustRows(html).filter((row) => row.includes("<b>claude-opus-5</b>"));
-    assert.deepEqual(opus5TrustRows, [opus5TrustLine], `${file} trust log must include exactly the approved claude-opus-5 PASS line`);
-    const trustLine = opus5TrustRows[0];
-    assert.doesNotMatch(trustLine, /\d+ms|388ms/, `${file} claude-opus-5 trust line must not claim latency`);
+    assert.doesNotMatch(
+      html,
+      /<section class="v" id="trust">/,
+      `${file} must not restore the removed standalone trust screen`,
+    );
   }
 });
