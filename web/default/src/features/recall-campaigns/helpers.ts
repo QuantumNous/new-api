@@ -266,7 +266,7 @@ export function prepareRecallCampaignSubmitDraft(
     },
     email_sequence: draft.email_sequence.map((stage) => {
       const templates = Object.fromEntries(
-        Object.entries(stage.templates)
+        Object.entries(stage.templates ?? {})
           .filter(
             ([locale, template]) =>
               locale === 'en' ||

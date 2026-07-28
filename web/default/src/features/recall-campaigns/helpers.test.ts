@@ -26,6 +26,7 @@ import {
   setRecallCampaignGroupMode,
 } from './helpers'
 import { recallCampaignDraftSchema } from './schemas'
+import { createRecallCampaignFormDraft } from './components/campaign-editor'
 import type {
   RecallCampaignDraft,
   RecallEmailStage,
@@ -447,6 +448,42 @@ describe('recall campaign editor normalization', () => {
       '<p>Corps français</p>'
     )
   })
+
+  test.each(['null', 'undefined'] as const)(
+    'treats legacy %s stage templates as empty at submit',
+    (shape) => {
+      const draft = makeValidDraft()
+      draft.email_sequence[0].templates = (
+        shape === 'null' ? null : undefined
+      ) as unknown as RecallEmailStage['templates']
+      draft.email_sequence[0].manual_locales = ['es']
+
+      const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+      expect(normalized.email_sequence[0].templates).toEqual({})
+      expect(normalized.email_sequence[0].manual_locales).toEqual([])
+    }
+  )
+
+  test.each(['null', 'undefined'] as const)(
+    'hydrates default English editor template for legacy %s stage templates',
+    (shape) => {
+      const draft = makeValidDraft()
+      draft.email_sequence[0].templates = (
+        shape === 'null' ? null : undefined
+      ) as unknown as RecallEmailStage['templates']
+
+      const hydrated = createRecallCampaignFormDraft(draft)
+
+      expect(hydrated.email_sequence[0].templates).toEqual({
+        en: {
+          subject: '',
+          body_text: '',
+          body_html: expect.stringContaining('{{.ClaimURL}}'),
+        },
+      })
+    }
+  )
 
   test('clears groups when no group filter is selected', () => {
     expect(normalizeRecallGroupsForMode(['paid', 'trial'], '')).toEqual([])
