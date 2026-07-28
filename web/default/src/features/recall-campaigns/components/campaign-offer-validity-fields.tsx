@@ -170,20 +170,24 @@ function MinimumSpendAmountInput({
   const path = `discount_config.minimum_spend.amounts.${currencyKey}` as const
   const errorID = fieldErrorID(id, error)
   const amount = useWatch({ control: form.control, name: path })
-  const { isDirty } = useFormState({ control: form.control, name: path })
+  const { defaultValues } = useFormState({ control: form.control, name: path })
   const [rawValue, setRawValue] = useState(() =>
     formatRecallMinorAmount(currency, amount ?? 0)
   )
   const lastWrittenAmountRef = useRef<number | undefined>(undefined)
+  const previousDefaultValuesRef = useRef(defaultValues)
 
   useEffect(() => {
-    if (lastWrittenAmountRef.current === amount) {
+    const defaultValuesChanged =
+      previousDefaultValuesRef.current !== defaultValues
+    previousDefaultValuesRef.current = defaultValues
+    if (!defaultValuesChanged && lastWrittenAmountRef.current === amount) {
       lastWrittenAmountRef.current = undefined
       return
     }
     lastWrittenAmountRef.current = undefined
     setRawValue(formatRecallMinorAmount(currency, amount ?? 0))
-  }, [amount, currency, isDirty])
+  }, [amount, currency, defaultValues])
 
   return (
     <div className='space-y-2'>
