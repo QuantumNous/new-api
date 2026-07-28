@@ -39,33 +39,34 @@ func appendToolSurchargeLogInfo(other map[string]interface{}, items []ToolSurcha
 }
 
 type textQuotaSummary struct {
-	PromptTokens           int
-	CompletionTokens       int
-	TotalTokens            int
-	CacheTokens            int
-	CacheCreationTokens    int
-	CacheCreationTokens5m  int
-	CacheCreationTokens1h  int
-	ImageTokens            int
-	AudioTokens            int
-	ModelName              string
-	TokenName              string
-	UseTimeSeconds         int64
-	CompletionRatio        float64
-	CacheRatio             float64
-	ImageRatio             float64
-	ModelRatio             float64
-	GroupRatio             float64
-	ModelPrice             float64
-	CacheCreationRatio     float64
-	CacheCreationRatio5m   float64
-	CacheCreationRatio1h   float64
-	Quota                  int
-	IsClaudeUsageSemantic  bool
-	UsageSemantic          string
-	AudioInputPrice        float64
-	ToolSurchargeItems     []ToolSurchargeItem
-	ToolCallSurchargeQuota decimal.Decimal
+	PromptTokens             int
+	CompletionTokens         int
+	TotalTokens              int
+	CacheTokens              int
+	CacheCreationTokens      int
+	CacheCreationTokens5m    int
+	CacheCreationTokens1h    int
+	ImageTokens              int
+	AudioTokens              int
+	ModelName                string
+	TokenName                string
+	UseTimeSeconds           int64
+	CompletionRatio          float64
+	CacheRatio               float64
+	ImageRatio               float64
+	ModelRatio               float64
+	GroupRatio               float64
+	ModelPrice               float64
+	CacheCreationRatio       float64
+	CacheCreationRatio5m     float64
+	CacheCreationRatio1h     float64
+	Quota                    int
+	IsClaudeUsageSemantic    bool
+	UsageSemantic            string
+	AudioInputPrice          float64
+	ToolSurchargeItems       []ToolSurchargeItem
+	ToolCallSurchargeQuota   decimal.Decimal
+	LegacyClaudeDerivedUsage bool
 }
 
 // hasBillableUsage reports whether this request should incur any charge.
@@ -264,6 +265,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
+	summary.LegacyClaudeDerivedUsage = legacyClaudeDerived
 	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
 		summary.IsClaudeUsageSemantic
@@ -521,6 +523,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
 
+	AttachTextSavingsEstimate(ctx, relayInfo, summary, other)
 	attachQuotaSaturation(ctx, relayInfo, other)
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{

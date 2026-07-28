@@ -18,18 +18,37 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Flame, ShieldCheck, TrendingDown } from 'lucide-react'
+import {
+  ArrowRight,
+  ArrowUpRight,
+  BadgeDollarSign,
+  Flame,
+  ShieldCheck,
+  TrendingDown,
+} from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
-import { getUserQuotaDates } from '@/features/dashboard/api'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  getUserQuotaDates,
+  getUserSavingsSummary,
+} from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
+import {
+  formatSavingsQuotaAsCNY,
+  getRollingSavingsTimeRange,
+} from '@/features/dashboard/lib/savings'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { useStatus } from '@/hooks/use-status'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
-import { formatNumber, formatQuota } from '@/lib/format'
+import { formatNumber, formatQuota, formatTimestampToDate } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -163,6 +182,13 @@ export function SummaryCards() {
     staleTime: 60 * 1000,
   })
 
+  const savingsSummaryQuery = useQuery({
+    queryKey: ['dashboard', 'overview', 'savings-summary', 'rolling-24h'],
+    queryFn: async () => getUserSavingsSummary(getRollingSavingsTimeRange()),
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+  })
+
   const summaryValues = useMemo(() => {
     return {
       usedDisplay: formatQuota(usedQuota),
@@ -211,6 +237,56 @@ export function SummaryCards() {
   const runwayDays = getRunwayDays(remainQuota, recentUsage)
 
   const todayUsageDisplay = formatQuota(recentUsage)
+  const savingsSummary = savingsSummaryQuery.data?.data
+  const savingsAmountDisplay =
+    savingsSummary == null
+      ? ''
+      : formatSavingsQuotaAsCNY(
+          savingsSummary.savings_quota,
+          Number(status?.quota_per_unit),
+          Number(status?.usd_exchange_rate)
+        )
+  const reconstructedSavingsCount =
+    savingsSummary?.reconstructed_request_count ?? 0
+  const showSavingsSummary = savingsSummary != null
+  const hasPositiveSavings =
+    savingsSummary?.enabled === true &&
+    !savingsSummary.is_partial &&
+    savingsSummary.savings_quota > 0
+  const savingsCoverageDisplay =
+    savingsSummary != null
+      ? Intl.NumberFormat(undefined, {
+          style: 'percent',
+          maximumFractionDigits: 0,
+        }).format(savingsSummary.coverage_ratio)
+      : ''
+  let savingsSummaryDescription = t('Estimated from official pricing')
+  if (savingsSummary) {
+    if (!savingsSummary.enabled) {
+      savingsSummaryDescription = t('Savings estimate is not enabled')
+    } else if (savingsSummary.is_partial) {
+      savingsSummaryDescription = t('Too many records to summarize')
+    } else if (savingsSummary.estimated_request_count === 0) {
+      savingsSummaryDescription = t('No eligible savings records yet')
+    } else {
+      savingsSummaryDescription = `${t('Estimated from official pricing')} · ${t(
+        '{{coverage}} coverage',
+        {
+          coverage: savingsCoverageDisplay,
+        }
+      )}`
+    }
+  }
+  if (
+    savingsSummary?.enabled === true &&
+    !savingsSummary.is_partial &&
+    reconstructedSavingsCount > 0
+  ) {
+    savingsSummaryDescription = `${savingsSummaryDescription} · ${t(
+      '{{count}} historical requests recalculated at current official prices',
+      { count: reconstructedSavingsCount }
+    )}`
+  }
   let runwayDisplay: string
   if (runwayDays !== null) {
     if (runwayDays < 1) {
@@ -250,7 +326,7 @@ export function SummaryCards() {
   })
 
   return (
-    <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
+    <div className='bg-card overflow-hidden rounded-lg border shadow-xs'>
       <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
         <div className='flex flex-col gap-2.5 p-3 sm:gap-3 sm:p-5'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
@@ -263,12 +339,9 @@ export function SummaryCards() {
               </p>
             </div>
           </div>
-          <StaggerContainer className='grid grid-cols-3 gap-1.5 sm:gap-3'>
+          <StaggerContainer className='divide-border grid grid-cols-3 divide-x rounded-md border'>
             {items.map((it) => (
-              <StaggerItem
-                key={it.key}
-                className='bg-background/60 rounded-lg border px-2 py-1.5 sm:rounded-xl sm:p-3'
-              >
+              <StaggerItem key={it.key} className='min-w-0 px-2 py-1.5 sm:p-3'>
                 <StatCard
                   title={it.title}
                   value={it.value}
@@ -285,7 +358,7 @@ export function SummaryCards() {
           </StaggerContainer>
         </div>
 
-        <div className='flex flex-col justify-between gap-3 border-t bg-[linear-gradient(135deg,color-mix(in_oklch,var(--overview-accent-2)_12%,var(--background))_0%,color-mix(in_oklch,oklch(0.82_0.04_155)_8%,var(--background))_48%,color-mix(in_oklch,var(--overview-accent-1)_7%,var(--background))_100%)] p-3 sm:gap-4 sm:p-5 xl:border-t-0 xl:border-l'>
+        <div className='bg-muted/40 flex flex-col justify-between gap-3 border-t p-3 sm:gap-4 sm:p-5 xl:border-t-0 xl:border-l'>
           <div className='flex flex-col gap-2 sm:gap-3'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-xs font-medium'>
@@ -307,7 +380,7 @@ export function SummaryCards() {
             </div>
 
             <div className='grid grid-cols-2 gap-2'>
-              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
+              <div className='bg-background rounded-md border px-2.5 py-2'>
                 <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
                   <Flame className='size-3 shrink-0' aria-hidden='true' />
                   <span className='truncate'>{t('Last 24h usage')}</span>
@@ -316,7 +389,7 @@ export function SummaryCards() {
                   {formatQuota(recentUsage)}
                 </div>
               </div>
-              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
+              <div className='bg-background rounded-md border px-2.5 py-2'>
                 <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
                   {runwayDays !== null && runwayDays < 3 ? (
                     <TrendingDown
@@ -342,6 +415,61 @@ export function SummaryCards() {
                 </div>
               </div>
             </div>
+
+            {showSavingsSummary && (
+              <div className='bg-background rounded-md border px-2.5 py-2'>
+                <div
+                  className={cn(
+                    'flex items-start justify-between gap-2 text-xs leading-snug font-semibold',
+                    hasPositiveSavings ? 'text-success' : 'text-foreground'
+                  )}
+                >
+                  <div className='flex min-w-0 items-center gap-1'>
+                    <BadgeDollarSign
+                      className='size-3.5 shrink-0'
+                      aria-hidden='true'
+                    />
+                    <span className='min-w-0'>
+                      {hasPositiveSavings
+                        ? t('You saved about {{amount}}', {
+                            amount: savingsAmountDisplay,
+                          })
+                        : `${t('Savings estimate')}: ${savingsAmountDisplay}`}
+                    </span>
+                  </div>
+                  {savingsSummary.enabled && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Link
+                            to='/dashboard/$section'
+                            params={{ section: 'models' }}
+                            className='text-muted-foreground hover:text-foreground inline-flex shrink-0'
+                            aria-label={t('View savings trend')}
+                          />
+                        }
+                      >
+                        <ArrowUpRight className='size-3.5' />
+                      </TooltipTrigger>
+                      <TooltipContent>{t('View savings trend')}</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+                <div className='text-muted-foreground mt-1 text-[11px] leading-snug'>
+                  {savingsSummaryDescription}
+                </div>
+                {savingsSummary.official_price_stale &&
+                  savingsSummary.source_updated_at > 0 && (
+                    <div className='text-warning mt-1 text-[11px] leading-snug'>
+                      {t('Official price updated {{time}}', {
+                        time: formatTimestampToDate(
+                          savingsSummary.source_updated_at
+                        ),
+                      })}
+                    </div>
+                  )}
+              </div>
+            )}
           </div>
 
           <Button className='justify-between' render={<Link to='/wallet' />}>

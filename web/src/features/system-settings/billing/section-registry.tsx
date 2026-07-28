@@ -110,7 +110,14 @@ const BILLING_SECTIONS = [
         modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
-        visibleTabs={['models', 'unset-models', 'tool-prices', 'upstream-sync']}
+        savingsEstimateDefault={settings.SavingsEstimateSetting}
+        visibleTabs={[
+          'models',
+          'unset-models',
+          'tool-prices',
+          'upstream-sync',
+          'savings',
+        ]}
       />
     ),
   },
@@ -123,6 +130,7 @@ const BILLING_SECTIONS = [
         modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
+        savingsEstimateDefault={settings.SavingsEstimateSetting}
         visibleTabs={['groups']}
       />
     ),

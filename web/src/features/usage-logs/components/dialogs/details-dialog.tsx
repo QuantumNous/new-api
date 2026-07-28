@@ -41,6 +41,7 @@ import {
   Route,
   Settings2,
   AlertTriangle,
+  BadgeDollarSign,
   Headphones,
   Monitor,
   Cloud,
@@ -60,7 +61,12 @@ import { Label } from '@/components/ui/label'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
+import {
+  formatLogQuota,
+  formatTimestampToDate,
+  formatTokens,
+  formatUseTime,
+} from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import type { UsageLog } from '../../data/schema'
@@ -399,6 +405,65 @@ function BillingBreakdown(props: {
       {rows.map((row) => (
         <DetailRow key={row.label} label={row.label} value={row.value} mono />
       ))}
+    </DetailSection>
+  )
+}
+
+function SavingsEstimateSection(props: { other: LogOtherData }) {
+  const { t } = useTranslation()
+  const estimate = props.other.savings_estimate
+
+  if (!estimate || estimate.savings_quota <= 0) return null
+
+  const sourceValue = estimate.source_url ? (
+    <a
+      className='text-primary underline-offset-2 hover:underline'
+      href={estimate.source_url}
+      rel='noreferrer'
+      target='_blank'
+    >
+      {estimate.source || estimate.source_url}
+    </a>
+  ) : (
+    estimate.source
+  )
+
+  return (
+    <DetailSection
+      icon={<BadgeDollarSign className='size-3.5' aria-hidden='true' />}
+      iconTone='success'
+      label={t('Official pricing estimate')}
+    >
+      <DetailRow
+        label={t('Official Price Estimate')}
+        value={formatLogQuota(estimate.official_quota)}
+        mono
+      />
+      <DetailRow
+        label={t('Actual Cost')}
+        value={formatLogQuota(estimate.actual_quota)}
+        mono
+      />
+      <DetailRow
+        label={t('Estimated Savings')}
+        value={formatLogQuota(estimate.savings_quota)}
+        mono
+      />
+      {estimate.matched_model && (
+        <DetailRow
+          label={t('Matched Model')}
+          value={estimate.matched_model}
+          mono
+        />
+      )}
+      {estimate.source && <DetailRow label={t('Source')} value={sourceValue} />}
+      {estimate.source_updated_at > 0 && (
+        <DetailRow
+          label={t('Official Price Updated')}
+          value={formatTimestampToDate(estimate.source_updated_at)}
+          mono
+        />
+      )}
     </DetailSection>
   )
 }
@@ -1071,6 +1136,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
             other={other}
             isAdmin={props.isAdmin}
           />
+        )}
+
+        {isConsume && other && !isViolation && (
+          <SavingsEstimateSection other={other} />
         )}
 
         {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
