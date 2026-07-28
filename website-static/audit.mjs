@@ -170,6 +170,22 @@ for (const requiredAboutZhContent of [
   if (!aboutZh.includes(requiredAboutZhContent)) fail("about-zh.html", `missing localized founder-story content: ${requiredAboutZhContent}`);
 }
 
+const cli = fs.readFileSync(path.join(root, "cli.html"), "utf8");
+for (const requiredCliContent of [
+  "<video",
+  "<img",
+  "assets/cli/ugc-ad-clips.mp4",
+  "assets/cli/product-reveal.mp4",
+  "assets/cli/localized-variants.mp4",
+  "assets/cli/campaign-hero.png",
+  "assets/cli/thumbnail-test-set.png",
+  "assets/cli/storyboard-motion.png",
+  "npm i -g @flatkey-ai/cli",
+  "flatkey login",
+]) {
+  if (!cli.includes(requiredCliContent)) fail("cli.html", `missing CLI media content: ${requiredCliContent}`);
+}
+
 for (const careersFile of ["careers.html", "careers-zh.html"]) {
   const careers = fs.readFileSync(path.join(root, careersFile), "utf8");
   for (const removedOfficeImage of ["qbay-workspace.jpg", "qbay-boardroom.jpg", "qbay-office.jpg"]) {

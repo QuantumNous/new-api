@@ -156,10 +156,12 @@ jobs:
         run: |
           C="https://canary---newapi-web-5qjldqffdq-uw.a.run.app"
           # canonical static pages and assets
-          for p in "" models models/gpt-5.5 models/grok-imagine-image cli docs playground pricing compute usecases contact status terms privacy refund-policy sla about zh/about careers zh/careers install.sh llms.txt assets/team/amazon-accelerate-team.jpg assets/team/team-dinner.jpg; do
+          for p in "" models models/gpt-5.5 models/grok-imagine-image cli docs playground pricing compute usecases contact status terms privacy refund-policy sla about zh/about careers zh/careers install.sh llms.txt assets/team/amazon-accelerate-team.jpg assets/team/team-dinner.jpg assets/cli/ugc-ad-clips.mp4 assets/cli/campaign-hero.png; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 20 "$C/$p")
             echo "/$p -> $code"; [ "$code" = "200" ] || exit 1
           done
+          curl -s -m 20 "$C/cli" | grep -q 'assets/cli/ugc-ad-clips.mp4' || { echo "CLI video examples missing"; exit 1; }
+          curl -s -m 20 "$C/cli" | grep -q 'assets/cli/campaign-hero.png' || { echo "CLI image examples missing"; exit 1; }
           # Every historical .html page permanently consolidates into one clean
           # canonical URL instead of returning a second indexable 200.
           for pair in "models.html models" "cli.html cli" "docs.html docs" "playground.html playground" "topup.html pricing" "compute.html compute" "terms.html terms" "about.html about" "careers.html careers" "about-zh.html zh/about" "careers-zh.html zh/careers"; do

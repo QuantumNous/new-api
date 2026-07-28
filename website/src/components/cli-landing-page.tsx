@@ -28,45 +28,54 @@ const painIcons = [BadgeDollarSign, GitBranch, Layers3, Check] as const;
 const mediaExamples = [
   {
     kind: "Video",
+    type: "video",
+    media: "/assets/cli/ugc-ad-clips.mp4",
+    poster: "/assets/cli/ugc-ad-clips.png",
     title: "9:16 UGC ad clips",
     body: "Batch product demos, hooks, creator-style intros, and first-frame variations for paid social.",
     command: "flatkey video generate --ratio 9:16 --prompt-file briefs/ugc.txt -o outputs/ads/",
-    tone: "from-rose-300 via-orange-200 to-amber-100",
   },
   {
     kind: "Image",
+    type: "image",
+    media: "/assets/cli/campaign-hero.png",
     title: "Campaign hero images",
     body: "Turn a launch brief into covers, landing-page visuals, product scenes, and thumbnail options.",
     command: "flatkey image generate --prompt \"premium skincare launch hero\" -o hero.png",
-    tone: "from-emerald-300 via-cyan-200 to-slate-100",
   },
   {
     kind: "Video",
+    type: "video",
+    media: "/assets/cli/product-reveal.mp4",
+    poster: "/assets/cli/product-reveal.png",
     title: "Product reveal sequences",
     body: "Use first-frame and last-frame inputs to make repeatable reveal clips for the same SKU.",
     command: "flatkey video generate --first-frame packshot.png --last-frame reveal.png -o reveal.mp4",
-    tone: "from-violet-300 via-fuchsia-200 to-pink-100",
   },
   {
     kind: "Image",
+    type: "image",
+    media: "/assets/cli/thumbnail-test-set.png",
     title: "Thumbnail test sets",
     body: "Generate twenty visual directions, save them locally, and let an agent rank or caption them.",
     command: "flatkey image batch --prompts thumbnails.csv -o outputs/thumbs/",
-    tone: "from-lime-300 via-yellow-200 to-stone-100",
   },
   {
     kind: "Video",
+    type: "video",
+    media: "/assets/cli/localized-variants.mp4",
+    poster: "/assets/cli/localized-variants.png",
     title: "Localized market variants",
     body: "Create Brazil, Japan, and US versions with different text overlays, mood, and aspect ratios.",
     command: "flatkey video batch --brief launch.md --markets us,br,jp --json",
-    tone: "from-sky-300 via-blue-200 to-indigo-100",
   },
   {
     kind: "Image + Video",
+    type: "image",
+    media: "/assets/cli/storyboard-motion.png",
     title: "Storyboard to motion",
     body: "Generate still frames first, pick the best shots, then turn them into short motion clips.",
     command: "flatkey storyboard run --brief storyboard.md -o outputs/story/",
-    tone: "from-zinc-300 via-stone-200 to-neutral-100",
   },
 ] as const;
 
@@ -268,15 +277,28 @@ function MediaExamples() {
         <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {mediaExamples.map((example, index) => (
             <article key={example.title} className="overflow-hidden rounded-lg border border-black/10 bg-[#f8f7f2] dark:border-white/10 dark:bg-white/[0.05]">
-              <div className={`relative aspect-[4/3] bg-gradient-to-br ${example.tone}`}>
-                <div className="absolute inset-3 rounded-md border border-white/45 bg-white/15 shadow-inner" />
+              <div className="relative aspect-[4/3] overflow-hidden bg-[#111412]">
+                {example.type === "video" ? (
+                  <video className="h-full w-full object-cover" autoPlay muted loop playsInline preload="metadata" poster={example.poster}>
+                    <source src={example.media} type="video/mp4" />
+                  </video>
+                ) : (
+                  <Image
+                    src={example.media}
+                    alt={example.title}
+                    fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                    className="object-cover"
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/28 via-transparent to-transparent" />
                 <div className="absolute top-4 left-4 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white">{example.kind}</div>
                 {example.kind.includes("Video") ? (
                   <div className="absolute right-4 bottom-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/75 text-white">
                     <span className="ml-0.5 h-0 w-0 border-y-[7px] border-y-transparent border-l-[11px] border-l-white" />
                   </div>
                 ) : null}
-                <div className="absolute right-4 left-4 bottom-4">
+                <div className="absolute right-4 left-4 bottom-4 hidden md:block">
                   <div className="h-2 rounded bg-black/15" style={{ width: `${72 - index * 5}%` }} />
                   <div className="mt-2 h-2 rounded bg-white/55" style={{ width: `${46 + index * 6}%` }} />
                 </div>
