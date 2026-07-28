@@ -119,7 +119,12 @@ export interface RecallClaimView {
   redeemed: boolean
 }
 
+export interface RecallOfferView extends RecallClaimView {
+  issued_at: number
+}
+
 export type RecallClaimResponse = ApiResponse<RecallClaimView>
+export type RecallOffersResponse = ApiResponse<RecallOfferView[]>
 
 export interface PaddleTopUpStatus {
   order_id: string

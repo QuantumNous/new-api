@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 
 describe('Wallet top-up layout', () => {
   test('places the top-up button in the card header action', () => {
@@ -30,5 +30,16 @@ describe('Wallet top-up layout', () => {
       /contentClassName=\{\s*hasRechargeHistory \? 'space-y-4' : 'hidden'\s*\}/
     )
     expect(source).not.toContain("<div className='flex justify-end'>")
+  })
+
+  test('loads account recall offers on normal wallet visits and refreshes after claim validation', () => {
+    const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8')
+
+    expect(source).toContain('listRecallOffers')
+    expect(source).toMatch(/useEffect\(\(\) => \{[\s\S]*?fetchRecallOffers/)
+    expect(source).toMatch(
+      /validateRecallClaim\(\{ claim: recallClaim \}\)[\s\S]*?\.finally\(\(\) => \{[\s\S]*?fetchRecallOffers/
+    )
+    expect(source).toContain('setRecallOffers')
   })
 })

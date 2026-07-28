@@ -69,7 +69,7 @@ import {
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
 import {
   getTopupStripePriceId,
-  isRecallPriceEligible,
+  listRecallOffers,
   normalizeRecallClaim,
   removeRecallClaimFromSearch,
   validateRecallClaim,
@@ -78,6 +78,7 @@ import type {
   UserWalletData,
   PresetAmount,
   RecallClaimView,
+  RecallOfferView,
   TopupRecord,
 } from './types'
 
@@ -155,6 +156,8 @@ export function Wallet(props: WalletProps) {
   )
   const [recallClaimView, setRecallClaimView] =
     useState<RecallClaimView | null>(null)
+  const [recallOffers, setRecallOffers] = useState<RecallOfferView[]>([])
+  const [recallOffersLoading, setRecallOffersLoading] = useState(false)
   const [user, setUser] = useState<UserWalletData | null>(null)
   const [userLoading, setUserLoading] = useState(true)
   const [topupAmount, setTopupAmount] = useState(0)
@@ -243,6 +246,18 @@ export function Wallet(props: WalletProps) {
     }
   }, [])
 
+  const fetchRecallOffers = useCallback(async () => {
+    try {
+      setRecallOffersLoading(true)
+      const response = await listRecallOffers()
+      setRecallOffers(response.success && response.data ? response.data : [])
+    } catch {
+      setRecallOffers([])
+    } finally {
+      setRecallOffersLoading(false)
+    }
+  }, [])
+
   const pollPaddleTopUpStatus = useCallback(
     async (params: PaddleStatusPollParams) => {
       const transactionId = params.transactionId?.trim()
@@ -325,8 +340,16 @@ export function Wallet(props: WalletProps) {
   )
 
   useEffect(() => {
-    fetchUser()
+    queueMicrotask(() => {
+      void fetchUser()
+    })
   }, [fetchUser])
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void fetchRecallOffers()
+    })
+  }, [fetchRecallOffers])
 
   useEffect(() => {
     if (!props.initialRecallClaim) {
@@ -373,11 +396,16 @@ export function Wallet(props: WalletProps) {
           setRecallClaimStatus('unavailable')
         }
       })
+      .finally(() => {
+        if (!cancelled) {
+          void fetchRecallOffers()
+        }
+      })
 
     return () => {
       cancelled = true
     }
-  }, [recallClaim])
+  }, [fetchRecallOffers, recallClaim])
 
   useEffect(() => {
     if (recallClaimStatus !== 'active' || !recallClaimView) {
@@ -774,33 +802,10 @@ export function Wallet(props: WalletProps) {
         topupInfo?.stripe_price_ids,
         preset.value
       )
-      const recallEligible =
-        recallClaimStatus === 'active' &&
-        recallClaim &&
-        isRecallPriceEligible(recallClaimView, stripePriceId, 'topup')
-      let validatedRecallClaim: string | undefined
-      if (recallEligible) {
-        try {
-          const response = await validateRecallClaim({
-            claim: recallClaim,
-            price_id: stripePriceId,
-            purchase_kind: 'topup',
-          })
-          if (!response.success || !response.data) {
-            setRecallClaimStatus(
-              response.message?.toLowerCase().includes('expired')
-                ? 'expired'
-                : 'invalid'
-            )
-            return
-          }
-          setRecallClaimView(response.data)
-          validatedRecallClaim = recallClaim
-        } catch {
-          setRecallClaimStatus('unavailable')
-          return
-        }
-      }
+      const validatedRecallClaim =
+        recallClaimStatus === 'active' && recallClaim && stripePriceId
+          ? recallClaim
+          : undefined
 
       const success = await processPayment(preset.value, 'stripe', {
         stripeCurrency: checkoutCurrency,
@@ -940,7 +945,8 @@ export function Wallet(props: WalletProps) {
             ) : null}
 
             <RecallClaimProvider
-              claim={recallClaimStatus === 'active' ? recallClaim : undefined}
+              offers={recallOffers}
+              loading={recallOffersLoading}
               view={
                 recallClaimStatus === 'active'
                   ? recallClaimView || undefined
@@ -1023,6 +1029,7 @@ export function Wallet(props: WalletProps) {
                 props.initialCheckoutSearch?.currency
               ) != null
             }
+            recallOffers={recallOffers}
           />
         </DialogContent>
       </Dialog>

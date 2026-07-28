@@ -36,7 +36,7 @@ import {
   normalizeSelfSubscriptionData,
   requiresSignedCheckoutQuote,
 } from '../lib/subscription-plan-lifecycle'
-import type { RecallClaimView, TopupInfo } from '../types'
+import type { RecallClaimView, RecallOfferView, TopupInfo } from '../types'
 import {
   CurrentPlanCard,
   CurrentPlanRenewalDialogContent,
@@ -201,6 +201,22 @@ function renderWalletCardWithRecall(
   return renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
       <RecallClaimProvider claim='signed-recall-claim' view={recallView}>
+        <SubscriptionPlansCard
+          topupInfo={topupInfo}
+          initialPlans={plans}
+          initialSelfData={normalizeSelfSubscriptionData(undefined)}
+          initialLoading={false}
+          userQuota={12345}
+        />
+      </RecallClaimProvider>
+    </I18nextProvider>
+  )
+}
+
+function renderWalletCardWithRecallOffers(recallOffers: RecallOfferView[]) {
+  return renderToStaticMarkup(
+    <I18nextProvider i18n={testI18n}>
+      <RecallClaimProvider offers={recallOffers}>
         <SubscriptionPlansCard
           topupInfo={topupInfo}
           initialPlans={plans}
@@ -1097,6 +1113,37 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     )
     expect(proSlice).not.toContain('20% OFF')
     expect(maxSlice).not.toContain('20% OFF')
+  })
+
+  test('shows the strongest account recall offer without a link claim', () => {
+    const html = renderWalletCardWithRecallOffers([
+      {
+        ...subscriptionRecallClaim,
+        recipient_id: 101,
+        issued_at: 1_700_000_001,
+        discount: {
+          ...subscriptionRecallClaim.discount,
+          percent_off: 20,
+        },
+      },
+      {
+        ...subscriptionRecallClaim,
+        recipient_id: 102,
+        issued_at: 1_700_000_002,
+        discount: {
+          ...subscriptionRecallClaim.discount,
+          percent_off: 50,
+        },
+      },
+    ])
+    const goStart = html.indexOf('Go')
+    const proStart = html.indexOf('Pro', goStart)
+    const goSlice = html.slice(goStart, proStart)
+
+    expect(goSlice).toContain('50% OFF')
+    expect(goSlice).toContain('$5')
+    expect(html).not.toContain('signed-recall-claim')
+    expect(html).not.toContain('FKSE')
   })
 
   test('shows a fixed recall discount as an exact currency reduction', () => {

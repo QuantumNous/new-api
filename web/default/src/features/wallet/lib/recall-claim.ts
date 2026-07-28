@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import type {
   RecallClaimResponse,
   RecallClaimView,
+  RecallOfferView,
+  RecallOffersResponse,
   RecallPurchaseKind,
 } from '../types'
 
@@ -70,8 +72,10 @@ export function isRecallPriceEligible(
     )
   }
   return (
-    typeof productId === 'number' &&
-    (claim.products.subscription_plan_ids ?? []).includes(productId)
+    (typeof productId === 'string' &&
+      claim.products.subscription_price_ids.includes(productId)) ||
+    (typeof productId === 'number' &&
+      (claim.products.subscription_plan_ids ?? []).includes(productId))
   )
 }
 
@@ -133,17 +137,17 @@ export function getRecallPriceDiscount(
     if (priceMinor < minimumAmount) return null
   }
 
-  let discountMinor = 0
+  let rawDiscountMinor: number
   if (claim.discount.type === 'percent') {
-    discountMinor = Math.round(
+    rawDiscountMinor = Math.round(
       (priceMinor * Math.max(0, claim.discount.percent_off || 0)) / 100
     )
   } else {
     const fixedMinor = getFixedDiscountMinor(claim, normalizedCurrency)
     if (fixedMinor === null) return null
-    discountMinor = fixedMinor
+    rawDiscountMinor = fixedMinor
   }
-  discountMinor = Math.min(priceMinor, Math.max(0, discountMinor))
+  const discountMinor = Math.min(priceMinor, Math.max(0, rawDiscountMinor))
   if (discountMinor <= 0) return null
 
   return {
@@ -153,6 +157,56 @@ export function getRecallPriceDiscount(
     discountedAmount: minorToAmount(priceMinor - discountMinor),
     currency: normalizedCurrency,
   }
+}
+
+export type RecallOfferPurchaseFacts = {
+  purchaseKind: RecallPurchaseKind
+  productId: string | number | undefined
+  amountMajor: number
+  currency: string
+  nowSeconds?: number
+}
+
+export function selectBestRecallOffer(
+  offers: readonly RecallOfferView[],
+  facts: RecallOfferPurchaseFacts
+): RecallOfferView | null {
+  let best: {
+    offer: RecallOfferView
+    discountMinor: number
+  } | null = null
+
+  for (const offer of offers) {
+    const discount = getRecallPriceDiscount(
+      offer,
+      facts.productId,
+      facts.purchaseKind,
+      facts.amountMajor,
+      facts.currency,
+      facts.nowSeconds
+    )
+    if (!discount) continue
+
+    const offerDiscountMinor = Math.round(discount.discountAmount * 100)
+    if (
+      !best ||
+      offerDiscountMinor > best.discountMinor ||
+      (offerDiscountMinor === best.discountMinor &&
+        (offer.issued_at > best.offer.issued_at ||
+          (offer.issued_at === best.offer.issued_at &&
+            offer.recipient_id < best.offer.recipient_id)))
+    ) {
+      best = { offer, discountMinor: offerDiscountMinor }
+    }
+  }
+
+  return best?.offer ?? null
+}
+
+export async function listRecallOffers(): Promise<RecallOffersResponse> {
+  const { api } = await import('@/lib/api')
+  const response = await api.get('/api/user/recall/offers')
+  return response.data
 }
 
 export async function validateRecallClaim(input: {
