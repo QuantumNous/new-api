@@ -49,7 +49,7 @@ function getRecallActivationBlockerReason(
   status: ReturnType<typeof getRecallEmailLocaleStatus>
 ): RecallEmailLocalizationBlocker['reason'] {
   if (status === 'stale') return 'stale'
-  return stage.templates[locale] ? 'invalid' : 'missing'
+  return (stage.templates ?? {})[locale] ? 'invalid' : 'missing'
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -68,7 +68,7 @@ export function getRecallActivationReadiness(
         reason: getRecallActivationBlockerReason(stage, locale, status),
       })
     }
-    for (const locale of Object.keys(stage.templates)) {
+    for (const locale of Object.keys(stage.templates ?? {})) {
       if (allowedLocales.has(locale)) continue
       blockers.push({
         stage_no: stage.stage_no,

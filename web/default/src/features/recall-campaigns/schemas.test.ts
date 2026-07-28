@@ -5,6 +5,8 @@ import {
 } from './schemas'
 
 const FUTURE_TIMESTAMP = Math.floor(Date.now() / 1000) + 86_400
+const FIXED_SCHEMA_NOW_SECONDS = Date.UTC(2026, 6, 15, 8, 0) / 1_000
+const FIXED_SCHEMA_NOW_MS = FIXED_SCHEMA_NOW_SECONDS * 1_000
 
 function makeDraft() {
   return {
@@ -71,6 +73,16 @@ function makeDraft() {
         },
       },
     ],
+  }
+}
+
+function withFixedSchemaNow(callback: () => void) {
+  const realDateNow = Date.now
+  Date.now = () => FIXED_SCHEMA_NOW_MS
+  try {
+    callback()
+  } finally {
+    Date.now = realDateNow
   }
 }
 
@@ -793,6 +805,74 @@ describe('recallCampaignDraftSchema', () => {
         })
       )
     }
+  })
+
+  test('requires fixed promotion expiry after the first daily recurring run', () => {
+    withFixedSchemaNow(() => {
+      const draft = makeDraft()
+      draft.execution_mode = 'recurring'
+      draft.schedule = {
+        scheduled_at: 0,
+        timezone: 'UTC',
+        frequency: 'daily',
+        weekday: 0,
+        hour: 9,
+        minute: 0,
+      }
+      draft.promotion_expiry_mode = 'fixed'
+      draft.promotion_valid_seconds = 0
+      draft.promotion_expires_at = FIXED_SCHEMA_NOW_SECONDS + 3_600
+
+      const equality = recallCampaignDraftSchema.safeParse(draft)
+
+      expect(equality.success).toBe(false)
+      if (!equality.success) {
+        expect(equality.error.issues).toContainEqual(
+          expect.objectContaining({
+            path: ['promotion_expires_at'],
+            message:
+              'Fixed promotion expiry must be after the scheduled run time',
+          })
+        )
+      }
+
+      draft.promotion_expires_at = FIXED_SCHEMA_NOW_SECONDS + 3_599
+      expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+
+      draft.promotion_expires_at = FIXED_SCHEMA_NOW_SECONDS + 3_601
+      expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+    })
+  })
+
+  test('requires fixed promotion expiry after the first weekly recurring run', () => {
+    withFixedSchemaNow(() => {
+      const draft = makeDraft()
+      draft.execution_mode = 'recurring'
+      draft.schedule = {
+        scheduled_at: 0,
+        timezone: 'UTC',
+        frequency: 'weekly',
+        weekday: 4,
+        hour: 9,
+        minute: 0,
+      }
+      draft.promotion_expiry_mode = 'fixed'
+      draft.promotion_valid_seconds = 0
+      draft.promotion_expires_at = Date.UTC(2026, 6, 16, 9, 0) / 1_000
+
+      const result = recallCampaignDraftSchema.safeParse(draft)
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues).toContainEqual(
+          expect.objectContaining({
+            path: ['promotion_expires_at'],
+            message:
+              'Fixed promotion expiry must be after the scheduled run time',
+          })
+        )
+      }
+    })
   })
 
   test('requires coupon redeem-by after a scheduled campaign run', () => {

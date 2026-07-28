@@ -16,6 +16,7 @@ import type {
   RecallMinimumSpendConfig,
   RecallMinimumSpendCurrency,
   RecallRecipient,
+  RecallScheduleConfig,
 } from './types'
 
 export {
@@ -446,7 +447,7 @@ function hasRecallEmailTemplate(
   stage: RecallEmailStage,
   locale: string
 ): boolean {
-  const template = stage.templates[locale]
+  const template = (stage.templates ?? {})[locale]
   if (!template) return false
   const bodyCount = [template.body_text, template.body_html].filter((value) =>
     value?.trim()
@@ -516,4 +517,163 @@ export function getRecallRecipientRetry(
     return { allowed: true, acknowledgeUncertain: true }
   }
   return { allowed: false, acknowledgeUncertain: false }
+}
+
+interface RecallZonedDateParts {
+  year: number
+  month: number
+  day: number
+  hour: number
+  minute: number
+  weekday: number
+}
+
+const recallWeekdays: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+}
+
+function getRecallZonedDateParts(
+  date: Date,
+  timezone: string
+): RecallZonedDateParts | null {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    weekday: 'short',
+  })
+  const values = Object.fromEntries(
+    formatter.formatToParts(date).map((part) => [part.type, part.value])
+  )
+  const weekday = recallWeekdays[values.weekday ?? '']
+  if (weekday === undefined) return null
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    weekday,
+  }
+}
+
+function recallDateOnlyAfterDays(
+  parts: Pick<RecallZonedDateParts, 'year' | 'month' | 'day'>,
+  days: number
+): Pick<RecallZonedDateParts, 'year' | 'month' | 'day'> {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days))
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  }
+}
+
+function recallLocalDateKey(
+  parts: Pick<RecallZonedDateParts, 'year' | 'month' | 'day' | 'hour' | 'minute'>
+): number {
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute)
+}
+
+function recallWallClockToUnixSeconds(
+  parts: Pick<RecallZonedDateParts, 'year' | 'month' | 'day'> & {
+    hour: number
+    minute: number
+  },
+  timezone: string
+): number | null {
+  let candidateMs = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute
+  )
+  const targetKey = recallLocalDateKey(parts)
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const candidateParts = getRecallZonedDateParts(
+      new Date(candidateMs),
+      timezone
+    )
+    if (!candidateParts) return null
+    const diffMs = recallLocalDateKey(candidateParts) - targetKey
+    if (diffMs === 0) return Math.floor(candidateMs / 1_000)
+    candidateMs -= diffMs
+  }
+
+  const resolved = getRecallZonedDateParts(new Date(candidateMs), timezone)
+  if (
+    !resolved ||
+    resolved.year !== parts.year ||
+    resolved.month !== parts.month ||
+    resolved.day !== parts.day ||
+    resolved.hour !== parts.hour ||
+    resolved.minute !== parts.minute
+  ) {
+    return null
+  }
+  return Math.floor(candidateMs / 1_000)
+}
+
+export function getRecallFirstRecurringRunAt(
+  afterSeconds: number,
+  schedule: RecallScheduleConfig
+): number | null {
+  const timezone = schedule.timezone.trim()
+  if (!timezone || timezone === 'Local') return null
+  if (
+    schedule.hour < 0 ||
+    schedule.hour > 23 ||
+    schedule.minute < 0 ||
+    schedule.minute > 59
+  ) {
+    return null
+  }
+
+  let afterParts: RecallZonedDateParts | null
+  try {
+    afterParts = getRecallZonedDateParts(new Date(afterSeconds * 1_000), timezone)
+  } catch {
+    return null
+  }
+  if (!afterParts) return null
+
+  const frequency = schedule.frequency.trim().toLowerCase()
+  if (frequency === 'daily') {
+    for (let days = 0; days <= 366; days += 1) {
+      const dateParts = recallDateOnlyAfterDays(afterParts, days)
+      const candidate = recallWallClockToUnixSeconds(
+        { ...dateParts, hour: schedule.hour, minute: schedule.minute },
+        timezone
+      )
+      if (candidate !== null && candidate > afterSeconds) return candidate
+    }
+    return null
+  }
+
+  if (frequency === 'weekly') {
+    if (schedule.weekday < 0 || schedule.weekday > 6) return null
+    const days = (schedule.weekday - afterParts.weekday + 7) % 7
+    for (let weeks = 0; weeks <= 53; weeks += 1) {
+      const dateParts = recallDateOnlyAfterDays(afterParts, days + weeks * 7)
+      const candidate = recallWallClockToUnixSeconds(
+        { ...dateParts, hour: schedule.hour, minute: schedule.minute },
+        timezone
+      )
+      if (candidate !== null && candidate > afterSeconds) return candidate
+    }
+  }
+
+  return null
 }

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isRecallSpecifiedEmail } from './audience-inputs'
+import { getRecallFirstRecurringRunAt } from './helpers'
 import type { RecallCampaignDraft } from './types'
 
 const campaignTypeSchema = z
@@ -764,6 +765,20 @@ export const recallCampaignDraftSchema = z
           path: ['schedule', 'weekday'],
           message: 'Weekday is invalid',
         })
+      }
+      if (draft.promotion_expiry_mode === 'fixed') {
+        const firstRunAt = getRecallFirstRecurringRunAt(
+          Math.floor(Date.now() / 1000),
+          draft.schedule
+        )
+        if (firstRunAt && draft.promotion_expires_at <= firstRunAt) {
+          context.addIssue({
+            code: 'custom',
+            path: ['promotion_expires_at'],
+            message:
+              'Fixed promotion expiry must be after the scheduled run time',
+          })
+        }
       }
     }
   })

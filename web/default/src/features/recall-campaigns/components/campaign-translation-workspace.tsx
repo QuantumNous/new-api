@@ -142,7 +142,7 @@ export function CampaignTranslationWorkspace(
   const existingTargetLocale = targetLocales.find((locale) =>
     props.form
       .getValues('email_sequence')
-      .some((stage) => Boolean(stage.templates[locale]))
+      .some((stage) => Boolean((stage.templates ?? {})[locale]))
   )
   const initialTargetLocale = isRecallTargetLocale(blockerLocale)
     ? blockerLocale
@@ -154,6 +154,8 @@ export function CampaignTranslationWorkspace(
     useState<RecallTargetLocale>(initialTargetLocale)
   const [confirmRegeneration, setConfirmRegeneration] = useState(false)
   const [generationError, setGenerationError] = useState('')
+  const [generationInFlight, setGenerationInFlight] = useState(false)
+  const generationInFlightRef = useRef(false)
   const subjectRefs = useRef(new Map<string, HTMLInputElement>())
   const formState = useFormState({ control: props.form.control })
   const watchedStages =
@@ -174,6 +176,7 @@ export function CampaignTranslationWorkspace(
   const summary = getRecallTranslationSummary(watchedStages, englishDirtyStages)
   const manualCount = getRecallManualLocaleCount(watchedStages)
   const readOnly = props.disabled || Boolean(props.immutable)
+  const generationPending = props.isGenerating || generationInFlight
 
   useEffect(() => {
     if (!props.focusBlocker) return
@@ -192,12 +195,18 @@ export function CampaignTranslationWorkspace(
   }, [activeTab, activeTargetLocale, props.focusBlocker])
 
   const generate = async () => {
+    if (generationInFlightRef.current) return
+    generationInFlightRef.current = true
+    setGenerationInFlight(true)
     setGenerationError('')
     try {
       await props.onGenerate()
       setConfirmRegeneration(false)
     } catch (error) {
       setGenerationError(getGenerationErrorMessage(error))
+    } finally {
+      generationInFlightRef.current = false
+      setGenerationInFlight(false)
     }
   }
 
@@ -242,7 +251,7 @@ export function CampaignTranslationWorkspace(
           <div className='bg-muted rounded-md p-3 text-sm'>
             <p className='font-medium'>{t('English context')}</p>
             <p className='text-muted-foreground'>
-              {watchedStages[index]?.templates.en?.subject ?? ''}
+              {watchedStages[index]?.templates?.en?.subject ?? ''}
             </p>
           </div>
         ) : null}
@@ -252,7 +261,7 @@ export function CampaignTranslationWorkspace(
             <Input
               type='number'
               min={0}
-              disabled={props.disabled || props.immutable}
+              disabled={readOnly || targetLocale}
               {...props.form.register(`email_sequence.${index}.delay_seconds`, {
                 valueAsNumber: true,
               })}
@@ -406,7 +415,7 @@ export function CampaignTranslationWorkspace(
           <Button
             id='recall-confirm-regenerate-translations'
             type='button'
-            disabled={readOnly || props.isGenerating}
+            disabled={readOnly || generationPending}
             onClick={() => void generate()}
           >
             {t('Replace and regenerate')}
@@ -422,10 +431,10 @@ export function CampaignTranslationWorkspace(
       <Button
         id='recall-generate-translations'
         type='button'
-        disabled={readOnly || props.isGenerating}
+        disabled={readOnly || generationPending}
         onClick={requestGeneration}
       >
-        {props.isGenerating
+        {generationPending
           ? t('Generating translations')
           : t('Generate 7 translations')}
       </Button>

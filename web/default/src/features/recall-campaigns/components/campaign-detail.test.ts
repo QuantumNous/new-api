@@ -61,4 +61,27 @@ describe('Recall campaign activation readiness', () => {
       reason: 'invalid',
     })
   })
+
+  test.each(['null', 'undefined'] as const)(
+    'reports legacy %s templates as missing without crashing',
+    (shape) => {
+      const legacy = makeStage()
+      legacy.templates = (shape === 'null' ? null : undefined) as unknown as
+        | RecallEmailStage['templates']
+
+      const readiness = getRecallActivationReadiness([legacy])
+
+      expect(readiness.ready).toBeFalse()
+      expect(readiness.blockers).toContainEqual({
+        stage_no: 1,
+        locale: 'en',
+        reason: 'missing',
+      })
+      expect(readiness.blockers).toContainEqual({
+        stage_no: 1,
+        locale: 'fr',
+        reason: 'missing',
+      })
+    }
+  )
 })

@@ -838,6 +838,17 @@ describe('recall campaign editor normalization', () => {
     expect(getRecallEmailLocaleStatus(stage, 'fr')).toBe('stale')
   })
 
+  test.each(['null', 'undefined'] as const)(
+    'treats legacy %s templates as a missing locale state',
+    (shape) => {
+      const stage = makeStage(1, 0)
+      stage.templates = (shape === 'null' ? null : undefined) as unknown as
+        | RecallEmailStage['templates']
+
+      expect(getRecallEmailLocaleStatus(stage, 'en')).toBe('missing')
+    }
+  )
+
   test('establishes the four automatic fixed discount defaults while preserving legacy minimum spend', () => {
     const draft = makeDraft()
     draft.coupon_source = 'automatic'
