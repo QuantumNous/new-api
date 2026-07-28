@@ -23,12 +23,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 func TestLookupOfficialValuePrefersExactThenLeaf(t *testing.T) {
 	values := map[string]float64{
-		"gpt-5.6":  2.5,
-		"Kimi-K3":  1.35,
+		"gpt-5.6":        2.5,
+		"Kimi-K3":        1.35,
 		"provider/other": 9,
 	}
 
@@ -89,4 +91,53 @@ func TestComputeAutoOfficialDiscountRounding(t *testing.T) {
 	}
 	// 0.174 / 0.7765 ≈ 77.591… → 77.59
 	assert.Equal(t, 77.59, computeAutoOfficialDiscount(0, 0.174, 0, "deepseek-v4-pro", official))
+}
+
+func TestParseModelsDevSnapshotConvertsUSDPer1M(t *testing.T) {
+	// input $0.14/1M → ratio = 0.14 * 500 / 1000 = 0.07
+	body := []byte(`{
+		"deepseek": {
+			"models": {
+				"deepseek-v4-flash": { "cost": { "input": 0.14, "output": 0.28 } },
+				"free-model": { "cost": { "input": 0, "output": 0 } }
+			}
+		},
+		"openai": {
+			"models": {
+				"gpt-5.6-sol": { "cost": { "input": 5.0, "output": 30.0 } }
+			}
+		},
+		"other": {
+			"models": {
+				"gpt-5.6-sol": { "cost": { "input": 4.0, "output": 24.0 } }
+			}
+		}
+	}`)
+
+	snap, err := parseModelsDevSnapshot(body)
+	require.NoError(t, err)
+	require.NotNil(t, snap)
+
+	// free model skipped
+	_, ok := snap.modelRatio["free-model"]
+	assert.False(t, ok)
+
+	// deepseek: 0.14 * USD / 1000
+	wantFlash := 0.14 * float64(ratio_setting.USD) / modelsDevInputCostRatioBase
+	assert.InDelta(t, wantFlash, snap.modelRatio["deepseek-v4-flash"], 1e-9)
+
+	// duplicate gpt-5.6-sol → cheapest input ($4 from "other")
+	wantSol := 4.0 * float64(ratio_setting.USD) / modelsDevInputCostRatioBase
+	assert.InDelta(t, wantSol, snap.modelRatio["gpt-5.6-sol"], 1e-9)
+
+	// no fixed prices from models.dev
+	assert.Empty(t, snap.modelPrice)
+}
+
+func TestParseModelsDevSnapshotRejectsEmpty(t *testing.T) {
+	_, err := parseModelsDevSnapshot([]byte(`{}`))
+	require.Error(t, err)
+
+	_, err = parseModelsDevSnapshot([]byte(`{"p":{"models":{}}}`))
+	require.Error(t, err)
 }

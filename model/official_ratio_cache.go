@@ -24,16 +24,24 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
-// Official ratio preset used by upstream sync UI ("官方倍率预设").
-// Marketplace discount badges compare site ModelRatio/ModelPrice against this baseline.
-const officialRatioPresetURL = "https://basellm.github.io/llm-metadata/api/newapi/ratio_config-v1-base.json"
+// Official baseline for marketplace discount badges: models.dev public pricing.
+// Same source as the upstream-sync preset "models.dev 价格预设".
+// models.dev costs are USD per 1M tokens; converted with the local ratio formula:
+//
+//	model_ratio = input_usd_per_1M * USD / 1000   (= input / 2 when USD=500)
+const officialRatioPresetURL = "https://models.dev/api.json"
+
+// models.dev input cost → local model_ratio divisor (mirrors controller/ratio_sync.go).
+const modelsDevInputCostRatioBase = 1000.0
 
 const officialRatioCacheTTL = 6 * time.Hour
 
@@ -48,7 +56,7 @@ var (
 	officialRatioCache *officialRatioSnapshot
 )
 
-// getOfficialRatioSnapshot returns a cached snapshot of the public official ratio preset.
+// getOfficialRatioSnapshot returns a cached snapshot of models.dev pricing.
 // On fetch failure it keeps the previous snapshot (if any) so pricing still works offline.
 func getOfficialRatioSnapshot() *officialRatioSnapshot {
 	officialRatioMu.RLock()
@@ -66,7 +74,7 @@ func getOfficialRatioSnapshot() *officialRatioSnapshot {
 
 	next, err := fetchOfficialRatioSnapshot(context.Background())
 	if err != nil {
-		common.SysLog("official ratio preset fetch failed: " + err.Error())
+		common.SysLog("models.dev official price fetch failed: " + err.Error())
 		if officialRatioCache != nil {
 			// Keep serving stale data; bump timestamp lightly so we don't hammer the remote.
 			stale := *officialRatioCache
@@ -81,7 +89,7 @@ func getOfficialRatioSnapshot() *officialRatioSnapshot {
 }
 
 func fetchOfficialRatioSnapshot(ctx context.Context) (*officialRatioSnapshot, error) {
-	reqCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	reqCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, officialRatioPresetURL, nil)
@@ -98,75 +106,130 @@ func fetchOfficialRatioSnapshot(ctx context.Context) (*officialRatioSnapshot, er
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("official ratio preset HTTP %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("models.dev HTTP %d: %s", resp.StatusCode, string(body))
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 12<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
 		return nil, err
 	}
 
-	var envelope struct {
-		Success bool `json:"success"`
-		Data    struct {
-			ModelRatio map[string]any `json:"model_ratio"`
-			ModelPrice map[string]any `json:"model_price"`
-		} `json:"data"`
+	return parseModelsDevSnapshot(body)
+}
+
+// models.dev JSON: { "<provider>": { "models": { "<id>": { "cost": { "input", "output", ... } } } } }
+type modelsDevProvider struct {
+	Models map[string]modelsDevModel `json:"models"`
+}
+
+type modelsDevModel struct {
+	Cost modelsDevCost `json:"cost"`
+}
+
+type modelsDevCost struct {
+	Input  *float64 `json:"input"`
+	Output *float64 `json:"output"`
+}
+
+type modelsDevCandidate struct {
+	provider string
+	input    float64 // USD per 1M tokens
+}
+
+func parseModelsDevSnapshot(body []byte) (*officialRatioSnapshot, error) {
+	var upstream map[string]modelsDevProvider
+	if err := common.Unmarshal(body, &upstream); err != nil {
+		return nil, fmt.Errorf("decode models.dev: %w", err)
 	}
-	if err := common.Unmarshal(body, &envelope); err != nil {
-		return nil, err
+	if len(upstream) == 0 {
+		return nil, fmt.Errorf("empty models.dev response")
+	}
+
+	providers := make([]string, 0, len(upstream))
+	for provider := range upstream {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+
+	// model id → cheapest non-zero input cost across providers (same policy as ratio sync).
+	selected := make(map[string]modelsDevCandidate)
+	for _, provider := range providers {
+		providerData := upstream[provider]
+		if len(providerData.Models) == 0 {
+			continue
+		}
+		modelNames := make([]string, 0, len(providerData.Models))
+		for modelName := range providerData.Models {
+			modelNames = append(modelNames, modelName)
+		}
+		sort.Strings(modelNames)
+
+		for _, modelName := range modelNames {
+			cost := providerData.Models[modelName].Cost
+			if cost.Input == nil {
+				continue
+			}
+			input := *cost.Input
+			if math.IsNaN(input) || math.IsInf(input, 0) || input < 0 {
+				continue
+			}
+			// input=0 with positive output cannot become a local ratio baseline.
+			if input == 0 {
+				if cost.Output != nil && *cost.Output > 0 {
+					continue
+				}
+				// pure free models are not useful as discount baselines
+				continue
+			}
+
+			next := modelsDevCandidate{provider: provider, input: input}
+			current, exists := selected[modelName]
+			if !exists || shouldPreferModelsDevCandidate(current, next) {
+				selected[modelName] = next
+			}
+		}
+	}
+
+	if len(selected) == 0 {
+		return nil, fmt.Errorf("no valid models.dev pricing entries found")
+	}
+
+	modelRatio := make(map[string]float64, len(selected))
+	for modelName, candidate := range selected {
+		// model_ratio = input_usd_per_1M * USD / 1000
+		ratio := candidate.input * float64(ratio_setting.USD) / modelsDevInputCostRatioBase
+		if ratio <= 0 || math.IsNaN(ratio) || math.IsInf(ratio, 0) {
+			continue
+		}
+		modelRatio[modelName] = ratio
+	}
+
+	if len(modelRatio) == 0 {
+		return nil, fmt.Errorf("no convertible models.dev ratios")
 	}
 
 	return &officialRatioSnapshot{
-		modelRatio: toFloatMap(envelope.Data.ModelRatio),
-		modelPrice: toFloatMap(envelope.Data.ModelPrice),
+		modelRatio: modelRatio,
+		// models.dev is token-cost oriented; fixed $/request baselines are not provided.
+		modelPrice: map[string]float64{},
 		fetchedAt:  time.Now(),
 	}, nil
 }
 
-func toFloatMap(raw map[string]any) map[string]float64 {
-	if len(raw) == 0 {
-		return map[string]float64{}
+func shouldPreferModelsDevCandidate(current, next modelsDevCandidate) bool {
+	// Prefer cheaper non-zero input; stable provider name tie-break.
+	if !nearlyEqualFloat(next.input, current.input) {
+		return next.input < current.input
 	}
-	out := make(map[string]float64, len(raw))
-	for key, value := range raw {
-		if f, ok := anyToFloat64(value); ok && f > 0 && !math.IsNaN(f) && !math.IsInf(f, 0) {
-			out[key] = f
-		}
-	}
-	return out
+	return next.provider < current.provider
 }
 
-func anyToFloat64(value any) (float64, bool) {
-	switch typed := value.(type) {
-	case float64:
-		return typed, true
-	case float32:
-		return float64(typed), true
-	case int:
-		return float64(typed), true
-	case int64:
-		return float64(typed), true
-	case int32:
-		return float64(typed), true
-	case uint:
-		return float64(typed), true
-	case uint64:
-		return float64(typed), true
-	case string:
-		var f float64
-		if _, err := fmt.Sscanf(typed, "%f", &f); err == nil {
-			return f, true
-		}
-		return 0, false
-	default:
-		// encoding/json.Number and similar fmt.Stringer numeric types
-		if stringer, ok := value.(interface{ Float64() (float64, error) }); ok {
-			f, err := stringer.Float64()
-			return f, err == nil
-		}
-		return 0, false
+func nearlyEqualFloat(a, b float64) bool {
+	const eps = 1e-9
+	if a > b {
+		return a-b < eps
 	}
+	return b-a < eps
 }
 
 func lookupOfficialValue(values map[string]float64, modelName string) (float64, bool) {
@@ -191,7 +254,7 @@ func lookupOfficialValue(values map[string]float64, modelName string) (float64, 
 }
 
 // computeAutoOfficialDiscount returns the marketplace discount percent of site
-// price/ratio vs the official preset baseline. Returns 0 when no discount applies
+// price/ratio vs the official baseline. Returns 0 when no discount applies
 // or the official baseline is missing.
 func computeAutoOfficialDiscount(
 	quotaType int,
@@ -207,6 +270,8 @@ func computeAutoOfficialDiscount(
 	var site, baseline float64
 	var ok bool
 	if quotaType == 1 {
+		// Fixed-price models: compare USD/request when we have an official price baseline.
+		// models.dev rarely provides this; then no auto badge.
 		site = siteModelPrice
 		baseline, ok = lookupOfficialValue(official.modelPrice, modelName)
 	} else {
