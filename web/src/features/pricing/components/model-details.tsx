@@ -55,6 +55,7 @@ import {
   formatUptimePct,
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
+import { useIsAdmin } from '@/hooks/use-admin'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
@@ -849,7 +850,7 @@ function getDynamicFormattedPricesByTier(
 // Group pricing table
 // ----------------------------------------------------------------------------
 
-function GroupPricingSection(props: {
+export function GroupPricingSection(props: {
   model: PricingModel
   groupRatio: Record<string, number>
   usableGroup: Record<string, { desc: string; ratio: number }>
@@ -858,6 +859,7 @@ function GroupPricingSection(props: {
   usdExchangeRate: number
   tokenUnit: TokenUnit
   showRechargePrice?: boolean
+  showRatio?: boolean
 }) {
   const { t } = useTranslation()
   const showRechargePrice = props.showRechargePrice ?? false
@@ -978,9 +980,11 @@ function GroupPricingSection(props: {
               <div key={group} className='overflow-hidden rounded-lg border'>
                 <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
                   <GroupBadge group={group} size='sm' />
-                  <span className='text-muted-foreground font-mono text-xs'>
-                    {ratio}x
-                  </span>
+                  {props.showRatio !== false && (
+                    <span className='text-muted-foreground font-mono text-xs'>
+                      {ratio}x
+                    </span>
+                  )}
                 </div>
                 <StaticDataTable
                   className='rounded-none border-0'
@@ -1060,13 +1064,17 @@ function GroupPricingSection(props: {
             cellClassName: 'py-2.5',
             cell: (group) => <GroupBadge group={group} size='sm' />,
           },
-          {
-            id: 'ratio',
-            header: t('Ratio'),
-            className: thClass,
-            cellClassName: 'text-muted-foreground py-2.5 font-mono',
-            cell: (group) => `${props.groupRatio[group] || 1}x`,
-          },
+          ...(props.showRatio !== false
+            ? [
+                {
+                  id: 'ratio',
+                  header: t('Ratio'),
+                  className: thClass,
+                  cellClassName: 'text-muted-foreground py-2.5 font-mono',
+                  cell: (group: string) => `${props.groupRatio[group] || 1}x`,
+                },
+              ]
+            : []),
           ...(isTokenBased
             ? [
                 {
@@ -1135,6 +1143,7 @@ export interface ModelDetailsContentProps {
   usdExchangeRate: number
   tokenUnit: TokenUnit
   showRechargePrice?: boolean
+  showRatio?: boolean
 }
 
 export function ModelDetailsContent(props: ModelDetailsContentProps) {
@@ -1190,6 +1199,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               usdExchangeRate={props.usdExchangeRate}
               tokenUnit={props.tokenUnit}
               showRechargePrice={showRechargePrice}
+              showRatio={props.showRatio}
             />
           </section>
 
@@ -1246,6 +1256,7 @@ export function ModelDetailsDrawer(props: ModelDetailsDrawerProps) {
 
 export function ModelDetails() {
   const { t } = useTranslation()
+  const showRatio = useIsAdmin()
   const { modelId } = useParams({ from: '/pricing/$modelId/' })
   const search = useSearch({ from: '/pricing/$modelId/' })
   const navigate = useNavigate()
@@ -1338,6 +1349,7 @@ export function ModelDetails() {
           usdExchangeRate={usdExchangeRate ?? 1}
           tokenUnit={tokenUnit}
           showRechargePrice={search.rechargePrice ?? false}
+          showRatio={showRatio}
           endpointMap={
             (endpointMap as Record<
               string,

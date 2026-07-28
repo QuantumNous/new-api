@@ -69,6 +69,7 @@ export interface PricingSidebarProps {
   vendors: PricingVendor[]
   groups: string[]
   groupRatios?: Record<string, number>
+  showRatio?: boolean
   tags: string[]
   models: PricingModel[]
   hasActiveFilters: boolean
@@ -188,7 +189,10 @@ export function PricingSidebar(props: PricingSidebarProps) {
     ...props.groups.map((group) => ({
       value: group,
       label: group,
-      suffix: formatGroupRatio(props.groupRatios?.[group]),
+      suffix:
+        props.showRatio === false
+          ? undefined
+          : formatGroupRatio(props.groupRatios?.[group]),
     })),
   ]
 
