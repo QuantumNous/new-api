@@ -101,6 +101,14 @@ describe('buildProfileSubscriptionSummary', () => {
           total: 80_000,
           used: 20_000,
           remaining: 60_000,
+          reset_at: 1_716_000_000,
+          unlimited: false,
+        },
+        media_credits: {
+          total: 120,
+          used: 35,
+          remaining: 85,
+          reset_at: 1_716_000_000,
           unlimited: false,
         },
         remaining_days: 19,
@@ -111,13 +119,17 @@ describe('buildProfileSubscriptionSummary', () => {
       usedQuota: 50_000,
       remainingQuota: 150_000,
       unlimited: false,
+      notIncluded: false,
       remainingDays: 19,
+      resetAt: 0,
       usagePercent: 25,
       window5h: {
         totalQuota: 20_000,
         usedQuota: 5_000,
         remainingQuota: 15_000,
         unlimited: false,
+        notIncluded: false,
+        resetAt: 0,
         usagePercent: 25,
       },
       window7d: {
@@ -125,7 +137,18 @@ describe('buildProfileSubscriptionSummary', () => {
         usedQuota: 20_000,
         remainingQuota: 60_000,
         unlimited: false,
+        notIncluded: false,
+        resetAt: 1_716_000_000,
         usagePercent: 25,
+      },
+      mediaCredits: {
+        totalQuota: 120,
+        usedQuota: 35,
+        remainingQuota: 85,
+        unlimited: false,
+        notIncluded: false,
+        resetAt: 1_716_000_000,
+        usagePercent: 29.166666666666668,
       },
     })
   })
@@ -150,6 +173,31 @@ describe('buildProfileSubscriptionSummary', () => {
       remainingQuota: 75_000,
       unlimited: false,
       remainingDays: 19,
+      usagePercent: 25,
+    })
+  })
+
+  test('keeps top-level monthly reset metadata out of the profile summary', () => {
+    const buildProfileSubscriptionSummary = expectAdapterExport()
+
+    expect(
+      buildProfileSubscriptionSummary({
+        current_subscription: buildCurrentSubscription(),
+        monthly_bucket: {
+          total: 200_000,
+          used: 50_000,
+          remaining: 150_000,
+          reset_at: 1_716_000_000,
+          unlimited: false,
+        },
+      })
+    ).toMatchObject({
+      totalQuota: 200_000,
+      usedQuota: 50_000,
+      remainingQuota: 150_000,
+      unlimited: false,
+      notIncluded: false,
+      resetAt: 0,
       usagePercent: 25,
     })
   })
@@ -336,6 +384,7 @@ describe('buildProfileSubscriptionSummary', () => {
         usedQuota: 4,
         remainingQuota: 0,
         unlimited: true,
+        notIncluded: false,
         usagePercent: 0,
       },
     })
@@ -368,6 +417,7 @@ describe('buildProfileSubscriptionSummary', () => {
         usedQuota: 0,
         remainingQuota: 0,
         unlimited: true,
+        notIncluded: false,
         usagePercent: 0,
       },
     })
@@ -395,6 +445,94 @@ describe('buildProfileSubscriptionSummary', () => {
         usedQuota: 0,
         remainingQuota: 0,
         unlimited: true,
+        notIncluded: false,
+        usagePercent: 0,
+      },
+    })
+  })
+
+  test('normalizes media credits separately from quota windows', () => {
+    const buildProfileSubscriptionSummary = expectAdapterExport()
+
+    expect(
+      buildProfileSubscriptionSummary({
+        current_subscription: buildCurrentSubscription(),
+        window_5h: {
+          total: 0,
+          used: 4,
+          remaining: 0,
+          unlimited: false,
+        },
+        media_credits: {
+          total: 40,
+          used: 12,
+          remaining: 28,
+          reset_at: 1_716_000_000,
+          unlimited: false,
+        },
+      })
+    ).toMatchObject({
+      window5h: {
+        totalQuota: 0,
+        usedQuota: 4,
+        remainingQuota: 0,
+        unlimited: true,
+        notIncluded: false,
+        resetAt: 0,
+        usagePercent: 0,
+      },
+      mediaCredits: {
+        totalQuota: 40,
+        usedQuota: 12,
+        remainingQuota: 28,
+        unlimited: false,
+        notIncluded: false,
+        resetAt: 1_716_000_000,
+        usagePercent: 30,
+      },
+    })
+
+    expect(
+      buildProfileSubscriptionSummary({
+        current_subscription: buildCurrentSubscription(),
+        media_credits: {
+          total: 0,
+          used: 0,
+          remaining: 0,
+          unlimited: false,
+        },
+      })
+    ).toMatchObject({
+      mediaCredits: {
+        totalQuota: 0,
+        usedQuota: 0,
+        remainingQuota: 0,
+        unlimited: false,
+        notIncluded: true,
+        resetAt: 0,
+        usagePercent: 0,
+      },
+    })
+
+    expect(
+      buildProfileSubscriptionSummary({
+        current_subscription: buildCurrentSubscription(),
+        media_credits: {
+          total: 0,
+          used: 8,
+          remaining: 0,
+          reset_at: 1_716_000_000,
+          unlimited: true,
+        },
+      })
+    ).toMatchObject({
+      mediaCredits: {
+        totalQuota: 0,
+        usedQuota: 8,
+        remainingQuota: 0,
+        unlimited: true,
+        notIncluded: false,
+        resetAt: 1_716_000_000,
         usagePercent: 0,
       },
     })

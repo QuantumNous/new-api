@@ -27,6 +27,8 @@ export type ProfileUsageWindowSummary = {
   usedQuota: number
   remainingQuota: number
   unlimited: boolean
+  notIncluded: boolean
+  resetAt: number
   usagePercent: number
 }
 
@@ -35,6 +37,7 @@ export type ProfileSubscriptionSummary = ProfileUsageWindowSummary & {
   remainingDays: number | null
   window5h: ProfileUsageWindowSummary
   window7d: ProfileUsageWindowSummary
+  mediaCredits: ProfileUsageWindowSummary
 }
 
 function finiteNonNegative(value: unknown): number {
@@ -93,7 +96,8 @@ function normalizeUsagePercent(
 }
 
 function normalizeUsageWindow(
-  window: SubscriptionUsageWindow | undefined
+  window: SubscriptionUsageWindow | undefined,
+  kind: 'quota' | 'media' = 'quota'
 ): ProfileUsageWindowSummary {
   const totalQuota = finiteNonNegative(window?.total)
   const usedQuota = finiteNonNegative(window?.used)
@@ -101,13 +105,17 @@ function normalizeUsageWindow(
     window?.remaining === undefined
       ? Math.max(0, totalQuota - usedQuota)
       : finiteNonNegative(window.remaining)
-  const unlimited = window?.unlimited === true || totalQuota === 0
+  const unlimited =
+    window?.unlimited === true || (kind === 'quota' && totalQuota === 0)
+  const notIncluded = kind === 'media' && !unlimited && totalQuota === 0
 
   return {
     totalQuota,
     usedQuota,
     remainingQuota,
     unlimited,
+    notIncluded,
+    resetAt: finiteNonNegative(window?.reset_at),
     usagePercent: normalizeUsagePercent(usedQuota, totalQuota, unlimited),
   }
 }
@@ -128,6 +136,8 @@ function normalizeQuotaWindow(
     usedQuota,
     remainingQuota,
     unlimited,
+    notIncluded: false,
+    resetAt: finiteNonNegative(quota.reset_at),
     usagePercent: normalizeUsagePercent(usedQuota, totalQuota, unlimited),
   }
 }
@@ -145,6 +155,8 @@ function fallbackUsageWindow(
     usedQuota,
     remainingQuota,
     unlimited,
+    notIncluded: false,
+    resetAt: 0,
     usagePercent: normalizeUsagePercent(usedQuota, totalQuota, unlimited),
   }
 }
@@ -181,9 +193,12 @@ export function buildProfileSubscriptionSummary(
     usedQuota: monthlySummary.usedQuota,
     remainingQuota: monthlySummary.remainingQuota,
     unlimited: monthlySummary.unlimited,
+    notIncluded: false,
     remainingDays: normalizeRemainingDays(data?.remaining_days),
+    resetAt: 0,
     usagePercent: monthlySummary.usagePercent,
     window5h: normalizeUsageWindow(data?.window_5h),
     window7d: normalizeUsageWindow(data?.window_7d),
+    mediaCredits: normalizeUsageWindow(data?.media_credits, 'media'),
   }
 }

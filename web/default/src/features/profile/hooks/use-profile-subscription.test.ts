@@ -109,6 +109,13 @@ describe('loadProfileSubscriptionSummary', () => {
             remaining: 60_000,
             unlimited: false,
           },
+          media_credits: {
+            total: 120,
+            used: 35,
+            remaining: 85,
+            reset_at: 1_716_000_000,
+            unlimited: false,
+          },
           remaining_days: 19,
         },
       }))
@@ -118,13 +125,17 @@ describe('loadProfileSubscriptionSummary', () => {
       usedQuota: 50_000,
       remainingQuota: 150_000,
       unlimited: false,
+      notIncluded: false,
       remainingDays: 19,
+      resetAt: 0,
       usagePercent: 25,
       window5h: {
         totalQuota: 20_000,
         usedQuota: 5_000,
         remainingQuota: 15_000,
         unlimited: false,
+        notIncluded: false,
+        resetAt: 0,
         usagePercent: 25,
       },
       window7d: {
@@ -132,7 +143,18 @@ describe('loadProfileSubscriptionSummary', () => {
         usedQuota: 20_000,
         remainingQuota: 60_000,
         unlimited: false,
+        notIncluded: false,
+        resetAt: 0,
         usagePercent: 25,
+      },
+      mediaCredits: {
+        totalQuota: 120,
+        usedQuota: 35,
+        remainingQuota: 85,
+        unlimited: false,
+        notIncluded: false,
+        resetAt: 1_716_000_000,
+        usagePercent: 29.166666666666668,
       },
     })
   })
