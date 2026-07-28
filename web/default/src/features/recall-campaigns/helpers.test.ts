@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { describe, expect, test } from 'bun:test'
 import {
   convertRecallBodyTextToHtml,
+  createDefaultRecallMinimumSpendConfig,
   formatRecallMinorAmount,
   formatRecallCampaignType,
   getRecallEffectivePromotionExpiry,
@@ -11,6 +12,7 @@ import {
   getRecallRecipientRetry,
   isRecallPromotionCampaign,
   insertRecallEmailAction,
+  hydrateRecallMinimumSpendConfig,
   normalizeRecallGroupsForMode,
   normalizeRecallCouponSource,
   normalizeRecallDiscountType,
@@ -27,6 +29,7 @@ import { recallCampaignDraftSchema } from './schemas'
 import type {
   RecallCampaignDraft,
   RecallEmailStage,
+  RecallMinimumSpendConfig,
   RecallRecipient,
 } from './types'
 
@@ -538,10 +541,10 @@ describe('recall campaign editor normalization', () => {
     })
   })
 
-  test('canonicalizes positive minimum amounts to USD and clears zero currency', () => {
+  test('canonicalizes supported legacy USD minimum amounts and clears zero currency', () => {
     const positiveDraft = makeValidDraft()
     positiveDraft.discount_config.minimum_amount = 100
-    positiveDraft.discount_config.minimum_amount_currency = 'eur'
+    positiveDraft.discount_config.minimum_amount_currency = 'usd'
     const positive = prepareRecallCampaignSubmitDraft(positiveDraft)
     expect(positive.discount_config.minimum_amount_currency).toBe('USD')
 
@@ -551,6 +554,114 @@ describe('recall campaign editor normalization', () => {
       prepareRecallCampaignSubmitDraft(zero).discount_config
         .minimum_amount_currency
     ).toBe('')
+  })
+
+  test('creates disabled canonical minimum spend defaults for new drafts', () => {
+    expect(createDefaultRecallMinimumSpendConfig()).toEqual({
+      enabled: false,
+      amounts: {},
+    })
+  })
+
+  test('hydrates canonical minimum spend by cloning the stored values', () => {
+    const canonical: RecallMinimumSpendConfig = {
+      enabled: true,
+      amounts: { usd: 1_000, inr: 90_000, brl: 5_000, jpy: 1_500 },
+    }
+    const hydrated = hydrateRecallMinimumSpendConfig({
+      minimum_spend: canonical,
+      minimum_amount: 999,
+      minimum_amount_currency: 'USD',
+    })
+
+    expect(hydrated).toEqual(canonical)
+    expect(hydrated).not.toBe(canonical)
+    expect(hydrated.amounts).not.toBe(canonical.amounts)
+  })
+
+  test('hydrates legacy supported minimum amount without guessing other currencies', () => {
+    expect(
+      hydrateRecallMinimumSpendConfig({
+        minimum_amount: 90_000,
+        minimum_amount_currency: 'INR',
+      })
+    ).toEqual({ enabled: true, amounts: { inr: 90_000 } })
+  })
+
+  test('does not guess USD for unsupported legacy minimum amount currencies', () => {
+    expect(
+      hydrateRecallMinimumSpendConfig({
+        minimum_amount: 1_000,
+        minimum_amount_currency: 'EUR',
+      })
+    ).toEqual({ enabled: false, amounts: {} })
+  })
+
+  test('dual-writes canonical minimum spend at submit without filling missing currencies', () => {
+    const draft = makeValidDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1_000, brl: 5_000 },
+    }
+    draft.discount_config.minimum_amount = 999
+    draft.discount_config.minimum_amount_currency = 'EUR'
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.discount_config.minimum_spend).toEqual({
+      enabled: true,
+      amounts: { usd: 1_000, brl: 5_000 },
+    })
+    expect(normalized.discount_config.minimum_amount).toBe(1_000)
+    expect(normalized.discount_config.minimum_amount_currency).toBe('USD')
+  })
+
+  test('clears canonical and legacy minimum spend when disabled at submit', () => {
+    const draft = makeValidDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: false,
+      amounts: { usd: 1_000 },
+    }
+    draft.discount_config.minimum_amount = 1_000
+    draft.discount_config.minimum_amount_currency = 'USD'
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.discount_config.minimum_spend).toEqual({
+      enabled: false,
+      amounts: {},
+    })
+    expect(normalized.discount_config.minimum_amount).toBe(0)
+    expect(normalized.discount_config.minimum_amount_currency).toBe('')
+  })
+
+  test('preserves canonical minimum spend when switching automatic discount shapes', () => {
+    const draft = makeValidDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1_000, inr: 90_000, brl: 5_000, jpy: 1_500 },
+    }
+    draft.discount_config.minimum_amount = 1_000
+    draft.discount_config.minimum_amount_currency = 'USD'
+
+    const fixed = normalizeRecallDiscountType(draft, 'fixed')
+
+    expect(fixed.discount_config).toMatchObject({
+      type: 'fixed',
+      minimum_spend: {
+        enabled: true,
+        amounts: { usd: 1_000, inr: 90_000, brl: 5_000, jpy: 1_500 },
+      },
+      minimum_amount: 1_000,
+      minimum_amount_currency: 'USD',
+    })
+
+    const percent = normalizeRecallDiscountType(fixed, 'percent')
+    expect(percent.discount_config.minimum_spend).toEqual(
+      draft.discount_config.minimum_spend
+    )
+    expect(percent.discount_config.minimum_amount).toBe(1_000)
+    expect(percent.discount_config.minimum_amount_currency).toBe('USD')
   })
 
   test('converts relative validity between days, hours, and seconds', () => {
@@ -606,7 +717,7 @@ describe('recall campaign editor normalization', () => {
     expect(getRecallEmailLocaleStatus(stage, 'fr')).toBe('stale')
   })
 
-  test('establishes the four automatic fixed discount defaults', () => {
+  test('establishes the four automatic fixed discount defaults while preserving legacy minimum spend', () => {
     const draft = makeDraft()
     draft.coupon_source = 'automatic'
     draft.discount_config = {
@@ -617,7 +728,7 @@ describe('recall campaign editor normalization', () => {
       currency: '',
       currency_options: {},
       minimum_amount: 100,
-      minimum_amount_currency: 'eur',
+      minimum_amount_currency: 'USD',
     }
 
     const normalized = normalizeRecallDiscountType(draft, 'fixed')
@@ -628,8 +739,8 @@ describe('recall campaign editor normalization', () => {
       amount_off: 500,
       currency: 'USD',
       currency_options: { inr: 45_000, brl: 2_500, jpy: 750 },
-      minimum_amount: 0,
-      minimum_amount_currency: '',
+      minimum_amount: 100,
+      minimum_amount_currency: 'USD',
     })
   })
 
@@ -638,7 +749,12 @@ describe('recall campaign editor normalization', () => {
     expect(parseRecallMajorAmount('INR', '450.00')).toBe(45_000)
     expect(parseRecallMajorAmount('BRL', '25.00')).toBe(2_500)
     expect(parseRecallMajorAmount('JPY', '750')).toBe(750)
+    expect(parseRecallMajorAmount('USD', '5.0')).toBe(500)
+    expect(parseRecallMajorAmount('USD', '5')).toBe(500)
+    expect(parseRecallMajorAmount('JPY', '0750')).toBe(750)
     expect(parseRecallMajorAmount('USD', '5.001')).toBeNull()
+    expect(parseRecallMajorAmount('INR', '450.001')).toBeNull()
+    expect(parseRecallMajorAmount('BRL', '25.001')).toBeNull()
     expect(parseRecallMajorAmount('JPY', '750.5')).toBeNull()
     expect(parseRecallMajorAmount('BRL', '0')).toBeNull()
   })

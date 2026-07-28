@@ -544,7 +544,7 @@ describe('recallCampaignDraftSchema', () => {
     )
   })
 
-  test('rejects a minimum amount for an automatic fixed discount', () => {
+  test('accepts canonical minimum spend for an automatic fixed discount', () => {
     const fixed = makeDraft()
     fixed.discount_config = {
       ...fixed.discount_config,
@@ -555,9 +555,122 @@ describe('recallCampaignDraftSchema', () => {
       currency_options: { inr: 45_000, brl: 2_500, jpy: 750 },
       minimum_amount: 1_000,
       minimum_amount_currency: 'USD',
+      minimum_spend: {
+        enabled: true,
+        amounts: { usd: 1_000, inr: 90_000, brl: 5_000, jpy: 1_500 },
+      },
     }
 
-    expect(recallCampaignDraftSchema.safeParse(fixed).success).toBe(false)
+    expect(recallCampaignDraftSchema.safeParse(fixed).success).toBe(true)
+  })
+
+  test('reports enabled minimum spend amount errors at each currency field', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1_000, inr: 90_000, brl: 0 },
+    }
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_spend', 'amounts', 'brl'],
+        })
+      )
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_spend', 'amounts', 'jpy'],
+        })
+      )
+    }
+  })
+
+  test('rejects extra canonical minimum spend currencies', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: {
+        usd: 1_000,
+        inr: 90_000,
+        brl: 5_000,
+        jpy: 1_500,
+        eur: 1_000,
+      },
+    }
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_spend', 'amounts', 'eur'],
+        })
+      )
+    }
+  })
+
+  test('requires disabled canonical minimum spend to clear amounts and legacy pair', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_amount = 1_000
+    draft.discount_config.minimum_amount_currency = 'USD'
+    draft.discount_config.minimum_spend = {
+      enabled: false,
+      amounts: { usd: 1_000 },
+    }
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_spend', 'amounts'],
+        })
+      )
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_amount'],
+        })
+      )
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_amount_currency'],
+        })
+      )
+    }
+  })
+
+  test('allows legacy minimum spend when canonical object is absent', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_amount = 1_000
+    draft.discount_config.minimum_amount_currency = 'USD'
+
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+  })
+
+  test('requires canonical enabled minimum spend to match the legacy USD pair', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_amount = 999
+    draft.discount_config.minimum_amount_currency = 'USD'
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1_000, inr: 90_000, brl: 5_000, jpy: 1_500 },
+    }
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_amount'],
+        })
+      )
+    }
   })
 
   test('accepts automatic coupons and requires an ID for existing coupons', () => {

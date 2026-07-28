@@ -10,6 +10,7 @@ const nonNegativeNumber = z.number().min(0)
 const integer = z.number().int()
 const number = z.number()
 const currencySchema = z.string().regex(/^[A-Z]{3}$/)
+const minimumSpendCurrencies = ['usd', 'inr', 'brl', 'jpy'] as const
 
 function normalizeSpecifiedEmails(emails: string[]): string[] {
   const normalizedEmails: string[] = []
@@ -212,6 +213,89 @@ const scheduleSchema = z
   })
   .strict()
 
+function validateRecallMinimumSpend(
+  discount: {
+    minimum_amount: number
+    minimum_amount_currency: string
+    minimum_spend?: {
+      enabled: boolean
+      amounts: Record<string, unknown>
+    }
+  },
+  context: z.RefinementCtx
+): void {
+  const minimumSpend = discount.minimum_spend
+  if (minimumSpend === undefined) return
+
+  const amountKeys = Object.keys(minimumSpend.amounts)
+  if (!minimumSpend.enabled) {
+    if (amountKeys.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['minimum_spend', 'amounts'],
+        message: 'Minimum spend amounts must be empty',
+      })
+    }
+    if (discount.minimum_amount !== 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['minimum_amount'],
+        message: 'Minimum amount must be empty',
+      })
+    }
+    if (discount.minimum_amount_currency !== '') {
+      context.addIssue({
+        code: 'custom',
+        path: ['minimum_amount_currency'],
+        message: 'Minimum amount currency must be empty',
+      })
+    }
+    return
+  }
+
+  for (const currency of amountKeys) {
+    if (
+      !minimumSpendCurrencies.includes(
+        currency as (typeof minimumSpendCurrencies)[number]
+      )
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['minimum_spend', 'amounts', currency],
+        message: 'Minimum spend currency is unsupported',
+      })
+    }
+  }
+  for (const currency of minimumSpendCurrencies) {
+    const amount = minimumSpend.amounts[currency]
+    if (
+      typeof amount !== 'number' ||
+      !Number.isSafeInteger(amount) ||
+      amount <= 0
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['minimum_spend', 'amounts', currency],
+        message: `${currency.toUpperCase()} minimum spend is required`,
+      })
+    }
+  }
+  if (discount.minimum_amount !== minimumSpend.amounts.usd) {
+    context.addIssue({
+      code: 'custom',
+      path: ['minimum_amount'],
+      message: 'Minimum amount must match USD minimum spend',
+    })
+  }
+  if (discount.minimum_amount_currency !== 'USD') {
+    context.addIssue({
+      code: 'custom',
+      path: ['minimum_amount_currency'],
+      message: 'Minimum amount currency must be USD',
+    })
+  }
+}
+
 const promotionDiscountSchema = z
   .object({
     type: z.enum(['percent', 'fixed']),
@@ -221,6 +305,13 @@ const promotionDiscountSchema = z
     currency_options: z.record(z.string(), nonNegativeInteger),
     minimum_amount: nonNegativeInteger,
     minimum_amount_currency: z.string(),
+    minimum_spend: z
+      .object({
+        enabled: z.boolean(),
+        amounts: z.record(z.string(), z.unknown()),
+      })
+      .strict()
+      .optional(),
     coupon_redeem_by: nonNegativeInteger,
   })
   .strict()
@@ -268,7 +359,8 @@ const promotionDiscountSchema = z
         })
       }
     }
-    if (discount.minimum_amount > 0) {
+    validateRecallMinimumSpend(discount, context)
+    if (discount.minimum_spend === undefined && discount.minimum_amount > 0) {
       if (discount.minimum_amount_currency !== 'USD') {
         context.addIssue({
           code: 'custom',
@@ -276,7 +368,10 @@ const promotionDiscountSchema = z
           message: 'Minimum amount currency must be USD',
         })
       }
-    } else if (discount.minimum_amount_currency !== '') {
+    } else if (
+      discount.minimum_spend === undefined &&
+      discount.minimum_amount_currency !== ''
+    ) {
       context.addIssue({
         code: 'custom',
         path: ['minimum_amount_currency'],
@@ -304,6 +399,13 @@ const discountSchema = z
     currency_options: z.record(z.string(), nonNegativeInteger),
     minimum_amount: nonNegativeInteger,
     minimum_amount_currency: z.string(),
+    minimum_spend: z
+      .object({
+        enabled: z.boolean(),
+        amounts: z.record(z.string(), z.unknown()),
+      })
+      .strict()
+      .optional(),
     coupon_redeem_by: nonNegativeInteger,
   })
   .strict()
@@ -539,16 +641,6 @@ export const recallCampaignDraftSchema = z
             message: `${currency.toUpperCase()} amount is required`,
           })
         }
-      }
-      if (
-        discount.minimum_amount !== 0 ||
-        discount.minimum_amount_currency !== ''
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['discount_config', 'minimum_amount'],
-          message: 'Automatic fixed coupons cannot set a minimum amount',
-        })
       }
     }
     if (

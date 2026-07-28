@@ -12,6 +12,7 @@ export type RecallCouponSource = 'automatic' | 'existing'
 export type RecallDiscountType = 'percent' | 'fixed'
 export type RecallPromotionExpiryMode = 'relative' | 'fixed'
 export type RecallFixedCurrency = 'USD' | 'INR' | 'BRL' | 'JPY'
+export type RecallMinimumSpendCurrency = 'usd' | 'inr' | 'brl' | 'jpy'
 export type RecallFrequency = 'daily' | 'weekly'
 export type RecallGroupMode = '' | 'allow' | 'block'
 
@@ -60,7 +61,13 @@ export interface RecallDiscountConfig {
   currency_options: Record<string, number>
   minimum_amount: number
   minimum_amount_currency: string
+  minimum_spend?: RecallMinimumSpendConfig
   coupon_redeem_by: number
+}
+
+export interface RecallMinimumSpendConfig {
+  enabled: boolean
+  amounts: Partial<Record<RecallMinimumSpendCurrency, number>>
 }
 
 export interface RecallProductScope {

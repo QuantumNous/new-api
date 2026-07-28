@@ -13,6 +13,8 @@ import type {
   RecallEmailStage,
   RecallEmailLocaleStatus,
   RecallFixedCurrency,
+  RecallMinimumSpendConfig,
+  RecallMinimumSpendCurrency,
   RecallRecipient,
 } from './types'
 
@@ -28,6 +30,16 @@ export {
 } from './email-html'
 
 export const recallFixedCurrencies = ['USD', 'INR', 'BRL', 'JPY'] as const
+
+const legacyMinimumSpendCurrencyMap: Record<
+  RecallFixedCurrency,
+  RecallMinimumSpendCurrency
+> = {
+  USD: 'usd',
+  INR: 'inr',
+  BRL: 'brl',
+  JPY: 'jpy',
+}
 
 export function formatRecallCampaignType(type: RecallCampaignType): string {
   return type === 'content_only' ? 'Content only' : 'Promotion'
@@ -69,6 +81,88 @@ export function formatRecallMinorAmount(
   if (!Number.isSafeInteger(value) || value <= 0) return ''
   const scale = recallCurrencyMinorUnitScale[currency]
   return currency === 'JPY' ? String(value) : (value / scale).toFixed(2)
+}
+
+export function createDefaultRecallMinimumSpendConfig(): RecallMinimumSpendConfig {
+  return { enabled: false, amounts: {} }
+}
+
+export function hydrateRecallMinimumSpendConfig(
+  discount: Pick<
+    Partial<RecallCampaignDraft['discount_config']>,
+    'minimum_spend' | 'minimum_amount' | 'minimum_amount_currency'
+  >
+): RecallMinimumSpendConfig {
+  if (discount.minimum_spend) {
+    return {
+      enabled: discount.minimum_spend.enabled,
+      amounts: { ...discount.minimum_spend.amounts },
+    }
+  }
+
+  const legacyAmount = discount.minimum_amount ?? 0
+  const legacyCurrency = discount.minimum_amount_currency?.trim().toUpperCase()
+  if (legacyAmount <= 0 || !legacyCurrency) {
+    return createDefaultRecallMinimumSpendConfig()
+  }
+
+  const supportedCurrency =
+    legacyMinimumSpendCurrencyMap[legacyCurrency as RecallFixedCurrency]
+  if (!supportedCurrency) {
+    return createDefaultRecallMinimumSpendConfig()
+  }
+
+  return { enabled: true, amounts: { [supportedCurrency]: legacyAmount } }
+}
+
+function normalizeRecallMinimumSpendForSubmit(
+  discount: RecallCampaignDraft['discount_config']
+): Pick<
+  RecallCampaignDraft['discount_config'],
+  'minimum_spend' | 'minimum_amount' | 'minimum_amount_currency'
+> {
+  const minimumSpend = hydrateRecallMinimumSpendConfig(discount)
+  if (!minimumSpend.enabled) {
+    return {
+      minimum_spend: createDefaultRecallMinimumSpendConfig(),
+      minimum_amount: 0,
+      minimum_amount_currency: '',
+    }
+  }
+
+  return {
+    minimum_spend: {
+      enabled: true,
+      amounts: { ...minimumSpend.amounts },
+    },
+    minimum_amount: minimumSpend.amounts.usd ?? 0,
+    minimum_amount_currency: minimumSpend.amounts.usd ? 'USD' : '',
+  }
+}
+
+function preserveRecallMinimumSpendDualWrite(
+  discount: RecallCampaignDraft['discount_config']
+): Pick<
+  RecallCampaignDraft['discount_config'],
+  'minimum_spend' | 'minimum_amount' | 'minimum_amount_currency'
+> {
+  const minimumSpend = hydrateRecallMinimumSpendConfig(discount)
+  if (!minimumSpend.enabled) {
+    return {
+      minimum_spend: discount.minimum_spend,
+      minimum_amount: 0,
+      minimum_amount_currency: '',
+    }
+  }
+
+  return {
+    minimum_spend: discount.minimum_spend
+      ? { enabled: true, amounts: { ...minimumSpend.amounts } }
+      : undefined,
+    minimum_amount: minimumSpend.amounts.usd ?? discount.minimum_amount,
+    minimum_amount_currency:
+      minimumSpend.amounts.usd || discount.minimum_amount > 0 ? 'USD' : '',
+  }
 }
 
 export function normalizeRecallCouponSource(
@@ -140,8 +234,7 @@ export function prepareRecallCampaignSubmitDraft(
     ...draft,
     discount_config: {
       ...draft.discount_config,
-      minimum_amount_currency:
-        draft.discount_config.minimum_amount > 0 ? 'USD' : '',
+      ...normalizeRecallMinimumSpendForSubmit(draft.discount_config),
     },
     audience_config: {
       ...draft.audience_config,
@@ -229,7 +322,7 @@ export function normalizeRecallDiscountType(
         amount_off: 0,
         currency: '',
         currency_options: {},
-        minimum_amount_currency: discount.minimum_amount > 0 ? 'USD' : '',
+        ...preserveRecallMinimumSpendDualWrite(discount),
       },
     }
   }
@@ -260,8 +353,7 @@ export function normalizeRecallDiscountType(
               ? discount.currency_options.jpy
               : recallFixedCurrencyDefaults.currency_options.jpy,
         },
-        minimum_amount: 0,
-        minimum_amount_currency: '',
+        ...preserveRecallMinimumSpendDualWrite(discount),
       },
     }
   }
@@ -275,7 +367,7 @@ export function normalizeRecallDiscountType(
       percent_off: 0,
       amount_off: discount.amount_off > 0 ? discount.amount_off : 1,
       currency,
-      minimum_amount_currency: discount.minimum_amount > 0 ? 'USD' : '',
+      ...preserveRecallMinimumSpendDualWrite(discount),
     },
   }
 }
