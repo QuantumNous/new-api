@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -14,7 +15,16 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
+
+type inviteRewardMigrationSQLRecorder struct {
+	entries []string
+}
+
+func (r *inviteRewardMigrationSQLRecorder) Printf(format string, args ...any) {
+	r.entries = append(r.entries, fmt.Sprintf(format, args...))
+}
 
 func setupInviteRewardMigrationTest(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -350,6 +360,22 @@ func TestStartupInviteRewardMigrationSelectionUsesStoredOption(t *testing.T) {
 
 		require.Error(t, migrateStartupInvitationValue())
 	})
+}
+
+func TestStoredInviteRewardSubscriptionModeQueryQuotesReservedKey(t *testing.T) {
+	db := setupInviteRewardMigrationTest(t)
+	require.NoError(t, db.AutoMigrate(&Option{}))
+	require.NoError(t, db.Create(&Option{Key: "InviteRewardSubscriptionModeEnabled", Value: "true"}).Error)
+
+	recorder := &inviteRewardMigrationSQLRecorder{}
+	DB = db.Session(&gorm.Session{Logger: logger.New(recorder, logger.Config{LogLevel: logger.Info})})
+	enabled, err := storedInviteRewardSubscriptionModeEnabled()
+	require.NoError(t, err)
+	require.True(t, enabled)
+
+	generatedSQL := strings.Join(recorder.entries, "\n")
+	require.Contains(t, generatedSQL, "`options`.`key`")
+	require.NotContains(t, generatedSQL, "WHERE key =")
 }
 
 func TestMigrateUserInvitationValueScopesAffQuotaAndPendingRewards(t *testing.T) {

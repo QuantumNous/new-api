@@ -459,7 +459,7 @@ func storedInviteRewardSubscriptionModeEnabled() (bool, error) {
 		return false, nil
 	}
 	var option Option
-	err := DB.Where("key = ?", "InviteRewardSubscriptionModeEnabled").First(&option).Error
+	err := DB.Where(&Option{Key: "InviteRewardSubscriptionModeEnabled"}).First(&option).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
