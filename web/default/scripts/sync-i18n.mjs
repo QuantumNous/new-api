@@ -48,6 +48,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'DeepSeek',
   'Discord',
   'DoubaoVideo',
+  'DreamBrand',
   'FastGPT',
   'Gemini',
   'Gemini Image 4K',

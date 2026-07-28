@@ -57,6 +57,7 @@ const (
 	ChannelTypeCodex          = 57
 	ChannelTypeZLHubVideo     = 58
 	ChannelTypeZLHubAsset     = 59
+	ChannelTypeDreamBrand     = 60
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -122,6 +123,7 @@ var ChannelBaseURLs = []string{
 	"https://chatgpt.com",                       //57
 	"https://api.zlhub.cn",                      //58
 	"https://asset.zlhub.cn",                    //59
+	"https://ai.dreambrand.studio",              //60
 }
 
 var ChannelTypeNames = map[int]string{
@@ -181,6 +183,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeCodex:          "Codex",
 	ChannelTypeZLHubVideo:     "ZLHubVideo",
 	ChannelTypeZLHubAsset:     "ZLHubAsset",
+	ChannelTypeDreamBrand:     "DreamBrand",
 }
 
 func GetChannelTypeName(channelType int) string {

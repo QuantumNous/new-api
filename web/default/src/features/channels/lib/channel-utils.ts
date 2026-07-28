@@ -102,6 +102,7 @@ export function getChannelTypeIcon(type: number): string {
     54: 'Doubao', // DoubaoVideo
     58: 'Doubao', // ZLHubVideo
     59: 'Doubao', // ZLHubAsset
+    60: 'Doubao', // DreamBrand
     56: 'Replicate', // Replicate
 
     // Tools & Platforms

@@ -157,6 +157,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://asset.zlhub.cn',
     },
   },
+  60: {
+    id: 60,
+    name: CHANNEL_TYPES[60],
+    icon: 'doubao',
+    defaultBaseUrl: 'https://ai.dreambrand.studio',
+    supportedModels: ['seedance-2.0-standard'],
+    hints: {
+      key: 'DreamBrand API Key',
+      models: 'seedance-2.0-standard',
+      baseUrl: 'Default: https://ai.dreambrand.studio',
+    },
+  },
 }
 
 /**

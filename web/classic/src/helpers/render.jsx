@@ -405,6 +405,8 @@ export function getChannelIcon(channelType) {
       return <Doubao.Color size={iconSize} />;
     case 58: // ZLHub Video
       return <Doubao.Color size={iconSize} />;
+    case 60: // DreamBrand
+      return <Doubao.Color size={iconSize} />;
     case 56: // Replicate
       return <Replicate size={iconSize} />;
     case 8: // 自定义渠道

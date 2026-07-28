@@ -85,6 +85,7 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 		constant.ChannelTypeDoubaoVideo,
 		constant.ChannelTypeZLHubVideo,
 		constant.ChannelTypeZLHubAsset,
+		constant.ChannelTypeDreamBrand,
 		constant.ChannelTypeVidu,
 	}
 	if lo.Contains(unsupportedTestChannelTypes, channel.Type) {

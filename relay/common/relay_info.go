@@ -689,6 +689,7 @@ type TaskSubmitReq struct {
 	Images         []string               `json:"images,omitempty"`
 	Size           string                 `json:"size,omitempty"`
 	Duration       int                    `json:"duration,omitempty"`
+	DurationSet    bool                   `json:"-"`
 	Seconds        string                 `json:"seconds,omitempty"`
 	InputReference string                 `json:"input_reference,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
@@ -716,15 +717,18 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	if len(aux.Duration) > 0 {
+	t.DurationSet = false
+	if len(aux.Duration) > 0 && string(aux.Duration) != "null" {
 		var durationInt int
 		if err := common.Unmarshal(aux.Duration, &durationInt); err == nil {
 			t.Duration = durationInt
+			t.DurationSet = true
 		} else {
 			var durationStr string
 			if err := common.Unmarshal(aux.Duration, &durationStr); err == nil && durationStr != "" {
 				if v, err := strconv.Atoi(durationStr); err == nil {
 					t.Duration = v
+					t.DurationSet = true
 				}
 			}
 		}
