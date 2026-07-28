@@ -16,12 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type InvitationStatus =
-  | 'pending'
-  | 'granted'
-  | 'blocked'
-  | 'locked'
-  | 'revoked'
+export type InvitationStatus = 'pending' | 'granted' | 'blocked'
 
 export type InvitationRewardMode = 'topup' | 'subscription'
 
@@ -30,10 +25,7 @@ export const INVITATION_PAGE_SIZE = 10
 export type InvitationReason =
   | ''
   | 'inviter_limit_reached'
-  | 'inviter_missing'
   | 'unavailable'
-  | 'refunded'
-  | 'disputed'
 
 export interface InvitationRecord {
   id: number
@@ -43,22 +35,31 @@ export interface InvitationRecord {
   granted_at: number
   reward_usd: number
   reason: InvitationReason
-  unlock_at: number
 }
 
-export interface InvitationSummary {
-  reward_mode: InvitationRewardMode
-  first_sub_discount_usd: number
-  unlock_delay_days: number
+interface InvitationBaseSummary {
   inviter_reward_usd: number
   invitee_reward_usd: number
   inviter_reward_max_count: number
-  history_usd: number
-  pending_reward_usd: number
-  locked_reward_usd: number
   granted_count: number
   pending_count: number
 }
+
+export interface InvitationTopupSummary extends InvitationBaseSummary {
+  reward_mode: 'topup'
+  history_usd: number
+  pending_reward_usd: number
+}
+
+export interface InvitationSubscriptionSummary extends InvitationBaseSummary {
+  reward_mode: 'subscription'
+  available_discount_usd: number
+  lifetime_discount_usd: number
+}
+
+export type InvitationSummary =
+  | InvitationTopupSummary
+  | InvitationSubscriptionSummary
 
 export interface InvitationPageData {
   summary: InvitationSummary

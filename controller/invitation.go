@@ -18,19 +18,27 @@ const (
 )
 
 type invitationSummary struct {
-	RewardMode            string  `json:"reward_mode"` // "topup" (legacy) | "subscription" (v2 fixed reward on first subscription)
-	FirstSubDiscountUSD   float64 `json:"first_sub_discount_usd"`
-	UnlockDelayDays       int64   `json:"unlock_delay_days"`
+	RewardMode            string  `json:"reward_mode"` // "topup" (legacy)
 	InviterRewardUSD      float64 `json:"inviter_reward_usd"`
 	InviteeRewardUSD      float64 `json:"invitee_reward_usd"`
 	InviterRewardMaxCount int     `json:"inviter_reward_max_count"`
 	HistoryUSD            float64 `json:"history_usd"`
 	PendingRewardUSD      float64 `json:"pending_reward_usd"`
-	LockedRewardUSD       float64 `json:"locked_reward_usd"`
 	TransferableUSD       float64 `json:"transferable_usd"`
 	GrantedCount          int     `json:"granted_count"`
 	PendingCount          int64   `json:"pending_count"`
 	TransferEnabled       bool    `json:"transfer_enabled"`
+}
+
+type invitationSubscriptionSummary struct {
+	RewardMode            string  `json:"reward_mode"`
+	AvailableDiscountUSD  float64 `json:"available_discount_usd"`
+	LifetimeDiscountUSD   float64 `json:"lifetime_discount_usd"`
+	InviterRewardUSD      float64 `json:"inviter_reward_usd"`
+	InviteeRewardUSD      float64 `json:"invitee_reward_usd"`
+	InviterRewardMaxCount int     `json:"inviter_reward_max_count"`
+	GrantedCount          int     `json:"granted_count"`
+	PendingCount          int64   `json:"pending_count"`
 }
 
 type invitationRecord struct {
@@ -41,11 +49,10 @@ type invitationRecord struct {
 	GrantedAt      int64   `json:"granted_at"`
 	RewardUSD      float64 `json:"reward_usd"`
 	Reason         string  `json:"reason"`
-	UnlockAt       int64   `json:"unlock_at"`
 }
 
 type invitationResponse struct {
-	Summary  invitationSummary  `json:"summary"`
+	Summary  any                `json:"summary"`
 	Items    []invitationRecord `json:"items"`
 	Page     int                `json:"page"`
 	PageSize int                `json:"page_size"`
@@ -100,7 +107,6 @@ func invitationRecordsFromModel(records []model.InvitationRecord) []invitationRe
 			GrantedAt:      record.GrantedAt,
 			RewardUSD:      invitationUSDFromQuota(record.RewardQuota),
 			Reason:         record.Reason,
-			UnlockAt:       record.UnlockAt,
 		})
 	}
 	return items
@@ -164,26 +170,26 @@ func GetSelfInvitations(c *gin.Context) {
 		return
 	}
 
-	rewardMode := "topup"
-	lockedRewardUSD := 0.0
+	var summary any
 	if common.InviteRewardSubscriptionMode {
-		rewardMode = "subscription"
-		lockedQuota, err := model.SumLockedInviteSubscriptionRewardQuota(user.Id)
+		discountSummary, err := model.GetSubscriptionDiscountSummary(user.Id)
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-		if lockedQuota > 0 && lockedQuota <= math.MaxInt {
-			lockedRewardUSD = invitationUSDFromQuota(int(lockedQuota))
+		summary = invitationSubscriptionSummary{
+			RewardMode:            "subscription",
+			AvailableDiscountUSD:  discountSummary.AvailableDiscountUSD,
+			LifetimeDiscountUSD:   discountSummary.LifetimeDiscountUSD,
+			InviterRewardUSD:      invitationUSDFromQuota(common.QuotaForInviter),
+			InviteeRewardUSD:      common.InviteFirstSubDiscountUSD,
+			InviterRewardMaxCount: common.QuotaForInviterMaxCount,
+			GrantedCount:          user.AffCount,
+			PendingCount:          invitationPage.PendingCount,
 		}
-	}
-
-	common.ApiSuccess(c, invitationResponse{
-		Summary: invitationSummary{
-			RewardMode:            rewardMode,
-			FirstSubDiscountUSD:   common.InviteFirstSubDiscountUSD,
-			UnlockDelayDays:       common.InviteRewardUnlockDelaySeconds / 86400,
-			LockedRewardUSD:       lockedRewardUSD,
+	} else {
+		summary = invitationSummary{
+			RewardMode:            "topup",
 			InviterRewardUSD:      invitationUSDFromQuota(common.QuotaForInviter),
 			InviteeRewardUSD:      invitationUSDFromQuota(common.QuotaForInvitee),
 			InviterRewardMaxCount: common.QuotaForInviterMaxCount,
@@ -198,7 +204,11 @@ func GetSelfInvitations(c *gin.Context) {
 			GrantedCount:    user.AffCount,
 			PendingCount:    invitationPage.PendingCount,
 			TransferEnabled: operation_setting.IsPaymentComplianceConfirmed(),
-		},
+		}
+	}
+
+	common.ApiSuccess(c, invitationResponse{
+		Summary:  summary,
 		Items:    invitationRecordsFromModel(invitationPage.Items),
 		Page:     page,
 		PageSize: pageSize,

@@ -26,6 +26,8 @@ type invitationTestResponse struct {
 			InviteeRewardUSD      float64 `json:"invitee_reward_usd"`
 			InviterRewardMaxCount int     `json:"inviter_reward_max_count"`
 			HistoryUSD            float64 `json:"history_usd"`
+			AvailableDiscountUSD  float64 `json:"available_discount_usd"`
+			LifetimeDiscountUSD   float64 `json:"lifetime_discount_usd"`
 			PendingRewardUSD      float64 `json:"pending_reward_usd"`
 			TransferableUSD       float64 `json:"transferable_usd"`
 			GrantedCount          int     `json:"granted_count"`
@@ -54,6 +56,7 @@ func setupInvitationControllerTest(t *testing.T) (*gorm.DB, model.User) {
 	originalQuotaForInviterMaxCount := common.QuotaForInviterMaxCount
 	originalQuotaPerUnit := common.QuotaPerUnit
 	originalInviteRewardSubscriptionMode := common.InviteRewardSubscriptionMode
+	originalInviteFirstSubDiscountUSD := common.InviteFirstSubDiscountUSD
 	paymentSetting := operation_setting.GetPaymentSetting()
 	originalPaymentSetting := *paymentSetting
 	dbPath := t.TempDir() + "/invitation-controller.db"
@@ -77,6 +80,7 @@ func setupInvitationControllerTest(t *testing.T) (*gorm.DB, model.User) {
 		common.QuotaForInviterMaxCount = originalQuotaForInviterMaxCount
 		common.QuotaPerUnit = originalQuotaPerUnit
 		common.InviteRewardSubscriptionMode = originalInviteRewardSubscriptionMode
+		common.InviteFirstSubDiscountUSD = originalInviteFirstSubDiscountUSD
 		*paymentSetting = originalPaymentSetting
 	})
 
@@ -90,6 +94,7 @@ func setupInvitationControllerTest(t *testing.T) (*gorm.DB, model.User) {
 	common.QuotaForInviterMaxCount = 10
 	common.QuotaPerUnit = 100
 	common.InviteRewardSubscriptionMode = false
+	common.InviteFirstSubDiscountUSD = 5
 	paymentSetting.ComplianceConfirmed = true
 	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
 
@@ -215,6 +220,76 @@ func TestGetSelfInvitations(t *testing.T) {
 		account, err := model.GetSubscriptionDiscountAccount(inviter.Id)
 		require.NoError(t, err)
 		require.EqualValues(t, 400, account.AvailableUSDMinor)
+	})
+
+	t.Run("subscription mode summary uses package discount ledger and hides transfer fields", func(t *testing.T) {
+		db, inviter := setupInvitationControllerTest(t)
+		common.InviteRewardSubscriptionMode = true
+		common.InviteFirstSubDiscountUSD = 6.25
+		common.QuotaForInvitee = 9999
+		common.QuotaForInviterMaxCount = 0
+		require.NoError(t, db.Model(&model.User{}).Where("id = ?", inviter.Id).Update("aff_quota", 0).Error)
+		require.NoError(t, db.Create(&model.SubscriptionDiscountAccount{
+			UserID:            inviter.Id,
+			AvailableUSDMinor: 1234,
+			ReservedUSDMinor:  66,
+			CreatedAt:         1000,
+			UpdatedAt:         1000,
+		}).Error)
+		require.NoError(t, db.Create(&[]model.SubscriptionDiscountEntry{
+			{
+				UserID:                 inviter.Id,
+				EntryType:              model.SubscriptionDiscountEntryTypeGrantInviter,
+				AvailableDeltaUSDMinor: 500,
+				AvailableAfterUSDMinor: 500,
+				SourceType:             "invite_subscription_reward",
+				SourceKey:              "grant",
+				IdempotencyKey:         "grant",
+				CreatedAt:              1000,
+			},
+			{
+				UserID:                 inviter.Id,
+				EntryType:              model.SubscriptionDiscountEntryTypeMigration,
+				AvailableDeltaUSDMinor: 700,
+				AvailableAfterUSDMinor: 1200,
+				SourceType:             "aff_quota",
+				SourceKey:              "migration",
+				IdempotencyKey:         "migration",
+				CreatedAt:              1001,
+			},
+			{
+				UserID:                 inviter.Id,
+				EntryType:              model.SubscriptionDiscountEntryTypeReserve,
+				AvailableDeltaUSDMinor: -300,
+				ReservedDeltaUSDMinor:  300,
+				AvailableAfterUSDMinor: 900,
+				ReservedAfterUSDMinor:  300,
+				SourceType:             model.SubscriptionDiscountEntryTypeReserve,
+				SourceKey:              "reserve",
+				IdempotencyKey:         "reserve",
+				TradeNo:                "trade",
+				PaymentCurrency:        "USD",
+				CreatedAt:              1002,
+			},
+		}).Error)
+
+		recorder, response := performInvitationRequest(t, inviter.Id, "")
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		require.True(t, response.Success)
+		require.Equal(t, 12.34, response.Data.Summary.AvailableDiscountUSD)
+		require.Equal(t, 12.0, response.Data.Summary.LifetimeDiscountUSD)
+		require.Equal(t, 5.0, response.Data.Summary.InviterRewardUSD)
+		require.Equal(t, 6.25, response.Data.Summary.InviteeRewardUSD)
+		require.Zero(t, response.Data.Summary.InviterRewardMaxCount)
+		body := recorder.Body.String()
+		require.Contains(t, body, `"reward_mode":"subscription"`)
+		require.Contains(t, body, `"available_discount_usd":12.34`)
+		require.Contains(t, body, `"lifetime_discount_usd":12`)
+		require.NotContains(t, body, "transferable_usd")
+		require.NotContains(t, body, "transfer_enabled")
+		require.NotContains(t, body, "locked_reward_usd")
+		require.NotContains(t, body, "unlock_delay_days")
 	})
 
 	t.Run("caps pending reward at remaining inviter slots", func(t *testing.T) {
