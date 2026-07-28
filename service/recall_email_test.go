@@ -1077,14 +1077,14 @@ func TestRecallMaintenanceLogsQuotaWaitWithLeaseCleanupFailure(t *testing.T) {
 		}
 	}))
 	t.Cleanup(func() { _ = updateCallbacks.Remove(injectQuotaRaceCallback) })
-	var retryReleaseSeen bool
+	recallMessageUpdatesAfterQuotaRace := 0
 	failRemainingReleaseCallback := "recall_email_fail_remaining_release_" + strings.ReplaceAll(t.Name(), "/", "_")
 	require.NoError(t, updateCallbacks.Before("gorm:update").Register(failRemainingReleaseCallback, func(tx *gorm.DB) {
 		if !quotaRaceInjected || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallMessage" {
 			return
 		}
-		if !retryReleaseSeen {
-			retryReleaseSeen = true
+		if recallMessageUpdatesAfterQuotaRace < 2 {
+			recallMessageUpdatesAfterQuotaRace++
 			return
 		}
 		tx.AddError(errors.New("injected release remaining recall email lease failure"))
@@ -1106,9 +1106,11 @@ func TestRecallMaintenanceLogsQuotaWaitWithLeaseCleanupFailure(t *testing.T) {
 
 	firstStored := loadRecallEmailMessageByID(t, fixture.message.Id)
 	secondStored := loadRecallEmailMessageByID(t, secondMessage.Id)
-	require.Contains(t, logOutput.String(), "recall email maintenance failed", "quotaRaceInjected=%v retryReleaseSeen=%v first=%s second=%s", quotaRaceInjected, retryReleaseSeen, firstStored.State, secondStored.State)
+	require.Contains(t, logOutput.String(), "recall email maintenance failed", "quotaRaceInjected=%v updatesAfterQuotaRace=%d first=%s second=%s", quotaRaceInjected, recallMessageUpdatesAfterQuotaRace, firstStored.State, secondStored.State)
+	require.Contains(t, logOutput.String(), "release remaining recall email leases")
+	require.Contains(t, logOutput.String(), "injected release remaining recall email lease failure")
 	require.True(t, quotaRaceInjected)
-	require.True(t, retryReleaseSeen)
+	require.Equal(t, 2, recallMessageUpdatesAfterQuotaRace)
 	require.Equal(t, model.RecallMessageLeased, secondStored.State)
 }
 

@@ -86,7 +86,7 @@ func RunRecallMaintenanceTick(ctx context.Context) {
 	if runtime.Emails != nil {
 		if _, err := runtime.Emails.RunBatch(ctx, setting.BatchSize); err != nil {
 			if !isPureRecallEmailQuotaWait(err) {
-				logger.LogWarn(ctx, "recall email maintenance failed")
+				logger.LogWarn(ctx, fmt.Sprintf("recall email maintenance failed: %v", err))
 			}
 		}
 	}
