@@ -150,47 +150,64 @@ export function prepareRecallCampaignSubmitDraft(
         draft.audience_config.group_mode
       ),
     },
-    email_sequence: draft.email_sequence.map((stage) => ({
-      ...stage,
-      templates: Object.fromEntries(
-        Object.entries(stage.templates).map(([locale, template]) => {
-          const bodyHtml = template.body_html?.trim()
-          if (bodyHtml) {
+    email_sequence: draft.email_sequence.map((stage) => {
+      const templates = Object.fromEntries(
+        Object.entries(stage.templates)
+          .filter(
+            ([locale, template]) =>
+              locale === 'en' ||
+              [
+                template.subject,
+                template.body_text ?? '',
+                template.body_html ?? '',
+              ].some((value) => value.trim() !== '')
+          )
+          .map(([locale, template]) => {
+            const bodyHtml = template.body_html?.trim()
+            if (bodyHtml) {
+              return [
+                locale,
+                {
+                  ...template,
+                  subject: template.subject.trim() || draft.name.trim(),
+                  body_text: '',
+                  body_html: normalizeRecallBodyInputToHtml(
+                    template.body_html ?? '',
+                    draft.campaign_type
+                  ),
+                },
+              ]
+            }
+            const bodyText = template.body_text?.trim()
+            let normalizedBodyHTML = ''
+            if (bodyText) {
+              normalizedBodyHTML = convertRecallBodyTextToHtml(
+                template.body_text ?? '',
+                draft.campaign_type
+              )
+            } else if (locale === 'en') {
+              normalizedBodyHTML = starterHtml
+            }
             return [
               locale,
               {
                 ...template,
                 subject: template.subject.trim() || draft.name.trim(),
                 body_text: '',
-                body_html: normalizeRecallBodyInputToHtml(
-                  template.body_html ?? '',
-                  draft.campaign_type
-                ),
+                body_html: normalizedBodyHTML,
               },
             ]
-          }
-          const bodyText = template.body_text?.trim()
-          let normalizedBodyHTML = ''
-          if (bodyText) {
-            normalizedBodyHTML = convertRecallBodyTextToHtml(
-              template.body_text ?? '',
-              draft.campaign_type
-            )
-          } else if (locale === 'en') {
-            normalizedBodyHTML = starterHtml
-          }
-          return [
-            locale,
-            {
-              ...template,
-              subject: template.subject.trim() || draft.name.trim(),
-              body_text: '',
-              body_html: normalizedBodyHTML,
-            },
-          ]
-        })
-      ),
-    })),
+          })
+      )
+
+      return {
+        ...stage,
+        manual_locales: stage.manual_locales?.filter(
+          (locale) => templates[locale] !== undefined
+        ),
+        templates,
+      }
+    }),
   }
 }
 

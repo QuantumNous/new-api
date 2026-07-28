@@ -191,6 +191,27 @@ describe('recall campaign editor normalization', () => {
     )
   })
 
+  test('removes manual locale markers for discarded empty templates', () => {
+    const draft = makeValidDraft()
+    draft.email_sequence[0].templates = {
+      en: { subject: 'English subject', body_text: 'English body' },
+      zh: { subject: '', body_text: '', body_html: '' },
+      fr: {
+        subject: 'Localized subject',
+        body_html: '<p>Localized HTML</p>',
+      },
+    }
+    draft.email_sequence[0].manual_locales = ['zh', 'fr']
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(Object.keys(normalized.email_sequence[0].templates)).toEqual([
+      'en',
+      'fr',
+    ])
+    expect(normalized.email_sequence[0].manual_locales).toEqual(['fr'])
+  })
+
   test('preserves English HTML drafts and clears submitted body text', () => {
     const draft = makeValidDraft()
     draft.email_sequence[0].templates.en = {

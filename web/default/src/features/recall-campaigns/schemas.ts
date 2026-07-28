@@ -357,18 +357,6 @@ const emailTemplateSchema = z
       ),
   })
   .strict()
-  .superRefine((template, context) => {
-    const bodyCount = [template.body_text, template.body_html].filter(
-      (value) => value.trim() !== ''
-    ).length
-    if (bodyCount !== 1) {
-      context.addIssue({
-        code: 'custom',
-        path: ['body_html'],
-        message: 'Exactly one email body is required',
-      })
-    }
-  })
 
 const emailStageSchema = z
   .object({
@@ -384,6 +372,23 @@ const emailStageSchema = z
   .refine((stage) => Boolean(stage.templates.en), {
     path: ['templates', 'en'],
     message: 'English template is required',
+  })
+  .superRefine((stage, context) => {
+    for (const [locale, template] of Object.entries(stage.templates)) {
+      const bodyCount = [template.body_text, template.body_html].filter(
+        (value) => value.trim() !== ''
+      ).length
+      const emptyTarget =
+        locale !== 'en' && template.subject.trim() === '' && bodyCount === 0
+      if (emptyTarget) continue
+      if (bodyCount !== 1) {
+        context.addIssue({
+          code: 'custom',
+          path: ['templates', locale, 'body_html'],
+          message: 'Exactly one email body is required',
+        })
+      }
+    }
   })
 
 const emailSequenceSchema = z

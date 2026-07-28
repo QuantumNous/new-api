@@ -780,6 +780,28 @@ describe('recallCampaignDraftSchema', () => {
     expect(recallCampaignDraftSchema.safeParse(missingBody).success).toBe(false)
   })
 
+  test('allows missing target translations but rejects a target subject without a body', () => {
+    const missingTarget = makeDraft()
+    missingTarget.email_sequence[0].templates.zh = {
+      subject: '',
+      body_text: '',
+      body_html: '',
+    }
+    expect(recallCampaignDraftSchema.safeParse(missingTarget).success).toBe(
+      true
+    )
+
+    const incompleteTarget = makeDraft()
+    incompleteTarget.email_sequence[0].templates.zh = {
+      subject: '我们想念你',
+      body_text: '',
+      body_html: '',
+    }
+    expect(recallCampaignDraftSchema.safeParse(incompleteTarget).success).toBe(
+      false
+    )
+  })
+
   test('allows only supported target languages in manual_locales', () => {
     const valid = makeDraft()
     valid.email_sequence[0].manual_locales = [

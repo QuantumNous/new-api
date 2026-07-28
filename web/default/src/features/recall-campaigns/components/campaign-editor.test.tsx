@@ -1263,6 +1263,31 @@ describe('CampaignEditor email sequence', () => {
     dispose(root)
   })
 
+  test('generates after reviewing a missing target translation', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates = {
+      en: draft.email_sequence[0].templates.en,
+    }
+    draft.email_sequence[0].translated_source_revision = 0
+    const { root, container } = renderEditorDom(draft)
+
+    await clickByID(container, 'recall-email-tab-translations')
+    expect(
+      (
+        container.querySelector(
+          '#recall-email-0-zh-subject'
+        ) as HTMLInputElement | null
+      )?.value
+    ).toBe('')
+
+    await clickByID(container, 'recall-generate-translations')
+
+    expect(operationOrder).toEqual(['save', 'generate'])
+    const submitted = createMutation.mock.calls[0][0] as RecallCampaignDraft
+    expect(Object.keys(submitted.email_sequence[0].templates)).toEqual(['en'])
+    dispose(root)
+  })
+
   test('updates the persisted draft before generating again in the same new editor', async () => {
     const draft = makeDraft('first_purchase')
     draft.email_sequence[0].templates = {
@@ -1323,6 +1348,10 @@ describe('CampaignEditor email sequence', () => {
     const draft = makeDraft('first_purchase')
     draft.email_sequence[0].source_revision = 1
     draft.email_sequence[0].translated_source_revision = 1
+    draft.email_sequence[0].templates.es = {
+      subject: 'Asunto español',
+      body_text: 'Cuerpo español',
+    }
     draft.email_sequence[0].manual_locales = ['es', 'fr']
     const { root, container } = renderEditorDom(draft, {
       campaignId: 9,
