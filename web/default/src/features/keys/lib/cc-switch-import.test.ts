@@ -19,9 +19,21 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
-import { buildCCSwitchImportUrl } from './cc-switch-import'
+import {
+  buildCCSwitchImportUrl,
+  resolveCCSwitchDefaultName,
+} from './cc-switch-import'
 
 describe('CC Switch import URL', () => {
+  test('uses the API key name as the default provider name', () => {
+    assert.equal(
+      resolveCCSwitchDefaultName(' Production API ', 'My Claude'),
+      'Production API'
+    )
+    assert.equal(resolveCCSwitchDefaultName('', 'My Codex'), 'My Codex')
+    assert.equal(resolveCCSwitchDefaultName(null, 'My Gemini'), 'My Gemini')
+  })
+
   test('encodes every application endpoint and model mapping correctly', () => {
     const cases = [
       {

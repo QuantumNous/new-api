@@ -51,7 +51,10 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 import type { ApiKeyModelsResult } from '../../api'
 import { useApiKeyModelCatalog } from '../../hooks/use-api-key-model-catalog'
-import { buildCCSwitchImportUrl } from '../../lib/cc-switch-import'
+import {
+  buildCCSwitchImportUrl,
+  resolveCCSwitchDefaultName,
+} from '../../lib/cc-switch-import'
 import type { CCSwitchApp, CCSwitchModelField } from '../../lib/model-catalog'
 import type { ApiKey } from '../../types'
 import {
@@ -116,14 +119,18 @@ function getAppLabel(t: TFunction, app: CCSwitchApp): string {
   }
 }
 
-function getDefaultName(t: TFunction, app: CCSwitchApp): string {
+function getDefaultName(
+  t: TFunction,
+  app: CCSwitchApp,
+  apiKeyName?: string | null
+): string {
   switch (app) {
     case 'claude':
-      return t('My Claude')
+      return resolveCCSwitchDefaultName(apiKeyName, t('My Claude'))
     case 'codex':
-      return t('My Codex')
+      return resolveCCSwitchDefaultName(apiKeyName, t('My Codex'))
     case 'gemini':
-      return t('My Gemini')
+      return resolveCCSwitchDefaultName(apiKeyName, t('My Gemini'))
   }
 }
 
@@ -140,11 +147,14 @@ function getModelFieldLabel(t: TFunction, field: CCSwitchModelField): string {
   }
 }
 
-function createInitialDrafts(t: TFunction): Record<CCSwitchApp, AppDraft> {
+function createInitialDrafts(
+  t: TFunction,
+  apiKeyName?: string | null
+): Record<CCSwitchApp, AppDraft> {
   return {
-    claude: { models: {}, name: getDefaultName(t, 'claude') },
-    codex: { models: {}, name: getDefaultName(t, 'codex') },
-    gemini: { models: {}, name: getDefaultName(t, 'gemini') },
+    claude: { models: {}, name: getDefaultName(t, 'claude', apiKeyName) },
+    codex: { models: {}, name: getDefaultName(t, 'codex', apiKeyName) },
+    gemini: { models: {}, name: getDefaultName(t, 'gemini', apiKeyName) },
   }
 }
 
@@ -159,14 +169,16 @@ function getRoutingLabel(t: TFunction, apiKey: ApiKey | null): string {
 }
 
 export function CCSwitchDialog(props: CCSwitchDialogProps) {
-  const resetKey = `${props.apiKey?.id ?? 'none'}:${props.open ? 'open' : 'closed'}`
+  const resetKey = `${props.apiKey?.id ?? 'none'}:${props.apiKey?.name ?? 'unnamed'}:${props.open ? 'open' : 'closed'}`
   return <CCSwitchDialogContent key={resetKey} {...props} />
 }
 
 function CCSwitchDialogContent(props: CCSwitchDialogProps) {
   const { t } = useTranslation()
   const [app, setApp] = useState<CCSwitchApp>('claude')
-  const [drafts, setDrafts] = useState(() => createInitialDrafts(t))
+  const [drafts, setDrafts] = useState(() =>
+    createInitialDrafts(t, props.apiKey?.name)
+  )
   const [launchState, setLaunchState] = useState<'idle' | 'opening' | 'help'>(
     'idle'
   )
@@ -187,7 +199,7 @@ function CCSwitchDialogContent(props: CCSwitchDialogProps) {
     tokenKey: props.tokenKey,
   })
   const currentConfig = APP_CONFIGS[app]
-  const currentDefaultName = getDefaultName(t, app)
+  const currentDefaultName = getDefaultName(t, app, props.apiKey?.name)
   const currentDraft = drafts[app]
   const primarySelection = currentDraft.models.model
   const modelsCount = modelsQuery.data?.success

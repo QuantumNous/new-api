@@ -26,6 +26,13 @@ type CCSwitchImportConfig = {
   serverAddress: string
 }
 
+export function resolveCCSwitchDefaultName(
+  apiKeyName: string | null | undefined,
+  fallbackName: string
+): string {
+  return apiKeyName?.trim() || fallbackName
+}
+
 export function buildCCSwitchImportUrl(config: CCSwitchImportConfig): string {
   const serverAddress = config.serverAddress.trim().replace(/\/+$/, '')
   const apiKey = config.apiKey.trim()
