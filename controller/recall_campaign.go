@@ -30,6 +30,10 @@ type recallEmailQuotaUpdateRequest struct {
 	Limit int `json:"limit"`
 }
 
+type recallEmailSenderUpdateRequest struct {
+	EmailFrom string `json:"email_from"`
+}
+
 type recallPreviewResponse struct {
 	service.RecallAudiencePreview
 	Stripe *service.RecallStripePreview `json:"stripe"`
@@ -173,6 +177,38 @@ func UpdateRecallEmailQuotaLimit(c *gin.Context) {
 		return
 	}
 	status, err := model.GetRecallEmailQuotaStatusWithContext(c.Request.Context(), request.Limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
+}
+
+func GetRecallEmailSender(c *gin.Context) {
+	status, err := service.GetRecallEmailSenderStatus()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
+}
+
+func UpdateRecallEmailSender(c *gin.Context) {
+	var request recallEmailSenderUpdateRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
+		return
+	}
+	normalized, err := service.NormalizeRecallEmailSenderSelection(request.EmailFrom)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.UpdateOption("recall_campaign_setting.email_from", normalized); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	status, err := service.GetRecallEmailSenderStatus()
 	if err != nil {
 		common.ApiError(c, err)
 		return

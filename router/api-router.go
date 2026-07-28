@@ -214,6 +214,8 @@ func SetApiRouter(router *gin.Engine) {
 			recallCampaignRoute.POST("/email-preview", controller.PreviewRecallEmailTemplate)
 			recallCampaignRoute.GET("/email-quota", controller.GetRecallEmailQuotaStatus)
 			recallCampaignRoute.PUT("/email-quota", controller.UpdateRecallEmailQuotaLimit)
+			recallCampaignRoute.GET("/email-sender", controller.GetRecallEmailSender)
+			recallCampaignRoute.PUT("/email-sender", controller.UpdateRecallEmailSender)
 			recallCampaignRoute.GET("/audience-users", controller.ListRecallAudienceUsers)
 			recallCampaignRoute.GET("/:id", controller.GetRecallCampaign)
 			recallCampaignRoute.PUT("/:id", controller.UpdateRecallCampaign)

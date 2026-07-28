@@ -110,6 +110,46 @@ func TestRecallEmailQuotaUpdateRouteIsRegisteredWithAdminAuth(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 }
 
+func TestRecallEmailSenderRoutesAreRegisteredBeforeIDRouteWithAdminAuth(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-email-sender-auth"))))
+	SetApiRouter(engine)
+
+	indices := map[string]int{
+		"sender_get": -1,
+		"sender_put": -1,
+		"id_get":     -1,
+		"id_put":     -1,
+	}
+	for index, route := range engine.Routes() {
+		switch {
+		case route.Path == "/api/recall-campaigns/email-sender" && route.Method == http.MethodGet:
+			indices["sender_get"] = index
+		case route.Path == "/api/recall-campaigns/email-sender" && route.Method == http.MethodPut:
+			indices["sender_put"] = index
+		case route.Path == "/api/recall-campaigns/:id" && route.Method == http.MethodGet:
+			indices["id_get"] = index
+		case route.Path == "/api/recall-campaigns/:id" && route.Method == http.MethodPut:
+			indices["id_put"] = index
+		}
+	}
+	require.NotEqual(t, -1, indices["sender_get"])
+	require.NotEqual(t, -1, indices["sender_put"])
+	require.NotEqual(t, -1, indices["id_get"])
+	require.NotEqual(t, -1, indices["id_put"])
+	require.Less(t, indices["sender_get"], indices["id_get"])
+	require.Less(t, indices["sender_put"], indices["id_put"])
+
+	for _, method := range []string{http.MethodGet, http.MethodPut} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(method, "/api/recall-campaigns/email-sender", strings.NewReader(`{"email_from":"Campaigns@Example.com"}`))
+		engine.ServeHTTP(recorder, request)
+		require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	}
+}
+
 func TestRecallEmailTranslationGenerationRouteUsesCriticalRateLimit(t *testing.T) {
 	require.NoError(t, backendI18n.Init())
 	previousRedisEnabled := common.RedisEnabled
