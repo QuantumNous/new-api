@@ -16,36 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import type { ApiRequestConfig } from '@/lib/api'
 import type {
   ApiResponse,
   CurrentSubscriptionRecord,
   SelfSubscriptionDataResponse,
 } from '@/features/subscriptions/types'
-import type { ProfileSubscriptionSummary } from '../lib'
-
-type UseQueryOptions = {
-  queryKey: readonly unknown[]
-  queryFn: () => Promise<ProfileSubscriptionSummary | null>
-  retry: boolean
-  enabled?: boolean
-}
-
-const useQueryCalls: UseQueryOptions[] = []
-
-mock.module('@tanstack/react-query', () => ({
-  useQuery: (options: UseQueryOptions) => {
-    useQueryCalls.push(options)
-    return { data: null }
-  },
-}))
-
-const profileHooks = await import('./index')
-
-afterEach(() => {
-  useQueryCalls.length = 0
-})
+import * as profileHooks from './index'
 
 const buildCurrentSubscription = (
   overrides: Partial<CurrentSubscriptionRecord> = {}
@@ -87,13 +65,15 @@ const expectLoaderExport = () => {
     (profileHooks as Record<string, unknown>).loadProfileSubscriptionSummary
   ).toBeFunction()
 
-  return (profileHooks as typeof profileHooks & {
-    loadProfileSubscriptionSummary: (
-      fetcher: (
-        config?: ApiRequestConfig
-      ) => Promise<ApiResponse<SelfSubscriptionDataResponse>>
-    ) => Promise<unknown>
-  }).loadProfileSubscriptionSummary
+  return (
+    profileHooks as typeof profileHooks & {
+      loadProfileSubscriptionSummary: (
+        fetcher: (
+          config?: ApiRequestConfig
+        ) => Promise<ApiResponse<SelfSubscriptionDataResponse>>
+      ) => Promise<unknown>
+    }
+  ).loadProfileSubscriptionSummary
 }
 
 describe('loadProfileSubscriptionSummary', () => {
@@ -184,36 +164,40 @@ describe('loadProfileSubscriptionSummary', () => {
 
 describe('useProfileSubscriptionSummary', () => {
   test('keys subscription cache by authenticated user id', () => {
-    profileHooks.useProfileSubscriptionSummary(42)
+    const options =
+      profileHooks.createProfileSubscriptionSummaryQueryOptions(42)
 
-    expect(useQueryCalls).toHaveLength(1)
-    expect(useQueryCalls[0].queryKey).toEqual([
-      'profile',
-      'subscription-summary',
-      42,
-    ])
-    expect(useQueryCalls[0].enabled).toBe(true)
-    expect(useQueryCalls[0].retry).toBe(false)
+    expect(options.queryKey).toEqual(['profile', 'subscription-summary', 42])
+    expect(options.enabled).toBe(true)
+    expect(options.retry).toBe(false)
   })
 
   test('disables subscription loading until a user id is available', () => {
-    profileHooks.useProfileSubscriptionSummary(undefined)
-    profileHooks.useProfileSubscriptionSummary(null)
+    const undefinedOptions =
+      profileHooks.createProfileSubscriptionSummaryQueryOptions(undefined)
+    const nullOptions =
+      profileHooks.createProfileSubscriptionSummaryQueryOptions(null)
 
-    expect(useQueryCalls.map((options) => options.queryKey)).toEqual([
-      ['profile', 'subscription-summary', null],
-      ['profile', 'subscription-summary', null],
+    expect(undefinedOptions.queryKey).toEqual([
+      'profile',
+      'subscription-summary',
+      null,
     ])
-    expect(useQueryCalls.map((options) => options.enabled)).toEqual([
-      false,
-      false,
+    expect(nullOptions.queryKey).toEqual([
+      'profile',
+      'subscription-summary',
+      null,
     ])
+    expect(undefinedOptions.enabled).toBe(false)
+    expect(nullOptions.enabled).toBe(false)
   })
 })
 
 describe('Profile subscription wiring', () => {
   test('passes the loaded profile id into the subscription summary hook', async () => {
-    const source = await Bun.file(new URL('../index.tsx', import.meta.url)).text()
+    const source = await Bun.file(
+      new URL('../index.tsx', import.meta.url)
+    ).text()
 
     expect(source).toContain('useProfileSubscriptionSummary(profile?.id)')
   })

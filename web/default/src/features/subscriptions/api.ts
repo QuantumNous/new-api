@@ -222,9 +222,7 @@ export async function getSelfSubscriptions(): Promise<
 
 export async function getSelfSubscriptionFull(
   config: ApiRequestConfig = {}
-): Promise<
-  ApiResponse<SelfSubscriptionDataResponse>
-> {
+): Promise<ApiResponse<SelfSubscriptionDataResponse>> {
   const res = await api.get('/api/subscription/self', config)
   return res.data
 }

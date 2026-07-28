@@ -54,16 +54,23 @@ export async function loadProfileSubscriptionSummary(
   }
 }
 
-export function useProfileSubscriptionSummary(
+export function createProfileSubscriptionSummaryQueryOptions(
   userId: number | null | undefined
-): ProfileSubscriptionSummary | null {
+) {
   const resolvedUserId = userId ?? null
-  const query = useQuery({
+
+  return {
     queryKey: [...PROFILE_SUBSCRIPTION_QUERY_KEY, resolvedUserId],
     queryFn: () => loadProfileSubscriptionSummary(),
     enabled: resolvedUserId !== null,
     retry: false,
-  })
+  }
+}
+
+export function useProfileSubscriptionSummary(
+  userId: number | null | undefined
+): ProfileSubscriptionSummary | null {
+  const query = useQuery(createProfileSubscriptionSummaryQueryOptions(userId))
 
   return query.data ?? null
 }

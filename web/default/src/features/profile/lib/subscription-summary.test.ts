@@ -63,11 +63,13 @@ const expectAdapterExport = () => {
     (profileLib as Record<string, unknown>).buildProfileSubscriptionSummary
   ).toBeFunction()
 
-  return (profileLib as typeof profileLib & {
-    buildProfileSubscriptionSummary: (
-      data: SelfSubscriptionDataResponse | undefined
-    ) => unknown
-  }).buildProfileSubscriptionSummary
+  return (
+    profileLib as typeof profileLib & {
+      buildProfileSubscriptionSummary: (
+        data: SelfSubscriptionDataResponse | undefined
+      ) => unknown
+    }
+  ).buildProfileSubscriptionSummary
 }
 
 describe('buildProfileSubscriptionSummary', () => {
