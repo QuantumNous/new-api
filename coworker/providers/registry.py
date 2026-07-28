@@ -8,8 +8,10 @@ model string and builds (and caches) its client from the matching SecretStore pr
 
 Today: `openai` (the default, with an optional custom endpoint that covers Azure OpenAI's
 `/openai/v1` and any OpenAI-compliant gateway), `anthropic` (native Messages API via
-`AnthropicProvider`), `gemini` (native Google GenAI API via `GeminiProvider`), and `ollama`
-(local, OpenAI-compatible `/v1`). Bedrock/Vertex auth for Claude is future work.
+`AnthropicProvider`), `gemini` (native Google GenAI API via `GeminiProvider`), `bedrock`
+(models in the user's own AWS account — Claude natively, everything else via Converse),
+`vertex` (the user's own GCP project — Gemini and Claude natively, open-weight via the
+MaaS endpoint), and `ollama` (local, OpenAI-compatible `/v1`).
 """
 
 from __future__ import annotations
@@ -20,8 +22,10 @@ from typing import Any, Callable, Optional
 
 from .anthropic_provider import AnthropicProvider
 from .base import ProviderClient
+from .bedrock_provider import BedrockProvider
 from .gemini_provider import GeminiProvider
 from .openai_provider import OpenAIProvider
+from .vertex_provider import VertexProvider
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 
@@ -39,6 +43,15 @@ class ProviderField:
     # Pre-filled (still editable) form value — e.g. an OpenAI-compatible vendor's official
     # endpoint, so the user only has to paste a key. Distinct from `placeholder` (grey hint).
     default: str = ""
+    # Non-empty → the field renders as a segmented choice control instead of a text input;
+    # each option is {"value", "label"} plus optional UI extras: "tag" (a tiny badge like
+    # "Easiest"), "desc" (one-liner atop the method's panel), and "command" (a copyable
+    # terminal command shown in the panel, e.g. the gcloud ADC login). The chosen value is
+    # stored like any other field value.
+    choices: tuple = ()
+    # {"other_field_key": "value"} → the field only renders while that other field holds
+    # that value. Drives auth-method switching (Bedrock) without a per-provider form.
+    show_when: Optional[dict] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -49,6 +62,8 @@ class ProviderField:
             "help": self.help,
             "placeholder": self.placeholder,
             "default": self.default,
+            "choices": [dict(c) for c in self.choices],
+            "show_when": self.show_when,
         }
 
 
@@ -124,6 +139,40 @@ def _build_gemini(profile: dict[str, Any], secrets: Any) -> ProviderClient:
     # Same deferred-key contract as anthropic (GeminiProvider/resolve_api_key).
     api_key = ((profile or {}).get("api_key") or "").strip() or None
     return GeminiProvider(api_key=api_key, secrets=secrets)
+
+
+def _build_bedrock(profile: dict[str, Any], secrets: Any) -> ProviderClient:
+    # Credentials resolve inside boto3/AnthropicBedrock at call time: explicit keys →
+    # named profile → ambient chain (env / ~/.aws default / instance role).
+    p = profile or {}
+
+    def get(key: str) -> Optional[str]:
+        return (p.get(key) or "").strip() or None
+
+    return BedrockProvider(
+        region=get("region"),
+        auth_method=get("auth_method"),
+        bedrock_api_key=get("bedrock_api_key"),
+        profile_name=get("aws_profile"),
+        access_key_id=get("aws_access_key_id"),
+        secret_access_key=get("aws_secret_access_key"),
+        session_token=get("aws_session_token"),
+    )
+
+
+def _build_vertex(profile: dict[str, Any], secrets: Any) -> ProviderClient:
+    p = profile or {}
+
+    def get(key: str) -> Optional[str]:
+        return (p.get(key) or "").strip() or None
+
+    return VertexProvider(
+        project=get("project"),
+        location=get("location"),
+        auth_method=get("auth_method"),
+        service_account_json=get("service_account_json"),
+        api_key=get("vertex_api_key"),
+    )
 
 
 def _build_ollama(profile: dict[str, Any], secrets: Any) -> ProviderClient:
@@ -211,7 +260,7 @@ DESCRIPTORS: list[ProviderDescriptor] = [
                 secret=False,
                 required=False,
                 placeholder="https://…/openai/v1",
-                help="For Azure OpenAI, OpenRouter, vLLM, or any OpenAI-compliant server. Leave blank for api.openai.com.",
+                help="For Azure OpenAI, vLLM, or any OpenAI-compliant server. Leave blank for api.openai.com.",
             ),
         ],
         build=_build_openai,
@@ -251,6 +300,161 @@ DESCRIPTORS: list[ProviderDescriptor] = [
         build=_build_gemini,
         recommended_model="gemini-3.6-flash",
         env_key="GEMINI_API_KEY",
+    ),
+    ProviderDescriptor(
+        name="bedrock",
+        title="AWS Bedrock",
+        needs_key=True,
+        fields=[
+            ProviderField(
+                "region",
+                "AWS region",
+                secret=False,
+                placeholder="us-east-1",
+                help="The region your Bedrock model access is enabled in.",
+            ),
+            # One auth method at a time (owner call 2026-07-26): AWS users are advanced —
+            # a direct choice beats a pile of "(optional)" fields with hidden precedence.
+            ProviderField(
+                "auth_method",
+                "Connect with",
+                secret=False,
+                required=False,  # the default stands in; builder tolerates absence
+                default="api_key",
+                choices=(
+                    {
+                        "value": "api_key",
+                        "label": "Bedrock API key",
+                        "tag": "Easiest",
+                        "desc": "A single key generated on the Bedrock console — no AWS CLI or IAM setup needed.",
+                    },
+                    {
+                        "value": "profile",
+                        "label": "AWS profile",
+                        "desc": "Uses a named profile from ~/.aws — works with `aws configure` and `aws sso login`.",
+                    },
+                    {
+                        "value": "iam",
+                        "label": "IAM keys",
+                        "desc": "An IAM access key pair. For temporary STS credentials, include the session token.",
+                    },
+                ),
+            ),
+            ProviderField(
+                "bedrock_api_key",
+                "Bedrock API key",
+                secret=True,
+                required=False,
+                placeholder="ABSK…",
+                show_when={"auth_method": "api_key"},
+            ),
+            ProviderField(
+                "aws_profile",
+                "AWS profile",
+                secret=False,
+                required=False,
+                placeholder="default",
+                show_when={"auth_method": "profile"},
+                help="Leave blank to use your default AWS credentials (env vars or ~/.aws).",
+            ),
+            ProviderField(
+                "aws_access_key_id",
+                "Access key ID",
+                secret=False,
+                required=False,
+                placeholder="AKIA…",
+                show_when={"auth_method": "iam"},
+            ),
+            ProviderField(
+                "aws_secret_access_key",
+                "Secret access key",
+                secret=True,
+                required=False,
+                show_when={"auth_method": "iam"},
+            ),
+            ProviderField(
+                "aws_session_token",
+                "Session token (STS only, optional)",
+                secret=True,
+                required=False,
+                show_when={"auth_method": "iam"},
+            ),
+        ],
+        build=_build_bedrock,
+        recommended_model="claude/anthropic.claude-sonnet-4-6-v1:0",
+        blurb="Runs models inside your own AWS account. Claude uses Anthropic's native "
+        "Bedrock path; every other model goes through the Converse API.",
+    ),
+    ProviderDescriptor(
+        name="vertex",
+        title="Vertex AI (Google Cloud)",
+        needs_key=True,
+        fields=[
+            ProviderField(
+                "project",
+                "GCP project ID",
+                secret=False,
+                placeholder="my-project-123",
+            ),
+            ProviderField(
+                "location",
+                "Location",
+                secret=False,
+                placeholder="global",
+                help="Use `global` for the newest Gemini and Claude models. Some models "
+                "are regional — Model Garden lists each (Claude also: us-east5 / "
+                "europe-west1; Qwen3 Coder: us-south1).",
+            ),
+            ProviderField(
+                "auth_method",
+                "Connect with",
+                secret=False,
+                required=False,  # the default stands in; builder tolerates absence
+                default="adc",
+                choices=(
+                    {
+                        "value": "adc",
+                        "label": "Google Cloud login",
+                        "tag": "Recommended",
+                        "desc": "Uses your machine's Google Cloud identity (Application "
+                        "Default Credentials). Nothing to paste — sign in once in a terminal:",
+                        "command": "gcloud auth application-default login",
+                    },
+                    {
+                        "value": "service_account",
+                        "label": "Service account",
+                        "desc": "A service-account key — the usual path on shared or headless machines.",
+                    },
+                    {
+                        "value": "api_key",
+                        "label": "API key",
+                        "desc": "A long-lived key from the Google Cloud console's API Keys page. "
+                        "Reaches Gemini models only — Claude and open-weight need Google "
+                        "Cloud login or a service account.",
+                    },
+                ),
+            ),
+            ProviderField(
+                "service_account_json",
+                "Service-account JSON",
+                secret=True,
+                required=False,
+                show_when={"auth_method": "service_account"},
+                help="Paste the JSON key, or a path to the file.",
+            ),
+            ProviderField(
+                "vertex_api_key",
+                "Vertex API key",
+                secret=True,
+                required=False,
+                placeholder="AQ.…",
+                show_when={"auth_method": "api_key"},
+            ),
+        ],
+        build=_build_vertex,
+        recommended_model="gemini/gemini-3.6-flash",
+        blurb="Runs models inside your own Google Cloud project. Gemini and Claude use "
+        "their native APIs; open-weight models go through the Vertex MaaS endpoint.",
     ),
     # OpenAI-compatible vendors, listed as first-class providers so users don't need to know the
     # "point the OpenAI slot at a different endpoint" trick (owner call, 2026-07-04). Each keeps
@@ -316,9 +520,9 @@ DESCRIPTORS: list[ProviderDescriptor] = [
         endpoint_help="Prefilled with the Meta Model API endpoint (public preview, US-only as of 2026-07).",
     ),
     # Resellers: many labs' models behind one key, using THEIR model namespaces (the curated
-    # ids + display labels live in providers/matrix.py). TODO: add Groq and OpenRouter here
-    # (+ their matrix rows) once the current provider surface is tested — deliberately
-    # deferred to bound how much needs verifying at once (owner call, 2026-07-04).
+    # ids + display labels live in providers/matrix.py). TODO: add Groq here (+ its matrix
+    # rows) once the current provider surface is tested — deliberately deferred to bound
+    # how much needs verifying at once (owner call, 2026-07-04).
     _compat(
         "together",
         "Together AI",
@@ -332,6 +536,13 @@ DESCRIPTORS: list[ProviderDescriptor] = [
         base_url="https://api.fireworks.ai/inference/v1",
         recommended_model="accounts/fireworks/models/glm-5p2",
         env_key="FIREWORKS_API_KEY",
+    ),
+    _compat(
+        "openrouter",
+        "OpenRouter",
+        base_url="https://openrouter.ai/api/v1",
+        recommended_model="z-ai/glm-5.2",
+        env_key="OPENROUTER_API_KEY",
     ),
     ProviderDescriptor(
         name="ollama",
@@ -377,6 +588,21 @@ def build_provider_client(
     return descriptor.build(profile or {}, secrets)
 
 
+def descriptor_configured(d: ProviderDescriptor, profile: dict[str, Any]) -> bool:
+    """Whether a provider is usable with the given stored profile. Single-key providers:
+    a stored or env key. Multi-field cloud providers (no `api_key` field, e.g. Bedrock):
+    every required field present — their actual credentials may be ambient (~/.aws, ADC).
+    """
+    if not d.needs_key:
+        return True  # keyless (Ollama) — usable out of the box
+    profile = profile or {}
+    if any(f.key == "api_key" for f in d.fields):
+        return bool(profile.get("api_key")) or bool(
+            d.env_key and os.environ.get(d.env_key)
+        )
+    return all(profile.get(f.key) for f in d.fields if f.required)
+
+
 def detect_provider(api_key: str) -> Optional[str]:
     """Best-effort provider guess from an API key's shape, for the onboarding auto-detect.
     Returns a known provider name or None. Mirrors the GUI's client-side detection so both agree.
@@ -386,6 +612,8 @@ def detect_provider(api_key: str) -> Optional[str]:
         return None
     if key.startswith("sk-ant-"):
         return "anthropic"
+    if key.startswith("sk-or-"):
+        return "openrouter"
     if key.startswith("AIza"):
         return "gemini"
     if key.startswith(("sk-", "sk_")):
@@ -393,21 +621,195 @@ def detect_provider(api_key: str) -> Optional[str]:
     return None
 
 
+def _verify_bedrock(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
+    """One cheap read-only Bedrock call (list models) with the same explicit → profile →
+    ambient credential resolution the provider itself uses."""
+    from .bedrock_provider import _session_kwargs
+
+    def get(key: str) -> Optional[str]:
+        return (fields.get(key) or "").strip() or None
+
+    try:
+        import boto3
+        from botocore.config import Config
+    except ImportError:
+        return {
+            "ok": False,
+            "error": "boto3 is not installed — `pip install 'openworker[bedrock]'`.",
+        }
+    # Exactly one auth method is exercised — the one the form has selected. Per-method
+    # required fields are checked here so the Test button says what's missing.
+    method = get("auth_method") or "api_key"
+    if method == "api_key" and not (
+        get("bedrock_api_key") or os.environ.get("AWS_BEARER_TOKEN_BEDROCK")
+    ):
+        return {"ok": False, "error": "Enter a Bedrock API key to test."}
+    if method == "iam" and not (
+        get("aws_access_key_id") and get("aws_secret_access_key")
+    ):
+        return {"ok": False, "error": "Enter an access key ID and secret access key."}
+    try:
+        if method == "api_key":
+            # The key rides the env var (boto3's only bearer channel); bearer then wins
+            # over any ambient SigV4 credentials for Bedrock calls.
+            if get("bedrock_api_key"):
+                os.environ["AWS_BEARER_TOKEN_BEDROCK"] = get("bedrock_api_key")
+            session_kwargs: dict[str, Any] = {}
+        elif method == "profile":
+            # Blank profile → the default credential chain (env vars / ~/.aws / role).
+            session_kwargs = _session_kwargs(get("aws_profile"), None, None, None)
+        else:  # iam
+            session_kwargs = _session_kwargs(
+                None,
+                get("aws_access_key_id"),
+                get("aws_secret_access_key"),
+                get("aws_session_token"),
+            )
+        session = boto3.session.Session(**session_kwargs)
+        client = session.client(
+            "bedrock",
+            region_name=get("region"),
+            config=Config(connect_timeout=timeout, read_timeout=timeout),
+        )
+        client.list_foundation_models()
+    except Exception as exc:
+        kind = exc.__class__.__name__
+        if kind == "NoCredentialsError":
+            return {
+                "ok": False,
+                "error": "No AWS credentials found — enter keys or a profile, or run "
+                "`aws configure` / `aws sso login` first.",
+            }
+        if kind == "ProfileNotFound":
+            return {"ok": False, "error": f"{exc}"}
+        if kind == "ClientError":
+            code = (getattr(exc, "response", {}) or {}).get("Error", {}).get("Code", "")
+            if code in ("UnrecognizedClientException", "InvalidSignatureException"):
+                return {"ok": False, "error": "AWS rejected the credentials."}
+            if code in ("AccessDeniedException", "AccessDenied"):
+                return {
+                    "ok": False,
+                    "error": "Credentials work but lack Bedrock access (bedrock:ListFoundationModels).",
+                }
+            return {"ok": False, "error": f"AWS Bedrock returned {code or kind}."}
+        return {"ok": False, "error": f"Couldn't reach AWS Bedrock ({kind})."}
+    return {"ok": True}
+
+
+# Verify probe: countTokens on a stable Gemini model — free (no generation), works with
+# plain ADC (the model list/GET endpoints 403/404 under user credentials — checked live
+# 2026-07-26), and exercises project + location + API enablement in one call.
+_VERTEX_PROBE_MODEL = "gemini-2.5-flash"
+_VERTEX_PROBE_BODY = {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]}
+
+
+def _verify_vertex(fields: dict[str, Any], timeout: float) -> dict[str, Any]:
+    """One cheap call (countTokens) through the SELECTED auth method: ADC /
+    service-account bearer, or the express API key header."""
+    import httpx
+
+    from .vertex_provider import load_credentials
+
+    project = (fields.get("project") or "").strip()
+    location = (fields.get("location") or "").strip()
+    method = (fields.get("auth_method") or "").strip() or (
+        "service_account" if (fields.get("service_account_json") or "").strip() else "adc"
+    )
+    if method == "api_key":
+        key = (fields.get("vertex_api_key") or "").strip()
+        if not key:
+            return {"ok": False, "error": "Enter a Vertex API key to test."}
+        try:
+            # Express mode is global — no region host, no project in the path.
+            resp = httpx.post(
+                "https://aiplatform.googleapis.com/v1/publishers/google/models/"
+                f"{_VERTEX_PROBE_MODEL}:countTokens",
+                headers={"x-goog-api-key": key},
+                json=_VERTEX_PROBE_BODY,
+                timeout=timeout,
+            )
+        except Exception as exc:
+            return {
+                "ok": False,
+                "error": f"Couldn't reach Vertex AI ({exc.__class__.__name__}).",
+            }
+        if resp.status_code < 300:
+            return {"ok": True}
+        if resp.status_code in (401, 403):
+            return {"ok": False, "error": "Google rejected the API key."}
+        return {"ok": False, "error": f"Vertex AI returned HTTP {resp.status_code}."}
+    if method == "service_account" and not (fields.get("service_account_json") or "").strip():
+        return {"ok": False, "error": "Paste a service-account JSON to test."}
+    try:
+        creds = None
+        if method == "service_account":
+            creds = load_credentials(fields.get("service_account_json"))
+        if creds is None:
+            import google.auth
+
+            creds, _ = google.auth.default(
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+        from google.auth.transport.requests import Request
+
+        creds.refresh(Request())
+    except Exception as exc:
+        kind = exc.__class__.__name__
+        if kind == "DefaultCredentialsError":
+            return {
+                "ok": False,
+                "error": "No Google Cloud credentials found — paste a service-account "
+                "JSON, or run `gcloud auth application-default login` first.",
+            }
+        if kind in ("RefreshError", "MalformedError", "JSONDecodeError", "ValueError"):
+            return {"ok": False, "error": "Google rejected the credentials."}
+        return {"ok": False, "error": f"Couldn't load Google credentials ({kind})."}
+    from .vertex_provider import _regional_host
+
+    try:
+        resp = httpx.post(
+            f"https://{_regional_host(location)}/v1/projects/{project}"
+            f"/locations/{location}/publishers/google/models/"
+            f"{_VERTEX_PROBE_MODEL}:countTokens",
+            headers={"Authorization": f"Bearer {creds.token}"},
+            json=_VERTEX_PROBE_BODY,
+            timeout=timeout,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": f"Couldn't reach Vertex AI ({exc.__class__.__name__})."}
+    if resp.status_code < 300:
+        return {"ok": True}
+    if resp.status_code in (401, 403):
+        return {
+            "ok": False,
+            "error": "Credentials work but lack Vertex AI access in this project.",
+        }
+    if resp.status_code == 404:
+        return {"ok": False, "error": "Project or location not found on Vertex AI."}
+    return {"ok": False, "error": f"Vertex AI returned HTTP {resp.status_code}."}
+
+
 def verify_provider_key(
     name: str,
     *,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
+    fields: Optional[dict[str, Any]] = None,
     timeout: float = 10.0,
 ) -> dict[str, Any]:
     """Validate a provider's credentials with one cheap, read-only call (list models) — the same
     pattern connectors use to validate tokens. Transient: callers pass the key directly so a user
-    can Test before saving. Never raises; returns {ok, error?}.
+    can Test before saving. Never raises; returns {ok, error?}. Multi-field cloud providers
+    (Bedrock, Vertex) take their whole form via `fields`; everyone else uses api_key/base_url.
     """
     import httpx
 
     d = _BY_NAME.get(name) or _BY_NAME["openai"]
     key = (api_key or "").strip()
+    if name == "bedrock":
+        return _verify_bedrock(fields or {}, timeout)
+    if name == "vertex":
+        return _verify_vertex(fields or {}, timeout)
     try:
         if name == "anthropic":
             resp = httpx.get(

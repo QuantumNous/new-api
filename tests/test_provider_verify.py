@@ -15,6 +15,7 @@ from coworker.providers import detect_provider, verify_provider_key
     "key,expected",
     [
         ("sk-ant-api03-abc", "anthropic"),
+        ("sk-or-v1-abc", "openrouter"),
         ("AIzaSyAbc123", "gemini"),
         ("sk-proj-abc", "openai"),
         ("sk_live_abc", "openai"),

@@ -11,8 +11,8 @@ falls back to the conservative heuristics in ``capabilities.py`` at their own ri
 degraded results. Ids verified against vendor/reseller catalogs on 2026-07-04; refresh the
 reseller rows when catalogs rotate (they rename on every model generation).
 
-Resellers: Together + Fireworks for now. TODO: add Groq and OpenRouter entries here AND their
-descriptors in ``registry.py`` once the current provider surface is tested — deliberately
+Resellers: Together + Fireworks + OpenRouter. TODO: add Groq entries here AND its
+descriptor in ``registry.py`` once the current provider surface is tested — deliberately
 deferred to bound how much needs verifying at once.
 """
 
@@ -111,6 +111,59 @@ MATRIX: dict[str, ModelEntry] = {
     ),
     "fireworks:accounts/fireworks/models/llama4-maverick-instruct-basic": ModelEntry(
         "Llama 4 Maverick · via Fireworks"
+    ),
+    # OpenRouter slugs are lowercase `<lab>/<model>` (checked against their catalog
+    # 2026-07-25); same labs as above, one key for all of them.
+    "openrouter:z-ai/glm-5.2": ModelEntry("GLM-5.2 · via OpenRouter"),
+    "openrouter:moonshotai/kimi-k2.6": ModelEntry("Kimi K2.6 · via OpenRouter"),
+    "openrouter:deepseek/deepseek-v4-pro": ModelEntry("DeepSeek V4 Pro · via OpenRouter"),
+    "openrouter:meta-llama/llama-4-maverick": ModelEntry(
+        "Llama 4 Maverick · via OpenRouter"
+    ),
+    # -- cloud accounts (models running in the user's own AWS/GCP) ----------------
+    # Bedrock ids carry a family segment (claude/ → native Anthropic path, other/ →
+    # Converse) plus AWS's own `-v<n>:<m>` version suffix. Some regions require the
+    # `us.`/`eu.` cross-region inference-profile prefix — custom add-model accepts those.
+    "bedrock:claude/anthropic.claude-sonnet-4-6-v1:0": ModelEntry(
+        "Claude Sonnet 4.6 · AWS Bedrock", _AGENTIC_VISION
+    ),
+    "bedrock:claude/anthropic.claude-haiku-4-5-v1:0": ModelEntry(
+        "Claude Haiku 4.5 · AWS Bedrock", _AGENTIC_VISION
+    ),
+    "bedrock:other/amazon.nova-2-pro-v1:0": ModelEntry("Nova 2 Pro · AWS Bedrock"),
+    "bedrock:other/meta.llama4-maverick-17b-instruct-v1:0": ModelEntry(
+        "Llama 4 Maverick · AWS Bedrock"
+    ),
+    "bedrock:other/mistral.mistral-large-3-v1:0": ModelEntry(
+        "Mistral Large 3 · AWS Bedrock"
+    ),
+    # Live-verified on Converse 2026-07-26 (complete/stream/tool round trip); asked for
+    # two tool calls it emits them one at a time, so parallel stays off.
+    "bedrock:other/nvidia.nemotron-super-3-120b": ModelEntry(
+        "Nemotron Super 3 120B · AWS Bedrock",
+        ModelCapabilities(
+            tools=True, vision=False, parallel_tool_calls=False, streaming=True
+        ),
+    ),
+    # Vertex ids carry a family segment too (gemini/ and claude/ → native paths,
+    # openweight/ → the MaaS OpenAI-compat endpoint, keeping the publisher segment).
+    "vertex:gemini/gemini-3.1-pro-preview": ModelEntry(
+        "Gemini 3.1 Pro · Vertex AI", _AGENTIC_VISION
+    ),
+    "vertex:gemini/gemini-3.6-flash": ModelEntry(
+        "Gemini 3.6 Flash · Vertex AI", _AGENTIC_VISION
+    ),
+    "vertex:claude/claude-sonnet-4-6": ModelEntry(
+        "Claude Sonnet 4.6 · Vertex AI", _AGENTIC_VISION
+    ),
+    "vertex:claude/claude-haiku-4-5": ModelEntry(
+        "Claude Haiku 4.5 · Vertex AI", _AGENTIC_VISION
+    ),
+    "vertex:openweight/meta/llama-4-maverick-17b-128e-instruct-maas": ModelEntry(
+        "Llama 4 Maverick · Vertex AI"
+    ),
+    "vertex:openweight/qwen/qwen3-coder-480b-a35b-instruct-maas": ModelEntry(
+        "Qwen3 Coder · Vertex AI"
     ),
 }
 

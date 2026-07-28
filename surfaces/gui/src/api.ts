@@ -1265,6 +1265,10 @@ export interface ProviderField {
   help: string;
   placeholder: string;
   default?: string; // pre-filled editable value (e.g. an OpenAI-compatible vendor's endpoint)
+  // Non-empty → segmented choice, not a text input. tag = tiny badge ("Easiest");
+  // desc = one-liner atop the method panel; command = copyable terminal command.
+  choices?: { value: string; label: string; tag?: string; desc?: string; command?: string }[];
+  show_when?: Record<string, string> | null; // render only while these fields hold these values
 }
 
 export interface ProviderInfo {
@@ -1324,6 +1328,7 @@ export function detectProvider(apiKey: string): string | null {
   const key = (apiKey || "").trim();
   if (!key) return null;
   if (key.startsWith("sk-ant-")) return "anthropic";
+  if (key.startsWith("sk-or-")) return "openrouter";
   if (key.startsWith("AIza")) return "gemini";
   if (key.startsWith("sk-") || key.startsWith("sk_")) return "openai";
   return null;

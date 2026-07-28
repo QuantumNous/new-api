@@ -4,6 +4,7 @@ import {
   removeProvider,
   setProvider,
   verifyProvider,
+  type ProviderField as ProviderFieldT,
   type ProviderInfo,
 } from "../api";
 import { openExternal } from "../tauri";
@@ -20,6 +21,8 @@ export const KEY_HELP: Record<string, { url: string; label: string }> = {
   anthropic: { url: "https://console.anthropic.com/settings/keys", label: "console.anthropic.com" },
   openai: { url: "https://platform.openai.com/api-keys", label: "platform.openai.com" },
   gemini: { url: "https://aistudio.google.com/apikey", label: "aistudio.google.com" },
+  openrouter: { url: "https://openrouter.ai/keys", label: "openrouter.ai" },
+  bedrock: { url: "https://console.aws.amazon.com/bedrock/home#/api-keys", label: "the AWS Bedrock console" },
   fireworks: { url: "https://fireworks.ai/account/api-keys", label: "fireworks.ai" },
   together: { url: "https://api.together.xyz/settings/api-keys", label: "together.xyz" },
   zai: { url: "https://z.ai/manage-apikey/apikey-list", label: "z.ai" },
@@ -250,7 +253,11 @@ export function useProviderSetup(opts?: { onSaved?: () => void }): ProviderSetup
     // The in-field saved state (§39): green border + pill INSIDE the key box — shown
     // for stored credentials and fresh test-passes alike; typing clears it.
     savedState: (credentialed && !dirty) || verify.state === "ok",
-    secretFilled: (info?.fields || []).every((f) => !f.secret || (fields[f.key] || "").trim()),
+    // Only REQUIRED secrets gate the Test button — cloud providers (Bedrock, Vertex)
+    // have optional key fields whose credentials may live in ~/.aws or ADC instead.
+    secretFilled: (info?.fields || []).every(
+      (f) => !f.secret || !f.required || (fields[f.key] || "").trim(),
+    ),
     openProvider,
     backToGallery,
     runTestAndSave,
@@ -315,7 +322,73 @@ export function ProviderForm({
   const label = "block text-[12px] text-muted mt-3 mb-1";
   const input =
     "w-full px-3 py-2 rounded-lg border bg-panel text-[13.5px] outline-none focus:border-accent";
+  const fieldsAll = info?.fields || [];
+  const keyed = fieldsAll.some((x) => x.secret);
+  // Cloud providers declare a segmented auth-method choice; the selected method's
+  // credential fields render inside a panel with its own Test & save footer.
+  const choice = fieldsAll.find((f) => f.choices && f.choices.length);
+  const method = choice ? ps.fields[choice.key] || choice.default || "" : "";
+  const selected = choice?.choices?.find((c) => c.value === method);
+  const methodFields = choice
+    ? fieldsAll.filter(
+        (f) =>
+          f.show_when &&
+          Object.entries(f.show_when).every(([k, v]) => (ps.fields[k] || "") === v),
+      )
+    : [];
+  // Without a choice control, Test lives next to the required secret (the API key), or
+  // the first field for keyless providers (Ollama's Detect).
+  const requiredSecret = fieldsAll.find((x) => x.secret && x.required);
+  const testKey = requiredSecret ? requiredSecret.key : fieldsAll[0]?.key;
   if (!sel) return null;
+
+  const fieldRow = (f: ProviderFieldT, testable: boolean) => (
+    <div key={f.key}>
+      <label className={label}>{f.label}</label>
+      <div className="flex gap-2">
+        <div className="relative flex-1 min-w-0">
+          <input
+            className={input + (ps.savedState && testable ? " border-ok pr-32" : " border-line")}
+            type={f.secret ? "password" : "text"}
+            placeholder={f.secret && ps.credentialed && !ps.dirty ? "••••••••" : f.placeholder}
+            value={ps.fields[f.key] || ""}
+            data-testid={`${tp}-field-${f.key}`}
+            onChange={(e) => ps.setFieldValue(f.key, e.target.value)}
+            onBlur={f.secret ? undefined : () => void ps.saveField(f.key)}
+          />
+          {ps.fieldSaved === f.key && (
+            <span
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
+              data-testid={`${tp}-field-saved-${f.key}`}
+            >
+              ✓ Saved
+            </span>
+          )}
+          {/* §39: state lives IN the field — no status lines below. */}
+          {ps.savedState && testable && (
+            <span
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
+              data-testid={`${tp}-saved-pill`}
+            >
+              {info?.needs_key ? <>✓ Tested &amp; saved</> : <>✓ Detected</>}
+            </span>
+          )}
+        </div>
+        {testable && (
+          <button
+            className="px-4 rounded-lg border border-line text-[13px] font-medium text-ink hover:border-lineStrong shrink-0 disabled:opacity-40"
+            onClick={() => ps.runTestAndSave()}
+            disabled={ps.verify.state === "testing" || (!ps.secretFilled && !ps.credentialed)}
+            data-testid={`${tp}-test`}
+          >
+            {ps.verify.state === "testing" ? "…" : info?.needs_key ? "Test" : "Detect"}
+          </button>
+        )}
+      </div>
+      {f.help && <p className="text-[11.5px] text-faint mt-1">{f.help}</p>}
+    </div>
+  );
+
   return (
     <div>
       <button className="text-[12.5px] text-muted hover:text-ink" onClick={ps.backToGallery} data-testid={`${tp}-back`}>
@@ -330,69 +403,87 @@ export function ProviderForm({
       </div>
       {info?.blurb && <p className="text-[11.5px] text-faint mt-1">{info.blurb}</p>}
 
-      {(info?.fields || []).map((f) => {
-        const keyed = (info?.fields || []).some((x) => x.secret);
-        // A keyed provider's base_url is an expert option — it renders BELOW the key-help
-        // line as its own advanced section (owner nit 2026-07-19), not inside the loop.
-        if (f.key === "base_url" && keyed) return null;
-        const testable =
-          (f.secret && f.key === (info?.fields || []).find((x) => x.secret)?.key) ||
-          (!keyed && f.key === (info?.fields || [])[0]?.key);
-        return (
-          <div key={f.key}>
-            <label className={label}>{f.label}</label>
-            <div className="flex gap-2">
-              <div className="relative flex-1 min-w-0">
-                <input
-                  className={input + (ps.savedState && f.secret ? " border-ok pr-32" : " border-line")}
-                  type={f.secret ? "password" : "text"}
-                  placeholder={f.secret && ps.credentialed && !ps.dirty ? "••••••••" : f.placeholder}
-                  value={ps.fields[f.key] || ""}
-                  data-testid={`${tp}-field-${f.key}`}
-                  onChange={(e) => ps.setFieldValue(f.key, e.target.value)}
-                  onBlur={f.secret ? undefined : () => void ps.saveField(f.key)}
-                />
-                {ps.fieldSaved === f.key && (
-                  <span
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
-                    data-testid={`${tp}-field-saved-${f.key}`}
-                  >
-                    ✓ Saved
-                  </span>
-                )}
-                {/* §39: state lives IN the field — no status lines below. */}
-                {ps.savedState && f.secret && (
-                  <span
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
-                    data-testid={`${tp}-saved-pill`}
-                  >
-                    ✓ Tested &amp; saved
-                  </span>
-                )}
-                {ps.savedState && !f.secret && testable && (
-                  <span
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
-                    data-testid={`${tp}-saved-pill`}
-                  >
-                    ✓ Detected
-                  </span>
-                )}
-              </div>
-              {testable && (
+      {fieldsAll
+        .filter(
+          (f) =>
+            !f.show_when &&
+            !(f.choices && f.choices.length) &&
+            !(f.key === "base_url" && keyed),
+        )
+        .map((f) => fieldRow(f, !choice && f.key === testKey))}
+
+      {/* Auth-method segmented control + the selected method's panel (owner call
+          2026-07-26): one joined track, then a soft inset card holding only that
+          method's description, fields, and its own Test & save footer. */}
+      {choice && (
+        <div>
+          <label className={label}>{choice.label}</label>
+          <div
+            className="inline-flex gap-0.5 rounded-[10px] border border-line bg-line/40 p-[3px]"
+            role="radiogroup"
+            aria-label={choice.label}
+          >
+            {(choice.choices || []).map((c) => {
+              const active = method === c.value;
+              return (
                 <button
-                  className="px-4 rounded-lg border border-line text-[13px] font-medium text-ink hover:border-lineStrong shrink-0 disabled:opacity-40"
-                  onClick={() => ps.runTestAndSave()}
-                  disabled={ps.verify.state === "testing" || (f.secret && !ps.secretFilled && !ps.credentialed)}
-                  data-testid={`${tp}-test`}
+                  key={c.value}
+                  role="radio"
+                  aria-checked={active}
+                  className={
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] whitespace-nowrap transition-colors " +
+                    (active
+                      ? "bg-panel text-ink font-medium shadow-sm ring-1 ring-line"
+                      : "text-muted hover:text-ink")
+                  }
+                  data-testid={`${tp}-choice-${choice.key}-${c.value}`}
+                  onClick={() => ps.setFieldValue(choice.key, c.value)}
                 >
-                  {ps.verify.state === "testing" ? "…" : info?.needs_key ? "Test" : "Detect"}
+                  {c.label}
+                  {c.tag && (
+                    <span className="text-[9.5px] font-semibold uppercase tracking-wide text-accent bg-accentSoft rounded-full px-1.5 py-px">
+                      {c.tag}
+                    </span>
+                  )}
                 </button>
-              )}
-            </div>
-            {f.help && !f.secret && <p className="text-[11.5px] text-faint mt-1">{f.help}</p>}
+              );
+            })}
           </div>
-        );
-      })}
+
+          <div className="mt-2.5 rounded-xl border border-line bg-paper/60 px-4 pb-3.5 pt-3">
+            {selected?.desc && <p className="text-[12px] text-muted">{selected.desc}</p>}
+            {selected?.command && (
+              <button
+                className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-[12px] font-mono text-ink hover:border-lineStrong"
+                onClick={() => void navigator.clipboard?.writeText(selected.command || "")}
+                title="Copy command"
+                data-testid={`${tp}-cmd-copy`}
+              >
+                {selected.command}
+                <span className="font-sans text-[11px] text-faint">⧉</span>
+              </button>
+            )}
+            {methodFields.map((f) => fieldRow(f, false))}
+            <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-line pt-3">
+              {ps.savedState ? (
+                <span className="text-[11.5px] font-medium text-ok" data-testid={`${tp}-saved-pill`}>
+                  ✓ Tested &amp; saved
+                </span>
+              ) : (
+                <span className="text-[11.5px] text-faint">Runs one read-only check, then saves.</span>
+              )}
+              <button
+                className="shrink-0 rounded-lg border border-accent bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:brightness-105 disabled:opacity-40"
+                onClick={() => ps.runTestAndSave()}
+                disabled={ps.verify.state === "testing"}
+                data-testid={`${tp}-test`}
+              >
+                {ps.verify.state === "testing" ? "…" : <>Test &amp; save</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {info?.needs_key && KEY_HELP[sel] && (
         <p className="text-[11.5px] text-faint mt-2">
