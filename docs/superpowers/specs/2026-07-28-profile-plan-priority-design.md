@@ -7,7 +7,7 @@ Make the active subscription plan the primary account summary on the profile pag
 ## Confirmed behavior
 
 - When an active subscription exists, the profile header shows an independent, prominent plan summary.
-- The summary shows the plan name, an active badge, remaining days, total plan quota, remaining plan quota, and a usage progress bar.
+- The summary shows the plan name, an active badge, remaining days, 5-hour and 7-day usage limits, monthly plan quota, remaining monthly quota, and usage progress bars.
 - When no active subscription exists, the profile header renders no plan section and no empty-plan placeholder.
 - Wallet balance moves into the identity area as a compact `Available balance` pill.
 - Directly below the balance, the UI renders two complete guidance sentences as separate block rows:
@@ -20,7 +20,9 @@ Make the active subscription plan the primary account summary on the profile pag
 
 `Profile` continues to load the user identity and wallet balance from `/api/user/self`. A profile-specific React Query hook loads `/api/subscription/self` through the existing `getSelfSubscriptionFull()` client and converts the optional response into a narrow `ProfileSubscriptionSummary`.
 
-The summary adapter accepts a plan only when `current_subscription` exists and its subscription status is `active`. It reads the title from `current_subscription.plan`, quota totals from the canonical top-level `quota` snapshot with the current subscription amounts as a defensive fallback, and remaining days from `remaining_days`. The header receives only the derived summary instead of the full billing response.
+The summary adapter accepts a plan only when `current_subscription` exists and its subscription status is `active`. It reads the title from `current_subscription.plan`, the monthly quota from `monthly_bucket` with the top-level `quota` snapshot and current subscription amounts as defensive fallbacks, the short-window limits from `window_5h` and `window_7d`, and remaining days from `remaining_days`. The header receives only the derived summary instead of the full billing response.
+
+Each usage window is normalized into total, used, remaining, unlimited, and percentage values. Invalid or negative values fall back to zero, percentages are clamped to 0–100, and a missing or zero-total 5-hour or 7-day window is treated as unlimited, matching the existing Wallet behavior.
 
 ## Component design
 
@@ -34,10 +36,12 @@ The summary adapter accepts a plan only when `current_subscription` exists and i
   1. one top row with identity on the left and the compact balance plus two guidance rows on the right;
   2. one full-width horizontal plan band below the complete top row;
   3. two compact usage statistics below the optional plan band.
-- The header card remains centered and compact at a maximum width of 860px, matching the approved browser reference rather than stretching across the full profile canvas.
+- The header card spans the full profile content width. Its left edge aligns exactly with the Settings column below, and its right edge aligns exactly with the Passkey/Two-factor column below.
 - The plan must not render as a right-side vertical card or as a peer column beside identity.
-- Plan quota and remaining quota share one horizontal row. The progress bar renders beneath them without nested metric cards.
+- The 5-hour and 7-day limits render as two compact usage meters in one row above the monthly quota. Each meter shows used versus total, remaining quota, and a slim progress bar; unlimited windows display the translated `Unlimited` state.
+- Monthly quota and remaining monthly quota share one horizontal row beneath the short-window meters. The monthly progress bar renders beneath them without nested metric cards.
 - On narrow screens, identity, balance guidance, plan band, and statistics stack in that order.
+- On narrow screens, the 5-hour and 7-day meters stack without horizontal overflow.
 - When no active subscription exists, the plan band is omitted and statistics follow the top row directly.
 - The plan progress percentage is clamped between 0 and 100. Unlimited quotas display the existing translated `Unlimited` label without an artificial finite percentage.
 - The responsive layout is mobile-first. The guidance sentences remain normal block text without `truncate`, `line-clamp`, or fixed-height clipping.
@@ -60,8 +64,10 @@ The summary adapter accepts a plan only when `current_subscription` exists and i
 
 - Unit-test the summary adapter for an active plan, missing plan, inactive plan, quota fallback, and invalid or failed response data.
 - Render-test the header to confirm the plan name, quota values, remaining days, and progress are visible for an active plan.
+- Render-test that the 5-hour and 7-day meters appear above the monthly quota, show normalized used/total and remaining values, and render unlimited windows correctly.
 - Render-test that no plan section or placeholder appears without an active plan while identity, balance, total usage, and API requests remain visible.
 - Render-test that the two complete balance guidance sentences are separate rows beneath the balance and have no truncation classes.
+- Render-test that the header no longer has the compact 860px cap and uses the same full-width container edges as the Settings and Passkey columns below.
 - Run the profile-focused tests, the complete Bun test suite, typecheck, lint, i18n synchronization/report checks, formatting checks, and `build:check`.
 - Verify the final layout in a browser at desktop and mobile viewport widths.
 
