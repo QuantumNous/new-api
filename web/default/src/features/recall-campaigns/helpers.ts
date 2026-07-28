@@ -180,9 +180,8 @@ function preserveRecallMinimumSpendDualWrite(
     minimum_spend: discount.minimum_spend
       ? { enabled: true, amounts: { ...minimumSpend.amounts } }
       : undefined,
-    minimum_amount: minimumSpend.amounts.usd ?? discount.minimum_amount,
-    minimum_amount_currency:
-      minimumSpend.amounts.usd || discount.minimum_amount > 0 ? 'USD' : '',
+    minimum_amount: minimumSpend.amounts.usd ?? 0,
+    minimum_amount_currency: minimumSpend.amounts.usd ? 'USD' : '',
   }
 }
 

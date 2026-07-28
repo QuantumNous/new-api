@@ -676,6 +676,23 @@ describe('recallCampaignDraftSchema', () => {
     expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
   })
 
+  test('rejects unsupported legacy EUR minimum spend when canonical object is absent', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_amount = 1_000
+    draft.discount_config.minimum_amount_currency = 'EUR'
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_amount_currency'],
+        })
+      )
+    }
+  })
+
   test('requires canonical enabled minimum spend to match the legacy USD pair', () => {
     const draft = makeDraft()
     draft.discount_config.minimum_amount = 999

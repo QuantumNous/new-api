@@ -10,7 +10,9 @@ const nonNegativeNumber = z.number().min(0)
 const integer = z.number().int()
 const number = z.number()
 const currencySchema = z.string().regex(/^[A-Z]{3}$/)
+const legacyMinimumSpendCurrencies = ['USD', 'INR', 'BRL', 'JPY'] as const
 const minimumSpendCurrencies = ['usd', 'inr', 'brl', 'jpy'] as const
+type LegacyMinimumSpendCurrency = (typeof legacyMinimumSpendCurrencies)[number]
 
 function normalizeSpecifiedEmails(emails: string[]): string[] {
   const normalizedEmails: string[] = []
@@ -361,7 +363,11 @@ const promotionDiscountSchema = z
     }
     validateRecallMinimumSpend(discount, context)
     if (discount.minimum_spend === undefined && discount.minimum_amount > 0) {
-      if (!currencySchema.safeParse(discount.minimum_amount_currency).success) {
+      if (
+        !legacyMinimumSpendCurrencies.includes(
+          discount.minimum_amount_currency as LegacyMinimumSpendCurrency
+        )
+      ) {
         context.addIssue({
           code: 'custom',
           path: ['minimum_amount_currency'],

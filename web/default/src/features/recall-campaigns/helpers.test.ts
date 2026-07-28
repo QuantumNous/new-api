@@ -665,6 +665,45 @@ describe('recall campaign editor normalization', () => {
   })
 
   test.each([
+    ['automatic percent', 'automatic', 'percent'],
+    ['automatic fixed', 'automatic', 'fixed'],
+    ['existing fixed', 'existing', 'fixed'],
+  ] as const)(
+    'clears stale legacy minimum spend when canonical %s lacks USD',
+    (_label, couponSource, discountType) => {
+      const draft = makeValidDraft()
+      draft.coupon_source = couponSource
+      draft.existing_coupon_id =
+        couponSource === 'existing' ? 'coupon_existing' : ''
+      draft.discount_config = {
+        ...draft.discount_config,
+        type: discountType === 'percent' ? 'fixed' : 'percent',
+        percent_off: discountType === 'percent' ? 0 : 20,
+        amount_off: discountType === 'percent' ? 500 : 0,
+        currency: discountType === 'percent' ? 'USD' : '',
+        currency_options:
+          discountType === 'percent'
+            ? { inr: 45_000, brl: 2_500, jpy: 750 }
+            : {},
+        minimum_amount: 777,
+        minimum_amount_currency: 'USD',
+        minimum_spend: {
+          enabled: true,
+          amounts: { inr: 90_000 },
+        },
+      }
+
+      const normalized = normalizeRecallDiscountType(draft, discountType)
+
+      expect(normalized.discount_config).toMatchObject({
+        minimum_spend: { enabled: true, amounts: { inr: 90_000 } },
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      })
+    }
+  )
+
+  test.each([
     ['INR', 90_000],
     ['BRL', 5_000],
     ['JPY', 1_500],
