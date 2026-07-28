@@ -10,6 +10,7 @@ type MutableValue = Record<string, unknown> | unknown[]
 export interface MockRuntime {
   nextAdminChannelId: number
   nextAdminUserId: number
+  nextAdminPlanId: number
   nextTokenId: number
   nextTicketId: number
   nextMessageId: number
@@ -50,6 +51,7 @@ export const mockRuntime: MockRuntime = {
   nextAdminChannelId:
     Math.max(0, ...data.adminChannels.map((channel) => channel.id)) + 1,
   nextAdminUserId: Math.max(0, ...data.adminUsers.map((user) => user.id)) + 1,
+  nextAdminPlanId: Math.max(0, ...data.adminPlans.map((plan) => plan.id)) + 1,
   nextTokenId: 100,
   nextTicketId: 100,
   nextMessageId: 1_000,
@@ -80,6 +82,8 @@ export function createMockState(): MockState {
           Math.max(0, ...data.adminChannels.map((channel) => channel.id)) + 1,
         nextAdminUserId:
           Math.max(0, ...data.adminUsers.map((user) => user.id)) + 1,
+        nextAdminPlanId:
+          Math.max(0, ...data.adminPlans.map((plan) => plan.id)) + 1,
         nextTokenId: 100,
         nextTicketId: 100,
         nextMessageId: 1_000,

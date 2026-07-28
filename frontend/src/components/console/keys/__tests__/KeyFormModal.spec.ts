@@ -73,7 +73,6 @@ describe('KeyFormModal', () => {
       used_quota: 0,
       remain_quota: 0,
       unlimited: true,
-      group: 'default',
       model_limits: ['gpt-4o'],
       ip_limits: ['127.0.0.1'],
       rate_limit: 60,

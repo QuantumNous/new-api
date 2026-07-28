@@ -14,7 +14,6 @@ const token: TokenSummary = {
   used_quota: 250,
   remain_quota: 750,
   unlimited: false,
-  group: 'default',
   model_limits: [],
   ip_limits: [],
   rate_limit: 0,

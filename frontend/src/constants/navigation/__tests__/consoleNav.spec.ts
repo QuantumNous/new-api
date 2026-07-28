@@ -10,6 +10,7 @@ describe('console navigation', () => {
       'channel-management',
       'user-management',
       'redemption-management',
+      'plan-management',
       'order-management',
     ])
     expect(adminGroup?.items[0]).toEqual(
@@ -26,6 +27,13 @@ describe('console navigation', () => {
     )
     expect(adminGroup?.items).toContainEqual(
       expect.objectContaining({
+        name: 'plan-management',
+        labelKey: 'nav.planManagement',
+        route: 'plan-management',
+      })
+    )
+    expect(adminGroup?.items).toContainEqual(
+      expect.objectContaining({
         name: 'order-management',
         labelKey: 'nav.orderManagement',
         route: 'orders',
@@ -38,5 +46,29 @@ describe('console navigation', () => {
       if (item.route) expect(item.disabled).toBeUndefined()
       else expect(item.disabled).toBe(true)
     })
+  })
+
+  it('exposes the subscription storefront in the account group', () => {
+    const accountGroup = consoleNavGroups.find(
+      (group) => group.key === 'account'
+    )
+
+    expect(accountGroup?.items).toContainEqual(
+      expect.objectContaining({
+        name: 'subscription',
+        labelKey: 'nav.subscription',
+        route: 'subscription',
+      })
+    )
+  })
+
+  it('keeps every route name unique across the whole navigation', () => {
+    // Two entries sharing a route would make the active-item lookup in the
+    // sidebar and the command palette resolve to whichever came first.
+    const routes = consoleNavGroups
+      .flatMap((group) => group.items)
+      .flatMap((item) => (item.route ? [item.route] : []))
+
+    expect(new Set(routes).size).toBe(routes.length)
   })
 })

@@ -88,7 +88,7 @@ describe('OverviewKpiStrip', () => {
     const wrapper = render({
       flow: flowPoints,
       tokenTrend: [trendPoint({ date: '2026-07-25' }), trendPoint()],
-      limits: { group: 'vip', rate_limit: 300, current_rpm: 141 },
+      limits: { rate_limit: 300, current_rpm: 141 },
     })
 
     // Spend, requests, tokens and TPM get a line; RPM gets the ring instead.
@@ -107,7 +107,7 @@ describe('OverviewKpiStrip', () => {
 
   it('states the ceiling under the RPM figure', () => {
     const wrapper = render({
-      limits: { group: 'vip', rate_limit: 300, current_rpm: 141 },
+      limits: { rate_limit: 300, current_rpm: 141 },
     })
 
     expect(wrapper.text()).toContain('of 300 RPM')
@@ -115,7 +115,7 @@ describe('OverviewKpiStrip', () => {
 
   it('labels an unmetered group instead of showing a ceiling', () => {
     const wrapper = render({
-      limits: { group: 'svip', rate_limit: 0, current_rpm: 118 },
+      limits: { rate_limit: 0, current_rpm: 118 },
     })
 
     expect(wrapper.text()).toContain('Unmetered')
@@ -136,7 +136,7 @@ describe('OverviewKpiStrip', () => {
 
   it('reads the observed RPM from limits', () => {
     const wrapper = render({
-      limits: { group: 'vip', rate_limit: 300, current_rpm: 141 },
+      limits: { rate_limit: 300, current_rpm: 141 },
     })
 
     expect(wrapper.text()).toContain('141')
@@ -166,7 +166,7 @@ describe('OverviewKpiStrip', () => {
     // Passing limits so the ring's own button is present — the count must not
     // include it, which is what a bare findAll('button') would do.
     const wrapper = render({
-      limits: { group: 'vip', rate_limit: 300, current_rpm: 141 },
+      limits: { rate_limit: 300, current_rpm: 141 },
     })
 
     const drillDowns = wrapper
@@ -187,7 +187,7 @@ describe('OverviewKpiStrip', () => {
 
   it('does not drill down when the rate-limit ring is focused', async () => {
     const wrapper = render({
-      limits: { group: 'vip', rate_limit: 300, current_rpm: 141 },
+      limits: { rate_limit: 300, current_rpm: 141 },
     })
 
     await wrapper.findComponent(RpmRing).find('button').trigger('click')

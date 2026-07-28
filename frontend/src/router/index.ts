@@ -127,6 +127,12 @@ const router = createRouter({
           meta: { wide: true, noPageScroll: true, requiresAdmin: true },
         },
         {
+          path: 'plan-management',
+          name: 'plan-management',
+          component: () => import('@/views/console/PlanManagementView.vue'),
+          meta: { wide: true, noPageScroll: true, requiresAdmin: true },
+        },
+        {
           path: 'orders',
           name: 'orders',
           component: () => import('@/views/console/OrdersView.vue'),
@@ -148,6 +154,11 @@ const router = createRouter({
           path: 'wallet',
           name: 'wallet',
           component: () => import('@/views/console/WalletView.vue'),
+        },
+        {
+          path: 'subscription',
+          name: 'subscription',
+          component: () => import('@/views/console/SubscriptionView.vue'),
         },
         {
           path: 'invite',

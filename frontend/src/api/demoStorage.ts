@@ -19,7 +19,9 @@ export function isDemoUser(value: unknown): value is UserInfo {
     user.role === 1 &&
     Number.isFinite(user.quota) &&
     Number.isFinite(user.used_quota) &&
-    isString(user.group) &&
+    // `group` is intentionally not validated: the concept is retired, and a
+    // record persisted before that still carries the field. Unknown extra keys
+    // must not invalidate a session, or every existing demo user is logged out.
     (user.admin_permissions === undefined ||
       (Array.isArray(user.admin_permissions) &&
         user.admin_permissions.length === 0))

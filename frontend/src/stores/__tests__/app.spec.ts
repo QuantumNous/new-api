@@ -103,7 +103,6 @@ describe('public application state', () => {
       role: 1,
       quota: 100,
       used_quota: 0,
-      group: 'default',
     })
     publicApi.status.mockResolvedValueOnce({
       HeaderNavModules: {
@@ -143,7 +142,6 @@ describe('public application state', () => {
       role: 1,
       quota: 100,
       used_quota: 0,
-      group: 'default',
     })
     resolveNotice('Notice')
     await initialization

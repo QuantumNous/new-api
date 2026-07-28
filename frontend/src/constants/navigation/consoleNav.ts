@@ -74,6 +74,13 @@ export const consoleNavGroups: ConsoleNavGroup[] = [
         icon: 'M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1ZM14 8H8M14 12H8M11 16H8',
       },
       {
+        name: 'subscription',
+        labelKey: 'nav.subscription',
+        route: 'subscription',
+        // Lucide "gem": faceted stone, reads as a tiered membership
+        icon: 'M6 3h12l4 6-10 12L2 9l4-6ZM11 3 8 9l4 12M13 3l3 6-4 12M2 9h20',
+      },
+      {
         name: 'invite',
         labelKey: 'nav.invite',
         // Lucide "user-plus": plus sits clear to the right of the person
@@ -104,6 +111,13 @@ export const consoleNavGroups: ConsoleNavGroup[] = [
         labelKey: 'nav.redemptionManagement',
         route: 'redemption',
         icon: 'M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a2.5 2.5 0 0 0 0 5V16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1.5a2.5 2.5 0 0 0 0-5V8ZM13 6v2m0 8v2m0-7v2',
+      },
+      {
+        name: 'plan-management',
+        labelKey: 'nav.planManagement',
+        route: 'plan-management',
+        // Lucide "layers": stacked tiers, the catalogue behind the storefront
+        icon: 'm12 2 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 17l9 5 9-5',
       },
       {
         name: 'order-management',

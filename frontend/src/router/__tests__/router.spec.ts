@@ -13,7 +13,6 @@ const demoUser = {
   role: 1,
   quota: 100,
   used_quota: 0,
-  group: 'default',
 }
 
 beforeEach(async () => {

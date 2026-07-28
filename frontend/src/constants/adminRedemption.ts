@@ -99,7 +99,9 @@ const QUOTA_PER_DOLLAR = 500_000
  * Returns e.g. "$5.00", "3 并发", "专业版", "邀请码".
  */
 export function formatRedemptionValue(
-  code: Pick<AdminRedemptionCode, 'type' | 'amount' | 'quota' | 'concurrency'>
+  code: Pick<AdminRedemptionCode, 'type' | 'amount' | 'quota' | 'concurrency'>,
+  /** Resolved plan name for subscription codes; falls back to a generic label. */
+  planName?: string
 ): string {
   switch (code.type) {
     case 'quota': {
@@ -114,7 +116,9 @@ export function formatRedemptionValue(
     case 'concurrency':
       return `${code.concurrency ?? 0} 并发`
     case 'subscription':
-      return '订阅'
+      // The catalogue now has two shapes, so a bare "订阅" would be wrong for a
+      // traffic pack. Callers that know the plan pass its name instead.
+      return planName ?? '套餐'
     case 'invite':
       return '邀请码'
   }

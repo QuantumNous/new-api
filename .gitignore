@@ -20,7 +20,9 @@ tiktoken_cache
 .gocache
 .gomodcache/
 .cache
-plans
+# Root-level scratch planning notes only. Unanchored, this also swallowed
+# source directories such as frontend/src/components/console/plans.
+/plans
 .claude
 .cursor
 

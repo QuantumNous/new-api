@@ -10,8 +10,21 @@ const props = withDefaults(
     placeholder?: string
     min?: number
     max?: number
+    /**
+     * Leading unit glyph. Defaults to the currency sign because most callers
+     * take money; pass '' for counts such as days or a display order.
+     */
+    prefix?: string
+    /** Rejects the decimal separator outright, for whole-number fields. */
+    integer?: boolean
   }>(),
-  { placeholder: '', min: undefined, max: undefined }
+  {
+    placeholder: '',
+    min: undefined,
+    max: undefined,
+    prefix: '$',
+    integer: false,
+  }
 )
 
 const attrs = useAttrs()
@@ -29,8 +42,15 @@ const inputAttrs = computed(() => {
 function onInput(e: Event) {
   const input = e.target as HTMLInputElement
   const allowNegative = Number.isFinite(props.min) && Number(props.min) < 0
+  const allowed = props.integer
+    ? allowNegative
+      ? /[^0-9-]/g
+      : /[^0-9]/g
+    : allowNegative
+      ? /[^0-9.-]/g
+      : /[^0-9.]/g
   const raw = input.value
-    .replace(allowNegative ? /[^0-9.-]/g : /[^0-9.]/g, '')
+    .replace(allowed, '')
     .replace(/(?!^)-/g, '')
     .replace(/(\..*)\./g, '$1')
   input.value = raw
@@ -72,18 +92,20 @@ function onBlur(e: Event) {
     data-handdrawn="underline"
   >
     <span
+      v-if="prefix"
       class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[var(--text-tertiary)]"
-      >$</span
+      >{{ prefix }}</span
     >
     <input
       :id="inputId"
       :value="model ?? ''"
-      inputmode="decimal"
+      :inputmode="integer ? 'numeric' : 'decimal'"
       :min="min"
       :max="max"
       :placeholder="placeholder"
       v-bind="inputAttrs"
-      class="h-11 w-full border-0 border-b-[1.5px] bg-transparent pl-8 pr-4 font-mono text-sm font-semibold text-[var(--text-primary)] placeholder:font-normal placeholder:font-sans placeholder:text-[var(--text-tertiary)] transition-[border-color] focus:outline-none focus:border-[var(--accent)]"
+      class="h-11 w-full border-0 border-b-[1.5px] bg-transparent pr-4 font-mono text-sm font-semibold text-[var(--text-primary)] placeholder:font-normal placeholder:font-sans placeholder:text-[var(--text-tertiary)] transition-[border-color] focus:outline-none focus:border-[var(--accent)]"
+      :class="prefix ? 'pl-8' : 'pl-1'"
       style="border-color: var(--border-default)"
       @input="onInput"
       @blur="onBlur"

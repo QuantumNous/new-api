@@ -261,19 +261,6 @@ async function deleteAccount() {
                 class="max-w-sm flex-1"
               />
             </div>
-            <div class="flex items-center justify-between gap-6 px-6 py-4">
-              <div class="w-36 shrink-0">
-                <p class="text-sm font-medium text-[var(--text-primary)]">
-                  {{ t('settings.group') }}
-                </p>
-              </div>
-              <TextInput
-                :model-value="auth.user?.group ?? ''"
-                :aria-label="t('settings.group')"
-                readonly
-                class="max-w-sm flex-1"
-              />
-            </div>
             <div class="px-6 py-4">
               <ConsoleButton :loading="savingProfile" @click="saveProfile">
                 {{ t('settings.saveProfile') }}

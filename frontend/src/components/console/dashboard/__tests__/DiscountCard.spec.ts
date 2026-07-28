@@ -12,7 +12,7 @@ beforeAll(async () => {
 
 const discounts: UserDiscounts = {
   global_ratio: 0.88,
-  group_ratio: 0.95,
+  plan_ratio: 0.95,
   effective_ratio: 0.836,
 }
 
@@ -70,7 +70,7 @@ describe('DiscountCard', () => {
     const wrapper = render()
 
     expect(wrapper.text()).toContain('Personal discount')
-    // group_ratio 0.95 → an extra 5% off the volume tier.
+    // plan_ratio 0.95 → an extra 5% off the volume tier.
     expect(wrapper.text()).toContain('Volume-tier extra 5% off')
     expect(wrapper.text()).not.toContain('VIP')
   })

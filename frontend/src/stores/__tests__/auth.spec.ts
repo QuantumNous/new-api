@@ -30,7 +30,6 @@ describe('account deletion', () => {
       role: 1,
       quota: 100,
       used_quota: 0,
-      group: 'default',
     })
     const auth = useAuthStore()
     expect(auth.isAuthenticated).toBe(true)

@@ -17,15 +17,15 @@ export interface DashboardStats {
 }
 
 export interface UserLimits {
-  group: string
-  rate_limit: number // RPM ceiling, 0 = unmetered
+  /** Request ceiling from the active subscription plan; 0 = unmetered. */
+  rate_limit: number
   current_rpm: number // observed throughput
 }
 
 export interface UserDiscounts {
   global_ratio: number // platform-wide pricing multiplier, e.g. 0.88
-  group_ratio: number // group-specific multiplier, e.g. 0.95 for vip
-  effective_ratio: number // combined: global × group
+  plan_ratio: number // active plan's multiplier, e.g. 0.95; 1.0 without a plan
+  effective_ratio: number // combined: global × plan
 }
 
 export interface ModelShare {

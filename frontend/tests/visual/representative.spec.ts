@@ -12,7 +12,8 @@ interface Scenario {
   name: string
   path: string
   authenticated?: boolean
-  openKeyModal?: boolean
+  /** Accessible name of a button that opens a dialog before the capture. */
+  openModalByButton?: string
 }
 
 const darkScenarios: Scenario[] = [
@@ -20,7 +21,18 @@ const darkScenarios: Scenario[] = [
   { name: 'login', path: '/auth/sign-in', authenticated: false },
   { name: 'dashboard', path: '/console/dashboard' },
   { name: 'keys', path: '/console/keys' },
-  { name: 'keys-create-modal', path: '/console/keys', openKeyModal: true },
+  {
+    name: 'keys-create-modal',
+    path: '/console/keys',
+    openModalByButton: '创建令牌',
+  },
+  { name: 'subscription', path: '/console/subscription' },
+  { name: 'plan-management', path: '/console/plan-management' },
+  {
+    name: 'plan-form-modal',
+    path: '/console/plan-management',
+    openModalByButton: '新建套餐',
+  },
   { name: 'lab-chat', path: '/lab/chat' },
   { name: 'activity', path: '/console/activity' },
   { name: 'farm', path: '/console/farm' },
@@ -30,6 +42,10 @@ const lightScenarios: Scenario[] = [
   { name: 'home', path: '/' },
   { name: 'login', path: '/auth/sign-in', authenticated: false },
   { name: 'dashboard', path: '/console/dashboard' },
+  // Both plan surfaces carry new bespoke geometry (storefront cards, ledger
+  // rows with disabled row actions), so the pencil rendering is worth pinning.
+  { name: 'subscription', path: '/console/subscription' },
+  { name: 'plan-management', path: '/console/plan-management' },
 ]
 
 async function captureScenario(
@@ -52,13 +68,14 @@ async function captureScenario(
   await page.goto(scenario.path, { waitUntil: 'domcontentloaded' })
   await waitForStablePage(page)
 
-  if (scenario.openKeyModal) {
-    const createButton = page.getByRole('button', { name: '创建令牌' })
-    await createButton.click()
+  if (scenario.openModalByButton) {
+    await page.getByRole('button', { name: scenario.openModalByButton }).click()
     expect(runtimeErrors).toEqual([])
     await expect(
       page.locator('[role="dialog"][aria-modal="true"]')
     ).toBeVisible()
+    // The dialog animates in; settle before pixels are compared.
+    await waitForStablePage(page)
   }
   if (scenario.path === '/') {
     await assertHomeNavbarInitialState(page)

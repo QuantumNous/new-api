@@ -116,7 +116,7 @@ const standardTotal = computed(() =>
               {{ t('dashboard.discount.personal') }}
             </span>
             <span class="font-mono text-sm font-bold text-[var(--accent-text)]">
-              {{ discounts.group_ratio.toFixed(2) }}×
+              {{ discounts.plan_ratio.toFixed(2) }}×
             </span>
           </div>
           <div
@@ -124,13 +124,13 @@ const standardTotal = computed(() =>
           >
             <div
               class="h-full rounded-full bg-[var(--accent)] transition-[width]"
-              :style="{ width: `${(1 - discounts.group_ratio) * 100 * 5}%` }"
+              :style="{ width: `${(1 - discounts.plan_ratio) * 100 * 5}%` }"
             />
           </div>
           <p class="mt-0.5 text-[11px] text-[var(--text-tertiary)]">
             {{
               t('dashboard.discount.personalDesc', {
-                pct: Math.round((1 - discounts.group_ratio) * 100),
+                pct: Math.round((1 - discounts.plan_ratio) * 100),
               })
             }}
           </p>

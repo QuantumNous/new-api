@@ -7,6 +7,7 @@ import type {
   AdminOrderMethod,
   AdminOrderStatus,
   AdminOrderType,
+  AdminPlan,
   AdminRedemptionCode,
   AdminUser,
   AdminUserRole,
@@ -28,7 +29,6 @@ import type {
   ActivitySummary,
   MerchantScale,
   ListingStatus,
-  CurrentSubscription,
   MerchantComment,
   Merchant,
   MarketListing,
@@ -37,8 +37,6 @@ import type {
 } from '@/types/console'
 
 export const QUOTA_PER_DOLLAR = 500_000
-
-export const GROUPS = ['default', 'vip', 'svip']
 
 const marketRaw: Omit<MarketModel, 'id'>[] = [
   /* ---- OpenAI ---- */
@@ -405,7 +403,6 @@ export const mockUser: UserInfo = {
   role: 1,
   quota: 5_201_314,
   used_quota: 2_985_211,
-  group: 'vip',
 }
 
 const adminChannelProviders = [
@@ -572,25 +569,12 @@ const ch = (name: string, enabled = true, weight?: number): TokenChannel =>
 
 export const tokens: TokenItem[] = (
   [
-    // name, type, status, group, model_limits, remain, unlimited, rate_limit, max_ratio, load_balance, channels
-    [
-      '生产环境主 Key',
-      'auto',
-      1,
-      'default',
-      [],
-      9_999_999,
-      true,
-      0,
-      1.5,
-      false,
-      [],
-    ],
+    // name, type, status, model_limits, remain, unlimited, rate_limit, max_ratio, load_balance, channels
+    ['生产环境主 Key', 'auto', 1, [], 9_999_999, true, 0, 1.5, false, []],
     [
       'Chatbox 客户端',
       'manual',
       1,
-      'default',
       ['gpt-4o', 'gpt-4o-mini'],
       500_000,
       false,
@@ -603,7 +587,6 @@ export const tokens: TokenItem[] = (
       'NextChat 网页端',
       'manual',
       1,
-      'vip',
       [],
       2_000_000,
       false,
@@ -620,7 +603,6 @@ export const tokens: TokenItem[] = (
       'CI 自动化测试',
       'manual',
       2,
-      'default',
       ['deepseek-v3.2'],
       300_000,
       false,
@@ -633,7 +615,6 @@ export const tokens: TokenItem[] = (
       'Claude Code 专用',
       'manual',
       1,
-      'vip',
       ['claude-sonnet-4.5', 'claude-opus-4.1'],
       5_000_000,
       false,
@@ -642,12 +623,11 @@ export const tokens: TokenItem[] = (
       false,
       [ch('星链 API'), ch('砺石智汇', false)],
     ],
-    ['临时调试', 'auto', 2, 'default', [], 100_000, false, 30, 1.2, false, []],
+    ['临时调试', 'auto', 2, [], 100_000, false, 30, 1.2, false, []],
     [
       '团队共享',
       'manual',
       1,
-      'svip',
       [],
       20_000_000,
       false,
@@ -664,7 +644,6 @@ export const tokens: TokenItem[] = (
       'LobeChat',
       'manual',
       1,
-      'default',
       ['gpt-4o', 'gemini-2.5-pro'],
       800_000,
       false,
@@ -678,7 +657,6 @@ export const tokens: TokenItem[] = (
       string,
       TokenType,
       1 | 2,
-      string,
       string[],
       number,
       boolean,
@@ -694,7 +672,6 @@ export const tokens: TokenItem[] = (
       name,
       type,
       status,
-      group,
       limits,
       remain,
       unlimited,
@@ -713,7 +690,6 @@ export const tokens: TokenItem[] = (
     used_quota: Math.floor(rand() * 900_000),
     remain_quota: remain,
     unlimited,
-    group,
     model_limits: limits,
     ip_limits: i === 0 ? ['120.244.0.0/16'] : [],
     rate_limit: rateLimit,
@@ -886,36 +862,157 @@ export const topupRecords: TopupRecord[] = Array.from(
   }
 )
 
-export const plans: Plan[] = [
+/**
+ * Single catalogue behind both surfaces: `/api/subscription/plans` serves the
+ * `active` slice of this array, and the admin routes mutate it in place. A
+ * separate public copy would let an admin edit drift away from what buyers see.
+ */
+export const adminPlans: AdminPlan[] = [
   {
     id: 1,
-    name: '轻量版',
+    kind: 'traffic',
+    name: '入门流量包',
     price: 5,
     quota: 10_000_000,
-    duration_days: 30,
-    features: ['全部公开模型', 'default 分组', '社区支持'],
-    gradient: 'signal',
+    validity: { value: 30, unit: 'day' },
+    features: ['全部公开模型', '社区支持'],
+    accent: { token: 'signal' },
+    exclusive_channel_id: null,
+    status: 'active',
+    sort_order: 1,
+    subscribers: 412,
+    revenue: 8_640,
+    created_time: now - 240 * DAY,
+    updated_time: now - 26 * DAY,
   },
   {
     id: 2,
-    name: '专业版',
-    price: 20,
-    quota: 60_000_000,
-    duration_days: 30,
-    features: ['全部公开模型', 'vip 分组高速通道', '优先客服', '用量分析报表'],
-    gradient: 'accent',
-    recommended: true,
+    kind: 'traffic',
+    name: '大容量流量包',
+    price: 50,
+    quota: 150_000_000,
+    // Never expires: the headline benefit of the larger one-off pack.
+    validity: null,
+    features: ['全部公开模型', '额度永不过期', '优先客服'],
+    // Custom accent, chosen to clear 3:1 against both card surfaces.
+    accent: { token: 'custom', hex: '#8f7ce0' },
+    exclusive_channel_id: null,
+    ratio: 0.95,
+    status: 'active',
+    sort_order: 2,
+    subscribers: 268,
+    revenue: 32_400,
+    created_time: now - 190 * DAY,
+    updated_time: now - 12 * DAY,
   },
   {
     id: 3,
-    name: '团队版',
+    kind: 'subscription',
+    name: '专业订阅',
+    price: 20,
+    period: { value: 1, unit: 'day' },
+    meter: 'refill',
+    period_quota: 2_000_000,
+    term: { value: 1, unit: 'month' },
+    rate_limit: 300,
+    features: ['每日发放额度', '高速通道', '优先客服', '用量分析报表'],
+    accent: { token: 'accent' },
+    recommended: true,
+    exclusive_channel_id: 412,
+    ratio: 0.95,
+    status: 'active',
+    sort_order: 3,
+    subscribers: 1_268,
+    revenue: 96_420,
+    created_time: now - 240 * DAY,
+    updated_time: now - 9 * DAY,
+  },
+  {
+    id: 4,
+    kind: 'subscription',
+    name: '团队订阅',
     price: 80,
-    quota: 300_000_000,
-    duration_days: 30,
-    features: ['svip 专属通道', '多成员协作', '专属客户经理', '发票与合同'],
-    gradient: 'support',
+    period: { value: 1, unit: 'week' },
+    // Capped rather than granted: the team pool is metered, not topped up.
+    meter: 'cap',
+    period_quota: 80_000_000,
+    term: { value: 3, unit: 'month' },
+    rate_limit: 0,
+    features: ['专属渠道', '多成员协作', '专属客户经理', '发票与合同'],
+    accent: { token: 'support' },
+    exclusive_channel_id: 405,
+    ratio: 0.85,
+    status: 'active',
+    sort_order: 4,
+    subscribers: 186,
+    revenue: 138_720,
+    created_time: now - 240 * DAY,
+    updated_time: now - 41 * DAY,
+  },
+  {
+    id: 5,
+    kind: 'subscription',
+    name: '小时体验订阅',
+    price: 1,
+    period: { value: 6, unit: 'hour' },
+    meter: 'refill',
+    period_quota: 200_000,
+    term: { value: 3, unit: 'day' },
+    rate_limit: 30,
+    features: ['短期体验', '每 6 小时发放'],
+    accent: { token: 'signal' },
+    exclusive_channel_id: null,
+    status: 'hidden',
+    sort_order: 5,
+    subscribers: 34,
+    revenue: 6_800,
+    created_time: now - 128 * DAY,
+    updated_time: now - 3 * DAY,
+  },
+  {
+    id: 6,
+    kind: 'traffic',
+    name: '内测体验包',
+    price: 1,
+    quota: 2_000_000,
+    validity: { value: 7, unit: 'day' },
+    features: ['内测模型试用'],
+    accent: { token: 'signal' },
+    exclusive_channel_id: null,
+    status: 'archived',
+    sort_order: 6,
+    subscribers: 0,
+    revenue: 268,
+    created_time: now - 320 * DAY,
+    updated_time: now - 96 * DAY,
   },
 ]
+
+/**
+ * Purchasable slice, in display order. Strips the admin-only bookkeeping so
+ * shelf state and commercial counters never reach the storefront.
+ */
+export function activePlans(): Plan[] {
+  return adminPlans
+    .filter((plan) => plan.status === 'active')
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((plan) => {
+      const {
+        status: _status,
+        sort_order: _sortOrder,
+        subscribers: _subscribers,
+        revenue: _revenue,
+        created_time: _created,
+        updated_time: _updated,
+        ...publicFields
+      } = plan
+      return structuredClone(publicFields) as Plan
+    })
+}
+
+export function findAdminPlan(id: number): AdminPlan | undefined {
+  return adminPlans.find((plan) => plan.id === id)
+}
 
 /* ---------- administration orders ---------- */
 
@@ -947,6 +1044,22 @@ const orderMethodWeights: ReadonlyArray<[AdminOrderMethod, number]> = [
 ]
 
 const ORDER_AMOUNTS = [3.5, 5, 10, 15, 20, 30, 50] as const
+
+/**
+ * Frozen snapshot of the three plans that existed when these orders were
+ * seeded. Historical orders must keep naming and pricing what was actually
+ * sold, so they never follow later catalogue edits.
+ */
+const ORDER_SEED_PLANS: ReadonlyArray<{
+  id: number
+  name: string
+  price: number
+  duration_days: number
+}> = [
+  { id: 1, name: '轻量版', price: 5, duration_days: 30 },
+  { id: 2, name: '专业版', price: 20, duration_days: 30 },
+  { id: 3, name: '团队版', price: 80, duration_days: 30 },
+]
 
 function orderNoSuffix(length: number): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -1000,7 +1113,10 @@ export const adminOrders: AdminOrder[] = (() => {
       const typeRoll = orderRand()
       const type: AdminOrderType =
         typeRoll < 0.62 ? 'topup' : typeRoll < 0.88 ? 'subscription' : 'market'
-      const plan = plans[Math.floor(orderRand() * plans.length)]!
+      // Draws from the three originally-seeded plans only. The catalogue is
+      // admin-mutable and has since grown; widening this pool would consume the
+      // PRNG differently and silently rewrite every seeded order subject.
+      const plan = ORDER_SEED_PLANS[Math.floor(orderRand() * 3)]!
       const amount =
         type === 'subscription'
           ? plan.price
@@ -1064,14 +1180,52 @@ export const adminOrders: AdminOrder[] = (() => {
   return out.reverse()
 })()
 
-export const currentSubscription: CurrentSubscription = {
-  plan_id: 2,
-  name: '专业版',
-  total_quota: 60_000_000,
-  remain_quota: 41_773_482,
+/**
+ * The demo caller holds one subscription plus two traffic packs. Packs are kept
+ * as individual grants rather than folded into the wallet balance, because each
+ * expires on its own schedule.
+ */
+export const subscriptionEntitlement: {
+  plan_id: number
+  period_used: number
+  period_start: number
+  expire_time: number
+  auto_renew: boolean
+} | null = {
+  plan_id: 3,
+  period_used: 1_240_000,
+  // Mid-period, so the storefront meter and reset countdown both have a value.
+  period_start: now - 9 * 3_600,
   expire_time: now + 18 * DAY,
   auto_renew: true,
 }
+
+export const trafficEntitlements: Array<{
+  id: number
+  plan_id: number
+  total_quota: number
+  remain_quota: number
+  granted_at: number
+  expire_time: number
+}> = [
+  {
+    id: 1,
+    plan_id: 1,
+    total_quota: 10_000_000,
+    remain_quota: 3_420_118,
+    granted_at: now - 26 * DAY,
+    // Inside the 7-day window, so the "expiring soon" state is demoable.
+    expire_time: now + 4 * DAY,
+  },
+  {
+    id: 2,
+    plan_id: 2,
+    total_quota: 150_000_000,
+    remain_quota: 138_204_663,
+    granted_at: now - 12 * DAY,
+    expire_time: -1,
+  },
+]
 
 export const inviteInfo: InviteInfo = {
   code: 'BIGD2026',
@@ -1263,34 +1417,30 @@ export const dashboardStats = {
   month_requests_delta: -5.8,
 }
 
-/** RPM ceiling per group. 0 means unmetered. */
-const GROUP_RPM: Record<string, number> = {
-  default: 60,
-  vip: 300,
-  svip: 0,
-}
-
-const GROUP_DISCOUNT: Record<string, number> = {
-  default: 1.0,
-  vip: 0.95,
-  svip: 0.85,
-}
+/** Platform floor for callers holding no subscription. 0 means unmetered. */
+const DEFAULT_RATE_LIMIT = 60
 
 const GLOBAL_DISCOUNT = 0.88
 
-export function buildDashboardLimits(group: string) {
-  const rateLimit = GROUP_RPM[group] ?? GROUP_RPM.default!
-  // Unmetered groups still report observed throughput so the meter has a value.
+/**
+ * Rate ceiling now comes from the active subscription plan rather than a user
+ * group. Callers without one fall back to the platform floor.
+ */
+export function buildDashboardLimits(rateLimit: number = DEFAULT_RATE_LIMIT) {
+  // An unmetered plan still reports observed throughput so the meter has a value.
   const currentRpm = rateLimit === 0 ? 118 : Math.round(rateLimit * 0.47)
-  return { group, rate_limit: rateLimit, current_rpm: currentRpm }
+  return { rate_limit: rateLimit, current_rpm: currentRpm }
 }
 
-export function buildDashboardDiscounts(group: string) {
-  const groupRatio = GROUP_DISCOUNT[group] ?? 1.0
+/**
+ * The plan multiplier replaces the retired group multiplier. The card keeps its
+ * "global × plan = effective" structure.
+ */
+export function buildDashboardDiscounts(planRatio = 1.0) {
   return {
     global_ratio: GLOBAL_DISCOUNT,
-    group_ratio: groupRatio,
-    effective_ratio: Math.round(GLOBAL_DISCOUNT * groupRatio * 1000) / 1000,
+    plan_ratio: planRatio,
+    effective_ratio: Math.round(GLOBAL_DISCOUNT * planRatio * 1000) / 1000,
   }
 }
 

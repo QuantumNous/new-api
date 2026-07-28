@@ -52,8 +52,13 @@ describe('formatRedemptionValue', () => {
     )
   })
 
-  it('formats subscription type', () => {
-    expect(formatRedemptionValue({ type: 'subscription' })).toBe('订阅')
+  it('names the plan for a subscription code, falling back generically', () => {
+    // The catalogue now holds two kinds, so a bare "订阅" would mislabel a
+    // traffic pack. Callers that can resolve the plan pass its name.
+    expect(formatRedemptionValue({ type: 'subscription' }, '专业订阅')).toBe(
+      '专业订阅'
+    )
+    expect(formatRedemptionValue({ type: 'subscription' })).toBe('套餐')
   })
 
   it('formats invite type', () => {

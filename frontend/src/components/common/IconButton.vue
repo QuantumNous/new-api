@@ -22,12 +22,12 @@ defineExpose({
     type="button"
     :aria-label="label"
     :title="label"
-    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors focus-ring"
+    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors focus-ring disabled:cursor-not-allowed disabled:opacity-40"
     data-handdrawn="control"
     :class="
       tone === 'danger'
-        ? 'hover:bg-[var(--status-danger-soft)] hover:text-[var(--status-danger-text)]'
-        : 'hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]'
+        ? 'enabled:hover:bg-[var(--status-danger-soft)] enabled:hover:text-[var(--status-danger-text)]'
+        : 'enabled:hover:bg-[var(--surface-muted)] enabled:hover:text-[var(--text-primary)]'
     "
   >
     <slot />

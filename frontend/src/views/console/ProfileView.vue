@@ -184,15 +184,6 @@ const navItems = computed(() => [
               {{ tier.badge }} {{ tier.name }}
             </span>
             <span
-              class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
-              style="
-                background: var(--surface-muted);
-                color: var(--text-secondary);
-              "
-            >
-              {{ t('profile.group') }}: {{ auth.user?.group ?? 'default' }}
-            </span>
-            <span
               class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium"
               style="
                 background: var(--status-success-soft);

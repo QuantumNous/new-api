@@ -23,6 +23,16 @@ import {
   ADMIN_USER_SORT_FIELDS,
   adminOperatorLevel,
 } from '@/constants/adminUsers'
+import {
+  ADMIN_PLAN_LIMITS,
+  DURATION_UNITS,
+  PLAN_ACCENT_TOKENS,
+  PLAN_KINDS,
+  SUBSCRIPTION_METERS,
+  durationToSeconds,
+  nextPeriodBoundary,
+} from '@/constants/adminPlans'
+import { normalizeOpaqueColor } from '@/utils/cssColor'
 import type { PrizeRecord } from '@/types/bigame'
 import type {
   AdminChannel,
@@ -33,7 +43,18 @@ import type {
   AdminOrderSortBy,
   AdminOrderSortOrder,
   AdminOrderStats,
+  AdminPlan,
+  AdminPlanInput,
+  AdminPlanSortBy,
+  AdminPlanStatus,
   AdminRedemptionCode,
+  Duration,
+  EntitlementChannel,
+  EntitlementSummary,
+  PlanAccent,
+  PlanKind,
+  SubscriptionEntitlement,
+  TrafficEntitlement,
   AdminUser,
   AdminUserRole,
   AdminUserSortBy,
@@ -55,17 +76,20 @@ import type {
 import type { CommunityCategory } from '@/types/lab'
 import { maskKey } from '@/utils/format'
 import {
-  GROUPS,
   PLATFORM_CHANNEL_NAME,
+  activePlans,
   activities,
   activitySummary,
   addInvoice,
   adminChannels,
   adminOrders,
+  adminPlans,
   adminRedemptionCodes,
   adminUsers,
+  findAdminPlan,
   addMyChannel,
-  currentSubscription,
+  subscriptionEntitlement,
+  trafficEntitlements,
   dashboardStats,
   buildDashboardLimits,
   buildDashboardDiscounts,
@@ -82,7 +106,6 @@ import {
   mockUser,
   modelShare,
   myChannels,
-  plans,
   tickets,
   tokens,
   topupRecords,
@@ -477,6 +500,286 @@ function parseAdminUserPatch(
   return { patch }
 }
 
+/** Reads a { value, unit } duration, rejecting unknown units. */
+function readDuration(
+  source: unknown,
+  label: string
+): { value: Duration } | { error: string } {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) {
+    return { error: `${label}格式不正确` }
+  }
+  const raw = source as Record<string, unknown>
+  const value = Number(raw.value)
+  if (
+    !Number.isSafeInteger(value) ||
+    value < 1 ||
+    value > ADMIN_PLAN_LIMITS.durationValueMax
+  ) {
+    return {
+      error: `${label}需在 1-${ADMIN_PLAN_LIMITS.durationValueMax} 之间`,
+    }
+  }
+  const unit = String(raw.unit ?? '')
+  if (!oneOf(unit, DURATION_UNITS)) return { error: `${label}单位不正确` }
+  return { value: { value, unit } }
+}
+
+function readAccent(
+  source: unknown
+): { value: PlanAccent } | { error: string } {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) {
+    return { error: '配色格式不正确' }
+  }
+  const raw = source as Record<string, unknown>
+  const token = String(raw.token ?? 'accent')
+  if (!oneOf(token, PLAN_ACCENT_TOKENS)) return { error: '无效的配色方案' }
+  if (token !== 'custom') return { value: { token } }
+
+  const hex = String(raw.hex ?? '').trim()
+  // Round-trip through the parser: an unparseable value would silently fall
+  // back to the default and store a colour the admin never chose.
+  if (!/^#([\da-f]{3}|[\da-f]{6})$/i.test(hex)) {
+    return { error: '自定义配色需为 #RRGGBB 格式' }
+  }
+  return {
+    value: { token: 'custom', hex: normalizeOpaqueColor(hex, '#d8984c') },
+  }
+}
+
+/**
+ * Validates the create/update body of a plan, branching on `kind`. Returns the
+ * normalized fields or a single message. `status` stays with the caller — only
+ * the dedicated toggle route may change shelf state.
+ */
+function readPlanInput(
+  source: Record<string, unknown>,
+  fixedKind?: PlanKind
+): { value: AdminPlanInput } | { error: string } {
+  const kind = fixedKind ?? String(source.kind ?? '')
+  if (!oneOf(kind, PLAN_KINDS)) return { error: '无效的套餐类型' }
+
+  const name = String(source.name ?? '').trim()
+  if (!name || name.length > ADMIN_PLAN_LIMITS.nameMaxLength) {
+    return { error: `套餐名称需为 1-${ADMIN_PLAN_LIMITS.nameMaxLength} 个字符` }
+  }
+
+  const price = Number(source.price)
+  if (
+    !Number.isFinite(price) ||
+    price < 0 ||
+    price > ADMIN_PLAN_LIMITS.priceMax
+  ) {
+    return { error: '价格需在 $0-$100,000 之间' }
+  }
+
+  const features = parseStringArray(
+    source.features ?? [],
+    ADMIN_PLAN_LIMITS.featuresMax,
+    ADMIN_PLAN_LIMITS.featureMaxLength
+  )
+  if (!features) return { error: '权益条目格式不正确（最多 12 条）' }
+
+  const accent = readAccent(source.accent ?? { token: 'accent' })
+  if ('error' in accent) return { error: accent.error }
+
+  const sortOrder = Number(source.sort_order ?? 0)
+  if (
+    !Number.isSafeInteger(sortOrder) ||
+    sortOrder < 0 ||
+    sortOrder > ADMIN_PLAN_LIMITS.sortOrderMax
+  ) {
+    return { error: '排序值需在 0-999 之间' }
+  }
+
+  let ratio: number | undefined
+  if (source.ratio !== undefined && source.ratio !== null) {
+    const value = Number(source.ratio)
+    if (
+      !Number.isFinite(value) ||
+      value < ADMIN_PLAN_LIMITS.ratioMin ||
+      value > ADMIN_PLAN_LIMITS.ratioMax
+    ) {
+      return { error: '计费倍率需在 0.01-100 之间' }
+    }
+    ratio = Math.round(value * 1_000) / 1_000
+  }
+
+  // An exclusive channel must resolve to a live platform channel; a dangling id
+  // would surface as a phantom benefit on the storefront.
+  let exclusiveChannelId: number | null = null
+  if (
+    source.exclusive_channel_id !== undefined &&
+    source.exclusive_channel_id !== null
+  ) {
+    const id = Number(source.exclusive_channel_id)
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      return { error: '专属渠道格式不正确' }
+    }
+    if (!adminChannels.some((channel) => channel.id === id)) {
+      return { error: '专属渠道不存在' }
+    }
+    exclusiveChannelId = id
+  }
+
+  const shared = {
+    name,
+    price: Math.round(price * 100) / 100,
+    features,
+    accent: accent.value,
+    recommended: Boolean(source.recommended),
+    exclusive_channel_id: exclusiveChannelId,
+    sort_order: sortOrder,
+    ...(ratio !== undefined ? { ratio } : {}),
+  }
+
+  if (kind === 'traffic') {
+    const quota = Number(source.quota)
+    if (!Number.isSafeInteger(quota) || quota <= 0) {
+      return { error: '流量包额度需为正整数' }
+    }
+    // null is a meaningful value here (never expires), not a missing field.
+    let validity: Duration | null = null
+    if (source.validity !== undefined && source.validity !== null) {
+      const parsed = readDuration(source.validity, '有效期')
+      if ('error' in parsed) return { error: parsed.error }
+      validity = parsed.value
+    }
+    return { value: { ...shared, kind: 'traffic', quota, validity } }
+  }
+
+  const period = readDuration(source.period, '结算周期')
+  if ('error' in period) return { error: period.error }
+
+  const term = readDuration(source.term, '订阅时长')
+  if ('error' in term) return { error: term.error }
+
+  if (durationToSeconds(term.value) < durationToSeconds(period.value)) {
+    return { error: '订阅时长不能短于一个结算周期' }
+  }
+
+  const meter = String(source.meter ?? 'refill')
+  if (!oneOf(meter, SUBSCRIPTION_METERS)) return { error: '无效的结算方式' }
+
+  const periodQuota = Number(source.period_quota)
+  if (!Number.isSafeInteger(periodQuota) || periodQuota <= 0) {
+    return { error: '周期额度需为正整数' }
+  }
+
+  let rateLimit: number | undefined
+  if (source.rate_limit !== undefined && source.rate_limit !== null) {
+    const value = Number(source.rate_limit)
+    if (
+      !Number.isSafeInteger(value) ||
+      value < 0 ||
+      value > ADMIN_PLAN_LIMITS.rateLimitMax
+    ) {
+      return { error: '请求上限格式不正确' }
+    }
+    rateLimit = value
+  }
+
+  return {
+    value: {
+      ...shared,
+      kind: 'subscription',
+      period: period.value,
+      meter,
+      period_quota: periodQuota,
+      term: term.value,
+      ...(rateLimit !== undefined ? { rate_limit: rateLimit } : {}),
+    },
+  }
+}
+
+/**
+ * Resolves a plan's exclusive channel for display. Returns undefined once the
+ * channel is deleted, so the UI can show a "removed" state instead of a
+ * dangling id — deleting a channel deliberately does not cascade into plans.
+ */
+function resolveExclusiveChannel(
+  channelId: number | null
+): EntitlementChannel | undefined {
+  if (channelId === null) return undefined
+  const channel = adminChannels.find((item) => item.id === channelId)
+  return channel ? { id: channel.id, name: channel.name } : undefined
+}
+
+/**
+ * Projects the stored entitlement records onto the wire shape, resolving plan
+ * metadata by id. Period boundaries are recomputed from the stored start so a
+ * long-idle session rolls forward instead of showing a stale window.
+ */
+function buildEntitlementSummary(): EntitlementSummary {
+  const nowSec = Math.floor(Date.now() / 1000)
+
+  let subscription: SubscriptionEntitlement | null = null
+  if (subscriptionEntitlement) {
+    const plan = findAdminPlan(subscriptionEntitlement.plan_id)
+    if (plan && plan.kind === 'subscription') {
+      // Roll the window forward across however many periods have elapsed. A
+      // refill plan resets usage on each rollover; a cap plan does the same,
+      // the difference being what the allowance means, not when it resets.
+      let periodStart = subscriptionEntitlement.period_start
+      let periodEnd = nextPeriodBoundary(periodStart, plan.period)
+      let rolled = false
+      while (
+        periodEnd <= nowSec &&
+        periodStart < subscriptionEntitlement.expire_time
+      ) {
+        periodStart = periodEnd
+        periodEnd = nextPeriodBoundary(periodStart, plan.period)
+        rolled = true
+      }
+      if (rolled) {
+        subscriptionEntitlement.period_start = periodStart
+        subscriptionEntitlement.period_used = 0
+      }
+
+      subscription = {
+        plan_id: plan.id,
+        name: plan.name,
+        meter: plan.meter,
+        period: { ...plan.period },
+        period_quota: plan.period_quota,
+        period_used: subscriptionEntitlement.period_used,
+        period_start: periodStart,
+        period_end: periodEnd,
+        expire_time: subscriptionEntitlement.expire_time,
+        auto_renew: subscriptionEntitlement.auto_renew,
+        accent: { ...plan.accent },
+        ...(plan.rate_limit !== undefined
+          ? { rate_limit: plan.rate_limit }
+          : {}),
+        ...(() => {
+          const channel = resolveExclusiveChannel(plan.exclusive_channel_id)
+          return channel ? { exclusive_channel: channel } : {}
+        })(),
+      }
+    }
+  }
+
+  const traffic: TrafficEntitlement[] = trafficEntitlements.flatMap((grant) => {
+    const plan = findAdminPlan(grant.plan_id)
+    if (!plan || plan.kind !== 'traffic') return []
+    const channel = resolveExclusiveChannel(plan.exclusive_channel_id)
+    return [
+      {
+        id: grant.id,
+        plan_id: plan.id,
+        name: plan.name,
+        total_quota: grant.total_quota,
+        remain_quota: grant.remain_quota,
+        granted_at: grant.granted_at,
+        expire_time: grant.expire_time,
+        accent: { ...plan.accent },
+        ...(channel ? { exclusive_channel: channel } : {}),
+      },
+    ]
+  })
+
+  return { subscription, traffic }
+}
+
 /**
  * The mock server's view of the caller's authority. It mirrors the auth store's
  * `isAdmin: true` / `isRoot: false` stub through `adminOperatorLevel`, so the
@@ -718,13 +1021,19 @@ export async function dispatchMock<T>(
   /* ---------------- dashboard & logs ---------------- */
   if (path === '/api/data/self' && method === 'GET') {
     const stored = readDemoUser()!
+    // Rate ceiling and billing multiplier now come from the active subscription
+    // plan; both fall back to platform defaults without one.
+    const summary = buildEntitlementSummary()
+    const activePlan = summary.subscription
+      ? findAdminPlan(summary.subscription.plan_id)
+      : undefined
     return ok({
       ...dashboardStats,
       quota: stored.quota,
       used_quota: stored.used_quota,
       model_share: modelShare,
-      limits: buildDashboardLimits(stored.group ?? 'default'),
-      discounts: buildDashboardDiscounts(stored.group ?? 'default'),
+      limits: buildDashboardLimits(summary.subscription?.rate_limit),
+      discounts: buildDashboardDiscounts(activePlan?.ratio ?? 1.0),
     }) as ApiResponse<T>
   }
   if (path === '/api/data/flow/self' && method === 'GET') {
@@ -1462,10 +1771,6 @@ export async function dispatchMock<T>(
     ) {
       return fail('负载均衡配置格式不正确') as ApiResponse<T>
     }
-    const group = String(body.group ?? 'default').trim()
-    if (!group || group.length > 64) {
-      return fail('分组格式不正确') as ApiResponse<T>
-    }
     let maxRatio: number | undefined
     if (body.max_ratio !== undefined) {
       const value = Number(body.max_ratio)
@@ -1488,7 +1793,6 @@ export async function dispatchMock<T>(
       used_quota: 0,
       remain_quota: remainQuota,
       unlimited: body.unlimited ?? false,
-      group,
       model_limits: modelLimits,
       ip_limits: ipLimits,
       rate_limit: rateLimit,
@@ -1545,13 +1849,6 @@ export async function dispatchMock<T>(
           return fail('无限额度配置格式不正确') as ApiResponse<T>
         }
         next.unlimited = body.unlimited
-      }
-      if (body.group !== undefined) {
-        const group = String(body.group).trim()
-        if (!group || group.length > 64) {
-          return fail('分组格式不正确') as ApiResponse<T>
-        }
-        next.group = group
       }
       if (body.model_limits !== undefined) {
         const limits = parseStringArray(body.model_limits, 100)
@@ -1701,22 +1998,28 @@ export async function dispatchMock<T>(
 
   /* ---------------- subscription ---------------- */
   if (path === '/api/subscription/plans' && method === 'GET') {
-    return ok(plans) as ApiResponse<T>
+    // Only the purchasable slice: a hidden or archived plan must not be
+    // reachable from the storefront even though admins still see it.
+    return ok(activePlans()) as ApiResponse<T>
   }
   if (path === '/api/subscription/self' && method === 'GET') {
-    return ok({ ...currentSubscription }) as ApiResponse<T>
+    return ok(buildEntitlementSummary()) as ApiResponse<T>
   }
   if (path === '/api/subscription/self' && method === 'PUT') {
-    if (body.auto_renew !== undefined)
-      currentSubscription.auto_renew = Boolean(body.auto_renew)
-    return ok({
-      ...currentSubscription,
-      message: '订阅设置已更新',
-    }) as ApiResponse<T>
+    if (!subscriptionEntitlement) {
+      return fail('当前没有生效的订阅包') as ApiResponse<T>
+    }
+    if (body.auto_renew !== undefined) {
+      subscriptionEntitlement.auto_renew = Boolean(body.auto_renew)
+    }
+    return ok(buildEntitlementSummary(), '订阅设置已更新') as ApiResponse<T>
   }
   if (path === '/api/subscription/purchase' && method === 'POST') {
-    const plan = plans.find((p) => p.id === Number(body.plan_id))
-    if (!plan) return fail('套餐不存在') as ApiResponse<T>
+    // A delisted plan must not be purchasable even if its id is still known.
+    const plan = adminPlans.find(
+      (p) => p.id === Number(body.plan_id) && p.status === 'active'
+    )
+    if (!plan) return fail('套餐不存在或已下架') as ApiResponse<T>
     return ok({
       message: `已创建「${plan.name}」支付单，到账以回调为准`,
     }) as ApiResponse<T>
@@ -1747,7 +2050,8 @@ export async function dispatchMock<T>(
 
   /* ---------------- meta ---------------- */
   if (path === '/api/models/available' && method === 'GET') {
-    return ok({ models: MODELS, groups: GROUPS }) as ApiResponse<T>
+    // `groups` is gone: routing is expressed purely through channels now.
+    return ok({ models: MODELS }) as ApiResponse<T>
   }
 
   /* ---------------- model plaza ---------------- */
@@ -2566,6 +2870,185 @@ export async function dispatchMock<T>(
     return ok({ wallet: gameWallet }) as ApiResponse<T>
   }
 
+  /* ---------------- admin plan catalogue ---------------- */
+  if (path === '/api/plan/' && method === 'GET') {
+    const keyword = String(params.keyword ?? '')
+      .trim()
+      .toLowerCase()
+    const statusFilter = String(params.status ?? '').toLowerCase()
+    const kindFilter = String(params.kind ?? '').toLowerCase()
+
+    // Counts are computed before the facets so the filter chips keep showing the
+    // full picture while one of them is applied.
+    let base = adminPlans.filter((plan) => {
+      if (!keyword) return true
+      return (
+        plan.name.toLowerCase().includes(keyword) ||
+        String(plan.id).includes(keyword) ||
+        plan.features.some((f) => f.toLowerCase().includes(keyword))
+      )
+    })
+
+    const statusCounts: Record<string, number> = {}
+    const kindCounts: Record<string, number> = {}
+    base.forEach((plan) => {
+      statusCounts[plan.status] = (statusCounts[plan.status] ?? 0) + 1
+      kindCounts[plan.kind] = (kindCounts[plan.kind] ?? 0) + 1
+    })
+
+    if (statusFilter) base = base.filter((plan) => plan.status === statusFilter)
+    if (kindFilter) base = base.filter((plan) => plan.kind === kindFilter)
+
+    const rawSort = String(params.sort_by ?? 'sort_order')
+    const sortBy: AdminPlanSortBy = (
+      ['id', 'price', 'sort_order', 'subscribers'] as const
+    ).includes(rawSort as AdminPlanSortBy)
+      ? (rawSort as AdminPlanSortBy)
+      : 'sort_order'
+    const sortOrder =
+      String(params.sort_order).toLowerCase() === 'desc' ? -1 : 1
+    const sorted = [...base].sort(
+      (a, b) => (Number(a[sortBy]) - Number(b[sortBy])) * sortOrder
+    )
+
+    const p = Number(params.p ?? 1)
+    const ps = Math.min(100, Number(params.page_size ?? 20))
+    const page = Number.isFinite(p) && p > 0 ? Math.floor(p) : 1
+    const pageSize = Number.isFinite(ps) && ps > 0 ? Math.floor(ps) : 20
+    const start = (page - 1) * pageSize
+
+    return ok({
+      items: sorted.slice(start, start + pageSize).map((plan) => ({ ...plan })),
+      total: sorted.length,
+      page,
+      page_size: pageSize,
+      status_counts: statusCounts,
+      kind_counts: kindCounts,
+      filtered_subscribers: base.reduce(
+        (sum, plan) => sum + plan.subscribers,
+        0
+      ),
+      filtered_revenue:
+        Math.round(base.reduce((sum, plan) => sum + plan.revenue, 0) * 100) /
+        100,
+    }) as ApiResponse<T>
+  }
+
+  if (path === '/api/plan/' && method === 'POST') {
+    const validation = readPlanInput(body)
+    if ('error' in validation) return fail(validation.error) as ApiResponse<T>
+
+    const rawStatus = String(body.status ?? 'active')
+    if (!['active', 'hidden', 'archived'].includes(rawStatus)) {
+      return fail('无效的套餐状态') as ApiResponse<T>
+    }
+
+    const stamp = Math.floor(Date.now() / 1000)
+    // Spreading a union loses the discriminant's correlation with its own
+    // fields, so the assembled record is asserted once here rather than
+    // branching the whole construction per kind.
+    const plan = {
+      id: mockRuntime.nextAdminPlanId++,
+      ...validation.value,
+      status: rawStatus as AdminPlanStatus,
+      subscribers: 0,
+      revenue: 0,
+      created_time: stamp,
+      updated_time: stamp,
+    } as AdminPlan
+    adminPlans.push(plan)
+    return ok({ ...plan }, `套餐「${plan.name}」已创建`) as ApiResponse<T>
+  }
+
+  if (path === '/api/plan/batch' && method === 'POST') {
+    if (!Array.isArray(body.ids) || body.ids.length === 0) {
+      return fail('套餐 ID 列表格式不正确') as ApiResponse<T>
+    }
+    const ids = body.ids.map(Number)
+    if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      return fail('套餐 ID 列表格式不正确') as ApiResponse<T>
+    }
+    const unique = new Set(ids)
+
+    // A plan with live subscribers is never deletable: their billing records
+    // resolve the plan by id, so removing it would orphan them.
+    const blocked = adminPlans.filter(
+      (plan) => unique.has(plan.id) && plan.subscribers > 0
+    )
+    if (blocked.length > 0) {
+      return fail(
+        `「${blocked.map((p) => p.name).join('、')}」仍有订阅用户，不可删除`
+      ) as ApiResponse<T>
+    }
+
+    let deleted = 0
+    for (let i = adminPlans.length - 1; i >= 0; i--) {
+      if (unique.has(adminPlans[i]!.id)) {
+        adminPlans.splice(i, 1)
+        deleted++
+      }
+    }
+    return ok(deleted, `已删除 ${deleted} 个套餐`) as ApiResponse<T>
+  }
+
+  const planIdMatch = path.match(/^\/api\/plan\/(\d+)(\/status)?$/)
+  if (planIdMatch) {
+    const id = Number(planIdMatch[1])
+    const plan = adminPlans.find((p) => p.id === id)
+    if (!plan) return fail('套餐不存在') as ApiResponse<T>
+
+    if (planIdMatch[2] === '/status' && method === 'POST') {
+      const rawStatus = String(body.status ?? '')
+      if (!['active', 'hidden', 'archived'].includes(rawStatus)) {
+        return fail('无效的套餐状态') as ApiResponse<T>
+      }
+      if (rawStatus === 'archived' && plan.subscribers > 0) {
+        return fail('该套餐仍有订阅用户，不可归档') as ApiResponse<T>
+      }
+      plan.status = rawStatus as AdminPlanStatus
+      plan.updated_time = Math.floor(Date.now() / 1000)
+      const label =
+        plan.status === 'active'
+          ? '已上架'
+          : plan.status === 'hidden'
+            ? '已下架'
+            : '已归档'
+      return ok({ ...plan }, `套餐${label}`) as ApiResponse<T>
+    }
+
+    if (method === 'PUT') {
+      // `kind` is pinned to the stored value: switching it would leave existing
+      // holders pointing at an entitlement shape their record cannot express.
+      const validation = readPlanInput(body, plan.kind)
+      if ('error' in validation) return fail(validation.error) as ApiResponse<T>
+      // Drop the previous kind's exclusive fields before assigning, so a plan
+      // never keeps a stale `quota` alongside `period_quota`.
+      for (const key of [
+        'quota',
+        'validity',
+        'period',
+        'meter',
+        'period_quota',
+        'term',
+        'rate_limit',
+        'ratio',
+      ]) {
+        delete (plan as Record<string, unknown>)[key]
+      }
+      Object.assign(plan, validation.value)
+      plan.updated_time = Math.floor(Date.now() / 1000)
+      return ok({ ...plan }, `套餐「${plan.name}」已更新`) as ApiResponse<T>
+    }
+
+    if (method === 'DELETE') {
+      if (plan.subscribers > 0) {
+        return fail('该套餐仍有订阅用户，不可删除') as ApiResponse<T>
+      }
+      adminPlans.splice(adminPlans.indexOf(plan), 1)
+      return ok({ id }, `套餐「${plan.name}」已删除`) as ApiResponse<T>
+    }
+  }
+
   /* ---------------- admin redemption codes ---------------- */
   if (
     (path === '/api/redemption/' || path === '/api/redemption/search') &&
@@ -2670,7 +3153,11 @@ export async function dispatchMock<T>(
       name = `${n} 并发`
     } else if (type === 'subscription') {
       const pid = Number(body.plan_id ?? 0)
-      const plan = plans.find((p) => p.id === pid)
+      // Archived plans are excluded: a code minted against a retired plan could
+      // never be redeemed into anything.
+      const plan = adminPlans.find(
+        (p) => p.id === pid && p.status !== 'archived'
+      )
       if (!plan) return fail('套餐不存在') as ApiResponse<T>
       planId = pid
       name = plan.name

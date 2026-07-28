@@ -15,7 +15,6 @@ const tokens: TokenSummary[] = Array.from({ length: 10 }, (_, index) => ({
   used_quota: 100,
   remain_quota: 900,
   unlimited: false,
-  group: 'default',
   model_limits: [],
   ip_limits: [],
   rate_limit: 0,

@@ -6,7 +6,6 @@ export interface UserInfo {
   role: number
   quota: number
   used_quota: number
-  group: string
   admin_permissions?: string[]
 }
 

@@ -16,7 +16,6 @@ const user: UserInfo = {
   role: 1,
   quota: 100,
   used_quota: 10,
-  group: 'default',
 }
 
 describe('demo identity storage', () => {

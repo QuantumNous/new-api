@@ -21,7 +21,6 @@ export interface TokenItem {
   used_quota: number
   remain_quota: number
   unlimited: boolean
-  group: string
   model_limits: string[]
   ip_limits: string[]
   rate_limit: number // requests / minute, 0 = unlimited
@@ -276,16 +275,193 @@ export interface TopupRecord {
   created: number
 }
 
-export interface Plan {
+/* ------------------------------------------------------------------ */
+/* plan catalogue — traffic packs and subscription packs                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Two sellable shapes, deliberately modelled as a discriminated union so a
+ * traffic pack can never carry period fields and vice versa:
+ *   traffic      — grants a fixed quota once, optionally expiring
+ *   subscription — meters quota per period for the length of a term
+ */
+export type PlanKind = 'traffic' | 'subscription'
+
+export type DurationUnit = 'hour' | 'day' | 'week' | 'month'
+
+/** A quantity of time. Rendered through formatDuration() for i18n plurals. */
+export interface Duration {
+  value: number
+  unit: DurationUnit
+}
+
+/**
+ * How a subscription's per-period allowance behaves:
+ *   refill — each period grants `period_quota`; unused quota does not carry over
+ *   cap    — each period allows at most `period_quota`; nothing is granted
+ * The stored shape is identical; only settlement differs.
+ */
+export type SubscriptionMeter = 'refill' | 'cap'
+
+/**
+ * Plan accent colour. Semantic tokens follow the active theme; `custom` pins a
+ * literal hex in both themes and is restricted to emphasis marks (never text or
+ * surface fills) — see docs/THEMES.md.
+ */
+export interface PlanAccent {
+  token: 'accent' | 'signal' | 'support' | 'custom'
+  /** Required when token === 'custom'; normalized to #rrggbb on write. */
+  hex?: string
+}
+
+interface PlanBase {
   id: number
   name: string
   price: number
-  quota: number
-  duration_days: number
   features: string[]
-  gradient: 'accent' | 'signal' | 'support'
+  accent: PlanAccent
   recommended?: boolean
+  /**
+   * Platform channel granted exclusively to holders, referencing
+   * AdminChannel.id. null = no exclusive channel.
+   */
+  exclusive_channel_id: number | null
+  /** Billing multiplier; replaces the retired per-group ratio. undefined = 1.0 */
+  ratio?: number
 }
+
+export interface TrafficPlan extends PlanBase {
+  kind: 'traffic'
+  /** Granted once on purchase. */
+  quota: number
+  /** Validity of the granted quota; null = never expires. */
+  validity: Duration | null
+}
+
+export interface SubscriptionPlan extends PlanBase {
+  kind: 'subscription'
+  /** Settlement period, e.g. { value: 1, unit: 'day' }. */
+  period: Duration
+  meter: SubscriptionMeter
+  /** Granted per period when `refill`, allowed per period when `cap`. */
+  period_quota: number
+  /** Total subscription length, e.g. { value: 3, unit: 'month' }. */
+  term: Duration
+  /** Requests allowed per period; replaces the retired per-group RPM. */
+  rate_limit?: number
+}
+
+export type Plan = TrafficPlan | SubscriptionPlan
+
+/* ------------------------------------------------------------------ */
+/* admin plan catalogue                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Shelf state of a plan:
+ *   active   — purchasable, listed on the subscription page
+ *   hidden   — delisted but still honoured for existing subscribers
+ *   archived — retired; kept only so historical orders keep resolving a name
+ */
+export type AdminPlanStatus = 'active' | 'hidden' | 'archived'
+
+/**
+ * Sortable columns are deliberately kind-agnostic. A one-off quota and a
+ * per-period allowance are not comparable, so the quota column renders per kind
+ * but never sorts.
+ */
+export type AdminPlanSortBy = 'id' | 'price' | 'sort_order' | 'subscribers'
+
+export type AdminPlanSortOrder = 'asc' | 'desc'
+
+/** Admin-only bookkeeping layered onto either plan kind. */
+export interface AdminPlanFields {
+  status: AdminPlanStatus
+  /** Ascending display weight on the subscription page. */
+  sort_order: number
+  /** Live subscriber count — read-only, owned by the billing side. */
+  subscribers: number
+  /** Lifetime revenue in USD, read-only. */
+  revenue: number
+  created_time: number
+  updated_time: number
+}
+
+/**
+ * The catalogue row behind a `Plan`. The storefront only ever receives the
+ * `Plan` half of an `active` record, so shelf state and the commercial counters
+ * stay admin-side. Intersecting (rather than extending) keeps the union
+ * distributed, so each kind still satisfies DataTable's row constraint.
+ */
+export type AdminPlan = Plan & AdminPlanFields & Record<string, unknown>
+
+export type AdminTrafficPlan = TrafficPlan &
+  AdminPlanFields &
+  Record<string, unknown>
+
+export type AdminSubscriptionPlan = SubscriptionPlan &
+  AdminPlanFields &
+  Record<string, unknown>
+
+export interface AdminPlanPage {
+  items: AdminPlan[]
+  total: number
+  page: number
+  page_size: number
+  status_counts: Record<string, number>
+  kind_counts: Record<string, number>
+  /** Subscribers across the whole filtered set, not just the page. */
+  filtered_subscribers: number
+  /** Revenue across the whole filtered set, not just the page. */
+  filtered_revenue: number
+}
+
+/** Fields shared by both kinds on create/update. */
+interface AdminPlanInputBase {
+  name: string
+  price: number
+  features: string[]
+  accent: PlanAccent
+  recommended: boolean
+  exclusive_channel_id: number | null
+  ratio?: number
+  sort_order: number
+}
+
+export type AdminPlanCreateInput = AdminPlanInputBase &
+  (
+    | { kind: 'traffic'; quota: number; validity: Duration | null }
+    | {
+        kind: 'subscription'
+        period: Duration
+        meter: SubscriptionMeter
+        period_quota: number
+        term: Duration
+        rate_limit?: number
+      }
+  ) & { status: AdminPlanStatus }
+
+/**
+ * Union-preserving Omit. The built-in `Omit` treats a union as a single object
+ * and collapses the discriminant, which would let a caller mix a traffic
+ * `quota` with a subscription `period`.
+ */
+export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never
+
+/** The create body minus shelf state — what both create and edit validate to. */
+export type AdminPlanInput = DistributiveOmit<AdminPlanCreateInput, 'status'>
+
+/**
+ * Status is owned by the dedicated toggle route, not by the edit form. `kind` is
+ * immutable after creation: switching it would leave existing holders pointing
+ * at an entitlement shape their record cannot express.
+ */
+export type AdminPlanUpdateInput = DistributiveOmit<
+  AdminPlanCreateInput,
+  'status' | 'kind'
+>
 
 /* ---------------- model plaza (market) ---------------- */
 
@@ -585,13 +761,56 @@ export type TokenSummary = Omit<TokenItem, 'key'> & {
   key_preview: string
 }
 
-export interface CurrentSubscription {
+/* ------------------------------------------------------------------ */
+/* entitlements — what a caller actually holds                          */
+/* ------------------------------------------------------------------ */
+
+/** The exclusive channel resolved for display; absent once it is deleted. */
+export interface EntitlementChannel {
+  id: number
+  name: string
+}
+
+/**
+ * One purchased traffic pack. Held per grant rather than folded into the wallet
+ * balance, because each grant expires on its own schedule.
+ */
+export interface TrafficEntitlement {
+  id: number
   plan_id: number
   name: string
   total_quota: number
   remain_quota: number
+  granted_at: number
+  /** -1 = never expires. */
+  expire_time: number
+  accent: PlanAccent
+  exclusive_channel?: EntitlementChannel
+}
+
+/** The caller's single active subscription, if any. */
+export interface SubscriptionEntitlement {
+  plan_id: number
+  name: string
+  meter: SubscriptionMeter
+  period: Duration
+  /** Granted (refill) or allowed (cap) within the current period. */
+  period_quota: number
+  period_used: number
+  period_start: number
+  period_end: number
+  /** When the subscription itself lapses. */
   expire_time: number
   auto_renew: boolean
+  rate_limit?: number
+  accent: PlanAccent
+  exclusive_channel?: EntitlementChannel
+}
+
+/** Full entitlement picture: at most one subscription, any number of packs. */
+export interface EntitlementSummary {
+  subscription: SubscriptionEntitlement | null
+  traffic: TrafficEntitlement[]
 }
 
 /* ------------------------------------------------------------------ */

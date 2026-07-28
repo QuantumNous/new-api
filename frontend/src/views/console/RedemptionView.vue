@@ -33,6 +33,7 @@ import Breadcrumb from '@/components/console/Breadcrumb.vue'
 import RedemptionCodeCell from '@/components/console/redemption/RedemptionCodeCell.vue'
 import RedemptionGenerateModal from '@/components/console/redemption/RedemptionGenerateModal.vue'
 import RedemptionSuccessModal from '@/components/console/redemption/RedemptionSuccessModal.vue'
+import { api } from '@/api/console'
 import { useAdminRedemption } from '@/composables/useAdminRedemption'
 import {
   ADMIN_REDEMPTION_DEFAULT_VISIBLE_FIELDS,
@@ -52,6 +53,7 @@ import type {
   AdminRedemptionCreateInput,
   AdminRedemptionSortBy,
   AdminRedemptionSortOrder,
+  Plan,
 } from '@/types/console'
 import { formatTime } from '@/utils/format'
 
@@ -260,6 +262,7 @@ function toggleSortOrder() {
 // Actions
 function openGenerate() {
   if (!canManage.value) return
+  void loadPlanOptions()
   generateOpen.value = true
 }
 
@@ -349,12 +352,22 @@ function exportCsv() {
   URL.revokeObjectURL(url)
 }
 
-// Mock plans for the generate form
-const mockPlans = [
-  { id: 1, name: '轻量版' },
-  { id: 2, name: '专业版' },
-  { id: 3, name: '旗舰版' },
-]
+/**
+ * Subscription codes bind to a real plan id, so the picker reads the live
+ * catalogue rather than a hardcoded list that silently drifts once an admin
+ * edits a plan. Loaded lazily — only the generate modal needs it.
+ */
+const planOptions = ref<Array<{ id: number; name: string }>>([])
+
+async function loadPlanOptions(): Promise<void> {
+  if (planOptions.value.length > 0) return
+  try {
+    const list = await api.get<Plan[]>('/api/subscription/plans')
+    planOptions.value = list.map((plan) => ({ id: plan.id, name: plan.name }))
+  } catch {
+    // Non-fatal: the modal's other code types stay usable without plans.
+  }
+}
 </script>
 
 <template>
@@ -504,6 +517,7 @@ const mockPlans = [
 
       <template v-else>
         <DataTable
+          class="hidden md:block"
           :columns="columns"
           :rows="rows"
           row-key="id"
@@ -752,7 +766,7 @@ const mockPlans = [
     <RedemptionGenerateModal
       :open="generateOpen"
       :loading="isCrudActionBusy('create')"
-      :plans="mockPlans"
+      :plans="planOptions"
       @close="generateOpen = false"
       @submit="handleGenerate"
     />
