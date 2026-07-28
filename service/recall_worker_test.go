@@ -291,6 +291,50 @@ func TestRecallWorkerReusesCustomerCreatesBoundPromotionAndSchedulesStageOne(t *
 	require.Equal(t, model.RecallMessageScheduled, message.State)
 }
 
+func TestRecallWorkerPromotionMinimumSpendPassThrough(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	campaign := createRecallWorkerCampaign(t, model.RecallCampaignRunning)
+	discountJSON, err := common.Marshal(RecallDiscountConfig{MinimumSpend: &RecallMinimumSpendConfig{
+		Enabled: true,
+		Amounts: map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 12_500, "jpy": 3_750},
+	}})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Update("discount_config", string(discountJSON)).Error)
+	user := model.User{Username: "recall-worker-minimum-spend", Password: "password", Email: "minimum@example.com", StripeCustomer: "cus_minimum"}
+	require.NoError(t, model.DB.Create(&user).Error)
+	createRecallWorkerRecipient(t, campaign.Id, user.Id, model.RecallRecipientQueued)
+
+	var promotionParams *stripe.PromotionCodeParams
+	client := &recallStripeFakeClient{
+		getCustomerFn: func(_ context.Context, id string) (*stripe.Customer, error) {
+			return &stripe.Customer{ID: id}, nil
+		},
+		updateCustomerFn: func(_ context.Context, id string, params *stripe.CustomerParams) (*stripe.Customer, error) {
+			return &stripe.Customer{ID: id, Email: *params.Email}, nil
+		},
+		createPromotionCodeFn: func(_ context.Context, params *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+			promotionParams = params
+			return recallWorkerPromotionFromParams("promo_minimum_spend", params), nil
+		},
+	}
+	worker := newRecallWorkerForTest(client, "node-a")
+
+	processed, err := worker.RunBatch(context.Background(), 10)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.NotNil(t, promotionParams)
+	require.NotNil(t, promotionParams.Restrictions)
+	require.Equal(t, int64(2_500), *promotionParams.Restrictions.MinimumAmount)
+	require.Equal(t, "usd", *promotionParams.Restrictions.MinimumAmountCurrency)
+	require.NotNil(t, promotionParams.Restrictions.CurrencyOptions)
+	require.Equal(t, int64(200_000), *promotionParams.Restrictions.CurrencyOptions["inr"].MinimumAmount)
+	require.Equal(t, int64(12_500), *promotionParams.Restrictions.CurrencyOptions["brl"].MinimumAmount)
+	require.Equal(t, int64(3_750), *promotionParams.Restrictions.CurrencyOptions["jpy"].MinimumAmount)
+	require.NotContains(t, promotionParams.Restrictions.CurrencyOptions, "usd")
+}
+
 func TestRecallWorkerEmailOnlyRecipientSkipsCustomerAndSchedulesStageOne(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

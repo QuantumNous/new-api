@@ -830,7 +830,18 @@ func buildRecallPromotionParams(ctx context.Context, campaignID int64, recipient
 		params.Metadata["flatkey_user_id"] = strconv.Itoa(userID)
 	}
 	params.Context = ctx
-	if discount.MinimumAmount > 0 {
+	if discount.MinimumSpend != nil && discount.MinimumSpend.Enabled {
+		params.Restrictions = &stripe.PromotionCodeRestrictionsParams{
+			MinimumAmount:         stripe.Int64(discount.MinimumSpend.Amounts["usd"]),
+			MinimumAmountCurrency: stripe.String("usd"),
+			CurrencyOptions:       make(map[string]*stripe.PromotionCodeRestrictionsCurrencyOptionsParams, 3),
+		}
+		for _, currency := range []string{"inr", "brl", "jpy"} {
+			params.Restrictions.CurrencyOptions[currency] = &stripe.PromotionCodeRestrictionsCurrencyOptionsParams{
+				MinimumAmount: stripe.Int64(discount.MinimumSpend.Amounts[currency]),
+			}
+		}
+	} else if discount.MinimumAmount > 0 {
 		params.Restrictions = &stripe.PromotionCodeRestrictionsParams{
 			MinimumAmount:         stripe.Int64(discount.MinimumAmount),
 			MinimumAmountCurrency: stripe.String(discount.MinimumAmountCurrency),
@@ -919,15 +930,43 @@ func validateExistingRecallPromotion(existing *stripe.PromotionCode, recipient m
 	if existing.Restrictions != nil && existing.Restrictions.FirstTimeTransaction {
 		return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s first-time transaction restriction is not supported", existing.ID)
 	}
-	if existing.Restrictions != nil && len(existing.Restrictions.CurrencyOptions) > 0 {
-		return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s currency options are not supported", existing.ID)
-	}
-	if discount.MinimumAmount > 0 {
+	if discount.MinimumSpend != nil && discount.MinimumSpend.Enabled {
+		if !sameRecallPromotionMinimumSpendRestrictions(existing.Restrictions, discount.MinimumSpend) {
+			return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s minimum restriction does not match", existing.ID)
+		}
+	} else if discount.MinimumAmount > 0 {
+		if existing.Restrictions != nil && len(existing.Restrictions.CurrencyOptions) > 0 {
+			return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s currency options are not supported", existing.ID)
+		}
 		if existing.Restrictions == nil || existing.Restrictions.MinimumAmount != discount.MinimumAmount || string(existing.Restrictions.MinimumAmountCurrency) != discount.MinimumAmountCurrency {
 			return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s minimum restriction does not match", existing.ID)
 		}
-	} else if existing.Restrictions != nil && (existing.Restrictions.MinimumAmount != 0 || existing.Restrictions.MinimumAmountCurrency != "") {
-		return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s minimum restriction does not match", existing.ID)
+	} else if existing.Restrictions != nil {
+		if len(existing.Restrictions.CurrencyOptions) > 0 {
+			return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s currency options are not supported", existing.ID)
+		}
+		if existing.Restrictions.MinimumAmount != 0 || existing.Restrictions.MinimumAmountCurrency != "" {
+			return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s minimum restriction does not match", existing.ID)
+		}
 	}
 	return nil
+}
+
+func sameRecallPromotionMinimumSpendRestrictions(restrictions *stripe.PromotionCodeRestrictions, minimumSpend *RecallMinimumSpendConfig) bool {
+	if restrictions == nil || minimumSpend == nil || !minimumSpend.Enabled {
+		return false
+	}
+	if restrictions.MinimumAmount != minimumSpend.Amounts["usd"] || strings.ToLower(string(restrictions.MinimumAmountCurrency)) != "usd" {
+		return false
+	}
+	if len(restrictions.CurrencyOptions) != 3 {
+		return false
+	}
+	for _, currency := range []string{"inr", "brl", "jpy"} {
+		option, ok := restrictions.CurrencyOptions[currency]
+		if !ok || option == nil || option.MinimumAmount != minimumSpend.Amounts[currency] {
+			return false
+		}
+	}
+	return true
 }

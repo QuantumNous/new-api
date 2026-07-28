@@ -997,6 +997,50 @@ func TestRecallFirstMonthDiscountAmountMinor(t *testing.T) {
 	}
 }
 
+func TestRecallFirstMonthDiscountAmountMinorMinimumSpend(t *testing.T) {
+	discount := RecallDiscountConfig{
+		Type:      "fixed",
+		AmountOff: 500,
+		Currency:  "usd",
+		CurrencyOptions: map[string]int64{
+			"inr": 45_000,
+			"brl": 2_500,
+			"jpy": 750,
+		},
+		MinimumSpend: &RecallMinimumSpendConfig{
+			Enabled: true,
+			Amounts: map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 12_500, "jpy": 3_750},
+		},
+	}
+	tests := []struct {
+		name     string
+		currency string
+		unit     int64
+		want     int64
+	}{
+		{name: "USD below threshold", currency: "USD", unit: 2_499, want: 0},
+		{name: "USD at threshold", currency: "USD", unit: 2_500, want: 500},
+		{name: "INR below threshold", currency: "INR", unit: 199_999, want: 0},
+		{name: "INR at threshold", currency: "INR", unit: 200_000, want: 45_000},
+		{name: "BRL below threshold", currency: "BRL", unit: 12_499, want: 0},
+		{name: "BRL at threshold", currency: "BRL", unit: 12_500, want: 2_500},
+		{name: "JPY below threshold", currency: "JPY", unit: 3_749, want: 0},
+		{name: "JPY at threshold", currency: "JPY", unit: 3_750, want: 750},
+		{name: "missing runtime currency", currency: "", unit: 2_500, want: 0},
+		{name: "unsupported runtime currency", currency: "EUR", unit: 2_500, want: 0},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := calculateRecallFirstMonthDiscountAmountMinor(discount, test.currency, test.unit)
+			require.Equal(t, test.want, got)
+		})
+	}
+
+	disabled := discount
+	disabled.MinimumSpend = &RecallMinimumSpendConfig{Enabled: false}
+	require.Equal(t, int64(500), calculateRecallFirstMonthDiscountAmountMinor(disabled, "USD", 1_000))
+}
+
 func TestRecallActualDiscountAmountMinorUsesExactCheckoutFacts(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1089,6 +1133,50 @@ func TestRecallActualDiscountAmountMinorUsesExactCheckoutFacts(t *testing.T) {
 			require.Equal(t, test.want, got)
 		})
 	}
+}
+
+func TestRecallActualDiscountAmountMinorMinimumSpend(t *testing.T) {
+	discount := RecallDiscountConfig{
+		Type:      "fixed",
+		AmountOff: 500,
+		Currency:  "usd",
+		CurrencyOptions: map[string]int64{
+			"inr": 45_000,
+			"brl": 2_500,
+			"jpy": 750,
+		},
+		MinimumSpend: &RecallMinimumSpendConfig{
+			Enabled: true,
+			Amounts: map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 12_500, "jpy": 3_750},
+		},
+	}
+	tests := []struct {
+		name     string
+		currency string
+		subtotal int64
+		want     int64
+	}{
+		{name: "USD below threshold", currency: "USD", subtotal: 2_499, want: 0},
+		{name: "USD at threshold", currency: "USD", subtotal: 2_500, want: 500},
+		{name: "INR below threshold", currency: "INR", subtotal: 199_999, want: 0},
+		{name: "INR at threshold", currency: "INR", subtotal: 200_000, want: 45_000},
+		{name: "BRL below threshold", currency: "BRL", subtotal: 12_499, want: 0},
+		{name: "BRL at threshold", currency: "BRL", subtotal: 12_500, want: 2_500},
+		{name: "JPY below threshold", currency: "JPY", subtotal: 3_749, want: 0},
+		{name: "JPY at threshold", currency: "JPY", subtotal: 3_750, want: 750},
+		{name: "missing runtime currency", currency: "", subtotal: 2_500, want: 0},
+		{name: "unsupported runtime currency", currency: "EUR", subtotal: 2_500, want: 0},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := calculateRecallActualDiscountAmountMinor(discount, test.currency, test.subtotal)
+			require.Equal(t, test.want, got)
+		})
+	}
+
+	disabled := discount
+	disabled.MinimumSpend = &RecallMinimumSpendConfig{Enabled: false}
+	require.Equal(t, int64(500), calculateRecallActualDiscountAmountMinor(disabled, "USD", 1_000))
 }
 
 func TestRecallClaimAPITypesDoNotExposeSecrets(t *testing.T) {

@@ -731,7 +731,12 @@ func calculateRecallDiscountAmountMinor(discount RecallDiscountConfig, currency 
 		}
 		return strings.EqualFold(configured, currency)
 	}
-	if discount.MinimumAmount > 0 {
+	if discount.MinimumSpend != nil && discount.MinimumSpend.Enabled {
+		minimumAmount, ok := discount.MinimumSpend.Amounts[strings.ToLower(currency)]
+		if !ok || unitAmountMinor < minimumAmount {
+			return 0
+		}
+	} else if discount.MinimumSpend == nil && discount.MinimumAmount > 0 {
 		if !currencyMatches(discount.MinimumAmountCurrency) || unitAmountMinor < discount.MinimumAmount {
 			return 0
 		}

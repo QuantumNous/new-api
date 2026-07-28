@@ -1140,6 +1140,34 @@ func TestCreateRecipientPromotionEmailOnlyAllowsCustomerlessPromotion(t *testing
 	require.NotContains(t, captured.Metadata, "flatkey_user_id")
 }
 
+func TestRecallStripePromotionMinimumSpendParams(t *testing.T) {
+	campaign := model.RecallCampaign{Id: 11, PromotionValidSeconds: 3600}
+	recipient := model.RecallRecipient{Id: 22, UserId: 7, StripeCustomerId: "cus_7", PromotionCode: "FKBASE234", PromotionExpiresAt: 1_900_000_000}
+	user := model.User{Id: 7, StripeCustomer: "cus_other"}
+	coupon := &stripe.Coupon{ID: "coupon_11", Valid: true}
+	discount := RecallDiscountConfig{MinimumSpend: &RecallMinimumSpendConfig{
+		Enabled: true,
+		Amounts: map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 12_500, "jpy": 3_750},
+	}}
+	var captured *stripe.PromotionCodeParams
+	client := &recallStripeFakeClient{createPromotionCodeFn: func(_ context.Context, params *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+		captured = params
+		return &stripe.PromotionCode{ID: "promo_minimum_spend", Code: *params.Code}, nil
+	}}
+
+	_, err := NewRecallStripeService(client).CreateRecipientPromotion(context.Background(), campaign, recipient, user, coupon, discount)
+
+	require.NoError(t, err)
+	require.NotNil(t, captured.Restrictions)
+	require.Equal(t, int64(2_500), *captured.Restrictions.MinimumAmount)
+	require.Equal(t, "usd", *captured.Restrictions.MinimumAmountCurrency)
+	require.NotNil(t, captured.Restrictions.CurrencyOptions)
+	require.Equal(t, int64(200_000), *captured.Restrictions.CurrencyOptions["inr"].MinimumAmount)
+	require.Equal(t, int64(12_500), *captured.Restrictions.CurrencyOptions["brl"].MinimumAmount)
+	require.Equal(t, int64(3_750), *captured.Restrictions.CurrencyOptions["jpy"].MinimumAmount)
+	require.NotContains(t, captured.Restrictions.CurrencyOptions, "usd")
+}
+
 func TestRecallStripePromotionCollisionStopsAfterFiveCodes(t *testing.T) {
 	calls := 0
 	client := &recallStripeFakeClient{createPromotionCodeFn: func(context.Context, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
@@ -1240,6 +1268,62 @@ func TestRecallStripeExistingPromotionRequiresExactRestrictions(t *testing.T) {
 				return
 			}
 			require.ErrorContains(t, err, tt.wantErr)
+			require.Equal(t, RecallStripeErrorPermanent, ClassifyRecallStripeError(err))
+		})
+	}
+}
+
+func TestRecallStripeExistingPromotionMinimumSpendRestrictions(t *testing.T) {
+	t.Parallel()
+
+	recipient := model.RecallRecipient{PromotionCode: "FKABC234"}
+	discount := RecallDiscountConfig{MinimumSpend: &RecallMinimumSpendConfig{
+		Enabled: true,
+		Amounts: map[string]int64{"usd": 1000, "inr": 80_000, "brl": 5_000, "jpy": 1_500},
+	}}
+	validPromotion := func() *stripe.PromotionCode {
+		return &stripe.PromotionCode{
+			ID: "promo_existing", Active: true, Code: "FKABC234", Promotion: recallTestCouponPromotion("coupon"), Customer: &stripe.Customer{ID: "cus_3"},
+			ExpiresAt: 1_900_000_000, MaxRedemptions: 1,
+			Restrictions: &stripe.PromotionCodeRestrictions{
+				MinimumAmount:         1000,
+				MinimumAmountCurrency: stripe.CurrencyUSD,
+				CurrencyOptions: map[string]*stripe.PromotionCodeRestrictionsCurrencyOptions{
+					"inr": {MinimumAmount: 80_000},
+					"brl": {MinimumAmount: 5_000},
+					"jpy": {MinimumAmount: 1_500},
+				},
+			},
+		}
+	}
+	tests := []struct {
+		name    string
+		mutate  func(*stripe.PromotionCodeRestrictions)
+		wantErr string
+	}{
+		{name: "exact four-currency set passes"},
+		{name: "missing currency rejects", mutate: func(restrictions *stripe.PromotionCodeRestrictions) {
+			delete(restrictions.CurrencyOptions, "jpy")
+		}, wantErr: "minimum restriction"},
+		{name: "extra currency rejects", mutate: func(restrictions *stripe.PromotionCodeRestrictions) {
+			restrictions.CurrencyOptions["eur"] = &stripe.PromotionCodeRestrictionsCurrencyOptions{MinimumAmount: 1000}
+		}, wantErr: "minimum restriction"},
+		{name: "mismatched amount rejects", mutate: func(restrictions *stripe.PromotionCodeRestrictions) {
+			restrictions.CurrencyOptions["brl"].MinimumAmount = 4_999
+		}, wantErr: "minimum restriction"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			existing := validPromotion()
+			if test.mutate != nil {
+				test.mutate(existing.Restrictions)
+			}
+			err := validateExistingRecallPromotion(existing, recipient, "coupon", "cus_3", 1_900_000_000, discount)
+			if test.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, test.wantErr)
 			require.Equal(t, RecallStripeErrorPermanent, ClassifyRecallStripeError(err))
 		})
 	}
