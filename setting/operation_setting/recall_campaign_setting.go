@@ -8,10 +8,11 @@ import (
 )
 
 type RecallCampaignSetting struct {
-	Enabled          bool `json:"enabled"`
-	BatchSize        int  `json:"batch_size"`
-	TickSeconds      int  `json:"tick_seconds"`
-	EmailHourlyLimit int  `json:"email_hourly_limit"`
+	Enabled          bool   `json:"enabled"`
+	BatchSize        int    `json:"batch_size"`
+	TickSeconds      int    `json:"tick_seconds"`
+	EmailHourlyLimit int    `json:"email_hourly_limit"`
+	EmailFrom        string `json:"email_from"`
 }
 
 var recallCampaignSetting = RecallCampaignSetting{
