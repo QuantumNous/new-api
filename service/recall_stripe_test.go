@@ -160,12 +160,18 @@ func TestRecallStripePercentCouponParams(t *testing.T) {
 		Type:           "percent",
 		PercentOff:     25,
 		CouponRedeemBy: 1_900_000_000,
+		MinimumSpend: &RecallMinimumSpendConfig{
+			Enabled: true,
+			Amounts: map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 12_500, "jpy": 3_750},
+		},
 	}
 
 	coupon, normalized, err := service.EnsureCoupon(context.Background(), 42, 1, "automatic", "", discount, products, 50)
 	require.NoError(t, err)
 	require.Equal(t, "coupon_recall", coupon.ID)
 	discount.CurrencyOptions = map[string]int64{}
+	discount.MinimumAmount = 2_500
+	discount.MinimumAmountCurrency = "usd"
 	require.Equal(t, discount, normalized)
 	require.NotNil(t, captured)
 	require.Equal(t, 25.0, *captured.PercentOff)
@@ -200,6 +206,15 @@ func TestRecallStripeFixedCouponParams(t *testing.T) {
 			"brl":   2_500,
 			"JPY":   750,
 		},
+		MinimumSpend: &RecallMinimumSpendConfig{
+			Enabled: true,
+			Amounts: map[string]int64{
+				" USD ": 2_500,
+				"INR":   200_000,
+				"brl":   12_500,
+				"JPY":   3_750,
+			},
+		},
 	}
 
 	_, normalized, err := service.EnsureCoupon(context.Background(), 43, 1, "automatic", "", discount, RecallResolvedProductScope{
@@ -209,6 +224,12 @@ func TestRecallStripeFixedCouponParams(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "usd", normalized.Currency)
 	require.Equal(t, map[string]int64{"inr": 45_000, "brl": 2_500, "jpy": 750}, normalized.CurrencyOptions)
+	require.Equal(t, &RecallMinimumSpendConfig{
+		Enabled: true,
+		Amounts: map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 12_500, "jpy": 3_750},
+	}, normalized.MinimumSpend)
+	require.Equal(t, int64(2_500), normalized.MinimumAmount)
+	require.Equal(t, "usd", normalized.MinimumAmountCurrency)
 	require.Equal(t, int64(500), *captured.AmountOff)
 	require.Equal(t, "usd", *captured.Currency)
 	require.Equal(t, int64(45_000), *captured.CurrencyOptions["inr"].AmountOff)
@@ -242,11 +263,6 @@ func TestRecallStripeAutomaticFixedCouponValidation(t *testing.T) {
 		{name: "missing currency", mutate: func(d *RecallDiscountConfig) { delete(d.CurrencyOptions, "jpy") }, wantErr: "exactly"},
 		{name: "extra currency", mutate: func(d *RecallDiscountConfig) { d.CurrencyOptions["eur"] = 500 }, wantErr: "exactly"},
 		{name: "zero option", mutate: func(d *RecallDiscountConfig) { d.CurrencyOptions["brl"] = 0 }, wantErr: "positive brl"},
-		{name: "minimum amount", mutate: func(d *RecallDiscountConfig) {
-			d.MinimumAmount = 1_000
-			d.MinimumAmountCurrency = "usd"
-		}, wantErr: "minimum amount"},
-		{name: "minimum currency without amount", mutate: func(d *RecallDiscountConfig) { d.MinimumAmountCurrency = "usd" }, wantErr: "minimum amount"},
 	}
 
 	for _, tt := range tests {
@@ -273,6 +289,116 @@ func TestRecallStripeAutomaticFixedCouponValidation(t *testing.T) {
 			require.ErrorContains(t, err, tt.wantErr)
 			require.Equal(t, RecallStripeErrorPermanent, ClassifyRecallStripeError(err))
 			require.False(t, created)
+		})
+	}
+}
+
+func TestRecallStripeMinimumSpendNormalization(t *testing.T) {
+	t.Parallel()
+
+	validAmounts := func() map[string]int64 {
+		return map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 12_500, "jpy": 3_750}
+	}
+	tests := []struct {
+		name     string
+		discount RecallDiscountConfig
+		want     *RecallMinimumSpendConfig
+		wantErr  string
+	}{
+		{
+			name: "nil preserves legacy exact currency",
+			discount: RecallDiscountConfig{
+				Type:                  "percent",
+				PercentOff:            20,
+				MinimumAmount:         2_500,
+				MinimumAmountCurrency: " EUR ",
+			},
+			want: nil,
+		},
+		{
+			name: "enabled requires exact four positive amounts",
+			discount: RecallDiscountConfig{
+				Type:       "percent",
+				PercentOff: 20,
+				MinimumSpend: &RecallMinimumSpendConfig{
+					Enabled: true,
+					Amounts: map[string]int64{" USD ": 2_500, "INR": 200_000, "brl": 12_500, "JPY": 3_750},
+				},
+			},
+			want: &RecallMinimumSpendConfig{Enabled: true, Amounts: validAmounts()},
+		},
+		{
+			name: "disabled clears canonical and legacy minimums",
+			discount: RecallDiscountConfig{
+				Type:                  "percent",
+				PercentOff:            20,
+				MinimumAmount:         2_500,
+				MinimumAmountCurrency: "eur",
+				MinimumSpend:          &RecallMinimumSpendConfig{Enabled: false, Amounts: validAmounts()},
+			},
+			want: &RecallMinimumSpendConfig{},
+		},
+		{
+			name: "duplicate normalized key",
+			discount: RecallDiscountConfig{
+				Type:       "percent",
+				PercentOff: 20,
+				MinimumSpend: &RecallMinimumSpendConfig{
+					Enabled: true,
+					Amounts: map[string]int64{"USD": 2_500, " usd ": 2_600, "inr": 200_000, "brl": 12_500, "jpy": 3_750},
+				},
+			},
+			wantErr: "minimum spend currency usd is duplicated",
+		},
+		{
+			name: "partial amounts",
+			discount: RecallDiscountConfig{
+				Type:         "percent",
+				PercentOff:   20,
+				MinimumSpend: &RecallMinimumSpendConfig{Enabled: true, Amounts: map[string]int64{"usd": 2_500}},
+			},
+			wantErr: "exactly",
+		},
+		{
+			name: "extra amount",
+			discount: RecallDiscountConfig{
+				Type:       "percent",
+				PercentOff: 20,
+				MinimumSpend: &RecallMinimumSpendConfig{
+					Enabled: true,
+					Amounts: map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 12_500, "jpy": 3_750, "eur": 2_500},
+				},
+			},
+			wantErr: "exactly",
+		},
+		{
+			name: "non positive amount",
+			discount: RecallDiscountConfig{
+				Type:       "percent",
+				PercentOff: 20,
+				MinimumSpend: &RecallMinimumSpendConfig{
+					Enabled: true,
+					Amounts: map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 0, "jpy": 3_750},
+				},
+			},
+			wantErr: "positive brl",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			normalized, err := normalizeRecallDiscount(tt.discount)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				require.Equal(t, RecallStripeErrorPermanent, ClassifyRecallStripeError(err))
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, normalized.MinimumSpend)
+			if tt.want != nil && tt.want.Enabled {
+				require.Equal(t, tt.want.Amounts["usd"], normalized.MinimumAmount)
+				require.Equal(t, "usd", normalized.MinimumAmountCurrency)
+			}
 		})
 	}
 }
@@ -381,7 +507,10 @@ func TestRecallStripeExistingCouponValidation(t *testing.T) {
 		coupon.MaxRedemptions = 0
 		client := &recallStripeFakeClient{getCouponFn: func(context.Context, string) (*stripe.Coupon, error) { return coupon, nil }}
 		resolved, normalized, err := NewRecallStripeService(client).EnsureCoupon(context.Background(), 42, 1, "existing", "coupon_existing", RecallDiscountConfig{
-			Type: "fixed", AmountOff: 500, Currency: "USD", MinimumAmount: 1000, MinimumAmountCurrency: "USD",
+			Type: "fixed", AmountOff: 500, Currency: "USD", MinimumSpend: &RecallMinimumSpendConfig{
+				Enabled: true,
+				Amounts: map[string]int64{"usd": 1000, "inr": 80000, "brl": 5000, "jpy": 1500},
+			},
 		}, RecallResolvedProductScope{ProductIDs: []string{"prod_b", "prod_a"}}, 500)
 		require.NoError(t, err)
 		require.Same(t, coupon, resolved)
@@ -390,6 +519,10 @@ func TestRecallStripeExistingCouponValidation(t *testing.T) {
 		require.Equal(t, "usd", normalized.Currency)
 		require.Equal(t, int64(1000), normalized.MinimumAmount)
 		require.Equal(t, "usd", normalized.MinimumAmountCurrency)
+		require.Equal(t, &RecallMinimumSpendConfig{
+			Enabled: true,
+			Amounts: map[string]int64{"usd": 1000, "inr": 80000, "brl": 5000, "jpy": 1500},
+		}, normalized.MinimumSpend)
 	})
 }
 

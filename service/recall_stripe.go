@@ -421,8 +421,26 @@ func normalizeRecallDiscount(discount RecallDiscountConfig) (RecallDiscountConfi
 		currencyOptions[currency] = amountOff
 	}
 	discount.CurrencyOptions = currencyOptions
+	minimumSpend, err := normalizeRecallMinimumSpend(discount.MinimumSpend)
+	if err != nil {
+		return RecallDiscountConfig{}, err
+	}
+	discount.MinimumSpend = minimumSpend
+	if minimumSpend != nil {
+		if !minimumSpend.Enabled {
+			discount.MinimumAmount = 0
+			discount.MinimumAmountCurrency = ""
+		} else {
+			discount.MinimumAmount = minimumSpend.Amounts["usd"]
+			discount.MinimumAmountCurrency = "usd"
+		}
+	}
 	if discount.MinimumAmount > 0 && discount.MinimumAmountCurrency == "" {
 		return RecallDiscountConfig{}, recallStripePermanent("validate recall discount", "minimum amount currency is required")
+	}
+	if discount.MinimumAmount <= 0 {
+		discount.MinimumAmount = 0
+		discount.MinimumAmountCurrency = ""
 	}
 	if discount.Type == "" {
 		return discount, nil
@@ -448,6 +466,35 @@ func normalizeRecallDiscount(discount RecallDiscountConfig) (RecallDiscountConfi
 	return discount, nil
 }
 
+func normalizeRecallMinimumSpend(config *RecallMinimumSpendConfig) (*RecallMinimumSpendConfig, error) {
+	if config == nil {
+		return nil, nil
+	}
+	if !config.Enabled {
+		return &RecallMinimumSpendConfig{}, nil
+	}
+	amounts := make(map[string]int64, len(config.Amounts))
+	for rawCurrency, amount := range config.Amounts {
+		currency := strings.ToLower(strings.TrimSpace(rawCurrency))
+		if currency == "" {
+			return nil, recallStripePermanent("validate recall discount", "minimum spend currency cannot be empty")
+		}
+		if _, exists := amounts[currency]; exists {
+			return nil, recallStripePermanent("validate recall discount", "minimum spend currency %s is duplicated", currency)
+		}
+		amounts[currency] = amount
+	}
+	if len(amounts) != 4 {
+		return nil, recallStripePermanent("validate recall discount", "minimum spend requires exactly usd, inr, brl, and jpy amounts")
+	}
+	for _, currency := range []string{"usd", "inr", "brl", "jpy"} {
+		if amounts[currency] <= 0 {
+			return nil, recallStripePermanent("validate recall discount", "minimum spend requires a positive %s amount", currency)
+		}
+	}
+	return &RecallMinimumSpendConfig{Enabled: true, Amounts: amounts}, nil
+}
+
 func validateRecallAutomaticFixedDiscount(discount RecallDiscountConfig) error {
 	if discount.Type != "fixed" {
 		return recallStripePermanent("validate recall discount", "automatic fixed discount must use fixed type")
@@ -460,9 +507,6 @@ func validateRecallAutomaticFixedDiscount(discount RecallDiscountConfig) error {
 	}
 	if discount.PercentOff != 0 {
 		return recallStripePermanent("validate recall discount", "automatic fixed discount cannot set percent_off")
-	}
-	if discount.MinimumAmount != 0 || discount.MinimumAmountCurrency != "" {
-		return recallStripePermanent("validate recall discount", "automatic fixed discount cannot set a minimum amount")
 	}
 	if len(discount.CurrencyOptions) != 3 {
 		return recallStripePermanent("validate recall discount", "automatic fixed discount requires exactly inr, brl, and jpy currency options")

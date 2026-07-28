@@ -89,14 +89,20 @@ type RecallScheduleConfig struct {
 }
 
 type RecallDiscountConfig struct {
-	Type                  string           `json:"type"`
-	PercentOff            float64          `json:"percent_off"`
-	AmountOff             int64            `json:"amount_off"`
-	Currency              string           `json:"currency"`
-	CurrencyOptions       map[string]int64 `json:"currency_options"`
-	MinimumAmount         int64            `json:"minimum_amount"`
-	MinimumAmountCurrency string           `json:"minimum_amount_currency"`
-	CouponRedeemBy        int64            `json:"coupon_redeem_by"`
+	Type                  string                    `json:"type"`
+	PercentOff            float64                   `json:"percent_off"`
+	AmountOff             int64                     `json:"amount_off"`
+	Currency              string                    `json:"currency"`
+	CurrencyOptions       map[string]int64          `json:"currency_options"`
+	MinimumSpend          *RecallMinimumSpendConfig `json:"minimum_spend,omitempty"`
+	MinimumAmount         int64                     `json:"minimum_amount"`
+	MinimumAmountCurrency string                    `json:"minimum_amount_currency"`
+	CouponRedeemBy        int64                     `json:"coupon_redeem_by"`
+}
+
+type RecallMinimumSpendConfig struct {
+	Enabled bool             `json:"enabled"`
+	Amounts map[string]int64 `json:"amounts"`
 }
 
 type RecallProductScope struct {

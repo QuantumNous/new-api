@@ -1583,11 +1583,6 @@ func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now tim
 		return RecallCampaignDraft{}, fmt.Errorf("unsupported recall coupon source %q", draft.CouponSource)
 	}
 
-	if draft.Discount.MinimumAmount > 0 {
-		draft.Discount.MinimumAmountCurrency = "usd"
-	} else {
-		draft.Discount.MinimumAmountCurrency = ""
-	}
 	discount, err := normalizeRecallDiscount(draft.Discount)
 	if err != nil {
 		return RecallCampaignDraft{}, err

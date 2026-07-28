@@ -1872,35 +1872,85 @@ func TestRecallCampaignEffectiveExpiryUsesCouponAsHardUpperBound(t *testing.T) {
 }
 
 func TestNewAndEditableRecallMinimumAmountsCanonicalizeToUSD(t *testing.T) {
-	setupRecallCampaignTestDB(t)
-	setRecallCampaignEnabled(t, true)
-	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
-	service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
-	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
-	draft.Discount.MinimumAmount = 2500
-	draft.Discount.MinimumAmountCurrency = "eur"
+	tests := []struct {
+		name             string
+		minimumSpend     *RecallMinimumSpendConfig
+		minimumAmount    int64
+		minimumCurrency  string
+		wantSpend        *RecallMinimumSpendConfig
+		wantLegacyAmount int64
+		wantLegacyCurr   string
+	}{
+		{
+			name: "canonical enabled exact four dual writes usd",
+			minimumSpend: &RecallMinimumSpendConfig{
+				Enabled: true,
+				Amounts: map[string]int64{
+					" USD ": 2500,
+					"INR":   200000,
+					"brl":   12500,
+					"JPY":   3750,
+				},
+			},
+			minimumAmount:   9999,
+			minimumCurrency: "eur",
+			wantSpend: &RecallMinimumSpendConfig{
+				Enabled: true,
+				Amounts: map[string]int64{"usd": 2500, "inr": 200000, "brl": 12500, "jpy": 3750},
+			},
+			wantLegacyAmount: 2500,
+			wantLegacyCurr:   "usd",
+		},
+		{
+			name: "canonical disabled clears all minimum fields",
+			minimumSpend: &RecallMinimumSpendConfig{
+				Enabled: false,
+				Amounts: map[string]int64{"usd": 2500, "inr": 200000, "brl": 12500, "jpy": 3750},
+			},
+			wantSpend: &RecallMinimumSpendConfig{},
+		},
+		{
+			name:             "legacy pair keeps exact requested currency when canonical missing",
+			minimumAmount:    2500,
+			minimumCurrency:  " EUR ",
+			wantLegacyAmount: 2500,
+			wantLegacyCurr:   "eur",
+		},
+		{
+			name:            "empty legacy clears legacy currency when canonical missing",
+			minimumCurrency: "eur",
+		},
+	}
 
-	campaign, err := service.SaveDraft(context.Background(), 7, draft)
-	require.NoError(t, err)
-	storedDraft, err := recallCampaignDraftFromModel(campaign)
-	require.NoError(t, err)
-	require.Equal(t, "usd", storedDraft.Discount.MinimumAmountCurrency)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+			service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
+			service.now = func() time.Time { return now }
+			draft := validRecallCampaignDraft(now)
+			draft.Discount.MinimumSpend = tt.minimumSpend
+			draft.Discount.MinimumAmount = tt.minimumAmount
+			draft.Discount.MinimumAmountCurrency = tt.minimumCurrency
 
-	storedDraft.Discount.MinimumAmountCurrency = ""
-	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, storedDraft)
-	require.NoError(t, err)
-	updatedDraft, err := recallCampaignDraftFromModel(updated)
-	require.NoError(t, err)
-	require.Equal(t, "usd", updatedDraft.Discount.MinimumAmountCurrency)
+			campaign, err := service.SaveDraft(context.Background(), 7, draft)
+			require.NoError(t, err)
+			storedDraft, err := recallCampaignDraftFromModel(campaign)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSpend, storedDraft.Discount.MinimumSpend)
+			require.Equal(t, tt.wantLegacyAmount, storedDraft.Discount.MinimumAmount)
+			require.Equal(t, tt.wantLegacyCurr, storedDraft.Discount.MinimumAmountCurrency)
 
-	updatedDraft.Discount.MinimumAmount = 0
-	updatedDraft.Discount.MinimumAmountCurrency = "eur"
-	updated, err = service.UpdateDraft(context.Background(), 7, campaign.Id, updatedDraft)
-	require.NoError(t, err)
-	updatedDraft, err = recallCampaignDraftFromModel(updated)
-	require.NoError(t, err)
-	require.Empty(t, updatedDraft.Discount.MinimumAmountCurrency)
+			updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, storedDraft)
+			require.NoError(t, err)
+			updatedDraft, err := recallCampaignDraftFromModel(updated)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSpend, updatedDraft.Discount.MinimumSpend)
+			require.Equal(t, tt.wantLegacyAmount, updatedDraft.Discount.MinimumAmount)
+			require.Equal(t, tt.wantLegacyCurr, updatedDraft.Discount.MinimumAmountCurrency)
+		})
+	}
 }
 
 func TestRecallCampaignSaveDraftUsesCampaignNameForEmptySubject(t *testing.T) {
