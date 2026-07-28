@@ -32,6 +32,7 @@ import { dataToolQueryKeys, getDataTools } from './api'
 import { DataToolCard } from './components/data-tool-card'
 import { DataToolInspectorPanel } from './components/data-tool-inspector-panel'
 import { DataToolRunDialog } from './components/data-tool-run-dialog'
+import { getMarketplacePlatforms } from './platforms'
 import type { DataToolSummary } from './types'
 
 const pageSize = 24
@@ -75,12 +76,13 @@ export function DataToolsPage() {
   const data = toolsQuery.data
   const canGoNext = data ? page * pageSize < data.matched : false
   const totalPages = data ? Math.max(1, Math.ceil(data.matched / pageSize)) : 1
+  const marketplacePlatforms = getMarketplacePlatforms(data?.platforms ?? [])
   const visiblePlatforms = showAllPlatforms
-    ? (data?.platforms ?? [])
-    : (data?.platforms.slice(0, collapsedPlatformCount) ?? [])
+    ? marketplacePlatforms
+    : marketplacePlatforms.slice(0, collapsedPlatformCount)
   const remainingPlatforms = Math.max(
     0,
-    (data?.platforms.length ?? 0) - collapsedPlatformCount
+    marketplacePlatforms.length - collapsedPlatformCount
   )
 
   let catalogContent: ReactNode
@@ -151,7 +153,7 @@ export function DataToolsPage() {
                   'Explore and test {{tools}} endpoints across {{platforms}} platforms',
                   {
                     tools: data?.total.toLocaleString() ?? '—',
-                    platforms: data?.platforms.length ?? '—',
+                    platforms: data ? marketplacePlatforms.length : '—',
                   }
                 )}
               </p>
