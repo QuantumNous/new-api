@@ -1431,6 +1431,23 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	return buildSubscriptionSummaries(subs), nil
 }
 
+// GetHighestActiveSubscriptionTierRank returns the strongest currently-active
+// subscription entitlement for feature gates such as Data Tools.
+func GetHighestActiveSubscriptionTierRank(userId int) (int, error) {
+	if userId <= 0 {
+		return 0, errors.New("invalid userId")
+	}
+	now := common.GetTimestamp()
+	var rank int
+	err := DB.Table("user_subscriptions AS us").
+		Select("COALESCE(MAX(sp.tier_rank), 0)").
+		Joins("JOIN subscription_plans AS sp ON sp.id = us.plan_id").
+		Where("us.user_id = ? AND us.status = ? AND us.end_time > ?",
+			userId, "active", now).
+		Scan(&rank).Error
+	return rank, err
+}
+
 // SubscriptionWindowInfo carries the data needed to enforce usage windows
 // (5h rolling + weekly anchored at subscription start) before pre-consume.
 type SubscriptionWindowInfo struct {

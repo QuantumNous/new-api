@@ -37,9 +37,24 @@ describe('buildSidebarData', () => {
       '/dashboard/models',
       '/available-models',
       '/compute',
-      '/keys',
       '/usage-logs/common',
       '/usage-logs/task',
+    ])
+  })
+
+  test('groups onboarding, marketplace, and credentials like developer tools', () => {
+    const sidebar = buildSidebarData(t)
+    const toolsGroup = sidebar.navGroups.find((group) => group.id === 'tools')
+    const credentialsGroup = sidebar.navGroups.find(
+      (group) => group.id === 'credentials'
+    )
+
+    expect(toolsGroup?.items).toMatchObject([
+      { title: 'Get Started', url: '/quickstart' },
+      { title: 'API Marketplace', url: '/api-marketplace' },
+    ])
+    expect(credentialsGroup?.items).toMatchObject([
+      { title: 'API Keys', url: '/keys' },
     ])
   })
 

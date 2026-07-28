@@ -593,6 +593,24 @@ export const STATIC_I18N_KEYS = [
   'No models available in this category',
   'Copied: {{model}}',
 
+  // Data tools marketplace and one-prompt quickstart
+  'Developer tools',
+  'Explore and test {{tools}} endpoints across {{platforms}} platforms',
+  'Search endpoint name, platform, or capability',
+  'Select an endpoint to inspect and test it.',
+  '{{matched}} of {{total}} endpoints',
+  'Page {{page}} / {{pages}}',
+  'Checking your API key...',
+  'Your key is ready',
+  'Create an API key to get started',
+  'Put {{count}} APIs to work in one prompt.',
+  'Copy one into Claude, ChatGPT, or your coding agent. It connects Flatkey with the key you already have, then runs your first call.',
+  'Use Flatkey data tools from {{url}} with my existing API key, then',
+  'Find the TikTok videos trending for #skincare this week, and tell me which three have the strongest engagement.',
+  'Pull an Instagram creator profile and their recent posts, then report follower growth and top themes.',
+  'Fetch the latest Amazon reviews for ASIN B08N5WRWNW, then summarize sentiment and repeated complaints.',
+  'Or browse all endpoints',
+
   // Model health window labels (dynamic windowLabelKey)
   '24h',
   '7d',
