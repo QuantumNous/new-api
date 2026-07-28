@@ -306,6 +306,7 @@ describe('invitation i18n', () => {
       '{{reward}} is added to your balance, unlocked {{days}} days after payment if there is no refund.',
       'Referral rewards are created when your friend completes their first subscription payment, and unlock {{days}} days later if the payment is not refunded. Registration, top-ups, and API calls alone do not grant a reward.',
       'Your friend gets {{discount}} off the first month of any plan, and you receive {{reward}} as balance.',
+      'Invite friends to subscribe: they get {{discount}} off their first month, and you receive {{reward}} in balance — unlocked {{days}} days after payment.',
       'Unlocks {{date}}',
     ]
 

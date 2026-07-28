@@ -1319,8 +1319,15 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 		return err
 	}
 	if strings.TrimSpace(binding.ProviderLatestInvoiceId) == facts.InvoiceID {
-		result.Binding = binding
-		return nil
+		applied, err := findAppliedPaidRenewalInvoiceEntitlementTx(tx, binding, facts.InvoiceID)
+		if err != nil {
+			return err
+		}
+		if applied != nil {
+			result.Binding = binding
+			result.Entitlement = applied
+			return nil
+		}
 	}
 	plan, pendingDowngrade, err := resolveExpectedRenewalPlanTx(tx, commonFacts, binding, contract, plan)
 	if err != nil {
@@ -1415,6 +1422,25 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 		result.Applied = grant.Applied
 	}
 	return nil
+}
+
+func findAppliedPaidRenewalInvoiceEntitlementTx(tx *gorm.DB, binding *model.SubscriptionProviderBinding, invoiceID string) (*model.UserSubscription, error) {
+	if tx == nil || binding == nil || strings.TrimSpace(invoiceID) == "" {
+		return nil, nil
+	}
+	var entitlement model.UserSubscription
+	query := tx.Where("grant_key = ? AND contract_id = ? AND provider_binding_id = ?",
+		"stripe:"+strings.TrimSpace(invoiceID),
+		binding.ContractId,
+		binding.Id,
+	).Limit(1).Find(&entitlement)
+	if query.Error != nil {
+		return nil, query.Error
+	}
+	if query.RowsAffected == 0 {
+		return nil, nil
+	}
+	return &entitlement, nil
 }
 
 func canApplyPaidRenewalInvoiceToBinding(facts stripeInvoiceCommonFacts, binding *model.SubscriptionProviderBinding, contract *model.UserSubscriptionContract) bool {

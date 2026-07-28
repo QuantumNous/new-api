@@ -170,9 +170,6 @@ func main() {
 	// Codex subscription model governance task
 	controller.StartCodexModelGovernanceTask()
 
-	// Invite reward v2: unlock settled subscription-invite rewards (master only)
-	model.StartInviteSubscriptionRewardUnlocker()
-
 	if common.IsMasterNode && constant.UpdateTask {
 		gopool.Go(func() {
 			controller.UpdateMidjourneyTaskBulk()

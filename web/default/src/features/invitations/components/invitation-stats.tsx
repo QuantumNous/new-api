@@ -72,12 +72,12 @@ export function InvitationStats(props: InvitationStatsProps) {
       description: hasPendingReferrals
         ? t('Tracking')
         : t('Share your link to start earning'),
-    },
+    }
   )
 
   return (
     <Card size='sm' className='py-0'>
-      <div className='divide-border grid grid-cols-1 divide-y sm:grid-cols-2 sm:divide-y-0 sm:divide-x xl:grid-cols-4'>
+      <div className='divide-border grid grid-cols-1 divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4'>
         {stats.map((stat) => (
           <div key={stat.label} className='px-4 py-4 sm:px-5'>
             <p className='text-muted-foreground text-xs font-medium'>

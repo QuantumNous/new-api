@@ -871,12 +871,8 @@ func TestChargeRefundedQueuesCumulativeRevenueAdjustment(t *testing.T) {
 			"amount_refunded": float64(350),
 		}},
 	}
-	require.NoError(t, chargeReversed(
-		context.Background(), event, model.InviteSubRewardReasonRefunded, "127.0.0.1",
-	))
-	require.NoError(t, chargeReversed(
-		context.Background(), event, model.InviteSubRewardReasonRefunded, "127.0.0.1",
-	), "Stripe webhook replay must be idempotent")
+	require.NoError(t, chargeReversed(context.Background(), event))
+	require.NoError(t, chargeReversed(context.Background(), event), "Stripe webhook replay must be idempotent")
 
 	var refunds []model.AdsAttributionOutbox
 	require.NoError(t, model.DB.Where("event_type = ?", "refund").Find(&refunds).Error)

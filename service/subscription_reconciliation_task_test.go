@@ -177,6 +177,14 @@ func TestStripeSubscriptionReconciliationDoesNotCancelWhenGraceInvoicePaysBefore
 	require.NoError(t, model.DB.First(&current, "id = ?", reloadedContract.CurrentEntitlementId).Error)
 	require.Equal(t, model.SubscriptionEntitlementStatusActive, current.Status)
 	require.Equal(t, "stripe:in_grace_paid_race", *current.GrantKey)
+	replayed, err := ReconcilePaidInvoice(context.Background(), "in_grace_paid_race")
+	require.NoError(t, err)
+	require.False(t, replayed.Applied)
+	require.NotNil(t, replayed.Entitlement)
+	require.Equal(t, current.Id, replayed.Entitlement.Id)
+	var grantCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("contract_id = ?", contract.Id).Count(&grantCount).Error)
+	require.Equal(t, int64(2), grantCount)
 }
 
 func TestStripeSubscriptionReconciliationClosesExpiredGraceAfterBindingAlreadyTerminated(t *testing.T) {

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -190,6 +191,75 @@ func TestUpdateOptionRejectsNullInviterRewardLimit(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected rejected inviter reward limit not to persist, got %d rows", count)
+	}
+}
+
+func TestGetOptionsOmitsRetiredInviteRewardUnlockDelay(t *testing.T) {
+	setupOptionControllerTestDB(t)
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap["InviteRewardUnlockDelaySeconds"] = "1"
+	common.OptionMap["InviteFirstSubDiscountUSD"] = "5"
+	common.OptionMapRWMutex.Unlock()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/option/", nil)
+	GetOptions(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected option response to succeed, got message: %s", response.Message)
+	}
+	rawData, err := json.Marshal(response.Data)
+	if err != nil {
+		t.Fatalf("failed to marshal option response data: %v", err)
+	}
+	var options []model.Option
+	if err := json.Unmarshal(rawData, &options); err != nil {
+		t.Fatalf("failed to unmarshal option response data: %v", err)
+	}
+	keys := make(map[string]string, len(options))
+	for _, option := range options {
+		keys[option.Key] = option.Value
+	}
+	if _, ok := keys["InviteRewardUnlockDelaySeconds"]; ok {
+		t.Fatalf("expected retired unlock delay option to be omitted from GET response")
+	}
+	if keys["InviteFirstSubDiscountUSD"] != "5" {
+		t.Fatalf("expected unrelated invite subscription discount option to remain visible")
+	}
+}
+
+func TestUpdateOptionRejectsRetiredInviteRewardUnlockDelay(t *testing.T) {
+	db := setupOptionControllerTestDB(t)
+	originalDelay := common.InviteRewardUnlockDelaySeconds
+	common.InviteRewardUnlockDelaySeconds = 604800
+	t.Cleanup(func() {
+		common.InviteRewardUnlockDelaySeconds = originalDelay
+	})
+
+	ctx, recorder := newOptionRequestContext(t, map[string]any{
+		"key":   "InviteRewardUnlockDelaySeconds",
+		"value": "1",
+	})
+	UpdateOption(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected retired unlock delay update to fail")
+	}
+	if !strings.Contains(response.Message, "retired") {
+		t.Fatalf("expected retired option failure, got message: %s", response.Message)
+	}
+	var count int64
+	if err := db.Model(&model.Option{}).Where("key = ?", "InviteRewardUnlockDelaySeconds").Count(&count).Error; err != nil {
+		t.Fatalf("failed to count retired unlock delay option rows: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected retired unlock delay option not to persist, got %d rows", count)
+	}
+	if common.InviteRewardUnlockDelaySeconds != 604800 {
+		t.Fatalf("expected retired unlock delay update not to change global, got %d", common.InviteRewardUnlockDelaySeconds)
 	}
 }
 

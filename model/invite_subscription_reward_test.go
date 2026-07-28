@@ -276,6 +276,74 @@ func TestInviteSubRewardDisabledModeNoOp(t *testing.T) {
 	require.Zero(t, count)
 }
 
+func TestInviteSubRewardUnlockerDoesNotGrantLegacyPendingRows(t *testing.T) {
+	setupInviteSubRewardTest(t)
+	common.InviteRewardSubscriptionMode = false
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	reward := InviteSubscriptionReward{
+		InviteeId:   invitee.Id,
+		InviterId:   inviter.Id,
+		TradeNo:     "legacy-pending",
+		RewardQuota: 500,
+		Status:      InviteSubRewardStatusPending,
+		UnlockAt:    common.GetTimestamp() - 1,
+	}
+	require.NoError(t, DB.Create(&reward).Error)
+
+	granted, err := UnlockDueInviteSubscriptionRewards(10)
+
+	require.NoError(t, err)
+	require.Zero(t, granted)
+
+	var refreshedReward InviteSubscriptionReward
+	require.NoError(t, DB.First(&refreshedReward, reward.Id).Error)
+	require.Equal(t, InviteSubRewardStatusPending, refreshedReward.Status)
+	require.Zero(t, refreshedReward.GrantedAt)
+
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Zero(t, refreshedInviter.Quota)
+	require.Zero(t, refreshedInviter.AffHistoryQuota)
+}
+
+func TestInviteSubRewardRevokeDoesNotClawBackGrantedRows(t *testing.T) {
+	setupInviteSubRewardTest(t)
+	common.InviteRewardSubscriptionMode = false
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", inviter.Id).Updates(map[string]any{
+		"quota":       1000,
+		"aff_history": 500,
+	}).Error)
+	reward := InviteSubscriptionReward{
+		InviteeId:   invitee.Id,
+		InviterId:   inviter.Id,
+		TradeNo:     "legacy-granted",
+		RewardQuota: 500,
+		Status:      InviteSubRewardStatusGranted,
+		GrantedAt:   common.GetTimestamp(),
+	}
+	require.NoError(t, DB.Create(&reward).Error)
+
+	revoked, err := RevokeInviteSubscriptionRewardByTradeNo("legacy-granted", "refunded")
+
+	require.NoError(t, err)
+	require.False(t, revoked)
+
+	var refreshedReward InviteSubscriptionReward
+	require.NoError(t, DB.First(&refreshedReward, reward.Id).Error)
+	require.Equal(t, InviteSubRewardStatusGranted, refreshedReward.Status)
+	require.Zero(t, refreshedReward.RevokedAt)
+
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Equal(t, 1000, refreshedInviter.Quota)
+	require.Equal(t, 500, refreshedInviter.AffHistoryQuota)
+}
+
 func TestInviteSubRewardNoInviterNoOp(t *testing.T) {
 	setupInviteSubRewardTest(t)
 

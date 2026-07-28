@@ -149,9 +149,10 @@ var QuotaForInvitee = 0
 var QuotaForInviterMaxCount = 5
 
 // Invite reward v2 (subscription mode): when enabled, the inviter reward is
-// created from the invitee's first successful subscription payment (equal to
-// the amount paid) and unlocks after the settle window; the legacy fixed
-// reward on first top-up stops granting.
+// created from the invitee's first successful subscription payment as
+// permanent package-discount credit; the legacy fixed reward on first top-up
+// stops granting. InviteRewardUnlockDelaySeconds is retained only for stored
+// option compatibility with older deployments.
 var InviteRewardSubscriptionMode = false
 var InviteRewardUnlockDelaySeconds int64 = 7 * 24 * 3600
 

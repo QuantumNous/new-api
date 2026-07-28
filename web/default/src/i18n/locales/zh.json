@@ -5650,7 +5650,6 @@
     "Top up balance": "充值余额",
     "Pay face value. The same amount is added to your balance.": "原价充值，支付金额将等额加入余额。",
     "Top up {{amount}}": "充值 {{amount}}",
-    "Invite friends to subscribe: they get {{discount}} off their first month, and you receive {{reward}} in balance — unlocked {{days}} days after payment.": "邀请好友订阅：好友首月立减 {{discount}}，你获得 {{reward}} 余额——付款 {{days}} 天后解锁。",
     "{{reward}} each after their first subscription": "每邀请 1 人完成首次订阅，得 {{reward}}",
     "You receive {{reward}} in balance": "你获得 {{reward}} 余额",
     "Your friend subscribes with {{discount}} off": "好友订阅立减 {{discount}}",

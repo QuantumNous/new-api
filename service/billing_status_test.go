@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 //go:linkname modelCommonKeyCol github.com/QuantumNous/new-api/model.commonKeyCol
@@ -51,7 +52,11 @@ func resetBillingStatusTables(t *testing.T) {
 		&model.UserSubscription{},
 		&model.UserSubscriptionContract{},
 		&model.SubscriptionPreConsumeRecord{},
+		&model.SubscriptionDiscountAccount{},
+		&model.SubscriptionDiscountEntry{},
 	))
+	require.NoError(t, model.DB.Exec("DELETE FROM subscription_discount_entries").Error)
+	require.NoError(t, model.DB.Exec("DELETE FROM subscription_discount_accounts").Error)
 	require.NoError(t, model.DB.Exec("DELETE FROM user_subscription_contracts").Error)
 	require.NoError(t, model.DB.Exec("DELETE FROM subscription_pre_consume_records").Error)
 	require.NoError(t, model.DB.Exec("DELETE FROM user_subscriptions").Error)
@@ -91,6 +96,35 @@ func TestPreConsumeQuotaReturnsForbiddenForQuotaExhaustion(t *testing.T) {
 
 		require.NotNil(t, apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+	})
+
+	t.Run("subscription discount ledger is not API quota", func(t *testing.T) {
+		const userID = 10118
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 0)
+		require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+			_, err := model.GrantSubscriptionDiscountTx(tx, model.SubscriptionDiscountGrantInput{
+				UserID:          userID,
+				USDMinor:        500,
+				EntryType:       model.SubscriptionDiscountEntryTypeGrantInviter,
+				SourceType:      "test",
+				SourceKey:       "api-quota-isolation",
+				IdempotencyKey:  "api-quota-isolation",
+				PricingSnapshot: "{}",
+			})
+			return err
+		}))
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+		apiErr := PreConsumeQuota(c, 1, relayInfo)
+
+		require.NotNil(t, apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+		account, err := model.GetSubscriptionDiscountAccount(userID)
+		require.NoError(t, err)
+		require.EqualValues(t, 500, account.AvailableUSDMinor)
+		require.Zero(t, relayInfo.FinalPreConsumedQuota)
 	})
 
 	t.Run("pre consume exceeds remaining user quota", func(t *testing.T) {

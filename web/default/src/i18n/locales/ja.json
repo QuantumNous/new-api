@@ -5650,7 +5650,6 @@
     "Top up balance": "残高をチャージ",
     "Pay face value. The same amount is added to your balance.": "額面どおりのお支払いで、同額が残高に追加されます。",
     "Top up {{amount}}": "{{amount}} をチャージ",
-    "Invite friends to subscribe: they get {{discount}} off their first month, and you receive {{reward}} in balance — unlocked {{days}} days after payment.": "友達を招待してサブスクリプションに登録してもらいましょう：友達は初月 {{discount}} オフ、あなたは {{reward}} を残高として受け取れます（支払いから {{days}} 日後にロック解除）。",
     "{{reward}} each after their first subscription": "友達 1 人の初回サブスク登録ごとに {{reward}}",
     "You receive {{reward}} in balance": "{{reward}} を残高として受け取れます",
     "Your friend subscribes with {{discount}} off": "友達は {{discount}} オフでサブスク登録",

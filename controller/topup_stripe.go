@@ -827,9 +827,9 @@ func StripeWebhook(c *gin.Context) {
 	case stripe.EventTypeCheckoutSessionAsyncPaymentFailed:
 		processingErr = sessionAsyncPaymentFailed(ctx, event, callerIp)
 	case stripe.EventTypeChargeRefunded:
-		processingErr = chargeReversed(ctx, event, model.InviteSubRewardReasonRefunded, callerIp)
+		processingErr = chargeReversed(ctx, event)
 	case stripe.EventTypeChargeDisputeCreated:
-		processingErr = chargeReversed(ctx, event, model.InviteSubRewardReasonDisputed, callerIp)
+		processingErr = chargeReversed(ctx, event)
 	case stripe.EventTypeInvoicePaid:
 		processingErr = handleStripeInvoicePaid(ctx, event)
 	case stripe.EventTypeInvoiceCreated:
@@ -2101,20 +2101,15 @@ func backfillCardFingerprintFromTopUp(ctx context.Context, topUp *model.TopUp, c
 
 // chargeReversed handles charge.refunded / charge.dispute.created. It maps the
 // reversed charge back to the checkout session's client_reference_id (our
-// trade_no), revokes subscription invite rewards, and queues attributed top-up
-// refunds as Google Ads conversion adjustments. Product balance bookkeeping
-// remains a separate ops concern.
-//
-// Deliberately NOT gated on common.InviteRewardSubscriptionMode: rewards
-// created while the mode was enabled must remain clawback-able even after the
-// flag is turned off; Revoke is a cheap no-op when no reward exists.
+// trade_no) and queues attributed top-up refunds as Google Ads conversion
+// adjustments. Product balance bookkeeping remains a separate ops concern.
 //
 // Lookup covers both checkout modes:
 //   - mode=payment: the session carries the charge's payment_intent directly.
 //   - mode=subscription: the session has no payment_intent (the charge belongs
 //     to the subscription invoice), so walk charge → invoice → subscription and
 //     list sessions by subscription id.
-func chargeReversed(ctx context.Context, event stripe.Event, reason string, callerIp string) error {
+func chargeReversed(ctx context.Context, event stripe.Event) error {
 	referenceId := strings.TrimSpace(stripeEventObjectValue(event, "metadata", "trade_no"))
 	if referenceId == "" &&
 		!strings.HasPrefix(setting.StripeApiSecret, "sk_") &&
@@ -2220,14 +2215,6 @@ func chargeReversed(ctx context.Context, event stripe.Event, reason string, call
 				referenceId, event.ID, refunded, currency,
 			))
 		}
-	}
-	revoked, err := model.RevokeInviteSubscriptionRewardByTradeNo(referenceId, reason)
-	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("邀请奖励回收失败 trade_no=%s reason=%s error=%q", referenceId, reason, err.Error()))
-		return err
-	}
-	if revoked {
-		logger.LogInfo(ctx, fmt.Sprintf("邀请奖励已回收 trade_no=%s reason=%s client_ip=%s", referenceId, reason, callerIp))
 	}
 	return nil
 }

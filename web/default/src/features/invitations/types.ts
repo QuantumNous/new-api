@@ -22,10 +22,7 @@ export type InvitationRewardMode = 'topup' | 'subscription'
 
 export const INVITATION_PAGE_SIZE = 10
 
-export type InvitationReason =
-  | ''
-  | 'inviter_limit_reached'
-  | 'unavailable'
+export type InvitationReason = '' | 'inviter_limit_reached' | 'unavailable'
 
 export interface InvitationRecord {
   id: number
