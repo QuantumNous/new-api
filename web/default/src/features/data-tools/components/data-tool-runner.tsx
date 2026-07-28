@@ -83,7 +83,10 @@ export function DataToolRunner(props: DataToolRunnerProps) {
       }
       return { id: token.id, name: token.name, key: keyResponse.data.key }
     },
-    staleTime: 5 * 60 * 1000,
+    // A missing key is a transient onboarding state. Keep valid keys cached,
+    // but make the negative result stale immediately so returning from the
+    // API-key creation flow enables the runner without a manual reload.
+    staleTime: (query) => (query.state.data ? 5 * 60 * 1000 : 0),
   })
 
   useEffect(() => {
