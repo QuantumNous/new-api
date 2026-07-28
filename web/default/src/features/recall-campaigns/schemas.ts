@@ -512,17 +512,6 @@ export const recallCampaignDraftSchema = z
       }
     }
     if (
-      draft.product_scope.topup_price_ids.length +
-        draft.product_scope.subscription_price_ids.length ===
-      0
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['product_scope'],
-        message: 'At least one Stripe Price is required',
-      })
-    }
-    if (
       draft.coupon_source === 'automatic' &&
       draft.discount_config.type === 'fixed'
     ) {

@@ -1664,7 +1664,6 @@ func TestRecallCampaignSaveDraftRejectsInvalidBoundaries(t *testing.T) {
 		}},
 		{name: "automatic coupon has existing id", mutate: func(d *RecallCampaignDraft) { d.ExistingCouponID = "coupon_existing" }},
 		{name: "existing coupon lacks id", mutate: func(d *RecallCampaignDraft) { d.CouponSource = "existing" }},
-		{name: "no prices", mutate: func(d *RecallCampaignDraft) { d.Products = RecallProductScope{} }},
 		{name: "zero validity", mutate: func(d *RecallCampaignDraft) { d.PromotionValidSeconds = 0 }},
 		{name: "zero enrollment", mutate: func(d *RecallCampaignDraft) { d.EnrollmentLimit = 0 }},
 		{name: "too much enrollment", mutate: func(d *RecallCampaignDraft) { d.EnrollmentLimit = 100001 }},
@@ -1718,6 +1717,65 @@ func TestRecallCampaignSaveDraftRejectsInvalidBoundaries(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestRecallCampaignDraftPersistenceAllowsEmptyProductScope(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.Products = RecallProductScope{}
+
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignDraft, campaign.Status)
+
+	updatedDraft := draft
+	updatedDraft.Name = "Updated empty product draft"
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, updatedDraft)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignDraft, updated.Status)
+	require.Equal(t, updatedDraft.Name, updated.Name)
+
+	detail, err := service.GetDetail(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	require.Empty(t, detail.Draft.Products.TopUpPriceIDs)
+	require.Empty(t, detail.Draft.Products.SubscriptionPriceIDs)
+}
+
+func TestRecallCampaignStripeValidationStillRejectsEmptyProductScope(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.Products = RecallProductScope{}
+
+	_, err := service.ValidateStripe(context.Background(), draft)
+
+	require.ErrorContains(t, err, "at least one Stripe Price")
+}
+
+func TestRecallCampaignPreviewAndActivationRejectPersistedEmptyProductScope(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.Products = RecallProductScope{}
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+
+	_, _, err = service.Preview(context.Background(), campaign.Id, 1)
+	require.ErrorContains(t, err, "at least one Stripe Price")
+
+	err = service.Activate(context.Background(), 7, campaign.Id)
+	require.ErrorContains(t, err, "at least one Stripe Price")
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignDraft, stored.Status)
 }
 
 func TestValidateRecallCampaignDraftSupportsFixedAndRelativePromotionExpiry(t *testing.T) {

@@ -580,7 +580,7 @@ func (s *RecallCampaignService) SaveDraft(ctx context.Context, actorID int, draf
 	if err != nil {
 		return nil, err
 	}
-	normalized, err := validateAndNormalizeRecallCampaignDraft(canonical, s.now())
+	normalized, err := validateAndNormalizeRecallCampaignDraftForPersistence(canonical, s.now())
 	if err != nil {
 		return nil, err
 	}
@@ -618,7 +618,7 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 		if err != nil {
 			return nil, err
 		}
-		normalized, err := validateAndNormalizeRecallCampaignDraft(canonical, s.now())
+		normalized, err := validateAndNormalizeRecallCampaignDraftForPersistence(canonical, s.now())
 		if err != nil {
 			return nil, err
 		}
@@ -1493,6 +1493,14 @@ func validateRecallCampaignContext(ctx context.Context) error {
 }
 
 func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time.Time) (RecallCampaignDraft, error) {
+	return validateAndNormalizeRecallCampaignDraftInternal(draft, now, true)
+}
+
+func validateAndNormalizeRecallCampaignDraftForPersistence(draft RecallCampaignDraft, now time.Time) (RecallCampaignDraft, error) {
+	return validateAndNormalizeRecallCampaignDraftInternal(draft, now, false)
+}
+
+func validateAndNormalizeRecallCampaignDraftInternal(draft RecallCampaignDraft, now time.Time, requireProducts bool) (RecallCampaignDraft, error) {
 	campaignType, err := normalizeRecallCampaignType(draft.CampaignType)
 	if err != nil {
 		return RecallCampaignDraft{}, err
@@ -1538,7 +1546,7 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 	}
 	if draft.CampaignType == model.RecallCampaignTypePromotion {
 		var err error
-		draft, err = validateAndNormalizeRecallPromotionDraft(draft, now)
+		draft, err = validateAndNormalizeRecallPromotionDraft(draft, now, requireProducts)
 		if err != nil {
 			return RecallCampaignDraft{}, err
 		}
@@ -1559,7 +1567,7 @@ func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time
 	return draft, nil
 }
 
-func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now time.Time) (RecallCampaignDraft, error) {
+func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now time.Time, requireProducts bool) (RecallCampaignDraft, error) {
 	draft.CouponSource = strings.ToLower(strings.TrimSpace(draft.CouponSource))
 	draft.ExistingCouponID = strings.TrimSpace(draft.ExistingCouponID)
 	switch draft.CouponSource {
@@ -1600,7 +1608,7 @@ func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now tim
 	draft.Products.SubscriptionPriceIDs = normalizeRecallStripeIDs(draft.Products.SubscriptionPriceIDs)
 	draft.Products.TopUpDisplaySnapshots = nil
 	draft.Products.SubscriptionDisplaySnapshots = nil
-	if len(draft.Products.TopUpPriceIDs)+len(draft.Products.SubscriptionPriceIDs) == 0 {
+	if requireProducts && len(draft.Products.TopUpPriceIDs)+len(draft.Products.SubscriptionPriceIDs) == 0 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign requires at least one Stripe Price")
 	}
 	draft.PromotionExpiryMode = normalizedRecallPromotionExpiryMode(draft.PromotionExpiryMode)

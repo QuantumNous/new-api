@@ -572,20 +572,22 @@ describe('recallCampaignDraftSchema', () => {
     expect(recallCampaignDraftSchema.safeParse(existing).success).toBe(false)
   })
 
-  test('requires at least one Stripe Price', () => {
-    const subscriptionOnly = makeDraft()
-    subscriptionOnly.product_scope.topup_price_ids = []
-    subscriptionOnly.product_scope.subscription_price_ids = [
-      'price_subscription_monthly',
-    ]
-    expect(recallCampaignDraftSchema.safeParse(subscriptionOnly).success).toBe(
-      true
-    )
+  test('accepts an empty product scope', () => {
+    const draft = makeDraft()
+    draft.product_scope = {
+      topup_price_ids: [],
+      subscription_price_ids: [],
+    }
 
-    subscriptionOnly.product_scope.subscription_price_ids = []
-    expect(recallCampaignDraftSchema.safeParse(subscriptionOnly).success).toBe(
-      false
-    )
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.product_scope).toEqual({
+        topup_price_ids: [],
+        subscription_price_ids: [],
+      })
+    }
   })
 
   test('validates relative promotion expiry and clears the fixed branch', () => {

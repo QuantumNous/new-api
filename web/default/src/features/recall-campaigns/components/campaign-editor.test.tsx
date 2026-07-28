@@ -1263,8 +1263,9 @@ describe('CampaignEditor email sequence', () => {
     dispose(root)
   })
 
-  test('generates after reviewing a missing target translation', async () => {
+  test('generates new draft translations after reviewing missing targets with an empty product scope', async () => {
     const draft = makeDraft('first_purchase')
+    draft.product_scope = { topup_price_ids: [], subscription_price_ids: [] }
     draft.email_sequence[0].templates = {
       en: draft.email_sequence[0].templates.en,
     }
@@ -1282,9 +1283,18 @@ describe('CampaignEditor email sequence', () => {
 
     await clickByID(container, 'recall-generate-translations')
 
+    expect(container.textContent).not.toContain(
+      'Please correct the highlighted fields.'
+    )
     expect(operationOrder).toEqual(['save', 'generate'])
+    expect(createMutation).toHaveBeenCalledTimes(1)
+    expect(generateMutation).toHaveBeenCalledTimes(1)
     const submitted = createMutation.mock.calls[0][0] as RecallCampaignDraft
     expect(Object.keys(submitted.email_sequence[0].templates)).toEqual(['en'])
+    expect(submitted.product_scope).toEqual({
+      topup_price_ids: [],
+      subscription_price_ids: [],
+    })
     dispose(root)
   })
 
