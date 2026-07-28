@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -200,6 +201,126 @@ func TestStripeToBalanceUnknownCancelDoesNotRefundOrGrant(t *testing.T) {
 	var contract model.UserSubscriptionContract
 	require.NoError(t, model.DB.First(&contract, fx.contract.Id).Error)
 	require.Equal(t, model.SubscriptionContractStatusNeedsAttention, contract.Status)
+}
+
+func TestStripeToBalanceForeignActiveReservationBlocksStripeCancel(t *testing.T) {
+	setupSubscriptionCompensationTestDB(t)
+	fx := seedStripeToBalanceFixture(t, 9008, 1, 2)
+	replaceCompensationHooks(t)
+	foreignReservation, _, err := model.ReserveSubscriptionProviderLifecycle(
+		fx.binding.Id,
+		fx.user.Id,
+		fx.binding.ProviderSubscriptionId,
+		fx.binding.LifecycleActionSeq,
+		model.SubscriptionProviderLifecycleActionResume,
+		"foreign-resume-reservation",
+		int64(stripeSubscriptionLifecycleReservationTTL.Seconds()),
+	)
+	require.NoError(t, err)
+	var cancels int
+	stripeReleaseSubscriptionSchedule = func(scheduleID string, idempotencyKey string) error { return nil }
+	stripeCancelSubscriptionImmediately = func(providerSubscriptionID string, idempotencyKey string) error {
+		cancels++
+		return nil
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderStatus:         "canceled",
+			EndedAt:                2400,
+		}, nil
+	}
+
+	_, err = ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      fx.user.Id,
+		PlanID:      fx.target.Id,
+		PaymentMode: model.SubscriptionPaymentModeBalanceOnePeriod,
+		RequestID:   "stripe-to-balance-foreign-reservation",
+	})
+
+	require.ErrorIs(t, err, model.ErrSubscriptionProviderLifecycleConflict)
+	require.Zero(t, cancels)
+	var binding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&binding, fx.binding.Id).Error)
+	require.Equal(t, foreignReservation.Token, binding.LifecycleReservationToken)
+	require.Equal(t, foreignReservation.Action, binding.LifecycleReservationAction)
+	require.Equal(t, foreignReservation.ExpiresAt, binding.LifecycleReservationUntil)
+}
+
+func TestStripeToBalanceConfirmedCanceledConsumesExactCancelReservation(t *testing.T) {
+	setupSubscriptionCompensationTestDB(t)
+	fx := seedStripeToBalanceFixture(t, 9009, 1, 2)
+	replaceCompensationHooks(t)
+	var cancelKey string
+	stripeReleaseSubscriptionSchedule = func(scheduleID string, idempotencyKey string) error { return nil }
+	stripeCancelSubscriptionImmediately = func(providerSubscriptionID string, idempotencyKey string) error {
+		cancelKey = idempotencyKey
+		return nil
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId:     providerSubscriptionID,
+			ProviderScheduleIdObserved: true,
+			ProviderStatus:             "canceled",
+			CanceledAt:                 2500,
+			EndedAt:                    2500,
+		}, nil
+	}
+
+	_, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      fx.user.Id,
+		PlanID:      fx.target.Id,
+		PaymentMode: model.SubscriptionPaymentModeBalanceOnePeriod,
+		RequestID:   "stripe-to-balance-consumes-reservation",
+	})
+
+	require.NoError(t, err)
+	var intent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.Where("request_id = ?", "stripe-to-balance-consumes-reservation").First(&intent).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusApplied, intent.Status)
+	var binding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&binding, fx.binding.Id).Error)
+	require.Equal(t, expectedStripeToBalanceCompensationCancelReservationToken(intent), binding.LifecycleReservationToken)
+	require.Equal(t, model.SubscriptionProviderLifecycleActionCancel, binding.LifecycleReservationAction)
+	require.Zero(t, binding.LifecycleReservationUntil)
+	require.Equal(t, expectedStripeToBalanceCompensationCancelIdempotencyKey(intent, binding.LifecycleActionSeq), cancelKey)
+}
+
+func TestStripeToBalanceUncertainOutcomeKeepsCancelReservationAndIdempotencyStable(t *testing.T) {
+	setupSubscriptionCompensationTestDB(t)
+	fx := seedStripeToBalanceFixture(t, 9010, 1, 2)
+	replaceCompensationHooks(t)
+	var cancelKeys []string
+	stripeReleaseSubscriptionSchedule = func(scheduleID string, idempotencyKey string) error { return nil }
+	stripeCancelSubscriptionImmediately = func(providerSubscriptionID string, idempotencyKey string) error {
+		cancelKeys = append(cancelKeys, idempotencyKey)
+		return nil
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{}, errors.New("authoritative fetch unavailable")
+	}
+
+	_, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      fx.user.Id,
+		PlanID:      fx.target.Id,
+		PaymentMode: model.SubscriptionPaymentModeBalanceOnePeriod,
+		RequestID:   "stripe-to-balance-uncertain-reservation",
+	})
+	require.Error(t, err)
+	_, err = ReconcileSubscriptionCompensationRequired(context.Background(), 100)
+	require.Error(t, err)
+
+	require.Len(t, cancelKeys, 2)
+	require.Equal(t, cancelKeys[0], cancelKeys[1])
+	var intent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.Where("request_id = ?", "stripe-to-balance-uncertain-reservation").First(&intent).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusCompensationRequired, intent.Status)
+	var binding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&binding, fx.binding.Id).Error)
+	require.Equal(t, expectedStripeToBalanceCompensationCancelReservationToken(intent), binding.LifecycleReservationToken)
+	require.Equal(t, model.SubscriptionProviderLifecycleActionCancel, binding.LifecycleReservationAction)
+	require.Greater(t, binding.LifecycleReservationUntil, common.GetTimestamp())
+	require.Equal(t, expectedStripeToBalanceCompensationCancelIdempotencyKey(intent, binding.LifecycleActionSeq), cancelKeys[0])
 }
 
 func TestStripeToBalanceConfirmedActiveRestoresScheduleAndRefundsExactlyOnce(t *testing.T) {
@@ -549,4 +670,12 @@ func assertStripeToBalanceNoRefundOrGrant(t *testing.T, fx stripeToBalanceFixtur
 	var current model.UserSubscription
 	require.NoError(t, model.DB.First(&current, fx.currentEntitlement.Id).Error)
 	require.Equal(t, model.SubscriptionEntitlementStatusActive, current.Status)
+}
+
+func expectedStripeToBalanceCompensationCancelReservationToken(intent model.SubscriptionChangeIntent) string {
+	return fmt.Sprintf("subcomp-cancel-intent-%d", intent.Id)
+}
+
+func expectedStripeToBalanceCompensationCancelIdempotencyKey(intent model.SubscriptionChangeIntent, actionSeq int64) string {
+	return fmt.Sprintf("%s:cancel:seq:%d", strings.TrimSpace(intent.ProviderIdempotencyKey), actionSeq)
 }

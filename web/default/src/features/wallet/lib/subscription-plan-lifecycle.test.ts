@@ -21,10 +21,12 @@ import type {
   SelfSubscriptionDataResponse,
   SubscriptionPaymentMode,
   SubscriptionPlan,
+  SubscriptionRenewalLifecycleResult,
 } from '@/features/subscriptions/types'
 import type { TopupInfo } from '../types'
 import {
   type WalletSelfSubscriptionData,
+  applyRenewalLifecycleResultToSelfData,
   buildFlexibleQuoteRequest,
   buildFlexiblePurchaseRequest,
   getMatchingPaymentQuote,
@@ -382,6 +384,257 @@ describe('normalizeSelfSubscriptionData', () => {
     expect(legacyState.renewal_status).toBe('enabled')
     expect(unknownState.renewal_source).toBeUndefined()
     expect(unknownState.renewal_status).toBeUndefined()
+  })
+})
+
+describe('applyRenewalLifecycleResultToSelfData', () => {
+  function createRenewalLifecycleData(
+    source: 'provider_recurring' | 'wallet_auto',
+    status: 'enabled' | 'cancelled_by_user'
+  ) {
+    return normalizeSelfSubscriptionData({
+      ...createBackendSelfData(false, false),
+      contract: {
+        contract_id: 10,
+        status: 'active',
+        payment_mode:
+          source === 'provider_recurring'
+            ? 'stripe_recurring'
+            : 'balance_one_period',
+        current_plan_id: 1,
+        current_entitlement_id: 11,
+        current_provider_binding_id: source === 'provider_recurring' ? 12 : 0,
+        latest_change_intent_id: 0,
+        pending_plan_id: 0,
+        pending_effective_at: 0,
+        current_period_start: 1000,
+        current_period_end: 2000,
+        grace_period_end: 0,
+        change_version: 1,
+      },
+      current_period: { start: 1000, end: 2000, grace_period_end: 0 },
+      remaining_days: 31,
+      renewal_source: source,
+      renewal_status: status,
+      capabilities: {
+        can_cancel: status === 'enabled',
+        can_resume: status === 'cancelled_by_user',
+        is_cancel_at_period_end: status === 'cancelled_by_user',
+      },
+    })
+  }
+
+  function createRenewalLifecycleResult(
+    source: 'provider_recurring' | 'wallet_auto',
+    status: 'enabled' | 'cancelled_by_user'
+  ) {
+    return {
+      renewal_source: source,
+      renewal_status: status,
+      current_period_end: 3000,
+      can_cancel: status === 'enabled',
+      can_resume: status === 'cancelled_by_user',
+      is_cancel_at_period_end: status === 'cancelled_by_user',
+      sync_pending: false,
+    } satisfies SubscriptionRenewalLifecycleResult
+  }
+
+  test('projects a successful cancel before the canonical refresh completes', () => {
+    const current = createRenewalLifecycleData('provider_recurring', 'enabled')
+    const result = createRenewalLifecycleResult(
+      'provider_recurring',
+      'cancelled_by_user'
+    )
+
+    const projected = applyRenewalLifecycleResultToSelfData(current, result, 10)
+
+    expect(projected).not.toBe(current)
+    expect(projected.renewal_source).toBe('provider_recurring')
+    expect(projected.renewal_status).toBe('cancelled_by_user')
+    expect(projected.capabilities.can_cancel).toBe(false)
+    expect(projected.capabilities.can_resume).toBe(true)
+    expect(projected.capabilities.is_cancel_at_period_end).toBe(true)
+    expect(projected.contract?.current_period_end).toBe(3000)
+    expect(projected.current_period?.end).toBe(3000)
+    expect(projected.remaining_days).toBeUndefined()
+    expect(current.renewal_status).toBe('enabled')
+  })
+
+  test('does not project a stale result onto a different non-empty renewal source', () => {
+    const current = createRenewalLifecycleData('wallet_auto', 'enabled')
+    const staleStripeResult = createRenewalLifecycleResult(
+      'provider_recurring',
+      'cancelled_by_user'
+    )
+
+    const projected = applyRenewalLifecycleResultToSelfData(
+      current,
+      staleStripeResult,
+      10
+    )
+
+    expect(projected).toBe(current)
+    expect(projected.renewal_source).toBe('wallet_auto')
+    expect(projected.renewal_status).toBe('enabled')
+    expect(projected.capabilities.can_cancel).toBe(true)
+    expect(projected.capabilities.can_resume).toBe(false)
+    expect(projected.contract?.current_period_end).toBe(2000)
+    expect(projected.current_period?.end).toBe(2000)
+    expect(projected.remaining_days).toBe(31)
+  })
+
+  test('does not project a same-source invalid result period onto a positive canonical period', () => {
+    for (const currentPeriodEnd of [0, -1]) {
+      const current = createRenewalLifecycleData(
+        'provider_recurring',
+        'enabled'
+      )
+      const staleStripeResult = {
+        ...createRenewalLifecycleResult(
+          'provider_recurring',
+          'cancelled_by_user'
+        ),
+        current_period_end: currentPeriodEnd,
+      }
+
+      const projected = applyRenewalLifecycleResultToSelfData(
+        current,
+        staleStripeResult,
+        10
+      )
+
+      expect(projected).toBe(current)
+      expect(projected.renewal_source).toBe('provider_recurring')
+      expect(projected.renewal_status).toBe('enabled')
+      expect(projected.capabilities.can_cancel).toBe(true)
+      expect(projected.capabilities.can_resume).toBe(false)
+      expect(projected.capabilities.is_cancel_at_period_end).toBe(false)
+      expect(projected.contract?.current_period_end).toBe(2000)
+      expect(projected.current_period?.end).toBe(2000)
+      expect(projected.remaining_days).toBe(31)
+    }
+  })
+
+  test('does not project a same-source stale result onto a later canonical period', () => {
+    const base = createRenewalLifecycleData('provider_recurring', 'enabled')
+    const current = {
+      ...base,
+      contract: base.contract
+        ? {
+            ...base.contract,
+            current_period_end: 4000,
+          }
+        : base.contract,
+      current_period: {
+        ...base.current_period,
+        end: 4000,
+      },
+    }
+    const staleStripeResult = createRenewalLifecycleResult(
+      'provider_recurring',
+      'cancelled_by_user'
+    )
+
+    const projected = applyRenewalLifecycleResultToSelfData(
+      current,
+      staleStripeResult,
+      10
+    )
+
+    expect(projected).toBe(current)
+    expect(projected.renewal_source).toBe('provider_recurring')
+    expect(projected.renewal_status).toBe('enabled')
+    expect(projected.capabilities.can_cancel).toBe(true)
+    expect(projected.capabilities.can_resume).toBe(false)
+    expect(projected.capabilities.is_cancel_at_period_end).toBe(false)
+    expect(projected.contract?.current_period_end).toBe(4000)
+    expect(projected.current_period?.end).toBe(4000)
+    expect(projected.remaining_days).toBe(31)
+  })
+
+  test('does not project a same-source stale result onto a replacement contract', () => {
+    const base = createRenewalLifecycleData('provider_recurring', 'enabled')
+    const current = {
+      ...base,
+      contract: base.contract
+        ? {
+            ...base.contract,
+            id: 11,
+            contract_id: 11,
+          }
+        : base.contract,
+    }
+    const staleStripeResult = createRenewalLifecycleResult(
+      'provider_recurring',
+      'cancelled_by_user'
+    )
+
+    const projected = applyRenewalLifecycleResultToSelfData(
+      current,
+      staleStripeResult,
+      10
+    )
+
+    expect(projected).toBe(current)
+    expect(projected.contract?.id).toBe(11)
+    expect(projected.renewal_source).toBe('provider_recurring')
+    expect(projected.renewal_status).toBe('enabled')
+    expect(projected.capabilities.can_cancel).toBe(true)
+    expect(projected.capabilities.can_resume).toBe(false)
+    expect(projected.current_period?.end).toBe(2000)
+  })
+
+  test('does not project when the mutation caller lacks a concrete contract target', () => {
+    const current = createRenewalLifecycleData('provider_recurring', 'enabled')
+    const result = createRenewalLifecycleResult(
+      'provider_recurring',
+      'cancelled_by_user'
+    )
+
+    for (const expectedContractId of [null, 0] as const) {
+      const projected = applyRenewalLifecycleResultToSelfData(
+        current,
+        result,
+        expectedContractId
+      )
+
+      expect(projected).toBe(current)
+      expect(projected.renewal_status).toBe('enabled')
+      expect(projected.capabilities.can_cancel).toBe(true)
+      expect(projected.capabilities.can_resume).toBe(false)
+    }
+  })
+
+  test('does not restore a stale renewal result after the canonical source disappears', () => {
+    const base = createRenewalLifecycleData('provider_recurring', 'enabled')
+    const current = {
+      ...base,
+      renewal_source: undefined,
+      renewal_status: undefined,
+      capabilities: {
+        ...base.capabilities,
+        can_cancel: false,
+        can_resume: false,
+        is_cancel_at_period_end: false,
+      },
+    }
+    const staleStripeResult = createRenewalLifecycleResult(
+      'provider_recurring',
+      'cancelled_by_user'
+    )
+
+    const projected = applyRenewalLifecycleResultToSelfData(
+      current,
+      staleStripeResult,
+      10
+    )
+
+    expect(projected).toBe(current)
+    expect(projected.renewal_source).toBeUndefined()
+    expect(projected.renewal_status).toBeUndefined()
+    expect(projected.capabilities.can_cancel).toBe(false)
+    expect(projected.capabilities.can_resume).toBe(false)
+    expect(projected.capabilities.is_cancel_at_period_end).toBe(false)
   })
 })
 

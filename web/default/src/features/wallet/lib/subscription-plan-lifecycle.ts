@@ -29,6 +29,7 @@ import type {
   SubscriptionPaymentQuotes,
   SubscriptionRenewalSource,
   SubscriptionRenewalStatus,
+  SubscriptionRenewalLifecycleResult,
   SubscriptionUsageWindow,
   SubscriptionContract,
   SubscriptionCurrentPeriod,
@@ -288,6 +289,53 @@ export function normalizeSelfSubscriptionData(
     subscriptions: data?.subscriptions || [],
     all_subscriptions: data?.all_subscriptions || [],
     recurring_subscriptions: data?.recurring_subscriptions || [],
+  }
+}
+
+export function applyRenewalLifecycleResultToSelfData(
+  current: WalletSelfSubscriptionData,
+  result: SubscriptionRenewalLifecycleResult | undefined,
+  expectedContractId: number | null
+): WalletSelfSubscriptionData {
+  if (!result) return current
+  if (
+    typeof expectedContractId !== 'number' ||
+    expectedContractId <= 0 ||
+    current.contract?.id !== expectedContractId
+  ) {
+    return current
+  }
+  if (current.renewal_source !== result.renewal_source) {
+    return current
+  }
+  const currentPeriodEnd = Math.max(
+    current.contract?.current_period_end ?? 0,
+    current.current_period?.end ?? 0
+  )
+  if (currentPeriodEnd > 0 && result.current_period_end < currentPeriodEnd) {
+    return current
+  }
+  return {
+    ...current,
+    renewal_source: result.renewal_source,
+    renewal_status: result.renewal_status,
+    contract: current.contract
+      ? {
+          ...current.contract,
+          current_period_end: result.current_period_end,
+        }
+      : current.contract,
+    current_period: {
+      ...(current.current_period ?? DEFAULT_CURRENT_PERIOD),
+      end: result.current_period_end,
+    },
+    remaining_days: undefined,
+    capabilities: {
+      ...current.capabilities,
+      can_cancel: result.can_cancel,
+      can_resume: result.can_resume,
+      is_cancel_at_period_end: result.is_cancel_at_period_end,
+    },
   }
 }
 

@@ -616,7 +616,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).toContain('Cancel subscription')
   })
 
-  test('uses parameterless renewal helpers, localized toasts, and refreshes subscription state', () => {
+  test('uses parameterless renewal helpers and keeps a successful canonical refresh authoritative', () => {
     const cardSource = readFileSync(
       new URL('./subscription-plans-card.tsx', import.meta.url),
       'utf8'
@@ -631,12 +631,47 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       "toast.success(t('Subscription renewal resumed'))"
     )
     expect(cardSource).toContain('await fetchSelfSubscription()')
-    expect(cardSource).toContain(
-      'const refreshAfterRenewal = async (syncPending: boolean) =>'
+    expect(cardSource).toMatch(
+      /const refreshAfterRenewal = async \(\s*result: SubscriptionRenewalLifecycleResult \| undefined\s*\) =>/
     )
-    expect(cardSource).toContain(
-      'await refreshAfterRenewal(res.data?.sync_pending === true)'
+    expect(cardSource).toContain('await refreshAfterRenewal(res.data)')
+    expect(cardSource).toContain('const selfRefreshResult =')
+    expect(cardSource).toMatch(
+      /try \{\s*await onPurchaseSuccess\?\.\(\)\s*\} catch \{\s*\/\/ onPurchaseSuccess is best-effort/
     )
+    expect(cardSource).not.toContain('callbackFailed')
+    expect(cardSource).not.toContain('if (callbackFailed) return')
+    expect(cardSource).not.toContain('if (selfRefreshSucceeded && result)')
+    expect(cardSource).toContain(
+      "if (result?.sync_pending === true && selfRefreshResult === 'applied')"
+    )
+    expect(cardSource).not.toContain(
+      "if (result?.sync_pending === true && selfRefreshResult !== 'applied')"
+    )
+    expect(cardSource).not.toContain('else if (result?.sync_pending === true)')
+    const syncPendingInfoIndex = cardSource.indexOf(
+      "if (result?.sync_pending === true && selfRefreshResult === 'applied')"
+    )
+    const selfRefreshFailureIndex = cardSource.indexOf(
+      "if (selfRefreshResult === 'failed')"
+    )
+    const callbackIndex = cardSource.indexOf('await onPurchaseSuccess?.()')
+    expect(syncPendingInfoIndex).toBeGreaterThan(-1)
+    expect(selfRefreshFailureIndex).toBeGreaterThan(syncPendingInfoIndex)
+    expect(callbackIndex).toBeGreaterThan(selfRefreshFailureIndex)
+    expect(cardSource).not.toContain(
+      'applyRenewalLifecycleResultToSelfData(current, result)'
+    )
+    expect(
+      cardSource.match(
+        /const renewalContractId = selfData\.contract\?\.id \?\? null/g
+      )
+    ).toHaveLength(2)
+    expect(
+      cardSource.match(
+        /applyRenewalLifecycleResultToSelfData\(\s*current,\s*res\.data,\s*renewalContractId\s*\)/g
+      )
+    ).toHaveLength(2)
     expect(cardSource).toContain(
       "toast.error(t('Subscription updated, but failed to refresh status'))"
     )
@@ -646,20 +681,66 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(cardSource).toMatch(
       /await fetchSelfSubscription\(\{\s*preserveOnFailure: true,\s*\}\)/
     )
-    expect(cardSource).toContain('if (!options.preserveOnFailure)')
+    expect(
+      cardSource.match(/selfSubscriptionAppliedSequenceRef\.current === 0/g)
+    ).toHaveLength(2)
     expect(cardSource).not.toContain(
       'let refreshFailed = !(await fetchSelfSubscription())'
     )
     expect(cardSource).not.toContain(
       'let refreshFailed = syncPending || !(await fetchSelfSubscription())'
     )
+    expect(cardSource).not.toContain('refreshFailed = true')
+    expect(cardSource).toContain(
+      'const selfSubscriptionRequestSequenceRef = useRef(0)'
+    )
+    expect(cardSource).toContain(
+      'const selfSubscriptionAppliedSequenceRef = useRef(0)'
+    )
+    expect(cardSource).toContain(
+      'const requestSequence = ++selfSubscriptionRequestSequenceRef.current'
+    )
+    expect(cardSource).toContain(
+      'if (requestSequence < selfSubscriptionAppliedSequenceRef.current)'
+    )
+    expect(
+      cardSource.match(
+        /if \(requestSequence !== selfSubscriptionRequestSequenceRef\.current\)/g
+      )
+    ).toHaveLength(1)
+    expect(cardSource).toContain(
+      'requestSequence !== selfSubscriptionRequestSequenceRef.current &&\n' +
+        '          selfSubscriptionAppliedSequenceRef.current > 0'
+    )
+    expect(cardSource).not.toContain(
+      'selfSubscriptionAppliedSequenceRef.current > requestSequence'
+    )
+    expect(cardSource).toContain(
+      'selfSubscriptionAppliedSequenceRef.current = requestSequence'
+    )
+    expect(cardSource).toContain(
+      "type SelfSubscriptionRefreshResult = 'applied' | 'superseded' | 'failed'"
+    )
+    expect(cardSource).toContain("return 'superseded'")
+    expect(cardSource).not.toContain('return true\n        }')
+    expect(cardSource).toContain("selfRefreshResult === 'applied'")
+    expect(cardSource).toContain("selfRefreshResult === 'failed'")
+    expect(
+      cardSource.match(
+        /const optimisticSequence = \+\+selfSubscriptionRequestSequenceRef\.current/g
+      )
+    ).toHaveLength(2)
+    expect(
+      cardSource.match(
+        /selfSubscriptionAppliedSequenceRef\.current = optimisticSequence/g
+      )
+    ).toHaveLength(2)
+    expect(cardSource.match(/if \(next !== current\) \{/g)).toHaveLength(2)
     expect(
       cardSource.match(/if \(renewalMutationInFlightRef\.current\) \{/g)
     ).toHaveLength(2)
     expect(
-      cardSource.match(
-        /throw new Error\(RENEWAL_MUTATION_ALREADY_IN_FLIGHT\)/g
-      )
+      cardSource.match(/throw new Error\(RENEWAL_MUTATION_ALREADY_IN_FLIGHT\)/g)
     ).toHaveLength(2)
     expect(
       cardSource.match(/renewalMutationInFlightRef\.current = true/g)
@@ -682,9 +763,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       ) as { translation: Record<string, string> }
 
       expect(
-        locale.translation[
-          'Subscription updated, but failed to refresh status'
-        ]
+        locale.translation['Subscription updated, but failed to refresh status']
       ).toBeTruthy()
       expect(
         locale.translation[

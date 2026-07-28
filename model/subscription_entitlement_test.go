@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func setupSubscriptionEntitlementTestDB(t *testing.T) {
@@ -46,7 +47,7 @@ func grantInput(contractId int64, userId int, planId int, key string, start int6
 		ContractId:           contractId,
 		UserId:               userId,
 		PlanId:               planId,
-		ProviderBindingId:    9001,
+		ProviderBindingId:    0,
 		GrantKey:             key,
 		PaymentMode:          SubscriptionPaymentModeStripeRecurring,
 		AmountTotal:          1234,
@@ -144,7 +145,7 @@ func TestRotateCurrentEntitlementArchivesOldAndCreatesSingleCurrent(t *testing.T
 	require.NoError(t, DB.First(&contract, "id = ?", int64(9301)).Error)
 	require.Equal(t, result.Entitlement.Id, contract.CurrentEntitlementId)
 	require.Equal(t, 9202, contract.CurrentPlanId)
-	require.Equal(t, int64(9001), contract.CurrentProviderBindingId)
+	require.Zero(t, contract.CurrentProviderBindingId)
 	require.Equal(t, int64(200), contract.CurrentPeriodStart)
 	require.Equal(t, int64(300), contract.CurrentPeriodEnd)
 	require.Equal(t, SubscriptionContractStatusActive, contract.Status)
@@ -212,6 +213,568 @@ func TestSubscriptionEntitlementGrantIdempotentAndConflict(t *testing.T) {
 	paymentModeConflict.PaymentMode = SubscriptionPaymentModeBalanceOnePeriod
 	_, err = RotateCurrentEntitlement(paymentModeConflict)
 	require.ErrorIs(t, err, ErrSubscriptionEntitlementGrantConflict)
+}
+
+func TestSubscriptionEntitlementGrantReplayWithoutReservationConflictsDuringLifecycleReservation(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9121, "plg")
+	createEntitlementTestPlan(t, 9221, 100, "")
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:          9321,
+		UserId:      9121,
+		Status:      SubscriptionContractStatusActive,
+		PaymentMode: SubscriptionPaymentModeStripeRecurring,
+	}).Error)
+
+	input := grantInput(9321, 9121, 9221, "stripe:idempotent-reserved", 100, 200)
+	input.ProviderBindingId = 9001
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     input.ProviderBindingId,
+		UserId:                 input.UserId,
+		PlanId:                 input.PlanId,
+		ContractId:             input.ContractId,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_idempotent_reserved",
+		ProviderStatus:         "active",
+	}).Error)
+	first, err := RotateCurrentEntitlement(input)
+	require.NoError(t, err)
+	require.True(t, first.Applied)
+	_, _, err = ReserveSubscriptionProviderLifecycle(
+		input.ProviderBindingId,
+		input.UserId,
+		"sub_idempotent_reserved",
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"idempotent-replay-reservation",
+		300,
+	)
+	require.NoError(t, err)
+
+	replayed, err := RotateCurrentEntitlement(input)
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, replayed)
+}
+
+func TestRotateCurrentEntitlementRejectsReservedIncomingProviderBinding(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9122, "plg")
+	createEntitlementTestPlan(t, 9222, 100, "")
+	oldGrant := "balance:current"
+	old := UserSubscription{
+		UserId:        9122,
+		PlanId:        9222,
+		ContractId:    9322,
+		GrantKey:      &oldGrant,
+		CurrentSlot:   currentSlotPtr(),
+		AmountTotal:   100,
+		StartTime:     100,
+		EndTime:       200,
+		AccessEndTime: 200,
+		Status:        SubscriptionEntitlementStatusActive,
+		Source:        PaymentMethodBalance,
+		PaymentMode:   SubscriptionPaymentModePrepaid,
+	}
+	require.NoError(t, DB.Create(&old).Error)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                   9322,
+		UserId:               9122,
+		Status:               SubscriptionContractStatusActive,
+		PaymentMode:          SubscriptionPaymentModePrepaid,
+		CurrentPlanId:        9222,
+		CurrentEntitlementId: old.Id,
+	}).Error)
+	incoming := SubscriptionProviderBinding{
+		UserId:                     9122,
+		PlanId:                     9222,
+		Provider:                   PaymentProviderStripe,
+		ProviderSubscriptionId:     "sub_reserved_incoming_binding",
+		ProviderStatus:             "active",
+		LifecycleActionSeq:         1,
+		LifecycleReservationToken:  "incoming-binding-reservation",
+		LifecycleReservationAction: SubscriptionProviderLifecycleActionCancel,
+		LifecycleReservationUntil:  GetDBTimestamp() + 300,
+	}
+	require.NoError(t, DB.Create(&incoming).Error)
+	input := grantInput(9322, 9122, 9222, "stripe:incoming-reserved", 200, 300)
+	input.ProviderBindingId = incoming.Id
+
+	result, err := RotateCurrentEntitlement(input)
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, result)
+	var contract UserSubscriptionContract
+	require.NoError(t, DB.First(&contract, 9322).Error)
+	require.Zero(t, contract.CurrentProviderBindingId)
+	require.Equal(t, old.Id, contract.CurrentEntitlementId)
+}
+
+func TestRotateCurrentEntitlementRejectsMissingIncomingProviderBinding(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9128, "plg")
+	createEntitlementTestPlan(t, 9228, 100, "")
+	const (
+		contractID       = int64(9328)
+		missingBindingID = int64(9430)
+	)
+	oldGrant := "balance:current-before-missing-incoming"
+	old := UserSubscription{
+		UserId:        9128,
+		PlanId:        9228,
+		ContractId:    contractID,
+		GrantKey:      &oldGrant,
+		CurrentSlot:   currentSlotPtr(),
+		AmountTotal:   100,
+		StartTime:     100,
+		EndTime:       200,
+		AccessEndTime: 200,
+		Status:        SubscriptionEntitlementStatusActive,
+		Source:        PaymentMethodBalance,
+		PaymentMode:   SubscriptionPaymentModePrepaid,
+	}
+	require.NoError(t, DB.Create(&old).Error)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                   contractID,
+		UserId:               9128,
+		Status:               SubscriptionContractStatusActive,
+		PaymentMode:          SubscriptionPaymentModePrepaid,
+		CurrentPlanId:        9228,
+		CurrentEntitlementId: old.Id,
+	}).Error)
+	input := grantInput(contractID, 9128, 9228, "stripe:missing-incoming-binding", 200, 300)
+	input.ProviderBindingId = missingBindingID
+
+	result, err := RotateCurrentEntitlement(input)
+
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	require.Nil(t, result)
+	var contract UserSubscriptionContract
+	require.NoError(t, DB.First(&contract, contractID).Error)
+	require.Zero(t, contract.CurrentProviderBindingId)
+	require.Equal(t, old.Id, contract.CurrentEntitlementId)
+	var bindingCount int64
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("id = ?", missingBindingID).Count(&bindingCount).Error)
+	require.Zero(t, bindingCount)
+}
+
+func TestRotateCurrentEntitlementRejectsMissingCurrentProviderBinding(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9127, "plg")
+	createEntitlementTestPlan(t, 9227, 100, "")
+	const (
+		contractID       = int64(9327)
+		missingBindingID = int64(9429)
+	)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                       contractID,
+		UserId:                   9127,
+		Status:                   SubscriptionContractStatusActive,
+		PaymentMode:              SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            9227,
+		CurrentProviderBindingId: missingBindingID,
+	}).Error)
+	input := grantInput(contractID, 9127, 9227, "stripe:missing-current-binding", 100, 200)
+	input.ProviderBindingId = missingBindingID
+
+	result, err := RotateCurrentEntitlement(input)
+
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	require.Nil(t, result)
+	var contract UserSubscriptionContract
+	require.NoError(t, DB.First(&contract, contractID).Error)
+	require.Zero(t, contract.CurrentEntitlementId)
+}
+
+func TestRotateCurrentEntitlementRejectsForeignIncomingProviderBinding(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9129, "plg")
+	createEntitlementTestUser(t, 9130, "plg")
+	createEntitlementTestPlan(t, 9229, 100, "")
+	const (
+		contractID        = int64(9329)
+		foreignContractID = int64(9330)
+		foreignBindingID  = int64(9431)
+	)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:          contractID,
+		UserId:      9129,
+		Status:      SubscriptionContractStatusActive,
+		PaymentMode: SubscriptionPaymentModePrepaid,
+	}).Error)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:          foreignContractID,
+		UserId:      9130,
+		Status:      SubscriptionContractStatusActive,
+		PaymentMode: SubscriptionPaymentModeStripeRecurring,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     foreignBindingID,
+		UserId:                 9130,
+		PlanId:                 9229,
+		ContractId:             foreignContractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_foreign_incoming_binding",
+		ProviderStatus:         "active",
+	}).Error)
+	input := grantInput(contractID, 9129, 9229, "stripe:foreign-incoming-binding", 100, 200)
+	input.ProviderBindingId = foreignBindingID
+
+	result, err := RotateCurrentEntitlement(input)
+
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	require.Nil(t, result)
+	var contract UserSubscriptionContract
+	require.NoError(t, DB.First(&contract, contractID).Error)
+	require.Zero(t, contract.CurrentProviderBindingId)
+	require.Zero(t, contract.CurrentEntitlementId)
+}
+
+func TestRotateCurrentEntitlementWithLifecycleReservationReplaysAfterReservationWasConsumed(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9123, "plg")
+	createEntitlementTestPlan(t, 9223, 100, "")
+	const (
+		contractID = int64(9323)
+		bindingID  = int64(9423)
+	)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                       contractID,
+		UserId:                   9123,
+		Status:                   SubscriptionContractStatusActive,
+		PaymentMode:              SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            9223,
+		CurrentProviderBindingId: bindingID,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     bindingID,
+		UserId:                 9123,
+		PlanId:                 9223,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_reservation_replay",
+		ProviderStatus:         "active",
+	}).Error)
+	reservation, _, err := ReserveSubscriptionProviderLifecycle(
+		bindingID,
+		9123,
+		"sub_reservation_replay",
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"reservation-replay-token",
+		300,
+	)
+	require.NoError(t, err)
+	input := grantInput(contractID, 9123, 9223, "stripe:reservation-replay", 100, 200)
+	input.ProviderBindingId = bindingID
+
+	var first *GrantEntitlementResult
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		first, applyErr = RotateCurrentEntitlementWithLifecycleReservationTx(tx, input, reservation)
+		return applyErr
+	}))
+	require.True(t, first.Applied)
+	var replay *GrantEntitlementResult
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		replay, applyErr = RotateCurrentEntitlementWithLifecycleReservationTx(tx, input, reservation)
+		return applyErr
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, replay)
+	require.False(t, replay.Applied)
+	require.Equal(t, first.Entitlement.Id, replay.Entitlement.Id)
+}
+
+func TestRotateCurrentEntitlementWithLifecycleReservationReplaysAfterContractBindingMoved(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9125, "plg")
+	createEntitlementTestPlan(t, 9225, 100, "")
+	const (
+		contractID           = int64(9325)
+		originalBindingID    = int64(9425)
+		replacementBindingID = int64(9426)
+	)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                       contractID,
+		UserId:                   9125,
+		Status:                   SubscriptionContractStatusActive,
+		PaymentMode:              SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            9225,
+		CurrentProviderBindingId: originalBindingID,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     originalBindingID,
+		UserId:                 9125,
+		PlanId:                 9225,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_reservation_replay_original",
+		ProviderStatus:         "active",
+	}).Error)
+	reservation, _, err := ReserveSubscriptionProviderLifecycle(
+		originalBindingID,
+		9125,
+		"sub_reservation_replay_original",
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"reservation-replay-moved-binding-token",
+		300,
+	)
+	require.NoError(t, err)
+	input := grantInput(contractID, 9125, 9225, "stripe:reservation-replay-moved-binding", 100, 200)
+	input.ProviderBindingId = originalBindingID
+
+	var first *GrantEntitlementResult
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		first, applyErr = RotateCurrentEntitlementWithLifecycleReservationTx(tx, input, reservation)
+		return applyErr
+	}))
+	require.True(t, first.Applied)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     replacementBindingID,
+		UserId:                 9125,
+		PlanId:                 9225,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_reservation_replay_replacement",
+		ProviderStatus:         "active",
+	}).Error)
+	require.NoError(t, DB.Model(&UserSubscriptionContract{}).Where("id = ?", contractID).
+		Update("current_provider_binding_id", replacementBindingID).Error)
+
+	var replay *GrantEntitlementResult
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		replay, applyErr = RotateCurrentEntitlementWithLifecycleReservationTx(tx, input, reservation)
+		return applyErr
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, replay)
+	require.False(t, replay.Applied)
+	require.Equal(t, first.Entitlement.Id, replay.Entitlement.Id)
+}
+
+func TestRotateCurrentEntitlementWithLifecycleReservationRejectsReplayWhenReplacementBindingReserved(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9171, "plg")
+	createEntitlementTestPlan(t, 9271, 100, "")
+	const (
+		contractID           = int64(9371)
+		originalBindingID    = int64(9471)
+		replacementBindingID = int64(9472)
+	)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                       contractID,
+		UserId:                   9171,
+		Status:                   SubscriptionContractStatusActive,
+		PaymentMode:              SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            9271,
+		CurrentProviderBindingId: originalBindingID,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     originalBindingID,
+		UserId:                 9171,
+		PlanId:                 9271,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_replay_original_consumed",
+		ProviderStatus:         "active",
+	}).Error)
+	reservation, _, err := ReserveSubscriptionProviderLifecycle(
+		originalBindingID,
+		9171,
+		"sub_replay_original_consumed",
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"replay-original-consumed-token",
+		300,
+	)
+	require.NoError(t, err)
+	input := grantInput(contractID, 9171, 9271, "stripe:replay-replacement-reserved", 100, 200)
+	input.ProviderBindingId = originalBindingID
+
+	var first *GrantEntitlementResult
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		first, applyErr = RotateCurrentEntitlementWithLifecycleReservationTx(tx, input, reservation)
+		return applyErr
+	}))
+	require.True(t, first.Applied)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     replacementBindingID,
+		UserId:                 9171,
+		PlanId:                 9271,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_replay_replacement_reserved",
+		ProviderStatus:         "active",
+	}).Error)
+	require.NoError(t, DB.Model(&UserSubscriptionContract{}).Where("id = ?", contractID).
+		Update("current_provider_binding_id", replacementBindingID).Error)
+	replacementReservation, _, err := ReserveSubscriptionProviderLifecycle(
+		replacementBindingID,
+		9171,
+		"sub_replay_replacement_reserved",
+		0,
+		SubscriptionProviderLifecycleActionResume,
+		"replay-replacement-active-token",
+		300,
+	)
+	require.NoError(t, err)
+
+	var replay *GrantEntitlementResult
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		replay, applyErr = RotateCurrentEntitlementWithLifecycleReservationTx(tx, input, reservation)
+		return applyErr
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, replay)
+	var replacementBinding SubscriptionProviderBinding
+	require.NoError(t, DB.First(&replacementBinding, replacementBindingID).Error)
+	require.Equal(t, replacementReservation.Token, replacementBinding.LifecycleReservationToken)
+	require.Equal(t, replacementReservation.Action, replacementBinding.LifecycleReservationAction)
+	require.Equal(t, replacementReservation.ExpiresAt, replacementBinding.LifecycleReservationUntil)
+}
+
+func TestRotateCurrentEntitlementWithLifecycleReservationRejectsActiveOldBindingReservationAfterContractBindingMoved(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9126, "plg")
+	createEntitlementTestPlan(t, 9226, 100, "")
+	const (
+		contractID           = int64(9326)
+		originalBindingID    = int64(9427)
+		replacementBindingID = int64(9428)
+	)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                       contractID,
+		UserId:                   9126,
+		Status:                   SubscriptionContractStatusActive,
+		PaymentMode:              SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            9226,
+		CurrentProviderBindingId: originalBindingID,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     originalBindingID,
+		UserId:                 9126,
+		PlanId:                 9226,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_active_old_binding_reservation",
+		ProviderStatus:         "active",
+	}).Error)
+	input := grantInput(contractID, 9126, 9226, "stripe:active-old-binding-reservation", 100, 200)
+	input.ProviderBindingId = originalBindingID
+	first, err := RotateCurrentEntitlement(input)
+	require.NoError(t, err)
+	require.True(t, first.Applied)
+
+	reservation, _, err := ReserveSubscriptionProviderLifecycle(
+		originalBindingID,
+		9126,
+		"sub_active_old_binding_reservation",
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"active-old-binding-reservation-token",
+		300,
+	)
+	require.NoError(t, err)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     replacementBindingID,
+		UserId:                 9126,
+		PlanId:                 9226,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_active_old_binding_replacement",
+		ProviderStatus:         "active",
+	}).Error)
+	require.NoError(t, DB.Model(&UserSubscriptionContract{}).Where("id = ?", contractID).
+		Update("current_provider_binding_id", replacementBindingID).Error)
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		_, applyErr := RotateCurrentEntitlementWithLifecycleReservationTx(tx, input, reservation)
+		return applyErr
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	var originalBinding SubscriptionProviderBinding
+	require.NoError(t, DB.First(&originalBinding, originalBindingID).Error)
+	require.Equal(t, reservation.Token, originalBinding.LifecycleReservationToken)
+	require.Equal(t, reservation.Action, originalBinding.LifecycleReservationAction)
+	require.Equal(t, reservation.ExpiresAt, originalBinding.LifecycleReservationUntil)
+}
+
+func TestRotateCurrentEntitlementWithLifecycleReservationReplaysWithExpiredExactReservation(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9124, "plg")
+	createEntitlementTestPlan(t, 9224, 100, "")
+	const (
+		contractID = int64(9324)
+		bindingID  = int64(9424)
+	)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                       contractID,
+		UserId:                   9124,
+		Status:                   SubscriptionContractStatusActive,
+		PaymentMode:              SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            9224,
+		CurrentProviderBindingId: bindingID,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     bindingID,
+		UserId:                 9124,
+		PlanId:                 9224,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_expired_reservation_replay",
+		ProviderStatus:         "active",
+	}).Error)
+	reservation, _, err := ReserveSubscriptionProviderLifecycle(
+		bindingID,
+		9124,
+		"sub_expired_reservation_replay",
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"expired-reservation-replay-token",
+		300,
+	)
+	require.NoError(t, err)
+	input := grantInput(contractID, 9124, 9224, "stripe:expired-reservation-replay", 100, 200)
+	input.ProviderBindingId = bindingID
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		_, applyErr := RotateCurrentEntitlementWithLifecycleReservationTx(tx, input, reservation)
+		return applyErr
+	}))
+
+	expiredReservation := *reservation
+	expiredReservation.ExpiresAt = GetDBTimestamp() - 1
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID).Updates(map[string]interface{}{
+		"lifecycle_reservation_token":  expiredReservation.Token,
+		"lifecycle_reservation_action": expiredReservation.Action,
+		"lifecycle_reservation_until":  expiredReservation.ExpiresAt,
+	}).Error)
+
+	var replay *GrantEntitlementResult
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		replay, applyErr = RotateCurrentEntitlementWithLifecycleReservationTx(tx, input, &expiredReservation)
+		return applyErr
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, replay)
+	require.False(t, replay.Applied)
+	var consumed SubscriptionProviderBinding
+	require.NoError(t, DB.First(&consumed, bindingID).Error)
+	require.Equal(t, expiredReservation.Token, consumed.LifecycleReservationToken)
+	require.Equal(t, expiredReservation.Action, consumed.LifecycleReservationAction)
+	require.Zero(t, consumed.LifecycleReservationUntil)
 }
 
 func TestSubscriptionEntitlementGrantSnapshotMismatchConflicts(t *testing.T) {
@@ -803,6 +1366,71 @@ func TestRotateCurrentEntitlementHistoricalGrantReplayDoesNotBecomeCurrent(t *te
 	require.Equal(t, first.Entitlement.Id, replayed.Entitlement.Id)
 	var contract UserSubscriptionContract
 	require.NoError(t, DB.First(&contract, "id = ?", int64(9361)).Error)
+	require.Equal(t, second.Entitlement.Id, contract.CurrentEntitlementId)
+}
+
+func TestRotateCurrentEntitlementWithLifecycleReservationRejectsHistoricalGrantReplay(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9162, "plg")
+	createEntitlementTestPlan(t, 9263, 100, "")
+	createEntitlementTestPlan(t, 9264, 100, "")
+	const (
+		contractID = int64(9362)
+		bindingID  = int64(9462)
+	)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                       contractID,
+		UserId:                   9162,
+		Status:                   SubscriptionContractStatusActive,
+		PaymentMode:              SubscriptionPaymentModeStripeRecurring,
+		CurrentProviderBindingId: bindingID,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     bindingID,
+		UserId:                 9162,
+		PlanId:                 9263,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_historical_replay_reservation",
+		ProviderStatus:         "active",
+	}).Error)
+	firstInput := grantInput(contractID, 9162, 9263, "stripe:historical-reservation", 100, 200)
+	firstInput.ProviderBindingId = bindingID
+	first, err := RotateCurrentEntitlement(firstInput)
+	require.NoError(t, err)
+	require.True(t, first.Applied)
+	secondInput := grantInput(contractID, 9162, 9264, "stripe:current-reservation", 200, 300)
+	secondInput.ProviderBindingId = bindingID
+	second, err := RotateCurrentEntitlement(secondInput)
+	require.NoError(t, err)
+	require.True(t, second.Applied)
+	reservation, _, err := ReserveSubscriptionProviderLifecycle(
+		bindingID,
+		9162,
+		"sub_historical_replay_reservation",
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"historical-replay-reservation-token",
+		300,
+	)
+	require.NoError(t, err)
+
+	var replay *GrantEntitlementResult
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		replay, applyErr = RotateCurrentEntitlementWithLifecycleReservationTx(tx, firstInput, reservation)
+		return applyErr
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, replay)
+	var binding SubscriptionProviderBinding
+	require.NoError(t, DB.First(&binding, bindingID).Error)
+	require.Equal(t, reservation.Token, binding.LifecycleReservationToken)
+	require.Equal(t, reservation.Action, binding.LifecycleReservationAction)
+	require.Equal(t, reservation.ExpiresAt, binding.LifecycleReservationUntil)
+	var contract UserSubscriptionContract
+	require.NoError(t, DB.First(&contract, contractID).Error)
 	require.Equal(t, second.Entitlement.Id, contract.CurrentEntitlementId)
 }
 

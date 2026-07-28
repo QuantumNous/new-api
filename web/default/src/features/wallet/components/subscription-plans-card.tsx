@@ -41,6 +41,7 @@ import {
   type FlexiblePurchaseResponse,
   type PlanRecord,
   type SubscriptionPaymentAvailability,
+  type SubscriptionRenewalLifecycleResult,
 } from '@/features/subscriptions/types'
 import type {
   StripeCheckoutOpenResult,
@@ -54,6 +55,7 @@ import {
 import {
   type LifecyclePlanRecord,
   type WalletSelfSubscriptionData,
+  applyRenewalLifecycleResultToSelfData,
   getFlexiblePlanAction,
   buildFlexibleQuoteRequest,
   buildFlexiblePurchaseRequest,
@@ -81,8 +83,7 @@ interface SubscriptionPlansCardProps {
 
 const EXTERNAL_RETURN_POLL_KEY = 'new-api:subscription-change-return-pending'
 const RENEWAL_FAILURE_TOAST_SHOWN = 'renewal failure toast shown'
-const RENEWAL_MUTATION_ALREADY_IN_FLIGHT =
-  'renewal mutation already in flight'
+const RENEWAL_MUTATION_ALREADY_IN_FLIGHT = 'renewal mutation already in flight'
 
 const PLAN_DISPLAY_ORDER: Record<string, number> = {
   go: 0,
@@ -125,6 +126,7 @@ function getRecallDiscountLabel(
 }
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
+type SelfSubscriptionRefreshResult = 'applied' | 'superseded' | 'failed'
 
 function getPlanAudience(title: string, t: Translate): string {
   switch (title.trim().toLowerCase()) {
@@ -228,6 +230,10 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [renewalMutationPending, setRenewalMutationPending] = useState(false)
   const renewalMutationInFlightRef = useRef(false)
+  // A later failed /self refresh must not erase the last successful canonical
+  // subscription snapshot; only the initial no-data failure can show empty state.
+  const selfSubscriptionRequestSequenceRef = useRef(0)
+  const selfSubscriptionAppliedSequenceRef = useRef(0)
   const recallClaim = useRecallClaimContext()
 
   const fetchPlans = useCallback(async () => {
@@ -240,22 +246,47 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   }, [])
 
   const fetchSelfSubscription = useCallback(
-    async (options: { preserveOnFailure?: boolean } = {}): Promise<boolean> => {
+    async (
+      options: { preserveOnFailure?: boolean } = {}
+    ): Promise<SelfSubscriptionRefreshResult> => {
+      const requestSequence = ++selfSubscriptionRequestSequenceRef.current
       try {
         const res = await getSelfSubscriptionFull()
+        if (requestSequence < selfSubscriptionAppliedSequenceRef.current) {
+          return 'superseded'
+        }
+        if (
+          requestSequence !== selfSubscriptionRequestSequenceRef.current &&
+          selfSubscriptionAppliedSequenceRef.current > 0
+        ) {
+          return 'superseded'
+        }
         if (res.success) {
+          selfSubscriptionAppliedSequenceRef.current = requestSequence
           setSelfData(normalizeSelfSubscriptionData(res.data))
-          return true
+          return 'applied'
         }
-        if (!options.preserveOnFailure) {
+        if (
+          !options.preserveOnFailure &&
+          selfSubscriptionAppliedSequenceRef.current === 0
+        ) {
           setSelfData(normalizeSelfSubscriptionData(undefined))
         }
-        return false
+        return 'failed'
       } catch {
-        if (!options.preserveOnFailure) {
+        if (requestSequence < selfSubscriptionAppliedSequenceRef.current) {
+          return 'superseded'
+        }
+        if (requestSequence !== selfSubscriptionRequestSequenceRef.current) {
+          return 'superseded'
+        }
+        if (
+          !options.preserveOnFailure &&
+          selfSubscriptionAppliedSequenceRef.current === 0
+        ) {
           setSelfData(normalizeSelfSubscriptionData(undefined))
         }
-        return false
+        return 'failed'
       }
     },
     []
@@ -333,19 +364,22 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
   }
 
-  const refreshAfterRenewal = async (syncPending: boolean) => {
-    let refreshFailed = !(await fetchSelfSubscription({
+  const refreshAfterRenewal = async (
+    result: SubscriptionRenewalLifecycleResult | undefined
+  ) => {
+    const selfRefreshResult = await fetchSelfSubscription({
       preserveOnFailure: true,
-    }))
+    })
+    if (result?.sync_pending === true && selfRefreshResult === 'applied') {
+      toast.info(t('Subscription updated; renewal status is still syncing'))
+    }
+    if (selfRefreshResult === 'failed') {
+      toast.error(t('Subscription updated, but failed to refresh status'))
+    }
     try {
       await onPurchaseSuccess?.()
     } catch {
-      refreshFailed = true
-    }
-    if (refreshFailed) {
-      toast.error(t('Subscription updated, but failed to refresh status'))
-    } else if (syncPending) {
-      toast.info(t('Subscription updated; renewal status is still syncing'))
+      // onPurchaseSuccess is best-effort and must not affect renewal reconciliation.
     }
   }
 
@@ -355,14 +389,27 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
     renewalMutationInFlightRef.current = true
     setRenewalMutationPending(true)
+    const renewalContractId = selfData.contract?.id ?? null
     try {
       const res = await cancelSubscriptionRenewal()
       if (!res.success) {
         toast.error(res.message || t('Payment request failed'))
         throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
       }
+      const optimisticSequence = ++selfSubscriptionRequestSequenceRef.current
+      setSelfData((current) => {
+        const next = applyRenewalLifecycleResultToSelfData(
+          current,
+          res.data,
+          renewalContractId
+        )
+        if (next !== current) {
+          selfSubscriptionAppliedSequenceRef.current = optimisticSequence
+        }
+        return next
+      })
       toast.success(t('Subscription renewal canceled'))
-      await refreshAfterRenewal(res.data?.sync_pending === true)
+      await refreshAfterRenewal(res.data)
     } catch (error) {
       if (
         !(error instanceof Error) ||
@@ -383,14 +430,27 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
     renewalMutationInFlightRef.current = true
     setRenewalMutationPending(true)
+    const renewalContractId = selfData.contract?.id ?? null
     try {
       const res = await resumeSubscriptionRenewal()
       if (!res.success) {
         toast.error(res.message || t('Payment request failed'))
         throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
       }
+      const optimisticSequence = ++selfSubscriptionRequestSequenceRef.current
+      setSelfData((current) => {
+        const next = applyRenewalLifecycleResultToSelfData(
+          current,
+          res.data,
+          renewalContractId
+        )
+        if (next !== current) {
+          selfSubscriptionAppliedSequenceRef.current = optimisticSequence
+        }
+        return next
+      })
       toast.success(t('Subscription renewal resumed'))
-      await refreshAfterRenewal(res.data?.sync_pending === true)
+      await refreshAfterRenewal(res.data)
     } catch (error) {
       if (
         !(error instanceof Error) ||

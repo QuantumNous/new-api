@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -284,6 +285,19 @@ func ensureStripeSecretForSubscription() error {
 }
 
 func ReconcilePaidInvoice(ctx context.Context, invoiceID string) (*PaidInvoiceReconcileResult, error) {
+	return reconcilePaidInvoice(ctx, invoiceID, nil)
+}
+
+func ReconcilePaidInvoiceWithLifecycleReservation(ctx context.Context, invoiceID string, reservation *model.SubscriptionProviderLifecycleReservation) (*PaidInvoiceReconcileResult, error) {
+	if reservation == nil ||
+		(strings.TrimSpace(reservation.Action) != model.SubscriptionProviderLifecycleActionCancel &&
+			strings.TrimSpace(reservation.Action) != model.SubscriptionProviderLifecycleActionGraceCancel) {
+		return nil, model.ErrSubscriptionProviderLifecycleConflict
+	}
+	return reconcilePaidInvoice(ctx, invoiceID, reservation)
+}
+
+func reconcilePaidInvoice(ctx context.Context, invoiceID string, reservation *model.SubscriptionProviderLifecycleReservation) (*PaidInvoiceReconcileResult, error) {
 	invoiceID = strings.TrimSpace(invoiceID)
 	if invoiceID == "" {
 		return nil, PermanentPaidInvoiceError(errors.New("Stripe invoice id is required"))
@@ -314,6 +328,9 @@ func ReconcilePaidInvoice(ctx context.Context, invoiceID string) (*PaidInvoiceRe
 	if err != nil {
 		return nil, err
 	}
+	if reservation != nil && recurringUpgrade {
+		return nil, model.ErrSubscriptionProviderLifecycleConflict
+	}
 	if recurringUpgrade {
 		facts, err = resumeStripeSubscriptionUpgradeIfNeeded(facts)
 		if err != nil {
@@ -324,6 +341,9 @@ func ReconcilePaidInvoice(ctx context.Context, invoiceID string) (*PaidInvoiceRe
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		var existingBinding model.SubscriptionProviderBinding
 		if err := tx.Where("provider = ? AND provider_subscription_id = ?", model.PaymentProviderStripe, facts.SubscriptionID).First(&existingBinding).Error; err == nil {
+			if reservation != nil && existingBinding.Id != reservation.BindingId {
+				return model.ErrSubscriptionProviderLifecycleConflict
+			}
 			if recurringUpgrade {
 				handled, err := reconcilePaidInvoiceUpgradeTx(tx, facts, result)
 				if err != nil {
@@ -334,9 +354,12 @@ func ReconcilePaidInvoice(ctx context.Context, invoiceID string) (*PaidInvoiceRe
 				}
 				return nil
 			}
-			return reconcilePaidInvoiceRenewalTx(tx, facts, result)
+			return reconcilePaidInvoiceRenewalTx(tx, facts, result, reservation)
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
+		}
+		if reservation != nil {
+			return model.ErrSubscriptionProviderLifecycleConflict
 		}
 		if !facts.hasCompletePurchaseMetadata() {
 			return nil
@@ -1067,7 +1090,7 @@ func stripeCheckoutSessionIsPaidOrComplete(checkoutSession *stripe.CheckoutSessi
 			checkoutSession.PaymentStatus == stripe.CheckoutSessionPaymentStatusPaid)
 }
 
-func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *PaidInvoiceReconcileResult) error {
+func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *PaidInvoiceReconcileResult, reservation *model.SubscriptionProviderLifecycleReservation) error {
 	commonFacts := stripeInvoiceCommonFacts{
 		InvoiceID:          facts.InvoiceID,
 		SubscriptionID:     facts.SubscriptionID,
@@ -1097,10 +1120,30 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 	if err := validateRenewalInvoiceFacts(commonFacts, binding, contract, plan, user, planSnapshot); err != nil {
 		return PermanentPaidInvoiceError(err)
 	}
-	if !canApplyPaidRenewalInvoiceToBinding(commonFacts, binding, contract) {
+	if reservation != nil {
+		if reservation.BindingId != binding.Id ||
+			reservation.UserId != binding.UserId ||
+			reservation.ContractId != contract.Id ||
+			strings.TrimSpace(reservation.ProviderSubscriptionId) != strings.TrimSpace(binding.ProviderSubscriptionId) {
+			return model.ErrSubscriptionProviderLifecycleConflict
+		}
+	}
+	canApplyRenewal := canApplyPaidRenewalInvoiceToBinding(commonFacts, binding, contract) ||
+		canApplyPaidRenewalInvoiceToNeedsAttentionReservation(commonFacts, binding, contract, reservation)
+	if !canApplyRenewal {
+		if reservation != nil {
+			authoritativeNoop, err := paidRenewalNoopCanConsumeLifecycleReservationTx(tx, facts, binding, contract)
+			if err != nil {
+				return err
+			}
+			if !authoritativeNoop {
+				return model.ErrSubscriptionProviderLifecycleConflict
+			}
+			return model.ConsumeCurrentSubscriptionProviderLifecycleReservationAfterAuthoritativeNoopTx(tx, contract.Id, reservation)
+		}
 		return nil
 	}
-	grant, err := model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
+	grantInput := model.GrantEntitlementInput{
 		ContractId:           contract.Id,
 		UserId:               binding.UserId,
 		PlanId:               plan.Id,
@@ -1116,7 +1159,13 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 		PeriodEnd:            facts.PeriodEnd,
 		EndReasonForPrevious: model.SubscriptionEntitlementEndReasonRenewed,
 		Source:               model.PaymentMethodStripe,
-	})
+	}
+	var grant *model.GrantEntitlementResult
+	if reservation != nil {
+		grant, err = model.RotateCurrentEntitlementWithLifecycleReservationTx(tx, grantInput, reservation)
+	} else {
+		grant, err = model.RotateCurrentEntitlementTx(tx, grantInput)
+	}
 	if err != nil {
 		return err
 	}
@@ -1178,8 +1227,68 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 	return nil
 }
 
+func paidRenewalNoopCanConsumeLifecycleReservationTx(tx *gorm.DB, facts paidInvoiceFacts, binding *model.SubscriptionProviderBinding, contract *model.UserSubscriptionContract) (bool, error) {
+	if tx == nil || binding == nil || contract == nil {
+		return false, nil
+	}
+	invoiceID := strings.TrimSpace(facts.InvoiceID)
+	if invoiceID == "" {
+		return false, nil
+	}
+	if contract.CurrentEntitlementId <= 0 {
+		return false, nil
+	}
+	var current model.UserSubscription
+	err := tx.Where(
+		"id = ? AND contract_id = ? AND user_id = ? AND provider_binding_id = ? AND grant_key = ? AND start_time = ? AND end_time = ?",
+		contract.CurrentEntitlementId,
+		contract.Id,
+		contract.UserId,
+		binding.Id,
+		"stripe:"+invoiceID,
+		facts.PeriodStart,
+		facts.PeriodEnd,
+	).First(&current).Error
+	if err == nil {
+		return current.Status == model.SubscriptionEntitlementStatusActive &&
+			current.CurrentSlot != nil &&
+			*current.CurrentSlot == 1, nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	return false, err
+}
+
 func canApplyPaidRenewalInvoiceToBinding(facts stripeInvoiceCommonFacts, binding *model.SubscriptionProviderBinding, contract *model.UserSubscriptionContract) bool {
 	if !canApplyInvoiceToBinding(binding, contract) {
+		return false
+	}
+	return contract.CurrentPeriodEnd <= 0 || facts.PeriodEnd > contract.CurrentPeriodEnd
+}
+
+func canApplyPaidRenewalInvoiceToNeedsAttentionReservation(facts stripeInvoiceCommonFacts, binding *model.SubscriptionProviderBinding, contract *model.UserSubscriptionContract, reservation *model.SubscriptionProviderLifecycleReservation) bool {
+	if binding == nil || contract == nil || reservation == nil {
+		return false
+	}
+	action := strings.TrimSpace(reservation.Action)
+	if action != model.SubscriptionProviderLifecycleActionCancel &&
+		action != model.SubscriptionProviderLifecycleActionGraceCancel {
+		return false
+	}
+	if contract.Status != model.SubscriptionContractStatusNeedsAttention ||
+		contract.PaymentMode != model.SubscriptionPaymentModeStripeRecurring ||
+		contract.CurrentProviderBindingId != binding.Id ||
+		binding.EndedAt > 0 ||
+		isTerminalStripeSubscriptionStatus(binding.ProviderStatus) {
+		return false
+	}
+	if binding.Id != reservation.BindingId ||
+		strings.TrimSpace(binding.ProviderSubscriptionId) != strings.TrimSpace(reservation.ProviderSubscriptionId) ||
+		binding.LifecycleActionSeq != reservation.LifecycleActionSeq ||
+		strings.TrimSpace(binding.LifecycleReservationToken) != strings.TrimSpace(reservation.Token) ||
+		strings.TrimSpace(binding.LifecycleReservationAction) != strings.TrimSpace(reservation.Action) ||
+		binding.LifecycleReservationUntil != reservation.ExpiresAt {
 		return false
 	}
 	return contract.CurrentPeriodEnd <= 0 || facts.PeriodEnd > contract.CurrentPeriodEnd
@@ -1218,6 +1327,12 @@ func lockRenewalBindingFactsTx(tx *gorm.DB, facts stripeInvoiceCommonFacts) (*mo
 	var contract model.UserSubscriptionContract
 	if err := subscriptionCommandLock(tx).Where("id = ? AND user_id = ?", binding.ContractId, binding.UserId).First(&contract).Error; err != nil {
 		return nil, nil, nil, nil, err
+	}
+	if binding.Provider != model.PaymentProviderStripe ||
+		strings.TrimSpace(binding.ProviderSubscriptionId) != strings.TrimSpace(facts.SubscriptionID) ||
+		binding.ContractId != contract.Id ||
+		binding.UserId != contract.UserId {
+		return nil, nil, nil, nil, errors.New("Stripe renewal binding ownership mismatch")
 	}
 	var plan model.SubscriptionPlan
 	if err := tx.Where("id = ?", binding.PlanId).First(&plan).Error; err != nil {
@@ -1577,8 +1692,18 @@ func validateOneTimeStripeLocalOrderFacts(order *model.SubscriptionOrder, intent
 		snapshot.WindowWeekAmount < 0 || snapshot.MediaCreditsMonthly < 0 {
 		return errors.New("local one-time subscription plan snapshot values are invalid")
 	}
-	if strings.TrimSpace(order.PaymentCurrency) == "" || order.PaymentAmountMinor <= 0 {
+	if strings.TrimSpace(order.PaymentCurrency) == "" || order.PaymentAmountMinor < 0 ||
+		order.RecallDiscountAmountMinor < 0 ||
+		order.PaymentAmountMinor > math.MaxInt64-order.RecallDiscountAmountMinor ||
+		order.PaymentAmountMinor+order.RecallDiscountAmountMinor <= 0 {
 		return errors.New("local one-time subscription payment quote is missing")
+	}
+	if order.RecallDiscountAmountMinor > 0 {
+		if order.RecallCampaignId <= 0 || order.RecallRecipientId <= 0 || strings.TrimSpace(order.RecallPromotionCodeId) == "" {
+			return errors.New("local one-time subscription recall attribution is incomplete")
+		}
+	} else if order.RecallCampaignId != 0 || order.RecallRecipientId != 0 || strings.TrimSpace(order.RecallPromotionCodeId) != "" {
+		return errors.New("local one-time subscription recall attribution requires discount")
 	}
 	switch strings.TrimSpace(order.PaymentMethod) {
 	case SubscriptionPaymentChoicePix:

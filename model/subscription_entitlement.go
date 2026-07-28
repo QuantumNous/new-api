@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -54,7 +55,7 @@ func RotateCurrentEntitlement(input GrantEntitlementInput) (*GrantEntitlementRes
 
 	var result *GrantEntitlementResult
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		applied, err := rotateCurrentEntitlementTx(tx, input)
+		applied, err := rotateCurrentEntitlementTx(tx, input, nil)
 		if err != nil {
 			return err
 		}
@@ -68,10 +69,14 @@ func RotateCurrentEntitlement(input GrantEntitlementInput) (*GrantEntitlementRes
 }
 
 func RotateCurrentEntitlementTx(tx *gorm.DB, input GrantEntitlementInput) (*GrantEntitlementResult, error) {
-	return rotateCurrentEntitlementTx(tx, input)
+	return rotateCurrentEntitlementTx(tx, input, nil)
 }
 
-func rotateCurrentEntitlementTx(tx *gorm.DB, input GrantEntitlementInput) (*GrantEntitlementResult, error) {
+func RotateCurrentEntitlementWithLifecycleReservationTx(tx *gorm.DB, input GrantEntitlementInput, reservation *SubscriptionProviderLifecycleReservation) (*GrantEntitlementResult, error) {
+	return rotateCurrentEntitlementTx(tx, input, reservation)
+}
+
+func rotateCurrentEntitlementTx(tx *gorm.DB, input GrantEntitlementInput, reservation *SubscriptionProviderLifecycleReservation) (*GrantEntitlementResult, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -85,28 +90,109 @@ func rotateCurrentEntitlementTx(tx *gorm.DB, input GrantEntitlementInput) (*Gran
 	}
 	input.applyPlanSnapshotDefaults(plan)
 
-	if existing, found, err := findGrantEntitlementByKeyTx(tx, input.GrantKey); err != nil {
+	lockedLifecycleBindings, err := lockEntitlementLifecycleReservationBindingsBeforeContractTx(tx, input)
+	if err != nil {
 		return nil, err
-	} else if found {
-		if grantMatchesInput(existing, input) {
-			return &GrantEntitlementResult{Entitlement: existing, Applied: false}, nil
-		}
-		return nil, ErrSubscriptionEntitlementGrantConflict
 	}
-
 	var contract UserSubscriptionContract
 	if err := lockQuery(tx).Where("id = ? AND user_id = ?", input.ContractId, input.UserId).
 		First(&contract).Error; err != nil {
 		return nil, err
 	}
+	if err := ensureEntitlementLifecycleReservationBindingWasLocked(contract.CurrentProviderBindingId, lockedLifecycleBindings); err != nil {
+		return nil, err
+	}
+	if err := ensureEntitlementLifecycleReservationBindingWasLocked(input.ProviderBindingId, lockedLifecycleBindings); err != nil {
+		return nil, err
+	}
+	var lifecycleNow int64
+	lifecycleNowLoaded := false
+	getLifecycleNow := func() (int64, error) {
+		if lifecycleNowLoaded {
+			return lifecycleNow, nil
+		}
+		now, err := getDBTimestampTxStrict(tx)
+		if err != nil {
+			return 0, err
+		}
+		lifecycleNow = now
+		lifecycleNowLoaded = true
+		return lifecycleNow, nil
+	}
+	if reservation != nil {
+		if reservation.BindingId <= 0 ||
+			reservation.UserId != input.UserId ||
+			reservation.ContractId != input.ContractId ||
+			input.ProviderBindingId != reservation.BindingId {
+			return nil, ErrSubscriptionProviderLifecycleConflict
+		}
+	}
 
 	if existing, found, err := findGrantEntitlementByKeyTx(tx, input.GrantKey); err != nil {
 		return nil, err
 	} else if found {
 		if grantMatchesInput(existing, input) {
+			if reservation != nil {
+				if existing.Id != contract.CurrentEntitlementId ||
+					existing.Status != SubscriptionEntitlementStatusActive ||
+					existing.CurrentSlot == nil ||
+					*existing.CurrentSlot != 1 {
+					return nil, ErrSubscriptionProviderLifecycleConflict
+				}
+				if contract.CurrentProviderBindingId != reservation.BindingId {
+					if err := ensureSubscriptionProviderLifecycleReservationConsumedTx(tx, reservation); err != nil {
+						return nil, err
+					}
+					now, err := getLifecycleNow()
+					if err != nil {
+						return nil, err
+					}
+					if err := ensureNoActiveLifecycleReservationFromLockedBinding(contract.CurrentProviderBindingId, lockedLifecycleBindings, now); err != nil {
+						return nil, err
+					}
+				} else if err := consumeSubscriptionProviderLifecycleReservationTx(tx, reservation); err != nil {
+					if !errors.Is(err, ErrSubscriptionProviderLifecycleConflict) {
+						return nil, err
+					}
+					if err := ensureSubscriptionProviderLifecycleReservationConsumedTx(tx, reservation); err != nil {
+						return nil, err
+					}
+				}
+			} else {
+				now, err := getLifecycleNow()
+				if err != nil {
+					return nil, err
+				}
+				if err := ensureNoActiveLifecycleReservationForEntitlementReplayTx(contract.CurrentProviderBindingId, input.ProviderBindingId, lockedLifecycleBindings, now); err != nil {
+					return nil, err
+				}
+			}
 			return &GrantEntitlementResult{Entitlement: existing, Applied: false}, nil
 		}
 		return nil, ErrSubscriptionEntitlementGrantConflict
+	}
+	if reservation != nil {
+		if contract.CurrentProviderBindingId != reservation.BindingId {
+			return nil, ErrSubscriptionProviderLifecycleConflict
+		}
+		if err := consumeSubscriptionProviderLifecycleReservationTx(tx, reservation); err != nil {
+			return nil, err
+		}
+		markLifecycleReservationConsumedInLockedBinding(lockedLifecycleBindings, reservation.BindingId)
+	}
+	if contract.CurrentProviderBindingId > 0 || input.ProviderBindingId > 0 {
+		now, err := getLifecycleNow()
+		if err != nil {
+			return nil, err
+		}
+		if err := ensureNoActiveLifecycleReservationFromLockedBinding(contract.CurrentProviderBindingId, lockedLifecycleBindings, now); err != nil {
+			return nil, err
+		}
+		if input.ProviderBindingId > 0 && input.ProviderBindingId != contract.CurrentProviderBindingId {
+			if err := ensureNoActiveLifecycleReservationFromLockedBinding(input.ProviderBindingId, lockedLifecycleBindings, now); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	if contract.CurrentEntitlementId > 0 {
@@ -181,6 +267,80 @@ func rotateCurrentEntitlementTx(tx *gorm.DB, input GrantEntitlementInput) (*Gran
 		return nil, err
 	}
 	return &GrantEntitlementResult{Entitlement: sub, Applied: true}, nil
+}
+
+func lockEntitlementLifecycleReservationBindingsBeforeContractTx(tx *gorm.DB, input GrantEntitlementInput) (map[int64]SubscriptionProviderBinding, error) {
+	var contract UserSubscriptionContract
+	if err := tx.Select("current_provider_binding_id").
+		Where("id = ? AND user_id = ?", input.ContractId, input.UserId).
+		First(&contract).Error; err != nil {
+		return nil, err
+	}
+	bindingIDs := make([]int64, 0, 2)
+	if contract.CurrentProviderBindingId > 0 {
+		bindingIDs = append(bindingIDs, contract.CurrentProviderBindingId)
+	}
+	if input.ProviderBindingId > 0 && input.ProviderBindingId != contract.CurrentProviderBindingId {
+		bindingIDs = append(bindingIDs, input.ProviderBindingId)
+	}
+	sort.Slice(bindingIDs, func(i, j int) bool {
+		return bindingIDs[i] < bindingIDs[j]
+	})
+	locked := make(map[int64]SubscriptionProviderBinding, len(bindingIDs))
+	for _, bindingID := range bindingIDs {
+		var binding SubscriptionProviderBinding
+		if err := lockQuery(tx).Where("id = ? AND user_id = ?", bindingID, input.UserId).First(&binding).Error; err != nil {
+			return nil, err
+		}
+		if binding.ContractId > 0 && binding.ContractId != input.ContractId {
+			return nil, ErrSubscriptionProviderLifecycleConflict
+		}
+		locked[bindingID] = binding
+	}
+	return locked, nil
+}
+
+func ensureEntitlementLifecycleReservationBindingWasLocked(bindingID int64, lockedBindings map[int64]SubscriptionProviderBinding) error {
+	if bindingID <= 0 {
+		return nil
+	}
+	if _, ok := lockedBindings[bindingID]; !ok {
+		return ErrSubscriptionProviderLifecycleConflict
+	}
+	return nil
+}
+
+func ensureNoActiveLifecycleReservationForEntitlementReplayTx(currentBindingID int64, inputBindingID int64, lockedBindings map[int64]SubscriptionProviderBinding, now int64) error {
+	if err := ensureNoActiveLifecycleReservationFromLockedBinding(currentBindingID, lockedBindings, now); err != nil {
+		return err
+	}
+	if inputBindingID > 0 && inputBindingID != currentBindingID {
+		return ensureNoActiveLifecycleReservationFromLockedBinding(inputBindingID, lockedBindings, now)
+	}
+	return nil
+}
+
+func ensureNoActiveLifecycleReservationFromLockedBinding(bindingID int64, lockedBindings map[int64]SubscriptionProviderBinding, now int64) error {
+	if bindingID <= 0 {
+		return nil
+	}
+	binding, ok := lockedBindings[bindingID]
+	if !ok {
+		return ErrSubscriptionProviderLifecycleConflict
+	}
+	if subscriptionProviderLifecycleReservationIsActive(&binding, now) {
+		return ErrSubscriptionProviderLifecycleConflict
+	}
+	return nil
+}
+
+func markLifecycleReservationConsumedInLockedBinding(lockedBindings map[int64]SubscriptionProviderBinding, bindingID int64) {
+	binding, ok := lockedBindings[bindingID]
+	if !ok {
+		return
+	}
+	binding.LifecycleReservationUntil = 0
+	lockedBindings[bindingID] = binding
 }
 
 func (input *GrantEntitlementInput) normalize() {

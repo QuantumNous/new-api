@@ -370,6 +370,11 @@ func buildOneTimePlanCheckoutSessionParams(order *model.SubscriptionOrder, user 
 			Metadata: metadata,
 		},
 	}
+	if order.RecallDiscountAmountMinor > 0 {
+		params.Discounts = []*stripe.CheckoutSessionDiscountParams{
+			{PromotionCode: stripe.String(strings.TrimSpace(order.RecallPromotionCodeId))},
+		}
+	}
 	if user != nil {
 		if strings.TrimSpace(user.StripeCustomer) != "" {
 			params.Customer = stripe.String(strings.TrimSpace(user.StripeCustomer))
@@ -389,12 +394,17 @@ func oneTimePlanQuoteFromOrder(order *model.SubscriptionOrder) (oneTimePlanPayme
 		return oneTimePlanPaymentQuote{}, errors.New("subscription order is required")
 	}
 	currency := strings.ToUpper(strings.TrimSpace(order.PaymentCurrency))
-	if currency == "" || order.PaymentAmountMinor <= 0 {
+	if currency == "" || order.PaymentAmountMinor < 0 || order.RecallDiscountAmountMinor < 0 ||
+		order.PaymentAmountMinor > math.MaxInt64-order.RecallDiscountAmountMinor {
+		return oneTimePlanPaymentQuote{}, errors.New("one-time subscription quote is unavailable")
+	}
+	checkoutAmountMinor := order.PaymentAmountMinor + order.RecallDiscountAmountMinor
+	if checkoutAmountMinor <= 0 {
 		return oneTimePlanPaymentQuote{}, errors.New("one-time subscription quote is unavailable")
 	}
 	return oneTimePlanPaymentQuote{
 		Currency:         currency,
-		TotalAmountMinor: order.PaymentAmountMinor,
+		TotalAmountMinor: checkoutAmountMinor,
 	}, nil
 }
 
