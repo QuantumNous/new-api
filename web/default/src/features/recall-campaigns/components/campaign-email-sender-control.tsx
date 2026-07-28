@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -40,6 +40,15 @@ interface SenderSyncResult {
   error: string
   selectedEmailFrom: string
 }
+
+export type RecallEmailSenderState = SenderSyncResult
+
+type RecallEmailSenderStateAction =
+  | { type: 'select'; selectedEmailFrom: string }
+  | { type: 'server-sync'; serverStatus: RecallEmailSenderStatus }
+  | { type: 'save-success'; status: RecallEmailSenderStatus }
+  | { type: 'save-failure'; message: string }
+  | { type: 'load-error' }
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function getRecallEmailSenderOptions(
@@ -116,6 +125,51 @@ export function applyRecallEmailSenderSaveFailure(
   return {
     error: message.trim() || SENDER_UPDATE_ERROR,
     selectedEmailFrom: confirmedEmailFrom,
+  }
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function reduceRecallEmailSenderState(
+  state: RecallEmailSenderState,
+  action: RecallEmailSenderStateAction
+): RecallEmailSenderState {
+  if (action.type === 'select') {
+    return {
+      ...state,
+      error: '',
+      selectedEmailFrom: action.selectedEmailFrom,
+    }
+  }
+
+  if (action.type === 'server-sync') {
+    return syncRecallEmailSenderFromServer(
+      state.selectedEmailFrom,
+      state.confirmedEmailFrom,
+      action.serverStatus
+    )
+  }
+
+  if (action.type === 'save-success') {
+    return {
+      ...state,
+      error: '',
+      ...applyRecallEmailSenderSaveSuccess(action.status),
+    }
+  }
+
+  if (action.type === 'save-failure') {
+    return {
+      ...state,
+      ...applyRecallEmailSenderSaveFailure(
+        state.confirmedEmailFrom,
+        action.message
+      ),
+    }
+  }
+
+  return {
+    ...state,
+    error: SENDER_LOAD_ERROR,
   }
 }
 
@@ -210,10 +264,11 @@ export function CampaignEmailSenderControlView(
 export function CampaignEmailSenderControl(): React.JSX.Element {
   const queryClient = useQueryClient()
   const updateSender = useMutation({ mutationFn: updateRecallEmailSender })
-  const [selectedEmailFrom, setSelectedEmailFrom] =
-    useState(DEFAULT_SENDER_VALUE)
-  const confirmedEmailFromRef = useRef(DEFAULT_SENDER_VALUE)
-  const [error, setError] = useState('')
+  const [senderState, setSenderState] = useState<RecallEmailSenderState>({
+    confirmedEmailFrom: DEFAULT_SENDER_VALUE,
+    error: '',
+    selectedEmailFrom: DEFAULT_SENDER_VALUE,
+  })
   const senderQuery = useQuery({
     queryKey: recallCampaignKeys.emailSender,
     queryFn: getRecallEmailSenderStatus,
@@ -228,67 +283,73 @@ export function CampaignEmailSenderControl(): React.JSX.Element {
 
   useEffect(() => {
     if (!senderQuery.data?.data) return
-    const serverData = senderQuery.data.data
-    const previousConfirmedEmailFrom = confirmedEmailFromRef.current
+    const serverStatusData = senderQuery.data.data
 
-    setSelectedEmailFrom((currentSelection) => {
-      const result = syncRecallEmailSenderFromServer(
-        currentSelection,
-        previousConfirmedEmailFrom,
-        serverData
-      )
-      confirmedEmailFromRef.current = result.confirmedEmailFrom
-      setError(result.error)
-      return result.selectedEmailFrom
+    setSenderState((currentState) => {
+      return reduceRecallEmailSenderState(currentState, {
+        serverStatus: serverStatusData,
+        type: 'server-sync',
+      })
     })
   }, [senderQuery.data])
 
   const save = async () => {
     if (controlState.disabled) {
-      setError(SENDER_LOAD_ERROR)
+      setSenderState((currentState) =>
+        reduceRecallEmailSenderState(currentState, { type: 'load-error' })
+      )
       return
     }
-    setError('')
+    setSenderState((currentState) => ({ ...currentState, error: '' }))
     try {
-      const response = await updateSender.mutateAsync(selectedEmailFrom)
+      const response = await updateSender.mutateAsync(
+        senderState.selectedEmailFrom
+      )
       if (!response.data) {
-        const result = applyRecallEmailSenderSaveFailure(
-          confirmedEmailFromRef.current,
-          response.message || ''
+        setSenderState((currentState) =>
+          reduceRecallEmailSenderState(currentState, {
+            message: response.message || '',
+            type: 'save-failure',
+          })
         )
-        setSelectedEmailFrom(result.selectedEmailFrom)
-        setError(result.error)
         return
       }
 
-      const result = applyRecallEmailSenderSaveSuccess(response.data)
       queryClient.setQueryData(recallCampaignKeys.emailSender, response)
-      confirmedEmailFromRef.current = result.confirmedEmailFrom
-      setSelectedEmailFrom(result.selectedEmailFrom)
+      setSenderState((currentState) =>
+        reduceRecallEmailSenderState(currentState, {
+          status: response.data as RecallEmailSenderStatus,
+          type: 'save-success',
+        })
+      )
       await queryClient.invalidateQueries({
         queryKey: recallCampaignKeys.emailSender,
       })
     } catch (updateError) {
-      const result = applyRecallEmailSenderSaveFailure(
-        confirmedEmailFromRef.current,
-        getErrorMessage(updateError)
+      setSenderState((currentState) =>
+        reduceRecallEmailSenderState(currentState, {
+          message: getErrorMessage(updateError),
+          type: 'save-failure',
+        })
       )
-      setSelectedEmailFrom(result.selectedEmailFrom)
-      setError(result.error)
     }
   }
 
   return (
     <CampaignEmailSenderControlView
       disabled={controlState.disabled}
-      error={controlState.loadError ? SENDER_LOAD_ERROR : error}
+      error={controlState.loadError ? SENDER_LOAD_ERROR : senderState.error}
       pending={updateSender.isPending}
-      selectedEmailFrom={selectedEmailFrom}
+      selectedEmailFrom={senderState.selectedEmailFrom}
       status={status}
       onSave={() => void save()}
       onSelectionChange={(value) => {
-        setSelectedEmailFrom(value)
-        setError('')
+        setSenderState((currentState) =>
+          reduceRecallEmailSenderState(currentState, {
+            selectedEmailFrom: value,
+            type: 'select',
+          })
+        )
       }}
     />
   )

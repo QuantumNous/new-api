@@ -12,6 +12,7 @@ import {
   CampaignEmailSenderControlView,
   getRecallEmailSenderControlState,
   getRecallEmailSenderOptions,
+  reduceRecallEmailSenderState,
   syncRecallEmailSenderFromServer,
 } from './campaign-email-sender-control'
 
@@ -156,6 +157,36 @@ describe('CampaignEmailSenderControl', () => {
       confirmedEmailFrom: '',
       error: 'Sender address choices changed. Review and save again.',
       selectedEmailFrom: '',
+    })
+  })
+
+  test('server sync transition is replay-safe under StrictMode updater retries', () => {
+    const dirtyMissingState = {
+      confirmedEmailFrom: '',
+      error: '',
+      selectedEmailFrom: 'missing@example.com',
+    }
+    const serverStatus = makeStatus({ configured_email_from: '' })
+
+    const firstTransition = reduceRecallEmailSenderState(dirtyMissingState, {
+      serverStatus,
+      type: 'server-sync',
+    })
+    const replayedTransition = reduceRecallEmailSenderState(dirtyMissingState, {
+      serverStatus,
+      type: 'server-sync',
+    })
+
+    expect(firstTransition).toEqual({
+      confirmedEmailFrom: '',
+      error: 'Sender address choices changed. Review and save again.',
+      selectedEmailFrom: '',
+    })
+    expect(replayedTransition).toEqual(firstTransition)
+    expect(dirtyMissingState).toEqual({
+      confirmedEmailFrom: '',
+      error: '',
+      selectedEmailFrom: 'missing@example.com',
     })
   })
 
