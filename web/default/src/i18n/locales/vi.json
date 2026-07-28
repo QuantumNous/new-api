@@ -6308,12 +6308,12 @@
     "Hourly limit must be between 1 and 100000.": "Giới hạn mỗi giờ phải từ 1 đến 100000.",
     "Failed to load email quota.": "Không thể tải hạn mức email.",
     "Save hourly limit": "Lưu giới hạn mỗi giờ",
-    "Set minimum spend": "??t m?c chi ti?u t?i thi?u",
-    "{{currency}} minimum spend": "Chi ti?u t?i thi?u b?ng {{currency}}",
-    "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.": "Nh?p m?c chi ti?u t?i thi?u cho t?ng ??n v? ti?n t? khi thanh to?n. S? ti?n kh?ng ???c t? ??ng quy ??i.",
-    "USD minimum spend is required": "B?t bu?c nh?p m?c chi ti?u t?i thi?u b?ng USD",
-    "INR minimum spend is required": "B?t bu?c nh?p m?c chi ti?u t?i thi?u b?ng INR",
-    "BRL minimum spend is required": "B?t bu?c nh?p m?c chi ti?u t?i thi?u b?ng BRL",
-    "JPY minimum spend is required": "B?t bu?c nh?p m?c chi ti?u t?i thi?u b?ng JPY"
+    "Set minimum spend": "Đặt mức chi tiêu tối thiểu",
+    "{{currency}} minimum spend": "Chi tiêu tối thiểu bằng {{currency}}",
+    "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.": "Nhập mức chi tiêu tối thiểu cho từng đơn vị tiền tệ khi thanh toán. Số tiền không được tự động quy đổi.",
+    "USD minimum spend is required": "Bắt buộc nhập mức chi tiêu tối thiểu bằng USD",
+    "INR minimum spend is required": "Bắt buộc nhập mức chi tiêu tối thiểu bằng INR",
+    "BRL minimum spend is required": "Bắt buộc nhập mức chi tiêu tối thiểu bằng BRL",
+    "JPY minimum spend is required": "Bắt buộc nhập mức chi tiêu tối thiểu bằng JPY"
   }
 }

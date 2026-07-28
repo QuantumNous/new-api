@@ -6308,12 +6308,12 @@
     "Hourly limit must be between 1 and 100000.": "每小时上限必须介于 1 到 100000。",
     "Failed to load email quota.": "无法加载邮件额度。",
     "Save hourly limit": "保存每小时上限",
-    "Set minimum spend": "??????",
-    "{{currency}} minimum spend": "{{currency}} ????",
-    "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.": "??????????????????????????",
-    "USD minimum spend is required": "???? USD ????",
-    "INR minimum spend is required": "???? INR ????",
-    "BRL minimum spend is required": "???? BRL ????",
-    "JPY minimum spend is required": "???? JPY ????"
+    "Set minimum spend": "设置最低消费金额",
+    "{{currency}} minimum spend": "{{currency}} 最低消费金额",
+    "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.": "输入每种结账币种的最低消费金额。系统不会自动换算金额。",
+    "USD minimum spend is required": "必须填写 USD 最低消费金额",
+    "INR minimum spend is required": "必须填写 INR 最低消费金额",
+    "BRL minimum spend is required": "必须填写 BRL 最低消费金额",
+    "JPY minimum spend is required": "必须填写 JPY 最低消费金额"
   }
 }

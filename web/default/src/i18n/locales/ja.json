@@ -6308,12 +6308,12 @@
     "Hourly limit must be between 1 and 100000.": "1時間上限は1～100000の範囲で指定してください。",
     "Failed to load email quota.": "メール送信上限を読み込めませんでした。",
     "Save hourly limit": "1時間上限を保存",
-    "Set minimum spend": "?????????",
-    "{{currency}} minimum spend": "{{currency}} ???????",
-    "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.": "????????????????????????????????????",
-    "USD minimum spend is required": "USD ????????????",
-    "INR minimum spend is required": "INR ????????????",
-    "BRL minimum spend is required": "BRL ????????????",
-    "JPY minimum spend is required": "JPY ????????????"
+    "Set minimum spend": "最低購入金額を設定",
+    "{{currency}} minimum spend": "{{currency}} の最低購入金額",
+    "Enter the minimum spend in each checkout currency. Amounts are not converted automatically.": "決済通貨ごとに最低購入金額を入力してください。金額は自動換算されません。",
+    "USD minimum spend is required": "USD の最低購入金額を入力してください",
+    "INR minimum spend is required": "INR の最低購入金額を入力してください",
+    "BRL minimum spend is required": "BRL の最低購入金額を入力してください",
+    "JPY minimum spend is required": "JPY の最低購入金額を入力してください"
   }
 }
