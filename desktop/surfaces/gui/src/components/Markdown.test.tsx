@@ -35,4 +35,22 @@ describe("Markdown artifact links", () => {
     render(<Markdown text="[](artifact:out/report.pdf)" />);
     expect(screen.getByTestId("artifact-chip").textContent).toContain("report.pdf");
   });
+
+  it("decodes percent-encoded non-ASCII artifact paths before opening", () => {
+    const seen: string[] = [];
+    const listener = (e: Event) => seen.push((e as CustomEvent).detail.path);
+    window.addEventListener(OPEN_ARTIFACT_EVENT, listener);
+
+    render(
+      <Markdown text="[下载《易普生方案》](artifact:易普生马来西亚暖通工程师寻访方案.md)" />,
+    );
+    const chip = screen.getByTestId("artifact-chip");
+    // Chip must show the real filename, not %E6%98%93...
+    expect(chip.textContent).toContain("易普生马来西亚暖通工程师寻访方案.md");
+    expect(chip.textContent).not.toMatch(/%E6%98%93/);
+    fireEvent.click(chip);
+    expect(seen).toEqual(["易普生马来西亚暖通工程师寻访方案.md"]);
+
+    window.removeEventListener(OPEN_ARTIFACT_EVENT, listener);
+  });
 });

@@ -1194,12 +1194,17 @@ class SessionManager:
         self, session_id: str, path: str
     ) -> tuple[Optional[Path], Optional[str]]:
         """Resolve an artifact path under the session's workspace, or (None, error)."""
+        from urllib.parse import unquote
+
         record = self.session_store.load(session_id)
         workspace = record.workspace if record else self.default_workspace
         if not workspace:
             return None, "no workspace"
         root = Path(workspace).expanduser().resolve()
-        target = (root / path).expanduser().resolve()
+        # Markdown / URL transport percent-encodes non-ASCII paths; undo so
+        # "易普生方案.md" still opens when the client sends "%E6%98%93...".
+        rel = unquote(path)
+        target = (root / rel).expanduser().resolve()
         try:
             target.relative_to(root)
         except ValueError:

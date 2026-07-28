@@ -11,7 +11,7 @@ import {
 import type { TodoItem } from "../types";
 import { AccessSection } from "./AccessSection";
 import { Icon } from "./Icon";
-import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
+import { decodeArtifactPath, Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
 import { useTranslation } from "react-i18next";
 
 type Panel = "progress" | "artifacts";
@@ -129,11 +129,22 @@ export function RightRail({
       size: 0,
       modified_at: 0,
     });
-    const match = (list: ArtifactInfo[], path: string) =>
-      list.find((a) => a.path === path || a.path.endsWith("/" + path) || a.name === path);
+    const match = (list: ArtifactInfo[], path: string) => {
+      const decoded = decodeArtifactPath(path);
+      return list.find(
+        (a) =>
+          a.path === path ||
+          a.path === decoded ||
+          a.path.endsWith("/" + path) ||
+          a.path.endsWith("/" + decoded) ||
+          a.name === path ||
+          a.name === decoded,
+      );
+    };
     const onOpen = (e: Event) => {
-      const path = String((e as CustomEvent).detail?.path || "");
-      if (!path) return;
+      const raw = String((e as CustomEvent).detail?.path || "");
+      if (!raw) return;
+      const path = decodeArtifactPath(raw);
       const found = match(artifacts, path);
       if (found) {
         setSelected(found);

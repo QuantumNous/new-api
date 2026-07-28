@@ -184,6 +184,23 @@ def test_artifact_read_rejects_path_escape(tmp_path):
     assert "escapes" in escaped["error"]
 
 
+def test_artifact_read_decodes_percent_encoded_unicode_path(tmp_path):
+    """Markdown percent-encodes Chinese filenames; read must still find the file."""
+    name = "易普生马来西亚暖通工程师寻访方案.md"
+    (tmp_path / name).write_text("# 寻访方案\n", encoding="utf-8")
+    client = _client(tmp_path, [])
+
+    from urllib.parse import quote
+
+    encoded = quote(name, safe="")
+    md = client.get(
+        "/v1/sessions/unknown/artifacts/read", params={"path": encoded}
+    ).json()
+    assert md["ok"] is True
+    assert md["kind"] == "markdown"
+    assert "寻访方案" in md["content"]
+
+
 def test_sessions_hide_scheduled_internal_runs(tmp_path):
     manager = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
     manager.session_store.save(

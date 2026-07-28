@@ -10,6 +10,15 @@ import { useTranslation } from "react-i18next";
 // the session's artifact list, App un-hides the rail.
 export const OPEN_ARTIFACT_EVENT = "ocw-open-artifact";
 
+/** micromark percent-encodes non-ASCII in link destinations; undo that for workspace paths. */
+export function decodeArtifactPath(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 function ArtifactChip({ path, title }: { path: string; title: string }) {
   const { t } = useTranslation();
   const file = path.split("/").pop() || path;
@@ -43,13 +52,22 @@ export function Markdown({ text }: { text: string }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         // artifact: is ours — keep it through the sanitizer (everything else gets the default
-        // http/https/mailto policy).
-        urlTransform={(url) => (url.startsWith("artifact:") ? url : defaultUrlTransform(url))}
+        // http/https/mailto policy). Decode percent-encoding so Chinese (etc.) paths match
+        // the real workspace filenames written by the agent.
+        urlTransform={(url) => {
+          if (!url.startsWith("artifact:")) return defaultUrlTransform(url);
+          return "artifact:" + decodeArtifactPath(url.slice("artifact:".length));
+        }}
         components={{
           a: ({ node: _n, href, children, ...props }) => {
             if (href?.startsWith("artifact:")) {
               const title = Array.isArray(children) ? children.join("") : String(children ?? "");
-              return <ArtifactChip path={href.slice("artifact:".length)} title={title} />;
+              return (
+                <ArtifactChip
+                  path={decodeArtifactPath(href.slice("artifact:".length))}
+                  title={title}
+                />
+              );
             }
             return (
               <a href={href} {...props} target="_blank" rel="noreferrer">
