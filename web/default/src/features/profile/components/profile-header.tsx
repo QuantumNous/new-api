@@ -24,8 +24,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/status-badge'
-import { getUserInitials, getDisplayName } from '../lib'
-import type { ProfileSubscriptionSummary } from '../lib'
+import {
+  getUserInitials,
+  getDisplayName,
+  type ProfileSubscriptionSummary,
+} from '../lib'
 import type { UserProfile } from '../types'
 
 // ============================================================================
