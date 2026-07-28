@@ -101,27 +101,24 @@ type CompareCopy = {
 const installCode = `npm i -g @flatkey-ai/cli
 flatkey login
 
-flatkey image generate --prompt "editorial cover, neon city at dawn" -o cover.png
-flatkey video generate --prompt "cinematic product launch clip" --model seedance2 -o launch.mp4
-flatkey audio generate --prompt "Product launch voiceover" -o voice.mp3
-flatkey credits --json`;
+Then ask your AI agent:
+"Use Flatkey CLI to generate campaign images, short videos, audio, and copy for this brief."`;
 
-const agentCode = `flatkey video generate \\
-  --prompt "UGC product demo, handheld, 9:16" \\
-  --model seedance2 \\
-  --ratio 9:16 \\
-  --dry-run \\
-  --json`;
+const agentCode = `Ask Claude Code, Codex, Cursor, or another agent:
+
+"Use Flatkey CLI to create:
+- product images
+- short video clips
+- voiceover or audio
+- hooks, captions, and ad copy
+
+Save the files locally and summarize the run."`;
 
 const compareCode = `npm i -g @flatkey-ai/cli
 flatkey login
 
-flatkey models --type video --json
-flatkey video generate \\
-  --prompt "9:16 UGC product demo with clean studio lighting" \\
-  --model seedance2 \\
-  --ratio 9:16 \\
-  -o outputs/ugc-demo.mp4`;
+Then ask your AI agent:
+"Use Flatkey CLI to turn this campaign brief into image, video, audio, and copy assets."`;
 
 export const cliLandingCopy: Record<Locale, CliLandingCopy> = withIdFallback({
   en: {

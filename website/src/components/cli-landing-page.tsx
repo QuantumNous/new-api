@@ -32,16 +32,16 @@ const mediaExamples = [
     media: "/assets/cli/ugc-ad-clips.mp4",
     poster: "/assets/cli/ugc-ad-clips.png",
     title: "9:16 UGC ad clips",
-    body: "Batch product demos, hooks, creator-style intros, and first-frame variations for paid social.",
-    command: "flatkey video generate --ratio 9:16 --prompt-file briefs/ugc.txt -o outputs/ads/",
+    body: "Tell your AI agent the product, audience, angle, and aspect ratio; let it use Flatkey CLI to produce short paid-social clips.",
+    outcome: "Output: video clips, hooks, first frames",
   },
   {
     kind: "Image",
     type: "image",
     media: "/assets/cli/campaign-hero.png",
     title: "Campaign hero images",
-    body: "Turn a launch brief into covers, landing-page visuals, product scenes, and thumbnail options.",
-    command: "flatkey image generate --prompt \"premium skincare launch hero\" -o hero.png",
+    body: "Give the agent a launch brief and brand direction; it can create cover images, landing visuals, product scenes, and variants.",
+    outcome: "Output: hero images, product scenes",
   },
   {
     kind: "Video",
@@ -49,16 +49,16 @@ const mediaExamples = [
     media: "/assets/cli/product-reveal.mp4",
     poster: "/assets/cli/product-reveal.png",
     title: "Product reveal sequences",
-    body: "Use first-frame and last-frame inputs to make repeatable reveal clips for the same SKU.",
-    command: "flatkey video generate --first-frame packshot.png --last-frame reveal.png -o reveal.mp4",
+    body: "Ask the agent to start from a product shot, plan reveal directions, generate clips, and keep the usable files together.",
+    outcome: "Output: reveal clips, edit-ready files",
   },
   {
     kind: "Image",
     type: "image",
     media: "/assets/cli/thumbnail-test-set.png",
     title: "Thumbnail test sets",
-    body: "Generate twenty visual directions, save them locally, and let an agent rank or caption them.",
-    command: "flatkey image batch --prompts thumbnails.csv -o outputs/thumbs/",
+    body: "Let an agent explore thumbnail directions, generate options, rank what works, and write titles or overlays.",
+    outcome: "Output: thumbnail sets, ranking notes",
   },
   {
     kind: "Video",
@@ -66,16 +66,16 @@ const mediaExamples = [
     media: "/assets/cli/localized-variants.mp4",
     poster: "/assets/cli/localized-variants.png",
     title: "Localized market variants",
-    body: "Create Brazil, Japan, and US versions with different text overlays, mood, and aspect ratios.",
-    command: "flatkey video batch --brief launch.md --markets us,br,jp --json",
+    body: "Give the agent markets and constraints; it can create localized visuals, clips, voiceover direction, captions, and copy.",
+    outcome: "Output: localized image, video, audio, copy",
   },
   {
     kind: "Image + Video",
     type: "image",
     media: "/assets/cli/storyboard-motion.png",
     title: "Storyboard to motion",
-    body: "Generate still frames first, pick the best shots, then turn them into short motion clips.",
-    command: "flatkey storyboard run --brief storyboard.md -o outputs/story/",
+    body: "Ask the agent to draft scenes, create still frames, choose the best direction, and turn the storyboard into motion assets.",
+    outcome: "Output: storyboard frames, motion assets",
   },
 ] as const;
 
@@ -306,7 +306,7 @@ function MediaExamples() {
               <div className="p-5">
                 <h3 className="font-semibold tracking-tight">{example.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-[#626861] dark:text-[#b7bdb4]">{example.body}</p>
-                <code className="mt-4 block rounded-md bg-[#111412] p-3 text-[11px] leading-5 whitespace-pre-wrap text-emerald-100">{example.command}</code>
+                <p className="mt-4 rounded-md bg-[#111412] p-3 text-[11px] leading-5 font-semibold tracking-[0.08em] text-emerald-100 uppercase">{example.outcome}</p>
               </div>
             </article>
           ))}

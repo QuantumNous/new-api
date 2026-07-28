@@ -43,7 +43,7 @@ body{background:#F8F7F2;color:#151615}
 .play:after{content:"";position:absolute;left:17px;top:13px;border-top:8px solid transparent;border-bottom:8px solid transparent;border-left:12px solid #fff}
 .caseKind,.play{z-index:2}
 .caseBody{padding:20px}.caseBody h3{font-size:16px;font-weight:760;letter-spacing:-.25px}.caseBody p{font-size:14px;line-height:1.62;color:#626861;margin-top:8px}
-.caseBody code{display:block;margin-top:14px;border-radius:8px;background:#111412;color:#DDFBE9;padding:12px;font-family:var(--mono);font-size:11px;line-height:1.6;white-space:pre-wrap}
+.caseOutcome{display:block;margin-top:14px;border-radius:8px;background:#111412;color:#DDFBE9;padding:12px;font-size:11px;line-height:1.6;font-weight:800;letter-spacing:1px;text-transform:uppercase}
 .split{display:grid;grid-template-columns:.9fr 1.1fr;gap:36px;align-items:end}
 .kicker{font-family:var(--mono);font-size:11px;letter-spacing:1.9px;color:#047857;font-weight:800;text-transform:uppercase;margin-bottom:12px}
 .split h2,.use h2,.faq h2{font-family:var(--disp);font-size:38px;line-height:1.1;letter-spacing:-1.2px;font-weight:650}
@@ -125,10 +125,8 @@ body{background:#F8F7F2;color:#151615}
       <div class="term"><div class="termHead"><span>Install and create</span><span class="dol">$</span></div><pre>npm i -g @flatkey-ai/cli
 flatkey login
 
-flatkey image generate --prompt "editorial cover, neon city at dawn" -o cover.png
-flatkey video generate --prompt "cinematic product launch clip" --model seedance2 -o launch.mp4
-flatkey audio generate --prompt "Product launch voiceover" -o voice.mp3
-flatkey credits --json</pre></div>
+Then ask your AI agent:
+"Use Flatkey CLI to generate campaign images, short videos, audio, and copy for this brief."</pre></div>
     </div>
   </div>
 </section>
@@ -140,12 +138,12 @@ flatkey credits --json</pre></div>
       <p>Install once, run <code>flatkey login</code>, then batch images and videos from briefs, folders, CSVs, or agents.</p>
     </div>
     <div class="caseGrid">
-      <article class="caseCard"><div class="caseVisual"><video class="caseMedia" autoplay muted loop playsinline preload="metadata" poster="assets/cli/ugc-ad-clips.png"><source src="assets/cli/ugc-ad-clips.mp4" type="video/mp4"></video><span class="caseKind">Video</span><span class="play"></span></div><div class="caseBody"><h3>9:16 UGC ad clips</h3><p>Batch product demos, hooks, creator-style intros, and first-frame variations for paid social.</p><code>flatkey video generate --ratio 9:16 --prompt-file briefs/ugc.txt -o outputs/ads/</code></div></article>
-      <article class="caseCard"><div class="caseVisual"><img class="caseMedia" src="assets/cli/campaign-hero.png" alt="Campaign hero image generated with Flatkey CLI"><span class="caseKind">Image</span></div><div class="caseBody"><h3>Campaign hero images</h3><p>Turn a launch brief into covers, landing-page visuals, product scenes, and thumbnail options.</p><code>flatkey image generate --prompt "premium skincare launch hero" -o hero.png</code></div></article>
-      <article class="caseCard"><div class="caseVisual"><video class="caseMedia" autoplay muted loop playsinline preload="metadata" poster="assets/cli/product-reveal.png"><source src="assets/cli/product-reveal.mp4" type="video/mp4"></video><span class="caseKind">Video</span><span class="play"></span></div><div class="caseBody"><h3>Product reveal sequences</h3><p>Use first-frame and last-frame inputs to make repeatable reveal clips for the same SKU.</p><code>flatkey video generate --first-frame packshot.png --last-frame reveal.png -o reveal.mp4</code></div></article>
-      <article class="caseCard"><div class="caseVisual"><img class="caseMedia" src="assets/cli/thumbnail-test-set.png" alt="Thumbnail variants generated with Flatkey CLI"><span class="caseKind">Image</span></div><div class="caseBody"><h3>Thumbnail test sets</h3><p>Generate twenty visual directions, save them locally, and let an agent rank or caption them.</p><code>flatkey image batch --prompts thumbnails.csv -o outputs/thumbs/</code></div></article>
-      <article class="caseCard"><div class="caseVisual"><video class="caseMedia" autoplay muted loop playsinline preload="metadata" poster="assets/cli/localized-variants.png"><source src="assets/cli/localized-variants.mp4" type="video/mp4"></video><span class="caseKind">Video</span><span class="play"></span></div><div class="caseBody"><h3>Localized market variants</h3><p>Create Brazil, Japan, and US versions with different text overlays, mood, and aspect ratios.</p><code>flatkey video batch --brief launch.md --markets us,br,jp --json</code></div></article>
-      <article class="caseCard"><div class="caseVisual"><img class="caseMedia" src="assets/cli/storyboard-motion.png" alt="Storyboard frames generated with Flatkey CLI"><span class="caseKind">Image + Video</span><span class="play"></span></div><div class="caseBody"><h3>Storyboard to motion</h3><p>Generate still frames first, pick the best shots, then turn them into short motion clips.</p><code>flatkey storyboard run --brief storyboard.md -o outputs/story/</code></div></article>
+      <article class="caseCard"><div class="caseVisual"><video class="caseMedia" autoplay muted loop playsinline preload="metadata" poster="assets/cli/ugc-ad-clips.png"><source src="assets/cli/ugc-ad-clips.mp4" type="video/mp4"></video><span class="caseKind">Video</span><span class="play"></span></div><div class="caseBody"><h3>9:16 UGC ad clips</h3><p>Tell your AI agent the product, audience, angle, and aspect ratio; let it use Flatkey CLI to produce short paid-social clips.</p><span class="caseOutcome">Output: video clips, hooks, first frames</span></div></article>
+      <article class="caseCard"><div class="caseVisual"><img class="caseMedia" src="assets/cli/campaign-hero.png" alt="Campaign hero image generated with Flatkey CLI"><span class="caseKind">Image</span></div><div class="caseBody"><h3>Campaign hero images</h3><p>Give the agent a launch brief and brand direction; it can create cover images, landing visuals, product scenes, and variants.</p><span class="caseOutcome">Output: hero images, product scenes</span></div></article>
+      <article class="caseCard"><div class="caseVisual"><video class="caseMedia" autoplay muted loop playsinline preload="metadata" poster="assets/cli/product-reveal.png"><source src="assets/cli/product-reveal.mp4" type="video/mp4"></video><span class="caseKind">Video</span><span class="play"></span></div><div class="caseBody"><h3>Product reveal sequences</h3><p>Ask the agent to start from a product shot, plan reveal directions, generate clips, and keep the usable files together.</p><span class="caseOutcome">Output: reveal clips, edit-ready files</span></div></article>
+      <article class="caseCard"><div class="caseVisual"><img class="caseMedia" src="assets/cli/thumbnail-test-set.png" alt="Thumbnail variants generated with Flatkey CLI"><span class="caseKind">Image</span></div><div class="caseBody"><h3>Thumbnail test sets</h3><p>Let an agent explore thumbnail directions, generate options, rank what works, and write titles or overlays.</p><span class="caseOutcome">Output: thumbnail sets, ranking notes</span></div></article>
+      <article class="caseCard"><div class="caseVisual"><video class="caseMedia" autoplay muted loop playsinline preload="metadata" poster="assets/cli/localized-variants.png"><source src="assets/cli/localized-variants.mp4" type="video/mp4"></video><span class="caseKind">Video</span><span class="play"></span></div><div class="caseBody"><h3>Localized market variants</h3><p>Give the agent markets and constraints; it can create localized visuals, clips, voiceover direction, captions, and copy.</p><span class="caseOutcome">Output: localized image, video, audio, copy</span></div></article>
+      <article class="caseCard"><div class="caseVisual"><img class="caseMedia" src="assets/cli/storyboard-motion.png" alt="Storyboard frames generated with Flatkey CLI"><span class="caseKind">Image + Video</span><span class="play"></span></div><div class="caseBody"><h3>Storyboard to motion</h3><p>Ask the agent to draft scenes, create still frames, choose the best direction, and turn the storyboard into motion assets.</p><span class="caseOutcome">Output: storyboard frames, motion assets</span></div></article>
     </div>
   </div>
 </section>
@@ -170,12 +168,13 @@ flatkey credits --json</pre></div>
   <div class="cliIn">
     <div class="panelGrid">
       <article class="panel"><div class="panelIcon">K</div><h2>One key. One balance. One ledger.</h2><p>Every command runs through Flatkey. Teams can see credits, model usage, request history, and cost behavior in one place instead of spreading media production across separate subscriptions.</p><ul><li>Check credits before a run.</li><li>Use dry-run before spending.</li><li>Keep generated files and request output tied to the same job folder.</li></ul></article>
-      <article class="panel"><div class="panelIcon">$</div><h2>Human-friendly. Agent-ready.</h2><p>Run Flatkey directly when you want control. Add --json, --dry-run, and --output when an AI agent or script needs predictable behavior.</p><ul><li>Predictable stdout for automation.</li><li>Local outputs for editing and review.</li><li>Model discovery before choosing a generation route.</li></ul><div class="term" style="margin-top:20px"><div class="termHead"><span>automation</span><span class="dol">$</span></div><pre>flatkey video generate \
-  --prompt "UGC product demo, handheld, 9:16" \
-  --model seedance2 \
-  --ratio 9:16 \
-  --dry-run \
-  --json</pre></div></article>
+      <article class="panel"><div class="panelIcon">$</div><h2>Human-friendly. Agent-ready.</h2><p>Run Flatkey directly when you want control, or let an AI agent operate the CLI for repeatable media production.</p><ul><li>AI agents can plan, generate, save, and summarize.</li><li>Local outputs for editing and review.</li><li>One CLI surface for images, videos, audio, and copy.</li></ul><div class="term" style="margin-top:20px"><div class="termHead"><span>ask your agent</span><span class="dol">$</span></div><pre>Use Flatkey CLI to create:
+- product images
+- short video clips
+- voiceover or audio
+- hooks, captions, and ad copy
+
+Save the files locally and summarize the run.</pre></div></article>
     </div>
   </div>
 </section>
