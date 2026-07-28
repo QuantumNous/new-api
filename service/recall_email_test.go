@@ -1045,6 +1045,82 @@ func TestRecallMaintenanceTreatsEmailQuotaWaitAsBackpressure(t *testing.T) {
 	require.NotContains(t, logOutput.String(), "recall email maintenance failed")
 }
 
+func TestRecallMaintenanceLogsQuotaWaitWithLeaseCleanupFailure(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	setRecallEmailHourlyLimit(t, 2)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
+		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
+	}).Error)
+	_, _, secondMessage := addRecallEmailBatchMessage(t, fixture, "quota-cleanup-failure", recallEmailTestNow)
+	quotaStatus, err := model.GetRecallEmailQuotaStatusWithContext(context.Background(), 2)
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.RecallEmailQuotaWindow{WindowStartedAt: quotaStatus.WindowStartedAt}).Error)
+	setRecallRuntimeForTest(t, &RecallRuntime{
+		Campaigns:  NewRecallCampaignService(NewRecallAudienceSelector(), NewRecallStripeService(&recallStripeFakeClient{})),
+		Claims:     fixture.claims,
+		Recipients: NewRecallRecipientWorker(NewRecallStripeService(&recallStripeFakeClient{}), fixture.claims, fixture.worker.owner),
+		Emails:     fixture.worker,
+	})
+
+	var quotaRaceInjected bool
+	updateCallbacks := model.DB.Callback().Update()
+	injectQuotaRaceCallback := "recall_email_inject_quota_race_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, updateCallbacks.Before("gorm:update").Register(injectQuotaRaceCallback, func(tx *gorm.DB) {
+		if quotaRaceInjected || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallMessage" || recallEmailUpdateState(tx) != model.RecallMessageSending {
+			return
+		}
+		quotaRaceInjected = true
+		if err := tx.Session(&gorm.Session{NewDB: true}).Model(&model.RecallEmailQuotaWindow{}).
+			Where("window_started_at = ?", quotaStatus.WindowStartedAt).
+			Update("attempts", 2).Error; err != nil {
+			tx.AddError(err)
+		}
+	}))
+	t.Cleanup(func() { _ = updateCallbacks.Remove(injectQuotaRaceCallback) })
+	var retryReleaseSeen bool
+	failRemainingReleaseCallback := "recall_email_fail_remaining_release_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, updateCallbacks.Before("gorm:update").Register(failRemainingReleaseCallback, func(tx *gorm.DB) {
+		if !quotaRaceInjected || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallMessage" {
+			return
+		}
+		if !retryReleaseSeen {
+			retryReleaseSeen = true
+			return
+		}
+		tx.AddError(errors.New("injected release remaining recall email lease failure"))
+	}))
+	t.Cleanup(func() { _ = updateCallbacks.Remove(failRemainingReleaseCallback) })
+
+	var logOutput bytes.Buffer
+	common.LogWriterMu.Lock()
+	originalErrorWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logOutput
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultErrorWriter = originalErrorWriter
+		common.LogWriterMu.Unlock()
+	})
+
+	RunRecallMaintenanceTick(context.Background())
+
+	firstStored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	secondStored := loadRecallEmailMessageByID(t, secondMessage.Id)
+	require.Contains(t, logOutput.String(), "recall email maintenance failed", "quotaRaceInjected=%v retryReleaseSeen=%v first=%s second=%s", quotaRaceInjected, retryReleaseSeen, firstStored.State, secondStored.State)
+	require.True(t, quotaRaceInjected)
+	require.True(t, retryReleaseSeen)
+	require.Equal(t, model.RecallMessageLeased, secondStored.State)
+}
+
+func recallEmailUpdateState(tx *gorm.DB) string {
+	updates, ok := tx.Statement.Dest.(map[string]any)
+	if !ok {
+		return ""
+	}
+	state, _ := updates["state"].(string)
+	return state
+}
+
 func TestRecallEmailProcessLeasedDefersOwnedLeaseUntilQuotaReset(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
 	setRecallEmailHourlyLimit(t, 1)
