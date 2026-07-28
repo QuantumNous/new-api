@@ -355,7 +355,10 @@ export function getMatchingPaymentQuote(
   if (quote.months !== normalizeFlexibleMonths(paymentChoice, months)) {
     return undefined
   }
-  if (typeof quote.quote_id !== 'string' || quote.quote_id.trim().length === 0) {
+  if (
+    typeof quote.quote_id !== 'string' ||
+    quote.quote_id.trim().length === 0
+  ) {
     return undefined
   }
   if (

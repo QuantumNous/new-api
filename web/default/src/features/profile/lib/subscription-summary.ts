@@ -112,7 +112,9 @@ function normalizeUsageWindow(
   }
 }
 
-function normalizeQuotaWindow(quota: SubscriptionQuota): ProfileUsageWindowSummary {
+function normalizeQuotaWindow(
+  quota: SubscriptionQuota
+): ProfileUsageWindowSummary {
   const totalQuota = finiteNonNegative(quota.amount_total)
   const usedQuota = finiteNonNegative(quota.amount_used)
   const remainingQuota =
