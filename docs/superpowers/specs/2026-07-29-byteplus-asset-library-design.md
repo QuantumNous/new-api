@@ -82,7 +82,7 @@ Content-Type: application/json
 
 请求规则：
 
-- `url` 必填，必须是 BytePlus 可访问的绝对 HTTP/HTTPS 公网地址；Flatkey 不主动下载该 URL；
+- `url` 必填，必须是 BytePlus 可访问的绝对 HTTPS 公网地址；Flatkey 不主动下载该 URL；
 - `asset_type` 必须是 `Image`、`Video` 或 `Audio`；
 - `moderation` 可省略；省略时发送 `Default`；
 - `moderation.strategy` 只允许 `Default` 或 `Skip`；

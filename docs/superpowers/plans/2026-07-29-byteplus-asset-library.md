@@ -139,7 +139,7 @@ Expected: PASS. Commit with Directive: never expose credentials or upstream grou
 
 - [ ] **Step 1: Write failing validation and orchestration tests**
 
-Test public request, moderation, response, and public error DTOs. Assert public absolute HTTP(S) URL validation, rejection of local/private literal hosts and userinfo, Image/Video/Audio, default Default, explicit Skip, stable codes, BytePlus-only enabled model-capable structured channels, token-specific channel enforcement, active group reuse, fresh lease initializing, stale takeover, local Creating before upstream, Processing after create, ownership-scoped status refresh, sanitized failure, and omission of upstream/group/channel/project/source fields.
+Test public request, moderation, response, and public error DTOs. Assert public absolute HTTPS URL validation, rejection of cleartext HTTP, local/private literal hosts, and userinfo, Image/Video/Audio, default Default, explicit Skip, stable codes, BytePlus-only enabled model-capable structured channels, token-specific channel enforcement, active group reuse, fresh lease initializing, stale takeover, local Creating before upstream, Processing after create, ownership-scoped status refresh, sanitized failure, and omission of upstream/group/channel/project/source fields.
 
 - [ ] **Step 2: Verify RED**
 
