@@ -40,27 +40,39 @@ func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing
 }
 
 func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *testing.T) {
-	req := &dto.GeneralOpenAIRequest{
-		Model:          "qwen-plus",
-		EnableThinking: json.RawMessage(`true`),
-		ThinkingBudget: json.RawMessage(`0`),
-		Messages: []dto.Message{
-			{Role: "user", Content: "hello"},
-		},
+	tests := []struct {
+		name   string
+		budget json.RawMessage
+		want   int64
+	}{
+		{name: "positive budget", budget: json.RawMessage(`128`), want: 128},
+		{name: "zero budget", budget: json.RawMessage(`0`), want: 0},
 	}
 
-	got, err := ChatCompletionsRequestToResponsesRequest(req)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &dto.GeneralOpenAIRequest{
+				Model:          "qwen-plus",
+				EnableThinking: json.RawMessage(`true`),
+				ThinkingBudget: tt.budget,
+				Messages: []dto.Message{
+					{Role: "user", Content: "hello"},
+				},
+			}
 
-	assert.Equal(t, json.RawMessage(`0`), got.ThinkingBudget)
+			got, err := ChatCompletionsRequestToResponsesRequest(req)
+			require.NoError(t, err)
+			assert.Equal(t, tt.budget, got.ThinkingBudget)
 
-	encoded, err := kitutil.Marshal(got)
-	require.NoError(t, err)
+			encoded, err := kitutil.Marshal(got)
+			require.NoError(t, err)
 
-	assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
-	value := gjson.GetBytes(encoded, "thinking_budget")
-	assert.True(t, value.Exists())
-	assert.Equal(t, int64(0), value.Int())
+			assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
+			value := gjson.GetBytes(encoded, "thinking_budget")
+			assert.True(t, value.Exists())
+			assert.Equal(t, tt.want, value.Int())
+		})
+	}
 }
 
 func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testing.T) {

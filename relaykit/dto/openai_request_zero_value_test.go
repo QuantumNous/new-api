@@ -104,6 +104,8 @@ func TestIsQwenThinkingBudgetModel(t *testing.T) {
 		{model: "qwen-plus", want: true},
 		{model: "Qwen/Qwen3-235B-A22B-Thinking-2507", want: true},
 		{model: "qwq-32b", want: true},
+		{model: "provider/qwen-plus", want: true},
+		{model: "provider/qwq-32b", want: true},
 		{model: "gpt-4.1", want: false},
 		{model: "deepseek-r1", want: false},
 	}
