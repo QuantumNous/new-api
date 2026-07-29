@@ -133,3 +133,24 @@ func HeaderNavModulePublicOrUserAuth(module string) gin.HandlerFunc {
 		TryUserAuth()(c)
 	}
 }
+
+// HeaderNavModuleRequiredAuth gates a module that must always require an
+// authenticated user when enabled (e.g. usage leaderboards that surface user
+// data). The RequireAuth flag is intentionally ignored so existing
+// deployments cannot accidentally expose the module publicly before an admin
+// opts in via settings.
+func HeaderNavModuleRequiredAuth(module string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		access := getHeaderNavAccess(module)
+		if !access.Enabled {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("%s is disabled", module),
+			})
+			c.Abort()
+			return
+		}
+
+		UserAuth()(c)
+	}
+}

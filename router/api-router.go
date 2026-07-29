@@ -39,6 +39,13 @@ func SetApiRouter(router *gin.Engine) {
 			perfMetricsRoute.GET("", controller.GetPerfMetrics)
 		}
 		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), controller.GetRankings)
+		// Usage leaderboards expose per-user data, so the module always
+		// requires an authenticated session when enabled.
+		usageRoute := apiRouter.Group("/usage", middleware.HeaderNavModuleRequiredAuth("usage"))
+		{
+			usageRoute.GET("/leaderboard", controller.GetUsageLeaderboard)
+			usageRoute.GET("/checkin", controller.GetCheckinLeaderboard)
+		}
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)

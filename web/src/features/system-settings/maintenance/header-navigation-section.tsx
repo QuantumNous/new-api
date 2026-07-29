@@ -55,6 +55,7 @@ const headerNavSchema = z.object({
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
   rankingsRequireAuth: z.boolean(),
+  usage: z.boolean(),
   docs: z.boolean(),
   about: z.boolean(),
 })
@@ -89,6 +90,10 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.rankings?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.rankings.requireAuth
       : Boolean(config.rankings.requireAuth),
+  usage:
+    config.usage?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.usage.enabled
+      : Boolean(config.usage.enabled),
   docs:
     config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
   about:
@@ -131,6 +136,11 @@ export function HeaderNavigationSection({
         enabled: values.rankingsEnabled,
         requireAuth: values.rankingsRequireAuth,
       },
+      // usage always requires auth (per-user data); admin can only toggle it.
+      usage: {
+        enabled: values.usage,
+        requireAuth: true,
+      },
     }
 
     const serialized = serializeHeaderNavModules(payload)
@@ -162,6 +172,13 @@ export function HeaderNavigationSection({
       key: 'console',
       title: t('Console'),
       description: t('User dashboard and quota controls.'),
+    },
+    {
+      key: 'usage',
+      title: t('Usage'),
+      description: t(
+        'Usage leaderboard with daily check-in rankings. Requires login.'
+      ),
     },
     {
       key: 'docs',

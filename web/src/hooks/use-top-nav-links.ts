@@ -86,6 +86,12 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
   }
 
+  // Usage leaderboard — always requires auth (per-user data).
+  const usage = modules?.usage
+  if (usage && typeof usage === 'object' && usage.enabled) {
+    links.push({ title: t('Usage'), href: '/usage', requiresAuth: !isAuthed })
+  }
+
   // Docs (supports external links)
   if (modules?.docs !== false) {
     if (docsLink) {

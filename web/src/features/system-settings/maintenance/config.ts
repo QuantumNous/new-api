@@ -26,6 +26,7 @@ export type HeaderNavModulesConfig = {
   console: boolean
   pricing: HeaderNavAccessConfig
   rankings: HeaderNavAccessConfig
+  usage: HeaderNavAccessConfig
   docs: boolean
   about: boolean
   [key: string]: boolean | HeaderNavAccessConfig
@@ -48,6 +49,11 @@ export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
   rankings: {
     enabled: true,
     requireAuth: false,
+  },
+  // Usage exposes per-user data, so requireAuth is always true.
+  usage: {
+    enabled: true,
+    requireAuth: true,
   },
   docs: true,
   about: true,
@@ -99,6 +105,7 @@ const cloneHeaderNavDefault = (): HeaderNavModulesConfig => ({
   ...HEADER_NAV_DEFAULT,
   pricing: { ...HEADER_NAV_DEFAULT.pricing },
   rankings: { ...HEADER_NAV_DEFAULT.rankings },
+  usage: { ...HEADER_NAV_DEFAULT.usage },
 })
 
 const parseAccessModule = (
@@ -147,6 +154,7 @@ export function parseHeaderNavModules(
       ...base,
       pricing: { ...base.pricing },
       rankings: { ...base.rankings },
+      usage: { ...base.usage },
     }
 
     Object.entries(parsed).forEach(([key, raw]) => {
@@ -156,6 +164,13 @@ export function parseHeaderNavModules(
       }
       if (key === 'rankings') {
         result.rankings = parseAccessModule(raw, base.rankings)
+        return
+      }
+      if (key === 'usage') {
+        const parsedUsage = parseAccessModule(raw, base.usage)
+        // requireAuth is hard-locked for usage (per-user data).
+        parsedUsage.requireAuth = true
+        result.usage = parsedUsage
         return
       }
 
