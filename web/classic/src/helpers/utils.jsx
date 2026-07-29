@@ -18,7 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { Toast, Pagination } from '@douyinfe/semi-ui';
-import { toastConstants, BILLING_PRICING_VARS, BILLING_VAR_REGEX } from '../constants';
+import {
+  toastConstants,
+  BILLING_PRICING_VARS,
+  BILLING_VAR_REGEX,
+} from '../constants';
 import { getQuotaPerUnit } from './quota';
 import React from 'react';
 import { toast } from 'react-toastify';
@@ -615,15 +619,43 @@ export const selectFilter = (input, option) => {
 
 // -------------------------------
 // 模型定价计算工具函数
+export const formatPriceWithCeiling = (value, precision = 2) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return '-';
+
+  const factor = 10 ** precision;
+  const scaled = numericValue * factor;
+  const tolerance = Number.EPSILON * Math.max(1, Math.abs(scaled));
+  return (Math.ceil(scaled - tolerance) / factor).toFixed(precision);
+};
+
+export const getModelPricingCurrencyConfig = () => {
+  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  let symbol = '$';
+  let rate = quotaDisplayType === 'CNY' ? 7.3 : 1;
+
+  try {
+    const status = JSON.parse(localStorage.getItem('status') || '{}');
+    if (quotaDisplayType === 'CNY') {
+      symbol = '¥';
+      rate = status?.usd_exchange_rate || 7.3;
+    } else if (quotaDisplayType === 'CUSTOM') {
+      symbol = status?.custom_currency_symbol || '¤';
+      rate = status?.custom_currency_exchange_rate || 1;
+    }
+  } catch (e) {}
+
+  return { symbol, rate };
+};
+
 export const calculateModelPrice = ({
   record,
   selectedGroup,
   groupRatio,
   tokenUnit,
   displayPrice,
-  currency,
   quotaDisplayType = 'USD',
-  precision = 4,
+  precision = 2,
   pointsEnabled = false,
   quotaPerPoint = 0,
   pointsEnabledGroups = [],
@@ -697,28 +729,12 @@ export const calculateModelPrice = ({
       };
     }
 
-    let symbol = '$';
-    if (currency === 'CNY') {
-      symbol = '¥';
-    } else if (currency === 'CUSTOM') {
-      try {
-        const statusStr = localStorage.getItem('status');
-        if (statusStr) {
-          const s = JSON.parse(statusStr);
-          symbol = s?.custom_currency_symbol || '¤';
-        } else {
-          symbol = '¤';
-        }
-      } catch (e) {
-        symbol = '¤';
-      }
-    }
-
     const formatTokenPrice = (priceUSD) => {
-      const rawDisplayPrice = displayPrice(priceUSD);
+      const rawDisplayPrice = displayPrice(priceUSD, 12);
+      const symbol = rawDisplayPrice.replace(/[-\d.,\s]/g, '');
       const numericPrice =
-        parseFloat(rawDisplayPrice.replace(/[^0-9.]/g, '')) / unitDivisor;
-      return `${symbol}${numericPrice.toFixed(precision)}`;
+        Number(rawDisplayPrice.replace(/[^0-9.-]/g, '')) / unitDivisor;
+      return `${symbol}${formatPriceWithCeiling(numericPrice, precision)}`;
     };
 
     const inputPrice = formatTokenPrice(inputRatioPriceUSD);
@@ -774,7 +790,9 @@ export const calculateModelPrice = ({
         ? formatTokenPrice(inputRatioPriceUSD * Number(record.cache_ratio))
         : null,
       createCachePrice: hasRatioValue(record.create_cache_ratio)
-        ? formatTokenPrice(inputRatioPriceUSD * Number(record.create_cache_ratio))
+        ? formatTokenPrice(
+            inputRatioPriceUSD * Number(record.create_cache_ratio),
+          )
         : null,
       imagePrice: hasRatioValue(record.image_ratio)
         ? formatTokenPrice(inputRatioPriceUSD * Number(record.image_ratio))
@@ -799,7 +817,13 @@ export const calculateModelPrice = ({
   if (record.quota_type === 1) {
     // 按次计费
     const priceUSD = parseFloat(record.model_price) * usedGroupRatio;
-    const displayVal = displayPrice(priceUSD);
+    const rawDisplayPrice = displayPrice(priceUSD, 12);
+    const symbol = rawDisplayPrice.replace(/[-\d.,\s]/g, '');
+    const numericPrice = Number(rawDisplayPrice.replace(/[^0-9.-]/g, ''));
+    const displayVal = `${symbol}${formatPriceWithCeiling(
+      numericPrice,
+      precision,
+    )}`;
 
     return {
       price: displayVal,
@@ -831,11 +855,7 @@ export const calculateModelPrice = ({
   };
 };
 
-export const getModelPriceItems = (
-  priceData,
-  t,
-  quotaDisplayType = 'USD',
-) => {
+export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
   // 在每个货币价格项后追加对应「积分价」行（仅当该模型分组可积分消费，§8bis）
   const appendPoints = (items) => {
     const pm = priceData.points;
@@ -969,7 +989,10 @@ export const getModelPriceItems = (
         value: priceData.audioOutputPrice,
         suffix: unitSuffix,
       },
-    ]).filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+    ]).filter(
+      (item) =>
+        item.value !== null && item.value !== undefined && item.value !== '',
+    );
   }
 
   return appendPoints(
@@ -989,21 +1012,12 @@ export const getModelPriceItems = (
 
 // 格式化动态计费摘要（用于卡片视图，与 formatPriceInfo 风格统一）
 export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
-  if (!billingExpr) return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('动态计费')}</span>;
+  if (!billingExpr)
+    return (
+      <span style={{ color: 'var(--semi-color-text-1)' }}>{t('动态计费')}</span>
+    );
 
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
-  let symbol = '$';
-  let rate = 1;
-  try {
-    const s = JSON.parse(localStorage.getItem('status') || '{}');
-    if (quotaDisplayType === 'CNY') {
-      symbol = '¥';
-      rate = s?.usd_exchange_rate || 7;
-    } else if (quotaDisplayType === 'CUSTOM') {
-      symbol = s?.custom_currency_symbol || '¤';
-      rate = s?.custom_currency_exchange_rate || 1;
-    }
-  } catch (e) {}
+  const { symbol, rate } = getModelPricingCurrencyConfig();
 
   const gr = groupRatio || 1;
   const exprBody = billingExpr.replace(/^v\d+:/, '');
@@ -1020,7 +1034,9 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
 
   const varLabels = BILLING_PRICING_VARS.map((v) => [v.key, v.label]);
 
-  const hasTimeCondition = /\b(?:hour|minute|weekday|month|day)\(/.test(exprBody);
+  const hasTimeCondition = /\b(?:hour|minute|weekday|month|day)\(/.test(
+    exprBody,
+  );
   const hasRequestCondition = /\b(?:param|header)\(/.test(exprBody);
 
   const tags = [];
@@ -1038,42 +1054,42 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
           {varLabels.map(([key, label]) =>
             key in varCoeffs ? (
               <span key={key} style={lineStyle}>
-                {`${t(label)} ${symbol}${(varCoeffs[key] * gr * rate).toFixed(4)}${unitSuffix}`}
+                {`${t(label)} ${symbol}${formatPriceWithCeiling(varCoeffs[key] * gr * rate)}${unitSuffix}`}
               </span>
             ) : null,
           )}
         </>
       )}
       {(tierCount > 1 || hasTimeCondition || hasRequestCondition) && (
-      <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        <span
-          style={{
-            display: 'inline-block',
-            padding: '1px 6px',
-            borderRadius: 4,
-            fontSize: 11,
-            background: 'var(--semi-color-warning-light-default)',
-            color: 'var(--semi-color-warning)',
-          }}
-        >
-          {t('动态计费')}
-        </span>
-        {tags.map((tag) => (
+        <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           <span
-            key={tag}
             style={{
               display: 'inline-block',
               padding: '1px 6px',
               borderRadius: 4,
               fontSize: 11,
-              background: 'var(--semi-color-fill-1)',
-              color: 'var(--semi-color-text-2)',
+              background: 'var(--semi-color-warning-light-default)',
+              color: 'var(--semi-color-warning)',
             }}
           >
-            {tag}
+            {t('动态计费')}
           </span>
-        ))}
-      </span>
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              style={{
+                display: 'inline-block',
+                padding: '1px 6px',
+                borderRadius: 4,
+                fontSize: 11,
+                background: 'var(--semi-color-fill-1)',
+                color: 'var(--semi-color-text-2)',
+              }}
+            >
+              {tag}
+            </span>
+          ))}
+        </span>
       )}
     </>
   );

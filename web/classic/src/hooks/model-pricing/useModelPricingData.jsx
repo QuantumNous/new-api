@@ -210,18 +210,18 @@ export const useModelPricingData = () => {
     [selectedRowKeys],
   );
 
-  const displayPrice = (usdPrice) => {
+  const displayPrice = (usdPrice, digits = 3) => {
     let priceInUSD = usdPrice;
     if (showWithRecharge) {
       priceInUSD = (usdPrice * priceRate) / usdExchangeRate;
     }
 
     if (currency === 'CNY') {
-      return `¥${(priceInUSD * usdExchangeRate).toFixed(3)}`;
+      return `¥${(priceInUSD * usdExchangeRate).toFixed(digits)}`;
     } else if (currency === 'CUSTOM') {
-      return `${customCurrencySymbol}${(priceInUSD * customExchangeRate).toFixed(3)}`;
+      return `${customCurrencySymbol}${(priceInUSD * customExchangeRate).toFixed(digits)}`;
     }
-    return `$${priceInUSD.toFixed(3)}`;
+    return `$${priceInUSD.toFixed(digits)}`;
   };
 
   const setModelsFormat = (models, groupRatio, vendorMap) => {

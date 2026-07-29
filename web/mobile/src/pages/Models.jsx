@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Button,
   InfiniteScroll,
   NavBar,
   Popup,
   SearchBar,
   Tag,
 } from 'antd-mobile';
+import { FilterOutline } from 'antd-mobile-icons';
 
+import { StatusContext } from '@classic/context/Status';
 import { API } from '@classic/helpers/api';
 
 import { showError } from '../shims/classic-utils';
@@ -17,6 +20,7 @@ const PAGE = 30;
 // 模型广场：搜索 + 分组/供应商筛选 + 紧凑列表 + 点击查看详情
 const Models = () => {
   const navigate = useNavigate();
+  const [statusState] = useContext(StatusContext);
   const [models, setModels] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [groupRatioMap, setGroupRatioMap] = useState({});
@@ -25,6 +29,7 @@ const Models = () => {
   const [vendorId, setVendorId] = useState(0);
   const [limit, setLimit] = useState(PAGE);
   const [detail, setDetail] = useState(null);
+  const [filterVisible, setFilterVisible] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -44,8 +49,7 @@ const Models = () => {
     load();
   }, []);
 
-  const vendorName = (id) =>
-    vendors.find((v) => v.id === id)?.name || '';
+  const vendorName = (id) => vendors.find((v) => v.id === id)?.name || '';
 
   const groups = useMemo(() => {
     const set = new Set();
@@ -79,72 +83,123 @@ const Models = () => {
   })();
   const effectiveGroup = group || userGroup;
   const groupRatio = groupRatioMap[effectiveGroup] ?? 1;
+  const siteStatus = useMemo(() => {
+    if (statusState?.status) return statusState.status;
+    try {
+      return JSON.parse(localStorage.getItem('status') || '{}');
+    } catch (e) {
+      return {};
+    }
+  }, [statusState?.status]);
+  const currencyConfig = useMemo(() => {
+    const displayType =
+      siteStatus?.quota_display_type ||
+      localStorage.getItem('quota_display_type') ||
+      'USD';
+    if (displayType === 'CNY') {
+      return {
+        symbol: '¥',
+        rate: Number(siteStatus?.usd_exchange_rate) || 7.3,
+      };
+    }
+    if (displayType === 'CUSTOM') {
+      return {
+        symbol: siteStatus?.custom_currency_symbol || '¤',
+        rate: Number(siteStatus?.custom_currency_exchange_rate) || 1,
+      };
+    }
+    return { symbol: '$', rate: 1 };
+  }, [siteStatus]);
 
   // 动态计费（tiered_expr）：表达式才是定价事实，静态倍率会误导（同 PC 判定）
-  const isDynamic = (m) =>
-    m.billing_mode === 'tiered_expr' && !!m.billing_expr;
+  const isDynamic = (m) => m.billing_mode === 'tiered_expr' && !!m.billing_expr;
 
-  const trimNum = (n, digits = 6) =>
-    String(parseFloat(n.toFixed(digits)));
+  const formatPrice = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return '-';
+
+    const factor = 100;
+    const scaled = numericValue * factor;
+    const tolerance = Number.EPSILON * Math.max(1, Math.abs(scaled));
+    return (Math.ceil(scaled - tolerance) / factor).toFixed(2);
+  };
 
   const inputPricePerM = (m) => m.model_ratio * 2 * groupRatio;
+  const displayPrice = (usdValue) =>
+    `${currencyConfig.symbol}${formatPrice(usdValue * currencyConfig.rate)}`;
 
   const priceText = (m) => {
     if (isDynamic(m)) return '动态计费';
     return m.quota_type === 1
-      ? `$${trimNum(m.model_price * groupRatio)}/次`
-      : `$${trimNum(inputPricePerM(m), 3)}/1M`;
+      ? `${displayPrice(m.model_price * groupRatio)}/次`
+      : `${displayPrice(inputPricePerM(m))}/1M`;
   };
+  const activeFilterCount = Number(Boolean(group)) + Number(Boolean(vendorId));
+  const selectedVendorName = vendorId ? vendorName(vendorId) : '全部供应商';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <NavBar onBack={() => navigate(-1)}>模型广场</NavBar>
       <div style={{ background: '#fff', paddingBottom: 2 }}>
-        <div style={{ padding: '10px 12px 4px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 12px 6px',
+          }}
+        >
           <SearchBar
-            placeholder='搜索模型名称'
+            placeholder="搜索模型名称"
             value={keyword}
             onChange={setKeyword}
+            style={{ flex: 1 }}
           />
+          <Button
+            size="small"
+            fill="outline"
+            onClick={() => setFilterVisible(true)}
+            style={{
+              '--border-radius': '18px',
+              flexShrink: 0,
+              height: 36,
+              padding: '0 12px',
+            }}
+          >
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <FilterOutline />
+              筛选{activeFilterCount > 0 ? ` ${activeFilterCount}` : ''}
+            </span>
+          </Button>
         </div>
-        {groups.length > 1 && (
-          <div className='m-config-bar' style={{ borderBottom: 'none', paddingBottom: 2 }}>
-            <div
-              className={`m-config-chip${group === '' ? ' active' : ''}`}
-              onClick={() => setGroup('')}
-            >
-              全部分组
-            </div>
-            {groups.map((g) => (
-              <div
-                key={g}
-                className={`m-config-chip${group === g ? ' active' : ''}`}
-                onClick={() => setGroup(g)}
-              >
-                {g}
-              </div>
-            ))}
-          </div>
-        )}
-        {vendors.length > 0 && (
-          <div className='m-config-bar' style={{ paddingTop: 4 }}>
-            <div
-              className={`m-config-chip${vendorId === 0 ? ' active' : ''}`}
-              onClick={() => setVendorId(0)}
-            >
-              全部供应商
-            </div>
-            {vendors.map((v) => (
-              <div
-                key={v.id}
-                className={`m-config-chip${vendorId === v.id ? ' active' : ''}`}
-                onClick={() => setVendorId(v.id)}
-              >
-                {v.name}
-              </div>
-            ))}
-          </div>
-        )}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '0 14px 8px',
+            color: '#9aa1ad',
+            fontSize: 11.5,
+          }}
+        >
+          <span
+            style={{
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {group || '全部分组'} · {selectedVendorName}
+          </span>
+          <span style={{ flexShrink: 0 }}>{filtered.length} 个模型</span>
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -183,7 +238,9 @@ const Models = () => {
                   {m.model_name}
                 </div>
                 {vendorName(m.vendor_id) && (
-                  <div style={{ fontSize: 11.5, color: '#9aa1ad', marginTop: 2 }}>
+                  <div
+                    style={{ fontSize: 11.5, color: '#9aa1ad', marginTop: 2 }}
+                  >
                     {vendorName(m.vendor_id)}
                   </div>
                 )}
@@ -213,6 +270,86 @@ const Models = () => {
       </div>
 
       <Popup
+        visible={filterVisible}
+        onMaskClick={() => setFilterVisible(false)}
+        bodyStyle={{
+          maxHeight: '72vh',
+          overflowY: 'auto',
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          padding: 16,
+          paddingBottom: 'calc(16px + var(--safe-area-inset-bottom))',
+        }}
+      >
+        <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 16 }}>
+          筛选模型
+        </div>
+        {groups.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: '#9aa1ad', marginBottom: 8 }}>
+              分组
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div
+                className={`m-config-chip${group === '' ? ' active' : ''}`}
+                onClick={() => setGroup('')}
+              >
+                全部分组
+              </div>
+              {groups.map((item) => (
+                <div
+                  key={item}
+                  className={`m-config-chip${group === item ? ' active' : ''}`}
+                  onClick={() => setGroup(item)}
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {vendors.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 12, color: '#9aa1ad', marginBottom: 8 }}>
+              供应商
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div
+                className={`m-config-chip${vendorId === 0 ? ' active' : ''}`}
+                onClick={() => setVendorId(0)}
+              >
+                全部供应商
+              </div>
+              {vendors.map((vendor) => (
+                <div
+                  key={vendor.id}
+                  className={`m-config-chip${vendorId === vendor.id ? ' active' : ''}`}
+                  onClick={() => setVendorId(vendor.id)}
+                >
+                  {vendor.name}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button
+            block
+            fill="outline"
+            onClick={() => {
+              setGroup('');
+              setVendorId(0);
+            }}
+          >
+            重置
+          </Button>
+          <Button block color="primary" onClick={() => setFilterVisible(false)}>
+            完成
+          </Button>
+        </div>
+      </Popup>
+
+      <Popup
         visible={!!detail}
         onMaskClick={() => setDetail(null)}
         bodyStyle={{
@@ -224,11 +361,22 @@ const Models = () => {
       >
         {detail && (
           <div>
-            <div style={{ fontWeight: 600, fontSize: 16, wordBreak: 'break-all' }}>
+            <div
+              style={{ fontWeight: 600, fontSize: 16, wordBreak: 'break-all' }}
+            >
               {detail.model_name}
             </div>
-            <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <span className={`m-badge ${detail.quota_type === 1 ? 'pending' : 'info'}`}>
+            <div
+              style={{
+                marginTop: 8,
+                display: 'flex',
+                gap: 6,
+                flexWrap: 'wrap',
+              }}
+            >
+              <span
+                className={`m-badge ${detail.quota_type === 1 ? 'pending' : 'info'}`}
+              >
                 {isDynamic(detail)
                   ? '动态计费'
                   : detail.quota_type === 1
@@ -236,15 +384,17 @@ const Models = () => {
                     : '按量计费'}
               </span>
               {vendorName(detail.vendor_id) && (
-                <span className='m-badge info'>{vendorName(detail.vendor_id)}</span>
+                <span className="m-badge info">
+                  {vendorName(detail.vendor_id)}
+                </span>
               )}
             </div>
             <div style={{ fontSize: 14, color: '#374151', marginTop: 12 }}>
               {isDynamic(detail)
                 ? '动态计费：按用量阶梯表达式实时计算，详细规则请在电脑端模型广场查看'
                 : detail.quota_type === 1
-                  ? `单次价格：$${trimNum(detail.model_price * groupRatio)}`
-                  : `输入 $${trimNum(inputPricePerM(detail), 3)} / 1M Tokens · 输出 $${trimNum(inputPricePerM(detail) * (detail.completion_ratio || 1), 3)} / 1M Tokens`}
+                  ? `单次价格：${displayPrice(detail.model_price * groupRatio)}`
+                  : `输入 ${displayPrice(inputPricePerM(detail))} / 1M Tokens · 输出 ${displayPrice(inputPricePerM(detail) * (detail.completion_ratio || 1))} / 1M Tokens`}
             </div>
             <div style={{ fontSize: 12, color: '#9aa1ad', marginTop: 6 }}>
               按「{effectiveGroup || '默认'}」分组倍率 ×{groupRatio} 计算
@@ -256,12 +406,14 @@ const Models = () => {
             )}
             {(detail.enable_groups || []).length > 0 && (
               <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, color: '#9aa1ad', marginBottom: 6 }}>
+                <div
+                  style={{ fontSize: 12, color: '#9aa1ad', marginBottom: 6 }}
+                >
                   可用分组
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {detail.enable_groups.map((g) => (
-                    <Tag key={g} color='default' fill='outline'>
+                    <Tag key={g} color="default" fill="outline">
                       {g}
                     </Tag>
                   ))}

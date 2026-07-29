@@ -44,6 +44,30 @@ const convSummary = (conv) => {
   };
 };
 
+const InputImageStrip = ({ images }) => {
+  const available = (images || []).filter(Boolean);
+  if (available.length === 0) return null;
+  const shown = available.slice(0, 4);
+  return (
+    <div className='flex items-center gap-1.5 mt-2'>
+      {shown.map((src, index) => (
+        <div
+          key={index}
+          className='rounded overflow-hidden bg-gray-100'
+          style={{ width: 40, height: 40, flexShrink: 0 }}
+        >
+          <img src={src} alt='' className='w-full h-full object-cover' />
+        </div>
+      ))}
+      {available.length > shown.length && (
+        <span className='text-xs text-gray-400'>
+          +{available.length - shown.length}
+        </span>
+      )}
+    </div>
+  );
+};
+
 const ImageHistoryPanel = ({
   history,
   onNewConversation,
@@ -141,6 +165,7 @@ const ImageHistoryPanel = ({
                 >
                   {summary.title}
                 </Typography.Text>
+                <InputImageStrip images={item.images} />
                 <div className='flex items-center justify-between mt-2'>
                   <div className='flex items-center gap-2'>
                     <Tag size='small' color={meta.color} shape='circle'>

@@ -44,6 +44,16 @@ func SetMobileRouter(router *gin.Engine, assets ThemeAssets) {
 	handler := func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
 		p := strings.TrimPrefix(c.Request.URL.Path, "/m")
+		if p == "/manifest.webmanifest" {
+			manifest, err := MobileWebManifest()
+			if err != nil {
+				c.Status(http.StatusInternalServerError)
+				return
+			}
+			c.Header("Cache-Control", "no-cache")
+			c.Data(http.StatusOK, "application/manifest+json; charset=utf-8", manifest)
+			return
+		}
 		// index 与 SPA fallback 都走内存字节并做品牌替换，
 		// 避免首屏闪现构建期的默认标题/图标
 		if p == "/" || p == "/index.html" || !canvasFileExists(httpFS, p) {

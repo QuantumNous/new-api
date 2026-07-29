@@ -573,20 +573,27 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
   }, []);
 
   // 点击历史：恢复整段对话，并带出当时锁定的分组/模型/尺寸/种子
-  const openHistoryItem = useCallback((conv) => {
-    setCurrentConvId(conv.id);
-    setInputs((prev) => ({
-      ...prev,
-      group: conv.group != null ? conv.group : prev.group,
-      model: conv.model != null ? conv.model : prev.model,
-      size: conv.size != null ? conv.size : prev.size,
-      seed: conv.seed != null ? conv.seed : prev.seed,
-      negativePrompt:
-        conv.negativePrompt != null ? conv.negativePrompt : prev.negativePrompt,
-      qualityMode:
-        conv.qualityMode != null ? conv.qualityMode : prev.qualityMode,
-    }));
-  }, []);
+  const openHistoryItem = useCallback(
+    (conv) => {
+      setCurrentConvId(conv.id);
+      setInputs((prev) => ({
+        ...prev,
+        group: conv.group != null ? conv.group : prev.group,
+        model: conv.model != null ? conv.model : prev.model,
+        size: conv.size != null ? conv.size : prev.size,
+        seed: conv.seed != null ? conv.seed : prev.seed,
+        negativePrompt:
+          conv.negativePrompt != null
+            ? conv.negativePrompt
+            : prev.negativePrompt,
+        qualityMode:
+          conv.qualityMode != null ? conv.qualityMode : prev.qualityMode,
+        // 图生图历史会话恢复底图，供左侧锁定态只读预览；媒体已由 IDB hydrate。
+        imageUrls: isI2I ? conv.images || [] : prev.imageUrls,
+      }));
+    },
+    [isI2I],
+  );
 
   // 图生图必须先上传底图:新对话(未锁定)且无底图时发送置灰,
   // 避免只填提示词就点发送(点了才报错且 Semi 会清空已输入的提示词)。

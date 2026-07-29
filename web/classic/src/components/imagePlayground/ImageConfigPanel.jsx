@@ -53,6 +53,26 @@ const ImageConfigPanel = ({
     inputs.size,
   );
 
+  const renderImagePreview = (label, urls) => (
+    <div>
+      <div className='flex items-center gap-1 mb-2'>
+        <Typography.Text strong className='text-sm'>
+          {label}
+        </Typography.Text>
+      </div>
+      <div className='flex flex-wrap gap-2'>
+        {(urls || []).filter(Boolean).map((url, index) => (
+          <img
+            key={index}
+            src={url}
+            alt={`${label}-${index + 1}`}
+            className='w-20 h-20 object-cover rounded-lg border border-gray-200'
+          />
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <Card
       className='h-full flex flex-col'
@@ -139,26 +159,33 @@ const ImageConfigPanel = ({
           />
         </div>
 
-        {/* 底图上传（仅图生图;锁定/历史态不展示,底图沿用该会话首条） */}
-        {isI2I && !disabled && (
-          <ImageUrlInput
-            label={t('上传底图')}
-            tooltip={t('最多上传 {{count}} 张底图', {
-              count: IMAGE_MAX_EDIT_IMAGES,
-            })}
-            required
-            maxCount={IMAGE_MAX_EDIT_IMAGES}
-            imageUrls={inputs.imageUrls || []}
-            imageEnabled={true}
-            onImageUrlsChange={(v) =>
-              onInputChange(
-                'imageUrls',
-                (v || []).slice(0, IMAGE_MAX_EDIT_IMAGES),
-              )
-            }
-            onImageEnabledChange={() => {}}
-            disabled={false}
-          />
+        {/* 底图上传（仅图生图）：新对话可编辑，锁定/历史态显示只读缩略图。 */}
+        {isI2I && (
+          <>
+            {!disabled && (
+              <ImageUrlInput
+                label={t('上传底图')}
+                tooltip={t('最多上传 {{count}} 张底图', {
+                  count: IMAGE_MAX_EDIT_IMAGES,
+                })}
+                required
+                maxCount={IMAGE_MAX_EDIT_IMAGES}
+                imageUrls={inputs.imageUrls || []}
+                imageEnabled={true}
+                onImageUrlsChange={(v) =>
+                  onInputChange(
+                    'imageUrls',
+                    (v || []).slice(0, IMAGE_MAX_EDIT_IMAGES),
+                  )
+                }
+                onImageEnabledChange={() => {}}
+                disabled={false}
+              />
+            )}
+            {disabled &&
+              (inputs.imageUrls || []).length > 0 &&
+              renderImagePreview(t('底图'), inputs.imageUrls)}
+          </>
         )}
 
         {/* 图片尺寸（图生图跟随参考图，不显示、不下发） */}

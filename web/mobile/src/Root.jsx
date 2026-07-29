@@ -32,12 +32,24 @@ const Root = () => {
           setStatusData(data);
           if (data.system_name) {
             document.title = data.system_name;
+            const appleTitle = document.querySelector(
+              "meta[name='apple-mobile-web-app-title']",
+            );
+            if (appleTitle) {
+              appleTitle.content = data.system_name;
+            }
           }
-          // favicon 跟随运营配置的 logo
+          // 浏览器 favicon 与 iOS 添加到主屏幕图标均跟随运营配置的 logo
           if (data.logo) {
             const link = document.querySelector("link[rel~='icon']");
             if (link) {
               link.href = data.logo;
+            }
+            const appleTouchIcon = document.querySelector(
+              "link[rel='apple-touch-icon']",
+            );
+            if (appleTouchIcon) {
+              appleTouchIcon.href = data.logo;
             }
           }
         }
