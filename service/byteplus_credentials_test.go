@@ -21,6 +21,22 @@ func TestParseBytePlusCredentialsAcceptsLegacyKeyForVideoOnly(t *testing.T) {
 	}
 }
 
+func TestParseBytePlusCredentialsAcceptsBracketLeadingLegacyKeyForVideoOnly(t *testing.T) {
+	creds, err := ParseBytePlusCredentials("[ark-legacy-video-key")
+	if err != nil {
+		t.Fatalf("ParseBytePlusCredentials bracket-leading legacy error: %v", err)
+	}
+	if creds.APIKey != "[ark-legacy-video-key" {
+		t.Fatalf("APIKey = %q", creds.APIKey)
+	}
+	if err := creds.ValidateVideo(); err != nil {
+		t.Fatalf("bracket-leading legacy key should be valid for video: %v", err)
+	}
+	if err := creds.ValidateAssets(); err == nil {
+		t.Fatal("bracket-leading legacy key should not be valid for asset APIs")
+	}
+}
+
 func TestParseBytePlusCredentialsAcceptsStructuredJSON(t *testing.T) {
 	creds, err := ParseBytePlusCredentials(`{
 		"api_key": "ark-video-key",

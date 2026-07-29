@@ -61,5 +61,5 @@ func (c BytePlusCredentials) ValidateAssets() error {
 }
 
 func looksLikeJSON(s string) bool {
-	return strings.HasPrefix(s, "{") || strings.HasPrefix(s, "[")
+	return strings.HasPrefix(s, "{")
 }

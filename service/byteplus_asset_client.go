@@ -180,6 +180,10 @@ func (c *BytePlusAssetClient) GetAsset(ctx context.Context, creds BytePlusCreden
 	if err := c.do(ctx, creds, "GetAsset", payload, &resp); err != nil {
 		return BytePlusAssetStatus{}, err
 	}
+	resultID := strings.TrimSpace(resp.Result.ID)
+	if resultID == "" || resultID != upstreamAssetID {
+		return BytePlusAssetStatus{}, upstreamAssetErr("unexpected result", resp.ResponseMetadata.RequestID)
+	}
 	switch resp.Result.Status {
 	case "Processing", "Active":
 	case "Failed":
@@ -187,7 +191,7 @@ func (c *BytePlusAssetClient) GetAsset(ctx context.Context, creds BytePlusCreden
 		return BytePlusAssetStatus{}, upstreamAssetErr("unknown status", resp.ResponseMetadata.RequestID)
 	}
 	return BytePlusAssetStatus{
-		UpstreamAssetID: resp.Result.ID,
+		UpstreamAssetID: resultID,
 		Status:          resp.Result.Status,
 		RequestID:       resp.ResponseMetadata.RequestID,
 		ErrorMessage:    sanitizedAssetResultError(resp.Result),

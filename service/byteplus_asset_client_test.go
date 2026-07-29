@@ -190,6 +190,36 @@ func TestBytePlusAssetClientRejectsUnknownStatusAndScrubsErrors(t *testing.T) {
 	}
 }
 
+func TestBytePlusAssetClientRejectsMissingOrMismatchedGetAssetID(t *testing.T) {
+	responses := []string{
+		`{"ResponseMetadata":{"RequestId":"req-empty"},"Result":{"Id":"  ","Status":"Active","Error":{"Message":"sk-empty-should-not-leak"}}}`,
+		`{"ResponseMetadata":{"RequestId":"req-mismatch"},"Result":{"Id":"asset-other","Status":"Active","Error":{"Message":"sk-mismatch-should-not-leak"}}}`,
+	}
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(responses[calls]))
+		calls++
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	for i := range responses {
+		_, err := client.GetAsset(context.Background(), testAssetCreds(), " asset-1 ")
+		if err == nil {
+			t.Fatal("GetAsset should reject missing or mismatched result id")
+		}
+		for _, leaked := range []string{"sk-empty-should-not-leak", "sk-mismatch-should-not-leak", "asset-other", "asset-1"} {
+			if strings.Contains(err.Error(), leaked) {
+				t.Fatalf("case %d error leaked upstream details %q: %v", i, leaked, err)
+			}
+		}
+	}
+	if calls != len(responses) {
+		t.Fatalf("calls = %d, want %d", calls, len(responses))
+	}
+}
+
 func TestBytePlusAssetClientRejectsUpstreamErrorWithoutSecretReflection(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

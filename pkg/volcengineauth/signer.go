@@ -70,10 +70,14 @@ func (s Signer) Sign(req *http.Request, payload []byte) error {
 	if canonicalPath == "" {
 		canonicalPath = "/"
 	}
+	canonicalRawQuery, err := canonicalQuery(req.URL)
+	if err != nil {
+		return err
+	}
 	canonicalRequest := strings.Join([]string{
 		req.Method,
 		canonicalPath,
-		canonicalQuery(req.URL),
+		canonicalRawQuery,
 		canonicalHeaders,
 		signedHeaders,
 		payloadHash,
@@ -102,8 +106,11 @@ func (s Signer) Sign(req *http.Request, payload []byte) error {
 	return nil
 }
 
-func canonicalQuery(u *url.URL) string {
-	query := u.Query()
+func canonicalQuery(u *url.URL) (string, error) {
+	query, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return "", errors.New("cannot sign request: malformed query")
+	}
 	keys := make([]string, 0, len(query))
 	for key := range query {
 		keys = append(keys, key)
@@ -126,7 +133,7 @@ func canonicalQuery(u *url.URL) string {
 			parts = append(parts, encodedKey+"="+percentEncode(value))
 		}
 	}
-	return strings.Join(parts, "&")
+	return strings.Join(parts, "&"), nil
 }
 
 func percentEncode(value string) string {

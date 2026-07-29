@@ -85,3 +85,24 @@ func TestSignerValidationErrorsDoNotExposeSecret(t *testing.T) {
 		t.Fatalf("error leaked secret: %v", err)
 	}
 }
+
+func TestSignerRejectsMalformedRawQuery(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost, "https://ark.ap-southeast-1.byteplusapi.com/?Action=GetAsset&Filter=%zz&Secret=sk-should-not-leak", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer := Signer{
+		AccessKeyID:     "test-ak",
+		SecretAccessKey: "super-secret-value",
+		Region:          "ap-southeast-1",
+		Service:         "ark",
+	}
+
+	err = signer.Sign(req, nil)
+	if err == nil {
+		t.Fatal("Sign should reject malformed RawQuery")
+	}
+	if strings.Contains(err.Error(), "sk-should-not-leak") || strings.Contains(err.Error(), "super-secret-value") {
+		t.Fatalf("error leaked secret material: %v", err)
+	}
+}
