@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -36,6 +37,7 @@ const (
 	RecallPromotionRevocationFailed    = "failed"
 
 	recallOfferCandidateIDBatchSize = 500
+	recallOfferCandidateLimit       = 100
 )
 
 type RecallRecipient struct {
@@ -104,7 +106,7 @@ type RecallOfferCandidatePage struct {
 }
 
 func (candidate RecallOfferCandidate) EffectiveIssuedAt() int64 {
-	if candidate.Recipient.PromotionIssuedAt != 0 {
+	if candidate.Recipient.PromotionIssuedAt > 0 {
 		return candidate.Recipient.PromotionIssuedAt
 	}
 	return candidate.Recipient.CreatedAt
@@ -237,22 +239,19 @@ func BindRecallRecipientUserWithContext(ctx context.Context, recipientID int64, 
 }
 
 func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int, normalizedEmail string, now int64) ([]RecallOfferCandidate, error) {
-	candidates := make([]RecallOfferCandidate, 0)
-	afterRecipientID := int64(0)
-	for {
-		page, err := ListRecallOfferCandidatePageForUserWithContext(ctx, userID, normalizedEmail, now, afterRecipientID, recallOfferCandidateIDBatchSize)
-		if err != nil {
-			return nil, err
-		}
-		candidates = append(candidates, page.Candidates...)
-		if !page.HasMore {
-			return candidates, nil
-		}
-		afterRecipientID = page.NextAfterRecipientID
+	page, err := listRecallOfferCandidatePageForUserWithContext(ctx, userID, normalizedEmail, now, 0, recallOfferCandidateLimit, recallOfferCandidateOrderClause("recall_recipients"), false)
+	if err != nil {
+		return nil, err
 	}
+	sortRecallOfferCandidates(page.Candidates)
+	return page.Candidates, nil
 }
 
 func ListRecallOfferCandidatePageForUserWithContext(ctx context.Context, userID int, normalizedEmail string, now int64, afterRecipientID int64, limit int) (RecallOfferCandidatePage, error) {
+	return listRecallOfferCandidatePageForUserWithContext(ctx, userID, normalizedEmail, now, afterRecipientID, limit, "recall_recipients.id ASC", true)
+}
+
+func listRecallOfferCandidatePageForUserWithContext(ctx context.Context, userID int, normalizedEmail string, now int64, afterRecipientID int64, limit int, orderClause string, allowPaging bool) (RecallOfferCandidatePage, error) {
 	page := RecallOfferCandidatePage{Candidates: make([]RecallOfferCandidate, 0)}
 	if err := ctx.Err(); err != nil {
 		return page, err
@@ -260,25 +259,29 @@ func ListRecallOfferCandidatePageForUserWithContext(ctx context.Context, userID 
 	if userID <= 0 {
 		return page, nil
 	}
-	email, ok := normalizeRecallRecipientEmail(normalizedEmail)
-	if !ok {
-		return page, nil
-	}
+	email, hasEmail := normalizeRecallRecipientEmail(normalizedEmail)
 	if limit <= 0 {
 		return page, nil
 	}
-	if limit > recallOfferCandidateIDBatchSize {
-		limit = recallOfferCandidateIDBatchSize
+	if allowPaging {
+		if limit > recallOfferCandidateIDBatchSize {
+			limit = recallOfferCandidateIDBatchSize
+		}
+	} else if limit > recallOfferCandidateLimit {
+		limit = recallOfferCandidateLimit
 	}
 	var user User
 	result := DB.WithContext(ctx).
-		Where("id = ? AND status = ? AND LOWER(email) = ?", userID, common.UserStatusEnabled, email).
+		Where("id = ? AND status = ?", userID, common.UserStatusEnabled).
 		Limit(1).
 		Find(&user)
 	if result.Error != nil {
 		return page, result.Error
 	}
 	if result.RowsAffected == 0 {
+		return page, nil
+	}
+	if hasEmail && strings.ToLower(strings.TrimSpace(user.Email)) != email {
 		return page, nil
 	}
 
@@ -289,14 +292,18 @@ func ListRecallOfferCandidatePageForUserWithContext(ctx context.Context, userID 
 		Select("recall_recipients.*").
 		Joins("JOIN recall_campaigns ON recall_campaigns.id = recall_recipients.campaign_id").
 		Where("recall_campaigns.campaign_type = ?", RecallCampaignTypePromotion).
-		Where("recall_campaigns.status IN ?", usableStatuses).
-		Where("(recall_recipients.user_id = ? OR (recall_recipients.user_id = 0 AND LOWER(recall_recipients.email_snapshot) = ?))", userID, email)
+		Where("recall_campaigns.status IN ?", usableStatuses)
+	if hasEmail {
+		query = query.Where("(recall_recipients.user_id = ? OR (recall_recipients.user_id = 0 AND LOWER(recall_recipients.email_snapshot) = ?))", userID, email)
+	} else {
+		query = query.Where("recall_recipients.user_id = ?", userID)
+	}
 	if afterRecipientID > 0 {
 		query = query.Where("recall_recipients.id > ?", afterRecipientID)
 	}
 	query = applyRecallOfferRecipientFilters(query, "recall_recipients", now)
 	err := query.
-		Order("recall_recipients.id ASC").
+		Order(orderClause).
 		Limit(limit).
 		Find(&recipients).Error
 	if err != nil {
@@ -304,11 +311,14 @@ func ListRecallOfferCandidatePageForUserWithContext(ctx context.Context, userID 
 	}
 	if len(recipients) > 0 {
 		page.NextAfterRecipientID = recipients[len(recipients)-1].Id
-		page.HasMore = len(recipients) == limit
+		page.HasMore = allowPaging && len(recipients) == limit
 	}
 	recipientIDs := make([]int64, 0, len(recipients))
 	for _, recipient := range recipients {
 		if recipient.UserId == 0 {
+			if !hasEmail {
+				continue
+			}
 			_, _, bindErr := bindRecallOfferCandidateRecipientUserWithContext(ctx, recipient.Id, userID, email, now)
 			if bindErr != nil {
 				if errors.Is(bindErr, ErrRecallRecipientBindingConflict) || errors.Is(bindErr, gorm.ErrRecordNotFound) {
@@ -323,7 +333,7 @@ func ListRecallOfferCandidatePageForUserWithContext(ctx context.Context, userID 
 		return page, nil
 	}
 
-	finalRecipients := make([]RecallRecipient, 0, len(recipientIDs))
+	finalRecipientsByID := make(map[int64]RecallRecipient, len(recipientIDs))
 	for start := 0; start < len(recipientIDs); start += recallOfferCandidateIDBatchSize {
 		end := start + recallOfferCandidateIDBatchSize
 		if end > len(recipientIDs) {
@@ -341,7 +351,17 @@ func ListRecallOfferCandidatePageForUserWithContext(ctx context.Context, userID 
 		if err := finalQuery.Order("recall_recipients.id ASC").Find(&batch).Error; err != nil {
 			return page, err
 		}
-		finalRecipients = append(finalRecipients, batch...)
+		for _, recipient := range batch {
+			finalRecipientsByID[recipient.Id] = recipient
+		}
+	}
+	finalRecipients := make([]RecallRecipient, 0, len(recipientIDs))
+	for _, recipientID := range recipientIDs {
+		recipient, ok := finalRecipientsByID[recipientID]
+		if !ok {
+			continue
+		}
+		finalRecipients = append(finalRecipients, recipient)
 	}
 	if len(finalRecipients) == 0 {
 		return page, nil
@@ -382,6 +402,25 @@ func ListRecallOfferCandidatePageForUserWithContext(ctx context.Context, userID 
 		page.Candidates = append(page.Candidates, RecallOfferCandidate{Recipient: recipient, Campaign: campaign})
 	}
 	return page, nil
+}
+
+func recallOfferCandidateOrderClause(table string) string {
+	prefix := ""
+	if table != "" {
+		prefix = table + "."
+	}
+	return fmt.Sprintf("CASE WHEN %spromotion_issued_at > 0 THEN %spromotion_issued_at ELSE %screated_at END DESC, %sid ASC", prefix, prefix, prefix, prefix)
+}
+
+func sortRecallOfferCandidates(candidates []RecallOfferCandidate) {
+	sort.SliceStable(candidates, func(i, j int) bool {
+		left := candidates[i]
+		right := candidates[j]
+		if left.EffectiveIssuedAt() != right.EffectiveIssuedAt() {
+			return left.EffectiveIssuedAt() > right.EffectiveIssuedAt()
+		}
+		return left.Recipient.Id < right.Recipient.Id
+	})
 }
 
 func recallOfferUsableCampaignStatuses() []string {
@@ -715,6 +754,25 @@ func PersistRecallRecipientPromotion(ctx context.Context, id int64, promotionID 
 	return stored.StripePromotionCodeId != nil && strings.TrimSpace(*stored.StripePromotionCodeId) == promotionID && stored.PromotionCode == code, nil
 }
 
+func DeferRecallRecipientLease(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, retryAt int64, errorCode string) (bool, error) {
+	result := DB.WithContext(ctx).Model(&RecallRecipient{}).
+		Where("id = ? AND lease_owner = ? AND lease_expires_at = ? AND state IN ?", id, owner, expectedLeaseUntil, []string{
+			RecallRecipientQueued,
+			RecallRecipientCustomerReady,
+			RecallRecipientCodeReady,
+		}).
+		Updates(map[string]any{
+			"lease_owner":        "",
+			"lease_expires_at":   retryAt,
+			"last_error_code":    errorCode,
+			"last_error_message": "",
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 func PersistRecallRecipientPromotionForLeaseWithContext(ctx context.Context, id int64, campaignID int64, owner string, expectedLeaseUntil int64, promotionID string, code string, issuedAt int64) (RecallPromotionPersistenceOutcome, error) {
 	promotionID = strings.TrimSpace(promotionID)
 	code = strings.TrimSpace(code)
@@ -762,25 +820,6 @@ func PersistRecallRecipientPromotionForLeaseWithContext(ctx context.Context, id 
 	outcome.Persisted = stored.StripePromotionCodeId != nil && strings.TrimSpace(*stored.StripePromotionCodeId) == promotionID && stored.PromotionCode == code
 	outcome.Cancelled = campaign.Status == RecallCampaignCancelled
 	return outcome, nil
-}
-
-func DeferRecallRecipientLease(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, retryAt int64, errorCode string) (bool, error) {
-	result := DB.WithContext(ctx).Model(&RecallRecipient{}).
-		Where("id = ? AND lease_owner = ? AND lease_expires_at = ? AND state IN ?", id, owner, expectedLeaseUntil, []string{
-			RecallRecipientQueued,
-			RecallRecipientCustomerReady,
-			RecallRecipientCodeReady,
-		}).
-		Updates(map[string]any{
-			"lease_owner":        "",
-			"lease_expires_at":   retryAt,
-			"last_error_code":    errorCode,
-			"last_error_message": "",
-		})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
 }
 
 func ListDueRecallPromotionRevocationsWithContext(ctx context.Context, now int64, limit int) ([]RecallPromotionRevocationWorkItem, error) {

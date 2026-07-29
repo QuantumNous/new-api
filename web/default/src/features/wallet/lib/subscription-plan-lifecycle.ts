@@ -100,6 +100,12 @@ export type FlexibleQuoteSnapshotRequest = {
   requestId: string
 }
 
+export function normalizePurchaseMonths(value: number | string): number {
+  const parsed = Math.floor(Number(value))
+  if (!Number.isFinite(parsed)) return 1
+  return Math.min(12, Math.max(1, parsed))
+}
+
 export type WalletSelfSubscriptionData = Omit<
   SelfSubscriptionData,
   'capabilities' | 'contract' | 'current_period' | 'migration' | 'quota'
@@ -365,6 +371,10 @@ export function buildFlexiblePurchaseRequest(args: {
   orderId?: string
   recallClaim?: string
 }): FlexiblePurchaseRequest {
+  const quoteId = args.quoteId?.trim()
+  if (requiresSignedCheckoutQuote(args.paymentChoice) && !quoteId) {
+    throw new Error('quote_id is required')
+  }
   return {
     plan_id: args.planId,
     payment_choice: args.paymentChoice,
@@ -373,7 +383,7 @@ export function buildFlexiblePurchaseRequest(args: {
         ? 1
         : Math.min(12, Math.max(1, Math.round(args.months))),
     request_id: args.requestId,
-    ...(args.quoteId ? { quote_id: args.quoteId } : {}),
+    ...(quoteId ? { quote_id: quoteId } : {}),
     ...(args.orderId ? { order_id: args.orderId } : {}),
     ...(args.recallClaim ? { recall_claim: args.recallClaim } : {}),
     ...(args.paymentChoice !== 'balance'
@@ -416,6 +426,7 @@ export function requiresSignedCheckoutQuote(
   paymentChoice: FlexiblePaymentChoice
 ): boolean {
   return (
+    paymentChoice === 'stripe_recurring' ||
     paymentChoice === 'alipay' ||
     paymentChoice === 'balance' ||
     requiresLocalCurrencyQuote(paymentChoice)

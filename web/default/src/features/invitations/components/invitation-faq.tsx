@@ -40,14 +40,12 @@ export function InvitationFaq({ summary }: InvitationFaqProps) {
   const inviteeReward = formatInvitationUSD(summary.invitee_reward_usd)
   const limit = summary.inviter_reward_max_count
   const subscriptionMode = summary.reward_mode === 'subscription'
-  const subDiscount = formatInvitationUSD(summary.first_sub_discount_usd)
   const items = [
     subscriptionMode
       ? {
           question: t('When are referral rewards granted?'),
           answer: t(
-            "Referral rewards are created when your friend completes their first subscription payment, and unlock {{days}} days later if the payment is not refunded. Registration, top-ups, and API calls alone do not grant a reward.",
-            { days: summary.unlock_delay_days }
+            'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
           ),
         }
       : {
@@ -60,8 +58,8 @@ export function InvitationFaq({ summary }: InvitationFaqProps) {
       ? {
           question: t('What are the current referral rewards?'),
           answer: t(
-            'Your friend gets {{discount}} off the first month of any plan, and you receive {{reward}} as balance.',
-            { discount: subDiscount, reward: inviterReward }
+            'Your friend gets {{inviteeReward}} package discount, and you receive {{inviterReward}} package discount.',
+            { inviteeReward, inviterReward }
           ),
         }
       : {
@@ -83,12 +81,19 @@ export function InvitationFaq({ summary }: InvitationFaqProps) {
               { count: limit }
             ),
     },
-    {
-      question: t('How do I use my referral rewards?'),
-      answer: t(
-        'Referral rewards are added automatically to your API balance and used for API requests.'
-      ),
-    },
+    subscriptionMode
+      ? {
+          question: t('How do I use my referral rewards?'),
+          answer: t(
+            'Package discounts never expire and can only be used for package purchases or renewals.'
+          ),
+        }
+      : {
+          question: t('How do I use my referral rewards?'),
+          answer: t(
+            'Referral rewards are added automatically to your API balance and used for API requests.'
+          ),
+        },
     {
       question: t('Which referrals appear here?'),
       answer: t(

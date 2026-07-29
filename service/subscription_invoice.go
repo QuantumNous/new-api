@@ -17,25 +17,31 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
+	stripecoupon "github.com/stripe/stripe-go/v86/coupon"
 	stripeinvoice "github.com/stripe/stripe-go/v86/invoice"
+	stripeinvoiceitem "github.com/stripe/stripe-go/v86/invoiceitem"
 	stripesubscription "github.com/stripe/stripe-go/v86/subscription"
 	"gorm.io/gorm"
 )
 
 type StripeSubscriptionCheckoutInput struct {
-	TradeNo        string
-	UserID         int
-	PlanID         int
-	ContractID     int64
-	ChangeIntentID int64
-	CustomerID     string
-	Email          string
-	PriceID        string
-	Currency       string
-	SubtotalMinor  int64
-	IdempotencyKey string
-	Presentation   StripeCheckoutPresentation
-	RecallDiscount *RecallCheckoutDiscount
+	TradeNo                string
+	UserID                 int
+	PlanID                 int
+	ContractID             int64
+	ChangeIntentID         int64
+	CustomerID             string
+	Email                  string
+	PriceID                string
+	Currency               string
+	SubtotalMinor          int64
+	IdempotencyKey         string
+	Presentation           StripeCheckoutPresentation
+	DiscountKind           string
+	DiscountAmountMinor    int64
+	DiscountCurrency       string
+	DiscountReservationKey string
+	RecallDiscount         *RecallCheckoutDiscount
 }
 
 type StripeSubscriptionCheckoutSession struct {
@@ -88,8 +94,13 @@ func IsPermanentPaidInvoiceError(err error) bool {
 
 var stripeInvoiceGetter = getStripeInvoiceForReconcile
 var stripeInvoiceVoider = voidStripeInvoiceForReconcile
+var stripeSubscriptionInvoiceUpdater = updateStripeSubscriptionInvoice
+var stripeSubscriptionInvoiceItemCreator = createStripeSubscriptionInvoiceItem
+var stripeSubscriptionInvoiceItemLister = listStripeSubscriptionInvoiceItems
 var stripeSubscriptionGetter = getStripeSubscriptionForReconcile
 var stripeSubscriptionCheckoutCreator = createStripeSubscriptionCheckout
+var stripeSubscriptionCouponCreator = createStripeSubscriptionCoupon
+var stripeSubscriptionSessionCreator = createStripeSubscriptionSession
 var stripeCheckoutSessionGetter = getStripeCheckoutSessionForSubscription
 var stripeCheckoutSessionExpirer = expireStripeCheckoutSessionForSubscription
 
@@ -162,6 +173,38 @@ func voidStripeInvoiceForReconcile(ctx context.Context, invoiceID string, idempo
 	return stripeinvoice.VoidInvoice(strings.TrimSpace(invoiceID), params)
 }
 
+func updateStripeSubscriptionInvoice(ctx context.Context, invoiceID string, params *stripe.InvoiceParams) (*stripe.Invoice, error) {
+	if err := ensureStripeSecretForSubscription(); err != nil {
+		return nil, err
+	}
+	stripe.Key = setting.StripeApiSecret
+	return stripeinvoice.Update(strings.TrimSpace(invoiceID), params)
+}
+
+func createStripeSubscriptionInvoiceItem(ctx context.Context, params *stripe.InvoiceItemParams) (*stripe.InvoiceItem, error) {
+	if err := ensureStripeSecretForSubscription(); err != nil {
+		return nil, err
+	}
+	stripe.Key = setting.StripeApiSecret
+	return stripeinvoiceitem.New(params)
+}
+
+func listStripeSubscriptionInvoiceItems(ctx context.Context, params *stripe.InvoiceItemListParams) ([]*stripe.InvoiceItem, error) {
+	if err := ensureStripeSecretForSubscription(); err != nil {
+		return nil, err
+	}
+	stripe.Key = setting.StripeApiSecret
+	iter := stripeinvoiceitem.List(params)
+	items := make([]*stripe.InvoiceItem, 0)
+	for iter.Next() {
+		items = append(items, iter.InvoiceItem())
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func getStripeSubscriptionForReconcile(ctx context.Context, subscriptionID string) (*stripe.Subscription, error) {
 	if err := ensureStripeSecretForSubscription(); err != nil {
 		return nil, err
@@ -183,9 +226,19 @@ func createStripeSubscriptionCheckout(ctx context.Context, input StripeSubscript
 	}
 	stripe.Key = setting.StripeApiSecret
 	metadata := stripeSubscriptionAuthoritativeMetadata(input.TradeNo, input.UserID, input.PlanID, input.ContractID, input.ChangeIntentID)
+	if strings.TrimSpace(input.DiscountKind) != "" {
+		metadata["discount_kind"] = strings.TrimSpace(input.DiscountKind)
+	}
+	if strings.TrimSpace(input.DiscountReservationKey) != "" {
+		metadata["subscription_discount_reservation_key"] = strings.TrimSpace(input.DiscountReservationKey)
+	}
+	if input.DiscountAmountMinor > 0 {
+		metadata["subscription_discount_amount_minor"] = strconv.FormatInt(input.DiscountAmountMinor, 10)
+	}
 	if input.RecallDiscount != nil {
 		metadata["recall_campaign_id"] = strconv.FormatInt(input.RecallDiscount.CampaignID, 10)
 		metadata["recall_recipient_id"] = strconv.FormatInt(input.RecallDiscount.RecipientID, 10)
+		metadata["recall_promotion_code_id"] = strings.TrimSpace(input.RecallDiscount.PromotionCodeID)
 	}
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(input.TradeNo),
@@ -207,6 +260,33 @@ func createStripeSubscriptionCheckout(ctx context.Context, input StripeSubscript
 		params.Discounts = []*stripe.CheckoutSessionDiscountParams{
 			{PromotionCode: stripe.String(strings.TrimSpace(input.RecallDiscount.PromotionCodeID))},
 		}
+	} else if strings.TrimSpace(input.DiscountKind) == SubscriptionDiscountKindInvitation {
+		if input.DiscountAmountMinor <= 0 {
+			return nil, errors.New("Stripe invitation discount amount is invalid")
+		}
+		currency := strings.ToLower(strings.TrimSpace(input.DiscountCurrency))
+		if currency == "" {
+			return nil, errors.New("Stripe invitation discount currency is required")
+		}
+		couponParams := &stripe.CouponParams{
+			AmountOff: stripe.Int64(input.DiscountAmountMinor),
+			Currency:  stripe.String(currency),
+			Duration:  stripe.String(string(stripe.CouponDurationOnce)),
+			Name:      stripe.String("Flatkey invitation package credit"),
+		}
+		if strings.TrimSpace(input.IdempotencyKey) != "" {
+			couponParams.SetIdempotencyKey(strings.TrimSpace(input.IdempotencyKey) + ":invitation-coupon")
+		}
+		coupon, err := stripeSubscriptionCouponCreator(ctx, couponParams)
+		if err != nil {
+			return nil, err
+		}
+		if coupon == nil || strings.TrimSpace(coupon.ID) == "" {
+			return nil, errors.New("Stripe invitation coupon missing id")
+		}
+		params.Discounts = []*stripe.CheckoutSessionDiscountParams{
+			{Coupon: stripe.String(strings.TrimSpace(coupon.ID))},
+		}
 	}
 	ApplyStripeCheckoutPresentation(params, input.Presentation, input.TradeNo)
 	if strings.TrimSpace(input.CustomerID) != "" {
@@ -219,7 +299,7 @@ func createStripeSubscriptionCheckout(ctx context.Context, input StripeSubscript
 	if strings.TrimSpace(input.IdempotencyKey) != "" {
 		params.SetIdempotencyKey(strings.TrimSpace(input.IdempotencyKey))
 	}
-	created, err := session.New(params)
+	created, err := stripeSubscriptionSessionCreator(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -238,6 +318,14 @@ func createStripeSubscriptionCheckout(ctx context.Context, input StripeSubscript
 		URL:          strings.TrimSpace(created.URL),
 		ClientSecret: strings.TrimSpace(created.ClientSecret),
 	}, nil
+}
+
+func createStripeSubscriptionCoupon(ctx context.Context, params *stripe.CouponParams) (*stripe.Coupon, error) {
+	return stripecoupon.New(params)
+}
+
+func createStripeSubscriptionSession(ctx context.Context, params *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+	return session.New(params)
 }
 
 func getStripeCheckoutSessionForSubscription(ctx context.Context, sessionID string) (*stripe.CheckoutSession, error) {
@@ -431,6 +519,14 @@ func reconcilePaidInvoice(ctx context.Context, invoiceID string, reservation *mo
 		}).Error; err != nil {
 			return err
 		}
+		if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+			if _, err := model.CommitSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
+				return err
+			}
+		}
+		if err := recordRecurringInvoiceRecallConversionTx(tx, order, facts, invoiceID); err != nil {
+			return err
+		}
 		result.Binding = binding
 		if grant != nil {
 			result.Entitlement = grant.Entitlement
@@ -440,6 +536,9 @@ func reconcilePaidInvoice(ctx context.Context, invoiceID string, reservation *mo
 	})
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(facts.TradeNo) != "" {
+		deliverInviteSubscriptionRewardAfterOrderCompleted(ctx, facts.TradeNo)
 	}
 	return result, nil
 }
@@ -495,7 +594,7 @@ func ReconcileFailedInvoice(ctx context.Context, invoiceID string) error {
 		if err != nil {
 			return PermanentPaidInvoiceError(err)
 		}
-		if err := validateRenewalInvoiceFacts(facts, binding, contract, plan, user, planSnapshot); err != nil {
+		if err := validateRenewalInvoiceFactsTx(tx, facts, binding, contract, plan, user, planSnapshot); err != nil {
 			return PermanentPaidInvoiceError(err)
 		}
 		var entitlement model.UserSubscription
@@ -933,12 +1032,19 @@ func validateLocalInvoiceFacts(facts paidInvoiceFacts, order *model.Subscription
 	if plan.Id != facts.PlanID || (!plan.Enabled && !planSnapshot.Found) {
 		return errors.New("local plan is not enabled")
 	}
-	if strings.TrimSpace(plan.StripePriceId) == "" || strings.TrimSpace(plan.StripePriceId) != facts.PriceID {
+	expectedPriceID := strings.TrimSpace(plan.StripePriceId)
+	if planSnapshot.Found && strings.TrimSpace(planSnapshot.Snapshot.StripePriceID) != "" {
+		expectedPriceID = strings.TrimSpace(planSnapshot.Snapshot.StripePriceID)
+	}
+	if expectedPriceID == "" || expectedPriceID != facts.PriceID {
 		return errors.New("Stripe price mismatch")
 	}
 	expectedCurrency := strings.ToUpper(strings.TrimSpace(plan.Currency))
 	if planSnapshot.Found {
 		expectedCurrency = strings.ToUpper(strings.TrimSpace(planSnapshot.Snapshot.Currency))
+	}
+	if strings.TrimSpace(order.PaymentCurrency) != "" {
+		expectedCurrency = strings.ToUpper(strings.TrimSpace(order.PaymentCurrency))
 	}
 	if expectedCurrency != facts.Currency {
 		return errors.New("Stripe invoice currency mismatch")
@@ -947,9 +1053,13 @@ func validateLocalInvoiceFacts(facts paidInvoiceFacts, order *model.Subscription
 	if planSnapshot.Found {
 		expectedPrice = planSnapshot.Snapshot.PriceAmount
 	}
-	expectedMinor, err := stripeMinorUnitAmountForSubscription(expectedPrice, facts.Currency)
-	if err != nil {
-		return err
+	expectedMinor := order.PaymentAmountMinor
+	if expectedMinor <= 0 {
+		var err error
+		expectedMinor, err = stripeMinorUnitAmountForSubscription(expectedPrice, facts.Currency)
+		if err != nil {
+			return err
+		}
 	}
 	if expectedMinor != facts.AmountPaid {
 		return fmt.Errorf("Stripe invoice amount mismatch: expected %d got %d", expectedMinor, facts.AmountPaid)
@@ -957,9 +1067,50 @@ func validateLocalInvoiceFacts(facts paidInvoiceFacts, order *model.Subscription
 	return nil
 }
 
+func recordRecurringInvoiceRecallConversionTx(tx *gorm.DB, order *model.SubscriptionOrder, facts paidInvoiceFacts, invoiceID string) error {
+	if order == nil || strings.TrimSpace(order.DiscountKind) != SubscriptionDiscountKindRecall ||
+		order.RecallCampaignId <= 0 || order.RecallRecipientId <= 0 {
+		return nil
+	}
+	currency := strings.ToUpper(strings.TrimSpace(order.PaymentCurrency))
+	if currency == "" {
+		currency = facts.Currency
+	}
+	eventData, err := common.Marshal(map[string]any{
+		"invoice_id":      strings.TrimSpace(invoiceID),
+		"subscription_id": facts.SubscriptionID,
+		"trade_no":        strings.TrimSpace(order.TradeNo),
+		"conversion_kind": model.RecallConversionDirect,
+		"currency":        currency,
+		"amount_total":    order.PaymentAmountMinor,
+		"discount_amount": order.RecallDiscountAmountMinor,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = model.RecordRecallConversionTx(tx, model.RecallConversionRecord{
+		RecipientId:    order.RecallRecipientId,
+		CampaignId:     order.RecallCampaignId,
+		UserId:         order.UserId,
+		Kind:           model.RecallConversionDirect,
+		TradeNo:        strings.TrimSpace(order.TradeNo),
+		Currency:       currency,
+		Amount:         order.PaymentAmountMinor,
+		DiscountAmount: order.RecallDiscountAmountMinor,
+		Source:         "stripe",
+		SourceEventId:  "invoice:" + strings.TrimSpace(invoiceID),
+		EventData:      string(eventData),
+		ConvertedAt:    common.GetTimestamp(),
+	})
+	return err
+}
+
 type supersededStripeCheckout struct {
-	IntentID int64
-	TradeNo  string
+	OrderID                  int
+	IntentID                 int64
+	TradeNo                  string
+	ProviderSessionID        string
+	ReleasedDiscountUSDMinor int64
 }
 
 func supersedeReplaceablePendingStripeCheckouts(ctx context.Context, userID int, requestID string) ([]supersededStripeCheckout, error) {
@@ -1003,7 +1154,7 @@ func supersedeReplaceablePendingStripeCheckouts(ctx context.Context, userID int,
 			if err := supersedePendingStripeCheckoutLocally(&intent, &order); err != nil {
 				return nil, err
 			}
-			superseded = append(superseded, supersededStripeCheckout{IntentID: intent.Id, TradeNo: order.TradeNo})
+			superseded = append(superseded, supersededStripeCheckout{IntentID: intent.Id, TradeNo: order.TradeNo, ReleasedDiscountUSDMinor: order.SubscriptionDiscountUSDMinor})
 			continue
 		}
 		if err := expireReplaceableStripeCheckout(ctx, order.ProviderSessionId); err != nil {
@@ -1012,7 +1163,62 @@ func supersedeReplaceablePendingStripeCheckouts(ctx context.Context, userID int,
 		if err := supersedePendingStripeCheckoutLocally(&intent, &order); err != nil {
 			return nil, err
 		}
-		superseded = append(superseded, supersededStripeCheckout{IntentID: intent.Id, TradeNo: order.TradeNo})
+		superseded = append(superseded, supersededStripeCheckout{IntentID: intent.Id, TradeNo: order.TradeNo, ReleasedDiscountUSDMinor: order.SubscriptionDiscountUSDMinor})
+	}
+	return superseded, nil
+}
+
+func supersedeReplaceablePendingStripeCheckoutsLocallyTx(tx *gorm.DB, userID int, requestID string, confirmedExpiredProviderSessions map[string]struct{}) ([]supersededStripeCheckout, error) {
+	if tx == nil || userID <= 0 || strings.TrimSpace(requestID) == "" {
+		return nil, nil
+	}
+	var orders []model.SubscriptionOrder
+	if err := subscriptionCommandLock(tx).Model(&model.SubscriptionOrder{}).
+		Select("subscription_orders.*").
+		Joins("JOIN subscription_change_intents ON subscription_change_intents.id = subscription_orders.change_intent_id").
+		Where("subscription_orders.user_id = ? AND subscription_orders.payment_provider = ? AND subscription_orders.status = ? AND subscription_change_intents.request_id <> ? AND subscription_change_intents.payment_mode IN ? AND subscription_change_intents.status = ? AND subscription_change_intents.kind IN ?",
+			userID,
+			model.PaymentProviderStripe,
+			common.TopUpStatusPending,
+			strings.TrimSpace(requestID),
+			[]string{model.SubscriptionPaymentModeStripeRecurring, model.SubscriptionPaymentModePrepaid},
+			model.SubscriptionChangeIntentStatusAwaitingPayment,
+			[]string{model.SubscriptionChangeIntentKindPurchase, model.SubscriptionChangeIntentKindRepurchase, model.SubscriptionChangeIntentKindUpgrade, model.SubscriptionChangeIntentKindDowngrade},
+		).
+		Order("subscription_orders.id asc").
+		Find(&orders).Error; err != nil {
+		return nil, err
+	}
+	var superseded []supersededStripeCheckout
+	for _, order := range orders {
+		var intent model.SubscriptionChangeIntent
+		if err := subscriptionCommandLock(tx).
+			Where("id = ? AND user_id = ? AND status = ?", order.ChangeIntentId, userID, model.SubscriptionChangeIntentStatusAwaitingPayment).
+			First(&intent).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return nil, err
+		}
+		if intent.PaymentMode != model.SubscriptionPaymentModeStripeRecurring && intent.PaymentMode != model.SubscriptionPaymentModePrepaid {
+			continue
+		}
+		supersededCheckout := supersededStripeCheckout{
+			OrderID:                  order.Id,
+			IntentID:                 intent.Id,
+			TradeNo:                  order.TradeNo,
+			ProviderSessionID:        strings.TrimSpace(order.ProviderSessionId),
+			ReleasedDiscountUSDMinor: order.SubscriptionDiscountUSDMinor,
+		}
+		if supersededCheckout.ProviderSessionID != "" {
+			if _, ok := confirmedExpiredProviderSessions[supersededCheckout.ProviderSessionID]; !ok {
+				return nil, ErrSubscriptionChangeInProgress
+			}
+		}
+		if err := supersedePreparedPendingStripeCheckoutLocallyTx(tx, &intent, &order, false); err != nil {
+			return nil, err
+		}
+		superseded = append(superseded, supersededCheckout)
 	}
 	return superseded, nil
 }
@@ -1057,10 +1263,41 @@ func supersedePendingStripeCheckoutLocally(intent *model.SubscriptionChangeInten
 }
 
 func supersedePendingStripeCheckoutLocallyTx(tx *gorm.DB, intent *model.SubscriptionChangeIntent, order *model.SubscriptionOrder) error {
-	now := common.GetTimestamp()
-	if err := tx.Model(order).Where("id = ? AND status = ?", order.Id, common.TopUpStatusPending).
-		Updates(map[string]interface{}{"status": common.TopUpStatusExpired, "complete_time": now}).Error; err != nil {
+	var currentOrder model.SubscriptionOrder
+	if err := subscriptionCommandLock(tx).Where("id = ?", order.Id).First(&currentOrder).Error; err != nil {
 		return err
+	}
+	if currentOrder.Status != common.TopUpStatusPending {
+		return nil
+	}
+	return supersedePreparedPendingStripeCheckoutLocallyTx(tx, intent, &currentOrder, false)
+}
+
+func supersedePreparedPendingStripeCheckoutLocallyTx(tx *gorm.DB, intent *model.SubscriptionChangeIntent, order *model.SubscriptionOrder, providerExpirationPending bool) error {
+	now := common.GetTimestamp()
+	if tx == nil || intent == nil || order == nil {
+		return errors.New("pending Stripe checkout supersede facts are required")
+	}
+	if order.Status != common.TopUpStatusPending {
+		return nil
+	}
+	if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+		if _, err := model.ReleaseSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
+			return err
+		}
+	}
+	update := tx.Model(order).Where("id = ? AND status = ?", order.Id, common.TopUpStatusPending).
+		Updates(map[string]interface{}{
+			"status":                         common.TopUpStatusExpired,
+			"complete_time":                  now,
+			"provider_expiration_pending":    providerExpirationPending,
+			"provider_expiration_last_error": "",
+		})
+	if update.Error != nil {
+		return update.Error
+	}
+	if update.RowsAffected != 1 {
+		return ErrSubscriptionChangeInProgress
 	}
 	if err := tx.Model(intent).Where("id = ? AND status IN ?", intent.Id, []string{
 		model.SubscriptionChangeIntentStatusAwaitingPayment,
@@ -1111,6 +1348,17 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 	if err != nil {
 		return err
 	}
+	if reservation == nil && strings.TrimSpace(binding.ProviderLatestInvoiceId) == facts.InvoiceID {
+		applied, err := findAppliedPaidRenewalInvoiceEntitlementTx(tx, binding, facts.InvoiceID)
+		if err != nil {
+			return err
+		}
+		if applied != nil {
+			result.Binding = binding
+			result.Entitlement = applied
+			return nil
+		}
+	}
 	plan, pendingDowngrade, err := resolveExpectedRenewalPlanTx(tx, commonFacts, binding, contract, plan)
 	if err != nil {
 		return err
@@ -1119,7 +1367,7 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 	if err != nil {
 		return PermanentPaidInvoiceError(err)
 	}
-	if err := validateRenewalInvoiceFacts(commonFacts, binding, contract, plan, user, planSnapshot); err != nil {
+	if err := validateRenewalInvoiceFactsTx(tx, commonFacts, binding, contract, plan, user, planSnapshot); err != nil {
 		return PermanentPaidInvoiceError(err)
 	}
 	if reservation != nil {
@@ -1144,6 +1392,9 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 			return model.ConsumeCurrentSubscriptionProviderLifecycleReservationAfterAuthoritativeNoopTx(tx, contract.Id, reservation)
 		}
 		return nil
+	}
+	if _, err := commitStripeSubscriptionDiscountInvoiceForPaidRenewalTx(tx, facts.InvoiceID); err != nil {
+		return err
 	}
 	grantInput := model.GrantEntitlementInput{
 		ContractId:           contract.Id,
@@ -1227,6 +1478,25 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 		result.Applied = grant.Applied
 	}
 	return nil
+}
+
+func findAppliedPaidRenewalInvoiceEntitlementTx(tx *gorm.DB, binding *model.SubscriptionProviderBinding, invoiceID string) (*model.UserSubscription, error) {
+	if tx == nil || binding == nil || strings.TrimSpace(invoiceID) == "" {
+		return nil, nil
+	}
+	var entitlement model.UserSubscription
+	query := tx.Where("grant_key = ? AND contract_id = ? AND provider_binding_id = ?",
+		"stripe:"+strings.TrimSpace(invoiceID),
+		binding.ContractId,
+		binding.Id,
+	).Limit(1).Find(&entitlement)
+	if query.Error != nil {
+		return nil, query.Error
+	}
+	if query.RowsAffected == 0 {
+		return nil, nil
+	}
+	return &entitlement, nil
 }
 
 func paidRenewalNoopCanConsumeLifecycleReservationTx(tx *gorm.DB, facts paidInvoiceFacts, binding *model.SubscriptionProviderBinding, contract *model.UserSubscriptionContract) (bool, error) {
@@ -1348,7 +1618,7 @@ func lockRenewalBindingFactsTx(tx *gorm.DB, facts stripeInvoiceCommonFacts) (*mo
 	return &binding, &contract, &plan, &user, nil
 }
 
-func validateRenewalInvoiceFacts(facts stripeInvoiceCommonFacts, binding *model.SubscriptionProviderBinding, contract *model.UserSubscriptionContract, plan *model.SubscriptionPlan, user *model.User, planSnapshot recurringInvoicePlanSnapshot) error {
+func validateRenewalInvoiceFactsTx(tx *gorm.DB, facts stripeInvoiceCommonFacts, binding *model.SubscriptionProviderBinding, contract *model.UserSubscriptionContract, plan *model.SubscriptionPlan, user *model.User, planSnapshot recurringInvoicePlanSnapshot) error {
 	if binding.ContractId <= 0 || contract.Id != binding.ContractId || contract.UserId != binding.UserId {
 		return errors.New("local contract ownership mismatch")
 	}
@@ -1395,10 +1665,43 @@ func validateRenewalInvoiceFacts(facts stripeInvoiceCommonFacts, binding *model.
 	if err != nil {
 		return err
 	}
+	if snapshotExpected, found, err := stripeSubscriptionDiscountInvoiceExpectedPaymentMinorTx(tx, facts.InvoiceID); err != nil {
+		return err
+	} else if found {
+		expectedMinor = snapshotExpected
+	}
 	if expectedMinor != facts.Amount {
 		return fmt.Errorf("Stripe invoice amount mismatch: expected %d got %d", expectedMinor, facts.Amount)
 	}
 	return nil
+}
+
+func stripeSubscriptionDiscountInvoiceExpectedPaymentMinorTx(tx *gorm.DB, invoiceID string) (int64, bool, error) {
+	if tx == nil || strings.TrimSpace(invoiceID) == "" {
+		return 0, false, nil
+	}
+	var reserve model.SubscriptionDiscountEntry
+	err := tx.Where("idempotency_key = ? AND entry_type = ?",
+		stripeSubscriptionDiscountInvoiceReservationKey(invoiceID),
+		model.SubscriptionDiscountEntryTypeReserve,
+	).First(&reserve).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	snapshot, err := parseStripeSubscriptionDiscountInvoiceSnapshot(reserve.PricingSnapshot)
+	if err != nil {
+		return 0, true, err
+	}
+	if snapshot.InvoiceID != strings.TrimSpace(invoiceID) ||
+		snapshot.ReservationKey != stripeSubscriptionDiscountInvoiceReservationKey(invoiceID) ||
+		snapshot.ExpectedFinalPaymentMinor < 0 ||
+		snapshot.IncrementalItemMinor != reserve.AppliedAmountMinor {
+		return 0, true, errors.New("subscription discount invoice snapshot mismatch")
+	}
+	return snapshot.ExpectedFinalPaymentMinor, true, nil
 }
 
 func resolveExpectedRenewalPlanTx(tx *gorm.DB, facts stripeInvoiceCommonFacts, binding *model.SubscriptionProviderBinding, contract *model.UserSubscriptionContract, currentPlan *model.SubscriptionPlan) (*model.SubscriptionPlan, bool, error) {
@@ -1533,9 +1836,21 @@ func createOrLoadStripeInvoiceBindingTx(tx *gorm.DB, order *model.SubscriptionOr
 }
 
 func CompleteOneTimeStripeSubscriptionPurchase(ctx context.Context, tradeNo string, providerPayload string) (*PurchaseSubscriptionResult, error) {
+	return completeOneTimeSubscriptionPurchase(ctx, tradeNo, providerPayload, model.PaymentProviderStripe, "")
+}
+
+func CompleteOneTimeEpaySubscriptionPurchase(ctx context.Context, tradeNo string, providerPayload string, actualPaymentMethod string) (*PurchaseSubscriptionResult, error) {
+	return completeOneTimeSubscriptionPurchase(ctx, tradeNo, providerPayload, model.PaymentProviderEpay, actualPaymentMethod)
+}
+
+func completeOneTimeSubscriptionPurchase(ctx context.Context, tradeNo string, providerPayload string, paymentProvider string, actualPaymentMethod string) (*PurchaseSubscriptionResult, error) {
 	tradeNo = strings.TrimSpace(tradeNo)
 	if tradeNo == "" {
 		return nil, errors.New("tradeNo is empty")
+	}
+	paymentProvider = strings.TrimSpace(paymentProvider)
+	if paymentProvider == "" {
+		return nil, errors.New("payment provider is empty")
 	}
 	result := &PurchaseSubscriptionResult{}
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
@@ -1546,7 +1861,10 @@ func CompleteOneTimeStripeSubscriptionPurchase(ctx context.Context, tradeNo stri
 			}
 			return err
 		}
-		if !isOneTimeStripeSubscriptionOrder(&order) {
+		if !isOneTimeSubscriptionOrderForProvider(&order, paymentProvider) {
+			return model.ErrPaymentMethodMismatch
+		}
+		if strings.TrimSpace(actualPaymentMethod) != "" && order.PaymentMethod != strings.TrimSpace(actualPaymentMethod) {
 			return model.ErrPaymentMethodMismatch
 		}
 		if order.Status == common.TopUpStatusSuccess {
@@ -1580,7 +1898,7 @@ func CompleteOneTimeStripeSubscriptionPurchase(ctx context.Context, tradeNo stri
 		if err != nil {
 			return PermanentPaidInvoiceError(err)
 		}
-		if err := validateOneTimeStripeLocalOrderFacts(&order, &intent, snapshot); err != nil {
+		if err := validateOneTimeLocalOrderFacts(&order, &intent, snapshot, paymentProvider); err != nil {
 			return PermanentPaidInvoiceError(err)
 		}
 		if err := enforcePrepaidReplacementLimitTx(tx, contract.Id, order.PurchaseMonths); err != nil {
@@ -1597,7 +1915,7 @@ func CompleteOneTimeStripeSubscriptionPurchase(ctx context.Context, tradeNo stri
 			UserId:               order.UserId,
 			PlanId:               order.PlanId,
 			ProviderBindingId:    0,
-			GrantKey:             "stripe-one-time:" + order.TradeNo,
+			GrantKey:             paymentProvider + "-one-time:" + order.TradeNo,
 			PaymentMode:          model.SubscriptionPaymentModePrepaid,
 			AmountTotal:          snapshot.TotalAmount,
 			MediaCreditsTotal:    snapshot.MediaCreditsMonthly,
@@ -1629,6 +1947,11 @@ func CompleteOneTimeStripeSubscriptionPurchase(ctx context.Context, tradeNo stri
 		if err := tx.Save(&order).Error; err != nil {
 			return err
 		}
+		if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+			if _, err := model.CommitSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
+				return err
+			}
+		}
 		if err := tx.Where("id = ?", contract.Id).First(&contract).Error; err != nil {
 			return err
 		}
@@ -1648,13 +1971,9 @@ func CompleteOneTimeStripeSubscriptionPurchase(ctx context.Context, tradeNo stri
 		return nil, err
 	}
 	if result.Order != nil {
+		deliverInviteSubscriptionRewardAfterOrderCompleted(ctx, tradeNo)
 		if err := model.SyncSubscriptionOrderTopUpHistory(tradeNo); err != nil {
 			return nil, err
-		}
-	}
-	if result.Order != nil && result.Order.Status == common.TopUpStatusSuccess {
-		if err := model.TryGrantInviteSubscriptionRewardAfterOrderCompleted(tradeNo); err != nil {
-			common.SysError(fmt.Sprintf("invite subscription reward grant failed for one-time order %s: %v", tradeNo, err))
 		}
 	}
 	return result, nil
@@ -1675,13 +1994,17 @@ func oneTimeStripePlanSnapshotFromOrder(order *model.SubscriptionOrder) (purchas
 }
 
 func validateOneTimeStripeLocalOrderFacts(order *model.SubscriptionOrder, intent *model.SubscriptionChangeIntent, snapshot purchasePlanSnapshot) error {
+	return validateOneTimeLocalOrderFacts(order, intent, snapshot, model.PaymentProviderStripe)
+}
+
+func validateOneTimeLocalOrderFacts(order *model.SubscriptionOrder, intent *model.SubscriptionChangeIntent, snapshot purchasePlanSnapshot, paymentProvider string) error {
 	if order == nil || intent == nil {
 		return errors.New("local one-time subscription facts are missing")
 	}
 	if order.UserId != intent.UserId || order.PlanId != intent.ToPlanId {
 		return errors.New("local one-time subscription ownership mismatch")
 	}
-	if order.PaymentProvider != model.PaymentProviderStripe {
+	if order.PaymentProvider != strings.TrimSpace(paymentProvider) {
 		return model.ErrPaymentMethodMismatch
 	}
 	if order.PurchaseMonths < 1 || order.PurchaseMonths > 12 {
@@ -1707,6 +2030,12 @@ func validateOneTimeStripeLocalOrderFacts(order *model.SubscriptionOrder, intent
 	} else if order.RecallCampaignId != 0 || order.RecallRecipientId != 0 || strings.TrimSpace(order.RecallPromotionCodeId) != "" {
 		return errors.New("local one-time subscription recall attribution requires discount")
 	}
+	if strings.TrimSpace(paymentProvider) == model.PaymentProviderEpay {
+		if strings.TrimSpace(order.PaymentMethod) == "" {
+			return errors.New("ePay subscription payment method is missing")
+		}
+		return nil
+	}
 	switch strings.TrimSpace(order.PaymentMethod) {
 	case SubscriptionPaymentChoicePix:
 		if strings.ToUpper(strings.TrimSpace(order.PaymentCurrency)) != "BRL" {
@@ -1724,11 +2053,19 @@ func validateOneTimeStripeLocalOrderFacts(order *model.SubscriptionOrder, intent
 }
 
 func isOneTimeStripeSubscriptionOrder(order *model.SubscriptionOrder) bool {
+	return isOneTimeSubscriptionOrderForProvider(order, model.PaymentProviderStripe)
+}
+
+func isOneTimeSubscriptionOrderForProvider(order *model.SubscriptionOrder, paymentProvider string) bool {
 	if order == nil {
 		return false
 	}
-	if order.PaymentProvider != model.PaymentProviderStripe {
+	paymentProvider = strings.TrimSpace(paymentProvider)
+	if order.PaymentProvider != paymentProvider {
 		return false
+	}
+	if paymentProvider == model.PaymentProviderEpay {
+		return strings.TrimSpace(order.PaymentMethod) != ""
 	}
 	switch strings.TrimSpace(order.PaymentMethod) {
 	case SubscriptionPaymentChoiceAlipay, SubscriptionPaymentChoicePix, SubscriptionPaymentChoiceUPI:
@@ -1739,9 +2076,21 @@ func isOneTimeStripeSubscriptionOrder(order *model.SubscriptionOrder) bool {
 }
 
 func TerminatePendingStripePurchase(ctx context.Context, tradeNo string, intentStatus string) error {
+	return terminatePendingOneTimePurchase(ctx, tradeNo, intentStatus, model.PaymentProviderStripe)
+}
+
+func TerminatePendingEpayPurchase(ctx context.Context, tradeNo string, intentStatus string) error {
+	return terminatePendingOneTimePurchase(ctx, tradeNo, intentStatus, model.PaymentProviderEpay)
+}
+
+func terminatePendingOneTimePurchase(ctx context.Context, tradeNo string, intentStatus string, paymentProvider string) error {
 	tradeNo = strings.TrimSpace(tradeNo)
 	if tradeNo == "" {
 		return nil
+	}
+	paymentProvider = strings.TrimSpace(paymentProvider)
+	if paymentProvider == "" {
+		return errors.New("payment provider is empty")
 	}
 	switch intentStatus {
 	case model.SubscriptionChangeIntentStatusExpired, model.SubscriptionChangeIntentStatusFailed:
@@ -1761,17 +2110,23 @@ func TerminatePendingStripePurchase(ctx context.Context, tradeNo string, intentS
 			}
 			return err
 		}
-		if order.PaymentProvider != model.PaymentProviderStripe {
+		if order.PaymentProvider != paymentProvider {
+			return nil
+		}
+		if order.Status != common.TopUpStatusPending {
 			return nil
 		}
 		shouldSyncTopUpHistory = true
-		if order.Status == common.TopUpStatusPending {
-			if err := tx.Model(&order).Updates(map[string]interface{}{
-				"status":        orderStatus,
-				"complete_time": common.GetTimestamp(),
-			}).Error; err != nil {
+		if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+			if _, err := model.ReleaseSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
 				return err
 			}
+		}
+		if err := tx.Model(&order).Updates(map[string]interface{}{
+			"status":        orderStatus,
+			"complete_time": common.GetTimestamp(),
+		}).Error; err != nil {
+			return err
 		}
 		intentID := order.ChangeIntentId
 		if intentID <= 0 {
@@ -1787,7 +2142,7 @@ func TerminatePendingStripePurchase(ctx context.Context, tradeNo string, intentS
 		if intent.Status == model.SubscriptionChangeIntentStatusAwaitingPayment || intent.Status == model.SubscriptionChangeIntentStatusCreated || intent.Status == model.SubscriptionChangeIntentStatusSyncing {
 			if err := tx.Model(&intent).Updates(map[string]interface{}{
 				"status":     intentStatus,
-				"last_error": "Stripe checkout ended before first invoice was reconciled",
+				"last_error": paymentProvider + " checkout ended before first invoice was reconciled",
 				"updated_at": common.GetTimestamp(),
 			}).Error; err != nil {
 				return err

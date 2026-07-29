@@ -22,7 +22,7 @@ export function RewardStepsCard(props: RewardStepsCardProps) {
   let rewardTitle: string | null = null
   if (props.summary !== null) {
     if (subscriptionMode) {
-      rewardTitle = t('You receive {{reward}} in balance', {
+      rewardTitle = t('You receive {{reward}} package discount', {
         reward: formatInvitationUSD(props.summary.inviter_reward_usd),
       })
     } else if (
@@ -48,29 +48,19 @@ export function RewardStepsCard(props: RewardStepsCardProps) {
           description: t('Send your unique referral link to a friend.'),
         },
         {
-          title: t('Your friend subscribes with {{discount}} off', {
-            discount: formatInvitationUSD(
-              props.summary?.first_sub_discount_usd ?? 5
-            ),
-          }),
+          title: t('Your friend registers'),
           description: t(
-            'They sign up with your link and get {{discount}} off the first month of any plan.',
-            {
-              discount: formatInvitationUSD(
-                props.summary?.first_sub_discount_usd ?? 5
-              ),
-            }
+            'Your friend gets a package discount immediately after registering.'
           ),
         },
         {
           title: rewardTitle,
           description: t(
-            '{{reward}} is added to your balance, unlocked {{days}} days after payment if there is no refund.',
+            'You receive {{reward}} package discount immediately after their first successful paid package purchase. Package discounts never expire and can only be used for package purchases or renewals.',
             {
               reward: formatInvitationUSD(
                 props.summary?.inviter_reward_usd ?? 0
               ),
-              days: props.summary?.unlock_delay_days ?? 7,
             }
           ),
         },

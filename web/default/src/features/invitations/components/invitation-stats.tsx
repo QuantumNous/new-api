@@ -20,37 +20,50 @@ interface InvitationStatsProps {
 
 export function InvitationStats(props: InvitationStatsProps) {
   const { t } = useTranslation()
-  const pending = props.loading || props.summary === null
-  const hasPendingReferrals = (props.summary?.pending_count ?? 0) > 0
-  const subscriptionMode = props.summary?.reward_mode === 'subscription'
-  const stats = [
-    {
-      label: t('Total earned'),
-      value: formatInvitationUSD(props.summary?.history_usd ?? 0),
-      description: t('Lifetime'),
-    },
-    subscriptionMode
-      ? {
-          label: t('Locked credits'),
-          value: formatInvitationUSD(props.summary?.locked_reward_usd ?? 0),
-          description: t("Unlocks {{days}} days after your friend's payment", {
-            days: props.summary?.unlock_delay_days ?? 7,
-          }),
-        }
-      : {
-          label: t('Pending credits'),
-          value: formatInvitationUSD(props.summary?.pending_reward_usd ?? 0),
-          description: t("Released after your friend's first top-up"),
-        },
+  const summary = props.summary
+  const pending = props.loading || summary === null
+  const hasPendingReferrals = (summary?.pending_count ?? 0) > 0
+  const subscriptionMode = summary?.reward_mode === 'subscription'
+  const stats =
+    summary?.reward_mode === 'subscription'
+      ? [
+          {
+            label: t('Available package discount'),
+            value: formatInvitationUSD(summary.available_discount_usd),
+            description: t('For package purchases and renewals'),
+          },
+          {
+            label: t('Lifetime package discount'),
+            value: formatInvitationUSD(summary.lifetime_discount_usd),
+            description: t('Permanent total earned'),
+          },
+        ]
+      : [
+          {
+            label: t('Total earned'),
+            value: formatInvitationUSD(
+              summary?.reward_mode === 'topup' ? summary.history_usd : 0
+            ),
+            description: t('Lifetime'),
+          },
+          {
+            label: t('Pending credits'),
+            value: formatInvitationUSD(
+              summary?.reward_mode === 'topup' ? summary.pending_reward_usd : 0
+            ),
+            description: t("Released after your friend's first top-up"),
+          },
+        ]
+  stats.push(
     {
       label: t('Registered friends'),
       value: String(props.registeredCount),
       description: subscriptionMode
-        ? t('{{reward}} each after their first subscription', {
-            reward: formatInvitationUSD(props.summary?.inviter_reward_usd ?? 0),
+        ? t('Friends get {{reward}} package discount', {
+            reward: formatInvitationUSD(summary?.invitee_reward_usd ?? 0),
           })
         : t('{{reward}} each after first top-up', {
-            reward: formatInvitationUSD(props.summary?.inviter_reward_usd ?? 0),
+            reward: formatInvitationUSD(summary?.inviter_reward_usd ?? 0),
           }),
     },
     {
@@ -59,12 +72,12 @@ export function InvitationStats(props: InvitationStatsProps) {
       description: hasPendingReferrals
         ? t('Tracking')
         : t('Share your link to start earning'),
-    },
-  ]
+    }
+  )
 
   return (
     <Card size='sm' className='py-0'>
-      <div className='divide-border grid grid-cols-1 divide-y sm:grid-cols-2 sm:divide-y-0 sm:divide-x xl:grid-cols-4'>
+      <div className='divide-border grid grid-cols-1 divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4'>
         {stats.map((stat) => (
           <div key={stat.label} className='px-4 py-4 sm:px-5'>
             <p className='text-muted-foreground text-xs font-medium'>

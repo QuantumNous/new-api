@@ -822,13 +822,19 @@ func StripeWebhook(c *gin.Context) {
 	case stripe.EventTypeCheckoutSessionAsyncPaymentFailed:
 		processingErr = sessionAsyncPaymentFailed(ctx, event, callerIp)
 	case stripe.EventTypeChargeRefunded:
-		processingErr = chargeReversed(ctx, event, model.InviteSubRewardReasonRefunded, callerIp)
+		processingErr = chargeReversed(ctx, event)
 	case stripe.EventTypeChargeDisputeCreated:
-		processingErr = chargeReversed(ctx, event, model.InviteSubRewardReasonDisputed, callerIp)
+		processingErr = chargeReversed(ctx, event)
 	case stripe.EventTypeInvoicePaid:
 		processingErr = handleStripeInvoicePaid(ctx, event)
+	case stripe.EventTypeInvoiceCreated:
+		processingErr = handleStripeInvoiceCreated(ctx, event)
 	case stripe.EventTypeInvoicePaymentFailed:
 		processingErr = handleStripeInvoicePaymentFailed(ctx, event)
+	case stripe.EventTypeInvoiceVoided:
+		processingErr = handleStripeInvoiceVoided(ctx, event)
+	case stripe.EventTypeInvoiceMarkedUncollectible:
+		processingErr = handleStripeInvoiceMarkedUncollectible(ctx, event)
 	case stripe.EventTypeCustomerSubscriptionUpdated:
 		processingErr = handleStripeSubscriptionUpdated(ctx, event)
 	case stripe.EventTypeCustomerSubscriptionDeleted:
@@ -1013,6 +1019,17 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 	}()
 	payload := stripeSubscriptionProviderPayload(event, referenceId, customerId)
 	if order := model.GetSubscriptionOrderByTradeNo(referenceId); order != nil {
+		if event.GetObjectValue("mode") == string(stripe.CheckoutSessionModePayment) {
+			if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), model.PaymentProviderStripe, model.PaymentMethodStripe); err == nil {
+				syncStripePaymentInvoice(ctx, event, referenceId, customerId)
+				attributeRecallAfterStripeFulfillment(ctx, event, referenceId, order.UserId)
+				logger.LogInfo(ctx, fmt.Sprintf("Stripe one-time subscription order processed trade_no=%s event_type=%s client_ip=%s", referenceId, string(event.Type), callerIp))
+				return nil
+			} else {
+				logger.LogError(ctx, fmt.Sprintf("Stripe one-time subscription order processing failed trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
+				return err
+			}
+		}
 		snapshot, snapshotErr := stripeSubscriptionSnapshotFromCheckoutSession(event, order)
 		if snapshotErr != nil {
 			return snapshotErr
@@ -1148,6 +1165,8 @@ var stripeSubscriptionSnapshotFromSubscriptionEvent = getStripeSubscriptionSnaps
 var notifyStripePaymentProcessingFailure = service.NotifyDingTalkPaymentProcessingFailure
 var reconcilePaidStripeInvoice = service.ReconcilePaidInvoice
 var reconcileFailedStripeInvoice = service.ReconcileFailedInvoice
+var prepareStripeSubscriptionDiscountInvoice = service.PrepareStripeSubscriptionDiscountInvoice
+var releaseStripeSubscriptionDiscountInvoice = service.ReleaseStripeSubscriptionDiscountInvoice
 var terminatePendingStripePurchase = service.TerminatePendingStripePurchase
 var fulfillOneTimeStripeSubscriptionPurchase = service.CompleteOneTimeStripeSubscriptionPurchase
 
@@ -1179,6 +1198,48 @@ func handleStripeInvoicePaymentFailed(ctx context.Context, event stripe.Event) (
 		return permanentStripeWebhookProcessingError(errors.New("Stripe invoice.payment_failed missing invoice id"))
 	}
 	err = reconcileFailedStripeInvoice(ctx, invoiceID)
+	if service.IsPermanentPaidInvoiceError(err) {
+		return permanentStripeWebhookProcessingError(err)
+	}
+	return err
+}
+
+func handleStripeInvoiceCreated(ctx context.Context, event stripe.Event) (err error) {
+	first, processingToken, err := recordStripeSubscriptionWebhookEvent(event)
+	if err != nil || !first {
+		return err
+	}
+	defer finishStripeSubscriptionWebhookEvent(event, processingToken, &err)
+	invoiceID := strings.TrimSpace(stripeEventObjectValue(event, "id"))
+	if invoiceID == "" {
+		return permanentStripeWebhookProcessingError(errors.New("Stripe invoice.created missing invoice id"))
+	}
+	err = prepareStripeSubscriptionDiscountInvoice(ctx, invoiceID)
+	if service.IsPermanentPaidInvoiceError(err) {
+		return permanentStripeWebhookProcessingError(err)
+	}
+	return err
+}
+
+func handleStripeInvoiceVoided(ctx context.Context, event stripe.Event) (err error) {
+	return handleStripeInvoiceTerminalForDiscountRelease(ctx, event, "invoice.voided")
+}
+
+func handleStripeInvoiceMarkedUncollectible(ctx context.Context, event stripe.Event) (err error) {
+	return handleStripeInvoiceTerminalForDiscountRelease(ctx, event, "invoice.marked_uncollectible")
+}
+
+func handleStripeInvoiceTerminalForDiscountRelease(ctx context.Context, event stripe.Event, eventName string) (err error) {
+	first, processingToken, err := recordStripeSubscriptionWebhookEvent(event)
+	if err != nil || !first {
+		return err
+	}
+	defer finishStripeSubscriptionWebhookEvent(event, processingToken, &err)
+	invoiceID := strings.TrimSpace(stripeEventObjectValue(event, "id"))
+	if invoiceID == "" {
+		return permanentStripeWebhookProcessingError(fmt.Errorf("Stripe %s missing invoice id", eventName))
+	}
+	err = releaseStripeSubscriptionDiscountInvoice(ctx, invoiceID)
 	if service.IsPermanentPaidInvoiceError(err) {
 		return permanentStripeWebhookProcessingError(err)
 	}
@@ -2041,20 +2102,15 @@ func backfillCardFingerprintFromTopUp(ctx context.Context, topUp *model.TopUp, c
 
 // chargeReversed handles charge.refunded / charge.dispute.created. It maps the
 // reversed charge back to the checkout session's client_reference_id (our
-// trade_no), revokes subscription invite rewards, and queues attributed top-up
-// refunds as Google Ads conversion adjustments. Product balance bookkeeping
-// remains a separate ops concern.
-//
-// Deliberately NOT gated on common.InviteRewardSubscriptionMode: rewards
-// created while the mode was enabled must remain clawback-able even after the
-// flag is turned off; Revoke is a cheap no-op when no reward exists.
+// trade_no) and queues attributed top-up refunds as Google Ads conversion
+// adjustments. Product balance bookkeeping remains a separate ops concern.
 //
 // Lookup covers both checkout modes:
 //   - mode=payment: the session carries the charge's payment_intent directly.
 //   - mode=subscription: the session has no payment_intent (the charge belongs
 //     to the subscription invoice), so walk charge → invoice → subscription and
 //     list sessions by subscription id.
-func chargeReversed(ctx context.Context, event stripe.Event, reason string, callerIp string) error {
+func chargeReversed(ctx context.Context, event stripe.Event) error {
 	referenceId := strings.TrimSpace(stripeEventObjectValue(event, "metadata", "trade_no"))
 	if referenceId == "" &&
 		!strings.HasPrefix(setting.StripeApiSecret, "sk_") &&
@@ -2161,14 +2217,6 @@ func chargeReversed(ctx context.Context, event stripe.Event, reason string, call
 			))
 		}
 	}
-	revoked, err := model.RevokeInviteSubscriptionRewardByTradeNo(referenceId, reason)
-	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("邀请奖励回收失败 trade_no=%s reason=%s error=%q", referenceId, reason, err.Error()))
-		return err
-	}
-	if revoked {
-		logger.LogInfo(ctx, fmt.Sprintf("邀请奖励已回收 trade_no=%s reason=%s client_ip=%s", referenceId, reason, callerIp))
-	}
 	return nil
 }
 
@@ -2246,7 +2294,6 @@ func stripeSubscriptionIdFromInvoice(inv *stripe.Invoice) (string, error) {
 	}
 	return strings.TrimSpace(inv.Parent.SubscriptionDetails.Subscription.ID), nil
 }
-
 func sessionExpired(ctx context.Context, event stripe.Event) error {
 	referenceId := event.GetObjectValue("client_reference_id")
 	status := event.GetObjectValue("status")

@@ -16,12 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -30,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import type {
   FlexiblePaymentChoice,
   PlanRecord,
@@ -39,10 +39,9 @@ import type {
 } from '@/features/subscriptions/types'
 import {
   getMatchingPaymentQuote,
-  requiresLocalCurrencyQuote,
+  normalizePurchaseMonths,
   requiresSignedCheckoutQuote,
 } from '../lib/subscription-plan-lifecycle'
-import type { RecallPriceDiscount } from '../lib/recall-claim'
 
 type PlanPurchaseDialogProps = {
   open: boolean
@@ -58,7 +57,6 @@ type PlanPurchaseDialogProps = {
   projectedRemainingDays?: number
   refundableNotStartedValue?: number
   isQuoteLoading?: boolean
-  recallDiscount?: RecallPriceDiscount | null
   onOpenChange: (open: boolean) => void
   onConfirm: (choice: FlexiblePaymentChoice, months: number) => void
   onQuoteRequest?: (choice: FlexiblePaymentChoice, months: number) => void
@@ -76,12 +74,6 @@ const PAYMENT_CHOICES: FlexiblePaymentChoice[] = [
   'balance',
 ]
 const MONTH_SHORTCUTS = [1, 3, 12]
-
-export function normalizePurchaseMonths(value: number | string): number {
-  const parsed = Math.floor(Number(value))
-  if (!Number.isFinite(parsed)) return 1
-  return Math.min(12, Math.max(1, parsed))
-}
 
 function getPaymentChoiceLabel(
   choice: FlexiblePaymentChoice,
@@ -138,11 +130,8 @@ function getQuoteReadinessReason(
   t: (key: string) => string
 ): string {
   if (!requiresSignedCheckoutQuote(choice) || quote) return ''
-  if (requiresLocalCurrencyQuote(choice)) {
-    if (isQuoteLoading) return t('Loading local currency quote...')
-    return t('Local currency quote is unavailable.')
-  }
-  return t('Payment choice is unavailable')
+  if (isQuoteLoading) return t('Loading payment quote...')
+  return t('Payment quote is unavailable.')
 }
 
 function getMonthLabel(
@@ -153,7 +142,24 @@ function getMonthLabel(
   return t('{{count}} months', { count })
 }
 
-export function PlanPurchaseDialogContent(props: PlanPurchaseDialogContentProps) {
+function getQuoteInvitationDiscountAmount(
+  quote: SubscriptionPaymentQuote
+): number {
+  if (typeof quote.invitation_discount_amount === 'number') {
+    return quote.invitation_discount_amount
+  }
+  if (
+    quote.currency === 'USD' &&
+    typeof quote.invitation_discount_usd === 'number'
+  ) {
+    return quote.invitation_discount_usd
+  }
+  return 0
+}
+
+export function PlanPurchaseDialogContent(
+  props: PlanPurchaseDialogContentProps
+) {
   const { t } = useTranslation()
   const [choice, setChoice] = useState<FlexiblePaymentChoice>(
     props.selectedPaymentChoice ?? 'stripe_recurring'
@@ -173,11 +179,6 @@ export function PlanPurchaseDialogContent(props: PlanPurchaseDialogContentProps)
     selectedMonths
   )
 
-  const totalPrice = useMemo(() => {
-    if (selectedQuote) return selectedQuote.total
-    const unitPrice = Number(props.plan?.plan.price_amount || 0)
-    return showMonths ? unitPrice * selectedMonths : unitPrice
-  }, [props.plan?.plan.price_amount, selectedQuote, selectedMonths, showMonths])
   const selectedDisabledReason = getDisabledReason(
     props.paymentAvailability,
     selectedChoice
@@ -188,23 +189,27 @@ export function PlanPurchaseDialogContent(props: PlanPurchaseDialogContentProps)
     props.isQuoteLoading === true,
     t
   )
-  const totalPriceLabel =
-    requiresLocalCurrencyQuote(selectedChoice) && selectedQuoteReadinessReason
-    ? '—'
-    : formatPlanPrice(totalPrice, selectedQuote?.currency)
-  const stripeRecallDiscount =
-    selectedChoice === 'stripe_recurring' ? props.recallDiscount : null
-  const quoteDiscount =
-    selectedChoice !== 'stripe_recurring' &&
-    selectedQuote &&
-    Number(selectedQuote.discount_amount || 0) > 0 &&
-    Number(selectedQuote.original_total || 0) > Number(selectedQuote.total)
-      ? {
-          originalTotal: Number(selectedQuote.original_total),
-          total: Number(selectedQuote.total),
-          currency: selectedQuote.currency,
-        }
-      : null
+  const originalTotal =
+    selectedQuote && typeof selectedQuote.original_total === 'number'
+      ? selectedQuote.original_total
+      : selectedQuote?.total
+  const invitationDiscountAmount = selectedQuote
+    ? getQuoteInvitationDiscountAmount(selectedQuote)
+    : 0
+  const otherDiscountAmount =
+    selectedQuote && typeof selectedQuote.other_discount_amount === 'number'
+      ? selectedQuote.other_discount_amount
+      : selectedQuote?.discount_kind === 'recall'
+        ? Number(selectedQuote.discount_amount || 0)
+        : 0
+  const invitationDiscountSelected =
+    selectedQuote?.discount_kind === 'invitation' &&
+    invitationDiscountAmount > 0
+  const otherDiscountSelected =
+    selectedQuote?.discount_kind === 'recall' && otherDiscountAmount > 0
+  const totalPriceLabel = selectedQuote
+    ? formatPlanPrice(selectedQuote.total, selectedQuote.currency)
+    : '-'
 
   return (
     <>
@@ -283,50 +288,93 @@ export function PlanPurchaseDialogContent(props: PlanPurchaseDialogContentProps)
         <div className='rounded-lg border p-3 text-sm'>
           <div className='flex items-center justify-between gap-3'>
             <span className='text-muted-foreground'>{t('Total price')}</span>
-            {stripeRecallDiscount ? (
-              <span className='flex items-baseline gap-2 tabular-nums'>
-                <span className='text-muted-foreground text-xs line-through'>
-                  {formatPlanPrice(
-                    stripeRecallDiscount.originalAmount,
-                    stripeRecallDiscount.currency
-                  )}
-                </span>
-                <span className='font-semibold'>
-                  {formatPlanPrice(
-                    stripeRecallDiscount.discountedAmount,
-                    stripeRecallDiscount.currency
-                  )}
-                </span>
-              </span>
-            ) : quoteDiscount ? (
-              <span className='flex items-baseline gap-2 tabular-nums'>
-                <span className='text-muted-foreground text-xs line-through'>
-                  {formatPlanPrice(
-                    quoteDiscount.originalTotal,
-                    quoteDiscount.currency
-                  )}
-                </span>
-                <span className='font-semibold'>
-                  {formatPlanPrice(quoteDiscount.total, quoteDiscount.currency)}
-                </span>
-              </span>
-            ) : (
-              <span className='font-semibold tabular-nums'>
-                {totalPriceLabel}
-              </span>
-            )}
+            <span className='font-semibold tabular-nums'>
+              {totalPriceLabel}
+            </span>
           </div>
           <div className='mt-2 grid gap-1 text-xs'>
             {selectedQuote ? (
-              <div className='flex items-center justify-between gap-3'>
-                <span className='text-muted-foreground'>{t('Unit price')}</span>
-                <span className='font-medium tabular-nums'>
-                  {formatPlanPrice(
-                    selectedQuote.unit_price,
-                    selectedQuote.currency
-                  )}
-                </span>
-              </div>
+              <>
+                {typeof originalTotal === 'number' ? (
+                  <div className='flex items-center justify-between gap-3'>
+                    <span className='text-muted-foreground'>
+                      {t('Original plan total')}
+                    </span>
+                    <span className='font-medium tabular-nums'>
+                      {formatPlanPrice(originalTotal, selectedQuote.currency)}
+                    </span>
+                  </div>
+                ) : null}
+                {invitationDiscountSelected ? (
+                  <div className='flex items-center justify-between gap-3'>
+                    <span className='text-muted-foreground'>
+                      {t('Invitation plan credit')}
+                    </span>
+                    <span className='font-medium tabular-nums'>
+                      -
+                      {formatPlanPrice(
+                        invitationDiscountAmount,
+                        selectedQuote.currency
+                      )}
+                    </span>
+                  </div>
+                ) : null}
+                {otherDiscountSelected ? (
+                  <div className='flex items-center justify-between gap-3'>
+                    <span className='text-muted-foreground'>
+                      {t('Other discount')}
+                    </span>
+                    <span className='font-medium tabular-nums'>
+                      -
+                      {formatPlanPrice(
+                        otherDiscountAmount,
+                        selectedQuote.currency
+                      )}
+                    </span>
+                  </div>
+                ) : null}
+                <div className='flex items-center justify-between gap-3'>
+                  <span className='text-muted-foreground'>
+                    {t('Final amount')}
+                  </span>
+                  <span className='font-semibold tabular-nums'>
+                    {formatPlanPrice(
+                      selectedQuote.total,
+                      selectedQuote.currency
+                    )}
+                  </span>
+                </div>
+                <div className='flex items-center justify-between gap-3'>
+                  <span className='text-muted-foreground'>
+                    {t('Unit price')}
+                  </span>
+                  <span className='font-medium tabular-nums'>
+                    {formatPlanPrice(
+                      selectedQuote.unit_price,
+                      selectedQuote.currency
+                    )}
+                  </span>
+                </div>
+                {typeof selectedQuote.invitation_remaining_usd === 'number' ? (
+                  <div className='flex items-center justify-between gap-3'>
+                    <span className='text-muted-foreground'>
+                      {t('Estimated remaining invitation plan credit')}
+                    </span>
+                    <span className='font-medium tabular-nums'>
+                      {formatPlanPrice(
+                        selectedQuote.invitation_remaining_usd,
+                        'USD'
+                      )}
+                    </span>
+                  </div>
+                ) : null}
+                {otherDiscountSelected &&
+                Number(selectedQuote.invitation_available_usd || 0) > 0 ? (
+                  <div className='text-muted-foreground'>
+                    {t('Invitation credit was not consumed.')}
+                  </div>
+                ) : null}
+              </>
             ) : null}
             {selectedQuoteReadinessReason ? (
               <div className='text-muted-foreground'>

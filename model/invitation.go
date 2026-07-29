@@ -10,20 +10,20 @@ type InvitationRecord struct {
 	GrantedAt      int64  `json:"granted_at"`
 	RewardQuota    int    `json:"reward_quota"`
 	Reason         string `json:"reason"`
-	// v2 (subscription-mode) fields; zero for legacy records
+	// v2 no longer exposes settlement dates; kept internally zero for legacy callers.
 	UnlockAt int64 `json:"unlock_at"`
 }
-
-// v2 display statuses layered on top of the legacy pending/granted/blocked set
-const (
-	InvitationRecordStatusLocked  = "locked"
-	InvitationRecordStatusRevoked = "revoked"
-)
 
 type InvitationPage struct {
 	Items        []InvitationRecord
 	Total        int64
 	PendingCount int64
+}
+
+type SubscriptionDiscountSummary struct {
+	AvailableDiscountUSD float64
+	ReservedDiscountUSD  float64
+	LifetimeDiscountUSD  float64
 }
 
 type invitationUserRow struct {
@@ -122,16 +122,16 @@ func GetInvitationPage(inviterId, offset, limit int) (*InvitationPage, error) {
 // the invitation record; v2 rows are authoritative for their invitee.
 func applyInviteSubscriptionReward(record *InvitationRecord, reward InviteSubscriptionReward) {
 	record.RewardQuota = reward.RewardQuota
-	record.UnlockAt = reward.UnlockAt
+	record.UnlockAt = 0
 	switch reward.Status {
 	case InviteSubRewardStatusPending:
-		record.Status = InvitationRecordStatusLocked
+		record.Status = InviteRewardStatusPending
 	case InviteSubRewardStatusGranted:
 		record.Status = InviteRewardStatusGranted
 		record.GrantedAt = reward.GrantedAt
 	case InviteSubRewardStatusRevoked:
-		record.Status = InvitationRecordStatusRevoked
-		record.Reason = reward.Reason
+		record.Status = InviteRewardStatusBlocked
+		record.Reason = normalizeBlockedInvitationReason(reward.Reason)
 	case InviteSubRewardStatusBlocked:
 		record.Status = InviteRewardStatusBlocked
 		record.Reason = normalizeBlockedInvitationReason(reward.Reason)
@@ -165,7 +165,7 @@ func normalizeInvitationRecord(record *InvitationRecord, row invitationUserRow, 
 
 func normalizeBlockedInvitationReason(reason string) string {
 	switch reason {
-	case InviteRewardBlockReasonInviterLimitReached, InviteRewardBlockReasonInviterMissing, "unavailable":
+	case InviteRewardBlockReasonInviterLimitReached, "unavailable":
 		return reason
 	default:
 		return "unavailable"
@@ -176,9 +176,34 @@ func normalizeInvitationReason(reason string) string {
 	switch reason {
 	case "":
 		return ""
-	case InviteRewardBlockReasonInviterLimitReached, InviteRewardBlockReasonInviterMissing, "unavailable":
+	case InviteRewardBlockReasonInviterLimitReached, "unavailable":
 		return reason
 	default:
 		return "unavailable"
 	}
+}
+
+func GetSubscriptionDiscountSummary(userID int) (*SubscriptionDiscountSummary, error) {
+	account, err := GetSubscriptionDiscountAccount(userID)
+	if err != nil {
+		return nil, err
+	}
+	var lifetimeUSDMinor int64
+	if err := DB.Model(&SubscriptionDiscountEntry{}).
+		Where("user_id = ? AND entry_type IN ? AND available_delta_usd_minor > 0",
+			userID,
+			[]string{SubscriptionDiscountEntryTypeGrantInviter, SubscriptionDiscountEntryTypeGrantInvitee, SubscriptionDiscountEntryTypeMigration}).
+		Select("COALESCE(SUM(available_delta_usd_minor), 0)").
+		Scan(&lifetimeUSDMinor).Error; err != nil {
+		return nil, err
+	}
+	return &SubscriptionDiscountSummary{
+		AvailableDiscountUSD: subscriptionDiscountMinorToUSD(account.AvailableUSDMinor),
+		ReservedDiscountUSD:  subscriptionDiscountMinorToUSD(account.ReservedUSDMinor),
+		LifetimeDiscountUSD:  subscriptionDiscountMinorToUSD(lifetimeUSDMinor),
+	}, nil
+}
+
+func subscriptionDiscountMinorToUSD(minor int64) float64 {
+	return float64(minor) / 100
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -245,6 +246,113 @@ func TestRecallClaimValidateReturnsInternalSubscriptionPlanIDs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []int{firstPlan.Id, secondPlan.Id}, view.Products.SubscriptionPlanIDs)
 	require.Equal(t, []string{"price_subscription"}, view.Products.SubscriptionPriceIDs)
+}
+
+func TestRecallClaimListOffersBatchHydratesSubscriptionPlans(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "recall-list-batch", AffCode: "recall-list-batch-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "batch@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+	require.NoError(t, db.Create(&[]model.SubscriptionPlan{
+		{Id: 10, Title: "A", Enabled: true, StripePriceId: "price_a"},
+		{Id: 20, Title: "B", Enabled: true, StripePriceId: "price_b"},
+		{Id: 30, Title: "B legacy", Enabled: true, StripePriceId: "price_b"},
+		{Id: 40, Title: "retired", Enabled: false, StripePriceId: "price_a"},
+	}).Error)
+	require.NoError(t, db.Model(&model.SubscriptionPlan{}).Where("id = ?", 40).Update("enabled", false).Error)
+
+	productScopes := []RecallProductScope{
+		{SubscriptionPriceIDs: []string{"price_b", "price_a", "price_b"}},
+		{SubscriptionPriceIDs: []string{"price_a"}},
+		{SubscriptionPriceIDs: []string{"price_b"}},
+	}
+	discountJSON, err := common.Marshal(RecallDiscountConfig{Type: "percent", PercentOff: 10})
+	require.NoError(t, err)
+	promotionID := func(value string) *string { return &value }
+	for i, products := range productScopes {
+		productsJSON, err := common.Marshal(products)
+		require.NoError(t, err)
+		campaign := model.RecallCampaign{
+			Name: fmt.Sprintf("batch-%d", i), Status: model.RecallCampaignRunning, CampaignType: model.RecallCampaignTypePromotion,
+			AudienceTemplate: "specified_users", AudienceConfig: `{}`, ExecutionMode: "manual", CouponSource: "automatic",
+			DiscountConfig: string(discountJSON), ProductScope: string(productsJSON), EmailSequenceConfig: `[]`,
+		}
+		require.NoError(t, db.Create(&campaign).Error)
+		recipient := model.RecallRecipient{
+			CampaignId: campaign.Id, UserId: user.Id, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+			LanguageSnapshot: "en", State: model.RecallRecipientContacting,
+			StripePromotionCodeId: promotionID(fmt.Sprintf("promo_batch_%d", i)), PromotionCode: fmt.Sprintf("FKBATCH%d", i),
+			PromotionExpiresAt: now.Add(time.Hour).Unix(), PromotionIssuedAt: now.Add(-time.Duration(i) * time.Minute).Unix(),
+		}
+		require.NoError(t, db.Create(&recipient).Error)
+	}
+
+	planQueries := int32(0)
+	callbackName := "recall_claim_list_offer_batch_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "subscription_plans" {
+			atomic.AddInt32(&planQueries, 1)
+		}
+	}))
+	t.Cleanup(func() { _ = db.Callback().Query().Remove(callbackName) })
+
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+	offers, err := claimService.ListOffers(context.Background(), user.Id)
+
+	require.NoError(t, err)
+	require.Len(t, offers, 3)
+	require.EqualValues(t, 1, atomic.LoadInt32(&planQueries))
+	require.Equal(t, []string{"price_b", "price_a"}, offers[0].Products.SubscriptionPriceIDs)
+	require.Equal(t, []int{20, 30, 10}, offers[0].Products.SubscriptionPlanIDs)
+	require.Equal(t, []int{10}, offers[1].Products.SubscriptionPlanIDs)
+	require.Equal(t, []int{20, 30}, offers[2].Products.SubscriptionPlanIDs)
+}
+
+func TestRecallResolveBestOfferScansPastDisplayLimitForHighestActualDiscount(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "recall-best-over-limit", AffCode: "recall-best-over-limit-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "best-over-limit@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+
+	createOffer := func(index int, issuedAt int64, percentOff float64) model.RecallRecipient {
+		t.Helper()
+		discountJSON, err := common.Marshal(RecallDiscountConfig{Type: "percent", PercentOff: percentOff})
+		require.NoError(t, err)
+		productsJSON, err := common.Marshal(RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}})
+		require.NoError(t, err)
+		campaign := model.RecallCampaign{
+			Name: fmt.Sprintf("best-over-limit-%03d", index), Status: model.RecallCampaignRunning, CampaignType: model.RecallCampaignTypePromotion,
+			AudienceTemplate: "specified_users", AudienceConfig: `{}`, ExecutionMode: "manual", CouponSource: "automatic",
+			DiscountConfig: string(discountJSON), ProductScope: string(productsJSON), EmailSequenceConfig: `[]`,
+		}
+		require.NoError(t, db.Create(&campaign).Error)
+		promotionID := fmt.Sprintf("promo_best_over_limit_%03d", index)
+		recipient := model.RecallRecipient{
+			CampaignId: campaign.Id, UserId: user.Id, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+			LanguageSnapshot: "en", State: model.RecallRecipientContacting,
+			StripePromotionCodeId: &promotionID, PromotionCode: fmt.Sprintf("FKBEST%03d", index),
+			PromotionExpiresAt: now.Add(time.Hour).Unix(), PromotionIssuedAt: issuedAt,
+		}
+		require.NoError(t, db.Create(&recipient).Error)
+		return recipient
+	}
+
+	for i := 0; i < 100; i++ {
+		createOffer(i, now.Unix()-int64(i), 5)
+	}
+	bestRecipient := createOffer(100, now.Unix()-1_000, 50)
+
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+	best, err := claimService.ResolveBestRecallOffer(context.Background(), user.Id, RecallPurchaseKindSubscription, "price_subscription", "USD", 10_000)
+
+	require.NoError(t, err)
+	require.NotNil(t, best)
+	require.Equal(t, bestRecipient.Id, best.View.RecipientID)
+	require.EqualValues(t, 5_000, best.DiscountMinor)
 }
 
 func TestRecallContentOnlyClaimValidationFailsClosedWithoutClick(t *testing.T) {

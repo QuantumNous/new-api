@@ -34,6 +34,8 @@ func setupInviteRewardModelTest(t *testing.T) {
 	originalQuotaForInviter := common.QuotaForInviter
 	originalQuotaForInvitee := common.QuotaForInvitee
 	originalQuotaForInviterMaxCount := common.QuotaForInviterMaxCount
+	originalInviteRewardSubscriptionMode := common.InviteRewardSubscriptionMode
+	originalInviteFirstSubDiscountUSD := common.InviteFirstSubDiscountUSD
 
 	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/invite_reward.db?_pragma=busy_timeout(5000)"), &gorm.Config{})
 	require.NoError(t, err)
@@ -47,7 +49,7 @@ func setupInviteRewardModelTest(t *testing.T) {
 	common.UsingMySQL = false
 	common.UsingPostgreSQL = false
 	common.RedisEnabled = false
-	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &TopUp{}, &Log{}, &InviteRewardEvent{}))
+	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &TopUp{}, &Log{}, &InviteRewardEvent{}, &SubscriptionDiscountAccount{}, &SubscriptionDiscountEntry{}))
 
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
@@ -61,6 +63,8 @@ func setupInviteRewardModelTest(t *testing.T) {
 		common.QuotaForInviter = originalQuotaForInviter
 		common.QuotaForInvitee = originalQuotaForInvitee
 		common.QuotaForInviterMaxCount = originalQuotaForInviterMaxCount
+		common.InviteRewardSubscriptionMode = originalInviteRewardSubscriptionMode
+		common.InviteFirstSubDiscountUSD = originalInviteFirstSubDiscountUSD
 		*operation_setting.GetPaymentSetting() = originalPaymentSetting
 	})
 
@@ -71,6 +75,8 @@ func setupInviteRewardModelTest(t *testing.T) {
 	common.QuotaForInviter = 100
 	common.QuotaForInvitee = 50
 	common.QuotaForInviterMaxCount = 5
+	common.InviteRewardSubscriptionMode = false
+	common.InviteFirstSubDiscountUSD = 0
 }
 
 func createInviteRewardUser(t *testing.T, username string, inviterId int) *User {
@@ -129,14 +135,59 @@ func TestInvitedUserInsertSetsPendingWithoutGrantingReward(t *testing.T) {
 	require.Zero(t, refreshedInviter.AffQuota)
 	require.Zero(t, refreshedInviter.AffHistoryQuota)
 	require.Zero(t, refreshedInviter.AffCount)
+	var entries int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("user_id = ?", invitee.Id).Count(&entries).Error)
+	require.Zero(t, entries)
+}
+
+func TestInvitedUserInsertGrantsConfiguredPackageCreditInSameTransaction(t *testing.T) {
+	setupInviteRewardModelTest(t)
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 5.25
+
+	inviter := createInviteRewardUser(t, "credit_inviter", 0)
+	invitee := createInviteRewardUser(t, "credit_invitee", inviter.Id)
+
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	require.Equal(t, inviter.Id, refreshedInvitee.InviterId)
+	require.Equal(t, InviteRewardStatusPending, refreshedInvitee.InviteRewardStatus)
+	require.Zero(t, refreshedInvitee.Quota)
+
+	account, err := GetSubscriptionDiscountAccount(invitee.Id)
+	require.NoError(t, err)
+	require.EqualValues(t, 525, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+
+	var entry SubscriptionDiscountEntry
+	require.NoError(t, DB.First(&entry, "idempotency_key = ?", fmt.Sprintf("invitee:%d", invitee.Id)).Error)
+	require.Equal(t, invitee.Id, entry.UserID)
+	require.Equal(t, SubscriptionDiscountEntryTypeGrantInvitee, entry.EntryType)
+	require.EqualValues(t, 525, entry.AvailableDeltaUSDMinor)
+	require.Zero(t, entry.ReservedDeltaUSDMinor)
+	require.EqualValues(t, 525, entry.AvailableAfterUSDMinor)
+	require.Zero(t, entry.ReservedAfterUSDMinor)
+	require.Equal(t, "invitee_registration", entry.SourceType)
+	require.Equal(t, fmt.Sprintf("%d", invitee.Id), entry.SourceKey)
+	require.JSONEq(t, `{"invite_first_sub_discount_usd":"5.25"}`, entry.PricingSnapshot)
 }
 
 func TestNonInvitedUserInsertSetsInviteRewardNone(t *testing.T) {
 	setupInviteRewardModelTest(t)
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 5.25
 
 	user := createInviteRewardUser(t, "plain", 0)
 
 	require.Equal(t, InviteRewardStatusNone, user.InviteRewardStatus)
+
+	account, err := GetSubscriptionDiscountAccount(user.Id)
+	require.NoError(t, err)
+	require.Zero(t, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var entries int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("user_id = ?", user.Id).Count(&entries).Error)
+	require.Zero(t, entries)
 }
 
 func TestUserInsertTrustsInviterIdParameterOverStructField(t *testing.T) {
@@ -151,8 +202,10 @@ func TestUserInsertTrustsInviterIdParameterOverStructField(t *testing.T) {
 	require.Equal(t, InviteRewardStatusNone, refreshed.InviteRewardStatus)
 }
 
-func TestOAuthUserInsertWithTxPersistsInviterAndPendingWithoutGrantingReward(t *testing.T) {
+func TestOAuthUserInsertWithTxPersistsInviterAndGrantsPackageCredit(t *testing.T) {
 	setupInviteRewardModelTest(t)
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 5.25
 
 	inviter := createInviteRewardUser(t, "oauth_inviter", 0)
 	invitee := &User{Username: "oauth_invitee", Role: common.RoleCommonUser}
@@ -171,6 +224,72 @@ func TestOAuthUserInsertWithTxPersistsInviterAndPendingWithoutGrantingReward(t *
 	require.Zero(t, refreshedInviter.AffQuota)
 	require.Zero(t, refreshedInviter.AffHistoryQuota)
 	require.Zero(t, refreshedInviter.AffCount)
+
+	account, err := GetSubscriptionDiscountAccount(invitee.Id)
+	require.NoError(t, err)
+	require.EqualValues(t, 525, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var entry SubscriptionDiscountEntry
+	require.NoError(t, DB.First(&entry, "idempotency_key = ?", fmt.Sprintf("invitee:%d", invitee.Id)).Error)
+	require.Equal(t, SubscriptionDiscountEntryTypeGrantInvitee, entry.EntryType)
+	require.JSONEq(t, `{"invite_first_sub_discount_usd":"5.25"}`, entry.PricingSnapshot)
+}
+
+func TestInvitedUserInsertSkipsPackageCreditWhenConfiguredAmountIsZero(t *testing.T) {
+	setupInviteRewardModelTest(t)
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 0
+
+	inviter := createInviteRewardUser(t, "zero_credit_inviter", 0)
+	invitee := createInviteRewardUser(t, "zero_credit_invitee", inviter.Id)
+
+	require.Equal(t, InviteRewardStatusPending, invitee.InviteRewardStatus)
+	account, err := GetSubscriptionDiscountAccount(invitee.Id)
+	require.NoError(t, err)
+	require.Zero(t, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var entries int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("user_id = ?", invitee.Id).Count(&entries).Error)
+	require.Zero(t, entries)
+}
+
+func TestInvitedUserInsertRollsBackWhenPackageCreditLedgerFails(t *testing.T) {
+	setupInviteRewardModelTest(t)
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 5.25
+
+	inviter := createInviteRewardUser(t, "rollback_credit_inviter", 0)
+
+	const callbackName = "test:fail_invitee_subscription_discount_entry"
+	rollbackErr := errors.New("forced subscription discount ledger failure")
+	require.NoError(t, DB.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*SubscriptionDiscountEntry); ok {
+			tx.AddError(rollbackErr)
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Create().Remove(callbackName))
+	})
+
+	invitee := &User{Username: "rollback_credit_invitee", Password: "password123", Role: common.RoleCommonUser}
+	err := invitee.Insert(inviter.Id)
+	require.ErrorIs(t, err, rollbackErr)
+
+	var inviteeRows int64
+	require.NoError(t, DB.Model(&User{}).Where("username = ?", "rollback_credit_invitee").Count(&inviteeRows).Error)
+	require.Zero(t, inviteeRows)
+	var accountRows int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountAccount{}).Where("user_id = ?", invitee.Id).Count(&accountRows).Error)
+	require.Zero(t, accountRows)
+	var entryRows int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("idempotency_key = ?", fmt.Sprintf("invitee:%d", invitee.Id)).Count(&entryRows).Error)
+	require.Zero(t, entryRows)
+
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Zero(t, refreshedInviter.AffCount)
+	require.Zero(t, refreshedInviter.AffQuota)
+	require.Zero(t, refreshedInviter.AffHistoryQuota)
 }
 
 func TestUserInsertWithTxTrustsInviterIdParameterOverStructField(t *testing.T) {

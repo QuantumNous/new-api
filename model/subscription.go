@@ -591,10 +591,22 @@ type SubscriptionOrder struct {
 	RecallDiscountAmountMinor int64  `json:"recall_discount_amount_minor" gorm:"type:bigint;not null;default:0"`
 	RecallOfferResolved       bool   `json:"recall_offer_resolved" gorm:"not null;default:false"`
 
+	DiscountKind                       string `json:"discount_kind" gorm:"type:varchar(32);not null;default:'none';index"`
+	SubscriptionDiscountUSDMinor       int64  `json:"subscription_discount_usd_minor" gorm:"type:bigint;not null;default:0"`
+	SubscriptionDiscountAmountMinor    int64  `json:"subscription_discount_amount_minor" gorm:"type:bigint;not null;default:0"`
+	SubscriptionDiscountReservationKey string `json:"subscription_discount_reservation_key" gorm:"type:varchar(191);not null;default:'';index"`
+	DiscountPricingSnapshot            string `json:"discount_pricing_snapshot" gorm:"type:text"`
+
 	ProviderPayload    string `json:"provider_payload" gorm:"type:text"`
 	ChangeIntentId     int64  `json:"change_intent_id" gorm:"type:bigint;default:0;index"`
 	ProviderSessionId  string `json:"provider_session_id" gorm:"type:varchar(128);default:'';index"`
 	ProviderSessionURL string `json:"provider_session_url" gorm:"type:text"`
+
+	SupersededByTradeNo            string `json:"superseded_by_trade_no" gorm:"type:varchar(255);not null;default:'';index"`
+	ProviderExpirationPending      bool   `json:"provider_expiration_pending" gorm:"not null;default:false;index"`
+	ProviderExpirationAttemptCount int    `json:"provider_expiration_attempt_count" gorm:"type:int;not null;default:0"`
+	ProviderExpirationLastError    string `json:"provider_expiration_last_error" gorm:"type:text"`
+	ProviderExpirationCompletedAt  int64  `json:"provider_expiration_completed_at" gorm:"type:bigint;not null;default:0"`
 }
 
 func (o *SubscriptionOrder) Insert() error {
@@ -1042,6 +1054,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	var logMoney float64
 	var logPaymentMethod string
 	var upgradeGroup string
+	var rewardTradeNo string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
@@ -1050,6 +1063,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
 			return ErrPaymentMethodMismatch
 		}
+		rewardTradeNo = order.TradeNo
 		if order.Status == common.TopUpStatusSuccess {
 			return nil
 		}
@@ -1091,16 +1105,13 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	if err != nil {
 		return err
 	}
+	deliverInviteSubscriptionRewardBestEffort(rewardTradeNo)
 	if upgradeGroup != "" && logUserId > 0 {
 		_ = UpdateUserGroupCache(logUserId, upgradeGroup)
 	}
 	if logUserId > 0 {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
-	}
-	if err := TryGrantInviteSubscriptionRewardAfterOrderCompleted(tradeNo); err != nil {
-		// Reward bookkeeping must never fail an already-completed payment.
-		common.SysError(fmt.Sprintf("invite subscription reward grant failed for order %s: %v", tradeNo, err))
 	}
 	return nil
 }
@@ -1314,7 +1325,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	var logMoney float64
 	var chargedQuota int
 	var upgradeGroup string
-	var completedTradeNo string
+	var rewardTradeNo string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
@@ -1391,13 +1402,14 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		logMoney = chargedPrice
 		chargedQuota = requiredQuota
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		completedTradeNo = tradeNo
+		rewardTradeNo = order.TradeNo
 		return nil
 	})
 	if err != nil {
 		return err
 	}
 
+	deliverInviteSubscriptionRewardBestEffort(rewardTradeNo)
 	if chargedQuota > 0 {
 		if err := cacheDecrUserQuota(userId, int64(chargedQuota)); err != nil {
 			common.SysLog("failed to decrease user quota cache after subscription balance purchase: " + err.Error())
@@ -1408,12 +1420,16 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	}
 	msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
 	RecordLog(userId, LogTypeTopup, msg)
-	// Balance purchases bypass CompleteSubscriptionOrder, so trigger the same
-	// idempotent referral-reward bookkeeping here (never fails the purchase).
-	if err := TryGrantInviteSubscriptionRewardAfterOrderCompleted(completedTradeNo); err != nil {
-		common.SysError(fmt.Sprintf("invite subscription reward grant failed for balance order %s: %v", completedTradeNo, err))
-	}
 	return nil
+}
+
+func deliverInviteSubscriptionRewardBestEffort(tradeNo string) {
+	if strings.TrimSpace(tradeNo) == "" || !common.InviteRewardSubscriptionMode {
+		return
+	}
+	if err := TryGrantInviteSubscriptionRewardAfterOrderCompleted(tradeNo); err != nil {
+		common.SysError(fmt.Sprintf("invite subscription reward delivery failed trade_no=%s error=%q", tradeNo, err.Error()))
+	}
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.

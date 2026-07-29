@@ -14,32 +14,41 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import { CopyButton } from '@/components/copy-button'
 import { buildInvitationShareLinks } from '../lib/share'
+import type { InvitationRewardMode } from '../types'
 
 interface ReferralLinkCardProps {
   affiliateLink: string
   loading: boolean
   error: boolean
+  rewardMode?: InvitationRewardMode
 }
 
 export function ReferralLinkCard({
   affiliateLink,
   loading,
   error,
+  rewardMode,
 }: ReferralLinkCardProps) {
   const { t } = useTranslation()
+  let rewardMessage = t('Share your referral link to get started.')
+  if (rewardMode === 'subscription') {
+    rewardMessage = t(
+      'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
+    )
+  } else if (rewardMode === 'topup') {
+    rewardMessage = t(
+      'Share your referral link with friends. Referral rewards are processed after their first successful top-up.'
+    )
+  }
   const links = buildInvitationShareLinks(
     affiliateLink,
-    t(
-      'Join Flatkey with my referral link. Referral rewards are processed after your first successful top-up.'
-    )
+    rewardMessage
   )
 
   return (
     <TitledCard
       title={t('Your Referral Link')}
-      description={t(
-        'Share your referral link with friends. Referral rewards are processed after their first successful top-up.'
-      )}
+      description={rewardMessage}
       contentClassName='space-y-3'
     >
       {loading ? (

@@ -50,29 +50,32 @@ function getStatusPresentation(
   subscriptionMode: boolean
 ) {
   if (status === 'granted') {
-    return { label: 'Reward granted', variant: 'default' as const }
+    return {
+      label: subscriptionMode ? 'Reward received' : 'Reward granted',
+      variant: 'default' as const,
+    }
   }
   if (status === 'pending') {
     return subscriptionMode
-      ? { label: 'Awaiting subscription', variant: 'secondary' as const }
+      ? {
+          label: 'Waiting for first paid package',
+          variant: 'secondary' as const,
+        }
       : { label: 'Awaiting top-up', variant: 'secondary' as const }
-  }
-  if (status === 'locked') {
-    return { label: 'Locked', variant: 'secondary' as const }
-  }
-  if (status === 'revoked') {
-    return { label: 'Reward revoked', variant: 'destructive' as const }
   }
   return { label: 'Reward unavailable', variant: 'destructive' as const }
 }
 
-function getReasonLabel(reason: InvitationReason): string {
+function getReasonLabel(
+  reason: InvitationReason,
+  subscriptionMode: boolean
+): string {
+  if (subscriptionMode && reason === 'inviter_limit_reached') {
+    return 'Reward limit reached'
+  }
   const labels: Record<Exclude<InvitationReason, ''>, string> = {
     inviter_limit_reached: 'You reached the referral reward limit',
-    inviter_missing: 'Reward unavailable',
     unavailable: 'Reward unavailable',
-    refunded: "Your friend's subscription was refunded",
-    disputed: "Your friend's payment was disputed",
   }
   return reason ? labels[reason] : ''
 }
@@ -154,11 +157,13 @@ export function InvitationRecordsCard({
             </TableHeader>
             <TableBody>
               {data.items.map((record) => {
+                const subscriptionMode =
+                  data.summary?.reward_mode === 'subscription'
                 const status = getStatusPresentation(
                   record.status,
-                  data.summary?.reward_mode === 'subscription'
+                  subscriptionMode
                 )
-                const reason = getReasonLabel(record.reason)
+                const reason = getReasonLabel(record.reason, subscriptionMode)
                 return (
                   <TableRow key={record.id}>
                     <TableCell className='pl-4 font-medium sm:pl-5'>
@@ -169,13 +174,6 @@ export function InvitationRecordsCard({
                     </TableCell>
                     <TableCell>
                       <Badge variant={status.variant}>{t(status.label)}</Badge>
-                      {record.status === 'locked' && record.unlock_at > 0 ? (
-                        <p className='text-muted-foreground mt-1 text-xs'>
-                          {t('Unlocks {{date}}', {
-                            date: formatTimestamp(record.unlock_at),
-                          })}
-                        </p>
-                      ) : null}
                       {reason ? (
                         <p className='text-muted-foreground mt-1 text-xs'>
                           {t(reason)}

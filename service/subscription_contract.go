@@ -30,12 +30,13 @@ var (
 )
 
 type ChangePlanCommand struct {
-	UserID      int
-	PlanID      int
-	PaymentMode string
-	RequestID   string
-	UIMode      string
-	RecallClaim string
+	UserID        int
+	PlanID        int
+	PaymentMode   string
+	RequestID     string
+	UIMode        string
+	RecallClaim   string
+	VerifiedQuote *SubscriptionPurchaseQuote
 }
 
 type ChangePlanResult struct {
@@ -62,6 +63,9 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 	var upgradeReplaySubscriptionID string
 	var supersededCheckouts []supersededStripeCheckout
 	if cmd.PaymentMode == model.SubscriptionPaymentModeStripeRecurring {
+		if err := preflightStripeRecurringCheckoutQuoteBeforeSupersede(cmd); err != nil {
+			return nil, err
+		}
 		var err error
 		supersededCheckouts, err = supersedeReplaceablePendingStripeCheckouts(context.Background(), cmd.UserID, cmd.RequestID)
 		if err != nil {
@@ -206,6 +210,9 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 				if strings.TrimSpace(order.ProviderSessionId) != "" {
 					return nil
 				}
+				if cmd.VerifiedQuote == nil {
+					return ErrSubscriptionPurchaseQuoteRequired
+				}
 				var plan model.SubscriptionPlan
 				if err := tx.Where("id = ?", existing.ToPlanId).First(&plan).Error; err != nil {
 					return err
@@ -216,24 +223,11 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 						return err
 					}
 				}
-				subtotalMinor, err := stripeMinorUnitAmountForSubscription(plan.PriceAmount, plan.Currency)
+				input, err := stripeSubscriptionCheckoutInputFromOrder(&order, &user, &plan, &contract, existing, ResolveStripeCheckoutPresentation(cmd.UIMode))
 				if err != nil {
 					return err
 				}
-				checkoutInput = &StripeSubscriptionCheckoutInput{
-					TradeNo:        order.TradeNo,
-					UserID:         user.Id,
-					PlanID:         plan.Id,
-					ContractID:     contract.Id,
-					ChangeIntentID: existing.Id,
-					CustomerID:     strings.TrimSpace(user.StripeCustomer),
-					Email:          strings.TrimSpace(user.Email),
-					PriceID:        strings.TrimSpace(plan.StripePriceId),
-					Currency:       strings.ToUpper(strings.TrimSpace(plan.Currency)),
-					SubtotalMinor:  subtotalMinor,
-					IdempotencyKey: existing.ProviderIdempotencyKey,
-					Presentation:   ResolveStripeCheckoutPresentation(cmd.UIMode),
-				}
+				checkoutInput = input
 			}
 			return nil
 		}
@@ -250,7 +244,36 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 		if err := validateChangePaymentMode(cmd.PaymentMode); err != nil {
 			return err
 		}
+		plan, err := loadEnabledSubscriptionPlanTx(tx, cmd.PlanID)
+		if err != nil {
+			return err
+		}
+		if cmd.PaymentMode == model.SubscriptionPaymentModeStripeRecurring {
+			existingContract, found, err := findContractForUserTx(tx, cmd.UserID)
+			if err != nil {
+				return err
+			}
+			requiresQuote := !found
+			if found {
+				kind, err := classifyPlanChangeTx(tx, &existingContract, plan)
+				if err != nil {
+					return err
+				}
+				requiresQuote = kind == model.SubscriptionChangeIntentKindPurchase ||
+					(kind == model.SubscriptionChangeIntentKindUpgrade &&
+						!(existingContract.PaymentMode == model.SubscriptionPaymentModeStripeRecurring &&
+							existingContract.CurrentProviderBindingId > 0))
+			}
+			if requiresQuote {
+				validated, err := validateRecurringStripeCheckoutQuoteForCurrentPlan(*plan, cmd)
+				if err != nil {
+					return err
+				}
+				cmd.VerifiedQuote = &validated
+			}
+		}
 
+		// Lock order for new recurring checkouts: user -> plan/current quote facts -> current provider binding -> contract/intent -> discount account reservation.
 		prelockedCurrentBinding, err := prelockCurrentStripePlanChangeBindingBeforeContractTx(tx, cmd.UserID)
 		if err != nil {
 			return err
@@ -263,10 +286,6 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 			return err
 		}
 
-		plan, err := loadEnabledSubscriptionPlanTx(tx, cmd.PlanID)
-		if err != nil {
-			return err
-		}
 		kind, err := classifyPlanChangeTx(tx, contract, plan)
 		if err != nil {
 			return err
@@ -439,7 +458,7 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 						contract.PaymentMode != model.SubscriptionPaymentModeExternalOnePeriod) {
 					return errors.New("current subscription is not Stripe recurring")
 				}
-				input, err := prepareStripeSubscriptionCheckoutPaymentTx(tx, &user, contract, intent, plan)
+				input, err := prepareStripeSubscriptionCheckoutPaymentTx(tx, &user, contract, intent, plan, cmd.VerifiedQuote, cmd.RecallClaim)
 				if err != nil {
 					return err
 				}
@@ -458,7 +477,7 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 			if strings.TrimSpace(plan.StripePriceId) == "" {
 				return errors.New("subscription plan Stripe price id is required")
 			}
-			input, err := prepareStripeSubscriptionCheckoutPaymentTx(tx, &user, contract, intent, plan)
+			input, err := prepareStripeSubscriptionCheckoutPaymentTx(tx, &user, contract, intent, plan, cmd.VerifiedQuote, cmd.RecallClaim)
 			if err != nil {
 				return err
 			}
@@ -537,29 +556,31 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 		}
 	}
 	if checkoutInput != nil {
-		RecordRecallClaimAttribution(context.Background(), cmd.UserID, cmd.RecallClaim)
-		checkoutInput.RecallDiscount, err = resolveOrReuseStripeSubscriptionRecallDiscount(
-			context.Background(),
-			checkoutInput.TradeNo,
-			func() (*RecallCheckoutDiscount, error) {
-				offer, resolveErr := GetRecallRuntime().Claims.ResolveBestRecallOffer(
-					context.Background(),
-					cmd.UserID,
-					RecallPurchaseKindSubscription,
-					checkoutInput.PriceID,
-					checkoutInput.Currency,
-					checkoutInput.SubtotalMinor,
-				)
-				if resolveErr != nil {
-					common.SysLog(fmt.Sprintf("Stripe subscription Recall discount resolution failed user_id=%d trade_no=%s price_id=%s error=%q", cmd.UserID, checkoutInput.TradeNo, checkoutInput.PriceID, resolveErr.Error()))
-					return nil, resolveErr
-				}
-				return RecallCheckoutDiscountFromResolvedOffer(offer), nil
-			},
-		)
-		if err != nil {
-			_ = TerminatePendingStripePurchase(context.Background(), checkoutInput.TradeNo, model.SubscriptionChangeIntentStatusFailed)
-			return nil, err
+		if checkoutInput.DiscountKind == SubscriptionDiscountKindRecall {
+			RecordRecallClaimAttribution(context.Background(), cmd.UserID, cmd.RecallClaim)
+			checkoutInput.RecallDiscount, err = resolveOrReuseStripeSubscriptionRecallDiscount(
+				context.Background(),
+				checkoutInput.TradeNo,
+				func() (*RecallCheckoutDiscount, error) {
+					offer, resolveErr := GetRecallRuntime().Claims.ResolveBestRecallOffer(
+						context.Background(),
+						cmd.UserID,
+						RecallPurchaseKindSubscription,
+						checkoutInput.PriceID,
+						checkoutInput.Currency,
+						checkoutInput.SubtotalMinor,
+					)
+					if resolveErr != nil {
+						common.SysLog(fmt.Sprintf("Stripe subscription Recall discount resolution failed user_id=%d trade_no=%s price_id=%s error=%q", cmd.UserID, checkoutInput.TradeNo, checkoutInput.PriceID, resolveErr.Error()))
+						return nil, resolveErr
+					}
+					return RecallCheckoutDiscountFromResolvedOffer(offer), nil
+				},
+			)
+			if err != nil {
+				_ = TerminatePendingStripePurchase(context.Background(), checkoutInput.TradeNo, model.SubscriptionChangeIntentStatusFailed)
+				return nil, err
+			}
 		}
 		checkout, err := stripeSubscriptionCheckoutCreator(context.Background(), *checkoutInput)
 		if err != nil {
@@ -567,6 +588,8 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 			return nil, err
 		}
 		if err := persistStripeCheckoutSession(checkoutInput.ChangeIntentID, checkout.ID, checkout.URL); err != nil {
+			expireStripeCheckoutAfterPersistFailure(context.Background(), checkout.ID, err)
+			_ = TerminatePendingStripePurchase(context.Background(), checkoutInput.TradeNo, model.SubscriptionChangeIntentStatusFailed)
 			return nil, err
 		}
 		result.CheckoutURL = checkout.URL
@@ -730,6 +753,47 @@ func (cmd ChangePlanCommand) validate() error {
 	return nil
 }
 
+func preflightStripeRecurringCheckoutQuoteBeforeSupersede(cmd ChangePlanCommand) error {
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		return validateStripeRecurringCheckoutQuoteBeforeMutationTx(tx, cmd)
+	})
+}
+
+func validateStripeRecurringCheckoutQuoteBeforeMutationTx(tx *gorm.DB, cmd ChangePlanCommand) error {
+	if tx == nil || cmd.PaymentMode != model.SubscriptionPaymentModeStripeRecurring {
+		return nil
+	}
+	if existing, found, err := findIntentByRequestTx(tx, cmd.UserID, cmd.RequestID); err != nil {
+		return err
+	} else if found && existing != nil {
+		return nil
+	}
+	plan, err := loadEnabledSubscriptionPlanTx(tx, cmd.PlanID)
+	if err != nil {
+		return err
+	}
+	existingContract, found, err := findContractForUserTx(tx, cmd.UserID)
+	if err != nil {
+		return err
+	}
+	requiresQuote := !found
+	if found {
+		kind, err := classifyPlanChangeTx(tx, &existingContract, plan)
+		if err != nil {
+			return err
+		}
+		requiresQuote = kind == model.SubscriptionChangeIntentKindPurchase ||
+			(kind == model.SubscriptionChangeIntentKindUpgrade &&
+				!(existingContract.PaymentMode == model.SubscriptionPaymentModeStripeRecurring &&
+					existingContract.CurrentProviderBindingId > 0))
+	}
+	if !requiresQuote {
+		return nil
+	}
+	_, err = validateRecurringStripeCheckoutQuoteForCurrentPlan(*plan, cmd)
+	return err
+}
+
 func validateChangePaymentMode(paymentMode string) error {
 	switch paymentMode {
 	case model.SubscriptionPaymentModeBalanceOnePeriod, model.SubscriptionPaymentModeStripeRecurring:
@@ -748,7 +812,7 @@ func subscriptionCommandLock(tx *gorm.DB) *gorm.DB {
 
 func loadEnabledSubscriptionPlanTx(tx *gorm.DB, planID int) (*model.SubscriptionPlan, error) {
 	var plan model.SubscriptionPlan
-	if err := tx.Where("id = ?", planID).First(&plan).Error; err != nil {
+	if err := subscriptionCommandLock(tx).Where("id = ?", planID).First(&plan).Error; err != nil {
 		return nil, err
 	}
 	plan.NormalizeDefaults()
@@ -781,14 +845,12 @@ func enforceMaxPurchasePerUserTx(tx *gorm.DB, userID int, plan *model.Subscripti
 }
 
 func getOrCreateContractForUserTx(tx *gorm.DB, userID int) (*model.UserSubscriptionContract, error) {
-	var contract model.UserSubscriptionContract
-	query := subscriptionCommandLock(tx).Where("user_id = ?", userID).Limit(1).Find(&contract)
-	if query.Error != nil {
-		return nil, query.Error
-	}
-	if query.RowsAffected > 0 {
+	if contract, found, err := findContractForUserTx(tx, userID); err != nil {
+		return nil, err
+	} else if found {
 		return &contract, nil
 	}
+	var contract model.UserSubscriptionContract
 	contract = model.UserSubscriptionContract{
 		UserId:      userID,
 		Status:      model.SubscriptionContractStatusEnded,
@@ -801,6 +863,15 @@ func getOrCreateContractForUserTx(tx *gorm.DB, userID int) (*model.UserSubscript
 		return nil, err
 	}
 	return &contract, nil
+}
+
+func findContractForUserTx(tx *gorm.DB, userID int) (model.UserSubscriptionContract, bool, error) {
+	var contract model.UserSubscriptionContract
+	query := subscriptionCommandLock(tx).Where("user_id = ?", userID).Limit(1).Find(&contract)
+	if query.Error != nil {
+		return model.UserSubscriptionContract{}, false, query.Error
+	}
+	return contract, query.RowsAffected > 0, nil
 }
 
 func findIntentByRequestTx(tx *gorm.DB, userID int, requestID string) (*model.SubscriptionChangeIntent, bool, error) {
@@ -1295,9 +1366,36 @@ func stripeSubscriptionCheckoutIdempotencyKey(contractID int64, changeVersion in
 	return fmt.Sprintf("newapi:stripe-subscription-checkout:contract:%d:version:%d:intent:%d", contractID, changeVersion, intentID)
 }
 
-func prepareStripeSubscriptionCheckoutPaymentTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan) (*StripeSubscriptionCheckoutInput, error) {
+func prepareStripeSubscriptionCheckoutPaymentTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, verifiedQuote *SubscriptionPurchaseQuote, recallClaim string) (*StripeSubscriptionCheckoutInput, error) {
 	if tx == nil || user == nil || contract == nil || intent == nil || plan == nil {
 		return nil, errors.New("Stripe checkout facts are incomplete")
+	}
+	quote, err := recurringStripeCheckoutQuote(*plan, verifiedQuote)
+	if err != nil {
+		return nil, err
+	}
+	recallCampaignID, recallRecipientID, recallPromotionCodeID, recallDiscountAmountMinor := subscriptionPurchaseRecallAttribution(quote)
+	if quote.DiscountKind == SubscriptionDiscountKindRecall && strings.TrimSpace(recallPromotionCodeID) == "" && strings.TrimSpace(recallClaim) != "" {
+		recallDiscount, err := GetRecallRuntime().Claims.BuildCheckoutDiscount(
+			context.Background(),
+			user.Id,
+			recallClaim,
+			RecallPurchaseKindSubscription,
+			strings.TrimSpace(plan.StripePriceId),
+		)
+		if err != nil {
+			return nil, err
+		}
+		if recallDiscount != nil {
+			recallCampaignID = recallDiscount.CampaignID
+			recallRecipientID = recallDiscount.RecipientID
+			recallPromotionCodeID = strings.TrimSpace(recallDiscount.PromotionCodeID)
+			recallDiscountAmountMinor = quote.DiscountAmountMinor
+		}
+	}
+	snapshot, err := subscriptionPurchasePlanSnapshot(plan)
+	if err != nil {
+		return nil, err
 	}
 	intent.Status = model.SubscriptionChangeIntentStatusAwaitingPayment
 	tradeNo := fmt.Sprintf("SUBSTRUSR%dINT%dNO%s%d", user.Id, intent.Id, common.GetRandomString(6), time.Now().UnixNano())
@@ -1310,39 +1408,128 @@ func prepareStripeSubscriptionCheckoutPaymentTx(tx *gorm.DB, user *model.User, c
 		return nil, err
 	}
 	intent.ProviderIdempotencyKey = idempotencyKey
+	now := common.GetTimestamp()
 	order := &model.SubscriptionOrder{
-		UserId:          user.Id,
-		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
-		TradeNo:         tradeNo,
-		PaymentMethod:   model.PaymentMethodStripe,
-		PaymentProvider: model.PaymentProviderStripe,
-		Status:          common.TopUpStatusPending,
-		CreateTime:      common.GetTimestamp(),
-		ProviderPayload: fmt.Sprintf("change_intent_id=%d", intent.Id),
-		ChangeIntentId:  intent.Id,
+		UserId:                    user.Id,
+		PlanId:                    plan.Id,
+		Money:                     quote.Total,
+		TradeNo:                   tradeNo,
+		PaymentMethod:             model.PaymentMethodStripe,
+		PaymentProvider:           model.PaymentProviderStripe,
+		Status:                    common.TopUpStatusPending,
+		CreateTime:                now,
+		PurchaseMonths:            1,
+		UnitPrice:                 quote.UnitPrice,
+		PaymentCurrency:           quote.Currency,
+		PaymentAmountMinor:        quote.PaymentAmountMinor,
+		PlanSnapshot:              snapshot,
+		PurchaseIntent:            intent.Kind,
+		RenewalSource:             model.SubscriptionRenewalSourceProvider,
+		RecallCampaignId:          recallCampaignID,
+		RecallRecipientId:         recallRecipientID,
+		RecallPromotionCodeId:     recallPromotionCodeID,
+		RecallDiscountAmountMinor: recallDiscountAmountMinor,
+		ProviderPayload:           fmt.Sprintf("choice=%s;months=1;contract_id=%d;change_intent_id=%d", SubscriptionPaymentChoiceStripeRecurring, contract.Id, intent.Id),
+		ChangeIntentId:            intent.Id,
 	}
 	if err := tx.Create(order).Error; err != nil {
 		return nil, err
 	}
-	subtotalMinor, err := stripeMinorUnitAmountForSubscription(plan.PriceAmount, plan.Currency)
+	discountFacts := subscriptionReservationDiscountFacts{
+		OtherDiscountKind:        strings.TrimSpace(quote.OtherDiscountKind),
+		OtherDiscountAmountMinor: quote.OtherDiscountAmountMinor,
+	}
+	if err := reserveSubscriptionDiscountForOrderTx(tx, order, plan, PurchaseSubscriptionCommand{
+		UserID:        user.Id,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		VerifiedQuote: &quote,
+		RecallClaim:   recallClaim,
+	}, quote, discountFacts, subscriptionPurchaseOrderExpiresAt(now)); err != nil {
+		return nil, err
+	}
+	if err := tx.Save(order).Error; err != nil {
+		return nil, err
+	}
+	return stripeSubscriptionCheckoutInputFromOrder(order, user, plan, contract, intent, ResolveStripeCheckoutPresentation(""))
+}
+
+func recurringStripeCheckoutQuote(plan model.SubscriptionPlan, verifiedQuote *SubscriptionPurchaseQuote) (SubscriptionPurchaseQuote, error) {
+	if verifiedQuote == nil {
+		return SubscriptionPurchaseQuote{}, ErrSubscriptionPurchaseQuoteRequired
+	}
+	return validateSubscriptionPurchaseQuoteForChoice(*verifiedQuote, SubscriptionPaymentChoiceStripeRecurring, 1)
+}
+
+func validateRecurringStripeCheckoutQuoteForCurrentPlan(plan model.SubscriptionPlan, cmd ChangePlanCommand) (SubscriptionPurchaseQuote, error) {
+	quote, err := recurringStripeCheckoutQuote(plan, cmd.VerifiedQuote)
+	if err != nil {
+		return SubscriptionPurchaseQuote{}, err
+	}
+	if err := validateSubscriptionPurchaseQuoteMatchesPlan(plan, PurchaseSubscriptionCommand{
+		UserID:        cmd.UserID,
+		PlanID:        cmd.PlanID,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		VerifiedQuote: &quote,
+		RecallClaim:   cmd.RecallClaim,
+	}, quote); err != nil {
+		return SubscriptionPurchaseQuote{}, err
+	}
+	return quote, nil
+}
+
+func stripeSubscriptionCheckoutInputFromOrder(order *model.SubscriptionOrder, user *model.User, plan *model.SubscriptionPlan, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, presentation StripeCheckoutPresentation) (*StripeSubscriptionCheckoutInput, error) {
+	if order == nil || user == nil || plan == nil || contract == nil || intent == nil {
+		return nil, errors.New("Stripe checkout facts are incomplete")
+	}
+	snapshot, err := recurringPlanSnapshotFromOrder(order)
+	if err != nil || !snapshot.Found || strings.TrimSpace(snapshot.Snapshot.StripePriceID) == "" {
+		return nil, errors.New("Stripe checkout order snapshot is invalid")
+	}
+	priceID := strings.TrimSpace(snapshot.Snapshot.StripePriceID)
+	currency := strings.ToUpper(strings.TrimSpace(snapshot.Snapshot.Currency))
+	subtotalMinor, err := stripeMinorUnitAmountForSubscription(snapshot.Snapshot.PriceAmount, currency)
 	if err != nil {
 		return nil, err
 	}
-	return &StripeSubscriptionCheckoutInput{
-		TradeNo:        tradeNo,
-		UserID:         user.Id,
-		PlanID:         plan.Id,
-		ContractID:     contract.Id,
-		ChangeIntentID: intent.Id,
-		CustomerID:     strings.TrimSpace(user.StripeCustomer),
-		Email:          strings.TrimSpace(user.Email),
-		PriceID:        strings.TrimSpace(plan.StripePriceId),
-		Currency:       strings.ToUpper(strings.TrimSpace(plan.Currency)),
-		SubtotalMinor:  subtotalMinor,
-		IdempotencyKey: idempotencyKey,
-		Presentation:   ResolveStripeCheckoutPresentation(""),
-	}, nil
+	input := &StripeSubscriptionCheckoutInput{
+		TradeNo:                strings.TrimSpace(order.TradeNo),
+		UserID:                 user.Id,
+		PlanID:                 order.PlanId,
+		ContractID:             contract.Id,
+		ChangeIntentID:         intent.Id,
+		CustomerID:             strings.TrimSpace(user.StripeCustomer),
+		Email:                  strings.TrimSpace(user.Email),
+		PriceID:                priceID,
+		Currency:               currency,
+		SubtotalMinor:          subtotalMinor,
+		IdempotencyKey:         strings.TrimSpace(intent.ProviderIdempotencyKey),
+		Presentation:           presentation,
+		DiscountKind:           strings.TrimSpace(order.DiscountKind),
+		DiscountAmountMinor:    order.SubscriptionDiscountAmountMinor,
+		DiscountCurrency:       strings.TrimSpace(order.PaymentCurrency),
+		DiscountReservationKey: strings.TrimSpace(order.SubscriptionDiscountReservationKey),
+	}
+	if input.DiscountKind == SubscriptionDiscountKindRecall && strings.TrimSpace(order.RecallPromotionCodeId) != "" {
+		input.RecallDiscount = &RecallCheckoutDiscount{
+			PromotionCodeID: strings.TrimSpace(order.RecallPromotionCodeId),
+			CampaignID:      order.RecallCampaignId,
+			RecipientID:     order.RecallRecipientId,
+		}
+	}
+	return input, nil
+}
+
+func expireStripeCheckoutAfterPersistFailure(ctx context.Context, sessionID string, originalErr error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return
+	}
+	if _, err := stripeCheckoutSessionExpirer(ctx, sessionID); err != nil {
+		common.SysLog(fmt.Sprintf("failed to expire Stripe checkout session after local persist failure: session_id=%s expire_error=%v persist_error=%v", sessionID, err, originalErr))
+	}
 }
 
 func persistStripeCheckoutSession(intentID int64, sessionID string, sessionURL string) error {

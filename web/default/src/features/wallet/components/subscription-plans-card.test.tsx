@@ -33,6 +33,7 @@ import {
   buildFlexibleQuoteRequest,
   getMatchingPaymentQuote,
   mergeFlexibleQuoteProjection,
+  normalizePurchaseMonths,
   normalizeSelfSubscriptionData,
   requiresSignedCheckoutQuote,
 } from '../lib/subscription-plan-lifecycle'
@@ -41,10 +42,7 @@ import {
   CurrentPlanCard,
   CurrentPlanRenewalDialogContent,
 } from './current-plan-card'
-import {
-  PlanPurchaseDialogContent,
-  normalizePurchaseMonths,
-} from './plan-purchase-dialog'
+import { PlanPurchaseDialogContent } from './plan-purchase-dialog'
 import { SubscriptionPlansCard } from './subscription-plans-card'
 
 const testI18n = createInstance()
@@ -126,6 +124,20 @@ function alipayPaymentQuote(
   }
 }
 
+function stripePaymentQuote(
+  overrides: Partial<SubscriptionPaymentQuote> = {}
+): SubscriptionPaymentQuote {
+  return {
+    currency: 'USD',
+    months: 1,
+    unit_price: 20,
+    total: 20,
+    quote_id: 'quote-stripe-1',
+    expires_at: VALID_QUOTE_EXPIRES_AT,
+    ...overrides,
+  }
+}
+
 function balancePaymentQuote(
   overrides: Partial<SubscriptionPaymentQuote> = {}
 ): SubscriptionPaymentQuote {
@@ -160,6 +172,24 @@ function renderWalletCard(selfData = normalizeSelfSubscriptionData(undefined)) {
         initialPlans={plans}
         initialSelfData={selfData}
         initialLoading={false}
+        userQuota={12345}
+      />
+    </I18nextProvider>
+  )
+}
+
+function renderWalletCardWithPreviewQuote(
+  quote: SubscriptionPaymentQuote,
+  previewPlan = plans[0]
+) {
+  return renderToStaticMarkup(
+    <I18nextProvider i18n={testI18n}>
+      <SubscriptionPlansCard
+        topupInfo={topupInfo}
+        initialPlans={[previewPlan]}
+        initialSelfData={normalizeSelfSubscriptionData(undefined)}
+        initialLoading={false}
+        initialPlanPreviewQuotes={{ [previewPlan.plan.id]: quote }}
         userQuota={12345}
       />
     </I18nextProvider>
@@ -1095,7 +1125,109 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('next period')
   })
 
-  test('shows a recall subscription discount only on eligible Stripe plans', () => {
+  test('shows the backend-selected invitation discount on the plan card', () => {
+    const html = renderWalletCardWithPreviewQuote(
+      stripePaymentQuote({
+        unit_price: 10,
+        original_total: 10,
+        discount_kind: 'invitation',
+        discount_amount: 5,
+        invitation_discount_amount: 5,
+        total: 5,
+      })
+    )
+
+    expect(html).toContain('OFF')
+    expect(html).toContain('line-through')
+    expect(html).toContain('$10')
+    expect(html).toContain('$5')
+    expect(html).toContain('Save $5')
+  })
+
+  test('shows Recall when the backend quote selects it over invitation credit', () => {
+    const html = renderWalletCardWithPreviewQuote(
+      stripePaymentQuote({
+        unit_price: 10,
+        original_total: 10,
+        discount_kind: 'recall',
+        discount_amount: 6,
+        invitation_discount_amount: 5,
+        other_discount_kind: 'recall',
+        other_discount_amount: 6,
+        total: 4,
+      })
+    )
+
+    expect(html).toContain('OFF')
+    expect(html).toContain('$10')
+    expect(html).toContain('$4')
+    expect(html).toContain('Save $6')
+    expect(html).not.toContain('Save $5')
+  })
+
+  test('formats backend preview amounts in the quote currency', () => {
+    const brlPlan = plan(4, 'Go', 100)
+    brlPlan.plan.currency = 'BRL'
+    const html = renderWalletCardWithPreviewQuote(
+      stripePaymentQuote({
+        currency: 'BRL',
+        unit_price: 100,
+        original_total: 100,
+        discount_kind: 'invitation',
+        discount_amount: 50,
+        invitation_discount_amount: 50,
+        total: 50,
+      }),
+      brlPlan
+    )
+
+    expect(html).toContain('R$')
+    expect(html).toContain('50,00')
+    expect(html).toContain('100,00')
+  })
+
+  test('formats JPY backend preview amounts without a USD fallback', () => {
+    const jpyPlan = plan(5, 'Pro', 2000)
+    jpyPlan.plan.currency = 'JPY'
+    const html = renderWalletCardWithPreviewQuote(
+      stripePaymentQuote({
+        currency: 'JPY',
+        unit_price: 2000,
+        original_total: 2000,
+        discount_kind: 'recall',
+        discount_amount: 1000,
+        other_discount_kind: 'recall',
+        other_discount_amount: 1000,
+        total: 1000,
+      }),
+      jpyPlan
+    )
+
+    expect(html).toContain('¥1,000')
+    expect(html).toContain('¥2,000')
+    expect(html).not.toContain('$1000')
+  })
+
+  test('falls back to USD when backend preview quote currency is not a string', () => {
+    for (const runtimeCurrency of [null, 123]) {
+      const html = renderWalletCardWithPreviewQuote(
+        stripePaymentQuote({
+          currency: runtimeCurrency as unknown as string,
+          original_total: 10,
+          discount_kind: 'invitation',
+          discount_amount: 6,
+          invitation_discount_amount: 6,
+          total: 4,
+        })
+      )
+
+      expect(html).toContain('$10')
+      expect(html).toContain('$4')
+      expect(html).toContain('Save $6')
+    }
+  })
+
+  test('does not locally discount plan card prices for recall offers', () => {
     const html = renderWalletCardWithRecall()
     const goStart = html.indexOf('Go')
     const proStart = html.indexOf('Pro', goStart)
@@ -1104,19 +1236,15 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     const proSlice = html.slice(proStart, maxStart)
     const maxSlice = html.slice(maxStart)
 
-    expect(goSlice).toContain('20% OFF')
-    expect(goSlice).toContain('line-through')
     expect(goSlice).toContain('$10')
-    expect(goSlice).toContain('$8')
-    expect(goSlice).toContain('Save $2')
-    expect(goSlice.indexOf('20% OFF')).toBeLessThan(
-      goSlice.indexOf('Recommended')
-    )
+    expect(goSlice).not.toContain('20% OFF')
+    expect(goSlice).not.toContain('line-through')
+    expect(goSlice).not.toContain('$8')
     expect(proSlice).not.toContain('20% OFF')
     expect(maxSlice).not.toContain('20% OFF')
   })
 
-  test('shows the strongest account recall offer without a link claim', () => {
+  test('does not locally discount plan card prices for account recall offers without backend quotes', () => {
     const html = renderWalletCardWithRecallOffers([
       {
         ...subscriptionRecallClaim,
@@ -1141,13 +1269,14 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     const proStart = html.indexOf('Pro', goStart)
     const goSlice = html.slice(goStart, proStart)
 
-    expect(goSlice).toContain('50% OFF')
-    expect(goSlice).toContain('$5')
+    expect(goSlice).toContain('$10')
+    expect(goSlice).not.toContain('50% OFF')
+    expect(goSlice).not.toContain('$5')
     expect(html).not.toContain('signed-recall-claim')
     expect(html).not.toContain('FKSE')
   })
 
-  test('shows a fixed recall discount as an exact currency reduction', () => {
+  test('does not locally render fixed recall discount labels on plan cards', () => {
     const html = renderWalletCardWithRecall({
       ...subscriptionRecallClaim,
       discount: {
@@ -1159,12 +1288,11 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       },
     })
 
-    expect(html).toContain('2.00 USD OFF')
-    expect(html).toContain('Save $2')
+    expect(html).not.toContain('2.00 USD OFF')
     expect(html).not.toContain('$2 USD OFF')
   })
 
-  test('formats recall subscription savings in the plan currency', () => {
+  test('formats backend recall subscription preview savings in the quote currency', () => {
     const formatBrl = (amount: number) =>
       Intl.NumberFormat('pt-BR', {
         style: 'currency',
@@ -1181,28 +1309,18 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
         stripe_price_id: 'price_brl',
       },
     }
-    const html = renderToStaticMarkup(
-      <I18nextProvider i18n={testI18n}>
-        <RecallClaimProvider
-          claim='signed-recall-claim'
-          view={{
-            ...subscriptionRecallClaim,
-            products: {
-              topup_price_ids: [],
-              subscription_price_ids: ['price_brl'],
-              subscription_plan_ids: [4],
-            },
-          }}
-        >
-          <SubscriptionPlansCard
-            topupInfo={topupInfo}
-            initialPlans={[brlPlan]}
-            initialSelfData={normalizeSelfSubscriptionData(undefined)}
-            initialLoading={false}
-            userQuota={12345}
-          />
-        </RecallClaimProvider>
-      </I18nextProvider>
+    const html = renderWalletCardWithPreviewQuote(
+      stripePaymentQuote({
+        currency: 'BRL',
+        unit_price: 50,
+        original_total: 50,
+        discount_kind: 'recall',
+        discount_amount: 10,
+        other_discount_kind: 'recall',
+        other_discount_amount: 10,
+        total: 40,
+      }),
+      brlPlan
     )
 
     expect(html).toContain(formatBrl(50))
@@ -1219,7 +1337,7 @@ describe('PlanPurchaseDialog payment choices', () => {
     const source = readFileSync(
       new URL('./plan-purchase-dialog.tsx', import.meta.url),
       'utf8'
-    )
+    ).replace(/\r\n/g, '\n')
 
     expect(source).toContain(
       "import {\n  Dialog,\n  DialogContent,\n  DialogDescription,\n  DialogFooter,\n  DialogHeader,\n  DialogTitle,\n} from '@/components/ui/dialog'"
@@ -1411,7 +1529,7 @@ describe('PlanPurchaseDialog payment choices', () => {
       </I18nextProvider>
     )
 
-    expect(html).toContain('Local currency quote is unavailable.')
+    expect(html).toContain('Payment quote is unavailable.')
     expect(html).not.toContain('$60')
     expect(html).toContain('checked="" value="pix"')
     expect(html).toContain('disabled=""')
@@ -1435,12 +1553,12 @@ describe('PlanPurchaseDialog payment choices', () => {
       </I18nextProvider>
     )
 
-    expect(html).toContain('Loading local currency quote')
+    expect(html).toContain('Loading payment quote...')
     expect(html).not.toContain('$40')
     expect(html).toContain('checked="" value="upi"')
   })
 
-  test('requires a valid signed Alipay quote while retaining the USD display', () => {
+  test('requires a valid signed Alipay quote before showing quote totals', () => {
     const invalidQuotes = [
       { name: 'missing quote', quote: undefined },
       {
@@ -1473,7 +1591,8 @@ describe('PlanPurchaseDialog payment choices', () => {
         </I18nextProvider>
       )
 
-      expect(html, name).toContain('$60')
+      expect(html, name).toContain('Payment quote is unavailable.')
+      expect(html, name).not.toContain('$60')
       expect(html, name).toMatch(
         /<button[^>]*disabled=""[^>]*>Continue<\/button>/
       )
@@ -1502,7 +1621,7 @@ describe('PlanPurchaseDialog payment choices', () => {
     expect(continueButton).not.toContain('disabled=""')
   })
 
-  test('keeps Stripe recurring available without quotes', () => {
+  test('requires a valid signed Stripe recurring quote before continuing', () => {
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <PlanPurchaseDialogContent
@@ -1510,6 +1629,29 @@ describe('PlanPurchaseDialog payment choices', () => {
           currentPlanId={0}
           paymentAvailability={{}}
           paymentQuotes={{}}
+          selectedPaymentChoice='stripe_recurring'
+          months={1}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />
+      </I18nextProvider>
+    )
+    const continueButton = html.match(/<button[^>]*>Continue<\/button>/)?.[0]
+
+    expect(html).toContain('Payment quote is unavailable.')
+    expect(html).not.toContain('$20')
+    expect(continueButton).toBeDefined()
+    expect(continueButton).toContain('disabled=""')
+  })
+
+  test('enables Stripe recurring checkout for a future signed quote', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlanPurchaseDialogContent
+          plan={plans[1]}
+          currentPlanId={0}
+          paymentAvailability={{}}
+          paymentQuotes={{ stripe_recurring: stripePaymentQuote() }}
           selectedPaymentChoice='stripe_recurring'
           months={1}
           onOpenChange={() => undefined}
@@ -1555,7 +1697,8 @@ describe('PlanPurchaseDialog payment choices', () => {
         </I18nextProvider>
       )
 
-      expect(html, name).toContain('$60')
+      expect(html, name).toContain('Payment quote is unavailable.')
+      expect(html, name).not.toContain('$60')
       expect(html, name).toMatch(
         /<button[^>]*disabled=""[^>]*>Continue<\/button>/
       )
@@ -1598,11 +1741,91 @@ describe('PlanPurchaseDialog payment choices', () => {
         </I18nextProvider>
       )
 
-      expect(html, choice).toContain('line-through')
+      expect(html, choice).toContain('Original plan total')
+      expect(html, choice).toContain('Final amount')
       expect(html, choice).toContain(choice === 'pix' ? '300,00' : '$300')
       expect(html, choice).toContain(choice === 'pix' ? '280,00' : '$280')
       expect(html, choice).toContain(choice === 'pix' ? '100,00' : '$100')
     }
+  })
+
+  test('shows invitation discount quote details exactly as returned by the backend', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlanPurchaseDialogContent
+          plan={plans[1]}
+          currentPlanId={0}
+          paymentAvailability={{}}
+          paymentQuotes={{
+            balance: balancePaymentQuote({
+              unit_price: 20,
+              original_total: 60,
+              discount_kind: 'invitation',
+              discount_amount: 15,
+              invitation_available_usd: 50,
+              invitation_discount_usd: 15,
+              invitation_discount_amount: 15,
+              invitation_remaining_usd: 35,
+              total: 45,
+            }),
+          }}
+          selectedPaymentChoice='balance'
+          months={3}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />
+      </I18nextProvider>
+    )
+
+    expect(html).toContain('Original plan total')
+    expect(html).toContain('$60')
+    expect(html).toContain('Invitation plan credit')
+    expect(html).toContain('$15')
+    expect(html).toContain('Final amount')
+    expect(html).toContain('$45')
+    expect(html).toContain('Estimated remaining invitation plan credit')
+    expect(html).toContain('$35')
+  })
+
+  test('shows the winning non-invitation discount and states invitation credit is not consumed', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlanPurchaseDialogContent
+          plan={plans[1]}
+          currentPlanId={0}
+          paymentAvailability={{}}
+          paymentQuotes={{
+            balance: balancePaymentQuote({
+              unit_price: 20,
+              original_total: 60,
+              discount_kind: 'recall',
+              discount_amount: 20,
+              invitation_available_usd: 50,
+              invitation_discount_usd: 15,
+              invitation_discount_amount: 15,
+              invitation_remaining_usd: 50,
+              other_discount_kind: 'recall',
+              other_discount_amount: 20,
+              total: 40,
+            }),
+          }}
+          selectedPaymentChoice='balance'
+          months={3}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />
+      </I18nextProvider>
+    )
+
+    expect(html).toContain('Original plan total')
+    expect(html).toContain('$60')
+    expect(html).toContain('Other discount')
+    expect(html).toContain('$20')
+    expect(html).toContain('Final amount')
+    expect(html).toContain('$40')
+    expect(html).toContain('Invitation credit was not consumed.')
+    expect(html).toContain('Estimated remaining invitation plan credit')
+    expect(html).toContain('$50')
   })
 
   test('does not strike through totals for undiscounted quotes', () => {
@@ -1638,53 +1861,14 @@ describe('PlanPurchaseDialog payment choices', () => {
     }
   })
 
-  test('shows local recall discount totals only for Stripe recurring', () => {
-    const stripeHtml = renderToStaticMarkup(
-      <I18nextProvider i18n={testI18n}>
-        <PlanPurchaseDialogContent
-          plan={plans[0]}
-          currentPlanId={0}
-          paymentAvailability={{}}
-          selectedPaymentChoice='stripe_recurring'
-          months={1}
-          recallDiscount={{
-            type: 'percent',
-            originalAmount: 10,
-            discountAmount: 2,
-            discountedAmount: 8,
-            currency: 'USD',
-          }}
-          onOpenChange={() => undefined}
-          onConfirm={() => undefined}
-        />
-      </I18nextProvider>
-    )
-    const pixHtml = renderToStaticMarkup(
-      <I18nextProvider i18n={testI18n}>
-        <PlanPurchaseDialogContent
-          plan={plans[0]}
-          currentPlanId={0}
-          paymentAvailability={{}}
-          selectedPaymentChoice='pix'
-          months={3}
-          recallDiscount={{
-            type: 'percent',
-            originalAmount: 10,
-            discountAmount: 2,
-            discountedAmount: 8,
-            currency: 'USD',
-          }}
-          onOpenChange={() => undefined}
-          onConfirm={() => undefined}
-        />
-      </I18nextProvider>
+  test('does not keep a local recall discount pricing path in the purchase dialog', () => {
+    const source = readFileSync(
+      new URL('./plan-purchase-dialog.tsx', import.meta.url),
+      'utf8'
     )
 
-    expect(stripeHtml).toContain('line-through')
-    expect(stripeHtml).toContain('$10')
-    expect(stripeHtml).toContain('$8')
-    expect(pixHtml).not.toContain('line-through')
-    expect(pixHtml).not.toContain('$8')
+    expect(source).not.toContain('recallDiscount?:')
+    expect(source).not.toContain('stripeRecallDiscount')
   })
 
   test('treats invalid local quotes as unavailable without a USD fallback', () => {
@@ -1738,7 +1922,7 @@ describe('PlanPurchaseDialog payment choices', () => {
         </I18nextProvider>
       )
 
-      expect(html, name).toContain('Local currency quote is unavailable.')
+      expect(html, name).toContain('Payment quote is unavailable.')
       expect(html, name).not.toContain('$60')
       expect(html, name).toMatch(
         /<button[^>]*disabled=""[^>]*>Continue<\/button>/
@@ -1755,6 +1939,7 @@ describe('flexible payment quote interaction helpers', () => {
         paymentChoice: 'stripe_recurring',
         months: 1,
         requestId: 'request-1',
+        quoteId: 'quote-stripe-1',
       }).ui_mode
     ).toBe('embedded')
     expect(
@@ -1763,6 +1948,7 @@ describe('flexible payment quote interaction helpers', () => {
         paymentChoice: 'alipay',
         months: 3,
         requestId: 'request-1',
+        quoteId: 'quote-alipay-3',
       }).ui_mode
     ).toBe('embedded')
     expect(
@@ -1771,6 +1957,7 @@ describe('flexible payment quote interaction helpers', () => {
         paymentChoice: 'pix',
         months: 3,
         requestId: 'request-1',
+        quoteId: 'quote-pix-3',
       }).ui_mode
     ).toBe('embedded')
     expect(
@@ -1779,6 +1966,7 @@ describe('flexible payment quote interaction helpers', () => {
         paymentChoice: 'upi',
         months: 3,
         requestId: 'request-1',
+        quoteId: 'quote-upi-3',
       }).ui_mode
     ).toBe('embedded')
     expect(
@@ -1787,16 +1975,75 @@ describe('flexible payment quote interaction helpers', () => {
         paymentChoice: 'balance',
         months: 3,
         requestId: 'request-1',
+        quoteId: 'quote-balance-3',
       })
     ).not.toHaveProperty('ui_mode')
   })
 
-  test('requires signed checkout quotes for one-time and balance purchases', () => {
+  test('purchase requests fail closed without a signed quote for every payment choice', () => {
+    for (const paymentChoice of [
+      'stripe_recurring',
+      'alipay',
+      'pix',
+      'upi',
+      'balance',
+    ] as const) {
+      expect(() =>
+        buildFlexiblePurchaseRequest({
+          planId: 2,
+          paymentChoice,
+          months: 3,
+          requestId: `missing-${paymentChoice}-quote`,
+        })
+      ).toThrow('quote_id is required')
+    }
+  })
+
+  test('requires signed checkout quotes for every purchase choice', () => {
     expect(requiresSignedCheckoutQuote('alipay')).toBe(true)
     expect(requiresSignedCheckoutQuote('pix')).toBe(true)
     expect(requiresSignedCheckoutQuote('upi')).toBe(true)
     expect(requiresSignedCheckoutQuote('balance')).toBe(true)
-    expect(requiresSignedCheckoutQuote('stripe_recurring')).toBe(false)
+    expect(requiresSignedCheckoutQuote('stripe_recurring')).toBe(true)
+  })
+
+  test('accepts only future signed same-month Stripe recurring quotes', () => {
+    expect(
+      getMatchingPaymentQuote(
+        'stripe_recurring',
+        { stripe_recurring: stripePaymentQuote({ quote_id: '   ' }) },
+        1,
+        TEST_NOW_SECONDS
+      )
+    ).toBeUndefined()
+    expect(
+      getMatchingPaymentQuote(
+        'stripe_recurring',
+        {
+          stripe_recurring: stripePaymentQuote({
+            expires_at: TEST_NOW_SECONDS,
+          }),
+        },
+        1,
+        TEST_NOW_SECONDS
+      )
+    ).toBeUndefined()
+    expect(
+      getMatchingPaymentQuote(
+        'stripe_recurring',
+        { stripe_recurring: stripePaymentQuote({ months: 2 }) },
+        1,
+        TEST_NOW_SECONDS
+      )
+    ).toBeUndefined()
+    expect(
+      getMatchingPaymentQuote(
+        'stripe_recurring',
+        { stripe_recurring: stripePaymentQuote() },
+        12,
+        TEST_NOW_SECONDS
+      )?.quote_id
+    ).toBe('quote-stripe-1')
   })
 
   test('accepts only future signed same-month Alipay quotes', () => {
@@ -2028,5 +2275,39 @@ describe('subscription embedded checkout invariants', () => {
 
     expect(cardSource).not.toContain('window.location.assign')
     expect(cardSource).toContain('onOpenStripeCheckout')
+  })
+
+  test('uses only purchase-target quote state without stale self-data fallback', () => {
+    const cardSource = readFileSync(
+      new URL('./subscription-plans-card.tsx', import.meta.url),
+      'utf8'
+    )
+
+    expect(cardSource).not.toContain(
+      'purchaseProjection?.payment_quotes ?? selfData.payment_quotes'
+    )
+    expect(cardSource).not.toContain('quoteId: selectedQuote?.quote_id')
+    expect(cardSource).toContain('quoteError')
+  })
+
+  test('does not compute subscription card recall prices locally', () => {
+    const cardSource = readFileSync(
+      new URL('./subscription-plans-card.tsx', import.meta.url),
+      'utf8'
+    )
+
+    expect(cardSource).not.toContain('getRecallPriceDiscount')
+    expect(cardSource).not.toContain('discountedAmount')
+  })
+
+  test('prefetches one-month Stripe quotes for plan-card previews', () => {
+    const cardSource = readFileSync(
+      new URL('./subscription-plans-card.tsx', import.meta.url),
+      'utf8'
+    )
+
+    expect(cardSource).toContain('setPlanPreviewQuotes')
+    expect(cardSource).toContain("paymentChoice: 'stripe_recurring'")
+    expect(cardSource).toContain('months: 1')
   })
 })

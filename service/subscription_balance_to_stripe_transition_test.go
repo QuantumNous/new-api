@@ -40,10 +40,11 @@ func TestBalanceCurrentUpgradeToStripeRecurringCreatesReplayableCheckout(t *test
 		return &StripeSubscriptionCheckoutSession{ID: "cs_balance_to_stripe", URL: "https://checkout.stripe.test/balance-to-stripe"}, nil
 	}
 	cmd := ChangePlanCommand{
-		UserID:      8160,
-		PlanID:      targetPlan.Id,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "balance-to-stripe-upgrade",
+		UserID:        8160,
+		PlanID:        targetPlan.Id,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "balance-to-stripe-upgrade",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
 	}
 
 	first, err := ChangeSubscriptionPlan(cmd)
@@ -108,10 +109,11 @@ func TestExternalCurrentUpgradeToStripeRecurringCreatesCheckoutWithoutMutatingCu
 	}
 
 	result, err := ChangeSubscriptionPlan(ChangePlanCommand{
-		UserID:      8162,
-		PlanID:      targetPlan.Id,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "external-to-stripe-upgrade",
+		UserID:        8162,
+		PlanID:        targetPlan.Id,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "external-to-stripe-upgrade",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
 	})
 
 	require.NoError(t, err)
@@ -158,10 +160,11 @@ func TestBalanceCurrentUpgradeToStripeRecurringPaidInvoiceRotatesThroughCheckout
 	restoreCheckout := replaceStripeCheckoutCreator(t, "cs_balance_to_stripe_paid", "https://checkout.stripe.test/balance-to-stripe-paid")
 	defer restoreCheckout()
 	pending, err := ChangeSubscriptionPlan(ChangePlanCommand{
-		UserID:      8161,
-		PlanID:      targetPlan.Id,
-		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-		RequestID:   "balance-to-stripe-paid",
+		UserID:        8161,
+		PlanID:        targetPlan.Id,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "balance-to-stripe-paid",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
 	})
 	require.NoError(t, err)
 

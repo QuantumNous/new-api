@@ -201,7 +201,7 @@ export async function listWaffoPancakeSubscriptionProductOptions(): Promise<
 }
 
 export async function paySubscriptionEpay(
-  data: SubscriptionPayRequest & { payment_method: string }
+  data: SubscriptionPayRequest & { payment_method: string; request_id: string }
 ): Promise<SubscriptionPayResponse & { url?: string }> {
   const res = await api.post('/api/subscription/epay/pay', data)
   return {

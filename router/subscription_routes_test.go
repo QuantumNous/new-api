@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSubscriptionLegacyPurchaseRoutesAreBlockedWhileCallbacksAndTopupsRemain(t *testing.T) {
+func TestSubscriptionPurchaseRoutesUseUnifiedHandlersWhileLegacyProvidersRemainBlocked(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
@@ -21,8 +21,16 @@ func TestSubscriptionLegacyPurchaseRoutesAreBlockedWhileCallbacksAndTopupsRemain
 		routes[route.Method+" "+route.Path] = route.Handler
 	}
 
+	epayHandler, ok := routes["POST /api/subscription/epay/pay"]
+	require.True(t, ok, "missing ePay subscription purchase route")
+	require.Contains(t, epayHandler, "controller.SubscriptionRequestEpay")
+	require.NotContains(t, epayHandler, "controller.SubscriptionPurchasePendingMigration")
+	balanceHandler, ok := routes["POST /api/subscription/balance/pay"]
+	require.True(t, ok, "missing balance subscription purchase route")
+	require.Contains(t, balanceHandler, "controller.SubscriptionRequestBalancePay")
+	require.NotContains(t, balanceHandler, "controller.SubscriptionPurchasePendingMigration")
+
 	legacySubscriptionInitiationRoutes := []string{
-		"POST /api/subscription/epay/pay",
 		"POST /api/subscription/creem/pay",
 		"POST /api/subscription/waffo-pancake/pay",
 	}
@@ -30,7 +38,6 @@ func TestSubscriptionLegacyPurchaseRoutesAreBlockedWhileCallbacksAndTopupsRemain
 		handler, ok := routes[routeKey]
 		require.True(t, ok, "missing %s", routeKey)
 		require.Contains(t, handler, "controller.SubscriptionPurchasePendingMigration")
-		require.NotContains(t, handler, "controller.SubscriptionRequestEpay")
 		require.NotContains(t, handler, "controller.SubscriptionRequestCreemPay")
 		require.NotContains(t, handler, "controller.SubscriptionRequestWaffoPancakePay")
 	}

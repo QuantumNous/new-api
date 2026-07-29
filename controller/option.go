@@ -204,6 +204,9 @@ func GetOptions(c *gin.Context) {
 	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
+		if model.IsRetiredOptionKey(k) {
+			continue
+		}
 		value := common.Interface2String(v)
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
@@ -298,7 +301,7 @@ func prepareOptionUpdate(c *gin.Context, option *OptionUpdateRequest) bool {
 			common.ApiErrorI18n(c, i18n.MsgQuotaInviterRewardLimitInvalid)
 			return false
 		}
-	case "QuotaForInviter", "QuotaForInvitee":
+	case "QuotaForInviter", "QuotaForInvitee", "InviteFirstSubDiscountUSD":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
 			return false

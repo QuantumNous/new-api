@@ -144,6 +144,7 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 	service.StartStripeSubscriptionReconciliationTask()
+	service.StartInviteSubscriptionRewardReconciliationTask()
 
 	// Deliver paid-click signup, first-use, purchase, and refund events through
 	// the durable product outbox into the shared Ads Agent attribution service.
@@ -169,9 +170,6 @@ func main() {
 
 	// Codex subscription model governance task
 	controller.StartCodexModelGovernanceTask()
-
-	// Invite reward v2: unlock settled subscription-invite rewards (master only)
-	model.StartInviteSubscriptionRewardUnlocker()
 
 	if common.IsMasterNode && constant.UpdateTask {
 		gopool.Go(func() {

@@ -33,6 +33,15 @@ var (
 	optionReloadHooks   []func()
 )
 
+func IsRetiredOptionKey(key string) bool {
+	switch key {
+	case "InviteRewardUnlockDelaySeconds":
+		return true
+	default:
+		return false
+	}
+}
+
 func RegisterOptionReloadHook(hook func()) {
 	if hook == nil {
 		return
@@ -188,7 +197,6 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["QuotaForInviterMaxCount"] = strconv.Itoa(common.QuotaForInviterMaxCount)
 	common.OptionMap["InviteRewardSubscriptionModeEnabled"] = strconv.FormatBool(common.InviteRewardSubscriptionMode)
-	common.OptionMap["InviteRewardUnlockDelaySeconds"] = strconv.FormatInt(common.InviteRewardUnlockDelaySeconds, 10)
 	common.OptionMap["InviteFirstSubDiscountUSD"] = strconv.FormatFloat(common.InviteFirstSubDiscountUSD, 'f', -1, 64)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
@@ -285,6 +293,9 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if IsRetiredOptionKey(key) {
+		return errors.New("option is retired")
+	}
 	if isRecallSenderOptionKey(key) {
 		return updateRecallSenderOption(key, value)
 	}
@@ -486,6 +497,9 @@ func UpdateOptionsBulk(values map[string]string) error {
 		}
 	}
 	for k, v := range values {
+		if IsRetiredOptionKey(k) {
+			return errors.New("option is retired")
+		}
 		if k == "payment_setting.amount_bonus" {
 			continue
 		}
@@ -533,6 +547,9 @@ func UpdateOptionsBulk(values map[string]string) error {
 }
 
 func validateAndNormalizeOptionValue(key string, value string) (string, error) {
+	if IsRetiredOptionKey(key) {
+		return "", errors.New("option is retired")
+	}
 	if err := setting.ValidatePaddleOption(key, value); err != nil {
 		return "", err
 	}
@@ -734,6 +751,12 @@ func updateOptionMap(key string, value string) (err error) {
 }
 
 func applyOptionMapValue(key string, value string) (err error) {
+	if IsRetiredOptionKey(key) {
+		common.OptionMapRWMutex.Lock()
+		delete(common.OptionMap, key)
+		common.OptionMapRWMutex.Unlock()
+		return nil
+	}
 	var inviterRewardMaxCount int
 	if key == "QuotaForInviterMaxCount" {
 		inviterRewardMaxCount, err = parseInviterRewardMaxCount(value)
@@ -1036,10 +1059,6 @@ func applyOptionMapValue(key string, value string) (err error) {
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
 	case "QuotaForInviterMaxCount":
 		common.QuotaForInviterMaxCount = inviterRewardMaxCount
-	case "InviteRewardUnlockDelaySeconds":
-		if parsed, err := strconv.ParseInt(value, 10, 64); err == nil && parsed >= 0 {
-			common.InviteRewardUnlockDelaySeconds = parsed
-		}
 	case "InviteFirstSubDiscountUSD":
 		if parsed, err := strconv.ParseFloat(value, 64); err == nil && parsed >= 0 {
 			common.InviteFirstSubDiscountUSD = parsed
@@ -1145,6 +1164,12 @@ func applyOptionMapValues(values map[string]string) error {
 		}
 	}
 	for key, value := range values {
+		if IsRetiredOptionKey(key) {
+			common.OptionMapRWMutex.Lock()
+			delete(common.OptionMap, key)
+			common.OptionMapRWMutex.Unlock()
+			continue
+		}
 		if strings.HasPrefix(key, "registration_security.") {
 			continue
 		}

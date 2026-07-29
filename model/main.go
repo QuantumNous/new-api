@@ -274,6 +274,8 @@ func migrateDB() error {
 		&NewUserBonusClaim{},
 		&InviteRewardEvent{},
 		&InviteSubscriptionReward{},
+		&SubscriptionDiscountAccount{},
+		&SubscriptionDiscountEntry{},
 		&PasskeyCredential{},
 		&Option{},
 		&Redemption{},
@@ -344,7 +346,7 @@ func migrateDB() error {
 			return err
 		}
 	}
-	return MigrateLegacyAffQuotaToQuota()
+	return migrateStartupInvitationValue()
 }
 
 func migrateDBFast() error {
@@ -371,6 +373,8 @@ func migrateDBFast() error {
 		{&NewUserBonusClaim{}, "NewUserBonusClaim"},
 		{&InviteRewardEvent{}, "InviteRewardEvent"},
 		{&InviteSubscriptionReward{}, "InviteSubscriptionReward"},
+		{&SubscriptionDiscountAccount{}, "SubscriptionDiscountAccount"},
+		{&SubscriptionDiscountEntry{}, "SubscriptionDiscountEntry"},
 		{&PasskeyCredential{}, "PasskeyCredential"},
 		{&Option{}, "Option"},
 		{&Redemption{}, "Redemption"},
@@ -434,11 +438,41 @@ func migrateDBFast() error {
 			return err
 		}
 	}
-	if err := MigrateLegacyAffQuotaToQuota(); err != nil {
+	if err := migrateStartupInvitationValue(); err != nil {
 		return err
 	}
 	common.SysLog("database migrated")
 	return nil
+}
+
+func migrateStartupInvitationValue() error {
+	subscriptionMode, err := storedInviteRewardSubscriptionModeEnabled()
+	if err != nil {
+		return err
+	}
+	if subscriptionMode {
+		return MigrateLegacyInvitationValueToSubscriptionDiscount()
+	}
+	return MigrateLegacyAffQuotaToQuota()
+}
+
+func storedInviteRewardSubscriptionModeEnabled() (bool, error) {
+	if DB == nil || !DB.Migrator().HasTable(&Option{}) {
+		return false, nil
+	}
+	var option Option
+	err := DB.Where(&Option{Key: "InviteRewardSubscriptionModeEnabled"}).First(&option).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	enabled, err := strconv.ParseBool(strings.TrimSpace(option.Value))
+	if err != nil {
+		return false, fmt.Errorf("invalid InviteRewardSubscriptionModeEnabled option %q: %w", option.Value, err)
+	}
+	return enabled, nil
 }
 
 const recallRecipientIdentityMigrationBatchSize = 500

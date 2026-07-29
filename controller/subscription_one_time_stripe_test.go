@@ -103,6 +103,18 @@ func oneTimeStripeOrderForTest(method string, currency string, amountMinor int64
 	}
 }
 
+func TestBuildOneTimePlanCheckoutExpiresAtMatchesLocalOrder(t *testing.T) {
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoiceAlipay, "USD", 2468, 2)
+
+	params, err := buildOneTimePlanCheckoutSessionParams(order, &model.User{Id: 501, Email: "buyer@example.com"})
+
+	require.NoError(t, err)
+	require.NotNil(t, params.ExpiresAt)
+	require.Equal(t, service.SubscriptionPurchaseOrderExpiresAt(order.CreateTime), *params.ExpiresAt)
+	require.GreaterOrEqual(t, *params.ExpiresAt-order.CreateTime, int64((60 * time.Minute).Seconds()))
+	require.LessOrEqual(t, *params.ExpiresAt-order.CreateTime, int64((24 * time.Hour).Seconds()))
+}
+
 func TestBuildOneTimePlanCheckoutUsesPaymentModeAndRequestedMethod(t *testing.T) {
 	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoiceAlipay, "USD", 2468, 2)
 
@@ -114,6 +126,8 @@ func TestBuildOneTimePlanCheckoutUsesPaymentModeAndRequestedMethod(t *testing.T)
 	require.Equal(t, []string{string(stripe.PaymentMethodTypeAlipay)}, stripeStringSliceValues(params.PaymentMethodTypes))
 	require.NotNil(t, params.ClientReferenceID)
 	require.Equal(t, order.TradeNo, *params.ClientReferenceID)
+	require.NotNil(t, params.IdempotencyKey)
+	require.Equal(t, "subscription-one-time:"+order.TradeNo, *params.IdempotencyKey)
 	require.Equal(t, order.TradeNo, params.Metadata["trade_no"])
 	require.Equal(t, "purchase", params.Metadata["purchase_intent"])
 	require.Equal(t, "2", params.Metadata["purchase_months"])
@@ -136,6 +150,24 @@ func TestBuildOneTimePlanCheckoutUsesQuantityOneAndFullOrderAmount(t *testing.T)
 	require.Equal(t, "usd", *item.PriceData.Currency)
 	require.NotNil(t, item.PriceData.ProductData)
 	require.Contains(t, *item.PriceData.ProductData.Name, "Pro Local")
+}
+
+func TestOneTimePlanMetadataIncludesInvitationDiscountSnapshot(t *testing.T) {
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoiceAlipay, "USD", 1300, 1)
+	order.DiscountKind = service.SubscriptionDiscountKindInvitation
+	order.SubscriptionDiscountReservationKey = "subscription-order:sub_one_time_alipay_usd:reserve"
+	order.SubscriptionDiscountUSDMinor = 700
+	order.SubscriptionDiscountAmountMinor = 700
+
+	params, err := buildOneTimePlanCheckoutSessionParams(order, &model.User{Id: 501, Email: "buyer@example.com"})
+
+	require.NoError(t, err)
+	require.EqualValues(t, 1300, *params.LineItems[0].PriceData.UnitAmount)
+	require.Equal(t, service.SubscriptionDiscountKindInvitation, params.Metadata["discount_kind"])
+	require.Equal(t, order.SubscriptionDiscountReservationKey, params.Metadata["subscription_discount_reservation_key"])
+	require.Equal(t, "700", params.Metadata["subscription_discount_usd_minor"])
+	require.Equal(t, "700", params.Metadata["subscription_discount_amount_minor"])
+	require.Equal(t, params.Metadata, params.PaymentIntentData.Metadata)
 }
 
 func TestBuildOneTimePlanCheckoutRecallMetadataUsesDiscountedOrderWithoutRawClaim(t *testing.T) {

@@ -1237,20 +1237,45 @@ func SubscriptionRequestBalancePay(c *gin.Context) {
 	}
 
 	requestID := strings.TrimSpace(req.RequestId)
-	if requestID == "" {
-		requestID = "legacy-balance-pay-" + common.GetRandomString(16)
+	if !isStableSubscriptionRequestID(requestID) {
+		common.ApiErrorMsg(c, "request_id is required")
+		return
 	}
-	result, err := service.ChangeSubscriptionPlan(service.ChangePlanCommand{
-		UserID:      userId,
-		PlanID:      req.PlanId,
-		PaymentMode: model.SubscriptionPaymentModeBalanceOnePeriod,
-		RequestID:   requestID,
-	})
+	cmd := service.PurchaseSubscriptionCommand{
+		UserID:        userId,
+		PlanID:        req.PlanId,
+		PaymentChoice: service.SubscriptionPaymentChoiceBalance,
+		Months:        1,
+		RequestID:     requestID,
+	}
+	if replay, found, err := service.ReplaySubscriptionPurchase(cmd); err != nil {
+		common.ApiError(c, err)
+		return
+	} else if found {
+		common.ApiSuccess(c, subscriptionSelfPurchaseResponse(replay, ""))
+		return
+	}
+	quoteResult, err := service.QuoteSubscriptionPurchase(cmd)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, sanitizedChangeSubscriptionPlanResponse(result))
+	if quoteResult == nil || !quoteResult.Available {
+		reason := "subscription purchase quote unavailable"
+		if quoteResult != nil && strings.TrimSpace(quoteResult.UnavailableReason) != "" {
+			reason = quoteResult.UnavailableReason
+		}
+		common.ApiErrorMsg(c, reason)
+		return
+	}
+	quote := subscriptionPurchaseQuoteFromQuoteResult(quoteResult)
+	cmd.VerifiedQuote = &quote
+	result, err := service.PurchaseSubscription(cmd)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, subscriptionSelfPurchaseResponse(result, ""))
 }
 
 func SubscriptionPurchasePendingMigration(c *gin.Context) {

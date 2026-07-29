@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -19,7 +20,6 @@ import (
 	"github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
 	stripecoupon "github.com/stripe/stripe-go/v86/coupon"
-	"github.com/thanhpk/randstr"
 	"gorm.io/gorm"
 )
 
@@ -36,118 +36,96 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 
 	var req SubscriptionStripePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, "invalid parameters")
 		return
 	}
-	if rejectSubscriptionPurchasePendingMigration(c) {
+	userId := c.GetInt("id")
+	requestID := strings.TrimSpace(req.RequestId)
+	if !isStableSubscriptionRequestID(requestID) {
+		common.ApiErrorMsg(c, "request_id is required")
 		return
 	}
-
+	replayCmd := service.PurchaseSubscriptionCommand{
+		UserID:        userId,
+		PlanID:        req.PlanId,
+		PaymentChoice: service.SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RequestID:     requestID,
+		RecallClaim:   strings.TrimSpace(req.RecallClaim),
+	}
+	if replay, found, err := service.ReplaySubscriptionPurchase(replayCmd); err != nil {
+		common.ApiError(c, err)
+		return
+	} else if found {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "success",
+			"data": gin.H{
+				"pay_link": replay.CheckoutURL,
+			},
+		})
+		return
+	}
 	plan, err := model.GetSubscriptionPlanById(req.PlanId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	if !plan.Enabled {
-		common.ApiErrorMsg(c, "套餐未启用")
+		common.ApiErrorMsg(c, "subscription plan is disabled")
 		return
 	}
 	if plan.StripePriceId == "" {
-		common.ApiErrorMsg(c, "该套餐未配置 StripePriceId")
+		common.ApiErrorMsg(c, "subscription plan StripePriceId is not configured")
 		return
 	}
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
-		common.ApiErrorMsg(c, "Stripe 未配置或密钥无效")
+		common.ApiErrorMsg(c, "Stripe is not configured or the secret key is invalid")
 		return
 	}
 	if setting.StripeWebhookSecret == "" {
-		common.ApiErrorMsg(c, "Stripe Webhook 未配置")
+		common.ApiErrorMsg(c, "Stripe webhook is not configured")
+		return
+	}
+	if rejectSubscriptionPurchasePendingMigration(c) {
 		return
 	}
 
-	userId := c.GetInt("id")
 	user, err := model.GetUserById(userId, false)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	if user == nil {
-		common.ApiErrorMsg(c, "用户不存在")
+		common.ApiErrorMsg(c, "user does not exist")
 		return
 	}
 
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
-		if err != nil {
-			common.ApiError(c, err)
+	result, err := requestStripeRecurringSubscriptionViaPurchasePath(userId, plan, req)
+	if err != nil {
+		if errors.Is(err, service.ErrRecallDisabled) ||
+			errors.Is(err, service.ErrRecallClaimUnknown) ||
+			errors.Is(err, service.ErrRecallClaimWrongUser) ||
+			errors.Is(err, service.ErrRecallClaimExpired) ||
+			errors.Is(err, service.ErrRecallClaimConverted) ||
+			errors.Is(err, service.ErrRecallClaimSuppressed) ||
+			errors.Is(err, service.ErrRecallClaimInactive) ||
+			errors.Is(err, service.ErrRecallClaimPromotionInvalid) ||
+			errors.Is(err, service.ErrRecallClaimWrongPrice) ||
+			errors.Is(err, service.ErrRecallClaimPurchaseKind) ||
+			errors.Is(err, service.ErrRecallClaimInvalidConfig) {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe subscription recall claim rejected user_id=%d plan_id=%d error=%q", userId, plan.Id, err.Error()))
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable)})
 			return
 		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
-			return
-		}
-	}
-
-	service.RecordRecallClaimAttribution(c.Request.Context(), userId, req.RecallClaim)
-	firstPeriodSubtotalMinor, err := service.StripeMinorUnitAmountForSubscription(plan.PriceAmount, plan.Currency)
-	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe subscription purchase checkout failed user_id=%d plan_id=%d error=%q", userId, plan.Id, err.Error()))
 		common.ApiError(c, err)
-		return
-	}
-	resolvedRecallOffer, err := service.GetRecallRuntime().Claims.ResolveBestRecallOffer(
-		c.Request.Context(),
-		userId,
-		service.RecallPurchaseKindSubscription,
-		strings.TrimSpace(plan.StripePriceId),
-		strings.ToUpper(strings.TrimSpace(plan.Currency)),
-		firstPeriodSubtotalMinor,
-	)
-	if err != nil {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe subscription recall offer resolution failed user_id=%d plan_id=%d price_id=%s error=%q", userId, plan.Id, plan.StripePriceId, err.Error()))
-		resolvedRecallOffer = nil
-	}
-	recallDiscount := service.RecallCheckoutDiscountFromResolvedOffer(resolvedRecallOffer)
-
-	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
-	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
-
-	order := &model.SubscriptionOrder{
-		UserId:          userId,
-		PlanId:          plan.Id,
-		TradeNo:         referenceId,
-		PaymentMethod:   model.PaymentMethodStripe,
-		PaymentProvider: model.PaymentProviderStripe,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
-	}
-	if err := model.CreateSubscriptionOrderWithInviteDiscount(order, plan.PriceAmount, 0); err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
-		return
-	}
-	if err := applySubscriptionCheckoutDiscountSelection(order, plan, recallDiscount); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅折扣选择失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
-		order.Status = common.TopUpStatusFailed
-		_ = order.Update()
-		common.ApiError(c, err)
-		return
-	}
-	if order.RecallDiscountAmountMinor == 0 {
-		recallDiscount = nil
-	}
-
-	checkoutSession, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId, userId, plan.Id, order.DiscountUSD, recallDiscount)
-	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅支付链接创建失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
-		order.Status = common.TopUpStatusFailed
-		_ = order.Update()
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
-			"pay_link": checkoutSession.URL,
+			"pay_link": result.CheckoutURL,
 		},
 	})
 }
@@ -212,6 +190,73 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 		return nil, err
 	}
 	return result, nil
+}
+
+func requestStripeRecurringSubscriptionViaPurchasePath(userID int, plan *model.SubscriptionPlan, req SubscriptionStripePayRequest) (*service.PurchaseSubscriptionResult, error) {
+	requestID := strings.TrimSpace(req.RequestId)
+	if !isStableSubscriptionRequestID(requestID) {
+		return nil, errors.New("request_id is required")
+	}
+	cmd := service.PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        plan.Id,
+		PaymentChoice: service.SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RequestID:     requestID,
+		RecallClaim:   req.RecallClaim,
+	}
+	if replay, found, err := service.ReplaySubscriptionPurchase(cmd); err != nil {
+		return nil, err
+	} else if found {
+		return replay, nil
+	}
+	quoteResult, err := service.QuoteSubscriptionPurchase(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if quoteResult == nil || !quoteResult.Available {
+		if quoteResult != nil && strings.TrimSpace(quoteResult.UnavailableReason) != "" {
+			return nil, errors.New(quoteResult.UnavailableReason)
+		}
+		return nil, errors.New("subscription purchase quote unavailable")
+	}
+	expiresAt := time.Now().Add(subscriptionSelfQuoteTTL).Unix()
+	token, err := service.SignSubscriptionPurchaseQuoteToken(service.SubscriptionPurchaseQuoteTokenClaims{
+		Version:                       2,
+		UserID:                        userID,
+		PlanID:                        plan.Id,
+		PaymentChoice:                 service.SubscriptionPaymentChoiceStripeRecurring,
+		Months:                        1,
+		RequestID:                     cmd.RequestID,
+		Currency:                      strings.ToUpper(strings.TrimSpace(quoteResult.Currency)),
+		UnitAmountMinor:               quoteResult.UnitAmountMinor,
+		TotalAmountMinor:              quoteResult.PaymentAmountMinor,
+		DiscountKind:                  quoteResult.DiscountKind,
+		DiscountAmountMinor:           quoteResult.DiscountAmountMinor,
+		InvitationAvailableUSDMinor:   quoteResult.InvitationAvailableUSDMinor,
+		InvitationDiscountUSDMinor:    quoteResult.InvitationDiscountUSDMinor,
+		InvitationDiscountAmountMinor: quoteResult.InvitationDiscountAmountMinor,
+		InvitationRemainingUSDMinor:   quoteResult.InvitationRemainingUSDMinor,
+		OtherDiscountKind:             quoteResult.OtherDiscountKind,
+		OtherDiscountAmountMinor:      quoteResult.OtherDiscountAmountMinor,
+		RecallCampaignID:              quoteResult.RecallCampaignID,
+		RecallRecipientID:             quoteResult.RecallRecipientID,
+		RecallPromotionCodeID:         quoteResult.RecallPromotionCodeID,
+		PlanRevision:                  subscriptionPurchasePlanRevision(plan),
+		ExpiresAt:                     expiresAt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	claims, err := service.VerifySubscriptionPurchaseQuoteToken(token, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	if claims.PlanRevision != subscriptionPurchasePlanRevision(plan) {
+		return nil, errors.New("subscription purchase quote expired")
+	}
+	cmd.VerifiedQuote = subscriptionPurchaseQuoteFromClaims(claims, true)
+	return service.PurchaseSubscription(cmd)
 }
 
 func buildStripeSubscriptionCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, userId int, planId int) *stripe.CheckoutSessionParams {
@@ -388,11 +433,16 @@ func buildOneTimePlanCheckoutSessionParams(order *model.SubscriptionOrder, user 
 	}
 	productName, productDescription := oneTimePlanProductText(order)
 	metadata := oneTimePlanMetadata(order, method)
+	expiresAt, err := oneTimePlanCheckoutExpiresAt(order)
+	if err != nil {
+		return nil, err
+	}
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(strings.TrimSpace(order.TradeNo)),
 		SuccessURL:        stripe.String(consolePaymentReturnPath("/console/topup")),
 		CancelURL:         stripe.String(consolePaymentReturnPath("/console/topup")),
 		Mode:              stripe.String(string(stripe.CheckoutSessionModePayment)),
+		ExpiresAt:         stripe.Int64(expiresAt),
 		PaymentMethodTypes: []*string{
 			stripe.String(string(stripeMethodType)),
 		},
@@ -431,6 +481,22 @@ func buildOneTimePlanCheckoutSessionParams(order *model.SubscriptionOrder, user 
 	}
 	params.SetIdempotencyKey("subscription-one-time:" + strings.TrimSpace(order.TradeNo))
 	return params, nil
+}
+
+func oneTimePlanCheckoutExpiresAt(order *model.SubscriptionOrder) (int64, error) {
+	if order == nil {
+		return 0, errors.New("subscription order is required")
+	}
+	createdAt := order.CreateTime
+	if createdAt <= 0 {
+		createdAt = common.GetTimestamp()
+	}
+	expiresAt := service.SubscriptionPurchaseOrderExpiresAt(createdAt)
+	ttl := expiresAt - common.GetTimestamp()
+	if ttl < int64((30*time.Minute).Seconds()) || ttl > int64((24*time.Hour).Seconds()) {
+		return 0, errors.New("Stripe checkout expiration is outside the supported window")
+	}
+	return expiresAt, nil
 }
 
 func oneTimePlanQuoteFromOrder(order *model.SubscriptionOrder) (oneTimePlanPaymentQuote, error) {
@@ -508,6 +574,18 @@ func oneTimePlanMetadata(order *model.SubscriptionOrder, method string) map[stri
 		"newapi_trade_no":      strings.TrimSpace(order.TradeNo),
 		"newapi_user_id":       strconv.Itoa(order.UserId),
 		"newapi_plan_id":       strconv.Itoa(order.PlanId),
+	}
+	if strings.TrimSpace(order.DiscountKind) != "" {
+		metadata["discount_kind"] = strings.TrimSpace(order.DiscountKind)
+	}
+	if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
+		metadata["subscription_discount_reservation_key"] = strings.TrimSpace(order.SubscriptionDiscountReservationKey)
+	}
+	if order.SubscriptionDiscountUSDMinor > 0 {
+		metadata["subscription_discount_usd_minor"] = strconv.FormatInt(order.SubscriptionDiscountUSDMinor, 10)
+	}
+	if order.SubscriptionDiscountAmountMinor > 0 {
+		metadata["subscription_discount_amount_minor"] = strconv.FormatInt(order.SubscriptionDiscountAmountMinor, 10)
 	}
 	if order.RecallDiscountAmountMinor > 0 {
 		metadata["recall_campaign_id"] = strconv.FormatInt(order.RecallCampaignId, 10)

@@ -76,6 +76,66 @@ func createInvitationTestUser(t *testing.T, user User) User {
 }
 
 func TestGetInvitationPage(t *testing.T) {
+	t.Run("subscription reward rows expose only pending granted or blocked statuses", func(t *testing.T) {
+		setupInvitationModelTest(t)
+
+		inviter := createInvitationTestUser(t, User{Id: 700, Username: "inviter", CreatedAt: 10})
+		waiting := createInvitationTestUser(t, User{
+			Id:                 71,
+			Username:           "waiting-user",
+			InviterId:          inviter.Id,
+			InviteRewardStatus: InviteRewardStatusPending,
+			CreatedAt:          300,
+		})
+		granted := createInvitationTestUser(t, User{
+			Id:                 72,
+			Username:           "granted-user",
+			InviterId:          inviter.Id,
+			InviteRewardStatus: InviteRewardStatusGranted,
+			CreatedAt:          200,
+		})
+		blocked := createInvitationTestUser(t, User{
+			Id:                 73,
+			Username:           "blocked-user",
+			InviterId:          inviter.Id,
+			InviteRewardStatus: InviteRewardStatusGranted,
+			CreatedAt:          100,
+		})
+		require.NoError(t, DB.Create(&[]InviteSubscriptionReward{
+			{
+				InviteeId:   waiting.Id,
+				InviterId:   inviter.Id,
+				RewardQuota: 500,
+				Status:      InviteSubRewardStatusPending,
+				UnlockAt:    999999,
+			},
+			{
+				InviteeId:   granted.Id,
+				InviterId:   inviter.Id,
+				RewardQuota: 500,
+				Status:      InviteSubRewardStatusGranted,
+				GrantedAt:   888888,
+			},
+			{
+				InviteeId: blocked.Id,
+				InviterId: inviter.Id,
+				Status:    InviteSubRewardStatusBlocked,
+				Reason:    InviteSubRewardReasonLimitReached,
+			},
+		}).Error)
+
+		page, err := GetInvitationPage(inviter.Id, 0, 10)
+
+		require.NoError(t, err)
+		require.Len(t, page.Items, 3)
+		require.Equal(t, InviteRewardStatusPending, page.Items[0].Status)
+		require.Zero(t, page.Items[0].UnlockAt)
+		require.Equal(t, InviteRewardStatusGranted, page.Items[1].Status)
+		require.Zero(t, page.Items[1].UnlockAt)
+		require.Equal(t, InviteRewardStatusBlocked, page.Items[2].Status)
+		require.Equal(t, InviteRewardBlockReasonInviterLimitReached, page.Items[2].Reason)
+	})
+
 	t.Run("scopes counts ordering pagination and historical reward", func(t *testing.T) {
 		setupInvitationModelTest(t)
 
@@ -152,7 +212,7 @@ func TestGetInvitationPage(t *testing.T) {
 		require.Empty(t, firstPage.Items[0].Reason)
 		require.Equal(t, blocked.Id, firstPage.Items[1].Id)
 		require.Equal(t, InviteRewardStatusBlocked, firstPage.Items[1].Status)
-		require.Equal(t, InviteRewardBlockReasonInviterMissing, firstPage.Items[1].Reason)
+		require.Equal(t, "unavailable", firstPage.Items[1].Reason)
 
 		secondPage, err := GetInvitationPage(inviter.Id, 2, 2)
 		require.NoError(t, err)

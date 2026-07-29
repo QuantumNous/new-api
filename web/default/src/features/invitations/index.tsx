@@ -68,6 +68,7 @@ export function InvitationView({
         affiliateLink={affiliateLink}
         loading={affiliateLoading}
         error={affiliateError}
+        rewardMode={summary?.reward_mode}
       />
       {(loading || summary !== null) && <RewardStepsCard summary={summary} />}
       <InvitationRecordsCard

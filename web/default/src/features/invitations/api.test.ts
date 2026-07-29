@@ -44,6 +44,7 @@ afterEach(() => {
 
 const invitationPage: InvitationPageData = {
   summary: {
+    reward_mode: 'topup',
     inviter_reward_usd: 100,
     invitee_reward_usd: 50,
     inviter_reward_max_count: 10,

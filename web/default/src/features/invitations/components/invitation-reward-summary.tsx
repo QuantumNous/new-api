@@ -40,12 +40,8 @@ export function InvitationRewardSummary(props: InvitationRewardSummaryProps) {
   let rewardCopy: string
   if (props.summary.reward_mode === 'subscription') {
     rewardCopy = t(
-      'Invite friends to subscribe: they get {{discount}} off their first month, and you receive {{reward}} in balance — unlocked {{days}} days after payment.',
-      {
-        discount: formatInvitationUSD(props.summary.first_sub_discount_usd),
-        reward: inviterReward,
-        days: props.summary.unlock_delay_days,
-      }
+      'Invite friends to subscribe: they get {{inviteeReward}} package discount immediately, and you receive {{inviterReward}} package discount after their first successful paid package purchase.',
+      { inviteeReward, inviterReward }
     )
   } else if (sameReward) {
     rewardCopy = t(
@@ -60,21 +56,36 @@ export function InvitationRewardSummary(props: InvitationRewardSummaryProps) {
   }
 
   const rewardLimit = props.summary.inviter_reward_max_count
+  const packageCopy = props.summary.reward_mode === 'subscription'
   let limitCopy: string
   if (rewardLimit === 0) {
-    limitCopy = t(
-      'Unlimited rewards, credits never expire, and any email address is accepted.'
-    )
+    limitCopy = packageCopy
+      ? t(
+          'Unlimited rewards, package discounts never expire, and any email address is accepted.'
+        )
+      : t(
+          'Unlimited rewards, credits never expire, and any email address is accepted.'
+        )
   } else if (rewardLimit === 1) {
-    limitCopy = t(
-      'Earn rewards for up to {{count}} successful referral. Credits never expire, and any email address is accepted.',
-      { count: rewardLimit }
-    )
+    limitCopy = packageCopy
+      ? t(
+          'Earn rewards for up to {{count}} successful referral. Package discounts never expire, and any email address is accepted.',
+          { count: rewardLimit }
+        )
+      : t(
+          'Earn rewards for up to {{count}} successful referral. Credits never expire, and any email address is accepted.',
+          { count: rewardLimit }
+        )
   } else {
-    limitCopy = t(
-      'Earn rewards for up to {{count}} successful referrals. Credits never expire, and any email address is accepted.',
-      { count: rewardLimit }
-    )
+    limitCopy = packageCopy
+      ? t(
+          'Earn rewards for up to {{count}} successful referrals. Package discounts never expire, and any email address is accepted.',
+          { count: rewardLimit }
+        )
+      : t(
+          'Earn rewards for up to {{count}} successful referrals. Credits never expire, and any email address is accepted.',
+          { count: rewardLimit }
+        )
   }
 
   return (

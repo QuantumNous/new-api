@@ -29,6 +29,7 @@ const testI18n = createInstance()
 
 const fixture: InvitationPageData = {
   summary: {
+    reward_mode: 'topup',
     inviter_reward_usd: 1,
     invitee_reward_usd: 0.5,
     inviter_reward_max_count: 10,
@@ -162,6 +163,82 @@ describe('InvitationView', () => {
     expect(html).toContain('You receive $20, your friend receives $10')
     expect(html).toContain('up to 7 successful referrals')
     expect(html).not.toContain('Unlimited rewards')
+  })
+
+  test('renders subscription package discount rewards without transfer or lock concepts', () => {
+    const html = renderView({
+      data: {
+        ...fixture,
+        summary: {
+          reward_mode: 'subscription',
+          available_discount_usd: 12.34,
+          lifetime_discount_usd: 56.78,
+          inviter_reward_usd: 5,
+          invitee_reward_usd: 6.25,
+          inviter_reward_max_count: 0,
+          granted_count: 1,
+          pending_count: 1,
+        },
+        items: [
+          {
+            ...fixture.items[1],
+            status: 'pending',
+            reward_usd: 0,
+          },
+          {
+            ...fixture.items[0],
+            status: 'granted',
+            reward_usd: 5,
+          },
+          {
+            ...fixture.items[0],
+            id: 3,
+            masked_identity: 'c***@example.com',
+            status: 'blocked',
+            reward_usd: 0,
+            reason: 'inviter_limit_reached',
+          },
+        ],
+        total: 3,
+      },
+    })
+
+    expect(html).toContain('Available package discount')
+    expect(html).toContain('Lifetime package discount')
+    expect(html).toContain('$12.34')
+    expect(html).toContain('$56.78')
+    expect(html).toContain('Waiting for first paid package')
+    expect(html).toContain('Reward received')
+    expect(html).toContain('Reward limit reached')
+    expect(html).toContain('Friends get $6.25 package discount')
+    expect(html).toContain('Share your referral link')
+    expect(html).toContain(
+      'Your friend gets a package discount immediately after registering.'
+    )
+    expect(html).toContain(
+      'You receive $5 package discount immediately after their first successful paid package purchase.'
+    )
+    expect(html).toContain(
+      'Package discounts never expire and can only be used for package purchases or renewals.'
+    )
+    expect(html).not.toContain('transfer')
+    expect(html).not.toContain('Transfer')
+    expect(html).not.toContain('locked')
+    expect(html).not.toContain('Locked')
+    expect(html).not.toContain('Unlock')
+    expect(html).not.toContain('API balance')
+  })
+
+  test('uses neutral referral copy until the reward mode is available', () => {
+    const html = renderView({ data: null })
+
+    expect(html).toContain('Share your referral link to get started.')
+    expect(html).not.toContain(
+      'Referral rewards are processed after their first successful top-up.'
+    )
+    expect(html).not.toContain(
+      'You receive your package discount immediately after their first successful paid package purchase.'
+    )
   })
 
   test('renders the empty invitation state', () => {
@@ -335,14 +412,13 @@ describe('InvitationView', () => {
     )
   })
 
-  test('uses Flatkey in the referral share message', () => {
+  test('uses the active reward rules in the referral share message', () => {
     const html = renderView()
     const message = encodeURIComponent(
-      'Join Flatkey with my referral link. Referral rewards are processed after your first successful top-up.'
+      'Share your referral link with friends. Referral rewards are processed after their first successful top-up.'
     )
 
     expect(html).toContain(message)
-    expect(html).not.toContain('Join%20NewAPI%20with%20my%20referral%20link')
   })
 })
 

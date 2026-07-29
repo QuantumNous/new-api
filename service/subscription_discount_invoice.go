@@ -1,0 +1,810 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/stripe/stripe-go/v86"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+const stripeInvoiceDiscountReservePrefix = "stripe-invoice:"
+const stripeSubscriptionDiscountInvoiceReconciliationMaxPages = 10
+const stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey = "stripe_subscription_discount_invoice_reconciliation_last_id"
+
+var errStripeSubscriptionDiscountInvoiceReconciliationCursorAdvanced = errors.New("Stripe subscription discount invoice reconciliation cursor advanced")
+
+type stripeSubscriptionDiscountInvoiceSnapshot struct {
+	Version                           int    `json:"version"`
+	Source                            string `json:"source"`
+	InvoiceID                         string `json:"invoice_id"`
+	SubscriptionID                    string `json:"subscription_id"`
+	BindingID                         int64  `json:"binding_id"`
+	ContractID                        int64  `json:"contract_id"`
+	PlanID                            int    `json:"plan_id"`
+	UserID                            int    `json:"user_id"`
+	Currency                          string `json:"currency"`
+	CanonicalUSDMinor                 int64  `json:"canonical_usd_minor"`
+	OriginalSubtotalMinor             int64  `json:"original_subtotal_minor"`
+	ExistingDiscountMinor             int64  `json:"existing_discount_minor"`
+	SelectedInvitationUSDMinor        int64  `json:"selected_invitation_usd_minor"`
+	SelectedInvitationLocalMinor      int64  `json:"selected_invitation_local_minor"`
+	IncrementalItemMinor              int64  `json:"incremental_item_minor"`
+	ExpectedFinalPaymentMinor         int64  `json:"expected_final_payment_minor"`
+	AccountAvailableBeforeUSDMinor    int64  `json:"account_available_before"`
+	AccountAvailableRemainingUSDMinor int64  `json:"account_available_remaining"`
+	AccountReservedBeforeUSDMinor     int64  `json:"account_reserved_before"`
+	AccountReservedAfterUSDMinor      int64  `json:"account_reserved_after"`
+	ReservationKey                    string `json:"reservation_key"`
+	ItemIdempotencyKey                string `json:"item_idempotency_key"`
+	OriginalAutoAdvance               *bool  `json:"original_auto_advance,omitempty"`
+}
+
+func PrepareStripeSubscriptionDiscountInvoice(ctx context.Context, invoiceID string) (err error) {
+	invoiceID = strings.TrimSpace(invoiceID)
+	if invoiceID == "" {
+		return PermanentPaidInvoiceError(errors.New("Stripe invoice id is required"))
+	}
+	inv, err := stripeInvoiceGetter(ctx, invoiceID)
+	if err != nil {
+		return err
+	}
+	if !stripeInvoiceEligibleForDiscountPreparation(inv) {
+		return nil
+	}
+	subscriptionID := stripeInvoiceSubscriptionID(inv)
+	if subscriptionID == "" {
+		return PermanentPaidInvoiceError(errors.New("Stripe invoice subscription id is missing"))
+	}
+	sub, err := stripeSubscriptionGetter(ctx, subscriptionID)
+	if err != nil {
+		return err
+	}
+	facts, err := validateStripeDiscountInvoiceFacts(inv, sub)
+	if err != nil {
+		return err
+	}
+	originalAutoAdvance := stripeInvoiceOriginalAutoAdvance(inv)
+	if err := pauseStripeSubscriptionInvoice(ctx, invoiceID); err != nil {
+		return err
+	}
+	resume := true
+	resumeAutoAdvance := originalAutoAdvance
+	var prepare stripeSubscriptionDiscountInvoicePrepare
+	defer func() {
+		if resume {
+			resumeAutoAdvance = stripeSubscriptionDiscountInvoiceResumeAutoAdvance(prepare, resumeAutoAdvance)
+			if resumeErr := resumeStripeSubscriptionInvoice(ctx, invoiceID, resumeAutoAdvance, stripeSubscriptionDiscountInvoiceMetadata(prepare.SnapshotFacts)); resumeErr != nil {
+				err = resumeErr
+			}
+		}
+	}()
+
+	prepare, err = buildStripeSubscriptionDiscountInvoicePrepareTx(facts, stripeInvoiceExistingDiscountMinor(inv), originalAutoAdvance)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, model.ErrSubscriptionDiscountInsufficient) {
+			return nil
+		}
+		return err
+	}
+	if prepare.IncrementalAmountMinor <= 0 {
+		return nil
+	}
+	if err := createStripeSubscriptionDiscountInvoiceItem(ctx, prepare); err != nil {
+		if IsPermanentPaidInvoiceError(err) {
+			if releaseErr := ReleaseStripeSubscriptionDiscountInvoice(ctx, invoiceID); releaseErr != nil {
+				return releaseErr
+			}
+			return err
+		}
+		resume = false
+		return err
+	}
+	return nil
+}
+
+type stripeSubscriptionDiscountInvoicePrepare struct {
+	InvoiceID              string
+	SubscriptionID         string
+	CustomerID             string
+	Currency               string
+	IncrementalAmountMinor int64
+	ReservationKey         string
+	Snapshot               string
+	SnapshotFacts          stripeSubscriptionDiscountInvoiceSnapshot
+	OriginalAutoAdvance    *bool
+}
+
+type stripeSubscriptionDiscountInvoiceReconciliationCursor struct {
+	LastID   int64  `json:"last_id"`
+	Revision int64  `json:"revision"`
+	raw      string `json:"-"`
+}
+
+func buildStripeSubscriptionDiscountInvoicePrepareTx(facts stripeInvoiceCommonFacts, existingDiscount int64, originalAutoAdvance bool) (stripeSubscriptionDiscountInvoicePrepare, error) {
+	var prepare stripeSubscriptionDiscountInvoicePrepare
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		// Lock order: local renewal binding facts first, then the discount account
+		// inside ReserveSubscriptionDiscountTx. Stripe invoice updates and item
+		// creation happen outside this transaction.
+		existingPrepare, found, err := existingStripeSubscriptionDiscountInvoicePrepareTx(tx, facts)
+		if err != nil {
+			return err
+		}
+		if found {
+			prepare = existingPrepare
+			return nil
+		}
+		binding, contract, plan, user, err := lockRenewalBindingFactsTx(tx, facts)
+		if err != nil {
+			return err
+		}
+		planSnapshot, err := recurringPlanSnapshotFromBindingTx(tx, binding)
+		if err != nil {
+			return PermanentPaidInvoiceError(err)
+		}
+		if err := validateRenewalInvoiceFactsTx(tx, facts, binding, contract, plan, user, planSnapshot); err != nil {
+			return PermanentPaidInvoiceError(err)
+		}
+		account, err := model.GetSubscriptionDiscountAccountTx(tx, binding.UserId)
+		if err != nil {
+			return err
+		}
+		canonicalUSDMinor, err := canonicalRenewalUSDMinor(plan, planSnapshot)
+		if err != nil {
+			return err
+		}
+		quote, err := BuildSubscriptionDiscountQuote(SubscriptionDiscountQuoteInput{
+			Currency:                 facts.Currency,
+			OriginalAmountMinor:      facts.Amount,
+			OriginalUSDMinor:         canonicalUSDMinor,
+			AvailableUSDMinor:        account.AvailableUSDMinor,
+			OtherDiscountKind:        "stripe_existing",
+			OtherDiscountAmountMinor: existingDiscount,
+		})
+		if err != nil {
+			return err
+		}
+		if quote.SelectedKind != SubscriptionDiscountKindInvitation || quote.InvitationDiscountAmountMinor <= existingDiscount {
+			return nil
+		}
+		incremental := quote.InvitationDiscountAmountMinor - existingDiscount
+		if incremental <= 0 || incremental > facts.Amount {
+			return nil
+		}
+		incrementalUSDMinor, err := subscriptionDiscountUSDMinorForAppliedAmount(
+			incremental,
+			facts.Amount,
+			canonicalUSDMinor,
+		)
+		if err != nil {
+			return err
+		}
+		if incrementalUSDMinor <= 0 || incrementalUSDMinor > account.AvailableUSDMinor {
+			return model.ErrSubscriptionDiscountInvalidAmount
+		}
+		reservationKey := stripeSubscriptionDiscountInvoiceReservationKey(facts.InvoiceID)
+		expectedFinal := facts.Amount - existingDiscount - incremental
+		if expectedFinal < 0 {
+			expectedFinal = 0
+		}
+		snapshotFacts := stripeSubscriptionDiscountInvoiceSnapshot{
+			Version:                           1,
+			Source:                            "stripe_renewal_invoice_discount",
+			InvoiceID:                         facts.InvoiceID,
+			SubscriptionID:                    facts.SubscriptionID,
+			BindingID:                         binding.Id,
+			ContractID:                        binding.ContractId,
+			PlanID:                            plan.Id,
+			UserID:                            binding.UserId,
+			Currency:                          facts.Currency,
+			CanonicalUSDMinor:                 canonicalUSDMinor,
+			OriginalSubtotalMinor:             facts.Amount,
+			ExistingDiscountMinor:             existingDiscount,
+			SelectedInvitationUSDMinor:        incrementalUSDMinor,
+			SelectedInvitationLocalMinor:      quote.InvitationDiscountAmountMinor,
+			IncrementalItemMinor:              incremental,
+			ExpectedFinalPaymentMinor:         expectedFinal,
+			AccountAvailableBeforeUSDMinor:    account.AvailableUSDMinor,
+			AccountAvailableRemainingUSDMinor: account.AvailableUSDMinor - incrementalUSDMinor,
+			AccountReservedBeforeUSDMinor:     account.ReservedUSDMinor,
+			AccountReservedAfterUSDMinor:      account.ReservedUSDMinor + incrementalUSDMinor,
+			ReservationKey:                    reservationKey,
+			ItemIdempotencyKey:                stripeSubscriptionDiscountInvoiceAdjustmentKey(facts.InvoiceID),
+			OriginalAutoAdvance:               common.GetPointer(originalAutoAdvance),
+		}
+		snapshot, err := stripeSubscriptionDiscountInvoiceSnapshotJSON(snapshotFacts)
+		if err != nil {
+			return err
+		}
+		_, err = model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             binding.UserId,
+			USDMinor:           incrementalUSDMinor,
+			TradeNo:            facts.InvoiceID,
+			PaymentCurrency:    facts.Currency,
+			AppliedAmountMinor: incremental,
+			PricingSnapshot:    snapshot,
+			IdempotencyKey:     reservationKey,
+			ExpiresAt:          common.GetTimestamp() + int64((7 * 24 * time.Hour).Seconds()),
+		})
+		if err != nil {
+			return err
+		}
+		prepare = stripeSubscriptionDiscountInvoicePrepare{
+			InvoiceID:              facts.InvoiceID,
+			SubscriptionID:         facts.SubscriptionID,
+			CustomerID:             facts.CustomerID,
+			Currency:               facts.Currency,
+			IncrementalAmountMinor: incremental,
+			ReservationKey:         reservationKey,
+			Snapshot:               snapshot,
+			SnapshotFacts:          snapshotFacts,
+			OriginalAutoAdvance:    snapshotFacts.OriginalAutoAdvance,
+		}
+		return nil
+	})
+	return prepare, err
+}
+
+func existingStripeSubscriptionDiscountInvoicePrepareTx(tx *gorm.DB, facts stripeInvoiceCommonFacts) (stripeSubscriptionDiscountInvoicePrepare, bool, error) {
+	reservationKey := stripeSubscriptionDiscountInvoiceReservationKey(facts.InvoiceID)
+	var reserve model.SubscriptionDiscountEntry
+	err := tx.Where("idempotency_key = ? AND entry_type = ?", reservationKey, model.SubscriptionDiscountEntryTypeReserve).First(&reserve).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return stripeSubscriptionDiscountInvoicePrepare{}, false, nil
+	}
+	if err != nil {
+		return stripeSubscriptionDiscountInvoicePrepare{}, false, err
+	}
+	closed, err := subscriptionDiscountReservationClosedTx(tx, reservationKey)
+	if err != nil || closed {
+		return stripeSubscriptionDiscountInvoicePrepare{}, closed, err
+	}
+	snapshot, err := parseStripeSubscriptionDiscountInvoiceSnapshot(reserve.PricingSnapshot)
+	if err != nil {
+		return stripeSubscriptionDiscountInvoicePrepare{}, false, err
+	}
+	return stripeSubscriptionDiscountInvoicePrepare{
+		InvoiceID:              facts.InvoiceID,
+		SubscriptionID:         facts.SubscriptionID,
+		CustomerID:             facts.CustomerID,
+		Currency:               facts.Currency,
+		IncrementalAmountMinor: reserve.AppliedAmountMinor,
+		ReservationKey:         reservationKey,
+		Snapshot:               reserve.PricingSnapshot,
+		SnapshotFacts:          snapshot,
+		OriginalAutoAdvance:    snapshot.OriginalAutoAdvance,
+	}, true, nil
+}
+
+func validateStripeDiscountInvoiceFacts(inv *stripe.Invoice, sub *stripe.Subscription) (stripeInvoiceCommonFacts, error) {
+	facts, err := validateStripeInvoiceCommonFacts(inv, sub)
+	if err != nil {
+		return stripeInvoiceCommonFacts{}, err
+	}
+	if inv == nil || inv.Subtotal <= 0 {
+		return stripeInvoiceCommonFacts{}, errors.New("Stripe invoice subtotal is invalid")
+	}
+	facts.Amount = inv.Subtotal
+	return facts, nil
+}
+
+func stripeInvoiceExistingDiscountMinor(inv *stripe.Invoice) int64 {
+	if inv == nil {
+		return 0
+	}
+	var total int64
+	for _, discount := range inv.TotalDiscountAmounts {
+		if discount != nil && discount.Amount > 0 {
+			total += discount.Amount
+		}
+	}
+	return total
+}
+
+func stripeInvoiceEligibleForDiscountPreparation(inv *stripe.Invoice) bool {
+	if inv == nil || strings.TrimSpace(inv.ID) == "" {
+		return false
+	}
+	if inv.Status != stripe.InvoiceStatusDraft {
+		return false
+	}
+	if inv.BillingReason == stripe.InvoiceBillingReasonSubscriptionCreate {
+		return false
+	}
+	return inv.BillingReason == "" || inv.BillingReason == stripe.InvoiceBillingReasonSubscriptionCycle
+}
+
+func pauseStripeSubscriptionInvoice(ctx context.Context, invoiceID string) error {
+	params := &stripe.InvoiceParams{AutoAdvance: stripe.Bool(false)}
+	params.SetIdempotencyKey(stripeSubscriptionDiscountInvoiceReservationKey(invoiceID) + ":pause")
+	_, err := stripeSubscriptionInvoiceUpdater(ctx, invoiceID, params)
+	return err
+}
+
+func stripeInvoiceOriginalAutoAdvance(inv *stripe.Invoice) bool {
+	if inv == nil {
+		return true
+	}
+	return inv.AutoAdvance
+}
+
+func stripeSubscriptionDiscountInvoiceResumeAutoAdvance(prepare stripeSubscriptionDiscountInvoicePrepare, fallback bool) bool {
+	if prepare.OriginalAutoAdvance != nil {
+		return *prepare.OriginalAutoAdvance
+	}
+	if strings.TrimSpace(prepare.ReservationKey) != "" {
+		return true
+	}
+	return fallback
+}
+
+func resumeStripeSubscriptionInvoice(ctx context.Context, invoiceID string, autoAdvance bool, metadata map[string]string) error {
+	params := &stripe.InvoiceParams{
+		AutoAdvance: stripe.Bool(autoAdvance),
+		Metadata:    metadata,
+	}
+	params.SetIdempotencyKey(stripeSubscriptionDiscountInvoiceReservationKey(invoiceID) + ":resume")
+	_, err := stripeSubscriptionInvoiceUpdater(ctx, invoiceID, params)
+	return err
+}
+
+func createStripeSubscriptionDiscountInvoiceItem(ctx context.Context, prepare stripeSubscriptionDiscountInvoicePrepare) error {
+	if prepare.IncrementalAmountMinor <= 0 {
+		return nil
+	}
+	exists, err := existingStripeSubscriptionDiscountInvoiceItem(ctx, prepare)
+	if err != nil || exists {
+		return classifyStripeSubscriptionDiscountInvoiceItemError(err)
+	}
+	params := &stripe.InvoiceItemParams{
+		Amount:      stripe.Int64(-prepare.IncrementalAmountMinor),
+		Currency:    stripe.String(strings.ToLower(prepare.Currency)),
+		Customer:    stripe.String(prepare.CustomerID),
+		Description: stripe.String("Flatkey invitation package credit"),
+		Invoice:     stripe.String(prepare.InvoiceID),
+		Metadata:    stripeSubscriptionDiscountInvoiceMetadata(prepare.SnapshotFacts),
+	}
+	params.SetIdempotencyKey(stripeSubscriptionDiscountInvoiceAdjustmentKey(prepare.InvoiceID))
+	_, err = stripeSubscriptionInvoiceItemCreator(ctx, params)
+	return classifyStripeSubscriptionDiscountInvoiceItemError(err)
+}
+
+func existingStripeSubscriptionDiscountInvoiceItem(ctx context.Context, prepare stripeSubscriptionDiscountInvoicePrepare) (bool, error) {
+	params := &stripe.InvoiceItemListParams{
+		Invoice: stripe.String(prepare.InvoiceID),
+	}
+	params.Limit = stripe.Int64(100)
+	items, err := stripeSubscriptionInvoiceItemLister(ctx, params)
+	if err != nil {
+		return false, err
+	}
+	matches := make([]*stripe.InvoiceItem, 0, 1)
+	for _, item := range items {
+		if stripeSubscriptionDiscountInvoiceItemMatchesMetadata(item, prepare) {
+			matches = append(matches, item)
+		}
+	}
+	if len(matches) == 0 {
+		return false, nil
+	}
+	if len(matches) > 1 {
+		return false, PermanentPaidInvoiceError(errors.New("multiple subscription discount invoice items found"))
+	}
+	item := matches[0]
+	if item.Amount != -prepare.IncrementalAmountMinor ||
+		strings.ToUpper(strings.TrimSpace(string(item.Currency))) != strings.ToUpper(strings.TrimSpace(prepare.Currency)) {
+		return false, PermanentPaidInvoiceError(errors.New("conflicting subscription discount invoice item found"))
+	}
+	return true, nil
+}
+
+func classifyStripeSubscriptionDiscountInvoiceItemError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if IsPermanentPaidInvoiceError(err) {
+		return err
+	}
+	var stripeErr *stripe.Error
+	if errors.As(err, &stripeErr) {
+		code := stripeErr.HTTPStatusCode
+		if code >= http.StatusBadRequest && code < http.StatusInternalServerError && code != http.StatusTooManyRequests {
+			return PermanentPaidInvoiceError(err)
+		}
+	}
+	return err
+}
+
+func stripeSubscriptionDiscountInvoiceItemMatchesMetadata(item *stripe.InvoiceItem, prepare stripeSubscriptionDiscountInvoicePrepare) bool {
+	if item == nil {
+		return false
+	}
+	metadata := item.Metadata
+	if metadata == nil {
+		return false
+	}
+	return strings.TrimSpace(metadata["source"]) == "new-api" &&
+		strings.TrimSpace(metadata["subscription_discount_version"]) == strconv.Itoa(prepare.SnapshotFacts.Version) &&
+		strings.TrimSpace(metadata["subscription_discount_source"]) == strings.TrimSpace(prepare.SnapshotFacts.Source) &&
+		strings.TrimSpace(metadata["subscription_discount_invoice_id"]) == strings.TrimSpace(prepare.InvoiceID) &&
+		strings.TrimSpace(metadata["subscription_discount_reservation_key"]) == strings.TrimSpace(prepare.ReservationKey) &&
+		strings.TrimSpace(metadata["subscription_discount_item_idempotency_key"]) == stripeSubscriptionDiscountInvoiceAdjustmentKey(prepare.InvoiceID)
+}
+
+func canonicalRenewalUSDMinor(plan *model.SubscriptionPlan, snapshot recurringInvoicePlanSnapshot) (int64, error) {
+	if snapshot.Found {
+		return stripeMinorUnitAmountForSubscription(snapshot.Snapshot.PriceAmount, "USD")
+	}
+	if plan == nil {
+		return 0, errors.New("local subscription plan is missing")
+	}
+	return stripeMinorUnitAmountForSubscription(plan.PriceAmount, "USD")
+}
+
+func stripeSubscriptionDiscountInvoiceSnapshotJSON(snapshot stripeSubscriptionDiscountInvoiceSnapshot) (string, error) {
+	data, err := common.Marshal(snapshot)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func parseStripeSubscriptionDiscountInvoiceSnapshot(raw string) (stripeSubscriptionDiscountInvoiceSnapshot, error) {
+	if strings.TrimSpace(raw) == "" {
+		return stripeSubscriptionDiscountInvoiceSnapshot{}, errors.New("subscription discount invoice snapshot is missing")
+	}
+	var snapshot stripeSubscriptionDiscountInvoiceSnapshot
+	if err := common.Unmarshal([]byte(raw), &snapshot); err != nil {
+		return stripeSubscriptionDiscountInvoiceSnapshot{}, fmt.Errorf("subscription discount invoice snapshot is invalid: %w", err)
+	}
+	if snapshot.Version != 1 ||
+		strings.TrimSpace(snapshot.Source) != "stripe_renewal_invoice_discount" ||
+		strings.TrimSpace(snapshot.InvoiceID) == "" ||
+		strings.TrimSpace(snapshot.SubscriptionID) == "" ||
+		snapshot.BindingID <= 0 ||
+		snapshot.ContractID <= 0 ||
+		snapshot.PlanID <= 0 ||
+		snapshot.UserID <= 0 ||
+		strings.TrimSpace(snapshot.Currency) == "" ||
+		snapshot.CanonicalUSDMinor <= 0 ||
+		snapshot.OriginalSubtotalMinor <= 0 ||
+		snapshot.ExistingDiscountMinor < 0 ||
+		snapshot.SelectedInvitationUSDMinor <= 0 ||
+		snapshot.SelectedInvitationLocalMinor <= 0 ||
+		snapshot.IncrementalItemMinor <= 0 ||
+		snapshot.ExpectedFinalPaymentMinor < 0 ||
+		strings.TrimSpace(snapshot.ReservationKey) == "" ||
+		strings.TrimSpace(snapshot.ItemIdempotencyKey) == "" {
+		return stripeSubscriptionDiscountInvoiceSnapshot{}, errors.New("subscription discount invoice snapshot is incomplete")
+	}
+	return snapshot, nil
+}
+
+func stripeSubscriptionDiscountInvoiceMetadata(snapshot stripeSubscriptionDiscountInvoiceSnapshot) map[string]string {
+	if snapshot.Version == 0 {
+		return nil
+	}
+	return map[string]string{
+		"source":                                       "new-api",
+		"subscription_discount_version":                strconv.Itoa(snapshot.Version),
+		"subscription_discount_source":                 strings.TrimSpace(snapshot.Source),
+		"subscription_discount_invoice_id":             strings.TrimSpace(snapshot.InvoiceID),
+		"subscription_discount_reservation_key":        strings.TrimSpace(snapshot.ReservationKey),
+		"subscription_discount_item_idempotency_key":   strings.TrimSpace(snapshot.ItemIdempotencyKey),
+		"subscription_discount_selected_usd_minor":     strconv.FormatInt(snapshot.SelectedInvitationUSDMinor, 10),
+		"subscription_discount_selected_local_minor":   strconv.FormatInt(snapshot.SelectedInvitationLocalMinor, 10),
+		"subscription_discount_existing_minor":         strconv.FormatInt(snapshot.ExistingDiscountMinor, 10),
+		"subscription_discount_incremental_item_minor": strconv.FormatInt(snapshot.IncrementalItemMinor, 10),
+		"subscription_discount_expected_final_minor":   strconv.FormatInt(snapshot.ExpectedFinalPaymentMinor, 10),
+		"subscription_discount_binding_id":             strconv.FormatInt(snapshot.BindingID, 10),
+		"subscription_discount_contract_id":            strconv.FormatInt(snapshot.ContractID, 10),
+		"subscription_discount_plan_id":                strconv.Itoa(snapshot.PlanID),
+		"subscription_discount_user_id":                strconv.Itoa(snapshot.UserID),
+	}
+}
+
+func stripeSubscriptionDiscountInvoiceReservationKey(invoiceID string) string {
+	return stripeInvoiceDiscountReservePrefix + strings.TrimSpace(invoiceID) + ":reserve"
+}
+
+func stripeSubscriptionDiscountInvoiceAdjustmentKey(invoiceID string) string {
+	return stripeInvoiceDiscountReservePrefix + strings.TrimSpace(invoiceID) + ":adjustment"
+}
+
+func CommitStripeSubscriptionDiscountInvoiceTx(tx *gorm.DB, invoiceID string) error {
+	skippedReleased, err := commitStripeSubscriptionDiscountInvoiceForPaidRenewalTx(tx, invoiceID)
+	if err != nil {
+		return err
+	}
+	if skippedReleased {
+		return PermanentPaidInvoiceError(errors.New("subscription discount invoice reservation was already released"))
+	}
+	return nil
+}
+
+func commitStripeSubscriptionDiscountInvoiceForPaidRenewalTx(tx *gorm.DB, invoiceID string) (bool, error) {
+	key := stripeSubscriptionDiscountInvoiceReservationKey(invoiceID)
+	terminalType, err := stripeSubscriptionDiscountInvoiceTerminalTypeTx(tx, key)
+	if err != nil {
+		return false, err
+	}
+	switch terminalType {
+	case model.SubscriptionDiscountEntryTypeCommit:
+		return false, nil
+	case model.SubscriptionDiscountEntryTypeRelease:
+		return true, nil
+	}
+	_, err = model.CommitSubscriptionDiscountTx(tx, key)
+	if errors.Is(err, model.ErrSubscriptionDiscountReservationNotFound) {
+		return false, nil
+	}
+	return false, err
+}
+
+func ReleaseStripeSubscriptionDiscountInvoice(ctx context.Context, invoiceID string) error {
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		key := stripeSubscriptionDiscountInvoiceReservationKey(invoiceID)
+		terminalType, err := stripeSubscriptionDiscountInvoiceTerminalTypeTx(tx, key)
+		if err != nil {
+			return err
+		}
+		if terminalType != "" {
+			return nil
+		}
+		_, err = model.ReleaseSubscriptionDiscountTx(tx, key)
+		if errors.Is(err, model.ErrSubscriptionDiscountReservationNotFound) {
+			return nil
+		}
+		return err
+	})
+}
+
+func ReconcileStaleStripeSubscriptionDiscountInvoices(ctx context.Context) (int, error) {
+	if !stripeReconciliationTableAvailable(&model.SubscriptionDiscountEntry{}) {
+		return 0, nil
+	}
+	now := common.GetTimestamp()
+	stalePreparationCutoff := now - int64((15 * time.Minute).Seconds())
+	processed := 0
+	cursor, err := loadStripeSubscriptionDiscountInvoiceReconciliationCursor()
+	if err != nil {
+		return processed, err
+	}
+	lastID := cursor.LastID
+	wrapped := lastID == 0
+	for page := 0; page < stripeSubscriptionDiscountInvoiceReconciliationMaxPages; page++ {
+		var reserves []model.SubscriptionDiscountEntry
+		if err := model.DB.
+			Where("id > ? AND entry_type = ? AND idempotency_key LIKE ? AND ((expires_at > ? AND expires_at <= ?) OR (expires_at > ? AND created_at > ? AND created_at <= ?))",
+				lastID,
+				model.SubscriptionDiscountEntryTypeReserve,
+				stripeInvoiceDiscountReservePrefix+"%:reserve",
+				0,
+				now,
+				now,
+				0,
+				stalePreparationCutoff).
+			Order("id asc").
+			Limit(stripeSubscriptionReconciliationBatchSize).
+			Find(&reserves).Error; err != nil {
+			return processed, err
+		}
+		if len(reserves) == 0 {
+			if lastID > 0 && !wrapped {
+				lastID = 0
+				wrapped = true
+				cursor, err = checkpointStripeSubscriptionDiscountInvoiceReconciliationCursor(cursor, 0)
+				if errors.Is(err, errStripeSubscriptionDiscountInvoiceReconciliationCursorAdvanced) {
+					return processed, nil
+				}
+				if err != nil {
+					return processed, err
+				}
+				continue
+			}
+			return processed, nil
+		}
+		pageLastID := lastID
+		for _, reserve := range reserves {
+			closed, err := stripeSubscriptionDiscountReservationClosed(reserve.IdempotencyKey)
+			if err != nil {
+				return processed, err
+			}
+			if closed {
+				pageLastID = reserve.ID
+				continue
+			}
+			invoiceID := strings.TrimSpace(reserve.TradeNo)
+			if invoiceID == "" {
+				invoiceID = strings.TrimSuffix(strings.TrimPrefix(reserve.IdempotencyKey, stripeInvoiceDiscountReservePrefix), ":reserve")
+			}
+			inv, err := stripeInvoiceGetter(ctx, invoiceID)
+			if err != nil {
+				return processed, err
+			}
+			if inv == nil || strings.TrimSpace(inv.ID) == "" {
+				return processed, errors.New("Stripe invoice is missing")
+			}
+			switch {
+			case stripeInvoiceIsPaid(inv):
+				if _, err := ReconcilePaidInvoice(ctx, invoiceID); err != nil {
+					return processed, err
+				}
+				processed++
+			case isTerminalStripeInvoiceStatus(inv.Status):
+				if err := ReleaseStripeSubscriptionDiscountInvoice(ctx, invoiceID); err != nil {
+					return processed, err
+				}
+				processed++
+			default:
+				if inv.Status != stripe.InvoiceStatusDraft {
+					common.SysLog(fmt.Sprintf("skip stale Stripe subscription discount invoice %s: status %s cannot be prepared", invoiceID, inv.Status))
+					pageLastID = reserve.ID
+					continue
+				}
+				if err := PrepareStripeSubscriptionDiscountInvoice(ctx, invoiceID); err != nil {
+					return processed, err
+				}
+				processed++
+			}
+			pageLastID = reserve.ID
+		}
+		cursor, err = checkpointStripeSubscriptionDiscountInvoiceReconciliationCursor(cursor, pageLastID)
+		if errors.Is(err, errStripeSubscriptionDiscountInvoiceReconciliationCursorAdvanced) {
+			return processed, nil
+		}
+		if err != nil {
+			return processed, err
+		}
+		lastID = pageLastID
+		if len(reserves) < stripeSubscriptionReconciliationBatchSize {
+			if lastID > 0 && !wrapped {
+				lastID = 0
+				wrapped = true
+				cursor, err = checkpointStripeSubscriptionDiscountInvoiceReconciliationCursor(cursor, 0)
+				if errors.Is(err, errStripeSubscriptionDiscountInvoiceReconciliationCursorAdvanced) {
+					return processed, nil
+				}
+				if err != nil {
+					return processed, err
+				}
+				continue
+			}
+			return processed, nil
+		}
+	}
+	return processed, nil
+}
+
+func loadStripeSubscriptionDiscountInvoiceReconciliationCursor() (stripeSubscriptionDiscountInvoiceReconciliationCursor, error) {
+	if !stripeReconciliationTableAvailable(&model.Option{}) {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, nil
+	}
+	initial, err := stripeSubscriptionDiscountInvoiceReconciliationCursorJSON(stripeSubscriptionDiscountInvoiceReconciliationCursor{})
+	if err != nil {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, err
+	}
+	if err := model.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&model.Option{
+		Key:   stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey,
+		Value: initial,
+	}).Error; err != nil {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, err
+	}
+	var option model.Option
+	err = model.DB.Where("key = ?", stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey).First(&option).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, nil
+	}
+	if err != nil {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, err
+	}
+	cursor, err := parseStripeSubscriptionDiscountInvoiceReconciliationCursor(option.Value)
+	if err != nil {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, err
+	}
+	cursor.raw = option.Value
+	return cursor, nil
+}
+
+func checkpointStripeSubscriptionDiscountInvoiceReconciliationCursor(cursor stripeSubscriptionDiscountInvoiceReconciliationCursor, lastID int64) (stripeSubscriptionDiscountInvoiceReconciliationCursor, error) {
+	if lastID < 0 {
+		lastID = 0
+	}
+	if !stripeReconciliationTableAvailable(&model.Option{}) {
+		cursor.LastID = lastID
+		return cursor, nil
+	}
+	next := stripeSubscriptionDiscountInvoiceReconciliationCursor{
+		LastID:   lastID,
+		Revision: cursor.Revision + 1,
+	}
+	value, err := stripeSubscriptionDiscountInvoiceReconciliationCursorJSON(next)
+	if err != nil {
+		return cursor, err
+	}
+	result := model.DB.Model(&model.Option{}).
+		Where("key = ? AND value = ?", stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey, cursor.raw).
+		Update("value", value)
+	if result.Error != nil {
+		return cursor, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return cursor, errStripeSubscriptionDiscountInvoiceReconciliationCursorAdvanced
+	}
+	next.raw = value
+	return next, nil
+}
+
+func parseStripeSubscriptionDiscountInvoiceReconciliationCursor(raw string) (stripeSubscriptionDiscountInvoiceReconciliationCursor, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, nil
+	}
+	var cursor stripeSubscriptionDiscountInvoiceReconciliationCursor
+	if err := common.Unmarshal([]byte(raw), &cursor); err == nil {
+		if cursor.LastID < 0 {
+			cursor.LastID = 0
+		}
+		if cursor.Revision < 0 {
+			cursor.Revision = 0
+		}
+		return cursor, nil
+	}
+	lastID, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, nil
+	}
+	if lastID < 0 {
+		lastID = 0
+	}
+	return stripeSubscriptionDiscountInvoiceReconciliationCursor{LastID: lastID}, nil
+}
+
+func stripeSubscriptionDiscountInvoiceReconciliationCursorJSON(cursor stripeSubscriptionDiscountInvoiceReconciliationCursor) (string, error) {
+	if cursor.LastID < 0 {
+		cursor.LastID = 0
+	}
+	if cursor.Revision < 0 {
+		cursor.Revision = 0
+	}
+	data, err := common.Marshal(cursor)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func stripeSubscriptionDiscountReservationClosed(reservationKey string) (bool, error) {
+	return subscriptionDiscountReservationClosedTx(model.DB, reservationKey)
+}
+
+func subscriptionDiscountReservationClosedTx(tx *gorm.DB, reservationKey string) (bool, error) {
+	terminalType, err := stripeSubscriptionDiscountInvoiceTerminalTypeTx(tx, reservationKey)
+	return terminalType != "", err
+}
+
+func stripeSubscriptionDiscountInvoiceTerminalTypeTx(tx *gorm.DB, reservationKey string) (string, error) {
+	if tx == nil || strings.TrimSpace(reservationKey) == "" {
+		return "", nil
+	}
+	var entry model.SubscriptionDiscountEntry
+	err := tx.Where("terminal_reservation_key = ?", strings.TrimSpace(reservationKey)).
+		Order("id asc").
+		First(&entry).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(entry.EntryType), nil
+}

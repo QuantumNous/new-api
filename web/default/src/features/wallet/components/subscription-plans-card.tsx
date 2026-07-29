@@ -41,17 +41,13 @@ import {
   type FlexiblePurchaseResponse,
   type PlanRecord,
   type SubscriptionPaymentAvailability,
+  type SubscriptionPaymentQuote,
   type SubscriptionRenewalLifecyclePrecondition,
 } from '@/features/subscriptions/types'
 import type {
   StripeCheckoutOpenResult,
   StripeCheckoutPresentation,
 } from '../hooks/use-payment'
-import {
-  getRecallPriceDiscount,
-  selectBestRecallOffer,
-  type RecallPriceDiscount,
-} from '../lib/recall-claim'
 import {
   type LifecyclePlanRecord,
   type WalletSelfSubscriptionData,
@@ -79,6 +75,7 @@ interface SubscriptionPlansCardProps {
   initialPlans?: LifecyclePlanRecord[]
   initialSelfData?: WalletSelfSubscriptionData
   initialLoading?: boolean
+  initialPlanPreviewQuotes?: Record<number, SubscriptionPaymentQuote>
 }
 
 const EXTERNAL_RETURN_POLL_KEY = 'new-api:subscription-change-return-pending'
@@ -110,35 +107,78 @@ function getPlanDisplayOrder(title: string): number {
 }
 
 function formatPlanPrice(amount: number, currency = 'USD'): string {
-  if (currency === 'BRL') {
-    return Intl.NumberFormat('pt-BR', {
+  const normalizedCurrency = currency.trim().toUpperCase() || 'USD'
+  let locale = 'en-US'
+  if (normalizedCurrency === 'BRL') locale = 'pt-BR'
+  if (normalizedCurrency === 'INR') locale = 'en-IN'
+  try {
+    const currencyFractionDigits = Intl.NumberFormat(locale, {
       style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
+      currency: normalizedCurrency,
+    }).resolvedOptions().maximumFractionDigits
+    const fixedTwoDecimals =
+      normalizedCurrency === 'BRL' || normalizedCurrency === 'INR'
+    let minimumFractionDigits = currencyFractionDigits
+    if (fixedTwoDecimals) minimumFractionDigits = 2
+    if (!fixedTwoDecimals && Number.isInteger(amount)) {
+      minimumFractionDigits = 0
+    }
+    return Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: normalizedCurrency,
+      minimumFractionDigits,
+      maximumFractionDigits: fixedTwoDecimals ? 2 : currencyFractionDigits,
+    }).format(amount)
+  } catch {
+    const formattedAmount = Intl.NumberFormat('en-US', {
+      minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
       maximumFractionDigits: 2,
     }).format(amount)
+    return `${normalizedCurrency} ${formattedAmount}`
   }
-  if (currency === 'INR') {
-    return Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount)
-  }
-  return `$${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`
 }
 
-function getRecallDiscountLabel(
-  discount: RecallPriceDiscount,
-  percentOff: number,
-  t: Translate
-): string {
-  if (discount.type === 'percent') return `${percentOff}% OFF`
-  return t('{{amount}} {{currency}} off', {
-    amount: discount.discountAmount.toFixed(2),
-    currency: discount.currency,
-  }).toUpperCase()
+type PlanCardDiscountPreview = {
+  currency: string
+  discountAmount: number
+  discountKind: 'invitation' | 'recall'
+  originalTotal: number
+  total: number
+}
+
+function getPlanCardDiscountPreview(
+  quote: SubscriptionPaymentQuote | undefined
+): PlanCardDiscountPreview | null {
+  if (
+    quote?.discount_kind !== 'invitation' &&
+    quote?.discount_kind !== 'recall'
+  ) {
+    return null
+  }
+  const originalTotal = Number(quote.original_total)
+  const total = Number(quote.total)
+  const discountAmount = Number(quote.discount_amount ?? originalTotal - total)
+  if (
+    !Number.isFinite(originalTotal) ||
+    !Number.isFinite(total) ||
+    !Number.isFinite(discountAmount) ||
+    originalTotal <= total ||
+    total < 0 ||
+    discountAmount <= 0
+  ) {
+    return null
+  }
+  const currency =
+    typeof quote.currency === 'string' && quote.currency.trim()
+      ? quote.currency.trim().toUpperCase()
+      : 'USD'
+  return {
+    currency,
+    discountAmount,
+    discountKind: quote.discount_kind,
+    originalTotal,
+    total,
+  }
 }
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
@@ -265,6 +305,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseProjection, setPurchaseProjection] =
     useState<FlexiblePurchaseResponse | null>(null)
+  const [quoteError, setQuoteError] = useState(false)
   const quoteRequestSequenceRef = useRef(0)
   const latestQuoteRequestRef = useRef<{
     sequence: number
@@ -273,6 +314,9 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     requestId: string
   } | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
+  const [planPreviewQuotes, setPlanPreviewQuotes] = useState<
+    Record<number, SubscriptionPaymentQuote>
+  >(() => props.initialPlanPreviewQuotes ?? {})
   const [renewalMutationPending, setRenewalMutationPending] = useState(false)
   const renewalMutationInFlightRef = useRef(false)
   // A later failed /self refresh must not erase the last successful canonical
@@ -395,6 +439,58 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     () => getPaymentAvailability(selfData, topupInfo),
     [selfData, topupInfo]
   )
+
+  useEffect(() => {
+    let cancelled = false
+    if (
+      loading ||
+      orderedPlans.length === 0 ||
+      !isPaymentChoiceAvailable(paymentAvailability, 'stripe_recurring')
+    ) {
+      setPlanPreviewQuotes({})
+      return
+    }
+    setPlanPreviewQuotes({})
+    const loadPlanPreviewQuotes = async () => {
+      const entries = await Promise.all(
+        orderedPlans.map(async (item) => {
+          const requestBody = buildFlexibleQuoteRequest({
+            planId: item.plan.id,
+            paymentChoice: 'stripe_recurring',
+            months: 1,
+            requestId: createStableSubscriptionRequestId(),
+            recallClaim: recallClaim.claim,
+          })
+          try {
+            const res = await quoteSubscriptionPlanFlexible(requestBody)
+            const quote = res.success
+              ? getMatchingPaymentQuote(
+                  'stripe_recurring',
+                  res.data?.payment_quotes,
+                  1
+                )
+              : undefined
+            return quote ? ([item.plan.id, quote] as const) : null
+          } catch {
+            return null
+          }
+        })
+      )
+      if (cancelled) return
+      setPlanPreviewQuotes(
+        Object.fromEntries(
+          entries.filter(
+            (entry): entry is readonly [number, SubscriptionPaymentQuote] =>
+              entry !== null
+          )
+        )
+      )
+    }
+    void loadPlanPreviewQuotes()
+    return () => {
+      cancelled = true
+    }
+  }, [loading, orderedPlans, paymentAvailability, recallClaim.claim])
 
   useEffect(() => {
     onAvailabilityChange?.(isAvailable)
@@ -555,21 +651,26 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
       toast.error(t('Payment choice is unavailable'))
       return
     }
+    const selectedQuote = getMatchingPaymentQuote(
+      paymentChoice,
+      purchaseProjection?.payment_quotes,
+      months
+    )
+    if (!selectedQuote) {
+      toast.error(t('Payment quote is unavailable.'))
+      return
+    }
     setPurchasing(true)
     try {
-      const selectedQuote = getMatchingPaymentQuote(
-        paymentChoice,
-        purchaseProjection?.payment_quotes ?? selfData.payment_quotes,
-        months
-      )
       const res = await purchaseSubscriptionPlanFlexible({
         ...buildFlexiblePurchaseRequest({
           planId: purchaseTarget.plan.plan.id,
           paymentChoice,
           months,
           requestId: purchaseTarget.requestId,
-          quoteId: selectedQuote?.quote_id,
+          quoteId: selectedQuote.quote_id,
           orderId: selectedQuote?.order_id,
+          recallClaim: recallClaim.claim,
         }),
       })
       if (!res.success || !res.data) {
@@ -606,48 +707,69 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
   }
 
+  const requestQuoteForTarget = useCallback(
+    async (
+      target: {
+        plan: PlanRecord
+        requestId: string
+      },
+      paymentChoice: FlexiblePaymentChoice,
+      months: number
+    ) => {
+      const requestBody = buildFlexibleQuoteRequest({
+        planId: target.plan.plan.id,
+        paymentChoice,
+        months,
+        requestId: target.requestId,
+        recallClaim: recallClaim.claim,
+      })
+      const sequence = quoteRequestSequenceRef.current + 1
+      quoteRequestSequenceRef.current = sequence
+      const latestRequest = {
+        sequence,
+        paymentChoice: requestBody.payment_choice,
+        months: requestBody.months,
+        requestId: requestBody.request_id,
+      }
+      latestQuoteRequestRef.current = latestRequest
+      setPurchaseProjection(null)
+      setQuoteError(false)
+      setQuoteLoading(true)
+      try {
+        const res = await quoteSubscriptionPlanFlexible(requestBody)
+        if (latestQuoteRequestRef.current !== latestRequest) return
+        if (res.success && res.data) {
+          setPurchaseProjection((current) =>
+            mergeFlexibleQuoteProjection(
+              current,
+              res.data ?? {},
+              latestRequest,
+              latestQuoteRequestRef.current
+            )
+          )
+        } else {
+          setPurchaseProjection(null)
+          setQuoteError(true)
+        }
+      } catch {
+        if (latestQuoteRequestRef.current !== latestRequest) return
+        setPurchaseProjection(null)
+        setQuoteError(true)
+      } finally {
+        if (latestQuoteRequestRef.current === latestRequest) {
+          setQuoteLoading(false)
+        }
+      }
+    },
+    [recallClaim.claim]
+  )
+
   const handleQuoteRequest = async (
     paymentChoice: FlexiblePaymentChoice,
     months: number
   ) => {
     if (!purchaseTarget) return
-    const requestBody = buildFlexibleQuoteRequest({
-      planId: purchaseTarget.plan.plan.id,
-      paymentChoice,
-      months,
-      requestId: purchaseTarget.requestId,
-    })
-    const sequence = quoteRequestSequenceRef.current + 1
-    quoteRequestSequenceRef.current = sequence
-    const latestRequest = {
-      sequence,
-      paymentChoice: requestBody.payment_choice,
-      months: requestBody.months,
-      requestId: requestBody.request_id,
-    }
-    latestQuoteRequestRef.current = latestRequest
-    setQuoteLoading(true)
-    try {
-      const res = await quoteSubscriptionPlanFlexible(requestBody)
-      if (latestQuoteRequestRef.current !== latestRequest) return
-      if (res.success && res.data) {
-        setPurchaseProjection((current) =>
-          mergeFlexibleQuoteProjection(
-            current,
-            res.data ?? {},
-            latestRequest,
-            latestQuoteRequestRef.current
-          )
-        )
-      }
-    } catch {
-      if (latestQuoteRequestRef.current !== latestRequest) return
-      setPurchaseProjection((current) => current)
-    } finally {
-      if (latestQuoteRequestRef.current === latestRequest) {
-        setQuoteLoading(false)
-      }
-    }
+    await requestQuoteForTarget(purchaseTarget, paymentChoice, months)
   }
 
   if (loading) {
@@ -705,23 +827,19 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
           <div className='grid grid-cols-1 gap-3 md:grid-cols-3 xl:gap-4'>
             {orderedPlans.map((item) => {
               const plan = item.plan
-              const price = formatPlanPrice(
-                Number(plan.price_amount || 0),
-                plan.currency || 'USD'
+              const discountPreview = getPlanCardDiscountPreview(
+                planPreviewQuotes[plan.id]
               )
-              const recallOffer = selectBestRecallOffer(recallClaim.offers, {
-                purchaseKind: 'subscription',
-                productId: plan.stripe_price_id || plan.id,
-                amountMajor: Number(plan.price_amount || 0),
-                currency: plan.currency || 'USD',
-              })
-              const recallDiscount = getRecallPriceDiscount(
-                recallOffer,
-                plan.stripe_price_id || plan.id,
-                'subscription',
-                Number(plan.price_amount || 0),
-                plan.currency || 'USD'
+              const currency =
+                discountPreview?.currency || plan.currency || 'USD'
+              const originalPrice = formatPlanPrice(
+                discountPreview?.originalTotal ??
+                  Number(plan.price_amount || 0),
+                currency
               )
+              const displayPrice = discountPreview
+                ? formatPlanPrice(discountPreview.total, currency)
+                : originalPrice
               const isRecommended =
                 plan.title.trim().toLowerCase() === 'go' &&
                 orderedPlans.length > 1
@@ -764,13 +882,12 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                         ) : null}
                       </div>
                       <div className='flex shrink-0 flex-col items-end gap-1'>
-                        {recallDiscount ? (
-                          <span className='inline-flex rounded-full bg-[#dcfce7] px-2 py-1 text-[11px] font-semibold text-[#166534] uppercase dark:bg-[#14532d]/40 dark:text-[#86efac]'>
-                            {getRecallDiscountLabel(
-                              recallDiscount,
-                              Number(recallOffer?.discount.percent_off || 0),
-                              t
-                            )}
+                        {discountPreview ? (
+                          <span
+                            data-discount-kind={discountPreview.discountKind}
+                            className='inline-flex rounded-full bg-[#dcfce7] px-2 py-1 text-[11px] font-semibold text-[#166534] uppercase dark:bg-[#14532d]/40 dark:text-[#86efac]'
+                          >
+                            {t('OFF')}
                           </span>
                         ) : null}
                         {isRecommended ? (
@@ -782,30 +899,25 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                       </div>
                     </div>
 
-                    <div className='mt-6 flex items-end gap-2'>
+                    <div className='mt-6 flex flex-wrap items-end gap-2'>
                       <span className='text-5xl font-semibold tracking-tight tabular-nums'>
-                        {recallDiscount
-                          ? formatPlanPrice(
-                              recallDiscount.discountedAmount,
-                              recallDiscount.currency
-                            )
-                          : price}
+                        {displayPrice}
                       </span>
-                      {recallDiscount ? (
+                      {discountPreview ? (
                         <span className='text-muted-foreground mb-2 text-sm tabular-nums line-through'>
-                          {price}
+                          {originalPrice}
                         </span>
                       ) : null}
                       <span className='text-muted-foreground mb-1 text-sm'>
                         {t('per month')}
                       </span>
                     </div>
-                    {recallDiscount ? (
+                    {discountPreview ? (
                       <div className='mt-1 text-xs font-medium text-[#166534] dark:text-[#86efac]'>
                         {t('Save {{amount}}', {
                           amount: formatPlanPrice(
-                            recallDiscount.discountAmount,
-                            recallDiscount.currency
+                            discountPreview.discountAmount,
+                            discountPreview.currency
                           ),
                         })}
                       </div>
@@ -833,13 +945,20 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                       variant={action === 'switch' ? 'outline' : 'default'}
                       disabled={isCurrentRecurring}
                       onClick={() => {
-                        setPurchaseProjection(null)
-                        latestQuoteRequestRef.current = null
-                        setQuoteLoading(false)
-                        setPurchaseTarget({
+                        const target = {
                           plan: item,
                           requestId: createStableSubscriptionRequestId(),
-                        })
+                        }
+                        setPurchaseProjection(null)
+                        latestQuoteRequestRef.current = null
+                        setQuoteError(false)
+                        setQuoteLoading(false)
+                        setPurchaseTarget(target)
+                        void requestQuoteForTarget(
+                          target,
+                          'stripe_recurring',
+                          1
+                        )
                       }}
                     >
                       {isCurrentRecurring
@@ -866,6 +985,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
             setPurchaseTarget(null)
             setPurchaseProjection(null)
             latestQuoteRequestRef.current = null
+            setQuoteError(false)
             setQuoteLoading(false)
           }
         }}
@@ -877,30 +997,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         projectedStart={purchaseProjection?.start_time}
         projectedEnd={purchaseProjection?.end_time}
         projectedRemainingDays={purchaseProjection?.remaining_days}
-        paymentQuotes={
-          purchaseProjection?.payment_quotes ?? selfData.payment_quotes
-        }
-        recallDiscount={
-          purchaseTarget
-            ? getRecallPriceDiscount(
-                selectBestRecallOffer(recallClaim.offers, {
-                  purchaseKind: 'subscription',
-                  productId:
-                    purchaseTarget.plan.plan.stripe_price_id ||
-                    purchaseTarget.plan.plan.id,
-                  amountMajor: Number(
-                    purchaseTarget.plan.plan.price_amount || 0
-                  ),
-                  currency: purchaseTarget.plan.plan.currency || 'USD',
-                }),
-                purchaseTarget.plan.plan.stripe_price_id ||
-                  purchaseTarget.plan.plan.id,
-                'subscription',
-                Number(purchaseTarget.plan.plan.price_amount || 0),
-                purchaseTarget.plan.plan.currency || 'USD'
-              )
-            : null
-        }
+        paymentQuotes={quoteError ? {} : purchaseProjection?.payment_quotes}
         onConfirm={handleConfirmPurchase}
         onQuoteRequest={handleQuoteRequest}
       />

@@ -97,18 +97,23 @@ const invitationKeys = [
   'This list shows active accounts registered through your referral link. Deleted accounts may not appear, so the rewards shown here may not add up to your lifetime earnings.',
   'What behavior is prohibited?',
   'Self-referrals, duplicate accounts, and other abuse are prohibited. Rewards may be withheld or revoked.',
-  // Subscription-mode (invite reward v2) keys
-  'Invite friends to subscribe: they get {{discount}} off their first month, and you receive {{reward}} in balance — unlocked {{days}} days after payment.',
-  "Unlocks {{days}} days after your friend's payment",
-  'Locked credits',
-  '{{reward}} each after their first subscription',
-  'You receive {{reward}} in balance',
-  'Your friend subscribes with {{discount}} off',
-  'They sign up with your link and get {{discount}} off the first month of any plan.',
-  '{{reward}} is added to your balance, unlocked {{days}} days after payment if there is no refund.',
-  'Referral rewards are created when your friend completes their first subscription payment, and unlock {{days}} days later if the payment is not refunded. Registration, top-ups, and API calls alone do not grant a reward.',
-  'Your friend gets {{discount}} off the first month of any plan, and you receive {{reward}} as balance.',
-  'Unlocks {{date}}',
+  // Subscription-mode package discount keys
+  'Invite friends to subscribe: they get {{inviteeReward}} package discount immediately, and you receive {{inviterReward}} package discount after their first successful paid package purchase.',
+  'Unlimited rewards, package discounts never expire, and any email address is accepted.',
+  'Earn rewards for up to {{count}} successful referral. Package discounts never expire, and any email address is accepted.',
+  'Earn rewards for up to {{count}} successful referrals. Package discounts never expire, and any email address is accepted.',
+  'Available package discount',
+  'Lifetime package discount',
+  'For package purchases and renewals',
+  'Permanent total earned',
+  'Friends get {{reward}} package discount',
+  'You receive {{reward}} package discount',
+  'Your friend registers',
+  'Your friend gets a package discount immediately after registering.',
+  'You receive {{reward}} package discount immediately after their first successful paid package purchase. Package discounts never expire and can only be used for package purchases or renewals.',
+  'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.',
+  'Your friend gets {{inviteeReward}} package discount, and you receive {{inviterReward}} package discount.',
+  'Package discounts never expire and can only be used for package purchases or renewals.',
   'Awaiting subscription',
   'Reward revoked',
   "Your friend's subscription was refunded",
@@ -116,6 +121,39 @@ const invitationKeys = [
 ] as const
 
 const localeInvariantKeys = new Set<(typeof invitationKeys)[number]>(['FAQ'])
+
+const affectedPackageCreditKeys = [
+  'Loading payment quote...',
+  'Payment quote is unavailable.',
+  'Original plan total',
+  'Invitation plan credit',
+  'Other discount',
+  'Final amount',
+  'Estimated remaining invitation plan credit',
+  'Invitation credit was not consumed.',
+  'Inviter subscription package credit',
+  'Invitee first subscription package credit',
+  'Reward limit',
+  '0 means unlimited.',
+  'Granted immediately after a friend successfully buys any paid plan for the first time. The credit never expires and can only be used for subscription purchases and renewals.',
+  "Discount applied to the invited user's first paid subscription package purchase.",
+  'Invite friends to subscribe: they get {{inviteeReward}} package discount immediately, and you receive {{inviterReward}} package discount after their first successful paid package purchase.',
+  'Unlimited rewards, package discounts never expire, and any email address is accepted.',
+  'Earn rewards for up to {{count}} successful referral. Package discounts never expire, and any email address is accepted.',
+  'Earn rewards for up to {{count}} successful referrals. Package discounts never expire, and any email address is accepted.',
+  'Available package discount',
+  'Lifetime package discount',
+  'For package purchases and renewals',
+  'Permanent total earned',
+  'Friends get {{reward}} package discount',
+  'You receive {{reward}} package discount',
+  'Your friend registers',
+  'Your friend gets a package discount immediately after registering.',
+  'You receive {{reward}} package discount immediately after their first successful paid package purchase. Package discounts never expire and can only be used for package purchases or renewals.',
+  'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.',
+  'Your friend gets {{inviteeReward}} package discount, and you receive {{inviterReward}} package discount.',
+  'Package discounts never expire and can only be used for package purchases or renewals.',
+] as const
 
 const obsoleteReferralRewardKey =
   'Rewards are issued after your referral creates their first API key and successfully calls the API.'
@@ -163,19 +201,18 @@ describe('invitation i18n', () => {
         ['{{inviterReward}}', '{{inviteeReward}}'],
       'The maximum number of successful referrals you can earn rewards for is {{count}}. Friends invited after that can still receive their reward.':
         ['{{count}}'],
-      'Invite friends to subscribe: they get {{discount}} off their first month, and you receive {{reward}} in balance — unlocked {{days}} days after payment.':
-        ['{{discount}}', '{{reward}}', '{{days}}'],
-      "Unlocks {{days}} days after your friend's payment": ['{{days}}'],
-      'Your friend subscribes with {{discount}} off': ['{{discount}}'],
-      'They sign up with your link and get {{discount}} off the first month of any plan.':
-        ['{{discount}}'],
-      '{{reward}} is added to your balance, unlocked {{days}} days after payment if there is no refund.':
-        ['{{reward}}', '{{days}}'],
-      'Referral rewards are created when your friend completes their first subscription payment, and unlock {{days}} days later if the payment is not refunded. Registration, top-ups, and API calls alone do not grant a reward.':
-        ['{{days}}'],
-      'Your friend gets {{discount}} off the first month of any plan, and you receive {{reward}} as balance.':
-        ['{{discount}}', '{{reward}}'],
-      'Unlocks {{date}}': ['{{date}}'],
+      'Invite friends to subscribe: they get {{inviteeReward}} package discount immediately, and you receive {{inviterReward}} package discount after their first successful paid package purchase.':
+        ['{{inviteeReward}}', '{{inviterReward}}'],
+      'Earn rewards for up to {{count}} successful referral. Package discounts never expire, and any email address is accepted.':
+        ['{{count}}'],
+      'Earn rewards for up to {{count}} successful referrals. Package discounts never expire, and any email address is accepted.':
+        ['{{count}}'],
+      'Friends get {{reward}} package discount': ['{{reward}}'],
+      'You receive {{reward}} package discount': ['{{reward}}'],
+      'You receive {{reward}} package discount immediately after their first successful paid package purchase. Package discounts never expire and can only be used for package purchases or renewals.':
+        ['{{reward}}'],
+      'Your friend gets {{inviteeReward}} package discount, and you receive {{inviterReward}} package discount.':
+        ['{{inviteeReward}}', '{{inviterReward}}'],
     } as const
 
     for (const [locale, translations] of Object.entries(localeTranslations)) {
@@ -220,6 +257,33 @@ describe('invitation i18n', () => {
     }
   })
 
+  test('keeps package-credit translations complete and free of corrupted characters', () => {
+    for (const [locale, translations] of Object.entries(localeTranslations)) {
+      for (const key of affectedPackageCreditKeys) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translations, key),
+          `${locale} is missing affected package-credit key ${key}`
+        ).toBe(true)
+        const value = translations[key]
+        expect(value, `${locale} should translate ${key}`).toBeTruthy()
+        expect(
+          value,
+          `${locale} has ASCII ? corruption in ${key}`
+        ).not.toContain('?')
+        expect(
+          value,
+          `${locale} has U+FFFD corruption in ${key}`
+        ).not.toContain('\uFFFD')
+        if (locale !== 'en') {
+          expect(
+            value,
+            `${locale} should not fall back to English for ${key}`
+          ).not.toBe(en.translation[key])
+        }
+      }
+    }
+  })
+
   test('does not retain obsolete API-key referral reward guidance', () => {
     for (const [locale, translations] of Object.entries(localeTranslations)) {
       expect(
@@ -236,6 +300,14 @@ describe('invitation i18n', () => {
     const obsoleteKeys = [
       'Move available referral rewards to your main balance.',
       'Transfer available referral rewards to your main balance, then use them for API requests.',
+      'Locked credits',
+      "Unlocks {{days}} days after your friend's payment",
+      'You receive {{reward}} in balance',
+      '{{reward}} is added to your balance, unlocked {{days}} days after payment if there is no refund.',
+      'Referral rewards are created when your friend completes their first subscription payment, and unlock {{days}} days later if the payment is not refunded. Registration, top-ups, and API calls alone do not grant a reward.',
+      'Your friend gets {{discount}} off the first month of any plan, and you receive {{reward}} as balance.',
+      'Invite friends to subscribe: they get {{discount}} off their first month, and you receive {{reward}} in balance — unlocked {{days}} days after payment.',
+      'Unlocks {{date}}',
     ]
 
     for (const [locale, translations] of Object.entries(localeTranslations)) {

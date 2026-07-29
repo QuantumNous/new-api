@@ -20,9 +20,11 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
+import { isAxiosError } from 'axios'
 import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -42,7 +44,10 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Dialog } from '@/components/dialog'
 import { GroupBadge } from '@/components/group-badge'
-import { isRecallPriceEligible } from '@/features/wallet/lib/recall-claim'
+import {
+  isRecallPriceEligible,
+  validateRecallClaim,
+} from '@/features/wallet/lib/recall-claim'
 import type { RecallClaimView, RecallOfferView } from '@/features/wallet/types'
 import {
   paySubscriptionStripe,
@@ -77,6 +82,8 @@ interface Props {
 interface RecallClaimContextValue {
   offers: RecallOfferView[]
   loading: boolean
+  claim?: string
+  view?: RecallClaimView
 }
 
 const RecallClaimContext = createContext<RecallClaimContextValue>({
@@ -99,7 +106,12 @@ export function RecallClaimProvider(props: RecallClaimProviderProps) {
 
   return (
     <RecallClaimContext.Provider
-      value={{ offers, loading: props.loading === true }}
+      value={{
+        offers,
+        loading: props.loading === true,
+        claim: props.claim,
+        view: props.view,
+      }}
     >
       {props.children}
     </RecallClaimContext.Provider>
@@ -110,21 +122,58 @@ export function useRecallClaimContext(): RecallClaimContextValue {
   return useContext(RecallClaimContext)
 }
 
+function createStableSubscriptionRequestId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+    (Number(c) ^ ((Math.random() * 16) >> (Number(c) / 4))).toString(16)
+  )
+}
+
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
+  const purchaseRequestIdsRef = useRef<Record<string, string>>({})
   const recallClaim = useRecallClaimContext()
+  const epayMethods = props.epayMethods || []
+  const selectedEpayMethodValue = props.open
+    ? epayMethods.some((method) => method.type === selectedEpayMethod)
+      ? selectedEpayMethod
+      : epayMethods[0]?.type || ''
+    : ''
 
   useEffect(() => {
     if (props.open && props.epayMethods && props.epayMethods.length > 0) {
       const firstMethod = props.epayMethods[0].type
       queueMicrotask(() => setSelectedEpayMethod(firstMethod))
     } else if (!props.open) {
+      purchaseRequestIdsRef.current = {}
       queueMicrotask(() => setSelectedEpayMethod(''))
     }
   }, [props.open, props.epayMethods])
+
+  const getStablePurchaseRequestId = (scope: string) => {
+    if (!scope) return createStableSubscriptionRequestId()
+    const existingRequestId = purchaseRequestIdsRef.current[scope]
+    if (existingRequestId) return existingRequestId
+    const nextRequestId = createStableSubscriptionRequestId()
+    purchaseRequestIdsRef.current = {
+      ...purchaseRequestIdsRef.current,
+      [scope]: nextRequestId,
+    }
+    return nextRequestId
+  }
+
+  const rotateStablePurchaseRequestId = (scope: string) => {
+    if (!scope) return
+    purchaseRequestIdsRef.current = {
+      ...purchaseRequestIdsRef.current,
+      [scope]: createStableSubscriptionRequestId(),
+    }
+  }
 
   const plan = props.plan?.plan
   if (!plan) return null
@@ -144,9 +193,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
   const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
   const selectedEpayMethodLabel =
-    (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
-      ?.name ||
-    selectedEpayMethod ||
+    epayMethods.find((m) => m.type === selectedEpayMethodValue)?.name ||
+    selectedEpayMethodValue ||
     t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
   const price = Number(plan.price_amount || 0).toFixed(2)
@@ -167,8 +215,27 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   const handlePayStripe = async () => {
     setPaying(true)
+    const requestScope = `stripe:${plan.id}`
     try {
-      const res = await paySubscriptionStripe({ plan_id: plan.id })
+      let validatedRecallClaim: string | undefined
+      if (recallPlanEligible && recallClaim.claim && plan.stripe_price_id) {
+        const validation = await validateRecallClaim({
+          claim: recallClaim.claim,
+          price_id: plan.stripe_price_id,
+          purchase_kind: 'subscription',
+        })
+        if (!validation.success || !validation.data) {
+          toast.error(validation.message || t('Recall offer is unavailable'))
+          return
+        }
+        validatedRecallClaim = recallClaim.claim
+      }
+
+      const res = await paySubscriptionStripe({
+        plan_id: plan.id,
+        request_id: getStablePurchaseRequestId(requestScope),
+        ...(validatedRecallClaim ? { recall_claim: validatedRecallClaim } : {}),
+      })
       if (res.message === 'success' && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Payment page opened'))
@@ -179,8 +246,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
             ? res.message
             : t('Payment request failed')
         )
+        rotateStablePurchaseRequestId(requestScope)
       }
-    } catch {
+    } catch (error) {
+      if (isAxiosError(error) && error.response) {
+        rotateStablePurchaseRequestId(requestScope)
+      }
       toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)
@@ -237,15 +308,17 @@ export function SubscriptionPurchaseDialog(props: Props) {
     /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
 
   const handlePayEpay = async () => {
-    if (!selectedEpayMethod) {
+    if (!selectedEpayMethodValue) {
       toast.error(t('Please select a payment method'))
       return
     }
     setPaying(true)
+    const requestScope = `epay:${plan.id}:${selectedEpayMethodValue}`
     try {
       const res = await paySubscriptionEpay({
         plan_id: plan.id,
-        payment_method: selectedEpayMethod,
+        payment_method: selectedEpayMethodValue,
+        request_id: getStablePurchaseRequestId(requestScope),
       })
       if (res.message === 'success' && res.url) {
         const form = document.createElement('form')
@@ -272,8 +345,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
             ? res.message
             : t('Payment request failed')
         )
+        rotateStablePurchaseRequestId(requestScope)
       }
-    } catch {
+    } catch (error) {
+      if (isAxiosError(error) && error.response) {
+        rotateStablePurchaseRequestId(requestScope)
+      }
       toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)
@@ -478,12 +555,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
                 <Select
                   items={[
-                    ...(props.epayMethods || []).map((m) => ({
+                    ...epayMethods.map((m) => ({
                       value: m.type,
                       label: m.name || m.type,
                     })),
                   ]}
-                  value={selectedEpayMethod}
+                  value={selectedEpayMethodValue}
                   onValueChange={(v) => v !== null && setSelectedEpayMethod(v)}
                   disabled={limitReached}
                 >
@@ -492,7 +569,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
                     <SelectGroup>
-                      {(props.epayMethods || []).map((m) => (
+                      {epayMethods.map((m) => (
                         <SelectItem key={m.type} value={m.type}>
                           {m.name || m.type}
                         </SelectItem>
@@ -502,7 +579,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 </Select>
                 <Button
                   onClick={handlePayEpay}
-                  disabled={paying || !selectedEpayMethod || limitReached}
+                  disabled={paying || !selectedEpayMethodValue || limitReached}
                 >
                   {t('Pay')}
                 </Button>
