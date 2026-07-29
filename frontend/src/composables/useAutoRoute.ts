@@ -8,14 +8,57 @@ import {
   groupByVendor,
   scoreChannels,
   type ChannelRoutingMetrics,
-  type ScoredChannel,
+  type ScoreBreakdown,
 } from '@/utils/routeScore'
+import {
+  summarizeRouteHealth,
+  type RouteHealthSummary,
+} from '@/utils/routeHealth'
 
-export type { ScoredChannel } from '@/utils/routeScore'
+export interface RouteChannelRow extends ChannelRoutingMetrics {
+  rank: number | null
+  score: number | null
+  breakdown: ScoreBreakdown | null
+}
 
 export interface VendorRouteList {
   vendor: string
-  channels: ScoredChannel[]
+  channels: RouteChannelRow[]
+  activeCount: number
+  monitor: RouteHealthSummary
+}
+
+export function buildVendorRouteList(
+  rawChannels: ChannelRoutingMetrics[],
+  nowTimestamp?: number
+): VendorRouteList[] {
+  const result: VendorRouteList[] = []
+  groupByVendor(rawChannels).forEach((channels, vendor) => {
+    const scored = scoreChannels(channels)
+    const ranked: RouteChannelRow[] = scored.map((channel, index) => ({
+      ...channel,
+      rank: index + 1,
+    }))
+    const inactive: RouteChannelRow[] = channels
+      .filter((channel) => channel.status !== 1)
+      .map((channel) => ({
+        ...channel,
+        rank: null,
+        score: null,
+        breakdown: null,
+      }))
+
+    result.push({
+      vendor,
+      channels: [...ranked, ...inactive],
+      activeCount: ranked.length,
+      monitor: summarizeRouteHealth(channels, nowTimestamp),
+    })
+  })
+  return result.sort(
+    (a, b) =>
+      b.channels.length - a.channels.length || a.vendor.localeCompare(b.vendor)
+  )
 }
 
 export function useAutoRoute() {
@@ -30,19 +73,11 @@ export function useAutoRoute() {
   /**
    * Routing picks a channel within a vendor, never across vendors, so
    * channels are grouped by supplier first and scored inside each group.
-   * Every group's first entry is that vendor's current optimum.
+   * Disabled channels stay visible after the ranked active rows so an
+   * unavailable vendor never disappears from the monitoring surface.
    */
   const vendorList = computed<VendorRouteList[]>(() => {
-    const result: VendorRouteList[] = []
-    groupByVendor(raw.value).forEach((channels, vendor) => {
-      const scored = scoreChannels(channels)
-      if (scored.length) result.push({ vendor, channels: scored })
-    })
-    return result.sort(
-      (a, b) =>
-        b.channels.length - a.channels.length ||
-        a.vendor.localeCompare(b.vendor)
-    )
+    return buildVendorRouteList(raw.value)
   })
 
   async function load() {

@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 import EmptyState from '@/components/common/EmptyState.vue'
+import IconButton from '@/components/common/IconButton.vue'
 import VendorRouteGroup from './VendorRouteGroup.vue'
 import { useAutoRoute } from '@/composables/useAutoRoute'
 
@@ -38,12 +39,10 @@ onMounted(() => void load())
             }}
           </p>
         </div>
-        <button
-          type="button"
-          class="focus-ring flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--surface-solid)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+        <IconButton
+          class="shrink-0 bg-[var(--surface-solid)]"
           :disabled="loading"
-          :title="t('dashboard.autoRoute.refresh')"
-          :aria-label="t('dashboard.autoRoute.refresh')"
+          :label="t('dashboard.autoRoute.refresh')"
           @click="load"
         >
           <RefreshCw
@@ -51,7 +50,7 @@ onMounted(() => void load())
             :class="{ 'animate-spin': loading }"
             aria-hidden="true"
           />
-        </button>
+        </IconButton>
       </div>
     </div>
 
@@ -60,7 +59,7 @@ onMounted(() => void load())
       <div
         v-for="i in 4"
         :key="i"
-        class="h-20 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
+        class="h-32 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
       />
     </div>
 
@@ -71,6 +70,8 @@ onMounted(() => void load())
         :key="group.vendor"
         :vendor="group.vendor"
         :channels="group.channels"
+        :active-count="group.activeCount"
+        :monitor="group.monitor"
       />
     </template>
 

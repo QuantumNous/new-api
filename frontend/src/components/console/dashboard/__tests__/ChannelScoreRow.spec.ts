@@ -2,12 +2,13 @@ import { mount } from '@vue/test-utils'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import ChannelScoreRow from '@/components/console/dashboard/autoroute/ChannelScoreRow.vue'
+import type { RouteChannelRow } from '@/composables/useAutoRoute'
 import i18n, { loadMessageDomain, setLocale } from '@/i18n'
 import { scoreChannels, type ChannelRoutingMetrics } from '@/utils/routeScore'
 
 beforeAll(async () => {
   await loadMessageDomain('console')
-  setLocale('en')
+  await setLocale('en')
 })
 
 function makeChannel(
@@ -29,8 +30,7 @@ function makeChannel(
   }
 }
 
-/** Score a two-channel set so every factor has a real normalised spread. */
-const channel = scoreChannels([
+const scored = scoreChannels([
   makeChannel({
     id: 1,
     latency: 200,
@@ -50,52 +50,67 @@ const channel = scoreChannels([
     priority: 10,
   }),
 ])[0]!
+const entry: RouteChannelRow = { ...scored, rank: 1 }
 
-function render() {
+function render(row: RouteChannelRow = entry) {
   return mount(ChannelScoreRow, {
-    props: { channel, rank: 1 },
+    props: { entry: row },
     global: { plugins: [i18n] },
   })
 }
 
 describe('ChannelScoreRow', () => {
-  it('renders six contribution segments whose widths sum to the score', () => {
-    const segments = render().findAll('[title*="≈"]')
+  it('keeps all six score factors while hiding the concrete quota amount', () => {
+    const wrapper = render()
+    const segments = wrapper.findAll('[title*="≈"]')
 
     expect(segments).toHaveLength(6)
-    const total = segments.reduce(
-      (sum, seg) =>
-        sum + parseFloat((seg.element as HTMLElement).style.width || '0'),
-      0
+    expect(
+      Math.round(
+        segments.reduce(
+          (sum, segment) =>
+            sum +
+            parseFloat((segment.element as HTMLElement).style.width || '0'),
+          0
+        )
+      )
+    ).toBe(entry.score)
+    expect(wrapper.text()).not.toContain('$800')
+    expect(wrapper.text()).not.toContain('Upstream quota')
+  })
+
+  it('renders the local segmented health meter', () => {
+    const wrapper = render()
+    const meter = wrapper.find(`[aria-label="Health ${entry.health}%"]`)
+
+    expect(meter.exists()).toBe(true)
+    const segments = meter.findAll('[data-channel-health-segment]')
+    expect(segments).toHaveLength(10)
+    expect((segments[0]!.element as HTMLElement).style.background).toBe(
+      'var(--status-success)'
     )
-    expect(Math.round(total)).toBe(channel.score)
   })
 
-  it('labels each segment with its factor name', () => {
-    const titles = render()
-      .findAll('[title*="≈"]')
-      .map((seg) => seg.attributes('title'))
+  it('crowns and announces the top-ranked channel score', () => {
+    const wrapper = render()
 
-    expect(titles.some((title) => title?.startsWith('Latency'))).toBe(true)
-    expect(titles.some((title) => title?.startsWith('Health'))).toBe(true)
-  })
-
-  it('draws the health bar at the health percentage', () => {
-    const bar = render().find(`[aria-label="Health ${channel.health}%"]`)
-
-    expect(bar.exists()).toBe(true)
-    const fill = bar.find('div')
-    expect((fill.element as HTMLElement).style.width).toBe(`${channel.health}%`)
-  })
-
-  it('crowns the top-ranked row as the group best', () => {
-    expect(render().find('[title="Group best"]').exists()).toBe(true)
-  })
-
-  it('announces the composite score on the ring', () => {
-    const ring = render().find(`[aria-label="Score ${channel.score}"]`)
-
+    expect(wrapper.find('[title="Group best"]').exists()).toBe(true)
+    const ring = wrapper.find(`[aria-label="Score ${entry.score}"]`)
     expect(ring.exists()).toBe(true)
-    expect(ring.text()).toContain(String(channel.score))
+    expect(ring.text()).toContain(String(entry.score))
+  })
+
+  it('shows an inactive channel without a rank or score', () => {
+    const inactive: RouteChannelRow = {
+      ...makeChannel({ status: 2, health: 0 }),
+      rank: null,
+      score: null,
+      breakdown: null,
+    }
+    const wrapper = render(inactive)
+
+    expect(wrapper.text()).toContain('Manually disabled')
+    expect(wrapper.text()).toContain('Excluded from auto routing')
+    expect(wrapper.find('[aria-label^="Score"]').exists()).toBe(false)
   })
 })

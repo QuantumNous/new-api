@@ -83,6 +83,19 @@ describe('scoreChannels', () => {
     expect(total).toBeCloseTo(1, 10)
   })
 
+  it('keeps upstream quota as ten percent of the composite score', () => {
+    const scored = scoreChannels([
+      makeChannel({ id: 1, quota: 50 }),
+      makeChannel({ id: 2, quota: 100 }),
+    ])
+    const byId = new Map(scored.map((channel) => [channel.id, channel]))
+
+    expect(WEIGHTS.quota).toBe(0.1)
+    expect(byId.get(1)!.breakdown.quota).toBe(0)
+    expect(byId.get(2)!.breakdown.quota).toBe(1)
+    expect(byId.get(2)!.score - byId.get(1)!.score).toBe(10)
+  })
+
   it('inverts cost and priority so the lower raw value wins the factor', () => {
     const scored = scoreChannels([
       makeChannel({ id: 1, upstreamMult: 0.5, channelMult: 1, priority: 1 }),

@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test'
 
 import {
   assertHomeNavbarInitialState,
+  assertInteractiveCentersVisible,
+  assertNoHorizontalOverflow,
   configureStablePage,
   freezeAndInspectHomeCanvas,
   waitForStablePage,
@@ -14,12 +16,19 @@ interface Scenario {
   authenticated?: boolean
   /** Accessible name of a button that opens a dialog before the capture. */
   openModalByButton?: string
+  /** Accessible name of a dashboard tab selected before the capture. */
+  selectTabByName?: string
 }
 
 const darkScenarios: Scenario[] = [
   { name: 'home', path: '/' },
   { name: 'login', path: '/auth/sign-in', authenticated: false },
   { name: 'dashboard', path: '/console/dashboard' },
+  {
+    name: 'dashboard-auto-route',
+    path: '/console/dashboard',
+    selectTabByName: '自动路由',
+  },
   { name: 'keys', path: '/console/keys' },
   {
     name: 'keys-create-modal',
@@ -42,6 +51,11 @@ const lightScenarios: Scenario[] = [
   { name: 'home', path: '/' },
   { name: 'login', path: '/auth/sign-in', authenticated: false },
   { name: 'dashboard', path: '/console/dashboard' },
+  {
+    name: 'dashboard-auto-route',
+    path: '/console/dashboard',
+    selectTabByName: '自动路由',
+  },
   // Both plan surfaces carry new bespoke geometry (storefront cards, ledger
   // rows with disabled row actions), so the pencil rendering is worth pinning.
   { name: 'subscription', path: '/console/subscription' },
@@ -67,6 +81,15 @@ async function captureScenario(
   })
   await page.goto(scenario.path, { waitUntil: 'domcontentloaded' })
   await waitForStablePage(page)
+
+  if (scenario.selectTabByName) {
+    await page
+      .getByRole('tab', { name: scenario.selectTabByName, exact: true })
+      .click()
+    await waitForStablePage(page)
+    await assertNoHorizontalOverflow(page)
+    await assertInteractiveCentersVisible(page)
+  }
 
   if (scenario.openModalByButton) {
     await page.getByRole('button', { name: scenario.openModalByButton }).click()
@@ -107,3 +130,10 @@ for (const scenario of lightScenarios) {
     await captureScenario('light', 'desktop', scenario, page)
   })
 }
+
+test('light mobile dashboard-auto-route', async ({ page }) => {
+  const scenario = lightScenarios.find(
+    (item) => item.name === 'dashboard-auto-route'
+  )!
+  await captureScenario('light', 'mobile', scenario, page)
+})

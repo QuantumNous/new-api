@@ -16,6 +16,8 @@
  *   priority 0.05  — lower priority value → higher score (priority 1 beats priority 10)
  */
 
+import type { RouteHealthCheck } from '@/utils/routeHealth'
+
 export interface ChannelRoutingMetrics {
   id: number
   name: string
@@ -36,6 +38,8 @@ export interface ChannelRoutingMetrics {
   priority: number
   /** 1 = enabled, 2 = manually disabled, 3 = auto-disabled */
   status: 1 | 2 | 3
+  /** Optional recent health history supplied by the routing API. */
+  healthChecks?: RouteHealthCheck[]
 }
 
 export interface ScoreBreakdown {

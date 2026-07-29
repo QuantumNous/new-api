@@ -1,26 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Crown, HeartPulse, Percent, Timer, Wallet } from 'lucide-vue-next'
+import { CircleOff, Crown, HeartPulse, Percent, Timer } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 import MiniRing from '@/components/console/dashboard/MiniRing.vue'
-import type { ScoredChannel } from '@/composables/useAutoRoute'
-import { formatMoney } from '@/utils/format'
+import type { RouteChannelRow } from '@/composables/useAutoRoute'
+import { routeHealthStateFromValue } from '@/utils/routeHealth'
 import { scoreBand, WEIGHTS } from '@/utils/routeScore'
 
 const props = defineProps<{
-  channel: ScoredChannel
-  rank: number
+  entry: RouteChannelRow
 }>()
 
 const { t } = useI18n()
-
-/** Colour a 0-1 normalised factor value. */
-function factorTone(value: number): string {
-  if (value >= 0.7) return 'var(--status-success)'
-  if (value >= 0.4) return 'var(--status-warning)'
-  return 'var(--status-danger)'
-}
+const HEALTH_SEGMENTS = 10
 
 function latencyLabel(ms: number): string {
   if (ms === 0) return t('dashboard.autoRoute.untested')
@@ -28,12 +21,44 @@ function latencyLabel(ms: number): string {
   return `${ms}ms`
 }
 
-const scoreColor = computed(
-  () => `var(--status-${scoreBand(props.channel.score)})`
+const isRanked = computed(
+  () =>
+    props.entry.rank !== null &&
+    props.entry.score !== null &&
+    props.entry.breakdown !== null
+)
+const healthBand = computed(() => routeHealthStateFromValue(props.entry.health))
+const healthTone = computed(() => {
+  if (healthBand.value === 'healthy') return 'success'
+  if (healthBand.value === 'degraded') return 'warning'
+  if (healthBand.value === 'down') return 'danger'
+  return 'info'
+})
+const healthColor = computed(() =>
+  healthBand.value === 'unknown'
+    ? 'var(--text-tertiary)'
+    : `var(--status-${healthTone.value})`
+)
+const healthFilled = computed(() =>
+  Math.max(
+    0,
+    Math.min(
+      HEALTH_SEGMENTS,
+      Math.round((props.entry.health / 100) * HEALTH_SEGMENTS)
+    )
+  )
+)
+const scoreColor = computed(() =>
+  props.entry.score === null
+    ? 'var(--text-tertiary)'
+    : `var(--status-${scoreBand(props.entry.score)})`
+)
+const inactiveLabel = computed(() =>
+  props.entry.status === 3
+    ? t('dashboard.autoRoute.autoDisabled')
+    : t('dashboard.autoRoute.manuallyDisabled')
 )
 
-/** Fixed factor order; opacity steps keep the accent-coloured segments
- *  distinguishable without misusing status hues as category colours. */
 const FACTORS = [
   { key: 'latency', label: 'factorLatency', opacity: 1 },
   { key: 'health', label: 'factorHealth', opacity: 0.85 },
@@ -43,11 +68,10 @@ const FACTORS = [
   { key: 'priority', label: 'factorPriority', opacity: 0.28 },
 ] as const
 
-/** Segment width in % of the track equals the factor's score-point
- *  contribution, so the filled length reads as the composite score. */
-const segments = computed(() =>
-  FACTORS.map((factor) => {
-    const value = props.channel.breakdown[factor.key]
+const segments = computed(() => {
+  if (!props.entry.breakdown) return []
+  return FACTORS.map((factor) => {
+    const value = props.entry.breakdown![factor.key]
     const points = value * WEIGHTS[factor.key] * 100
     return {
       key: factor.key,
@@ -61,14 +85,13 @@ const segments = computed(() =>
       }),
     }
   })
-)
+})
 </script>
 
 <template>
   <div class="flex items-center gap-3 py-3 first:pt-0">
-    <!-- rank badge: the group's best channel wears the crown -->
     <span
-      v-if="rank === 1"
+      v-if="entry.rank === 1"
       class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-text)]"
       :title="t('dashboard.autoRoute.groupBest')"
     >
@@ -76,106 +99,117 @@ const segments = computed(() =>
       <span class="sr-only">{{ t('dashboard.autoRoute.groupBest') }}</span>
     </span>
     <span
-      v-else
+      v-else-if="entry.rank !== null"
       class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--surface-muted)] text-xs font-bold text-[var(--text-tertiary)]"
     >
-      {{ rank }}
+      {{ entry.rank }}
+    </span>
+    <span
+      v-else
+      class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--status-danger-soft)] text-[var(--status-danger-text)]"
+      :title="inactiveLabel"
+    >
+      <CircleOff :size="13" aria-hidden="true" />
+      <span class="sr-only">{{ inactiveLabel }}</span>
     </span>
 
-    <div class="min-w-0 flex-1 space-y-1.5">
-      <!-- name + icon metrics -->
-      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-        <p class="truncate text-sm font-medium text-[var(--text-primary)]">
-          {{ channel.name }}
+    <div class="min-w-0 flex-1 space-y-2">
+      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <p
+          class="min-w-0 truncate text-sm font-medium text-[var(--text-primary)]"
+        >
+          {{ entry.name }}
         </p>
         <span
           class="flex items-center gap-1 text-xs tabular-nums text-[var(--text-tertiary)]"
           :title="t('dashboard.autoRoute.factorLatency')"
         >
           <Timer :size="12" aria-hidden="true" />
-          {{ latencyLabel(channel.latency) }}
+          {{ latencyLabel(entry.latency) }}
         </span>
         <span
           class="flex items-center gap-1 font-mono text-xs text-[var(--text-tertiary)]"
           :title="t('dashboard.autoRoute.cost')"
         >
           <Percent :size="12" aria-hidden="true" />
-          {{ (channel.upstreamMult * channel.channelMult).toFixed(2) }}×
-        </span>
-        <span
-          class="flex items-center gap-1 text-xs tabular-nums text-[var(--text-tertiary)]"
-          :title="t('dashboard.autoRoute.quota')"
-        >
-          <Wallet :size="12" aria-hidden="true" />
-          {{ formatMoney(channel.quota) }}
+          {{ (entry.upstreamMult * entry.channelMult).toFixed(2) }}×
         </span>
       </div>
 
-      <!-- health bar -->
-      <div
-        class="flex items-center gap-1.5"
-        :title="t('dashboard.autoRoute.health')"
-      >
+      <div class="flex items-center gap-2">
         <HeartPulse
           :size="12"
           class="shrink-0 text-[var(--text-tertiary)]"
           aria-hidden="true"
         />
         <div
-          class="pencil-progress h-1.5 max-w-56 flex-1 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+          class="grid min-w-24 max-w-64 flex-1 grid-cols-10 gap-0.5"
           role="img"
-          :aria-label="`${t('dashboard.autoRoute.health')} ${channel.health}%`"
+          :aria-label="`${t('dashboard.autoRoute.health')} ${entry.health}%`"
+          data-channel-health-meter
         >
-          <div
-            class="h-full rounded-full transition-[width]"
+          <span
+            v-for="index in HEALTH_SEGMENTS"
+            :key="index"
+            class="h-2 rounded-sm"
             :style="{
-              width: `${channel.health}%`,
-              background: factorTone(channel.breakdown.health),
+              background:
+                index <= healthFilled ? healthColor : 'var(--surface-muted)',
             }"
+            data-channel-health-segment
           />
         </div>
         <span
-          class="w-8 shrink-0 text-right text-[10px] font-medium tabular-nums"
-          :style="{ color: factorTone(channel.breakdown.health) }"
+          class="w-9 shrink-0 text-right text-[10px] font-semibold tabular-nums"
+          :style="{ color: healthColor }"
         >
-          {{ channel.health }}%
+          {{ entry.health }}%
         </span>
       </div>
 
-      <!-- weighted contribution bar: filled length = composite score -->
       <div
+        v-if="isRanked"
         class="pencil-progress flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-[var(--surface-muted)]"
         role="img"
-        :aria-label="`${t('dashboard.autoRoute.breakdownLabel')} ${channel.score}`"
+        :aria-label="`${t('dashboard.autoRoute.breakdownLabel')} ${entry.score}`"
       >
         <div
-          v-for="seg in segments"
-          :key="seg.key"
+          v-for="segment in segments"
+          :key="segment.key"
           class="h-full shrink-0"
           :style="{
-            width: `${seg.points}%`,
+            width: `${segment.points}%`,
             background: 'var(--accent)',
-            opacity: seg.opacity,
+            opacity: segment.opacity,
           }"
-          :title="seg.title"
+          :title="segment.title"
         />
       </div>
+      <p v-else class="text-[10px] font-medium text-[var(--text-tertiary)]">
+        {{ inactiveLabel }} · {{ t('dashboard.autoRoute.excluded') }}
+      </p>
     </div>
 
-    <!-- composite score ring -->
     <MiniRing
-      :percent="channel.score"
+      v-if="entry.score !== null"
+      :percent="entry.score"
       :color="scoreColor"
       :size="40"
       role="img"
-      :aria-label="`${t('dashboard.autoRoute.score')} ${channel.score}`"
+      :aria-label="`${t('dashboard.autoRoute.score')} ${entry.score}`"
     >
       <span
         class="text-xs font-bold tabular-nums"
         :style="{ color: scoreColor }"
       >
-        {{ channel.score }}
+        {{ entry.score }}
       </span>
     </MiniRing>
+    <span
+      v-else
+      class="max-w-20 shrink-0 text-right text-[10px] font-semibold text-[var(--status-danger-text)]"
+    >
+      {{ inactiveLabel }}
+    </span>
   </div>
 </template>
