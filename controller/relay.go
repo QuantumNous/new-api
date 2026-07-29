@@ -629,6 +629,14 @@ func validateBytePlusAssetPinnedLock(info *relaycommon.RelayInfo, pinnedChannelI
 	if !ok || lockedChannel == nil || lockedChannel.Id != pinnedChannelID {
 		return bytePlusAssetTaskError(types.ErrorCodeAssetChannelConflict, http.StatusConflict)
 	}
+	if lockedChannel.Type != constant.ChannelTypeBytePlus || lockedChannel.Status != common.ChannelStatusEnabled {
+		return bytePlusAssetTaskError(types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	}
+	currentChannel, err := model.GetChannelById(pinnedChannelID, true)
+	if err != nil || currentChannel == nil || currentChannel.Type != constant.ChannelTypeBytePlus || currentChannel.Status != common.ChannelStatusEnabled {
+		return bytePlusAssetTaskError(types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	}
+	info.LockedChannel = currentChannel
 	return nil
 }
 

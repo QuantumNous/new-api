@@ -118,6 +118,57 @@ func TestBytePlusAssetOriginResolverRejectsPinnedLockMutationBeforeResolverError
 	requireBytePlusTaskError(t, taskErr, "asset_channel_conflict", http.StatusConflict)
 }
 
+func TestBytePlusAssetOriginResolverRejectsSameIDUnavailablePinnedLockMutation(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		typ    int
+	}{
+		{name: "disabled", status: common.ChannelStatusManuallyDisabled, typ: constant.ChannelTypeBytePlus},
+		{name: "non byteplus", status: common.ChannelStatusEnabled, typ: constant.ChannelTypeOpenAI},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restoreDB := useControllerBytePlusAssetDBForTest(t)
+			defer restoreDB()
+			insertControllerBytePlusChannel(t, 131, common.ChannelStatusEnabled, constant.ChannelTypeBytePlus)
+
+			c := newControllerBytePlusAssetContext()
+			common.SetContextKey(c, constant.ContextKeyBytePlusAssetPinnedChannelID, 131)
+			info := &relaycommon.RelayInfo{
+				ChannelMeta:   &relaycommon.ChannelMeta{},
+				TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+			}
+
+			taskErr := resolveOriginTaskWithBytePlusAssetLock(c, info, func(_ *gin.Context, got *relaycommon.RelayInfo) *dto.TaskError {
+				got.LockedChannel = &model.Channel{Id: 131, Type: tt.typ, Status: tt.status}
+				return nil
+			})
+			requireBytePlusTaskError(t, taskErr, "asset_channel_unavailable", http.StatusServiceUnavailable)
+		})
+	}
+}
+
+func TestBytePlusAssetOriginResolverRechecksPinnedChannelAfterResolver(t *testing.T) {
+	restoreDB := useControllerBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	insertControllerBytePlusChannel(t, 131, common.ChannelStatusEnabled, constant.ChannelTypeBytePlus)
+
+	c := newControllerBytePlusAssetContext()
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetPinnedChannelID, 131)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:   &relaycommon.ChannelMeta{},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+	}
+
+	taskErr := resolveOriginTaskWithBytePlusAssetLock(c, info, func(_ *gin.Context, _ *relaycommon.RelayInfo) *dto.TaskError {
+		require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 131).Update("status", common.ChannelStatusManuallyDisabled).Error)
+		return &dto.TaskError{Code: "task_channel_disable", StatusCode: http.StatusBadRequest}
+	})
+	requireBytePlusTaskError(t, taskErr, "asset_channel_unavailable", http.StatusServiceUnavailable)
+}
+
 func TestBytePlusAssetOriginResolverRejectsPinnedChannelMismatches(t *testing.T) {
 	tests := []struct {
 		name      string
