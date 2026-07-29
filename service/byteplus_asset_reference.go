@@ -21,17 +21,26 @@ type BytePlusAssetReferenceResolution struct {
 	RewriteMap      map[string]string
 }
 
+type bytePlusAssetReference struct {
+	PublicID          string
+	ExpectedAssetType string
+}
+
 func (r BytePlusAssetReferenceResolution) HasReferences() bool {
 	return len(r.RewriteMap) > 0
 }
 
 func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.SeedanceVideoRequest) (BytePlusAssetReferenceResolution, *types.NewAPIError) {
-	publicIDs, apiErr := extractBytePlusAssetPublicIDs(req)
+	references, apiErr := extractBytePlusAssetPublicIDs(req)
 	if apiErr != nil {
 		return BytePlusAssetReferenceResolution{}, apiErr
 	}
-	if len(publicIDs) == 0 {
+	if len(references) == 0 {
 		return BytePlusAssetReferenceResolution{}, nil
+	}
+	publicIDs := make([]string, 0, len(references))
+	for _, reference := range references {
+		publicIDs = append(publicIDs, reference.PublicID)
 	}
 
 	assets, err := model.GetBytePlusAssetsByPublicIDsForUser(userID, publicIDs)
@@ -45,10 +54,13 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 
 	rewriteMap := make(map[string]string, len(publicIDs))
 	pinnedChannelID := 0
-	for _, publicID := range publicIDs {
-		asset, ok := byID[publicID]
+	for _, reference := range references {
+		asset, ok := byID[reference.PublicID]
 		if !ok {
 			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
+		}
+		if asset.AssetType != reference.ExpectedAssetType {
+			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset type does not match media type"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 		}
 		switch asset.Status {
 		case model.BytePlusAssetStatusActive:
@@ -68,7 +80,7 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 		} else if pinnedChannelID != asset.ChannelId {
 			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset channels do not match"), types.ErrorCodeAssetChannelConflict, http.StatusConflict)
 		}
-		rewriteMap["asset://"+publicID] = "asset://" + upstreamAssetID
+		rewriteMap["asset://"+reference.PublicID] = "asset://" + upstreamAssetID
 	}
 
 	resolution := BytePlusAssetReferenceResolution{
@@ -86,13 +98,13 @@ func IsStrictBytePlusAssetURI(raw string) bool {
 	return bytePlusAssetURIPattern.MatchString(raw)
 }
 
-func extractBytePlusAssetPublicIDs(req *dto.SeedanceVideoRequest) ([]string, *types.NewAPIError) {
+func extractBytePlusAssetPublicIDs(req *dto.SeedanceVideoRequest) ([]bytePlusAssetReference, *types.NewAPIError) {
 	if req == nil {
 		return nil, nil
 	}
 	seen := make(map[string]struct{})
-	ids := make([]string, 0)
-	add := func(raw string) *types.NewAPIError {
+	references := make([]bytePlusAssetReference, 0)
+	add := func(raw, expectedAssetType string) *types.NewAPIError {
 		matches := bytePlusAssetURIPattern.FindStringSubmatch(raw)
 		if len(matches) != 2 {
 			if isMalformedBytePlusAssetURI(raw) {
@@ -100,36 +112,37 @@ func extractBytePlusAssetPublicIDs(req *dto.SeedanceVideoRequest) ([]string, *ty
 			}
 			return nil
 		}
-		if _, ok := seen[matches[1]]; ok {
+		seenKey := matches[1] + "\x00" + expectedAssetType
+		if _, ok := seen[seenKey]; ok {
 			return nil
 		}
-		seen[matches[1]] = struct{}{}
-		ids = append(ids, matches[1])
+		seen[seenKey] = struct{}{}
+		references = append(references, bytePlusAssetReference{PublicID: matches[1], ExpectedAssetType: expectedAssetType})
 		return nil
 	}
 	for _, item := range req.Content {
 		switch item.Type {
 		case dto.SeedanceContentImage:
 			if item.ImageURL != nil {
-				if apiErr := add(item.ImageURL.URL); apiErr != nil {
+				if apiErr := add(item.ImageURL.URL, "Image"); apiErr != nil {
 					return nil, apiErr
 				}
 			}
 		case dto.SeedanceContentVideo:
 			if item.VideoURL != nil {
-				if apiErr := add(item.VideoURL.URL); apiErr != nil {
+				if apiErr := add(item.VideoURL.URL, "Video"); apiErr != nil {
 					return nil, apiErr
 				}
 			}
 		case dto.SeedanceContentAudio:
 			if item.AudioURL != nil {
-				if apiErr := add(item.AudioURL.URL); apiErr != nil {
+				if apiErr := add(item.AudioURL.URL, "Audio"); apiErr != nil {
 					return nil, apiErr
 				}
 			}
 		}
 	}
-	return ids, nil
+	return references, nil
 }
 
 func isMalformedBytePlusAssetURI(raw string) bool {

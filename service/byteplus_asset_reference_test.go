@@ -51,6 +51,63 @@ func TestResolveBytePlusAssetReferencesStoresRewriteAndPinnedChannel(t *testing.
 	}
 }
 
+func TestResolveBytePlusAssetReferencesRequiresMatchingMediaType(t *testing.T) {
+	tests := []struct {
+		name          string
+		assetType     string
+		contentType   string
+		wantErrorCode types.ErrorCode
+	}{
+		{name: "image in image_url", assetType: "Image", contentType: dto.SeedanceContentImage},
+		{name: "video in video_url", assetType: "Video", contentType: dto.SeedanceContentVideo},
+		{name: "audio in audio_url", assetType: "Audio", contentType: dto.SeedanceContentAudio},
+		{name: "image in video_url", assetType: "Image", contentType: dto.SeedanceContentVideo, wantErrorCode: types.ErrorCodeInvalidAssetRequest},
+		{name: "video in audio_url", assetType: "Video", contentType: dto.SeedanceContentAudio, wantErrorCode: types.ErrorCodeInvalidAssetRequest},
+		{name: "audio in image_url", assetType: "Audio", contentType: dto.SeedanceContentImage, wantErrorCode: types.ErrorCodeInvalidAssetRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newBytePlusAssetReferenceDB(t)
+			asset := insertBytePlusReferenceAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-asset", model.BytePlusAssetStatusActive)
+			if err := model.DB.Model(&asset).Update("asset_type", tt.assetType).Error; err != nil {
+				t.Fatalf("update asset type: %v", err)
+			}
+
+			item := dto.SeedanceContentItem{Type: tt.contentType}
+			switch tt.contentType {
+			case dto.SeedanceContentImage:
+				item.ImageURL = &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}
+			case dto.SeedanceContentVideo:
+				item.VideoURL = &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}
+			case dto.SeedanceContentAudio:
+				item.AudioURL = &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}
+			}
+
+			resolution, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, &dto.SeedanceVideoRequest{
+				Content: []dto.SeedanceContentItem{item},
+			})
+			if tt.wantErrorCode == "" {
+				if apiErr != nil {
+					t.Fatalf("ResolveBytePlusAssetReferences error: %v", apiErr)
+				}
+				if !resolution.HasReferences() {
+					t.Fatal("expected asset reference resolution")
+				}
+				return
+			}
+			if apiErr == nil {
+				t.Fatal("expected asset type mismatch error")
+			}
+			if apiErr.GetErrorCode() != tt.wantErrorCode || apiErr.StatusCode != http.StatusBadRequest {
+				t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, tt.wantErrorCode, http.StatusBadRequest)
+			}
+			if resolution.HasReferences() {
+				t.Fatalf("unexpected references: %#v", resolution)
+			}
+		})
+	}
+}
+
 func TestResolveBytePlusAssetReferencesMapsStatusFailures(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -88,6 +145,9 @@ func TestResolveBytePlusAssetReferencesRejectsCrossChannelAssets(t *testing.T) {
 	newBytePlusAssetReferenceDB(t)
 	a := insertBytePlusReferenceAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusActive)
 	b := insertBytePlusReferenceAsset(t, 7, 132, "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "upstream-audio", model.BytePlusAssetStatusActive)
+	if err := model.DB.Model(&b).Update("asset_type", "Audio").Error; err != nil {
+		t.Fatalf("update audio asset type: %v", err)
+	}
 	req := &dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{
 		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "asset://" + a.PublicId}},
 		{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "asset://" + b.PublicId}},

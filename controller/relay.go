@@ -590,6 +590,9 @@ func resolveOriginTaskWithBytePlusAssetLock(c *gin.Context, info *relaycommon.Re
 	if taskErr := resolveFn(c, info); taskErr != nil {
 		return taskErr
 	}
+	if info == nil || info.TaskRelayInfo == nil || info.LockedChannel == nil {
+		return bytePlusAssetTaskError(types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+	}
 	return validateBytePlusAssetPinnedLock(info, pinnedChannelID)
 }
 
