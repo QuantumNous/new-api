@@ -96,6 +96,10 @@ func (f *recallControllerStripeFake) GetPromotionCode(_ context.Context, id stri
 	return &stripe.PromotionCode{ID: id}, nil
 }
 
+func (f *recallControllerStripeFake) UpdatePromotionCode(_ context.Context, id string, _ *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+	return &stripe.PromotionCode{ID: id}, nil
+}
+
 func (f *recallControllerStripeFake) GetPrice(_ context.Context, id string) (*stripe.Price, error) {
 	f.getPrice++
 	return &stripe.Price{
