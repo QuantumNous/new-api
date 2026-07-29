@@ -37,6 +37,9 @@
       "name": "视频生成/即梦格式"
     },
     {
+      "name": "素材库"
+    },
+    {
       "name": "Claude格式(Messages)"
     },
     {
@@ -170,6 +173,164 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GeminiModelsResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/assets": {
+      "post": {
+        "summary": "创建素材",
+        "deprecated": false,
+        "description": "创建一个可在 seedance-2.0 视频请求中通过 `asset://{id}` 引用的 Flatkey 素材。响应只包含 Flatkey 素材字段。",
+        "operationId": "createAsset",
+        "tags": [
+          "素材库"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BytePlusAssetCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "素材创建请求已提交",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusAsset"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "description": "认证失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "502": {
+            "description": "素材服务请求失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "503": {
+            "description": "素材库暂时不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/assets/{asset_id}": {
+      "get": {
+        "summary": "查询素材",
+        "deprecated": false,
+        "description": "按 Flatkey 素材 ID 查询状态。只有素材创建者可以查询该素材。",
+        "operationId": "getAsset",
+        "tags": [
+          "素材库"
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Flatkey 素材 ID，形如 `ast_...`",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "ast_1234567890abcdef1234567890abcdef"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "素材状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusAsset"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "description": "认证失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "404": {
+            "description": "素材不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "502": {
+            "description": "素材服务请求失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -2309,6 +2470,98 @@
   },
   "components": {
     "schemas": {
+      "BytePlusAssetCreateRequest": {
+        "type": "object",
+        "required": [
+          "url",
+          "asset_type"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "公网 HTTP 或 HTTPS 素材 URL",
+            "example": "https://example.com/portrait.mp4"
+          },
+          "asset_type": {
+            "type": "string",
+            "description": "素材类型",
+            "enum": [
+              "Image",
+              "Video",
+              "Audio"
+            ],
+            "example": "Video"
+          },
+          "moderation": {
+            "$ref": "#/components/schemas/BytePlusAssetModeration"
+          }
+        }
+      },
+      "BytePlusAssetModeration": {
+        "type": "object",
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "description": "素材审核策略。省略 moderation 时默认使用 Default。",
+            "enum": [
+              "Default",
+              "Skip"
+            ],
+            "example": "Default"
+          }
+        }
+      },
+      "BytePlusAsset": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "asset_type",
+          "status",
+          "moderation",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Flatkey 素材 ID，可在 seedance-2.0 请求中写作 `asset://{id}`",
+            "example": "ast_1234567890abcdef1234567890abcdef"
+          },
+          "object": {
+            "type": "string",
+            "description": "对象类型",
+            "example": "asset"
+          },
+          "asset_type": {
+            "type": "string",
+            "enum": [
+              "Image",
+              "Video",
+              "Audio"
+            ],
+            "example": "Video"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Creating",
+              "Processing",
+              "Active",
+              "Failed"
+            ],
+            "example": "Processing"
+          },
+          "moderation": {
+            "$ref": "#/components/schemas/BytePlusAssetModeration"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "创建时间戳",
+            "example": 1785292000
+          }
+        }
+      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
