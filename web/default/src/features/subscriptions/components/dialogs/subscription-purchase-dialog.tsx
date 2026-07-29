@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   createContext,
   useContext,
-  useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from 'react'
@@ -102,20 +102,34 @@ export function useRecallClaimContext(): RecallClaimContextValue {
   return useContext(RecallClaimContext)
 }
 
+function createStableSubscriptionRequestId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+    (Number(c) ^ ((Math.random() * 16) >> (Number(c) / 4))).toString(16)
+  )
+}
+
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
   const recallClaim = useRecallClaimContext()
-
-  useEffect(() => {
-    if (props.open && props.epayMethods && props.epayMethods.length > 0) {
-      setSelectedEpayMethod(props.epayMethods[0].type)
-    } else if (!props.open) {
-      setSelectedEpayMethod('')
-    }
-  }, [props.open, props.epayMethods])
+  const purchaseRequestId = useMemo(
+    () =>
+      props.open && props.plan?.plan?.id
+        ? createStableSubscriptionRequestId()
+        : '',
+    [props.open, props.plan?.plan?.id]
+  )
+  const epayMethods = props.epayMethods || []
+  const selectedEpayMethodValue = props.open
+    ? epayMethods.some((method) => method.type === selectedEpayMethod)
+      ? selectedEpayMethod
+      : epayMethods[0]?.type || ''
+    : ''
 
   const plan = props.plan?.plan
   if (!plan) return null
@@ -133,9 +147,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
   const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
   const selectedEpayMethodLabel =
-    (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
-      ?.name ||
-    selectedEpayMethod ||
+    epayMethods.find((m) => m.type === selectedEpayMethodValue)?.name ||
+    selectedEpayMethodValue ||
     t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
   const price = Number(plan.price_amount || 0).toFixed(2)
@@ -243,15 +256,17 @@ export function SubscriptionPurchaseDialog(props: Props) {
     /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
 
   const handlePayEpay = async () => {
-    if (!selectedEpayMethod) {
+    if (!selectedEpayMethodValue) {
       toast.error(t('Please select a payment method'))
       return
     }
     setPaying(true)
     try {
+      const requestId = purchaseRequestId || createStableSubscriptionRequestId()
       const res = await paySubscriptionEpay({
         plan_id: plan.id,
-        payment_method: selectedEpayMethod,
+        payment_method: selectedEpayMethodValue,
+        request_id: requestId,
       })
       if (res.message === 'success' && res.url) {
         const form = document.createElement('form')
@@ -484,12 +499,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
                 <Select
                   items={[
-                    ...(props.epayMethods || []).map((m) => ({
+                    ...epayMethods.map((m) => ({
                       value: m.type,
                       label: m.name || m.type,
                     })),
                   ]}
-                  value={selectedEpayMethod}
+                  value={selectedEpayMethodValue}
                   onValueChange={(v) => v !== null && setSelectedEpayMethod(v)}
                   disabled={limitReached}
                 >
@@ -498,7 +513,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
                     <SelectGroup>
-                      {(props.epayMethods || []).map((m) => (
+                      {epayMethods.map((m) => (
                         <SelectItem key={m.type} value={m.type}>
                           {m.name || m.type}
                         </SelectItem>
@@ -508,7 +523,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 </Select>
                 <Button
                   onClick={handlePayEpay}
-                  disabled={paying || !selectedEpayMethod || limitReached}
+                  disabled={paying || !selectedEpayMethodValue || limitReached}
                 >
                   {t('Pay')}
                 </Button>

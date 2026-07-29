@@ -562,7 +562,8 @@ func ReconcileStaleStripeSubscriptionDiscountInvoices(ctx context.Context) (int,
 			processed++
 		default:
 			if inv.Status != stripe.InvoiceStatusDraft {
-				return processed, fmt.Errorf("Stripe invoice is %s and cannot be prepared for subscription discount", inv.Status)
+				common.SysLog(fmt.Sprintf("skip stale Stripe subscription discount invoice %s: status %s cannot be prepared", invoiceID, inv.Status))
+				continue
 			}
 			if err := PrepareStripeSubscriptionDiscountInvoice(ctx, invoiceID); err != nil {
 				return processed, err

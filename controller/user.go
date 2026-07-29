@@ -553,6 +553,10 @@ func TransferAffQuota(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
 	}
+	if common.InviteRewardSubscriptionMode {
+		common.ApiErrorMsg(c, "invite rewards are only available as subscription discounts")
+		return
+	}
 
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)

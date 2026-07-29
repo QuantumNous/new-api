@@ -828,7 +828,7 @@ func TestSubscriptionDiscountInvoiceReconciliationOpenInvoiceFailsClosedAndKeeps
 	replaceStripeRenewalInvoiceAccessors(t, inv, sub, recorder)
 
 	count, err := ReconcileStaleStripeSubscriptionDiscountInvoices(context.Background())
-	require.ErrorContains(t, err, "Stripe invoice is open")
+	require.NoError(t, err)
 	require.Zero(t, count)
 	require.Empty(t, recorder.updates)
 	require.Empty(t, recorder.items)
@@ -839,6 +839,96 @@ func TestSubscriptionDiscountInvoiceReconciliationOpenInvoiceFailsClosedAndKeeps
 	require.NoError(t, model.DB.First(&account, "user_id = ?", 9222).Error)
 	require.Equal(t, int64(200), account.AvailableUSDMinor)
 	require.Equal(t, int64(300), account.ReservedUSDMinor)
+}
+
+func TestSubscriptionDiscountInvoiceReconciliationOpenInvoiceDoesNotStarveLaterPaidReserve(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	_, openBinding, openEntitlement := seedStripeRenewalContract(t, 9223, 9323, "sub_discount_stale_open_batch")
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 9223).Updates(map[string]any{
+		"username":        "renewal_user_open_batch",
+		"email":           "renewal-open-batch@example.com",
+		"aff_code":        "renewal_aff_open_batch",
+		"stripe_customer": "cus_invoice_open_batch",
+	}).Error)
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("id = ?", openEntitlement.Id).Update("grant_key", "stripe:in_old_open_batch").Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", openBinding.Id).Update("initial_order_id", seedInitialOrderSnapshotForRenewal(t, 9223, 9323, "sub_discount_stale_open_batch_initial")).Error)
+	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).Where("id = ?", openBinding.ContractId).Update("current_period_end", openEntitlement.EndTime).Error)
+	grantRenewalInvitationCredit(t, 9223, 500, "grant-renewal-stale-open-batch")
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             9223,
+			USDMinor:           300,
+			TradeNo:            "in_discount_stale_open_batch",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 300,
+			PricingSnapshot:    renewalInvoiceSnapshotJSONForTest(t, "in_discount_stale_open_batch", "sub_discount_stale_open_batch", openBinding.Id, openBinding.ContractId, 9323, 9223, 1234, 200, 300, 500, 300, 734, "stripe-invoice:in_discount_stale_open_batch:reserve"),
+			IdempotencyKey:     "stripe-invoice:in_discount_stale_open_batch:reserve",
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+
+	_, paidBinding, paidEntitlement := seedStripeRenewalContract(t, 9224, 9324, "sub_discount_stale_paid_batch")
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", paidBinding.Id).Update("initial_order_id", seedInitialOrderSnapshotForRenewal(t, 9224, 9324, "sub_discount_stale_paid_batch_initial")).Error)
+	grantRenewalInvitationCredit(t, 9224, 500, "grant-renewal-stale-paid-batch")
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             9224,
+			USDMinor:           500,
+			TradeNo:            "in_discount_stale_paid_batch",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 300,
+			PricingSnapshot:    renewalInvoiceSnapshotJSONForTest(t, "in_discount_stale_paid_batch", "sub_discount_stale_paid_batch", paidBinding.Id, paidBinding.ContractId, 9324, 9224, 1234, 200, 500, 500, 300, 734, "stripe-invoice:in_discount_stale_paid_batch:reserve"),
+			IdempotencyKey:     "stripe-invoice:in_discount_stale_paid_batch:reserve",
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	expireSubscriptionDiscountReservationForTest(t, "stripe-invoice:in_discount_stale_open_batch:reserve")
+	expireSubscriptionDiscountReservationForTest(t, "stripe-invoice:in_discount_stale_paid_batch:reserve")
+
+	openInv := stripeInvoiceFixture("in_discount_stale_open_batch", "sub_discount_stale_open_batch")
+	openInv.Status = stripe.InvoiceStatusOpen
+	openInv.AmountPaid = 0
+	openInv.Total = 734
+	openInv.Lines.Data[0].Period = &stripe.Period{Start: openEntitlement.EndTime, End: openEntitlement.EndTime + 2592000}
+	paidInv := stripeInvoiceFixture("in_discount_stale_paid_batch", "sub_discount_stale_paid_batch")
+	paidInv.AmountPaid = 734
+	paidInv.Total = 734
+	paidInv.Lines.Data[0].Period = &stripe.Period{Start: paidEntitlement.EndTime, End: paidEntitlement.EndTime + 2592000}
+	paidSub := stripeSubscriptionFixture("sub_discount_stale_paid_batch", map[string]string{})
+	setStripeSubscriptionCurrentPeriod(paidSub, paidEntitlement.EndTime, paidEntitlement.EndTime+2592000)
+
+	originalInvoiceGetter := stripeInvoiceGetter
+	originalSubscriptionGetter := stripeSubscriptionGetter
+	t.Cleanup(func() {
+		stripeInvoiceGetter = originalInvoiceGetter
+		stripeSubscriptionGetter = originalSubscriptionGetter
+	})
+	stripeInvoiceGetter = func(ctx context.Context, invoiceID string) (*stripe.Invoice, error) {
+		switch invoiceID {
+		case openInv.ID:
+			return openInv, nil
+		case paidInv.ID:
+			return paidInv, nil
+		default:
+			return nil, errors.New("unexpected invoice")
+		}
+	}
+	stripeSubscriptionGetter = func(ctx context.Context, subscriptionID string) (*stripe.Subscription, error) {
+		require.Equal(t, paidSub.ID, subscriptionID)
+		return paidSub, nil
+	}
+
+	count, err := ReconcileStaleStripeSubscriptionDiscountInvoices(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	var openTerminalCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key = ?", "stripe-invoice:in_discount_stale_open_batch:reserve").Count(&openTerminalCount).Error)
+	require.Zero(t, openTerminalCount)
+	var paidCommitCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key = ? AND entry_type = ?", "stripe-invoice:in_discount_stale_paid_batch:reserve", model.SubscriptionDiscountEntryTypeCommit).Count(&paidCommitCount).Error)
+	require.Equal(t, int64(1), paidCommitCount)
 }
 
 func TestSubscriptionDiscountInvoicePersistentPreparationFailureRemainsPausedAndObservable(t *testing.T) {

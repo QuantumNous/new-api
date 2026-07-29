@@ -423,6 +423,36 @@ func TestGetSelfInvitations(t *testing.T) {
 		require.Equal(t, 200, refreshed.Quota)
 	})
 
+	t.Run("rejects transfer in subscription discount mode without mutation", func(t *testing.T) {
+		db, inviter := setupInvitationControllerTest(t)
+		common.InviteRewardSubscriptionMode = true
+		recorder := httptest.NewRecorder()
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("id", inviter.Id)
+			c.Next()
+		})
+		router.POST("/api/user/aff_transfer", TransferAffQuota)
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/api/user/aff_transfer",
+			strings.NewReader(`{"amount_usd":2}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+
+		router.ServeHTTP(recorder, request)
+
+		var response struct {
+			Success bool `json:"success"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.False(t, response.Success, recorder.Body.String())
+		var refreshed model.User
+		require.NoError(t, db.First(&refreshed, inviter.Id).Error)
+		require.Equal(t, 400, refreshed.AffQuota)
+		require.Zero(t, refreshed.Quota)
+	})
+
 	t.Run("normalizes focused pagination contract", func(t *testing.T) {
 		tests := []struct {
 			name         string
