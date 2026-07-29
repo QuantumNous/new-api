@@ -69,6 +69,15 @@ export const imagePricingHeaderConfig = {
   price: 'Price',
 }
 
+export const featuredModelNames = [
+  'claude-fable-5',
+  'claude-opus-5',
+  'claude-opus-4-8',
+  'claude-sonnet-5',
+  'gpt-5.6-sol',
+  'gpt-5.5',
+] as const
+
 /**
  * 配置首页需要展示的模型
  * - name: 模型名称
@@ -78,14 +87,14 @@ export const imagePricingHeaderConfig = {
  */
 export const modelPricingConfig: ModelPricingConfig[] = [
   {
+    name: 'claude-fable-5',
+    cacheHit: '>93%',
+  },
+  {
     name: 'claude-opus-5',
     cacheHit: '>93%',
     officialInputPrice: 5,
     officialOutputPrice: 25,
-  },
-  {
-    name: 'claude-fable-5',
-    cacheHit: '>93%',
   },
   {
     name: 'claude-opus-4-8',

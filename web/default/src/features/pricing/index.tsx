@@ -31,6 +31,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { modelPricingConfig } from '@/features/home/model-pricing-config'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { ModelDetailsDrawer, PricingModelList } from './components'
@@ -69,12 +70,28 @@ export function Pricing() {
   )
     ? selectedVendor
     : String(visibleVendors[0]?.id ?? '')
+  const modelOrder = useMemo(
+    () =>
+      new Map<string, number>(
+        modelPricingConfig.map((model, index) => [model.name, index])
+      ),
+    []
+  )
   const vendorModels = useMemo(
     () =>
       models
         .filter((model) => String(model.vendor_id) === activeVendor)
-        .sort((left, right) => left.model_name.localeCompare(right.model_name)),
-    [activeVendor, models]
+        .sort((left, right) => {
+          const leftOrder =
+            modelOrder.get(left.model_name) ?? Number.MAX_SAFE_INTEGER
+          const rightOrder =
+            modelOrder.get(right.model_name) ?? Number.MAX_SAFE_INTEGER
+          return (
+            leftOrder - rightOrder ||
+            left.model_name.localeCompare(right.model_name)
+          )
+        }),
+    [activeVendor, modelOrder, models]
   )
   const ratioOptions = useMemo(() => {
     const groupsByRatio = new Map<number, Set<string>>()
@@ -115,12 +132,29 @@ export function Pricing() {
       : (availableRatios[0] ?? 1)
   const visibleModels = useMemo(
     () =>
-      vendorModels.filter((model) =>
-        getModelUsableGroupRatios(model, groupRatio, usableGroup).includes(
-          activeRatio
+      vendorModels
+        .filter((model) =>
+          getModelUsableGroupRatios(model, groupRatio, usableGroup).includes(
+            activeRatio
+          )
         )
-      ),
-    [activeRatio, groupRatio, usableGroup, vendorModels]
+        .sort((left, right) => {
+          const leftOrder =
+            modelOrder.get(left.model_name) ?? Number.MAX_SAFE_INTEGER
+          const rightOrder =
+            modelOrder.get(right.model_name) ?? Number.MAX_SAFE_INTEGER
+          return (
+            leftOrder - rightOrder ||
+            left.model_name.localeCompare(right.model_name)
+          )
+        }),
+    [
+      activeRatio,
+      groupRatio,
+      modelOrder,
+      usableGroup,
+      vendorModels,
+    ]
   )
   const selectedModel = useMemo(
     () =>

@@ -37,6 +37,7 @@ import {
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { featuredModelNames } from '@/features/home/model-pricing-config'
 import { getPricing } from '@/features/pricing/api'
 import { getModelUsableGroupRatios } from '@/features/pricing/lib/model-helpers'
 import type { PricingModel } from '@/features/pricing/types'
@@ -53,15 +54,6 @@ import { formatSubscriptionPlanPrice } from '@/lib/currency'
 import { formatQuota, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
-
-const FEATURED_MODELS = [
-  'claude-opus-5',
-  'claude-fable-5',
-  'claude-opus-4-8',
-  'claude-sonnet-5',
-  'gpt-5.6-sol',
-  'gpt-5.5',
-] as const
 
 function formatTokenCapacity(value: number): string {
   if (!Number.isFinite(value)) return '∞'
@@ -150,7 +142,7 @@ export function Plans() {
     const pricingMap = new Map(
       (pricingQuery.data?.data || []).map((model) => [model.model_name, model])
     )
-    return FEATURED_MODELS.map((modelName) => ({
+    return featuredModelNames.map((modelName) => ({
       modelName,
       pricing: pricingMap.get(modelName),
     }))

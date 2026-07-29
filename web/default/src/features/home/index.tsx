@@ -858,7 +858,7 @@ export function Home() {
                                   </CardContent>
 
                                   <CardFooter>
-                                    <Link to='/wallet' className='w-full'>
+                                    <Link to='/plans' className='w-full'>
                                       <Button
                                         variant='outline'
                                         size='lg'
