@@ -173,6 +173,24 @@ function renderWalletCard(selfData = normalizeSelfSubscriptionData(undefined)) {
   )
 }
 
+function renderWalletCardWithPreviewQuote(
+  quote: SubscriptionPaymentQuote,
+  previewPlan = plans[0]
+) {
+  return renderToStaticMarkup(
+    <I18nextProvider i18n={testI18n}>
+      <SubscriptionPlansCard
+        topupInfo={topupInfo}
+        initialPlans={[previewPlan]}
+        initialSelfData={normalizeSelfSubscriptionData(undefined)}
+        initialLoading={false}
+        initialPlanPreviewQuotes={{ [previewPlan.plan.id]: quote }}
+        userQuota={12345}
+      />
+    </I18nextProvider>
+  )
+}
+
 const subscriptionRecallClaim: RecallClaimView = {
   campaign_id: 17,
   recipient_id: 29,
@@ -574,6 +592,89 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html.match(/Switch now/g)?.length).toBe(2)
     expect(html).not.toContain('Downgrade next period')
     expect(html).not.toContain('next period')
+  })
+
+  test('shows the backend-selected invitation discount on the plan card', () => {
+    const html = renderWalletCardWithPreviewQuote(
+      stripePaymentQuote({
+        unit_price: 10,
+        original_total: 10,
+        discount_kind: 'invitation',
+        discount_amount: 5,
+        invitation_discount_amount: 5,
+        total: 5,
+      })
+    )
+
+    expect(html).toContain('OFF')
+    expect(html).toContain('line-through')
+    expect(html).toContain('$10')
+    expect(html).toContain('$5')
+    expect(html).toContain('Save $5')
+  })
+
+  test('shows Recall when the backend quote selects it over invitation credit', () => {
+    const html = renderWalletCardWithPreviewQuote(
+      stripePaymentQuote({
+        unit_price: 10,
+        original_total: 10,
+        discount_kind: 'recall',
+        discount_amount: 6,
+        invitation_discount_amount: 5,
+        other_discount_kind: 'recall',
+        other_discount_amount: 6,
+        total: 4,
+      })
+    )
+
+    expect(html).toContain('OFF')
+    expect(html).toContain('$10')
+    expect(html).toContain('$4')
+    expect(html).toContain('Save $6')
+    expect(html).not.toContain('Save $5')
+  })
+
+  test('formats backend preview amounts in the quote currency', () => {
+    const brlPlan = plan(4, 'Go', 100)
+    brlPlan.plan.currency = 'BRL'
+    const html = renderWalletCardWithPreviewQuote(
+      stripePaymentQuote({
+        currency: 'BRL',
+        unit_price: 100,
+        original_total: 100,
+        discount_kind: 'invitation',
+        discount_amount: 50,
+        invitation_discount_amount: 50,
+        total: 50,
+      }),
+      brlPlan
+    )
+
+    expect(html).toContain('R$')
+    expect(html).toContain('50,00')
+    expect(html).toContain('100,00')
+  })
+
+  test('formats JPY backend preview amounts without a USD fallback', () => {
+    const jpyPlan = plan(5, 'Pro', 2000)
+    jpyPlan.plan.currency = 'JPY'
+    const html = renderWalletCardWithPreviewQuote(
+      stripePaymentQuote({
+        currency: 'JPY',
+        unit_price: 2000,
+        original_total: 2000,
+        discount_kind: 'recall',
+        discount_amount: 1000,
+        other_discount_kind: 'recall',
+        other_discount_amount: 1000,
+        total: 1000,
+      }),
+      jpyPlan
+    )
+
+    expect(html).toContain('¥1,000')
+    expect(html).toContain('¥2,000')
+    expect(html).not.toContain('$1000')
   })
 
   test('does not locally discount plan card prices for recall offers', () => {
@@ -1576,5 +1677,16 @@ describe('subscription embedded checkout invariants', () => {
 
     expect(cardSource).not.toContain('getRecallPriceDiscount')
     expect(cardSource).not.toContain('discountedAmount')
+  })
+
+  test('prefetches one-month Stripe quotes for plan-card previews', () => {
+    const cardSource = readFileSync(
+      new URL('./subscription-plans-card.tsx', import.meta.url),
+      'utf8'
+    )
+
+    expect(cardSource).toContain('setPlanPreviewQuotes')
+    expect(cardSource).toContain("paymentChoice: 'stripe_recurring'")
+    expect(cardSource).toContain('months: 1')
   })
 })

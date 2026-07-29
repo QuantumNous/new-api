@@ -39,6 +39,7 @@ import {
   type FlexiblePurchaseResponse,
   type PlanRecord,
   type SubscriptionPaymentAvailability,
+  type SubscriptionPaymentQuote,
 } from '@/features/subscriptions/types'
 import type {
   StripeCheckoutOpenResult,
@@ -70,6 +71,7 @@ interface SubscriptionPlansCardProps {
   initialPlans?: LifecyclePlanRecord[]
   initialSelfData?: WalletSelfSubscriptionData
   initialLoading?: boolean
+  initialPlanPreviewQuotes?: Record<number, SubscriptionPaymentQuote>
 }
 
 const EXTERNAL_RETURN_POLL_KEY = 'new-api:subscription-change-return-pending'
@@ -98,8 +100,75 @@ function getPlanDisplayOrder(title: string): number {
   return PLAN_DISPLAY_ORDER[title.trim().toLowerCase()] ?? 99
 }
 
-function formatPlanPrice(amount: number): string {
-  return `$${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`
+function formatPlanPrice(amount: number, currency = 'USD'): string {
+  const normalizedCurrency = currency.trim().toUpperCase() || 'USD'
+  let locale = 'en-US'
+  if (normalizedCurrency === 'BRL') locale = 'pt-BR'
+  if (normalizedCurrency === 'INR') locale = 'en-IN'
+  try {
+    const currencyFractionDigits = Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: normalizedCurrency,
+    }).resolvedOptions().maximumFractionDigits
+    const fixedTwoDecimals =
+      normalizedCurrency === 'BRL' || normalizedCurrency === 'INR'
+    let minimumFractionDigits = currencyFractionDigits
+    if (fixedTwoDecimals) minimumFractionDigits = 2
+    if (!fixedTwoDecimals && Number.isInteger(amount)) {
+      minimumFractionDigits = 0
+    }
+    return Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: normalizedCurrency,
+      minimumFractionDigits,
+      maximumFractionDigits: fixedTwoDecimals ? 2 : currencyFractionDigits,
+    }).format(amount)
+  } catch {
+    const formattedAmount = Intl.NumberFormat('en-US', {
+      minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+    return `${normalizedCurrency} ${formattedAmount}`
+  }
+}
+
+type PlanCardDiscountPreview = {
+  currency: string
+  discountAmount: number
+  discountKind: 'invitation' | 'recall'
+  originalTotal: number
+  total: number
+}
+
+function getPlanCardDiscountPreview(
+  quote: SubscriptionPaymentQuote | undefined
+): PlanCardDiscountPreview | null {
+  if (
+    quote?.discount_kind !== 'invitation' &&
+    quote?.discount_kind !== 'recall'
+  ) {
+    return null
+  }
+  const originalTotal = Number(quote.original_total)
+  const total = Number(quote.total)
+  const discountAmount = Number(quote.discount_amount ?? originalTotal - total)
+  if (
+    !Number.isFinite(originalTotal) ||
+    !Number.isFinite(total) ||
+    !Number.isFinite(discountAmount) ||
+    originalTotal <= total ||
+    total < 0 ||
+    discountAmount <= 0
+  ) {
+    return null
+  }
+  return {
+    currency: quote.currency.trim().toUpperCase() || 'USD',
+    discountAmount,
+    discountKind: quote.discount_kind,
+    originalTotal,
+    total,
+  }
 }
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
@@ -205,6 +274,9 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     requestId: string
   } | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
+  const [planPreviewQuotes, setPlanPreviewQuotes] = useState<
+    Record<number, SubscriptionPaymentQuote>
+  >(() => props.initialPlanPreviewQuotes ?? {})
   const recallClaim = useRecallClaimContext()
 
   const fetchPlans = useCallback(async () => {
@@ -285,6 +357,58 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     () => getPaymentAvailability(selfData, topupInfo),
     [selfData, topupInfo]
   )
+
+  useEffect(() => {
+    let cancelled = false
+    if (
+      loading ||
+      orderedPlans.length === 0 ||
+      !isPaymentChoiceAvailable(paymentAvailability, 'stripe_recurring')
+    ) {
+      setPlanPreviewQuotes({})
+      return
+    }
+    setPlanPreviewQuotes({})
+    const loadPlanPreviewQuotes = async () => {
+      const entries = await Promise.all(
+        orderedPlans.map(async (item) => {
+          const requestBody = buildFlexibleQuoteRequest({
+            planId: item.plan.id,
+            paymentChoice: 'stripe_recurring',
+            months: 1,
+            requestId: createStableSubscriptionRequestId(),
+            recallClaim: recallClaim.claim,
+          })
+          try {
+            const res = await quoteSubscriptionPlanFlexible(requestBody)
+            const quote = res.success
+              ? getMatchingPaymentQuote(
+                  'stripe_recurring',
+                  res.data?.payment_quotes,
+                  1
+                )
+              : undefined
+            return quote ? ([item.plan.id, quote] as const) : null
+          } catch {
+            return null
+          }
+        })
+      )
+      if (cancelled) return
+      setPlanPreviewQuotes(
+        Object.fromEntries(
+          entries.filter(
+            (entry): entry is readonly [number, SubscriptionPaymentQuote] =>
+              entry !== null
+          )
+        )
+      )
+    }
+    void loadPlanPreviewQuotes()
+    return () => {
+      cancelled = true
+    }
+  }, [loading, orderedPlans, paymentAvailability, recallClaim.claim])
 
   useEffect(() => {
     onAvailabilityChange?.(isAvailable)
@@ -478,7 +602,19 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
           <div className='grid grid-cols-1 gap-3 md:grid-cols-3 xl:gap-4'>
             {orderedPlans.map((item) => {
               const plan = item.plan
-              const price = formatPlanPrice(Number(plan.price_amount || 0))
+              const discountPreview = getPlanCardDiscountPreview(
+                planPreviewQuotes[plan.id]
+              )
+              const currency =
+                discountPreview?.currency || plan.currency || 'USD'
+              const originalPrice = formatPlanPrice(
+                discountPreview?.originalTotal ??
+                  Number(plan.price_amount || 0),
+                currency
+              )
+              const displayPrice = discountPreview
+                ? formatPlanPrice(discountPreview.total, currency)
+                : originalPrice
               const isRecommended =
                 plan.title.trim().toLowerCase() === 'go' &&
                 orderedPlans.length > 1
@@ -521,6 +657,14 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                         ) : null}
                       </div>
                       <div className='flex shrink-0 flex-col items-end gap-1'>
+                        {discountPreview ? (
+                          <span
+                            data-discount-kind={discountPreview.discountKind}
+                            className='inline-flex rounded-full bg-[#dcfce7] px-2 py-1 text-[11px] font-semibold text-[#166534] uppercase dark:bg-[#14532d]/40 dark:text-[#86efac]'
+                          >
+                            {t('OFF')}
+                          </span>
+                        ) : null}
                         {isRecommended ? (
                           <span className='inline-flex items-center gap-1 rounded-full bg-[#f0ebfa] px-2 py-1 text-[11px] font-semibold text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'>
                             <Sparkles className='h-3 w-3' />
@@ -530,14 +674,29 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                       </div>
                     </div>
 
-                    <div className='mt-6 flex items-end gap-2'>
+                    <div className='mt-6 flex flex-wrap items-end gap-2'>
                       <span className='text-5xl font-semibold tracking-tight tabular-nums'>
-                        {price}
+                        {displayPrice}
                       </span>
+                      {discountPreview ? (
+                        <span className='text-muted-foreground mb-2 text-sm tabular-nums line-through'>
+                          {originalPrice}
+                        </span>
+                      ) : null}
                       <span className='text-muted-foreground mb-1 text-sm'>
                         {t('per month')}
                       </span>
                     </div>
+                    {discountPreview ? (
+                      <div className='mt-1 text-xs font-medium text-[#166534] dark:text-[#86efac]'>
+                        {t('Save {{amount}}', {
+                          amount: formatPlanPrice(
+                            discountPreview.discountAmount,
+                            discountPreview.currency
+                          ),
+                        })}
+                      </div>
+                    ) : null}
 
                     <div className='mt-5 grow space-y-2 border-t pt-4'>
                       {entitlements.map((label) => (
