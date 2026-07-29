@@ -354,23 +354,23 @@ For commercial licensing, please contact support@quantumnous.com
 /* ── Density scale ────────────────────────────────────────────────────── */
 /* `sm` = compact UI; `lg` = comfortable. Default (no attribute) keeps Tailwind defaults. */
 [data-theme-scale='sm'] {
-  --text-xs: 0.7rem;
-  --text-sm: 0.78rem;
-  --text-base: 0.88rem;
-  --text-lg: 1rem;
-  --text-xl: 1.13rem;
-  --text-2xl: 1.38rem;
-  --text-3xl: 1.7rem;
+  --text-xs: 0.8rem;
+  --text-sm: 0.875rem;
+  --text-base: 0.975rem;
+  --text-lg: 1.0875rem;
+  --text-xl: 1.2rem;
+  --text-2xl: 1.45rem;
+  --text-3xl: 1.8rem;
   --spacing: 0.225rem;
 }
 [data-theme-scale='lg'] {
-  --text-xs: 0.84rem;
-  --text-sm: 0.95rem;
-  --text-base: 1.075rem;
-  --text-lg: 1.2rem;
-  --text-xl: 1.35rem;
-  --text-2xl: 1.65rem;
-  --text-3xl: 2rem;
+  --text-xs: 0.875rem;
+  --text-sm: 1rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.4rem;
+  --text-2xl: 1.7rem;
+  --text-3xl: 2.1rem;
   --spacing: 0.28rem;
 }
 

@@ -16,32 +16,35 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
-
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  LoadingSkeleton,
-  EmptyState,
-  SearchBar,
-  PricingTable,
-  PricingSidebar,
-  PricingToolbar,
-  ModelCardGrid,
-  ModelDetailsDrawer,
-} from './components'
-import { FILTER_ALL, VIEW_MODES } from './constants'
-import { useFilters } from './hooks/use-filters'
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from '@/components/ui/empty'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { getLobeIcon } from '@/lib/lobe-icon'
+
+import { ModelDetailsDrawer, PricingModelList } from './components'
+import { EXCLUDED_GROUPS } from './constants'
 import { usePricingData } from './hooks/use-pricing-data'
+import { getModelUsableGroupRatios } from './lib/model-helpers'
 
 export function Pricing() {
   const { t } = useTranslation()
+  const [selectedVendor, setSelectedVendor] = useState('')
+  const [selectedRatio, setSelectedRatio] = useState<number | null>(null)
   const [selectedModelName, setSelectedModelName] = useState<string | null>(
     null
   )
-
   const {
     models,
     vendors,
@@ -54,197 +57,206 @@ export function Pricing() {
     usdExchangeRate,
   } = usePricingData()
 
-  const {
-    searchInput,
-    sortBy,
-    vendorFilter,
-    tokenUnit,
-    viewMode,
-    showRechargePrice,
-    setSearchInput,
-    setSortBy,
-    setVendorFilter,
-    setTokenUnit,
-    setViewMode,
-    setShowRechargePrice,
-    filteredModels,
-    hasActiveFilters,
-    activeFilterCount,
-    clearFilters,
-    clearSearch,
-  } = useFilters(models || [])
+  const visibleVendors = useMemo(
+    () =>
+      vendors.filter((vendor) =>
+        models.some((model) => model.vendor_id === vendor.id)
+      ),
+    [models, vendors]
+  )
+  const activeVendor = visibleVendors.some(
+    (vendor) => String(vendor.id) === selectedVendor
+  )
+    ? selectedVendor
+    : String(visibleVendors[0]?.id ?? '')
+  const vendorModels = useMemo(
+    () =>
+      models
+        .filter((model) => String(model.vendor_id) === activeVendor)
+        .sort((left, right) => left.model_name.localeCompare(right.model_name)),
+    [activeVendor, models]
+  )
+  const ratioOptions = useMemo(() => {
+    const groupsByRatio = new Map<number, Set<string>>()
 
-  const handleModelClick = useCallback((modelName: string) => {
-    setSelectedModelName(modelName)
-  }, [])
+    for (const model of vendorModels) {
+      for (const group of model.enable_groups) {
+        if (EXCLUDED_GROUPS.includes(group) || !(group in usableGroup)) continue
+        const ratio = groupRatio[group]
+        if (
+          typeof ratio !== 'number' ||
+          !Number.isFinite(ratio) ||
+          ratio <= 0
+        ) {
+          continue
+        }
 
+        const groups = groupsByRatio.get(ratio) ?? new Set<string>()
+        groups.add(group)
+        groupsByRatio.set(ratio, groups)
+      }
+    }
+
+    if (groupsByRatio.size === 0) {
+      groupsByRatio.set(1, new Set())
+    }
+
+    return [...groupsByRatio.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([ratio, groups]) => ({
+        ratio,
+        groups: [...groups].sort((left, right) => left.localeCompare(right)),
+      }))
+  }, [groupRatio, usableGroup, vendorModels])
+  const availableRatios = ratioOptions.map((option) => option.ratio)
+  const activeRatio =
+    selectedRatio !== null && availableRatios.includes(selectedRatio)
+      ? selectedRatio
+      : (availableRatios[0] ?? 1)
+  const visibleModels = useMemo(
+    () =>
+      vendorModels.filter((model) =>
+        getModelUsableGroupRatios(model, groupRatio, usableGroup).includes(
+          activeRatio
+        )
+      ),
+    [activeRatio, groupRatio, usableGroup, vendorModels]
+  )
   const selectedModel = useMemo(
     () =>
       selectedModelName
-        ? (models || []).find(
-            (model) => model.model_name === selectedModelName
-          ) || null
+        ? models.find((model) => model.model_name === selectedModelName) || null
         : null,
     [models, selectedModelName]
   )
 
-  const handleClearAll = useCallback(() => {
-    clearFilters()
-    clearSearch()
-  }, [clearFilters, clearSearch])
-
-  const renderPricingContent = () => {
-    if (filteredModels.length === 0) {
-      return (
-        <EmptyState
-          searchQuery={searchInput}
-          hasActiveFilters={hasActiveFilters}
-          onClearFilters={handleClearAll}
-        />
-      )
-    }
-
-    if (viewMode === VIEW_MODES.CARD) {
-      return (
-        <ModelCardGrid
-          models={filteredModels}
-          onModelClick={handleModelClick}
-          priceRate={priceRate}
-          usdExchangeRate={usdExchangeRate}
-          tokenUnit={tokenUnit}
-          showRechargePrice={showRechargePrice}
-          selectedGroup={FILTER_ALL}
-        />
-      )
-    }
-
-    return (
-      <PricingTable
-        models={filteredModels}
-        priceRate={priceRate}
-        usdExchangeRate={usdExchangeRate}
-        tokenUnit={tokenUnit}
-        showRechargePrice={showRechargePrice}
-        selectedGroup={FILTER_ALL}
-        onModelClick={handleModelClick}
-      />
-    )
-  }
-
-  if (isLoading) {
-    return (
-      <PublicLayout showMainContainer={false}>
-        <div className='mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
-          <LoadingSkeleton viewMode={viewMode} />
-        </div>
-      </PublicLayout>
-    )
-  }
-
   return (
     <PublicLayout showMainContainer={false}>
-      <div className='relative'>
-        <div
-          aria-hidden
-          className='pointer-events-none absolute inset-x-0 top-0 h-[600px] opacity-20 dark:opacity-[0.10]'
-          style={{
-            background: [
-              'radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
-              'radial-gradient(ellipse 50% 40% at 80% 15%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
-              'radial-gradient(ellipse 40% 35% at 50% 70%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
-            ].join(', '),
-            maskImage:
-              'linear-gradient(to bottom, black 40%, transparent 100%)',
-            WebkitMaskImage:
-              'linear-gradient(to bottom, black 40%, transparent 100%)',
-          }}
-        />
-        <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
-          <header className='mx-auto mb-5 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10'>
-            <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'>
-              {t('Model Square')}
-            </h1>
-            <p className='text-muted-foreground/80 mt-3 text-sm sm:mt-4 sm:text-base'>
-              {t('This site currently has {{count}} models enabled', {
-                count: models?.length || 0,
-              })}
-            </p>
-            <p className='text-muted-foreground/60 mx-auto mt-2 max-w-2xl text-xs leading-relaxed sm:text-sm'>
-              {t(
-                'Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.'
-              )}
-            </p>
-            <SearchBar
-              value={searchInput}
-              onChange={setSearchInput}
-              onClear={clearSearch}
-              placeholder={t(
-                'Search model name, provider, endpoint, or tag...'
-              )}
-              className='mx-auto mt-4 max-w-2xl sm:mt-6'
-            />
-          </header>
-
-          <div className='grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]'>
-            <PricingSidebar
-              vendorFilter={vendorFilter}
-              onVendorChange={setVendorFilter}
-              vendors={vendors || []}
-              models={models || []}
-              hasActiveFilters={hasActiveFilters}
-              onClearFilters={clearFilters}
-              className='hover-scrollbar sticky top-4 hidden max-h-[calc(100dvh-2rem)] self-start overflow-y-auto xl:block'
-            />
-
-            <main className='min-w-0 space-y-4'>
-              <PricingToolbar
-                filteredCount={filteredModels.length}
-                totalCount={models?.length}
-                sortBy={sortBy}
-                onSortChange={setSortBy}
-                tokenUnit={tokenUnit}
-                onTokenUnitChange={setTokenUnit}
-                showRechargePrice={showRechargePrice}
-                onRechargePriceChange={setShowRechargePrice}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                vendorFilter={vendorFilter}
-                onVendorChange={setVendorFilter}
-                vendors={vendors || []}
-                models={models || []}
-                hasActiveFilters={hasActiveFilters}
-                activeFilterCount={activeFilterCount}
-                onClearFilters={clearFilters}
-              />
-
-              {renderPricingContent()}
-            </main>
+      <PageTransition className='mx-auto w-full max-w-[1500px] px-4 pt-24 pb-10 sm:px-6 lg:px-8'>
+        {isLoading ? (
+          <div className='space-y-5'>
+            <Skeleton className='h-20 rounded-2xl' />
+            <Skeleton className='h-[560px] rounded-2xl' />
           </div>
+        ) : (
+          <>
+            <header className='mx-auto mb-8 max-w-3xl text-center sm:mb-10'>
+              <h1 className='text-4xl leading-tight font-bold sm:text-5xl'>
+                {t('Model Square')}
+              </h1>
+              <p className='text-muted-foreground mt-4 text-sm sm:text-base'>
+                {t('This site currently has {{count}} models enabled', {
+                  count: models.length,
+                })}
+              </p>
+            </header>
 
-          {selectedModel && (
-            <ModelDetailsDrawer
-              open={Boolean(selectedModel)}
-              onOpenChange={(open) => {
-                if (!open) setSelectedModelName(null)
-              }}
-              model={selectedModel}
-              groupRatio={groupRatio || {}}
-              usableGroup={usableGroup || {}}
-              endpointMap={
-                (endpointMap as Record<
-                  string,
-                  { path?: string; method?: string }
-                >) || {}
-              }
-              autoGroups={autoGroups || []}
-              priceRate={priceRate ?? 1}
-              usdExchangeRate={usdExchangeRate ?? 1}
-              tokenUnit={tokenUnit}
-              showRechargePrice={showRechargePrice}
-            />
-          )}
-        </PageTransition>
-      </div>
+            <Card size='sm' className='mb-5'>
+              <CardHeader>
+                <CardTitle>{t('Provider')}</CardTitle>
+              </CardHeader>
+              <CardContent className='flex flex-col gap-3'>
+                <div className='overflow-x-auto overflow-y-hidden pb-1'>
+                  <Tabs
+                    value={activeVendor}
+                    onValueChange={(value) => {
+                      setSelectedVendor(value)
+                      setSelectedRatio(null)
+                    }}
+                  >
+                    <TabsList className='h-10 w-max justify-start'>
+                      {visibleVendors.map((vendor) => (
+                        <TabsTrigger
+                          key={vendor.id}
+                          value={String(vendor.id)}
+                          className='h-9 flex-none px-4'
+                        >
+                          {vendor.icon && getLobeIcon(vendor.icon, 16)}
+                          {vendor.name}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </Tabs>
+                </div>
+                {ratioOptions.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className='flex flex-col gap-2'>
+                      <div className='text-muted-foreground text-xs font-medium'>
+                        {t('Group')}
+                      </div>
+                      <div className='overflow-x-auto overflow-y-hidden pb-1'>
+                        <Tabs
+                          value={String(activeRatio)}
+                          onValueChange={(value) =>
+                            setSelectedRatio(Number(value))
+                          }
+                        >
+                          <TabsList className='h-10 w-max justify-start'>
+                            {ratioOptions.map((option) => (
+                              <TabsTrigger
+                                key={option.ratio}
+                                value={String(option.ratio)}
+                                className='h-9 flex-none gap-1 px-3'
+                              >
+                                {option.groups.length > 0 && (
+                                  <span>{option.groups.join(' / ')}</span>
+                                )}
+                                <span className='font-mono'>
+                                  ({option.ratio}x)
+                                </span>
+                              </TabsTrigger>
+                            ))}
+                          </TabsList>
+                        </Tabs>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {visibleModels.length > 0 ? (
+              <PricingModelList
+                models={visibleModels}
+                priceRate={priceRate}
+                usdExchangeRate={usdExchangeRate}
+                selectedRatio={activeRatio}
+                onModelClick={setSelectedModelName}
+              />
+            ) : (
+              <Empty className='rounded-xl border'>
+                <EmptyHeader>
+                  <EmptyTitle>{t('No Models Found')}</EmptyTitle>
+                  <EmptyDescription>
+                    {t('No models match your current filters.')}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
+          </>
+        )}
+
+        {selectedModel && (
+          <ModelDetailsDrawer
+            open={Boolean(selectedModel)}
+            onOpenChange={(open) => {
+              if (!open) setSelectedModelName(null)
+            }}
+            model={selectedModel}
+            groupRatio={groupRatio}
+            usableGroup={usableGroup}
+            endpointMap={
+              endpointMap as Record<string, { path?: string; method?: string }>
+            }
+            autoGroups={autoGroups}
+            priceRate={priceRate}
+            usdExchangeRate={usdExchangeRate}
+            tokenUnit='M'
+            showRechargePrice
+          />
+        )}
+      </PageTransition>
     </PublicLayout>
   )
 }

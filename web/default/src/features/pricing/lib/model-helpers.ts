@@ -50,6 +50,27 @@ export function getConfiguredGroupRatio(
   return typeof ratio === 'number' && Number.isFinite(ratio) ? ratio : 1
 }
 
+export function getModelUsableGroupRatios(
+  model: PricingModel,
+  groupRatio: Record<string, number>,
+  usableGroup: Record<string, { desc: string; ratio: number }>
+): number[] {
+  const modelEnableGroups = Array.isArray(model.enable_groups)
+    ? model.enable_groups
+    : []
+  const ratios: number[] = []
+
+  for (const group of modelEnableGroups) {
+    if (EXCLUDED_GROUPS.includes(group) || !(group in usableGroup)) continue
+    const ratio = groupRatio[group]
+    if (typeof ratio === 'number' && Number.isFinite(ratio) && ratio > 0) {
+      ratios.push(ratio)
+    }
+  }
+
+  return ratios.length > 0 ? ratios : [1]
+}
+
 /**
  * Resolve the group ratio used by model square summary prices.
  *

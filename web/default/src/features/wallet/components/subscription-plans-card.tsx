@@ -67,6 +67,7 @@ interface SubscriptionPlansCardProps {
   onAvailabilityChange?: (available: boolean) => void
   userQuota?: number
   onPurchaseSuccess?: () => void | Promise<void>
+  hideAvailablePlans?: boolean
 }
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
@@ -98,6 +99,7 @@ export function SubscriptionPlansCard({
   onAvailabilityChange,
   userQuota,
   onPurchaseSuccess,
+  hideAvailablePlans = false,
 }: SubscriptionPlansCardProps) {
   const { t } = useTranslation()
 
@@ -514,7 +516,7 @@ export function SubscriptionPlansCard({
         </div>
 
         {/* Available plans grid */}
-        {plans.length > 0 ? (
+        {!hideAvailablePlans && plans.length > 0 && (
           <div className='grid grid-cols-1 gap-3 2xl:grid-cols-2 2xl:gap-4'>
             {plans.map((p, index) => {
               const plan = p?.plan
@@ -594,7 +596,12 @@ export function SubscriptionPlansCard({
                     {reached ? (
                       <Tooltip>
                         <TooltipTrigger render={<div />}>
-                          <Button variant='outline' className='w-full' disabled>
+                          <Button
+                            variant='outline'
+                            size='lg'
+                            className='h-11 w-full text-base font-semibold'
+                            disabled
+                          >
                             {t('Limit Reached')}
                           </Button>
                         </TooltipTrigger>
@@ -605,7 +612,8 @@ export function SubscriptionPlansCard({
                     ) : (
                       <Button
                         variant='outline'
-                        className='w-full'
+                        size='lg'
+                        className='h-11 w-full text-base font-semibold'
                         onClick={() => {
                           setSelectedPlan(p)
                           setPurchaseOpen(true)
@@ -619,7 +627,8 @@ export function SubscriptionPlansCard({
               )
             })}
           </div>
-        ) : (
+        )}
+        {!hideAvailablePlans && plans.length === 0 && (
           <p className='text-muted-foreground py-4 text-center text-sm'>
             {t('No plans available')}
           </p>

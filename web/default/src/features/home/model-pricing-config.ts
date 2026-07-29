@@ -24,6 +24,8 @@ For commercial licensing, please contact support@quantumnous.com
 export interface ModelPricingConfig {
   name: string
   cacheHit?: string
+  officialInputPrice?: number
+  officialOutputPrice?: number
 }
 
 export interface ImageModelPricingTypeConfig {
@@ -55,11 +57,10 @@ export const pricingCurrencyConfig = {
  */
 export const pricingHeaderConfig = {
   model: 'Model',
-  input: 'Input (1M)',
-  output: 'Output (1M)',
+  input: 'Minimum Input (1M)',
+  output: 'Minimum Output (1M)',
   official: 'Official Input / Output (1M)',
   discount: 'Discount',
-  cacheHit: 'Cache Hit',
 }
 
 export const imagePricingHeaderConfig = {
@@ -77,11 +78,29 @@ export const imagePricingHeaderConfig = {
  */
 export const modelPricingConfig: ModelPricingConfig[] = [
   {
+    name: 'claude-opus-5',
+    cacheHit: '>93%',
+    officialInputPrice: 5,
+    officialOutputPrice: 25,
+  },
+  {
     name: 'claude-fable-5',
     cacheHit: '>93%',
   },
   {
     name: 'claude-opus-4-8',
+    cacheHit: '>93%',
+  },
+  {
+    name: 'claude-sonnet-5',
+    cacheHit: '>93%',
+  },
+  {
+    name: 'gpt-5.6-sol',
+    cacheHit: '>93%',
+  },
+  {
+    name: 'gpt-5.5',
     cacheHit: '>93%',
   },
   {
@@ -93,10 +112,6 @@ export const modelPricingConfig: ModelPricingConfig[] = [
     cacheHit: '>93%',
   },
   {
-    name: 'claude-sonnet-5',
-    cacheHit: '>93%',
-  },
-  {
     name: 'claude-sonnet-4-6',
     cacheHit: '>93%',
   },
@@ -105,19 +120,11 @@ export const modelPricingConfig: ModelPricingConfig[] = [
     cacheHit: '>93%',
   },
   {
-    name: 'gpt-5.6-sol',
-    cacheHit: '>93%',
-  },
-  {
     name: 'gpt-5.6-terra',
     cacheHit: '>93%',
   },
   {
     name: 'gpt-5.6-luna',
-    cacheHit: '>93%',
-  },
-  {
-    name: 'gpt-5.5',
     cacheHit: '>93%',
   },
   {

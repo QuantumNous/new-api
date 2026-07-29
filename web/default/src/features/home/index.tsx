@@ -18,7 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Check, Copy, Play } from 'lucide-react'
+import {
+  BadgeCheck,
+  Cable,
+  Check,
+  Copy,
+  EyeOff,
+  Gauge,
+  Play,
+  ShieldCheck,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -63,7 +72,6 @@ interface ModelPricingRow {
   officialInput: string
   officialOutput: string
   discount: string
-  cacheHit: string
 }
 
 interface ImageModelPricingRow {
@@ -84,6 +92,14 @@ interface HomeStatusResponse {
     serverAddress?: string
   }
 }
+
+const TRUST_SIGNALS = [
+  { label: 'Officially funded accounts', icon: BadgeCheck },
+  { label: 'Direct official access', icon: Cable },
+  { label: 'Stable high concurrency', icon: Gauge },
+  { label: 'No model downgrades or substitutions', icon: ShieldCheck },
+  { label: 'Zero retention', icon: EyeOff },
+] as const
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -275,38 +291,6 @@ function formatDiscountPercent(value: number | null): string {
   return '0%'
 }
 
-function formatUnsignedDiscountPercent(value: number | null): string {
-  if (!hasNumber(value)) return '-'
-  return `${Math.abs(Math.round(value))}%`
-}
-
-function formatDiscountRange(
-  inputRange: { min: number; max: number } | null,
-  officialInput: number | null | undefined
-): string {
-  const values = [
-    inputRange && hasNumber(officialInput)
-      ? getDiscountPercent(inputRange.min, officialInput)
-      : null,
-    inputRange && hasNumber(officialInput)
-      ? getDiscountPercent(inputRange.max, officialInput)
-      : null,
-  ].filter(hasNumber)
-
-  if (values.length === 0) return '-'
-
-  const minValue = Math.min(...values)
-  const maxValue = Math.max(...values)
-
-  if (Math.abs(minValue - maxValue) < 0.001) {
-    return formatDiscountPercent(maxValue)
-  }
-
-  const first = formatDiscountPercent(maxValue)
-  const second = formatUnsignedDiscountPercent(minValue)
-  return `${first}~${second}`
-}
-
 function findPricingModel(
   modelMap: Map<string, PricingModel>,
   names: string[]
@@ -323,6 +307,7 @@ export function Home() {
   const { config } = useSystemConfigStore()
   const [homePageContent, setHomePageContent] = useState('')
   const [homePageContentLoaded, setHomePageContentLoaded] = useState(false)
+  const [showAllPricingModels, setShowAllPricingModels] = useState(false)
   const isChinese = i18n.language.startsWith('zh')
   const isDemoSiteMode = config.demoSiteEnabled || false
   const { data: statusData } = useQuery<HomeStatusResponse>({
@@ -389,7 +374,25 @@ export function Home() {
     return modelPricingConfig
       .map((configItem) => {
         const model = modelMap.get(configItem.name)
-        if (!model || model.quota_type !== QUOTA_TYPE_VALUES.TOKEN) {
+        if (!model) {
+          if (
+            !hasNumber(configItem.officialInputPrice) ||
+            !hasNumber(configItem.officialOutputPrice)
+          ) {
+            return null
+          }
+
+          return {
+            name: configItem.name,
+            inputPrice: '-',
+            outputPrice: '-',
+            officialInput: formatOfficialPrice(configItem.officialInputPrice),
+            officialOutput: formatOfficialPrice(configItem.officialOutputPrice),
+            discount: '-',
+          }
+        }
+
+        if (model.quota_type !== QUOTA_TYPE_VALUES.TOKEN) {
           return null
         }
 
@@ -405,15 +408,22 @@ export function Home() {
         )
         const configuredInputPrice = getConfiguredInputPriceUSD(model)
         const configuredOutputPrice = getConfiguredOutputPriceUSD(model)
+        const officialInputPrice =
+          configItem.officialInputPrice ?? configuredInputPrice
+        const officialOutputPrice =
+          configItem.officialOutputPrice ?? configuredOutputPrice
+        const minimumDiscount =
+          inputPriceRange && hasNumber(officialInputPrice)
+            ? getDiscountPercent(inputPriceRange.min, officialInputPrice)
+            : null
 
         return {
           name: configItem.name,
-          inputPrice: formatPriceRange(inputPriceRange),
-          outputPrice: formatPriceRange(outputPriceRange),
-          officialInput: formatOfficialPrice(configuredInputPrice),
-          officialOutput: formatOfficialPrice(configuredOutputPrice),
-          discount: formatDiscountRange(inputPriceRange, configuredInputPrice),
-          cacheHit: configItem.cacheHit || '-',
+          inputPrice: formatPrice(inputPriceRange?.min),
+          outputPrice: formatPrice(outputPriceRange?.min),
+          officialInput: formatOfficialPrice(officialInputPrice),
+          officialOutput: formatOfficialPrice(officialOutputPrice),
+          discount: formatDiscountPercent(minimumDiscount),
         }
       })
       .filter((item): item is ModelPricingRow => item !== null)
@@ -524,11 +534,6 @@ export function Home() {
                       {t('Enterprise-grade API gateway')}
                     </span>
                   </h1>
-                  <p className='text-muted-foreground mt-4 max-w-xl text-base md:mt-6 md:text-lg lg:text-xl'>
-                    {t(
-                      'More affordable routes are available. For stable access, replace BaseUrl with:'
-                    )}
-                  </p>
                   <div className='mt-4 flex w-full max-w-lg flex-col items-center justify-center gap-4 md:mt-6 md:flex-row'>
                     <div className='relative w-full flex-1'>
                       <Input
@@ -554,7 +559,7 @@ export function Home() {
                   <Link to='/keys' className='w-full sm:w-auto'>
                     <Button size='lg' className='w-full rounded-full px-8'>
                       <Play data-icon='inline-start' />
-                      {t('Get API Key')}
+                      {t('Start for Free')}
                     </Button>
                   </Link>
                   {isDemoSiteMode && (
@@ -575,7 +580,25 @@ export function Home() {
                   )}
                 </div>
 
-                <Card className='bg-card/70 mt-12 w-full max-w-5xl rounded-3xl text-left backdrop-blur-md'>
+                <ul className='mt-10 grid w-full max-w-5xl grid-cols-2 gap-x-5 gap-y-4 py-5 sm:grid-cols-3 lg:grid-cols-5'>
+                  {TRUST_SIGNALS.map((signal) => {
+                    const Icon = signal.icon
+
+                    return (
+                      <li
+                        key={signal.label}
+                        className='text-foreground flex min-w-0 items-center gap-2.5 text-left text-sm font-medium'
+                      >
+                        <span className='bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-lg'>
+                          <Icon aria-hidden='true' className='size-4' />
+                        </span>
+                        <span className='leading-snug'>{t(signal.label)}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+
+                <Card className='bg-card/70 mt-8 w-full max-w-5xl rounded-3xl text-left backdrop-blur-md'>
                   <CardHeader className='items-center text-center'>
                     <CardTitle
                       role='heading'
@@ -586,7 +609,7 @@ export function Home() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className='px-0'>
-                    <div className='text-muted-foreground hidden grid-cols-6 px-5 py-3 text-xs font-semibold tracking-wider uppercase md:grid'>
+                    <div className='text-muted-foreground hidden grid-cols-5 px-5 py-3 text-xs font-semibold tracking-wider uppercase md:grid'>
                       <span className='min-w-[140px] text-left md:min-w-[180px]'>
                         {t(pricingHeaderConfig.model)}
                       </span>
@@ -602,9 +625,6 @@ export function Home() {
                       <span className='text-center'>
                         {t(pricingHeaderConfig.discount)}
                       </span>
-                      <span className='text-center'>
-                        {t(pricingHeaderConfig.cacheHit)}
-                      </span>
                     </div>
 
                     <Separator className='mx-5 w-auto' />
@@ -614,10 +634,13 @@ export function Home() {
                         {t('No pricing data available')}
                       </div>
                     ) : (
-                      modelPricingRows.map((item) => (
+                      (showAllPricingModels
+                        ? modelPricingRows
+                        : modelPricingRows.slice(0, 6)
+                      ).map((item) => (
                         <div
                           key={item.name}
-                          className='hover:bg-muted/45 grid grid-cols-2 items-center gap-3 px-5 py-4 text-sm transition-colors md:grid-cols-6 md:gap-0 md:py-3.5'
+                          className='hover:bg-muted/45 grid grid-cols-2 items-center gap-3 px-5 py-4 text-sm transition-colors md:grid-cols-5 md:gap-0 md:py-3.5'
                         >
                           <span
                             className='text-foreground col-span-2 truncate text-left font-medium md:col-span-1 md:min-w-[180px] md:pr-2'
@@ -663,16 +686,23 @@ export function Home() {
                               {item.discount}
                             </Badge>
                           </span>
-                          <span className='flex flex-col gap-1 text-left md:block md:text-center'>
-                            <span className='text-muted-foreground text-xs md:hidden'>
-                              {t(pricingHeaderConfig.cacheHit)}
-                            </span>
-                            <Badge variant='secondary' className='font-mono'>
-                              {item.cacheHit}
-                            </Badge>
-                          </span>
                         </div>
                       ))
+                    )}
+
+                    {modelPricingRows.length > 6 && (
+                      <div className='flex justify-center px-5 py-4'>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          onClick={() =>
+                            setShowAllPricingModels((visible) => !visible)
+                          }
+                        >
+                          {t(showAllPricingModels ? 'Show Less' : 'Show More')}
+                        </Button>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -768,14 +798,18 @@ export function Home() {
                               const plan = item.plan
                               const totalAmount = Number(plan.total_amount || 0)
                               const resetPeriod = formatResetPeriod(plan, t)
+                              const quotaLabel =
+                                plan.quota_reset_period === 'never'
+                                  ? t('Total Quota')
+                                  : t('Period Quota')
                               const benefits = [
                                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
                                 resetPeriod !== t('No Reset')
                                   ? `${t('Quota Reset')}: ${resetPeriod}`
                                   : null,
                                 totalAmount > 0
-                                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
-                                  : `${t('Total Quota')}: ${t('Unlimited')}`,
+                                  ? `${quotaLabel}: ${formatQuota(totalAmount)}`
+                                  : `${quotaLabel}: ${t('Unlimited')}`,
                                 plan.upgrade_group
                                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
                                   : null,
@@ -827,7 +861,8 @@ export function Home() {
                                     <Link to='/wallet' className='w-full'>
                                       <Button
                                         variant='outline'
-                                        className='w-full rounded-full'
+                                        size='lg'
+                                        className='h-11 w-full rounded-full text-base font-semibold'
                                       >
                                         {t('Subscribe Now')}
                                       </Button>

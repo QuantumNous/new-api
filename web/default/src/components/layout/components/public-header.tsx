@@ -209,7 +209,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                   />
                 )}
               </div>
-              <span className='text-sm font-semibold tracking-tight'>
+              <span className='text-base font-semibold tracking-tight'>
                 {loading ? <Skeleton className='h-4 w-16' /> : displaySiteName}
               </span>
             </Link>
@@ -229,7 +229,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                       tabIndex={link.disabled ? -1 : undefined}
                       onClick={(event) => handleNavLinkClick(event, link)}
                       className={cn(
-                        'text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                        'text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200',
                         link.disabled && 'pointer-events-none opacity-50'
                       )}
                     >
@@ -244,7 +244,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
-                      'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                      'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200',
                       isActive
                         ? 'text-foreground'
                         : 'text-muted-foreground hover:text-foreground',
@@ -287,7 +287,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                   ) : (
                     <Button
                       size='sm'
-                      className='h-8 rounded-lg px-3.5 text-xs font-medium'
+                      className='h-8 rounded-lg px-3.5 text-sm font-medium'
                       render={<Link to='/sign-in' />}
                     >
                       {t('Sign in')}
