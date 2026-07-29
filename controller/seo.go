@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -30,6 +32,13 @@ func RobotsTxt(c *gin.Context) {
 		b.WriteString("Disallow: /console\n")
 		b.WriteString("Disallow: /dashboard\n")
 		b.WriteString("Disallow: /api/\n")
+		b.WriteString("Disallow: /token\n")
+		b.WriteString("Disallow: /topup\n")
+		b.WriteString("Disallow: /log\n")
+		b.WriteString("Disallow: /setting\n")
+		b.WriteString("Disallow: /channel\n")
+		b.WriteString("Disallow: /user\n")
+		b.WriteString("\n")
 		if site := seoSiteBase(c); site != "" {
 			b.WriteString("Sitemap: ")
 			b.WriteString(site)
@@ -41,26 +50,43 @@ func RobotsTxt(c *gin.Context) {
 	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(b.String()))
 }
 
+type sitemapEntry struct {
+	path       string
+	changefreq string
+	priority   string
+}
+
 // SitemapXML serves GET /sitemap.xml with core public URLs.
 func SitemapXML(c *gin.Context) {
 	site := seoSiteBase(c)
 	if site == "" {
-		// No configured public base URL: emit relative-path locs only when needed,
-		// but sitemap requires absolute URLs — return empty set rather than fake host.
 		c.Data(http.StatusOK, "application/xml; charset=utf-8", []byte(
 			`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>`,
 		))
 		return
 	}
-	paths := []string{"/", "/pricing", "/about", "/rankings"}
+
+	entries := []sitemapEntry{
+		{"/", "daily", "1.0"},
+		{"/pricing", "weekly", "0.8"},
+		{"/about", "monthly", "0.6"},
+		{"/rankings", "daily", "0.7"},
+		{"/login", "monthly", "0.3"},
+		{"/register", "monthly", "0.3"},
+	}
+
+	lastmod := time.Now().UTC().Format("2006-01-02")
+
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
 	b.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
-	for _, p := range paths {
-		b.WriteString("<url><loc>")
-		b.WriteString(site)
-		b.WriteString(p)
-		b.WriteString("</loc></url>")
+	for _, e := range entries {
+		b.WriteString("<url>")
+		b.WriteString(fmt.Sprintf("<loc>%s%s</loc>", site, e.path))
+		b.WriteString(fmt.Sprintf("<lastmod>%s</lastmod>", lastmod))
+		b.WriteString(fmt.Sprintf("<changefreq>%s</changefreq>", e.changefreq))
+		b.WriteString(fmt.Sprintf("<priority>%s</priority>", e.priority))
+		b.WriteString("</url>")
 	}
 	b.WriteString(`</urlset>`)
 	c.Data(http.StatusOK, "application/xml; charset=utf-8", []byte(b.String()))

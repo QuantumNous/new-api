@@ -5280,6 +5280,12 @@
     "How often to scan for missing rebates (1-1440 minutes)": "How often to scan for missing rebates (1-1440 minutes)",
     "Invite leaderboard": "Invite leaderboard",
     "Failed to load admin rebate data": "Failed to load admin rebate data",
-    "Invite Top-up Rebate Ratio (bp)": "Invite Top-up Rebate Ratio (bp)"
+    "Invite Top-up Rebate Ratio (bp)": "Invite Top-up Rebate Ratio (bp)",
+    "SEO Settings": "Cài đặt SEO",
+    "Comma-separated keywords for search engines": "Từ khóa phân cách bằng dấu phẩy cho công cụ tìm kiếm",
+    "Image shown in social media link previews": "Hình ảnh hiển thị khi xem trước liên kết trên mạng xã hội",
+    "Allow Search Engine Indexing": "Cho phép công cụ tìm kiếm lập chỉ mục",
+    "When disabled, robots.txt will block all crawlers": "Khi tắt, robots.txt sẽ chặn tất cả trình thu thập dữ liệu",
+    "Legal": "Pháp lý"
   }
 }

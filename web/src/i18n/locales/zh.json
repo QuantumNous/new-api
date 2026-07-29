@@ -2525,6 +2525,7 @@
     "Locked": "锁定",
     "log": "日志的完整详情",
     "Log cleanup": "日志清理",
+    "Invite rebate backfill": "邀请返佣补发",
     "Log cleanup progress": "日志清理进度",
     "Log cleanup task started.": "日志清理任务已启动。",
     "Log Details": "日志详情",
@@ -5301,6 +5302,12 @@
     "Full browser tab title. Supports long-tail keywords. Overrides suffix mode when set.": "完整浏览器标题，可写长尾关键词；填写后优先生效，不再拼接后缀。",
     "e.g. AI大模型API网关|OpenAI兼容|统一分发平台": "例如：AI大模型API网关|OpenAI兼容|统一分发平台",
     "Appended after system name when full title is empty: {Name} - {Suffix}": "完整标题为空时拼接为：系统名称 - 后缀",
+    "SEO Settings": "SEO 设置",
+    "Comma-separated keywords for search engines": "逗号分隔的搜索引擎关键词",
+    "Image shown in social media link previews": "社交媒体分享时显示的图片",
+    "Allow Search Engine Indexing": "允许搜索引擎收录",
+    "When disabled, robots.txt will block all crawlers": "关闭后 robots.txt 将阻止所有爬虫",
+    "Legal": "法律条款",
     "Anonymous": "匿名"
   }
 }

@@ -2525,6 +2525,7 @@
     "Locked": "Locked",
     "log": "log",
     "Log cleanup": "Log cleanup",
+    "Invite rebate backfill": "Invite rebate backfill",
     "Log cleanup progress": "Log cleanup progress",
     "Log cleanup task started.": "Log cleanup task started.",
     "Log Details": "Log Details",
@@ -5301,6 +5302,12 @@
     "Full browser tab title. Supports long-tail keywords. Overrides suffix mode when set.": "Full browser tab title. Supports long-tail keywords. Overrides suffix mode when set.",
     "e.g. AI大模型API网关|OpenAI兼容|统一分发平台": "e.g. AI大模型API网关|OpenAI兼容|统一分发平台",
     "Appended after system name when full title is empty: {Name} - {Suffix}": "Appended after system name when full title is empty: {Name} - {Suffix}",
+    "SEO Settings": "SEO Settings",
+    "Comma-separated keywords for search engines": "Comma-separated keywords for search engines",
+    "Image shown in social media link previews": "Image shown in social media link previews",
+    "Allow Search Engine Indexing": "Allow Search Engine Indexing",
+    "When disabled, robots.txt will block all crawlers": "When disabled, robots.txt will block all crawlers",
+    "Legal": "Legal",
     "Anonymous": "Anonymous"
   }
 }

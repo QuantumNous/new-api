@@ -5280,6 +5280,12 @@
     "How often to scan for missing rebates (1-1440 minutes)": "How often to scan for missing rebates (1-1440 minutes)",
     "Invite leaderboard": "Invite leaderboard",
     "Failed to load admin rebate data": "Failed to load admin rebate data",
-    "Invite Top-up Rebate Ratio (bp)": "Invite Top-up Rebate Ratio (bp)"
+    "Invite Top-up Rebate Ratio (bp)": "Invite Top-up Rebate Ratio (bp)",
+    "SEO Settings": "Настройки SEO",
+    "Comma-separated keywords for search engines": "Ключевые слова через запятую для поисковых систем",
+    "Image shown in social media link previews": "Изображение в превью ссылок в соцсетях",
+    "Allow Search Engine Indexing": "Разрешить индексацию поисковыми системами",
+    "When disabled, robots.txt will block all crawlers": "При отключении robots.txt заблокирует все краулеры",
+    "Legal": "Юридическая информация"
   }
 }

@@ -83,7 +83,9 @@ export function applyDocumentSeo(input: SeoInput): void {
   upsertMetaByProperty('og:description', description)
   if (pageUrl) upsertMetaByProperty('og:url', pageUrl)
   if (ogImage) upsertMetaByProperty('og:image', ogImage)
-  if (title) upsertMetaByProperty('og:site_name', input.title || title || 'DaoXE')
+  // og:site_name should always be the short brand name, never the long-tail title
+  const siteName = (input.title || '').trim() || 'DaoXE'
+  upsertMetaByProperty('og:site_name', siteName)
 
   upsertMetaByName('twitter:card', ogImage ? 'summary_large_image' : 'summary')
   upsertMetaByName('twitter:title', ogTitle)

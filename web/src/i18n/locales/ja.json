@@ -5280,6 +5280,12 @@
     "How often to scan for missing rebates (1-1440 minutes)": "How often to scan for missing rebates (1-1440 minutes)",
     "Invite leaderboard": "Invite leaderboard",
     "Failed to load admin rebate data": "Failed to load admin rebate data",
-    "Invite Top-up Rebate Ratio (bp)": "Invite Top-up Rebate Ratio (bp)"
+    "Invite Top-up Rebate Ratio (bp)": "Invite Top-up Rebate Ratio (bp)",
+    "SEO Settings": "SEO 設定",
+    "Comma-separated keywords for search engines": "検索エンジン向けのカンマ区切りキーワード",
+    "Image shown in social media link previews": "ソーシャルメディアのリンクプレビューに表示される画像",
+    "Allow Search Engine Indexing": "検索エンジンのインデックスを許可",
+    "When disabled, robots.txt will block all crawlers": "無効にすると robots.txt がすべてのクローラーをブロックします",
+    "Legal": "法的事項"
   }
 }
