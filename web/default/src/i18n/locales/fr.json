@@ -6394,6 +6394,9 @@
     "Site Common Logs": "Journaux communs du site",
     "Site Task Logs": "Journaux de tâches du site",
     "Full key metadata and restrictions": "Métadonnées complètes et restrictions de la clé",
-    "Columns": "Colonnes"
+    "Columns": "Colonnes",
+    "Protection": "Protection",
+    "Sign-in methods and devices for this account": "Méthodes de connexion et appareils de ce compte",
+    "Alerts": "Alertes"
   }
 }

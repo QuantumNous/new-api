@@ -29,7 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { TitledCard } from '@/components/ui/titled-card'
 import {
   INTERFACE_LANGUAGE_OPTIONS,
   normalizeInterfaceLanguage,
@@ -39,6 +38,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { updateUserLanguage } from '../api'
 import { parseUserSettings } from '../lib'
 import type { UserProfile } from '../types'
+import { ProfileSectionLabel, ProfileSurface } from './profile-surface'
 
 type LanguagePreferencesCardProps = {
   profile: UserProfile | null
@@ -103,50 +103,57 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
   }
 
   return (
-    <TitledCard
-      title={t('Language Preferences')}
-      description={t('Set the language used across the interface')}
-      icon={<Languages className='h-4 w-4' />}
-      iconTone='chart-4'
-      disableHoverEffect
-    >
-      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
-        <div className='space-y-1'>
-          <div className='text-sm font-medium'>{t('Interface Language')}</div>
-          <p className='text-muted-foreground line-clamp-2 text-xs sm:text-sm'>
-            {t(
-              'Language preferences sync across your signed-in devices and affect API error messages.'
+    <div>
+      <ProfileSectionLabel
+        title={t('Language Preferences')}
+        description={t('Set the language used across the interface')}
+      />
+      <ProfileSurface padded>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='flex min-w-0 items-start gap-3'>
+            <div className='bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl'>
+              <Languages className='size-4' />
+            </div>
+            <div className='min-w-0 space-y-1'>
+              <div className='text-sm font-medium'>
+                {t('Interface Language')}
+              </div>
+              <p className='text-muted-foreground line-clamp-2 text-xs sm:text-sm'>
+                {t(
+                  'Language preferences sync across your signed-in devices and affect API error messages.'
+                )}
+              </p>
+            </div>
+          </div>
+          <div className='flex items-center gap-2 sm:min-w-48'>
+            <Select
+              items={INTERFACE_LANGUAGE_OPTIONS.map((language) => ({
+                value: language.code,
+                label: language.label,
+              }))}
+              value={currentLanguage}
+              onValueChange={handleLanguageChange}
+              disabled={saving}
+            >
+              <SelectTrigger className='w-full sm:w-48'>
+                <SelectValue placeholder={t('Select language')} />
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {INTERFACE_LANGUAGE_OPTIONS.map((language) => (
+                    <SelectItem key={language.code} value={language.code}>
+                      {language.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            {saving && (
+              <Loader2 className='text-muted-foreground size-4 animate-spin' />
             )}
-          </p>
+          </div>
         </div>
-        <div className='flex items-center gap-2 sm:min-w-48'>
-          <Select
-            items={INTERFACE_LANGUAGE_OPTIONS.map((language) => ({
-              value: language.code,
-              label: language.label,
-            }))}
-            value={currentLanguage}
-            onValueChange={handleLanguageChange}
-            disabled={saving}
-          >
-            <SelectTrigger className='w-full sm:w-48'>
-              <SelectValue placeholder={t('Select language')} />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              <SelectGroup>
-                {INTERFACE_LANGUAGE_OPTIONS.map((language) => (
-                  <SelectItem key={language.code} value={language.code}>
-                    {language.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          {saving && (
-            <Loader2 className='text-muted-foreground size-4 animate-spin' />
-          )}
-        </div>
-      </div>
-    </TitledCard>
+      </ProfileSurface>
+    </div>
   )
 }

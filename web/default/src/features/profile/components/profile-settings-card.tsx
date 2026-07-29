@@ -16,22 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link2, Settings } from 'lucide-react'
+import { Bell, Link2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { TitledCard } from '@/components/ui/titled-card'
+import { cn } from '@/lib/utils'
 
 import type { UserProfile } from '../types'
+import { ProfileSectionLabel, ProfileSurface } from './profile-surface'
 import { AccountBindingsTab } from './tabs/account-bindings-tab'
 import { NotificationTab } from './tabs/notification-tab'
-
-// ============================================================================
-// Profile Settings Card Component
-// ============================================================================
 
 interface ProfileSettingsCardProps {
   profile: UserProfile | null
@@ -49,59 +45,67 @@ export function ProfileSettingsCard({
 
   if (loading || !profile) {
     return (
-      <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
-        <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
-          <Skeleton className='h-6 w-32' />
-          <Skeleton className='mt-2 h-4 w-48' />
-        </CardHeader>
-        <CardContent className='space-y-4 p-3 sm:p-5'>
-          <Skeleton className='h-10 w-full' />
-          {['bindings', 'preferences', 'notifications'].map((key) => (
-            <Skeleton key={key} className='h-20 w-full' />
-          ))}
-        </CardContent>
-      </Card>
+      <div>
+        <ProfileSectionLabel
+          title={t('Account')}
+          description={t('Configure your account preferences and integrations')}
+        />
+        <ProfileSurface padded>
+          <Skeleton className='mb-4 h-10 w-full rounded-xl' />
+          <div className='space-y-3'>
+            {['a', 'b', 'c'].map((k) => (
+              <Skeleton key={k} className='h-16 w-full rounded-xl' />
+            ))}
+          </div>
+        </ProfileSurface>
+      </div>
     )
   }
 
   return (
-    <TitledCard
-      title={t('Settings')}
-      description={t('Configure your account preferences and integrations')}
-      icon={<Settings className='h-4 w-4' />}
-      iconTone='info'
-      disableHoverEffect
-    >
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className='grid w-full grid-cols-2 items-stretch gap-1 rounded-xl p-1 group-data-horizontal/tabs:h-10'>
-          <TabsTrigger
-            value='bindings'
-            className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
-          >
-            <Link2 className='h-4 w-4' />
-            <span className='hidden sm:inline'>{t('Account Bindings')}</span>
-            <span className='sm:hidden'>{t('Bindings')}</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value='settings'
-            className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
-          >
-            <Settings className='h-4 w-4' />
-            <span className='hidden sm:inline'>
-              {t('Settings & Preferences')}
-            </span>
-            <span className='sm:hidden'>{t('Settings')}</span>
-          </TabsTrigger>
-        </TabsList>
+    <div>
+      <ProfileSectionLabel
+        title={t('Account')}
+        description={t('Configure your account preferences and integrations')}
+      />
+      <ProfileSurface className='p-0'>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <div className='border-border/40 border-b px-3 pt-3 sm:px-4 sm:pt-4'>
+            <TabsList className='bg-muted/40 grid h-10 w-full grid-cols-2 rounded-xl p-1'>
+              <TabsTrigger
+                value='bindings'
+                className={cn(
+                  'h-full gap-2 rounded-lg px-3 text-sm data-active:shadow-sm'
+                )}
+              >
+                <Link2 className='size-3.5' />
+                <span className='hidden sm:inline'>{t('Account Bindings')}</span>
+                <span className='sm:hidden'>{t('Bindings')}</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value='settings'
+                className='h-full gap-2 rounded-lg px-3 text-sm data-active:shadow-sm'
+              >
+                <Bell className='size-3.5' />
+                <span className='hidden sm:inline'>{t('Notifications')}</span>
+                <span className='sm:hidden'>{t('Alerts')}</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-        <TabsContent value='bindings' className='mt-4 sm:mt-6'>
-          <AccountBindingsTab profile={profile} onUpdate={onProfileUpdate} />
-        </TabsContent>
-
-        <TabsContent value='settings' className='mt-4 sm:mt-6'>
-          <NotificationTab profile={profile} onUpdate={onProfileUpdate} />
-        </TabsContent>
-      </Tabs>
-    </TitledCard>
+          <div className='p-4 sm:p-5'>
+            <TabsContent value='bindings' className='mt-0'>
+              <AccountBindingsTab
+                profile={profile}
+                onUpdate={onProfileUpdate}
+              />
+            </TabsContent>
+            <TabsContent value='settings' className='mt-0'>
+              <NotificationTab profile={profile} onUpdate={onProfileUpdate} />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </ProfileSurface>
+    </div>
   )
 }

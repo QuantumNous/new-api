@@ -6394,6 +6394,9 @@
     "Site Common Logs": "Общие логи платформы",
     "Site Task Logs": "Логи задач платформы",
     "Full key metadata and restrictions": "Полные метаданные и ограничения ключа",
-    "Columns": "Столбцы"
+    "Columns": "Столбцы",
+    "Protection": "Защита",
+    "Sign-in methods and devices for this account": "Способы входа и устройства этого аккаунта",
+    "Alerts": "Оповещения"
   }
 }

@@ -6394,6 +6394,9 @@
     "Site Common Logs": "サイト全体の一般ログ",
     "Site Task Logs": "サイト全体のタスクログ",
     "Full key metadata and restrictions": "キーの詳細情報と制限",
-    "Columns": "列"
+    "Columns": "列",
+    "Protection": "保護",
+    "Sign-in methods and devices for this account": "このアカウントのログイン方法とデバイス",
+    "Alerts": "アラート"
   }
 }

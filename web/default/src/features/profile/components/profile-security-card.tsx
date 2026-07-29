@@ -16,23 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Shield, Key, Trash2 } from 'lucide-react'
+import { ChevronRight, Key, Shield, Trash2 } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { TitledCard } from '@/components/ui/titled-card'
 import { useDialogs } from '@/hooks/use-dialog'
+import { MOTION_TRANSITION } from '@/lib/motion'
+import { cn } from '@/lib/utils'
 
 import type { UserProfile } from '../types'
 import { AccessTokenDialog } from './dialogs/access-token-dialog'
 import { ChangePasswordDialog } from './dialogs/change-password-dialog'
 import { DeleteAccountDialog } from './dialogs/delete-account-dialog'
-
-// ============================================================================
-// Profile Security Card Component
-// ============================================================================
+import { ProfileSectionLabel } from './profile-surface'
 
 interface ProfileSecurityCardProps {
   profile: UserProfile | null
@@ -47,20 +45,21 @@ export function ProfileSecurityCard({
 }: ProfileSecurityCardProps) {
   const { t } = useTranslation()
   const dialogs = useDialogs<DialogKey>()
+  const shouldReduce = useReducedMotion()
 
   if (loading) {
     return (
-      <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
-        <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
-          <Skeleton className='h-6 w-32' />
-          <Skeleton className='mt-2 h-4 w-48' />
-        </CardHeader>
-        <CardContent className='space-y-3 p-3 sm:p-5'>
+      <div>
+        <ProfileSectionLabel
+          title={t('Security')}
+          description={t('Manage your security settings and account access')}
+        />
+        <div className='grid grid-cols-1 gap-3 md:grid-cols-3'>
           {['password', 'token', 'delete'].map((key) => (
-            <Skeleton key={key} className='h-16 w-full' />
+            <Skeleton key={key} className='h-28 w-full rounded-2xl' />
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
@@ -72,6 +71,7 @@ export function ProfileSecurityCard({
       title: t('Change Password'),
       description: t('Update your password to keep your account secure'),
       action: () => dialogs.open('password'),
+      tone: 'success' as const,
       variant: 'default' as const,
     },
     {
@@ -79,6 +79,7 @@ export function ProfileSecurityCard({
       title: t('Access Token'),
       description: t('Generate and manage your API access token'),
       action: () => dialogs.open('token'),
+      tone: 'info' as const,
       variant: 'default' as const,
     },
     {
@@ -86,44 +87,62 @@ export function ProfileSecurityCard({
       title: t('Delete Account'),
       description: t('Permanently delete your account and all data'),
       action: () => dialogs.open('delete'),
+      tone: 'destructive' as const,
       variant: 'destructive' as const,
     },
   ]
 
   return (
     <>
-      <TitledCard
+      <ProfileSectionLabel
         title={t('Security')}
         description={t('Manage your security settings and account access')}
-        icon={<Shield className='h-4 w-4' />}
-        iconTone='success'
-        disableHoverEffect
-      >
-        <div className='grid grid-cols-1 gap-2.5 sm:gap-3 md:grid-cols-3'>
-          {securityActions.map((item) => (
-            <button
-              key={item.title}
-              type='button'
-              onClick={item.action}
-              className={`flex items-center gap-3 rounded-lg border p-3 text-left md:flex-col md:gap-2 md:p-4 md:text-center ${
-                item.variant === 'destructive' ? 'border-destructive/30' : ''
-              }`}
-            >
-              <IconBadge tone='neutral' size='sm'>
+      />
+      <div className='grid grid-cols-1 gap-3 md:grid-cols-3'>
+        {securityActions.map((item, index) => (
+          <motion.button
+            key={item.title}
+            type='button'
+            onClick={item.action}
+            initial={shouldReduce ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...MOTION_TRANSITION.fast, delay: index * 0.04 }}
+            whileHover={shouldReduce ? undefined : { y: -2 }}
+            whileTap={shouldReduce ? undefined : { scale: 0.98 }}
+            className={cn(
+              'group/sec border-border/50 bg-card/80 relative flex flex-col gap-3 rounded-2xl border p-4 text-left shadow-[0_1px_0_0_color-mix(in_oklch,var(--foreground)_4%,transparent)] backdrop-blur-sm transition-[border-color,background-color,box-shadow] duration-200',
+              'hover:border-border hover:bg-card focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+              item.variant === 'destructive' &&
+                'hover:border-destructive/40 hover:bg-destructive/5'
+            )}
+          >
+            <div className='flex items-start justify-between gap-2'>
+              <IconBadge
+                tone={item.tone}
+                size='md'
+                className='transition-transform duration-200 group-hover/sec:scale-105'
+              >
                 <item.icon />
               </IconBadge>
-              <div className='min-w-0 md:contents'>
-                <p className='text-sm font-medium'>{item.title}</p>
-                <p className='text-muted-foreground line-clamp-1 text-xs md:line-clamp-none'>
-                  {item.description}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </TitledCard>
+              <ChevronRight className='text-muted-foreground size-4 opacity-0 transition-all duration-200 group-hover/sec:translate-x-0.5 group-hover/sec:opacity-100' />
+            </div>
+            <div className='min-w-0 space-y-1'>
+              <p
+                className={cn(
+                  'text-sm font-semibold tracking-tight',
+                  item.variant === 'destructive' && 'text-destructive'
+                )}
+              >
+                {item.title}
+              </p>
+              <p className='text-muted-foreground line-clamp-2 text-xs leading-relaxed'>
+                {item.description}
+              </p>
+            </div>
+          </motion.button>
+        ))}
+      </div>
 
-      {/* Dialogs */}
       <ChangePasswordDialog
         open={dialogs.isOpen('password')}
         onOpenChange={(open) =>

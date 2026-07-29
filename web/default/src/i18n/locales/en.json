@@ -6394,6 +6394,9 @@
     "Site Common Logs": "Site Common Logs",
     "Site Task Logs": "Site Task Logs",
     "Full key metadata and restrictions": "Full key metadata and restrictions",
-    "Columns": "Columns"
+    "Columns": "Columns",
+    "Protection": "Protection",
+    "Sign-in methods and devices for this account": "Sign-in methods and devices for this account",
+    "Alerts": "Alerts"
   }
 }

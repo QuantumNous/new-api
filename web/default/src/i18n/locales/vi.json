@@ -6394,6 +6394,9 @@
     "Site Common Logs": "Nhật ký chung toàn trang",
     "Site Task Logs": "Nhật ký tác vụ toàn trang",
     "Full key metadata and restrictions": "Siêu dữ liệu đầy đủ và hạn chế của khóa",
-    "Columns": "Cột"
+    "Columns": "Cột",
+    "Protection": "Bảo vệ",
+    "Sign-in methods and devices for this account": "Phương thức đăng nhập và thiết bị của tài khoản này",
+    "Alerts": "Cảnh báo"
   }
 }
