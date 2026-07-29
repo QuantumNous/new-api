@@ -97,12 +97,41 @@ export function getDisplayGroupRatio(
 /**
  * Group models by vendor for Apilio-style Model Hub card sections.
  * Unknown vendors collapse into a single "Other" bucket at the end.
+ *
+ * Preferred marketplace order (OpenAI / Gemini / DeepSeek / Kimi first;
+ * Anthropic later). Unlisted named vendors keep first-seen order after
+ * preferred ones; Anthropic is forced after the preferred block; Other last.
  */
 export type VendorModelGroup = {
   key: string
   name: string
   icon?: string
   models: PricingModel[]
+}
+
+/** Lower rank = earlier section. Matched case-insensitively on vendor name. */
+const PREFERRED_VENDOR_RANK: Array<{ match: RegExp; rank: number }> = [
+  { match: /^openai$/i, rank: 10 },
+  { match: /^(google|gemini)/i, rank: 20 },
+  { match: /^deepseek/i, rank: 30 },
+  { match: /^(moonshot|kimi)/i, rank: 40 },
+  { match: /^(xai|grok)/i, rank: 50 },
+  { match: /^(zhipu|智谱|glm)/i, rank: 60 },
+  // Anthropic deliberately after the main block
+  { match: /^(anthropic|claude)/i, rank: 80 },
+]
+
+const DEFAULT_NAMED_VENDOR_RANK = 70
+const OTHER_VENDOR_RANK = 1000
+
+function vendorSectionRank(name: string, isOther: boolean): number {
+  if (isOther) return OTHER_VENDOR_RANK
+  for (const entry of PREFERRED_VENDOR_RANK) {
+    if (entry.match.test(name.trim())) {
+      return entry.rank
+    }
+  }
+  return DEFAULT_NAMED_VENDOR_RANK
 }
 
 export function groupModelsByVendor(
@@ -134,12 +163,16 @@ export function groupModelsByVendor(
     order.push(key)
   }
 
-  // Keep named vendors first; push the Other bucket to the end.
-  const otherKeys = order.filter((k) => k.startsWith('other:'))
-  const namedKeys = order.filter((k) => !k.startsWith('other:'))
-  return [...namedKeys, ...otherKeys]
-    .map((key) => groups.get(key))
-    .filter((group): group is VendorModelGroup => Boolean(group))
+  const firstSeen = new Map(order.map((key, index) => [key, index]))
+
+  return [...groups.values()].sort((a, b) => {
+    const aOther = a.key.startsWith('other:')
+    const bOther = b.key.startsWith('other:')
+    const rankA = vendorSectionRank(a.name, aOther)
+    const rankB = vendorSectionRank(b.name, bOther)
+    if (rankA !== rankB) return rankA - rankB
+    return (firstSeen.get(a.key) ?? 0) - (firstSeen.get(b.key) ?? 0)
+  })
 }
 
 /**
