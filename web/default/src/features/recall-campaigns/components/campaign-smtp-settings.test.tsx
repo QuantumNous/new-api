@@ -422,6 +422,9 @@ describe('CampaignSMTPSettings', () => {
     )
 
     expect(html).toContain('Activity SMTP settings')
+    expect(html).toContain('w-full')
+    expect(html).toContain('min-w-0')
+    expect(html).not.toContain('min-w-80')
     expect(html).toContain('Configured')
     expect(html).toContain('value="smtp.example.com"')
     expect(html).toContain('type="password"')

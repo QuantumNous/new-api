@@ -208,6 +208,45 @@ const legacyActivityConfigurationKeys = [
   'Back to Recall Campaigns',
 ] as const
 
+const activitySMTPNaturalTranslationExpectations = {
+  es: {
+    'Activity SMTP settings': 'Configuración SMTP de actividades',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Todas las campañas de Configuración de actividad usan esta cuenta SMTP dedicada.',
+    'SMTP server is required.': 'El servidor SMTP es obligatorio.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'Falló la entrega SMTP de la actividad. Revisa el host, el puerto, las credenciales, el modo TLS y la autorización del remitente, y vuelve a intentarlo.',
+    'Save SMTP settings': 'Guardar configuración SMTP',
+  },
+  fr: {
+    'Activity SMTP settings': 'Paramètres SMTP des activités',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Toutes les campagnes de configuration d’activité utilisent ce compte SMTP dédié.',
+    'SMTP server is required.': 'Le serveur SMTP est obligatoire.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'L’envoi SMTP de l’activité a échoué. Vérifiez l’hôte, le port, les identifiants, le mode TLS et l’autorisation de l’expéditeur, puis réessayez.',
+    'Save SMTP settings': 'Enregistrer les paramètres SMTP',
+  },
+  pt: {
+    'Activity SMTP settings': 'Configurações SMTP de atividades',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Todas as campanhas de Configuração de atividade usam esta conta SMTP dedicada.',
+    'SMTP server is required.': 'O servidor SMTP é obrigatório.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'A entrega SMTP da atividade falhou. Verifique host, porta, credenciais, modo TLS e autorização do remetente, depois tente novamente.',
+    'Save SMTP settings': 'Salvar configurações de SMTP',
+  },
+  vi: {
+    'Activity SMTP settings': 'Cài đặt SMTP cho hoạt động',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Tất cả chiến dịch Cấu hình hoạt động dùng tài khoản SMTP chuyên dụng này.',
+    'SMTP server is required.': 'Bắt buộc nhập máy chủ SMTP.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'Gửi SMTP cho hoạt động thất bại. Hãy kiểm tra máy chủ, cổng, thông tin xác thực, chế độ TLS và ủy quyền người gửi, rồi thử lại.',
+    'Save SMTP settings': 'Lưu cài đặt SMTP',
+  },
+} as const
+
 describe('recall campaign copy', () => {
   test('maps each audience template to its explanation', () => {
     expect(audienceTemplateDescriptionKeys).toEqual({
@@ -250,6 +289,17 @@ describe('recall campaign copy', () => {
         ['Failed to load', 'sender addresses.'].join(' '),
       ])
     )
+  })
+
+  test('keeps Activity SMTP locale values as natural UTF-8 translations', () => {
+    for (const [locale, expectations] of Object.entries(
+      activitySMTPNaturalTranslationExpectations
+    )) {
+      const translations = localeTranslations[locale]
+      for (const [key, expected] of Object.entries(expectations)) {
+        expect(translations[key], `${locale} ${key}`).toBe(expected)
+      }
+    }
   })
 
   for (const [locale, translations] of Object.entries(localeTranslations)) {

@@ -207,7 +207,7 @@ export function CampaignSMTPSettingsView(
   const disabled = props.disabled || props.pending
 
   return (
-    <div className='min-w-80 space-y-3 rounded-lg border p-3'>
+    <div className='w-full min-w-0 space-y-3 rounded-lg border p-3'>
       <div className='flex items-start justify-between gap-3'>
         <div className='space-y-1'>
           <h2 className='text-sm font-medium'>{t('Activity SMTP settings')}</h2>
