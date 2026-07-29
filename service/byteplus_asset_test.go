@@ -185,6 +185,39 @@ func TestBytePlusAssetCreateSelectsStructuredBytePlusChannelAndPersistsProcessin
 	}
 }
 
+func TestBytePlusAssetCreateDoesNotPersistSourceURLSecrets(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{
+		groupID:    "upstream-group",
+		groupReqID: "req-group",
+		assetID:    "upstream-asset",
+		assetReqID: "req-asset",
+	}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+
+	signedURL := "https://example.com/private.mp4?X-Amz-Signature=secret-signature&X-Amz-Credential=secret-credential"
+	resp, err := CreateBytePlusAsset(context.Background(), 7, "default", "default", 0, dto.BytePlusAssetCreateRequest{
+		URL:       signedURL,
+		AssetType: "Video",
+	})
+	if err != nil {
+		t.Fatalf("CreateBytePlusAsset returned error: %v", err)
+	}
+	if resp.ID == "" || fake.lastCreate.URL != signedURL {
+		t.Fatalf("upstream create did not receive original URL: resp=%+v lastCreate=%+v", resp, fake.lastCreate)
+	}
+
+	var asset model.BytePlusAsset
+	if err := model.DB.First(&asset, "public_id = ?", "ast_fixed").Error; err != nil {
+		t.Fatalf("load asset: %v", err)
+	}
+	if asset.SourceURL != "" {
+		t.Fatalf("stored source URL leaked request URL: %q", asset.SourceURL)
+	}
+}
+
 func TestBytePlusAssetCreateHonorsSpecificChannel(t *testing.T) {
 	newBytePlusAssetServiceTestDB(t)
 	restore := installBytePlusAssetServiceTestDeps(t, &fakeBytePlusAssetClient{groupID: "g", groupReqID: "req-g", assetID: "a", assetReqID: "req-a"})
@@ -498,6 +531,39 @@ func TestBytePlusAssetUpdateFailureLogsOnlySafeCorrelationFields(t *testing.T) {
 		if strings.Contains(logged, forbidden) {
 			t.Fatalf("restricted log leaked %q in %q", forbidden, logged)
 		}
+	}
+}
+
+func TestBytePlusAssetCreateMarksLocalAssetFailedWhenUpstreamPersistFails(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{
+		groupID:    "upstream-group-secret",
+		groupReqID: "req-group",
+		assetID:    "upstream-asset-secret",
+		assetReqID: "req-asset",
+	}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+
+	oldUpdate := bytePlusAssetUpdateAssetUpstreamCreated
+	bytePlusAssetUpdateAssetUpstreamCreated = func(assetID int64, upstreamAssetID string, upstreamRequestID string, status string, now int64) error {
+		return errors.New("transient upstream persistence failure")
+	}
+	defer func() { bytePlusAssetUpdateAssetUpstreamCreated = oldUpdate }()
+
+	_, err := CreateBytePlusAsset(context.Background(), 7, "default", "default", 0, dto.BytePlusAssetCreateRequest{
+		URL:       "https://example.com/private.png?token=secret",
+		AssetType: "Image",
+	})
+	assertAssetError(t, err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+
+	var asset model.BytePlusAsset
+	if err := model.DB.First(&asset, "public_id = ?", "ast_fixed").Error; err != nil {
+		t.Fatalf("load asset: %v", err)
+	}
+	if asset.Status != model.BytePlusAssetStatusFailed || asset.UpstreamAssetId != "" || asset.SourceURL != "" {
+		t.Fatalf("asset should be locally failed without persisting upstream/source secrets: %+v", asset)
 	}
 }
 

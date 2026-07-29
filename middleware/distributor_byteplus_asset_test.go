@@ -184,6 +184,36 @@ func TestBytePlusAssetPinnedChannelHonorsTokenModelAccessBeforeSpecificChannel(t
 	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
 }
 
+func TestBytePlusAssetTokenModelLimitRejectsBeforeAssetLookup(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	model.InitChannelCache()
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyUserId, 7)
+		common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyTokenModelLimitEnabled, true)
+		common.SetContextKey(c, constant.ContextKeyTokenModelLimit, map[string]bool{"gpt-4": true})
+		c.Next()
+	})
+	router.Use(Distribute())
+	router.POST("/v1/videos", func(c *gin.Context) {
+		c.String(http.StatusInternalServerError, "handler should not run")
+	})
+
+	recorder := performBytePlusAssetDistributorRequest(router, "", `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`)
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "This token has no access to model seedance-2.0")
+	require.NotContains(t, recorder.Body.String(), "asset_not_found")
+	require.NotContains(t, recorder.Body.String(), "asset_not_ready")
+}
+
 func TestBytePlusAssetPinnedChannelUsesAuthorizedAutoGroup(t *testing.T) {
 	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
 	defer restoreDB()

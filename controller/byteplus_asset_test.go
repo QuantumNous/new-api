@@ -166,6 +166,29 @@ func TestGetBytePlusAssetUsesPathIDAndAuthenticatedUser(t *testing.T) {
 	require.Equal(t, model.BytePlusAssetStatusActive, response.Status)
 }
 
+func TestGetBytePlusAssetRejectsTokenWithoutSeedanceModelAccess(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+
+	originalGet := getBytePlusAsset
+	t.Cleanup(func() { getBytePlusAsset = originalGet })
+	getBytePlusAsset = func(context.Context, int, string) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
+		t.Fatalf("service must not be called when token cannot access seedance-2.0")
+		return nil, nil
+	}
+
+	ctx, recorder := newBytePlusAssetJSONContext(http.MethodGet, "/v1/assets/ast_1234567890abcdefABCDEF1234567890", "")
+	ctx.Params = gin.Params{{Key: "asset_id", Value: "ast_1234567890abcdefABCDEF1234567890"}}
+	setBytePlusAssetTokenContext(ctx)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{"gpt-4": true})
+	GetBytePlusAsset(ctx)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code)
+	requireBytePlusAssetError(t, recorder.Body.Bytes(), string(types.ErrorCodeAccessDenied), "This token has no access to model seedance-2.0")
+	requireBytePlusAssetPublicBody(t, recorder.Body.String())
+}
+
 func TestGetBytePlusAssetMapsNilServiceResponseToStorageError(t *testing.T) {
 	require.NoError(t, backendI18n.Init())
 	gin.SetMode(gin.TestMode)

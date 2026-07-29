@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -110,4 +111,19 @@ func TestSetRouterIncludesBytePlusAssetRoutes(t *testing.T) {
 
 	require.True(t, routes[http.MethodPost+" /v1/assets"])
 	require.True(t, routes[http.MethodGet+" /v1/assets/:asset_id"])
+}
+
+func TestSetRouterAppliesRelayGlobalMiddlewareToBytePlusAssetRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	SetRouter(engine, ThemeAssets{})
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/assets", bytes.NewBufferString("not gzip"))
+	request.Header.Set("Content-Encoding", "gzip")
+	recorder := httptest.NewRecorder()
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
 }

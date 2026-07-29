@@ -84,7 +84,6 @@ func CreateBytePlusAsset(ctx context.Context, userID int, userGroup string, usin
 		AssetGroupId:       group.Id,
 		ChannelId:          channel.Id,
 		AssetType:          request.AssetType,
-		SourceURL:          request.URL,
 		ModerationStrategy: moderation,
 		Status:             model.BytePlusAssetStatusCreating,
 		CreatedTime:        now,
@@ -106,6 +105,7 @@ func CreateBytePlusAsset(ctx context.Context, userID int, userGroup string, usin
 		return nil, assetError(err, types.ErrorCodeAssetUpstreamError, http.StatusBadGateway)
 	}
 	if err := bytePlusAssetUpdateAssetUpstreamCreated(asset.Id, upstreamID, requestID, model.BytePlusAssetStatusProcessing, bytePlusAssetNow()); err != nil {
+		_ = model.UpdateBytePlusAssetStatus(asset.Id, model.BytePlusAssetStatusFailed, "upstream asset persistence failed", bytePlusAssetNow())
 		logBytePlusAssetPersistenceFailure(ctx, channel.Id, requestID)
 		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}

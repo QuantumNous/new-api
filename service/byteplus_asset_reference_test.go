@@ -108,6 +108,91 @@ func TestResolveBytePlusAssetReferencesRequiresMatchingMediaType(t *testing.T) {
 	}
 }
 
+func TestResolveBytePlusAssetReferencesScansPopulatedMediaFieldsIndependentOfType(t *testing.T) {
+	tests := []struct {
+		name      string
+		item      func(image, video model.BytePlusAsset) dto.SeedanceContentItem
+		wantRefs  int
+		wantImage bool
+		wantVideo bool
+	}{
+		{
+			name: "missing type image field",
+			item: func(image, video model.BytePlusAsset) dto.SeedanceContentItem {
+				return dto.SeedanceContentItem{ImageURL: &dto.SeedanceURLObject{URL: "asset://" + image.PublicId}}
+			},
+			wantRefs:  1,
+			wantImage: true,
+		},
+		{
+			name: "wrong type video field",
+			item: func(image, video model.BytePlusAsset) dto.SeedanceContentItem {
+				return dto.SeedanceContentItem{Type: dto.SeedanceContentText, VideoURL: &dto.SeedanceURLObject{URL: "asset://" + video.PublicId}}
+			},
+			wantRefs:  1,
+			wantVideo: true,
+		},
+		{
+			name: "multiple populated media fields",
+			item: func(image, video model.BytePlusAsset) dto.SeedanceContentItem {
+				return dto.SeedanceContentItem{
+					Type:     dto.SeedanceContentImage,
+					ImageURL: &dto.SeedanceURLObject{URL: "asset://" + image.PublicId},
+					VideoURL: &dto.SeedanceURLObject{URL: "asset://" + video.PublicId},
+				}
+			},
+			wantRefs:  2,
+			wantImage: true,
+			wantVideo: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newBytePlusAssetReferenceDB(t)
+			image := insertBytePlusReferenceAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusActive)
+			video := insertBytePlusReferenceAsset(t, 7, 131, "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "upstream-video", model.BytePlusAssetStatusActive)
+			if err := model.DB.Model(&video).Update("asset_type", "Video").Error; err != nil {
+				t.Fatalf("update video asset type: %v", err)
+			}
+
+			resolution, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, &dto.SeedanceVideoRequest{
+				Content: []dto.SeedanceContentItem{tt.item(image, video)},
+			})
+			if apiErr != nil {
+				t.Fatalf("ResolveBytePlusAssetReferences error: %v", apiErr)
+			}
+			if len(resolution.RewriteMap) != tt.wantRefs {
+				t.Fatalf("rewrite map len = %d, want %d: %#v", len(resolution.RewriteMap), tt.wantRefs, resolution.RewriteMap)
+			}
+			if tt.wantImage && resolution.RewriteMap["asset://"+image.PublicId] != "asset://upstream-image" {
+				t.Fatalf("image rewrite missing: %#v", resolution.RewriteMap)
+			}
+			if tt.wantVideo && resolution.RewriteMap["asset://"+video.PublicId] != "asset://upstream-video" {
+				t.Fatalf("video rewrite missing: %#v", resolution.RewriteMap)
+			}
+		})
+	}
+}
+
+func TestResolveBytePlusAssetReferencesValidatesAssetTypeByPopulatedField(t *testing.T) {
+	newBytePlusAssetReferenceDB(t)
+	asset := insertBytePlusReferenceAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusActive)
+	req := &dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{
+		{Type: dto.SeedanceContentText, VideoURL: &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}},
+	}}
+
+	resolution, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, req)
+	if apiErr == nil {
+		t.Fatal("expected asset type mismatch error")
+	}
+	if apiErr.GetErrorCode() != types.ErrorCodeInvalidAssetRequest || apiErr.StatusCode != http.StatusBadRequest {
+		t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	if resolution.HasReferences() {
+		t.Fatalf("unexpected references: %#v", resolution)
+	}
+}
+
 func TestResolveBytePlusAssetReferencesMapsStatusFailures(t *testing.T) {
 	tests := []struct {
 		name       string

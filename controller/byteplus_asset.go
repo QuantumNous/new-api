@@ -20,7 +20,7 @@ var (
 	getBytePlusAsset    = service.GetBytePlusAsset
 )
 
-const bytePlusAssetCreateModel = "seedance-2.0"
+const bytePlusAssetModel = "seedance-2.0"
 
 func CreateBytePlusAsset(c *gin.Context) {
 	var request dto.BytePlusAssetCreateRequest
@@ -35,7 +35,7 @@ func CreateBytePlusAsset(c *gin.Context) {
 		return
 	}
 
-	if !bytePlusAssetTokenAllowsCreateModel(c) {
+	if !bytePlusAssetTokenAllowsModel(c) {
 		writeBytePlusAssetModelForbidden(c)
 		return
 	}
@@ -66,6 +66,11 @@ func GetBytePlusAsset(c *gin.Context) {
 		return
 	}
 
+	if !bytePlusAssetTokenAllowsModel(c) {
+		writeBytePlusAssetModelForbidden(c)
+		return
+	}
+
 	response, apiErr := getBytePlusAsset(c.Request.Context(), common.GetContextKeyInt(c, constant.ContextKeyUserId), assetID)
 	if apiErr != nil {
 		writeBytePlusAssetError(c, apiErr)
@@ -90,7 +95,7 @@ func bytePlusAssetSpecificChannelID(c *gin.Context) (int, bool) {
 	return id, true
 }
 
-func bytePlusAssetTokenAllowsCreateModel(c *gin.Context) bool {
+func bytePlusAssetTokenAllowsModel(c *gin.Context) bool {
 	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
 		return true
 	}
@@ -99,12 +104,12 @@ func bytePlusAssetTokenAllowsCreateModel(c *gin.Context) bool {
 		return false
 	}
 	allowlist, ok := value.(map[string]bool)
-	return ok && service.TokenAllowsModel(allowlist, bytePlusAssetCreateModel)
+	return ok && service.TokenAllowsModel(allowlist, bytePlusAssetModel)
 }
 
 func writeBytePlusAssetModelForbidden(c *gin.Context) {
 	c.JSON(http.StatusForbidden, gin.H{"error": types.OpenAIError{
-		Message: i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": bytePlusAssetCreateModel}),
+		Message: i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": bytePlusAssetModel}),
 		Type:    string(types.ErrorCodeAccessDenied),
 		Code:    string(types.ErrorCodeAccessDenied),
 		Param:   "",

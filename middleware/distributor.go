@@ -71,12 +71,11 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
-		assetResolution, assetErr := resolveBytePlusAssetResolution(c, shouldSelectChannel)
-		if assetErr != nil {
-			abortWithOpenAiMessage(c, assetErr.StatusCode, bytePlusAssetPublicMessage(assetErr.GetErrorCode()), assetErr.GetErrorCode())
+		hasAssetRefs, assetPreflightErr := hasBytePlusAssetReferences(c, shouldSelectChannel)
+		if assetPreflightErr != nil {
+			abortWithOpenAiMessage(c, assetPreflightErr.StatusCode, bytePlusAssetPublicMessage(assetPreflightErr.GetErrorCode()), assetPreflightErr.GetErrorCode())
 			return
 		}
-		hasAssetRefs := assetResolution.HasReferences()
 		if shouldSelectChannel && (!ok || hasAssetRefs) {
 			if modelRequest.Model == "" {
 				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
@@ -100,6 +99,12 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
+		assetResolution, assetErr := resolveBytePlusAssetResolution(c, shouldSelectChannel)
+		if assetErr != nil {
+			abortWithOpenAiMessage(c, assetErr.StatusCode, bytePlusAssetPublicMessage(assetErr.GetErrorCode()), assetErr.GetErrorCode())
+			return
+		}
+		hasAssetRefs = assetResolution.HasReferences()
 		var pinnedChannel *model.Channel
 		pinnedSelectGroup := ""
 		if hasAssetRefs {
@@ -311,6 +316,51 @@ func resolveBytePlusAssetResolution(c *gin.Context, shouldSelectChannel bool) (s
 		return service.BytePlusAssetReferenceResolution{}, bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 	}
 	return service.ResolveBytePlusAssetReferences(c, common.GetContextKeyInt(c, constant.ContextKeyUserId), &seedanceReq)
+}
+
+func hasBytePlusAssetReferences(c *gin.Context, shouldSelectChannel bool) (bool, *types.NewAPIError) {
+	if !shouldSelectChannel || c == nil || c.Request == nil {
+		return false, nil
+	}
+	relayMode, _ := c.Get("relay_mode")
+	if relayMode != relayconstant.RelayModeVideoSubmit {
+		return false, nil
+	}
+
+	var seedanceReq dto.SeedanceVideoRequest
+	if err := common.UnmarshalBodyReusable(c, &seedanceReq); err != nil {
+		return false, bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	for _, item := range seedanceReq.Content {
+		for _, raw := range []string{
+			seedanceItemURL(item.ImageURL),
+			seedanceItemURL(item.VideoURL),
+			seedanceItemURL(item.AudioURL),
+		} {
+			hasReference, apiErr := bytePlusAssetURLHasReference(raw)
+			if apiErr != nil || hasReference {
+				return hasReference, apiErr
+			}
+		}
+	}
+	return false, nil
+}
+
+func seedanceItemURL(urlObject *dto.SeedanceURLObject) string {
+	if urlObject == nil {
+		return ""
+	}
+	return urlObject.URL
+}
+
+func bytePlusAssetURLHasReference(raw string) (bool, *types.NewAPIError) {
+	if service.IsStrictBytePlusAssetURI(raw) {
+		return true, nil
+	}
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "asset:") {
+		return false, bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	return false, nil
 }
 
 // BytePlus asset references are resolved before normal channel selection so

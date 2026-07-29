@@ -121,24 +121,19 @@ func extractBytePlusAssetPublicIDs(req *dto.SeedanceVideoRequest) ([]bytePlusAss
 		return nil
 	}
 	for _, item := range req.Content {
-		switch item.Type {
-		case dto.SeedanceContentImage:
-			if item.ImageURL != nil {
-				if apiErr := add(item.ImageURL.URL, "Image"); apiErr != nil {
-					return nil, apiErr
-				}
+		if item.ImageURL != nil {
+			if apiErr := add(item.ImageURL.URL, "Image"); apiErr != nil {
+				return nil, apiErr
 			}
-		case dto.SeedanceContentVideo:
-			if item.VideoURL != nil {
-				if apiErr := add(item.VideoURL.URL, "Video"); apiErr != nil {
-					return nil, apiErr
-				}
+		}
+		if item.VideoURL != nil {
+			if apiErr := add(item.VideoURL.URL, "Video"); apiErr != nil {
+				return nil, apiErr
 			}
-		case dto.SeedanceContentAudio:
-			if item.AudioURL != nil {
-				if apiErr := add(item.AudioURL.URL, "Audio"); apiErr != nil {
-					return nil, apiErr
-				}
+		}
+		if item.AudioURL != nil {
+			if apiErr := add(item.AudioURL.URL, "Audio"); apiErr != nil {
+				return nil, apiErr
 			}
 		}
 	}

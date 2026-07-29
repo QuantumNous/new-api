@@ -587,13 +587,14 @@ func resolveOriginTaskWithBytePlusAssetLock(c *gin.Context, info *relaycommon.Re
 	}
 	info.LockedChannel = pinnedChannel
 
-	if taskErr := resolveFn(c, info); taskErr != nil {
-		return taskErr
-	}
+	resolveErr := resolveFn(c, info)
 	if info == nil || info.TaskRelayInfo == nil || info.LockedChannel == nil {
 		return bytePlusAssetTaskError(types.ErrorCodeAssetChannelConflict, http.StatusConflict)
 	}
-	return validateBytePlusAssetPinnedLock(info, pinnedChannelID)
+	if taskErr := validateBytePlusAssetPinnedLock(info, pinnedChannelID); taskErr != nil {
+		return taskErr
+	}
+	return resolveErr
 }
 
 func lockBytePlusAssetPinnedChannel(c *gin.Context, info *relaycommon.RelayInfo, pinnedChannelID int) (*model.Channel, *dto.TaskError) {

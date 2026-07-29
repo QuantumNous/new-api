@@ -99,6 +99,25 @@ func TestBytePlusAssetOriginResolverRejectsClearedPinnedLock(t *testing.T) {
 	requireBytePlusTaskError(t, taskErr, "asset_channel_conflict", http.StatusConflict)
 }
 
+func TestBytePlusAssetOriginResolverRejectsPinnedLockMutationBeforeResolverError(t *testing.T) {
+	restoreDB := useControllerBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	insertControllerBytePlusChannel(t, 131, common.ChannelStatusEnabled, constant.ChannelTypeBytePlus)
+
+	c := newControllerBytePlusAssetContext()
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetPinnedChannelID, 131)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:   &relaycommon.ChannelMeta{},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+	}
+
+	taskErr := resolveOriginTaskWithBytePlusAssetLock(c, info, func(_ *gin.Context, got *relaycommon.RelayInfo) *dto.TaskError {
+		got.LockedChannel = &model.Channel{Id: 132, Type: constant.ChannelTypeBytePlus, Status: common.ChannelStatusEnabled}
+		return &dto.TaskError{Code: "origin_resolver_failed", StatusCode: http.StatusBadGateway}
+	})
+	requireBytePlusTaskError(t, taskErr, "asset_channel_conflict", http.StatusConflict)
+}
+
 func TestBytePlusAssetOriginResolverRejectsPinnedChannelMismatches(t *testing.T) {
 	tests := []struct {
 		name      string
