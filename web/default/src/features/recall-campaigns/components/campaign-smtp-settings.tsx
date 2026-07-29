@@ -160,10 +160,11 @@ function FieldError({
   id: string
   message?: string
 }): React.JSX.Element | null {
+  const { t } = useTranslation()
   if (!message) return null
   return (
     <p id={id} role='alert' className='text-destructive text-xs'>
-      {message}
+      {t(message)}
     </p>
   )
 }

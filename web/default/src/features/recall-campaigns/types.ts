@@ -234,18 +234,6 @@ export interface RecallEmailQuotaStatus {
   exhausted: boolean
 }
 
-export interface RecallEmailSenderOption {
-  email: string
-  is_default: boolean
-}
-
-export interface RecallEmailSenderStatus {
-  configured_email_from: string
-  effective_email_from: string
-  uses_default: boolean
-  options: RecallEmailSenderOption[]
-}
-
 export interface RecallActivitySMTPStatus {
   server: string
   port: number

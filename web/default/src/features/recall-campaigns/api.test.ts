@@ -6,7 +6,6 @@ import {
   exportRecallCampaign,
   generateRecallEmailTranslations,
   getRecallActivitySMTPStatus,
-  getRecallEmailSenderStatus,
   getRecallEmailQuotaStatus,
   updateRecallEmailQuotaLimit,
   getRecallSubscriptionProductConfiguration,
@@ -25,7 +24,6 @@ import {
   runRecallCampaignAction,
   updateRecallCampaign,
   updateRecallActivitySMTP,
-  updateRecallEmailSender,
   validateRecallStripeConfig,
   RecallApiError,
 } from './api'
@@ -247,49 +245,6 @@ describe('recall campaign API contracts', () => {
     expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-quota')
     expect(capturedConfig?.method).toBe('put')
     expect(JSON.parse(String(capturedConfig?.data))).toEqual({ limit: 250 })
-  })
-
-  test('loads the activity email sender from its dedicated endpoint', async () => {
-    respondWith({
-      success: true,
-      data: {
-        configured_email_from: '',
-        effective_email_from: 'smtp@example.com',
-        uses_default: true,
-        options: [{ email: 'smtp@example.com', is_default: true }],
-      },
-    })
-
-    await getRecallEmailSenderStatus()
-
-    expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-sender')
-    expect(recallCampaignKeys.emailSender).toEqual([
-      'recall-campaigns',
-      'email-sender',
-    ])
-  })
-
-  test('updates the activity email sender with the canonical email_from value', async () => {
-    respondWith({
-      success: true,
-      data: {
-        configured_email_from: 'alias@example.com',
-        effective_email_from: 'alias@example.com',
-        uses_default: false,
-        options: [
-          { email: 'smtp@example.com', is_default: true },
-          { email: 'alias@example.com', is_default: false },
-        ],
-      },
-    })
-
-    await updateRecallEmailSender('alias@example.com')
-
-    expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-sender')
-    expect(capturedConfig?.method).toBe('put')
-    expect(JSON.parse(String(capturedConfig?.data))).toEqual({
-      email_from: 'alias@example.com',
-    })
   })
 
   test('uses a stable query key for the dedicated activity SMTP settings', () => {

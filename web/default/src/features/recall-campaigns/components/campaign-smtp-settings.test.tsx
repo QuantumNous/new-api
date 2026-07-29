@@ -27,6 +27,22 @@ await testI18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 })
 
+const translatedI18n = createInstance()
+await translatedI18n.use(initReactI18next).init({
+  lng: 'en',
+  fallbackLng: 'en',
+  resources: {
+    en: {
+      translation: {
+        'SMTP server is required.': 'Translated server required',
+        'SMTP port must be between 1 and 65535.':
+          'Translated port range required',
+      },
+    },
+  },
+  interpolation: { escapeValue: false },
+})
+
 const originalGlobalPropertyDescriptors = new Map<
   PropertyKey,
   PropertyDescriptor | undefined
@@ -592,6 +608,32 @@ describe('CampaignSMTPSettings', () => {
     expect(html).toContain(
       'aria-describedby="recall-smtp-token-help recall-smtp-token-error"'
     )
+  })
+
+  test('translates field validation errors before rendering FieldError alerts', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={translatedI18n}>
+        <CampaignSMTPSettingsView
+          disabled={false}
+          error=''
+          fieldErrors={{
+            port: 'SMTP port must be between 1 and 65535.',
+            server: 'SMTP server is required.',
+          }}
+          pending={false}
+          status={makeStatus()}
+          success=''
+          values={createRecallActivitySMTPFormValues(makeStatus())}
+          onFieldChange={() => undefined}
+          onSave={() => undefined}
+        />
+      </I18nextProvider>
+    )
+
+    expect(html).toContain('Translated server required')
+    expect(html).toContain('Translated port range required')
+    expect(html).not.toContain('SMTP server is required.')
+    expect(html).not.toContain('SMTP port must be between 1 and 65535.')
   })
 
   test('successful save updates status and resets only the password input', () => {

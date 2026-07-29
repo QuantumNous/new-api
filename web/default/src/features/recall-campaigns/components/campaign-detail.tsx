@@ -42,6 +42,10 @@ import { CampaignPreviewDialog } from './campaign-preview-dialog'
 
 const DETAIL_PAGE_SIZE = 100
 const activationLocales = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi']
+const activitySMTPDeliveryFailure =
+  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+
+type Translate = (key: string) => string
 
 function getRecallActivationBlockerReason(
   stage: RecallEmailStage,
@@ -78,6 +82,16 @@ export function getRecallActivationReadiness(
     }
   }
   return { ready: blockers.length === 0, blockers }
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function formatRecallDeliveryErrorMessage(
+  message: string,
+  t: Translate
+): string {
+  if (!message) return ''
+  if (message === activitySMTPDeliveryFailure) return t(message)
+  return message
 }
 
 function formatTimestamp(value: number): string {
@@ -381,7 +395,10 @@ export function CampaignDetail(props: CampaignDetailProps) {
                               {message.last_error_message ? (
                                 <div className='text-destructive'>
                                   {message.last_error_code}:{' '}
-                                  {message.last_error_message}
+                                  {formatRecallDeliveryErrorMessage(
+                                    message.last_error_message,
+                                    t
+                                  )}
                                 </div>
                               ) : null}
                             </div>
@@ -390,7 +407,10 @@ export function CampaignDetail(props: CampaignDetailProps) {
                         {recipient.last_error_message ? (
                           <p className='text-destructive mt-2'>
                             {recipient.last_error_code}:{' '}
-                            {recipient.last_error_message}
+                            {formatRecallDeliveryErrorMessage(
+                              recipient.last_error_message,
+                              t
+                            )}
                           </p>
                         ) : null}
                       </TableCell>

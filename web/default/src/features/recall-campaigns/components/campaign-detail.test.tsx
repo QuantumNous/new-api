@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import type { RecallEmailStage } from '../types'
-import { getRecallActivationReadiness } from './campaign-detail'
+import {
+  formatRecallDeliveryErrorMessage,
+  getRecallActivationReadiness,
+} from './campaign-detail'
 
 const locales = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'] as const
 
@@ -84,4 +87,26 @@ describe('Recall campaign activation readiness', () => {
       })
     }
   )
+})
+
+describe('Recall campaign delivery errors', () => {
+  test('translates the stored safe Activity SMTP failure and preserves unknown messages', () => {
+    const t = (key: string) =>
+      key ===
+      'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+        ? 'Translated Activity SMTP failure'
+        : `translated:${key}`
+
+    expect(
+      formatRecallDeliveryErrorMessage(
+        'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
+        t
+      )
+    ).toBe('Translated Activity SMTP failure')
+
+    expect(formatRecallDeliveryErrorMessage('Raw backend detail', t)).toBe(
+      'Raw backend detail'
+    )
+    expect(formatRecallDeliveryErrorMessage('', t)).toBe('')
+  })
 })

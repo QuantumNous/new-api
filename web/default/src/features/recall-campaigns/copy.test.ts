@@ -146,14 +146,34 @@ const activityEmailLocalizationAndQuotaKeys = [
   'Save hourly limit',
 ] as const
 
-const activityEmailSenderCopyKeys = [
-  'Activity sender address',
-  'All Activity Configuration campaigns share this sender. Other system emails are unaffected.',
-  'Default SMTP sender ({{email}})',
-  'Failed to load sender addresses.',
-  'Failed to update sender address.',
-  'Sender address choices changed. Review and save again.',
-  'Save sender address',
+const recallActivitySMTPCopyKeys = [
+  'Activity SMTP settings',
+  'All Activity Configuration campaigns use this dedicated SMTP account.',
+  'SMTP server',
+  'SMTP port',
+  'SMTP account',
+  'Sender email',
+  'SMTP token',
+  'Leave blank to keep the existing SMTP token.',
+  'Enter the SMTP token before saving.',
+  'SSL enabled',
+  'Force AUTH LOGIN',
+  'Save SMTP settings',
+  'Saving',
+  'Activity SMTP settings saved.',
+  'Failed to load Activity SMTP settings.',
+  'Failed to update Activity SMTP settings.',
+  'Loading SMTP settings',
+  'Configured',
+  'Not configured',
+  'SMTP server is required.',
+  'SMTP port is required.',
+  'SMTP port must be an integer.',
+  'SMTP port must be between 1 and 65535.',
+  'SMTP account is required.',
+  'Sender must be a plain email address.',
+  'SMTP token is required for first save.',
+  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
 ] as const
 
 const recallHelpKeys = [
@@ -177,6 +197,7 @@ const recallHelpKeys = [
   ...specifiedUsersSelectorKeys,
   ...recallEmailPlaceholderHelpKeys,
   ...activityEmailLocalizationAndQuotaKeys,
+  ...recallActivitySMTPCopyKeys,
   ...translatedAudienceTemplateDescriptionKeys,
 ] as const
 
@@ -218,9 +239,16 @@ describe('recall campaign copy', () => {
     )
   })
 
-  test('registers source copy for the activity email sender control without owning locale translations', () => {
-    expect(recallCopy.recallActivityEmailCopyKeys).toEqual(
-      expect.arrayContaining([...activityEmailSenderCopyKeys])
+  test('registers source copy for dedicated Activity SMTP settings without legacy sender aliases', () => {
+    expect(recallCopy.recallActivitySMTPCopyKeys).toEqual(
+      expect.arrayContaining([...recallActivitySMTPCopyKeys])
+    )
+    expect(recallCopy.recallActivityEmailCopyKeys).not.toEqual(
+      expect.arrayContaining([
+        ['Activity', 'sender', 'address'].join(' '),
+        ['Save', 'sender', 'address'].join(' '),
+        ['Failed to load', 'sender addresses.'].join(' '),
+      ])
     )
   })
 
