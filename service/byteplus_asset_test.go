@@ -374,6 +374,67 @@ func TestBytePlusAssetGetRefreshesUpstreamStatusAndScopesOwnership(t *testing.T)
 	}
 }
 
+func TestBytePlusAssetGetReturnsFailedBeforeReadinessForLocalFailure(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{createErr: errors.New("upstream create failed")}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+
+	_, err := CreateBytePlusAsset(context.Background(), 7, "default", "default", 0, dto.BytePlusAssetCreateRequest{
+		URL:       "https://example.com/a.png",
+		AssetType: "Image",
+	})
+	assertAssetError(t, err, types.ErrorCodeAssetUpstreamError, http.StatusBadGateway)
+
+	var stored model.BytePlusAsset
+	if err := model.DB.First(&stored, "public_id = ?", "ast_fixed").Error; err != nil {
+		t.Fatalf("load locally failed asset: %v", err)
+	}
+	if stored.Status != model.BytePlusAssetStatusFailed || stored.UpstreamAssetId != "" {
+		t.Fatalf("stored asset = %+v", stored)
+	}
+
+	_, err = GetBytePlusAsset(context.Background(), 7, "ast_fixed")
+	assertAssetError(t, err, types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
+	if fake.getAssetCalls != 0 {
+		t.Fatalf("local failed asset should not call upstream, calls=%d", fake.getAssetCalls)
+	}
+}
+
+func TestBytePlusAssetGetReturnsStoredTerminalStatusWhenUpstreamPollIsStale(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{
+		status: BytePlusAssetStatus{
+			UpstreamAssetID: "upstream-asset",
+			Status:          model.BytePlusAssetStatusProcessing,
+			RequestID:       "req-stale",
+		},
+	}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	group := insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+	insertBytePlusAssetRow(t, "ast_active", 7, group.Id, 131, model.BytePlusAssetStatusActive, "upstream-asset")
+
+	resp, err := GetBytePlusAsset(context.Background(), 7, "ast_active")
+	if err != nil {
+		t.Fatalf("GetBytePlusAsset: %v", err)
+	}
+	if resp.Status != model.BytePlusAssetStatusActive {
+		t.Fatalf("response status = %s, want %s", resp.Status, model.BytePlusAssetStatusActive)
+	}
+
+	var stored model.BytePlusAsset
+	if err := model.DB.First(&stored, "public_id = ?", "ast_active").Error; err != nil {
+		t.Fatalf("load stored asset: %v", err)
+	}
+	if stored.Status != model.BytePlusAssetStatusActive || stored.UpdatedTime != 1900 {
+		t.Fatalf("stored asset regressed: %+v", stored)
+	}
+}
+
 func TestBytePlusAssetSpecificChannelUsesCrossDatabaseAbilityHelper(t *testing.T) {
 	newBytePlusAssetServiceTestDB(t)
 	restore := installBytePlusAssetServiceTestDeps(t, &fakeBytePlusAssetClient{groupID: "g", assetID: "a"})

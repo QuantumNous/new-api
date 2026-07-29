@@ -128,7 +128,13 @@ func GetBytePlusAsset(ctx context.Context, userID int, publicID string) (*dto.By
 		}
 		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
-	if asset.Status == model.BytePlusAssetStatusCreating || strings.TrimSpace(asset.UpstreamAssetId) == "" {
+	switch asset.Status {
+	case model.BytePlusAssetStatusFailed:
+		return nil, assetError(errors.New("asset failed"), types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
+	case model.BytePlusAssetStatusCreating:
+		return nil, assetError(errors.New("asset is not ready"), types.ErrorCodeAssetNotReady, http.StatusConflict)
+	}
+	if strings.TrimSpace(asset.UpstreamAssetId) == "" {
 		return nil, assetError(errors.New("asset is not ready"), types.ErrorCodeAssetNotReady, http.StatusConflict)
 	}
 
@@ -154,9 +160,10 @@ func GetBytePlusAsset(ctx context.Context, userID int, publicID string) (*dto.By
 	if err := model.UpdateBytePlusAssetStatus(asset.Id, status.Status, status.ErrorMessage, bytePlusAssetNow()); err != nil {
 		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
-	asset.Status = status.Status
-	asset.ErrorMessage = status.ErrorMessage
-	asset.UpdatedTime = bytePlusAssetNow()
+	asset, err = model.GetBytePlusAssetByPublicIDForUser(userID, publicID)
+	if err != nil {
+		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	}
 	return responseFromBytePlusAsset(asset), nil
 }
 

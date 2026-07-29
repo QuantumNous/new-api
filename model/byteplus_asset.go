@@ -165,6 +165,7 @@ func UpdateBytePlusAssetUpstreamCreated(assetID int64, upstreamAssetID string, u
 func UpdateBytePlusAssetStatus(assetID int64, status string, errorMessage string, now int64) error {
 	return DB.Model(&BytePlusAsset{}).
 		Where("id = ?", assetID).
+		Where("status NOT IN ?", bytePlusAssetTerminalStatuses()).
 		Updates(map[string]any{
 			"status":        status,
 			"error_message": errorMessage,
@@ -174,4 +175,8 @@ func UpdateBytePlusAssetStatus(assetID int64, status string, errorMessage string
 
 func IsBytePlusAssetNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
+}
+
+func bytePlusAssetTerminalStatuses() []string {
+	return []string{BytePlusAssetStatusActive, BytePlusAssetStatusFailed}
 }

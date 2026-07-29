@@ -186,6 +186,39 @@ func TestBytePlusAssetOwnershipLookupAndStateUpdates(t *testing.T) {
 	}
 }
 
+func TestBytePlusAssetStatusUpdateDoesNotRegressTerminalAsset(t *testing.T) {
+	newBytePlusAssetTestDB(t)
+
+	asset, err := CreateBytePlusAsset(BytePlusAsset{
+		PublicId:           "ast_terminal",
+		UserId:             20,
+		AssetGroupId:       7,
+		ChannelId:          131,
+		UpstreamAssetId:    "upstream-asset",
+		AssetType:          "Video",
+		SourceURL:          "https://example.com/a.mp4",
+		ModerationStrategy: "Skip",
+		Status:             BytePlusAssetStatusActive,
+		CreatedTime:        2000,
+		UpdatedTime:        2020,
+	})
+	if err != nil {
+		t.Fatalf("create asset: %v", err)
+	}
+
+	if err := UpdateBytePlusAssetStatus(asset.Id, BytePlusAssetStatusProcessing, "", 2030); err != nil {
+		t.Fatalf("stale processing update: %v", err)
+	}
+
+	got, err := GetBytePlusAssetByPublicIDForUser(20, "ast_terminal")
+	if err != nil {
+		t.Fatalf("lookup asset: %v", err)
+	}
+	if got.Status != BytePlusAssetStatusActive || got.UpdatedTime != 2020 {
+		t.Fatalf("terminal asset regressed: %+v", got)
+	}
+}
+
 func newBytePlusAssetTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
