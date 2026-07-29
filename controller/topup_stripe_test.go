@@ -477,7 +477,7 @@ func TestStripeCheckoutSessionNoClaimAppliesBestAccountRecallOffer(t *testing.T)
 	require.Equal(t, fmt.Sprintf("%d", strongerRecipient.Id), params.Metadata["recall_recipient_id"])
 }
 
-func TestStripeCheckoutSessionRecallLookupFailureFallsBackToOriginalPrice(t *testing.T) {
+func TestStripeCheckoutSessionRecallLookupFailureStopsBeforeCheckout(t *testing.T) {
 	require.NoError(t, i18n.Init())
 	backend := setupSubscriptionStripeRecordingBackend(t)
 	setupStripeFulfillmentTestDB(t)
@@ -524,12 +524,11 @@ func TestStripeCheckoutSessionRecallLookupFailureFallsBackToOriginalPrice(t *tes
 
 	RequestStripePay(ctx)
 
-	require.Contains(t, recorder.Body.String(), `"message":"success"`)
-	require.Len(t, backend.params, 1)
-	require.Empty(t, backend.params[0].Discounts)
-	var persisted model.TopUp
-	require.NoError(t, model.DB.Where("user_id = ?", userID).First(&persisted).Error)
-	require.Equal(t, 20.0, persisted.Money)
+	require.Contains(t, recorder.Body.String(), `"message":"error"`)
+	require.Empty(t, backend.params)
+	var persistedCount int64
+	require.NoError(t, model.DB.Model(&model.TopUp{}).Where("user_id = ?", userID).Count(&persistedCount).Error)
+	require.Zero(t, persistedCount)
 }
 
 func TestStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t *testing.T) {

@@ -569,7 +569,7 @@ func TestStripeRecurringCheckoutLeavesProviderRenewalUnsetUntilInvoiceApplies(t 
 	require.Equal(t, model.SubscriptionContractStatusEnded, contract.Status)
 }
 
-func TestStripeRecurringCheckoutFailOpenWhenRecallLookupDegraded(t *testing.T) {
+func TestStripeRecurringCheckoutRecallLookupFailureStopsWithoutFreezingNoOffer(t *testing.T) {
 	setupSubscriptionContractServiceTestDB(t)
 	setRecallCampaignEnabled(t, true)
 	require.True(t, operation_setting.IsRecallCampaignEnabled())
@@ -587,9 +587,9 @@ func TestStripeRecurringCheckoutFailOpenWhenRecallLookupDegraded(t *testing.T) {
 		Update("stripe_price_id", "price_recall_degraded_contract").Error)
 	originalCreator := stripeSubscriptionCheckoutCreator
 	t.Cleanup(func() { stripeSubscriptionCheckoutCreator = originalCreator })
-	var captured StripeSubscriptionCheckoutInput
+	creatorCalled := false
 	stripeSubscriptionCheckoutCreator = func(ctx context.Context, input StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
-		captured = input
+		creatorCalled = true
 		return &StripeSubscriptionCheckoutSession{ID: "cs_recall_degraded_contract", URL: "https://checkout.example/degraded"}, nil
 	}
 
@@ -601,14 +601,14 @@ func TestStripeRecurringCheckoutFailOpenWhenRecallLookupDegraded(t *testing.T) {
 		RecallClaim: "buyer@example.com",
 	})
 
-	require.NoError(t, err)
-	require.Equal(t, ChangePlanStatusCheckoutRequired, result.Status)
-	require.Equal(t, "https://checkout.example/degraded", result.CheckoutURL)
-	require.Nil(t, captured.RecallDiscount)
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.False(t, creatorCalled)
 	var order model.SubscriptionOrder
-	require.NoError(t, model.DB.First(&order, "trade_no = ?", captured.TradeNo).Error)
-	require.True(t, order.RecallOfferResolved)
+	require.NoError(t, model.DB.First(&order, "user_id = ?", 7118).Error)
+	require.False(t, order.RecallOfferResolved)
 	require.Empty(t, order.RecallPromotionCodeId)
+	require.Equal(t, common.TopUpStatusFailed, order.Status)
 }
 
 func TestUnresolvedPurchaseBlocksSecondChange(t *testing.T) {
