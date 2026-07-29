@@ -31,6 +31,7 @@ type fakeBytePlusAssetClient struct {
 	status      BytePlusAssetStatus
 	createErr   error
 	getErr      error
+	onGetAsset  func()
 	lastCreate  BytePlusCreateAssetRequest
 	lastCreds   BytePlusCredentials
 	lastGroup   string
@@ -61,6 +62,9 @@ func (f *fakeBytePlusAssetClient) GetAsset(ctx context.Context, creds BytePlusCr
 	f.getAssetCalls++
 	f.lastCreds = creds
 	f.lastAssetID = upstreamAssetID
+	if f.onGetAsset != nil {
+		f.onGetAsset()
+	}
 	if f.getErr != nil {
 		return BytePlusAssetStatus{}, f.getErr
 	}
@@ -465,6 +469,75 @@ func TestBytePlusAssetGetReturnsStoredTerminalStatusWhenUpstreamPollIsStale(t *t
 	}
 	if stored.Status != model.BytePlusAssetStatusActive || stored.UpdatedTime != 1900 {
 		t.Fatalf("stored asset regressed: %+v", stored)
+	}
+}
+
+func TestBytePlusAssetGetFirstObservedFailedReturnsUnprocessableAndPersistsFailure(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{
+		status: BytePlusAssetStatus{
+			UpstreamAssetID: "upstream-asset",
+			Status:          model.BytePlusAssetStatusFailed,
+			RequestID:       "req-failed",
+			ErrorMessage:    "upstream asset failed",
+		},
+	}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	group := insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+	insertBytePlusAssetRow(t, "ast_failed_first_poll", 7, group.Id, 131, model.BytePlusAssetStatusProcessing, "upstream-asset")
+
+	_, err := GetBytePlusAsset(context.Background(), 7, "ast_failed_first_poll")
+	assertAssetError(t, err, types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
+	if fake.getAssetCalls != 1 {
+		t.Fatalf("get calls=%d, want 1", fake.getAssetCalls)
+	}
+
+	var stored model.BytePlusAsset
+	if err := model.DB.First(&stored, "public_id = ?", "ast_failed_first_poll").Error; err != nil {
+		t.Fatalf("load stored asset: %v", err)
+	}
+	if stored.Status != model.BytePlusAssetStatusFailed || stored.ErrorMessage != "upstream asset failed" || stored.UpdatedTime != 2000 {
+		t.Fatalf("stored failure = %+v", stored)
+	}
+}
+
+func TestBytePlusAssetGetConcurrentTerminalWinnerIsReloadedAndReturnedAsFailure(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{
+		status: BytePlusAssetStatus{
+			UpstreamAssetID: "upstream-asset",
+			Status:          model.BytePlusAssetStatusProcessing,
+			RequestID:       "req-stale",
+		},
+	}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	group := insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+	insertBytePlusAssetRow(t, "ast_concurrent_failed", 7, group.Id, 131, model.BytePlusAssetStatusProcessing, "upstream-asset")
+	fake.onGetAsset = func() {
+		if err := model.DB.Model(&model.BytePlusAsset{}).
+			Where("public_id = ?", "ast_concurrent_failed").
+			Updates(map[string]any{
+				"status":        model.BytePlusAssetStatusFailed,
+				"error_message": "concurrent terminal winner",
+				"updated_time":  int64(1999),
+			}).Error; err != nil {
+			t.Fatalf("install concurrent winner: %v", err)
+		}
+	}
+
+	_, err := GetBytePlusAsset(context.Background(), 7, "ast_concurrent_failed")
+	assertAssetError(t, err, types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
+
+	var stored model.BytePlusAsset
+	if err := model.DB.First(&stored, "public_id = ?", "ast_concurrent_failed").Error; err != nil {
+		t.Fatalf("load stored asset: %v", err)
+	}
+	if stored.Status != model.BytePlusAssetStatusFailed || stored.ErrorMessage != "concurrent terminal winner" || stored.UpdatedTime != 1999 {
+		t.Fatalf("concurrent terminal winner was overwritten: %+v", stored)
 	}
 }
 

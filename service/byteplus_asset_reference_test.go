@@ -247,6 +247,157 @@ func TestResolveBytePlusAssetReferencesRejectsCrossChannelAssets(t *testing.T) {
 	}
 }
 
+func TestResolveBytePlusAssetReferencesDetectsCrossChannelBeforeOwnedAssetValidationErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		specs []struct {
+			channelID   int
+			status      string
+			assetType   string
+			contentType string
+		}
+	}{
+		{
+			name: "processing asset first",
+			specs: []struct {
+				channelID   int
+				status      string
+				assetType   string
+				contentType string
+			}{
+				{channelID: 131, status: model.BytePlusAssetStatusProcessing, assetType: "Image", contentType: dto.SeedanceContentImage},
+				{channelID: 132, status: model.BytePlusAssetStatusActive, assetType: "Image", contentType: dto.SeedanceContentImage},
+			},
+		},
+		{
+			name: "type mismatch first",
+			specs: []struct {
+				channelID   int
+				status      string
+				assetType   string
+				contentType string
+			}{
+				{channelID: 131, status: model.BytePlusAssetStatusActive, assetType: "Image", contentType: dto.SeedanceContentVideo},
+				{channelID: 132, status: model.BytePlusAssetStatusActive, assetType: "Image", contentType: dto.SeedanceContentImage},
+			},
+		},
+		{
+			name: "invalid channel first",
+			specs: []struct {
+				channelID   int
+				status      string
+				assetType   string
+				contentType string
+			}{
+				{channelID: 0, status: model.BytePlusAssetStatusActive, assetType: "Image", contentType: dto.SeedanceContentImage},
+				{channelID: 131, status: model.BytePlusAssetStatusActive, assetType: "Image", contentType: dto.SeedanceContentImage},
+				{channelID: 132, status: model.BytePlusAssetStatusActive, assetType: "Image", contentType: dto.SeedanceContentImage},
+			},
+		},
+	}
+	publicIDs := []string{
+		"ast_1234567890abcdefABCDEF1234567890",
+		"ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"ast_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newBytePlusAssetReferenceDB(t)
+			content := make([]dto.SeedanceContentItem, 0, len(tt.specs))
+			for i, spec := range tt.specs {
+				asset := insertBytePlusReferenceAsset(t, 7, spec.channelID, publicIDs[i], "upstream-"+string(rune('a'+i)), spec.status)
+				if spec.assetType != "Image" {
+					if err := model.DB.Model(&asset).Update("asset_type", spec.assetType).Error; err != nil {
+						t.Fatalf("update asset type: %v", err)
+					}
+				}
+				item := dto.SeedanceContentItem{Type: spec.contentType}
+				switch spec.contentType {
+				case dto.SeedanceContentVideo:
+					item.VideoURL = &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}
+				default:
+					item.ImageURL = &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}
+				}
+				content = append(content, item)
+			}
+
+			resolution, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, &dto.SeedanceVideoRequest{Content: content})
+			if apiErr == nil {
+				t.Fatal("expected channel conflict")
+			}
+			if apiErr.GetErrorCode() != types.ErrorCodeAssetChannelConflict || apiErr.StatusCode != http.StatusConflict {
+				t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+			}
+			if resolution.PinnedChannelID != 131 {
+				t.Fatalf("pinned channel id = %d, want 131", resolution.PinnedChannelID)
+			}
+		})
+	}
+}
+
+func TestResolveBytePlusAssetReferencesRejectsActiveAssetsWithInvalidChannelID(t *testing.T) {
+	tests := []struct {
+		name      string
+		channelID int
+	}{
+		{name: "zero", channelID: 0},
+		{name: "negative", channelID: -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newBytePlusAssetReferenceDB(t)
+			asset := insertBytePlusReferenceAsset(t, 7, tt.channelID, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusActive)
+			c := newAssetReferenceContext()
+			req := &dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{
+				{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}},
+			}}
+
+			resolution, apiErr := ResolveBytePlusAssetReferences(c, 7, req)
+			if apiErr == nil {
+				t.Fatal("expected channel unavailable error")
+			}
+			if apiErr.GetErrorCode() != types.ErrorCodeAssetChannelUnavailable || apiErr.StatusCode != http.StatusServiceUnavailable {
+				t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+			}
+			if resolution.HasReferences() {
+				t.Fatalf("unexpected references: %#v", resolution)
+			}
+			if _, ok := common.GetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap); ok {
+				t.Fatal("rewrite map should not be stored for invalid asset channel")
+			}
+			if got := common.GetContextKeyInt(c, constant.ContextKeyBytePlusAssetPinnedChannelID); got != 0 {
+				t.Fatalf("pinned channel id = %d, want 0", got)
+			}
+		})
+	}
+}
+
+func TestResolveBytePlusAssetReferencesMapsFailedStatusBeforeInvalidChannelID(t *testing.T) {
+	newBytePlusAssetReferenceDB(t)
+	asset := insertBytePlusReferenceAsset(t, 7, 0, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusFailed)
+	c := newAssetReferenceContext()
+	req := &dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{
+		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}},
+	}}
+
+	resolution, apiErr := ResolveBytePlusAssetReferences(c, 7, req)
+	if apiErr == nil {
+		t.Fatal("expected failed asset error")
+	}
+	if apiErr.GetErrorCode() != types.ErrorCodeAssetFailed || apiErr.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
+	}
+	if resolution.HasReferences() {
+		t.Fatalf("unexpected references: %#v", resolution)
+	}
+	if _, ok := common.GetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap); ok {
+		t.Fatal("rewrite map should not be stored for failed asset")
+	}
+	if got := common.GetContextKeyInt(c, constant.ContextKeyBytePlusAssetPinnedChannelID); got != 0 {
+		t.Fatalf("pinned channel id = %d, want 0", got)
+	}
+}
+
 func TestResolveBytePlusAssetReferencesRejectsActiveAssetWithoutUpstreamID(t *testing.T) {
 	tests := []struct {
 		name       string

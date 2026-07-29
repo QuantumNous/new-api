@@ -157,12 +157,15 @@ func GetBytePlusAsset(ctx context.Context, userID int, publicID string) (*dto.By
 	if status.UpstreamAssetID != "" && status.UpstreamAssetID != asset.UpstreamAssetId {
 		return nil, assetError(errors.New("upstream asset id mismatch"), types.ErrorCodeAssetUpstreamError, http.StatusBadGateway)
 	}
-	if err := model.UpdateBytePlusAssetStatus(asset.Id, status.Status, status.ErrorMessage, bytePlusAssetNow()); err != nil {
+	if err := model.UpdateBytePlusAssetStatus(asset.Id, status.Status, status.ErrorMessage, bytePlusAssetNow()); err != nil && !errors.Is(err, model.ErrBytePlusAssetNotUpdatable) {
 		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
 	asset, err = model.GetBytePlusAssetByPublicIDForUser(userID, publicID)
 	if err != nil {
 		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	}
+	if asset.Status == model.BytePlusAssetStatusFailed {
+		return nil, assetError(errors.New("asset failed"), types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
 	}
 	return responseFromBytePlusAsset(asset), nil
 }

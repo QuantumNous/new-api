@@ -210,8 +210,8 @@ func TestBytePlusAssetStatusUpdateDoesNotRegressTerminalAsset(t *testing.T) {
 		t.Fatalf("create asset: %v", err)
 	}
 
-	if err := UpdateBytePlusAssetStatus(asset.Id, BytePlusAssetStatusProcessing, "", 2030); err != nil {
-		t.Fatalf("stale processing update: %v", err)
+	if err := UpdateBytePlusAssetStatus(asset.Id, BytePlusAssetStatusProcessing, "", 2030); !errors.Is(err, ErrBytePlusAssetNotUpdatable) {
+		t.Fatalf("stale processing update error = %v, want ErrBytePlusAssetNotUpdatable", err)
 	}
 
 	got, err := GetBytePlusAssetByPublicIDForUser(20, "ast_terminal")

@@ -55,15 +55,22 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 	rewriteMap := make(map[string]string, len(publicIDs))
 	pinnedChannelID := 0
 	for _, reference := range references {
-		asset, ok := byID[reference.PublicID]
-		if !ok {
+		if _, ok := byID[reference.PublicID]; !ok {
 			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
 		}
-		if pinnedChannelID == 0 {
-			pinnedChannelID = asset.ChannelId
-		} else if pinnedChannelID != asset.ChannelId {
-			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset channels do not match"), types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+	}
+	for _, reference := range references {
+		asset := byID[reference.PublicID]
+		if asset.ChannelId > 0 {
+			if pinnedChannelID == 0 {
+				pinnedChannelID = asset.ChannelId
+			} else if pinnedChannelID != asset.ChannelId {
+				return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset channels do not match"), types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+			}
 		}
+	}
+	for _, reference := range references {
+		asset := byID[reference.PublicID]
 		if asset.AssetType != reference.ExpectedAssetType {
 			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset type does not match media type"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 		}
@@ -75,6 +82,9 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset failed"), types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
 		default:
 			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
+		}
+		if asset.ChannelId <= 0 {
+			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset channel unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 		}
 		upstreamAssetID := strings.TrimSpace(asset.UpstreamAssetId)
 		if upstreamAssetID == "" {

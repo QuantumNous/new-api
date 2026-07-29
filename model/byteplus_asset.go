@@ -173,14 +173,21 @@ func UpdateBytePlusAssetUpstreamCreated(assetID int64, upstreamAssetID string, u
 }
 
 func UpdateBytePlusAssetStatus(assetID int64, status string, errorMessage string, now int64) error {
-	return DB.Model(&BytePlusAsset{}).
+	result := DB.Model(&BytePlusAsset{}).
 		Where("id = ?", assetID).
 		Where("status NOT IN ?", bytePlusAssetTerminalStatuses()).
 		Updates(map[string]any{
 			"status":        status,
 			"error_message": errorMessage,
 			"updated_time":  now,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return fmt.Errorf("%w: id=%d", ErrBytePlusAssetNotUpdatable, assetID)
+	}
+	return nil
 }
 
 func IsBytePlusAssetNotFound(err error) bool {
