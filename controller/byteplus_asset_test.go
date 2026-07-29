@@ -87,6 +87,28 @@ func TestCreateBytePlusAssetRejectsInvalidBodyWithOpenAIEnvelope(t *testing.T) {
 	requireBytePlusAssetPublicBody(t, recorder.Body.String())
 }
 
+func TestCreateBytePlusAssetRejectsTokenWithoutSeedanceModelAccess(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+
+	originalCreate := createBytePlusAsset
+	t.Cleanup(func() { createBytePlusAsset = originalCreate })
+	createBytePlusAsset = func(context.Context, int, string, string, int, dto.BytePlusAssetCreateRequest) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
+		t.Fatalf("service must not be called when token cannot access seedance-2.0")
+		return nil, nil
+	}
+
+	ctx, recorder := newBytePlusAssetJSONContext(http.MethodPost, "/v1/assets", `{"url":"https://cdn.example.com/public.png","asset_type":"Image"}`)
+	setBytePlusAssetTokenContext(ctx)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{"gpt-4": true})
+	CreateBytePlusAsset(ctx)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code)
+	requireBytePlusAssetError(t, recorder.Body.Bytes(), string(types.ErrorCodeAccessDenied), "This token has no access to model seedance-2.0")
+	requireBytePlusAssetPublicBody(t, recorder.Body.String())
+}
+
 func TestCreateBytePlusAssetMapsNilServiceResponseToStorageError(t *testing.T) {
 	require.NoError(t, backendI18n.Init())
 	gin.SetMode(gin.TestMode)

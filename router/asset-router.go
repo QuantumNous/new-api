@@ -9,6 +9,7 @@ import (
 func SetBytePlusAssetRouter(router *gin.Engine) {
 	assetRouter := router.Group("/v1")
 	assetRouter.Use(middleware.RouteTag("asset"))
+	assetRouter.Use(middleware.GlobalAPIRateLimit())
 	assetRouter.Use(middleware.TokenAuth())
 	{
 		assetRouter.POST("/assets", controller.CreateBytePlusAsset)

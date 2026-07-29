@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -51,12 +52,45 @@ func TestBytePlusAssetRoutesReachTokenAuthWithoutDistribution(t *testing.T) {
 	}
 }
 
-func TestBytePlusAssetRouterUsesTokenAuthOnlyAndNoDistribute(t *testing.T) {
+func TestBytePlusAssetCreateAppliesGlobalAPIRateLimitBeforeTokenAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	previousEnabled := common.GlobalApiRateLimitEnable
+	previousLimit := common.GlobalApiRateLimitNum
+	previousDuration := common.GlobalApiRateLimitDuration
+	previousRedisEnabled := common.RedisEnabled
+	common.GlobalApiRateLimitEnable = true
+	common.GlobalApiRateLimitNum = 1
+	common.GlobalApiRateLimitDuration = 60
+	common.RedisEnabled = false
+	t.Cleanup(func() {
+		common.GlobalApiRateLimitEnable = previousEnabled
+		common.GlobalApiRateLimitNum = previousLimit
+		common.GlobalApiRateLimitDuration = previousDuration
+		common.RedisEnabled = previousRedisEnabled
+	})
+
+	engine := gin.New()
+	SetBytePlusAssetRouter(engine)
+
+	for i, wantStatus := range []int{http.StatusUnauthorized, http.StatusTooManyRequests} {
+		request := httptest.NewRequest(http.MethodPost, "/v1/assets", nil)
+		request.RemoteAddr = "198.51.100.17:12345"
+		recorder := httptest.NewRecorder()
+
+		engine.ServeHTTP(recorder, request)
+
+		require.Equal(t, wantStatus, recorder.Code, "request %d body=%s", i+1, recorder.Body.String())
+	}
+}
+
+func TestBytePlusAssetRouterUsesRateLimitAndTokenAuthWithoutDistribute(t *testing.T) {
 	source, err := os.ReadFile("asset-router.go")
 	require.NoError(t, err)
 
 	text := string(source)
 	require.Contains(t, text, `middleware.RouteTag("asset")`)
+	require.Contains(t, text, "middleware.GlobalAPIRateLimit()")
 	require.Contains(t, text, "middleware.TokenAuth()")
 	require.NotContains(t, text, "middleware.Distribute()")
 	require.NotContains(t, text, ".GET(\"/assets\"")
