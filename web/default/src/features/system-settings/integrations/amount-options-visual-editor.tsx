@@ -20,6 +20,7 @@ import { Plus, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@/components/empty-state'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -98,11 +99,12 @@ export function AmountOptionsVisualEditor({
         </p>
 
         {amounts.length === 0 ? (
-          <div className='text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm'>
-            {t(
+          <EmptyState
+            className='min-h-0 p-6'
+            title={t(
               'No amount options configured. Add amounts below to get started.'
             )}
-          </div>
+          />
         ) : (
           <div className='flex flex-wrap gap-2'>
             {amounts.map((amount) => (

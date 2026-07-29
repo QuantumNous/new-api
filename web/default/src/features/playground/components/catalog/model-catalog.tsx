@@ -445,7 +445,7 @@ function ModelCard(props: {
   return (
     <div
       className={cn(
-        'group border-border/50 bg-background/40 relative w-full overflow-hidden rounded-[11px] border transition-all',
+        'group border-border/50 bg-background/40 relative w-full overflow-hidden rounded-[11px] border transition-ui',
         selected
           ? 'border-primary/45 ring-primary/25 shadow-sm ring-1'
           : 'hover:border-border hover:shadow-sm'

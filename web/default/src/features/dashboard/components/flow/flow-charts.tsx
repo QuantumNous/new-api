@@ -203,9 +203,7 @@ export function FlowCharts(props: FlowChartsProps) {
   const isRoot = Boolean(
     isSiteWide && user?.role && user.role >= ROLE.SUPER_ADMIN
   )
-  const isAdmin = Boolean(
-    isSiteWide && user?.role && user.role >= ROLE.ADMIN
-  )
+  const isAdmin = Boolean(isSiteWide && user?.role && user.role >= ROLE.ADMIN)
   let flowRole: FlowRole = 'user'
   if (isRoot) {
     flowRole = 'root'

@@ -5,6 +5,8 @@ import {
   AlignLeft,
   AlignRight,
   AlignVerticalDistributeCenter,
+  ArrowUpFromLine,
+  ArrowDownFromLine,
   Columns3,
   Grid2X2,
   Rows3,
@@ -15,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
 import type { CanvasLayoutAction } from '../engine/canvas-layout'
+import { useCanvasTheme } from '../engine/canvas-theme'
 import { useCanvasStore } from '../store/canvas-store'
 
 const ACTIONS: Array<{
@@ -29,13 +32,13 @@ const ACTIONS: Array<{
     icon: AlignCenter,
   },
   { action: 'align-right', label: 'Align right', icon: AlignRight },
-  { action: 'align-top', label: 'Align top', icon: AlignLeft },
+  { action: 'align-top', label: 'Align top', icon: ArrowUpFromLine },
   {
     action: 'align-center-y',
     label: 'Align vertical centers',
     icon: AlignCenter,
   },
-  { action: 'align-bottom', label: 'Align bottom', icon: AlignRight },
+  { action: 'align-bottom', label: 'Align bottom', icon: ArrowDownFromLine },
   {
     action: 'distribute-x',
     label: 'Distribute horizontally',
@@ -54,6 +57,7 @@ const ACTIONS: Array<{
 
 export function CanvasSelectionToolbar() {
   const { t } = useTranslation()
+  const theme = useCanvasTheme()
   const count = useCanvasStore((state) => state.selectedNodeIds.length)
   if (count < 2) return null
   return (
@@ -61,8 +65,16 @@ export function CanvasSelectionToolbar() {
       role='toolbar'
       aria-label={t('Arrange selected nodes')}
       data-canvas-no-zoom
-      className='bg-background/95 absolute top-4 left-1/2 z-20 flex max-w-[calc(100%-2rem)] -translate-x-1/2 gap-0.5 overflow-x-auto rounded-lg border p-1 shadow-lg'
+      className='landing-animate-scale-in absolute top-4 left-1/2 z-20 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-0.5 overflow-x-auto rounded-full border px-2 py-1 shadow-xl backdrop-blur-xl'
+      style={{
+        background: theme.toolbar.panel,
+        borderColor: theme.toolbar.border,
+        color: theme.toolbar.item,
+      }}
     >
+      <span className='text-muted-foreground shrink-0 px-2 text-[11px] font-semibold tabular-nums'>
+        {t('{{count}} selected', { count })}
+      </span>
       {ACTIONS.map((item) => (
         <Button
           key={item.action}
@@ -70,6 +82,7 @@ export function CanvasSelectionToolbar() {
           variant='ghost'
           aria-label={t(item.label)}
           title={t(item.label)}
+          className='rounded-full'
           onClick={() => useCanvasStore.getState().layoutSelection(item.action)}
         >
           <item.icon className='size-4' />

@@ -327,9 +327,7 @@ function DashboardContent() {
   const sectionActions = modelActions ?? flowActions
 
   const pageTitleKey =
-    isSiteWide && activeSection === 'models'
-      ? 'Site Analytics'
-      : meta.titleKey
+    isSiteWide && activeSection === 'models' ? 'Site Analytics' : meta.titleKey
 
   return (
     <SectionPageLayout>
@@ -358,9 +356,7 @@ function DashboardContent() {
               )}
             </div>
           )}
-          {activeSection === 'overview' && !isSiteWide && (
-            <OverviewDashboard />
-          )}
+          {activeSection === 'overview' && !isSiteWide && <OverviewDashboard />}
           {activeSection === 'models' && (
             <>
               <FadeIn>

@@ -126,7 +126,9 @@ export function CanvasGuide(props: { open: boolean; onClose: () => void }) {
     <div className='fixed inset-0 z-[70]' role='dialog' aria-modal='true'>
       {rect ? (
         <div
-          className='pointer-events-none absolute rounded-2xl transition-all duration-300 ease-out'
+          // The spotlight tracks an arbitrary element's box, so position and
+          // size really are the animated properties here.
+          className='pointer-events-none absolute rounded-2xl transition-[top,left,width,height,box-shadow] duration-300 ease-out motion-reduce:transition-none'
           style={{
             top: rect.top,
             left: rect.left,
@@ -137,7 +139,7 @@ export function CanvasGuide(props: { open: boolean; onClose: () => void }) {
           }}
         />
       ) : (
-        <div className='absolute inset-0 bg-slate-950/60' />
+        <div className='landing-animate-fade-in absolute inset-0 bg-slate-950/60' />
       )}
 
       <button
@@ -148,7 +150,7 @@ export function CanvasGuide(props: { open: boolean; onClose: () => void }) {
       />
 
       <div
-        className='bg-popover text-popover-foreground absolute rounded-2xl border p-4 shadow-2xl transition-all duration-300 ease-out'
+        className='landing-animate-scale-in bg-popover text-popover-foreground absolute rounded-2xl border p-4 shadow-2xl transition-[top,left] duration-300 ease-out motion-reduce:transition-none'
         style={{ top: cardTop, left: cardLeft, width: CARD_WIDTH }}
       >
         <div className='flex items-center gap-2'>

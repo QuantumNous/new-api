@@ -63,7 +63,12 @@ function ProgressIndicator({
   return (
     <ProgressPrimitive.Indicator
       data-slot='progress-indicator'
-      className={cn('bg-primary h-full transition-all', className)}
+      // Base UI drives the indicator through inline `width` / `inset-inline-start`,
+      // so those are the only two properties worth interpolating here.
+      className={cn(
+        'bg-primary h-full transition-[width,inset-inline-start] duration-300 ease-out motion-reduce:transition-none',
+        className
+      )}
       {...props}
     />
   )

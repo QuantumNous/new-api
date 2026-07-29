@@ -260,9 +260,12 @@ export function useCanvasGeneration(options: { enabled?: boolean } = {}): {
         },
       })
         .then((result) => {
+          applyImageSize(node.id, result.naturalWidth, result.naturalHeight)
           useCanvasStore.getState().updateNodeMetadata(node.id, {
             content: result.url,
             assetId: result.assetId,
+            naturalWidth: result.naturalWidth,
+            naturalHeight: result.naturalHeight,
             taskStatus: 'SUCCESS',
             taskProgress: 100,
             status: 'success',
@@ -429,9 +432,12 @@ export function useCanvasGeneration(options: { enabled?: boolean } = {}): {
               })
             },
           })
+          applyImageSize(nodeId, result.naturalWidth, result.naturalHeight)
           useCanvasStore.getState().updateNodeMetadata(nodeId, {
             content: result.url,
             assetId: result.assetId,
+            naturalWidth: result.naturalWidth,
+            naturalHeight: result.naturalHeight,
             taskId: result.taskId,
             taskStatus: 'SUCCESS',
             taskProgress: 100,

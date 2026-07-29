@@ -52,9 +52,7 @@ export const usageLogsSearchSchema = z.object({
 function PersonalUsageLogsPage() {
   const { section } = Route.useParams()
   const searchParams = Route.useSearch()
-  return (
-    <UsageLogs mode='self' section={section} searchParams={searchParams} />
-  )
+  return <UsageLogs mode='self' section={section} searchParams={searchParams} />
 }
 
 export const Route = createFileRoute('/_authenticated/usage-logs/$section')({

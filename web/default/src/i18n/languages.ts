@@ -96,7 +96,12 @@ export function toIntlLocale(value?: string | null): string | undefined {
   const compact = value.trim().replaceAll('_', '-').replaceAll('-', '')
   const lower = compact.toLowerCase()
   if (lower === 'zhcn' || lower === 'zhhans') return 'zh-CN'
-  if (lower === 'zhtw' || lower === 'zhhant' || lower === 'zhhk' || lower === 'zhmo') {
+  if (
+    lower === 'zhtw' ||
+    lower === 'zhhant' ||
+    lower === 'zhhk' ||
+    lower === 'zhmo'
+  ) {
     return 'zh-TW'
   }
   if (lower === 'vi' || lower.startsWith('vi')) return 'vi-VN'

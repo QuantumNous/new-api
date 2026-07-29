@@ -212,9 +212,13 @@ export function GenerationProgress(props: GenerationProgressProps) {
 
         <div className='bg-muted relative h-1.5 w-full overflow-hidden rounded-full'>
           {softPercent !== null ? (
+            // Scale rather than width: the bar ticks every few hundred ms and a
+            // width transition relayouts the whole progress block each frame.
             <div
-              className='bg-primary absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-out'
-              style={{ width: `${softPercent}%` }}
+              className='bg-primary absolute inset-y-0 left-0 w-full origin-left rounded-full transition-transform duration-500 ease-out motion-reduce:transition-none'
+              style={{
+                transform: `scaleX(${Math.min(Math.max(softPercent, 0), 100) / 100})`,
+              }}
             />
           ) : (
             <div

@@ -8,12 +8,22 @@ License, or (at your option) any later version.
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Copy, ImageOff, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import {
+  Copy,
+  ImageOff,
+  LayoutGrid,
+  Loader2,
+  LogIn,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
+import { EmptyState } from '@/components/empty-state'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -23,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   createCanvasProject,
   deleteCanvasProject,
@@ -120,12 +131,11 @@ export function InspirationProjects(props: {
 
   if (!props.isAuthenticated) {
     return (
-      <section className='border-border/60 rounded-xl border border-dashed py-16 text-center'>
-        <p className='text-muted-foreground mb-3 text-sm'>
-          {t('Sign in to keep your projects across devices.')}
-        </p>
-        <Button onClick={props.onRequireAuth}>{t('Sign in')}</Button>
-      </section>
+      <EmptyState
+        icon={LogIn}
+        title={t('Sign in to keep your projects across devices.')}
+        action={<Button onClick={props.onRequireAuth}>{t('Sign in')}</Button>}
+      />
     )
   }
 
@@ -162,27 +172,43 @@ export function InspirationProjects(props: {
       </div>
 
       {projects.isLoading ? (
-        <div className='text-muted-foreground flex justify-center gap-2 py-16 text-sm'>
-          <Loader2 className='size-4 animate-spin' aria-hidden='true' />
-          {t('Loading')}
+        <div
+          className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+          aria-busy='true'
+          aria-label={t('Loading')}
+        >
+          {Array.from({ length: 4 }, (_, i) => `project-skeleton-${i}`).map(
+            (key) => (
+              <div
+                key={key}
+                className='border-border/70 space-y-3 overflow-hidden rounded-xl border p-3'
+              >
+                <Skeleton className='aspect-video w-full rounded-lg' />
+                <Skeleton className='h-4 w-2/3' />
+                <Skeleton className='h-3 w-1/3' />
+              </div>
+            )
+          )}
         </div>
       ) : null}
 
       {!projects.isLoading && !filteredProjects.length ? (
-        <div className='border-border/60 rounded-xl border border-dashed py-16 text-center'>
-          <p className='text-muted-foreground text-sm text-pretty'>
-            {projects.data?.length
+        <EmptyState
+          icon={LayoutGrid}
+          title={
+            projects.data?.length
               ? t('No canvases match your search.')
-              : t('Create a canvas to compose prompts, images, and shots.')}
-          </p>
-        </div>
+              : t('Create a canvas to compose prompts, images, and shots.')
+          }
+        />
       ) : null}
 
       <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
         {filteredProjects.map((project) => (
           <article
             key={project.id}
-            className='group border-border/70 bg-card overflow-hidden rounded-xl border shadow-xs transition-shadow hover:shadow-lg'
+            data-card-hover='true'
+            className='group border-border/70 bg-card hover:border-border overflow-hidden rounded-xl border shadow-xs'
           >
             <button
               type='button'

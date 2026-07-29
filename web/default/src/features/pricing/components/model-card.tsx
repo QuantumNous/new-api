@@ -210,8 +210,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       tabIndex={0}
       onClick={props.onClick}
       onKeyDown={handleKeyDown}
+      data-card-hover='true'
       className={cn(
-        'group bg-card hover:bg-muted/30 focus-visible:ring-ring relative flex w-full cursor-pointer flex-col rounded-xl border p-3.5 text-left transition-colors sm:p-4',
+        'group bg-card hover:bg-muted/30 focus-visible:ring-ring relative flex w-full cursor-pointer flex-col rounded-xl border p-3.5 text-left sm:p-4',
         'focus-visible:ring-2 focus-visible:outline-none'
       )}
       aria-label={`${t('Details')}: ${title}`}

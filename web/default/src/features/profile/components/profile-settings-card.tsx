@@ -79,7 +79,9 @@ export function ProfileSettingsCard({
                 )}
               >
                 <Link2 className='size-3.5' />
-                <span className='hidden sm:inline'>{t('Account Bindings')}</span>
+                <span className='hidden sm:inline'>
+                  {t('Account Bindings')}
+                </span>
                 <span className='sm:hidden'>{t('Bindings')}</span>
               </TabsTrigger>
               <TabsTrigger

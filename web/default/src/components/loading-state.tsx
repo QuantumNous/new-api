@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
 interface LoadingStateProps {
@@ -41,7 +41,7 @@ export function LoadingState(props: LoadingStateProps) {
   if (props.inline) {
     return (
       <span className={cn('inline-flex items-center gap-2', props.className)}>
-        <Loader2 className={cn(iconSize, 'animate-spin')} />
+        <Spinner className={iconSize} />
         {props.message != null && (
           <span className='text-muted-foreground text-sm'>{props.message}</span>
         )}
@@ -56,9 +56,7 @@ export function LoadingState(props: LoadingStateProps) {
         props.className
       )}
     >
-      <div className='animate-spin'>
-        <Loader2 className={iconSize} />
-      </div>
+      <Spinner className={iconSize} />
       <p className='text-muted-foreground text-sm'>
         {props.message ?? t('Loading...')}
       </p>

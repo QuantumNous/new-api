@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 Adapted from open-ai-canvas (https://github.com/ddcat-ai/open-ai-canvas),
 based on basketikun/infinite-canvas. AGPL-3.0; see THIRD-PARTY-LICENSES.md.
 */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -480,11 +480,28 @@ export function WorkbenchCanvas(props: { readOnly?: boolean } = {}) {
     [viewportSize]
   )
 
-  const visibleNodes = nodes.filter(
-    (node) =>
-      !isNodeHiddenByCollapsedFrame(node, nodes) &&
-      !isHiddenBatchChild(node, nodes)
-  )
+  const visibleNodes = useMemo(() => {
+    const candidates = nodes.filter(
+      (node) =>
+        !isNodeHiddenByCollapsedFrame(node, nodes) &&
+        !isHiddenBatchChild(node, nodes)
+    )
+    // Render only what is near the viewport below k=0.35; at higher zoom the
+    // canvas is typically small enough that culling saves nothing.
+    if (viewport.k >= 0.35 || candidates.length < 60) return candidates
+    const margin = 400
+    const viewLeft = -viewport.x / viewport.k - margin
+    const viewTop = -viewport.y / viewport.k - margin
+    const viewRight = (viewportSize.width - viewport.x) / viewport.k + margin
+    const viewBottom = (viewportSize.height - viewport.y) / viewport.k + margin
+    return candidates.filter(
+      (node) =>
+        node.position.x + node.width >= viewLeft &&
+        node.position.x <= viewRight &&
+        node.position.y + node.height >= viewTop &&
+        node.position.y <= viewBottom
+    )
+  }, [nodes, viewport, viewportSize])
   let selectionAnnouncement = t('Nothing selected')
   if (selectedConnectionId) selectionAnnouncement = t('Connection selected')
   if (selectedNodeIds.length) {

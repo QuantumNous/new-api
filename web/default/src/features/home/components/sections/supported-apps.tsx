@@ -82,7 +82,7 @@ export function SupportedApps() {
               href={app.href}
               target='_blank'
               rel='noopener noreferrer'
-              className='border-border/50 bg-background/80 text-foreground/80 hover:border-border hover:text-foreground inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium shadow-xs backdrop-blur-sm transition-all hover:scale-[1.02]'
+              className='border-border/50 bg-background/80 text-foreground/80 hover:border-border hover:text-foreground transition-ui inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium shadow-xs backdrop-blur-sm hover:scale-[1.02]'
             >
               <AppIcon icon={app.icon} name={app.name} />
               {app.name}

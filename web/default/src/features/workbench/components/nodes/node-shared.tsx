@@ -202,7 +202,7 @@ export function NodePromptBar(props: {
             aria-label={t('Generate')}
             data-guide='node-generate'
             disabled={props.disabled}
-            className='ml-auto flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-sm transition-all hover:brightness-110 active:scale-95 disabled:from-slate-400 disabled:to-slate-400 disabled:opacity-50 disabled:active:scale-100'
+            className='transition-ui ml-auto flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-sm hover:brightness-110 active:scale-95 disabled:from-slate-400 disabled:to-slate-400 disabled:opacity-50 disabled:active:scale-100'
             onPointerDown={(event) => event.stopPropagation()}
             onClick={props.onGenerate}
           >
@@ -273,13 +273,23 @@ export function NodeStatusOverlay(props: {
   if (props.status === 'loading') {
     return (
       <div
-        className='absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl text-[11px] backdrop-blur-sm'
+        className='absolute inset-0 flex flex-col items-center justify-center gap-2.5 rounded-xl text-[11px] backdrop-blur-md'
         style={{ background: theme.spatial.dropzone, color: theme.node.muted }}
       >
-        <Loader2
-          className='size-5 animate-spin'
-          style={{ color: theme.accent.primary }}
-        />
+        <span className='relative flex size-8 items-center justify-center'>
+          <span
+            className='absolute inset-0 rounded-full opacity-40 motion-reduce:hidden'
+            style={{
+              background: theme.accent.primary,
+              animation: 'canvas-node-glow 1.8s ease-in-out infinite',
+            }}
+            aria-hidden='true'
+          />
+          <Loader2
+            className='size-5 animate-spin motion-reduce:animate-none'
+            style={{ color: theme.accent.primary }}
+          />
+        </span>
         <span className='font-medium'>
           {typeof props.progress === 'number'
             ? `${t(props.taskStatus || 'Generating')} · ${props.progress}%`
@@ -288,9 +298,9 @@ export function NodeStatusOverlay(props: {
         {typeof props.progress === 'number' ? (
           <span className='bg-foreground/10 h-1 w-24 overflow-hidden rounded-full'>
             <span
-              className='block h-full rounded-full transition-[width] duration-500'
+              className='block h-full w-full origin-left rounded-full transition-transform duration-500 motion-reduce:transition-none'
               style={{
-                width: `${props.progress}%`,
+                transform: `scaleX(${Math.min(Math.max(props.progress, 0), 100) / 100})`,
                 background: theme.accent.primary,
               }}
             />

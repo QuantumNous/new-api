@@ -24,6 +24,7 @@ import {
   Camera,
   CircleDot,
   Download,
+  FolderArchive,
   Frame,
   Image as ImageIcon,
   Maximize,
@@ -41,6 +42,12 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -94,7 +101,7 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
     <div
       data-canvas-no-zoom
       data-guide='canvas-toolbar'
-      className='absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border px-2 py-1.5 shadow-lg backdrop-blur-xl'
+      className='landing-animate-scale-in absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border px-2 py-1.5 shadow-xl backdrop-blur-xl'
       style={{
         background: theme.toolbar.panel,
         borderColor: theme.toolbar.border,
@@ -204,42 +211,39 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
 
       <Separator orientation='vertical' className='mx-1 h-5' />
 
-      <Button
-        size='icon'
-        variant='ghost'
-        className='size-8 rounded-full'
-        title={t('Export canvas file')}
-        onClick={props.onExportDocument}
-      >
-        <Download className='size-4' />
-      </Button>
-      <Button
-        size='icon'
-        variant='ghost'
-        className='size-8 rounded-full'
-        title={t('Export canvas archive')}
-        onClick={props.onExportArchive}
-      >
-        <Download className='size-4' />
-      </Button>
-      <Button
-        size='icon'
-        variant='ghost'
-        className='size-8 rounded-full'
-        title={t('Import canvas file')}
-        onClick={props.onImportDocument}
-      >
-        <Upload className='size-4' />
-      </Button>
-      <Button
-        size='icon'
-        variant='ghost'
-        className='size-8 rounded-full'
-        title={t('Export as image')}
-        onClick={props.onExportImage}
-      >
-        <Camera className='size-4' />
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              size='icon'
+              variant='ghost'
+              className='size-8 rounded-full'
+              title={t('Import / export')}
+              aria-label={t('Import / export')}
+            >
+              <Download className='size-4' />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align='end' sideOffset={8}>
+          <DropdownMenuItem onClick={props.onExportDocument}>
+            <Download />
+            {t('Export canvas file')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={props.onExportArchive}>
+            <FolderArchive />
+            {t('Export canvas archive')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={props.onImportDocument}>
+            <Upload />
+            {t('Import canvas file')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={props.onExportImage}>
+            <Camera />
+            {t('Export as image')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

@@ -70,7 +70,7 @@ export function SearchBar(props: SearchBarProps) {
           'border-border/60 bg-background placeholder:text-muted-foreground/50',
           'hover:border-border',
           'focus:border-primary/50 focus:ring-primary/20 focus:ring-2',
-          'w-full rounded-lg border text-sm transition-all outline-none',
+          'w-full rounded-lg border text-sm transition-ui outline-none',
           compact ? 'h-8 pr-14 pl-8' : 'h-10 pr-16 pl-10'
         )}
         aria-label={t('Search models')}

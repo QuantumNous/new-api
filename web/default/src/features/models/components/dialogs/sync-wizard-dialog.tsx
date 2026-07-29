@@ -169,7 +169,7 @@ export function SyncWizardDialog({
                 key={option.value}
                 htmlFor={`sync-source-${option.value}`}
                 className={cn(
-                  'flex-col items-start gap-0 rounded-lg border p-4 font-normal transition-all',
+                  'flex-col items-start gap-0 rounded-lg border p-4 font-normal transition-ui',
                   isActive && 'border-primary ring-primary ring-1',
                   isDisabled
                     ? 'cursor-not-allowed opacity-60'

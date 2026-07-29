@@ -26,6 +26,8 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@/components/empty-state'
+import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
@@ -131,27 +133,27 @@ export function GroupStatusPage() {
           </section>
 
           {query.isError && (
-            <div className='rounded-xl border border-dashed px-4 py-8 text-center'>
-              <p className='text-sm font-medium'>
-                {t('Unable to load group status')}
-              </p>
-              <p className='text-muted-foreground mt-1 text-xs'>
-                {query.error instanceof Error
+            <ErrorState
+              className='min-h-[200px] border border-dashed'
+              title={t('Unable to load group status')}
+              description={
+                query.error instanceof Error
                   ? query.error.message
-                  : t('Please try again later.')}
-              </p>
-            </div>
+                  : t('Please try again later.')
+              }
+              onRetry={() => void query.refetch()}
+            />
           )}
 
           {!query.isLoading && !query.isError && groups.length === 0 && (
-            <div className='rounded-xl border border-dashed px-4 py-10 text-center'>
-              <p className='text-sm font-medium'>{t('No group metrics yet')}</p>
-              <p className='text-muted-foreground mx-auto mt-1 max-w-md text-xs'>
-                {t(
-                  'Availability is computed from real relay traffic. After models receive requests, success-rate windows will appear here. Ensure performance metrics collection is enabled.'
-                )}
-              </p>
-            </div>
+            <EmptyState
+              icon={Activity}
+              className='min-h-[200px]'
+              title={t('No group metrics yet')}
+              description={t(
+                'Availability is computed from real relay traffic. After models receive requests, success-rate windows will appear here. Ensure performance metrics collection is enabled.'
+              )}
+            />
           )}
 
           {groups.map((group) => (

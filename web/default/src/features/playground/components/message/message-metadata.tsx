@@ -17,9 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/utils'
+import { usePlaygroundStore } from '@/stores/playground-store'
 
 import type { MessageAlignment } from '../../lib'
 import type { Message } from '../../types'
@@ -37,7 +39,6 @@ function formatMessageTime(timestamp?: number): string | undefined {
   return new Intl.DateTimeFormat(undefined, {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
   }).format(new Date(timestamp))
 }
 
@@ -74,6 +75,8 @@ function formatTokensPerSecond(
 
 export function MessageMetadata(props: MessageMetadataProps) {
   const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const currentModel = usePlaygroundStore((state) => state.config.model)
   const messageTime = formatMessageTime(props.message.createdAt)
   const duration = formatDuration(props.message.durationMs, t)
   let modelLabel: string | undefined
@@ -97,7 +100,10 @@ export function MessageMetadata(props: MessageMetadataProps) {
     ? formatTokensPerSecond(usage.completionTokens, props.message.durationMs)
     : undefined
 
-  if (!messageTime && !duration && !modelLabel && !modelChange && !usage) {
+  const hasDiagnostics = Boolean(duration || usage)
+  const showModelChip = Boolean(modelLabel) && modelLabel !== currentModel
+
+  if (!messageTime && !hasDiagnostics && !modelLabel && !modelChange) {
     return null
   }
 
@@ -117,46 +123,52 @@ export function MessageMetadata(props: MessageMetadataProps) {
 
   return (
     <div
+      role={hasDiagnostics ? 'button' : undefined}
+      tabIndex={hasDiagnostics ? 0 : undefined}
+      onMouseEnter={() => hasDiagnostics && setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+      onFocus={() => hasDiagnostics && setExpanded(true)}
+      onBlur={() => setExpanded(false)}
       className={cn(
-        'text-muted-foreground mt-1 flex min-h-4 flex-wrap items-center gap-1.5 text-[11px] leading-none',
-        props.alignment === 'right' && 'justify-end'
+        'text-muted-foreground/70 mt-1 flex min-h-4 flex-wrap items-center gap-1.5 text-[10px] leading-none outline-none',
+        props.alignment === 'right' && 'justify-end',
+        hasDiagnostics && 'cursor-default'
       )}
     >
-      {modelLabel && (
-        <span className='font-mono text-[10px] opacity-80'>{modelLabel}</span>
-      )}
-      {modelLabel && (messageTime || duration) && (
-        <span aria-hidden='true'>·</span>
-      )}
-      {messageTime && <time>{messageTime}</time>}
-      {duration && (
-        <>
-          {(messageTime || modelLabel) && <span aria-hidden='true'>·</span>}
-          <span>{t('Response time: {{duration}}', { duration })}</span>
-        </>
-      )}
-      {usage && (
-        <>
-          {(messageTime || modelLabel || duration) && (
-            <span aria-hidden='true'>·</span>
-          )}
-          <span
-            className='font-mono text-[10px]'
-            title={t('Prompt / completion tokens')}
-          >
-            ↑{usage.promptTokens.toLocaleString()} ↓
-            {usage.completionTokens.toLocaleString()}
-          </span>
-          {tokensPerSecond && (
+      {showModelChip ? (
+        <span className='font-mono opacity-90'>{modelLabel}</span>
+      ) : null}
+      {showModelChip && messageTime ? <span aria-hidden='true'>·</span> : null}
+      {messageTime ? <time>{messageTime}</time> : null}
+
+      {expanded && hasDiagnostics ? (
+        <span className='flex flex-wrap items-center gap-1.5 text-[10px]'>
+          {duration ? (
             <>
               <span aria-hidden='true'>·</span>
-              <span className='font-mono text-[10px]'>
-                {t('{{value}} tok/s', { value: tokensPerSecond })}
+              <span>{t('Response time: {{duration}}', { duration })}</span>
+            </>
+          ) : null}
+          {usage ? (
+            <>
+              <span aria-hidden='true'>·</span>
+              <span
+                className='font-mono'
+                title={t('Prompt / completion tokens')}
+              >
+                ↑{usage.promptTokens.toLocaleString()} ↓
+                {usage.completionTokens.toLocaleString()}
               </span>
             </>
-          )}
-        </>
-      )}
+          ) : null}
+          {tokensPerSecond ? (
+            <>
+              <span aria-hidden='true'>·</span>
+              <span className='font-mono'>{tokensPerSecond} tok/s</span>
+            </>
+          ) : null}
+        </span>
+      ) : null}
     </div>
   )
 }

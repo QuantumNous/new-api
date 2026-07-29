@@ -85,7 +85,10 @@ export function GenerationImageCard(props: GenerationImageCardProps) {
       style={{ animationDelay: `${enterDelayMs}ms` }}
     >
       <div
-        className='bg-muted/60 relative w-full overflow-hidden transition-[aspect-ratio] duration-500 ease-out'
+        // The ratio snaps once, when the image reports its natural size; the
+        // image's own reveal covers the change, and interpolating aspect-ratio
+        // would relayout the results grid on every frame of it.
+        className='bg-muted/60 relative w-full overflow-hidden'
         style={{ aspectRatio: aspectCss }}
       >
         {!loaded && <div className='skeleton-shimmer absolute inset-0' />}

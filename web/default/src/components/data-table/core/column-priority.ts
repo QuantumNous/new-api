@@ -79,7 +79,11 @@ export function getPriorityColumnVisibility<TData>(
       const priority = column.meta?.priority
       const canHide = column.enableHiding !== false
 
-      if (id && canHide && (priority === 'secondary' || priority === 'detail')) {
+      if (
+        id &&
+        canHide &&
+        (priority === 'secondary' || priority === 'detail')
+      ) {
         visibility[id] = false
       }
 

@@ -124,7 +124,7 @@ export function HowItWorks() {
             </p>
             {steps.map((step, i) => {
               const cardClass =
-                'group border-border/50 bg-background/70 hover:border-border hover:bg-muted/20 block rounded-2xl border p-4 shadow-xs transition-all'
+                'group border-border/50 bg-background/70 hover:border-border hover:bg-muted/20 block rounded-2xl border p-4 shadow-xs transition-ui'
               const body = (
                 <>
                   <div className='mb-3 flex items-start justify-between gap-3'>

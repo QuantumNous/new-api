@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Menu } from 'lucide-react'
+import { FileQuestion, Menu } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { BundledLanguage } from 'shiki/bundle/web'
@@ -27,6 +27,8 @@ import {
   CodeBlock,
   CodeBlockCopyButton,
 } from '@/components/ai-elements/code-block'
+import { EmptyState } from '@/components/empty-state'
+import { ErrorState } from '@/components/error-state'
 import { PublicLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,6 +39,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   buildIntegrationSample,
@@ -343,31 +346,36 @@ export function DocsPage(props: { slug: string }) {
           </aside>
           <main className='max-w-3xl min-w-0 pb-20'>
             {waitingForProfile && (
-              <p className='text-muted-foreground'>{t('Loading...')}</p>
+              <div className='space-y-4'>
+                <Skeleton className='h-9 w-2/3' />
+                <Skeleton className='h-4 w-full' />
+                <Skeleton className='h-4 w-11/12' />
+                <Skeleton className='h-64 w-full rounded-xl' />
+              </div>
             )}
             {profileUnavailable && (
-              <div className='rounded-xl border border-dashed p-8'>
-                <h1 className='text-3xl font-bold'>{t('Loading failed')}</h1>
-              </div>
+              <ErrorState
+                className='border border-dashed'
+                title={t('Loading failed')}
+              />
             )}
             {!waitingForProfile && !profileUnavailable && !title && (
-              <div className='rounded-xl border border-dashed p-8'>
-                <h1 className='text-3xl font-bold'>
-                  {t('Documentation page not found')}
-                </h1>
-                <p className='text-muted-foreground mt-3'>
-                  {t(
-                    'The requested documentation page does not exist or is no longer available.'
-                  )}
-                </p>
-                <Link
-                  to='/docs/$slug'
-                  params={{ slug: 'getting-started' }}
-                  className='text-primary mt-5 inline-block hover:underline'
-                >
-                  {t('Go to getting started')}
-                </Link>
-              </div>
+              <EmptyState
+                icon={FileQuestion}
+                title={t('Documentation page not found')}
+                description={t(
+                  'The requested documentation page does not exist or is no longer available.'
+                )}
+                action={
+                  <Link
+                    to='/docs/$slug'
+                    params={{ slug: 'getting-started' }}
+                    className='text-primary inline-block hover:underline'
+                  >
+                    {t('Go to getting started')}
+                  </Link>
+                }
+              />
             )}
             {!waitingForProfile && !profileUnavailable && title && (
               <>

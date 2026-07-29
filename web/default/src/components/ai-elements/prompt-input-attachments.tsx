@@ -66,7 +66,7 @@ export function PromptInputAttachment({
         render={
           <div
             className={cn(
-              'group border-border hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 relative flex h-8 cursor-default items-center gap-1.5 rounded-md border px-1.5 text-sm font-medium transition-all select-none',
+              'group border-border hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 relative flex h-8 cursor-default items-center gap-1.5 rounded-md border px-1.5 text-sm font-medium transition-ui select-none',
               className
             )}
             key={data.id}

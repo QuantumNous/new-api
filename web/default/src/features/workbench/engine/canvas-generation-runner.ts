@@ -112,6 +112,33 @@ function measureImageSize(
   })
 }
 
+function measureVideoSize(
+  url: string
+): Promise<{ naturalWidth: number; naturalHeight: number } | undefined> {
+  if (typeof document === 'undefined') return Promise.resolve(undefined)
+  return new Promise((resolve) => {
+    const video = document.createElement('video')
+    const cleanup = () => {
+      video.removeAttribute('src')
+      video.load()
+    }
+    video.addEventListener('loadedmetadata', () => {
+      resolve({
+        naturalWidth: video.videoWidth,
+        naturalHeight: video.videoHeight,
+      })
+      cleanup()
+    })
+    video.addEventListener('error', () => {
+      resolve(undefined)
+      cleanup()
+    })
+    video.preload = 'metadata'
+    video.crossOrigin = 'anonymous'
+    video.src = url
+  })
+}
+
 function parseTaskProgress(progress?: string): number | null {
   const parsed = Number.parseFloat(progress ?? '')
   if (!Number.isFinite(parsed)) return null
@@ -184,9 +211,13 @@ export async function pollCanvasVideoTask(
   throw new Error('Video generation timed out')
 }
 
-async function persistCanvasVideoResult(
+async function persistCanvasVideoResult(taskId: string): Promise<{
+  url: string
+  assetId?: number
   taskId: string
-): Promise<{ url: string; assetId?: number; taskId: string }> {
+  naturalWidth?: number
+  naturalHeight?: number
+}> {
   const url = `/v1/videos/${taskId}/content`
   let finalUrl = url
   let assetId: number | undefined
@@ -201,7 +232,14 @@ async function persistCanvasVideoResult(
   } catch {
     // The authenticated content endpoint remains a usable fallback.
   }
-  return { url: finalUrl, assetId, taskId }
+  const measured = await measureVideoSize(finalUrl)
+  return {
+    url: finalUrl,
+    assetId,
+    taskId,
+    naturalWidth: measured?.naturalWidth,
+    naturalHeight: measured?.naturalHeight,
+  }
 }
 
 export async function resumeCanvasVideoGeneration(input: {
@@ -212,7 +250,13 @@ export async function resumeCanvasVideoGeneration(input: {
     taskId: string
   }) => void
   signal?: AbortSignal
-}): Promise<{ url: string; assetId?: number; taskId: string }> {
+}): Promise<{
+  url: string
+  assetId?: number
+  taskId: string
+  naturalWidth?: number
+  naturalHeight?: number
+}> {
   await pollCanvasVideoTask(input.taskId, input)
   throwIfAborted(input.signal)
   return persistCanvasVideoResult(input.taskId)
@@ -275,7 +319,13 @@ export async function runCanvasVideoGeneration(input: {
     taskId: string
   }) => void
   signal?: AbortSignal
-}): Promise<{ url: string; assetId?: number; taskId: string }> {
+}): Promise<{
+  url: string
+  assetId?: number
+  taskId: string
+  naturalWidth?: number
+  naturalHeight?: number
+}> {
   throwIfAborted(input.signal)
   const [firstFrame, secondFrame] = input.referenceImages
   const submission = await submitVideo({

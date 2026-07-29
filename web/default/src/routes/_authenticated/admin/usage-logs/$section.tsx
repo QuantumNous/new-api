@@ -31,9 +31,7 @@ import { usageLogsSearchSchema } from '../../usage-logs/$section'
 function SiteUsageLogsPage() {
   const { section } = Route.useParams()
   const searchParams = Route.useSearch()
-  return (
-    <UsageLogs mode='site' section={section} searchParams={searchParams} />
-  )
+  return <UsageLogs mode='site' section={section} searchParams={searchParams} />
 }
 
 export const Route = createFileRoute(

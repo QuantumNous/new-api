@@ -17,7 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type ClassValue, clsx } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { extendTailwindMerge } from 'tailwind-merge'
+
+// `transition-ui` is the project's own transition-property utility (defined in
+// `src/styles/index.css`) — the whitelist we use instead of `transition-all`.
+// Registering it in the `transition` group lets a later `transition-none` or
+// `transition-colors` from a `className` prop override it as callers expect.
+const twMerge = extendTailwindMerge({
+  extend: { classGroups: { transition: ['transition-ui'] } },
+})
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

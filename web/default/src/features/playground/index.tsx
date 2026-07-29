@@ -126,8 +126,6 @@ export function Playground() {
   const setModels = usePlaygroundStore((state) => state.setModels)
   const setGroups = usePlaygroundStore((state) => state.setGroups)
   const patchConfig = usePlaygroundStore((state) => state.updateConfig)
-  const clearMessages = usePlaygroundStore((state) => state.clearMessages)
-
   useSessionCloudSync(isAuthenticated)
   useAutoChatTitle(isAuthenticated)
   const updateConfig = useCallback(
@@ -434,11 +432,6 @@ export function Playground() {
     [updateMessages]
   )
 
-  const handleClearMessages = () => {
-    handleEditOpenChange(false)
-    clearMessages()
-  }
-
   const handleNewSession = useCallback(() => {
     handleEditOpenChange(false)
     startNewSession(activeModality)
@@ -690,10 +683,8 @@ export function Playground() {
               isGenerating={isGenerating}
               isModelLoading={isLoadingModels}
               onOpenModelCatalog={() => setCatalogDrawerOpen(true)}
-              onClearMessages={handleClearMessages}
               onStop={stopGeneration}
               onSubmit={handleSendMessage}
-              hasMessages={messages.length > 0}
             />
           </div>
         </>

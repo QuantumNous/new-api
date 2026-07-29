@@ -20,6 +20,7 @@ import { QrCode } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
+import { EmptyState } from '@/components/empty-state'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 // ============================================================================
@@ -57,15 +58,14 @@ export function WeChatBindDialog({
           </AlertDescription>
         </Alert>
 
-        <div className='flex flex-col items-center justify-center rounded-lg border border-dashed p-8'>
-          <QrCode className='text-muted-foreground mb-3 h-16 w-16' />
-          <p className='text-muted-foreground text-sm'>
-            {t('WeChat QR code will be displayed here')}
-          </p>
-          <p className='text-muted-foreground mt-2 text-xs'>
-            {t('This feature requires server-side WeChat configuration')}
-          </p>
-        </div>
+        <EmptyState
+          icon={QrCode}
+          className='min-h-0 p-8'
+          title={t('WeChat QR code will be displayed here')}
+          description={t(
+            'This feature requires server-side WeChat configuration'
+          )}
+        />
 
         <p className='text-muted-foreground text-center text-xs'>
           {t('After scanning, the binding will complete automatically')}

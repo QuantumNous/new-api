@@ -20,11 +20,15 @@ import type { Transition, Variants } from 'motion/react'
 
 const EASE_OUT_CUBIC = [0.33, 1, 0.68, 1] as const
 
+/* Mirrors the `--motion-duration-*` tiers in `src/styles/index.css`:
+ * fast = control (hover feedback, toolbars, chips), normal = overlay
+ * (popovers, floating panels, conditional badges), slow = page (route
+ * entrances, hero sections). Keep both files in step. */
 const DURATION = {
   instant: 0,
-  fast: 0.15,
+  fast: 0.18,
   normal: 0.25,
-  slow: 0.35,
+  slow: 0.32,
 } as const
 
 export const MOTION_TRANSITION: Record<string, Transition> = {
@@ -36,10 +40,15 @@ export const MOTION_TRANSITION: Record<string, Transition> = {
 }
 
 export const MOTION_VARIANTS = {
+  /* Deliberately transform + opacity only. A lingering `filter: blur(0px)`
+   * turns the page shell into a containing block for `position: fixed`
+   * descendants, which quietly breaks full-viewport surfaces (playground,
+   * canvas) that anchor overlays to the viewport. Motion resets an identity
+   * transform to `none`, so the slide leaves nothing behind. */
   pageEnter: {
-    initial: { opacity: 0, y: 8, filter: 'blur(4px)' },
-    animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
-    exit: { opacity: 0, y: -4, filter: 'blur(2px)' },
+    initial: { opacity: 0, y: 8 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -4 },
   },
   fadeIn: {
     initial: { opacity: 0 },

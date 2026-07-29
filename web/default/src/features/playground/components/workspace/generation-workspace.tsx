@@ -276,14 +276,7 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
               videoTask.ready && (
                 <GenerationMediaResult className='max-w-3xl'>
                   <div className='border-border/80 overflow-hidden rounded-2xl border bg-black shadow-sm'>
-                    <video
-                      controls
-                      autoPlay
-                      className='aspect-video w-full'
-                      src={videoTask.resultUrl}
-                    >
-                      {t('Your browser does not support video playback.')}
-                    </video>
+                    <AdaptiveVideoPlayer src={videoTask.resultUrl} />
                   </div>
                   <Button
                     type='button'
@@ -369,6 +362,38 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
           onSubmit={submit}
         />
       </div>
+    </div>
+  )
+}
+
+function AdaptiveVideoPlayer(props: { src: string }) {
+  const { t } = useTranslation()
+  const [videoSize, setVideoSize] = useState<{
+    w: number
+    h: number
+  } | null>(null)
+  const aspect = videoSize ? `${videoSize.w} / ${videoSize.h}` : '16 / 9'
+  return (
+    <div className='relative w-full' style={{ aspectRatio: aspect }}>
+      <video
+        controls
+        autoPlay
+        className='absolute inset-0 h-full w-full'
+        src={props.src}
+        onLoadedMetadata={(event) => {
+          const video = event.currentTarget
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            setVideoSize({ w: video.videoWidth, h: video.videoHeight })
+          }
+        }}
+      >
+        {t('Your browser does not support video playback.')}
+      </video>
+      {videoSize ? (
+        <span className='bg-background/85 text-foreground/90 pointer-events-none absolute top-3 left-3 rounded-full px-2.5 py-1 font-mono text-[11px] shadow-sm backdrop-blur-sm'>
+          {videoSize.w}×{videoSize.h}
+        </span>
+      ) : null}
     </div>
   )
 }

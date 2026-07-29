@@ -20,6 +20,7 @@ import { Code, Table, Plus, Trash2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@/components/empty-state'
 import { JsonCodeEditor } from '@/components/json-code-editor'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -283,9 +284,10 @@ export function JsonEditor({
               ))}
             </div>
           ) : (
-            <div className='text-muted-foreground flex h-24 items-center justify-center rounded-md border border-dashed text-sm'>
-              {resolvedEmptyMessage}
-            </div>
+            <EmptyState
+              className='h-24 min-h-0 rounded-md p-0'
+              title={resolvedEmptyMessage}
+            />
           )}
           <Button
             type='button'

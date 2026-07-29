@@ -46,6 +46,7 @@ import {
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
+import { EmptyState } from '@/components/empty-state'
 import { Button } from '@/components/ui/button'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { useMdDown } from '@/hooks'
@@ -775,9 +776,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
           />
 
           {!hasRows ? (
-            <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
-              {emptyStateText}
-            </div>
+            <EmptyState className='min-h-0 p-8' title={emptyStateText} />
           ) : (
             <DataTableView
               table={table}
@@ -841,22 +840,21 @@ const ModelRatioVisualEditorComponent = forwardRef<
               className='h-full min-h-0'
             />
           ) : (
-            <div className='bg-card text-muted-foreground flex h-full min-h-0 flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-6 text-center'>
-              <div className='text-foreground text-base font-medium'>
-                {t('Select a model to edit pricing')}
-              </div>
-              <p className='max-w-sm text-sm'>
-                {t(
-                  'Use the full-width table to scan prices, then select a row to edit it here.'
-                )}
-              </p>
-              {filterMode !== 'unset' && (
-                <Button variant='outline' onClick={handleAdd}>
-                  <Plus data-icon='inline-start' />
-                  {t('Add model')}
-                </Button>
+            <EmptyState
+              className='bg-card h-full min-h-0'
+              title={t('Select a model to edit pricing')}
+              description={t(
+                'Use the full-width table to scan prices, then select a row to edit it here.'
               )}
-            </div>
+              action={
+                filterMode !== 'unset' ? (
+                  <Button variant='outline' onClick={handleAdd}>
+                    <Plus data-icon='inline-start' />
+                    {t('Add model')}
+                  </Button>
+                ) : undefined
+              }
+            />
           )}
         </div>
       </div>

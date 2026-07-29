@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Outlet, useRouterState } from '@tanstack/react-router'
-import { motion, useReducedMotion, type Variants } from 'motion/react'
+import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+  type Variants,
+} from 'motion/react'
 import type { ReactNode } from 'react'
 
 import {
@@ -179,6 +184,44 @@ export function CardStaggerItem(props: StaggerItemProps) {
     <motion.div variants={CARD_ITEM_VARIANTS} className={props.className}>
       {props.children}
     </motion.div>
+  )
+}
+
+interface RevealProps {
+  /** Render the children when true, play the exit animation when false. */
+  show: boolean
+  children: ReactNode
+  className?: string
+}
+
+/**
+ * Entry/exit for small conditional UI — inline error banners, "saved" badges,
+ * validation hints. Without an `AnimatePresence` around them these pop in and,
+ * worse, vanish instantly; this gives both directions the same short fade and
+ * scale. For whole panels or route content use `PageTransition` instead.
+ */
+export function Reveal(props: RevealProps) {
+  const shouldReduce = useReducedMotion()
+
+  if (shouldReduce) {
+    if (!props.show) return null
+    return <div className={props.className}>{props.children}</div>
+  }
+
+  return (
+    <AnimatePresence initial={false}>
+      {props.show && (
+        <motion.div
+          initial={MOTION_VARIANTS.scaleIn.initial}
+          animate={MOTION_VARIANTS.scaleIn.animate}
+          exit={MOTION_VARIANTS.scaleIn.exit}
+          transition={MOTION_TRANSITION.fast}
+          className={props.className}
+        >
+          {props.children}
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 

@@ -20,6 +20,7 @@ import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { PageTransition } from '@/components/page-transition'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { cn } from '@/lib/utils'
@@ -118,7 +119,7 @@ export function ErrorPage(props: ErrorPageProps) {
       </header>
 
       <main className='relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-12 sm:py-16'>
-        <div className='w-full max-w-lg'>
+        <PageTransition className='w-full max-w-lg'>
           <div className='border-border/60 bg-card/80 rounded-2xl border p-8 text-center shadow-sm backdrop-blur-sm sm:p-10'>
             <div
               className={cn(
@@ -151,7 +152,7 @@ export function ErrorPage(props: ErrorPageProps) {
           <p className='text-muted-foreground/70 mt-6 text-center text-xs tracking-wide'>
             {brandName}
           </p>
-        </div>
+        </PageTransition>
       </main>
     </div>
   )

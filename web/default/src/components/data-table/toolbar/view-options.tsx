@@ -65,9 +65,7 @@ export function DataTableViewOptions<TData>({
         <DropdownMenuGroup>
           <DropdownMenuLabel>{t('Toggle columns')}</DropdownMenuLabel>
           {hideableColumns.map((column) => {
-            const meta = column.columnDef.meta as
-              | { label?: string }
-              | undefined
+            const meta = column.columnDef.meta as { label?: string } | undefined
             let label: string
             if (typeof column.columnDef.header === 'string') {
               label = column.columnDef.header

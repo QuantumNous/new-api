@@ -112,12 +112,8 @@ export function CommonLogsFilterBar<TData>(
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { isAdminView: isAdmin } = useLogsViewScope()
-  const {
-    searchParams,
-    navigateLogs,
-    sensitiveVisible,
-    setSensitiveVisible,
-  } = useUsageLogsContext()
+  const { searchParams, navigateLogs, sensitiveVisible, setSensitiveVisible } =
+    useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
   const searchState = useMemo<CommonLogDraft>(() => {

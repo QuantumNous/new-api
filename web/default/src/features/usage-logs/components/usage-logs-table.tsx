@@ -93,7 +93,9 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     navigate: ({ search, replace: _replace }) => {
       let next: typeof searchParams
       if (typeof search === 'function') {
-        next = search(searchParams as Record<string, unknown>) as typeof searchParams
+        next = search(
+          searchParams as Record<string, unknown>
+        ) as typeof searchParams
       } else if (search === true) {
         next = searchParams
       } else {

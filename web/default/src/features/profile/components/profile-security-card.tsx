@@ -124,7 +124,7 @@ export function ProfileSecurityCard({
               >
                 <item.icon />
               </IconBadge>
-              <ChevronRight className='text-muted-foreground size-4 opacity-0 transition-all duration-200 group-hover/sec:translate-x-0.5 group-hover/sec:opacity-100' />
+              <ChevronRight className='text-muted-foreground transition-ui size-4 opacity-0 duration-200 group-hover/sec:translate-x-0.5 group-hover/sec:opacity-100' />
             </div>
             <div className='min-w-0 space-y-1'>
               <p

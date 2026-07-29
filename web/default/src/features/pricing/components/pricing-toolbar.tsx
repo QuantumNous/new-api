@@ -142,7 +142,7 @@ function SegmentedControl(props: {
             onClick={() => props.onChange(option.value)}
             aria-pressed={isActive}
             className={cn(
-              'inline-flex h-full items-center justify-center rounded-md text-xs font-medium transition-all',
+              'inline-flex h-full items-center justify-center rounded-md text-xs font-medium transition-ui',
               Icon && !option.label ? 'w-7' : 'gap-1.5 px-3',
               isActive
                 ? 'bg-primary text-primary-foreground shadow-sm'

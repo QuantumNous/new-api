@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { PageTransition } from '@/components/page-transition'
+
 import type { TopNavLink } from '../types'
 import { PublicHeader, type PublicHeaderProps } from './public-header'
 
@@ -32,6 +34,10 @@ type PublicLayoutProps = {
 }
 
 export function PublicLayout(props: PublicLayoutProps) {
+  // Route-level entrance, so the marketing and full-viewport app shells fade in
+  // the same way console pages already do through `AnimatedOutlet`.
+  const content = <PageTransition>{props.children}</PageTransition>
+
   return (
     <div className='bg-background text-foreground relative min-h-svh overflow-x-clip'>
       <PublicHeader
@@ -45,11 +51,9 @@ export function PublicLayout(props: PublicLayoutProps) {
       />
 
       {props.showMainContainer !== false ? (
-        <main className='container px-4 py-6 pt-20 md:px-4'>
-          {props.children}
-        </main>
+        <main className='container px-4 py-6 pt-20 md:px-4'>{content}</main>
       ) : (
-        props.children
+        content
       )}
     </div>
   )

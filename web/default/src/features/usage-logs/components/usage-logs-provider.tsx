@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useNavigate } from '@tanstack/react-router'
 /* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
@@ -24,10 +25,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { useNavigate } from '@tanstack/react-router'
 
-import type { ChannelAffinityInfo } from '../types'
 import type { UsageLogsSectionId } from '../section-registry'
+import type { ChannelAffinityInfo } from '../types'
 
 /**
  * Usage-logs page mode.

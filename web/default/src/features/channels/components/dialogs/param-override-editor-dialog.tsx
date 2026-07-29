@@ -37,6 +37,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
+import { Reveal } from '@/components/page-transition'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -2056,13 +2057,13 @@ export function ParamOverrideEditorDialog(
                 </div>
               )}
 
-              {visualValidationError && (
+              <Reveal show={Boolean(visualValidationError)}>
                 <div className='border-t px-4 py-2'>
                   <p className='text-destructive text-xs'>
                     {visualValidationError}
                   </p>
                 </div>
-              )}
+              </Reveal>
             </div>
           </div>
         )}
@@ -2091,9 +2092,9 @@ export function ParamOverrideEditorDialog(
             <p className='text-muted-foreground mt-2 text-xs'>
               {t('Edit JSON text directly. Format will be validated on save.')}
             </p>
-            {jsonError && (
+            <Reveal show={Boolean(jsonError)}>
               <p className='text-destructive mt-1 text-xs'>{jsonError}</p>
-            )}
+            </Reveal>
           </div>
         )}
       </div>

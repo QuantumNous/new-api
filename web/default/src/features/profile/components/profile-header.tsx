@@ -37,8 +37,8 @@ import { Button } from '@/components/ui/button'
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCountUp } from '@/features/dashboard/hooks/use-count-up'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { formatCompactNumber, formatQuota } from '@/lib/format'
 import { MOTION_TRANSITION } from '@/lib/motion'
 import { getRoleLabel } from '@/lib/roles'
@@ -258,7 +258,10 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
             key={item.key}
             initial={shouldReduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ ...MOTION_TRANSITION.default, delay: 0.08 + index * 0.05 }}
+            transition={{
+              ...MOTION_TRANSITION.default,
+              delay: 0.08 + index * 0.05,
+            }}
             className={cn(
               'group/stat hover:bg-muted/25 min-w-0 px-4 py-4 transition-colors sm:px-5 sm:py-5',
               index > 0 && 'border-border/40 border-t sm:border-t-0 sm:border-l'

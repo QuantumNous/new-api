@@ -144,17 +144,15 @@ export function DataTableCardGrid<TData>(props: DataTableCardGridProps<TData>) {
 
   if (!rows || rows.length === 0) {
     return (
-      <div className='border-border/60 bg-card/40 rounded-xl border border-dashed p-8'>
-        <Empty className='border-none p-0'>
-          <EmptyHeader>
-            <EmptyMedia variant='icon'>
-              {props.emptyIcon ?? <Database className='size-6' />}
-            </EmptyMedia>
-            <EmptyTitle>{resolvedEmptyTitle}</EmptyTitle>
-            <EmptyDescription>{resolvedEmptyDescription}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </div>
+      <Empty className='border-border/60 bg-card/40 border border-dashed p-8'>
+        <EmptyHeader>
+          <EmptyMedia variant='icon'>
+            {props.emptyIcon ?? <Database className='size-6' />}
+          </EmptyMedia>
+          <EmptyTitle>{resolvedEmptyTitle}</EmptyTitle>
+          <EmptyDescription>{resolvedEmptyDescription}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   }
 
@@ -211,7 +209,11 @@ export function DataTableCardGrid<TData>(props: DataTableCardGridProps<TData>) {
                 transition: cardItemTransition,
               },
             }}
-            whileHover={{ y: -2, transition: { duration: 0.15 } }}
+            // Matches `--card-hover-lift` in index.css. It has to stay a motion
+            // value rather than the shared `data-card-hover` CSS rule, because
+            // the stagger variants leave an inline transform that a stylesheet
+            // hover rule cannot override.
+            whileHover={{ y: -2, transition: MOTION_TRANSITION.fast }}
             className={cn(
               'border-border/60 bg-card hover:border-border rounded-xl border px-3.5 py-3 shadow-[0_1px_0_0_color-mix(in_oklch,var(--foreground)_3%,transparent)] transition-[background-color,border-color,box-shadow] duration-150',
               'data-[state=selected]:border-primary/35 data-[state=selected]:bg-primary/5',

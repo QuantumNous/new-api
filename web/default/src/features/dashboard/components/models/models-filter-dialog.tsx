@@ -48,6 +48,7 @@ import type {
 } from '@/features/dashboard/types'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { cn } from '@/lib/utils'
+
 import { useDashboardScope } from '../dashboard-scope'
 
 interface ModelsFilterProps {

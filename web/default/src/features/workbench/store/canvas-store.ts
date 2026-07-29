@@ -97,6 +97,8 @@ type CanvasStoreState = {
   ) => CanvasNodeData
   insertNodes: (nodes: CanvasNodeData[]) => void
   updateNode: (id: string, patch: Partial<CanvasNodeData>) => void
+  /** Resize during pointer gestures skips history/revision churn; commit on up. */
+  resizeNode: (id: string, patch: Partial<CanvasNodeData>) => void
   updateNodeMetadata: (id: string, patch: Partial<CanvasNodeMetadata>) => void
   updateStoryboardRow: (
     nodeId: string,
@@ -288,6 +290,13 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
       revision: state.revision + 1,
     })),
 
+  resizeNode: (id, patch) =>
+    set((state) => ({
+      nodes: state.nodes.map((node) =>
+        node.id === id ? { ...node, ...patch } : node
+      ),
+    })),
+
   updateNodeMetadata: (id, patch) =>
     set((state) => ({
       nodes: state.nodes.map((node) =>
@@ -347,7 +356,6 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
           ? { ...node, position: { x: target.x, y: target.y } }
           : node
       }),
-      revision: state.revision + 1,
     }))
   },
 

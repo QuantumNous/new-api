@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Check, Copy } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,6 +28,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { MOTION_TRANSITION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 interface CopyButtonProps {
@@ -53,12 +55,19 @@ export function CopyButton({
   'aria-label': ariaLabel,
 }: CopyButtonProps) {
   const { t } = useTranslation()
+  const shouldReduce = useReducedMotion()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const isCopied = copiedText === value
   const resolvedTooltip = tooltip ?? t('Copy to clipboard')
   const resolvedSuccessTooltip = successTooltip ?? t('Copied!')
   const resolvedAriaLabel = ariaLabel ?? resolvedTooltip
   const copiedAriaLabel = t('Copied')
+
+  const icon = isCopied ? (
+    <Check className={cn('text-success', iconClassName)} />
+  ) : (
+    <Copy className={cn(iconClassName)} />
+  )
 
   const button = (
     <Button
@@ -68,10 +77,23 @@ export function CopyButton({
       onClick={() => copyToClipboard(value)}
       aria-label={isCopied ? copiedAriaLabel : resolvedAriaLabel}
     >
-      {isCopied ? (
-        <Check className={cn('text-success', iconClassName)} />
+      {shouldReduce ? (
+        icon
       ) : (
-        <Copy className={cn(iconClassName)} />
+        // The copied state reverts on a timer, so the icon swaps twice per use;
+        // a cross-fade reads as feedback where a hard cut reads as a glitch.
+        <AnimatePresence initial={false} mode='wait'>
+          <motion.span
+            key={isCopied ? 'copied' : 'idle'}
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.7 }}
+            transition={MOTION_TRANSITION.fast}
+            className='inline-flex items-center justify-center'
+          >
+            {icon}
+          </motion.span>
+        </AnimatePresence>
       )}
       {children}
     </Button>

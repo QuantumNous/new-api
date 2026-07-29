@@ -86,6 +86,63 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+/* ── Motion system ───────────────────────────────────────────────────────────
+ * Three duration tiers shared by the CSS keyframe animations below and the
+ * `motion/react` transitions in `src/lib/motion.ts`:
+ *   control — hover feedback, toolbars, chips, switches
+ *   overlay — popovers, floating toolbars, minimaps, drawers
+ *   page    — route entrances, hero sections, large surfaces
+ * Keep the two systems in step: changing a tier here should be mirrored in
+ * `DURATION` in `src/lib/motion.ts`.
+ */
+:root {
+  --motion-duration-control: 180ms;
+  --motion-duration-overlay: 250ms;
+  --motion-duration-page: 320ms;
+  --motion-ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --motion-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Single source of truth for the card lift, consumed by the hover rule at
+   * the bottom of this file. */
+  --card-hover-lift: -2px;
+  --card-hover-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.12);
+}
+
+.dark {
+  --card-hover-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.45);
+}
+
+/* Tailwind's animation utilities ship without a reduced-motion fallback, so a
+ * single rule here covers every `animate-spin` / `animate-pulse` in the app
+ * instead of each call site remembering `motion-reduce:animate-none`.
+ * Spinners keep their glyph, they just stop rotating. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin,
+  .animate-pulse,
+  .animate-ping,
+  .animate-bounce {
+    animation: none !important;
+  }
+}
+
+/* Property whitelist for interactive chrome. `transition-all` re-interpolates
+ * layout properties on every change — this list stays on paint and compositor
+ * properties. Composes with the `duration-*` / `ease-*` utilities through the
+ * same custom properties Tailwind's own `transition` utility reads. */
+@utility transition-ui {
+  transition-property:
+    color, background-color, border-color, text-decoration-color, fill, stroke,
+    box-shadow, opacity, transform, filter, backdrop-filter;
+  transition-timing-function: var(
+    --tw-ease,
+    var(--default-transition-timing-function, cubic-bezier(0.4, 0, 0.2, 1))
+  );
+  transition-duration: var(
+    --tw-duration,
+    var(--default-transition-duration, 150ms)
+  );
+}
+
 /* Vercel Geist-style skeleton shimmer */
 .skeleton-shimmer {
   background: linear-gradient(
@@ -838,19 +895,25 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 .landing-animate-fade-up {
-  animation: landing-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: landing-fade-up var(--motion-duration-page)
+    var(--motion-ease-emphasized) both;
 }
 .landing-animate-fade-in {
-  animation: landing-fade-in 0.6s ease-out both;
+  animation: landing-fade-in var(--motion-duration-page) ease-out both;
 }
+/* Floating chrome (canvas toolbars, minimap, overlay panels) sits on the
+ * overlay tier — a 600ms scale-in reads as the panel wobbling into place. */
 .landing-animate-scale-in {
-  animation: landing-scale-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: landing-scale-in var(--motion-duration-overlay)
+    var(--motion-ease-emphasized) both;
 }
 .landing-animate-fade-left {
-  animation: landing-fade-left 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: landing-fade-left var(--motion-duration-page)
+    var(--motion-ease-emphasized) both;
 }
 .landing-animate-fade-right {
-  animation: landing-fade-right 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: landing-fade-right var(--motion-duration-page)
+    var(--motion-ease-emphasized) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -865,22 +928,62 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+/* Canvas generation glow — a node's soft halo while work is running */
+@keyframes canvas-node-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.canvas-node-generating {
+  animation: canvas-node-glow 1.8s ease-in-out infinite;
+}
+
+/* Pending connection drag line flows forward */
+@keyframes canvas-connection-flow {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+.canvas-pending-connection {
+  animation: canvas-connection-flow 0.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-node-generating,
+  .canvas-pending-connection {
+    animation: none !important;
+  }
+}
+
 /* Micro-interactions — Vercel-style subtle hover/active feedback */
 @media (prefers-reduced-motion: no-preference) {
-  [data-slot='card']:not([data-card-hover='false']) {
+  /* The one card-hover spec for the whole app. `ui/Card` opts in by default and
+   * opts out with `data-card-hover='false'`; any other clickable surface that
+   * should feel like a card (gallery tiles, stat tiles, canvas list rows) opts
+   * in with `data-card-hover='true'` rather than hand-rolling its own lift. */
+  /* This rule sits outside `@layer utilities`, so it wins over a
+   * `transition-colors` utility on the same element — hence colour properties
+   * are part of the list rather than left to the utility. */
+  [data-slot='card']:not([data-card-hover='false']),
+  [data-card-hover='true'] {
     transition:
-      transform 150ms ease,
-      box-shadow 150ms ease;
+      transform var(--motion-duration-control) var(--motion-ease-out),
+      box-shadow var(--motion-duration-control) var(--motion-ease-out),
+      border-color var(--motion-duration-control) var(--motion-ease-out),
+      background-color var(--motion-duration-control) var(--motion-ease-out);
   }
 
   @media (min-width: 641px) {
-    [data-slot='card']:not([data-card-hover='false']):hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgb(0 0 0 / 0.06);
-    }
-
-    .dark [data-slot='card']:not([data-card-hover='false']):hover {
-      box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+    [data-slot='card']:not([data-card-hover='false']):hover,
+    [data-card-hover='true']:hover {
+      transform: translateY(var(--card-hover-lift));
+      box-shadow: var(--card-hover-shadow);
     }
   }
 
@@ -926,6 +1029,27 @@ For commercial licensing, please contact support@quantumnous.com
   }
   [data-slot='table'] tbody tr:nth-child(n + 11) {
     animation-delay: 250ms;
+  }
+}
+
+/* Inline validation messages appear mid-typing all over the app. One rule gives
+ * every `FormMessage` the same short entrance instead of a hard cut; they are
+ * removed from the DOM on clear, so there is no exit to animate. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot='form-message'] {
+    animation: form-message-enter var(--motion-duration-control)
+      var(--motion-ease-out) both;
+  }
+}
+
+@keyframes form-message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

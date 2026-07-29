@@ -108,15 +108,24 @@ export function useCanvasInteractions(
     initial: { x: number; y: number; width: number; height: number }
   } | null>(null)
   const connectionRef = useRef<ConnectionHandle | null>(null)
+  const rectCacheRef = useRef<{ rect: DOMRect; expiresAt: number } | null>(null)
 
   const screenToWorld = useCallback(
     (clientX: number, clientY: number): Position => {
-      const rect = containerRef.current?.getBoundingClientRect()
+      const container = containerRef.current
+      if (!container) return { x: 0, y: 0 }
+      const now = performance.now()
+      if (!rectCacheRef.current || rectCacheRef.current.expiresAt < now) {
+        rectCacheRef.current = {
+          rect: container.getBoundingClientRect(),
+          expiresAt: now + 250,
+        }
+      }
+      const rect = rectCacheRef.current.rect
       const viewport = readLiveViewport(
-        containerRef.current,
+        container,
         useCanvasStore.getState().viewport
       )
-      if (!rect) return { x: 0, y: 0 }
       return {
         x: (clientX - rect.left - viewport.x) / viewport.k,
         y: (clientY - rect.top - viewport.y) / viewport.k,
@@ -307,7 +316,7 @@ export function useCanvasInteractions(
             height = width / ratio
           }
         }
-        useCanvasStore.getState().updateNode(resize.nodeId, {
+        useCanvasStore.getState().resizeNode(resize.nodeId, {
           width,
           height,
           position: {
@@ -348,7 +357,17 @@ export function useCanvasInteractions(
         setDraggingNodeIds([])
         useCanvasStore.getState().commitNodeDrag(movedIds, initial)
       }
-      if (resizeRef.current?.active) resizeRef.current = null
+      if (resizeRef.current?.active) {
+        const resize = resizeRef.current
+        resizeRef.current = null
+        const before = resize.initial
+        useCanvasStore
+          .getState()
+          .commitNodeDrag(
+            [resize.nodeId],
+            [{ id: resize.nodeId, x: before.x, y: before.y }]
+          )
+      }
 
       const handle = connectionRef.current
       if (handle) {

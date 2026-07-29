@@ -21,6 +21,7 @@ import { ListChecks, RefreshCw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -397,9 +398,10 @@ export function SystemTasksPanel() {
           {activeTasks.length > 0 ? (
             <SystemTasksTable tasks={activeTasks} />
           ) : (
-            <div className='text-muted-foreground rounded-md border border-dashed px-4 py-6 text-center text-sm'>
-              {t('No active system tasks.')}
-            </div>
+            <EmptyState
+              className='min-h-0 px-4 py-6'
+              title={t('No active system tasks.')}
+            />
           )}
         </div>
 
@@ -416,9 +418,10 @@ export function SystemTasksPanel() {
           {historyTasks.length > 0 ? (
             <SystemTasksTable tasks={historyTasks} />
           ) : (
-            <div className='text-muted-foreground rounded-md border border-dashed px-4 py-6 text-center text-sm'>
-              {t('No historical system tasks.')}
-            </div>
+            <EmptyState
+              className='min-h-0 px-4 py-6'
+              title={t('No historical system tasks.')}
+            />
           )}
         </div>
       </div>

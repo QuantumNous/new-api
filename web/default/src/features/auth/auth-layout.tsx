@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { PageTransition } from '@/components/page-transition'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSystemConfig } from '@/hooks/use-system-config'
 
@@ -72,11 +73,11 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       </Link>
 
       <div className='relative container flex items-center pt-16 sm:pt-0'>
-        <div className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
+        <PageTransition className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
           <div className='bg-card/95 rounded-2xl border p-5 shadow-sm backdrop-blur-md sm:p-7'>
             {children}
           </div>
-        </div>
+        </PageTransition>
       </div>
     </div>
   )

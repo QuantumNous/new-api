@@ -195,13 +195,13 @@ export function PublicHeader(props: PublicHeaderProps) {
       <header className='pointer-events-none fixed inset-x-0 top-0 z-50'>
         <div
           className={cn(
-            'pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+            'pointer-events-auto mx-auto transition-[max-width,padding] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none',
             scrolled ? 'max-w-[52rem] px-3 pt-3' : 'max-w-7xl px-4 pt-0 md:px-6'
           )}
         >
           <nav
             className={cn(
-              'flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+              'flex items-center justify-between transition-[height,padding,border-radius,background-color,box-shadow] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none',
               scrolled
                 ? 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
                 : 'h-16 px-2'
@@ -212,7 +212,7 @@ export function PublicHeader(props: PublicHeaderProps) {
               to={homeUrl}
               className='group flex shrink-0 items-center gap-2.5'
             >
-              <div className='flex size-7 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
+              <div className='flex size-7 shrink-0 items-center justify-center transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none'>
                 {loading && <Skeleton className='size-full rounded-lg' />}
                 {!loading && customLogo}
                 {!loading && !customLogo && (
@@ -354,19 +354,19 @@ export function PublicHeader(props: PublicHeaderProps) {
                 <div className='relative size-4'>
                   <span
                     className={cn(
-                      'absolute inset-x-0 block h-[1.5px] origin-center rounded-full bg-current transition-all duration-300',
+                      'absolute inset-x-0 block h-[1.5px] origin-center rounded-full bg-current transition-[top,transform] duration-300 motion-reduce:transition-none',
                       mobileOpen ? 'top-[7px] rotate-45' : 'top-[3px]'
                     )}
                   />
                   <span
                     className={cn(
-                      'absolute inset-x-0 top-[7px] block h-[1.5px] rounded-full bg-current transition-all duration-300',
+                      'absolute inset-x-0 top-[7px] block h-[1.5px] rounded-full bg-current transition-[transform,opacity] duration-300 motion-reduce:transition-none',
                       mobileOpen ? 'scale-x-0 opacity-0' : 'opacity-100'
                     )}
                   />
                   <span
                     className={cn(
-                      'absolute inset-x-0 block h-[1.5px] origin-center rounded-full bg-current transition-all duration-300',
+                      'absolute inset-x-0 block h-[1.5px] origin-center rounded-full bg-current transition-[top,transform] duration-300 motion-reduce:transition-none',
                       mobileOpen ? 'top-[7px] -rotate-45' : 'top-[11px]'
                     )}
                   />
@@ -380,7 +380,7 @@ export function PublicHeader(props: PublicHeaderProps) {
       {/* Mobile full-screen overlay */}
       <div
         className={cn(
-          'bg-background/98 fixed inset-0 z-40 backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:pointer-events-none lg:hidden',
+          'bg-background/98 fixed inset-0 z-40 backdrop-blur-2xl transition-opacity duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:pointer-events-none lg:hidden',
           mobileOpen
             ? 'pointer-events-auto opacity-100'
             : 'pointer-events-none opacity-0'
@@ -391,7 +391,7 @@ export function PublicHeader(props: PublicHeaderProps) {
             {links.map((link, i) => {
               const isActive = pathname === link.href
               const linkClassName = cn(
-                'flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
+                'flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none',
                 mobileOpen
                   ? 'translate-y-0 opacity-100'
                   : 'translate-y-4 opacity-0',
@@ -435,7 +435,7 @@ export function PublicHeader(props: PublicHeaderProps) {
 
           <div
             className={cn(
-              'flex flex-col gap-3 transition-all duration-500',
+              'flex flex-col gap-3 transition-[transform,opacity] duration-500 motion-reduce:transition-none',
               mobileOpen
                 ? 'translate-y-0 opacity-100'
                 : 'translate-y-4 opacity-0'

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { ErrorState } from '@/components/error-state'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -130,13 +131,10 @@ function RankingsLoading() {
 function RankingsError(props: { message: string }) {
   const { t } = useTranslation()
   return (
-    <div className='bg-card rounded-xl border border-dashed px-6 py-12 text-center'>
-      <h2 className='text-foreground text-base font-semibold'>
-        {t('Unable to load rankings')}
-      </h2>
-      <p className='text-muted-foreground mx-auto mt-2 max-w-md text-sm'>
-        {props.message}
-      </p>
-    </div>
+    <ErrorState
+      className='bg-card min-h-[240px] border border-dashed'
+      title={t('Unable to load rankings')}
+      description={props.message}
+    />
   )
 }

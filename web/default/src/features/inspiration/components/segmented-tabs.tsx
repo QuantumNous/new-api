@@ -58,7 +58,7 @@ export function SegmentedTabs<T extends string>(props: SegmentedTabsProps<T>) {
           aria-selected={props.value === option.value}
           onClick={() => props.onChange(option.value)}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors outline-none focus-visible:ring-ring focus-visible:ring-2',
+            'focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-sm font-medium transition-[background-color,color,box-shadow] duration-200 outline-none focus-visible:ring-2',
             props.value === option.value
               ? 'bg-background text-foreground shadow-xs'
               : 'text-muted-foreground hover:text-foreground'

@@ -85,7 +85,7 @@ export function DataTableViewModeToggle(props: DataTableViewModeToggleProps) {
                   onClick={() => props.onChange(segment.value)}
                   aria-pressed={isActive}
                   className={cn(
-                    'inline-flex h-full w-7 items-center justify-center rounded-md text-xs font-medium transition-all',
+                    'inline-flex h-full w-7 items-center justify-center rounded-md text-xs font-medium transition-ui',
                     isActive
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'

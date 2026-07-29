@@ -9,8 +9,6 @@ License, or (at your option) any later version.
 import { CheckCircle2, LockKeyhole } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { PageTransition } from '@/components/page-transition'
-
 import { CapabilityGrid } from './components/capability-grid'
 import { DesktopFaq } from './components/desktop-faq'
 import { DesktopHero } from './components/desktop-hero'
@@ -27,7 +25,8 @@ export function AgentsView() {
 
   return (
     <div className='playground-discover-hero min-h-svh px-3 pt-20 pb-16 sm:px-5 sm:pt-24 md:px-8'>
-      <PageTransition className='mx-auto max-w-5xl space-y-8 md:space-y-12'>
+      {/* Entrance comes from `PublicLayout`; this is just the measure. */}
+      <div className='mx-auto max-w-5xl space-y-8 md:space-y-12'>
         <DesktopHero
           release={release}
           primary={primary}
@@ -67,7 +66,7 @@ export function AgentsView() {
         {downloads.length > 0 && <InstallGuide downloads={downloads} />}
 
         <DesktopFaq />
-      </PageTransition>
+      </div>
     </div>
   )
 }

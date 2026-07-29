@@ -75,7 +75,7 @@ export function PlaygroundEmptyState({
 
             return (
               <Button
-                className='hover:border-primary/30 h-auto min-h-11 justify-start gap-2 px-3 py-2.5 text-left whitespace-normal transition-all hover:-translate-y-0.5 hover:shadow-sm motion-reduce:transition-none motion-reduce:hover:translate-y-0'
+                className='hover:border-primary/30 transition-ui h-auto min-h-11 justify-start gap-2 px-3 py-2.5 text-left whitespace-normal hover:-translate-y-0.5 hover:shadow-sm motion-reduce:transition-none motion-reduce:hover:translate-y-0'
                 key={text}
                 onClick={() => onSelectPrompt(prompt)}
                 variant='outline'

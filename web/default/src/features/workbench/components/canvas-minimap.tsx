@@ -73,7 +73,7 @@ export function CanvasMinimap(props: CanvasMinimapProps) {
       tabIndex={0}
       aria-label={t('Canvas minimap')}
       data-canvas-no-zoom
-      className='absolute right-4 bottom-4 overflow-hidden rounded-lg border'
+      className='landing-animate-scale-in absolute right-4 bottom-4 overflow-hidden rounded-2xl border shadow-lg backdrop-blur-xl'
       style={{
         width: MINIMAP_WIDTH,
         height: MINIMAP_HEIGHT,

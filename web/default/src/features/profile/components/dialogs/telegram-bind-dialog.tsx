@@ -20,6 +20,7 @@ import { Send } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
+import { EmptyState } from '@/components/empty-state'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 // ============================================================================
@@ -79,9 +80,10 @@ export function TelegramBindDialog({
           {/* Telegram Login Widget will be injected here by react-telegram-login */}
           <div id='telegram-login-widget' className='flex justify-center'>
             {/* This would require the react-telegram-login library */}
-            <div className='text-muted-foreground rounded-lg border border-dashed px-6 py-3 text-sm'>
-              {t('Telegram Login Widget')}
-            </div>
+            <EmptyState
+              className='min-h-0 px-6 py-3'
+              title={t('Telegram Login Widget')}
+            />
           </div>
         </div>
 

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { storyboardHandleY } from '../engine/canvas-domain'
@@ -47,6 +48,8 @@ type CanvasConnectionsProps = {
 }
 
 const CANVAS_PLANE = 100000
+/** Screen-space SVG stroke width; keeps lines legible when zoomed far out. */
+const STROKE_FLOOR_K = 0.35
 
 function bezierPath(from: Position, to: Position) {
   const delta = Math.max(48, Math.abs(to.x - from.x) / 2)
@@ -67,13 +70,103 @@ function targetAnchor(node: CanvasNodeData, handleId?: string): Position {
   }
 }
 
-export function CanvasConnections(props: CanvasConnectionsProps) {
+type ConnectionPathProps = {
+  connection: CanvasConnection
+  nodes: CanvasNodeData[]
+  selected: boolean
+  readOnly?: boolean
+  onSelect: (id: string) => void
+}
+
+const ConnectionPath = memo(function ConnectionPath(
+  props: ConnectionPathProps
+) {
   const { t } = useTranslation()
   const theme = useCanvasTheme()
+  const [hovered, setHovered] = useState(false)
+  const resolved = resolveFrameConnection(props.connection, props.nodes)
+  if (!resolved) return null
+  const from = sourceAnchor(resolved.from, props.connection.fromHandleId)
+  const to = targetAnchor(resolved.to, props.connection.toHandleId)
+  const d = bezierPath(from, to)
+  const active = props.selected || hovered
+  let strokeColor: string = theme.frame.stroke
+  if (hovered) strokeColor = theme.accent.primarySoft
+  if (props.selected) strokeColor = theme.accent.primary
+  let strokeWidth = 1.75
+  if (hovered) strokeWidth = 2.25
+  if (props.selected) strokeWidth = 2.5
+
+  return (
+    <g data-connection-id={props.connection.id}>
+      <path
+        tabIndex={props.readOnly ? -1 : 0}
+        role='button'
+        aria-label={t('Connection from {{from}} to {{to}}', {
+          from: resolved.from.title,
+          to: resolved.to.title,
+        })}
+        d={d}
+        fill='none'
+        stroke='transparent'
+        strokeWidth={16}
+        className='pointer-events-auto cursor-pointer'
+        onPointerDown={(event) => {
+          if (props.readOnly) return
+          event.stopPropagation()
+          props.onSelect(props.connection.id)
+        }}
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+        onKeyDown={(event) => {
+          if (props.readOnly) return
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            props.onSelect(props.connection.id)
+          }
+          if (event.key === 'Delete' || event.key === 'Backspace') {
+            event.preventDefault()
+            useCanvasStore.getState().removeConnection(props.connection.id)
+          }
+        }}
+      />
+      <path
+        d={d}
+        fill='none'
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        className='pointer-events-none transition-[stroke,stroke-width] duration-150'
+        strokeLinecap='round'
+      />
+      {active ? (
+        <circle
+          cx={from.x}
+          cy={from.y}
+          r={2.5}
+          fill={theme.accent.primary}
+          className='pointer-events-none'
+        />
+      ) : null}
+      <circle
+        cx={to.x}
+        cy={to.y}
+        r={3.5}
+        fill={active ? theme.accent.primary : theme.frame.stroke}
+        className='pointer-events-none transition-[fill] duration-150'
+      />
+    </g>
+  )
+})
+
+export function CanvasConnections(props: CanvasConnectionsProps) {
+  const theme = useCanvasTheme()
+  const scale = useCanvasStore((state) => state.viewport.k)
   const pending = props.pendingConnection
   const pendingNode = pending
     ? props.nodes.find((node) => node.id === pending.handle.nodeId)
     : undefined
+  // Compensate far-out zoom so connections stay visible.
+  const strokeScale = Math.max(1, 1 / Math.max(scale, STROKE_FLOOR_K))
 
   return (
     <svg
@@ -86,53 +179,18 @@ export function CanvasConnections(props: CanvasConnectionsProps) {
       }}
       viewBox={`${-CANVAS_PLANE} ${-CANVAS_PLANE} ${CANVAS_PLANE * 2} ${CANVAS_PLANE * 2}`}
     >
-      {props.connections.map((connection) => {
-        const resolved = resolveFrameConnection(connection, props.nodes)
-        if (!resolved) return null
-        const from = sourceAnchor(resolved.from, connection.fromHandleId)
-        const to = targetAnchor(resolved.to, connection.toHandleId)
-        const selected = props.selectedConnectionId === connection.id
-        return (
-          <g key={connection.id} data-connection-id={connection.id}>
-            <path
-              tabIndex={props.readOnly ? -1 : 0}
-              role='button'
-              aria-label={t('Connection from {{from}} to {{to}}', {
-                from: resolved.from.title,
-                to: resolved.to.title,
-              })}
-              d={bezierPath(from, to)}
-              fill='none'
-              stroke='transparent'
-              strokeWidth={16}
-              className='pointer-events-auto cursor-pointer'
-              onPointerDown={(event) => {
-                if (props.readOnly) return
-                event.stopPropagation()
-                props.onSelectConnection(connection.id)
-              }}
-              onKeyDown={(event) => {
-                if (props.readOnly) return
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  props.onSelectConnection(connection.id)
-                }
-                if (event.key === 'Delete' || event.key === 'Backspace') {
-                  event.preventDefault()
-                  useCanvasStore.getState().removeConnection(connection.id)
-                }
-              }}
-            />
-            <path
-              d={bezierPath(from, to)}
-              fill='none'
-              stroke={selected ? theme.accent.primary : theme.frame.stroke}
-              strokeWidth={selected ? 2.5 : 1.75}
-            />
-            <circle cx={to.x} cy={to.y} r={3.5} fill={theme.accent.primary} />
-          </g>
-        )
-      })}
+      <g strokeWidth={strokeScale}>
+        {props.connections.map((connection) => (
+          <ConnectionPath
+            key={connection.id}
+            connection={connection}
+            nodes={props.nodes}
+            selected={props.selectedConnectionId === connection.id}
+            readOnly={props.readOnly}
+            onSelect={props.onSelectConnection}
+          />
+        ))}
+      </g>
 
       {pending && pendingNode ? (
         <path
@@ -146,8 +204,10 @@ export function CanvasConnections(props: CanvasConnectionsProps) {
           )}
           fill='none'
           stroke={theme.accent.primary}
-          strokeWidth={2}
+          strokeWidth={2 * strokeScale}
           strokeDasharray='6 4'
+          strokeLinecap='round'
+          className='canvas-pending-connection pointer-events-none'
         />
       ) : null}
     </svg>

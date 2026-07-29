@@ -258,16 +258,26 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
   const hasContent = Boolean(node.metadata?.content)
   const minSize = nodeMinSize(node.type)
   const accent = nodeAccent(node.type)
+  const viewportScale = useCanvasStore((state) => state.viewport.k)
   const updateNodeMetadata = useCanvasStore((state) => state.updateNodeMetadata)
   const removeNodes = useCanvasStore((state) => state.removeNodes)
   const idleBorderColor = frame ? theme.frame.stroke : theme.node.stroke
+  // Keep handles and resize corners usable at far-out zoom levels.
+  const handleScale = viewportScale < 0.6 ? 1 / viewportScale : 1
+  const generating = props.isGenerating && !frame
 
   let boxShadow: string | undefined
-  if (props.selected) {
-    boxShadow = `0 0 0 3px ${accent.ring}, 0 18px 40px -18px ${theme.spatial.shadow}`
+  if (generating) {
+    boxShadow = `0 0 0 2px ${accent.ring}, 0 0 32px ${theme.spatial.glowStrong}`
+  } else if (props.selected) {
+    boxShadow = `0 0 0 2px ${accent.ring}, 0 18px 40px -18px ${theme.spatial.shadow}`
   } else if (!frame) {
-    boxShadow = `0 1px 2px ${theme.spatial.shadow}, 0 10px 30px -22px ${theme.spatial.shadow}`
+    boxShadow = `0 1px 2px ${theme.spatial.shadow}, 0 8px 28px -20px ${theme.spatial.shadow}`
   }
+
+  let borderColor: string = idleBorderColor
+  if (generating) borderColor = accent.ring
+  if (props.selected) borderColor = accent.ring
 
   return (
     <div
@@ -278,8 +288,10 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
       aria-label={t('{{title}} canvas node', { title: node.title })}
       aria-selected={props.selected}
       className={cn(
-        'group absolute flex flex-col overflow-hidden text-xs outline-none transition-shadow duration-200',
-        frame ? 'rounded-2xl border' : 'rounded-[18px] border'
+        'group absolute flex flex-col overflow-hidden text-xs outline-none transition-[box-shadow,border-color,opacity,transform] duration-200 ease-out motion-reduce:transition-none',
+        frame ? 'rounded-2xl border' : 'rounded-xl border',
+        generating && 'canvas-node-generating',
+        props.dragging && 'scale-[1.01]'
       )}
       style={{
         left: node.position.x,
@@ -287,10 +299,10 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
         width: node.width,
         height: node.height,
         background: frame ? theme.frame.fill : theme.node.panel,
-        borderColor: props.selected ? accent.ring : idleBorderColor,
+        borderColor,
         borderStyle: frame ? 'dashed' : 'solid',
         color: theme.node.text,
-        opacity: props.dragging ? 0.9 : 1,
+        opacity: props.dragging ? 0.92 : 1,
         boxShadow,
       }}
       onPointerDown={(event) => {
@@ -327,7 +339,7 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
     >
       <div
         className={cn(
-          'relative flex h-9 shrink-0 items-center gap-2 px-2.5',
+          'relative flex h-9 shrink-0 items-center gap-2 px-3',
           frame ? null : 'bg-gradient-to-r to-transparent',
           frame ? null : accent.wash
         )}
@@ -335,8 +347,9 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
       >
         <span
           className={cn(
-            'flex size-5 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white shadow-sm',
-            accent.chip
+            'flex size-5 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-white shadow-sm transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100',
+            accent.chip,
+            generating && 'animate-pulse'
           )}
           aria-hidden='true'
         >
@@ -431,10 +444,15 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
             title={t('Drag to the next step')}
             data-handle-type='source'
             data-guide='node-handle'
-            className='absolute top-1/2 -right-3 size-6 -translate-y-1/2 rounded-full border-2 opacity-60 transition-all group-focus-within:opacity-100 group-hover:scale-110 group-hover:opacity-100 sm:-right-2 sm:size-3.5'
+            className='absolute top-1/2 -right-2 size-6 -translate-y-1/2 rounded-full border-2 opacity-70 transition-[opacity,transform,box-shadow] duration-150 group-focus-within:opacity-100 group-hover:scale-110 group-hover:opacity-100 hover:opacity-100 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:scale-100 sm:size-3.5'
             style={{
               background: theme.node.panel,
               borderColor: accent.ring,
+              transform:
+                handleScale > 1
+                  ? `translateY(-50%) scale(${handleScale.toFixed(2)})`
+                  : undefined,
+              transformOrigin: 'right center',
             }}
             onPointerDown={(event) =>
               props.interactions.startConnection(event, {
@@ -447,10 +465,15 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
             type='button'
             aria-label={t('Connect into this node')}
             data-handle-type='target'
-            className='absolute top-1/2 -left-3 size-6 -translate-y-1/2 rounded-full border-2 opacity-60 transition-all group-focus-within:opacity-100 group-hover:scale-110 group-hover:opacity-100 sm:-left-2 sm:size-3.5'
+            className='absolute top-1/2 -left-2 size-6 -translate-y-1/2 rounded-full border-2 opacity-70 transition-[opacity,transform,box-shadow] duration-150 group-focus-within:opacity-100 group-hover:scale-110 group-hover:opacity-100 hover:opacity-100 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:scale-100 sm:size-3.5'
             style={{
               background: theme.node.panel,
               borderColor: theme.node.faint,
+              transform:
+                handleScale > 1
+                  ? `translateY(-50%) scale(${handleScale.toFixed(2)})`
+                  : undefined,
+              transformOrigin: 'left center',
             }}
             onPointerDown={(event) =>
               props.interactions.startConnection(event, {
@@ -463,37 +486,54 @@ export const CanvasNode = memo(function CanvasNode(props: CanvasNodeProps) {
       )}
 
       {props.selected && !locked && !props.readOnly
-        ? RESIZE_CORNERS.map((corner) => (
-            <button
-              type='button'
-              key={corner}
-              aria-label={t('Resize {{corner}} handle', { corner })}
-              className='absolute size-5 cursor-nwse-resize rounded-[4px] border-2 sm:size-3'
-              style={{
-                background: theme.node.panel,
-                borderColor: accent.ring,
-                left: corner.endsWith('w') ? -5 : undefined,
-                right: corner.endsWith('e') ? -5 : undefined,
-                top: corner.startsWith('n') ? -5 : undefined,
-                bottom: corner.startsWith('s') ? -5 : undefined,
-              }}
-              onPointerDown={(event) =>
-                props.interactions.startNodeResize(event, node.id, corner)
-              }
-              onKeyDown={(event) => {
-                if (!event.key.startsWith('Arrow')) return
-                event.preventDefault()
-                const delta = arrowDelta(
-                  event.key,
-                  keyboardStep(event.shiftKey)
-                )
-                useCanvasStore.getState().updateNode(node.id, {
-                  width: Math.max(minSize.width, node.width + delta.x),
-                  height: Math.max(minSize.height, node.height + delta.y),
-                })
-              }}
-            />
-          ))
+        ? RESIZE_CORNERS.map((corner) => {
+            const cornerOrigin: Record<
+              (typeof RESIZE_CORNERS)[number],
+              string
+            > = {
+              nw: 'top left',
+              ne: 'top right',
+              sw: 'bottom left',
+              se: 'bottom right',
+            }
+            return (
+              <button
+                type='button'
+                key={corner}
+                aria-label={t('Resize {{corner}} handle', { corner })}
+                className='absolute size-5 cursor-nwse-resize rounded-[4px] border-2 transition-transform duration-150 hover:scale-125 active:scale-110 motion-reduce:transition-none motion-reduce:hover:scale-100 sm:size-3'
+                style={{
+                  background: theme.node.panel,
+                  borderColor: accent.ring,
+                  boxShadow: `0 1px 3px ${theme.spatial.shadow}`,
+                  left: corner.endsWith('w') ? -5 : undefined,
+                  right: corner.endsWith('e') ? -5 : undefined,
+                  top: corner.startsWith('n') ? -5 : undefined,
+                  bottom: corner.startsWith('s') ? -5 : undefined,
+                  transform:
+                    handleScale > 1
+                      ? `scale(${handleScale.toFixed(2)})`
+                      : undefined,
+                  transformOrigin: cornerOrigin[corner],
+                }}
+                onPointerDown={(event) =>
+                  props.interactions.startNodeResize(event, node.id, corner)
+                }
+                onKeyDown={(event) => {
+                  if (!event.key.startsWith('Arrow')) return
+                  event.preventDefault()
+                  const delta = arrowDelta(
+                    event.key,
+                    keyboardStep(event.shiftKey)
+                  )
+                  useCanvasStore.getState().updateNode(node.id, {
+                    width: Math.max(minSize.width, node.width + delta.x),
+                    height: Math.max(minSize.height, node.height + delta.y),
+                  })
+                }}
+              />
+            )
+          })
         : null}
     </div>
   )

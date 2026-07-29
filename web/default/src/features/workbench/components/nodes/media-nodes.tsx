@@ -58,16 +58,24 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
   const batchChildIds = metadata.batchChildIds ?? []
   const updateNodeMetadata = useCanvasStore((state) => state.updateNodeMetadata)
   const experienceMode = useCanvasStore((state) => state.experienceMode)
+  const hasNatural = Boolean(metadata.naturalWidth && metadata.naturalHeight)
+  const naturalAspect =
+    hasNatural && metadata.naturalHeight
+      ? `${metadata.naturalWidth} / ${metadata.naturalHeight}`
+      : undefined
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-2'>
-      <div className='bg-muted/30 ring-border/50 relative min-h-24 flex-1 overflow-hidden rounded-xl ring-1 ring-inset'>
+      <div
+        className='bg-muted/30 ring-border/50 relative flex min-h-24 flex-1 items-center justify-center overflow-hidden rounded-xl ring-1 ring-inset'
+        style={naturalAspect ? { aspectRatio: naturalAspect } : undefined}
+      >
         {metadata.content ? (
           <img
             src={metadata.content}
             alt={props.node.title}
             draggable={false}
-            className='h-full w-full rounded-xl object-contain'
+            className='max-h-full max-w-full rounded-xl object-contain'
           />
         ) : (
           <NodeEmptyMedia
@@ -79,6 +87,11 @@ export function ImageNodeBody(props: CanvasNodeBodyProps) {
           status={metadata.status}
           errorDetails={metadata.errorDetails}
         />
+        {metadata.content && hasNatural ? (
+          <span className='bg-background/85 text-foreground/90 pointer-events-none absolute top-2 left-2 rounded-full px-2 py-0.5 font-mono text-[10px] shadow-sm backdrop-blur-sm'>
+            {metadata.naturalWidth}×{metadata.naturalHeight}
+          </span>
+        ) : null}
         {metadata.content ? (
           <div className='absolute bottom-2 left-2'>
             <NodeSettingsChips
@@ -216,15 +229,23 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
   const models = useWorkbenchModels()
   const metadata = props.node.metadata ?? {}
   const experienceMode = useCanvasStore((state) => state.experienceMode)
+  const hasNatural = Boolean(metadata.naturalWidth && metadata.naturalHeight)
+  const naturalAspect =
+    hasNatural && metadata.naturalHeight
+      ? `${metadata.naturalWidth} / ${metadata.naturalHeight}`
+      : undefined
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-2'>
-      <div className='bg-muted/30 ring-border/50 relative min-h-24 flex-1 overflow-hidden rounded-xl ring-1 ring-inset'>
+      <div
+        className='bg-muted/30 ring-border/50 relative flex min-h-24 flex-1 items-center justify-center overflow-hidden rounded-xl ring-1 ring-inset'
+        style={naturalAspect ? { aspectRatio: naturalAspect } : undefined}
+      >
         {metadata.content ? (
           <video
             src={metadata.content}
             controls
-            className='h-full w-full rounded-xl object-contain'
+            className='max-h-full max-w-full rounded-xl object-contain'
             onPointerDown={(event) => event.stopPropagation()}
           />
         ) : (
@@ -239,6 +260,11 @@ export function VideoNodeBody(props: CanvasNodeBodyProps) {
           progress={metadata.taskProgress}
           errorDetails={metadata.errorDetails}
         />
+        {metadata.content && hasNatural ? (
+          <span className='bg-background/85 text-foreground/90 pointer-events-none absolute top-2 left-2 rounded-full px-2 py-0.5 font-mono text-[10px] shadow-sm backdrop-blur-sm'>
+            {metadata.naturalWidth}×{metadata.naturalHeight}
+          </span>
+        ) : null}
       </div>
 
       <NodePromptBar

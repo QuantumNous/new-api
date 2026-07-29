@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { CheckCircle2, ExternalLink, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, ExternalLink, PlugZap, ShieldCheck } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { BundledLanguage } from 'shiki/bundle/web'
@@ -26,6 +26,7 @@ import {
   CodeBlock,
   CodeBlockCopyButton,
 } from '@/components/ai-elements/code-block'
+import { EmptyState } from '@/components/empty-state'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -77,19 +78,21 @@ export function ModelDetailsApi(props: {
 
   if (!selected) {
     return (
-      <div className='rounded-xl border border-dashed p-6 text-center'>
-        <p className='font-medium'>
-          {t('Integration details have not been verified')}
-        </p>
-        <Link
-          to='/docs/$slug'
-          params={{ slug: 'getting-started' }}
-          className='text-primary mt-2 inline-flex items-center gap-1 text-sm hover:underline'
-        >
-          {t('View getting started guide')}{' '}
-          <ExternalLink className='size-3.5' />
-        </Link>
-      </div>
+      <EmptyState
+        icon={PlugZap}
+        className='min-h-[180px]'
+        title={t('Integration details have not been verified')}
+        action={
+          <Link
+            to='/docs/$slug'
+            params={{ slug: 'getting-started' }}
+            className='text-primary inline-flex items-center gap-1 text-sm hover:underline'
+          >
+            {t('View getting started guide')}{' '}
+            <ExternalLink className='size-3.5' />
+          </Link>
+        }
+      />
     )
   }
 

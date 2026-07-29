@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { StaticDataTable } from '@/components/data-table/static/static-data-table'
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { EmptyState } from '@/components/empty-state'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 
@@ -137,11 +138,12 @@ export function AmountDiscountVisualEditor({
       </div>
 
       {discounts.length === 0 ? (
-        <div className='text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm'>
-          {t(
+        <EmptyState
+          className='min-h-0 p-6'
+          title={t(
             'No discount tiers configured. Click "Add discount tier" to get started.'
           )}
-        </div>
+        />
       ) : (
         <div className='rounded-md border'>
           {/* Desktop table view */}

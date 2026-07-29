@@ -8,13 +8,7 @@ License, or (at your option) any later version.
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  FolderOpen,
-  LayoutGrid,
-  MousePointerClick,
-  Play,
-  Wand2,
-} from 'lucide-react'
+import { FolderOpen, LayoutGrid } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -52,24 +46,6 @@ const VIEW_TABS: Array<{
 const PROJECT_TARGETS: InspirationApplyOption[] = [
   { value: 'image', label: 'New project from template' },
 ]
-
-const HOW_IT_WORKS = [
-  {
-    icon: MousePointerClick,
-    title: 'Pick a starting point',
-    body: 'A template gives you a canvas that is already wired up. A blank project starts empty.',
-  },
-  {
-    icon: Wand2,
-    title: 'Edit the prompt',
-    body: 'Each card holds one prompt and one model. Change the words, change the result.',
-  },
-  {
-    icon: Play,
-    title: 'Run and chain',
-    body: 'Generate, then drag the card outlet into the next step to build a flow.',
-  },
-] as const
 
 export function InspirationHome(props: {
   view: InspirationView
@@ -127,56 +103,33 @@ export function InspirationHome(props: {
     })
 
   return (
-    <div className='mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8'>
-      <section className='border-border/60 relative overflow-hidden rounded-2xl border bg-gradient-to-br from-violet-500/12 via-blue-500/8 to-transparent p-6 sm:p-9'>
-        <div
-          aria-hidden='true'
-          className='pointer-events-none absolute -top-24 -right-16 size-64 rounded-full bg-violet-500/20 blur-3xl'
-        />
-        <div className='relative max-w-2xl space-y-3'>
-          <h1 className='text-3xl font-semibold tracking-tight text-balance sm:text-4xl'>
+    <div className='mx-auto w-full max-w-7xl px-4 pt-6 pb-10 sm:px-6 sm:pt-8'>
+      <header className='landing-animate-fade-up flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
+        <div className='max-w-xl space-y-1.5'>
+          <p className='text-primary/90 text-[11px] font-semibold tracking-[0.2em] uppercase'>
+            {t('Canvas templates')}
+          </p>
+          <h1 className='text-2xl font-semibold tracking-tight text-balance sm:text-3xl'>
             {t('Inspiration')}
           </h1>
-          <p className='text-muted-foreground text-sm text-pretty sm:text-base'>
+          <p className='text-muted-foreground text-sm text-pretty'>
             {t(
-              'Pick an image or video template to start with a ready-made canvas, or open a free-form project and build your own flow.'
+              'Start from a ready-made image or video canvas — pick one, tweak the prompt, run it.'
             )}
           </p>
         </div>
+        <SegmentedTabs
+          value={props.view}
+          onChange={props.onViewChange}
+          options={VIEW_TABS}
+          ariaLabel={t('Inspiration sections')}
+        />
+      </header>
 
-        <ol className='relative mt-6 grid gap-3 sm:grid-cols-3'>
-          {HOW_IT_WORKS.map((item, index) => (
-            <li
-              key={item.title}
-              className='border-border/60 bg-background/70 rounded-xl border p-4 backdrop-blur-sm'
-            >
-              <div className='flex items-center gap-2'>
-                <span className='bg-foreground/8 flex size-6 items-center justify-center rounded-md text-[11px] font-semibold tabular-nums'>
-                  {index + 1}
-                </span>
-                <item.icon
-                  className='text-muted-foreground size-4'
-                  aria-hidden='true'
-                />
-              </div>
-              <p className='mt-2 text-sm font-semibold'>{t(item.title)}</p>
-              <p className='text-muted-foreground mt-1 text-xs text-pretty'>
-                {t(item.body)}
-              </p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <SegmentedTabs
-        className='mt-6'
-        value={props.view}
-        onChange={props.onViewChange}
-        options={VIEW_TABS}
-        ariaLabel={t('Inspiration sections')}
-      />
-
-      <div className='mt-6'>
+      <div
+        className='landing-animate-fade-up mt-6'
+        style={{ animationDelay: '90ms' }}
+      >
         {props.view === 'templates' ? (
           <InspirationTemplates
             isAuthenticated={Boolean(user)}

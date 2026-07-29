@@ -6,7 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { Heart, Play, Sparkles } from 'lucide-react'
+import { ArrowUpRight, Heart, Play, Sparkles } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -47,7 +47,8 @@ export function RecipeCard(props: RecipeCardProps) {
   return (
     <article
       ref={ref}
-      className='group border-border/70 bg-card relative isolate overflow-hidden rounded-xl border shadow-xs transition-shadow duration-300 hover:shadow-lg'
+      data-card-hover='true'
+      className='group border-border/50 bg-card hover:border-border relative isolate overflow-hidden rounded-xl border shadow-xs'
     >
       <button
         type='button'
@@ -57,7 +58,7 @@ export function RecipeCard(props: RecipeCardProps) {
         <div
           className={cn(
             'bg-muted relative w-full overflow-hidden',
-            props.compact ? 'aspect-video' : 'aspect-[4/3]'
+            props.compact ? 'aspect-[16/10]' : 'aspect-[4/3]'
           )}
         >
           <img
@@ -69,10 +70,10 @@ export function RecipeCard(props: RecipeCardProps) {
             loading='lazy'
             decoding='async'
             alt={props.recipe.title}
-            className='size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]'
+            className='size-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.06]'
           />
-          <div className='absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
-          <span className='bg-background/85 text-foreground absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium backdrop-blur'>
+          <div className='absolute inset-0 bg-gradient-to-t from-black/55 via-black/0 to-black/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+          <span className='absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm'>
             {isVideo ? (
               <Play className='size-3' aria-hidden='true' />
             ) : (
@@ -80,41 +81,38 @@ export function RecipeCard(props: RecipeCardProps) {
             )}
             {isVideo ? t('Video series') : t('Image series')}
           </span>
-          <span className='pointer-events-none absolute inset-x-3 bottom-3 translate-y-2 text-xs font-medium text-white opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100'>
-            {t('Use this template')}
+          <span className='transition-ui pointer-events-none absolute right-3 bottom-3 inline-flex translate-y-1 items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-black opacity-0 shadow-sm duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100'>
+            {t('Use template')}
+            <ArrowUpRight className='size-3.5' aria-hidden='true' />
           </span>
         </div>
-        <div className='space-y-2 p-3.5'>
-          <div className='flex items-start justify-between gap-3'>
+        <div className='space-y-1.5 p-3.5'>
+          <div className='flex items-baseline justify-between gap-3'>
             <h3 className='text-sm leading-snug font-semibold text-balance'>
               {props.recipe.title}
             </h3>
-            <span className='text-muted-foreground shrink-0 pt-0.5 text-[10px] tabular-nums'>
+            <span className='text-muted-foreground/80 shrink-0 text-[11px] tabular-nums'>
               {props.recipe.use_count} {t('uses')}
             </span>
           </div>
-          <p className='text-muted-foreground line-clamp-2 text-xs text-pretty'>
+          <p className='text-muted-foreground line-clamp-1 text-xs text-pretty'>
             {props.recipe.description}
           </p>
-          <div className='flex flex-wrap gap-1'>
-            {props.recipe.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className='bg-muted text-muted-foreground rounded-md px-2 py-0.5 text-[10px]'
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
         </div>
       </button>
       <button
         type='button'
         aria-label={props.favorite ? t('Remove favorite') : t('Favorite')}
-        className='bg-background/85 text-foreground hover:bg-background absolute top-2 right-2 z-10 inline-flex size-8 items-center justify-center rounded-full backdrop-blur transition-colors'
+        className={cn(
+          'absolute top-2 right-2 z-10 inline-flex size-8 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-[background-color,transform] duration-200 hover:scale-105 hover:bg-black/60',
+          props.favorite && 'text-rose-400'
+        )}
         onClick={props.onFavorite}
       >
-        <Heart className={cn('size-4', props.favorite && 'fill-current')} />
+        <Heart
+          className={cn('size-4', props.favorite && 'fill-current')}
+          aria-hidden='true'
+        />
       </button>
     </article>
   )

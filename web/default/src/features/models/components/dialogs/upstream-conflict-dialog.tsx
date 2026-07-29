@@ -31,6 +31,7 @@ import { toast } from 'sonner'
 
 import { DataTableView, useDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
+import { EmptyState } from '@/components/empty-state'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -479,9 +480,10 @@ export function UpstreamConflictDialog({
     >
       <div className='flex min-h-0 flex-1 flex-col gap-4'>
         {!hasConflicts ? (
-          <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm'>
-            {t('No conflict entries available.')}
-          </div>
+          <EmptyState
+            className='min-h-0 flex-1 rounded-md p-8'
+            title={t('No conflict entries available.')}
+          />
         ) : (
           <div className='flex min-h-0 flex-1 flex-col gap-4 overflow-hidden'>
             <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
@@ -522,9 +524,10 @@ export function UpstreamConflictDialog({
             </div>
 
             {showSearchEmptyState ? (
-              <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm'>
-                {t('No conflicts match your search.')}
-              </div>
+              <EmptyState
+                className='min-h-0 flex-1 rounded-md p-8'
+                title={t('No conflicts match your search.')}
+              />
             ) : (
               <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border'>
                 <div className='flex-1 overflow-auto'>

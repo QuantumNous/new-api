@@ -20,6 +20,7 @@ import { Code, Plus, Table, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@/components/empty-state'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -311,11 +312,12 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
               ))}
             </div>
           ) : (
-            <div className='text-muted-foreground flex h-24 items-center justify-center rounded-md border border-dashed text-sm'>
-              {t(
+            <EmptyState
+              className='h-24 min-h-0 rounded-md p-0'
+              title={t(
                 'No model mappings configured. Click "Add Mapping" to get started.'
               )}
-            </div>
+            />
           )}
           <Button
             type='button'
