@@ -114,9 +114,12 @@ export function OAuthProviders({
   }
 
   if (status?.oidc_enabled) {
+    const oidcDisplayName = status.oidc_display_name?.trim() || 'OIDC'
     providerButtons.push({
       key: 'oidc',
-      label: t('Continue with OIDC'),
+      label: t('Continue with {{name}}', {
+        name: oidcDisplayName,
+      }),
       onClick: handleOIDCLogin,
     })
   }
