@@ -117,19 +117,20 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
   const recallClaim = useRecallClaimContext()
-  const purchaseRequestId = useMemo(
-    () =>
-      props.open && props.plan?.plan?.id
-        ? createStableSubscriptionRequestId()
-        : '',
-    [props.open, props.plan?.plan?.id]
-  )
   const epayMethods = props.epayMethods || []
   const selectedEpayMethodValue = props.open
     ? epayMethods.some((method) => method.type === selectedEpayMethod)
       ? selectedEpayMethod
       : epayMethods[0]?.type || ''
     : ''
+  const purchaseRequestScope =
+    props.open && props.plan?.plan?.id
+      ? `${props.plan.plan.id}:${selectedEpayMethodValue}`
+      : ''
+  const purchaseRequestId = useMemo(
+    () => (purchaseRequestScope ? createStableSubscriptionRequestId() : ''),
+    [purchaseRequestScope]
+  )
 
   const plan = props.plan?.plan
   if (!plan) return null
