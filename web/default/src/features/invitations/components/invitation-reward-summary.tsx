@@ -19,10 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatInvitationUSD } from '../lib/usd'
-import type { InvitationSummary } from '../types'
+import type { InvitationRewardMode, InvitationSummary } from '../types'
 
 interface InvitationRewardSummaryProps {
   summary: InvitationSummary | null
+  guidanceMode: InvitationRewardMode
 }
 
 export function InvitationRewardSummary(props: InvitationRewardSummaryProps) {
@@ -38,7 +39,7 @@ export function InvitationRewardSummary(props: InvitationRewardSummaryProps) {
     props.summary.inviter_reward_usd === props.summary.invitee_reward_usd
 
   let rewardCopy: string
-  if (props.summary.reward_mode === 'subscription') {
+  if (props.guidanceMode === 'subscription') {
     rewardCopy = t(
       'Invite friends to subscribe: they get {{inviteeReward}} package discount immediately, and you receive {{inviterReward}} package discount after their first successful paid package purchase.',
       { inviteeReward, inviterReward }
@@ -56,7 +57,7 @@ export function InvitationRewardSummary(props: InvitationRewardSummaryProps) {
   }
 
   const rewardLimit = props.summary.inviter_reward_max_count
-  const packageCopy = props.summary.reward_mode === 'subscription'
+  const packageCopy = props.guidanceMode === 'subscription'
   let limitCopy: string
   if (rewardLimit === 0) {
     limitCopy = packageCopy

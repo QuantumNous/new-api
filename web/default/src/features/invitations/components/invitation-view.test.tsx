@@ -95,7 +95,7 @@ function renderView(
 }
 
 describe('InvitationView', () => {
-  test('explains and renders the populated first-top-up reward flow', () => {
+  test('renders top-up stats with subscription page guidance', () => {
     const html = renderView()
 
     expect(html).toContain('Total earned')
@@ -108,11 +108,14 @@ describe('InvitationView', () => {
     expect(html).toContain('Share on X')
     expect(html).toContain('Share on LinkedIn')
     expect(html).toContain('Share your referral link')
-    expect(html).toContain('Your friend signs up')
-    expect(html).toContain('first successful top-up')
-    expect(html).toContain('You receive $1, your friend receives $0.5')
     expect(html).toContain(
-      'Rewards are added automatically to both API balances and used for API requests.'
+      'Invite friends to subscribe: they get $0.5 package discount immediately, and you receive $1 package discount after their first successful paid package purchase.'
+    )
+    expect(html).toContain('Your friend registers')
+    expect(html).toContain('first successful top-up')
+    expect(html).toContain('You receive $1 package discount')
+    expect(html).toContain(
+      'You receive $1 package discount immediately after their first successful paid package purchase. Package discounts never expire and can only be used for package purchases or renewals.'
     )
     expect(html).toContain('$3')
     expect(html).toContain('$2')
@@ -125,6 +128,43 @@ describe('InvitationView', () => {
     expect(html).not.toContain('successfully calls the API')
     expect(html).not.toContain('Available to transfer')
     expect(html).not.toContain('Transfer Rewards')
+  })
+
+  test('uses subscription guidance for the page while preserving top-up share copy', () => {
+    const html = renderView({
+      data: {
+        ...fixture,
+        summary: {
+          ...fixture.summary,
+          inviter_reward_usd: 5,
+          invitee_reward_usd: 5,
+          inviter_reward_max_count: 0,
+        },
+      },
+    })
+    const topupShareMessage =
+      'Share your referral link with friends. Referral rewards are processed after their first successful top-up.'
+    const subscriptionShareMessage =
+      'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
+
+    expect(html).toContain(
+      'Invite friends to subscribe: they get $5 package discount immediately, and you receive $5 package discount after their first successful paid package purchase.'
+    )
+    expect(html).toContain(
+      'Unlimited rewards, package discounts never expire, and any email address is accepted.'
+    )
+    expect(html).toContain('Share your referral link')
+    expect(html).toContain('Send your unique referral link to a friend.')
+    expect(html).toContain('Your friend registers')
+    expect(html).toContain(
+      'Your friend gets a package discount immediately after registering.'
+    )
+    expect(html).toContain('You receive $5 package discount')
+    expect(html).toContain(
+      'You receive $5 package discount immediately after their first successful paid package purchase. Package discounts never expire and can only be used for package purchases or renewals.'
+    )
+    expect(html).toContain(encodeURIComponent(topupShareMessage))
+    expect(html).not.toContain(encodeURIComponent(subscriptionShareMessage))
   })
 
   test('shows equal configured rewards and an unlimited configured referral count below the title', () => {
@@ -140,9 +180,12 @@ describe('InvitationView', () => {
       },
     })
 
-    expect(html).toContain('you both receive $20 in API credits')
-    expect(html).toContain('Both receive $20')
-    expect(html).toContain('Unlimited rewards')
+    expect(html).toContain('they get $20 package discount immediately')
+    expect(html).toContain(
+      'you receive $20 package discount after their first successful paid package purchase.'
+    )
+    expect(html).toContain('You receive $20 package discount')
+    expect(html).toContain('Unlimited rewards, package discounts never expire')
   })
 
   test('shows separate configured rewards and the configured referral limit', () => {
@@ -158,10 +201,13 @@ describe('InvitationView', () => {
       },
     })
 
-    expect(html).toContain('You receive $20')
-    expect(html).toContain('your friend receives $10 in API credits')
-    expect(html).toContain('You receive $20, your friend receives $10')
+    expect(html).toContain('they get $10 package discount immediately')
+    expect(html).toContain(
+      'you receive $20 package discount after their first successful paid package purchase.'
+    )
+    expect(html).toContain('You receive $20 package discount')
     expect(html).toContain('up to 7 successful referrals')
+    expect(html).toContain('Package discounts never expire')
     expect(html).not.toContain('Unlimited rewards')
   })
 

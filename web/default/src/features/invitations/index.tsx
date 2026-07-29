@@ -17,7 +17,9 @@ import { ReferralLinkCard } from './components/referral-link-card'
 import { RewardStepsCard } from './components/reward-steps-card'
 import { useInvitations } from './hooks/use-invitations'
 import { buildAffiliateLink } from './lib/share'
-import type { InvitationPageData } from './types'
+import type { InvitationPageData, InvitationRewardMode } from './types'
+
+const INVITATION_PAGE_GUIDANCE_MODE: InvitationRewardMode = 'subscription'
 
 export interface InvitationViewProps {
   data: InvitationPageData | null
@@ -57,7 +59,10 @@ export function InvitationView({
   return (
     <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
       {(loading || summary !== null) && (
-        <InvitationRewardSummary summary={summary} />
+        <InvitationRewardSummary
+          summary={summary}
+          guidanceMode={INVITATION_PAGE_GUIDANCE_MODE}
+        />
       )}
       <InvitationStats
         summary={summary}
@@ -70,7 +75,12 @@ export function InvitationView({
         error={affiliateError}
         rewardMode={summary?.reward_mode}
       />
-      {(loading || summary !== null) && <RewardStepsCard summary={summary} />}
+      {(loading || summary !== null) && (
+        <RewardStepsCard
+          summary={summary}
+          guidanceMode={INVITATION_PAGE_GUIDANCE_MODE}
+        />
+      )}
       <InvitationRecordsCard
         data={data}
         loading={loading || recordsLoading}
