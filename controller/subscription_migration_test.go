@@ -170,7 +170,7 @@ func TestLegacyBalancePayBlocksMigrationConflictBeforeAnySideEffects(t *testing.
 	ctx.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/subscription/balance/pay",
-		strings.NewReader(`{"plan_id":9909,"request_id":"legacy-balance-conflict"}`),
+		strings.NewReader(`{"plan_id":9909,"request_id":"550e8400-e29b-41d4-a716-446655449909"}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 

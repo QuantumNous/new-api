@@ -797,6 +797,50 @@ func TestSubscriptionDiscountInvoiceReconciliationRetriesPausedDraftPreparation(
 	require.Equal(t, int64(300), account.ReservedUSDMinor)
 }
 
+func TestSubscriptionDiscountInvoiceReconciliationOpenInvoiceFailsClosedAndKeepsReservation(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	_, binding, entitlement := seedStripeRenewalContract(t, 9222, 9322, "sub_discount_stale_open")
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Update("initial_order_id", seedInitialOrderSnapshotForRenewal(t, 9222, 9322, "sub_discount_stale_open_initial")).Error)
+	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).Where("id = ?", binding.ContractId).Update("current_period_end", entitlement.EndTime).Error)
+	grantRenewalInvitationCredit(t, 9222, 500, "grant-renewal-stale-open")
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             9222,
+			USDMinor:           300,
+			TradeNo:            "in_discount_stale_open",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 300,
+			PricingSnapshot:    renewalInvoiceSnapshotJSONForTest(t, "in_discount_stale_open", "sub_discount_stale_open", binding.Id, binding.ContractId, 9322, 9222, 1234, 200, 300, 500, 300, 734, "stripe-invoice:in_discount_stale_open:reserve"),
+			IdempotencyKey:     "stripe-invoice:in_discount_stale_open:reserve",
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	require.NoError(t, model.DB.Exec("UPDATE subscription_discount_entries SET created_at = ? WHERE idempotency_key = ?", common.GetTimestamp()-901, "stripe-invoice:in_discount_stale_open:reserve").Error)
+	inv := stripeInvoiceFixture("in_discount_stale_open", "sub_discount_stale_open")
+	inv.Status = stripe.InvoiceStatusOpen
+	inv.AmountPaid = 0
+	inv.Total = 734
+	inv.Lines.Data[0].Period = &stripe.Period{Start: entitlement.EndTime, End: entitlement.EndTime + 2592000}
+	sub := stripeSubscriptionFixture("sub_discount_stale_open", map[string]string{})
+	setStripeSubscriptionCurrentPeriod(sub, entitlement.EndTime, entitlement.EndTime+2592000)
+	recorder := &stripeRenewalInvoiceMutationRecorder{}
+	replaceStripeRenewalInvoiceAccessors(t, inv, sub, recorder)
+
+	count, err := ReconcileStaleStripeSubscriptionDiscountInvoices(context.Background())
+	require.ErrorContains(t, err, "Stripe invoice is open")
+	require.Zero(t, count)
+	require.Empty(t, recorder.updates)
+	require.Empty(t, recorder.items)
+	var terminalCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key = ?", "stripe-invoice:in_discount_stale_open:reserve").Count(&terminalCount).Error)
+	require.Zero(t, terminalCount)
+	var account model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&account, "user_id = ?", 9222).Error)
+	require.Equal(t, int64(200), account.AvailableUSDMinor)
+	require.Equal(t, int64(300), account.ReservedUSDMinor)
+}
+
 func TestSubscriptionDiscountInvoicePersistentPreparationFailureRemainsPausedAndObservable(t *testing.T) {
 	setupSubscriptionInvoiceServiceTestDB(t)
 	_, binding, entitlement := seedStripeRenewalContract(t, 9221, 9321, "sub_discount_stale_failure")
