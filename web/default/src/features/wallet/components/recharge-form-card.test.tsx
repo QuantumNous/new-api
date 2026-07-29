@@ -42,6 +42,31 @@ const brlRecallOffer: RecallOfferView = {
   redeemed: false,
 }
 
+const usdPercentRecallOffer: RecallOfferView = {
+  campaign_id: 3,
+  recipient_id: 4,
+  issued_at: 1_700_000_000,
+  campaign_name: 'Welcome back',
+  promotion_code_masked: 'FKSE****56',
+  expires_at: 4_100_000_000,
+  discount: {
+    type: 'percent',
+    percent_off: 20,
+    amount_off: 0,
+    currency: 'USD',
+    currency_options: {},
+    minimum_amount: 0,
+    minimum_amount_currency: '',
+    coupon_redeem_by: 4_100_000_000,
+  },
+  products: {
+    topup_price_ids: ['price_topup_10'],
+    subscription_price_ids: [],
+    subscription_plan_ids: [],
+  },
+  redeemed: false,
+}
+
 describe('RechargeFormCard', () => {
   beforeAll(async () => {
     await i18n.use(initReactI18next).init({
@@ -122,6 +147,30 @@ describe('RechargeFormCard', () => {
 
     expect(html).toContain('R$8')
     expect(html).toContain('R$10')
+    expect(html).toContain('2.00 BRL OFF')
+    expect(html).toContain('Save R$2')
     expect(html).not.toContain('>$10</span>')
+  })
+
+  test('renders percent recall top-up savings on the selected amount', () => {
+    const html = renderToStaticMarkup(
+      <RechargeFormCard
+        topupInfo={{
+          ...topupInfoWithStripe,
+          stripe_price_ids: { 10: 'price_topup_10' },
+        }}
+        presetAmounts={[{ value: 10 }]}
+        selectedPreset={10}
+        onSelectPreset={() => undefined}
+        onStripeTopUp={() => undefined}
+        recallOffers={[usdPercentRecallOffer]}
+      />
+    )
+
+    expect(html).toContain('20% OFF')
+    expect(html).toContain('$8')
+    expect(html).toContain('$10')
+    expect(html).toContain('line-through')
+    expect(html).toContain('Save $2')
   })
 })
