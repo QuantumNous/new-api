@@ -1,4 +1,4 @@
-import { type Locale, withIdFallback } from "@/lib/locales";
+import { LOCALES, type Locale, withIdFallback } from "@/lib/locales";
 
 export const CLI_LANDING_PATH = "/cli";
 export const HIGGSFIELD_ALTERNATIVE_PATH = "/higgsfield-alternative";
@@ -8,7 +8,19 @@ type CodeSample = {
   code: string;
 };
 
-type CliLandingCopy = {
+type MediaSectionCopy = {
+  eyebrow: string;
+  title: string;
+  body: string;
+  items: Array<{
+    kind: string;
+    title: string;
+    body: string;
+    outcome: string;
+  }>;
+};
+
+type CliLandingBaseCopy = {
   seo: {
     title: string;
     description: string;
@@ -55,6 +67,12 @@ type CliLandingCopy = {
       primaryCta: string;
       secondaryCta: string;
     };
+  };
+};
+
+type CliLandingCopy = Omit<CliLandingBaseCopy, "sections"> & {
+  sections: CliLandingBaseCopy["sections"] & {
+    media: MediaSectionCopy;
   };
 };
 
@@ -120,7 +138,140 @@ flatkey login
 Then ask your AI agent:
 "Use Flatkey CLI to turn this campaign brief into image, video, audio, and copy assets."`;
 
-export const cliLandingCopy: Record<Locale, CliLandingCopy> = withIdFallback({
+const mediaSectionCopy: Record<Locale, MediaSectionCopy> = {
+  en: {
+    eyebrow: "Real media jobs",
+    title: "Use the CLI to produce files, not just prompts",
+    body: "Install once, run flatkey login, then batch images and videos from briefs, folders, CSVs, or agents.",
+    items: [
+      { kind: "Video", title: "9:16 UGC ad clips", body: "Tell your AI agent the product, audience, angle, and aspect ratio; let it use Flatkey CLI to produce short paid-social clips.", outcome: "Output: video clips, hooks, first frames" },
+      { kind: "Image", title: "Campaign hero images", body: "Give the agent a launch brief and brand direction; it can create cover images, landing visuals, product scenes, and variants.", outcome: "Output: hero images, product scenes" },
+      { kind: "Video", title: "Product reveal sequences", body: "Ask the agent to start from a product shot, plan reveal directions, generate clips, and keep the usable files together.", outcome: "Output: reveal clips, edit-ready files" },
+      { kind: "Image", title: "Thumbnail test sets", body: "Let an agent explore thumbnail directions, generate options, rank what works, and write titles or overlays.", outcome: "Output: thumbnail sets, ranking notes" },
+      { kind: "Video", title: "Localized market variants", body: "Give the agent markets and constraints; it can create localized visuals, clips, voiceover direction, captions, and copy.", outcome: "Output: localized image, video, audio, copy" },
+      { kind: "Image + Video", title: "Storyboard to motion", body: "Ask the agent to draft scenes, create still frames, choose the best direction, and turn the storyboard into motion assets.", outcome: "Output: storyboard frames, motion assets" },
+    ],
+  },
+  zh: {
+    eyebrow: "真实媒体任务",
+    title: "用 CLI 产出文件，而不只是提示词",
+    body: "只需安装一次并运行 flatkey login，就能从 brief、文件夹、CSV 或 agent 批量生成图片和视频。",
+    items: [
+      { kind: "视频", title: "9:16 UGC 广告短片", body: "告诉 AI agent 产品、受众、角度和画幅，让它用 Flatkey CLI 生成适合付费社交投放的短片。", outcome: "输出：视频短片、hook、首帧" },
+      { kind: "图片", title: "活动主视觉", body: "提供发布 brief 和品牌方向，agent 就能生成封面图、落地页视觉、产品场景和多版方案。", outcome: "输出：主视觉、产品场景" },
+      { kind: "视频", title: "产品亮相序列", body: "让 agent 从产品图出发，规划亮相方式、生成短片，并把可用文件整理在一起。", outcome: "输出：亮相短片、可剪辑文件" },
+      { kind: "图片", title: "缩略图测试组", body: "让 agent 探索缩略图方向、生成备选、排序效果，并撰写标题或画面文字。", outcome: "输出：缩略图组、排序说明" },
+      { kind: "视频", title: "市场本地化版本", body: "给出目标市场和限制条件，agent 可生成本地化视觉、短片、配音方向、字幕和文案。", outcome: "输出：本地化图片、视频、音频、文案" },
+      { kind: "图片 + 视频", title: "从分镜到动态素材", body: "让 agent 起草场景、生成静帧、选择最佳方向，再把分镜转成动态素材。", outcome: "输出：分镜帧、动态素材" },
+    ],
+  },
+  es: {
+    eyebrow: "Trabajos multimedia reales",
+    title: "Usa la CLI para producir archivos, no solo prompts",
+    body: "Instala una vez, ejecuta flatkey login y crea imágenes y videos por lotes desde briefs, carpetas, CSV o agentes.",
+    items: [
+      { kind: "Video", title: "Clips publicitarios UGC 9:16", body: "Indica al agente el producto, la audiencia, el enfoque y la proporción para que produzca clips cortos para redes de pago.", outcome: "Salida: clips, hooks y primeros fotogramas" },
+      { kind: "Imagen", title: "Imágenes principales de campaña", body: "Entrega un brief de lanzamiento y la dirección de marca para crear portadas, visuales de landing, escenas de producto y variantes.", outcome: "Salida: imágenes principales y escenas de producto" },
+      { kind: "Video", title: "Secuencias de presentación de producto", body: "Pide al agente que parta de una foto de producto, planifique la presentación, genere clips y agrupe los archivos utilizables.", outcome: "Salida: clips de presentación y archivos editables" },
+      { kind: "Imagen", title: "Conjuntos de prueba de miniaturas", body: "Deja que el agente explore direcciones, genere opciones, ordene las mejores y escriba títulos o textos superpuestos.", outcome: "Salida: conjuntos de miniaturas y notas de ranking" },
+      { kind: "Video", title: "Variantes localizadas por mercado", body: "Define mercados y restricciones para crear visuales, clips, pautas de voz, captions y copy localizados.", outcome: "Salida: imagen, video, audio y copy localizados" },
+      { kind: "Imagen + video", title: "Del storyboard al movimiento", body: "Pide al agente que plantee escenas, cree fotogramas, elija la mejor dirección y convierta el storyboard en piezas animadas.", outcome: "Salida: fotogramas de storyboard y piezas animadas" },
+    ],
+  },
+  fr: {
+    eyebrow: "Tâches média réelles",
+    title: "Utilisez le CLI pour produire des fichiers, pas seulement des prompts",
+    body: "Installez une fois, lancez flatkey login, puis générez images et vidéos en lot depuis des briefs, dossiers, CSV ou agents.",
+    items: [
+      { kind: "Vidéo", title: "Clips publicitaires UGC 9:16", body: "Indiquez à l'agent le produit, l'audience, l'angle et le format afin qu'il produise des clips courts pour les réseaux payants.", outcome: "Sortie : clips vidéo, hooks, premières images" },
+      { kind: "Image", title: "Visuels principaux de campagne", body: "Donnez un brief de lancement et une direction de marque pour créer couvertures, visuels de landing, scènes produit et variantes.", outcome: "Sortie : visuels principaux, scènes produit" },
+      { kind: "Vidéo", title: "Séquences de révélation produit", body: "Partez d'une photo produit, planifiez les révélations, générez les clips et regroupez les fichiers exploitables.", outcome: "Sortie : clips de révélation, fichiers prêts au montage" },
+      { kind: "Image", title: "Séries de tests de miniatures", body: "Laissez l'agent explorer des pistes, générer des options, classer les meilleures et rédiger titres ou textes incrustés.", outcome: "Sortie : séries de miniatures, notes de classement" },
+      { kind: "Vidéo", title: "Variantes localisées par marché", body: "Définissez marchés et contraintes pour produire visuels, clips, direction voix, légendes et textes localisés.", outcome: "Sortie : image, vidéo, audio et texte localisés" },
+      { kind: "Image + vidéo", title: "Du storyboard à l'animation", body: "Demandez à l'agent d'ébaucher les scènes, créer des images fixes, choisir la meilleure piste et produire les assets animés.", outcome: "Sortie : images de storyboard, assets animés" },
+    ],
+  },
+  pt: {
+    eyebrow: "Trabalhos reais de mídia",
+    title: "Use a CLI para produzir arquivos, não apenas prompts",
+    body: "Instale uma vez, execute flatkey login e gere imagens e vídeos em lote a partir de briefings, pastas, CSVs ou agentes.",
+    items: [
+      { kind: "Vídeo", title: "Clipes de anúncio UGC 9:16", body: "Informe produto, público, abordagem e proporção para o agente produzir clipes curtos para mídia paga.", outcome: "Saída: clipes, hooks e primeiros frames" },
+      { kind: "Imagem", title: "Imagens principais de campanha", body: "Passe o briefing de lançamento e a direção da marca para criar capas, visuais de landing page, cenas de produto e variações.", outcome: "Saída: imagens principais e cenas de produto" },
+      { kind: "Vídeo", title: "Sequências de revelação de produto", body: "Peça ao agente para partir de uma foto do produto, planejar as revelações, gerar clipes e reunir os arquivos aproveitáveis.", outcome: "Saída: clipes de revelação e arquivos para edição" },
+      { kind: "Imagem", title: "Conjuntos de teste de thumbnails", body: "Deixe o agente explorar direções, gerar opções, classificar as melhores e escrever títulos ou textos sobrepostos.", outcome: "Saída: conjuntos de thumbnails e notas de ranking" },
+      { kind: "Vídeo", title: "Variações localizadas por mercado", body: "Defina mercados e restrições para criar visuais, clipes, direção de voz, legendas e textos localizados.", outcome: "Saída: imagem, vídeo, áudio e texto localizados" },
+      { kind: "Imagem + vídeo", title: "Do storyboard ao movimento", body: "Peça ao agente para rascunhar cenas, criar frames, escolher a melhor direção e transformar o storyboard em assets animados.", outcome: "Saída: frames de storyboard e assets animados" },
+    ],
+  },
+  ru: {
+    eyebrow: "Реальные медиазадачи",
+    title: "Используйте CLI для создания файлов, а не только промптов",
+    body: "Установите один раз, выполните flatkey login и пакетно создавайте изображения и видео из брифов, папок, CSV или через агентов.",
+    items: [
+      { kind: "Видео", title: "UGC-реклама 9:16", body: "Задайте агенту продукт, аудиторию, ракурс и формат, чтобы он создал короткие ролики для платных соцсетей.", outcome: "Результат: видеоклипы, хуки, первые кадры" },
+      { kind: "Изображение", title: "Ключевые изображения кампании", body: "Передайте бриф запуска и направление бренда, чтобы создать обложки, визуалы лендинга, продуктовые сцены и варианты.", outcome: "Результат: ключевые изображения, продуктовые сцены" },
+      { kind: "Видео", title: "Сценарии презентации продукта", body: "Начните с фото продукта, спланируйте раскрытие, создайте клипы и соберите пригодные файлы вместе.", outcome: "Результат: презентационные клипы, файлы для монтажа" },
+      { kind: "Изображение", title: "Наборы тестовых миниатюр", body: "Позвольте агенту исследовать варианты, сгенерировать их, ранжировать лучшие и написать заголовки или наложения.", outcome: "Результат: наборы миниатюр, заметки о рейтинге" },
+      { kind: "Видео", title: "Локализованные варианты для рынков", body: "Укажите рынки и ограничения, чтобы создать локализованные визуалы, клипы, озвучку, субтитры и тексты.", outcome: "Результат: локализованные изображения, видео, аудио и текст" },
+      { kind: "Изображение + видео", title: "От раскадровки к движению", body: "Поручите агенту набросать сцены, создать стоп-кадры, выбрать направление и превратить раскадровку в анимацию.", outcome: "Результат: кадры раскадровки, анимированные материалы" },
+    ],
+  },
+  ja: {
+    eyebrow: "実際のメディア制作",
+    title: "プロンプトだけでなく、CLIでファイルを制作",
+    body: "一度インストールして flatkey login を実行すれば、brief、フォルダ、CSV、agentから画像や動画を一括生成できます。",
+    items: [
+      { kind: "動画", title: "9:16 UGC広告クリップ", body: "商品、対象者、切り口、アスペクト比をagentに伝え、SNS広告向けの短いクリップを制作します。", outcome: "出力：動画クリップ、hook、ファーストフレーム" },
+      { kind: "画像", title: "キャンペーンのメイン画像", body: "ローンチbriefとブランド方針から、カバー、ランディング用画像、商品シーン、複数案を作成します。", outcome: "出力：メイン画像、商品シーン" },
+      { kind: "動画", title: "商品リビールシーケンス", body: "商品写真を起点に見せ方を設計し、クリップを生成して利用可能なファイルをまとめます。", outcome: "出力：リビールクリップ、編集可能ファイル" },
+      { kind: "画像", title: "サムネイルのテストセット", body: "agentが方向性を探索し、案を生成・評価して、タイトルやオーバーレイ文も作成します。", outcome: "出力：サムネイルセット、評価メモ" },
+      { kind: "動画", title: "市場別ローカライズ版", body: "市場と制約を指定し、ローカライズした画像、クリップ、音声方針、caption、コピーを作成します。", outcome: "出力：ローカライズ画像、動画、音声、コピー" },
+      { kind: "画像 + 動画", title: "絵コンテからモーションへ", body: "シーンを設計し、静止画を作成し、最良案を選んで絵コンテをモーション素材へ変換します。", outcome: "出力：絵コンテフレーム、モーション素材" },
+    ],
+  },
+  vi: {
+    eyebrow: "Tác vụ media thực tế",
+    title: "Dùng CLI để tạo file, không chỉ tạo prompt",
+    body: "Cài một lần, chạy flatkey login rồi tạo hàng loạt ảnh và video từ brief, thư mục, CSV hoặc agent.",
+    items: [
+      { kind: "Video", title: "Clip quảng cáo UGC 9:16", body: "Cho agent biết sản phẩm, đối tượng, góc tiếp cận và tỷ lệ để tạo clip ngắn cho quảng cáo mạng xã hội.", outcome: "Đầu ra: clip, hook và khung hình đầu" },
+      { kind: "Hình ảnh", title: "Hình ảnh chủ đạo cho chiến dịch", body: "Cung cấp brief ra mắt và định hướng thương hiệu để tạo ảnh bìa, hình landing page, bối cảnh sản phẩm và biến thể.", outcome: "Đầu ra: hình chủ đạo và bối cảnh sản phẩm" },
+      { kind: "Video", title: "Chuỗi giới thiệu sản phẩm", body: "Bắt đầu từ ảnh sản phẩm, lên kế hoạch cách hé lộ, tạo clip và gom các file có thể sử dụng.", outcome: "Đầu ra: clip giới thiệu và file sẵn sàng chỉnh sửa" },
+      { kind: "Hình ảnh", title: "Bộ thử nghiệm thumbnail", body: "Để agent khám phá hướng thiết kế, tạo phương án, xếp hạng kết quả và viết tiêu đề hoặc chữ phủ.", outcome: "Đầu ra: bộ thumbnail và ghi chú xếp hạng" },
+      { kind: "Video", title: "Biến thể bản địa hóa theo thị trường", body: "Cung cấp thị trường và ràng buộc để tạo hình, clip, hướng voiceover, caption và nội dung bản địa hóa.", outcome: "Đầu ra: hình, video, audio và nội dung bản địa hóa" },
+      { kind: "Hình ảnh + video", title: "Từ storyboard đến chuyển động", body: "Yêu cầu agent phác thảo cảnh, tạo khung hình tĩnh, chọn hướng tốt nhất và biến storyboard thành asset chuyển động.", outcome: "Đầu ra: khung storyboard và asset chuyển động" },
+    ],
+  },
+  de: {
+    eyebrow: "Echte Medienaufträge",
+    title: "Mit der CLI Dateien produzieren, nicht nur Prompts",
+    body: "Einmal installieren, flatkey login ausführen und Bilder sowie Videos aus Briefings, Ordnern, CSVs oder Agents stapelweise erzeugen.",
+    items: [
+      { kind: "Video", title: "9:16-UGC-Werbeclips", body: "Nenne dem Agent Produkt, Zielgruppe, Ansatz und Seitenverhältnis, damit er kurze Clips für Paid Social produziert.", outcome: "Ausgabe: Videoclips, Hooks, erste Frames" },
+      { kind: "Bild", title: "Kampagnen-Leitmotive", body: "Gib Launch-Briefing und Markenrichtung vor, um Cover, Landingpage-Visuals, Produktszenen und Varianten zu erstellen.", outcome: "Ausgabe: Leitmotive, Produktszenen" },
+      { kind: "Video", title: "Produktenthüllungs-Sequenzen", body: "Starte mit einem Produktfoto, plane Enthüllungsrichtungen, erzeuge Clips und halte nutzbare Dateien zusammen.", outcome: "Ausgabe: Enthüllungsclips, schnittfertige Dateien" },
+      { kind: "Bild", title: "Thumbnail-Testreihen", body: "Lass den Agent Richtungen erkunden, Optionen erzeugen, die besten bewerten und Titel oder Overlays schreiben.", outcome: "Ausgabe: Thumbnail-Reihen, Ranking-Notizen" },
+      { kind: "Video", title: "Lokalisierte Marktvarianten", body: "Definiere Märkte und Vorgaben, um lokalisierte Visuals, Clips, Voiceover-Richtung, Captions und Texte zu erstellen.", outcome: "Ausgabe: lokalisierte Bilder, Videos, Audio und Texte" },
+      { kind: "Bild + Video", title: "Vom Storyboard zur Bewegung", body: "Lass den Agent Szenen entwerfen, Standbilder erstellen, die beste Richtung wählen und das Storyboard animieren.", outcome: "Ausgabe: Storyboard-Frames, animierte Assets" },
+    ],
+  },
+  id: {
+    eyebrow: "Pekerjaan media nyata",
+    title: "Gunakan CLI untuk menghasilkan file, bukan sekadar prompt",
+    body: "Instal sekali, jalankan flatkey login, lalu buat gambar dan video secara massal dari brief, folder, CSV, atau agen.",
+    items: [
+      { kind: "Video", title: "Klip iklan UGC 9:16", body: "Beri tahu agen tentang produk, audiens, sudut pesan, dan rasio aspek agar menghasilkan klip pendek untuk iklan media sosial.", outcome: "Hasil: klip video, hook, frame pertama" },
+      { kind: "Gambar", title: "Gambar utama kampanye", body: "Berikan brief peluncuran dan arahan merek untuk membuat gambar sampul, visual landing page, adegan produk, dan variasi.", outcome: "Hasil: gambar utama, adegan produk" },
+      { kind: "Video", title: "Urutan pengungkapan produk", body: "Mulai dari foto produk, rencanakan cara pengungkapan, buat klip, dan kumpulkan file yang siap digunakan.", outcome: "Hasil: klip pengungkapan, file siap edit" },
+      { kind: "Gambar", title: "Set pengujian thumbnail", body: "Biarkan agen menjelajahi arah thumbnail, membuat pilihan, memberi peringkat, dan menulis judul atau teks overlay.", outcome: "Hasil: set thumbnail, catatan peringkat" },
+      { kind: "Video", title: "Variasi pasar yang dilokalkan", body: "Tentukan pasar dan batasan agar agen membuat visual, klip, arahan sulih suara, caption, dan copy yang dilokalkan.", outcome: "Hasil: gambar, video, audio, dan copy lokal" },
+      { kind: "Gambar + video", title: "Dari storyboard ke gerak", body: "Minta agen menyusun adegan, membuat frame diam, memilih arah terbaik, dan mengubah storyboard menjadi aset bergerak.", outcome: "Hasil: frame storyboard, aset bergerak" },
+    ],
+  },
+};
+
+const baseCliLandingCopy: Record<Locale, CliLandingBaseCopy> = withIdFallback({
   en: {
     seo: {
       title: "Flatkey CLI for AI Media Teams",
@@ -312,7 +463,29 @@ export const cliLandingCopy: Record<Locale, CliLandingCopy> = withIdFallback({
       cta: { title: "Mache aus einem Briefing einen Produktionslauf", body: "Installiere Flatkey CLI, erstelle einen key und generiere Mediendateien aus einem Guthaben.", primaryCta: "CLI installieren", secondaryCta: "API key erstellen" },
     },
   },
+  id: {
+    seo: { title: "Flatkey CLI untuk tim media AI", description: "Buat gambar, video, audio, dan teks dari satu alur kerja CLI dengan satu API key Flatkey, satu saldo, file lokal, dan JSON untuk agen." },
+    navLabel: "CLI",
+    hero: { eyebrow: "Flatkey CLI untuk tim media", title: "Satu CLI untuk semua pekerjaan pembuatan media", accent: "dari brief menjadi file", body: "Buat gambar, video, sulih suara, efek suara, musik, dan teks dari satu saldo Flatkey. Jalankan langsung di terminal atau hubungkan ke Claude Code, Codex, Cursor, OpenClaw, dan agen lainnya.", primaryCta: "Instal CLI", secondaryCta: "Dapatkan API key" },
+    stats: [{ value: "1", label: "API key untuk semua perintah" }, { value: "4", label: "jenis media dalam satu alur kerja" }, { value: "JSON", label: "output bersih untuk agen" }],
+    codeSamples: [{ label: "Instal dan buat", code: installCode }, { label: "Dry run untuk agen", code: agentCode }],
+    sections: {
+      workflow: { eyebrow: "Alur kerja produksi", title: "Dari brief kreatif menjadi file lokal", body: "Flatkey CLI memberi tim media jalur produksi yang dapat diulang. Buat gambar, klip video, sulih suara, musik, efek suara, dan copy tanpa berpindah dashboard atau menyusun ulang prompt secara manual.", cards: [{ title: "Pembuatan video", body: "Buat klip 9:16, pengungkapan produk, transisi frame awal/akhir, dan tugas video dari gambar referensi lokal." }, { title: "Pembuatan gambar", body: "Buat visual kampanye, thumbnail, konsep produk, sampul, dan variasi visual dengan output lokal." }, { title: "Pembuatan audio", body: "Buat sulih suara, efek suara, dan musik latar dalam alur kerja CLI yang sama." }, { title: "Pembuatan teks", body: "Tulis hook, judul, caption, skrip, dan variasi prompt sebelum membuat media." }] },
+      spend: { title: "Satu key. Satu saldo. Satu catatan.", body: "Setiap perintah berjalan melalui Flatkey. Tim dapat melihat kredit, penggunaan model, riwayat permintaan, dan biaya di satu tempat.", bullets: ["Periksa kredit sebelum menjalankan tugas.", "Gunakan dry-run sebelum memakai saldo.", "Simpan file hasil dan output permintaan dalam folder tugas yang sama."] },
+      agent: { title: "Mudah untuk manusia. Siap untuk agen.", body: "Jalankan Flatkey langsung saat membutuhkan kendali. Tambahkan --json, --dry-run, dan --output saat agen atau skrip membutuhkan perilaku yang konsisten.", bullets: ["Stdout yang konsisten untuk otomatisasi.", "Output lokal untuk penyuntingan dan peninjauan.", "Temukan model sebelum memilih rute pembuatan."] },
+      useCases: { title: "Yang dijalankan tim media", items: [{ title: "Konsep iklan massal", body: "Buat beberapa hook, thumbnail, klip, dan pilihan sulih suara untuk folder kampanye." }, { title: "Aset peluncuran produk", body: "Ubah satu brief menjadi gambar utama, video pendek, caption, dan audio dalam satu alur kerja lokal." }, { title: "Lokalisasi", body: "Buat prompt, sulih suara, caption, dan variasi kreatif khusus untuk AS, Brasil, Jepang, dan pasar lainnya." }, { title: "Produksi dengan agen AI", body: "Biarkan Claude Code, Codex, atau agen lain merencanakan materi, menjalankan perintah, menyimpan file, dan melaporkan biaya." }] },
+      faq: { title: "Pertanyaan tentang CLI", items: [{ question: "Apakah Flatkey CLI hanya untuk developer?", answer: "Tidak. Ini adalah alur kerja terminal, tetapi pekerjaannya adalah produksi media: membuat file, membandingkan hasil, dan memantau biaya." }, { question: "Apakah ini menggantikan aplikasi kreatif?", answer: "Tidak. Gunakan aplikasi kreatif saat membutuhkan editor visual. Gunakan Flatkey CLI untuk pembuatan berulang, output lokal, otomatisasi, dan satu saldo lintas model." }, { question: "Bisakah membuat video dari gambar lokal?", answer: "Bisa. CLI dapat mengunggah gambar referensi lokal dan memakai input image, first-frame, atau last-frame pada model yang didukung." }] },
+      cta: { title: "Ubah satu brief menjadi proses produksi", body: "Instal Flatkey CLI, buat key, lalu mulai menghasilkan file media dari satu saldo.", primaryCta: "Instal CLI", secondaryCta: "Buat API key" },
+    },
+  },
 });
+
+export const cliLandingCopy = Object.fromEntries(
+  LOCALES.map((locale) => {
+    const base = baseCliLandingCopy[locale];
+    return [locale, { ...base, sections: { ...base.sections, media: mediaSectionCopy[locale] } }];
+  }),
+) as Record<Locale, CliLandingCopy>;
 
 export const higgsfieldAlternativeCopy: Record<Locale, CompareCopy> = withIdFallback({
   en: {

@@ -160,7 +160,6 @@ test("public static pages use one extensionless canonical route", () => {
 
   for (const [route, file] of [
     ["models", "models.html"],
-    ["cli", "cli.html"],
     ["docs", "docs.html"],
     ["playground", "playground.html"],
     ["pricing", "topup.html"],
@@ -171,6 +170,17 @@ test("public static pages use one extensionless canonical route", () => {
   assert.match(nginx, /location = \/topup\.html \{ return 301 \/pricing; \}/);
   assert.doesNotMatch(sitemap, /\.html</);
   assert.doesNotMatch(sitemap, /<loc>https:\/\/flatkey\.ai\/login<\/loc>/);
+});
+
+test("the canonical CLI route uses the localized Next.js implementation", () => {
+  const nginx = read("../nginx.conf");
+  const preview = read("../preview.mjs");
+  const sitemap = read("../html/sitemap-v2.xml");
+
+  assert.doesNotMatch(nginx, /location = \/cli\s*\{[^}]*try_files \/cli\.html/);
+  assert.match(nginx, /location \/ \{ try_files \$uri @legacy; \}/);
+  assert.doesNotMatch(preview, /\["\/cli",\s*"cli\.html"\]/);
+  assert.doesNotMatch(sitemap, /<loc>https:\/\/flatkey\.ai\/cli<\/loc>/);
 });
 
 test("production homepage cannot regress behind the models and tools launch", () => {

@@ -15,7 +15,6 @@ const localizedHomepages = new Set(["index.html", "zh.html", "es.html", "fr.html
 const sharedCssVersion = "728n";
 const shellScriptVersion = "728n";
 const i18nVersionOverrides = new Map([
-  ["cli.html", "724b"],
   ["model.html", "726b"],
   ["models.html", "726b"],
   ["playground.html", "726b"],
@@ -164,20 +163,15 @@ for (const requiredAboutZhContent of [
   if (!aboutZh.includes(requiredAboutZhContent)) fail("about-zh.html", `missing localized founder-story content: ${requiredAboutZhContent}`);
 }
 
-const cli = fs.readFileSync(path.join(root, "cli.html"), "utf8");
-for (const requiredCliContent of [
-  "<video",
-  "<img",
+for (const requiredCliAsset of [
   "assets/cli/ugc-ad-clips.mp4",
   "assets/cli/product-reveal.mp4",
   "assets/cli/localized-variants.mp4",
   "assets/cli/campaign-hero.png",
   "assets/cli/thumbnail-test-set.png",
   "assets/cli/storyboard-motion.png",
-  "npm i -g @flatkey-ai/cli",
-  "flatkey login",
 ]) {
-  if (!cli.includes(requiredCliContent)) fail("cli.html", `missing CLI media content: ${requiredCliContent}`);
+  if (!fs.existsSync(path.join(root, requiredCliAsset))) fail("assets/cli", `missing CLI media asset: ${requiredCliAsset}`);
 }
 
 for (const careersFile of ["careers.html", "careers-zh.html"]) {
@@ -218,8 +212,11 @@ for (const [legacyPath, canonicalPath] of [
   const grouped = legacyPath === "/topup.html" || legacyPath.endsWith("-zh.html") ? false : nginxConfig.includes(`|${legacyPath.slice(1, -5)}|`) || nginxConfig.includes(`(${legacyPath.slice(1, -5)}|`);
   if (!exact.test(nginxConfig) && !grouped) fail("nginx.conf", `${legacyPath} does not permanently redirect to ${canonicalPath}`);
 }
-for (const [route, file] of [["models", "models.html"], ["cli", "cli.html"], ["docs", "docs.html"], ["playground", "playground.html"], ["pricing", "topup.html"], ["terms", "terms.html"]]) {
+for (const [route, file] of [["models", "models.html"], ["docs", "docs.html"], ["playground", "playground.html"], ["pricing", "topup.html"], ["terms", "terms.html"]]) {
   if (!nginxConfig.includes(`location = /${route} { try_files /${file} =404; }`)) fail("nginx.conf", `/${route} does not serve ${file}`);
+}
+if (/location = \/cli\s*\{[^}]*try_files \/cli\.html/.test(nginxConfig)) {
+  fail("nginx.conf", "/cli must use the localized legacy Next.js page");
 }
 if (!nginxConfig.includes("sub_filter 'lang=\"en\"' 'lang=\"en-US\"';")) fail("nginx.conf", "legacy HTML/XML does not normalize language tags");
 

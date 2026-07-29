@@ -116,11 +116,13 @@ jobs:
             echo "Could not resolve legacy canary URL" >&2
             exit 1
           fi
-          for p in blog zh models pricing gpt-api-alternative about sitemap.xml; do
+          for p in blog zh models pricing gpt-api-alternative about cli zh/cli id/cli sitemap.xml; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 30 "$L/$p")
             echo "/$p -> $code"
             case "$code" in 200|301|302|308) ;; *) echo "legacy smoke failed (403 = missing allUsers invoker binding)"; exit 1 ;; esac
           done
+          curl -s -m 20 "$L/zh/cli" | grep -q '真实媒体任务' || { echo "Chinese CLI copy missing from legacy canary"; exit 1; }
+          curl -s -m 20 "$L/id/cli" | grep -q 'Pekerjaan media nyata' || { echo "Indonesian CLI copy missing from legacy canary"; exit 1; }
 
       - name: Shift legacy Next.js traffic
         run: |
@@ -155,13 +157,15 @@ jobs:
       - name: Smoke test canary
         run: |
           C="https://canary---newapi-web-5qjldqffdq-uw.a.run.app"
-          # canonical static pages and assets
+          # canonical pages and assets (some pages are served by the legacy Next.js fallback)
           for p in "" models models/gpt-5.5 models/grok-imagine-image cli docs playground pricing compute usecases contact status terms privacy refund-policy sla about zh/about careers zh/careers install.sh llms.txt assets/team/amazon-accelerate-team.jpg assets/team/team-dinner.jpg assets/cli/ugc-ad-clips.mp4 assets/cli/campaign-hero.png; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 20 "$C/$p")
             echo "/$p -> $code"; [ "$code" = "200" ] || exit 1
           done
           curl -s -m 20 "$C/cli" | grep -q 'assets/cli/ugc-ad-clips.mp4' || { echo "CLI video examples missing"; exit 1; }
           curl -s -m 20 "$C/cli" | grep -q 'assets/cli/campaign-hero.png' || { echo "CLI image examples missing"; exit 1; }
+          curl -s -m 20 "$C/zh/cli" | grep -q '真实媒体任务' || { echo "Chinese CLI copy missing"; exit 1; }
+          curl -s -m 20 "$C/id/cli" | grep -q 'Pekerjaan media nyata' || { echo "Indonesian CLI copy missing"; exit 1; }
           # Every historical .html page permanently consolidates into one clean
           # canonical URL instead of returning a second indexable 200.
           for pair in "models.html models" "cli.html cli" "docs.html docs" "playground.html playground" "topup.html pricing" "compute.html compute" "terms.html terms" "about.html about" "careers.html careers" "about-zh.html zh/about" "careers-zh.html zh/careers"; do
