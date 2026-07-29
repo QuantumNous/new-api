@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"strings"
 
@@ -14,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -326,11 +325,19 @@ func validateBytePlusAssetSourceURL(rawURL string) error {
 	if normalizedHost == "localhost" {
 		return errors.New("asset source url must be public")
 	}
-	if ip := net.ParseIP(host); ip != nil {
-		addr, err := netip.ParseAddr(host)
-		if err != nil || !addr.IsGlobalUnicast() || addr.IsPrivate() || addr.IsLoopback() || addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() || addr.IsMulticast() || addr.IsUnspecified() {
-			return errors.New("asset source url must be public")
-		}
+	fetchSetting := system_setting.GetFetchSetting()
+	if err := common.ValidateURLWithFetchSetting(
+		rawURL,
+		true,
+		false,
+		fetchSetting.DomainFilterMode,
+		fetchSetting.IpFilterMode,
+		fetchSetting.DomainList,
+		fetchSetting.IpList,
+		fetchSetting.AllowedPorts,
+		true,
+	); err != nil {
+		return errors.New("asset source url must be public")
 	}
 	return nil
 }

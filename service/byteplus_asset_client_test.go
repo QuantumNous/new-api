@@ -111,10 +111,17 @@ func TestBytePlusAssetClientRejectsInvalidCreateValuesBeforeUpstream(t *testing.
 		{GroupID: "group-1", URL: "https://example.com/a.png", AssetType: "Image", ModerationStrategy: "Disabled"},
 		{GroupID: "", URL: "https://example.com/a.png", AssetType: "Image"},
 		{GroupID: "group-1", URL: "file:///tmp/a.png", AssetType: "Image"},
+		{GroupID: "group-1", URL: "https://example.com:81/a.png", AssetType: "Image"},
+		{GroupID: "group-1", URL: "https://user:pass@example.com/a.png", AssetType: "Image"},
+		{GroupID: "group-1", URL: "http://127.0.0.1/a.png", AssetType: "Image"},
 	}
 	for _, request := range tests {
-		if _, _, err := client.CreateAsset(context.Background(), testAssetCreds(), request); err == nil {
+		_, _, err := client.CreateAsset(context.Background(), testAssetCreds(), request)
+		if err == nil {
 			t.Fatalf("CreateAsset(%+v) should reject invalid values", request)
+		}
+		if request.URL != "" && strings.Contains(err.Error(), request.URL) {
+			t.Fatalf("validation error leaked source URL %q: %v", request.URL, err)
 		}
 	}
 	if calls != 0 {

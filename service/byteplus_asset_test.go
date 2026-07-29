@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -67,7 +68,8 @@ func (f *fakeBytePlusAssetClient) GetAsset(ctx context.Context, creds BytePlusCr
 
 func TestBytePlusAssetCreateRejectsInvalidPublicURLs(t *testing.T) {
 	newBytePlusAssetServiceTestDB(t)
-	restore := installBytePlusAssetServiceTestDeps(t, &fakeBytePlusAssetClient{})
+	fake := &fakeBytePlusAssetClient{}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
 	defer restore()
 	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
 
@@ -81,6 +83,7 @@ func TestBytePlusAssetCreateRejectsInvalidPublicURLs(t *testing.T) {
 		"http://10.1.2.3/a.png",
 		"http://169.254.1.1/a.png",
 		"http://[::1]/a.png",
+		"https://example.com:81/a.png",
 	} {
 		t.Run(rawURL, func(t *testing.T) {
 			_, err := CreateBytePlusAsset(context.Background(), 7, "default", "default", 0, dto.BytePlusAssetCreateRequest{
@@ -88,6 +91,10 @@ func TestBytePlusAssetCreateRejectsInvalidPublicURLs(t *testing.T) {
 				AssetType: "Image",
 			})
 			assertAssetError(t, err, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+			assertAssetPublicErrorDoesNotLeak(t, err, rawURL)
+			if fake.createGroupCalls != 0 || fake.createAssetCalls != 0 {
+				t.Fatalf("invalid URL reached DB/upstream path: createGroup=%d createAsset=%d", fake.createGroupCalls, fake.createAssetCalls)
+			}
 		})
 	}
 
@@ -100,6 +107,19 @@ func TestBytePlusAssetCreateRejectsInvalidPublicURLs(t *testing.T) {
 	}
 	if resp.ID == "" {
 		t.Fatalf("response missing id: %+v", resp)
+	}
+}
+
+func TestBytePlusAssetSourceURLStaysPublicWhenFetchSettingIsPermissive(t *testing.T) {
+	original := *system_setting.GetFetchSetting()
+	t.Cleanup(func() { *system_setting.GetFetchSetting() = original })
+	system_setting.GetFetchSetting().EnableSSRFProtection = false
+	system_setting.GetFetchSetting().AllowPrivateIp = true
+	system_setting.GetFetchSetting().AllowedPorts = []string{"1-65535"}
+	system_setting.GetFetchSetting().ApplyIPFilterForDomain = false
+
+	if err := validateBytePlusAssetSourceURL("http://127.0.0.1/a.png"); err == nil {
+		t.Fatal("literal private IP should remain rejected for BytePlus asset source URLs")
 	}
 }
 
@@ -414,12 +434,39 @@ func TestBytePlusAssetErrorsUseStablePublicMessages(t *testing.T) {
 
 func assertAssetError(t *testing.T, err error, code types.ErrorCode, status int) {
 	t.Helper()
+	if err == nil {
+		t.Fatalf("error = nil, want *types.NewAPIError %s/%d", code, status)
+	}
 	var apiErr *types.NewAPIError
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("error = %T %v, want *types.NewAPIError", err, err)
 	}
+	if apiErr == nil {
+		t.Fatalf("error = nil *types.NewAPIError, want %s/%d", code, status)
+	}
 	if apiErr.GetErrorCode() != code || apiErr.StatusCode != status {
 		t.Fatalf("error code/status = %s/%d, want %s/%d (%v)", apiErr.GetErrorCode(), apiErr.StatusCode, code, status, apiErr)
+	}
+}
+
+func assertAssetPublicErrorDoesNotLeak(t *testing.T, apiErr *types.NewAPIError, forbidden ...string) {
+	t.Helper()
+	openaiErr := apiErr.ToOpenAIError()
+	raw, err := common.Marshal(openaiErr)
+	if err != nil {
+		t.Fatalf("marshal public error: %v", err)
+	}
+	text := strings.ToLower(openaiErr.Message + " " + string(raw))
+	for _, item := range forbidden {
+		item = strings.TrimSpace(strings.ToLower(item))
+		if item != "" && strings.Contains(text, item) {
+			t.Fatalf("public error leaked %q: message=%q raw=%s", item, openaiErr.Message, raw)
+		}
+	}
+	for _, item := range []string{"localhost", "127.0.0.1", "169.254", "::1", "example.com:81", "user@", "source url"} {
+		if strings.Contains(text, item) {
+			t.Fatalf("public error leaked internal URL detail %q: message=%q raw=%s", item, openaiErr.Message, raw)
+		}
 	}
 }
 

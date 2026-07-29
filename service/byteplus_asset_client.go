@@ -138,7 +138,7 @@ func (c *BytePlusAssetClient) CreateAsset(ctx context.Context, creds BytePlusCre
 		return "", "", errors.New("byteplus asset group id is required")
 	}
 	request.URL = strings.TrimSpace(request.URL)
-	if err := validateBytePlusSourceURL(request.URL); err != nil {
+	if err := validateBytePlusAssetSourceURL(request.URL); err != nil {
 		return "", "", err
 	}
 	request.Name = strings.TrimSpace(request.Name)
@@ -254,19 +254,6 @@ func (c *BytePlusAssetClient) do(ctx context.Context, creds BytePlusCredentials,
 	}
 	*out = envelope
 	return nil
-}
-
-func validateBytePlusSourceURL(rawURL string) error {
-	parsed, err := url.Parse(rawURL)
-	if err != nil || parsed.Host == "" || parsed.User != nil {
-		return errors.New("invalid byteplus asset source url")
-	}
-	switch strings.ToLower(parsed.Scheme) {
-	case "http", "https":
-		return nil
-	default:
-		return errors.New("invalid byteplus asset source url")
-	}
 }
 
 func (c *BytePlusAssetClient) actionURL(action string) (string, error) {
