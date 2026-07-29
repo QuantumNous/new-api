@@ -1,20 +1,20 @@
 package constant
 
-type EndpointType string
+import "github.com/QuantumNous/new-api/relaykit/types"
+
+// EndpointType moved to types with the conversion kit; aliases keep host
+// code compiling unchanged.
+type EndpointType = types.EndpointType
 
 const (
-	EndpointTypeOpenAI                EndpointType = "openai"
-	EndpointTypeOpenAIResponse        EndpointType = "openai-response"
-	EndpointTypeOpenAIResponseCompact EndpointType = "openai-response-compact"
-	EndpointTypeOpenAIAlphaSearch     EndpointType = "openai-alpha-search"
-	EndpointTypeAnthropic             EndpointType = "anthropic"
-	EndpointTypeGemini                EndpointType = "gemini"
-	EndpointTypeJinaRerank            EndpointType = "jina-rerank"
-	EndpointTypeImageGeneration       EndpointType = "image-generation"
-	EndpointTypeEmbeddings            EndpointType = "embeddings"
-	EndpointTypeOpenAIVideo           EndpointType = "openai-video"
-	//EndpointTypeMidjourney     EndpointType = "midjourney-proxy"
-	//EndpointTypeSuno           EndpointType = "suno-proxy"
-	//EndpointTypeKling          EndpointType = "kling"
-	//EndpointTypeJimeng         EndpointType = "jimeng"
+	EndpointTypeOpenAI                = types.EndpointTypeOpenAI
+	EndpointTypeOpenAIResponse        = types.EndpointTypeOpenAIResponse
+	EndpointTypeOpenAIResponseCompact = types.EndpointTypeOpenAIResponseCompact
+	EndpointTypeOpenAIAlphaSearch     = types.EndpointTypeOpenAIAlphaSearch
+	EndpointTypeAnthropic             = types.EndpointTypeAnthropic
+	EndpointTypeGemini                = types.EndpointTypeGemini
+	EndpointTypeJinaRerank            = types.EndpointTypeJinaRerank
+	EndpointTypeImageGeneration       = types.EndpointTypeImageGeneration
+	EndpointTypeEmbeddings            = types.EndpointTypeEmbeddings
+	EndpointTypeOpenAIVideo           = types.EndpointTypeOpenAIVideo
 )
