@@ -127,6 +127,43 @@ describe('InvitationView', () => {
     expect(html).not.toContain('Transfer Rewards')
   })
 
+  test('uses subscription guidance for the page while preserving top-up share copy', () => {
+    const html = renderView({
+      data: {
+        ...fixture,
+        summary: {
+          ...fixture.summary,
+          inviter_reward_usd: 5,
+          invitee_reward_usd: 5,
+          inviter_reward_max_count: 0,
+        },
+      },
+    })
+    const topupShareMessage =
+      'Share your referral link with friends. Referral rewards are processed after their first successful top-up.'
+    const subscriptionShareMessage =
+      'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
+
+    expect(html).toContain(
+      'Invite friends to subscribe: they get $5 package discount immediately, and you receive $5 package discount after their first successful paid package purchase.'
+    )
+    expect(html).toContain(
+      'Unlimited rewards, package discounts never expire, and any email address is accepted.'
+    )
+    expect(html).toContain('Share your referral link')
+    expect(html).toContain('Send your unique referral link to a friend.')
+    expect(html).toContain('Your friend registers')
+    expect(html).toContain(
+      'Your friend gets a package discount immediately after registering.'
+    )
+    expect(html).toContain('You receive $5 package discount')
+    expect(html).toContain(
+      'You receive $5 package discount immediately after their first successful paid package purchase. Package discounts never expire and can only be used for package purchases or renewals.'
+    )
+    expect(html).toContain(encodeURIComponent(topupShareMessage))
+    expect(html).not.toContain(encodeURIComponent(subscriptionShareMessage))
+  })
+
   test('shows equal configured rewards and an unlimited configured referral count below the title', () => {
     const html = renderView({
       data: {
