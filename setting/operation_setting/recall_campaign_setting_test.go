@@ -42,6 +42,29 @@ func TestRecallCampaignSettingLoadsEmailFromFromConfigMap(t *testing.T) {
 	require.Equal(t, "Campaigns@Example.com", cfg.EmailFrom)
 }
 
+func TestRecallCampaignSettingLoadsSMTPFieldsFromConfigMap(t *testing.T) {
+	cfg := RecallCampaignSetting{}
+
+	err := config.UpdateConfigFromMap(&cfg, map[string]string{
+		"smtp_server":           "smtp.activity.example.com",
+		"smtp_port":             "2525",
+		"smtp_account":          "campaigns@example.com",
+		"email_from":            "Campaigns@Example.com",
+		"smtp_token":            "secret-token",
+		"smtp_ssl_enabled":      "true",
+		"smtp_force_auth_login": "true",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "smtp.activity.example.com", cfg.SMTPServer)
+	require.Equal(t, 2525, cfg.SMTPPort)
+	require.Equal(t, "campaigns@example.com", cfg.SMTPAccount)
+	require.Equal(t, "Campaigns@Example.com", cfg.EmailFrom)
+	require.Equal(t, "secret-token", cfg.SMTPToken)
+	require.True(t, cfg.SMTPSSLEnabled)
+	require.True(t, cfg.SMTPForceAuthLogin)
+}
+
 func TestRecallCampaignSettingNormalizeAndValidate(t *testing.T) {
 	cfg := RecallCampaignSetting{BatchSize: 25, TickSeconds: 15, EmailHourlyLimit: 100}
 	require.NoError(t, cfg.NormalizeAndValidate())
