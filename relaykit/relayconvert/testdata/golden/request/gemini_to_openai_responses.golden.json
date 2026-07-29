@@ -1,0 +1,55 @@
+{
+  "model": "upstream-model",
+  "input": [
+    {
+      "content": [
+        {
+          "text": "What is in this image?",
+          "type": "input_text"
+        },
+        {
+          "image_url": "data:image/png;base64,aGVsbG8=",
+          "type": "input_image"
+        }
+      ],
+      "role": "user"
+    },
+    {
+      "content": "",
+      "role": "assistant"
+    },
+    {
+      "arguments": "{\"city\":\"Paris\"}",
+      "call_id": "call_1",
+      "name": "get_weather",
+      "type": "function_call"
+    },
+    {
+      "call_id": "call_0",
+      "output": "{\"result\":\"15 degrees\"}",
+      "type": "function_call_output"
+    }
+  ],
+  "instructions": "You are a helpful assistant.",
+  "max_output_tokens": 1024,
+  "stream": false,
+  "temperature": 0.7,
+  "tools": [
+    {
+      "description": "Get weather by city",
+      "name": "get_weather",
+      "parameters": {
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city"
+        ],
+        "type": "object"
+      },
+      "type": "function"
+    }
+  ]
+}

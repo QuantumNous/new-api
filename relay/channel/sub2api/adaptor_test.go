@@ -25,3 +25,22 @@ func TestGetRequestURLAlphaSearch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "https://sub2api.example/v1/alpha/search", url)
 }
+
+func TestAdaptorInheritsNewAPIResponsesCompactSupport(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:    constant.ChannelTypeSub2API,
+			ChannelBaseUrl: "https://sub2api.example",
+		},
+		RequestURLPath: "/v1/responses/compact",
+		RelayMode:      relayconstant.RelayModeResponsesCompact,
+	}
+
+	url, err := adaptor.GetRequestURL(info)
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://sub2api.example/v1/responses/compact", url)
+	assert.Equal(t, "sub2api", adaptor.GetChannelName())
+	assert.Empty(t, adaptor.GetModelList())
+}

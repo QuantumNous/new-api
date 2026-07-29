@@ -284,6 +284,8 @@ const SENSITIVE_FORM_FIELDS = [
   'force_format',
   'thinking_to_content',
   'proxy',
+  'http_protocol',
+  'http2_connection_shards',
   'pass_through_body_enabled',
   'system_prompt',
   'system_prompt_override',
@@ -339,6 +341,9 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
+    (values.http_protocol && values.http_protocol !== 'auto') ||
+    (values.http2_connection_shards != null &&
+      values.http2_connection_shards > 1) ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
@@ -745,6 +750,8 @@ export function ChannelMutateDrawer({
     'disable_task_polling_sleep'
   )
   const currentProxy = form.watch('proxy')
+  const currentHttpProtocol = form.watch('http_protocol')
+  const currentHttp2ConnectionShards = form.watch('http2_connection_shards')
   const currentSystemPrompt = form.watch('system_prompt')
   const currentSystemPromptOverride = form.watch('system_prompt_override')
   const currentAllowServiceTier = form.watch('allow_service_tier')
@@ -1014,7 +1021,9 @@ export function ChannelMutateDrawer({
     currentDisableTaskPollingSleep ||
     currentProxy?.trim() ||
     currentSystemPrompt?.trim() ||
-    currentSystemPromptOverride
+    currentSystemPromptOverride ||
+    (currentHttpProtocol && currentHttpProtocol !== 'auto') ||
+    (currentHttp2ConnectionShards != null && currentHttp2ConnectionShards > 1)
   )
   let fieldPassthroughConfigured = false
   if (currentType === 1 || currentType === 57) {
@@ -4183,6 +4192,129 @@ export function ChannelMutateDrawer({
                                   <FormMessage />
                                 </FormItem>
                               )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name='http_protocol'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('HTTP Protocol')}</FormLabel>
+                                  <Select
+                                    items={[
+                                      {
+                                        value: 'auto',
+                                        label: t('Auto'),
+                                      },
+                                      {
+                                        value: 'http1',
+                                        label: t('HTTP/1.1'),
+                                      },
+                                    ]}
+                                    value={field.value || 'auto'}
+                                    onValueChange={(value) => {
+                                      const nextProtocol =
+                                        value === 'http1' ? 'http1' : 'auto'
+                                      field.onChange(nextProtocol)
+                                      if (nextProtocol === 'http1') {
+                                        form.setValue(
+                                          'http2_connection_shards',
+                                          1,
+                                          {
+                                            shouldDirty: true,
+                                            shouldValidate: true,
+                                          }
+                                        )
+                                      }
+                                    }}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent
+                                      alignItemWithTrigger={false}
+                                    >
+                                      <SelectGroup>
+                                        <SelectItem value='auto'>
+                                          {t('Auto')}
+                                        </SelectItem>
+                                        <SelectItem value='http1'>
+                                          {t('HTTP/1.1')}
+                                        </SelectItem>
+                                      </SelectGroup>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormDescription>
+                                    {t(
+                                      'Auto negotiates HTTP/2 when available. HTTP/1.1 forces multiple keep-alive connections under concurrency.'
+                                    )}
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name='http2_connection_shards'
+                              render={({ field }) => {
+                                const http1Selected =
+                                  currentHttpProtocol === 'http1'
+                                const shardItems = Array.from(
+                                  { length: 8 },
+                                  (_, index) => {
+                                    const value = String(index + 1)
+                                    return { value, label: value }
+                                  }
+                                )
+                                return (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('HTTP/2 Connection Shards')}
+                                    </FormLabel>
+                                    <Select
+                                      items={shardItems}
+                                      value={String(field.value || 1)}
+                                      disabled={http1Selected}
+                                      onValueChange={(value) => {
+                                        field.onChange(Number(value))
+                                      }}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger disabled={http1Selected}>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent
+                                        alignItemWithTrigger={false}
+                                      >
+                                        <SelectGroup>
+                                          {shardItems.map((item) => (
+                                            <SelectItem
+                                              key={item.value}
+                                              value={item.value}
+                                            >
+                                              {item.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                      {http1Selected
+                                        ? t(
+                                            'HTTP/2 connection shards are unavailable when HTTP/1.1 is selected.'
+                                          )
+                                        : t(
+                                            'Spread HTTP/2 traffic across multiple reusable connections to the same upstream origin (1-8).'
+                                          )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )
+                              }}
                             />
 
                             <FormField
