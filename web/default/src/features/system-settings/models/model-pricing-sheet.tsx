@@ -98,6 +98,8 @@ type ModelPricingEditorPanelProps = Omit<
   'open' | 'onOpenChange'
 > & {
   className?: string
+  /** Hide repeated model context and preview when embedded in a detail pane. */
+  embedded?: boolean
 }
 
 export type ModelPricingEditorPanelHandle = {
@@ -141,7 +143,7 @@ export const ModelPricingEditorPanel = forwardRef<
   ModelPricingEditorPanelHandle,
   ModelPricingEditorPanelProps
 >(function ModelPricingEditorPanel(
-  { editData, className, onSave, isSaving },
+  { editData, className, onSave, isSaving, embedded },
   ref
 ) {
   const { t } = useTranslation()
@@ -192,7 +194,7 @@ export const ModelPricingEditorPanel = forwardRef<
         'per-token'
       if (editData.billingMode === 'tiered_expr') {
         nextPricingMode = 'tiered_expr'
-      } else if (editData.price) {
+      } else if (editData.billingMode === 'per-request') {
         nextPricingMode = 'per-request'
       }
       setPricingMode(nextPricingMode)
@@ -486,15 +488,17 @@ export const ModelPricingEditorPanel = forwardRef<
         className
       )}
     >
-      <div className='border-b p-4'>
-        <div className='flex flex-wrap items-start justify-between gap-3'>
-          <div className='min-w-0'>
-            <h3 className='truncate text-base font-medium'>
-              {isEditMode ? t('Edit model pricing') : t('Add model pricing')}
-            </h3>
+      {!embedded && (
+        <div className='border-b p-4'>
+          <div className='flex flex-wrap items-start justify-between gap-3'>
+            <div className='min-w-0'>
+              <h3 className='truncate text-base font-medium'>
+                {isEditMode ? t('Edit model pricing') : t('Add model pricing')}
+              </h3>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <Form {...form}>
         <form
@@ -503,7 +507,12 @@ export const ModelPricingEditorPanel = forwardRef<
           autoComplete='off'
         >
           <div className='min-h-0 flex-1 overflow-y-auto p-4 pb-6'>
-            <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(220px,260px)]'>
+            <div
+              className={cn(
+                'grid items-start gap-4',
+                !embedded && 'xl:grid-cols-[minmax(0,1fr)_minmax(220px,260px)]'
+              )}
+            >
               <FieldGroup>
                 {warnings.length > 0 && (
                   <Alert variant='destructive'>
@@ -518,28 +527,30 @@ export const ModelPricingEditorPanel = forwardRef<
                   </Alert>
                 )}
 
-                <FormField
-                  control={form.control}
-                  name='name'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Model name')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder={t('gpt-4')}
-                          {...field}
-                          disabled={isEditMode}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t(
-                          'The exact model identifier as used in API requests.'
-                        )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {!embedded && (
+                  <FormField
+                    control={form.control}
+                    name='name'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Model name')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t('gpt-4')}
+                            {...field}
+                            disabled={isEditMode}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'The exact model identifier as used in API requests.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <Tabs
                   value={pricingMode}
@@ -658,30 +669,32 @@ export const ModelPricingEditorPanel = forwardRef<
                 </Tabs>
               </FieldGroup>
 
-              <aside className='bg-muted/20 sticky top-0 rounded-lg border'>
-                <div className='border-b px-3 py-2'>
-                  <div className='text-sm font-medium'>{t('Preview')}</div>
-                </div>
-                <div className='divide-y'>
-                  {previewRows.map((row) => (
-                    <div key={row.key} className='grid gap-1 px-3 py-2.5'>
-                      <span className='text-muted-foreground text-xs'>
-                        {row.label}
-                      </span>
-                      <span
-                        className={cn(
-                          'min-w-0 text-sm',
-                          row.multiline
-                            ? 'font-mono text-xs leading-5 break-words whitespace-pre-wrap'
-                            : 'truncate'
-                        )}
-                      >
-                        {row.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </aside>
+              {!embedded && (
+                <aside className='bg-muted/20 sticky top-0 rounded-lg border'>
+                  <div className='border-b px-3 py-2'>
+                    <div className='text-sm font-medium'>{t('Preview')}</div>
+                  </div>
+                  <div className='divide-y'>
+                    {previewRows.map((row) => (
+                      <div key={row.key} className='grid gap-1 px-3 py-2.5'>
+                        <span className='text-muted-foreground text-xs'>
+                          {row.label}
+                        </span>
+                        <span
+                          className={cn(
+                            'min-w-0 text-sm',
+                            row.multiline
+                              ? 'font-mono text-xs leading-5 break-words whitespace-pre-wrap'
+                              : 'truncate'
+                          )}
+                        >
+                          {row.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </aside>
+              )}
             </div>
           </div>
           {showActions && (

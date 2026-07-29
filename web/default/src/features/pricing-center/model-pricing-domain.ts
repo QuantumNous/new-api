@@ -16,6 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  combineBillingExpr,
+  splitBillingExprAndRequestRules,
+} from '@/features/pricing/lib/billing-expr'
 import type { ModelRatioData } from '@/features/system-settings/models/model-pricing-sheet'
 
 export type ModelPricing = {
@@ -39,6 +43,8 @@ export type PricingModelRecord = {
   pricing: ModelPricing
 }
 
+export type PricingStatusFilter = 'all' | 'configured' | 'unconfigured'
+
 const numericFields = [
   'model_price',
   'model_ratio',
@@ -56,9 +62,26 @@ export function pricingRecordToEditor(
   const pricing = record.pricing
   const value = (field: (typeof numericFields)[number]) =>
     pricing[field] === undefined ? undefined : String(pricing[field])
+
+  let billingMode: ModelRatioData['billingMode'] = 'per-token'
+  if (pricing.mode === 'tiered_expr') {
+    billingMode = 'tiered_expr'
+  } else if (pricing.mode === 'per-request') {
+    billingMode = 'per-request'
+  } else if (pricing.mode !== 'unset') {
+    billingMode = pricing.mode
+  } else if (pricing.model_price !== undefined) {
+    billingMode = 'per-request'
+  }
+
+  const split =
+    pricing.mode === 'tiered_expr' && pricing.billing_expr
+      ? splitBillingExprAndRequestRules(pricing.billing_expr)
+      : { billingExpr: pricing.billing_expr, requestRuleExpr: '' }
+
   return {
     name: record.model_name,
-    billingMode: pricing.mode === 'unset' ? 'per-token' : pricing.mode,
+    billingMode,
     price: value('model_price'),
     ratio: value('model_ratio'),
     completionRatio: value('completion_ratio'),
@@ -67,7 +90,8 @@ export function pricingRecordToEditor(
     imageRatio: value('image_ratio'),
     audioRatio: value('audio_ratio'),
     audioCompletionRatio: value('audio_completion_ratio'),
-    billingExpr: pricing.billing_expr,
+    billingExpr: split.billingExpr,
+    requestRuleExpr: split.requestRuleExpr || undefined,
     completionRatioLocked: record.completion_ratio_locked,
   }
 }
@@ -85,17 +109,70 @@ export function editorToPricing(data: ModelRatioData): ModelPricing {
   assign('image_ratio', data.imageRatio)
   assign('audio_ratio', data.audioRatio)
   assign('audio_completion_ratio', data.audioCompletionRatio)
-  if (data.billingMode === 'tiered_expr' && data.billingExpr) {
-    result.billing_expr = data.billingExpr
+  if (data.billingMode === 'tiered_expr') {
+    const combined = combineBillingExpr(
+      data.billingExpr || '',
+      data.requestRuleExpr || ''
+    )
+    if (combined) result.billing_expr = combined
   }
   if (result.mode === 'per-request') {
     numericFields
       .filter((field) => field !== 'model_price')
       .forEach((field) => delete result[field])
+    delete result.billing_expr
   } else if (result.mode === 'per-token') {
     delete result.model_price
+    delete result.billing_expr
   }
   return result
+}
+
+/** Drop completion_ratio when the vendor locks output ratio. */
+export function stripLockedCompletionRatio(
+  pricing: ModelPricing,
+  locked: boolean
+): ModelPricing {
+  if (!locked) return pricing
+  const next = { ...pricing }
+  delete next.completion_ratio
+  return next
+}
+
+export function filterPricingModels(
+  models: PricingModelRecord[],
+  options: { search?: string; status?: PricingStatusFilter }
+): PricingModelRecord[] {
+  const search = (options.search ?? '').trim().toLowerCase()
+  const status = options.status ?? 'all'
+  return models.filter((model) => {
+    if (status === 'configured' && !model.configured) return false
+    if (status === 'unconfigured' && model.configured) return false
+    if (!search) return true
+    return model.model_name.toLowerCase().includes(search)
+  })
+}
+
+/**
+ * Keep the current selection when it still appears in the filtered list;
+ * otherwise fall back to the preferred name, then the first visible model.
+ */
+export function resolveSelectedModelName(
+  filtered: PricingModelRecord[],
+  currentSelected?: string | null,
+  preferred?: string | null
+): string | null {
+  if (filtered.length === 0) return null
+  if (
+    currentSelected &&
+    filtered.some((model) => model.model_name === currentSelected)
+  ) {
+    return currentSelected
+  }
+  if (preferred && filtered.some((model) => model.model_name === preferred)) {
+    return preferred
+  }
+  return filtered[0]?.model_name ?? null
 }
 
 export function mergeReferenceResolution(

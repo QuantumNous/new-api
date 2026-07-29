@@ -146,6 +146,11 @@ func FetchUpstreamRatios(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "请求参数格式错误"})
 		return
 	}
+	pricingModels, err := model.GetEnabledPricingModels()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	if req.Timeout <= 0 {
 		req.Timeout = defaultTimeoutSeconds
@@ -522,7 +527,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 		}
 	}
 
-	differences := buildDifferences(localData, successfulChannels)
+	differences := buildDifferences(localData, successfulChannels, pricingModels)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -536,27 +541,12 @@ func FetchUpstreamRatios(c *gin.Context) {
 func buildDifferences(localData map[string]any, successfulChannels []struct {
 	name string
 	data map[string]any
-}) map[string]map[string]dto.DifferenceItem {
+}, pricingModels []string) map[string]map[string]dto.DifferenceItem {
 	differences := make(map[string]map[string]dto.DifferenceItem)
 
-	allModels := make(map[string]struct{})
-
-	for _, field := range pricingSyncFields {
-		for modelName := range valueMap(localData[field]) {
-			if model.IsConcretePricingModel(modelName) {
-				allModels[modelName] = struct{}{}
-			}
-		}
-	}
-
-	for _, channel := range successfulChannels {
-		for _, field := range pricingSyncFields {
-			for modelName := range valueMap(channel.data[field]) {
-				if model.IsConcretePricingModel(modelName) {
-					allModels[modelName] = struct{}{}
-				}
-			}
-		}
+	allModels := make(map[string]struct{}, len(pricingModels))
+	for _, modelName := range pricingModels {
+		allModels[modelName] = struct{}{}
 	}
 
 	confidenceMap := make(map[string]map[string]bool)

@@ -78,11 +78,12 @@ func TestNormalizeModelMetadataValidatesOfficialDiscount(t *testing.T) {
 	require.NoError(t, normalizeModelMetadata(&metadata))
 }
 
-func TestPricingReferenceDifferencesExcludeWildcardKeys(t *testing.T) {
+func TestPricingReferenceDifferencesOnlyIncludeChannelModels(t *testing.T) {
 	local := map[string]any{
 		"model_ratio": map[string]float64{
-			"gpt-4-gizmo-*": 15,
-			"service-model": 1,
+			"gpt-4-gizmo-*":    15,
+			"price-only-model": 3,
+			"service-model":    1,
 		},
 	}
 	channels := []struct {
@@ -92,13 +93,16 @@ func TestPricingReferenceDifferencesExcludeWildcardKeys(t *testing.T) {
 		name: "reference",
 		data: map[string]any{
 			"model_ratio": map[string]float64{
-				"gpt-4-gizmo-*": 20,
-				"service-model": 2,
+				"gpt-4-gizmo-*":       20,
+				"upstream-only-model": 4,
+				"service-model":       2,
 			},
 		},
 	}}
 
-	differences := buildDifferences(local, channels)
+	differences := buildDifferences(local, channels, []string{"service-model"})
 	assert.NotContains(t, differences, "gpt-4-gizmo-*")
+	assert.NotContains(t, differences, "price-only-model")
+	assert.NotContains(t, differences, "upstream-only-model")
 	assert.Contains(t, differences, "service-model")
 }

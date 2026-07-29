@@ -4919,7 +4919,7 @@
       "put": {
         "summary": "更新单个模型定价",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）。按模型全量替换定价；revision 过期时返回 409。",
+        "description": "👑 需要超级管理员权限（Root）。仅允许更新启用渠道提供的服务模型；按模型全量替换定价，revision 过期时返回 409。",
         "tags": [
           "系统设置"
         ],
@@ -4969,7 +4969,7 @@
       "post": {
         "summary": "原子批量更新模型定价",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）。所有模型在同一事务和同一 revision 下提交。",
+        "description": "👑 需要超级管理员权限（Root）。仅允许更新启用渠道提供的服务模型；所有模型在同一事务和同一 revision 下提交。",
         "tags": [
           "系统设置"
         ],

@@ -36,8 +36,22 @@ func setupModelPricingTest(t *testing.T) {
 func floatPointer(value float64) *float64 { return &value }
 func stringPointer(value string) *string  { return &value }
 
+func addPricingAbilities(t *testing.T, models ...string) {
+	t.Helper()
+	const channelID = 987654321
+	abilities := make([]Ability, 0, len(models))
+	for _, modelName := range models {
+		abilities = append(abilities, Ability{Group: "pricing-test", Model: modelName, ChannelId: channelID, Enabled: true})
+	}
+	require.NoError(t, DB.Create(&abilities).Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Where("channel_id = ?", channelID).Delete(&Ability{}).Error)
+	})
+}
+
 func TestModelPricingReplacementAndExactZeroRoundTrip(t *testing.T) {
 	setupModelPricingTest(t)
+	addPricingAbilities(t, "zero-model", "request-model", "tiered-model")
 	revision, err := ReplaceModelPricing(0, []ModelPricingUpdate{{ModelName: "zero-model", Pricing: ModelPricing{
 		Mode: "per-token", ModelRatio: floatPointer(0), CompletionRatio: floatPointer(0), CacheRatio: floatPointer(0),
 	}}})
@@ -79,6 +93,7 @@ func TestModelPricingReplacementAndExactZeroRoundTrip(t *testing.T) {
 
 func TestModelPricingConflictPreservesUnrelatedKeys(t *testing.T) {
 	setupModelPricingTest(t)
+	addPricingAbilities(t, "target")
 	require.NoError(t, UpdateOption("ModelRatio", `{"other":7}`))
 	revision, err := GetModelPricingRevision()
 	require.NoError(t, err)
@@ -97,6 +112,7 @@ func TestModelPricingConflictPreservesUnrelatedKeys(t *testing.T) {
 
 func TestModelPricingUnsetPreservesWildcardAndHidesItFromCatalog(t *testing.T) {
 	setupModelPricingTest(t)
+	addPricingAbilities(t, "target")
 	require.NoError(t, UpdateOption("ModelRatio", `{"gpt-4-gizmo-*":15,"target":2}`))
 	revision, rows, err := GetModelPricingRows()
 	require.NoError(t, err)
@@ -123,6 +139,7 @@ func TestModelPricingUnsetPreservesWildcardAndHidesItFromCatalog(t *testing.T) {
 
 func TestModelPricingValidationAndCompletionLock(t *testing.T) {
 	setupModelPricingTest(t)
+	addPricingAbilities(t, "gpt-4.5-preview", "ordinary-model", "o1-new-locked")
 	tests := []ModelPricingUpdate{
 		{ModelName: "negative", Pricing: ModelPricing{Mode: "per-token", ModelRatio: floatPointer(-1)}},
 		{ModelName: "nan", Pricing: ModelPricing{Mode: "per-token", ModelRatio: floatPointer(math.NaN())}},
@@ -174,6 +191,29 @@ func TestModelPricingValidationAndCompletionLock(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, common.UnmarshalJsonStr(optionValueForTest(t, "CompletionRatio"), &completionRatios))
 	assert.NotContains(t, completionRatios, "o1-new-locked")
+}
+
+func TestModelPricingCatalogOnlyIncludesEnabledChannelModels(t *testing.T) {
+	setupModelPricingTest(t)
+	addPricingAbilities(t, "enabled-channel-model")
+	require.NoError(t, DB.Create(&Ability{Group: "pricing-test", Model: "disabled-channel-model", ChannelId: 987654322, Enabled: false}).Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Where("channel_id = ?", 987654322).Delete(&Ability{}).Error)
+	})
+	require.NoError(t, UpdateOption("ModelRatio", `{"enabled-channel-model":1,"disabled-channel-model":2,"price-only-model":3}`))
+
+	_, rows, err := GetModelPricingRows()
+	require.NoError(t, err)
+	rowNames := make([]string, 0, len(rows))
+	for _, row := range rows {
+		rowNames = append(rowNames, row.ModelName)
+	}
+	assert.Contains(t, rowNames, "enabled-channel-model")
+	assert.NotContains(t, rowNames, "disabled-channel-model")
+	assert.NotContains(t, rowNames, "price-only-model")
+
+	_, err = ReplaceModelPricing(1, []ModelPricingUpdate{{ModelName: "price-only-model", Pricing: ModelPricing{Mode: "per-token", ModelRatio: floatPointer(1)}}})
+	assert.ErrorContains(t, err, "has no enabled channel")
 }
 
 func TestGenericPricingOptionWriteIncrementsRevision(t *testing.T) {

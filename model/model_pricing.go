@@ -62,6 +62,21 @@ func IsCanonicalPricingOption(key string) bool {
 	return false
 }
 
+func GetEnabledPricingModels() ([]string, error) {
+	var names []string
+	if err := DB.Model(&Ability{}).Where("enabled = ?", true).Distinct("model").Pluck("model", &names).Error; err != nil {
+		return nil, err
+	}
+	concrete := names[:0]
+	for _, name := range names {
+		if IsConcretePricingModel(name) {
+			concrete = append(concrete, name)
+		}
+	}
+	sort.Strings(concrete)
+	return concrete, nil
+}
+
 func currentPricingValues() map[string]string {
 	return map[string]string{
 		"ModelPrice":                   ratio_setting.ModelPrice2JSONString(),
@@ -156,34 +171,10 @@ func GetModelPricingRows() (int64, []ModelPricingRow, error) {
 	}
 	modes := stringMaps["billing_setting.billing_mode"]
 	exprs := stringMaps["billing_setting.billing_expr"]
-	names, channels := map[string]struct{}{}, map[string]bool{}
-	for _, ability := range GetAllEnableAbilities() {
-		if IsConcretePricingModel(ability.Model) {
-			names[ability.Model], channels[ability.Model] = struct{}{}, true
-		}
+	ordered, err := GetEnabledPricingModels()
+	if err != nil {
+		return 0, nil, err
 	}
-	for _, values := range floatMaps {
-		for name := range values {
-			if IsConcretePricingModel(name) {
-				names[name] = struct{}{}
-			}
-		}
-	}
-	for name := range modes {
-		if IsConcretePricingModel(name) {
-			names[name] = struct{}{}
-		}
-	}
-	for name := range exprs {
-		if IsConcretePricingModel(name) {
-			names[name] = struct{}{}
-		}
-	}
-	ordered := make([]string, 0, len(names))
-	for name := range names {
-		ordered = append(ordered, name)
-	}
-	sort.Strings(ordered)
 	rows := make([]ModelPricingRow, 0, len(ordered))
 	for _, name := range ordered {
 		pricing := ModelPricing{Mode: "unset"}
@@ -204,7 +195,7 @@ func GetModelPricingRows() (int64, []ModelPricingRow, error) {
 			pricing.Mode = "per-token"
 		}
 		configured := pricing.Mode != "unset"
-		rows = append(rows, ModelPricingRow{ModelName: name, HasChannel: channels[name], Configured: configured,
+		rows = append(rows, ModelPricingRow{ModelName: name, HasChannel: true, Configured: configured,
 			CompletionRatioLocked: completionInfo.Locked, Pricing: pricing})
 	}
 	return revision, rows, nil
@@ -279,9 +270,23 @@ func ReplaceModelPricing(expectedRevision int64, updates []ModelPricingUpdate) (
 	if err := ValidateModelPricingUpdates(updates); err != nil {
 		return 0, err
 	}
+	enabledModels, err := GetEnabledPricingModels()
+	if err != nil {
+		return 0, err
+	}
+	enabledSet := make(map[string]struct{}, len(enabledModels))
+	for _, name := range enabledModels {
+		enabledSet[name] = struct{}{}
+	}
+	for _, update := range updates {
+		name := strings.TrimSpace(update.ModelName)
+		if _, ok := enabledSet[name]; !ok {
+			return 0, fmt.Errorf("model_name %q has no enabled channel", name)
+		}
+	}
 	committed := map[string]string{}
 	var next int64
-	err := DB.Transaction(func(tx *gorm.DB) error {
+	err = DB.Transaction(func(tx *gorm.DB) error {
 		revisionOption := Option{Key: ModelPricingRevisionKey, Value: "0"}
 		if err := tx.FirstOrCreate(&revisionOption, Option{Key: ModelPricingRevisionKey}).Error; err != nil {
 			return err
