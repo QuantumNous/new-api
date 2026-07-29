@@ -34,6 +34,7 @@ import { GeneralError } from '@/features/errors/general-error'
 import { NotFoundError } from '@/features/errors/not-found-error'
 import { getSetupStatus } from '@/features/setup/api'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { rewritePathlessBrowserPath } from '@/lib/normalize-return-target'
 
 function RootComponent() {
   // Load system configuration (logo, system name, etc.) from backend
@@ -99,6 +100,20 @@ export const Route = createRootRouteWithContext<{
   // 应用初始化与路由解析前统一校验会话
   beforeLoad: async ({ location }) => {
     const pathname = location?.pathname || ''
+
+    // Legacy / mistaken links sometimes include TanStack pathless layout
+    // segments in the browser URL (e.g. `/_authenticated/profile/`). Rewrite
+    // them to real pathnames before route matching fails and surfaces as 500.
+    const rewrittenPath = rewritePathlessBrowserPath(pathname)
+    if (rewrittenPath) {
+      throw redirect({
+        to: rewrittenPath as never,
+        search: location.search as never,
+        hash: location.hash,
+        replace: true,
+      })
+    }
+
     const needsSetupCheck =
       !setupStatusChecked && !pathname.startsWith('/setup')
 

@@ -47,7 +47,7 @@ export function ProfileSettingsCard({
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('bindings')
 
-  if (loading) {
+  if (loading || !profile) {
     return (
       <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
         <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>

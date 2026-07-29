@@ -96,9 +96,11 @@ const queryClient = new QueryClient({
           const redirect = `${router.history.location.href}`
           router.navigate({ to: '/sign-in', search: { redirect } })
         }
+        // Do not hard-navigate to /500 on background query failures.
+        // Optional widgets on Profile (desktop sessions, check-in, etc.) must
+        // not kick the user off the page when a single endpoint fails.
         if (error.response?.status === 500) {
           toast.error(i18next.t('Internal Server Error!'))
-          router.navigate({ to: '/500' })
         }
       }
     },

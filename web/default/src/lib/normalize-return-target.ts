@@ -42,6 +42,16 @@ function stripPathlessLayoutPrefixes(pathname: string): string {
   return next.startsWith('/') ? next : `/${next}`
 }
 
+/**
+ * If `pathname` still contains a TanStack pathless layout segment (e.g.
+ * `/_authenticated/profile`), return the real browser path. Otherwise null.
+ */
+export function rewritePathlessBrowserPath(pathname: string): string | null {
+  if (!pathname.startsWith('/')) return null
+  const rewritten = stripPathlessLayoutPrefixes(pathname)
+  return rewritten === pathname ? null : rewritten
+}
+
 export function normalizeReturnTarget(target?: string | null): string {
   if (!target || containsControlCharacter(target) || target.includes('\\')) {
     return FALLBACK_RETURN_TARGET
