@@ -1,9 +1,11 @@
 package oaichat
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +37,42 @@ func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing
 	assert.Equal(t, "function_call", gjson.GetBytes(got.Input, "2.type").String())
 	assert.Equal(t, "call_1", gjson.GetBytes(got.Input, "2.call_id").String())
 	assert.Equal(t, "function_call_output", gjson.GetBytes(got.Input, "3.type").String())
+}
+
+func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *testing.T) {
+	tests := []struct {
+		name   string
+		budget json.RawMessage
+		want   int64
+	}{
+		{name: "positive budget", budget: json.RawMessage(`128`), want: 128},
+		{name: "zero budget", budget: json.RawMessage(`0`), want: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &dto.GeneralOpenAIRequest{
+				Model:          "qwen-plus",
+				EnableThinking: json.RawMessage(`true`),
+				ThinkingBudget: tt.budget,
+				Messages: []dto.Message{
+					{Role: "user", Content: "hello"},
+				},
+			}
+
+			got, err := ChatCompletionsRequestToResponsesRequest(req)
+			require.NoError(t, err)
+			assert.Equal(t, tt.budget, got.ThinkingBudget)
+
+			encoded, err := kitutil.Marshal(got)
+			require.NoError(t, err)
+
+			assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
+			value := gjson.GetBytes(encoded, "thinking_budget")
+			assert.True(t, value.Exists())
+			assert.Equal(t, tt.want, value.Int())
+		})
+	}
 }
 
 func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testing.T) {
