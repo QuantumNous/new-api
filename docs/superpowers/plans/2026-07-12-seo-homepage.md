@@ -4,7 +4,7 @@
 
 **Goal:** Improve homepage and public shell SEO (title/description/OG/Twitter/canonical/JSON-LD/robots/sitemap) with admin-configurable options, while keeping upstream merges cheap.
 
-**Architecture:** Independent SEO helpers under `web/default/src/lib/seo/*`; expose `SEO.*` options via `GetStatus` + settings UI; serve `robots.txt`/`sitemap.xml` from a tiny Go controller; thin hooks in `main.tsx` and homepage.
+**Architecture:** Independent SEO helpers under `web/src/lib/seo/*`; expose `SEO.*` options via `GetStatus` + settings UI; serve `robots.txt`/`sitemap.xml` from a tiny Go controller; thin hooks in `main.tsx` and homepage.
 
 **Tech Stack:** Go/Gin, existing Option system, React (default + light classic), DOM meta upsert (no SSR).
 
@@ -27,12 +27,12 @@
 | Modify `controller/misc.go` | GetStatus fields |
 | Create `controller/seo.go` | robots.txt + sitemap.xml |
 | Modify `router/main.go` or `router/api-router.go` | Register 2 routes (prefer root engine before NoRoute) |
-| Create `web/default/src/lib/seo/*` | DOM apply + defaults |
-| Modify `web/default/src/main.tsx` | Call apply on status load |
+| Create `web/src/lib/seo/*` | DOM apply + defaults |
+| Modify `web/src/main.tsx` | Call apply on status load |
 | Create/modify home SEO hook | Homepage JSON-LD + meta |
-| Modify `web/default/index.html` | Stronger static shell |
+| Modify `web/index.html` | Stronger static shell |
 | Modify site settings types + SystemInfoSection | Admin SEO fields |
-| Create `web/classic/src/helpers/seo.js` + small call | Classic light parity |
+| Create `web/src/helpers/seo.js` + small call | Classic light parity |
 | Modify `web/classic/index.html` | OG placeholders |
 
 ---
@@ -217,12 +217,12 @@ git commit -m "feat: SEO options, status fields, robots and sitemap"
 ### Task 2: Frontend SEO library + shell HTML
 
 **Files:**
-- Create: `web/default/src/lib/seo/types.ts`
-- Create: `web/default/src/lib/seo/defaults.ts`
-- Create: `web/default/src/lib/seo/dom.ts`
-- Create: `web/default/src/lib/seo/apply.ts`
-- Create: `web/default/src/lib/seo/index.ts`
-- Modify: `web/default/index.html`
+- Create: `web/src/lib/seo/types.ts`
+- Create: `web/src/lib/seo/defaults.ts`
+- Create: `web/src/lib/seo/dom.ts`
+- Create: `web/src/lib/seo/apply.ts`
+- Create: `web/src/lib/seo/index.ts`
+- Modify: `web/index.html`
 
 **Interfaces:**
 
@@ -312,7 +312,7 @@ Resolve description/keywords from input or `defaults.ts` by lang.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add web/default/src/lib/seo web/default/index.html
+git add web/src/lib/seo web/index.html
 git commit -m "feat(web-default): add SEO DOM helpers and index.html shell"
 ```
 
@@ -321,10 +321,10 @@ git commit -m "feat(web-default): add SEO DOM helpers and index.html shell"
 ### Task 3: Wire status branding + homepage SEO
 
 **Files:**
-- Modify: `web/default/src/main.tsx` (`initSystemBranding`)
-- Create: `web/default/src/features/home/hooks/use-home-seo.ts`
-- Modify: `web/default/src/features/home/index.tsx` (call hook)
-- Modify: `web/default/src/hooks/use-system-config.ts` if needed to map seo fields
+- Modify: `web/src/main.tsx` (`initSystemBranding`)
+- Create: `web/src/features/home/hooks/use-home-seo.ts`
+- Modify: `web/src/features/home/index.tsx` (call hook)
+- Modify: `web/src/hooks/use-system-config.ts` if needed to map seo fields
 
 - [ ] **Step 1: On status load in main.tsx**
 
@@ -386,7 +386,7 @@ Open `/`, inspect head for description/og tags; change SystemName and SEO descri
 - [ ] **Step 4: Commit**
 
 ```bash
-git add web/default/src/main.tsx web/default/src/features/home web/default/src/hooks/use-system-config.ts
+git add web/src/main.tsx web/src/features/home web/src/hooks/use-system-config.ts
 git commit -m "feat(web-default): apply SEO meta from status on boot and home"
 ```
 
@@ -395,10 +395,10 @@ git commit -m "feat(web-default): apply SEO meta from status on boot and home"
 ### Task 4: Admin settings UI (default + classic light)
 
 **Files:**
-- Modify: `web/default/src/features/system-settings/types.ts` (`SiteSettings`)
-- Modify: `web/default/src/features/system-settings/site/index.tsx` defaults
-- Modify: `web/default/src/features/system-settings/site/section-registry.tsx`
-- Modify: `web/default/src/features/system-settings/general/system-info-section.tsx` (append SEO fields)
+- Modify: `web/src/features/system-settings/types.ts` (`SiteSettings`)
+- Modify: `web/src/features/system-settings/site/index.tsx` defaults
+- Modify: `web/src/features/system-settings/site/section-registry.tsx`
+- Modify: `web/src/features/system-settings/general/system-info-section.tsx` (append SEO fields)
 - Modify: classic site/operation settings form that already has SystemName (append fields)
 - i18n keys zh/zh-TW/en
 
@@ -427,8 +427,8 @@ git commit -m "feat: admin SEO settings fields for default and classic"
 ### Task 5: Classic light SEO + verification
 
 **Files:**
-- Create: `web/classic/src/helpers/seo.js`
-- Modify: `web/classic/src/components/layout/PageLayout.jsx` (where `document.title = systemName`)
+- Create: `web/src/helpers/seo.js`
+- Modify: `web/src/components/layout/PageLayout.jsx` (where `document.title = systemName`)
 - Modify: `web/classic/index.html` OG placeholders
 
 - [ ] **Step 1: classic seo helper** — set title, description, basic og tags from status

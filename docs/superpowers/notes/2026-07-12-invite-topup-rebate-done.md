@@ -10,7 +10,7 @@
 - Spec: `docs/superpowers/specs/2026-07-12-invite-topup-rebate-design.md`
 - Plan: `docs/superpowers/plans/2026-07-12-invite-topup-rebate.md`
 - Code: `model/invite_rebate.go`, `controller/invite_rebate.go`, `controller/invite_rebate_task.go`
-- UI: `web/default/src/features/invite-rebate/`, classic `web/classic/src/pages/InviteRebate/`
+- UI: `web/src/features/invite-rebate/`
 
 ## 配置 Option
 - `InviteTopupRebateEnabled` (default false)

@@ -149,7 +149,7 @@ func TestCalculateInviteTopupRebate(t *testing.T) {
 	assert.Equal(t, 0, CalculateInviteTopupRebate(0, 100))
 	assert.Equal(t, 0, CalculateInviteTopupRebate(50, 100)) // 50*100/10000 = 0
 	assert.Equal(t, 5, CalculateInviteTopupRebate(500, 100))
-	assert.Equal(t, 50, CalculateInviteTopupRebate(500000, 100))
+	assert.Equal(t, 5000, CalculateInviteTopupRebate(500000, 100))
 	assert.Equal(t, 0, CalculateInviteTopupRebate(500000, 0))
 	assert.Equal(t, 0, CalculateInviteTopupRebate(-1, 100))
 }

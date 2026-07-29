@@ -13,10 +13,11 @@ SPA 首页 SEO：可配置标题（完整长尾或「系统名 - 后缀」）、
 ## 关键入口
 - `common/seo.go` — 变量与默认长尾
 - `controller/seo.go` — `/robots.txt` `/sitemap.xml`
-- `web/default/src/lib/seo/*` — DOM meta 应用
+- `web/src/lib/seo/*` — DOM meta 应用
 - 设置：系统信息 SEO 字段；classic OtherSetting
 
 ## 标题配置
+
 | 项 | 说明 |
 |----|------|
 | `SEO.Title` | 完整标题（长尾） |

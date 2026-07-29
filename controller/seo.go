@@ -5,7 +5,6 @@ import (
 	"html"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -85,8 +84,6 @@ func SitemapXML(c *gin.Context) {
 		{"/register", "monthly", "0.3"},
 	}
 
-	lastmod := time.Now().UTC().Format("2006-01-02")
-
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
 	b.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
@@ -94,7 +91,6 @@ func SitemapXML(c *gin.Context) {
 	for _, e := range entries {
 		b.WriteString("<url>")
 		b.WriteString(fmt.Sprintf("<loc>%s%s</loc>", escapedSite, e.path))
-		b.WriteString(fmt.Sprintf("<lastmod>%s</lastmod>", lastmod))
 		b.WriteString(fmt.Sprintf("<changefreq>%s</changefreq>", e.changefreq))
 		b.WriteString(fmt.Sprintf("<priority>%s</priority>", e.priority))
 		b.WriteString("</url>")

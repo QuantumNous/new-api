@@ -38,7 +38,7 @@ It does **not** rebate on invitee top-ups, and has no per-topup rebate ledger fo
 - Auto-credit rebate straight into spendable `quota` (must stay manual extract)
 - Separate `rebate_quota` wallet
 - Changing register-time fixed invite bonus semantics
-- CSV export / cron backfill jobs in v1
+- CSV export in v1
 - Schema changes to `topups` table
 
 ## 4. Architecture
@@ -93,10 +93,17 @@ Register in `model/main.go` `AutoMigrate` list (one line).
 | `topup_quota` | int | Credited quota used as base |
 | `rebate_quota` | int | Granted amount |
 | `ratio_bp` | int | Snapshot of ratio at grant time (100 = 1%) |
-| `status` | varchar(32) | v1 always `granted` |
+| `status` | varchar(32) | `granted` = rebate credited; `skipped` = examined but no rebate (see below) |
 | `created_at` | int64 | Unix seconds |
 
 No “withdrawn” flag on the row: extraction remains global via `aff_quota`.
+
+**Statuses:**
+
+| Status | Meaning |
+|--------|---------|
+| `granted` | Rebate calculated and credited to inviter's `aff_quota` |
+| `skipped` | Permanent skip — top-up was examined but no rebate issued (e.g. rebate floors to 0 for tiny top-ups, inviter not found, user_id mismatch). Row serves as a marker so backfill does not re-process. |
 
 ### 5.2 Options
 
@@ -204,7 +211,7 @@ Transfer remains:
 | Self-invite impossible | Only grant when `inviter_id` points to another user |
 | Webhook retry | Unique `topup_id` prevents double rebate |
 | Grant fails after user credited | Log error; do not reverse top-up; operator can investigate ledger gap |
-| Tiny top-up floors to 0 | No row |
+| Tiny top-up floors to 0 | `skipped` row recorded so backfill advances past it |
 
 ## 10. Testing (implementation phase)
 
