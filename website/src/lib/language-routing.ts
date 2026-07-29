@@ -17,6 +17,13 @@ const IGNORED_EXACT_PATHS = [
   "/br",
   "/in",
   "/id-market",
+  // Paid-search SKAG pages are English-only physical routes. Redirecting a
+  // returning localized visitor would send paid traffic to a missing sibling.
+  "/gpt-api-alternative",
+  "/chinese-ai",
+  "/openai-compatible",
+  "/gateway",
+  "/apify-alternative",
 ];
 const PUBLIC_FILE_EXTENSION_PATTERN = /\.[a-z0-9]+$/i;
 

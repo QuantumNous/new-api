@@ -58,6 +58,18 @@ describe("language routing", () => {
     expect(getLanguageRedirectPath({ pathname: "/id-market", method: "GET", acceptLanguage: "id-ID" })).toBeNull();
   });
 
+  test("does not localize English-only paid-search landing pages", () => {
+    for (const pathname of [
+      "/gpt-api-alternative",
+      "/chinese-ai",
+      "/openai-compatible",
+      "/gateway",
+      "/apify-alternative",
+    ]) {
+      expect(getLanguageRedirectPath({ pathname, method: "GET", cookieLocale: "zh", acceptLanguage: "zh-CN" })).toBeNull();
+    }
+  });
+
   test("detects search and AI crawlers", () => {
     const bots = [
       "Googlebot/2.1",
