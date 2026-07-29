@@ -246,6 +246,27 @@ export interface RecallEmailSenderStatus {
   options: RecallEmailSenderOption[]
 }
 
+export interface RecallActivitySMTPStatus {
+  server: string
+  port: number
+  account: string
+  email_from: string
+  ssl_enabled: boolean
+  force_auth_login: boolean
+  token_configured: boolean
+  configured: boolean
+}
+
+export interface RecallActivitySMTPInput {
+  server: string
+  port: number
+  account: string
+  email_from: string
+  token: string
+  ssl_enabled: boolean
+  force_auth_login: boolean
+}
+
 export type RecallEmailLocalizationBlockerReason =
   'missing' | 'stale' | 'invalid'
 

@@ -5,6 +5,7 @@ import {
   createRecallCampaign,
   exportRecallCampaign,
   generateRecallEmailTranslations,
+  getRecallActivitySMTPStatus,
   getRecallEmailSenderStatus,
   getRecallEmailQuotaStatus,
   updateRecallEmailQuotaLimit,
@@ -23,11 +24,16 @@ import {
   retryRecallRecipient,
   runRecallCampaignAction,
   updateRecallCampaign,
+  updateRecallActivitySMTP,
   updateRecallEmailSender,
   validateRecallStripeConfig,
   RecallApiError,
 } from './api'
-import type { RecallCampaignDraft, RecallEmailGenerationRequest } from './types'
+import type {
+  RecallActivitySMTPInput,
+  RecallCampaignDraft,
+  RecallEmailGenerationRequest,
+} from './types'
 
 const originalAdapter = api.defaults.adapter
 let capturedConfig: InternalAxiosRequestConfig | undefined
@@ -284,5 +290,73 @@ describe('recall campaign API contracts', () => {
     expect(JSON.parse(String(capturedConfig?.data))).toEqual({
       email_from: 'alias@example.com',
     })
+  })
+
+  test('uses a stable query key for the dedicated activity SMTP settings', () => {
+    expect(recallCampaignKeys.smtp).toEqual(['recall-campaigns', 'smtp'])
+  })
+
+  test('loads redacted activity SMTP status from the dedicated endpoint', async () => {
+    respondWith({
+      success: true,
+      data: {
+        server: 'smtp.example.com',
+        port: 465,
+        account: 'activity-user',
+        email_from: 'activity@example.com',
+        ssl_enabled: true,
+        force_auth_login: true,
+        token_configured: true,
+        configured: true,
+      },
+    })
+
+    const response = await getRecallActivitySMTPStatus()
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/smtp')
+    expect(capturedConfig?.method).toBe('get')
+    expect(response.data).toEqual({
+      server: 'smtp.example.com',
+      port: 465,
+      account: 'activity-user',
+      email_from: 'activity@example.com',
+      ssl_enabled: true,
+      force_auth_login: true,
+      token_configured: true,
+      configured: true,
+    })
+    expect(response.data).not.toHaveProperty('token')
+  })
+
+  test('updates activity SMTP with the complete input and never reads token from status', async () => {
+    const input: RecallActivitySMTPInput = {
+      server: 'smtp.example.com',
+      port: 587,
+      account: 'activity-user',
+      email_from: 'activity@example.com',
+      token: ' real password bytes ',
+      ssl_enabled: false,
+      force_auth_login: true,
+    }
+    respondWith({
+      success: true,
+      data: {
+        server: input.server,
+        port: input.port,
+        account: input.account,
+        email_from: input.email_from,
+        ssl_enabled: input.ssl_enabled,
+        force_auth_login: input.force_auth_login,
+        token_configured: true,
+        configured: true,
+      },
+    })
+
+    const response = await updateRecallActivitySMTP(input)
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/smtp')
+    expect(capturedConfig?.method).toBe('put')
+    expect(JSON.parse(String(capturedConfig?.data))).toEqual(input)
+    expect(response.data).not.toHaveProperty('token')
   })
 })

@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type {
   ApiResponse,
+  RecallActivitySMTPInput,
+  RecallActivitySMTPStatus,
   RecallCampaignAction,
   RecallCampaignDetail,
   RecallCampaignDraft,
@@ -28,6 +30,7 @@ export const recallCampaignKeys = {
   all: ['recall-campaigns'] as const,
   emailQuota: ['recall-campaigns', 'email-quota'] as const,
   emailSender: ['recall-campaigns', 'email-sender'] as const,
+  smtp: ['recall-campaigns', 'smtp'] as const,
   list: (search: RecallCampaignSearch) =>
     ['recall-campaigns', 'list', search] as const,
   detail: (id: number) => ['recall-campaigns', 'detail', id] as const,
@@ -158,6 +161,20 @@ export async function updateRecallEmailSender(
   const response = await api.put('/api/recall-campaigns/email-sender', {
     email_from: emailFrom,
   })
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallActivitySMTPStatus(): Promise<
+  ApiResponse<RecallActivitySMTPStatus>
+> {
+  const response = await api.get('/api/recall-campaigns/smtp')
+  return requireRecallSuccess(response.data)
+}
+
+export async function updateRecallActivitySMTP(
+  input: RecallActivitySMTPInput
+): Promise<ApiResponse<RecallActivitySMTPStatus>> {
+  const response = await api.put('/api/recall-campaigns/smtp', input)
   return requireRecallSuccess(response.data)
 }
 
