@@ -2018,9 +2018,10 @@ func validateOneTimeLocalOrderFacts(order *model.SubscriptionOrder, intent *mode
 		return errors.New("local one-time subscription plan snapshot values are invalid")
 	}
 	if strings.TrimSpace(order.PaymentCurrency) == "" || order.PaymentAmountMinor < 0 ||
-		order.RecallDiscountAmountMinor < 0 ||
+		order.RecallDiscountAmountMinor < 0 || order.SubscriptionDiscountAmountMinor < 0 ||
 		order.PaymentAmountMinor > math.MaxInt64-order.RecallDiscountAmountMinor ||
-		order.PaymentAmountMinor+order.RecallDiscountAmountMinor <= 0 {
+		order.PaymentAmountMinor+order.RecallDiscountAmountMinor > math.MaxInt64-order.SubscriptionDiscountAmountMinor ||
+		order.PaymentAmountMinor+order.RecallDiscountAmountMinor+order.SubscriptionDiscountAmountMinor <= 0 {
 		return errors.New("local one-time subscription payment quote is missing")
 	}
 	if order.RecallDiscountAmountMinor > 0 {
