@@ -15,6 +15,7 @@ import { createInstance } from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
 import { api } from '@/lib/api'
+import { recallCampaignKeys } from '../api'
 import type { RecallActivitySMTPStatus } from '../types'
 
 const originalAdapter = api.defaults.adapter
@@ -325,7 +326,11 @@ async function waitFor(
   }
 }
 
-function renderMountedSMTPSettings(): { container: HTMLElement; root: Root } {
+function renderMountedSMTPSettings(): {
+  container: HTMLElement
+  queryClient: QueryClient
+  root: Root
+} {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
@@ -343,7 +348,7 @@ function renderMountedSMTPSettings(): { container: HTMLElement; root: Root } {
     )
   })
 
-  return { container, root }
+  return { container, queryClient, root }
 }
 
 function dispose(root: Root) {
@@ -544,6 +549,51 @@ describe('CampaignSMTPSettings', () => {
     expect(html).toContain('checked=""')
   })
 
+  test('marks invalid SMTP inputs with stable accessible error descriptions', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <CampaignSMTPSettingsView
+          disabled={false}
+          error=''
+          fieldErrors={{
+            account: 'SMTP account is required.',
+            email_from: 'Sender must be a plain email address.',
+            port: 'SMTP port must be between 1 and 65535.',
+            server: 'SMTP server is required.',
+            token: 'SMTP token is required for first save.',
+          }}
+          pending={false}
+          status={makeStatus({ token_configured: false })}
+          success=''
+          values={{
+            account: '',
+            email_from: '',
+            force_auth_login: true,
+            port: 0,
+            server: '',
+            ssl_enabled: false,
+            token: '',
+          }}
+          onFieldChange={() => undefined}
+          onSave={() => undefined}
+        />
+      </I18nextProvider>
+    )
+
+    for (const field of ['server', 'port', 'account', 'email-from']) {
+      expect(html).toContain(`id="recall-smtp-${field}-error"`)
+      expect(html).toContain('aria-invalid="true"')
+      expect(html).toContain(
+        `aria-describedby="recall-smtp-${field}-error"`
+      )
+    }
+    expect(html).toContain('id="recall-smtp-token-help"')
+    expect(html).toContain('id="recall-smtp-token-error"')
+    expect(html).toContain(
+      'aria-describedby="recall-smtp-token-help recall-smtp-token-error"'
+    )
+  })
+
   test('successful save updates status and resets only the password input', () => {
     const nextStatus = makeStatus({
       server: 'smtp.saved.example.com',
@@ -618,6 +668,75 @@ describe('CampaignSMTPSettings', () => {
       () => requests.filter((request) => request.startsWith('get:')).length >= 2
     )
     expect(container.textContent).toContain('Activity SMTP settings saved.')
+    dispose(root)
+  })
+
+  test('keeps dirty mounted inputs when a background SMTP status refetch completes', async () => {
+    let getCount = 0
+    setApiResponses(async (config) => {
+      if (config.method !== 'get') {
+        return { success: true, data: makeStatus() }
+      }
+      getCount += 1
+      return {
+        success: true,
+        data:
+          getCount === 1
+            ? makeStatus({
+                account: 'initial-account',
+                email_from: 'initial@example.com',
+                server: 'initial.example.com',
+              })
+            : makeStatus({
+                account: 'refetched-account',
+                email_from: 'refetched@example.com',
+                server: 'refetched.example.com',
+              }),
+      }
+    })
+    const { container, queryClient, root } = renderMountedSMTPSettings()
+
+    await waitFor(
+      () =>
+        (
+          container.querySelector('#recall-smtp-server') as HTMLInputElement
+        )?.value === 'initial.example.com'
+    )
+    await React.act(async () => {
+      latestInputProps['recall-smtp-server']?.onChange?.({
+        target: { value: 'typed.example.com' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      latestInputProps['recall-smtp-account']?.onChange?.({
+        target: { value: 'typed-account' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      latestInputProps['recall-smtp-email-from']?.onChange?.({
+        target: { value: 'typed@example.com' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      latestInputProps['recall-smtp-token']?.onChange?.({
+        target: { value: 'typed secret' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      await wait()
+    })
+
+    await React.act(async () => {
+      await queryClient.invalidateQueries({ queryKey: recallCampaignKeys.smtp })
+      await wait()
+    })
+
+    await waitFor(() => getCount >= 2)
+    expect(
+      (container.querySelector('#recall-smtp-server') as HTMLInputElement).value
+    ).toBe('typed.example.com')
+    expect(
+      (container.querySelector('#recall-smtp-account') as HTMLInputElement).value
+    ).toBe('typed-account')
+    expect(
+      (container.querySelector('#recall-smtp-email-from') as HTMLInputElement)
+        .value
+    ).toBe('typed@example.com')
+    expect(
+      (container.querySelector('#recall-smtp-token') as HTMLInputElement).value
+    ).toBe('typed secret')
     dispose(root)
   })
 

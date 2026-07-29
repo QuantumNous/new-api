@@ -154,16 +154,41 @@ export function getRecallActivitySMTPSaveSuccessState(
 }
 
 function FieldError({
+  id,
   message,
 }: {
+  id: string
   message?: string
 }): React.JSX.Element | null {
   if (!message) return null
   return (
-    <p role='alert' className='text-destructive text-xs'>
+    <p id={id} role='alert' className='text-destructive text-xs'>
       {message}
     </p>
   )
+}
+
+function getFieldErrorId(fieldId: string): string {
+  return `${fieldId}-error`
+}
+
+function getFieldAriaInvalid(message?: string): true | undefined {
+  if (message) return true
+  return undefined
+}
+
+function getFieldDescription(
+  fieldId: string,
+  message?: string
+): string | undefined {
+  if (message) return getFieldErrorId(fieldId)
+  return undefined
+}
+
+function getTokenDescription(message?: string): string {
+  const helpId = 'recall-smtp-token-help'
+  if (message) return `${helpId} ${getFieldErrorId('recall-smtp-token')}`
+  return helpId
 }
 
 function getConfigurationStatusLabel(
@@ -207,19 +232,32 @@ export function CampaignSMTPSettingsView(
           <Label htmlFor='recall-smtp-server'>{t('SMTP server')}</Label>
           <Input
             id='recall-smtp-server'
+            aria-describedby={getFieldDescription(
+              'recall-smtp-server',
+              props.fieldErrors.server
+            )}
+            aria-invalid={getFieldAriaInvalid(props.fieldErrors.server)}
             disabled={disabled}
             value={props.values.server}
             onChange={(event) =>
               props.onFieldChange('server', event.target.value)
             }
           />
-          <FieldError message={props.fieldErrors.server} />
+          <FieldError
+            id={getFieldErrorId('recall-smtp-server')}
+            message={props.fieldErrors.server}
+          />
         </div>
 
         <div className='space-y-1'>
           <Label htmlFor='recall-smtp-port'>{t('SMTP port')}</Label>
           <Input
             id='recall-smtp-port'
+            aria-describedby={getFieldDescription(
+              'recall-smtp-port',
+              props.fieldErrors.port
+            )}
+            aria-invalid={getFieldAriaInvalid(props.fieldErrors.port)}
             type='number'
             min={1}
             max={65535}
@@ -230,26 +268,42 @@ export function CampaignSMTPSettingsView(
               props.onFieldChange('port', Number(event.target.value))
             }
           />
-          <FieldError message={props.fieldErrors.port} />
+          <FieldError
+            id={getFieldErrorId('recall-smtp-port')}
+            message={props.fieldErrors.port}
+          />
         </div>
 
         <div className='space-y-1'>
           <Label htmlFor='recall-smtp-account'>{t('SMTP account')}</Label>
           <Input
             id='recall-smtp-account'
+            aria-describedby={getFieldDescription(
+              'recall-smtp-account',
+              props.fieldErrors.account
+            )}
+            aria-invalid={getFieldAriaInvalid(props.fieldErrors.account)}
             disabled={disabled}
             value={props.values.account}
             onChange={(event) =>
               props.onFieldChange('account', event.target.value)
             }
           />
-          <FieldError message={props.fieldErrors.account} />
+          <FieldError
+            id={getFieldErrorId('recall-smtp-account')}
+            message={props.fieldErrors.account}
+          />
         </div>
 
         <div className='space-y-1'>
           <Label htmlFor='recall-smtp-email-from'>{t('Sender email')}</Label>
           <Input
             id='recall-smtp-email-from'
+            aria-describedby={getFieldDescription(
+              'recall-smtp-email-from',
+              props.fieldErrors.email_from
+            )}
+            aria-invalid={getFieldAriaInvalid(props.fieldErrors.email_from)}
             type='email'
             disabled={disabled}
             value={props.values.email_from}
@@ -257,13 +311,18 @@ export function CampaignSMTPSettingsView(
               props.onFieldChange('email_from', event.target.value)
             }
           />
-          <FieldError message={props.fieldErrors.email_from} />
+          <FieldError
+            id={getFieldErrorId('recall-smtp-email-from')}
+            message={props.fieldErrors.email_from}
+          />
         </div>
 
         <div className='space-y-1 md:col-span-2'>
           <Label htmlFor='recall-smtp-token'>{t('SMTP token')}</Label>
           <Input
             id='recall-smtp-token'
+            aria-describedby={getTokenDescription(props.fieldErrors.token)}
+            aria-invalid={getFieldAriaInvalid(props.fieldErrors.token)}
             type='password'
             autoComplete='new-password'
             disabled={disabled}
@@ -272,12 +331,18 @@ export function CampaignSMTPSettingsView(
               props.onFieldChange('token', event.target.value)
             }
           />
-          <p className='text-muted-foreground text-xs'>
+          <p
+            id='recall-smtp-token-help'
+            className='text-muted-foreground text-xs'
+          >
             {props.status.token_configured
               ? t('Leave blank to keep the existing SMTP token.')
               : t('Enter the SMTP token before saving.')}
           </p>
-          <FieldError message={props.fieldErrors.token} />
+          <FieldError
+            id={getFieldErrorId('recall-smtp-token')}
+            message={props.fieldErrors.token}
+          />
         </div>
 
         <label className='flex items-center gap-2 text-sm'>
@@ -342,6 +407,8 @@ export function CampaignSMTPSettings(): React.JSX.Element {
     defaultValues: createRecallActivitySMTPFormValues(status),
   })
   const values = form.watch()
+  const formIsDirtyRef = useRef(false)
+  formIsDirtyRef.current = form.formState.isDirty
 
   useEffect(() => {
     statusRef.current = status
@@ -351,7 +418,9 @@ export function CampaignSMTPSettings(): React.JSX.Element {
     if (!smtpQuery.data?.data) return
     statusRef.current = smtpQuery.data.data
     setStatus(smtpQuery.data.data)
-    form.reset(createRecallActivitySMTPFormValues(smtpQuery.data.data))
+    if (!formIsDirtyRef.current) {
+      form.reset(createRecallActivitySMTPFormValues(smtpQuery.data.data))
+    }
     setError('')
   }, [form, smtpQuery.data])
 
