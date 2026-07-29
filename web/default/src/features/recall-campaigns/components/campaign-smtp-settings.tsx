@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -33,6 +33,7 @@ interface CampaignSMTPSettingsViewProps {
   disabled: boolean
   error: string
   fieldErrors: RecallActivitySMTPFieldErrors
+  loading?: boolean
   pending: boolean
   status: RecallActivitySMTPStatus
   success: string
@@ -165,6 +166,14 @@ function FieldError({
   )
 }
 
+function getConfigurationStatusLabel(
+  props: CampaignSMTPSettingsViewProps
+): string {
+  if (props.loading) return 'Loading SMTP settings'
+  if (props.status.configured) return 'Configured'
+  return 'Not configured'
+}
+
 export function CampaignSMTPSettingsView(
   props: CampaignSMTPSettingsViewProps
 ): React.JSX.Element {
@@ -183,7 +192,7 @@ export function CampaignSMTPSettingsView(
           </p>
         </div>
         <span className='rounded-md border px-2 py-1 text-xs'>
-          {props.status.configured ? t('Configured') : t('Not configured')}
+          {t(getConfigurationStatusLabel(props))}
         </span>
       </div>
 
@@ -323,19 +332,27 @@ export function CampaignSMTPSettings(): React.JSX.Element {
   )
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const statusRef = useRef(status)
   const updateSMTP = useMutation({ mutationFn: updateRecallActivitySMTP })
   const form = useForm<RecallActivitySMTPFormValues>({
-    resolver: zodResolver(recallActivitySMTPSchema(status)),
+    resolver: (...resolverArguments) =>
+      zodResolver(recallActivitySMTPSchema(statusRef.current))(
+        ...resolverArguments
+      ),
     defaultValues: createRecallActivitySMTPFormValues(status),
   })
   const values = form.watch()
 
   useEffect(() => {
+    statusRef.current = status
+  }, [status])
+
+  useEffect(() => {
     if (!smtpQuery.data?.data) return
+    statusRef.current = smtpQuery.data.data
     setStatus(smtpQuery.data.data)
     form.reset(createRecallActivitySMTPFormValues(smtpQuery.data.data))
     setError('')
-    setSuccess('')
   }, [form, smtpQuery.data])
 
   const save = form.handleSubmit(async (formValues) => {
@@ -401,6 +418,7 @@ export function CampaignSMTPSettings(): React.JSX.Element {
       disabled={smtpQuery.isPending || loadError}
       error={loadError ? SMTP_LOAD_ERROR : error}
       fieldErrors={fieldErrors}
+      loading={smtpQuery.isPending}
       pending={updateSMTP.isPending}
       status={effectiveStatus}
       success={success}

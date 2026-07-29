@@ -1,23 +1,293 @@
 import * as React from 'react'
-import { describe, expect, test } from 'bun:test'
+import { AxiosHeaders, type InternalAxiosRequestConfig } from 'axios'
+import { createRoot, type Root } from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  mock,
+  test,
+} from 'bun:test'
 import { createInstance } from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
+import { api } from '@/lib/api'
 import type { RecallActivitySMTPStatus } from '../types'
-import {
-  CampaignSMTPSettingsView,
-  createRecallActivitySMTPFormValues,
-  getRecallActivitySMTPSaveSuccessState,
-  normalizeRecallActivitySMTPInput,
-  recallActivitySMTPSchema,
-} from './campaign-smtp-settings'
 
+const originalAdapter = api.defaults.adapter
 const testI18n = createInstance()
 await testI18n.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
   resources: { en: { translation: {} } },
   interpolation: { escapeValue: false },
+})
+
+const originalGlobalPropertyDescriptors = new Map<
+  PropertyKey,
+  PropertyDescriptor | undefined
+>()
+
+function defineTestGlobal(key: PropertyKey, value: unknown) {
+  if (!originalGlobalPropertyDescriptors.has(key)) {
+    originalGlobalPropertyDescriptors.set(
+      key,
+      Object.getOwnPropertyDescriptor(globalThis, key)
+    )
+  }
+  Object.defineProperty(globalThis, key, {
+    configurable: true,
+    value,
+    writable: true,
+  })
+}
+
+function restoreTestGlobals() {
+  for (const [key, descriptor] of originalGlobalPropertyDescriptors) {
+    if (descriptor) {
+      Object.defineProperty(globalThis, key, descriptor)
+    } else {
+      Reflect.deleteProperty(globalThis, key)
+    }
+  }
+}
+
+function setupDom() {
+  if (typeof document !== 'undefined') {
+    defineTestGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    return
+  }
+
+  class NodeShim {
+    childNodes: NodeShim[] = []
+    nodeType = 0
+    nodeName = ''
+    parentNode: NodeShim | null = null
+    ownerDocument = globalThis.document
+    private listeners: Record<string, EventListener[]> = {}
+
+    appendChild(node: NodeShim) {
+      this.childNodes.push(node)
+      node.parentNode = this
+      return node
+    }
+
+    insertBefore(node: NodeShim, before: NodeShim | null) {
+      const index = before ? this.childNodes.indexOf(before) : -1
+      if (index < 0) return this.appendChild(node)
+      this.childNodes.splice(index, 0, node)
+      node.parentNode = this
+      return node
+    }
+
+    removeChild(node: NodeShim) {
+      this.childNodes = this.childNodes.filter((child) => child !== node)
+      node.parentNode = null
+      return node
+    }
+
+    addEventListener(type: string, listener: EventListener) {
+      this.listeners[type] ??= []
+      this.listeners[type].push(listener)
+    }
+
+    removeEventListener(type: string, listener: EventListener) {
+      this.listeners[type] = (this.listeners[type] ?? []).filter(
+        (current) => current !== listener
+      )
+    }
+
+    dispatchEvent(event: Event) {
+      if (!event.target) {
+        Object.defineProperty(event, 'target', {
+          configurable: true,
+          value: this,
+        })
+      }
+      Object.defineProperty(event, 'currentTarget', {
+        configurable: true,
+        value: this,
+      })
+      for (const listener of this.listeners[event.type] ?? []) {
+        listener.call(this, event)
+      }
+      if (event.bubbles && this.parentNode) {
+        this.parentNode.dispatchEvent(event)
+      }
+      return !event.defaultPrevented
+    }
+  }
+
+  class ElementShim extends NodeShim {
+    attributes: Record<string, string> = {}
+    disabled = false
+    localName: string
+    namespaceURI = 'http://www.w3.org/1999/xhtml'
+    style = {}
+    tagName: string
+    value = ''
+    checked = false
+    private text = ''
+
+    constructor(tagName: string) {
+      super()
+      this.nodeType = 1
+      this.localName = tagName
+      this.tagName = tagName.toUpperCase()
+      this.nodeName = this.tagName
+    }
+
+    set textContent(value: string) {
+      this.text = String(value)
+      this.childNodes = []
+    }
+
+    get textContent() {
+      return (
+        this.text ||
+        this.childNodes
+          .map((node) => ('textContent' in node ? node.textContent : ''))
+          .join('')
+      )
+    }
+
+    setAttribute(key: string, value: string) {
+      this.attributes[key] = String(value)
+      if (key === 'disabled') this.disabled = true
+      if (key === 'value') this.value = String(value)
+      if (key === 'checked') this.checked = true
+    }
+
+    removeAttribute(key: string) {
+      delete this.attributes[key]
+      if (key === 'disabled') this.disabled = false
+      if (key === 'checked') this.checked = false
+    }
+
+    querySelector(selector: string): ElementShim | null {
+      if (selector.startsWith('#') && this.attributes.id === selector.slice(1)) {
+        return this
+      }
+      if (selector.toUpperCase() === this.tagName) {
+        return this
+      }
+      for (const child of this.childNodes) {
+        if (child instanceof ElementShim) {
+          const match = child.querySelector(selector)
+          if (match) return match
+        }
+      }
+      return null
+    }
+
+    focus() {}
+  }
+
+  class TextShim extends NodeShim {
+    textContent: string
+
+    constructor(text: string) {
+      super()
+      this.nodeType = 3
+      this.nodeName = '#text'
+      this.textContent = text
+    }
+  }
+
+  const head = new ElementShim('head')
+  const body = new ElementShim('body')
+  const shimDocument = {
+    nodeType: 9,
+    body,
+    head,
+    createElement: (tagName: string) => new ElementShim(tagName),
+    createElementNS: (_namespace: string, tagName: string) =>
+      new ElementShim(tagName),
+    createTextNode: (text: string) => new TextShim(text),
+    getElementsByTagName: (tagName: string) =>
+      tagName.toLowerCase() === 'head' ? [head] : [],
+    querySelector: (selector: string) => body.querySelector(selector),
+    addEventListener() {},
+    removeEventListener() {},
+    defaultView: globalThis,
+  }
+  defineTestGlobal('document', shimDocument as unknown as Document)
+  defineTestGlobal(
+    'window',
+    globalThis as unknown as Window & typeof globalThis
+  )
+  defineTestGlobal('location', { href: 'http://localhost/' } as Location)
+  defineTestGlobal('HTMLElement', ElementShim as unknown as typeof HTMLElement)
+  defineTestGlobal('HTMLIFrameElement', class {} as typeof HTMLIFrameElement)
+  defineTestGlobal('MouseEvent', Event)
+  defineTestGlobal('Node', NodeShim as unknown as typeof Node)
+  defineTestGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+}
+
+setupDom()
+
+const latestInputProps: Record<
+  string,
+  React.InputHTMLAttributes<HTMLInputElement>
+> = {}
+
+mock.module('@/components/ui/button', () => ({
+  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props} />
+  ),
+}))
+
+mock.module('@/components/ui/input', () => ({
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => {
+    if (props.id) latestInputProps[props.id] = props
+    return <input {...props} />
+  },
+}))
+
+mock.module('@/components/ui/checkbox', () => ({
+  Checkbox: (
+    props: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> & {
+      onCheckedChange?: (checked: boolean) => void
+    }
+  ) => (
+    <input
+      checked={props.checked}
+      disabled={props.disabled}
+      type='checkbox'
+      onChange={(event) => props.onCheckedChange?.(event.currentTarget.checked)}
+    />
+  ),
+}))
+
+mock.module('@/components/ui/label', () => ({
+  Label: (props: React.LabelHTMLAttributes<HTMLLabelElement>) => (
+    <label {...props} />
+  ),
+}))
+
+const {
+  CampaignSMTPSettings,
+  CampaignSMTPSettingsView,
+  createRecallActivitySMTPFormValues,
+  getRecallActivitySMTPSaveSuccessState,
+  normalizeRecallActivitySMTPInput,
+  recallActivitySMTPSchema,
+} = await import('./campaign-smtp-settings')
+
+beforeAll(() => {
+  api.defaults.adapter = originalAdapter
+})
+
+afterEach(() => {
+  api.defaults.adapter = originalAdapter
+  for (const key of Object.keys(latestInputProps)) delete latestInputProps[key]
+})
+
+afterAll(() => {
+  restoreTestGlobals()
 })
 
 function makeStatus(
@@ -33,6 +303,72 @@ function makeStatus(
     token_configured: true,
     configured: true,
     ...overrides,
+  }
+}
+
+function wait(ms = 0) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function waitFor(
+  predicate: () => boolean,
+  timeout = 1000
+): Promise<void> {
+  const startedAt = Date.now()
+  while (!predicate()) {
+    if (Date.now() - startedAt > timeout) {
+      throw new Error('Timed out waiting for assertion')
+    }
+    await React.act(async () => {
+      await wait(10)
+    })
+  }
+}
+
+function renderMountedSMTPSettings(): { container: HTMLElement; root: Root } {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+
+  React.act(() => {
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={testI18n}>
+          <CampaignSMTPSettings />
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+  })
+
+  return { container, root }
+}
+
+function dispose(root: Root) {
+  React.act(() => {
+    root.unmount()
+  })
+}
+
+function submitSMTPSettingsForm(container: HTMLElement) {
+  const form = container.querySelector('form')
+  if (!form) throw new Error('SMTP settings form was not rendered')
+  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+}
+
+function setApiResponses(
+  handler: (config: InternalAxiosRequestConfig) => Promise<unknown>
+) {
+  api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+    return {
+      data: await handler(config),
+      status: 200,
+      statusText: 'OK',
+      headers: new AxiosHeaders(),
+      config,
+    }
   }
 }
 
@@ -228,5 +564,115 @@ describe('CampaignSMTPSettings', () => {
       status: nextStatus,
       success: 'Activity SMTP settings saved.',
     })
+  })
+
+  test('shows neutral loading while the SMTP status query is pending', async () => {
+    let resolveStatus:
+      | ((value: { success: boolean; data: RecallActivitySMTPStatus }) => void)
+      | undefined
+    setApiResponses(
+      () =>
+        new Promise((resolve) => {
+          resolveStatus = resolve
+        })
+    )
+
+    const { container, root } = renderMountedSMTPSettings()
+
+    expect(container.textContent).toContain('Loading SMTP settings')
+    expect(container.textContent).not.toContain('Not configured')
+
+    await waitFor(() => typeof resolveStatus === 'function')
+    await React.act(async () => {
+      resolveStatus?.({ success: true, data: makeStatus() })
+      await wait()
+    })
+    dispose(root)
+  })
+
+  test('keeps success visible after save cache update and invalidate refetch', async () => {
+    const requests: string[] = []
+    setApiResponses(async (config) => {
+      requests.push(`${config.method}:${config.url}`)
+      if (config.method === 'put') {
+        return {
+          success: true,
+          data: makeStatus({ server: 'smtp.saved.example.com' }),
+        }
+      }
+      return { success: true, data: makeStatus() }
+    })
+    const { container, root } = renderMountedSMTPSettings()
+
+    await waitFor(() => container.textContent?.includes('Configured') === true)
+    await React.act(async () => {
+      submitSMTPSettingsForm(container)
+      await wait()
+    })
+
+    await waitFor(
+      () =>
+        container.textContent?.includes('Activity SMTP settings saved.') === true
+    )
+    await waitFor(
+      () => requests.filter((request) => request.startsWith('get:')).length >= 2
+    )
+    expect(container.textContent).toContain('Activity SMTP settings saved.')
+    dispose(root)
+  })
+
+  test('retains mounted form values and shows backend alert after failed save', async () => {
+    setApiResponses(async (config) => {
+      if (config.method === 'put') {
+        return { success: false, message: 'Backend rejected SMTP settings' }
+      }
+      return {
+        success: true,
+        data: makeStatus({
+          account: 'entered-account',
+          email_from: 'entered@example.com',
+          server: 'entered.example.com',
+        }),
+      }
+    })
+    const { container, root } = renderMountedSMTPSettings()
+
+    await waitFor(
+      () =>
+        (
+          container.querySelector('#recall-smtp-server') as HTMLInputElement
+        )?.value === 'entered.example.com'
+    )
+    await React.act(async () => {
+      latestInputProps['recall-smtp-token']?.onChange?.(
+        {
+          target: { value: '  typed secret  ' },
+        } as React.ChangeEvent<HTMLInputElement>
+      )
+      submitSMTPSettingsForm(container)
+      await wait()
+    })
+
+    await waitFor(
+      () =>
+        container.textContent?.includes('Backend rejected SMTP settings') ===
+        true
+    )
+    expect(container.textContent).toContain('Backend rejected SMTP settings')
+    expect(container.textContent).toContain('SMTP token')
+    expect(
+      (container.querySelector('#recall-smtp-server') as HTMLInputElement).value
+    ).toBe('entered.example.com')
+    expect(
+      (container.querySelector('#recall-smtp-account') as HTMLInputElement).value
+    ).toBe('entered-account')
+    expect(
+      (container.querySelector('#recall-smtp-email-from') as HTMLInputElement)
+        .value
+    ).toBe('entered@example.com')
+    expect(
+      (container.querySelector('#recall-smtp-token') as HTMLInputElement).value
+    ).toBe('  typed secret  ')
+    dispose(root)
   })
 })
