@@ -29,6 +29,15 @@ function absolutize(url: string, siteUrl: string): string {
   return u
 }
 
+function resolveDocumentLang(lang: string): string {
+  if (!lang) return ''
+  if (lang.startsWith('zh')) {
+    const lower = lang.toLowerCase()
+    return lower.includes('tw') || lower.includes('hk') ? 'zh-TW' : 'zh-CN'
+  }
+  return lang
+}
+
 export function applyDocumentSeo(input: SeoInput): void {
   if (typeof document === 'undefined') return
 
@@ -66,11 +75,7 @@ export function applyDocumentSeo(input: SeoInput): void {
   }
 
   if (lang) {
-    document.documentElement.lang = lang.startsWith('zh')
-      ? lang.toLowerCase().includes('tw') || lang.toLowerCase().includes('hk')
-        ? 'zh-TW'
-        : 'zh-CN'
-      : lang
+    document.documentElement.lang = resolveDocumentLang(lang)
   }
 
   upsertMetaByName('description', description)

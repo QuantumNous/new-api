@@ -57,8 +57,8 @@ const _systemInfoSchema = z.object({
   'SEO.TitleSuffix': z.string().optional(),
   'SEO.Description': z.string().optional(),
   'SEO.Keywords': z.string().optional(),
-  'SEO.SiteURL': z.string().optional(),
-  'SEO.OGImage': z.string().optional(),
+  'SEO.SiteURL': z.string().url().optional().or(z.literal('')),
+  'SEO.OGImage': z.string().url().optional().or(z.literal('')),
   'SEO.RobotsIndex': z.boolean().optional(),
   legal: z.object({
     user_agreement: z.string().optional(),

@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useSystemConfig } from '@/hooks/use-system-config'
-import { applySeoFromStatus, clearSeoJsonLd } from '@/lib/seo'
+import { applySeoFromStatus, clearSeoJsonLd, readCachedStatus } from '@/lib/seo'
 
 /**
  * Homepage-only SEO: long-tail title + JSON-LD while mounted.
@@ -14,13 +14,7 @@ export function useHomeSeo() {
   const { systemName, logo } = useSystemConfig()
 
   useEffect(() => {
-    let status: Record<string, unknown> | null = null
-    try {
-      const raw = localStorage.getItem('status')
-      if (raw) status = JSON.parse(raw) as Record<string, unknown>
-    } catch {
-      /* empty */
-    }
+    const status = readCachedStatus()
 
     const name = systemName || String(status?.system_name || '') || 'DaoXE'
     const siteUrl = String(
@@ -59,10 +53,7 @@ export function useHomeSeo() {
     return () => {
       clearSeoJsonLd()
       try {
-        const raw = localStorage.getItem('status')
-        const cached = raw
-          ? (JSON.parse(raw) as Record<string, unknown>)
-          : null
+        const cached = readCachedStatus()
         applySeoFromStatus(cached || undefined, {
           title: name,
           path:

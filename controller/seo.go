@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 	"time"
@@ -16,18 +17,27 @@ func seoSiteBase(c *gin.Context) string {
 	// Prefer configured absolute site URL only. Do not trust Request.Host —
 	// without SEOSiteURL/ServerAddress, omit absolute links rather than
 	// emitting attacker-controlled Host into robots/sitemap.
-	site := strings.TrimRight(strings.TrimSpace(common.SEOSiteURL), "/")
+	common.OptionMapRWMutex.RLock()
+	siteURL := common.SEOSiteURL
+	serverAddr := system_setting.ServerAddress
+	common.OptionMapRWMutex.RUnlock()
+
+	site := strings.TrimRight(strings.TrimSpace(siteURL), "/")
 	if site == "" {
-		site = strings.TrimRight(strings.TrimSpace(system_setting.ServerAddress), "/")
+		site = strings.TrimRight(strings.TrimSpace(serverAddr), "/")
 	}
 	return site
 }
 
 // RobotsTxt serves GET /robots.txt for crawlers (no SPA).
 func RobotsTxt(c *gin.Context) {
+	common.OptionMapRWMutex.RLock()
+	robotsIndex := common.SEORobotsIndex
+	common.OptionMapRWMutex.RUnlock()
+
 	var b strings.Builder
 	b.WriteString("User-agent: *\n")
-	if common.SEORobotsIndex {
+	if robotsIndex {
 		b.WriteString("Allow: /\n")
 		b.WriteString("Disallow: /console\n")
 		b.WriteString("Disallow: /dashboard\n")
@@ -80,9 +90,10 @@ func SitemapXML(c *gin.Context) {
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
 	b.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
+	escapedSite := html.EscapeString(site)
 	for _, e := range entries {
 		b.WriteString("<url>")
-		b.WriteString(fmt.Sprintf("<loc>%s%s</loc>", site, e.path))
+		b.WriteString(fmt.Sprintf("<loc>%s%s</loc>", escapedSite, e.path))
 		b.WriteString(fmt.Sprintf("<lastmod>%s</lastmod>", lastmod))
 		b.WriteString(fmt.Sprintf("<changefreq>%s</changefreq>", e.changefreq))
 		b.WriteString(fmt.Sprintf("<priority>%s</priority>", e.priority))

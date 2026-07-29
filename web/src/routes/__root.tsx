@@ -43,7 +43,7 @@ import {
 } from '@/lib/auth-session'
 import { subscribeAuthSessionEvents } from '@/lib/auth-session-sync'
 import { resolveLegacyRoute } from '@/lib/legacy-route'
-import { applySeoFromStatus } from '@/lib/seo'
+import { applySeoFromStatus, readCachedStatus } from '@/lib/seo'
 import { useAuthStore } from '@/stores/auth-store'
 
 function RootComponent() {
@@ -98,8 +98,7 @@ function RootComponent() {
   // Keep document title/robots in sync with route: long-tail only on homepage.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('status')
-      const status = raw ? (JSON.parse(raw) as Record<string, unknown>) : null
+      const status = readCachedStatus()
       const name =
         systemName || String(status?.system_name || '') || 'New API'
       applySeoFromStatus(status || { system_name: name }, {
