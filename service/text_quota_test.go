@@ -8,12 +8,13 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/types"
+	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -37,14 +38,14 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 		ClaudeCacheCreation1hTokens: 20,
 	}
 
-	priceData := types.PriceData{
+	priceData := hosttypes.PriceData{
 		ModelRatio:           1,
 		CompletionRatio:      2,
 		CacheRatio:           0.1,
 		CacheCreationRatio:   1.25,
 		CacheCreation5mRatio: 1.25,
 		CacheCreation1hRatio: 2,
-		GroupRatioInfo: types.GroupRatioInfo{
+		GroupRatioInfo: hosttypes.GroupRatioInfo{
 			GroupRatio: 1,
 		},
 	}
@@ -83,14 +84,14 @@ func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.
 		RelayFormat:             types.RelayFormatOpenAI,
 		FinalRequestRelayFormat: types.RelayFormatClaude,
 		OriginModelName:         "claude-3-7-sonnet",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:           1,
 			CompletionRatio:      1,
 			CacheRatio:           0,
 			CacheCreationRatio:   1,
 			CacheCreation5mRatio: 2,
 			CacheCreation1hRatio: 3,
-			GroupRatioInfo: types.GroupRatioInfo{
+			GroupRatioInfo: hosttypes.GroupRatioInfo{
 				GroupRatio: 1,
 			},
 		},
@@ -121,14 +122,14 @@ func TestCalculateTextQuotaSummaryUsesAnthropicUsageSemanticFromUpstreamUsage(t 
 	relayInfo := &relaycommon.RelayInfo{
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "claude-3-7-sonnet",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:           1,
 			CompletionRatio:      2,
 			CacheRatio:           0.1,
 			CacheCreationRatio:   1.25,
 			CacheCreation5mRatio: 1.25,
 			CacheCreation1hRatio: 2,
-			GroupRatioInfo: types.GroupRatioInfo{
+			GroupRatioInfo: hosttypes.GroupRatioInfo{
 				GroupRatio: 1,
 			},
 		},
@@ -162,14 +163,14 @@ func TestCalculateTextQuotaSummaryUsesClaudeBillingUsageBeforeTopLevelUsage(t *t
 	relayInfo := &relaycommon.RelayInfo{
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "claude-3-7-sonnet",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:           1,
 			CompletionRatio:      2,
 			CacheRatio:           0.1,
 			CacheCreationRatio:   1.25,
 			CacheCreation5mRatio: 1.25,
 			CacheCreation1hRatio: 2,
-			GroupRatioInfo:       types.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:       hosttypes.GroupRatioInfo{GroupRatio: 1},
 		},
 		StartTime: time.Now(),
 	}
@@ -211,11 +212,11 @@ func TestCalculateTextQuotaSummaryUsesGeminiBillingUsageBeforeTopLevelUsage(t *t
 	relayInfo := &relaycommon.RelayInfo{
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "gemini-2.5-flash",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:      1,
 			CompletionRatio: 2,
 			CacheRatio:      0.1,
-			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
 		},
 		StartTime: time.Now(),
 	}
@@ -253,10 +254,10 @@ func TestCalculateTextQuotaSummaryUsesOpenAIBillingUsageBeforeTopLevelUsage(t *t
 	relayInfo := &relaycommon.RelayInfo{
 		RelayFormat:     types.RelayFormatClaude,
 		OriginModelName: "gpt-4o",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:      1,
 			CompletionRatio: 2,
-			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
 		},
 		StartTime: time.Now(),
 	}
@@ -352,14 +353,14 @@ func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testi
 	relayInfo := &relaycommon.RelayInfo{
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "claude-3-7-sonnet",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:           1,
 			CompletionRatio:      5,
 			CacheRatio:           0.1,
 			CacheCreationRatio:   1.25,
 			CacheCreation5mRatio: 1.25,
 			CacheCreation1hRatio: 2,
-			GroupRatioInfo:       types.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:       hosttypes.GroupRatioInfo{GroupRatio: 1},
 		},
 		StartTime: time.Now(),
 	}
@@ -387,12 +388,12 @@ func TestCalculateTextQuotaSummaryBillsOpenAICacheWriteTokens(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "gpt-5.1",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:         1,
 			CompletionRatio:    2,
 			CacheRatio:         0.1,
 			CacheCreationRatio: 1.25,
-			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:     hosttypes.GroupRatioInfo{GroupRatio: 1},
 		},
 		StartTime: time.Now(),
 	}
@@ -445,12 +446,12 @@ func TestCalculateTextQuotaSummarySeparatesOpenRouterCacheReadFromPromptBilling(
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType: constant.ChannelTypeOpenRouter,
 		},
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:         1,
 			CompletionRatio:    1,
 			CacheRatio:         0.1,
 			CacheCreationRatio: 1.25,
-			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:     hosttypes.GroupRatioInfo{GroupRatio: 1},
 		},
 		StartTime: time.Now(),
 	}
@@ -482,11 +483,11 @@ func TestCalculateTextQuotaSummarySeparatesOpenRouterCacheCreationFromPromptBill
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType: constant.ChannelTypeOpenRouter,
 		},
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:         1,
 			CompletionRatio:    1,
 			CacheCreationRatio: 1.25,
-			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:     hosttypes.GroupRatioInfo{GroupRatio: 1},
 		},
 		StartTime: time.Now(),
 	}
@@ -518,12 +519,12 @@ func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType: constant.ChannelTypeOpenRouter,
 		},
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:         1,
 			CompletionRatio:    1,
 			CacheRatio:         0.1,
 			CacheCreationRatio: 1.25,
-			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:     hosttypes.GroupRatioInfo{GroupRatio: 1},
 		},
 		StartTime: time.Now(),
 	}
@@ -559,10 +560,10 @@ func TestComposeTieredTextQuotaKeepsToolCallSurcharges(t *testing.T) {
 
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "o1",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:      1,
 			CompletionRatio: 1,
-			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
 		},
 		ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{
 			BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
@@ -609,10 +610,10 @@ func TestComposeTieredTextQuotaFallbackKeepsToolCallSurcharges(t *testing.T) {
 
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "claude-3-7-sonnet",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:      1,
 			CompletionRatio: 1,
-			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1.25},
+			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1.25},
 		},
 		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
 			BillingMode:               "tiered_expr",
@@ -643,10 +644,10 @@ func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
 
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "claude-3-7-sonnet",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:      1,
 			CompletionRatio: 1,
-			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1.25},
+			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1.25},
 		},
 		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
 			BillingMode:               "tiered_expr",
@@ -726,10 +727,10 @@ func TestTryTieredSettleNoClampInRange(t *testing.T) {
 func TestCalculateTextQuotaSummaryFixedPriceAppliesImageCountOnceAndAllowsOverride(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	priceData := types.PriceData{
+	priceData := hosttypes.PriceData{
 		ModelPrice: 0.12,
 		UsePrice:   true,
-		GroupRatioInfo: types.GroupRatioInfo{
+		GroupRatioInfo: hosttypes.GroupRatioInfo{
 			GroupRatio: 1,
 		},
 	}
@@ -911,10 +912,10 @@ func TestCalculateTextQuotaSummaryDoesNotApplyRequestMultipliersToToolSurcharge(
 
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "o1",
-		PriceData: types.PriceData{
+		PriceData: hosttypes.PriceData{
 			ModelRatio:      1,
 			CompletionRatio: 1,
-			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
 		},
 		ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{
 			BuiltInTools: map[string]*relaycommon.BuildInToolInfo{

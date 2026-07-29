@@ -2,55 +2,127 @@ package ali
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayhelper "github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
-func TestConvertOpenAIRequestPreservesThinkingBudgetForQwen(t *testing.T) {
-	request := &dto.GeneralOpenAIRequest{
-		Model:          "qwen-plus",
-		EnableThinking: json.RawMessage(`true`),
-		ThinkingBudget: json.RawMessage(`128`),
-	}
-	info := &relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{
-			UpstreamModelName: "qwen-plus",
+func TestConvertOpenAIRequestFiltersThinkingBudgetByUpstreamModel(t *testing.T) {
+	tests := []struct {
+		name          string
+		requestModel  string
+		upstreamModel string
+		budget        string
+		wantBudget    bool
+		wantValue     int64
+	}{
+		{
+			name:          "qwen",
+			requestModel:  "qwen-plus",
+			upstreamModel: "qwen-plus",
+			budget:        "128",
+			wantBudget:    true,
+			wantValue:     128,
+		},
+		{
+			name:          "qwq explicit zero",
+			requestModel:  "qwq-32b",
+			upstreamModel: "qwq-32b",
+			budget:        "0",
+			wantBudget:    true,
+			wantValue:     0,
+		},
+		{
+			name:          "unsupported upstream overrides qwen request",
+			requestModel:  "qwen-plus",
+			upstreamModel: "deepseek-r1",
+			budget:        "128",
+			wantBudget:    false,
 		},
 	}
 
-	converted, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, request)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := &dto.GeneralOpenAIRequest{
+				Model:          tt.requestModel,
+				EnableThinking: json.RawMessage(`true`),
+				ThinkingBudget: json.RawMessage(tt.budget),
+			}
+			info := &relaycommon.RelayInfo{
+				ChannelMeta: &relaycommon.ChannelMeta{
+					UpstreamModelName: tt.upstreamModel,
+				},
+			}
 
-	encoded, err := common.Marshal(converted)
-	require.NoError(t, err)
+			convertedValue, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, request)
+			require.NoError(t, err)
+			converted, ok := convertedValue.(*dto.GeneralOpenAIRequest)
+			require.True(t, ok)
 
-	assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
-	assert.Equal(t, int64(128), gjson.GetBytes(encoded, "thinking_budget").Int())
+			if tt.wantBudget {
+				assert.Equal(t, tt.budget, string(converted.ThinkingBudget))
+			} else {
+				assert.Nil(t, converted.ThinkingBudget)
+			}
+
+			encoded, err := common.Marshal(converted)
+			require.NoError(t, err)
+
+			assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
+			value := gjson.GetBytes(encoded, "thinking_budget")
+			assert.Equal(t, tt.wantBudget, value.Exists())
+			if tt.wantBudget {
+				assert.Equal(t, tt.wantValue, value.Int())
+			}
+		})
+	}
 }
 
-func TestConvertOpenAIRequestDropsThinkingBudgetForNonQwen(t *testing.T) {
+func TestConvertOpenAIRequestPreservesExplicitZeroForMappedQwenModel(t *testing.T) {
+	const (
+		clientModel   = "customer-model"
+		upstreamModel = "Qwen/Qwen3-235B-A22B-Thinking-2507"
+	)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("model_mapping", `{"customer-model":"Qwen/Qwen3-235B-A22B-Thinking-2507"}`)
+
 	request := &dto.GeneralOpenAIRequest{
-		Model:          "deepseek-r1",
+		Model:          clientModel,
 		EnableThinking: json.RawMessage(`true`),
-		ThinkingBudget: json.RawMessage(`128`),
+		ThinkingBudget: json.RawMessage(`0`),
 	}
 	info := &relaycommon.RelayInfo{
+		OriginModelName: clientModel,
 		ChannelMeta: &relaycommon.ChannelMeta{
-			UpstreamModelName: "deepseek-r1",
+			UpstreamModelName: clientModel,
 		},
 	}
 
-	converted, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, request)
+	err := relayhelper.ModelMappedHelper(c, info, request)
 	require.NoError(t, err)
+	assert.True(t, info.IsModelMapped)
+	assert.Equal(t, upstreamModel, info.UpstreamModelName)
+	assert.Equal(t, upstreamModel, request.Model)
+
+	convertedValue, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, request)
+	require.NoError(t, err)
+	converted, ok := convertedValue.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	assert.Equal(t, json.RawMessage(`0`), converted.ThinkingBudget)
 
 	encoded, err := common.Marshal(converted)
 	require.NoError(t, err)
 
-	assert.False(t, gjson.GetBytes(encoded, "thinking_budget").Exists())
+	value := gjson.GetBytes(encoded, "thinking_budget")
+	assert.True(t, value.Exists())
+	assert.Equal(t, int64(0), value.Int())
 }
