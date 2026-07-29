@@ -71,8 +71,8 @@ type SubscriptionDiscountEntry struct {
 	PaymentCurrency        string  `json:"payment_currency" gorm:"type:varchar(16);not null;default:''"`
 	AppliedAmountMinor     int64   `json:"applied_amount_minor" gorm:"type:bigint;not null;default:0"`
 	PricingSnapshot        string  `json:"pricing_snapshot" gorm:"type:text"`
-	IdempotencyKey         string  `json:"idempotency_key" gorm:"type:varchar(255);not null;uniqueIndex"`
-	TerminalReservationKey *string `json:"terminal_reservation_key,omitempty" gorm:"type:varchar(255);uniqueIndex"`
+	IdempotencyKey         string  `json:"idempotency_key" gorm:"type:varchar(191);not null;uniqueIndex"`
+	TerminalReservationKey *string `json:"terminal_reservation_key,omitempty" gorm:"type:varchar(191);uniqueIndex"`
 	ExpiresAt              int64   `json:"expires_at" gorm:"type:bigint;not null;default:0;index"`
 	CreatedAt              int64   `json:"created_at" gorm:"type:bigint;not null;default:0;index"`
 }
@@ -543,7 +543,7 @@ func normalizeSubscriptionDiscountReservationInput(input SubscriptionDiscountRes
 	if err != nil {
 		return normalizedSubscriptionDiscountReservationInput{}, err
 	}
-	if input.OrderID < 0 || input.AppliedAmountMinor < 0 || input.ExpiresAt < 0 {
+	if input.OrderID < 0 || input.AppliedAmountMinor < 0 || input.ExpiresAt <= common.GetTimestamp() {
 		return normalizedSubscriptionDiscountReservationInput{}, ErrSubscriptionDiscountInvalidReservation
 	}
 	return normalizedSubscriptionDiscountReservationInput{

@@ -172,6 +172,50 @@ func TestMigrateInvitationValueRejectsInvalidQuotaPerUnit(t *testing.T) {
 	}
 }
 
+func TestMigratePositiveAffQuotaThatRoundsToZeroPreservesSourceValue(t *testing.T) {
+	db := setupInviteRewardMigrationTest(t)
+
+	user := User{Id: 363, Username: "rounds-zero-aff", Password: "password123", AffCode: "rounds-zero-aff-code", AffQuota: 1}
+	require.NoError(t, db.Create(&user).Error)
+
+	require.ErrorIs(t, MigrateLegacyInvitationValueToSubscriptionDiscount(), ErrSubscriptionDiscountInvalidAmount)
+
+	var unchanged User
+	require.NoError(t, db.First(&unchanged, user.Id).Error)
+	require.Equal(t, 1, unchanged.AffQuota)
+	var entries int64
+	require.NoError(t, db.Model(&SubscriptionDiscountEntry{}).Where("entry_type = ?", SubscriptionDiscountEntryTypeMigration).Count(&entries).Error)
+	require.Zero(t, entries)
+}
+
+func TestMigratePositivePendingRewardThatRoundsToZeroPreservesPendingState(t *testing.T) {
+	db := setupInviteRewardMigrationTest(t)
+
+	inviter := User{Id: 364, Username: "rounds-zero-inviter", Password: "password123", AffCode: "rounds-zero-inviter-code"}
+	invitee := User{Id: 365, Username: "rounds-zero-invitee", Password: "password123", AffCode: "rounds-zero-invitee-code", InviterId: inviter.Id}
+	require.NoError(t, db.Create(&[]User{inviter, invitee}).Error)
+	reward := InviteSubscriptionReward{
+		Id:          422,
+		InviteeId:   invitee.Id,
+		InviterId:   inviter.Id,
+		RewardQuota: 1,
+		Status:      InviteSubRewardStatusPending,
+		UnlockAt:    456,
+	}
+	require.NoError(t, db.Create(&reward).Error)
+
+	require.ErrorIs(t, MigrateLegacyInvitationValueToSubscriptionDiscount(), ErrSubscriptionDiscountInvalidAmount)
+
+	var unchanged InviteSubscriptionReward
+	require.NoError(t, db.First(&unchanged, reward.Id).Error)
+	require.Equal(t, InviteSubRewardStatusPending, unchanged.Status)
+	require.Zero(t, unchanged.GrantedAt)
+	require.Equal(t, 1, unchanged.RewardQuota)
+	var entries int64
+	require.NoError(t, db.Model(&SubscriptionDiscountEntry{}).Where("entry_type = ?", SubscriptionDiscountEntryTypeMigration).Count(&entries).Error)
+	require.Zero(t, entries)
+}
+
 func TestMigrateInvitationValueClearsSourceWhenExistingLedgerHasOlderValidSnapshot(t *testing.T) {
 	db := setupInviteRewardMigrationTest(t)
 

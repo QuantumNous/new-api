@@ -494,9 +494,6 @@ func ReconcilePaidInvoice(ctx context.Context, invoiceID string) (*PaidInvoiceRe
 		}).Error; err != nil {
 			return err
 		}
-		if err := model.GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, order); err != nil {
-			return err
-		}
 		if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
 			if _, err := model.CommitSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
 				return err
@@ -514,6 +511,9 @@ func ReconcilePaidInvoice(ctx context.Context, invoiceID string) (*PaidInvoiceRe
 	})
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(facts.TradeNo) != "" {
+		deliverInviteSubscriptionRewardAfterOrderCompleted(ctx, facts.TradeNo)
 	}
 	return result, nil
 }
@@ -1143,7 +1143,7 @@ func supersedeReplaceablePendingStripeCheckouts(ctx context.Context, userID int,
 	return superseded, nil
 }
 
-func supersedeReplaceablePendingStripeCheckoutsLocallyTx(tx *gorm.DB, userID int, requestID string) ([]supersededStripeCheckout, error) {
+func supersedeReplaceablePendingStripeCheckoutsLocallyTx(tx *gorm.DB, userID int, requestID string, confirmedExpiredProviderSessions map[string]struct{}) ([]supersededStripeCheckout, error) {
 	if tx == nil || userID <= 0 || strings.TrimSpace(requestID) == "" {
 		return nil, nil
 	}
@@ -1185,7 +1185,12 @@ func supersedeReplaceablePendingStripeCheckoutsLocallyTx(tx *gorm.DB, userID int
 			ProviderSessionID:        strings.TrimSpace(order.ProviderSessionId),
 			ReleasedDiscountUSDMinor: order.SubscriptionDiscountUSDMinor,
 		}
-		if err := supersedePreparedPendingStripeCheckoutLocallyTx(tx, &intent, &order, supersededCheckout.ProviderSessionID != ""); err != nil {
+		if supersededCheckout.ProviderSessionID != "" {
+			if _, ok := confirmedExpiredProviderSessions[supersededCheckout.ProviderSessionID]; !ok {
+				return nil, ErrSubscriptionChangeInProgress
+			}
+		}
+		if err := supersedePreparedPendingStripeCheckoutLocallyTx(tx, &intent, &order, false); err != nil {
 			return nil, err
 		}
 		superseded = append(superseded, supersededCheckout)
@@ -1825,9 +1830,6 @@ func completeOneTimeSubscriptionPurchase(ctx context.Context, tradeNo string, pr
 		if err := tx.Save(&order).Error; err != nil {
 			return err
 		}
-		if err := model.GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, &order); err != nil {
-			return err
-		}
 		if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
 			if _, err := model.CommitSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
 				return err
@@ -1852,6 +1854,7 @@ func completeOneTimeSubscriptionPurchase(ctx context.Context, tradeNo string, pr
 		return nil, err
 	}
 	if result.Order != nil {
+		deliverInviteSubscriptionRewardAfterOrderCompleted(ctx, tradeNo)
 		if err := model.SyncSubscriptionOrderTopUpHistory(tradeNo); err != nil {
 			return nil, err
 		}

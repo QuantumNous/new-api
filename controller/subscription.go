@@ -1113,15 +1113,25 @@ func SubscriptionRequestBalancePay(c *gin.Context) {
 	}
 
 	requestID := strings.TrimSpace(req.RequestId)
-	if requestID == "" {
-		requestID = "legacy-balance-pay-" + common.GetRandomString(16)
+	if !isStableSubscriptionRequestID(requestID) {
+		common.ApiErrorMsg(c, "request_id is required")
+		return
 	}
-	quoteResult, err := service.QuoteSubscriptionPurchase(service.PurchaseSubscriptionCommand{
+	cmd := service.PurchaseSubscriptionCommand{
 		UserID:        userId,
 		PlanID:        req.PlanId,
 		PaymentChoice: service.SubscriptionPaymentChoiceBalance,
 		Months:        1,
-	})
+		RequestID:     requestID,
+	}
+	if replay, found, err := service.ReplaySubscriptionPurchase(cmd); err != nil {
+		common.ApiError(c, err)
+		return
+	} else if found {
+		common.ApiSuccess(c, subscriptionSelfPurchaseResponse(replay, ""))
+		return
+	}
+	quoteResult, err := service.QuoteSubscriptionPurchase(cmd)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -1135,14 +1145,8 @@ func SubscriptionRequestBalancePay(c *gin.Context) {
 		return
 	}
 	quote := subscriptionPurchaseQuoteFromQuoteResult(quoteResult)
-	result, err := service.PurchaseSubscription(service.PurchaseSubscriptionCommand{
-		UserID:        userId,
-		PlanID:        req.PlanId,
-		PaymentChoice: service.SubscriptionPaymentChoiceBalance,
-		Months:        1,
-		RequestID:     requestID,
-		VerifiedQuote: &quote,
-	})
+	cmd.VerifiedQuote = &quote
+	result, err := service.PurchaseSubscription(cmd)
 	if err != nil {
 		common.ApiError(c, err)
 		return

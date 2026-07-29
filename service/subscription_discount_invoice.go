@@ -157,6 +157,17 @@ func buildStripeSubscriptionDiscountInvoicePrepareTx(facts stripeInvoiceCommonFa
 		if incremental <= 0 || incremental > facts.Amount {
 			return nil
 		}
+		incrementalUSDMinor, err := subscriptionDiscountUSDMinorForAppliedAmount(
+			incremental,
+			facts.Amount,
+			canonicalUSDMinor,
+		)
+		if err != nil {
+			return err
+		}
+		if incrementalUSDMinor <= 0 || incrementalUSDMinor > account.AvailableUSDMinor {
+			return model.ErrSubscriptionDiscountInvalidAmount
+		}
 		reservationKey := stripeSubscriptionDiscountInvoiceReservationKey(facts.InvoiceID)
 		expectedFinal := facts.Amount - existingDiscount - incremental
 		if expectedFinal < 0 {
@@ -175,14 +186,14 @@ func buildStripeSubscriptionDiscountInvoicePrepareTx(facts stripeInvoiceCommonFa
 			CanonicalUSDMinor:                 canonicalUSDMinor,
 			OriginalSubtotalMinor:             facts.Amount,
 			ExistingDiscountMinor:             existingDiscount,
-			SelectedInvitationUSDMinor:        quote.InvitationDiscountUSDMinor,
+			SelectedInvitationUSDMinor:        incrementalUSDMinor,
 			SelectedInvitationLocalMinor:      quote.InvitationDiscountAmountMinor,
 			IncrementalItemMinor:              incremental,
 			ExpectedFinalPaymentMinor:         expectedFinal,
 			AccountAvailableBeforeUSDMinor:    account.AvailableUSDMinor,
-			AccountAvailableRemainingUSDMinor: quote.InvitationRemainingUSDMinor,
+			AccountAvailableRemainingUSDMinor: account.AvailableUSDMinor - incrementalUSDMinor,
 			AccountReservedBeforeUSDMinor:     account.ReservedUSDMinor,
-			AccountReservedAfterUSDMinor:      account.ReservedUSDMinor + quote.InvitationDiscountUSDMinor,
+			AccountReservedAfterUSDMinor:      account.ReservedUSDMinor + incrementalUSDMinor,
 			ReservationKey:                    reservationKey,
 			ItemIdempotencyKey:                stripeSubscriptionDiscountInvoiceAdjustmentKey(facts.InvoiceID),
 		}
@@ -192,7 +203,7 @@ func buildStripeSubscriptionDiscountInvoicePrepareTx(facts stripeInvoiceCommonFa
 		}
 		_, err = model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
 			UserID:             binding.UserId,
-			USDMinor:           quote.InvitationDiscountUSDMinor,
+			USDMinor:           incrementalUSDMinor,
 			TradeNo:            facts.InvoiceID,
 			PaymentCurrency:    facts.Currency,
 			AppliedAmountMinor: incremental,
@@ -502,13 +513,17 @@ func ReconcileStaleStripeSubscriptionDiscountInvoices(ctx context.Context) (int,
 		return 0, nil
 	}
 	now := common.GetTimestamp()
+	stalePreparationCutoff := now - int64((15 * time.Minute).Seconds())
 	var reserves []model.SubscriptionDiscountEntry
 	if err := model.DB.
-		Where("entry_type = ? AND idempotency_key LIKE ? AND expires_at > ? AND expires_at <= ?",
+		Where("entry_type = ? AND idempotency_key LIKE ? AND ((expires_at > ? AND expires_at <= ?) OR (expires_at > ? AND created_at > ? AND created_at <= ?))",
 			model.SubscriptionDiscountEntryTypeReserve,
 			stripeInvoiceDiscountReservePrefix+"%:reserve",
 			0,
-			now).
+			now,
+			now,
+			0,
+			stalePreparationCutoff).
 		Order("id asc").
 		Limit(stripeSubscriptionReconciliationBatchSize).
 		Find(&reserves).Error; err != nil {
@@ -546,6 +561,10 @@ func ReconcileStaleStripeSubscriptionDiscountInvoices(ctx context.Context) (int,
 			}
 			processed++
 		default:
+			if err := PrepareStripeSubscriptionDiscountInvoice(ctx, invoiceID); err != nil {
+				return processed, err
+			}
+			processed++
 		}
 	}
 	return processed, nil

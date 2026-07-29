@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -625,6 +626,52 @@ func TestSubscriptionDiscountReserveMovesAvailableToReserved(t *testing.T) {
 	require.EqualValues(t, 200, entries[1].AppliedAmountMinor)
 }
 
+func TestReserveSubscriptionDiscountRejectsNonFutureExpiry(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		expiresAt int64
+	}{
+		{name: "missing", expiresAt: 0},
+		{name: "past", expiresAt: common.GetTimestamp() - 1},
+		{name: "now", expiresAt: common.GetTimestamp()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setupSubscriptionDiscountCreditMemoryDB(t)
+			require.True(t, grantSubscriptionDiscountForTest(t, 135, 500, "grant-expiry-"+tc.name))
+
+			err := DB.Transaction(func(tx *gorm.DB) error {
+				_, err := ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+					UserID:             135,
+					USDMinor:           100,
+					OrderID:            1,
+					TradeNo:            "trade-expiry-" + tc.name,
+					PaymentCurrency:    "USD",
+					AppliedAmountMinor: 100,
+					IdempotencyKey:     "reserve-expiry-" + tc.name,
+					ExpiresAt:          tc.expiresAt,
+				})
+				return err
+			})
+			require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidReservation)
+
+			account, err := GetSubscriptionDiscountAccount(135)
+			require.NoError(t, err)
+			require.EqualValues(t, 500, account.AvailableUSDMinor)
+			require.Zero(t, account.ReservedUSDMinor)
+			require.EqualValues(t, 1, countSubscriptionDiscountEntriesForUserTest(t, 135))
+		})
+	}
+}
+
+func TestSubscriptionDiscountEntryIndexedKeysUse191Characters(t *testing.T) {
+	entryType := reflect.TypeOf(SubscriptionDiscountEntry{})
+	for _, fieldName := range []string{"SourceKey", "IdempotencyKey", "TerminalReservationKey"} {
+		field, ok := entryType.FieldByName(fieldName)
+		require.True(t, ok)
+		require.Contains(t, strings.ToLower(field.Tag.Get("gorm")), "type:varchar(191)")
+	}
+}
+
 func TestSubscriptionDiscountInsufficientReserveRejectedWithoutMutation(t *testing.T) {
 	setupSubscriptionDiscountCreditMemoryDB(t)
 	require.True(t, grantSubscriptionDiscountForTest(t, 105, 300, "grant-105"))
@@ -638,6 +685,7 @@ func TestSubscriptionDiscountInsufficientReserveRejectedWithoutMutation(t *testi
 			PaymentCurrency:    "USD",
 			AppliedAmountMinor: 400,
 			IdempotencyKey:     "reserve-too-much",
+			ExpiresAt:          common.GetTimestamp() + 3600,
 		})
 		return err
 	})
@@ -681,6 +729,7 @@ func TestSubscriptionDiscountDuplicateGlobalReserveKeyDoesNotCreateSecondAccount
 			PaymentCurrency:    "USD",
 			AppliedAmountMinor: 100,
 			IdempotencyKey:     "global-reserve-key",
+			ExpiresAt:          common.GetTimestamp() + 3600,
 		})
 		return err
 	}))
@@ -708,6 +757,7 @@ func TestSubscriptionDiscountReserveRejectsReservedOverflowWithoutMutation(t *te
 			PaymentCurrency:    "USD",
 			AppliedAmountMinor: 1,
 			IdempotencyKey:     "reserved-overflow",
+			ExpiresAt:          common.GetTimestamp() + 3600,
 		})
 		return err
 	})
@@ -735,6 +785,7 @@ func TestSubscriptionDiscountReserveNormalizesMetadata(t *testing.T) {
 			PaymentCurrency:    " usd ",
 			AppliedAmountMinor: 100,
 			IdempotencyKey:     " reserve-normalized ",
+			ExpiresAt:          common.GetTimestamp() + 3600,
 		})
 		return err
 	}))
@@ -749,6 +800,7 @@ func TestSubscriptionDiscountReserveNormalizesMetadata(t *testing.T) {
 			PaymentCurrency:    "USD",
 			AppliedAmountMinor: 100,
 			IdempotencyKey:     "reserve-normalized",
+			ExpiresAt:          common.GetTimestamp() + 3600,
 		})
 		return err
 	}))
@@ -952,6 +1004,7 @@ func TestSubscriptionDiscountConcurrentSQLiteReservationsDoNotOverspend(t *testi
 					PaymentCurrency:    "USD",
 					AppliedAmountMinor: 400,
 					IdempotencyKey:     fmt.Sprintf("reserve-concurrent-%d", i),
+					ExpiresAt:          common.GetTimestamp() + 3600,
 				})
 				if err != nil {
 					return err

@@ -114,8 +114,10 @@ func (s *RecallClaimService) ListOffers(ctx context.Context, userID int) ([]Reca
 	if err != nil {
 		return nil, err
 	}
+	resolvedOffers := make([]*RecallResolvedOffer, 0, len(candidates))
+	subscriptionPriceIDs := make([]string, 0)
 	for _, candidate := range candidates {
-		offer, err := s.recallOfferFromCandidate(ctx, candidate, true)
+		offer, err := s.recallOfferFromCandidate(ctx, candidate, false)
 		if err != nil {
 			if isSkippableRecallOfferCandidateError(err) {
 				logRecallOfferCandidateSkip(candidate, err)
@@ -123,6 +125,15 @@ func (s *RecallClaimService) ListOffers(ctx context.Context, userID int) ([]Reca
 			}
 			return nil, err
 		}
+		resolvedOffers = append(resolvedOffers, offer)
+		subscriptionPriceIDs = append(subscriptionPriceIDs, offer.View.Products.SubscriptionPriceIDs...)
+	}
+	planIDsByPriceID, err := resolveRecallSubscriptionPlanIDsByPriceID(ctx, subscriptionPriceIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, offer := range resolvedOffers {
+		offer.View.Products.SubscriptionPlanIDs = recallSubscriptionPlanIDsForPrices(offer.View.Products.SubscriptionPriceIDs, planIDsByPriceID)
 		offers = append(offers, offer.View)
 	}
 	sort.SliceStable(offers, func(i, j int) bool {
@@ -392,18 +403,35 @@ func resolveRecallSubscriptionPlanIDs(ctx context.Context, rawPriceIDs []string)
 	if len(priceIDs) == 0 {
 		return []int{}, nil
 	}
+	planIDsByPriceID, err := resolveRecallSubscriptionPlanIDsByPriceID(ctx, priceIDs)
+	if err != nil {
+		return nil, err
+	}
+	return recallSubscriptionPlanIDsForPrices(priceIDs, planIDsByPriceID), nil
+}
+
+func resolveRecallSubscriptionPlanIDsByPriceID(ctx context.Context, rawPriceIDs []string) (map[string][]int, error) {
+	priceIDs := normalizeRecallStripeIDs(rawPriceIDs)
+	planIDsByPriceID := make(map[string][]int, len(priceIDs))
+	if len(priceIDs) == 0 {
+		return planIDsByPriceID, nil
+	}
 	plans, err := model.ListRecallSubscriptionPlansByStripePriceIDsWithContext(ctx, priceIDs)
 	if err != nil {
 		return nil, err
 	}
-	planIDsByPriceID := make(map[string][]int, len(plans))
 	for _, plan := range plans {
 		priceID := strings.TrimSpace(plan.StripePriceId)
 		if priceID != "" && plan.Id > 0 && plan.Enabled {
 			planIDsByPriceID[priceID] = append(planIDsByPriceID[priceID], plan.Id)
 		}
 	}
-	planIDs := make([]int, 0, len(plans))
+	return planIDsByPriceID, nil
+}
+
+func recallSubscriptionPlanIDsForPrices(rawPriceIDs []string, planIDsByPriceID map[string][]int) []int {
+	priceIDs := normalizeRecallStripeIDs(rawPriceIDs)
+	planIDs := make([]int, 0, len(priceIDs))
 	seen := make(map[int]struct{}, len(priceIDs))
 	for _, priceID := range priceIDs {
 		for _, planID := range planIDsByPriceID[priceID] {
@@ -414,7 +442,7 @@ func resolveRecallSubscriptionPlanIDs(ctx context.Context, rawPriceIDs []string)
 			planIDs = append(planIDs, planID)
 		}
 	}
-	return planIDs, nil
+	return planIDs
 }
 
 func (s *RecallClaimService) BuildCheckoutDiscount(ctx context.Context, userID int, claim string, purchaseKind string, priceID string) (*RecallCheckoutDiscount, error) {

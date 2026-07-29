@@ -185,6 +185,73 @@ func requireRecallRunTablesEmpty(t *testing.T) {
 	}
 }
 
+func TestRecallOfferCandidateEffectiveIssuedAtFallsBackForNonPositivePromotionIssueTime(t *testing.T) {
+	candidate := RecallOfferCandidate{Recipient: RecallRecipient{
+		PromotionIssuedAt: -10,
+		CreatedAt:         20,
+	}}
+
+	require.EqualValues(t, 20, candidate.EffectiveIssuedAt())
+}
+
+func TestRecallOfferCandidatesApplyLimitOrderAndBindOnlySelectedEmailRows(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const (
+		now       int64 = 1_721_000_000
+		wantLimit       = 100
+	)
+	user := createRecallRepositoryCandidateUser(t, "offer_limit", now-10_000, 0)
+	user.Email = "offer-limit@example.com"
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("email", user.Email).Error)
+
+	promotionID := func(value string) *string { return &value }
+	for i := 0; i < wantLimit+5; i++ {
+		campaign := newRecallRepositoryCampaign(fmt.Sprintf("offer-limit-%03d", i))
+		campaign.Status = RecallCampaignRunning
+		campaign.CampaignType = RecallCampaignTypePromotion
+		require.NoError(t, CreateRecallCampaign(&campaign))
+		recipient := RecallRecipient{
+			CampaignId:            campaign.Id,
+			UserId:                0,
+			EligibilitySnapshot:   `{}`,
+			EmailSnapshot:         strings.ToUpper(user.Email),
+			LanguageSnapshot:      "en",
+			State:                 RecallRecipientContacting,
+			StripePromotionCodeId: promotionID(fmt.Sprintf("promo_%03d", i)),
+			PromotionCode:         fmt.Sprintf("FK%08d", i),
+			PromotionExpiresAt:    now + 3_600,
+			PromotionIssuedAt:     now - int64(i),
+			CreatedAt:             now - 20_000 + int64(i),
+		}
+		if i == 7 {
+			recipient.PromotionIssuedAt = 0
+			recipient.CreatedAt = now + 100
+		}
+		require.NoError(t, DB.Create(&recipient).Error)
+	}
+
+	candidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), user.Id, user.Email, now)
+	require.NoError(t, err)
+	require.Len(t, candidates, wantLimit)
+	for i := 1; i < len(candidates); i++ {
+		prev := candidates[i-1]
+		next := candidates[i]
+		if prev.EffectiveIssuedAt() == next.EffectiveIssuedAt() {
+			require.Less(t, prev.Recipient.Id, next.Recipient.Id)
+			continue
+		}
+		require.GreaterOrEqual(t, prev.EffectiveIssuedAt(), next.EffectiveIssuedAt())
+	}
+	for _, candidate := range candidates {
+		require.Equal(t, user.Id, candidate.Recipient.UserId)
+	}
+
+	var bound int64
+	require.NoError(t, DB.Model(&RecallRecipient{}).Where("user_id = ?", user.Id).Count(&bound).Error)
+	require.EqualValues(t, wantLimit, bound)
+}
+
 func TestListRecallCandidateFactsNewAudiencePredicates(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 	require.NoError(t, DB.AutoMigrate(&TopUp{}, &SubscriptionOrder{}, &UserSubscription{}))

@@ -641,19 +641,14 @@ describe('buildFlexiblePurchaseRequest', () => {
     })
   })
 
-  test('adds recall claim only to Stripe recurring flexible purchases', () => {
-    expect(
-      buildFlexiblePurchaseRequest({
-        planId: 2,
-        paymentChoice: 'stripe_recurring',
-        months: 1,
-        requestId: 'request-stripe-recall',
-        quoteId: 'quote-stripe-recall',
-        recallClaim: 'signed-recall-claim',
-      })
-    ).toMatchObject({ recall_claim: 'signed-recall-claim' })
-
-    for (const paymentChoice of ['pix', 'upi', 'alipay', 'balance'] as const) {
+  test('adds recall claim to every flexible purchase request', () => {
+    for (const paymentChoice of [
+      'stripe_recurring',
+      'pix',
+      'upi',
+      'alipay',
+      'balance',
+    ] as const) {
       expect(
         buildFlexiblePurchaseRequest({
           planId: 2,
@@ -663,7 +658,7 @@ describe('buildFlexiblePurchaseRequest', () => {
           quoteId: `quote-${paymentChoice}-3`,
           recallClaim: 'signed-recall-claim',
         })
-      ).not.toHaveProperty('recall_claim')
+      ).toMatchObject({ recall_claim: 'signed-recall-claim' })
     }
   })
 })

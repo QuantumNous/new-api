@@ -18,7 +18,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
-	"github.com/thanhpk/randstr"
 	"gorm.io/gorm"
 )
 
@@ -36,6 +35,32 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	var req SubscriptionStripePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
 		common.ApiErrorMsg(c, "invalid parameters")
+		return
+	}
+	userId := c.GetInt("id")
+	requestID := strings.TrimSpace(req.RequestId)
+	if !isStableSubscriptionRequestID(requestID) {
+		common.ApiErrorMsg(c, "request_id is required")
+		return
+	}
+	replayCmd := service.PurchaseSubscriptionCommand{
+		UserID:        userId,
+		PlanID:        req.PlanId,
+		PaymentChoice: service.SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RequestID:     requestID,
+		RecallClaim:   strings.TrimSpace(req.RecallClaim),
+	}
+	if replay, found, err := service.ReplaySubscriptionPurchase(replayCmd); err != nil {
+		common.ApiError(c, err)
+		return
+	} else if found {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "success",
+			"data": gin.H{
+				"pay_link": replay.CheckoutURL,
+			},
+		})
 		return
 	}
 	plan, err := model.GetSubscriptionPlanById(req.PlanId)
@@ -60,7 +85,6 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		return
 	}
 
-	userId := c.GetInt("id")
 	user, err := model.GetUserById(userId, false)
 	if err != nil {
 		common.ApiError(c, err)
@@ -71,7 +95,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		return
 	}
 
-	result, err := requestStripeRecurringSubscriptionViaPurchasePath(userId, user.Id, plan, req)
+	result, err := requestStripeRecurringSubscriptionViaPurchasePath(userId, plan, req)
 	if err != nil {
 		if errors.Is(err, service.ErrRecallDisabled) ||
 			errors.Is(err, service.ErrRecallClaimUnknown) ||
@@ -101,19 +125,25 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	})
 }
 
-func requestStripeRecurringSubscriptionViaPurchasePath(userID int, legacyUserID int, plan *model.SubscriptionPlan, req SubscriptionStripePayRequest) (*service.PurchaseSubscriptionResult, error) {
+func requestStripeRecurringSubscriptionViaPurchasePath(userID int, plan *model.SubscriptionPlan, req SubscriptionStripePayRequest) (*service.PurchaseSubscriptionResult, error) {
 	requestID := strings.TrimSpace(req.RequestId)
-	if requestID == "" {
-		reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", legacyUserID, time.Now().UnixMilli(), randstr.String(4))
-		requestID = "legacy_stripe_" + common.Sha1([]byte(reference))
+	if !isStableSubscriptionRequestID(requestID) {
+		return nil, errors.New("request_id is required")
 	}
-	quoteResult, err := service.QuoteSubscriptionPurchase(service.PurchaseSubscriptionCommand{
+	cmd := service.PurchaseSubscriptionCommand{
 		UserID:        userID,
 		PlanID:        plan.Id,
 		PaymentChoice: service.SubscriptionPaymentChoiceStripeRecurring,
 		Months:        1,
+		RequestID:     requestID,
 		RecallClaim:   req.RecallClaim,
-	})
+	}
+	if replay, found, err := service.ReplaySubscriptionPurchase(cmd); err != nil {
+		return nil, err
+	} else if found {
+		return replay, nil
+	}
+	quoteResult, err := service.QuoteSubscriptionPurchase(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +160,7 @@ func requestStripeRecurringSubscriptionViaPurchasePath(userID int, legacyUserID 
 		PlanID:                        plan.Id,
 		PaymentChoice:                 service.SubscriptionPaymentChoiceStripeRecurring,
 		Months:                        1,
-		RequestID:                     requestID,
+		RequestID:                     cmd.RequestID,
 		Currency:                      strings.ToUpper(strings.TrimSpace(quoteResult.Currency)),
 		UnitAmountMinor:               quoteResult.UnitAmountMinor,
 		TotalAmountMinor:              quoteResult.PaymentAmountMinor,
@@ -158,15 +188,8 @@ func requestStripeRecurringSubscriptionViaPurchasePath(userID int, legacyUserID 
 	if claims.PlanRevision != subscriptionPurchasePlanRevision(plan) {
 		return nil, errors.New("subscription purchase quote expired")
 	}
-	return service.PurchaseSubscription(service.PurchaseSubscriptionCommand{
-		UserID:        userID,
-		PlanID:        plan.Id,
-		PaymentChoice: service.SubscriptionPaymentChoiceStripeRecurring,
-		Months:        1,
-		RequestID:     requestID,
-		VerifiedQuote: subscriptionPurchaseQuoteFromClaims(claims, true),
-		RecallClaim:   req.RecallClaim,
-	})
+	cmd.VerifiedQuote = subscriptionPurchaseQuoteFromClaims(claims, true)
+	return service.PurchaseSubscription(cmd)
 }
 
 func buildStripeSubscriptionCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, userId int, planId int) *stripe.CheckoutSessionParams {
@@ -336,11 +359,16 @@ func buildOneTimePlanCheckoutSessionParams(order *model.SubscriptionOrder, user 
 	}
 	productName, productDescription := oneTimePlanProductText(order)
 	metadata := oneTimePlanMetadata(order, method)
+	expiresAt, err := oneTimePlanCheckoutExpiresAt(order)
+	if err != nil {
+		return nil, err
+	}
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(strings.TrimSpace(order.TradeNo)),
 		SuccessURL:        stripe.String(consolePaymentReturnPath("/console/topup")),
 		CancelURL:         stripe.String(consolePaymentReturnPath("/console/topup")),
 		Mode:              stripe.String(string(stripe.CheckoutSessionModePayment)),
+		ExpiresAt:         stripe.Int64(expiresAt),
 		PaymentMethodTypes: []*string{
 			stripe.String(string(stripeMethodType)),
 		},
@@ -374,6 +402,22 @@ func buildOneTimePlanCheckoutSessionParams(order *model.SubscriptionOrder, user 
 	}
 	params.SetIdempotencyKey("subscription-one-time:" + strings.TrimSpace(order.TradeNo))
 	return params, nil
+}
+
+func oneTimePlanCheckoutExpiresAt(order *model.SubscriptionOrder) (int64, error) {
+	if order == nil {
+		return 0, errors.New("subscription order is required")
+	}
+	createdAt := order.CreateTime
+	if createdAt <= 0 {
+		createdAt = common.GetTimestamp()
+	}
+	expiresAt := service.SubscriptionPurchaseOrderExpiresAt(createdAt)
+	ttl := expiresAt - common.GetTimestamp()
+	if ttl < int64((30*time.Minute).Seconds()) || ttl > int64((24*time.Hour).Seconds()) {
+		return 0, errors.New("Stripe checkout expiration is outside the supported window")
+	}
+	return expiresAt, nil
 }
 
 func oneTimePlanQuoteFromOrder(order *model.SubscriptionOrder) (oneTimePlanPaymentQuote, error) {

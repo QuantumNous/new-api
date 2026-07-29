@@ -126,6 +126,37 @@ func TestBuildSubscriptionDiscountQuoteSelectsBestNonStackingOffer(t *testing.T)
 	}
 }
 
+func TestBuildSubscriptionDiscountQuoteConservesCreditAcrossMinorUnits(t *testing.T) {
+	t.Run("floor local reduction and consume ceiling usd equivalent", func(t *testing.T) {
+		quote, err := BuildSubscriptionDiscountQuote(SubscriptionDiscountQuoteInput{
+			Currency:            "JPY",
+			OriginalAmountMinor: 100,
+			OriginalUSDMinor:    3,
+			AvailableUSDMinor:   1,
+		})
+
+		require.NoError(t, err)
+		require.EqualValues(t, 33, quote.InvitationDiscountAmountMinor)
+		require.EqualValues(t, 1, quote.InvitationDiscountUSDMinor)
+	})
+
+	t.Run("do not round up local reduction beyond available usd value", func(t *testing.T) {
+		quote, err := BuildSubscriptionDiscountQuote(SubscriptionDiscountQuoteInput{
+			Currency:            "JPY",
+			OriginalAmountMinor: 101,
+			OriginalUSDMinor:    200,
+			AvailableUSDMinor:   1,
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, SubscriptionDiscountKindNone, quote.SelectedKind)
+		require.Zero(t, quote.InvitationDiscountAmountMinor)
+		require.Zero(t, quote.InvitationDiscountUSDMinor)
+		require.EqualValues(t, 1, quote.InvitationRemainingUSDMinor)
+		require.EqualValues(t, 101, quote.FinalAmountMinor)
+	})
+}
+
 func TestBuildSubscriptionDiscountQuoteRejectsInvalidMoney(t *testing.T) {
 	tests := []struct {
 		name  string

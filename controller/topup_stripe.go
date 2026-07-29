@@ -1024,6 +1024,17 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 	}()
 	payload := stripeSubscriptionProviderPayload(event, referenceId, customerId)
 	if order := model.GetSubscriptionOrderByTradeNo(referenceId); order != nil {
+		if event.GetObjectValue("mode") == string(stripe.CheckoutSessionModePayment) {
+			if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), model.PaymentProviderStripe, model.PaymentMethodStripe); err == nil {
+				syncStripePaymentInvoice(ctx, event, referenceId, customerId)
+				attributeRecallAfterStripeFulfillment(ctx, event, referenceId, order.UserId)
+				logger.LogInfo(ctx, fmt.Sprintf("Stripe one-time subscription order processed trade_no=%s event_type=%s client_ip=%s", referenceId, string(event.Type), callerIp))
+				return nil
+			} else {
+				logger.LogError(ctx, fmt.Sprintf("Stripe one-time subscription order processing failed trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
+				return err
+			}
+		}
 		snapshot, snapshotErr := stripeSubscriptionSnapshotFromCheckoutSession(event, order)
 		if snapshotErr != nil {
 			return snapshotErr

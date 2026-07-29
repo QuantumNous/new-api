@@ -32,6 +32,7 @@ const (
 	RecallConversionNoCoupon = "no_coupon"
 
 	recallOfferCandidateIDBatchSize = 500
+	recallOfferCandidateLimit       = 100
 )
 
 type RecallRecipient struct {
@@ -87,7 +88,7 @@ type RecallOfferCandidate struct {
 }
 
 func (candidate RecallOfferCandidate) EffectiveIssuedAt() int64 {
-	if candidate.Recipient.PromotionIssuedAt != 0 {
+	if candidate.Recipient.PromotionIssuedAt > 0 {
 		return candidate.Recipient.PromotionIssuedAt
 	}
 	return candidate.Recipient.CreatedAt
@@ -248,7 +249,8 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 	}
 	query = applyRecallOfferRecipientFilters(query, "recall_recipients", now)
 	err := query.
-		Order("recall_recipients.id ASC").
+		Order(recallOfferCandidateOrderClause("recall_recipients")).
+		Limit(recallOfferCandidateLimit).
 		Find(&recipients).Error
 	if err != nil {
 		return nil, err
@@ -273,7 +275,7 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 		return candidates, nil
 	}
 
-	finalRecipients := make([]RecallRecipient, 0, len(recipientIDs))
+	finalRecipientsByID := make(map[int64]RecallRecipient, len(recipientIDs))
 	for start := 0; start < len(recipientIDs); start += recallOfferCandidateIDBatchSize {
 		end := start + recallOfferCandidateIDBatchSize
 		if end > len(recipientIDs) {
@@ -288,10 +290,20 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 			Where("recall_campaigns.campaign_type = ?", RecallCampaignTypePromotion).
 			Where("recall_campaigns.status IN ?", usableStatuses)
 		finalQuery = applyRecallOfferRecipientFilters(finalQuery, "recall_recipients", now)
-		if err := finalQuery.Order("recall_recipients.id ASC").Find(&batch).Error; err != nil {
+		if err := finalQuery.Order(recallOfferCandidateOrderClause("recall_recipients")).Find(&batch).Error; err != nil {
 			return nil, err
 		}
-		finalRecipients = append(finalRecipients, batch...)
+		for _, recipient := range batch {
+			finalRecipientsByID[recipient.Id] = recipient
+		}
+	}
+	finalRecipients := make([]RecallRecipient, 0, len(recipientIDs))
+	for _, recipientID := range recipientIDs {
+		recipient, ok := finalRecipientsByID[recipientID]
+		if !ok {
+			continue
+		}
+		finalRecipients = append(finalRecipients, recipient)
 	}
 	if len(finalRecipients) == 0 {
 		return candidates, nil
@@ -332,6 +344,14 @@ func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int
 		candidates = append(candidates, RecallOfferCandidate{Recipient: recipient, Campaign: campaign})
 	}
 	return candidates, nil
+}
+
+func recallOfferCandidateOrderClause(table string) string {
+	prefix := ""
+	if table != "" {
+		prefix = table + "."
+	}
+	return fmt.Sprintf("CASE WHEN %spromotion_issued_at > 0 THEN %spromotion_issued_at ELSE %screated_at END DESC, %sid ASC", prefix, prefix, prefix, prefix)
 }
 
 func recallOfferUsableCampaignStatuses() []string {

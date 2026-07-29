@@ -41,6 +41,18 @@ func oneTimeStripeOrderForTest(method string, currency string, amountMinor int64
 	}
 }
 
+func TestBuildOneTimePlanCheckoutExpiresAtMatchesLocalOrder(t *testing.T) {
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoiceAlipay, "USD", 2468, 2)
+
+	params, err := buildOneTimePlanCheckoutSessionParams(order, &model.User{Id: 501, Email: "buyer@example.com"})
+
+	require.NoError(t, err)
+	require.NotNil(t, params.ExpiresAt)
+	require.Equal(t, service.SubscriptionPurchaseOrderExpiresAt(order.CreateTime), *params.ExpiresAt)
+	require.GreaterOrEqual(t, *params.ExpiresAt-order.CreateTime, int64((60 * time.Minute).Seconds()))
+	require.LessOrEqual(t, *params.ExpiresAt-order.CreateTime, int64((24 * time.Hour).Seconds()))
+}
+
 func TestBuildOneTimePlanCheckoutUsesPaymentModeAndRequestedMethod(t *testing.T) {
 	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoiceAlipay, "USD", 2468, 2)
 
@@ -52,6 +64,8 @@ func TestBuildOneTimePlanCheckoutUsesPaymentModeAndRequestedMethod(t *testing.T)
 	require.Equal(t, []string{string(stripe.PaymentMethodTypeAlipay)}, stripeStringSliceValues(params.PaymentMethodTypes))
 	require.NotNil(t, params.ClientReferenceID)
 	require.Equal(t, order.TradeNo, *params.ClientReferenceID)
+	require.NotNil(t, params.IdempotencyKey)
+	require.Equal(t, "subscription-one-time:"+order.TradeNo, *params.IdempotencyKey)
 	require.Equal(t, order.TradeNo, params.Metadata["trade_no"])
 	require.Equal(t, "purchase", params.Metadata["purchase_intent"])
 	require.Equal(t, "2", params.Metadata["purchase_months"])

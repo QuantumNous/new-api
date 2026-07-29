@@ -29,7 +29,7 @@ func TestSubscriptionRequestEpayInvitationDiscountUsesPurchasePathAndKeepsEpayPr
 	ctx.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/subscription/epay/pay",
-		strings.NewReader(`{"plan_id":19701,"payment_method":"alipay","request_id":"legacy-epay-invitation-discount"}`),
+		strings.NewReader(`{"plan_id":19701,"payment_method":"alipay","request_id":"550e8400-e29b-41d4-a716-446655449701"}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 
@@ -82,7 +82,7 @@ func TestSubscriptionRequestEpayFullDiscountCompletesWithoutGatewayConfiguration
 	ctx.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/subscription/epay/pay",
-		strings.NewReader(`{"plan_id":19702,"payment_method":"pix","request_id":"legacy-epay-full-discount"}`),
+		strings.NewReader(`{"plan_id":19702,"payment_method":"pix","request_id":"550e8400-e29b-41d4-a716-446655449702"}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 
@@ -122,6 +122,39 @@ func TestSubscriptionRequestEpayFullDiscountCompletesWithoutGatewayConfiguration
 	require.Equal(t, order.TradeNo, commit.TradeNo)
 }
 
+func TestSubscriptionRequestEpayReplayIgnoresDisabledPlan(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	configureSubscriptionEpayAllowedMethod(t, model.SubscriptionPaymentMethodPix, false)
+	insertSubscriptionControllerUser(t, 9720)
+	insertSubscriptionControllerPlan(t, 19720)
+	grantSubscriptionControllerDiscount(t, 9720, 999, "epay-replay-disabled-plan")
+	body := `{"plan_id":19720,"payment_method":"pix","request_id":"550e8400-e29b-41d4-a716-446655449720"}`
+	firstRecorder := httptest.NewRecorder()
+	firstCtx, _ := gin.CreateTestContext(firstRecorder)
+	firstCtx.Set("id", 9720)
+	firstCtx.Request = httptest.NewRequest(http.MethodPost, "/api/subscription/epay/pay", strings.NewReader(body))
+	firstCtx.Request.Header.Set("Content-Type", "application/json")
+	SubscriptionRequestEpay(firstCtx)
+	require.Equal(t, http.StatusOK, firstRecorder.Code)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 19720).Update("enabled", false).Error)
+	model.InvalidateSubscriptionPlanCache(19720)
+
+	replayRecorder := httptest.NewRecorder()
+	replayCtx, _ := gin.CreateTestContext(replayRecorder)
+	replayCtx.Set("id", 9720)
+	replayCtx.Request = httptest.NewRequest(http.MethodPost, "/api/subscription/epay/pay", strings.NewReader(body))
+	replayCtx.Request.Header.Set("Content-Type", "application/json")
+	SubscriptionRequestEpay(replayCtx)
+
+	require.Equal(t, http.StatusOK, replayRecorder.Code)
+	require.Contains(t, replayRecorder.Body.String(), `"success":true`)
+	require.NotContains(t, replayRecorder.Body.String(), "subscription plan is disabled")
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9720).Count(&orderCount).Error)
+	require.Equal(t, int64(1), orderCount)
+}
+
 func TestCompleteEpaySubscriptionOrderDoesNotFallbackForUnifiedOrder(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
@@ -136,7 +169,7 @@ func TestCompleteEpaySubscriptionOrderDoesNotFallbackForUnifiedOrder(t *testing.
 	ctx.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/subscription/epay/pay",
-		strings.NewReader(`{"plan_id":19703,"payment_method":"alipay","request_id":"epay-no-legacy-fallback"}`),
+		strings.NewReader(`{"plan_id":19703,"payment_method":"alipay","request_id":"550e8400-e29b-41d4-a716-446655449703"}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 
@@ -177,7 +210,7 @@ func TestSubscriptionRequestEpayGatewayConfigurationFailureReleasesReservation(t
 	ctx.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/subscription/epay/pay",
-		strings.NewReader(`{"plan_id":19704,"payment_method":"alipay","request_id":"epay-gateway-failure-release"}`),
+		strings.NewReader(`{"plan_id":19704,"payment_method":"alipay","request_id":"550e8400-e29b-41d4-a716-446655449704"}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 
@@ -203,6 +236,32 @@ func TestSubscriptionRequestEpayGatewayConfigurationFailureReleasesReservation(t
 	var release model.SubscriptionDiscountEntry
 	require.NoError(t, model.DB.First(&release, "user_id = ? AND entry_type = ?", 9704, model.SubscriptionDiscountEntryTypeRelease).Error)
 	require.Equal(t, order.TradeNo, release.TradeNo)
+}
+
+func TestSubscriptionRequestEpayRejectsMissingStableRequestID(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	configureSubscriptionEpayAllowedMethod(t, model.SubscriptionPaymentMethodAlipay, true)
+	insertSubscriptionControllerUser(t, 9706)
+	insertSubscriptionControllerPlan(t, 19706)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("id", 9706)
+	ctx.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/subscription/epay/pay",
+		strings.NewReader(`{"plan_id":19706,"payment_method":"alipay"}`),
+	)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	SubscriptionRequestEpay(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "request_id is required")
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9706).Count(&orderCount).Error)
+	require.Zero(t, orderCount)
 }
 
 func configureSubscriptionEpayAllowedMethod(t *testing.T, paymentMethod string, withGateway bool) {

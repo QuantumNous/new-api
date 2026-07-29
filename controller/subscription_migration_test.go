@@ -28,7 +28,7 @@ func TestSubscriptionEpayUsesUnifiedHandlerWhenSingleContractGateDisabled(t *tes
 	ctx.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/subscription/epay/pay",
-		strings.NewReader(`{"plan_id":9906,"payment_method":"alipay"}`),
+		strings.NewReader(`{"plan_id":9906,"payment_method":"alipay","request_id":"550e8400-e29b-41d4-a716-446655449906"}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 

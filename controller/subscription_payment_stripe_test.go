@@ -130,7 +130,7 @@ func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testin
 		ClaimTokenHash:        &claimHash,
 	}).Error)
 
-	body, err := common.Marshal(SubscriptionStripePayRequest{PlanId: planID, RecallClaim: claim})
+	body, err := common.Marshal(SubscriptionStripePayRequest{PlanId: planID, RecallClaim: claim, RequestId: "550e8400-e29b-41d4-a716-446655410001"})
 	require.NoError(t, err)
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
@@ -147,6 +147,50 @@ func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testin
 	require.Contains(t, responseBody, expectedMessage)
 	require.NotContains(t, responseBody, service.ErrRecallClaimWrongPrice.Error())
 	require.NotContains(t, responseBody, claim)
+}
+
+func TestSubscriptionStripeReplayIgnoresDisabledPlanAndProviderConfig(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	backend := setupSubscriptionStripeRecordingBackend(t)
+	originalWebhookSecret := setting.StripeWebhookSecret
+	setting.StripeWebhookSecret = "whsec_subscription_replay"
+	t.Cleanup(func() { setting.StripeWebhookSecret = originalWebhookSecret })
+	insertSubscriptionControllerUser(t, 9721)
+	insertSubscriptionControllerPlan(t, 19721)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 19721).
+		Update("stripe_price_id", "price_subscription_replay").Error)
+	model.InvalidateSubscriptionPlanCache(19721)
+	body := `{"plan_id":19721,"request_id":"550e8400-e29b-41d4-a716-446655449721"}`
+	firstRecorder := httptest.NewRecorder()
+	firstCtx, _ := gin.CreateTestContext(firstRecorder)
+	firstCtx.Set("id", 9721)
+	firstCtx.Request = httptest.NewRequest(http.MethodPost, "/api/user/subscription/stripe/pay", strings.NewReader(body))
+	firstCtx.Request.Header.Set("Content-Type", "application/json")
+	SubscriptionRequestStripePay(firstCtx)
+	require.Equal(t, http.StatusOK, firstRecorder.Code)
+	require.Len(t, backend.params, 1)
+	require.Contains(t, firstRecorder.Body.String(), "https://checkout.stripe.test/subscription")
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 19721).Update("enabled", false).Error)
+	model.InvalidateSubscriptionPlanCache(19721)
+	setting.StripeApiSecret = ""
+	setting.StripeWebhookSecret = ""
+
+	replayRecorder := httptest.NewRecorder()
+	replayCtx, _ := gin.CreateTestContext(replayRecorder)
+	replayCtx.Set("id", 9721)
+	replayCtx.Request = httptest.NewRequest(http.MethodPost, "/api/user/subscription/stripe/pay", strings.NewReader(body))
+	replayCtx.Request.Header.Set("Content-Type", "application/json")
+	SubscriptionRequestStripePay(replayCtx)
+
+	require.Equal(t, http.StatusOK, replayRecorder.Code)
+	require.Len(t, backend.params, 1)
+	require.Contains(t, replayRecorder.Body.String(), "https://checkout.stripe.test/subscription")
+	require.NotContains(t, replayRecorder.Body.String(), "subscription plan is disabled")
+	require.NotContains(t, replayRecorder.Body.String(), "Stripe is not configured")
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9721).Count(&orderCount).Error)
+	require.Equal(t, int64(1), orderCount)
 }
 
 func setupSubscriptionRecallClaimDB(t *testing.T) {

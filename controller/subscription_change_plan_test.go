@@ -198,7 +198,7 @@ func TestSubscriptionStripePayRequiresStripePriceBeforePersistingState(t *testin
 	ctx.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/subscription/stripe/pay",
-		strings.NewReader(`{"plan_id":9902,"request_id":"stripe-request-1"}`),
+		strings.NewReader(`{"plan_id":9902,"request_id":"550e8400-e29b-41d4-a716-446655449902"}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 

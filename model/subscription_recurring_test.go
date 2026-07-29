@@ -221,6 +221,55 @@ func TestCompleteSubscriptionOrderWithProviderBindingGrantsInviteSubscriptionRew
 	require.Equal(t, InviteRewardStatusGranted, invitee.InviteRewardStatus)
 }
 
+func TestCompleteSubscriptionOrderWithProviderBindingRewardFailureDoesNotRollbackOrder(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+
+	originalMode := common.InviteRewardSubscriptionMode
+	originalQuotaForInviter := common.QuotaForInviter
+	originalQuotaForInviterMaxCount := common.QuotaForInviterMaxCount
+	originalQuotaPerUnit := common.QuotaPerUnit
+	t.Cleanup(func() {
+		common.InviteRewardSubscriptionMode = originalMode
+		common.QuotaForInviter = originalQuotaForInviter
+		common.QuotaForInviterMaxCount = originalQuotaForInviterMaxCount
+		common.QuotaPerUnit = originalQuotaPerUnit
+	})
+	common.InviteRewardSubscriptionMode = true
+	common.QuotaForInviter = -1
+	common.QuotaForInviterMaxCount = 5
+	common.QuotaPerUnit = 100
+
+	insertUserForSubscriptionRecurringTest(t, 512)
+	insertUserForSubscriptionRecurringTest(t, 513)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", 513).Updates(map[string]any{
+		"inviter_id":                 512,
+		"invite_reward_status":       InviteRewardStatusPending,
+		"invite_reward_block_reason": "",
+	}).Error)
+	insertPlanForSubscriptionRecurringTest(t, 611, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-reward-failure", 513, 611)
+
+	snapshot := stripeSnapshotForSubscriptionRecurringTest("sub_reward_failure")
+	binding, err := CompleteSubscriptionOrderWithProviderBinding("recurring-order-reward-failure", "{}", PaymentProviderStripe, PaymentMethodStripe, snapshot)
+	require.NoError(t, err)
+	require.NotZero(t, binding.Id)
+
+	var order SubscriptionOrder
+	require.NoError(t, DB.First(&order, "trade_no = ?", "recurring-order-reward-failure").Error)
+	require.Equal(t, common.TopUpStatusSuccess, order.Status)
+	var subs int64
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("user_id = ? AND provider_binding_id = ?", 513, binding.Id).Count(&subs).Error)
+	require.EqualValues(t, 1, subs)
+	var rewards int64
+	require.NoError(t, DB.Model(&InviteSubscriptionReward{}).Where("invitee_id = ?", 513).Count(&rewards).Error)
+	require.Zero(t, rewards)
+
+	common.QuotaForInviter = 750
+	require.NoError(t, TryGrantInviteSubscriptionRewardAfterOrderCompleted(order.TradeNo))
+	requireInviteSubRewardLedger(t, 512, 513, 750)
+}
+
 func TestSubscriptionProviderBindingRejectsSameProviderSubscriptionForDifferentOrder(t *testing.T) {
 	setupSubscriptionRecurringTestDB(t)
 	migrateSubscriptionRecurringTestDB(t)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/shopspring/decimal"
@@ -23,6 +24,8 @@ const (
 	SubscriptionPaymentChoicePix             = "pix"
 	SubscriptionPaymentChoiceUPI             = "upi"
 	SubscriptionPaymentChoiceBalance         = "balance"
+
+	subscriptionPurchaseOrderTTL = time.Hour
 )
 
 type PurchaseSubscriptionCommand struct {
@@ -76,6 +79,8 @@ type PrepaidTermAllocation struct {
 
 var subscriptionPurchaseQuoteResolver = defaultSubscriptionPurchaseQuote
 var subscriptionPurchaseAfterQuoteValidationHook func()
+var subscriptionPurchaseAfterProviderExpirationHook func()
+var tryGrantInviteSubscriptionRewardAfterOrderCompleted = model.TryGrantInviteSubscriptionRewardAfterOrderCompleted
 
 var ErrSubscriptionPurchaseQuoteUnavailable = errors.New("subscription purchase quote unavailable")
 var ErrSubscriptionPurchaseInvitationReservationRequired = errors.New("subscription purchase invitation discount requires reservation support")
@@ -246,6 +251,20 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 	if subscriptionPurchaseAfterQuoteValidationHook != nil {
 		subscriptionPurchaseAfterQuoteValidationHook()
 	}
+	confirmedExpiredProviderSessions := map[string]struct{}{}
+	if cmd.PaymentChoice == SubscriptionPaymentChoiceEpay || cmd.PaymentChoice == SubscriptionPaymentChoiceAlipay || cmd.PaymentChoice == SubscriptionPaymentChoicePix || cmd.PaymentChoice == SubscriptionPaymentChoiceUPI || cmd.PaymentChoice == SubscriptionPaymentChoiceBalance {
+		if err := preflightPrepaidPurchaseBeforeProviderExpiration(cmd, validatedQuote); err != nil {
+			return nil, err
+		}
+		confirmed, err := ensureReplaceablePendingStripeCheckoutsProviderExpired(context.Background(), cmd.UserID, cmd.RequestID)
+		if err != nil {
+			return nil, err
+		}
+		confirmedExpiredProviderSessions = confirmed
+		if subscriptionPurchaseAfterProviderExpirationHook != nil {
+			subscriptionPurchaseAfterProviderExpirationHook()
+		}
+	}
 	var supersededCheckouts []supersededStripeCheckout
 	var result *PurchaseSubscriptionResult
 	var effects *balanceOnePeriodSideEffects
@@ -282,7 +301,7 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 		}
 		var replacementReleasedDiscountUSDMinor int64
 		if cmd.PaymentChoice == SubscriptionPaymentChoiceEpay || cmd.PaymentChoice == SubscriptionPaymentChoiceAlipay || cmd.PaymentChoice == SubscriptionPaymentChoicePix || cmd.PaymentChoice == SubscriptionPaymentChoiceUPI || cmd.PaymentChoice == SubscriptionPaymentChoiceBalance {
-			superseded, err := supersedeReplaceablePendingStripeCheckoutsLocallyTx(tx, cmd.UserID, cmd.RequestID)
+			superseded, err := supersedeReplaceablePendingStripeCheckoutsLocallyTx(tx, cmd.UserID, cmd.RequestID, confirmedExpiredProviderSessions)
 			if err != nil {
 				return err
 			}
@@ -379,11 +398,64 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 	}
 	if result != nil && result.Order != nil {
 		if err := expirePendingSupersededStripeCheckoutsForReplacement(context.Background(), result.Order.TradeNo); err != nil {
-			return nil, err
+			logger.LogWarn(context.Background(), fmt.Sprintf("superseded Stripe checkout expiration failed trade_no=%s error=%q", result.Order.TradeNo, err.Error()))
 		}
+		deliverInviteSubscriptionRewardAfterOrderCompleted(context.Background(), result.Order.TradeNo)
 	}
 	applyBalanceOnePeriodSideEffects(effects)
 	return result, nil
+}
+
+func ReplaySubscriptionPurchase(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptionResult, bool, error) {
+	cmd.normalize()
+	if err := cmd.validate(); err != nil {
+		return nil, false, err
+	}
+	if cmd.PaymentChoice == SubscriptionPaymentChoiceStripeRecurring {
+		existing, found, err := findRecurringPurchaseReplay(cmd.UserID, cmd.RequestID)
+		if err != nil || !found {
+			return nil, found, err
+		}
+		if existing.ToPlanId != cmd.PlanID {
+			return nil, false, errors.New("subscription purchase idempotency conflict")
+		}
+		change, err := ChangeSubscriptionPlan(ChangePlanCommand{
+			UserID:      cmd.UserID,
+			PlanID:      cmd.PlanID,
+			PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+			RequestID:   cmd.RequestID,
+			UIMode:      cmd.UIMode,
+			RecallClaim: cmd.RecallClaim,
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		result := &PurchaseSubscriptionResult{
+			Status:           change.Status,
+			Contract:         change.Contract,
+			Intent:           change.Intent,
+			CheckoutURL:      change.CheckoutURL,
+			HostedInvoiceURL: change.HostedInvoiceURL,
+			ClientSecret:     change.ClientSecret,
+		}
+		if change.Intent != nil {
+			var order model.SubscriptionOrder
+			query := model.DB.Where("change_intent_id = ? AND payment_provider = ?", change.Intent.Id, model.PaymentProviderStripe).
+				Order("id desc").Limit(1).Find(&order)
+			if query.Error != nil {
+				return nil, false, query.Error
+			}
+			if query.RowsAffected > 0 {
+				result.Order = &order
+			}
+		}
+		return result, true, nil
+	}
+	result, found, err := replayExistingSubscriptionPurchase(cmd)
+	if err != nil {
+		return nil, false, err
+	}
+	return result, found, nil
 }
 
 func findRecurringPurchaseReplay(userID int, requestID string) (*model.SubscriptionChangeIntent, bool, error) {
@@ -535,6 +607,84 @@ func expirePendingSupersededStripeCheckoutsForReplacement(ctx context.Context, r
 		}
 	}
 	return nil
+}
+
+func preflightPrepaidPurchaseBeforeProviderExpiration(cmd PurchaseSubscriptionCommand, validatedQuote SubscriptionPurchaseQuote) error {
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := subscriptionCommandLock(tx).Where("id = ?", cmd.UserID).First(&user).Error; err != nil {
+			return err
+		}
+		if existing, found, err := findIntentByRequestTx(tx, cmd.UserID, cmd.RequestID); err != nil {
+			return err
+		} else if found && existing != nil {
+			return nil
+		}
+		plan, err := loadEnabledSubscriptionPlanTx(tx, cmd.PlanID)
+		if err != nil {
+			return err
+		}
+		if err := validateFlexiblePrepaidPlan(plan); err != nil {
+			return err
+		}
+		if cmd.PaymentChoice == SubscriptionPaymentChoiceBalance && plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
+			return errors.New("subscription plan does not allow balance payment")
+		}
+		if err := validateSubscriptionPurchaseQuoteMatchesPlan(*plan, cmd, validatedQuote); err != nil {
+			return err
+		}
+		if err := enforceMaxPurchasePerUserTx(tx, cmd.UserID, plan); err != nil {
+			return err
+		}
+		if common.SubscriptionSingleContractEnabled {
+			migration, err := auditLegacySubscriptionForUserTx(tx, cmd.UserID)
+			if err != nil {
+				return err
+			}
+			if IsLegacySubscriptionMigrationBlocking(migration.Classification) {
+				return ErrSubscriptionMigrationRequiresAdmin
+			}
+		}
+		return nil
+	})
+}
+
+func ensureReplaceablePendingStripeCheckoutsProviderExpired(ctx context.Context, userID int, requestID string) (map[string]struct{}, error) {
+	confirmed := map[string]struct{}{}
+	if userID <= 0 || strings.TrimSpace(requestID) == "" {
+		return confirmed, nil
+	}
+	if existing, found, err := findIntentByRequestTx(model.DB, userID, requestID); err != nil {
+		return nil, err
+	} else if found && existing != nil {
+		return confirmed, nil
+	}
+	var orders []model.SubscriptionOrder
+	if err := model.DB.
+		Select("subscription_orders.*").
+		Joins("JOIN subscription_change_intents ON subscription_change_intents.id = subscription_orders.change_intent_id").
+		Where("subscription_orders.user_id = ? AND subscription_orders.payment_provider = ? AND subscription_orders.status = ? AND subscription_orders.provider_session_id <> ? AND subscription_change_intents.request_id <> ? AND subscription_change_intents.payment_mode IN ? AND subscription_change_intents.status = ? AND subscription_change_intents.kind IN ?",
+			userID,
+			model.PaymentProviderStripe,
+			common.TopUpStatusPending,
+			"",
+			strings.TrimSpace(requestID),
+			[]string{model.SubscriptionPaymentModeStripeRecurring, model.SubscriptionPaymentModePrepaid},
+			model.SubscriptionChangeIntentStatusAwaitingPayment,
+			[]string{model.SubscriptionChangeIntentKindPurchase, model.SubscriptionChangeIntentKindRepurchase, model.SubscriptionChangeIntentKindUpgrade, model.SubscriptionChangeIntentKindDowngrade},
+		).
+		Order("subscription_orders.id asc").
+		Find(&orders).Error; err != nil {
+		return nil, err
+	}
+	for _, order := range orders {
+		sessionID := strings.TrimSpace(order.ProviderSessionId)
+		if err := expireReplaceableStripeCheckout(ctx, sessionID); err != nil {
+			return nil, err
+		}
+		confirmed[sessionID] = struct{}{}
+	}
+	return confirmed, nil
 }
 
 func recordSupersededStripeCheckoutExpirationFailure(orderID int, expireErr error) error {
@@ -791,9 +941,6 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 	if err := markPrepaidPurchaseAppliedTx(tx, contract, intent, plan, periodStart, periodEnd, order.TradeNo, order.PaymentMethod); err != nil {
 		return nil, nil, err
 	}
-	if err := model.GrantInviteSubscriptionDiscountAfterPaidOrderTx(tx, order); err != nil {
-		return nil, nil, err
-	}
 	if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
 		if _, err := model.CommitSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
 			return nil, nil, err
@@ -1001,11 +1148,15 @@ func subscriptionDiscountSnapshotJSON(quote SubscriptionPurchaseQuote, reservati
 	return string(data), nil
 }
 
-func subscriptionPurchaseOrderExpiresAt(createdAt int64) int64 {
+func SubscriptionPurchaseOrderExpiresAt(createdAt int64) int64 {
 	if createdAt <= 0 {
 		createdAt = common.GetTimestamp()
 	}
-	return createdAt + int64((30 * time.Minute).Seconds())
+	return createdAt + int64(subscriptionPurchaseOrderTTL.Seconds())
+}
+
+func subscriptionPurchaseOrderExpiresAt(createdAt int64) int64 {
+	return SubscriptionPurchaseOrderExpiresAt(createdAt)
 }
 
 func enforcePrepaidReplacementLimitTx(tx *gorm.DB, contractID int64, purchaseMonths int) error {
@@ -1534,13 +1685,27 @@ func subscriptionPurchaseMinorAmountForCurrency(total float64, currency string) 
 	return amount
 }
 
-func subscriptionPurchaseAmountFromMinor(minor int64, currency string) float64 {
+func SubscriptionPurchaseAmountFromMinor(minor int64, currency string) float64 {
 	scale := int32(2)
 	switch strings.ToUpper(strings.TrimSpace(currency)) {
 	case "BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF":
 		scale = 0
 	}
 	return decimal.NewFromInt(minor).Shift(-scale).InexactFloat64()
+}
+
+func subscriptionPurchaseAmountFromMinor(minor int64, currency string) float64 {
+	return SubscriptionPurchaseAmountFromMinor(minor, currency)
+}
+
+func deliverInviteSubscriptionRewardAfterOrderCompleted(ctx context.Context, tradeNo string) {
+	tradeNo = strings.TrimSpace(tradeNo)
+	if tradeNo == "" {
+		return
+	}
+	if err := tryGrantInviteSubscriptionRewardAfterOrderCompleted(tradeNo); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("invite subscription reward delivery failed trade_no=%s error=%q", tradeNo, err.Error()))
+	}
 }
 
 func subscriptionMoneyQuota(money float64) (int, error) {

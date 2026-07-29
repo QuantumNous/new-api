@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -50,10 +51,17 @@ type inviteSubRewardCreateResult struct {
 	rewardQuota int
 }
 
+type inviteSubscriptionRewardLedgerSnapshot struct {
+	QuotaForInviter int     `json:"quota_for_inviter"`
+	QuotaPerUnit    float64 `json:"quota_per_unit"`
+	USDMinor        int64   `json:"usd_minor"`
+}
+
 // TryGrantInviteSubscriptionRewardAfterOrderCompleted grants the inviter's
-// subscription-discount credit for the invitee's first completed subscription
-// order. Prefer GrantInviteSubscriptionDiscountAfterPaidOrderTx inside paid
-// order transactions. The invitee_id unique index keeps retries idempotent.
+// subscription-discount credit after the invitee's paid order has already
+// committed. Paid-order fulfillment should call this as an idempotent
+// post-commit best-effort step; the invitee_id unique index keeps retries and
+// reconciliation safe.
 func TryGrantInviteSubscriptionRewardAfterOrderCompleted(tradeNo string) error {
 	if !common.InviteRewardSubscriptionMode {
 		return nil
@@ -180,6 +188,9 @@ func grantInviteSubscriptionDiscountAfterPaidOrderTx(tx *gorm.DB, order *Subscri
 	if err != nil {
 		return inviteSubRewardCreateResult{}, err
 	}
+	if rewardQuota > 0 && usdMinor == 0 {
+		return inviteSubRewardCreateResult{}, ErrSubscriptionDiscountInvalidAmount
+	}
 	pricingSnapshot, err := inviteSubscriptionRewardPricingSnapshot(rewardQuota, usdMinor)
 	if err != nil {
 		return inviteSubRewardCreateResult{}, err
@@ -198,12 +209,44 @@ func grantInviteSubscriptionDiscountAfterPaidOrderTx(tx *gorm.DB, order *Subscri
 		return inviteSubRewardCreateResult{}, err
 	}
 	if !changed {
-		return inviteSubRewardCreateResult{}, nil
+		if err := validateExistingInviteSubscriptionRewardLedgerTx(tx, inviter.Id, rewardQuota, usdMinor, idempotencyKey); err != nil {
+			return inviteSubRewardCreateResult{}, err
+		}
+		if err := finalizeInviteSubscriptionRewardInviteeTx(tx, invitee.Id, now); err != nil {
+			return inviteSubRewardCreateResult{}, err
+		}
+		return result, nil
 	}
 	if err := finalizeInviteSubscriptionRewardInviteeTx(tx, invitee.Id, now); err != nil {
 		return inviteSubRewardCreateResult{}, err
 	}
 	return result, nil
+}
+
+func validateExistingInviteSubscriptionRewardLedgerTx(tx *gorm.DB, inviterId int, rewardQuota int, usdMinor int64, idempotencyKey string) error {
+	var entry SubscriptionDiscountEntry
+	if err := tx.Where("idempotency_key = ?", idempotencyKey).First(&entry).Error; err != nil {
+		return ErrSubscriptionDiscountInvalidAccountState
+	}
+	if entry.UserID != inviterId ||
+		entry.EntryType != SubscriptionDiscountEntryTypeGrantInviter ||
+		entry.AvailableDeltaUSDMinor != usdMinor ||
+		entry.ReservedDeltaUSDMinor != 0 ||
+		entry.SourceType != "invite_subscription_reward" ||
+		entry.SourceKey != idempotencyKey ||
+		entry.IdempotencyKey != idempotencyKey {
+		return ErrSubscriptionDiscountInvalidAccountState
+	}
+	var snapshot inviteSubscriptionRewardLedgerSnapshot
+	if err := common.Unmarshal([]byte(entry.PricingSnapshot), &snapshot); err != nil {
+		return ErrSubscriptionDiscountInvalidAccountState
+	}
+	if snapshot.QuotaForInviter != rewardQuota ||
+		snapshot.QuotaPerUnit != common.QuotaPerUnit ||
+		snapshot.USDMinor != usdMinor {
+		return ErrSubscriptionDiscountInvalidAccountState
+	}
+	return nil
 }
 
 func lockInviteSubscriptionRewardUserTx(tx *gorm.DB, userId int) (*User, error) {
@@ -263,7 +306,7 @@ func finalizeInviteSubscriptionRewardInviteeTx(tx *gorm.DB, inviteeId int, now i
 }
 
 func inviteSubscriptionRewardQuotaToUSDMinor(rewardQuota int) (int64, error) {
-	if rewardQuota < 0 || common.QuotaPerUnit <= 0 {
+	if rewardQuota < 0 || math.IsNaN(common.QuotaPerUnit) || math.IsInf(common.QuotaPerUnit, 0) || common.QuotaPerUnit <= 0 {
 		return 0, ErrSubscriptionDiscountInvalidAmount
 	}
 	minor := decimal.NewFromInt(int64(rewardQuota)).
@@ -424,10 +467,9 @@ func SumLockedInviteSubscriptionRewardQuota(inviterId int) (int64, error) {
 }
 
 // ReconcileMissedInviteSubscriptionRewards backfills rewards for successful
-// subscription orders whose invited payer has no reward row. Subscription mode
-// no longer starts a scheduler; this remains as a manual/compatibility helper
-// for historical gaps. TryGrant... is idempotent (invitee_id unique), so
-// re-scanning is safe.
+// subscription orders whose invited payer has no reward row. The master-node
+// scheduler runs this as a 15-minute all-history bounded scan; TryGrant... is
+// idempotent (invitee_id unique), so re-scanning is safe.
 func ReconcileMissedInviteSubscriptionRewards(sinceSeconds int64, limit int) (int, error) {
 	if !common.InviteRewardSubscriptionMode {
 		return 0, nil
@@ -435,14 +477,18 @@ func ReconcileMissedInviteSubscriptionRewards(sinceSeconds int64, limit int) (in
 	if limit <= 0 {
 		limit = 100
 	}
-	since := common.GetTimestamp() - sinceSeconds
-	var tradeNos []string
-	if err := DB.Model(&SubscriptionOrder{}).
+	query := DB.Model(&SubscriptionOrder{}).
 		Select("subscription_orders.trade_no").
 		Joins("JOIN users ON users.id = subscription_orders.user_id AND users.inviter_id > 0").
 		Joins("LEFT JOIN invite_subscription_rewards ON invite_subscription_rewards.invitee_id = subscription_orders.user_id").
-		Where("subscription_orders.status = ? AND subscription_orders.complete_time >= ? AND invite_subscription_rewards.id IS NULL",
-			common.TopUpStatusSuccess, since).
+		Where("subscription_orders.status = ? AND invite_subscription_rewards.id IS NULL",
+			common.TopUpStatusSuccess)
+	if sinceSeconds > 0 {
+		query = query.Where("subscription_orders.complete_time >= ?", common.GetTimestamp()-sinceSeconds)
+	}
+	var tradeNos []string
+	if err := query.
+		Order("subscription_orders.complete_time asc, subscription_orders.id asc").
 		Limit(limit).
 		Pluck("subscription_orders.trade_no", &tradeNos).Error; err != nil {
 		return 0, err

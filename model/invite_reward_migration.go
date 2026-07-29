@@ -204,6 +204,9 @@ func migrateUserLegacyAffQuotaToSubscriptionDiscount(userId int, pricing legacyI
 			return nil
 		}
 		usdMinor := legacyInvitationQuotaToUSDMinor(user.AffQuota, pricing)
+		if usdMinor == 0 {
+			return ErrSubscriptionDiscountInvalidAmount
+		}
 		key := legacyInvitationValueAffQuotaKey(user.Id)
 		exists, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, user.Id, user.AffQuota, legacyInvitationValueAffQuotaSourceType)
 		if err != nil {
@@ -295,6 +298,9 @@ func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int, pricing
 			return ErrSubscriptionDiscountInvalidAmount
 		}
 		usdMinor := legacyInvitationQuotaToUSDMinor(reward.RewardQuota, pricing)
+		if reward.RewardQuota > 0 && usdMinor == 0 {
+			return ErrSubscriptionDiscountInvalidAmount
+		}
 		key := legacyInvitationValueRewardKey(reward.Id)
 		exists, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, reward.InviterId, reward.RewardQuota, legacyInvitationValueRewardSourceType)
 		if err != nil {

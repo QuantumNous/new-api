@@ -24,6 +24,7 @@ type SubscriptionPurchaseQuoteTokenClaims struct {
 	UserID                        int    `json:"uid"`
 	PlanID                        int    `json:"pid"`
 	PaymentChoice                 string `json:"payment_choice"`
+	PaymentMethod                 string `json:"payment_method,omitempty"`
 	Months                        int    `json:"months"`
 	RequestID                     string `json:"request_id"`
 	Currency                      string `json:"currency"`
@@ -45,10 +46,11 @@ type SubscriptionPurchaseQuoteTokenClaims struct {
 }
 
 func SignSubscriptionPurchaseQuoteToken(claims SubscriptionPurchaseQuoteTokenClaims) (string, error) {
-	if err := validateSubscriptionPurchaseQuoteTokenClaims(claims); err != nil {
+	normalized, err := normalizeSubscriptionPurchaseQuoteTokenClaims(claims)
+	if err != nil {
 		return "", err
 	}
-	payload, err := common.Marshal(claims)
+	payload, err := common.Marshal(normalized)
 	if err != nil {
 		return "", fmt.Errorf("%w: encode claims: %v", ErrSubscriptionPurchaseQuoteInvalid, err)
 	}
@@ -183,6 +185,8 @@ func normalizeSubscriptionPurchaseQuoteTokenClaims(claims SubscriptionPurchaseQu
 	if claims.ExpiresAt <= 0 {
 		return SubscriptionPurchaseQuoteTokenClaims{}, fmt.Errorf("%w: expiry is required", ErrSubscriptionPurchaseQuoteInvalid)
 	}
+	claims.PaymentChoice = strings.ToLower(strings.TrimSpace(claims.PaymentChoice))
+	claims.PaymentMethod = strings.ToLower(strings.TrimSpace(claims.PaymentMethod))
 	switch claims.PaymentChoice {
 	case SubscriptionPaymentChoicePix:
 		if claims.Currency != "BRL" {
@@ -192,7 +196,14 @@ func normalizeSubscriptionPurchaseQuoteTokenClaims(claims SubscriptionPurchaseQu
 		if claims.Currency != "INR" {
 			return SubscriptionPurchaseQuoteTokenClaims{}, fmt.Errorf("%w: UPI quote must use INR", ErrSubscriptionPurchaseQuoteInvalid)
 		}
+	case SubscriptionPaymentChoiceEpay:
+		if claims.PaymentMethod == "" {
+			return SubscriptionPurchaseQuoteTokenClaims{}, fmt.Errorf("%w: ePay quote requires payment method", ErrSubscriptionPurchaseQuoteInvalid)
+		}
 	case SubscriptionPaymentChoiceAlipay, SubscriptionPaymentChoiceBalance, SubscriptionPaymentChoiceStripeRecurring:
+		if claims.PaymentMethod != "" {
+			return SubscriptionPurchaseQuoteTokenClaims{}, fmt.Errorf("%w: payment method requires ePay choice", ErrSubscriptionPurchaseQuoteInvalid)
+		}
 	default:
 		return SubscriptionPurchaseQuoteTokenClaims{}, fmt.Errorf("%w: unsupported payment choice", ErrSubscriptionPurchaseQuoteInvalid)
 	}

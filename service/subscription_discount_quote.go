@@ -57,7 +57,11 @@ func BuildSubscriptionDiscountQuote(input SubscriptionDiscountQuoteInput) (Subsc
 	if err != nil {
 		return SubscriptionDiscountQuote{}, err
 	}
-	invitationUSD := minInt64(input.AvailableUSDMinor, input.OriginalUSDMinor)
+	invitationUSD, err := subscriptionDiscountUSDMinorForAppliedAmount(invitationLocal, input.OriginalAmountMinor, input.OriginalUSDMinor)
+	if err != nil {
+		return SubscriptionDiscountQuote{}, err
+	}
+	invitationUSD = minInt64(invitationUSD, input.AvailableUSDMinor)
 
 	otherLocal := minInt64(input.OtherDiscountAmountMinor, input.OriginalAmountMinor)
 	if otherLocal > 0 && quote.OtherDiscountKind == "" {
@@ -88,7 +92,7 @@ func subscriptionInvitationDiscountAmountMinor(availableUSDMinor int64, original
 	discount := decimal.NewFromInt(availableUSDMinor).
 		Mul(decimal.NewFromInt(originalAmountMinor)).
 		Div(decimal.NewFromInt(originalUSDMinor)).
-		Round(0)
+		Floor()
 	if discount.GreaterThan(decimal.NewFromInt(math.MaxInt64)) {
 		return 0, errors.New("subscription discount quote amount overflows")
 	}
@@ -97,6 +101,30 @@ func subscriptionInvitationDiscountAmountMinor(availableUSDMinor int64, original
 		discountMinor = originalAmountMinor
 	}
 	return discountMinor, nil
+}
+
+func subscriptionDiscountUSDMinorForAppliedAmount(appliedLocalMinor, originalLocalMinor, originalUSDMinor int64) (int64, error) {
+	if appliedLocalMinor < 0 || originalLocalMinor <= 0 || originalUSDMinor <= 0 {
+		return 0, errors.New("subscription discount quote amount is invalid")
+	}
+	if appliedLocalMinor == 0 {
+		return 0, nil
+	}
+	if appliedLocalMinor > originalLocalMinor {
+		appliedLocalMinor = originalLocalMinor
+	}
+	usd := decimal.NewFromInt(appliedLocalMinor).
+		Mul(decimal.NewFromInt(originalUSDMinor)).
+		Div(decimal.NewFromInt(originalLocalMinor)).
+		Ceil()
+	if usd.GreaterThan(decimal.NewFromInt(math.MaxInt64)) {
+		return 0, errors.New("subscription discount quote amount overflows")
+	}
+	usdMinor := usd.IntPart()
+	if usdMinor > originalUSDMinor {
+		usdMinor = originalUSDMinor
+	}
+	return usdMinor, nil
 }
 
 func minInt64(a int64, b int64) int64 {

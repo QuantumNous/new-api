@@ -25,7 +25,7 @@ func TestSubscriptionRequestBalancePayInvitationDiscountUsesUnifiedPurchasePath(
 	ctx.Request = httptest.NewRequest(
 		http.MethodPost,
 		"/api/subscription/balance/pay",
-		strings.NewReader(`{"plan_id":19705,"request_id":"legacy-balance-full-discount"}`),
+		strings.NewReader(`{"plan_id":19705,"request_id":"550e8400-e29b-41d4-a716-446655449705"}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 
@@ -56,4 +56,29 @@ func TestSubscriptionRequestBalancePayInvitationDiscountUsesUnifiedPurchasePath(
 	var commit model.SubscriptionDiscountEntry
 	require.NoError(t, model.DB.First(&commit, "user_id = ? AND entry_type = ?", 9705, model.SubscriptionDiscountEntryTypeCommit).Error)
 	require.Equal(t, order.TradeNo, commit.TradeNo)
+}
+
+func TestSubscriptionRequestBalancePayRejectsMissingStableRequestID(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	insertSubscriptionControllerUser(t, 9706)
+	insertSubscriptionControllerPlan(t, 19706)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("id", 9706)
+	ctx.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/subscription/balance/pay",
+		strings.NewReader(`{"plan_id":19706}`),
+	)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	SubscriptionRequestBalancePay(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "request_id is required")
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9706).Count(&orderCount).Error)
+	require.Zero(t, orderCount)
 }

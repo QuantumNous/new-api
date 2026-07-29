@@ -649,6 +649,85 @@ func TestReconcilePaidInvoiceInitialInvitationUsesDiscountedOrderPaymentAmount(t
 	require.Equal(t, int64(1), entitlementCount)
 }
 
+func TestReconcilePaidInvoiceInviteRewardFailureDoesNotRollbackInitialPurchase(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	userID := 8136
+	planID := 8236
+	contract, intent := seedStripeInvoicePurchase(t, userID, planID, "sub_invoice_reward_failure")
+	reservationKey := "subscription-order:sub_invoice_reward_failure:reserve"
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		if _, err := model.GrantSubscriptionDiscountTx(tx, model.SubscriptionDiscountGrantInput{
+			UserID:         userID,
+			USDMinor:       500,
+			SourceType:     "test",
+			SourceKey:      "initial-invoice-reward-failure",
+			EntryType:      model.SubscriptionDiscountEntryTypeGrantInvitee,
+			IdempotencyKey: "grant-initial-invoice-reward-failure",
+		}); err != nil {
+			return err
+		}
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             userID,
+			USDMinor:           500,
+			OrderID:            1,
+			TradeNo:            "sub_invoice_reward_failure",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 500,
+			IdempotencyKey:     reservationKey,
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("trade_no = ?", "sub_invoice_reward_failure").Updates(map[string]interface{}{
+		"payment_currency":                      "USD",
+		"payment_amount_minor":                  int64(734),
+		"plan_snapshot":                         `{"plan_id":8236,"title":"Invoice Plan","price_amount":12.34,"currency":"USD","stripe_price_id":"price_invoice_plan","duration_unit":"month","duration_value":1,"total_amount":1234}`,
+		"discount_kind":                         SubscriptionDiscountKindInvitation,
+		"subscription_discount_usd_minor":       int64(500),
+		"subscription_discount_amount_minor":    int64(500),
+		"subscription_discount_reservation_key": reservationKey,
+	}).Error)
+	invoice := stripeInvoiceFixture("in_reward_failure", "sub_invoice_reward_failure")
+	subscription := stripeSubscriptionFixture("sub_invoice_reward_failure", map[string]string{
+		"trade_no":         "sub_invoice_reward_failure",
+		"user_id":          strconv.Itoa(userID),
+		"plan_id":          strconv.Itoa(planID),
+		"contract_id":      strconv.FormatInt(contract.Id, 10),
+		"change_intent_id": strconv.FormatInt(intent.Id, 10),
+	})
+	setStripeInvoiceFixtureAmountAndPrice(invoice, subscription, 734, stripe.CurrencyUSD, "price_invoice_plan")
+	restoreReconcilers := replaceStripeInvoiceReconcilers(t, invoice, subscription)
+	defer restoreReconcilers()
+	originalGrant := tryGrantInviteSubscriptionRewardAfterOrderCompleted
+	grantCalls := 0
+	tryGrantInviteSubscriptionRewardAfterOrderCompleted = func(tradeNo string) error {
+		grantCalls++
+		require.Equal(t, "sub_invoice_reward_failure", tradeNo)
+		return errors.New("reward grant unavailable")
+	}
+	t.Cleanup(func() { tryGrantInviteSubscriptionRewardAfterOrderCompleted = originalGrant })
+
+	result, err := ReconcilePaidInvoice(context.Background(), "in_reward_failure")
+
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.Equal(t, 1, grantCalls)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "trade_no = ?", "sub_invoice_reward_failure").Error)
+	require.Equal(t, common.TopUpStatusSuccess, order.Status)
+	var applied model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&applied, "id = ?", intent.Id).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusApplied, applied.Status)
+	var commitCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", reservationKey, model.SubscriptionDiscountEntryTypeCommit).
+		Count(&commitCount).Error)
+	require.Equal(t, int64(1), commitCount)
+	var entitlementCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", userID).Count(&entitlementCount).Error)
+	require.Equal(t, int64(1), entitlementCount)
+}
+
 func TestReconcilePaidInvoiceInitialRecallUsesDiscountedOrderPaymentAmountAndConvertsOnce(t *testing.T) {
 	setupSubscriptionInvoiceServiceTestDB(t)
 	userID := 8132
@@ -1896,6 +1975,67 @@ func TestCompleteOneTimeStripeSubscriptionPurchaseCommitsInvitationReservationOn
 		Where("terminal_reservation_key = ? AND entry_type = ?", order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeCommit).
 		Count(&commitCount).Error)
 	require.Equal(t, int64(1), commitCount)
+}
+
+func TestCompleteOneTimeStripeSubscriptionPurchaseInviteRewardFailureDoesNotRollback(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	userID := 8315
+	planID := 8415
+	insertPurchaseServiceUser(t, userID, 10000)
+	plan := insertPurchaseServicePlan(t, planID, 1, 20, 2000)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).Updates(map[string]interface{}{
+		"currency":      "BRL",
+		"pix_price_brl": 80,
+	}).Error)
+	grantPurchaseServiceInvitationDiscount(t, userID, 700, "invoice-reward-failure-one-time")
+	quoteResult, err := QuoteSubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        planID,
+		PaymentChoice: SubscriptionPaymentChoicePix,
+		Months:        1,
+	})
+	require.NoError(t, err)
+	purchase, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        planID,
+		PaymentChoice: SubscriptionPaymentChoicePix,
+		Months:        1,
+		RequestID:     "invoice-reward-failure-one-time",
+		VerifiedQuote: purchaseQuoteFromResult(quoteResult),
+	})
+	require.NoError(t, err)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "trade_no = ?", purchase.Order.TradeNo).Error)
+	require.NotEmpty(t, order.SubscriptionDiscountReservationKey)
+	originalGrant := tryGrantInviteSubscriptionRewardAfterOrderCompleted
+	grantCalls := 0
+	tryGrantInviteSubscriptionRewardAfterOrderCompleted = func(tradeNo string) error {
+		grantCalls++
+		require.Equal(t, order.TradeNo, tradeNo)
+		return errors.New("reward grant unavailable")
+	}
+	t.Cleanup(func() { tryGrantInviteSubscriptionRewardAfterOrderCompleted = originalGrant })
+
+	result, err := CompleteOneTimeStripeSubscriptionPurchase(context.Background(), order.TradeNo, `{"session_id":"cs_invitation_reward_failure"}`)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.Entitlement)
+	require.Equal(t, 1, grantCalls)
+	var completedOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&completedOrder, "trade_no = ?", order.TradeNo).Error)
+	require.Equal(t, common.TopUpStatusSuccess, completedOrder.Status)
+	var topup model.TopUp
+	require.NoError(t, model.DB.First(&topup, "trade_no = ?", order.TradeNo).Error)
+	require.Equal(t, common.TopUpStatusSuccess, topup.Status)
+	var commitCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+		Where("terminal_reservation_key = ? AND entry_type = ?", order.SubscriptionDiscountReservationKey, model.SubscriptionDiscountEntryTypeCommit).
+		Count(&commitCount).Error)
+	require.Equal(t, int64(1), commitCount)
+	var entitlementCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", userID).Count(&entitlementCount).Error)
+	require.Equal(t, int64(1), entitlementCount)
 }
 
 func TestTerminatePendingStripePurchaseAfterSuccessfulInvitationOneTimeIsNoop(t *testing.T) {

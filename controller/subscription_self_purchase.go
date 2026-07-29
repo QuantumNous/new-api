@@ -80,6 +80,11 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 		return
 	}
 	choice := normalizeSubscriptionSelfPaymentChoice(req.PaymentMethod, req.PaymentChoice)
+	paymentMethod := subscriptionSelfConcretePaymentMethod(choice, req.PaymentMethod)
+	if err := validateSubscriptionSelfEpayPaymentMethod(choice, paymentMethod); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	req.RequestID = strings.TrimSpace(req.RequestID)
 	if req.RequestID == "" {
 		common.ApiErrorMsg(c, "request_id is required")
@@ -95,6 +100,7 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 		UserID:        userID,
 		PlanID:        req.PlanID,
 		PaymentChoice: choice,
+		PaymentMethod: paymentMethod,
 		Months:        req.Months,
 		RecallClaim:   req.RecallClaim,
 	})
@@ -116,6 +122,7 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 		UserID:                        userID,
 		PlanID:                        req.PlanID,
 		PaymentChoice:                 choice,
+		PaymentMethod:                 paymentMethod,
 		Months:                        req.Months,
 		RequestID:                     req.RequestID,
 		Currency:                      strings.ToUpper(strings.TrimSpace(quote.Currency)),
@@ -148,12 +155,12 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 				OriginalTotal:            quote.OriginalTotal,
 				DiscountAmount:           quote.DiscountAmount,
 				DiscountKind:             normalizeSubscriptionSelfDiscountKind(quote.DiscountKind),
-				InvitationAvailableUSD:   subscriptionSelfMinorToAmount(quote.InvitationAvailableUSDMinor),
-				InvitationDiscountUSD:    subscriptionSelfMinorToAmount(quote.InvitationDiscountUSDMinor),
-				InvitationDiscountAmount: subscriptionSelfMinorToAmount(quote.InvitationDiscountAmountMinor),
-				InvitationRemainingUSD:   subscriptionSelfMinorToAmount(quote.InvitationRemainingUSDMinor),
+				InvitationAvailableUSD:   service.SubscriptionPurchaseAmountFromMinor(quote.InvitationAvailableUSDMinor, "USD"),
+				InvitationDiscountUSD:    service.SubscriptionPurchaseAmountFromMinor(quote.InvitationDiscountUSDMinor, "USD"),
+				InvitationDiscountAmount: service.SubscriptionPurchaseAmountFromMinor(quote.InvitationDiscountAmountMinor, quote.Currency),
+				InvitationRemainingUSD:   service.SubscriptionPurchaseAmountFromMinor(quote.InvitationRemainingUSDMinor, "USD"),
 				OtherDiscountKind:        strings.TrimSpace(quote.OtherDiscountKind),
-				OtherDiscountAmount:      subscriptionSelfMinorToAmount(quote.OtherDiscountAmountMinor),
+				OtherDiscountAmount:      service.SubscriptionPurchaseAmountFromMinor(quote.OtherDiscountAmountMinor, quote.Currency),
 				Total:                    quote.Total,
 				QuoteID:                  token,
 				ExpiresAt:                expiresAt,
@@ -170,10 +177,6 @@ func normalizeSubscriptionSelfDiscountKind(kind string) string {
 	return kind
 }
 
-func subscriptionSelfMinorToAmount(minor int64) float64 {
-	return float64(minor) / 100
-}
-
 func PurchaseSubscriptionSelf(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
@@ -185,6 +188,7 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		return
 	}
 	choice := normalizeSubscriptionSelfPaymentChoice(req.PaymentMethod, req.PaymentChoice)
+	paymentMethod := subscriptionSelfConcretePaymentMethod(choice, req.PaymentMethod)
 	if choice == "" {
 		choice = service.SubscriptionPaymentChoiceStripeRecurring
 	}
@@ -196,21 +200,34 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		common.ApiErrorMsg(c, "request_id is required")
 		return
 	}
-	claims, err := validateSubscriptionSelfPurchaseQuote(req, userID, choice)
+	cmd := service.PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        req.PlanID,
+		PaymentChoice: choice,
+		PaymentMethod: paymentMethod,
+		Months:        req.Months,
+		RequestID:     req.RequestID,
+		UIMode:        req.UIMode,
+		RecallClaim:   req.RecallClaim,
+	}
+	if result, found, err := service.ReplaySubscriptionPurchase(cmd); err != nil {
+		common.ApiError(c, err)
+		return
+	} else if found {
+		respondSubscriptionSelfPurchaseResult(c, result, choice, req.UIMode)
+		return
+	}
+	if err := validateSubscriptionSelfEpayPaymentMethod(choice, paymentMethod); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	claims, err := validateSubscriptionSelfPurchaseQuote(req, userID, choice, paymentMethod)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	result, err := service.PurchaseSubscription(service.PurchaseSubscriptionCommand{
-		UserID:        userID,
-		PlanID:        req.PlanID,
-		PaymentChoice: choice,
-		Months:        req.Months,
-		RequestID:     req.RequestID,
-		VerifiedQuote: subscriptionPurchaseQuoteFromClaims(claims, true),
-		UIMode:        req.UIMode,
-		RecallClaim:   req.RecallClaim,
-	})
+	cmd.VerifiedQuote = subscriptionPurchaseQuoteFromClaims(claims, true)
+	result, err := service.PurchaseSubscription(cmd)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -219,8 +236,12 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		common.ApiErrorMsg(c, err.Error())
 		return
 	}
+	respondSubscriptionSelfPurchaseResult(c, result, choice, req.UIMode)
+}
+
+func respondSubscriptionSelfPurchaseResult(c *gin.Context, result *service.PurchaseSubscriptionResult, choice string, uiMode string) {
 	if isOneTimePlanStripeMethod(choice) {
-		checkoutURL, err := ensureSubscriptionSelfOneTimeCheckout(c, result, req.UIMode)
+		checkoutURL, err := ensureSubscriptionSelfOneTimeCheckout(c, result, uiMode)
 		if err != nil {
 			common.ApiError(c, err)
 			return
@@ -233,6 +254,16 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, subscriptionSelfPurchaseResponse(result, ""))
+}
+
+func validateSubscriptionSelfEpayPaymentMethod(choice string, paymentMethod string) error {
+	if strings.ToLower(strings.TrimSpace(choice)) != service.SubscriptionPaymentChoiceEpay {
+		return nil
+	}
+	if !isEpayPaymentMethod(paymentMethod) {
+		return errors.New("unsupported payment method")
+	}
+	return nil
 }
 
 func validateSubscriptionSelfPurchaseResultQuote(result *service.PurchaseSubscriptionResult, claims service.SubscriptionPurchaseQuoteTokenClaims) error {
@@ -275,7 +306,7 @@ func syncSubscriptionSelfRecurringCheckoutHistory(result *service.PurchaseSubscr
 	return model.SyncSubscriptionOrderTopUpHistory(order.TradeNo)
 }
 
-func validateSubscriptionSelfPurchaseQuote(req SubscriptionSelfPurchaseRequest, userID int, choice string) (service.SubscriptionPurchaseQuoteTokenClaims, error) {
+func validateSubscriptionSelfPurchaseQuote(req SubscriptionSelfPurchaseRequest, userID int, choice string, paymentMethod string) (service.SubscriptionPurchaseQuoteTokenClaims, error) {
 	if strings.TrimSpace(req.QuoteID) == "" {
 		return service.SubscriptionPurchaseQuoteTokenClaims{}, errors.New("quote_id is required")
 	}
@@ -286,6 +317,7 @@ func validateSubscriptionSelfPurchaseQuote(req SubscriptionSelfPurchaseRequest, 
 	if claims.UserID != userID ||
 		claims.PlanID != req.PlanID ||
 		claims.PaymentChoice != choice ||
+		claims.PaymentMethod != paymentMethod ||
 		claims.Months != req.Months ||
 		claims.RequestID != req.RequestID {
 		return service.SubscriptionPurchaseQuoteTokenClaims{}, errors.New("subscription purchase quote does not match request")
@@ -301,6 +333,7 @@ func validateSubscriptionSelfPurchaseQuote(req SubscriptionSelfPurchaseRequest, 
 		UserID:        userID,
 		PlanID:        req.PlanID,
 		PaymentChoice: choice,
+		PaymentMethod: paymentMethod,
 		Months:        req.Months,
 		RecallClaim:   req.RecallClaim,
 	})
@@ -339,14 +372,14 @@ func subscriptionPurchaseQuoteFromClaims(claims service.SubscriptionPurchaseQuot
 	}
 	return &service.SubscriptionPurchaseQuote{
 		Currency:                      claims.Currency,
-		UnitPrice:                     float64(claims.UnitAmountMinor) / 100,
+		UnitPrice:                     service.SubscriptionPurchaseAmountFromMinor(claims.UnitAmountMinor, claims.Currency),
 		UnitAmountMinor:               claims.UnitAmountMinor,
-		OriginalTotal:                 float64(claims.UnitAmountMinor*int64(claims.Months)) / 100,
+		OriginalTotal:                 service.SubscriptionPurchaseAmountFromMinor(claims.UnitAmountMinor*int64(claims.Months), claims.Currency),
 		OriginalTotalAmountMinor:      claims.UnitAmountMinor * int64(claims.Months),
 		DiscountKind:                  claims.DiscountKind,
-		DiscountAmount:                float64(claims.DiscountAmountMinor) / 100,
+		DiscountAmount:                service.SubscriptionPurchaseAmountFromMinor(claims.DiscountAmountMinor, claims.Currency),
 		DiscountAmountMinor:           claims.DiscountAmountMinor,
-		Total:                         float64(claims.TotalAmountMinor) / 100,
+		Total:                         service.SubscriptionPurchaseAmountFromMinor(claims.TotalAmountMinor, claims.Currency),
 		PaymentAmountMinor:            claims.TotalAmountMinor,
 		InvitationAvailableUSDMinor:   claims.InvitationAvailableUSDMinor,
 		InvitationDiscountUSDMinor:    claims.InvitationDiscountUSDMinor,
@@ -466,11 +499,32 @@ func subscriptionSelfPurchaseResponse(result *service.PurchaseSubscriptionResult
 }
 
 func normalizeSubscriptionSelfPaymentChoice(paymentMethod string, paymentChoice string) string {
-	choice := strings.TrimSpace(paymentMethod)
-	if choice == "" {
-		choice = strings.TrimSpace(paymentChoice)
+	choice := strings.TrimSpace(paymentChoice)
+	if choice == "" && subscriptionSelfSupportedPaymentChoice(paymentMethod) {
+		choice = strings.TrimSpace(paymentMethod)
 	}
 	return strings.ToLower(choice)
+}
+
+func subscriptionSelfConcretePaymentMethod(choice string, paymentMethod string) string {
+	if strings.ToLower(strings.TrimSpace(choice)) != service.SubscriptionPaymentChoiceEpay {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(paymentMethod))
+}
+
+func subscriptionSelfSupportedPaymentChoice(choice string) bool {
+	switch strings.ToLower(strings.TrimSpace(choice)) {
+	case service.SubscriptionPaymentChoiceStripeRecurring,
+		service.SubscriptionPaymentChoiceEpay,
+		service.SubscriptionPaymentChoiceAlipay,
+		service.SubscriptionPaymentChoicePix,
+		service.SubscriptionPaymentChoiceUPI,
+		service.SubscriptionPaymentChoiceBalance:
+		return true
+	default:
+		return false
+	}
 }
 
 func subscriptionPurchasePlanRevision(plan *model.SubscriptionPlan) int64 {

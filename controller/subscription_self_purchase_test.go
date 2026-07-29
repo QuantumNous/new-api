@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v86"
@@ -228,6 +229,195 @@ func TestSubscriptionSelfQuoteSignsUPIINRQuoteForTwelveMonths(t *testing.T) {
 	require.Equal(t, int64(1078800), claims.TotalAmountMinor)
 	require.Equal(t, "quote-upi-twelve-request", claims.RequestID)
 	require.Equal(t, subscriptionPurchasePlanRevision(&plan), claims.PlanRevision)
+}
+
+func TestSubscriptionSelfPurchaseEpayPassesChoiceAndConcreteMethod(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	configureSubscriptionEpayAllowedMethod(t, model.SubscriptionPaymentMethodAlipay, true)
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "controller-subscription-epay-choice-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+	insertSubscriptionControllerUser(t, 9126)
+	insertSubscriptionSelfPurchasePlan(t, 9226)
+
+	quote := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9226,"payment_choice":"epay","payment_method":"alipay","months":1,"request_id":"self-epay-choice"}`,
+		QuoteSubscriptionSelfPurchase,
+		9126,
+	)
+	require.Equal(t, http.StatusOK, quote.Code)
+	var quoteEnvelope struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+		Data    struct {
+			PaymentQuotes map[string]SubscriptionSelfPaymentQuote `json:"payment_quotes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(quote.Body.Bytes(), &quoteEnvelope))
+	require.True(t, quoteEnvelope.Success, quoteEnvelope.Message)
+	epayQuote := quoteEnvelope.Data.PaymentQuotes[service.SubscriptionPaymentChoiceEpay]
+	require.NotEmpty(t, epayQuote.QuoteID)
+	claims, err := service.VerifySubscriptionPurchaseQuoteToken(epayQuote.QuoteID, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, model.SubscriptionPaymentMethodAlipay, claims.PaymentMethod)
+
+	purchase := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9226,"payment_choice":"epay","payment_method":"alipay","months":1,"request_id":"self-epay-choice","quote_id":"`+epayQuote.QuoteID+`"}`,
+		PurchaseSubscriptionSelf,
+		9126,
+	)
+
+	require.Equal(t, http.StatusOK, purchase.Code)
+	var purchaseEnvelope struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(purchase.Body.Bytes(), &purchaseEnvelope))
+	require.True(t, purchaseEnvelope.Success, purchaseEnvelope.Message)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "user_id = ? AND plan_id = ?", 9126, 9226).Error)
+	require.Equal(t, model.PaymentProviderEpay, order.PaymentProvider)
+	require.Equal(t, model.SubscriptionPaymentMethodAlipay, order.PaymentMethod)
+
+	conflict := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9226,"payment_choice":"epay","payment_method":"pix","months":1,"request_id":"self-epay-choice","quote_id":"`+epayQuote.QuoteID+`"}`,
+		PurchaseSubscriptionSelf,
+		9126,
+	)
+	var conflictEnvelope struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(conflict.Body.Bytes(), &conflictEnvelope))
+	require.False(t, conflictEnvelope.Success)
+	require.Contains(t, conflictEnvelope.Message, "conflict")
+}
+
+func TestSubscriptionSelfPurchaseEpayRejectsConcreteMethodMismatch(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	configureSubscriptionEpayAllowedMethod(t, model.SubscriptionPaymentMethodAlipay, true)
+	operation_setting.PayMethods = []map[string]string{
+		{"type": model.SubscriptionPaymentMethodAlipay},
+		{"type": model.SubscriptionPaymentMethodPix},
+	}
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "controller-subscription-epay-mismatch-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+	insertSubscriptionControllerUser(t, 9127)
+	insertSubscriptionSelfPurchasePlan(t, 9227)
+
+	quote := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9227,"payment_choice":"epay","payment_method":"alipay","months":1,"request_id":"self-epay-mismatch"}`,
+		QuoteSubscriptionSelfPurchase,
+		9127,
+	)
+	var quoteEnvelope struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+		Data    struct {
+			PaymentQuotes map[string]SubscriptionSelfPaymentQuote `json:"payment_quotes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(quote.Body.Bytes(), &quoteEnvelope))
+	require.True(t, quoteEnvelope.Success, quoteEnvelope.Message)
+	epayQuote := quoteEnvelope.Data.PaymentQuotes[service.SubscriptionPaymentChoiceEpay]
+	require.NotEmpty(t, epayQuote.QuoteID)
+
+	purchase := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9227,"payment_choice":"epay","payment_method":"pix","months":1,"request_id":"self-epay-mismatch","quote_id":"`+epayQuote.QuoteID+`"}`,
+		PurchaseSubscriptionSelf,
+		9127,
+	)
+
+	require.Equal(t, http.StatusOK, purchase.Code)
+	var purchaseEnvelope struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(purchase.Body.Bytes(), &purchaseEnvelope))
+	require.False(t, purchaseEnvelope.Success)
+	require.Contains(t, purchaseEnvelope.Message, "quote")
+	var count int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9127).Count(&count).Error)
+	require.Zero(t, count)
+}
+
+func TestSubscriptionSelfPurchaseEpayRejectsUnsupportedConcreteMethod(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	configureSubscriptionEpayAllowedMethod(t, model.SubscriptionPaymentMethodAlipay, true)
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "controller-subscription-epay-unsupported-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+	insertSubscriptionControllerUser(t, 9128)
+	insertSubscriptionSelfPurchasePlan(t, 9228)
+
+	quote := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9228,"payment_choice":"epay","payment_method":"not-real","months":1,"request_id":"self-epay-unsupported"}`,
+		QuoteSubscriptionSelfPurchase,
+		9128,
+	)
+	require.Equal(t, http.StatusOK, quote.Code)
+	var quoteEnvelope struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+		Data    struct {
+			PaymentQuotes map[string]SubscriptionSelfPaymentQuote `json:"payment_quotes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(quote.Body.Bytes(), &quoteEnvelope))
+	require.False(t, quoteEnvelope.Success)
+	require.Contains(t, quoteEnvelope.Message, "unsupported payment method")
+	require.Empty(t, quoteEnvelope.Data.PaymentQuotes)
+
+	token, err := service.SignSubscriptionPurchaseQuoteToken(service.SubscriptionPurchaseQuoteTokenClaims{
+		Version:          2,
+		UserID:           9128,
+		PlanID:           9228,
+		PaymentChoice:    service.SubscriptionPaymentChoiceEpay,
+		PaymentMethod:    "not-real",
+		Months:           1,
+		RequestID:        "self-epay-unsupported",
+		Currency:         "USD",
+		UnitAmountMinor:  999,
+		TotalAmountMinor: 999,
+		DiscountKind:     service.SubscriptionDiscountKindNone,
+		PlanRevision:     subscriptionPurchasePlanRevision(&model.SubscriptionPlan{Id: 9228, Enabled: true, PriceAmount: 9.99, Currency: "USD", DurationUnit: model.SubscriptionDurationMonth, DurationValue: 1, TotalAmount: 1000, QuotaResetPeriod: model.SubscriptionResetNever}),
+		ExpiresAt:        time.Now().Add(subscriptionSelfQuoteTTL).Unix(),
+	})
+	require.NoError(t, err)
+	purchase := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9228,"payment_choice":"epay","payment_method":"not-real","months":1,"request_id":"self-epay-unsupported","quote_id":"`+token+`"}`,
+		PurchaseSubscriptionSelf,
+		9128,
+	)
+	require.Equal(t, http.StatusOK, purchase.Code)
+	var purchaseEnvelope struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(purchase.Body.Bytes(), &purchaseEnvelope))
+	require.False(t, purchaseEnvelope.Success)
+	require.Contains(t, purchaseEnvelope.Message, "unsupported payment method")
+	var count int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9128).Count(&count).Error)
+	require.Zero(t, count)
+}
+
+func TestSubscriptionSelfPurchaseReconstructsZeroDecimalQuoteAmounts(t *testing.T) {
+	quote := subscriptionPurchaseQuoteFromClaims(service.SubscriptionPurchaseQuoteTokenClaims{
+		Currency:         "JPY",
+		Months:           1,
+		UnitAmountMinor:  1000,
+		TotalAmountMinor: 1000,
+	}, true)
+
+	require.NotNil(t, quote)
+	require.Equal(t, float64(1000), quote.UnitPrice)
+	require.Equal(t, float64(1000), quote.OriginalTotal)
+	require.Equal(t, float64(1000), quote.Total)
 }
 
 func TestSubscriptionSelfQuoteRoundsMonthlyLocalPriceBeforeMultiplyingMonths(t *testing.T) {
@@ -460,6 +650,50 @@ func TestSubscriptionSelfPurchaseCreatesOneTimeStripeCheckoutAndReplaysURL(t *te
 	require.Equal(t, float64(899), topUps[0].Money)
 	require.Equal(t, common.TopUpStatusPending, topUps[0].Status)
 	require.Equal(t, "cs_test_self_purchase", topUps[0].GatewayTradeNo)
+}
+
+func TestSubscriptionSelfPurchaseReplaysExistingOneTimeWhenCurrentQuoteUnavailable(t *testing.T) {
+	enablePaymentComplianceForSubscriptionControllerTest(t)
+	setupSubscriptionControllerTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "controller-subscription-replay-before-quote-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+	insertSubscriptionControllerUser(t, 9129)
+	plan := insertSubscriptionSelfPurchasePlan(t, 9229)
+	originalCreator := stripeOneTimeCheckoutSessionCreator
+	t.Cleanup(func() { stripeOneTimeCheckoutSessionCreator = originalCreator })
+	var createdTradeNos []string
+	stripeOneTimeCheckoutSessionCreator = func(_ context.Context, order *model.SubscriptionOrder, _ *model.User, _ ...service.StripeCheckoutPresentation) (*oneTimeStripeCheckoutSession, error) {
+		createdTradeNos = append(createdTradeNos, order.TradeNo)
+		return &oneTimeStripeCheckoutSession{ID: "cs_test_replay_before_quote", URL: "https://checkout.example/replay-before-quote"}, nil
+	}
+
+	quote := performSubscriptionSelfPurchaseRequest(
+		`{"plan_id":9229,"payment_method":"upi","months":1,"request_id":"replay-before-quote"}`,
+		QuoteSubscriptionSelfPurchase,
+		9129,
+	)
+	var quoteEnvelope struct {
+		Data struct {
+			PaymentQuotes map[string]SubscriptionSelfPaymentQuote `json:"payment_quotes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(quote.Body.Bytes(), &quoteEnvelope))
+	body := `{"plan_id":9229,"payment_method":"upi","months":1,"request_id":"replay-before-quote","quote_id":"` + quoteEnvelope.Data.PaymentQuotes["upi"].QuoteID + `"}`
+
+	first := performSubscriptionSelfPurchaseRequest(body, PurchaseSubscriptionSelf, 9129)
+	require.Equal(t, http.StatusOK, first.Code)
+	require.Contains(t, first.Body.String(), "https://checkout.example/replay-before-quote")
+
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).Update("upi_price_inr", nil).Error)
+	model.InvalidateSubscriptionPlanCache(plan.Id)
+	second := performSubscriptionSelfPurchaseRequest(body, PurchaseSubscriptionSelf, 9129)
+
+	require.Equal(t, http.StatusOK, second.Code)
+	require.Contains(t, second.Body.String(), `"success":true`)
+	require.Contains(t, second.Body.String(), "https://checkout.example/replay-before-quote")
+	require.Len(t, createdTradeNos, 1)
 }
 
 func TestSubscriptionSelfPurchaseOneTimeZeroTotalInvitationCompletesLocally(t *testing.T) {
@@ -1133,7 +1367,7 @@ func TestSubscriptionSelfPurchaseAcceptsLegacyNoDiscountQuoteAfterNormalization(
 		Months:        1,
 		RequestID:     "legacy-no-discount",
 		QuoteID:       token,
-	}, 9122, service.SubscriptionPaymentChoicePix)
+	}, 9122, service.SubscriptionPaymentChoicePix, "")
 
 	require.NoError(t, err)
 	require.Equal(t, service.SubscriptionDiscountKindNone, claims.DiscountKind)

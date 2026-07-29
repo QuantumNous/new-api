@@ -52,6 +52,65 @@ func TestBalancePurchaseGrantsInviteSubscriptionReward(t *testing.T) {
 	requireInviteSubRewardLedger(t, inviter.Id, invitee.Id, 750)
 }
 
+func TestCompleteSubscriptionOrderRewardFailureDoesNotRollbackOrder(t *testing.T) {
+	plan := setupBalancePurchaseTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	order := &SubscriptionOrder{
+		UserId:          invitee.Id,
+		PlanId:          plan.Id,
+		Money:           plan.PriceAmount,
+		TradeNo:         "sub-reward-failure-complete",
+		PaymentMethod:   PaymentMethodStripe,
+		PaymentProvider: PaymentProviderStripe,
+		Status:          common.TopUpStatusPending,
+	}
+	require.NoError(t, order.Insert())
+
+	common.QuotaForInviter = -1
+	require.NoError(t, CompleteSubscriptionOrder(order.TradeNo, "{}", PaymentProviderStripe, PaymentMethodStripe))
+
+	var stored SubscriptionOrder
+	require.NoError(t, DB.First(&stored, "trade_no = ?", order.TradeNo).Error)
+	require.Equal(t, common.TopUpStatusSuccess, stored.Status)
+	var subs int64
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("user_id = ? AND plan_id = ?", invitee.Id, plan.Id).Count(&subs).Error)
+	require.EqualValues(t, 1, subs)
+	var rewards int64
+	require.NoError(t, DB.Model(&InviteSubscriptionReward{}).Where("invitee_id = ?", invitee.Id).Count(&rewards).Error)
+	require.Zero(t, rewards)
+
+	common.QuotaForInviter = 750
+	require.NoError(t, TryGrantInviteSubscriptionRewardAfterOrderCompleted(order.TradeNo))
+	requireInviteSubRewardLedger(t, inviter.Id, invitee.Id, 750)
+}
+
+func TestBalancePurchaseRewardFailureDoesNotRollbackOrder(t *testing.T) {
+	plan := setupBalancePurchaseTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	fundUser(t, invitee.Id, 100)
+
+	common.QuotaForInviter = -1
+	require.NoError(t, PurchaseSubscriptionWithBalance(invitee.Id, plan.Id))
+
+	var order SubscriptionOrder
+	require.NoError(t, DB.First(&order, "user_id = ? AND payment_provider = ?", invitee.Id, PaymentProviderBalance).Error)
+	require.Equal(t, common.TopUpStatusSuccess, order.Status)
+	var subs int64
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("user_id = ? AND plan_id = ?", invitee.Id, plan.Id).Count(&subs).Error)
+	require.EqualValues(t, 1, subs)
+	var rewards int64
+	require.NoError(t, DB.Model(&InviteSubscriptionReward{}).Where("invitee_id = ?", invitee.Id).Count(&rewards).Error)
+	require.Zero(t, rewards)
+
+	common.QuotaForInviter = 750
+	require.NoError(t, TryGrantInviteSubscriptionRewardAfterOrderCompleted(order.TradeNo))
+	requireInviteSubRewardLedger(t, inviter.Id, invitee.Id, 750)
+}
+
 // The invitee first-subscription discount must apply to balance purchases
 // (first order discounted, second order back to full price).
 func TestBalancePurchaseAppliesInviteeFirstSubDiscount(t *testing.T) {

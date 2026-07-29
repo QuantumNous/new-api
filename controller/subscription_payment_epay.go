@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Calcium-Ion/go-epay/epay"
 	"github.com/QuantumNous/new-api/common"
@@ -40,67 +39,71 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		return
 	}
 
-	plan, err := model.GetSubscriptionPlanById(req.PlanId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if !plan.Enabled {
-		common.ApiErrorMsg(c, "subscription plan is disabled")
-		return
-	}
-	if plan.PriceAmount < 0.01 {
-		common.ApiErrorMsg(c, "subscription plan amount is too low")
-		return
-	}
-
 	userID := c.GetInt("id")
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userID, plan.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "subscription plan purchase limit reached")
-			return
-		}
-	}
-
 	requestID := strings.TrimSpace(req.RequestId)
-	if requestID == "" {
-		requestID = fmt.Sprintf("legacy-epay:%d:%d:%s:%d", userID, plan.Id, req.PaymentMethod, time.Now().UnixNano())
-	}
-	quoteResult, err := service.QuoteSubscriptionPurchase(service.PurchaseSubscriptionCommand{
-		UserID:        userID,
-		PlanID:        plan.Id,
-		PaymentChoice: service.SubscriptionPaymentChoiceEpay,
-		PaymentMethod: req.PaymentMethod,
-		Months:        1,
-		RecallClaim:   strings.TrimSpace(req.RecallClaim),
-	})
-	if err != nil {
-		common.ApiError(c, err)
+	if !isStableSubscriptionRequestID(requestID) {
+		common.ApiErrorMsg(c, "request_id is required")
 		return
 	}
-	if quoteResult == nil || !quoteResult.Available {
-		common.ApiErrorMsg(c, "subscription purchase quote unavailable")
-		return
-	}
-	quote := subscriptionPurchaseQuoteFromQuoteResult(quoteResult)
-	result, err := service.PurchaseSubscription(service.PurchaseSubscriptionCommand{
+	cmd := service.PurchaseSubscriptionCommand{
 		UserID:        userID,
-		PlanID:        plan.Id,
+		PlanID:        req.PlanId,
 		PaymentChoice: service.SubscriptionPaymentChoiceEpay,
 		PaymentMethod: req.PaymentMethod,
 		Months:        1,
 		RequestID:     requestID,
-		VerifiedQuote: &quote,
 		RecallClaim:   strings.TrimSpace(req.RecallClaim),
-	})
-	if err != nil {
+	}
+	var result *service.PurchaseSubscriptionResult
+	if replay, found, err := service.ReplaySubscriptionPurchase(cmd); err != nil {
 		common.ApiError(c, err)
 		return
+	} else if found {
+		result = replay
+	}
+
+	var plan *model.SubscriptionPlan
+	plan, err := model.GetSubscriptionPlanById(req.PlanId)
+	if result == nil {
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if !plan.Enabled {
+			common.ApiErrorMsg(c, "subscription plan is disabled")
+			return
+		}
+		if plan.PriceAmount < 0.01 {
+			common.ApiErrorMsg(c, "subscription plan amount is too low")
+			return
+		}
+		if plan.MaxPurchasePerUser > 0 {
+			count, err := model.CountUserSubscriptionsByPlan(userID, plan.Id)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			if count >= int64(plan.MaxPurchasePerUser) {
+				common.ApiErrorMsg(c, "subscription plan purchase limit reached")
+				return
+			}
+		}
+		quoteResult, err := service.QuoteSubscriptionPurchase(cmd)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if quoteResult == nil || !quoteResult.Available {
+			common.ApiErrorMsg(c, "subscription purchase quote unavailable")
+			return
+		}
+		quote := subscriptionPurchaseQuoteFromQuoteResult(quoteResult)
+		cmd.VerifiedQuote = &quote
+		result, err = service.PurchaseSubscription(cmd)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	if result == nil || result.Order == nil {
 		common.ApiErrorMsg(c, "failed to create subscription order")
@@ -137,7 +140,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: order.TradeNo,
-		Name:           fmt.Sprintf("SUB:%s", plan.Title),
+		Name:           subscriptionEpayOrderName(order, plan),
 		Money:          strconv.FormatFloat(order.Money, 'f', 2, 64),
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
@@ -148,6 +151,21 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, subscriptionEpayPurchaseResponse(result, uri, params))
+}
+
+func subscriptionEpayOrderName(order *model.SubscriptionOrder, plan *model.SubscriptionPlan) string {
+	title := ""
+	if plan != nil {
+		title = strings.TrimSpace(plan.Title)
+	}
+	if title == "" {
+		snapshot := oneTimePlanSnapshotFromOrder(order)
+		title = strings.TrimSpace(snapshot.Title)
+	}
+	if title == "" {
+		title = "Subscription"
+	}
+	return fmt.Sprintf("SUB:%s", title)
 }
 
 func subscriptionEpayPurchaseResponse(result *service.PurchaseSubscriptionResult, url string, params map[string]string) gin.H {

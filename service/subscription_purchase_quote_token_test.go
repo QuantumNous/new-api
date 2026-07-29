@@ -41,6 +41,38 @@ func TestSubscriptionPurchaseQuoteTokenRoundTrip(t *testing.T) {
 	require.Equal(t, claims, verified)
 }
 
+func TestSubscriptionPurchaseQuoteTokenRoundTripWithEpayConcreteMethod(t *testing.T) {
+	originalSecret := common.CryptoSecret
+	common.CryptoSecret = "subscription-quote-test-secret"
+	t.Cleanup(func() { common.CryptoSecret = originalSecret })
+
+	claims := SubscriptionPurchaseQuoteTokenClaims{
+		Version:          2,
+		UserID:           17,
+		PlanID:           3,
+		PaymentChoice:    SubscriptionPaymentChoiceEpay,
+		PaymentMethod:    " Alipay ",
+		Months:           1,
+		RequestID:        "purchase-request-epay",
+		Currency:         "USD",
+		UnitAmountMinor:  999,
+		TotalAmountMinor: 999,
+		PlanRevision:     1_753_268_400,
+		ExpiresAt:        1_753_269_000,
+	}
+
+	token, err := SignSubscriptionPurchaseQuoteToken(claims)
+	require.NoError(t, err)
+
+	verified, err := VerifySubscriptionPurchaseQuoteToken(
+		token,
+		time.Unix(1_753_268_500, 0),
+	)
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionPaymentChoiceEpay, verified.PaymentChoice)
+	require.Equal(t, "alipay", verified.PaymentMethod)
+}
+
 func TestSubscriptionPurchaseQuoteTokenRoundTripWithFirstMonthDiscount(t *testing.T) {
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "subscription-quote-test-secret"
