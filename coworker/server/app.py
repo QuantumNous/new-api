@@ -1677,6 +1677,9 @@ def create_app(manager: SessionManager) -> FastAPI:
             )
             await ws.close()
             return
+        # Auto-compaction failure prompt (OPE-27): only an ATTENDED session may be asked
+        # Retry/Trim — unattended runs auto-trim (the policy in engine._compact_now).
+        engine.is_attended = lambda: _visibility() == VIS_INLINE
         await ws.send_json(
             {
                 "type": "ready",

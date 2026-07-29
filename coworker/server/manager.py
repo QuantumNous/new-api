@@ -460,6 +460,13 @@ class SessionManager:
             )
         if record is not None and record.grants:
             self._apply_grants(engine, record.grants)
+        # Auto-compaction (OPE-27): restore the persisted view boundary and wire the live
+        # Settings getter — post-construction, so build_engine's signature stays put.
+        if record is not None and record.compaction:
+            from ..compaction import CompactionState
+
+            engine.compaction_state = CompactionState.from_dict(record.compaction)
+        engine.compaction_settings = self.compaction_settings
         self._engines[session_id] = engine
         if is_new_session:
             self._emit_session_created(session_id, agent_name)
@@ -1860,6 +1867,23 @@ class SessionManager:
             "pdf_max_mb": max(1, min(mb, 10)),
         }
 
+    def compaction_settings(self) -> dict[str, Any]:
+        """The live auto-compaction knobs (OPE-27) — read by every engine per check, so a
+        Settings change applies without a rebuild. Only the two spec'd overrides plus the
+        summarizer-model pin; absent keys fall back to compaction.py defaults."""
+        from ..compaction import DEFAULT_CAP_TOKENS, DEFAULT_THRESHOLD_PCT
+
+        return {
+            "threshold_pct": float(
+                self._prefs.get("compaction_threshold_pct") or DEFAULT_THRESHOLD_PCT
+            ),
+            "cap_tokens": int(
+                self._prefs.get("compaction_cap_tokens") or DEFAULT_CAP_TOKENS
+            ),
+            # "" → the session's own model (engine falls back to self.model).
+            "model": str(self._prefs.get("compaction_model") or ""),
+        }
+
     def set_pdf_settings(
         self,
         fallback: Any = None,
@@ -3249,6 +3273,11 @@ class SessionManager:
                 agent=getattr(engine, "agent_name", "code"),
                 extra_roots=self._extra_roots_of(engine),
                 grants=_grants_of(engine),
+                compaction=(
+                    engine.compaction_state.as_dict()
+                    if getattr(engine, "compaction_state", None)
+                    else {}
+                ),
             )
         )
 

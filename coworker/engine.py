@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
+from . import compaction as _compaction
 from .events import Event, EventType
 from .permissions import Mode, PermissionEngine
 from .providers import AssistantTurn, ProviderClient, ToolCall
@@ -103,6 +104,14 @@ class TurnEngine:
         # (answerable inline in a live session or from the Inbox when unattended). None on surfaces
         # that can't ask (the tool then no-ops).
         self.question_asker = question_asker
+        # Auto-compaction (OPE-27) — set post-construction by the surface/manager so the
+        # constructor footprint stays put. `compaction_settings` is a live getter (Settings
+        # changes apply without a rebuild); `is_attended` gates the failure prompt (None →
+        # treat as unattended: never park a background run on internal bookkeeping).
+        self.compaction_state: Optional[_compaction.CompactionState] = None
+        self.compaction_settings: Optional[Callable[[], dict[str, Any]]] = None
+        self.is_attended: Optional[Callable[[], bool]] = None
+        self._last_context_tokens: Optional[int] = None
         self.audit_context: dict[str, Any] = {}
         if instructions and not (
             self.messages and self.messages[0].get("role") == "system"
@@ -302,6 +311,13 @@ class TurnEngine:
                 return
             iterations += 1
 
+            # Auto-compaction checkpoint (OPE-27): between tool turns and before a new
+            # turn's first call. Deliberately no "wrap up" warning to the model.
+            notice = await self._compact_now()
+            if notice:
+                self._append_notice("compacted", notice)
+                yield Event(EventType.COMPACTED, {"text": notice})
+
             turn: Optional[AssistantTurn] = None
             streamed: list[str] = []
             streamed_reasoning: list[str] = []
@@ -329,6 +345,16 @@ class TurnEngine:
                     if chunk.turn is not None:
                         turn = chunk.turn
             except Exception as exc:  # provider failure
+                # A raw context-overflow 400 (compaction mispredicted, e.g. the estimate
+                # path) routes into the compaction policy instead of surfacing. The retry
+                # is progress-guarded: each pass moves the boundary forward or gives up,
+                # so a model that keeps overflowing still terminates in the error path.
+                if _compaction.is_context_overflow(exc) and not self._cancel.is_set():
+                    notice = await self._compact_now(force=True)
+                    if notice:
+                        self._append_notice("compacted", notice)
+                        yield Event(EventType.COMPACTED, {"text": notice})
+                        continue
                 # Same contract as the stop path below: the partial the user watched
                 # arrive survives the failure.
                 if streamed or streamed_reasoning:
@@ -352,6 +378,10 @@ class TurnEngine:
                 return
             if turn is None:
                 turn = AssistantTurn()
+            if turn.usage is not None:
+                # The trigger signal: the prompt-side total that actually occupied the
+                # window on this round-trip (estimate fallback when never reported).
+                self._last_context_tokens = turn.usage.context_tokens
 
             self.messages.append(_assistant_message(turn, model=self.model))
             payload: dict[str, Any] = {
@@ -385,6 +415,97 @@ class TurnEngine:
                 return
             if self._steering:
                 self._inject_steering()
+
+    # -- auto-compaction (OPE-27) ------------------------------------------------
+    def _compaction_config(self) -> dict[str, Any]:
+        cfg = dict(self.compaction_settings() or {}) if self.compaction_settings else {}
+        if not cfg.get("context_window"):
+            from .providers.matrix import model_context_windows
+
+            cfg["context_window"] = model_context_windows().get(self.model)
+        cfg.setdefault("threshold_pct", _compaction.DEFAULT_THRESHOLD_PCT)
+        cfg.setdefault("cap_tokens", _compaction.DEFAULT_CAP_TOKENS)
+        return cfg
+
+    async def _compact_now(self, *, force: bool = False) -> Optional[str]:
+        """Run the compaction policy when the trigger fires (or `force`, the overflow
+        path). Returns the user-facing notice text when the outbound view changed, else
+        None. Failure policy per spec: retry once (both modes); attended → Retry / Trim
+        prompt; unattended → auto-trim and continue (never park a run on bookkeeping)."""
+        cfg = self._compaction_config()
+        if cfg.get("enabled") is False and not force:
+            return None
+        pct = float(cfg["threshold_pct"])
+        cap = int(cfg["cap_tokens"])
+        window = cfg.get("context_window")
+        if not force:
+            signal = self._last_context_tokens or _compaction.estimate_tokens(
+                self._outbound_messages()
+            )
+            if not _compaction.should_compact(
+                signal, window, threshold_pct=pct, cap_tokens=cap
+            ):
+                return None
+        keep = int(
+            _compaction.KEEP_RECENT_FRACTION
+            * _compaction.trigger_tokens(window, threshold_pct=pct, cap_tokens=cap)
+        )
+        model = str(cfg.get("model") or "") or self.model
+
+        def _build() -> Optional[_compaction.CompactionState]:
+            return _compaction.build_state(
+                self.messages,
+                provider=self.provider,
+                model=model,
+                keep_tokens=keep,
+                prior=self.compaction_state,
+            )
+
+        state: Optional[_compaction.CompactionState] = None
+        failed = False
+        for _attempt in range(2):  # first try + the unconditional single retry
+            try:
+                state = await asyncio.to_thread(_build)
+                failed = False
+                break
+            except Exception:
+                failed = True
+        if failed and self.question_asker is not None and self.is_attended and self.is_attended():
+            while True:
+                answer = await self._interruptible(
+                    self.question_asker(
+                        {
+                            "question": (
+                                "Context compaction failed — the summarizer couldn't "
+                                "condense this session's history. How should I proceed?"
+                            ),
+                            "options": ["Retry", "Trim oldest 10%"],
+                            "allow_text": False,
+                            "header": "Compaction",
+                        },
+                        None,
+                    ),
+                    interrupted=None,
+                )
+                if not answer or answer.get("answer") != "Retry":
+                    break
+                try:
+                    state = await asyncio.to_thread(_build)
+                    failed = False
+                    break
+                except Exception:
+                    continue
+        if state is not None:
+            self.compaction_state = state
+            self._last_context_tokens = None  # stale once the outbound view shrank
+            return "Context compacted — earlier turns were summarized"
+        if failed or force:
+            trimmed = _compaction.trim_state(self.messages, prior=self.compaction_state)
+            if trimmed is not None:
+                self.compaction_state = trimmed
+                self._last_context_tokens = None
+                return "Context trimmed — oldest turns dropped (summary unavailable)"
+        return None
 
     # -- helpers ----------------------------------------------------------------
     async def _astream(self):
@@ -893,13 +1014,19 @@ class TurnEngine:
         # one. Whole `notice` messages (error/interrupted/model-switch markers) are
         # display-only too: dropped entirely.
         _SIDECARS = ("source", "_display", "ts", "reasoning", "usage")
+        # Auto-compaction (OPE-27): everything before the boundary is represented by the
+        # compacted block. Outbound-only — the canonical history stays intact — and the
+        # block+tail are byte-stable between turns, so prompt caching keeps working.
+        source_messages = _compaction.apply_to_outbound(
+            self.messages, self.compaction_state
+        )
         out = [
             (
                 {k: v for k, v in msg.items() if k not in _SIDECARS}
                 if any(s in msg for s in _SIDECARS)
                 else msg
             )
-            for msg in self.messages
+            for msg in source_messages
             if msg.get("role") != "notice"
         ]
         # PDF attachments (stored as `file` parts) are adapted to the ACTIVE model right
