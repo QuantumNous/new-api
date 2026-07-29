@@ -26,6 +26,7 @@ const (
 	MsgAlreadyExists     = "common.already_exists"
 	MsgNameCannotBeEmpty = "common.name_cannot_be_empty"
 	MsgBatchTooMany      = "common.batch_too_many"
+	MsgApiDeprecated     = "common.api_deprecated"
 )
 
 // Auth middleware messages
@@ -55,6 +56,13 @@ const (
 	MsgTokenExhausted            = "token.exhausted"
 	MsgTokenStatusUnavailable    = "token.status_unavailable"
 	MsgTokenDbError              = "token.db_error"
+	MsgTokenCountMax             = "token.count_max"
+	MsgTokenSearchPercentRepeat  = "token.search_percent_repeat"
+	MsgTokenSearchPercentMax     = "token.search_percent_max"
+	MsgTokenSearchKeywordShort   = "token.search_keyword_short"
+	MsgTokenSearchCountFailed    = "token.search_count_failed"
+	MsgTokenSearchExactOnly      = "token.search_exact_only"
+	MsgTokenSearchFailed         = "token.search_failed"
 )
 
 // Redemption related messages
@@ -212,6 +220,7 @@ const (
 	MsgCheckinAlreadyToday = "checkin.already_today"
 	MsgCheckinFailed       = "checkin.failed"
 	MsgCheckinQuotaFailed  = "checkin.quota_failed"
+	MsgCheckinSuccess      = "checkin.success"
 )
 
 // Passkey related messages
