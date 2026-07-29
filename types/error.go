@@ -70,6 +70,17 @@ const (
 	// request error
 	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"
 
+	// asset request error
+	ErrorCodeInvalidAssetRequest     ErrorCode = "invalid_asset_request"
+	ErrorCodeAssetNotFound           ErrorCode = "asset_not_found"
+	ErrorCodeAssetNotReady           ErrorCode = "asset_not_ready"
+	ErrorCodeAssetFailed             ErrorCode = "asset_failed"
+	ErrorCodeAssetChannelConflict    ErrorCode = "asset_channel_conflict"
+	ErrorCodeAssetChannelUnavailable ErrorCode = "asset_channel_unavailable"
+	ErrorCodeAssetGroupInitializing  ErrorCode = "asset_group_initializing"
+	ErrorCodeAssetUpstreamError      ErrorCode = "asset_upstream_error"
+	ErrorCodeAssetStorageError       ErrorCode = "asset_storage_error"
+
 	// response error
 	ErrorCodeReadResponseBodyFailed ErrorCode = "read_response_body_failed"
 	ErrorCodeBadResponseStatusCode  ErrorCode = "bad_response_status_code"
