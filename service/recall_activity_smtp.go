@@ -1,12 +1,33 @@
 package service
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
+
+const (
+	RecallActivitySMTPNotConfiguredCode    = "activity_smtp_not_configured"
+	RecallActivitySMTPNotConfiguredMessage = "Activity SMTP settings are incomplete or invalid. Configure Activity SMTP settings before activating or sending recall emails."
+	RecallActivitySMTPSendFailedCode       = "activity_smtp_send_failed"
+	RecallActivitySMTPSendFailedMessage    = "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry."
+)
+
+type recallActivitySMTPError struct {
+	code    string
+	message string
+}
+
+func (e recallActivitySMTPError) Error() string {
+	return fmt.Sprintf("%s: %s", e.code, e.message)
+}
+
+func newRecallActivitySMTPNotConfiguredError() error {
+	return recallActivitySMTPError{code: RecallActivitySMTPNotConfiguredCode, message: RecallActivitySMTPNotConfiguredMessage}
+}
 
 type RecallActivitySMTPInput struct {
 	Server         string `json:"server"`
@@ -36,6 +57,14 @@ func GetRecallActivitySMTPStatus() RecallActivitySMTPStatus {
 func RecallActivitySMTPSnapshot() (common.SMTPConfig, error) {
 	config := recallActivitySMTPConfigFromSetting(operation_setting.GetRecallCampaignSetting())
 	return config, config.Validate()
+}
+
+func recallActivitySMTPPreflight() (common.SMTPConfig, error) {
+	snapshot, err := RecallActivitySMTPSnapshot()
+	if err != nil {
+		return common.SMTPConfig{}, newRecallActivitySMTPNotConfiguredError()
+	}
+	return snapshot, nil
 }
 
 func UpdateRecallActivitySMTP(input RecallActivitySMTPInput) (RecallActivitySMTPStatus, error) {

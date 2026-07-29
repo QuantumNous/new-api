@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v86"
@@ -165,17 +166,71 @@ func setupRecallCampaignTestDB(t *testing.T) *gorm.DB {
 func setRecallCampaignEnabled(t *testing.T, enabled bool) {
 	t.Helper()
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"recall_campaign_setting.enabled":      boolString(enabled),
-		"recall_campaign_setting.batch_size":   "100",
-		"recall_campaign_setting.tick_seconds": "30",
+		"recall_campaign_setting.enabled":               boolString(enabled),
+		"recall_campaign_setting.batch_size":            "100",
+		"recall_campaign_setting.tick_seconds":          "30",
+		"recall_campaign_setting.email_hourly_limit":    "100",
+		"recall_campaign_setting.smtp_server":           "smtp.activity.example.com",
+		"recall_campaign_setting.smtp_port":             "587",
+		"recall_campaign_setting.smtp_account":          "activity@example.com",
+		"recall_campaign_setting.email_from":            "mailer@notify.example.com",
+		"recall_campaign_setting.smtp_token":            "activity-secret",
+		"recall_campaign_setting.smtp_ssl_enabled":      "true",
+		"recall_campaign_setting.smtp_force_auth_login": "true",
 	}))
 	t.Cleanup(func() {
 		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-			"recall_campaign_setting.enabled":      "false",
-			"recall_campaign_setting.batch_size":   "100",
-			"recall_campaign_setting.tick_seconds": "30",
+			"recall_campaign_setting.enabled":               "false",
+			"recall_campaign_setting.batch_size":            "100",
+			"recall_campaign_setting.tick_seconds":          "30",
+			"recall_campaign_setting.email_hourly_limit":    "100",
+			"recall_campaign_setting.smtp_server":           "",
+			"recall_campaign_setting.smtp_port":             "0",
+			"recall_campaign_setting.smtp_account":          "",
+			"recall_campaign_setting.email_from":            "",
+			"recall_campaign_setting.smtp_token":            "",
+			"recall_campaign_setting.smtp_ssl_enabled":      "false",
+			"recall_campaign_setting.smtp_force_auth_login": "false",
 		}))
 	})
+}
+
+func setValidRecallActivitySMTP(t *testing.T, smtpConfig common.SMTPConfig) {
+	t.Helper()
+	previous := operation_setting.GetRecallCampaignSetting()
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"recall_campaign_setting.enabled":               boolString(previous.Enabled),
+		"recall_campaign_setting.batch_size":            fmt.Sprintf("%d", previous.BatchSize),
+		"recall_campaign_setting.tick_seconds":          fmt.Sprintf("%d", previous.TickSeconds),
+		"recall_campaign_setting.email_hourly_limit":    fmt.Sprintf("%d", previous.EmailHourlyLimit),
+		"recall_campaign_setting.smtp_server":           smtpConfig.Server,
+		"recall_campaign_setting.smtp_port":             fmt.Sprintf("%d", smtpConfig.Port),
+		"recall_campaign_setting.smtp_account":          smtpConfig.Account,
+		"recall_campaign_setting.email_from":            smtpConfig.From,
+		"recall_campaign_setting.smtp_token":            smtpConfig.Token,
+		"recall_campaign_setting.smtp_ssl_enabled":      boolString(smtpConfig.SSLEnabled),
+		"recall_campaign_setting.smtp_force_auth_login": boolString(smtpConfig.ForceAuthLogin),
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+			"recall_campaign_setting.enabled":               boolString(previous.Enabled),
+			"recall_campaign_setting.batch_size":            fmt.Sprintf("%d", previous.BatchSize),
+			"recall_campaign_setting.tick_seconds":          fmt.Sprintf("%d", previous.TickSeconds),
+			"recall_campaign_setting.email_hourly_limit":    fmt.Sprintf("%d", previous.EmailHourlyLimit),
+			"recall_campaign_setting.smtp_server":           previous.SMTPServer,
+			"recall_campaign_setting.smtp_port":             fmt.Sprintf("%d", previous.SMTPPort),
+			"recall_campaign_setting.smtp_account":          previous.SMTPAccount,
+			"recall_campaign_setting.email_from":            previous.EmailFrom,
+			"recall_campaign_setting.smtp_token":            previous.SMTPToken,
+			"recall_campaign_setting.smtp_ssl_enabled":      boolString(previous.SMTPSSLEnabled),
+			"recall_campaign_setting.smtp_force_auth_login": boolString(previous.SMTPForceAuthLogin),
+		}))
+	})
+}
+
+func clearRecallActivitySMTP(t *testing.T) {
+	t.Helper()
+	setValidRecallActivitySMTP(t, common.SMTPConfig{})
 }
 
 func boolString(value bool) string {
@@ -480,6 +535,71 @@ func TestRecallCampaignContentOnlyDraftPreviewAndManualActivationSkipStripe(t *t
 	var runEvent model.RecallEvent
 	require.NoError(t, db.Where("campaign_id = ? AND event_type = ?", campaign.Id, "campaign_run").First(&runEvent).Error)
 	require.Contains(t, runEvent.EventData, `"campaign_type":"content_only"`)
+}
+
+func TestRecallCampaignActivationFailsClosedWhenActivitySMTPMissing(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	clearRecallActivitySMTP(t)
+	now := time.Unix(1_721_000_000, 0)
+	createRecallCampaignEligibleUser(t, db, now, "missing-activity-smtp")
+	calls := &recallCampaignStripeCalls{}
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, calls))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 17, validRecallCampaignDraft(now))
+	require.NoError(t, err)
+
+	err = service.Activate(context.Background(), 17, campaign.Id)
+
+	require.ErrorContains(t, err, "activity_smtp_not_configured")
+	require.ErrorContains(t, err, "Activity SMTP settings")
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignDraft, stored.Status)
+	require.Empty(t, stored.StripeCouponId)
+	require.Zero(t, calls.createCoupon)
+	var recipientCount int64
+	require.NoError(t, db.Model(&model.RecallRecipient{}).Count(&recipientCount).Error)
+	require.Zero(t, recipientCount)
+}
+
+func TestRecallCampaignResumeFailsClosedWhenActivitySMTPMissing(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 17, validRecallCampaignDraft(now))
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 17, campaign.Id))
+	require.NoError(t, service.Pause(context.Background(), 17, campaign.Id))
+	clearRecallActivitySMTP(t)
+
+	err = service.Resume(context.Background(), 17, campaign.Id)
+
+	require.ErrorContains(t, err, "activity_smtp_not_configured")
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignPaused, stored.Status)
+}
+
+func TestRecallCampaignEmailTemplatePreviewSMTPMissingRemainsRenderOnly(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	clearRecallActivitySMTP(t)
+
+	subject, body, err := RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:        model.RecallCampaignTypeContentOnly,
+		Language:            "en",
+		Template:            RecallEmailTemplate{Subject: "Activity update", BodyText: "Plain update"},
+		RecipientName:       "Ada",
+		UnsubscribeURL:      "https://console.example.com/unsubscribe",
+		PromotionCodeMasked: "SAVE****25",
+		ExpiresAt:           time.Unix(1_721_000_000, 0).Add(time.Hour).Unix(),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "Activity update", subject)
+	require.Contains(t, body, "Plain update")
 }
 
 func TestRecallCampaignContentOnlyRequiresActivityDeliveryValidity(t *testing.T) {

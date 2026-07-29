@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -30,6 +31,7 @@ import (
 const recallEmailTestNow int64 = 1_784_179_200
 
 type recallEmailSent struct {
+	config    common.SMTPConfig
 	from      string
 	subject   string
 	receiver  string
@@ -382,7 +384,6 @@ func TestRecallEmailMissingFrTemplateUsesEnglishThroughout(t *testing.T) {
 }
 
 func TestRecallEmailStableMessageIDUsesEffectiveSMTPDomain(t *testing.T) {
-	setRecallEmailSMTPFrom(t, "mailer@notify.example.com")
 	messageID, err := recallEmailMessageID(42, 3, "notify.example.com")
 	require.NoError(t, err)
 	require.Equal(t, "<recall-42-3@notify.example.com>", messageID)
@@ -458,7 +459,7 @@ func TestRecallEmailAccountBackedRecipientUsesRecipientUnsubscribeToken(t *testi
 
 func TestRecallEmailAcceptedTimestampUsesSMTPAcceptanceTime(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 2, nil)
-	fixture.worker.sender = func(_, subject, receiver, content, messageID string) error {
+	fixture.worker.sender = func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		*fixture.now = fixture.now.Add(90 * time.Second)
 		return nil
 	}
@@ -568,7 +569,7 @@ func TestRecallEmailLanguageUsesExactSnapshotThenFallsBackToEnglish(t *testing.T
 func TestRecallEmailDefinitePreAcceptFailureRetriesWithNewClaimHash(t *testing.T) {
 	calls := 0
 	messageIDs := make([]string, 0, 2)
-	fixture := newRecallEmailFixture(t, 1, func(_, subject, receiver, content, messageID string) error {
+	fixture := newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		calls++
 		messageIDs = append(messageIDs, messageID)
 		if calls == 1 {
@@ -584,8 +585,9 @@ func TestRecallEmailDefinitePreAcceptFailureRetriesWithNewClaimHash(t *testing.T
 	require.Equal(t, recallEmailTestNow+30, first.NextAttemptAt)
 	require.NotNil(t, first.ClaimTokenHash)
 	firstHash := *first.ClaimTokenHash
-	common.SMTPFrom = "mailer@changed.example.com"
-	common.SMTPAccount = "mailer@changed.example.com"
+	setValidRecallActivitySMTP(t, common.SMTPConfig{
+		Server: "smtp.changed.example.com", Port: 2525, Account: "changed@example.com", From: "mailer@changed.example.com", Token: "changed-secret",
+	})
 
 	*fixture.now = time.Unix(first.NextAttemptAt, 0).UTC()
 	won, err := model.LeaseRecallMessage(first.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
@@ -610,7 +612,7 @@ func TestRecallEmailRetryDelayIsBoundedExponential(t *testing.T) {
 }
 
 func TestRecallEmailDefiniteFailureStopsAfterBoundedAttempts(t *testing.T) {
-	fixture := newRecallEmailFixture(t, 1, func(_, subject, receiver, content, messageID string) error {
+	fixture := newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		return errors.New("temporary pre-accept rejection")
 	})
 	messageID := fixture.message.Id
@@ -636,7 +638,7 @@ func TestRecallEmailDefiniteFailureStopsAfterBoundedAttempts(t *testing.T) {
 
 func TestRecallEmailUncertainOutcomeIsNeverAutomaticallyRetried(t *testing.T) {
 	uncertainErr := newRecallEmailUncertainError(t)
-	fixture := newRecallEmailFixture(t, 1, func(_, subject, receiver, content, messageID string) error {
+	fixture := newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		return uncertainErr
 	})
 	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Update("next_attempt_at", recallEmailTestNow-1).Error)
@@ -681,7 +683,7 @@ func TestRecallEmailPostSMTPPersistenceFailureNeverBecomesDue(t *testing.T) {
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			senderRan := false
-			fixture := newRecallEmailFixture(t, 1, func(_, subject, receiver, content, messageID string) error {
+			fixture := newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 				senderRan = true
 				installRecallEmailOutcomeUpdateFailure(t)
 				return testCase.senderErr(t)
@@ -702,7 +704,7 @@ func TestRecallEmailPostSMTPPersistenceFailureNeverBecomesDue(t *testing.T) {
 func TestRecallEmailSenderCrashLeavesNonDueSendingMessage(t *testing.T) {
 	stateObservedBySender := ""
 	var fixture recallEmailFixture
-	fixture = newRecallEmailFixture(t, 1, func(_, subject, receiver, content, messageID string) error {
+	fixture = newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		stateObservedBySender = loadRecallEmailMessageByID(t, fixture.message.Id).State
 		panic("simulated sender process crash")
 	})
@@ -746,7 +748,7 @@ func TestRecallEmailConcurrentCancellationFencesSendingOutcome(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			stateObservedBySender := ""
 			var fixture recallEmailFixture
-			fixture = newRecallEmailFixture(t, 1, func(_, subject, receiver, content, messageID string) error {
+			fixture = newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 				stateObservedBySender = loadRecallEmailMessageByID(t, fixture.message.Id).State
 				return testCase.cancel(context.Background(), fixture)
 			})
@@ -1184,7 +1186,9 @@ func TestRecallEmailExpiredLeaseDefersUntilQuotaResetAfterConcurrentExhaustion(t
 	require.NoError(t, err)
 	require.True(t, reserved)
 
-	err = fixture.worker.processLeasedItem(context.Background(), item, false, &candidates[0], recallEmailSenderSnapshot{Email: "mailer@notify.example.com", Domain: "notify.example.com"})
+	err = fixture.worker.processLeasedItem(context.Background(), item, false, &candidates[0], common.SMTPConfig{
+		Server: "smtp.activity.example.com", Port: 587, Account: "activity@example.com", From: "mailer@notify.example.com", Token: "activity-secret",
+	})
 
 	var waitErr *RecallEmailQuotaWaitError
 	require.ErrorAs(t, err, &waitErr)
@@ -1220,7 +1224,7 @@ func TestRecallEmailWorkerPreSMTPCancellationDoesNotConsumeQuota(t *testing.T) {
 
 func TestRecallEmailWorkerSenderInvalidStopsBeforeLeaseAndQuota(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
-	setRecallEmailSenderSelection(t, "removed@example.com", "campaigns@example.com,alerts@example.com")
+	clearRecallActivitySMTP(t)
 	setRecallEmailHourlyLimit(t, 5)
 	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
 		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
@@ -1228,7 +1232,7 @@ func TestRecallEmailWorkerSenderInvalidStopsBeforeLeaseAndQuota(t *testing.T) {
 
 	processed, err := fixture.worker.RunBatch(context.Background(), 10)
 
-	require.ErrorContains(t, err, "not allowed")
+	require.ErrorContains(t, err, "activity_smtp_not_configured")
 	require.Zero(t, processed)
 	require.Empty(t, *fixture.sent)
 	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
@@ -1240,9 +1244,77 @@ func TestRecallEmailWorkerSenderInvalidStopsBeforeLeaseAndQuota(t *testing.T) {
 	require.Zero(t, status.Used)
 }
 
+func TestRecallEmailWorkerActivitySMTPMissingIgnoresGlobalSMTPBeforeDueWork(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	clearRecallActivitySMTP(t)
+	setRecallEmailHourlyLimit(t, 5)
+	originalServer := common.SMTPServer
+	originalPort := common.SMTPPort
+	originalAccount := common.SMTPAccount
+	originalFrom := common.SMTPFrom
+	originalToken := common.SMTPToken
+	t.Cleanup(func() {
+		common.SMTPServer = originalServer
+		common.SMTPPort = originalPort
+		common.SMTPAccount = originalAccount
+		common.SMTPFrom = originalFrom
+		common.SMTPToken = originalToken
+	})
+	common.SMTPServer = "smtp.transactional.example.com"
+	common.SMTPPort = 587
+	common.SMTPAccount = "transactional@example.com"
+	common.SMTPFrom = "transactional@example.com"
+	common.SMTPToken = "transactional-secret"
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
+		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
+	}).Error)
+
+	messageQueries := 0
+	callbackName := "recall_email_missing_activity_smtp_no_due_query_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Schema != nil && tx.Statement.Schema.Name == "RecallMessage" {
+			messageQueries++
+		}
+	}))
+
+	processed, err := fixture.worker.RunBatch(context.Background(), 10)
+	require.NoError(t, model.DB.Callback().Query().Remove(callbackName))
+
+	require.ErrorContains(t, err, "activity_smtp_not_configured")
+	require.Zero(t, processed)
+	require.Empty(t, *fixture.sent)
+	require.Zero(t, messageQueries)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageScheduled, stored.State)
+	require.Empty(t, stored.LeaseOwner)
+	require.Zero(t, stored.LeaseExpiresAt)
+	status, statusErr := model.GetRecallEmailQuotaStatusWithContext(context.Background(), 5)
+	require.NoError(t, statusErr)
+	require.Zero(t, status.Used)
+}
+
+func TestRecallEmailProcessLeasedActivitySMTPMissingFailsBeforeDBWork(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	clearRecallActivitySMTP(t)
+	callbackName := "recall_email_process_missing_activity_smtp_no_db_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Schema != nil && tx.Statement.Schema.Name == "RecallMessage" {
+			tx.AddError(errors.New("recall message DB query happened before Activity SMTP preflight"))
+		}
+	}))
+	defer func() { _ = model.DB.Callback().Query().Remove(callbackName) }()
+
+	err := fixture.worker.ProcessLeased(context.Background(), fixture.message.Id)
+
+	require.ErrorContains(t, err, "activity_smtp_not_configured")
+	require.Empty(t, *fixture.sent)
+}
+
 func TestRecallEmailWorkerSenderSnapshotUsesLatestActivityFrom(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
-	setRecallEmailSenderSelection(t, "alerts@example.com", "campaigns@example.com,alerts@example.com")
+	setValidRecallActivitySMTP(t, common.SMTPConfig{
+		Server: "smtp.alerts.example.com", Port: 2525, Account: "alerts@example.com", From: "alerts@example.com", Token: "alerts-secret",
+	})
 	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
 		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
 	}).Error)
@@ -1255,12 +1327,111 @@ func TestRecallEmailWorkerSenderSnapshotUsesLatestActivityFrom(t *testing.T) {
 	sent := (*fixture.sent)[0]
 	require.Equal(t, "alerts@example.com", sent.from)
 	require.Equal(t, fmt.Sprintf("<recall-%d-1@example.com>", fixture.recipient.Id), sent.messageID)
+	require.Equal(t, "smtp.alerts.example.com", sent.config.Server)
+	require.Equal(t, 2525, sent.config.Port)
+	require.Equal(t, "alerts@example.com", sent.config.Account)
+	require.Equal(t, "alerts-secret", sent.config.Token)
+}
+
+func TestRecallEmailWorkerActivitySMTPConfigIsFreshAndControlsMessageIDDomain(t *testing.T) {
+	configs := make([]common.SMTPConfig, 0, 2)
+	fixture := newRecallEmailFixture(t, 1, func(config common.SMTPConfig, subject, receiver, content, messageID string) error {
+		configs = append(configs, config)
+		return nil
+	})
+	setValidRecallActivitySMTP(t, common.SMTPConfig{
+		Server: "smtp.first.example.com", Port: 2525, Account: "first@example.com", From: "first@first.example.com", Token: "first-secret",
+	})
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+	accepted := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageAccepted, accepted.State)
+	require.Equal(t, fmt.Sprintf("<recall-%d-1@first.example.com>", fixture.recipient.Id), accepted.ProviderMessageId)
+	require.Len(t, configs, 1)
+	require.Equal(t, "smtp.first.example.com", configs[0].Server)
+	require.Equal(t, "first-secret", configs[0].Token)
+
+	second := model.RecallMessage{
+		RecipientId: fixture.recipient.Id, StageNo: 2, TemplateVersion: 11, TemplateSnapshot: fixture.message.TemplateSnapshot,
+		ScheduledAt: recallEmailTestNow + 1, State: model.RecallMessageLeased, LeaseOwner: fixture.worker.owner, LeaseExpiresAt: recallEmailTestNow + 1 + recallEmailLeaseSeconds,
+	}
+	require.NoError(t, model.DB.Create(&second).Error)
+	setValidRecallActivitySMTP(t, common.SMTPConfig{
+		Server: "smtp.second.example.com", Port: 465, Account: "second@example.com", From: "second@second.example.com", Token: "second-secret",
+		SSLEnabled: true, ForceAuthLogin: true,
+	})
+	*fixture.now = time.Unix(recallEmailTestNow+1, 0).UTC()
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), second.Id))
+	secondAccepted := loadRecallEmailMessageByID(t, second.Id)
+	require.Equal(t, fmt.Sprintf("<recall-%d-2@second.example.com>", fixture.recipient.Id), secondAccepted.ProviderMessageId)
+	require.Len(t, configs, 2)
+	require.Equal(t, common.SMTPConfig{
+		Server: "smtp.second.example.com", Port: 465, Account: "second@example.com", From: "second@second.example.com", Token: "second-secret",
+		SSLEnabled: true, ForceAuthLogin: true,
+	}, configs[1])
+}
+
+func TestRecallEmailExistingProviderMessageIDSurvivesActivitySMTPConfigChange(t *testing.T) {
+	messageID := "<persisted-id@old.example.com>"
+	fixture := newRecallEmailFixture(t, 1, nil)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Update("provider_message_id", messageID).Error)
+	setValidRecallActivitySMTP(t, common.SMTPConfig{
+		Server: "smtp.changed.example.com", Port: 587, Account: "changed@example.com", From: "changed@changed.example.com", Token: "changed-secret",
+	})
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageAccepted, stored.State)
+	require.Equal(t, messageID, stored.ProviderMessageId)
+	require.Len(t, *fixture.sent, 1)
+	require.Equal(t, messageID, (*fixture.sent)[0].messageID)
+}
+
+func TestRecallEmailActivitySMTPDefiniteFailureStoresSafeMessage(t *testing.T) {
+	var logOutput bytes.Buffer
+	common.LogWriterMu.Lock()
+	originalErrorWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logOutput
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultErrorWriter = originalErrorWriter
+		common.LogWriterMu.Unlock()
+	})
+	fixture := newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
+		return fmt.Errorf("535 authentication failed for token activity-secret after DATA %s", content)
+	})
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageRetryWait, stored.State)
+	require.Equal(t, "activity_smtp_send_failed", stored.LastErrorCode)
+	require.Equal(t, "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.", stored.LastErrorMessage)
+	require.NotContains(t, stored.LastErrorMessage, "activity-secret")
+	logged := logOutput.String()
+	require.Contains(t, logged, "535 authentication failed")
+	require.NotContains(t, logged, "activity-secret")
+	require.NotContains(t, logged, "<!doctype html>")
+	require.Contains(t, logged, "[redacted]")
+	require.Contains(t, logged, "[rendered content redacted]")
+}
+
+func TestRecallEmailActivitySMTPPathDoesNotCallGlobalSendWrappers(t *testing.T) {
+	source, err := os.ReadFile("recall_email.go")
+	require.NoError(t, err)
+
+	require.NotContains(t, string(source), "common.SendEmail(")
+	require.NotContains(t, string(source), "common.SendEmailWithMessageID(")
+	require.NotContains(t, string(source), "common.SendEmailFromWithMessageID(")
 }
 
 func TestRecallEmailWorkerRetryAndUncertainSendReserveNewSlots(t *testing.T) {
 	uncertainErr := newRecallEmailUncertainError(t)
 	calls := 0
-	fixture := newRecallEmailFixture(t, 1, func(_, subject, receiver, content, messageID string) error {
+	fixture := newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		calls++
 		if calls == 1 {
 			return errors.New("temporary MAIL FROM rejection")
@@ -1290,12 +1461,12 @@ func TestUnrelatedEmailSenderDoesNotReferenceRecallQuota(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
 	setRecallEmailHourlyLimit(t, 5)
 	senderCalls := 0
-	unrelatedSender := func(_, subject, receiver, content, messageID string) error {
+	unrelatedSender := func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		senderCalls++
 		return nil
 	}
 
-	require.NoError(t, unrelatedSender("mailer@notify.example.com", "subject", "outside@example.com", "body", "<outside@notify.example.com>"))
+	require.NoError(t, unrelatedSender(common.SMTPConfig{From: "mailer@notify.example.com"}, "subject", "outside@example.com", "body", "<outside@notify.example.com>"))
 	status, err := model.GetRecallEmailQuotaStatusWithContext(context.Background(), 5)
 	require.NoError(t, err)
 	require.Zero(t, status.Used)
@@ -1366,7 +1537,7 @@ func TestRecallEmailRunBatchRefreshesStopInputsBeforeEachSend(t *testing.T) {
 			require.NoError(t, model.DB.Create(&secondMessage).Error)
 
 			sent := 0
-			fixture.worker.sender = func(_, subject, receiver, content, messageID string) error {
+			fixture.worker.sender = func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 				sent++
 				if sent == 1 {
 					testCase.mutate(t, fixture, secondUser, secondRecipient)
@@ -1643,7 +1814,6 @@ func newRecallEmailFixture(t *testing.T, stageCount int, sender RecallEmailSende
 	t.Helper()
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
-	setRecallEmailSMTPFrom(t, "mailer@notify.example.com")
 
 	stages := make([]RecallEmailStage, 0, stageCount)
 	for stageNo := 1; stageNo <= stageCount; stageNo++ {
@@ -1693,8 +1863,8 @@ func newRecallEmailFixture(t *testing.T, stageCount int, sender RecallEmailSende
 	now := time.Unix(recallEmailTestNow, 0).UTC()
 	sent := make([]recallEmailSent, 0)
 	if sender == nil {
-		sender = func(from, subject, receiver, content, messageID string) error {
-			sent = append(sent, recallEmailSent{from: from, subject: subject, receiver: receiver, htmlBody: content, messageID: messageID})
+		sender = func(config common.SMTPConfig, subject, receiver, content, messageID string) error {
+			sent = append(sent, recallEmailSent{config: config, from: config.From, subject: subject, receiver: receiver, htmlBody: content, messageID: messageID})
 			return nil
 		}
 	}
@@ -1726,30 +1896,6 @@ func setRecallEmailHourlyLimit(t *testing.T, limit int) {
 			"recall_campaign_setting.batch_size":         fmt.Sprintf("%d", previous.BatchSize),
 			"recall_campaign_setting.tick_seconds":       fmt.Sprintf("%d", previous.TickSeconds),
 			"recall_campaign_setting.email_hourly_limit": fmt.Sprintf("%d", previous.EmailHourlyLimit),
-		}))
-	})
-}
-
-func setRecallEmailSenderSelection(t *testing.T, configured string, aliases string) {
-	t.Helper()
-	previousSetting := operation_setting.GetRecallCampaignSetting()
-	originalAliases := common.SMTPFromAliases
-	common.SMTPFromAliases = aliases
-	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"recall_campaign_setting.enabled":            boolString(previousSetting.Enabled),
-		"recall_campaign_setting.batch_size":         fmt.Sprintf("%d", previousSetting.BatchSize),
-		"recall_campaign_setting.tick_seconds":       fmt.Sprintf("%d", previousSetting.TickSeconds),
-		"recall_campaign_setting.email_hourly_limit": fmt.Sprintf("%d", previousSetting.EmailHourlyLimit),
-		"recall_campaign_setting.email_from":         configured,
-	}))
-	t.Cleanup(func() {
-		common.SMTPFromAliases = originalAliases
-		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-			"recall_campaign_setting.enabled":            boolString(previousSetting.Enabled),
-			"recall_campaign_setting.batch_size":         fmt.Sprintf("%d", previousSetting.BatchSize),
-			"recall_campaign_setting.tick_seconds":       fmt.Sprintf("%d", previousSetting.TickSeconds),
-			"recall_campaign_setting.email_hourly_limit": fmt.Sprintf("%d", previousSetting.EmailHourlyLimit),
-			"recall_campaign_setting.email_from":         previousSetting.EmailFrom,
 		}))
 	})
 }
@@ -1787,18 +1933,6 @@ func addRecallEmailBatchMessage(t *testing.T, fixture recallEmailFixture, suffix
 	message.ClaimTokenHash = nil
 	require.NoError(t, model.DB.Create(&message).Error)
 	return user, recipient, message
-}
-
-func setRecallEmailSMTPFrom(t *testing.T, sender string) {
-	t.Helper()
-	originalFrom := common.SMTPFrom
-	originalAccount := common.SMTPAccount
-	common.SMTPFrom = sender
-	common.SMTPAccount = sender
-	t.Cleanup(func() {
-		common.SMTPFrom = originalFrom
-		common.SMTPAccount = originalAccount
-	})
 }
 
 func loadRecallEmailMessage(t *testing.T, recipientID int64, stageNo int) model.RecallMessage {

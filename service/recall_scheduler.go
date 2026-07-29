@@ -44,7 +44,7 @@ func GetRecallRuntime() *RecallRuntime {
 			Claims:      claims,
 			Revocations: NewRecallPromotionRevocationWorker(stripeService, owner),
 			Recipients:  NewRecallRecipientWorker(stripeService, claims, owner),
-			Emails:      NewRecallEmailWorker(common.SendEmailFromWithMessageID, audience, claims, owner),
+			Emails:      NewRecallEmailWorker(common.SendEmailWithSMTPConfig, audience, claims, owner),
 			Attribution: NewRecallAttributionService(stripeClient),
 		}
 	})
