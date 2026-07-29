@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, it } from 'vitest'
 
 import type { PricingModel } from '../types'
-import { groupModelsByVendor } from './model-helpers'
+import { compareVendorNames, groupModelsByVendor } from './model-helpers'
 
 function model(name: string, vendor?: string): PricingModel {
   return {
@@ -56,6 +56,27 @@ describe('groupModelsByVendor order', () => {
       'Zhipu AI',
       'Anthropic',
       'Other',
+    ])
+  })
+
+  it('compareVendorNames matches hub section order for flat lists', () => {
+    const names = [
+      'Anthropic',
+      'OpenAI',
+      'DeepSeek',
+      'Google',
+      'Moonshot AI',
+      '',
+      'xAI',
+    ]
+    expect([...names].sort(compareVendorNames)).toEqual([
+      'OpenAI',
+      'Google',
+      'DeepSeek',
+      'Moonshot AI',
+      'xAI',
+      'Anthropic',
+      '',
     ])
   })
 })

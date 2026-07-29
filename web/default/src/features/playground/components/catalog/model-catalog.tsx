@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { compareVendorNames } from '@/features/pricing/lib/model-helpers'
 import { cn } from '@/lib/utils'
 
 import type { PricingModel } from '../../../pricing/types'
@@ -132,7 +133,7 @@ export function ModelCatalog(props: ModelCatalogProps) {
   }, [catalog, modality, query])
 
   // Pinned models float to a dedicated section; the rest group by provider
-  // in alphabetical order, unattributed models last.
+  // using the same marketplace vendor order as Model Hub.
   const groups = useMemo(() => {
     const byName = (a: PricingModel, b: PricingModel) =>
       a.model_name.localeCompare(b.model_name)
@@ -153,10 +154,7 @@ export function ModelCatalog(props: ModelCatalogProps) {
     }
     const vendorGroups = [...byVendor.entries()]
       .map(([vendor, models]) => ({ vendor, models: models.sort(byName) }))
-      .sort((a, b) => {
-        if (!a.vendor !== !b.vendor) return a.vendor ? -1 : 1
-        return a.vendor.localeCompare(b.vendor)
-      })
+      .sort((a, b) => compareVendorNames(a.vendor, b.vendor))
     return { pinned: pinned.sort(byName), vendorGroups }
   }, [filtered, pinnedSet])
 

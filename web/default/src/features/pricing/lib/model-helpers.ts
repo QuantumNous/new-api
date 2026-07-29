@@ -134,6 +134,22 @@ function vendorSectionRank(name: string, isOther: boolean): number {
   return DEFAULT_NAMED_VENDOR_RANK
 }
 
+/**
+ * Shared vendor ordering for Model Hub, playground catalog, and workbench.
+ * Empty / missing vendor names sort last (same as the Other bucket).
+ */
+export function compareVendorNames(
+  left: string | null | undefined,
+  right: string | null | undefined
+): number {
+  const leftName = left?.trim() ?? ''
+  const rightName = right?.trim() ?? ''
+  const rankLeft = vendorSectionRank(leftName || 'Other', !leftName)
+  const rankRight = vendorSectionRank(rightName || 'Other', !rightName)
+  if (rankLeft !== rankRight) return rankLeft - rankRight
+  return leftName.localeCompare(rightName)
+}
+
 export function groupModelsByVendor(
   models: PricingModel[],
   otherLabel = 'Other'
@@ -166,11 +182,11 @@ export function groupModelsByVendor(
   const firstSeen = new Map(order.map((key, index) => [key, index]))
 
   return [...groups.values()].sort((a, b) => {
-    const aOther = a.key.startsWith('other:')
-    const bOther = b.key.startsWith('other:')
-    const rankA = vendorSectionRank(a.name, aOther)
-    const rankB = vendorSectionRank(b.name, bOther)
-    if (rankA !== rankB) return rankA - rankB
+    const byVendor = compareVendorNames(
+      a.key.startsWith('other:') ? '' : a.name,
+      b.key.startsWith('other:') ? '' : b.name
+    )
+    if (byVendor !== 0) return byVendor
     return (firstSeen.get(a.key) ?? 0) - (firstSeen.get(b.key) ?? 0)
   })
 }
