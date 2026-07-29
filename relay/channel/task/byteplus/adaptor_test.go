@@ -292,6 +292,23 @@ func TestBuildRequestBodyRewritesResolvedAssetURIsOnly(t *testing.T) {
 	}
 }
 
+func TestRewriteBytePlusAssetReferencesPreservesLargeIntegerSeed(t *testing.T) {
+	raw := []byte(`{"model":"seedance-2.0","seed":9007199254740993,"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]}`)
+
+	rewritten, err := rewriteBytePlusAssetReferences(raw, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://upstream-image",
+	})
+	if err != nil {
+		t.Fatalf("rewriteBytePlusAssetReferences error: %v", err)
+	}
+	if !strings.Contains(string(rewritten), `"seed":9007199254740993`) {
+		t.Fatalf("large integer seed was not preserved exactly: %s", rewritten)
+	}
+	if !strings.Contains(string(rewritten), `"url":"asset://upstream-image"`) {
+		t.Fatalf("strict asset URI was not rewritten: %s", rewritten)
+	}
+}
+
 func TestBuildRequestBodyRejectsUnresolvedStrictAssetURI(t *testing.T) {
 	a := &TaskAdaptor{}
 	info := newTestRelayInfo("https://ark.example", "test-key")

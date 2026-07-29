@@ -2,6 +2,7 @@ package byteplus
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -79,7 +80,9 @@ func rewriteBytePlusAssetReferences(raw []byte, rewriteMap map[string]string) ([
 		return raw, nil
 	}
 	var payload map[string]any
-	if err := common.Unmarshal(raw, &payload); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err != nil {
 		return nil, err
 	}
 	content, ok := payload["content"].([]any)
