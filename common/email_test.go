@@ -2,6 +2,7 @@ package common
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -17,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -358,6 +360,46 @@ func TestEmailMessageNonTLSReturnedErrorIsConservativelyUncertain(t *testing.T) 
 	require.Error(t, err)
 	require.True(t, IsEmailSendUncertain(err))
 	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
+}
+
+func TestSendEmailWithSMTPConfigSuppressesCommonLayerNonTLSFailureLog(t *testing.T) {
+	var logOutput bytes.Buffer
+	LogWriterMu.Lock()
+	originalErrorWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logOutput
+	LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		LogWriterMu.Lock()
+		gin.DefaultErrorWriter = originalErrorWriter
+		LogWriterMu.Unlock()
+	})
+
+	port, wait := startSMTPTestServer(t, smtpTestScript{failAt: "MAIL"})
+	err := SendEmailWithSMTPConfig(SMTPConfig{
+		Server:  "localhost",
+		Port:    port,
+		Account: "activity@example.com",
+		From:    "activity@example.com",
+		Token:   "activity-secret",
+	}, "subject", "activity-recipient@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+
+	require.Error(t, err)
+	require.True(t, IsEmailSendUncertain(err))
+	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
+	require.NotContains(t, logOutput.String(), "failed to send email")
+	require.NotContains(t, logOutput.String(), "activity-recipient@example.com")
+
+	logOutput.Reset()
+	port, wait = startSMTPTestServer(t, smtpTestScript{failAt: "MAIL"})
+	configureSMTPTestClient(t, port, false)
+	err = SendEmailWithMessageID("subject", "global-recipient@example.com", "body", "<recall-1-1@example.com>")
+	result = wait()
+
+	require.Error(t, err)
+	require.True(t, IsEmailSendUncertain(err))
+	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
+	require.Contains(t, logOutput.String(), "failed to send email to global-recipient@example.com")
 }
 
 type smtpTestScript struct {

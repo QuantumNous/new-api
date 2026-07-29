@@ -143,13 +143,13 @@ func SendEmail(subject string, receiver string, content string) error {
 }
 
 func SendEmailWithMessageID(subject string, receiver string, content string, messageID string) error {
-	return sendEmailWithSMTPConfig(GlobalSMTPConfig(), subject, receiver, content, messageID)
+	return sendEmailWithSMTPConfigAndLogPolicy(GlobalSMTPConfig(), subject, receiver, content, messageID, true)
 }
 
 func SendEmailFromWithMessageID(from string, subject string, receiver string, content string, messageID string) error {
 	config := GlobalSMTPConfig()
 	config.From = from
-	return sendEmailWithSMTPConfig(config, subject, receiver, content, messageID)
+	return sendEmailWithSMTPConfigAndLogPolicy(config, subject, receiver, content, messageID, true)
 }
 
 func SendEmailWithSMTPConfig(config SMTPConfig, subject string, receiver string, content string, messageID string) error {
@@ -160,6 +160,10 @@ func SendEmailWithSMTPConfig(config SMTPConfig, subject string, receiver string,
 }
 
 func sendEmailWithSMTPConfig(config SMTPConfig, subject string, receiver string, content string, messageID string) error {
+	return sendEmailWithSMTPConfigAndLogPolicy(config, subject, receiver, content, messageID, false)
+}
+
+func sendEmailWithSMTPConfigAndLogPolicy(config SMTPConfig, subject string, receiver string, content string, messageID string, logTransportFailure bool) error {
 	if config.Server == "" && config.Account == "" {
 		return fmt.Errorf("SMTP 服务器未配置")
 	}
@@ -183,7 +187,9 @@ func sendEmailWithSMTPConfig(config SMTPConfig, subject string, receiver string,
 	}
 	if err := smtp.SendMail(addr, auth, sender, recipients, message); err != nil {
 		wrapped := &emailSendError{Uncertain: true, Err: err}
-		SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, wrapped))
+		if logTransportFailure {
+			SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, wrapped))
+		}
 		return wrapped
 	}
 	return nil
