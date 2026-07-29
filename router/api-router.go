@@ -160,6 +160,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/paddle/status", controller.GetPaddleTopUpStatus)
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
+				selfRoute.GET("/recall/offers", controller.ListRecallOffers)
 				selfRoute.POST("/recall/claim/validate", controller.ValidateRecallClaim)
 
 				// 2FA routes
@@ -211,9 +212,14 @@ func SetApiRouter(router *gin.Engine) {
 			recallCampaignRoute.POST("/", controller.CreateRecallCampaign)
 			recallCampaignRoute.POST("/stripe/validate", controller.ValidateRecallStripeConfig)
 			recallCampaignRoute.POST("/email-preview", controller.PreviewRecallEmailTemplate)
+			recallCampaignRoute.GET("/email-quota", controller.GetRecallEmailQuotaStatus)
+			recallCampaignRoute.PUT("/email-quota", controller.UpdateRecallEmailQuotaLimit)
+			recallCampaignRoute.GET("/email-sender", controller.GetRecallEmailSender)
+			recallCampaignRoute.PUT("/email-sender", controller.UpdateRecallEmailSender)
 			recallCampaignRoute.GET("/audience-users", controller.ListRecallAudienceUsers)
 			recallCampaignRoute.GET("/:id", controller.GetRecallCampaign)
 			recallCampaignRoute.PUT("/:id", controller.UpdateRecallCampaign)
+			recallCampaignRoute.POST("/:id/email-translations/generate", middleware.CriticalRateLimit(), controller.GenerateRecallEmailTranslations)
 			recallCampaignRoute.POST("/:id/preview", controller.PreviewRecallCampaign)
 			recallCampaignRoute.POST("/:id/activate", controller.ActivateRecallCampaign)
 			recallCampaignRoute.POST("/:id/pause", controller.PauseRecallCampaign)

@@ -86,7 +86,7 @@ func TestRecallMaintenanceRunsRecipientBeforeEmailInSameTick(t *testing.T) {
 	recipientWorker := NewRecallRecipientWorker(stripeService, claims, "maintenance-worker")
 	recipientWorker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
 	sent := 0
-	emailWorker := NewRecallEmailWorker(func(subject, receiver, content, messageID string) error {
+	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
 		sent++
 		return nil
 	}, audience, claims, "maintenance-worker")
@@ -137,7 +137,7 @@ func TestRecallMaintenanceRecipientErrorStillRunsEmailBatch(t *testing.T) {
 	recipientWorker := NewRecallRecipientWorker(stripeService, claims, "maintenance-worker")
 	recipientWorker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
 	sent := 0
-	emailWorker := NewRecallEmailWorker(func(subject, receiver, content, messageID string) error {
+	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
 		sent++
 		return nil
 	}, audience, claims, "maintenance-worker")
@@ -189,7 +189,7 @@ func TestRecallMaintenanceCampaignErrorStillRunsRecipientsAndEmail(t *testing.T)
 	recipientWorker := NewRecallRecipientWorker(stripeService, claims, "maintenance-worker")
 	recipientWorker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
 	sent := 0
-	emailWorker := NewRecallEmailWorker(func(subject, receiver, content, messageID string) error {
+	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
 		sent++
 		return nil
 	}, audience, claims, "maintenance-worker")
@@ -208,6 +208,217 @@ func TestRecallMaintenanceCampaignErrorStillRunsRecipientsAndEmail(t *testing.T)
 	require.Equal(t, model.RecallCampaignCompleted, poisonedStored.Status)
 	require.Equal(t, 1, sent)
 	require.Equal(t, model.RecallMessageAccepted, loadRecallEmailMessage(t, recipient.Id, 1).State)
+}
+
+func TestRecallPromotionRevocationSettlesTerminalStripeStatesWithoutDeactivation(t *testing.T) {
+	tests := []struct {
+		name      string
+		promo     *stripe.PromotionCode
+		getErr    error
+		localPast bool
+	}{
+		{name: "local expired", localPast: true},
+		{name: "missing", getErr: &stripe.Error{Type: stripe.ErrorTypeInvalidRequest, Code: stripe.ErrorCodeResourceMissing, Msg: "No such promotion code"}},
+		{name: "inactive", promo: &stripe.PromotionCode{ID: "promo_revoke_active", Active: false, ExpiresAt: recallWorkerTestNow + 100, MaxRedemptions: 1}},
+		{name: "redeemed", promo: &stripe.PromotionCode{ID: "promo_revoke_active", Active: true, ExpiresAt: recallWorkerTestNow + 100, MaxRedemptions: 1, TimesRedeemed: 1}},
+		{name: "stripe expired", promo: &stripe.PromotionCode{ID: "promo_revoke_active", Active: true, ExpiresAt: recallWorkerTestNow - 1, MaxRedemptions: 1}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			recipient := createRecallRevocationRecipient(t, recallWorkerTestNow+100)
+			if test.localPast {
+				require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", recipient.Id).Update("promotion_expires_at", recallWorkerTestNow-1).Error)
+			}
+			updateCalls := 0
+			client := &recallStripeFakeClient{
+				getPromotionCodeFn: func(context.Context, string) (*stripe.PromotionCode, error) {
+					if test.getErr != nil {
+						return nil, test.getErr
+					}
+					return test.promo, nil
+				},
+				updatePromotionCodeFn: func(context.Context, string, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+					updateCalls++
+					return nil, nil
+				},
+			}
+			worker := NewRecallPromotionRevocationWorker(NewRecallStripeService(client), "revoker-a")
+			worker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
+
+			processed, err := worker.RunBatch(context.Background(), 10)
+			require.NoError(t, err)
+			require.Equal(t, 1, processed)
+			require.Equal(t, 0, updateCalls)
+			stored := loadRecallRecipientForTest(t, recipient.Id)
+			require.Equal(t, model.RecallPromotionRevocationCompleted, stored.PromotionRevocationState)
+		})
+	}
+}
+
+func TestRecallPromotionRevocationActiveCodeDeactivatesExactlyOnce(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	recipient := createRecallRevocationRecipient(t, recallWorkerTestNow+100)
+	updateCalls := 0
+	client := &recallStripeFakeClient{
+		getPromotionCodeFn: func(context.Context, string) (*stripe.PromotionCode, error) {
+			return &stripe.PromotionCode{ID: "promo_revoke_active", Active: true, ExpiresAt: recallWorkerTestNow + 100, MaxRedemptions: 1}, nil
+		},
+		updatePromotionCodeFn: func(_ context.Context, id string, params *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+			updateCalls++
+			require.Equal(t, "promo_revoke_active", id)
+			require.NotNil(t, params.Active)
+			require.False(t, *params.Active)
+			return &stripe.PromotionCode{ID: id, Active: false}, nil
+		},
+	}
+	worker := NewRecallPromotionRevocationWorker(NewRecallStripeService(client), "revoker-a")
+	worker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
+
+	processed, err := worker.RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	processed, err = worker.RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, processed)
+	require.Equal(t, 1, updateCalls)
+	stored := loadRecallRecipientForTest(t, recipient.Id)
+	require.Equal(t, model.RecallPromotionRevocationCompleted, stored.PromotionRevocationState)
+}
+
+func TestRecallWorkerPromotionCreatedDuringCancellationQueuesRevocationAndSkipsDelivery(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	campaign := createRecallWorkerCampaign(t, model.RecallCampaignRunning)
+	user := model.User{Username: "recall-cancel-race", Password: "password", Email: "cancel-race@example.com", StripeCustomer: "cus_cancel_race"}
+	require.NoError(t, model.DB.Create(&user).Error)
+	recipient := createRecallWorkerRecipient(t, campaign.Id, user.Id, model.RecallRecipientCustomerReady)
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", recipient.Id).Updates(map[string]any{
+		"lease_owner":      "worker-a",
+		"lease_expires_at": int64(recallWorkerTestNow + 60),
+		"promotion_code":   "FKRACEABCDE223",
+	}).Error)
+	updateCalls := 0
+	client := &recallStripeFakeClient{
+		createPromotionCodeFn: func(_ context.Context, params *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+			require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Update("status", model.RecallCampaignCancelled).Error)
+			return recallWorkerPromotionFromParams("promo_cancel_race_created", params), nil
+		},
+		updatePromotionCodeFn: func(_ context.Context, id string, params *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+			updateCalls++
+			require.Equal(t, "promo_cancel_race_created", id)
+			require.NotNil(t, params.Active)
+			require.False(t, *params.Active)
+			return &stripe.PromotionCode{ID: id, Active: false}, nil
+		},
+	}
+	worker := newRecallWorkerForTest(client, "worker-a")
+	worker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
+
+	err := worker.ProcessLeased(context.Background(), recipient.Id)
+	require.NoError(t, err)
+
+	stored := loadRecallRecipientForTest(t, recipient.Id)
+	require.Equal(t, model.RecallRecipientCustomerReady, stored.State)
+	require.Equal(t, model.RecallPromotionRevocationPending, stored.PromotionRevocationState)
+	require.NotNil(t, stored.StripePromotionCodeId)
+	require.Equal(t, "promo_cancel_race_created", *stored.StripePromotionCodeId)
+	var messages int64
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("recipient_id = ?", recipient.Id).Count(&messages).Error)
+	require.Zero(t, messages)
+	require.Equal(t, 1, updateCalls)
+}
+
+func TestRecallPromotionRevocationRetriesTransientAndFailsPermanentWithSanitizedCode(t *testing.T) {
+	tests := []struct {
+		name      string
+		err       error
+		wantState string
+		wantCode  string
+	}{
+		{name: "transient", err: &stripe.Error{HTTPStatusCode: 500, Type: stripe.ErrorTypeAPI, Msg: "server leaked sk_secret"}, wantState: model.RecallPromotionRevocationPending, wantCode: "stripe_retryable"},
+		{name: "permanent", err: &stripe.Error{Type: stripe.ErrorTypeInvalidRequest, Msg: "invalid leaked sk_secret"}, wantState: model.RecallPromotionRevocationFailed, wantCode: "stripe_permanent"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			recipient := createRecallRevocationRecipient(t, recallWorkerTestNow+100)
+			client := &recallStripeFakeClient{
+				getPromotionCodeFn: func(context.Context, string) (*stripe.PromotionCode, error) {
+					return nil, test.err
+				},
+			}
+			worker := NewRecallPromotionRevocationWorker(NewRecallStripeService(client), "revoker-a")
+			worker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
+
+			processed, err := worker.RunBatch(context.Background(), 10)
+			require.NoError(t, err)
+			require.Equal(t, 1, processed)
+			stored := loadRecallRecipientForTest(t, recipient.Id)
+			require.Equal(t, test.wantState, stored.PromotionRevocationState)
+			require.Equal(t, test.wantCode, stored.PromotionRevocationLastErrorCode)
+			require.NotContains(t, stored.PromotionRevocationLastErrorCode, "secret")
+			if test.wantState == model.RecallPromotionRevocationPending {
+				require.Equal(t, 1, stored.PromotionRevocationAttemptCount)
+				require.Greater(t, stored.PromotionRevocationNextAttemptAt, recallWorkerTestNow)
+			}
+		})
+	}
+}
+
+func TestRecallMaintenanceRevocationErrorStillRunsEmailBatch(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	setRecallEmailSMTPFrom(t, "mailer@notify.example.com")
+	createRecallRevocationRecipient(t, recallWorkerTestNow+100)
+	campaign := createRecallWorkerCampaign(t, model.RecallCampaignRunning)
+	emailUser := model.User{Username: "recall-revocation-maint-email", Password: "password", Status: common.UserStatusEnabled, Email: "snapshot@example.com", EmailVerifiedAt: recallWorkerTestNow - 100, AffCode: "revocation-maint-email"}
+	require.NoError(t, model.DB.Create(&emailUser).Error)
+	emailRecipient := createRecallWorkerRecipient(t, campaign.Id, emailUser.Id, model.RecallRecipientContacting)
+	promotionID := "promo_existing"
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", emailRecipient.Id).Updates(map[string]any{
+		"stripe_promotion_code_id": promotionID,
+		"promotion_code":           "EXISTING123",
+		"promotion_expires_at":     int64(1_900_000_000),
+	}).Error)
+	stages := make([]RecallEmailStage, 0)
+	require.NoError(t, common.Unmarshal([]byte(campaign.EmailSequenceConfig), &stages))
+	templateSnapshot, err := common.Marshal(stages[0].Templates)
+	require.NoError(t, err)
+	message := model.RecallMessage{RecipientId: emailRecipient.Id, StageNo: 1, TemplateVersion: 1, TemplateSnapshot: string(templateSnapshot), ScheduledAt: recallWorkerTestNow, State: model.RecallMessageScheduled}
+	require.NoError(t, model.DB.Create(&message).Error)
+	client := &recallStripeFakeClient{
+		getPromotionCodeFn: func(context.Context, string) (*stripe.PromotionCode, error) {
+			return nil, &stripe.Error{HTTPStatusCode: 500, Type: stripe.ErrorTypeAPI}
+		},
+	}
+	stripeService := NewRecallStripeService(client)
+	claims := NewRecallClaimService()
+	audience := NewRecallAudienceSelector()
+	revocations := NewRecallPromotionRevocationWorker(stripeService, "maintenance-worker")
+	revocations.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
+	sent := 0
+	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
+		sent++
+		return nil
+	}, audience, claims, "maintenance-worker")
+	emailWorker.now = revocations.now
+	setRecallRuntimeForTest(t, &RecallRuntime{
+		Campaigns:   NewRecallCampaignService(audience, stripeService),
+		Claims:      claims,
+		Revocations: revocations,
+		Recipients:  NewRecallRecipientWorker(stripeService, claims, "maintenance-worker"),
+		Emails:      emailWorker,
+		Attribution: nil,
+	})
+
+	RunRecallMaintenanceTick(context.Background())
+
+	require.Equal(t, 1, sent)
+	require.Equal(t, model.RecallMessageAccepted, loadRecallEmailMessageByID(t, message.Id).State)
 }
 
 func TestRecallWorkerCampaignEnrollmentDefersStageOneUntilCodeReady(t *testing.T) {
@@ -284,10 +495,55 @@ func TestRecallWorkerReusesCustomerCreatesBoundPromotionAndSchedulesStageOne(t *
 	require.NotNil(t, stored.StripePromotionCodeId)
 	require.Equal(t, "promo_reuse", *stored.StripePromotionCodeId)
 	require.Equal(t, "FKWXRKER234", stored.PromotionCode)
+	require.Equal(t, recallWorkerTestNow, stored.PromotionIssuedAt)
 	var message model.RecallMessage
 	require.NoError(t, model.DB.Where("recipient_id = ? AND stage_no = 1", stored.Id).First(&message).Error)
 	require.Nil(t, message.ClaimTokenHash)
 	require.Equal(t, model.RecallMessageScheduled, message.State)
+}
+
+func TestRecallWorkerPromotionMinimumSpendPassThrough(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	campaign := createRecallWorkerCampaign(t, model.RecallCampaignRunning)
+	discountJSON, err := common.Marshal(RecallDiscountConfig{MinimumSpend: &RecallMinimumSpendConfig{
+		Enabled: true,
+		Amounts: map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 12_500, "jpy": 3_750},
+	}})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Update("discount_config", string(discountJSON)).Error)
+	user := model.User{Username: "recall-worker-minimum-spend", Password: "password", Email: "minimum@example.com", StripeCustomer: "cus_minimum"}
+	require.NoError(t, model.DB.Create(&user).Error)
+	createRecallWorkerRecipient(t, campaign.Id, user.Id, model.RecallRecipientQueued)
+
+	var promotionParams *stripe.PromotionCodeParams
+	client := &recallStripeFakeClient{
+		getCustomerFn: func(_ context.Context, id string) (*stripe.Customer, error) {
+			return &stripe.Customer{ID: id}, nil
+		},
+		updateCustomerFn: func(_ context.Context, id string, params *stripe.CustomerParams) (*stripe.Customer, error) {
+			return &stripe.Customer{ID: id, Email: *params.Email}, nil
+		},
+		createPromotionCodeFn: func(_ context.Context, params *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+			promotionParams = params
+			return recallWorkerPromotionFromParams("promo_minimum_spend", params), nil
+		},
+	}
+	worker := newRecallWorkerForTest(client, "node-a")
+
+	processed, err := worker.RunBatch(context.Background(), 10)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.NotNil(t, promotionParams)
+	require.NotNil(t, promotionParams.Restrictions)
+	require.Equal(t, int64(2_500), *promotionParams.Restrictions.MinimumAmount)
+	require.Equal(t, "usd", *promotionParams.Restrictions.MinimumAmountCurrency)
+	require.NotNil(t, promotionParams.Restrictions.CurrencyOptions)
+	require.Equal(t, int64(200_000), *promotionParams.Restrictions.CurrencyOptions["inr"].MinimumAmount)
+	require.Equal(t, int64(12_500), *promotionParams.Restrictions.CurrencyOptions["brl"].MinimumAmount)
+	require.Equal(t, int64(3_750), *promotionParams.Restrictions.CurrencyOptions["jpy"].MinimumAmount)
+	require.NotContains(t, promotionParams.Restrictions.CurrencyOptions, "usd")
 }
 
 func TestRecallWorkerEmailOnlyRecipientSkipsCustomerAndSchedulesStageOne(t *testing.T) {
@@ -535,6 +791,7 @@ func TestRecallWorkerReconcilesExistingPromotionWithoutCreate(t *testing.T) {
 	var stored model.RecallRecipient
 	require.NoError(t, model.DB.First(&stored, recipient.Id).Error)
 	require.Equal(t, model.RecallRecipientContacting, stored.State)
+	require.Zero(t, stored.PromotionIssuedAt)
 }
 
 func TestRecallWorkerRejectsMismatchedPersistedPromotionID(t *testing.T) {
@@ -1625,6 +1882,27 @@ func createRecallWorkerRecipient(t *testing.T, campaignID int64, userID int, sta
 	}
 	require.NoError(t, model.DB.Create(&recipient).Error)
 	return recipient
+}
+
+func createRecallRevocationRecipient(t *testing.T, expiresAt int64) model.RecallRecipient {
+	t.Helper()
+	campaign := createRecallWorkerCampaign(t, model.RecallCampaignCancelled)
+	promotionID := "promo_revoke_active"
+	recipient := model.RecallRecipient{
+		CampaignId: campaign.Id, UserId: 901, EligibilitySnapshot: `{}`, EmailSnapshot: "revocation@example.com",
+		LanguageSnapshot: "en", State: model.RecallRecipientContacting, StripePromotionCodeId: &promotionID,
+		PromotionCode: "REVOKE123", PromotionExpiresAt: expiresAt,
+		PromotionRevocationState: model.RecallPromotionRevocationPending,
+	}
+	require.NoError(t, model.DB.Create(&recipient).Error)
+	return recipient
+}
+
+func loadRecallRecipientForTest(t *testing.T, recipientID int64) model.RecallRecipient {
+	t.Helper()
+	var stored model.RecallRecipient
+	require.NoError(t, model.DB.First(&stored, recipientID).Error)
+	return stored
 }
 
 func recallWorkerPromotionFromParams(id string, params *stripe.PromotionCodeParams) *stripe.PromotionCode {

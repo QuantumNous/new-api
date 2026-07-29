@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -89,6 +88,26 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		}
 	}
 
+	service.RecordRecallClaimAttribution(c.Request.Context(), userId, req.RecallClaim)
+	firstPeriodSubtotalMinor, err := service.StripeMinorUnitAmountForSubscription(plan.PriceAmount, plan.Currency)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	resolvedRecallOffer, err := service.GetRecallRuntime().Claims.ResolveBestRecallOffer(
+		c.Request.Context(),
+		userId,
+		service.RecallPurchaseKindSubscription,
+		strings.TrimSpace(plan.StripePriceId),
+		strings.ToUpper(strings.TrimSpace(plan.Currency)),
+		firstPeriodSubtotalMinor,
+	)
+	if err != nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe subscription recall offer resolution failed user_id=%d plan_id=%d price_id=%s error=%q", userId, plan.Id, plan.StripePriceId, err.Error()))
+		resolvedRecallOffer = nil
+	}
+	recallDiscount := service.RecallCheckoutDiscountFromResolvedOffer(resolvedRecallOffer)
+
 	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
@@ -105,23 +124,15 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return
 	}
-
-	var recallDiscount *service.RecallCheckoutDiscount
-	if strings.TrimSpace(req.RecallClaim) != "" {
-		recallDiscount, err = service.GetRecallRuntime().Claims.BuildCheckoutDiscount(
-			c.Request.Context(),
-			userId,
-			req.RecallClaim,
-			service.RecallPurchaseKindSubscription,
-			plan.StripePriceId,
-		)
-		if err != nil {
-			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe subscription recall claim rejected user_id=%d trade_no=%s plan_id=%d error=%q", userId, referenceId, plan.Id, err.Error()))
-			order.Status = common.TopUpStatusFailed
-			_ = order.Update()
-			c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable)})
-			return
-		}
+	if err := applySubscriptionCheckoutDiscountSelection(order, plan, recallDiscount); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅折扣选择失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
+		order.Status = common.TopUpStatusFailed
+		_ = order.Update()
+		common.ApiError(c, err)
+		return
+	}
+	if order.RecallDiscountAmountMinor == 0 {
+		recallDiscount = nil
 	}
 
 	checkoutSession, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId, userId, plan.Id, order.DiscountUSD, recallDiscount)
@@ -141,13 +152,37 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	})
 }
 
+func applySubscriptionCheckoutDiscountSelection(order *model.SubscriptionOrder, plan *model.SubscriptionPlan, recall *service.RecallCheckoutDiscount) error {
+	if order == nil || plan == nil || recall == nil || recall.DiscountAmountMinor <= 0 {
+		return nil
+	}
+	if order.DiscountUSD > 0 {
+		if !strings.EqualFold(strings.TrimSpace(plan.Currency), "USD") {
+			return nil
+		}
+		inviteDiscountMinor, err := service.StripeMinorUnitAmountForSubscription(order.DiscountUSD, plan.Currency)
+		if err != nil {
+			return err
+		}
+		if inviteDiscountMinor >= recall.DiscountAmountMinor {
+			return nil
+		}
+		order.DiscountUSD = 0
+		order.Money = plan.PriceAmount
+	}
+	order.RecallCampaignId = recall.CampaignID
+	order.RecallRecipientId = recall.RecipientID
+	order.RecallPromotionCodeId = recall.PromotionCodeID
+	order.RecallDiscountAmountMinor = recall.DiscountAmountMinor
+	return order.Update()
+}
+
 func genStripeSubscriptionLink(referenceId string, customerId string, email string, priceId string, userId int, planId int, discountUSD float64, recall *service.RecallCheckoutDiscount) (*stripe.CheckoutSession, error) {
 	stripe.Key = setting.StripeApiSecret
 
 	params := buildStripeSubscriptionCheckoutSessionParams(referenceId, customerId, email, priceId, userId, planId)
-	if recall == nil {
-		params.AllowPromotionCodes = stripe.Bool(true)
-	} else {
+	params.SetIdempotencyKey("subscription-stripe:" + strings.TrimSpace(referenceId))
+	if recall != nil {
 		params.Discounts = append(params.Discounts, &stripe.CheckoutSessionDiscountParams{
 			PromotionCode: stripe.String(recall.PromotionCodeID),
 		})
@@ -155,6 +190,8 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 		params.Metadata["recall_recipient_id"] = strconv.FormatInt(recall.RecipientID, 10)
 		params.SubscriptionData.Metadata["recall_campaign_id"] = strconv.FormatInt(recall.CampaignID, 10)
 		params.SubscriptionData.Metadata["recall_recipient_id"] = strconv.FormatInt(recall.RecipientID, 10)
+	} else if discountUSD <= 0 {
+		params.AllowPromotionCodes = stripe.Bool(true)
 	}
 	if discountUSD > 0 {
 		couponParams := &stripe.CouponParams{

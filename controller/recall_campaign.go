@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,6 +24,14 @@ type recallClaimRequest struct {
 
 type recallRetryRequest struct {
 	AcknowledgeUncertain bool `json:"acknowledge_uncertain"`
+}
+
+type recallEmailQuotaUpdateRequest struct {
+	Limit int `json:"limit"`
+}
+
+type recallEmailSenderUpdateRequest struct {
+	EmailFrom string `json:"email_from"`
 }
 
 type recallPreviewResponse struct {
@@ -116,6 +126,94 @@ func UpdateRecallCampaign(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, campaign)
+}
+
+func GenerateRecallEmailTranslations(c *gin.Context) {
+	id, err := recallPathID(c, "id")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var request service.RecallEmailGenerationRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	runtime, err := recallControllerRuntime()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	response, err := runtime.Campaigns.GenerateEmailTranslations(c.Request.Context(), c.GetInt("id"), id, request)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, response)
+}
+
+func GetRecallEmailQuotaStatus(c *gin.Context) {
+	limit := operation_setting.GetRecallCampaignSetting().EmailHourlyLimit
+	status, err := model.GetRecallEmailQuotaStatusWithContext(c.Request.Context(), limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
+}
+
+func UpdateRecallEmailQuotaLimit(c *gin.Context) {
+	var request recallEmailQuotaUpdateRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
+		return
+	}
+	if request.Limit < 1 || request.Limit > 100000 {
+		common.ApiError(c, fmt.Errorf("recall campaign email hourly limit must be between 1 and 100000"))
+		return
+	}
+	if err := model.UpdateOption("recall_campaign_setting.email_hourly_limit", strconv.Itoa(request.Limit)); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	status, err := model.GetRecallEmailQuotaStatusWithContext(c.Request.Context(), request.Limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
+}
+
+func GetRecallEmailSender(c *gin.Context) {
+	status, err := service.GetRecallEmailSenderStatus()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
+}
+
+func UpdateRecallEmailSender(c *gin.Context) {
+	var request recallEmailSenderUpdateRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
+		return
+	}
+	normalized, err := service.NormalizeRecallEmailSenderSelection(request.EmailFrom)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.UpdateOption("recall_campaign_setting.email_from", normalized); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	status, err := service.GetRecallEmailSenderStatus()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
 }
 
 func PreviewRecallCampaign(c *gin.Context) {
@@ -428,6 +526,24 @@ func ValidateRecallClaim(c *gin.Context) {
 	common.ApiSuccess(c, view)
 }
 
+func ListRecallOffers(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	runtime, err := recallControllerRuntime()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	offers, err := runtime.Claims.ListOffers(c.Request.Context(), c.GetInt("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if offers == nil {
+		offers = []service.RecallOfferView{}
+	}
+	common.ApiSuccess(c, offers)
+}
+
 func UnsubscribeRecallEmail(c *gin.Context) {
 	runtime, err := recallControllerRuntime()
 	if err == nil {
@@ -461,6 +577,15 @@ func recallCampaignAction(c *gin.Context, action func(*service.RecallRuntime, in
 		return
 	}
 	if err := action(runtime, c.GetInt("id"), id); err != nil {
+		var blocked *service.RecallActivationBlockedError
+		if errors.As(err, &blocked) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+				"data":    gin.H{"blockers": blocked.Blockers},
+			})
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}

@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -40,6 +41,165 @@ func TestRecallEmailPreviewRouteRequiresAdminAuth(t *testing.T) {
 	engine.ServeHTTP(recorder, request)
 
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
+func TestRecallEmailQuotaStatusRouteAndGenerationRouteAreRegisteredWithAdminAuth(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-email-generation-auth"))))
+	SetApiRouter(engine)
+
+	wantRoutes := map[string]string{
+		"/api/recall-campaigns/email-quota":                     http.MethodGet,
+		"/api/recall-campaigns/:id/email-translations/generate": http.MethodPost,
+	}
+	for path, method := range wantRoutes {
+		found := false
+		for _, route := range engine.Routes() {
+			if route.Path == path && route.Method == method {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "missing route %s %s", method, path)
+
+		target := strings.Replace(path, ":id", "1", 1)
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(method, target, nil))
+		require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	}
+
+	quotaIndex := -1
+	idIndex := -1
+	for index, route := range engine.Routes() {
+		if route.Method != http.MethodGet {
+			continue
+		}
+		switch route.Path {
+		case "/api/recall-campaigns/email-quota":
+			quotaIndex = index
+		case "/api/recall-campaigns/:id":
+			idIndex = index
+		}
+	}
+	require.NotEqual(t, -1, quotaIndex)
+	require.NotEqual(t, -1, idIndex)
+	require.Less(t, quotaIndex, idIndex)
+}
+
+func TestRecallEmailQuotaUpdateRouteIsRegisteredWithAdminAuth(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-email-quota-update-auth"))))
+	SetApiRouter(engine)
+
+	found := false
+	for _, route := range engine.Routes() {
+		if route.Path == "/api/recall-campaigns/email-quota" && route.Method == http.MethodPut {
+			found = true
+			break
+		}
+	}
+	require.True(t, found)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPut, "/api/recall-campaigns/email-quota", strings.NewReader(`{"limit":250}`))
+	engine.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
+func TestRecallEmailSenderRoutesAreRegisteredBeforeIDRouteWithAdminAuth(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-email-sender-auth"))))
+	SetApiRouter(engine)
+
+	indices := map[string]int{
+		"sender_get": -1,
+		"sender_put": -1,
+		"id_get":     -1,
+		"id_put":     -1,
+	}
+	for index, route := range engine.Routes() {
+		switch {
+		case route.Path == "/api/recall-campaigns/email-sender" && route.Method == http.MethodGet:
+			indices["sender_get"] = index
+		case route.Path == "/api/recall-campaigns/email-sender" && route.Method == http.MethodPut:
+			indices["sender_put"] = index
+		case route.Path == "/api/recall-campaigns/:id" && route.Method == http.MethodGet:
+			indices["id_get"] = index
+		case route.Path == "/api/recall-campaigns/:id" && route.Method == http.MethodPut:
+			indices["id_put"] = index
+		}
+	}
+	require.NotEqual(t, -1, indices["sender_get"])
+	require.NotEqual(t, -1, indices["sender_put"])
+	require.NotEqual(t, -1, indices["id_get"])
+	require.NotEqual(t, -1, indices["id_put"])
+	require.Less(t, indices["sender_get"], indices["id_get"])
+	require.Less(t, indices["sender_put"], indices["id_put"])
+
+	for _, method := range []string{http.MethodGet, http.MethodPut} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(method, "/api/recall-campaigns/email-sender", strings.NewReader(`{"email_from":"Campaigns@Example.com"}`))
+		engine.ServeHTTP(recorder, request)
+		require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	}
+}
+
+func TestRecallEmailTranslationGenerationRouteUsesCriticalRateLimit(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	previousRedisEnabled := common.RedisEnabled
+	previousGlobalEnabled := common.GlobalApiRateLimitEnable
+	previousCriticalEnabled := common.CriticalRateLimitEnable
+	previousCriticalLimit := common.CriticalRateLimitNum
+	common.RedisEnabled = false
+	common.GlobalApiRateLimitEnable = false
+	common.CriticalRateLimitEnable = true
+	common.CriticalRateLimitNum = 1
+	t.Cleanup(func() {
+		common.RedisEnabled = previousRedisEnabled
+		common.GlobalApiRateLimitEnable = previousGlobalEnabled
+		common.CriticalRateLimitEnable = previousCriticalEnabled
+		common.CriticalRateLimitNum = previousCriticalLimit
+	})
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-email-generation-rate-limit"))))
+	SetApiRouter(engine)
+	engine.GET("/login-admin", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set("id", 99)
+		session.Set("username", "recall-admin")
+		session.Set("role", common.RoleAdminUser)
+		session.Set("status", common.UserStatusEnabled)
+		session.Set("group", "default")
+		require.NoError(t, session.Save())
+		c.Status(http.StatusNoContent)
+	})
+
+	loginRecorder := httptest.NewRecorder()
+	engine.ServeHTTP(loginRecorder, httptest.NewRequest(http.MethodGet, "/login-admin", nil))
+	require.Equal(t, http.StatusNoContent, loginRecorder.Code)
+
+	requestGeneration := func() *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodPost, "/api/recall-campaigns/1/email-translations/generate", strings.NewReader("not-json"))
+		request.RemoteAddr = "192.0.2.88:1234"
+		request.Header.Set("New-Api-User", "99")
+		for _, sessionCookie := range loginRecorder.Result().Cookies() {
+			request.AddCookie(sessionCookie)
+		}
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	require.NotEqual(t, http.StatusTooManyRequests, requestGeneration().Code)
+	require.Equal(t, http.StatusTooManyRequests, requestGeneration().Code)
 }
 
 func TestRecallAudienceUsersRouteIsRegisteredBeforeIDRoute(t *testing.T) {
@@ -97,4 +257,25 @@ func TestRecallAudienceUsersRouteRequiresAdminAuthForNormalUser(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Contains(t, recorder.Body.String(), `"success":false`)
+}
+
+func TestRecallOffersRouteIsRegisteredAndRequiresUserAuth(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-offers-auth"))))
+	SetApiRouter(engine)
+
+	registered := false
+	for _, route := range engine.Routes() {
+		if route.Method == http.MethodGet && route.Path == "/api/user/recall/offers" {
+			registered = true
+			break
+		}
+	}
+	require.True(t, registered)
+
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/user/recall/offers", nil))
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 }

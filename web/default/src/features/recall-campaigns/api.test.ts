@@ -4,6 +4,10 @@ import { api } from '@/lib/api'
 import {
   createRecallCampaign,
   exportRecallCampaign,
+  generateRecallEmailTranslations,
+  getRecallEmailSenderStatus,
+  getRecallEmailQuotaStatus,
+  updateRecallEmailQuotaLimit,
   getRecallSubscriptionProductConfiguration,
   getRecallTopUpProductConfiguration,
   getRecallUserGroups,
@@ -15,12 +19,15 @@ import {
   listRecallRecipients,
   previewRecallEmail,
   previewRecallCampaign,
+  recallCampaignKeys,
   retryRecallRecipient,
   runRecallCampaignAction,
   updateRecallCampaign,
+  updateRecallEmailSender,
   validateRecallStripeConfig,
+  RecallApiError,
 } from './api'
-import type { RecallCampaignDraft } from './types'
+import type { RecallCampaignDraft, RecallEmailGenerationRequest } from './types'
 
 const originalAdapter = api.defaults.adapter
 let capturedConfig: InternalAxiosRequestConfig | undefined
@@ -147,6 +154,23 @@ describe('recall campaign API contracts', () => {
     await expect(exportRecallCampaign(1)).rejects.toThrow('Export unavailable')
   })
 
+  test('preserves structured failure data for activation recovery', async () => {
+    const blockers = [{ stage_no: 1, locale: 'es', reason: 'stale' }]
+    respondWith({
+      success: false,
+      message: 'Translations are not ready',
+      data: { blockers },
+    })
+
+    try {
+      await runRecallCampaignAction(9, 'activate')
+      throw new Error('Expected activation to fail')
+    } catch (error) {
+      expect(error).toBeInstanceOf(RecallApiError)
+      expect((error as RecallApiError).data).toEqual({ blockers })
+    }
+  })
+
   test('posts email preview requests with the template wrapper', async () => {
     respondWith({
       success: true,
@@ -162,6 +186,103 @@ describe('recall campaign API contracts', () => {
     expect(JSON.parse(String(capturedConfig?.data))).toEqual({
       campaign_type: 'content_only',
       template: { subject: 'Subject', body_html: '<p>Hello</p>' },
+    })
+  })
+
+  test('generates all email translations with the campaign revision', async () => {
+    const request: RecallEmailGenerationRequest = {
+      config_revision: 7,
+      name: 'Win back customers',
+      email_sequence: [],
+    }
+    respondWith({ success: true, data: request })
+
+    await generateRecallEmailTranslations(42, request)
+
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/email-translations/generate'
+    )
+    expect(JSON.parse(String(capturedConfig?.data))).toEqual(request)
+  })
+
+  test('loads the activity email quota from its dedicated endpoint', async () => {
+    respondWith({
+      success: true,
+      data: {
+        limit: 100,
+        used: 12,
+        remaining: 88,
+        window_started_at: 1_900_000_000,
+        resets_at: 1_900_003_600,
+        exhausted: false,
+      },
+    })
+
+    await getRecallEmailQuotaStatus()
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-quota')
+  })
+
+  test('updates the activity email quota through its admin-scoped endpoint', async () => {
+    respondWith({
+      success: true,
+      data: {
+        limit: 250,
+        used: 12,
+        remaining: 238,
+        window_started_at: 1_900_000_000,
+        resets_at: 1_900_003_600,
+        exhausted: false,
+      },
+    })
+
+    await updateRecallEmailQuotaLimit(250)
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-quota')
+    expect(capturedConfig?.method).toBe('put')
+    expect(JSON.parse(String(capturedConfig?.data))).toEqual({ limit: 250 })
+  })
+
+  test('loads the activity email sender from its dedicated endpoint', async () => {
+    respondWith({
+      success: true,
+      data: {
+        configured_email_from: '',
+        effective_email_from: 'smtp@example.com',
+        uses_default: true,
+        options: [{ email: 'smtp@example.com', is_default: true }],
+      },
+    })
+
+    await getRecallEmailSenderStatus()
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-sender')
+    expect(recallCampaignKeys.emailSender).toEqual([
+      'recall-campaigns',
+      'email-sender',
+    ])
+  })
+
+  test('updates the activity email sender with the canonical email_from value', async () => {
+    respondWith({
+      success: true,
+      data: {
+        configured_email_from: 'alias@example.com',
+        effective_email_from: 'alias@example.com',
+        uses_default: false,
+        options: [
+          { email: 'smtp@example.com', is_default: true },
+          { email: 'alias@example.com', is_default: false },
+        ],
+      },
+    })
+
+    await updateRecallEmailSender('alias@example.com')
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-sender')
+    expect(capturedConfig?.method).toBe('put')
+    expect(JSON.parse(String(capturedConfig?.data))).toEqual({
+      email_from: 'alias@example.com',
     })
   })
 })

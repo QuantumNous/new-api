@@ -108,6 +108,54 @@ const recallEmailPlaceholderHelpKeys = [
   'Preview uses sample recipient and offer data.',
 ] as const
 
+const activityEmailLocalizationAndQuotaKeys = [
+  'Coupon redeem-by',
+  'Select coupon redeem-by',
+  'Promotion expiry mode',
+  'Relative duration',
+  'Fixed date',
+  'Promotion expires at',
+  'Select promotion expiry',
+  'Validity days',
+  'Validity hours',
+  'Effective expiry: {{date}} (local time)',
+  'English content',
+  'Translation review',
+  'English context',
+  'Generate 7 translations',
+  'Generating translations',
+  '{{ready}} / {{total}} ready',
+  'Regenerating will replace {{count}} manually edited translations.',
+  'Replace and regenerate',
+  'Translation generation failed',
+  'Translations must be complete and current before activation.',
+  'Generate or fix translations',
+  'recall.translation_status.ready',
+  'recall.translation_status.stale',
+  'recall.translation_status.manual',
+  'recall.translation_status.missing',
+  'recall.translation_status.invalid',
+  'Activity email hourly limit',
+  'All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.',
+  'Attempts count when SMTP sending starts and are not refunded.',
+  '{{used}} / {{limit}} sent this hour',
+  'Hourly limit reached. Queued activity emails will resume at {{time}}.',
+  'Quota resets at {{time}}.',
+  'Hourly limit must be between 1 and 100000.',
+  'Failed to load email quota.',
+  'Save hourly limit',
+] as const
+
+const activityEmailSenderCopyKeys = [
+  'Activity sender address',
+  'All Activity Configuration campaigns share this sender. Other system emails are unaffected.',
+  'Default SMTP sender ({{email}})',
+  'Failed to load sender addresses.',
+  'Failed to update sender address.',
+  'Sender address choices changed. Review and save again.',
+  'Save sender address',
+] as const
+
 const recallHelpKeys = [
   'Subject must be 200 characters or fewer',
   'Leave empty to use the campaign name.',
@@ -128,6 +176,7 @@ const recallHelpKeys = [
   ...dynamicAudienceTemplateValueKeys,
   ...specifiedUsersSelectorKeys,
   ...recallEmailPlaceholderHelpKeys,
+  ...activityEmailLocalizationAndQuotaKeys,
   ...translatedAudienceTemplateDescriptionKeys,
 ] as const
 
@@ -169,6 +218,12 @@ describe('recall campaign copy', () => {
     )
   })
 
+  test('registers source copy for the activity email sender control without owning locale translations', () => {
+    expect(recallCopy.recallActivityEmailCopyKeys).toEqual(
+      expect.arrayContaining([...activityEmailSenderCopyKeys])
+    )
+  })
+
   for (const [locale, translations] of Object.entries(localeTranslations)) {
     test(`${locale} contains translated recall configuration help`, () => {
       for (const key of recallHelpKeys) {
@@ -205,6 +260,14 @@ describe('recall campaign copy', () => {
           `${locale} should not keep legacy visible key ${key}`
         ).toBe(false)
       }
+    })
+
+    test(`${locale} separates manual execution mode from manual translation status`, () => {
+      expect(translations.manual).toBeTruthy()
+      expect(translations['recall.translation_status.manual']).toBeTruthy()
+      expect(translations.manual).not.toBe(
+        translations['recall.translation_status.manual']
+      )
     })
   }
 })

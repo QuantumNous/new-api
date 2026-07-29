@@ -42,11 +42,8 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Dialog } from '@/components/dialog'
 import { GroupBadge } from '@/components/group-badge'
-import {
-  isRecallPriceEligible,
-  validateRecallClaim,
-} from '@/features/wallet/lib/recall-claim'
-import type { RecallClaimView } from '@/features/wallet/types'
+import { isRecallPriceEligible } from '@/features/wallet/lib/recall-claim'
+import type { RecallClaimView, RecallOfferView } from '@/features/wallet/types'
 import {
   paySubscriptionStripe,
   paySubscriptionCreem,
@@ -78,20 +75,31 @@ interface Props {
 }
 
 interface RecallClaimContextValue {
+  offers: RecallOfferView[]
+  loading: boolean
+}
+
+const RecallClaimContext = createContext<RecallClaimContextValue>({
+  offers: [],
+  loading: false,
+})
+
+interface RecallClaimProviderProps {
+  children: ReactNode
+  offers?: RecallOfferView[]
+  loading?: boolean
   claim?: string
   view?: RecallClaimView
 }
 
-const RecallClaimContext = createContext<RecallClaimContextValue>({})
-
-interface RecallClaimProviderProps extends RecallClaimContextValue {
-  children: ReactNode
-}
-
 export function RecallClaimProvider(props: RecallClaimProviderProps) {
+  const offers =
+    props.offers ??
+    (props.view ? [{ ...props.view, issued_at: 0 } as RecallOfferView] : [])
+
   return (
     <RecallClaimContext.Provider
-      value={{ claim: props.claim, view: props.view }}
+      value={{ offers, loading: props.loading === true }}
     >
       {props.children}
     </RecallClaimContext.Provider>
@@ -111,9 +119,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   useEffect(() => {
     if (props.open && props.epayMethods && props.epayMethods.length > 0) {
-      setSelectedEpayMethod(props.epayMethods[0].type)
+      const firstMethod = props.epayMethods[0].type
+      queueMicrotask(() => setSelectedEpayMethod(firstMethod))
     } else if (!props.open) {
-      setSelectedEpayMethod('')
+      queueMicrotask(() => setSelectedEpayMethod(''))
     }
   }, [props.open, props.epayMethods])
 
@@ -121,10 +130,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
   if (!plan) return null
 
   const hasStripe = props.enableStripe && !!plan.stripe_price_id
-  const recallPlanEligible = isRecallPriceEligible(
-    recallClaim.view,
-    plan.id,
-    'subscription'
+  const recallPlanEligible = recallClaim.offers.some((offer) =>
+    isRecallPriceEligible(
+      offer,
+      plan.stripe_price_id || plan.id,
+      'subscription'
+    )
   )
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
@@ -157,24 +168,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePayStripe = async () => {
     setPaying(true)
     try {
-      let validatedRecallClaim: string | undefined
-      if (recallPlanEligible && recallClaim.claim && plan.stripe_price_id) {
-        const validation = await validateRecallClaim({
-          claim: recallClaim.claim,
-          price_id: plan.stripe_price_id,
-          purchase_kind: 'subscription',
-        })
-        if (!validation.success || !validation.data) {
-          toast.error(validation.message || t('Recall offer is unavailable'))
-          return
-        }
-        validatedRecallClaim = recallClaim.claim
-      }
-
-      const res = await paySubscriptionStripe({
-        plan_id: plan.id,
-        ...(validatedRecallClaim ? { recall_claim: validatedRecallClaim } : {}),
-      })
+      const res = await paySubscriptionStripe({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Payment page opened'))
@@ -408,7 +402,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
           </Alert>
         )}
 
-        {recallClaim.view && (
+        {recallClaim.offers.length > 0 && (
           <Alert>
             <AlertDescription>
               {recallPlanEligible

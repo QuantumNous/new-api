@@ -49,7 +49,7 @@ import type {
 } from '../hooks/use-payment'
 import {
   getRecallPriceDiscount,
-  isRecallPriceEligible,
+  selectBestRecallOffer,
   type RecallPriceDiscount,
 } from '../lib/recall-claim'
 import {
@@ -109,7 +109,23 @@ function getPlanDisplayOrder(title: string): number {
   return PLAN_DISPLAY_ORDER[title.trim().toLowerCase()] ?? 99
 }
 
-function formatPlanPrice(amount: number): string {
+function formatPlanPrice(amount: number, currency = 'USD'): string {
+  if (currency === 'BRL') {
+    return Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+  }
+  if (currency === 'INR') {
+    return Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+  }
   return `$${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`
 }
 
@@ -546,15 +562,6 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         purchaseProjection?.payment_quotes ?? selfData.payment_quotes,
         months
       )
-      const eligibleRecallClaim =
-        recallClaim.claim &&
-        isRecallPriceEligible(
-          recallClaim.view,
-          purchaseTarget.plan.plan.id,
-          'subscription'
-        )
-          ? recallClaim.claim
-          : undefined
       const res = await purchaseSubscriptionPlanFlexible({
         ...buildFlexiblePurchaseRequest({
           planId: purchaseTarget.plan.plan.id,
@@ -563,7 +570,6 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
           requestId: purchaseTarget.requestId,
           quoteId: selectedQuote?.quote_id,
           orderId: selectedQuote?.order_id,
-          recallClaim: eligibleRecallClaim,
         }),
       })
       if (!res.success || !res.data) {
@@ -610,15 +616,6 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
       paymentChoice,
       months,
       requestId: purchaseTarget.requestId,
-      recallClaim:
-        recallClaim.claim &&
-        isRecallPriceEligible(
-          recallClaim.view,
-          purchaseTarget.plan.plan.id,
-          'subscription'
-        )
-          ? recallClaim.claim
-          : undefined,
     })
     const sequence = quoteRequestSequenceRef.current + 1
     quoteRequestSequenceRef.current = sequence
@@ -708,10 +705,19 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
           <div className='grid grid-cols-1 gap-3 md:grid-cols-3 xl:gap-4'>
             {orderedPlans.map((item) => {
               const plan = item.plan
-              const price = formatPlanPrice(Number(plan.price_amount || 0))
+              const price = formatPlanPrice(
+                Number(plan.price_amount || 0),
+                plan.currency || 'USD'
+              )
+              const recallOffer = selectBestRecallOffer(recallClaim.offers, {
+                purchaseKind: 'subscription',
+                productId: plan.stripe_price_id || plan.id,
+                amountMajor: Number(plan.price_amount || 0),
+                currency: plan.currency || 'USD',
+              })
               const recallDiscount = getRecallPriceDiscount(
-                recallClaim.view,
-                plan.id,
+                recallOffer,
+                plan.stripe_price_id || plan.id,
                 'subscription',
                 Number(plan.price_amount || 0),
                 plan.currency || 'USD'
@@ -762,9 +768,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                           <span className='inline-flex rounded-full bg-[#dcfce7] px-2 py-1 text-[11px] font-semibold text-[#166534] uppercase dark:bg-[#14532d]/40 dark:text-[#86efac]'>
                             {getRecallDiscountLabel(
                               recallDiscount,
-                              Number(
-                                recallClaim.view?.discount.percent_off || 0
-                              ),
+                              Number(recallOffer?.discount.percent_off || 0),
                               t
                             )}
                           </span>
@@ -781,7 +785,10 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                     <div className='mt-6 flex items-end gap-2'>
                       <span className='text-5xl font-semibold tracking-tight tabular-nums'>
                         {recallDiscount
-                          ? formatPlanPrice(recallDiscount.discountedAmount)
+                          ? formatPlanPrice(
+                              recallDiscount.discountedAmount,
+                              recallDiscount.currency
+                            )
                           : price}
                       </span>
                       {recallDiscount ? (
@@ -793,6 +800,16 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                         {t('per month')}
                       </span>
                     </div>
+                    {recallDiscount ? (
+                      <div className='mt-1 text-xs font-medium text-[#166534] dark:text-[#86efac]'>
+                        {t('Save {{amount}}', {
+                          amount: formatPlanPrice(
+                            recallDiscount.discountAmount,
+                            recallDiscount.currency
+                          ),
+                        })}
+                      </div>
+                    ) : null}
 
                     <div className='mt-5 grow space-y-2 border-t pt-4'>
                       {entitlements.map((label) => (
@@ -866,8 +883,18 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         recallDiscount={
           purchaseTarget
             ? getRecallPriceDiscount(
-                recallClaim.view,
-                purchaseTarget.plan.plan.id,
+                selectBestRecallOffer(recallClaim.offers, {
+                  purchaseKind: 'subscription',
+                  productId:
+                    purchaseTarget.plan.plan.stripe_price_id ||
+                    purchaseTarget.plan.plan.id,
+                  amountMajor: Number(
+                    purchaseTarget.plan.plan.price_amount || 0
+                  ),
+                  currency: purchaseTarget.plan.plan.currency || 'USD',
+                }),
+                purchaseTarget.plan.plan.stripe_price_id ||
+                  purchaseTarget.plan.plan.id,
                 'subscription',
                 Number(purchaseTarget.plan.plan.price_amount || 0),
                 purchaseTarget.plan.plan.currency || 'USD'

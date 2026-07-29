@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/dialog'
 import { SectionPageLayout } from '@/components/layout'
 import { CampaignEditor } from './components/campaign-editor'
+import { CampaignEmailHourlyLimitControl } from './components/campaign-email-hourly-limit-control'
+import { CampaignEmailSenderControl } from './components/campaign-email-sender-control'
 import { CampaignTable } from './components/campaign-table'
 
 export function RecallCampaigns() {
@@ -24,6 +26,10 @@ export function RecallCampaigns() {
         {t('Activity Configuration')}
       </SectionPageLayout.Title>
       <SectionPageLayout.Actions>
+        <div className='flex flex-wrap items-end gap-2'>
+          <CampaignEmailSenderControl />
+          <CampaignEmailHourlyLimitControl />
+        </div>
         <Button onClick={() => setCreating(true)}>
           {t('Create activity configuration')}
         </Button>

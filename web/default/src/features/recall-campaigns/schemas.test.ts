@@ -5,6 +5,8 @@ import {
 } from './schemas'
 
 const FUTURE_TIMESTAMP = Math.floor(Date.now() / 1000) + 86_400
+const FIXED_SCHEMA_NOW_SECONDS = Date.UTC(2026, 6, 15, 8, 0) / 1_000
+const FIXED_SCHEMA_NOW_MS = FIXED_SCHEMA_NOW_SECONDS * 1_000
 
 function makeDraft() {
   return {
@@ -51,7 +53,10 @@ function makeDraft() {
       topup_price_ids: ['price_topup_20'],
       subscription_price_ids: [],
     },
+    promotion_expiry_mode: 'relative',
+    promotion_expires_at: 0,
     promotion_valid_seconds: 604_800,
+    defer_localization: true,
     enrollment_limit: 1_000,
     worker_concurrency: 5,
     email_sequence: [
@@ -59,6 +64,7 @@ function makeDraft() {
         stage_no: 1,
         delay_seconds: 0,
         template_version: 1,
+        manual_locales: [],
         templates: {
           en: {
             subject: 'We miss you',
@@ -67,6 +73,16 @@ function makeDraft() {
         },
       },
     ],
+  }
+}
+
+function withFixedSchemaNow(callback: () => void) {
+  const realDateNow = Date.now
+  Date.now = () => FIXED_SCHEMA_NOW_MS
+  try {
+    callback()
+  } finally {
+    Date.now = realDateNow
   }
 }
 
@@ -540,7 +556,7 @@ describe('recallCampaignDraftSchema', () => {
     )
   })
 
-  test('rejects a minimum amount for an automatic fixed discount', () => {
+  test('accepts canonical minimum spend for an automatic fixed discount', () => {
     const fixed = makeDraft()
     fixed.discount_config = {
       ...fixed.discount_config,
@@ -551,9 +567,163 @@ describe('recallCampaignDraftSchema', () => {
       currency_options: { inr: 45_000, brl: 2_500, jpy: 750 },
       minimum_amount: 1_000,
       minimum_amount_currency: 'USD',
+      minimum_spend: {
+        enabled: true,
+        amounts: { usd: 1_000, inr: 90_000, brl: 5_000, jpy: 1_500 },
+      },
     }
 
-    expect(recallCampaignDraftSchema.safeParse(fixed).success).toBe(false)
+    expect(recallCampaignDraftSchema.safeParse(fixed).success).toBe(true)
+  })
+
+  test('reports enabled minimum spend amount errors at each currency field', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1_000, inr: 90_000, brl: 0 },
+    }
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_spend', 'amounts', 'brl'],
+        })
+      )
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_spend', 'amounts', 'jpy'],
+        })
+      )
+    }
+  })
+
+  test('rejects extra canonical minimum spend currencies', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: {
+        usd: 1_000,
+        inr: 90_000,
+        brl: 5_000,
+        jpy: 1_500,
+        eur: 1_000,
+      },
+    }
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_spend', 'amounts', 'eur'],
+        })
+      )
+    }
+  })
+
+  test('requires disabled canonical minimum spend to clear amounts and legacy pair', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_amount = 1_000
+    draft.discount_config.minimum_amount_currency = 'USD'
+    draft.discount_config.minimum_spend = {
+      enabled: false,
+      amounts: { usd: 1_000 },
+    }
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_spend', 'amounts'],
+        })
+      )
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_amount'],
+        })
+      )
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_amount_currency'],
+        })
+      )
+    }
+  })
+
+  test.each([
+    ['USD', 1_000],
+    ['INR', 90_000],
+    ['BRL', 5_000],
+    ['JPY', 1_500],
+  ] as const)(
+    'allows and preserves legacy %s minimum spend when canonical object is absent',
+    (currency, amount) => {
+      const draft = makeDraft()
+      draft.discount_config.minimum_amount = amount
+      draft.discount_config.minimum_amount_currency = currency
+
+      const result = recallCampaignDraftSchema.safeParse(draft)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.discount_config.minimum_amount).toBe(amount)
+        expect(result.data.discount_config.minimum_amount_currency).toBe(
+          currency
+        )
+      }
+    }
+  )
+
+  test('rejects malformed legacy minimum spend currency when canonical object is absent', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_amount = 1_000
+    draft.discount_config.minimum_amount_currency = 'usd'
+
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+  })
+
+  test('rejects unsupported legacy EUR minimum spend when canonical object is absent', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_amount = 1_000
+    draft.discount_config.minimum_amount_currency = 'EUR'
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_amount_currency'],
+        })
+      )
+    }
+  })
+
+  test('requires canonical enabled minimum spend to match the legacy USD pair', () => {
+    const draft = makeDraft()
+    draft.discount_config.minimum_amount = 999
+    draft.discount_config.minimum_amount_currency = 'USD'
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1_000, inr: 90_000, brl: 5_000, jpy: 1_500 },
+    }
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'minimum_amount'],
+        })
+      )
+    }
   })
 
   test('accepts automatic coupons and requires an ID for existing coupons', () => {
@@ -568,20 +738,163 @@ describe('recallCampaignDraftSchema', () => {
     expect(recallCampaignDraftSchema.safeParse(existing).success).toBe(false)
   })
 
-  test('requires at least one Stripe Price', () => {
-    const subscriptionOnly = makeDraft()
-    subscriptionOnly.product_scope.topup_price_ids = []
-    subscriptionOnly.product_scope.subscription_price_ids = [
-      'price_subscription_monthly',
-    ]
-    expect(recallCampaignDraftSchema.safeParse(subscriptionOnly).success).toBe(
-      true
-    )
+  test('accepts an empty product scope', () => {
+    const draft = makeDraft()
+    draft.product_scope = {
+      topup_price_ids: [],
+      subscription_price_ids: [],
+    }
 
-    subscriptionOnly.product_scope.subscription_price_ids = []
-    expect(recallCampaignDraftSchema.safeParse(subscriptionOnly).success).toBe(
-      false
-    )
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.product_scope).toEqual({
+        topup_price_ids: [],
+        subscription_price_ids: [],
+      })
+    }
+  })
+
+  test('validates relative promotion expiry and clears the fixed branch', () => {
+    const draft = makeDraft()
+
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+
+    draft.promotion_valid_seconds = 0
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+
+    draft.promotion_valid_seconds = 86_400
+    draft.promotion_expires_at = Math.floor(Date.now() / 1000) + 86_400
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+  })
+
+  test('validates fixed promotion expiry in the future and clears duration', () => {
+    const draft = makeDraft()
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_valid_seconds = 0
+    draft.promotion_expires_at = Math.floor(Date.now() / 1000) + 86_400
+
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+
+    draft.promotion_expires_at = Math.floor(Date.now() / 1000)
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+
+    draft.promotion_expires_at = Math.floor(Date.now() / 1000) + 86_400
+    draft.promotion_valid_seconds = 3_600
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+  })
+
+  test('requires fixed promotion expiry after a scheduled campaign run', () => {
+    const draft = makeDraft()
+    draft.execution_mode = 'scheduled_once'
+    draft.schedule.scheduled_at = FUTURE_TIMESTAMP
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_valid_seconds = 0
+    draft.promotion_expires_at = FUTURE_TIMESTAMP - 60
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['promotion_expires_at'],
+          message:
+            'Fixed promotion expiry must be after the scheduled run time',
+        })
+      )
+    }
+  })
+
+  test('requires fixed promotion expiry after the first daily recurring run', () => {
+    withFixedSchemaNow(() => {
+      const draft = makeDraft()
+      draft.execution_mode = 'recurring'
+      draft.schedule = {
+        scheduled_at: 0,
+        timezone: 'UTC',
+        frequency: 'daily',
+        weekday: 0,
+        hour: 9,
+        minute: 0,
+      }
+      draft.promotion_expiry_mode = 'fixed'
+      draft.promotion_valid_seconds = 0
+      draft.promotion_expires_at = FIXED_SCHEMA_NOW_SECONDS + 3_600
+
+      const equality = recallCampaignDraftSchema.safeParse(draft)
+
+      expect(equality.success).toBe(false)
+      if (!equality.success) {
+        expect(equality.error.issues).toContainEqual(
+          expect.objectContaining({
+            path: ['promotion_expires_at'],
+            message:
+              'Fixed promotion expiry must be after the scheduled run time',
+          })
+        )
+      }
+
+      draft.promotion_expires_at = FIXED_SCHEMA_NOW_SECONDS + 3_599
+      expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+
+      draft.promotion_expires_at = FIXED_SCHEMA_NOW_SECONDS + 3_601
+      expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+    })
+  })
+
+  test('requires fixed promotion expiry after the first weekly recurring run', () => {
+    withFixedSchemaNow(() => {
+      const draft = makeDraft()
+      draft.execution_mode = 'recurring'
+      draft.schedule = {
+        scheduled_at: 0,
+        timezone: 'UTC',
+        frequency: 'weekly',
+        weekday: 4,
+        hour: 9,
+        minute: 0,
+      }
+      draft.promotion_expiry_mode = 'fixed'
+      draft.promotion_valid_seconds = 0
+      draft.promotion_expires_at = Date.UTC(2026, 6, 16, 9, 0) / 1_000
+
+      const result = recallCampaignDraftSchema.safeParse(draft)
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues).toContainEqual(
+          expect.objectContaining({
+            path: ['promotion_expires_at'],
+            message:
+              'Fixed promotion expiry must be after the scheduled run time',
+          })
+        )
+      }
+    })
+  })
+
+  test('requires coupon redeem-by after a scheduled campaign run', () => {
+    const draft = makeDraft()
+    draft.execution_mode = 'scheduled_once'
+    draft.schedule.scheduled_at = FUTURE_TIMESTAMP
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_valid_seconds = 0
+    draft.promotion_expires_at = FUTURE_TIMESTAMP + 3_600
+    draft.discount_config.coupon_redeem_by = FUTURE_TIMESTAMP - 60
+
+    const result = recallCampaignDraftSchema.safeParse(draft)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['discount_config', 'coupon_redeem_by'],
+          message: 'Coupon redeem-by must be after the scheduled run time',
+        })
+      )
+    }
   })
 
   test('ignores schedule validation in manual mode', () => {
@@ -701,6 +1014,48 @@ describe('recallCampaignDraftSchema', () => {
     const missingBody = makeDraft()
     missingBody.email_sequence[0].templates.en.body_text = ''
     expect(recallCampaignDraftSchema.safeParse(missingBody).success).toBe(false)
+  })
+
+  test('allows missing target translations but rejects a target subject without a body', () => {
+    const missingTarget = makeDraft()
+    missingTarget.email_sequence[0].templates.zh = {
+      subject: '',
+      body_text: '',
+      body_html: '',
+    }
+    expect(recallCampaignDraftSchema.safeParse(missingTarget).success).toBe(
+      true
+    )
+
+    const incompleteTarget = makeDraft()
+    incompleteTarget.email_sequence[0].templates.zh = {
+      subject: '我们想念你',
+      body_text: '',
+      body_html: '',
+    }
+    expect(recallCampaignDraftSchema.safeParse(incompleteTarget).success).toBe(
+      false
+    )
+  })
+
+  test('allows only supported target languages in manual_locales', () => {
+    const valid = makeDraft()
+    valid.email_sequence[0].manual_locales = [
+      'zh',
+      'es',
+      'fr',
+      'pt',
+      'ru',
+      'ja',
+      'vi',
+    ]
+    expect(recallCampaignDraftSchema.safeParse(valid).success).toBe(true)
+
+    for (const locale of ['en', 'de', 'unknown']) {
+      const invalid = makeDraft()
+      invalid.email_sequence[0].manual_locales = [locale]
+      expect(recallCampaignDraftSchema.safeParse(invalid).success).toBe(false)
+    }
   })
 
   test('counts subject and body limits in Unicode characters', () => {

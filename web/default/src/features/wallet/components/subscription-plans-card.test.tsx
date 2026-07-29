@@ -36,7 +36,7 @@ import {
   normalizeSelfSubscriptionData,
   requiresSignedCheckoutQuote,
 } from '../lib/subscription-plan-lifecycle'
-import type { RecallClaimView, TopupInfo } from '../types'
+import type { RecallClaimView, RecallOfferView, TopupInfo } from '../types'
 import {
   CurrentPlanCard,
   CurrentPlanRenewalDialogContent,
@@ -201,6 +201,22 @@ function renderWalletCardWithRecall(
   return renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
       <RecallClaimProvider claim='signed-recall-claim' view={recallView}>
+        <SubscriptionPlansCard
+          topupInfo={topupInfo}
+          initialPlans={plans}
+          initialSelfData={normalizeSelfSubscriptionData(undefined)}
+          initialLoading={false}
+          userQuota={12345}
+        />
+      </RecallClaimProvider>
+    </I18nextProvider>
+  )
+}
+
+function renderWalletCardWithRecallOffers(recallOffers: RecallOfferView[]) {
+  return renderToStaticMarkup(
+    <I18nextProvider i18n={testI18n}>
+      <RecallClaimProvider offers={recallOffers}>
         <SubscriptionPlansCard
           topupInfo={topupInfo}
           initialPlans={plans}
@@ -1092,11 +1108,43 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(goSlice).toContain('line-through')
     expect(goSlice).toContain('$10')
     expect(goSlice).toContain('$8')
+    expect(goSlice).toContain('Save $2')
     expect(goSlice.indexOf('20% OFF')).toBeLessThan(
       goSlice.indexOf('Recommended')
     )
     expect(proSlice).not.toContain('20% OFF')
     expect(maxSlice).not.toContain('20% OFF')
+  })
+
+  test('shows the strongest account recall offer without a link claim', () => {
+    const html = renderWalletCardWithRecallOffers([
+      {
+        ...subscriptionRecallClaim,
+        recipient_id: 101,
+        issued_at: 1_700_000_001,
+        discount: {
+          ...subscriptionRecallClaim.discount,
+          percent_off: 20,
+        },
+      },
+      {
+        ...subscriptionRecallClaim,
+        recipient_id: 102,
+        issued_at: 1_700_000_002,
+        discount: {
+          ...subscriptionRecallClaim.discount,
+          percent_off: 50,
+        },
+      },
+    ])
+    const goStart = html.indexOf('Go')
+    const proStart = html.indexOf('Pro', goStart)
+    const goSlice = html.slice(goStart, proStart)
+
+    expect(goSlice).toContain('50% OFF')
+    expect(goSlice).toContain('$5')
+    expect(html).not.toContain('signed-recall-claim')
+    expect(html).not.toContain('FKSE')
   })
 
   test('shows a fixed recall discount as an exact currency reduction', () => {
@@ -1112,7 +1160,57 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     })
 
     expect(html).toContain('2.00 USD OFF')
+    expect(html).toContain('Save $2')
     expect(html).not.toContain('$2 USD OFF')
+  })
+
+  test('formats recall subscription savings in the plan currency', () => {
+    const formatBrl = (amount: number) =>
+      Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount)
+    const basePlan = plan(4, 'Brazil', 50)
+    const brlPlan = {
+      ...basePlan,
+      plan: {
+        ...basePlan.plan,
+        currency: 'BRL',
+        stripe_price_id: 'price_brl',
+      },
+    }
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <RecallClaimProvider
+          claim='signed-recall-claim'
+          view={{
+            ...subscriptionRecallClaim,
+            products: {
+              topup_price_ids: [],
+              subscription_price_ids: ['price_brl'],
+              subscription_plan_ids: [4],
+            },
+          }}
+        >
+          <SubscriptionPlansCard
+            topupInfo={topupInfo}
+            initialPlans={[brlPlan]}
+            initialSelfData={normalizeSelfSubscriptionData(undefined)}
+            initialLoading={false}
+            userQuota={12345}
+          />
+        </RecallClaimProvider>
+      </I18nextProvider>
+    )
+
+    expect(html).toContain(formatBrl(50))
+    expect(html).toContain(formatBrl(40))
+    expect(html).toContain(`Save ${formatBrl(10)}`)
+    expect(html).not.toContain('$50')
+    expect(html).not.toContain('$40')
+    expect(html).not.toContain('Save $10')
   })
 })
 

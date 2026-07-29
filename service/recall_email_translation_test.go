@@ -40,6 +40,8 @@ func TestRecallEmailTranslatorTranslatesMultipleStagesInOneStructuredRequest(t *
 		require.Contains(t, requestText, `"type":"json_schema"`)
 		require.Contains(t, requestText, `"strict":true`)
 		require.Contains(t, requestText, `"additionalProperties":false`)
+		require.Contains(t, requestText, "Subjects must preserve every protected marker exactly once and in its original order")
+		require.Contains(t, requestText, "may move within that segment only as required by target-language grammar")
 		for _, language := range recallEmailTranslationTestLanguages {
 			require.Contains(t, requestText, `"`+language+`"`)
 		}
@@ -77,8 +79,8 @@ func TestRecallEmailTranslationSendsOnlyVisibleHTMLSegments(t *testing.T) {
 		"Hello {{.RecipientName}}",
 		"{{.PromotionCodeMasked}} · {{.ProductSummary}} · {{.ExpiresAt}}",
 		"Claim offer",
-		"Support center",
 		"Get help",
+		"Support center",
 		"Help",
 		"Unsubscribe",
 	}, expectedHTMLSegments)
@@ -217,6 +219,12 @@ func TestRecallEmailTranslationRejectsProtectedValueChangesAcrossHTMLSegments(t 
 			targetIndex := recallEmailTranslationSegmentIndexContainingForTest(segments, sentinels[1])
 			segments[targetIndex] += " " + sentinels[0]
 		}},
+		{name: "swapped across segments", mutate: func(segments []string, sentinels []string) {
+			firstIndex := recallEmailTranslationSegmentIndexContainingForTest(segments, sentinels[0])
+			secondIndex := recallEmailTranslationSegmentIndexContainingForTest(segments, sentinels[1])
+			segments[firstIndex] = strings.Replace(segments[firstIndex], sentinels[0], sentinels[1], 1)
+			segments[secondIndex] = strings.Replace(segments[secondIndex], sentinels[1], sentinels[0], 1)
+		}},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -298,9 +306,6 @@ func TestRecallEmailTranslationRejectsChangedProtectedActionsInSegments(t *testi
 		{name: "duplicated", reply: func(sentinels []string) string {
 			return "body " + sentinels[0] + " then " + sentinels[0]
 		}},
-		{name: "reordered", reply: func(sentinels []string) string {
-			return "body " + sentinels[1] + " then " + sentinels[0]
-		}},
 		{name: "modified", reply: func([]string) string {
 			return "body __RECALL_EMAIL_PROTECTED_00000000000000000000000000000000_9999__"
 		}},
@@ -312,10 +317,15 @@ func TestRecallEmailTranslationRejectsChangedProtectedActionsInSegments(t *testi
 				raw, err := io.ReadAll(r.Body)
 				require.NoError(t, err)
 				sentinels := sentinelPattern.FindAllString(string(raw), -1)
-				require.GreaterOrEqual(t, len(sentinels), 2)
+				require.Len(t, sentinels, 2)
+				var request map[string]any
+				require.NoError(t, common.Unmarshal(raw, &request))
+				stages := recallEmailTranslationRequestStages(t, request)
+				bodyMarker := recallEmailTranslationExtractSegmentIdentityForTest(recallEmailTranslationRequestBodySegments(t, stages[0])[0])
+				require.NotEmpty(t, bodyMarker)
 
 				writeRecallEmailTranslationResponse(t, w, recallEmailTranslationSegmentsResult(map[int][]string{
-					1: []string{testCase.reply(sentinels)},
+					1: []string{bodyMarker + " " + testCase.reply(sentinels)},
 				}))
 			}))
 			defer server.Close()
@@ -324,7 +334,7 @@ func TestRecallEmailTranslationRejectsChangedProtectedActionsInSegments(t *testi
 			_, err := translator.Translate(context.Background(), []RecallEmailStage{{
 				StageNo: 1,
 				Templates: map[string]RecallEmailTemplate{"en": {
-					Subject:  "Subject {{name}}",
+					Subject:  "HTML subject",
 					BodyText: "Body {{first}} then {{second}}",
 				}},
 			}})
@@ -332,6 +342,82 @@ func TestRecallEmailTranslationRejectsChangedProtectedActionsInSegments(t *testi
 			require.ErrorContains(t, err, "protected marker sequence changed")
 		})
 	}
+}
+
+func TestRecallEmailTranslationRestoresReorderedProtectedValuesWithinSegment(t *testing.T) {
+	allowRecallEmailTranslationTestServer(t)
+	sentinelPattern := regexp.MustCompile(`__RECALL_EMAIL_PROTECTED_[0-9a-f]{32}_[0-9]{4}__`)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		sentinels := sentinelPattern.FindAllString(string(raw), -1)
+		require.Len(t, sentinels, 2)
+
+		var request map[string]any
+		require.NoError(t, common.Unmarshal(raw, &request))
+		stages := recallEmailTranslationRequestStages(t, request)
+		bodyMarker := recallEmailTranslationExtractSegmentIdentityForTest(recallEmailTranslationRequestBodySegments(t, stages[0])[0])
+		require.NotEmpty(t, bodyMarker)
+
+		translations := make(map[string]recallEmailTranslatedTemplate, len(recallEmailTranslationTestLanguages))
+		for _, language := range recallEmailTranslationTestLanguages {
+			translations[language] = recallEmailTranslatedTemplate{
+				Subject:      language + ":HTML subject",
+				BodySegments: []string{bodyMarker + " " + language + ":" + sentinels[1] + " then " + sentinels[0]},
+			}
+		}
+		writeRecallEmailTranslationResponse(t, w, map[string]any{"stages": []map[string]any{{"stage_no": 1, "translations": translations}}})
+	}))
+	defer server.Close()
+
+	translator := newRecallEmailTranslationTestTranslator(server, RecallEmailTranslatorOptions{})
+	translated, err := translator.Translate(context.Background(), []RecallEmailStage{{
+		StageNo: 1,
+		Templates: map[string]RecallEmailTemplate{"en": {
+			Subject:  "HTML subject",
+			BodyText: "Body {{first}} then {{second}}",
+		}},
+	}})
+
+	require.NoError(t, err)
+	require.Equal(t, "zh:{{second}} then {{first}}", translated[1]["zh"].BodyText)
+}
+
+func TestRecallEmailTranslationRejectsReorderedProtectedValuesInSubject(t *testing.T) {
+	allowRecallEmailTranslationTestServer(t)
+	sentinelPattern := regexp.MustCompile(`__RECALL_EMAIL_PROTECTED_[0-9a-f]{32}_[0-9]{4}__`)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request map[string]any
+		require.NoError(t, common.DecodeJson(r.Body, &request))
+		stages := recallEmailTranslationRequestStages(t, request)
+		subject, ok := stages[0]["subject"].(string)
+		require.True(t, ok)
+		sentinels := sentinelPattern.FindAllString(subject, -1)
+		require.Len(t, sentinels, 2)
+		bodyMarker := recallEmailTranslationExtractSegmentIdentityForTest(recallEmailTranslationRequestBodySegments(t, stages[0])[0])
+		require.NotEmpty(t, bodyMarker)
+
+		translations := make(map[string]recallEmailTranslatedTemplate, len(recallEmailTranslationTestLanguages))
+		for _, language := range recallEmailTranslationTestLanguages {
+			translations[language] = recallEmailTranslatedTemplate{
+				Subject:      language + ":" + sentinels[1] + " then " + sentinels[0],
+				BodySegments: []string{bodyMarker + " " + language + ":Body"},
+			}
+		}
+		writeRecallEmailTranslationResponse(t, w, map[string]any{"stages": []map[string]any{{"stage_no": 1, "translations": translations}}})
+	}))
+	defer server.Close()
+
+	translator := newRecallEmailTranslationTestTranslator(server, RecallEmailTranslatorOptions{})
+	_, err := translator.Translate(context.Background(), []RecallEmailStage{{
+		StageNo: 1,
+		Templates: map[string]RecallEmailTemplate{"en": {
+			Subject:  "Subject {{first}} then {{second}}",
+			BodyText: "Body",
+		}},
+	}})
+
+	require.ErrorContains(t, err, "subject: protected marker sequence changed")
 }
 
 func TestRecallEmailTranslatorFromMonitorSettingsResolvesUpdatedConfigPerTranslate(t *testing.T) {

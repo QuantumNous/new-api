@@ -24,10 +24,16 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  getRecallPriceDiscount,
+  getTopupStripePriceId,
+  selectBestRecallOffer,
+  type RecallPriceDiscount,
+} from '../lib/recall-claim'
+import {
   STRIPE_CHECKOUT_CURRENCY_OPTIONS,
   type StripeCheckoutCurrency,
 } from '../lib/stripe-currency'
-import type { PresetAmount, TopupInfo } from '../types'
+import type { PresetAmount, RecallOfferView, TopupInfo } from '../types'
 
 interface RechargeFormCardProps {
   topupInfo: TopupInfo | null
@@ -40,6 +46,7 @@ interface RechargeFormCardProps {
   checkoutCurrency?: StripeCheckoutCurrency
   onCheckoutCurrencyChange?: (currency: StripeCheckoutCurrency) => void
   showCurrencySelector?: boolean
+  recallOffers?: RecallOfferView[]
 }
 
 const CURRENCY_SYMBOLS: Record<StripeCheckoutCurrency, string> = {
@@ -47,6 +54,20 @@ const CURRENCY_SYMBOLS: Record<StripeCheckoutCurrency, string> = {
   INR: '₹',
   BRL: 'R$',
   JPY: '¥',
+}
+
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
+function getRecallDiscountLabel(
+  discount: RecallPriceDiscount,
+  percentOff: number,
+  t: Translate
+): string {
+  if (discount.type === 'percent') return `${percentOff}% OFF`
+  return t('{{amount}} {{currency}} off', {
+    amount: discount.discountAmount.toFixed(2),
+    currency: discount.currency,
+  }).toUpperCase()
 }
 
 function getConfiguredPresetAmounts(
@@ -63,6 +84,8 @@ function getConfiguredPresetAmounts(
 
 export function RechargeFormCard(props: RechargeFormCardProps) {
   const { t } = useTranslation()
+  const checkoutCurrency = props.checkoutCurrency ?? 'USD'
+  const checkoutCurrencySymbol = CURRENCY_SYMBOLS[checkoutCurrency]
   const stripeEnabled =
     props.topupInfo?.enable_stripe_topup ||
     props.topupInfo?.pay_methods?.some((method) => method.type === 'stripe')
@@ -109,19 +132,66 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
       <div className='grid grid-cols-3 gap-2 sm:grid-cols-5'>
         {presets.map((preset) => {
           const isSelected = selected?.value === preset.value
+          const stripePriceId = getTopupStripePriceId(
+            props.topupInfo?.stripe_price_ids,
+            preset.value
+          )
+          const recallOffer = selectBestRecallOffer(props.recallOffers ?? [], {
+            purchaseKind: 'topup',
+            productId: stripePriceId,
+            amountMajor: preset.value,
+            currency: props.checkoutCurrency ?? 'USD',
+          })
+          const recallDiscount = getRecallPriceDiscount(
+            recallOffer,
+            stripePriceId,
+            'topup',
+            preset.value,
+            checkoutCurrency
+          )
           return (
             <Button
               key={preset.value}
               type='button'
               variant='outline'
               className={cn(
-                'h-12 text-base font-semibold',
+                'h-auto min-h-12 py-2 text-base font-semibold',
                 isSelected &&
                   'border-[#5b21b6] bg-[#f0ebfa] text-[#4c1d95] hover:bg-[#e9e0f8] dark:bg-[#5b21b6]/20 dark:text-[#c4b5fd]'
               )}
               onClick={() => props.onSelectPreset(preset)}
             >
-              ${formatNumber(preset.value)}
+              <span className='flex flex-col items-center gap-1 leading-tight'>
+                {recallDiscount ? (
+                  <span className='inline-flex rounded-full bg-[#dcfce7] px-2 py-0.5 text-[10px] font-semibold text-[#166534] uppercase dark:bg-[#14532d]/40 dark:text-[#86efac]'>
+                    {getRecallDiscountLabel(
+                      recallDiscount,
+                      Number(recallOffer?.discount.percent_off || 0),
+                      t
+                    )}
+                  </span>
+                ) : null}
+                <span className='flex items-baseline justify-center gap-1'>
+                  <span>
+                    {recallDiscount
+                      ? `${checkoutCurrencySymbol}${formatNumber(recallDiscount.discountedAmount)}`
+                      : `$${formatNumber(preset.value)}`}
+                  </span>
+                  {recallDiscount ? (
+                    <span className='text-[10px] font-medium line-through opacity-75'>
+                      {checkoutCurrencySymbol}
+                      {formatNumber(recallDiscount.originalAmount)}
+                    </span>
+                  ) : null}
+                </span>
+                {recallDiscount ? (
+                  <span className='text-[10px] font-medium text-[#166534] dark:text-[#86efac]'>
+                    {t('Save {{amount}}', {
+                      amount: `${checkoutCurrencySymbol}${formatNumber(recallDiscount.discountAmount)}`,
+                    })}
+                  </span>
+                ) : null}
+              </span>
             </Button>
           )
         })}

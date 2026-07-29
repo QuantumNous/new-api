@@ -30,6 +30,7 @@ type RecallStripeClient interface {
 	UpdateCustomer(context.Context, string, *stripe.CustomerParams) (*stripe.Customer, error)
 	CreatePromotionCode(context.Context, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error)
 	GetPromotionCode(context.Context, string) (*stripe.PromotionCode, error)
+	UpdatePromotionCode(context.Context, string, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error)
 	GetPrice(context.Context, string) (*stripe.Price, error)
 	GetCheckoutSession(context.Context, string, ...string) (*stripe.CheckoutSession, error)
 }
@@ -107,6 +108,18 @@ func (c *StripeRecallClient) GetPromotionCode(ctx context.Context, id string) (*
 	params.Context = ctx
 	client := promotioncode.Client{B: stripe.GetBackend(stripe.APIBackend), Key: setting.StripeApiSecret}
 	return client.Get(id, params)
+}
+
+func (c *StripeRecallClient) UpdatePromotionCode(ctx context.Context, id string, params *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+	if params == nil {
+		return nil, errors.New("Stripe promotion code params are nil")
+	}
+	params.Context = ctx
+	if params.IdempotencyKey != nil {
+		params.SetIdempotencyKey(*params.IdempotencyKey)
+	}
+	client := promotioncode.Client{B: stripe.GetBackend(stripe.APIBackend), Key: setting.StripeApiSecret}
+	return client.Update(id, params)
 }
 
 func (c *StripeRecallClient) GetPrice(ctx context.Context, id string) (*stripe.Price, error) {
@@ -421,8 +434,26 @@ func normalizeRecallDiscount(discount RecallDiscountConfig) (RecallDiscountConfi
 		currencyOptions[currency] = amountOff
 	}
 	discount.CurrencyOptions = currencyOptions
+	minimumSpend, err := normalizeRecallMinimumSpend(discount.MinimumSpend)
+	if err != nil {
+		return RecallDiscountConfig{}, err
+	}
+	discount.MinimumSpend = minimumSpend
+	if minimumSpend != nil {
+		if !minimumSpend.Enabled {
+			discount.MinimumAmount = 0
+			discount.MinimumAmountCurrency = ""
+		} else {
+			discount.MinimumAmount = minimumSpend.Amounts["usd"]
+			discount.MinimumAmountCurrency = "usd"
+		}
+	}
 	if discount.MinimumAmount > 0 && discount.MinimumAmountCurrency == "" {
 		return RecallDiscountConfig{}, recallStripePermanent("validate recall discount", "minimum amount currency is required")
+	}
+	if discount.MinimumAmount <= 0 {
+		discount.MinimumAmount = 0
+		discount.MinimumAmountCurrency = ""
 	}
 	if discount.Type == "" {
 		return discount, nil
@@ -448,6 +479,35 @@ func normalizeRecallDiscount(discount RecallDiscountConfig) (RecallDiscountConfi
 	return discount, nil
 }
 
+func normalizeRecallMinimumSpend(config *RecallMinimumSpendConfig) (*RecallMinimumSpendConfig, error) {
+	if config == nil {
+		return nil, nil
+	}
+	if !config.Enabled {
+		return &RecallMinimumSpendConfig{Amounts: map[string]int64{}}, nil
+	}
+	amounts := make(map[string]int64, len(config.Amounts))
+	for rawCurrency, amount := range config.Amounts {
+		currency := strings.ToLower(strings.TrimSpace(rawCurrency))
+		if currency == "" {
+			return nil, recallStripePermanent("validate recall discount", "minimum spend currency cannot be empty")
+		}
+		if _, exists := amounts[currency]; exists {
+			return nil, recallStripePermanent("validate recall discount", "minimum spend currency %s is duplicated", currency)
+		}
+		amounts[currency] = amount
+	}
+	if len(amounts) != 4 {
+		return nil, recallStripePermanent("validate recall discount", "minimum spend requires exactly usd, inr, brl, and jpy amounts")
+	}
+	for _, currency := range []string{"usd", "inr", "brl", "jpy"} {
+		if amounts[currency] <= 0 {
+			return nil, recallStripePermanent("validate recall discount", "minimum spend requires a positive %s amount", currency)
+		}
+	}
+	return &RecallMinimumSpendConfig{Enabled: true, Amounts: amounts}, nil
+}
+
 func validateRecallAutomaticFixedDiscount(discount RecallDiscountConfig) error {
 	if discount.Type != "fixed" {
 		return recallStripePermanent("validate recall discount", "automatic fixed discount must use fixed type")
@@ -460,9 +520,6 @@ func validateRecallAutomaticFixedDiscount(discount RecallDiscountConfig) error {
 	}
 	if discount.PercentOff != 0 {
 		return recallStripePermanent("validate recall discount", "automatic fixed discount cannot set percent_off")
-	}
-	if discount.MinimumAmount != 0 || discount.MinimumAmountCurrency != "" {
-		return recallStripePermanent("validate recall discount", "automatic fixed discount cannot set a minimum amount")
 	}
 	if len(discount.CurrencyOptions) != 3 {
 		return recallStripePermanent("validate recall discount", "automatic fixed discount requires exactly inr, brl, and jpy currency options")
@@ -786,7 +843,18 @@ func buildRecallPromotionParams(ctx context.Context, campaignID int64, recipient
 		params.Metadata["flatkey_user_id"] = strconv.Itoa(userID)
 	}
 	params.Context = ctx
-	if discount.MinimumAmount > 0 {
+	if discount.MinimumSpend != nil && discount.MinimumSpend.Enabled {
+		params.Restrictions = &stripe.PromotionCodeRestrictionsParams{
+			MinimumAmount:         stripe.Int64(discount.MinimumSpend.Amounts["usd"]),
+			MinimumAmountCurrency: stripe.String("usd"),
+			CurrencyOptions:       make(map[string]*stripe.PromotionCodeRestrictionsCurrencyOptionsParams, 3),
+		}
+		for _, currency := range []string{"inr", "brl", "jpy"} {
+			params.Restrictions.CurrencyOptions[currency] = &stripe.PromotionCodeRestrictionsCurrencyOptionsParams{
+				MinimumAmount: stripe.Int64(discount.MinimumSpend.Amounts[currency]),
+			}
+		}
+	} else if discount.MinimumAmount > 0 {
 		params.Restrictions = &stripe.PromotionCodeRestrictionsParams{
 			MinimumAmount:         stripe.Int64(discount.MinimumAmount),
 			MinimumAmountCurrency: stripe.String(discount.MinimumAmountCurrency),
@@ -875,15 +943,43 @@ func validateExistingRecallPromotion(existing *stripe.PromotionCode, recipient m
 	if existing.Restrictions != nil && existing.Restrictions.FirstTimeTransaction {
 		return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s first-time transaction restriction is not supported", existing.ID)
 	}
-	if existing.Restrictions != nil && len(existing.Restrictions.CurrencyOptions) > 0 {
-		return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s currency options are not supported", existing.ID)
-	}
-	if discount.MinimumAmount > 0 {
+	if discount.MinimumSpend != nil && discount.MinimumSpend.Enabled {
+		if !sameRecallPromotionMinimumSpendRestrictions(existing.Restrictions, discount.MinimumSpend) {
+			return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s minimum restriction does not match", existing.ID)
+		}
+	} else if discount.MinimumAmount > 0 {
+		if existing.Restrictions != nil && len(existing.Restrictions.CurrencyOptions) > 0 {
+			return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s currency options are not supported", existing.ID)
+		}
 		if existing.Restrictions == nil || existing.Restrictions.MinimumAmount != discount.MinimumAmount || string(existing.Restrictions.MinimumAmountCurrency) != discount.MinimumAmountCurrency {
 			return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s minimum restriction does not match", existing.ID)
 		}
-	} else if existing.Restrictions != nil && (existing.Restrictions.MinimumAmount != 0 || existing.Restrictions.MinimumAmountCurrency != "") {
-		return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s minimum restriction does not match", existing.ID)
+	} else if existing.Restrictions != nil {
+		if len(existing.Restrictions.CurrencyOptions) > 0 {
+			return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s currency options are not supported", existing.ID)
+		}
+		if existing.Restrictions.MinimumAmount != 0 || existing.Restrictions.MinimumAmountCurrency != "" {
+			return recallStripePermanent("reconcile Stripe Promotion Code", "Stripe Promotion Code %s minimum restriction does not match", existing.ID)
+		}
 	}
 	return nil
+}
+
+func sameRecallPromotionMinimumSpendRestrictions(restrictions *stripe.PromotionCodeRestrictions, minimumSpend *RecallMinimumSpendConfig) bool {
+	if restrictions == nil || minimumSpend == nil || !minimumSpend.Enabled {
+		return false
+	}
+	if restrictions.MinimumAmount != minimumSpend.Amounts["usd"] || strings.ToLower(string(restrictions.MinimumAmountCurrency)) != "usd" {
+		return false
+	}
+	if len(restrictions.CurrencyOptions) != 3 {
+		return false
+	}
+	for _, currency := range []string{"inr", "brl", "jpy"} {
+		option, ok := restrictions.CurrencyOptions[currency]
+		if !ok || option == nil || option.MinimumAmount != minimumSpend.Amounts[currency] {
+			return false
+		}
+	}
+	return true
 }

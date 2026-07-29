@@ -92,6 +92,75 @@ func TestEmailMessageDomainUsesEffectiveSenderMailbox(t *testing.T) {
 	}
 }
 
+func TestNormalizeSMTPFromAliasesPreservesCanonicalAliasesAndRejectsInjection(t *testing.T) {
+	aliases, err := NormalizeSMTPFromAliases(" Campaigns@Example.com\nalerts@example.com,campaigns@example.com ", "system@example.com", "login@example.com")
+	require.NoError(t, err)
+	require.Equal(t, "Campaigns@Example.com,alerts@example.com", aliases)
+
+	_, err = NormalizeSMTPFromAliases("safe@example.com\nBcc: victim@example.com", "system@example.com", "login@example.com")
+	require.Error(t, err)
+}
+
+func TestResolveSMTPSenderFromConfigUsesCanonicalChoicesAndRejectsUnlistedAliases(t *testing.T) {
+	resolved, err := ResolveSMTPSenderFromConfig("campaigns@example.com", "system@example.com", "login@example.com", "Campaigns@Example.com,alerts@example.com")
+	require.NoError(t, err)
+	require.Equal(t, "Campaigns@Example.com", resolved.Email)
+	require.Equal(t, "example.com", resolved.Domain)
+	require.False(t, resolved.UsesDefault)
+	require.Equal(t, []SMTPSenderChoice{
+		{Email: "system@example.com", IsDefault: true},
+		{Email: "Campaigns@Example.com"},
+		{Email: "alerts@example.com"},
+	}, resolved.Options)
+
+	_, err = ResolveSMTPSenderFromConfig("billing@example.com", "system@example.com", "login@example.com", "Campaigns@Example.com,alerts@example.com")
+	require.ErrorContains(t, err, "not allowed")
+}
+
+func TestSendEmailFromWithMessageIDUsesExplicitEnvelopeAndVisibleFrom(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{})
+	configureSMTPTestClient(t, port, false)
+	SystemName = "Flatkey"
+
+	err := SendEmailFromWithMessageID("campaigns@example.com", "subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.NoError(t, err)
+	require.Contains(t, result.commands, "MAIL FROM:<campaigns@example.com>")
+	require.Contains(t, result.data, "From: "+(&mail.Address{Name: SystemName, Address: "campaigns@example.com"}).String()+"\r\n")
+}
+
+func TestSendEmailWithMessageIDKeepsDefaultEnvelopeAndVisibleFrom(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{})
+	configureSMTPTestClient(t, port, false)
+	SystemName = "Flatkey"
+
+	err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.NoError(t, err)
+	require.Contains(t, result.commands, "MAIL FROM:<sender@example.com>")
+	require.Contains(t, result.data, "From: "+(&mail.Address{Name: SystemName, Address: "sender@example.com"}).String()+"\r\n")
+}
+
+func TestDefaultEmailPathsIgnoreMalformedSMTPFromAliases(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{})
+	configureSMTPTestClient(t, port, false)
+	SystemName = "Flatkey"
+	SMTPFromAliases = "safe@example.com\nBcc: victim@example.com"
+
+	domain, err := EmailMessageIDDomain()
+	require.NoError(t, err)
+	require.Equal(t, "example.com", domain)
+
+	message, err := buildEmailMessage("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	require.NoError(t, err)
+	require.Contains(t, string(message), "From: "+(&mail.Address{Name: SystemName, Address: "sender@example.com"}).String()+"\r\n")
+
+	err = SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.NoError(t, err)
+	require.Contains(t, result.commands, "MAIL FROM:<sender@example.com>")
+}
+
 func TestEmailMessageCanonicalizesAddressHeadersAndRejectsInvalidMessageIDDomain(t *testing.T) {
 	originalFrom := SMTPFrom
 	originalAccount := SMTPAccount
@@ -337,9 +406,13 @@ func runSMTPTestScript(conn net.Conn, rawConn net.Conn, script smtpTestScript, r
 		}
 		return nil
 	}
-	_, err := reader.ReadByte()
+	line, err := reader.ReadString('\n')
 	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
 		return nil
+	}
+	if err == nil && strings.HasPrefix(strings.ToUpper(strings.TrimSpace(line)), "QUIT") {
+		result.commands = append(result.commands, strings.TrimSpace(line))
+		return writeReply("221 2.0.0 bye\r\n")
 	}
 	return err
 }
@@ -369,13 +442,16 @@ func configureSMTPTestClient(t *testing.T, port int, useTLS bool) {
 	originalForceLogin := SMTPForceAuthLogin
 	originalAccount := SMTPAccount
 	originalFrom := SMTPFrom
+	originalAliases := SMTPFromAliases
 	originalToken := SMTPToken
+	originalName := SystemName
 	SMTPServer = "localhost"
 	SMTPPort = port
 	SMTPSSLEnabled = useTLS
 	SMTPForceAuthLogin = false
 	SMTPAccount = "sender@example.com"
 	SMTPFrom = "sender@example.com"
+	SMTPFromAliases = ""
 	SMTPToken = "test-password"
 	t.Cleanup(func() {
 		SMTPServer = originalServer
@@ -384,7 +460,9 @@ func configureSMTPTestClient(t *testing.T, port int, useTLS bool) {
 		SMTPForceAuthLogin = originalForceLogin
 		SMTPAccount = originalAccount
 		SMTPFrom = originalFrom
+		SMTPFromAliases = originalAliases
 		SMTPToken = originalToken
+		SystemName = originalName
 	})
 }
 

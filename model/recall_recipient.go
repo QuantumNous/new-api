@@ -30,37 +30,51 @@ const (
 	RecallConversionDirect   = "direct"
 	RecallConversionAssisted = "assisted"
 	RecallConversionNoCoupon = "no_coupon"
+
+	RecallPromotionRevocationPending   = "pending"
+	RecallPromotionRevocationCompleted = "completed"
+	RecallPromotionRevocationFailed    = "failed"
+
+	recallOfferCandidateIDBatchSize = 500
 )
 
 type RecallRecipient struct {
-	Id                    int64   `json:"id" gorm:"primaryKey"`
-	CampaignId            int64   `json:"campaign_id" gorm:"uniqueIndex:idx_recall_campaign_identity,priority:1;index"`
-	RecipientIdentity     string  `json:"-" gorm:"type:varchar(80);not null;default:'';uniqueIndex:idx_recall_campaign_identity,priority:2"`
-	UserId                int     `json:"user_id" gorm:"default:0;index"`
-	EligibilitySnapshot   string  `json:"eligibility_snapshot" gorm:"type:text;not null"`
-	EmailSnapshot         string  `json:"email_snapshot" gorm:"type:varchar(254);not null"`
-	LanguageSnapshot      string  `json:"language_snapshot" gorm:"type:varchar(16);not null"`
-	State                 string  `json:"state" gorm:"type:varchar(24);not null;index"`
-	LeaseOwner            string  `json:"-" gorm:"type:varchar(96);index"`
-	LeaseExpiresAt        int64   `json:"-" gorm:"index"`
-	StripeCustomerId      string  `json:"stripe_customer_id" gorm:"type:varchar(128)"`
-	StripePromotionCodeId *string `json:"-" gorm:"type:varchar(128);uniqueIndex"`
-	PromotionCode         string  `json:"-" gorm:"type:varchar(64)"`
-	PromotionExpiresAt    int64   `json:"promotion_expires_at" gorm:"index"`
-	ClaimTokenHash        *string `json:"-" gorm:"type:char(64);uniqueIndex"`
-	FirstSentAt           int64   `json:"first_sent_at"`
-	LastSentAt            int64   `json:"last_sent_at"`
-	ClickedAt             int64   `json:"clicked_at"`
-	ConvertedAt           int64   `json:"converted_at"`
-	ConversionKind        string  `json:"conversion_kind" gorm:"type:varchar(16)"`
-	ConversionTradeNo     string  `json:"conversion_trade_no" gorm:"type:varchar(128);index"`
-	ConversionCurrency    string  `json:"conversion_currency" gorm:"type:varchar(8)"`
-	ConversionAmount      int64   `json:"conversion_amount"`
-	DiscountAmount        int64   `json:"discount_amount"`
-	LastErrorCode         string  `json:"last_error_code" gorm:"type:varchar(64)"`
-	LastErrorMessage      string  `json:"last_error_message" gorm:"type:varchar(512)"`
-	CreatedAt             int64   `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt             int64   `json:"updated_at" gorm:"autoUpdateTime"`
+	Id                                int64   `json:"id" gorm:"primaryKey"`
+	CampaignId                        int64   `json:"campaign_id" gorm:"uniqueIndex:idx_recall_campaign_identity,priority:1;index"`
+	RecipientIdentity                 string  `json:"-" gorm:"type:varchar(80);not null;default:'';uniqueIndex:idx_recall_campaign_identity,priority:2"`
+	UserId                            int     `json:"user_id" gorm:"default:0;index"`
+	EligibilitySnapshot               string  `json:"eligibility_snapshot" gorm:"type:text;not null"`
+	EmailSnapshot                     string  `json:"email_snapshot" gorm:"type:varchar(254);not null"`
+	LanguageSnapshot                  string  `json:"language_snapshot" gorm:"type:varchar(16);not null"`
+	State                             string  `json:"state" gorm:"type:varchar(24);not null;index"`
+	LeaseOwner                        string  `json:"-" gorm:"type:varchar(96);index"`
+	LeaseExpiresAt                    int64   `json:"-" gorm:"index"`
+	StripeCustomerId                  string  `json:"stripe_customer_id" gorm:"type:varchar(128)"`
+	StripePromotionCodeId             *string `json:"-" gorm:"type:varchar(128);uniqueIndex"`
+	PromotionCode                     string  `json:"-" gorm:"type:varchar(64)"`
+	PromotionExpiresAt                int64   `json:"promotion_expires_at" gorm:"index"`
+	PromotionIssuedAt                 int64   `json:"promotion_issued_at" gorm:"index"`
+	PromotionRevocationState          string  `json:"promotion_revocation_state" gorm:"type:varchar(16);not null;default:'';index"`
+	PromotionRevocationAttemptCount   int     `json:"promotion_revocation_attempt_count" gorm:"not null;default:0"`
+	PromotionRevocationNextAttemptAt  int64   `json:"promotion_revocation_next_attempt_at" gorm:"index"`
+	PromotionRevocationLeaseOwner     string  `json:"-" gorm:"type:varchar(96);index"`
+	PromotionRevocationLeaseExpiresAt int64   `json:"-" gorm:"index"`
+	PromotionRevokedAt                int64   `json:"promotion_revoked_at" gorm:"index"`
+	PromotionRevocationLastErrorCode  string  `json:"promotion_revocation_last_error_code" gorm:"type:varchar(64)"`
+	ClaimTokenHash                    *string `json:"-" gorm:"type:char(64);uniqueIndex"`
+	FirstSentAt                       int64   `json:"first_sent_at"`
+	LastSentAt                        int64   `json:"last_sent_at"`
+	ClickedAt                         int64   `json:"clicked_at"`
+	ConvertedAt                       int64   `json:"converted_at"`
+	ConversionKind                    string  `json:"conversion_kind" gorm:"type:varchar(16)"`
+	ConversionTradeNo                 string  `json:"conversion_trade_no" gorm:"type:varchar(128);index"`
+	ConversionCurrency                string  `json:"conversion_currency" gorm:"type:varchar(8)"`
+	ConversionAmount                  int64   `json:"conversion_amount"`
+	DiscountAmount                    int64   `json:"discount_amount"`
+	LastErrorCode                     string  `json:"last_error_code" gorm:"type:varchar(64)"`
+	LastErrorMessage                  string  `json:"last_error_message" gorm:"type:varchar(512)"`
+	CreatedAt                         int64   `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt                         int64   `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 func (recipient *RecallRecipient) BeforeCreate(tx *gorm.DB) error {
@@ -78,10 +92,38 @@ type RecallClaimRecord struct {
 	ClaimTokenHash string
 }
 
+type RecallOfferCandidate struct {
+	Recipient RecallRecipient `json:"-"`
+	Campaign  RecallCampaign  `json:"-"`
+}
+
+type RecallOfferCandidatePage struct {
+	Candidates           []RecallOfferCandidate
+	NextAfterRecipientID int64
+	HasMore              bool
+}
+
+func (candidate RecallOfferCandidate) EffectiveIssuedAt() int64 {
+	if candidate.Recipient.PromotionIssuedAt != 0 {
+		return candidate.Recipient.PromotionIssuedAt
+	}
+	return candidate.Recipient.CreatedAt
+}
+
 type RecallRecipientWorkItem struct {
 	Id                int64 `gorm:"column:id"`
 	CampaignId        int64 `gorm:"column:campaign_id"`
 	WorkerConcurrency int   `gorm:"-"`
+}
+
+type RecallPromotionRevocationWorkItem struct {
+	Id         int64 `gorm:"column:id"`
+	CampaignId int64 `gorm:"column:campaign_id"`
+}
+
+type RecallPromotionPersistenceOutcome struct {
+	Persisted bool
+	Cancelled bool
 }
 
 type RecallAPIActivityCheck struct {
@@ -178,6 +220,218 @@ func BindRecallRecipientUserWithContext(ctx context.Context, recipientID int64, 
 	result := DB.WithContext(ctx).Model(&RecallRecipient{}).
 		Where("id = ? AND user_id = 0 AND LOWER(email_snapshot) = ? AND state <> ?", recipientID, email, RecallRecipientSuppressed).
 		Update("user_id", userID)
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+	var stored RecallRecipient
+	if err := DB.WithContext(ctx).First(&stored, recipientID).Error; err != nil {
+		return nil, false, err
+	}
+	if result.RowsAffected == 1 {
+		return &stored, true, nil
+	}
+	if stored.UserId == userID {
+		return &stored, false, nil
+	}
+	return nil, false, ErrRecallRecipientBindingConflict
+}
+
+func ListRecallOfferCandidatesForUserWithContext(ctx context.Context, userID int, normalizedEmail string, now int64) ([]RecallOfferCandidate, error) {
+	candidates := make([]RecallOfferCandidate, 0)
+	afterRecipientID := int64(0)
+	for {
+		page, err := ListRecallOfferCandidatePageForUserWithContext(ctx, userID, normalizedEmail, now, afterRecipientID, recallOfferCandidateIDBatchSize)
+		if err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, page.Candidates...)
+		if !page.HasMore {
+			return candidates, nil
+		}
+		afterRecipientID = page.NextAfterRecipientID
+	}
+}
+
+func ListRecallOfferCandidatePageForUserWithContext(ctx context.Context, userID int, normalizedEmail string, now int64, afterRecipientID int64, limit int) (RecallOfferCandidatePage, error) {
+	page := RecallOfferCandidatePage{Candidates: make([]RecallOfferCandidate, 0)}
+	if err := ctx.Err(); err != nil {
+		return page, err
+	}
+	if userID <= 0 {
+		return page, nil
+	}
+	email, ok := normalizeRecallRecipientEmail(normalizedEmail)
+	if !ok {
+		return page, nil
+	}
+	if limit <= 0 {
+		return page, nil
+	}
+	if limit > recallOfferCandidateIDBatchSize {
+		limit = recallOfferCandidateIDBatchSize
+	}
+	var user User
+	result := DB.WithContext(ctx).
+		Where("id = ? AND status = ? AND LOWER(email) = ?", userID, common.UserStatusEnabled, email).
+		Limit(1).
+		Find(&user)
+	if result.Error != nil {
+		return page, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return page, nil
+	}
+
+	usableStatuses := recallOfferUsableCampaignStatuses()
+	var recipients []RecallRecipient
+	query := DB.WithContext(ctx).
+		Model(&RecallRecipient{}).
+		Select("recall_recipients.*").
+		Joins("JOIN recall_campaigns ON recall_campaigns.id = recall_recipients.campaign_id").
+		Where("recall_campaigns.campaign_type = ?", RecallCampaignTypePromotion).
+		Where("recall_campaigns.status IN ?", usableStatuses).
+		Where("(recall_recipients.user_id = ? OR (recall_recipients.user_id = 0 AND LOWER(recall_recipients.email_snapshot) = ?))", userID, email)
+	if afterRecipientID > 0 {
+		query = query.Where("recall_recipients.id > ?", afterRecipientID)
+	}
+	query = applyRecallOfferRecipientFilters(query, "recall_recipients", now)
+	err := query.
+		Order("recall_recipients.id ASC").
+		Limit(limit).
+		Find(&recipients).Error
+	if err != nil {
+		return page, err
+	}
+	if len(recipients) > 0 {
+		page.NextAfterRecipientID = recipients[len(recipients)-1].Id
+		page.HasMore = len(recipients) == limit
+	}
+	recipientIDs := make([]int64, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.UserId == 0 {
+			_, _, bindErr := bindRecallOfferCandidateRecipientUserWithContext(ctx, recipient.Id, userID, email, now)
+			if bindErr != nil {
+				if errors.Is(bindErr, ErrRecallRecipientBindingConflict) || errors.Is(bindErr, gorm.ErrRecordNotFound) {
+					continue
+				}
+				return page, bindErr
+			}
+		}
+		recipientIDs = append(recipientIDs, recipient.Id)
+	}
+	if len(recipientIDs) == 0 {
+		return page, nil
+	}
+
+	finalRecipients := make([]RecallRecipient, 0, len(recipientIDs))
+	for start := 0; start < len(recipientIDs); start += recallOfferCandidateIDBatchSize {
+		end := start + recallOfferCandidateIDBatchSize
+		if end > len(recipientIDs) {
+			end = len(recipientIDs)
+		}
+		var batch []RecallRecipient
+		finalQuery := DB.WithContext(ctx).
+			Model(&RecallRecipient{}).
+			Select("recall_recipients.*").
+			Joins("JOIN recall_campaigns ON recall_campaigns.id = recall_recipients.campaign_id").
+			Where("recall_recipients.id IN ? AND recall_recipients.user_id = ?", recipientIDs[start:end], userID).
+			Where("recall_campaigns.campaign_type = ?", RecallCampaignTypePromotion).
+			Where("recall_campaigns.status IN ?", usableStatuses)
+		finalQuery = applyRecallOfferRecipientFilters(finalQuery, "recall_recipients", now)
+		if err := finalQuery.Order("recall_recipients.id ASC").Find(&batch).Error; err != nil {
+			return page, err
+		}
+		finalRecipients = append(finalRecipients, batch...)
+	}
+	if len(finalRecipients) == 0 {
+		return page, nil
+	}
+
+	campaignIDs := make([]int64, 0, len(finalRecipients))
+	seenCampaignIDs := make(map[int64]struct{}, len(finalRecipients))
+	for _, recipient := range finalRecipients {
+		if _, exists := seenCampaignIDs[recipient.CampaignId]; exists {
+			continue
+		}
+		seenCampaignIDs[recipient.CampaignId] = struct{}{}
+		campaignIDs = append(campaignIDs, recipient.CampaignId)
+	}
+	campaigns := make([]RecallCampaign, 0, len(campaignIDs))
+	for start := 0; start < len(campaignIDs); start += recallOfferCandidateIDBatchSize {
+		end := start + recallOfferCandidateIDBatchSize
+		if end > len(campaignIDs) {
+			end = len(campaignIDs)
+		}
+		var batch []RecallCampaign
+		if err := DB.WithContext(ctx).
+			Where("id IN ? AND campaign_type = ? AND status IN ?", campaignIDs[start:end], RecallCampaignTypePromotion, usableStatuses).
+			Find(&batch).Error; err != nil {
+			return page, err
+		}
+		campaigns = append(campaigns, batch...)
+	}
+	campaignsByID := make(map[int64]RecallCampaign, len(campaigns))
+	for _, campaign := range campaigns {
+		campaignsByID[campaign.Id] = campaign
+	}
+	for _, recipient := range finalRecipients {
+		campaign, ok := campaignsByID[recipient.CampaignId]
+		if !ok {
+			continue
+		}
+		page.Candidates = append(page.Candidates, RecallOfferCandidate{Recipient: recipient, Campaign: campaign})
+	}
+	return page, nil
+}
+
+func recallOfferUsableCampaignStatuses() []string {
+	return []string{RecallCampaignScheduled, RecallCampaignRunning, RecallCampaignPaused, RecallCampaignCompleted}
+}
+
+func recallOfferExcludedRecipientStates() []string {
+	return []string{
+		RecallRecipientConverted,
+		RecallRecipientSuppressed,
+		RecallRecipientIneligible,
+		RecallRecipientExpired,
+		RecallRecipientFailed,
+	}
+}
+
+func applyRecallOfferRecipientFilters(query *gorm.DB, table string, now int64) *gorm.DB {
+	column := func(name string) string {
+		if table == "" {
+			return name
+		}
+		return table + "." + name
+	}
+	return query.
+		Where(column("state")+" NOT IN ?", recallOfferExcludedRecipientStates()).
+		Where(column("stripe_promotion_code_id")+" IS NOT NULL AND "+column("stripe_promotion_code_id")+" <> ''").
+		Where(column("promotion_code")+" <> ''").
+		Where(column("promotion_expires_at")+" > ?", now)
+}
+
+func bindRecallOfferCandidateRecipientUserWithContext(ctx context.Context, recipientID int64, userID int, normalizedEmail string, now int64) (*RecallRecipient, bool, error) {
+	if recipientID <= 0 {
+		return nil, false, gorm.ErrRecordNotFound
+	}
+	if userID <= 0 {
+		return nil, false, fmt.Errorf("recall offer candidate bind requires a positive user id")
+	}
+	email, ok := normalizeRecallRecipientEmail(normalizedEmail)
+	if !ok {
+		return nil, false, fmt.Errorf("recall offer candidate bind requires a normalized email")
+	}
+	query := DB.WithContext(ctx).Model(&RecallRecipient{}).
+		Where("id = ? AND user_id = 0 AND LOWER(email_snapshot) = ?", recipientID, email).
+		Where(
+			"EXISTS (SELECT 1 FROM recall_campaigns WHERE recall_campaigns.id = recall_recipients.campaign_id AND recall_campaigns.campaign_type = ? AND recall_campaigns.status IN ?)",
+			RecallCampaignTypePromotion,
+			recallOfferUsableCampaignStatuses(),
+		)
+	query = applyRecallOfferRecipientFilters(query, "", now)
+	result := query.Update("user_id", userID)
 	if result.Error != nil {
 		return nil, false, result.Error
 	}
@@ -432,18 +686,22 @@ func PrepareRecallRecipientPromotion(ctx context.Context, id int64, owner string
 	return result.RowsAffected == 1, nil
 }
 
-func PersistRecallRecipientPromotion(ctx context.Context, id int64, promotionID string, code string) (bool, error) {
+func PersistRecallRecipientPromotion(ctx context.Context, id int64, promotionID string, code string, issuedAt int64) (bool, error) {
 	promotionID = strings.TrimSpace(promotionID)
 	code = strings.TrimSpace(code)
 	if promotionID == "" || code == "" {
 		return false, fmt.Errorf("Stripe Promotion Code ID and code must not be empty")
 	}
+	updates := map[string]any{
+		"stripe_promotion_code_id": promotionID,
+		"promotion_code":           code,
+	}
+	if issuedAt > 0 {
+		updates["promotion_issued_at"] = gorm.Expr("CASE WHEN promotion_issued_at IS NULL OR promotion_issued_at = 0 THEN ? ELSE promotion_issued_at END", issuedAt)
+	}
 	result := DB.WithContext(ctx).Model(&RecallRecipient{}).
 		Where("id = ? AND (stripe_promotion_code_id IS NULL OR stripe_promotion_code_id = '' OR stripe_promotion_code_id = ?)", id, promotionID).
-		Updates(map[string]any{
-			"stripe_promotion_code_id": promotionID,
-			"promotion_code":           code,
-		})
+		Updates(updates)
 	if result.Error != nil {
 		return false, result.Error
 	}
@@ -455,6 +713,55 @@ func PersistRecallRecipientPromotion(ctx context.Context, id int64, promotionID 
 		return false, err
 	}
 	return stored.StripePromotionCodeId != nil && strings.TrimSpace(*stored.StripePromotionCodeId) == promotionID && stored.PromotionCode == code, nil
+}
+
+func PersistRecallRecipientPromotionForLeaseWithContext(ctx context.Context, id int64, campaignID int64, owner string, expectedLeaseUntil int64, promotionID string, code string, issuedAt int64) (RecallPromotionPersistenceOutcome, error) {
+	promotionID = strings.TrimSpace(promotionID)
+	code = strings.TrimSpace(code)
+	if promotionID == "" || code == "" {
+		return RecallPromotionPersistenceOutcome{}, fmt.Errorf("Stripe Promotion Code ID and code must not be empty")
+	}
+	var campaign RecallCampaign
+	if err := DB.WithContext(ctx).Select("status").First(&campaign, campaignID).Error; err != nil {
+		return RecallPromotionPersistenceOutcome{}, err
+	}
+	updates := map[string]any{
+		"stripe_promotion_code_id": promotionID,
+		"promotion_code":           code,
+	}
+	if issuedAt > 0 {
+		updates["promotion_issued_at"] = gorm.Expr("CASE WHEN promotion_issued_at IS NULL OR promotion_issued_at = 0 THEN ? ELSE promotion_issued_at END", issuedAt)
+	}
+	if campaign.Status == RecallCampaignCancelled {
+		updates["promotion_revocation_state"] = RecallPromotionRevocationPending
+		updates["promotion_revocation_next_attempt_at"] = int64(0)
+		updates["promotion_revocation_lease_owner"] = ""
+		updates["promotion_revocation_lease_expires_at"] = int64(0)
+		updates["promotion_revocation_last_error_code"] = ""
+		updates["lease_owner"] = ""
+		updates["lease_expires_at"] = int64(0)
+	}
+	outcome := RecallPromotionPersistenceOutcome{}
+	result := DB.WithContext(ctx).Model(&RecallRecipient{}).
+		Where("id = ? AND campaign_id = ? AND state = ?",
+			id, campaignID, RecallRecipientCustomerReady).
+		Where("(stripe_promotion_code_id IS NULL OR stripe_promotion_code_id = '' OR stripe_promotion_code_id = ?)", promotionID).
+		Updates(updates)
+	if result.Error != nil {
+		return outcome, result.Error
+	}
+	if result.RowsAffected == 1 {
+		outcome.Persisted = true
+		outcome.Cancelled = campaign.Status == RecallCampaignCancelled
+		return outcome, nil
+	}
+	var stored RecallRecipient
+	if err := DB.WithContext(ctx).Select("stripe_promotion_code_id", "promotion_code").First(&stored, id).Error; err != nil {
+		return outcome, err
+	}
+	outcome.Persisted = stored.StripePromotionCodeId != nil && strings.TrimSpace(*stored.StripePromotionCodeId) == promotionID && stored.PromotionCode == code
+	outcome.Cancelled = campaign.Status == RecallCampaignCancelled
+	return outcome, nil
 }
 
 func DeferRecallRecipientLease(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, retryAt int64, errorCode string) (bool, error) {
@@ -474,6 +781,136 @@ func DeferRecallRecipientLease(ctx context.Context, id int64, owner string, expe
 		return false, result.Error
 	}
 	return result.RowsAffected == 1, nil
+}
+
+func ListDueRecallPromotionRevocationsWithContext(ctx context.Context, now int64, limit int) ([]RecallPromotionRevocationWorkItem, error) {
+	items := make([]RecallPromotionRevocationWorkItem, 0)
+	if limit <= 0 {
+		return items, nil
+	}
+	err := DB.WithContext(ctx).Model(&RecallRecipient{}).
+		Select("recall_recipients.id", "recall_recipients.campaign_id").
+		Joins("JOIN recall_campaigns ON recall_campaigns.id = recall_recipients.campaign_id").
+		Where("recall_recipients.state <> ?", RecallRecipientConverted).
+		Where("recall_recipients.stripe_promotion_code_id IS NOT NULL AND recall_recipients.stripe_promotion_code_id <> ''").
+		Where("recall_recipients.promotion_code <> ''").
+		Where("(recall_recipients.promotion_revocation_lease_expires_at = 0 OR recall_recipients.promotion_revocation_lease_expires_at < ?)", now).
+		Where(
+			"(recall_recipients.promotion_revocation_state = ? AND (recall_recipients.promotion_revocation_next_attempt_at = 0 OR recall_recipients.promotion_revocation_next_attempt_at <= ?)) OR "+
+				"(recall_campaigns.status = ? AND recall_recipients.promotion_revocation_state = '' AND recall_recipients.promotion_expires_at > ?)",
+			RecallPromotionRevocationPending,
+			now,
+			RecallCampaignCancelled,
+			now,
+		).
+		Order("recall_recipients.id ASC").
+		Limit(limit).
+		Scan(&items).Error
+	return items, err
+}
+
+func LeaseRecallPromotionRevocation(ctx context.Context, id int64, owner string, now int64, leaseUntil int64) (bool, error) {
+	if strings.TrimSpace(owner) == "" {
+		return false, fmt.Errorf("recall promotion revocation lease owner is required")
+	}
+	result := DB.WithContext(ctx).Model(&RecallRecipient{}).
+		Where("id = ? AND state <> ?", id, RecallRecipientConverted).
+		Where("stripe_promotion_code_id IS NOT NULL AND stripe_promotion_code_id <> ''").
+		Where("promotion_code <> ''").
+		Where("(promotion_revocation_lease_expires_at = 0 OR promotion_revocation_lease_expires_at < ?)", now).
+		Where(
+			"(promotion_revocation_state = ? AND (promotion_revocation_next_attempt_at = 0 OR promotion_revocation_next_attempt_at <= ?)) OR "+
+				"(promotion_revocation_state = '' AND promotion_expires_at > ? AND EXISTS (SELECT 1 FROM recall_campaigns WHERE recall_campaigns.id = recall_recipients.campaign_id AND recall_campaigns.status = ?))",
+			RecallPromotionRevocationPending,
+			now,
+			now,
+			RecallCampaignCancelled,
+		).
+		Updates(map[string]any{
+			"promotion_revocation_state":            RecallPromotionRevocationPending,
+			"promotion_revocation_lease_owner":      strings.TrimSpace(owner),
+			"promotion_revocation_lease_expires_at": leaseUntil,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func CompleteRecallPromotionRevocation(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, revokedAt int64, errorCode string) (bool, error) {
+	updates := map[string]any{
+		"promotion_revocation_state":            RecallPromotionRevocationCompleted,
+		"promotion_revocation_next_attempt_at":  int64(0),
+		"promotion_revocation_lease_owner":      "",
+		"promotion_revocation_lease_expires_at": int64(0),
+		"promotion_revoked_at":                  revokedAt,
+		"promotion_revocation_last_error_code":  sanitizeRecallErrorCode(errorCode),
+	}
+	result := DB.WithContext(ctx).Model(&RecallRecipient{}).
+		Where("id = ? AND promotion_revocation_state = ? AND promotion_revocation_lease_owner = ? AND promotion_revocation_lease_expires_at = ?",
+			id, RecallPromotionRevocationPending, strings.TrimSpace(owner), expectedLeaseUntil).
+		Updates(updates)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func DeferRecallPromotionRevocation(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, retryAt int64, errorCode string) (bool, error) {
+	result := DB.WithContext(ctx).Model(&RecallRecipient{}).
+		Where("id = ? AND promotion_revocation_state = ? AND promotion_revocation_lease_owner = ? AND promotion_revocation_lease_expires_at = ?",
+			id, RecallPromotionRevocationPending, strings.TrimSpace(owner), expectedLeaseUntil).
+		Updates(map[string]any{
+			"promotion_revocation_attempt_count":    gorm.Expr("promotion_revocation_attempt_count + ?", 1),
+			"promotion_revocation_next_attempt_at":  retryAt,
+			"promotion_revocation_lease_owner":      "",
+			"promotion_revocation_lease_expires_at": int64(0),
+			"promotion_revocation_last_error_code":  sanitizeRecallErrorCode(errorCode),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func FailRecallPromotionRevocation(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, errorCode string) (bool, error) {
+	result := DB.WithContext(ctx).Model(&RecallRecipient{}).
+		Where("id = ? AND promotion_revocation_state = ? AND promotion_revocation_lease_owner = ? AND promotion_revocation_lease_expires_at = ?",
+			id, RecallPromotionRevocationPending, strings.TrimSpace(owner), expectedLeaseUntil).
+		Updates(map[string]any{
+			"promotion_revocation_state":            RecallPromotionRevocationFailed,
+			"promotion_revocation_attempt_count":    gorm.Expr("promotion_revocation_attempt_count + ?", 1),
+			"promotion_revocation_next_attempt_at":  int64(0),
+			"promotion_revocation_lease_owner":      "",
+			"promotion_revocation_lease_expires_at": int64(0),
+			"promotion_revocation_last_error_code":  sanitizeRecallErrorCode(errorCode),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func sanitizeRecallErrorCode(code string) string {
+	code = strings.ToLower(strings.TrimSpace(code))
+	if code == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range code {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '_' || r == '-':
+			b.WriteRune(r)
+		}
+		if b.Len() >= 64 {
+			break
+		}
+	}
+	return b.String()
 }
 
 func ScheduleRecallStageOneAndAdvance(ctx context.Context, recipientID int64, owner string, expectedLeaseUntil int64, message RecallMessage) (bool, error) {

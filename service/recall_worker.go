@@ -348,11 +348,20 @@ func (w *RecallRecipientWorker) ensureRecipientPromotion(ctx context.Context, re
 	if promotion == nil || strings.TrimSpace(promotion.ID) == "" || strings.TrimSpace(promotion.Code) == "" {
 		return recallStripePermanent("persist Stripe Promotion Code", "Stripe returned an unavailable Promotion Code")
 	}
-	persisted, err := model.PersistRecallRecipientPromotion(ctx, recipient.Id, promotion.ID, promotion.Code)
+	issuedAt := int64(0)
+	if recipient.StripePromotionCodeId == nil || strings.TrimSpace(*recipient.StripePromotionCodeId) == "" {
+		issuedAt = w.now().Unix()
+	}
+	persistOutcome, err := model.PersistRecallRecipientPromotionForLeaseWithContext(ctx, recipient.Id, recipient.CampaignId, w.owner, recipient.LeaseExpiresAt, promotion.ID, promotion.Code, issuedAt)
 	if err != nil {
 		return err
 	}
-	if !persisted {
+	if persistOutcome.Cancelled {
+		w.bestEffortDeactivatePromotion(ctx, promotion.ID, recipient.Id, recipient.LeaseExpiresAt)
+		return errRecallCampaignInactive
+	}
+	if !persistOutcome.Persisted {
+		w.bestEffortDeactivatePromotion(ctx, promotion.ID, recipient.Id, recipient.LeaseExpiresAt)
 		refreshed, loadErr := model.GetRecallRecipientForLeaseWithContext(ctx, recipient.Id, w.owner)
 		if loadErr != nil {
 			return ErrRecallRecipientLeaseLost
@@ -371,6 +380,19 @@ func (w *RecallRecipientWorker) ensureRecipientPromotion(ctx context.Context, re
 		return ErrRecallRecipientLeaseLost
 	}
 	return nil
+}
+
+func (w *RecallRecipientWorker) bestEffortDeactivatePromotion(ctx context.Context, promotionID string, recipientID int64, leaseUntil int64) {
+	promotionID = strings.TrimSpace(promotionID)
+	if promotionID == "" {
+		return
+	}
+	params := &stripe.PromotionCodeParams{Active: stripe.Bool(false)}
+	params.Context = ctx
+	params.SetIdempotencyKey(fmt.Sprintf("recall_promotion_orphan_deactivate:%d:%d", recipientID, leaseUntil))
+	if _, err := w.stripe.client.UpdatePromotionCode(ctx, promotionID, params); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("recall promotion orphan deactivation failed: recipient_id=%d error_class=%s", recipientID, ClassifyRecallStripeError(err)))
+	}
 }
 
 func (w *RecallRecipientWorker) scheduleStageOne(ctx context.Context, recipient *model.RecallRecipient, fromStates []string) error {
