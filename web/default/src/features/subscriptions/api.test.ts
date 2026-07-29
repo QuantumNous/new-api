@@ -16,5 +16,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export * from './format'
-export * from './subscription-summary'
+import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test'
+import { api, type ApiRequestConfig } from '@/lib/api'
+import { getSelfSubscriptionFull } from './api'
+
+afterEach(() => {
+  mock.restore()
+})
+
+describe('getSelfSubscriptionFull', () => {
+  test('passes request config through to the self-subscription request', async () => {
+    const config: ApiRequestConfig = {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    }
+    const response = { success: true, data: {} }
+    spyOn(api, 'get').mockResolvedValue({ data: response } as never)
+
+    await expect(getSelfSubscriptionFull(config)).resolves.toBe(response)
+
+    expect(api.get).toHaveBeenCalledWith('/api/subscription/self', config)
+  })
+})

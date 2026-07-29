@@ -31,10 +31,11 @@ import { ProfileSecurityCard } from './components/profile-security-card'
 import { ProfileSettingsCard } from './components/profile-settings-card'
 import { SidebarModulesCard } from './components/sidebar-modules-card'
 import { TwoFACard } from './components/two-fa-card'
-import { useProfile } from './hooks'
+import { useProfile, useProfileSubscriptionSummary } from './hooks'
 
 export function Profile() {
   const { profile, loading, refreshProfile } = useProfile()
+  const subscription = useProfileSubscriptionSummary(profile?.id)
   const { status } = useStatus()
   const permissions = useAuthStore((s) => s.auth.user?.permissions)
 
@@ -50,7 +51,11 @@ export function Profile() {
       <div className='min-h-0 flex-1 overflow-auto px-3 py-3 sm:px-4 sm:py-6'>
         <CardStaggerContainer className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-6'>
           <CardStaggerItem>
-            <ProfileHeader profile={profile} loading={loading} />
+            <ProfileHeader
+              profile={profile}
+              loading={loading}
+              subscription={subscription}
+            />
           </CardStaggerItem>
 
           <CardStaggerItem>

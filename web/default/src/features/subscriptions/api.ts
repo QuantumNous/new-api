@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 import type {
   ApiResponse,
   PlanRecord,
@@ -220,10 +220,10 @@ export async function getSelfSubscriptions(): Promise<
   return res.data
 }
 
-export async function getSelfSubscriptionFull(): Promise<
-  ApiResponse<SelfSubscriptionDataResponse>
-> {
-  const res = await api.get('/api/subscription/self')
+export async function getSelfSubscriptionFull(
+  config: ApiRequestConfig = {}
+): Promise<ApiResponse<SelfSubscriptionDataResponse>> {
+  const res = await api.get('/api/subscription/self', config)
   return res.data
 }
 

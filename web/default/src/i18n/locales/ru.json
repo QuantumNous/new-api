@@ -5815,6 +5815,8 @@
     "Top up to deploy": "Пополните для развёртывания",
     "Plans & wallet": "Планы и кошелёк",
     "Available balance": "Доступный баланс",
+    "Balance can be used to purchase plans directly.": "Баланс можно использовать для прямой покупки тарифов.",
+    "After plan quota is exhausted, balance is used automatically for API usage billing.": "После исчерпания квоты тарифа баланс автоматически используется для оплаты по объёму использования API.",
     "Top-ups": "Пополнения",
     "Current plan": "Текущий план",
     "Current subscription": "Текущая подписка",

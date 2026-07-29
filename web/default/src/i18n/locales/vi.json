@@ -5815,6 +5815,8 @@
     "Top up to deploy": "Nạp tiền để triển khai",
     "Plans & wallet": "Gói và ví",
     "Available balance": "Số dư khả dụng",
+    "Balance can be used to purchase plans directly.": "Số dư có thể được dùng để mua gói trực tiếp.",
+    "After plan quota is exhausted, balance is used automatically for API usage billing.": "Sau khi dùng hết hạn mức của gói, số dư sẽ tự động được dùng để tính phí theo mức sử dụng API.",
     "Top-ups": "Nạp tiền",
     "Current plan": "Gói hiện tại",
     "Current subscription": "Gói đăng ký hiện tại",

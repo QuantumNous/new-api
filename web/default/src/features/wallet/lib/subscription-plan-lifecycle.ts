@@ -104,7 +104,7 @@ export type WalletSelfSubscriptionData = Omit<
   contract?: WalletSubscriptionContract | null
   current_period?: SubscriptionCurrentPeriod
   quota?: SubscriptionQuota
-  monthly_bucket?: SubscriptionQuota
+  monthly_bucket?: SubscriptionUsageWindow
   window_5h?: SubscriptionUsageWindow
   window_7d?: SubscriptionUsageWindow
   media_credits?: SubscriptionUsageWindow
@@ -234,7 +234,7 @@ export function normalizeSelfSubscriptionData(
     current_entitlement: data?.current_entitlement ?? null,
     current_period: data?.current_period ?? DEFAULT_CURRENT_PERIOD,
     quota: data?.quota ?? DEFAULT_QUOTA,
-    monthly_bucket: data?.monthly_bucket ?? data?.quota ?? DEFAULT_QUOTA,
+    monthly_bucket: data?.monthly_bucket ?? EMPTY_USAGE_WINDOW,
     window_5h: data?.window_5h ?? EMPTY_USAGE_WINDOW,
     window_7d: data?.window_7d ?? EMPTY_USAGE_WINDOW,
     media_credits: normalizeMediaUsageWindow(data?.media_credits),
@@ -355,7 +355,10 @@ export function getMatchingPaymentQuote(
   if (quote.months !== normalizeFlexibleMonths(paymentChoice, months)) {
     return undefined
   }
-  if (typeof quote.quote_id !== 'string' || quote.quote_id.trim().length === 0) {
+  if (
+    typeof quote.quote_id !== 'string' ||
+    quote.quote_id.trim().length === 0
+  ) {
     return undefined
   }
   if (

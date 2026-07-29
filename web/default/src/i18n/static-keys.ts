@@ -101,6 +101,11 @@ export const STATIC_I18N_KEYS = [
   'Stripe top-up is not enabled. Please contact administrator.',
   'Plans & wallet',
   'Available balance',
+
+  // Profile balance guidance
+  'Balance can be used to purchase plans directly.',
+  'After plan quota is exhausted, balance is used automatically for API usage billing.',
+
   'Top-ups',
   'Current plan',
   'Auto-renew on',
