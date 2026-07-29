@@ -20,6 +20,95 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSMTPConfigValidatesCompletePlainMailboxConfiguration(t *testing.T) {
+	valid := SMTPConfig{
+		Server:  "smtp.example.com",
+		Port:    587,
+		Account: "activity@example.com",
+		From:    "campaigns@Mail.Example.COM",
+		Token:   "secret",
+	}
+
+	require.NoError(t, valid.Validate())
+	sender, domain, err := valid.Sender()
+	require.NoError(t, err)
+	require.Equal(t, "campaigns@Mail.Example.COM", sender)
+	require.Equal(t, "mail.example.com", domain)
+
+	tests := []struct {
+		name   string
+		mutate func(*SMTPConfig)
+	}{
+		{name: "server required", mutate: func(config *SMTPConfig) { config.Server = "" }},
+		{name: "port positive", mutate: func(config *SMTPConfig) { config.Port = 0 }},
+		{name: "port bounded", mutate: func(config *SMTPConfig) { config.Port = 65536 }},
+		{name: "account required", mutate: func(config *SMTPConfig) { config.Account = "" }},
+		{name: "from required", mutate: func(config *SMTPConfig) { config.From = "" }},
+		{name: "token required", mutate: func(config *SMTPConfig) { config.Token = "" }},
+		{name: "plain from mailbox", mutate: func(config *SMTPConfig) { config.From = "Campaigns <campaigns@example.com>" }},
+		{name: "header-safe from mailbox", mutate: func(config *SMTPConfig) { config.From = "campaigns@example.com\r\nBcc: victim@example.com" }},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			config := valid
+			testCase.mutate(&config)
+			require.Error(t, config.Validate())
+		})
+	}
+}
+
+func TestSendEmailWithSMTPConfigUsesDedicatedValuesWithoutMutatingGlobals(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{})
+	originalServer := SMTPServer
+	originalPort := SMTPPort
+	originalAccount := SMTPAccount
+	originalFrom := SMTPFrom
+	originalToken := SMTPToken
+	originalSSL := SMTPSSLEnabled
+	originalForceLogin := SMTPForceAuthLogin
+	originalName := SystemName
+	t.Cleanup(func() {
+		SMTPServer = originalServer
+		SMTPPort = originalPort
+		SMTPAccount = originalAccount
+		SMTPFrom = originalFrom
+		SMTPToken = originalToken
+		SMTPSSLEnabled = originalSSL
+		SMTPForceAuthLogin = originalForceLogin
+		SystemName = originalName
+	})
+
+	SMTPServer = "transactional.invalid"
+	SMTPPort = 2525
+	SMTPAccount = "transactional@example.net"
+	SMTPFrom = "transactional@example.net"
+	SMTPToken = "transactional-secret"
+	SMTPSSLEnabled = true
+	SMTPForceAuthLogin = true
+	SystemName = "Flatkey"
+
+	config := SMTPConfig{
+		Server:  "localhost",
+		Port:    port,
+		Account: "activity@example.com",
+		From:    "campaigns@example.com",
+		Token:   "activity-secret",
+	}
+	err := SendEmailWithSMTPConfig(config, "subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+
+	require.NoError(t, err)
+	require.Contains(t, result.commands, "MAIL FROM:<campaigns@example.com>")
+	require.Contains(t, result.data, "From: "+(&mail.Address{Name: SystemName, Address: "campaigns@example.com"}).String()+"\r\n")
+	require.Equal(t, "transactional.invalid", SMTPServer)
+	require.Equal(t, 2525, SMTPPort)
+	require.Equal(t, "transactional@example.net", SMTPAccount)
+	require.Equal(t, "transactional@example.net", SMTPFrom)
+	require.Equal(t, "transactional-secret", SMTPToken)
+	require.True(t, SMTPSSLEnabled)
+	require.True(t, SMTPForceAuthLogin)
+}
+
 func TestEmailMessageIncludesProvidedStableMessageID(t *testing.T) {
 	originalFrom := SMTPFrom
 	originalAccount := SMTPAccount
