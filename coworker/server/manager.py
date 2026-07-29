@@ -1791,6 +1791,7 @@ class SessionManager:
             # hardcoded POSIX one (Windows -> %APPDATA%\coworker, macOS/Linux -> ~/.config).
             "secrets_path": str(self.secrets.path),
             **self.pdf_settings(),
+            **self.compaction_settings_payload(),
         }
 
     def _surfaces(self) -> dict[str, bool]:
@@ -1883,6 +1884,48 @@ class SessionManager:
             # "" → the session's own model (engine falls back to self.model).
             "model": str(self._prefs.get("compaction_model") or ""),
         }
+
+    def compaction_settings_payload(self) -> dict[str, Any]:
+        """The same knobs under REST-facing names (prefixed to keep /v1/settings flat)."""
+        settings = self.compaction_settings()
+        return {
+            "compaction_threshold_pct": settings["threshold_pct"],
+            "compaction_cap_tokens": settings["cap_tokens"],
+            "compaction_model": settings["model"],
+        }
+
+    def set_compaction_settings(
+        self,
+        threshold_pct: Any = None,
+        cap_tokens: Any = None,
+        model: Any = None,
+    ) -> dict[str, Any]:
+        """Persist the auto-compaction overrides (OPE-27). Threshold is a percentage of
+        the model's context window (10–95); the cap is an absolute token ceiling; model
+        pins the summarizer ('' → the session's own model). Engines read these live via
+        `compaction_settings()`, so changes apply to running sessions immediately."""
+        if threshold_pct is not None:
+            try:
+                pct = float(threshold_pct)
+            except (TypeError, ValueError):
+                return {"ok": False, "error": "compaction_threshold_pct must be a number"}
+            if not 0.10 <= pct <= 0.95:
+                return {
+                    "ok": False,
+                    "error": "compaction_threshold_pct must be between 0.10 and 0.95",
+                }
+            self._prefs["compaction_threshold_pct"] = pct
+        if cap_tokens is not None:
+            try:
+                self._prefs["compaction_cap_tokens"] = max(
+                    10_000, min(int(cap_tokens), 2_000_000)
+                )
+            except (TypeError, ValueError):
+                return {"ok": False, "error": "compaction_cap_tokens must be a number"}
+        if model is not None:
+            self._prefs["compaction_model"] = str(model)
+        self._save_prefs()
+        return {"ok": True, **self.compaction_settings()}
 
     def set_pdf_settings(
         self,

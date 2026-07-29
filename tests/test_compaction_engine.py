@@ -204,6 +204,32 @@ def test_non_overflow_provider_errors_still_surface(tmp_path):
     assert not any(e.type == EventType.COMPACTED for e in events)
 
 
+def test_set_compaction_settings_validates_and_round_trips(tmp_path):
+    from coworker.server.manager import SessionManager
+
+    class Provider(ProviderClient):
+        def complete(self, *, model, messages, tools=None, **settings):
+            return AssistantTurn(text="hi")
+
+        def capabilities(self, model):
+            return ModelCapabilities()
+
+    mgr = SessionManager(workspace=tmp_path, provider=Provider())
+    out = mgr.set_compaction_settings(
+        threshold_pct=0.5, cap_tokens=100_000, model="gpt-4o-mini"
+    )
+    assert out["ok"] and out["threshold_pct"] == 0.5 and out["cap_tokens"] == 100_000
+    assert mgr.compaction_settings()["model"] == "gpt-4o-mini"
+    # validation: out-of-range % and non-numeric cap are rejected, tiny caps clamp up
+    assert mgr.set_compaction_settings(threshold_pct=0.05)["ok"] is False
+    assert mgr.set_compaction_settings(cap_tokens="lots")["ok"] is False
+    assert mgr.set_compaction_settings(cap_tokens=1)["cap_tokens"] == 10_000
+    # the flat /v1/settings names
+    payload = mgr.compaction_settings_payload()
+    assert payload["compaction_threshold_pct"] == 0.5
+    assert payload["compaction_model"] == "gpt-4o-mini"
+
+
 def test_compaction_state_survives_save_and_rebuild(tmp_path):
     from coworker.compaction import CompactionState
     from coworker.server.manager import SessionManager

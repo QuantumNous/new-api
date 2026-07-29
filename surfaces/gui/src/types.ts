@@ -18,6 +18,7 @@ export type EventType =
   | "input_rejected"
   | "interrupted"
   | "model_changed"
+  | "compacted"
   | "turn_done";
 
 export interface WsEvent {
