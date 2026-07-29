@@ -114,12 +114,12 @@ CodeRabbit 报告的 docstring 覆盖率为 1.88%，外部阈值为 80%。当前
 
 ```text
 存在 SavingsCNYMicros
-且冻结 quota_per_unit > 0
-且冻结 usd_cny_rate_micros > 0
 且金额可解析为非负 int64
-  -> 直接使用冻结金额和冻结换算参数
+  -> 直接使用冻结金额
+  -> 保留冻结换算参数作为快照字段，不要求其为正数
 
 否则
+  -> 校验任务冻结的 quota_per_unit 和 usd_cny_rate_micros
   -> 使用任务冻结的 quota_per_unit 和 usd_cny_rate_micros 换算
   -> 换算失败或溢出时终止当前任务批次
 ```

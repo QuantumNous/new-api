@@ -146,5 +146,37 @@ describe('savings summary translations', () => {
       ],
       'По умолчанию используются локальные официальные цены из каталога моделей; official_prices нужен только для переопределений.'
     )
+    assert.equal(
+      ru.translation['Clear usage and balance'],
+      'Очистить использование и баланс'
+    )
+    assert.equal(
+      ru.translation['Enable lifetime savings'],
+      'Включить учёт экономии за всё время'
+    )
+    assert.equal(
+      ru.translation['Lifetime savings counted so far'],
+      'Накопленная экономия на данный момент'
+    )
+    assert.equal(
+      ru.translation['supported billing models'],
+      'поддерживаемых моделей тарификации'
+    )
+    assert.equal(
+      ru.translation['System historical data is being counted'],
+      'Идёт подсчёт исторических данных'
+    )
+    assert.equal(
+      zhTW.translation[
+        'One endpoint, one key, and a clear view of every request.'
+      ],
+      '一個端點、一枚金鑰，每次請求都清楚可見。'
+    )
+    assert.equal(
+      zhTW.translation[
+        'Use one compatible endpoint to access supported models without changing SDKs.'
+      ],
+      '透過一個相容端點存取支援的模型，無需更換現有 SDK。'
+    )
   })
 })
