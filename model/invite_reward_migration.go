@@ -19,7 +19,8 @@ WHERE aff_quota > 0 AND deleted_at IS NULL`
 const legacyAffQuotaMigrationBatchSize = 500
 
 const (
-	legacyInvitationValueMigrationBatchSize = 500
+	legacyInvitationValueMigrationBatchSize   = 500
+	legacyInvitationValueUserRequestBatchSize = 20
 
 	legacyInvitationValueAffQuotaSourceType = "aff_quota"
 	legacyInvitationValueRewardSourceType   = "invite_subscription_reward"
@@ -164,27 +165,21 @@ func MigrateUserLegacyInvitationValueToSubscriptionDiscount(userId int) error {
 		return err
 	}
 
-	lastRewardId := 0
-	for {
-		var rewards []InviteSubscriptionReward
-		if err := DB.Model(&InviteSubscriptionReward{}).
-			Select("id").
-			Where("inviter_id = ? AND status = ? AND id > ?", userId, InviteSubRewardStatusPending, lastRewardId).
-			Order("id ASC").
-			Limit(legacyInvitationValueMigrationBatchSize).
-			Find(&rewards).Error; err != nil {
+	var rewards []InviteSubscriptionReward
+	if err := DB.Model(&InviteSubscriptionReward{}).
+		Select("id").
+		Where("inviter_id = ? AND status = ?", userId, InviteSubRewardStatusPending).
+		Order("id ASC").
+		Limit(legacyInvitationValueUserRequestBatchSize).
+		Find(&rewards).Error; err != nil {
+		return err
+	}
+	for _, reward := range rewards {
+		if err := migrateInviteSubscriptionRewardToSubscriptionDiscount(reward.Id, pricing); err != nil {
 			return err
 		}
-		if len(rewards) == 0 {
-			return nil
-		}
-		for _, reward := range rewards {
-			if err := migrateInviteSubscriptionRewardToSubscriptionDiscount(reward.Id, pricing); err != nil {
-				return err
-			}
-		}
-		lastRewardId = rewards[len(rewards)-1].Id
 	}
+	return nil
 }
 
 func migrateUserLegacyAffQuotaToSubscriptionDiscount(userId int, pricing legacyInvitationMigrationPricing) error {
@@ -206,7 +201,6 @@ func migrateUserLegacyAffQuotaToSubscriptionDiscount(userId int, pricing legacyI
 		usdMinor := legacyInvitationQuotaToUSDMinor(user.AffQuota, pricing)
 		if usdMinor == 0 {
 			common.SysLog(fmt.Sprintf("skip legacy aff_quota discount migration for user %d: aff_quota %d rounds to zero USD minor", user.Id, user.AffQuota))
-			return nil
 		}
 		key := legacyInvitationValueAffQuotaKey(user.Id)
 		exists, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, user.Id, user.AffQuota, legacyInvitationValueAffQuotaSourceType)
@@ -234,6 +228,11 @@ func migrateUserLegacyAffQuotaToSubscriptionDiscount(userId int, pricing legacyI
 				if _, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, user.Id, user.AffQuota, legacyInvitationValueAffQuotaSourceType); err != nil {
 					return err
 				}
+			}
+		}
+		if !exists && usdMinor == 0 {
+			if err := createLegacyInvitationZeroMigrationEntryTx(tx, key, user.Id, user.AffQuota, legacyInvitationValueAffQuotaSourceType, pricing); err != nil {
+				return err
 			}
 		}
 		update := tx.Model(&User{}).Where("id = ? AND aff_quota = ?", user.Id, user.AffQuota).Update("aff_quota", 0)
@@ -301,7 +300,6 @@ func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int, pricing
 		usdMinor := legacyInvitationQuotaToUSDMinor(reward.RewardQuota, pricing)
 		if reward.RewardQuota > 0 && usdMinor == 0 {
 			common.SysLog(fmt.Sprintf("skip invite reward discount migration for reward %d: reward_quota %d rounds to zero USD minor", reward.Id, reward.RewardQuota))
-			return nil
 		}
 		key := legacyInvitationValueRewardKey(reward.Id)
 		exists, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, reward.InviterId, reward.RewardQuota, legacyInvitationValueRewardSourceType)
@@ -331,6 +329,11 @@ func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int, pricing
 				}
 			}
 		}
+		if !exists && reward.RewardQuota > 0 && usdMinor == 0 {
+			if err := createLegacyInvitationZeroMigrationEntryTx(tx, key, reward.InviterId, reward.RewardQuota, legacyInvitationValueRewardSourceType, pricing); err != nil {
+				return err
+			}
+		}
 		now := getDBTimestampTx(tx)
 		update := tx.Model(&InviteSubscriptionReward{}).
 			Where("id = ? AND status = ?", reward.Id, InviteSubRewardStatusPending).
@@ -355,6 +358,39 @@ func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int, pricing
 		if err := InvalidateUserCache(inviterId); err != nil {
 			common.SysLog(fmt.Sprintf("failed to invalidate inviter %d cache after invite reward migration: %v", inviterId, err))
 		}
+	}
+	return nil
+}
+
+func createLegacyInvitationZeroMigrationEntryTx(tx *gorm.DB, idempotencyKey string, userId int, sourceQuota int, sourceType string, pricing legacyInvitationMigrationPricing) error {
+	snapshot, err := legacyInvitationValuePricingSnapshot(sourceType, sourceQuota, 0, pricing)
+	if err != nil {
+		return err
+	}
+	account, err := GetSubscriptionDiscountAccountTx(tx, userId)
+	if err != nil {
+		return err
+	}
+	entry := SubscriptionDiscountEntry{
+		UserID:                 userId,
+		EntryType:              SubscriptionDiscountEntryTypeMigration,
+		AvailableDeltaUSDMinor: 0,
+		ReservedDeltaUSDMinor:  0,
+		AvailableAfterUSDMinor: account.AvailableUSDMinor,
+		ReservedAfterUSDMinor:  account.ReservedUSDMinor,
+		SourceType:             sourceType,
+		SourceKey:              idempotencyKey,
+		IdempotencyKey:         idempotencyKey,
+		PricingSnapshot:        snapshot,
+		CreatedAt:              getDBTimestampTx(tx),
+	}
+	created, err := createSubscriptionDiscountEntryTx(tx, &entry)
+	if err != nil {
+		return err
+	}
+	if !created {
+		_, err := validateExistingLegacyInvitationMigrationEntryTx(tx, idempotencyKey, userId, sourceQuota, sourceType)
+		return err
 	}
 	return nil
 }

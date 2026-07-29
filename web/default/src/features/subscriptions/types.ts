@@ -139,6 +139,7 @@ export interface PlanPayload {
 export interface SubscriptionPayRequest {
   plan_id: number
   payment_method?: string
+  request_id?: string
   recall_claim?: string
 }
 

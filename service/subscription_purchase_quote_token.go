@@ -46,6 +46,9 @@ type SubscriptionPurchaseQuoteTokenClaims struct {
 }
 
 func SignSubscriptionPurchaseQuoteToken(claims SubscriptionPurchaseQuoteTokenClaims) (string, error) {
+	if claims.Version != subscriptionPurchaseQuoteTokenVersion {
+		return "", fmt.Errorf("%w: unsupported version", ErrSubscriptionPurchaseQuoteInvalid)
+	}
 	normalized, err := normalizeSubscriptionPurchaseQuoteTokenClaims(claims)
 	if err != nil {
 		return "", err

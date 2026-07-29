@@ -30,6 +30,10 @@ const epayCalls: Array<{
   plan_id: number
   request_id: string
 }> = []
+const stripeCalls: Array<{
+  plan_id: number
+  request_id?: string
+}> = []
 let latestSelectProps: SelectProps | undefined
 let latestButtonProps: ButtonProps[] = []
 let requestIdSeed = 0
@@ -46,6 +50,16 @@ const paySubscriptionEpay = mock(
       message: 'success',
       url: 'https://pay.example.test',
       data: {},
+    }
+  }
+)
+const paySubscriptionStripe = mock(
+  async (data: { plan_id: number; request_id?: string }) => {
+    stripeCalls.push(data)
+    return {
+      success: true,
+      message: 'success',
+      data: { pay_link: 'https://stripe.example.test' },
     }
   }
 )
@@ -188,7 +202,9 @@ function setupDom() {
   defineTestGlobal('document', shimDocument as unknown as Document)
   defineTestGlobal(
     'window',
-    globalThis as unknown as Window & typeof globalThis
+    Object.assign(globalThis, {
+      location: { href: 'http://localhost/subscriptions' },
+    }) as unknown as Window & typeof globalThis
   )
   defineTestGlobal('navigator', { userAgent: 'Chrome' } as Navigator)
   defineTestGlobal('HTMLElement', ElementShim as unknown as typeof HTMLElement)
@@ -206,7 +222,7 @@ mock.module('../../api', () => ({
   paySubscriptionBalance: mock(async () => ({ success: true })),
   paySubscriptionCreem: mock(async () => ({ success: true })),
   paySubscriptionEpay,
-  paySubscriptionStripe: mock(async () => ({ success: true })),
+  paySubscriptionStripe,
   paySubscriptionWaffoPancake: mock(async () => ({ success: true })),
 }))
 
@@ -214,7 +230,7 @@ mock.module('../../api.ts', () => ({
   paySubscriptionBalance: mock(async () => ({ success: true })),
   paySubscriptionCreem: mock(async () => ({ success: true })),
   paySubscriptionEpay,
-  paySubscriptionStripe: mock(async () => ({ success: true })),
+  paySubscriptionStripe,
   paySubscriptionWaffoPancake: mock(async () => ({ success: true })),
 }))
 
@@ -318,10 +334,12 @@ beforeAll(async () => {
 
 beforeEach(() => {
   epayCalls.length = 0
+  stripeCalls.length = 0
   latestSelectProps = undefined
   latestButtonProps = []
   requestIdSeed = 0
   paySubscriptionEpay.mockClear()
+  paySubscriptionStripe.mockClear()
 })
 
 afterAll(() => {
@@ -346,6 +364,7 @@ function planRecord(): PlanRecord {
       window_5h_amount: 0,
       window_week_amount: 0,
       media_credits_monthly: 0,
+      stripe_price_id: 'price_123',
       model_count: 0,
       rpm: 0,
       concurrency: 0,
@@ -358,14 +377,21 @@ function renderDialog() {
   const container = document.createElement('div')
   const root = createRoot(container)
 
+  renderDialogOpenState(root, true)
+
+  return { root }
+}
+
+function renderDialogOpenState(root: Root, open: boolean) {
   React.act(() => {
     latestButtonProps = []
     root.render(
       <I18nextProvider i18n={testI18n}>
         <SubscriptionPurchaseDialog
-          open
+          open={open}
           onOpenChange={() => undefined}
           plan={planRecord()}
+          enableStripe
           enableOnlineTopUp
           epayMethods={[
             { type: 'alipay', name: 'Alipay' },
@@ -375,8 +401,6 @@ function renderDialog() {
       </I18nextProvider>
     )
   })
-
-  return { root }
 }
 
 function dispose(root: Root) {
@@ -395,7 +419,58 @@ function latestPayButton() {
   return button
 }
 
+function latestStripeButton() {
+  const button = [...latestButtonProps]
+    .reverse()
+    .find((props) => props.children === 'Pay with card (Stripe)')
+  if (!button?.onClick) {
+    throw new Error('Stripe button was not rendered')
+  }
+  return button
+}
+
 describe('SubscriptionPurchaseDialog', () => {
+  test('passes a stable request id to direct Stripe subscription checkout', async () => {
+    const { root } = renderDialog()
+
+    await React.act(async () => {
+      await latestStripeButton().onClick?.()
+    })
+    await React.act(async () => {
+      await latestStripeButton().onClick?.()
+    })
+
+    expect(stripeCalls).toHaveLength(2)
+    expect(stripeCalls[0]?.request_id).toBe('request-1')
+    expect(stripeCalls[1]?.request_id).toBe(stripeCalls[0]?.request_id)
+
+    dispose(root)
+  })
+
+  test('rotates the Stripe request id after a definitive payment failure', async () => {
+    paySubscriptionStripe.mockImplementationOnce(async (data) => {
+      stripeCalls.push(data)
+      return {
+        success: false,
+        message: 'plan unavailable',
+      }
+    })
+    const { root } = renderDialog()
+
+    await React.act(async () => {
+      await latestStripeButton().onClick?.()
+    })
+    await React.act(async () => {
+      await latestStripeButton().onClick?.()
+    })
+
+    expect(stripeCalls).toHaveLength(2)
+    expect(stripeCalls[0]?.request_id).toBe('request-1')
+    expect(stripeCalls[1]?.request_id).toBe('request-2')
+
+    dispose(root)
+  })
+
   test('rotates the ePay request id when the selected payment method changes', async () => {
     const { root } = renderDialog()
 
@@ -420,6 +495,72 @@ describe('SubscriptionPurchaseDialog', () => {
     expect(epayCalls).toHaveLength(3)
     expect(epayCalls[2]?.payment_method).toBe('wechat')
     expect(epayCalls[2]?.request_id).not.toBe(epayCalls[0]?.request_id)
+
+    dispose(root)
+  })
+
+  test('rotates the ePay request id after closing and reopening the purchase dialog', async () => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    renderDialogOpenState(root, true)
+
+    await React.act(async () => {
+      await latestPayButton().onClick?.()
+    })
+    renderDialogOpenState(root, false)
+    renderDialogOpenState(root, true)
+    await React.act(async () => {
+      await latestPayButton().onClick?.()
+    })
+
+    expect(epayCalls).toHaveLength(2)
+    expect(epayCalls[0]?.request_id).toBe('request-1')
+    expect(epayCalls[1]?.request_id).toBe('request-2')
+
+    dispose(root)
+  })
+
+  test('rotates the ePay request id after a definitive payment failure', async () => {
+    paySubscriptionEpay.mockImplementationOnce(async (data) => {
+      epayCalls.push(data)
+      return {
+        success: false,
+        message: 'plan unavailable',
+      }
+    })
+    const { root } = renderDialog()
+
+    await React.act(async () => {
+      await latestPayButton().onClick?.()
+    })
+    await React.act(async () => {
+      await latestPayButton().onClick?.()
+    })
+
+    expect(epayCalls).toHaveLength(2)
+    expect(epayCalls[0]?.request_id).toBe('request-1')
+    expect(epayCalls[1]?.request_id).toBe('request-2')
+
+    dispose(root)
+  })
+
+  test('keeps the ePay request id after an unknown network failure', async () => {
+    paySubscriptionEpay.mockImplementationOnce(async (data) => {
+      epayCalls.push(data)
+      throw new Error('network timeout')
+    })
+    const { root } = renderDialog()
+
+    await React.act(async () => {
+      await latestPayButton().onClick?.()
+    })
+    await React.act(async () => {
+      await latestPayButton().onClick?.()
+    })
+
+    expect(epayCalls).toHaveLength(2)
+    expect(epayCalls[0]?.request_id).toBe('request-1')
+    expect(epayCalls[1]?.request_id).toBe(epayCalls[0]?.request_id)
 
     dispose(root)
   })

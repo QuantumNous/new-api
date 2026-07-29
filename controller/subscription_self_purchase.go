@@ -81,7 +81,7 @@ func QuoteSubscriptionSelfPurchase(c *gin.Context) {
 	}
 	choice := normalizeSubscriptionSelfPaymentChoice(req.PaymentMethod, req.PaymentChoice)
 	paymentMethod := subscriptionSelfConcretePaymentMethod(choice, req.PaymentMethod)
-	if err := validateSubscriptionSelfEpayPaymentMethod(choice, paymentMethod); err != nil {
+	if err := validateSubscriptionSelfDirectPurchaseChoice(choice); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -200,6 +200,14 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		common.ApiErrorMsg(c, "request_id is required")
 		return
 	}
+	if err := validateSubscriptionSelfDirectPurchaseChoice(choice); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := validateSubscriptionSelfEpayPaymentMethod(choice, paymentMethod); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	cmd := service.PurchaseSubscriptionCommand{
 		UserID:        userID,
 		PlanID:        req.PlanID,
@@ -210,23 +218,54 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		UIMode:        req.UIMode,
 		RecallClaim:   req.RecallClaim,
 	}
+	var claims service.SubscriptionPurchaseQuoteTokenClaims
+	hasClaims := false
 	if result, found, err := service.ReplaySubscriptionPurchase(cmd); err != nil {
-		common.ApiError(c, err)
-		return
+		if choice != service.SubscriptionPaymentChoiceStripeRecurring || !errors.Is(err, service.ErrSubscriptionPurchaseQuoteRequired) {
+			common.ApiError(c, err)
+			return
+		}
+		claims, err = validateSubscriptionSelfPurchaseReplayQuote(req, userID, choice, paymentMethod)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		cmd.VerifiedQuote = subscriptionPurchaseQuoteFromClaims(claims, true)
+		hasClaims = true
+		result, found, err = service.ReplaySubscriptionPurchase(cmd)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if found {
+			if err := validateSubscriptionSelfPurchaseResultQuote(result, claims); err != nil {
+				common.ApiErrorMsg(c, err.Error())
+				return
+			}
+			respondSubscriptionSelfPurchaseResult(c, result, choice, req.UIMode)
+			return
+		}
+		cmd.VerifiedQuote = nil
+		hasClaims = false
 	} else if found {
+		if hasClaims {
+			if err := validateSubscriptionSelfPurchaseResultQuote(result, claims); err != nil {
+				common.ApiErrorMsg(c, err.Error())
+				return
+			}
+		}
 		respondSubscriptionSelfPurchaseResult(c, result, choice, req.UIMode)
 		return
 	}
-	if err := validateSubscriptionSelfEpayPaymentMethod(choice, paymentMethod); err != nil {
-		common.ApiError(c, err)
-		return
+	if cmd.VerifiedQuote == nil {
+		var err error
+		claims, err = validateSubscriptionSelfPurchaseQuote(req, userID, choice, paymentMethod)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		cmd.VerifiedQuote = subscriptionPurchaseQuoteFromClaims(claims, true)
 	}
-	claims, err := validateSubscriptionSelfPurchaseQuote(req, userID, choice, paymentMethod)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	cmd.VerifiedQuote = subscriptionPurchaseQuoteFromClaims(claims, true)
 	result, err := service.PurchaseSubscription(cmd)
 	if err != nil {
 		common.ApiError(c, err)
@@ -262,6 +301,13 @@ func validateSubscriptionSelfEpayPaymentMethod(choice string, paymentMethod stri
 	}
 	if !isEpayPaymentMethod(paymentMethod) {
 		return errors.New("unsupported payment method")
+	}
+	return nil
+}
+
+func validateSubscriptionSelfDirectPurchaseChoice(choice string) error {
+	if strings.ToLower(strings.TrimSpace(choice)) == service.SubscriptionPaymentChoiceEpay {
+		return errors.New("epay self-purchase must use /api/subscription/epay/pay")
 	}
 	return nil
 }
@@ -307,6 +353,14 @@ func syncSubscriptionSelfRecurringCheckoutHistory(result *service.PurchaseSubscr
 }
 
 func validateSubscriptionSelfPurchaseQuote(req SubscriptionSelfPurchaseRequest, userID int, choice string, paymentMethod string) (service.SubscriptionPurchaseQuoteTokenClaims, error) {
+	return validateSubscriptionSelfPurchaseQuoteWithCurrentPrice(req, userID, choice, paymentMethod, true)
+}
+
+func validateSubscriptionSelfPurchaseReplayQuote(req SubscriptionSelfPurchaseRequest, userID int, choice string, paymentMethod string) (service.SubscriptionPurchaseQuoteTokenClaims, error) {
+	return validateSubscriptionSelfPurchaseQuoteWithCurrentPrice(req, userID, choice, paymentMethod, false)
+}
+
+func validateSubscriptionSelfPurchaseQuoteWithCurrentPrice(req SubscriptionSelfPurchaseRequest, userID int, choice string, paymentMethod string, requireCurrentPrice bool) (service.SubscriptionPurchaseQuoteTokenClaims, error) {
 	if strings.TrimSpace(req.QuoteID) == "" {
 		return service.SubscriptionPurchaseQuoteTokenClaims{}, errors.New("quote_id is required")
 	}
@@ -321,6 +375,9 @@ func validateSubscriptionSelfPurchaseQuote(req SubscriptionSelfPurchaseRequest, 
 		claims.Months != req.Months ||
 		claims.RequestID != req.RequestID {
 		return service.SubscriptionPurchaseQuoteTokenClaims{}, errors.New("subscription purchase quote does not match request")
+	}
+	if !requireCurrentPrice {
+		return claims, nil
 	}
 	plan, err := model.GetSubscriptionPlanById(req.PlanID)
 	if err != nil {

@@ -629,15 +629,16 @@ func TestSubscriptionDiscountReserveMovesAvailableToReserved(t *testing.T) {
 func TestReserveSubscriptionDiscountRejectsNonFutureExpiry(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
-		expiresAt int64
+		expiresAt func(int64) int64
 	}{
-		{name: "missing", expiresAt: 0},
-		{name: "past", expiresAt: common.GetTimestamp() - 1},
-		{name: "now", expiresAt: common.GetTimestamp()},
+		{name: "missing", expiresAt: func(now int64) int64 { return 0 }},
+		{name: "past", expiresAt: func(now int64) int64 { return now - 1 }},
+		{name: "now", expiresAt: func(now int64) int64 { return now }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			setupSubscriptionDiscountCreditMemoryDB(t)
 			require.True(t, grantSubscriptionDiscountForTest(t, 135, 500, "grant-expiry-"+tc.name))
+			now := common.GetTimestamp()
 
 			err := DB.Transaction(func(tx *gorm.DB) error {
 				_, err := ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
@@ -648,7 +649,7 @@ func TestReserveSubscriptionDiscountRejectsNonFutureExpiry(t *testing.T) {
 					PaymentCurrency:    "USD",
 					AppliedAmountMinor: 100,
 					IdempotencyKey:     "reserve-expiry-" + tc.name,
-					ExpiresAt:          tc.expiresAt,
+					ExpiresAt:          tc.expiresAt(now),
 				})
 				return err
 			})
@@ -661,6 +662,34 @@ func TestReserveSubscriptionDiscountRejectsNonFutureExpiry(t *testing.T) {
 			require.EqualValues(t, 1, countSubscriptionDiscountEntriesForUserTest(t, 135))
 		})
 	}
+}
+
+func TestReserveSubscriptionDiscountAcceptsFutureExpiry(t *testing.T) {
+	setupSubscriptionDiscountCreditMemoryDB(t)
+	require.True(t, grantSubscriptionDiscountForTest(t, 136, 500, "grant-future-expiry"))
+
+	var changed bool
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		changed, err = ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+			UserID:             136,
+			USDMinor:           100,
+			OrderID:            1,
+			TradeNo:            "trade-future-expiry",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 100,
+			IdempotencyKey:     "reserve-future-expiry",
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	require.True(t, changed)
+
+	account, err := GetSubscriptionDiscountAccount(136)
+	require.NoError(t, err)
+	require.EqualValues(t, 400, account.AvailableUSDMinor)
+	require.EqualValues(t, 100, account.ReservedUSDMinor)
+	require.EqualValues(t, 2, countSubscriptionDiscountEntriesForUserTest(t, 136))
 }
 
 func TestSubscriptionDiscountEntryIndexedKeysUse191Characters(t *testing.T) {
@@ -712,13 +741,13 @@ func TestSubscriptionDiscountDuplicateReserveIsIdempotent(t *testing.T) {
 	require.Len(t, readSubscriptionDiscountEntries(t), 2)
 }
 
-func TestSubscriptionDiscountExpiredDuplicateReserveReplaysBeforeValidation(t *testing.T) {
+func TestSubscriptionDiscountExpiredDuplicateReserveRejectedWithoutMutation(t *testing.T) {
 	setupSubscriptionDiscountCreditMemoryDB(t)
 	require.True(t, grantSubscriptionDiscountForTest(t, 146, 500, "grant-expired-reserve-replay"))
 	require.True(t, reserveSubscriptionDiscountForTest(t, 146, 200, "expired-reserve-replay"))
 
 	var changed bool
-	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
 		changed, err = ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
 			UserID:             146,
@@ -732,7 +761,8 @@ func TestSubscriptionDiscountExpiredDuplicateReserveReplaysBeforeValidation(t *t
 			ExpiresAt:          common.GetTimestamp() - 1,
 		})
 		return err
-	}))
+	})
+	require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidReservation)
 	require.False(t, changed)
 	require.Len(t, readSubscriptionDiscountEntries(t), 2)
 }
@@ -955,11 +985,12 @@ func TestSubscriptionDiscountCommitReleaseMutualExclusionBothOrders(t *testing.T
 				require.False(t, changed)
 				return err
 			}))
-			require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+			err := DB.Transaction(func(tx *gorm.DB) error {
 				changed, err := tc.next(tx, "reserve-"+tc.name)
 				require.False(t, changed)
 				return err
-			}))
+			})
+			require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidReservation)
 
 			require.Len(t, readSubscriptionDiscountEntries(t), 3)
 		})
@@ -1100,8 +1131,13 @@ func TestSubscriptionDiscountConcurrentCommitReleaseSingleWinner(t *testing.T) {
 	close(results)
 
 	var applied, noops int
+	var conflicts int
 	for result := range results {
-		require.NoError(t, result.err)
+		if result.err != nil {
+			require.ErrorIs(t, result.err, ErrSubscriptionDiscountInvalidReservation)
+			conflicts++
+			continue
+		}
 		if result.applied {
 			applied++
 		} else {
@@ -1109,7 +1145,7 @@ func TestSubscriptionDiscountConcurrentCommitReleaseSingleWinner(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, applied)
-	require.Equal(t, 1, noops)
+	require.Equal(t, 1, noops+conflicts)
 
 	var terminals []SubscriptionDiscountEntry
 	require.NoError(t, DB.Where("source_key = ? AND entry_type IN ?", "reserve-terminal-concurrent",

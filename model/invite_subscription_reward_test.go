@@ -102,6 +102,27 @@ func grantInviteSubRewardForTest(t *testing.T, order *SubscriptionOrder) {
 	require.NoError(t, TryGrantInviteSubscriptionRewardAfterOrderCompleted(order.TradeNo))
 }
 
+func createHistoricalInviteSubRewardLedgerForTest(t *testing.T, inviterId int, inviteeId int, quotaForInviter int, usdMinor int64) string {
+	t.Helper()
+	key := inviteSubscriptionRewardIdempotencyKey(inviteeId)
+	snapshot, err := inviteSubscriptionRewardPricingSnapshot(quotaForInviter, usdMinor)
+	require.NoError(t, err)
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		changed, err := GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+			UserID:          inviterId,
+			USDMinor:        usdMinor,
+			EntryType:       SubscriptionDiscountEntryTypeGrantInviter,
+			SourceType:      "invite_subscription_reward",
+			SourceKey:       key,
+			IdempotencyKey:  key,
+			PricingSnapshot: snapshot,
+		})
+		require.True(t, changed)
+		return err
+	}))
+	return key
+}
+
 func requireInviteSubRewardLedger(t *testing.T, inviterId int, inviteeId int, expectedUSDMinor int64) SubscriptionDiscountEntry {
 	t.Helper()
 	account, err := GetSubscriptionDiscountAccount(inviterId)
@@ -185,22 +206,7 @@ func TestGrantInviteSubscriptionDiscountFinalizesInviteeWhenLedgerGrantAlreadyEx
 
 	inviter := createInviteRewardUser(t, "inviter", 0)
 	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
-	key := inviteSubscriptionRewardIdempotencyKey(invitee.Id)
-	snapshot, err := inviteSubscriptionRewardPricingSnapshot(common.QuotaForInviter, 750)
-	require.NoError(t, err)
-	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
-		changed, err := GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
-			UserID:          inviter.Id,
-			USDMinor:        750,
-			EntryType:       SubscriptionDiscountEntryTypeGrantInviter,
-			SourceType:      "invite_subscription_reward",
-			SourceKey:       key,
-			IdempotencyKey:  key,
-			PricingSnapshot: snapshot,
-		})
-		require.True(t, changed)
-		return err
-	}))
+	key := createHistoricalInviteSubRewardLedgerForTest(t, inviter.Id, invitee.Id, common.QuotaForInviter, 750)
 	order := createCompletedSubscriptionOrder(t, invitee.Id, 5, "sub-ledger-exists")
 
 	grantInviteSubRewardForTest(t, order)
@@ -212,6 +218,206 @@ func TestGrantInviteSubscriptionDiscountFinalizesInviteeWhenLedgerGrantAlreadyEx
 	var entries int64
 	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("idempotency_key = ?", key).Count(&entries).Error)
 	require.EqualValues(t, 1, entries)
+}
+
+func TestGrantInviteSubscriptionDiscountRepairsMissingRewardFromHistoricalLedgerWhenCurrentQuotaChangedPositive(t *testing.T) {
+	setupInviteSubRewardTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	createHistoricalInviteSubRewardLedgerForTest(t, inviter.Id, invitee.Id, common.QuotaForInviter, 750)
+	common.QuotaForInviter = 1500
+	order := createCompletedSubscriptionOrder(t, invitee.Id, 5, "sub-ledger-current-positive")
+
+	grantInviteSubRewardForTest(t, order)
+
+	var reward InviteSubscriptionReward
+	require.NoError(t, DB.First(&reward, "invitee_id = ?", invitee.Id).Error)
+	require.Equal(t, InviteSubRewardStatusGranted, reward.Status)
+	require.Equal(t, 750, reward.RewardQuota)
+	requireInviteSubRewardLedger(t, inviter.Id, invitee.Id, 750)
+
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Equal(t, 1, refreshedInviter.AffCount)
+}
+
+func TestGrantInviteSubscriptionDiscountRepairsMissingRewardFromHistoricalLedgerWhenCurrentQuotaIsZero(t *testing.T) {
+	setupInviteSubRewardTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	createHistoricalInviteSubRewardLedgerForTest(t, inviter.Id, invitee.Id, common.QuotaForInviter, 750)
+	common.QuotaForInviter = 0
+	order := createCompletedSubscriptionOrder(t, invitee.Id, 5, "sub-ledger-current-zero")
+
+	grantInviteSubRewardForTest(t, order)
+
+	var reward InviteSubscriptionReward
+	require.NoError(t, DB.First(&reward, "invitee_id = ?", invitee.Id).Error)
+	require.Equal(t, InviteSubRewardStatusGranted, reward.Status)
+	require.Equal(t, 750, reward.RewardQuota)
+	requireInviteSubRewardLedger(t, inviter.Id, invitee.Id, 750)
+}
+
+func TestGrantInviteSubscriptionDiscountRepairsMissingRewardFromHistoricalLedgerWhenCurrentQuotaIsNegative(t *testing.T) {
+	setupInviteSubRewardTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	createHistoricalInviteSubRewardLedgerForTest(t, inviter.Id, invitee.Id, common.QuotaForInviter, 750)
+	common.QuotaForInviter = -1
+	order := createCompletedSubscriptionOrder(t, invitee.Id, 5, "sub-ledger-current-negative")
+
+	grantInviteSubRewardForTest(t, order)
+
+	var reward InviteSubscriptionReward
+	require.NoError(t, DB.First(&reward, "invitee_id = ?", invitee.Id).Error)
+	require.Equal(t, InviteSubRewardStatusGranted, reward.Status)
+	require.Equal(t, 750, reward.RewardQuota)
+	requireInviteSubRewardLedger(t, inviter.Id, invitee.Id, 750)
+}
+
+func TestGrantInviteSubscriptionDiscountRepairsMissingRewardFromHistoricalLedgerWhenCurrentCapReached(t *testing.T) {
+	setupInviteSubRewardTest(t)
+	common.QuotaForInviterMaxCount = 1
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", inviter.Id).Update("aff_count", 1).Error)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	createHistoricalInviteSubRewardLedgerForTest(t, inviter.Id, invitee.Id, common.QuotaForInviter, 750)
+	order := createCompletedSubscriptionOrder(t, invitee.Id, 5, "sub-ledger-cap-reached")
+
+	grantInviteSubRewardForTest(t, order)
+
+	var reward InviteSubscriptionReward
+	require.NoError(t, DB.First(&reward, "invitee_id = ?", invitee.Id).Error)
+	require.Equal(t, InviteSubRewardStatusGranted, reward.Status)
+	require.Equal(t, 750, reward.RewardQuota)
+	require.Empty(t, reward.Reason)
+
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Equal(t, 1, refreshedInviter.AffCount)
+}
+
+func TestGrantInviteSubscriptionDiscountRepairsInviterAffCountLowerBoundFromHistoricalLedger(t *testing.T) {
+	setupInviteSubRewardTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	firstInvitee := createInviteRewardUser(t, "first-invitee", inviter.Id)
+	firstOrder := createCompletedSubscriptionOrder(t, firstInvitee.Id, 5, "sub-existing-reward")
+	grantInviteSubRewardForTest(t, firstOrder)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", inviter.Id).Update("aff_count", 0).Error)
+	secondInvitee := createInviteRewardUser(t, "second-invitee", inviter.Id)
+	createHistoricalInviteSubRewardLedgerForTest(t, inviter.Id, secondInvitee.Id, common.QuotaForInviter, 750)
+	secondOrder := createCompletedSubscriptionOrder(t, secondInvitee.Id, 5, "sub-ledger-repair-aff-count")
+
+	grantInviteSubRewardForTest(t, secondOrder)
+
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Equal(t, 2, refreshedInviter.AffCount)
+}
+
+func TestGrantInviteSubscriptionDiscountDoesNotDoubleIncrementAffCountForHistoricalLedgerRetry(t *testing.T) {
+	setupInviteSubRewardTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	createHistoricalInviteSubRewardLedgerForTest(t, inviter.Id, invitee.Id, common.QuotaForInviter, 750)
+	order := createCompletedSubscriptionOrder(t, invitee.Id, 5, "sub-ledger-no-double-increment")
+
+	grantInviteSubRewardForTest(t, order)
+	grantInviteSubRewardForTest(t, order)
+
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Equal(t, 1, refreshedInviter.AffCount)
+	var rewards int64
+	require.NoError(t, DB.Model(&InviteSubscriptionReward{}).Where("invitee_id = ?", invitee.Id).Count(&rewards).Error)
+	require.EqualValues(t, 1, rewards)
+}
+
+func TestGrantInviteSubscriptionDiscountFinalizesPendingInviteeWhenHistoricalLedgerAndRewardAlreadyExist(t *testing.T) {
+	setupInviteSubRewardTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	otherInvitee := createInviteRewardUser(t, "other-invitee", inviter.Id)
+	otherOrder := createCompletedSubscriptionOrder(t, otherInvitee.Id, 5, "sub-existing-lower-bound")
+	require.NoError(t, DB.Create(&InviteSubscriptionReward{
+		InviteeId:   otherInvitee.Id,
+		InviterId:   inviter.Id,
+		OrderId:     otherOrder.Id,
+		TradeNo:     otherOrder.TradeNo,
+		OrderMoney:  otherOrder.Money,
+		RewardQuota: common.QuotaForInviter,
+		Status:      InviteSubRewardStatusGranted,
+		GrantedAt:   common.GetTimestamp(),
+	}).Error)
+
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	key := createHistoricalInviteSubRewardLedgerForTest(t, inviter.Id, invitee.Id, common.QuotaForInviter, 750)
+	order := createCompletedSubscriptionOrder(t, invitee.Id, 5, "sub-ledger-and-reward-exist")
+	require.NoError(t, DB.Create(&InviteSubscriptionReward{
+		InviteeId:   invitee.Id,
+		InviterId:   inviter.Id,
+		OrderId:     order.Id,
+		TradeNo:     order.TradeNo,
+		OrderMoney:  order.Money,
+		RewardQuota: common.QuotaForInviter,
+		Status:      InviteSubRewardStatusGranted,
+		GrantedAt:   common.GetTimestamp(),
+	}).Error)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", inviter.Id).Update("aff_count", 0).Error)
+
+	grantInviteSubRewardForTest(t, order)
+	grantInviteSubRewardForTest(t, order)
+
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	require.Equal(t, InviteRewardStatusGranted, refreshedInvitee.InviteRewardStatus)
+	require.NotZero(t, refreshedInvitee.InviteRewardGrantedAt)
+
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Equal(t, 2, refreshedInviter.AffCount)
+
+	var rewards int64
+	require.NoError(t, DB.Model(&InviteSubscriptionReward{}).Where("invitee_id = ?", invitee.Id).Count(&rewards).Error)
+	require.EqualValues(t, 1, rewards)
+	var entries int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("idempotency_key = ?", key).Count(&entries).Error)
+	require.EqualValues(t, 1, entries)
+}
+
+func TestGrantInviteSubscriptionDiscountRejectsHistoricalLedgerWithPollutedExistingReward(t *testing.T) {
+	setupInviteSubRewardTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	createHistoricalInviteSubRewardLedgerForTest(t, inviter.Id, invitee.Id, common.QuotaForInviter, 750)
+	order := createCompletedSubscriptionOrder(t, invitee.Id, 5, "sub-polluted-existing-reward")
+	require.NoError(t, DB.Create(&InviteSubscriptionReward{
+		InviteeId:   invitee.Id,
+		InviterId:   inviter.Id,
+		OrderId:     order.Id,
+		TradeNo:     order.TradeNo,
+		OrderMoney:  order.Money,
+		RewardQuota: common.QuotaForInviter + 1,
+		Status:      InviteSubRewardStatusGranted,
+		GrantedAt:   common.GetTimestamp(),
+	}).Error)
+
+	err := TryGrantInviteSubscriptionRewardAfterOrderCompleted(order.TradeNo)
+	require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidAccountState)
+
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	require.Equal(t, InviteRewardStatusPending, refreshedInvitee.InviteRewardStatus)
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Zero(t, refreshedInviter.AffCount)
 }
 
 func TestGrantInviteSubscriptionDiscountAcceptsExistingLedgerWithHistoricalQuotaPerUnit(t *testing.T) {
@@ -243,6 +449,44 @@ func TestGrantInviteSubscriptionDiscountAcceptsExistingLedgerWithHistoricalQuota
 	var refreshedInvitee User
 	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
 	require.Equal(t, InviteRewardStatusGranted, refreshedInvitee.InviteRewardStatus)
+}
+
+func TestGrantInviteSubscriptionDiscountRejectsExistingLedgerWithInconsistentHistoricalSnapshot(t *testing.T) {
+	setupInviteSubRewardTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	key := inviteSubscriptionRewardIdempotencyKey(invitee.Id)
+	snapshot, err := common.Marshal(map[string]any{
+		"quota_for_inviter": common.QuotaForInviter,
+		"quota_per_unit":    common.QuotaPerUnit * 2,
+		"usd_minor":         int64(750),
+	})
+	require.NoError(t, err)
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		changed, err := GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+			UserID:          inviter.Id,
+			USDMinor:        750,
+			EntryType:       SubscriptionDiscountEntryTypeGrantInviter,
+			SourceType:      "invite_subscription_reward",
+			SourceKey:       key,
+			IdempotencyKey:  key,
+			PricingSnapshot: string(snapshot),
+		})
+		require.True(t, changed)
+		return err
+	}))
+	order := createCompletedSubscriptionOrder(t, invitee.Id, 5, "sub-ledger-inconsistent-snapshot")
+
+	err = TryGrantInviteSubscriptionRewardAfterOrderCompleted(order.TradeNo)
+	require.ErrorIs(t, err, ErrSubscriptionDiscountInvalidAccountState)
+
+	var rewards int64
+	require.NoError(t, DB.Model(&InviteSubscriptionReward{}).Where("invitee_id = ?", invitee.Id).Count(&rewards).Error)
+	require.Zero(t, rewards)
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	require.Equal(t, InviteRewardStatusPending, refreshedInvitee.InviteRewardStatus)
 }
 
 func TestGrantInviteSubscriptionDiscountRejectsPositiveQuotaThatRoundsToZero(t *testing.T) {

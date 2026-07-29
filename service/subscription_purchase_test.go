@@ -2436,6 +2436,41 @@ func TestPurchaseSubscriptionBalanceThreeMonthsChargesFullPriceOnce(t *testing.T
 	require.Zero(t, result.Entitlement.MediaCreditsUsed)
 }
 
+func TestPurchaseSubscriptionBalanceDowngradeFromActiveStripeRecurringHasNoSideEffects(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	insertPurchaseServiceUser(t, 7363, 1000)
+	currentPlan := insertStripeUpgradePlan(t, 7463, 3, 30, 3000, "price_current_balance_downgrade")
+	targetPlan := insertPurchaseServicePlan(t, 7464, 1, 2, 200)
+	contract, binding, entitlement := seedStripeUpgradeContract(t, 7363, currentPlan)
+
+	_, err := PurchaseSubscription(purchaseBalanceCommand(7363, targetPlan.Id, 1, "balance-downgrade-stripe"))
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Stripe recurring")
+	var reloadedUser model.User
+	require.NoError(t, model.DB.First(&reloadedUser, "id = ?", 7363).Error)
+	require.Equal(t, 1000, reloadedUser.Quota)
+	var reloadedContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&reloadedContract, "id = ?", contract.Id).Error)
+	require.Equal(t, currentPlan.Id, reloadedContract.CurrentPlanId)
+	require.Equal(t, entitlement.Id, reloadedContract.CurrentEntitlementId)
+	require.Equal(t, binding.Id, reloadedContract.CurrentProviderBindingId)
+	require.Equal(t, model.SubscriptionPaymentModeStripeRecurring, reloadedContract.PaymentMode)
+	var reloadedBinding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&reloadedBinding, "id = ?", binding.Id).Error)
+	require.Equal(t, model.PaymentProviderStripe, reloadedBinding.Provider)
+	require.Equal(t, "active", reloadedBinding.ProviderStatus)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7363).Count(&orderCount).Error)
+	require.Zero(t, orderCount)
+	var intentCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", 7363).Count(&intentCount).Error)
+	require.Zero(t, intentCount)
+	var ledgerCount int64
+	require.NoError(t, model.DB.Model(&model.WalletLedgerEntry{}).Where("user_id = ?", 7363).Count(&ledgerCount).Error)
+	require.Zero(t, ledgerCount)
+}
+
 func TestPurchaseSubscriptionSamePlanImmediatelyReplacesWithoutProration(t *testing.T) {
 	setupSubscriptionPurchaseServiceTestDB(t)
 	insertPurchaseServiceUser(t, 7304, 1000)
@@ -2839,6 +2874,71 @@ func TestPurchaseSubscriptionSameRequestIDDifferentPayloadConflicts(t *testing.T
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "idempotency")
+}
+
+func TestPurchaseSubscriptionReplayRequiresMatchingPaymentProvider(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	insertPurchaseServiceUser(t, 7364, 2000)
+	plan := insertPurchaseServicePlan(t, 7465, 1, 2, 200)
+
+	first, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7364,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceEpay,
+		PaymentMethod: model.SubscriptionPaymentMethodAlipay,
+		Months:        1,
+		RequestID:     "provider-conflict-alipay",
+		VerifiedQuote: subscriptionPurchaseTestQuote("USD", 2, 1),
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.PaymentProviderEpay, first.Order.PaymentProvider)
+
+	_, err = PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7364,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceAlipay,
+		Months:        1,
+		RequestID:     "provider-conflict-alipay",
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "idempotency")
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7364).Count(&orderCount).Error)
+	require.Equal(t, int64(1), orderCount)
+}
+
+func TestPurchaseSubscriptionReplayAllowsSamePaymentProvider(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	insertPurchaseServiceUser(t, 7365, 2000)
+	plan := insertPurchaseServicePlan(t, 7466, 1, 2, 200)
+	cmd := PurchaseSubscriptionCommand{
+		UserID:        7365,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceEpay,
+		PaymentMethod: model.SubscriptionPaymentMethodAlipay,
+		Months:        1,
+		RequestID:     "provider-same-alipay",
+		VerifiedQuote: subscriptionPurchaseTestQuote("USD", 2, 1),
+	}
+
+	first, err := PurchaseSubscription(cmd)
+	require.NoError(t, err)
+	replayed, err := PurchaseSubscription(PurchaseSubscriptionCommand{
+		UserID:        7365,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceEpay,
+		PaymentMethod: model.SubscriptionPaymentMethodAlipay,
+		Months:        1,
+		RequestID:     "provider-same-alipay",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, first.Intent.Id, replayed.Intent.Id)
+	require.Equal(t, first.Order.Id, replayed.Order.Id)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7365).Count(&orderCount).Error)
+	require.Equal(t, int64(1), orderCount)
 }
 
 func TestPurchaseSubscriptionPixRequiresConfiguredLocalQuote(t *testing.T) {

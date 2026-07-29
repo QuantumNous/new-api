@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ type stripeRenewalInvoiceMutationRecorder struct {
 	existingItems        []*stripe.InvoiceItem
 	updateIdempotencyKey []string
 	failItem             bool
+	failItemErr          error
 	failResumeOnce       bool
 	failEveryResume      bool
 }
@@ -71,6 +73,9 @@ func replaceStripeRenewalInvoiceAccessors(t *testing.T, inv *stripe.Invoice, sub
 	}
 	stripeSubscriptionInvoiceItemCreator = func(ctx context.Context, params *stripe.InvoiceItemParams) (*stripe.InvoiceItem, error) {
 		require.NotNil(t, params)
+		if recorder.failItemErr != nil {
+			return nil, recorder.failItemErr
+		}
 		if recorder.failItem {
 			return nil, errors.New("stripe invoice item failed")
 		}
@@ -273,8 +278,12 @@ func TestSubscriptionDiscountInvoicePrepareFailsClosedOnConflictingExistingAdjus
 	err := PrepareStripeSubscriptionDiscountInvoice(context.Background(), "in_discount_item_conflict")
 
 	require.ErrorContains(t, err, "conflicting subscription discount invoice item")
-	require.Equal(t, []bool{false}, recorder.updates)
+	require.True(t, IsPermanentPaidInvoiceError(err))
+	require.Equal(t, []bool{false, true}, recorder.updates)
 	require.Empty(t, recorder.items)
+	var releaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key = ? AND entry_type = ?", "stripe-invoice:in_discount_item_conflict:reserve", model.SubscriptionDiscountEntryTypeRelease).Count(&releaseCount).Error)
+	require.Equal(t, int64(1), releaseCount)
 }
 
 func TestSubscriptionDiscountInvoicePrepareFailsClosedOnDuplicateExistingAdjustmentItems(t *testing.T) {
@@ -306,8 +315,12 @@ func TestSubscriptionDiscountInvoicePrepareFailsClosedOnDuplicateExistingAdjustm
 	err := PrepareStripeSubscriptionDiscountInvoice(context.Background(), "in_discount_item_duplicate")
 
 	require.ErrorContains(t, err, "multiple subscription discount invoice items")
-	require.Equal(t, []bool{false}, recorder.updates)
+	require.True(t, IsPermanentPaidInvoiceError(err))
+	require.Equal(t, []bool{false, true}, recorder.updates)
 	require.Empty(t, recorder.items)
+	var releaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key = ? AND entry_type = ?", "stripe-invoice:in_discount_item_duplicate:reserve", model.SubscriptionDiscountEntryTypeRelease).Count(&releaseCount).Error)
+	require.Equal(t, int64(1), releaseCount)
 }
 
 func TestSubscriptionDiscountInvoicePrepareExistingDiscountTieDoesNotReserve(t *testing.T) {
@@ -355,6 +368,127 @@ func TestSubscriptionDiscountInvoicePrepareItemFailureKeepsPausedAndRetriesWitho
 	var reserveCount int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("idempotency_key = ?", "stripe-invoice:in_discount_retry:reserve").Count(&reserveCount).Error)
 	require.Equal(t, int64(1), reserveCount)
+}
+
+func TestSubscriptionDiscountInvoicePrepareRestoresOriginalAutoAdvanceFalseAcrossRetry(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	_, binding, entitlement := seedStripeRenewalContract(t, 9225, 9325, "sub_discount_retry_auto_false")
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Update("initial_order_id", seedInitialOrderSnapshotForRenewal(t, 9225, 9325, "sub_discount_retry_auto_false_initial")).Error)
+	grantRenewalInvitationCredit(t, 9225, 500, "grant-renewal-retry-auto-false")
+	inv := draftRenewalInvoiceFixture("in_discount_retry_auto_false", "sub_discount_retry_auto_false")
+	inv.AutoAdvance = false
+	inv.Lines.Data[0].Period = &stripe.Period{Start: entitlement.EndTime, End: entitlement.EndTime + 2592000}
+	sub := stripeSubscriptionFixture("sub_discount_retry_auto_false", map[string]string{})
+	setStripeSubscriptionCurrentPeriod(sub, entitlement.EndTime, entitlement.EndTime+2592000)
+	recorder := &stripeRenewalInvoiceMutationRecorder{failItem: true}
+	replaceStripeRenewalInvoiceAccessors(t, inv, sub, recorder)
+
+	require.Error(t, PrepareStripeSubscriptionDiscountInvoice(context.Background(), "in_discount_retry_auto_false"))
+	recorder.failItem = false
+	require.NoError(t, PrepareStripeSubscriptionDiscountInvoice(context.Background(), "in_discount_retry_auto_false"))
+
+	require.Equal(t, []bool{false, false, false}, recorder.updates)
+	require.Equal(t, []int64{-300}, recorder.items)
+}
+
+func TestSubscriptionDiscountInvoicePrepareLegacyReservationRestoresAutoAdvanceTrueAcrossRetry(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	_, binding, entitlement := seedStripeRenewalContract(t, 9227, 9327, "sub_discount_retry_auto_legacy")
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Update("initial_order_id", seedInitialOrderSnapshotForRenewal(t, 9227, 9327, "sub_discount_retry_auto_legacy_initial")).Error)
+	grantRenewalInvitationCredit(t, 9227, 500, "grant-renewal-retry-auto-legacy")
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             9227,
+			USDMinor:           300,
+			TradeNo:            "in_discount_retry_auto_legacy",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 300,
+			PricingSnapshot:    legacyRenewalInvoiceSnapshotJSONForTest(t, "in_discount_retry_auto_legacy", "sub_discount_retry_auto_legacy", binding.Id, binding.ContractId, 9327, 9227, 1234, 200, 300, 500, 300, 734, "stripe-invoice:in_discount_retry_auto_legacy:reserve"),
+			IdempotencyKey:     "stripe-invoice:in_discount_retry_auto_legacy:reserve",
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	inv := draftRenewalInvoiceFixture("in_discount_retry_auto_legacy", "sub_discount_retry_auto_legacy")
+	inv.AutoAdvance = false
+	inv.Lines.Data[0].Period = &stripe.Period{Start: entitlement.EndTime, End: entitlement.EndTime + 2592000}
+	sub := stripeSubscriptionFixture("sub_discount_retry_auto_legacy", map[string]string{})
+	setStripeSubscriptionCurrentPeriod(sub, entitlement.EndTime, entitlement.EndTime+2592000)
+	recorder := &stripeRenewalInvoiceMutationRecorder{}
+	replaceStripeRenewalInvoiceAccessors(t, inv, sub, recorder)
+
+	require.NoError(t, PrepareStripeSubscriptionDiscountInvoice(context.Background(), "in_discount_retry_auto_legacy"))
+
+	require.Equal(t, []bool{false, true}, recorder.updates)
+	require.Equal(t, []int64{-300}, recorder.items)
+}
+
+func TestSubscriptionDiscountInvoicePermanentStripeItemFailureReleasesReservationAndStopsRetry(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	_, binding, entitlement := seedStripeRenewalContract(t, 9226, 9326, "sub_discount_item_permanent")
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Update("initial_order_id", seedInitialOrderSnapshotForRenewal(t, 9226, 9326, "sub_discount_item_permanent_initial")).Error)
+	grantRenewalInvitationCredit(t, 9226, 500, "grant-renewal-item-permanent")
+	inv := draftRenewalInvoiceFixture("in_discount_item_permanent", "sub_discount_item_permanent")
+	inv.Lines.Data[0].Period = &stripe.Period{Start: entitlement.EndTime, End: entitlement.EndTime + 2592000}
+	sub := stripeSubscriptionFixture("sub_discount_item_permanent", map[string]string{})
+	setStripeSubscriptionCurrentPeriod(sub, entitlement.EndTime, entitlement.EndTime+2592000)
+	recorder := &stripeRenewalInvoiceMutationRecorder{
+		failItemErr: &stripe.Error{Msg: "invalid invoice item request", HTTPStatusCode: http.StatusBadRequest},
+	}
+	replaceStripeRenewalInvoiceAccessors(t, inv, sub, recorder)
+
+	err := PrepareStripeSubscriptionDiscountInvoice(context.Background(), "in_discount_item_permanent")
+
+	require.ErrorContains(t, err, "invalid invoice item request")
+	require.True(t, IsPermanentPaidInvoiceError(err))
+	require.Equal(t, []bool{false, true}, recorder.updates)
+	require.Empty(t, recorder.items)
+	var releaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key = ? AND entry_type = ?", "stripe-invoice:in_discount_item_permanent:reserve", model.SubscriptionDiscountEntryTypeRelease).Count(&releaseCount).Error)
+	require.Equal(t, int64(1), releaseCount)
+	var account model.SubscriptionDiscountAccount
+	require.NoError(t, model.DB.First(&account, "user_id = ?", 9226).Error)
+	require.Equal(t, int64(500), account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+}
+
+func TestSubscriptionDiscountInvoicePermanentStripeItemFailureReleasesLegacyReservationAndResumesAutoAdvanceTrue(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	_, binding, entitlement := seedStripeRenewalContract(t, 9228, 9328, "sub_discount_item_permanent_legacy")
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Update("initial_order_id", seedInitialOrderSnapshotForRenewal(t, 9228, 9328, "sub_discount_item_permanent_legacy_initial")).Error)
+	grantRenewalInvitationCredit(t, 9228, 500, "grant-renewal-item-permanent-legacy")
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             9228,
+			USDMinor:           300,
+			TradeNo:            "in_discount_item_permanent_legacy",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 300,
+			PricingSnapshot:    legacyRenewalInvoiceSnapshotJSONForTest(t, "in_discount_item_permanent_legacy", "sub_discount_item_permanent_legacy", binding.Id, binding.ContractId, 9328, 9228, 1234, 200, 300, 500, 300, 734, "stripe-invoice:in_discount_item_permanent_legacy:reserve"),
+			IdempotencyKey:     "stripe-invoice:in_discount_item_permanent_legacy:reserve",
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	inv := draftRenewalInvoiceFixture("in_discount_item_permanent_legacy", "sub_discount_item_permanent_legacy")
+	inv.AutoAdvance = false
+	inv.Lines.Data[0].Period = &stripe.Period{Start: entitlement.EndTime, End: entitlement.EndTime + 2592000}
+	sub := stripeSubscriptionFixture("sub_discount_item_permanent_legacy", map[string]string{})
+	setStripeSubscriptionCurrentPeriod(sub, entitlement.EndTime, entitlement.EndTime+2592000)
+	recorder := &stripeRenewalInvoiceMutationRecorder{
+		failItemErr: &stripe.Error{Msg: "invalid invoice item request", HTTPStatusCode: http.StatusBadRequest},
+	}
+	replaceStripeRenewalInvoiceAccessors(t, inv, sub, recorder)
+
+	err := PrepareStripeSubscriptionDiscountInvoice(context.Background(), "in_discount_item_permanent_legacy")
+
+	require.ErrorContains(t, err, "invalid invoice item request")
+	require.True(t, IsPermanentPaidInvoiceError(err))
+	require.Equal(t, []bool{false, true}, recorder.updates)
+	require.Empty(t, recorder.items)
+	var releaseCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key = ? AND entry_type = ?", "stripe-invoice:in_discount_item_permanent_legacy:reserve", model.SubscriptionDiscountEntryTypeRelease).Count(&releaseCount).Error)
+	require.Equal(t, int64(1), releaseCount)
 }
 
 func TestSubscriptionDiscountInvoiceCommitAndReleaseAreIdempotent(t *testing.T) {
@@ -1272,7 +1406,18 @@ func renewalInvoiceSnapshotJSONForTest(t *testing.T, invoiceID string, subscript
 		"account_reserved_after":          selectedUSD,
 		"reservation_key":                 reservationKey,
 		"item_idempotency_key":            strings.TrimSuffix(reservationKey, ":reserve") + ":adjustment",
+		"original_auto_advance":           true,
 	}
+	data, err := common.Marshal(payload)
+	require.NoError(t, err)
+	return string(data)
+}
+
+func legacyRenewalInvoiceSnapshotJSONForTest(t *testing.T, invoiceID string, subscriptionID string, bindingID int64, contractID int64, planID int, userID int, originalSubtotal int64, existingDiscount int64, selectedUSD int64, selectedLocal int64, incremental int64, expectedFinal int64, reservationKey string) string {
+	t.Helper()
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal([]byte(renewalInvoiceSnapshotJSONForTest(t, invoiceID, subscriptionID, bindingID, contractID, planID, userID, originalSubtotal, existingDiscount, selectedUSD, selectedLocal, incremental, expectedFinal, reservationKey)), &payload))
+	delete(payload, "original_auto_advance")
 	data, err := common.Marshal(payload)
 	require.NoError(t, err)
 	return string(data)

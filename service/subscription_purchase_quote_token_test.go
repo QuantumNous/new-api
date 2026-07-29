@@ -10,13 +10,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSignSubscriptionPurchaseQuoteTokenRejectsLegacyVersion(t *testing.T) {
+	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
+		Version:          1,
+		UserID:           17,
+		PlanID:           3,
+		PaymentChoice:    SubscriptionPaymentChoicePix,
+		Months:           1,
+		RequestID:        "purchase-request-legacy-sign",
+		Currency:         "BRL",
+		UnitAmountMinor:  4990,
+		TotalAmountMinor: 4990,
+		PlanRevision:     1_753_268_400,
+		ExpiresAt:        1_753_269_000,
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionPurchaseQuoteInvalid)
+}
+
 func TestSubscriptionPurchaseQuoteTokenRoundTrip(t *testing.T) {
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "subscription-quote-test-secret"
 	t.Cleanup(func() { common.CryptoSecret = originalSecret })
 
 	claims := SubscriptionPurchaseQuoteTokenClaims{
-		Version:          1,
+		Version:          2,
 		UserID:           17,
 		PlanID:           3,
 		PaymentChoice:    SubscriptionPaymentChoicePix,
@@ -79,7 +97,7 @@ func TestSubscriptionPurchaseQuoteTokenRoundTripWithFirstMonthDiscount(t *testin
 	t.Cleanup(func() { common.CryptoSecret = originalSecret })
 
 	claims := SubscriptionPurchaseQuoteTokenClaims{
-		Version:             1,
+		Version:             2,
 		UserID:              17,
 		PlanID:              3,
 		PaymentChoice:       SubscriptionPaymentChoicePix,
@@ -115,7 +133,7 @@ func TestSubscriptionPurchaseQuoteTokenRoundTripWithInvitationDiscount(t *testin
 	t.Cleanup(func() { common.CryptoSecret = originalSecret })
 
 	claims := SubscriptionPurchaseQuoteTokenClaims{
-		Version:                       1,
+		Version:                       2,
 		UserID:                        17,
 		PlanID:                        3,
 		PaymentChoice:                 SubscriptionPaymentChoicePix,
@@ -232,7 +250,7 @@ func TestSubscriptionPurchaseQuoteTokenRejectsTampering(t *testing.T) {
 	t.Cleanup(func() { common.CryptoSecret = originalSecret })
 
 	token, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
-		Version:          1,
+		Version:          2,
 		UserID:           17,
 		PlanID:           3,
 		PaymentChoice:    SubscriptionPaymentChoiceUPI,
@@ -263,7 +281,7 @@ func TestSubscriptionPurchaseQuoteTokenRejectsExpiredQuote(t *testing.T) {
 	t.Cleanup(func() { common.CryptoSecret = originalSecret })
 
 	token, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
-		Version:          1,
+		Version:          2,
 		UserID:           17,
 		PlanID:           3,
 		PaymentChoice:    SubscriptionPaymentChoicePix,
@@ -286,7 +304,7 @@ func TestSubscriptionPurchaseQuoteTokenRejectsExpiredQuote(t *testing.T) {
 
 func TestSubscriptionPurchaseQuoteTokenRejectsCurrencyMethodMismatch(t *testing.T) {
 	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
-		Version:          1,
+		Version:          2,
 		UserID:           17,
 		PlanID:           3,
 		PaymentChoice:    SubscriptionPaymentChoicePix,
@@ -303,7 +321,7 @@ func TestSubscriptionPurchaseQuoteTokenRejectsCurrencyMethodMismatch(t *testing.
 
 func TestSubscriptionPurchaseQuoteTokenRejectsInconsistentTotal(t *testing.T) {
 	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
-		Version:          1,
+		Version:          2,
 		UserID:           17,
 		PlanID:           3,
 		PaymentChoice:    SubscriptionPaymentChoiceUPI,
@@ -320,7 +338,7 @@ func TestSubscriptionPurchaseQuoteTokenRejectsInconsistentTotal(t *testing.T) {
 
 func TestSubscriptionPurchaseQuoteTokenRejectsDiscountInconsistentTotal(t *testing.T) {
 	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
-		Version:             1,
+		Version:             2,
 		UserID:              17,
 		PlanID:              3,
 		PaymentChoice:       SubscriptionPaymentChoicePix,
@@ -340,7 +358,7 @@ func TestSubscriptionPurchaseQuoteTokenRejectsDiscountInconsistentTotal(t *testi
 
 func TestSubscriptionPurchaseQuoteTokenRejectsDiscountGreaterThanMonthlyUnit(t *testing.T) {
 	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
-		Version:             1,
+		Version:             2,
 		UserID:              17,
 		PlanID:              3,
 		PaymentChoice:       SubscriptionPaymentChoicePix,
@@ -360,7 +378,7 @@ func TestSubscriptionPurchaseQuoteTokenRejectsDiscountGreaterThanMonthlyUnit(t *
 
 func TestSubscriptionPurchaseQuoteTokenRequiresRecallIDsWithDiscount(t *testing.T) {
 	base := SubscriptionPurchaseQuoteTokenClaims{
-		Version:             1,
+		Version:             2,
 		UserID:              17,
 		PlanID:              3,
 		PaymentChoice:       SubscriptionPaymentChoicePix,
@@ -383,7 +401,7 @@ func TestSubscriptionPurchaseQuoteTokenRequiresRecallIDsWithDiscount(t *testing.
 
 func TestSubscriptionPurchaseQuoteTokenRejectsInvitationDiscountWithRecallIDs(t *testing.T) {
 	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
-		Version:             1,
+		Version:             2,
 		UserID:              17,
 		PlanID:              3,
 		PaymentChoice:       SubscriptionPaymentChoicePix,
@@ -404,7 +422,7 @@ func TestSubscriptionPurchaseQuoteTokenRejectsInvitationDiscountWithRecallIDs(t 
 
 func TestSubscriptionPurchaseQuoteTokenRejectsRecallIDsWithoutDiscount(t *testing.T) {
 	_, err := SignSubscriptionPurchaseQuoteToken(SubscriptionPurchaseQuoteTokenClaims{
-		Version:          1,
+		Version:          2,
 		UserID:           17,
 		PlanID:           3,
 		PaymentChoice:    SubscriptionPaymentChoicePix,

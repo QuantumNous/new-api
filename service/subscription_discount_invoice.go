@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -44,6 +45,7 @@ type stripeSubscriptionDiscountInvoiceSnapshot struct {
 	AccountReservedAfterUSDMinor      int64  `json:"account_reserved_after"`
 	ReservationKey                    string `json:"reservation_key"`
 	ItemIdempotencyKey                string `json:"item_idempotency_key"`
+	OriginalAutoAdvance               *bool  `json:"original_auto_advance,omitempty"`
 }
 
 func PrepareStripeSubscriptionDiscountInvoice(ctx context.Context, invoiceID string) (err error) {
@@ -70,20 +72,23 @@ func PrepareStripeSubscriptionDiscountInvoice(ctx context.Context, invoiceID str
 	if err != nil {
 		return err
 	}
+	originalAutoAdvance := stripeInvoiceOriginalAutoAdvance(inv)
 	if err := pauseStripeSubscriptionInvoice(ctx, invoiceID); err != nil {
 		return err
 	}
 	resume := true
+	resumeAutoAdvance := originalAutoAdvance
 	var prepare stripeSubscriptionDiscountInvoicePrepare
 	defer func() {
 		if resume {
-			if resumeErr := resumeStripeSubscriptionInvoice(ctx, invoiceID, stripeSubscriptionDiscountInvoiceMetadata(prepare.SnapshotFacts)); resumeErr != nil {
+			resumeAutoAdvance = stripeSubscriptionDiscountInvoiceResumeAutoAdvance(prepare, resumeAutoAdvance)
+			if resumeErr := resumeStripeSubscriptionInvoice(ctx, invoiceID, resumeAutoAdvance, stripeSubscriptionDiscountInvoiceMetadata(prepare.SnapshotFacts)); resumeErr != nil {
 				err = resumeErr
 			}
 		}
 	}()
 
-	prepare, err = buildStripeSubscriptionDiscountInvoicePrepareTx(facts, stripeInvoiceExistingDiscountMinor(inv))
+	prepare, err = buildStripeSubscriptionDiscountInvoicePrepareTx(facts, stripeInvoiceExistingDiscountMinor(inv), originalAutoAdvance)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, model.ErrSubscriptionDiscountInsufficient) {
 			return nil
@@ -94,6 +99,12 @@ func PrepareStripeSubscriptionDiscountInvoice(ctx context.Context, invoiceID str
 		return nil
 	}
 	if err := createStripeSubscriptionDiscountInvoiceItem(ctx, prepare); err != nil {
+		if IsPermanentPaidInvoiceError(err) {
+			if releaseErr := ReleaseStripeSubscriptionDiscountInvoice(ctx, invoiceID); releaseErr != nil {
+				return releaseErr
+			}
+			return err
+		}
 		resume = false
 		return err
 	}
@@ -109,6 +120,7 @@ type stripeSubscriptionDiscountInvoicePrepare struct {
 	ReservationKey         string
 	Snapshot               string
 	SnapshotFacts          stripeSubscriptionDiscountInvoiceSnapshot
+	OriginalAutoAdvance    *bool
 }
 
 type stripeSubscriptionDiscountInvoiceReconciliationCursor struct {
@@ -117,7 +129,7 @@ type stripeSubscriptionDiscountInvoiceReconciliationCursor struct {
 	raw      string `json:"-"`
 }
 
-func buildStripeSubscriptionDiscountInvoicePrepareTx(facts stripeInvoiceCommonFacts, existingDiscount int64) (stripeSubscriptionDiscountInvoicePrepare, error) {
+func buildStripeSubscriptionDiscountInvoicePrepareTx(facts stripeInvoiceCommonFacts, existingDiscount int64, originalAutoAdvance bool) (stripeSubscriptionDiscountInvoicePrepare, error) {
 	var prepare stripeSubscriptionDiscountInvoicePrepare
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		// Lock order: local renewal binding facts first, then the discount account
@@ -207,6 +219,7 @@ func buildStripeSubscriptionDiscountInvoicePrepareTx(facts stripeInvoiceCommonFa
 			AccountReservedAfterUSDMinor:      account.ReservedUSDMinor + incrementalUSDMinor,
 			ReservationKey:                    reservationKey,
 			ItemIdempotencyKey:                stripeSubscriptionDiscountInvoiceAdjustmentKey(facts.InvoiceID),
+			OriginalAutoAdvance:               common.GetPointer(originalAutoAdvance),
 		}
 		snapshot, err := stripeSubscriptionDiscountInvoiceSnapshotJSON(snapshotFacts)
 		if err != nil {
@@ -234,6 +247,7 @@ func buildStripeSubscriptionDiscountInvoicePrepareTx(facts stripeInvoiceCommonFa
 			ReservationKey:         reservationKey,
 			Snapshot:               snapshot,
 			SnapshotFacts:          snapshotFacts,
+			OriginalAutoAdvance:    snapshotFacts.OriginalAutoAdvance,
 		}
 		return nil
 	})
@@ -267,6 +281,7 @@ func existingStripeSubscriptionDiscountInvoicePrepareTx(tx *gorm.DB, facts strip
 		ReservationKey:         reservationKey,
 		Snapshot:               reserve.PricingSnapshot,
 		SnapshotFacts:          snapshot,
+		OriginalAutoAdvance:    snapshot.OriginalAutoAdvance,
 	}, true, nil
 }
 
@@ -315,9 +330,26 @@ func pauseStripeSubscriptionInvoice(ctx context.Context, invoiceID string) error
 	return err
 }
 
-func resumeStripeSubscriptionInvoice(ctx context.Context, invoiceID string, metadata map[string]string) error {
+func stripeInvoiceOriginalAutoAdvance(inv *stripe.Invoice) bool {
+	if inv == nil {
+		return true
+	}
+	return inv.AutoAdvance
+}
+
+func stripeSubscriptionDiscountInvoiceResumeAutoAdvance(prepare stripeSubscriptionDiscountInvoicePrepare, fallback bool) bool {
+	if prepare.OriginalAutoAdvance != nil {
+		return *prepare.OriginalAutoAdvance
+	}
+	if strings.TrimSpace(prepare.ReservationKey) != "" {
+		return true
+	}
+	return fallback
+}
+
+func resumeStripeSubscriptionInvoice(ctx context.Context, invoiceID string, autoAdvance bool, metadata map[string]string) error {
 	params := &stripe.InvoiceParams{
-		AutoAdvance: stripe.Bool(true),
+		AutoAdvance: stripe.Bool(autoAdvance),
 		Metadata:    metadata,
 	}
 	params.SetIdempotencyKey(stripeSubscriptionDiscountInvoiceReservationKey(invoiceID) + ":resume")
@@ -331,7 +363,7 @@ func createStripeSubscriptionDiscountInvoiceItem(ctx context.Context, prepare st
 	}
 	exists, err := existingStripeSubscriptionDiscountInvoiceItem(ctx, prepare)
 	if err != nil || exists {
-		return err
+		return classifyStripeSubscriptionDiscountInvoiceItemError(err)
 	}
 	params := &stripe.InvoiceItemParams{
 		Amount:      stripe.Int64(-prepare.IncrementalAmountMinor),
@@ -343,7 +375,7 @@ func createStripeSubscriptionDiscountInvoiceItem(ctx context.Context, prepare st
 	}
 	params.SetIdempotencyKey(stripeSubscriptionDiscountInvoiceAdjustmentKey(prepare.InvoiceID))
 	_, err = stripeSubscriptionInvoiceItemCreator(ctx, params)
-	return err
+	return classifyStripeSubscriptionDiscountInvoiceItemError(err)
 }
 
 func existingStripeSubscriptionDiscountInvoiceItem(ctx context.Context, prepare stripeSubscriptionDiscountInvoicePrepare) (bool, error) {
@@ -365,14 +397,31 @@ func existingStripeSubscriptionDiscountInvoiceItem(ctx context.Context, prepare 
 		return false, nil
 	}
 	if len(matches) > 1 {
-		return false, errors.New("multiple subscription discount invoice items found")
+		return false, PermanentPaidInvoiceError(errors.New("multiple subscription discount invoice items found"))
 	}
 	item := matches[0]
 	if item.Amount != -prepare.IncrementalAmountMinor ||
 		strings.ToUpper(strings.TrimSpace(string(item.Currency))) != strings.ToUpper(strings.TrimSpace(prepare.Currency)) {
-		return false, errors.New("conflicting subscription discount invoice item found")
+		return false, PermanentPaidInvoiceError(errors.New("conflicting subscription discount invoice item found"))
 	}
 	return true, nil
+}
+
+func classifyStripeSubscriptionDiscountInvoiceItemError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if IsPermanentPaidInvoiceError(err) {
+		return err
+	}
+	var stripeErr *stripe.Error
+	if errors.As(err, &stripeErr) {
+		code := stripeErr.HTTPStatusCode
+		if code >= http.StatusBadRequest && code < http.StatusInternalServerError && code != http.StatusTooManyRequests {
+			return PermanentPaidInvoiceError(err)
+		}
+	}
+	return err
 }
 
 func stripeSubscriptionDiscountInvoiceItemMatchesMetadata(item *stripe.InvoiceItem, prepare stripeSubscriptionDiscountInvoicePrepare) bool {

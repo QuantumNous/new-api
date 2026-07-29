@@ -83,6 +83,7 @@ var subscriptionPurchaseAfterProviderExpirationHook func()
 var tryGrantInviteSubscriptionRewardAfterOrderCompleted = model.TryGrantInviteSubscriptionRewardAfterOrderCompleted
 
 var ErrSubscriptionPurchaseQuoteUnavailable = errors.New("subscription purchase quote unavailable")
+var ErrSubscriptionPurchaseQuoteRequired = errors.New("subscription purchase quote is required")
 var ErrSubscriptionPurchaseInvitationReservationRequired = errors.New("subscription purchase invitation discount requires reservation support")
 
 type SubscriptionPurchaseQuoteResult struct {
@@ -334,6 +335,9 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 		if err != nil {
 			return err
 		}
+		if err := rejectBalancePrepaidStripeRecurringDowngrade(cmd, contract, kind); err != nil {
+			return err
+		}
 		intent := &model.SubscriptionChangeIntent{
 			ContractId:    contract.Id,
 			UserId:        cmd.UserID,
@@ -424,12 +428,13 @@ func ReplaySubscriptionPurchase(cmd PurchaseSubscriptionCommand) (*PurchaseSubsc
 			return nil, false, errors.New("subscription purchase idempotency conflict")
 		}
 		change, err := ChangeSubscriptionPlan(ChangePlanCommand{
-			UserID:      cmd.UserID,
-			PlanID:      cmd.PlanID,
-			PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
-			RequestID:   cmd.RequestID,
-			UIMode:      cmd.UIMode,
-			RecallClaim: cmd.RecallClaim,
+			UserID:        cmd.UserID,
+			PlanID:        cmd.PlanID,
+			PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+			RequestID:     cmd.RequestID,
+			UIMode:        cmd.UIMode,
+			RecallClaim:   cmd.RecallClaim,
+			VerifiedQuote: cmd.VerifiedQuote,
 		})
 		if err != nil {
 			return nil, false, err
@@ -528,7 +533,9 @@ func buildPurchaseReplayResultTx(tx *gorm.DB, cmd PurchaseSubscriptionCommand, i
 		return nil, err
 	}
 	expectedMethod := subscriptionPurchaseOrderPaymentMethod(cmd)
-	if order.UserId != cmd.UserID || order.PlanId != cmd.PlanID || order.PurchaseMonths != cmd.Months || order.PaymentMethod != expectedMethod {
+	expectedProvider := paymentProviderForPurchaseChoice(cmd.PaymentChoice)
+	if order.UserId != cmd.UserID || order.PlanId != cmd.PlanID || order.PurchaseMonths != cmd.Months ||
+		order.PaymentMethod != expectedMethod || order.PaymentProvider != expectedProvider {
 		return nil, errors.New("subscription purchase idempotency conflict")
 	}
 	var contract model.UserSubscriptionContract
@@ -776,6 +783,18 @@ func classifyPrepaidPurchaseKindTx(tx *gorm.DB, contract *model.UserSubscription
 		return model.SubscriptionChangeIntentKindUpgrade, nil
 	}
 	return model.SubscriptionChangeIntentKindDowngrade, nil
+}
+
+func rejectBalancePrepaidStripeRecurringDowngrade(cmd PurchaseSubscriptionCommand, contract *model.UserSubscriptionContract, kind string) error {
+	if cmd.PaymentChoice != SubscriptionPaymentChoiceBalance || kind != model.SubscriptionChangeIntentKindDowngrade || contract == nil {
+		return nil
+	}
+	if contract.Status == model.SubscriptionContractStatusActive &&
+		contract.PaymentMode == model.SubscriptionPaymentModeStripeRecurring &&
+		contract.CurrentProviderBindingId > 0 {
+		return errors.New("active Stripe recurring downgrade must use Stripe recurring scheduling")
+	}
+	return nil
 }
 
 func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, cmd PurchaseSubscriptionCommand, discountFacts subscriptionReservationDiscountFacts) (*model.SubscriptionOrder, error) {
@@ -1330,7 +1349,7 @@ func resolveSubscriptionPurchaseQuote(plan model.SubscriptionPlan, choice string
 
 func quoteForSubscriptionPurchase(plan model.SubscriptionPlan, cmd PurchaseSubscriptionCommand) (SubscriptionPurchaseQuote, error) {
 	if cmd.VerifiedQuote == nil {
-		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote is required")
+		return SubscriptionPurchaseQuote{}, ErrSubscriptionPurchaseQuoteRequired
 	}
 	if cmd.PaymentChoice == SubscriptionPaymentChoiceStripeRecurring {
 		return SubscriptionPurchaseQuote{}, errors.New("stripe_recurring does not accept a one-time quote")
@@ -1371,7 +1390,7 @@ func replayExistingSubscriptionPurchase(cmd PurchaseSubscriptionCommand) (*Purch
 
 func validateAuthoritativeSubscriptionPurchaseQuote(ctx context.Context, cmd PurchaseSubscriptionCommand) (SubscriptionPurchaseQuote, error) {
 	if cmd.VerifiedQuote == nil {
-		return SubscriptionPurchaseQuote{}, errors.New("subscription purchase quote is required")
+		return SubscriptionPurchaseQuote{}, ErrSubscriptionPurchaseQuoteRequired
 	}
 	plan, err := model.GetSubscriptionPlanById(cmd.PlanID)
 	if err != nil {

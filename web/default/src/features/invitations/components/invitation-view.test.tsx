@@ -229,6 +229,18 @@ describe('InvitationView', () => {
     expect(html).not.toContain('API balance')
   })
 
+  test('uses neutral referral copy until the reward mode is available', () => {
+    const html = renderView({ data: null })
+
+    expect(html).toContain('Share your referral link to get started.')
+    expect(html).not.toContain(
+      'Referral rewards are processed after their first successful top-up.'
+    )
+    expect(html).not.toContain(
+      'You receive your package discount immediately after their first successful paid package purchase.'
+    )
+  })
+
   test('renders the empty invitation state', () => {
     const html = renderView({
       data: {
@@ -400,14 +412,13 @@ describe('InvitationView', () => {
     )
   })
 
-  test('uses Flatkey in the referral share message', () => {
+  test('uses the active reward rules in the referral share message', () => {
     const html = renderView()
     const message = encodeURIComponent(
-      'Join Flatkey with my referral link. Referral rewards are processed after your first successful top-up.'
+      'Share your referral link with friends. Referral rewards are processed after their first successful top-up.'
     )
 
     expect(html).toContain(message)
-    expect(html).not.toContain('Join%20NewAPI%20with%20my%20referral%20link')
   })
 })
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"github.com/stripe/stripe-go/v86"
 	"gorm.io/gorm"
 )
 
@@ -468,6 +470,353 @@ func TestStripeRecurringCheckoutLeavesProviderRenewalUnsetUntilInvoiceApplies(t 
 	require.Empty(t, contract.RenewalStatus)
 	require.Equal(t, model.SubscriptionPaymentModeExternalOnePeriod, contract.PaymentMode)
 	require.Equal(t, model.SubscriptionContractStatusEnded, contract.Status)
+}
+
+func TestStripeRecurringChangePlanRequiresSignedQuoteBeforeCreatingCheckout(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	insertContractServiceUser(t, 7113, 3000)
+	plan := insertContractServicePlan(t, 7218, 1, 12.34, 1234)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_legacy_authoritative_quote").Error)
+	originalCreator := stripeSubscriptionCheckoutCreator
+	t.Cleanup(func() { stripeSubscriptionCheckoutCreator = originalCreator })
+	creatorCalled := false
+	stripeSubscriptionCheckoutCreator = func(ctx context.Context, input StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		creatorCalled = true
+		return &StripeSubscriptionCheckoutSession{ID: "cs_legacy_authoritative_quote", URL: "https://checkout.example/legacy"}, nil
+	}
+
+	result, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      7113,
+		PlanID:      plan.Id,
+		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:   "stripe-legacy-no-client-quote",
+	})
+
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Contains(t, err.Error(), "subscription purchase quote is required")
+	require.False(t, creatorCalled)
+	var contractCount int64
+	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).Where("user_id = ?", 7113).Count(&contractCount).Error)
+	require.Zero(t, contractCount)
+	var intentCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", 7113).Count(&intentCount).Error)
+	require.Zero(t, intentCount)
+	var orderCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7113).Count(&orderCount).Error)
+	require.Zero(t, orderCount)
+}
+
+func TestStripeRecurringReplacementQuoteGateRunsBeforeSupersedingPendingCheckout(t *testing.T) {
+	staleQuote := verifiedRecurringQuoteForTest("USD", 11.11, 1111)
+	testCases := []struct {
+		name          string
+		userID        int
+		planID        int
+		oldRequestID  string
+		newRequestID  string
+		providerID    string
+		verifiedQuote *SubscriptionPurchaseQuote
+	}{
+		{
+			name:         "nil quote",
+			userID:       7130,
+			planID:       7240,
+			oldRequestID: "stripe-replacement-nil-quote-old",
+			newRequestID: "stripe-replacement-nil-quote-new",
+			providerID:   "cs_replacement_nil_quote_old",
+		},
+		{
+			name:          "stale quote",
+			userID:        7131,
+			planID:        7241,
+			oldRequestID:  "stripe-replacement-stale-quote-old",
+			newRequestID:  "stripe-replacement-stale-quote-new",
+			providerID:    "cs_replacement_stale_quote_old",
+			verifiedQuote: staleQuote,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupSubscriptionContractServiceTestDB(t)
+			require.NoError(t, model.DB.AutoMigrate(&model.SubscriptionDiscountAccount{}, &model.SubscriptionDiscountEntry{}))
+			insertContractServiceUser(t, tc.userID, 3000)
+			plan := insertContractServicePlan(t, tc.planID, 1, 12.34, 1234)
+			require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+				Update("stripe_price_id", "price_"+strings.ReplaceAll(tc.name, " ", "_")).Error)
+			plan.StripePriceId = "price_" + strings.ReplaceAll(tc.name, " ", "_")
+			planSnapshot, err := subscriptionPurchasePlanSnapshot(&plan)
+			require.NoError(t, err)
+			contract := model.UserSubscriptionContract{
+				UserId:        tc.userID,
+				Status:        model.SubscriptionContractStatusEnded,
+				PaymentMode:   model.SubscriptionPaymentModeExternalOnePeriod,
+				ChangeVersion: 1,
+			}
+			require.NoError(t, model.DB.Create(&contract).Error)
+			intent := model.SubscriptionChangeIntent{
+				ContractId:             contract.Id,
+				UserId:                 tc.userID,
+				RequestId:              tc.oldRequestID,
+				Kind:                   model.SubscriptionChangeIntentKindPurchase,
+				PaymentMode:            model.SubscriptionPaymentModeStripeRecurring,
+				Status:                 model.SubscriptionChangeIntentStatusAwaitingPayment,
+				ToPlanId:               plan.Id,
+				ChangeVersion:          2,
+				ProviderIdempotencyKey: "idem-" + tc.oldRequestID,
+				EffectiveAt:            common.GetTimestamp(),
+			}
+			require.NoError(t, model.DB.Create(&intent).Error)
+			require.NoError(t, model.DB.Model(&contract).Updates(map[string]interface{}{
+				"latest_change_intent_id": intent.Id,
+				"change_version":          intent.ChangeVersion,
+			}).Error)
+			order := model.SubscriptionOrder{
+				UserId:             tc.userID,
+				PlanId:             plan.Id,
+				Money:              7.34,
+				TradeNo:            "trade-" + tc.oldRequestID,
+				PaymentMethod:      model.PaymentMethodStripe,
+				PaymentProvider:    model.PaymentProviderStripe,
+				Status:             common.TopUpStatusPending,
+				CreateTime:         common.GetTimestamp(),
+				PurchaseMonths:     1,
+				UnitPrice:          12.34,
+				PaymentCurrency:    "USD",
+				PaymentAmountMinor: 734,
+				PlanSnapshot:       planSnapshot,
+				PurchaseIntent:     model.SubscriptionChangeIntentKindPurchase,
+				RenewalSource:      model.SubscriptionRenewalSourceProvider,
+				DiscountKind:       SubscriptionDiscountKindInvitation,
+				ProviderSessionId:  tc.providerID,
+				ProviderSessionURL: "https://checkout.example/" + tc.providerID,
+				ProviderPayload:    fmt.Sprintf("choice=%s;months=1;contract_id=%d;change_intent_id=%d", SubscriptionPaymentChoiceStripeRecurring, contract.Id, intent.Id),
+				ChangeIntentId:     intent.Id,
+			}
+			require.NoError(t, model.DB.Create(&order).Error)
+			_, err = model.GrantSubscriptionDiscountTx(model.DB, model.SubscriptionDiscountGrantInput{
+				UserID:         tc.userID,
+				USDMinor:       500,
+				EntryType:      model.SubscriptionDiscountEntryTypeGrantInvitee,
+				SourceType:     "test",
+				SourceKey:      "grant-" + tc.oldRequestID,
+				IdempotencyKey: "grant-" + tc.oldRequestID,
+			})
+			require.NoError(t, err)
+			reservationKey := "subscription-order:" + order.TradeNo + ":reserve"
+			_, err = model.ReserveSubscriptionDiscountTx(model.DB, model.SubscriptionDiscountReservationInput{
+				UserID:             tc.userID,
+				USDMinor:           500,
+				OrderID:            order.Id,
+				TradeNo:            order.TradeNo,
+				PaymentCurrency:    "USD",
+				AppliedAmountMinor: 500,
+				IdempotencyKey:     reservationKey,
+				ExpiresAt:          common.GetTimestamp() + 3600,
+			})
+			require.NoError(t, err)
+			require.NoError(t, model.DB.Model(&order).Updates(map[string]interface{}{
+				"subscription_discount_usd_minor":       500,
+				"subscription_discount_amount_minor":    500,
+				"subscription_discount_reservation_key": reservationKey,
+			}).Error)
+
+			restoreStripeAccessors := ReplaceStripeCheckoutSessionAccessorsForTest(
+				func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+					require.Equal(t, tc.providerID, sessionID)
+					return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusOpen}, nil
+				},
+				func(_ context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+					require.Equal(t, tc.providerID, sessionID)
+					return &stripe.CheckoutSession{ID: sessionID, Status: stripe.CheckoutSessionStatusExpired}, nil
+				},
+			)
+			t.Cleanup(restoreStripeAccessors)
+			var expirerCalls int
+			originalExpirer := stripeCheckoutSessionExpirer
+			stripeCheckoutSessionExpirer = func(ctx context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+				expirerCalls++
+				return originalExpirer(ctx, sessionID)
+			}
+			t.Cleanup(func() { stripeCheckoutSessionExpirer = originalExpirer })
+			var oldOrderBefore model.SubscriptionOrder
+			require.NoError(t, model.DB.First(&oldOrderBefore, "id = ?", order.Id).Error)
+			var oldIntentBefore model.SubscriptionChangeIntent
+			require.NoError(t, model.DB.First(&oldIntentBefore, "id = ?", intent.Id).Error)
+			var contractBefore model.UserSubscriptionContract
+			require.NoError(t, model.DB.First(&contractBefore, "id = ?", contract.Id).Error)
+			var accountBefore model.SubscriptionDiscountAccount
+			require.NoError(t, model.DB.First(&accountBefore, "user_id = ?", tc.userID).Error)
+
+			result, err := ChangeSubscriptionPlan(ChangePlanCommand{
+				UserID:        tc.userID,
+				PlanID:        plan.Id,
+				PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+				RequestID:     tc.newRequestID,
+				VerifiedQuote: tc.verifiedQuote,
+			})
+
+			require.Error(t, err)
+			require.Nil(t, result)
+			require.Contains(t, err.Error(), "quote")
+			require.Zero(t, expirerCalls)
+			var oldOrderAfter model.SubscriptionOrder
+			require.NoError(t, model.DB.First(&oldOrderAfter, "id = ?", order.Id).Error)
+			require.Equal(t, oldOrderBefore.Status, oldOrderAfter.Status)
+			require.Equal(t, oldOrderBefore.CompleteTime, oldOrderAfter.CompleteTime)
+			require.Equal(t, oldOrderBefore.ProviderSessionId, oldOrderAfter.ProviderSessionId)
+			require.Equal(t, oldOrderBefore.SubscriptionDiscountReservationKey, oldOrderAfter.SubscriptionDiscountReservationKey)
+			require.Equal(t, oldOrderBefore.SupersededByTradeNo, oldOrderAfter.SupersededByTradeNo)
+			var oldIntentAfter model.SubscriptionChangeIntent
+			require.NoError(t, model.DB.First(&oldIntentAfter, "id = ?", intent.Id).Error)
+			require.Equal(t, oldIntentBefore.Status, oldIntentAfter.Status)
+			require.Equal(t, oldIntentBefore.SupersededById, oldIntentAfter.SupersededById)
+			var contractAfter model.UserSubscriptionContract
+			require.NoError(t, model.DB.First(&contractAfter, "id = ?", contract.Id).Error)
+			require.Equal(t, contractBefore.LatestChangeIntentId, contractAfter.LatestChangeIntentId)
+			var accountAfter model.SubscriptionDiscountAccount
+			require.NoError(t, model.DB.First(&accountAfter, "user_id = ?", tc.userID).Error)
+			require.Equal(t, accountBefore.AvailableUSDMinor, accountAfter.AvailableUSDMinor)
+			require.Equal(t, accountBefore.ReservedUSDMinor, accountAfter.ReservedUSDMinor)
+			var releaseCount int64
+			require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).
+				Where("terminal_reservation_key = ? AND entry_type = ?", reservationKey, model.SubscriptionDiscountEntryTypeRelease).
+				Count(&releaseCount).Error)
+			require.Zero(t, releaseCount)
+			var intentCount int64
+			require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).Where("user_id = ?", tc.userID).Count(&intentCount).Error)
+			require.Equal(t, int64(1), intentCount)
+			var orderCount int64
+			require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", tc.userID).Count(&orderCount).Error)
+			require.Equal(t, int64(1), orderCount)
+		})
+	}
+}
+
+func TestStripeRecurringCheckoutExpiresRemoteSessionWhenPersistFails(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	insertContractServiceUser(t, 7114, 3000)
+	plan := insertContractServicePlan(t, 7219, 1, 12.34, 1234)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_persist_failure_cleanup").Error)
+	originalCreator := stripeSubscriptionCheckoutCreator
+	originalExpirer := stripeCheckoutSessionExpirer
+	t.Cleanup(func() {
+		stripeSubscriptionCheckoutCreator = originalCreator
+		stripeCheckoutSessionExpirer = originalExpirer
+	})
+	var expiredSessionID string
+	stripeCheckoutSessionExpirer = func(ctx context.Context, sessionID string) (*stripe.CheckoutSession, error) {
+		expiredSessionID = sessionID
+		return nil, nil
+	}
+	stripeSubscriptionCheckoutCreator = func(ctx context.Context, input StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).
+			Where("change_intent_id = ?", input.ChangeIntentID).
+			Update("provider_session_id", "cs_conflicting_local_session").Error)
+		return &StripeSubscriptionCheckoutSession{ID: "cs_orphan_after_persist_failure", URL: "https://checkout.example/orphan"}, nil
+	}
+
+	result, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:        7114,
+		PlanID:        plan.Id,
+		PaymentMode:   model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:     "stripe-persist-failure-cleanup",
+		VerifiedQuote: verifiedRecurringQuoteForTest("USD", 12.34, 1234),
+	})
+
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Contains(t, err.Error(), "Stripe checkout session mismatch")
+	require.Equal(t, "cs_orphan_after_persist_failure", expiredSessionID)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "user_id = ?", 7114).Error)
+	require.Equal(t, common.TopUpStatusFailed, order.Status)
+	var intent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&intent, "id = ?", order.ChangeIntentId).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusFailed, intent.Status)
+	var contract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&contract, "id = ?", intent.ContractId).Error)
+	require.Zero(t, contract.LatestChangeIntentId)
+}
+
+func TestStripeRecurringPendingReplayRequiresSnapshotPrice(t *testing.T) {
+	testCases := []struct {
+		name         string
+		planSnapshot string
+	}{
+		{name: "missing snapshot"},
+		{name: "invalid snapshot", planSnapshot: `{bad-json`},
+		{name: "empty snapshot price", planSnapshot: `{"plan_id":7220,"price_amount":12.34,"currency":"USD","duration_unit":"month","duration_value":1,"total_amount":1234}`},
+	}
+
+	for index, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupSubscriptionContractServiceTestDB(t)
+			userID := 7115 + index
+			planID := 7220 + index
+			insertContractServiceUser(t, userID, 3000)
+			plan := insertContractServicePlan(t, planID, 1, 12.34, 1234)
+			require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+				Update("stripe_price_id", "price_current_after_change").Error)
+			contract := model.UserSubscriptionContract{
+				UserId:      userID,
+				Status:      model.SubscriptionContractStatusEnded,
+				PaymentMode: model.SubscriptionPaymentModeExternalOnePeriod,
+			}
+			require.NoError(t, model.DB.Create(&contract).Error)
+			intent := model.SubscriptionChangeIntent{
+				ContractId:             contract.Id,
+				UserId:                 userID,
+				RequestId:              "stripe-pending-replay-" + tc.name,
+				Kind:                   model.SubscriptionChangeIntentKindPurchase,
+				PaymentMode:            model.SubscriptionPaymentModeStripeRecurring,
+				Status:                 model.SubscriptionChangeIntentStatusAwaitingPayment,
+				ToPlanId:               plan.Id,
+				ChangeVersion:          1,
+				ProviderIdempotencyKey: "idem-pending-replay-" + tc.name,
+				EffectiveAt:            common.GetTimestamp(),
+			}
+			require.NoError(t, model.DB.Create(&intent).Error)
+			require.NoError(t, model.DB.Model(&contract).Updates(map[string]interface{}{
+				"latest_change_intent_id": intent.Id,
+				"change_version":          intent.ChangeVersion,
+			}).Error)
+			require.NoError(t, model.DB.Create(&model.SubscriptionOrder{
+				UserId:          userID,
+				PlanId:          plan.Id,
+				Money:           12.34,
+				TradeNo:         "trade-pending-replay-" + tc.name,
+				PaymentMethod:   model.PaymentMethodStripe,
+				PaymentProvider: model.PaymentProviderStripe,
+				Status:          common.TopUpStatusPending,
+				CreateTime:      common.GetTimestamp(),
+				PlanSnapshot:    tc.planSnapshot,
+				ChangeIntentId:  intent.Id,
+			}).Error)
+			originalCreator := stripeSubscriptionCheckoutCreator
+			t.Cleanup(func() { stripeSubscriptionCheckoutCreator = originalCreator })
+			creatorCalled := false
+			stripeSubscriptionCheckoutCreator = func(ctx context.Context, input StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+				creatorCalled = true
+				return &StripeSubscriptionCheckoutSession{ID: "cs_should_not_be_created", URL: "https://checkout.example/should-not"}, nil
+			}
+
+			result, err := ChangeSubscriptionPlan(ChangePlanCommand{
+				UserID:      userID,
+				PlanID:      plan.Id,
+				PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+				RequestID:   "stripe-pending-replay-" + tc.name,
+			})
+
+			require.Error(t, err)
+			require.Nil(t, result)
+			require.Contains(t, err.Error(), "subscription purchase quote is required")
+			require.False(t, creatorCalled)
+		})
+	}
 }
 
 func TestUnresolvedPurchaseBlocksSecondChange(t *testing.T) {

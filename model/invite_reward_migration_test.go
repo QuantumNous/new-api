@@ -172,23 +172,27 @@ func TestMigrateInvitationValueRejectsInvalidQuotaPerUnit(t *testing.T) {
 	}
 }
 
-func TestMigratePositiveAffQuotaThatRoundsToZeroPreservesSourceValue(t *testing.T) {
+func TestMigratePositiveAffQuotaThatRoundsToZeroClearsSourceWithTerminalEntry(t *testing.T) {
 	db := setupInviteRewardMigrationTest(t)
 
 	user := User{Id: 363, Username: "rounds-zero-aff", Password: "password123", AffCode: "rounds-zero-aff-code", AffQuota: 1}
 	require.NoError(t, db.Create(&user).Error)
 
 	require.NoError(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
+	require.NoError(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
 
-	var unchanged User
-	require.NoError(t, db.First(&unchanged, user.Id).Error)
-	require.Equal(t, 1, unchanged.AffQuota)
-	var entries int64
-	require.NoError(t, db.Model(&SubscriptionDiscountEntry{}).Where("entry_type = ?", SubscriptionDiscountEntryTypeMigration).Count(&entries).Error)
-	require.Zero(t, entries)
+	var migrated User
+	require.NoError(t, db.First(&migrated, user.Id).Error)
+	require.Zero(t, migrated.AffQuota)
+	var entries []SubscriptionDiscountEntry
+	require.NoError(t, db.Where("entry_type = ?", SubscriptionDiscountEntryTypeMigration).Find(&entries).Error)
+	require.Len(t, entries, 1)
+	require.EqualValues(t, 0, entries[0].AvailableDeltaUSDMinor)
+	require.Equal(t, legacyInvitationValueAffQuotaKey(user.Id), entries[0].IdempotencyKey)
+	require.JSONEq(t, `{"source_type":"aff_quota","source_quota":1,"quota_per_unit":100000,"quota_to_usd_ratio":"100000:1","usd_minor":0}`, entries[0].PricingSnapshot)
 }
 
-func TestMigratePositivePendingRewardThatRoundsToZeroPreservesPendingState(t *testing.T) {
+func TestMigratePositivePendingRewardThatRoundsToZeroClearsPendingWithTerminalEntry(t *testing.T) {
 	db := setupInviteRewardMigrationTest(t)
 
 	inviter := User{Id: 364, Username: "rounds-zero-inviter", Password: "password123", AffCode: "rounds-zero-inviter-code"}
@@ -205,15 +209,20 @@ func TestMigratePositivePendingRewardThatRoundsToZeroPreservesPendingState(t *te
 	require.NoError(t, db.Create(&reward).Error)
 
 	require.NoError(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
+	require.NoError(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
 
-	var unchanged InviteSubscriptionReward
-	require.NoError(t, db.First(&unchanged, reward.Id).Error)
-	require.Equal(t, InviteSubRewardStatusPending, unchanged.Status)
-	require.Zero(t, unchanged.GrantedAt)
-	require.Equal(t, 1, unchanged.RewardQuota)
-	var entries int64
-	require.NoError(t, db.Model(&SubscriptionDiscountEntry{}).Where("entry_type = ?", SubscriptionDiscountEntryTypeMigration).Count(&entries).Error)
-	require.Zero(t, entries)
+	var migrated InviteSubscriptionReward
+	require.NoError(t, db.First(&migrated, reward.Id).Error)
+	require.Equal(t, InviteSubRewardStatusGranted, migrated.Status)
+	require.NotZero(t, migrated.GrantedAt)
+	require.Zero(t, migrated.UnlockAt)
+	require.Equal(t, 1, migrated.RewardQuota)
+	var entries []SubscriptionDiscountEntry
+	require.NoError(t, db.Where("entry_type = ?", SubscriptionDiscountEntryTypeMigration).Find(&entries).Error)
+	require.Len(t, entries, 1)
+	require.EqualValues(t, 0, entries[0].AvailableDeltaUSDMinor)
+	require.Equal(t, legacyInvitationValueRewardKey(reward.Id), entries[0].IdempotencyKey)
+	require.JSONEq(t, `{"source_type":"invite_subscription_reward","source_quota":1,"quota_per_unit":100000,"quota_to_usd_ratio":"100000:1","usd_minor":0}`, entries[0].PricingSnapshot)
 }
 
 func TestMigrateInvitationValueClearsSourceWhenExistingLedgerHasOlderValidSnapshot(t *testing.T) {
@@ -456,6 +465,43 @@ func TestMigrateUserInvitationValueScopesAffQuotaAndPendingRewards(t *testing.T)
 	var entries []SubscriptionDiscountEntry
 	require.NoError(t, db.Where("entry_type = ?", SubscriptionDiscountEntryTypeMigration).Find(&entries).Error)
 	require.Len(t, entries, 2)
+}
+
+func TestMigrateUserInvitationValueProcessesBoundedPendingRewardsPerCall(t *testing.T) {
+	db := setupInviteRewardMigrationTest(t)
+
+	inviter := User{Id: 371, Username: "bounded-user", Password: "password123", AffCode: "bounded-user-code"}
+	require.NoError(t, db.Create(&inviter).Error)
+	const totalRewards = 25
+	for i := 0; i < totalRewards; i++ {
+		inviteeID := 372 + i
+		rewardID := 471 + i
+		require.NoError(t, db.Create(&User{Id: inviteeID, Username: fmt.Sprintf("bounded-invitee-%d", i), Password: "password123", AffCode: fmt.Sprintf("bounded-invitee-code-%d", i), InviterId: inviter.Id}).Error)
+		require.NoError(t, db.Create(&InviteSubscriptionReward{
+			Id:          rewardID,
+			InviteeId:   inviteeID,
+			InviterId:   inviter.Id,
+			RewardQuota: 100_000,
+			Status:      InviteSubRewardStatusPending,
+			UnlockAt:    100,
+		}).Error)
+	}
+
+	require.NoError(t, MigrateUserLegacyInvitationValueToSubscriptionDiscount(inviter.Id))
+
+	var granted int64
+	require.NoError(t, db.Model(&InviteSubscriptionReward{}).
+		Where("inviter_id = ? AND status = ?", inviter.Id, InviteSubRewardStatusGranted).
+		Count(&granted).Error)
+	require.EqualValues(t, legacyInvitationValueUserRequestBatchSize, granted)
+	var pending int64
+	require.NoError(t, db.Model(&InviteSubscriptionReward{}).
+		Where("inviter_id = ? AND status = ?", inviter.Id, InviteSubRewardStatusPending).
+		Count(&pending).Error)
+	require.EqualValues(t, totalRewards-legacyInvitationValueUserRequestBatchSize, pending)
+	var entries int64
+	require.NoError(t, db.Model(&SubscriptionDiscountEntry{}).Where("entry_type = ?", SubscriptionDiscountEntryTypeMigration).Count(&entries).Error)
+	require.EqualValues(t, legacyInvitationValueUserRequestBatchSize, entries)
 }
 
 func TestMigrateInvitationValueSQLiteConcurrentRunsConverge(t *testing.T) {

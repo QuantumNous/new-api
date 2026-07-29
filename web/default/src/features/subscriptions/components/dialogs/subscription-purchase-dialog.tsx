@@ -19,10 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   createContext,
   useContext,
-  useMemo,
+  useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
+import { isAxiosError } from 'axios'
 import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -116,6 +118,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
+  const purchaseRequestIdsRef = useRef<Record<string, string>>({})
   const recallClaim = useRecallClaimContext()
   const epayMethods = props.epayMethods || []
   const selectedEpayMethodValue = props.open
@@ -123,14 +126,32 @@ export function SubscriptionPurchaseDialog(props: Props) {
       ? selectedEpayMethod
       : epayMethods[0]?.type || ''
     : ''
-  const purchaseRequestScope =
-    props.open && props.plan?.plan?.id
-      ? `${props.plan.plan.id}:${selectedEpayMethodValue}`
-      : ''
-  const purchaseRequestId = useMemo(
-    () => (purchaseRequestScope ? createStableSubscriptionRequestId() : ''),
-    [purchaseRequestScope]
-  )
+
+  useEffect(() => {
+    if (!props.open) {
+      purchaseRequestIdsRef.current = {}
+    }
+  }, [props.open])
+
+  const getStablePurchaseRequestId = (scope: string) => {
+    if (!scope) return createStableSubscriptionRequestId()
+    const existingRequestId = purchaseRequestIdsRef.current[scope]
+    if (existingRequestId) return existingRequestId
+    const nextRequestId = createStableSubscriptionRequestId()
+    purchaseRequestIdsRef.current = {
+      ...purchaseRequestIdsRef.current,
+      [scope]: nextRequestId,
+    }
+    return nextRequestId
+  }
+
+  const rotateStablePurchaseRequestId = (scope: string) => {
+    if (!scope) return
+    purchaseRequestIdsRef.current = {
+      ...purchaseRequestIdsRef.current,
+      [scope]: createStableSubscriptionRequestId(),
+    }
+  }
 
   const plan = props.plan?.plan
   if (!plan) return null
@@ -170,6 +191,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   const handlePayStripe = async () => {
     setPaying(true)
+    const requestScope = `stripe:${plan.id}`
     try {
       let validatedRecallClaim: string | undefined
       if (recallPlanEligible && recallClaim.claim && plan.stripe_price_id) {
@@ -187,6 +209,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
       const res = await paySubscriptionStripe({
         plan_id: plan.id,
+        request_id: getStablePurchaseRequestId(requestScope),
         ...(validatedRecallClaim ? { recall_claim: validatedRecallClaim } : {}),
       })
       if (res.message === 'success' && res.data?.pay_link) {
@@ -199,8 +222,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
             ? res.message
             : t('Payment request failed')
         )
+        rotateStablePurchaseRequestId(requestScope)
       }
-    } catch {
+    } catch (error) {
+      if (isAxiosError(error) && error.response) {
+        rotateStablePurchaseRequestId(requestScope)
+      }
       toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)
@@ -262,12 +289,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
       return
     }
     setPaying(true)
+    const requestScope = `epay:${plan.id}:${selectedEpayMethodValue}`
     try {
-      const requestId = purchaseRequestId || createStableSubscriptionRequestId()
       const res = await paySubscriptionEpay({
         plan_id: plan.id,
         payment_method: selectedEpayMethodValue,
-        request_id: requestId,
+        request_id: getStablePurchaseRequestId(requestScope),
       })
       if (res.message === 'success' && res.url) {
         const form = document.createElement('form')
@@ -294,8 +321,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
             ? res.message
             : t('Payment request failed')
         )
+        rotateStablePurchaseRequestId(requestScope)
       }
-    } catch {
+    } catch (error) {
+      if (isAxiosError(error) && error.response) {
+        rotateStablePurchaseRequestId(requestScope)
+      }
       toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)

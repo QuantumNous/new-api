@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Button,
@@ -97,23 +97,46 @@ const SubscriptionPlansCard = ({
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [paying, setPaying] = useState(false);
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
-  const [purchaseRequestId, setPurchaseRequestId] = useState('');
+  const purchaseRequestIdsRef = useRef({});
   const [refreshing, setRefreshing] = useState(false);
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
   const openBuy = (p) => {
+    purchaseRequestIdsRef.current = {};
     setSelectedPlan(p);
     setSelectedEpayMethod(epayMethods?.[0]?.type || '');
-    setPurchaseRequestId(createStableSubscriptionRequestId());
     setOpen(true);
   };
 
   const closeBuy = () => {
     setOpen(false);
     setSelectedPlan(null);
-    setPurchaseRequestId('');
+    purchaseRequestIdsRef.current = {};
     setPaying(false);
+  };
+
+  const getPurchaseRequestId = (scope) => {
+    if (!purchaseRequestIdsRef.current[scope]) {
+      purchaseRequestIdsRef.current = {
+        ...purchaseRequestIdsRef.current,
+        [scope]: createStableSubscriptionRequestId(),
+      };
+    }
+    return purchaseRequestIdsRef.current[scope];
+  };
+
+  const rotatePurchaseRequestId = (scope) => {
+    if (!scope) return;
+    purchaseRequestIdsRef.current = {
+      ...purchaseRequestIdsRef.current,
+      [scope]: createStableSubscriptionRequestId(),
+    };
+  };
+
+  const handleSelectedEpayMethodChange = (method) => {
+    setSelectedEpayMethod(method);
+    rotatePurchaseRequestId(`epay:${selectedPlan?.plan?.id}:${method}`);
   };
 
   const handleRefresh = async () => {
@@ -131,9 +154,11 @@ const SubscriptionPlansCard = ({
       return;
     }
     setPaying(true);
+    const requestScope = `stripe:${selectedPlan.plan.id}`;
     try {
       const res = await API.post('/api/subscription/stripe/pay', {
         plan_id: selectedPlan.plan.id,
+        request_id: getPurchaseRequestId(requestScope),
       });
       if (res.data?.message === 'success') {
         window.open(res.data.data?.pay_link, '_blank');
@@ -145,8 +170,12 @@ const SubscriptionPlansCard = ({
             ? res.data.data
             : res.data?.message || t('支付失败');
         showError(errorMsg);
+        rotatePurchaseRequestId(requestScope);
       }
     } catch (e) {
+      if (e?.response) {
+        rotatePurchaseRequestId(requestScope);
+      }
       showError(t('支付请求失败'));
     } finally {
       setPaying(false);
@@ -187,11 +216,12 @@ const SubscriptionPlansCard = ({
       return;
     }
     setPaying(true);
+    const requestScope = `epay:${selectedPlan.plan.id}:${selectedEpayMethod}`;
     try {
       const res = await API.post('/api/subscription/epay/pay', {
         plan_id: selectedPlan.plan.id,
         payment_method: selectedEpayMethod,
-        request_id: purchaseRequestId || createStableSubscriptionRequestId(),
+        request_id: getPurchaseRequestId(requestScope),
       });
       if (res.data?.message === 'success') {
         submitEpayForm({ url: res.data.url, params: res.data.data });
@@ -203,8 +233,12 @@ const SubscriptionPlansCard = ({
             ? res.data.data
             : res.data?.message || t('支付失败');
         showError(errorMsg);
+        rotatePurchaseRequestId(requestScope);
       }
     } catch (e) {
+      if (e?.response) {
+        rotatePurchaseRequestId(requestScope);
+      }
       showError(t('支付请求失败'));
     } finally {
       setPaying(false);
@@ -681,7 +715,7 @@ const SubscriptionPlansCard = ({
         selectedPlan={selectedPlan}
         paying={paying}
         selectedEpayMethod={selectedEpayMethod}
-        setSelectedEpayMethod={setSelectedEpayMethod}
+        setSelectedEpayMethod={handleSelectedEpayMethodChange}
         epayMethods={epayMethods}
         enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}

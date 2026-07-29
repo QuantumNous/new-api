@@ -330,9 +330,15 @@ func closeSubscriptionDiscountReservationTx(tx *gorm.DB, reservationKey string, 
 	if err != nil {
 		return false, err
 	}
-	terminalExists, err := subscriptionDiscountTerminalMarkerExistsTx(tx, reservationKey)
-	if err != nil || terminalExists {
+	terminalEntryType, err := subscriptionDiscountTerminalMarkerTypeTx(tx, reservationKey)
+	if err != nil {
 		return false, err
+	}
+	if terminalEntryType != "" {
+		if terminalEntryType == entryType {
+			return false, nil
+		}
+		return false, ErrSubscriptionDiscountInvalidReservation
 	}
 	amount := reservation.ReservedDeltaUSDMinor
 	if amount <= 0 {
@@ -374,6 +380,18 @@ func closeSubscriptionDiscountReservationTx(tx *gorm.DB, reservationKey string, 
 	}
 	created, err := createSubscriptionDiscountEntryTx(tx, &entry)
 	if err != nil || !created {
+		if !created {
+			terminalEntryType, markerErr := subscriptionDiscountTerminalMarkerTypeTx(tx, reservationKey)
+			if markerErr != nil {
+				return false, markerErr
+			}
+			if terminalEntryType == entryType {
+				return false, nil
+			}
+			if terminalEntryType != "" {
+				return false, ErrSubscriptionDiscountInvalidReservation
+			}
+		}
 		return created, err
 	}
 	if account.ReservedUSDMinor < amount {
@@ -487,11 +505,22 @@ func subscriptionDiscountIdempotencyExistsTx(tx *gorm.DB, idempotencyKey string)
 }
 
 func subscriptionDiscountTerminalMarkerExistsTx(tx *gorm.DB, reservationKey string) (bool, error) {
-	var count int64
-	err := tx.Model(&SubscriptionDiscountEntry{}).
+	entryType, err := subscriptionDiscountTerminalMarkerTypeTx(tx, reservationKey)
+	return entryType != "", err
+}
+
+func subscriptionDiscountTerminalMarkerTypeTx(tx *gorm.DB, reservationKey string) (string, error) {
+	var entry SubscriptionDiscountEntry
+	err := tx.Select("entry_type").
 		Where("terminal_reservation_key = ?", reservationKey).
-		Count(&count).Error
-	return count > 0, err
+		First(&entry).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return entry.EntryType, nil
 }
 
 func deleteNewEmptySubscriptionDiscountAccountTx(tx *gorm.DB, userID int) error {
@@ -546,7 +575,7 @@ func normalizeSubscriptionDiscountReservationInput(input SubscriptionDiscountRes
 	if err != nil {
 		return normalizedSubscriptionDiscountReservationInput{}, err
 	}
-	if input.OrderID < 0 || input.AppliedAmountMinor < 0 || input.ExpiresAt < 0 {
+	if input.OrderID < 0 || input.AppliedAmountMinor < 0 || input.ExpiresAt <= common.GetTimestamp() {
 		return normalizedSubscriptionDiscountReservationInput{}, ErrSubscriptionDiscountInvalidReservation
 	}
 	return normalizedSubscriptionDiscountReservationInput{

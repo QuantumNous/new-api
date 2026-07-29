@@ -30,14 +30,16 @@ export function ReferralLinkCard({
   rewardMode,
 }: ReferralLinkCardProps) {
   const { t } = useTranslation()
-  const rewardMessage =
-    rewardMode === 'subscription'
-      ? t(
-          'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
-        )
-      : t(
-          'Share your referral link with friends. Referral rewards are processed after their first successful top-up.'
-        )
+  let rewardMessage = t('Share your referral link to get started.')
+  if (rewardMode === 'subscription') {
+    rewardMessage = t(
+      'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
+    )
+  } else if (rewardMode === 'topup') {
+    rewardMessage = t(
+      'Share your referral link with friends. Referral rewards are processed after their first successful top-up.'
+    )
+  }
   const links = buildInvitationShareLinks(
     affiliateLink,
     rewardMessage
