@@ -4,12 +4,15 @@
 
 - Status: Active
 - Last refreshed: 2026-07-29
-- Primary product surfaces: Administrator Activity Configuration offer validity, minimum purchase amount, module-wide email throughput, email authoring, localization review, generation, and activation preflight.
+- Primary product surfaces: Administrator Activity Configuration offer validity, minimum purchase amount, module-wide email throughput, email authoring, localization review, generation, activation preflight, and customer Wallet Recall-offer pricing.
 - Evidence reviewed:
   - `web/default/src/features/recall-campaigns/components/campaign-editor.tsx`
   - `web/default/src/features/recall-campaigns/components/campaign-email-html-editor.tsx`
   - `web/default/src/features/recall-campaigns/index.tsx`
   - `web/default/src/features/recall-campaigns/schemas.ts`
+  - `web/default/src/features/wallet/components/recharge-form-card.tsx`
+  - `web/default/src/features/wallet/components/subscription-plans-card.tsx`
+  - `web/default/src/features/wallet/lib/recall-claim.ts`
   - `web/default/src/components/datetime-picker.tsx`
   - `service/recall_campaign.go`
   - `service/recall_email.go`
@@ -36,6 +39,7 @@
   - Let operators select coupon and promotion expiry without converting dates to timestamps or durations to seconds.
   - Keep minimum purchase optional; when enabled, let operators enter explicit thresholds for USD, INR, BRL, and JPY without guessing a checkout currency.
   - Cap all Activity Configuration email attempts together by one adjustable hourly limit while leaving other system mail unchanged.
+  - Show an eligible customer-facing Recall offer at the purchase choice with an OFF badge, original price, final price, and exact savings amount.
 - Non-goals:
   - Non-English source authoring.
   - Additional languages, reviewer roles, or required per-locale sign-off.
@@ -49,6 +53,7 @@
   - Zero activations containing stale or missing target locales.
   - Zero Activity email hours exceeding the configured attempt limit across application nodes.
   - Reduced invalid expiry input and no new positive minimum amount stored without its explicit currency.
+  - Eligible Wallet top-up and subscription choices use the same complete savings presentation without changing server-authoritative checkout selection.
 
 ## Personas and jobs
 
@@ -77,6 +82,7 @@
 - Preserve recoverability: Failed generation never destroys the last complete translation set.
 - Human time, canonical storage: Operators select local date-time or days and hours; the system persists normalized UTC instants and durations.
 - Explicit currency thresholds: Minimum purchase is disabled by default. Enabling it reveals independent hand-entered USD, INR, BRL, and JPY amounts; blank currencies remain unset, and neither the client nor server invents a threshold currency.
+- Show savings where the decision is made: Eligible Wallet purchase choices pair the OFF label with both price states and the exact amount saved; an account-level banner alone is not sufficient.
 - Scope the safety control precisely: One hourly allowance covers all Activity Configuration campaigns and no unrelated email path.
 - Protect before throughput: Multi-node quota checks fail closed and may underfill a window after an uncertain boundary, but they never oversend to compensate.
 - Keep expert detail available but secondary: Per-language editing and template versions remain accessible without dominating the common path.
@@ -103,6 +109,7 @@
   - `CampaignTranslationReviewEditor` with read-only English context.
   - `CampaignTranslationRegenerateDialog`.
   - Structured activation blocker list.
+  - Wallet top-up amount tiles and subscription plan prices with a shared Recall savings hierarchy: OFF badge, discounted price, struck original price, and `Save {{amount}}`.
 - Variants and states: Fixed expiry, relative validity, coupon-capped expiry, invalid/past expiry, minimum purchase disabled/enabled/partially populated, quota available, quota exhausted, quota refresh, not generated, generating, generated, manually edited, stale, failed, missing, regeneration warning, activation blocked, and ready.
 - Token/component ownership: Extend current Recall Campaign components and theme tokens; do not introduce a separate localization design system.
 
@@ -132,7 +139,7 @@
 ## Content voice
 
 - Tone: Direct, operational, and recovery-oriented.
-- Terminology: Use `Coupon redeem-by`, `Promotion validity`, `Fixed expiry date`, `Valid after each run`, `Effective expiry`, `Minimum purchase`, `USD`, `INR`, `BRL`, `JPY`, `Activity email limit`, `Sent this hour`, `Resets at`, `English content`, `Translation review`, `Generate 7 translations`, `Regenerate 7 translations`, `Manually edited`, `Stale`, and `Unable to publish` consistently.
+- Terminology: Use `Coupon redeem-by`, `Promotion validity`, `Fixed expiry date`, `Valid after each run`, `Effective expiry`, `Minimum purchase`, `USD`, `INR`, `BRL`, `JPY`, `Activity email limit`, `Sent this hour`, `Resets at`, `English content`, `Translation review`, `Generate 7 translations`, `Regenerate 7 translations`, `Manually edited`, `Stale`, `Unable to publish`, `OFF`, and `Save {{amount}}` consistently.
 - Microcopy rules: State the local timezone, effective expiry, exact quota scope, what changed, why activation or delivery is waiting, whether manual edits will be replaced, and the next safe action.
 
 ## Implementation constraints
@@ -140,7 +147,7 @@
 - Framework/styling system: React 19, TypeScript, react-hook-form, Zod, TanStack Query, Tailwind CSS 4, and existing Base UI/shadcn-style components.
 - Design-token constraints: Reuse existing theme tokens and semantic variants.
 - Performance constraints: Translation remains one bounded batch across all stages and seven targets; prevent duplicate in-flight requests. Hourly accounting uses one small database row per UTC hour and stops scanning later messages once the shared allowance is exhausted.
-- Compatibility constraints: Preserve exact eight-locale persistence, existing English-only automatic API clients, complete manual API clients, historical relative-validity campaigns, immutable legacy minimum-currency runtime records, HTML validation, protected tokens, queued-message snapshots, SQLite/MySQL/PostgreSQL support, and multi-node correctness. New drafts store only explicitly entered minimum currencies; legacy records keep their stored currency semantics. Common SMTP and non-Recall callers must not depend on the Activity limiter.
+- Compatibility constraints: Preserve exact eight-locale persistence, existing English-only automatic API clients, complete manual API clients, historical relative-validity campaigns, immutable legacy minimum-currency runtime records, HTML validation, protected tokens, queued-message snapshots, SQLite/MySQL/PostgreSQL support, and multi-node correctness. New drafts store only explicitly entered minimum currencies; legacy records keep their stored currency semantics. Common SMTP and non-Recall callers must not depend on the Activity limiter. Wallet savings are a client preview from existing offer data; checkout always recalculates and selects the offer on the server.
 - Test/screenshot expectations: Desktop 1440px and mobile 390px; both validity modes, coupon-capped expiry, minimum purchase disabled and enabled with USD/INR/BRL/JPY inputs, quota available/exhausted, live limit adjustment, new draft, generation success, optional correction, stale source, regeneration warning, failed generation, blocked activation, and ready activation.
 
 ## Open questions
