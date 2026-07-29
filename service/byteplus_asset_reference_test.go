@@ -19,7 +19,7 @@ import (
 
 func TestResolveBytePlusAssetReferencesStoresRewriteAndPinnedChannel(t *testing.T) {
 	newBytePlusAssetReferenceDB(t)
-	active := insertBytePlusReferenceAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusActive)
+	active := insertBytePlusReferenceAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", " upstream-image ", model.BytePlusAssetStatusActive)
 	insertBytePlusReferenceAsset(t, 7, 131, "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "upstream-audio", model.BytePlusAssetStatusActive)
 
 	c := newAssetReferenceContext()
@@ -99,6 +99,40 @@ func TestResolveBytePlusAssetReferencesRejectsCrossChannelAssets(t *testing.T) {
 	}
 	if apiErr.GetErrorCode() != types.ErrorCodeAssetChannelConflict || apiErr.StatusCode != http.StatusConflict {
 		t.Fatalf("error code/status = %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode)
+	}
+}
+
+func TestResolveBytePlusAssetReferencesRejectsActiveAssetWithoutUpstreamID(t *testing.T) {
+	tests := []struct {
+		name       string
+		upstreamID string
+	}{
+		{name: "empty", upstreamID: ""},
+		{name: "blank", upstreamID: " \t\n "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newBytePlusAssetReferenceDB(t)
+			asset := insertBytePlusReferenceAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", tt.upstreamID, model.BytePlusAssetStatusActive)
+			c := newAssetReferenceContext()
+			req := &dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{
+				{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}},
+			}}
+
+			_, apiErr := ResolveBytePlusAssetReferences(c, 7, req)
+			if apiErr == nil {
+				t.Fatal("expected not-ready error")
+			}
+			if apiErr.GetErrorCode() != types.ErrorCodeAssetNotReady || apiErr.StatusCode != http.StatusConflict {
+				t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeAssetNotReady, http.StatusConflict)
+			}
+			if _, ok := common.GetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap); ok {
+				t.Fatal("rewrite map should not be stored for active asset without upstream id")
+			}
+			if got := common.GetContextKeyInt(c, constant.ContextKeyBytePlusAssetPinnedChannelID); got != 0 {
+				t.Fatalf("pinned channel id = %d, want 0", got)
+			}
+		})
 	}
 }
 

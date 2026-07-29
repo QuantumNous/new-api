@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -55,12 +56,16 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 		default:
 			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
 		}
+		upstreamAssetID := strings.TrimSpace(asset.UpstreamAssetId)
+		if upstreamAssetID == "" {
+			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
+		}
 		if pinnedChannelID == 0 {
 			pinnedChannelID = asset.ChannelId
 		} else if pinnedChannelID != asset.ChannelId {
 			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset channels do not match"), types.ErrorCodeAssetChannelConflict, http.StatusConflict)
 		}
-		rewriteMap["asset://"+publicID] = "asset://" + asset.UpstreamAssetId
+		rewriteMap["asset://"+publicID] = "asset://" + upstreamAssetID
 	}
 
 	resolution := BytePlusAssetReferenceResolution{
