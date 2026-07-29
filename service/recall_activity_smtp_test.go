@@ -175,6 +175,38 @@ func TestRecallActivitySMTPUpdateTrimsEditableFieldsAndPreservesBlankToken(t *te
 	require.Equal(t, "  legitimate password contents  ", token.Value)
 }
 
+func TestRecallActivitySMTPUpdatePreservesTokenOnWhitespaceOnlyToken(t *testing.T) {
+	db := setupRecallActivitySMTPServiceTest(t)
+	status, err := UpdateRecallActivitySMTP(RecallActivitySMTPInput{
+		Server:     "smtp.activity.example.com",
+		Port:       587,
+		Account:    "activity@example.com",
+		EmailFrom:  "campaigns@example.com",
+		Token:      "stored-secret",
+		SSLEnabled: true,
+	})
+	require.NoError(t, err)
+	require.True(t, status.Configured)
+	require.True(t, status.TokenConfigured)
+
+	status, err = UpdateRecallActivitySMTP(RecallActivitySMTPInput{
+		Server:         "smtp2.activity.example.com",
+		Port:           2525,
+		Account:        "activity2@example.com",
+		EmailFrom:      "campaigns2@example.com",
+		Token:          "   ",
+		ForceAuthLogin: true,
+	})
+	require.NoError(t, err)
+	require.True(t, status.Configured)
+	require.True(t, status.TokenConfigured)
+
+	var token model.Option
+	require.NoError(t, db.First(&token, "key = ?", "recall_campaign_setting.smtp_token").Error)
+	require.Equal(t, "stored-secret", token.Value)
+	require.Equal(t, "stored-secret", operation_setting.GetRecallCampaignSetting().SMTPToken)
+}
+
 func TestRecallActivitySMTPSnapshotValidatesWithoutGlobalSMTP(t *testing.T) {
 	setupRecallActivitySMTPServiceTest(t)
 	originalServer := common.SMTPServer

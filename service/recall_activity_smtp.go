@@ -49,8 +49,11 @@ func UpdateRecallActivitySMTP(input RecallActivitySMTPInput) (RecallActivitySMTP
 		SSLEnabled:     input.SSLEnabled,
 		ForceAuthLogin: input.ForceAuthLogin,
 	}
+	if strings.TrimSpace(submitted.Token) == "" {
+		submitted.Token = ""
+	}
 	effective := submitted
-	if strings.TrimSpace(effective.Token) == "" {
+	if effective.Token == "" {
 		effective.Token = current.Token
 	}
 	if err := effective.Validate(); err != nil {
