@@ -75,6 +75,15 @@ const PLACE_STYLES: Record<
   },
 }
 
+// Staggered entrance delays keyed by visual position so the silver → gold →
+// bronze cascade reads naturally on first paint. Reuses the global
+// `animate-appear` utility, which already honors prefers-reduced-motion.
+const PODIUM_ENTRANCE_DELAY: Record<number, string> = {
+  2: 'animation-delay-100',
+  1: 'animation-delay-300',
+  3: 'animation-delay-700',
+}
+
 /**
  * Top-3 podium. Renders the three highest-ranked entries as ascending
  * blocks (silver / gold / bronze). Falls back to a compact empty state
@@ -106,7 +115,11 @@ export function Podium({ entries }: PodiumProps) {
           return (
             <div
               key={rank}
-              className={cn(style.container, 'flex w-1/3 max-w-[220px] flex-col')}
+              className={cn(
+                style.container,
+                'animate-appear flex w-1/3 max-w-[220px] flex-col',
+                PODIUM_ENTRANCE_DELAY[rank]
+              )}
             >
               <div className='h-16 sm:h-20' />
               <div
@@ -124,7 +137,8 @@ export function Podium({ entries }: PodiumProps) {
             key={rank}
             className={cn(
               style.container,
-              'flex w-1/3 max-w-[220px] flex-col items-center'
+              'animate-appear flex w-1/3 max-w-[220px] flex-col items-center',
+              PODIUM_ENTRANCE_DELAY[rank]
             )}
           >
             {/* Avatar / medal + name */}
@@ -136,7 +150,7 @@ export function Podium({ entries }: PodiumProps) {
                 )}
                 aria-hidden
               >
-                {rank === 1 ? '1' : rank}
+                {rank}
               </div>
               <div className='text-center'>
                 <p
