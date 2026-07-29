@@ -22,12 +22,9 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
-  HeartPulse,
   Key,
   LayoutDashboard,
   Lightbulb,
-  ListTodo,
-  PenTool,
   BadgeDollarSign,
   Radio,
   ServerCog,
@@ -73,11 +70,6 @@ export function useSidebarData(): SidebarData {
             icon: LayoutDashboard,
           },
           {
-            title: t('Group status'),
-            url: '/group-status',
-            icon: HeartPulse,
-          },
-          {
             title: t('API Keys'),
             url: '/keys',
             icon: Key,
@@ -93,12 +85,6 @@ export function useSidebarData(): SidebarData {
         id: 'tools',
         title: t('Tools'),
         items: [
-          {
-            title: t('Inspiration'),
-            url: '/inspiration',
-            activeUrls: ['/inspiration'],
-            icon: PenTool,
-          },
           {
             title: t('Chat apps'),
             icon: FlaskConical,
@@ -119,13 +105,6 @@ export function useSidebarData(): SidebarData {
             title: t('Usage Logs'),
             url: '/usage-logs/common',
             icon: FileText,
-          },
-          {
-            title: t('Task Logs'),
-            url: '/usage-logs/task',
-            activeUrls: ['/usage-logs/drawing'],
-            configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
-            icon: ListTodo,
           },
         ],
       },
