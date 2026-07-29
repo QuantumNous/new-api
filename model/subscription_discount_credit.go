@@ -237,6 +237,9 @@ func ReserveSubscriptionDiscountTx(tx *gorm.DB, input SubscriptionDiscountReserv
 	if err != nil || exists {
 		return false, err
 	}
+	if normalized.expiresAt <= common.GetTimestamp() {
+		return false, ErrSubscriptionDiscountInvalidReservation
+	}
 
 	account, now, accountCreated, err := lockSubscriptionDiscountAccountTx(tx, input.UserID)
 	if err != nil {
@@ -543,7 +546,7 @@ func normalizeSubscriptionDiscountReservationInput(input SubscriptionDiscountRes
 	if err != nil {
 		return normalizedSubscriptionDiscountReservationInput{}, err
 	}
-	if input.OrderID < 0 || input.AppliedAmountMinor < 0 || input.ExpiresAt <= common.GetTimestamp() {
+	if input.OrderID < 0 || input.AppliedAmountMinor < 0 || input.ExpiresAt < 0 {
 		return normalizedSubscriptionDiscountReservationInput{}, ErrSubscriptionDiscountInvalidReservation
 	}
 	return normalizedSubscriptionDiscountReservationInput{

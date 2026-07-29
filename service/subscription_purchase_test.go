@@ -2661,6 +2661,35 @@ func TestReplaySubscriptionPurchaseReturnsExistingOrderBeforeQuote(t *testing.T)
 	require.Equal(t, int64(400), replay.Order.PaymentAmountMinor)
 }
 
+func TestReplaySubscriptionPurchaseStripeRecurringRejectsNonRecurringIntent(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	insertPurchaseServiceUser(t, 7363, 2000)
+	plan := insertPurchaseServicePlan(t, 7463, 1, 2, 200)
+	require.NoError(t, model.DB.Create(&model.SubscriptionChangeIntent{
+		UserId:      7363,
+		FromPlanId:  0,
+		ToPlanId:    plan.Id,
+		Kind:        model.SubscriptionChangeIntentKindPurchase,
+		PaymentMode: model.SubscriptionPaymentModePrepaid,
+		Status:      model.SubscriptionChangeIntentStatusAwaitingPayment,
+		RequestId:   "replay-recurring-mode-conflict",
+		CreatedAt:   common.GetTimestamp(),
+		UpdatedAt:   common.GetTimestamp(),
+	}).Error)
+
+	replay, found, err := ReplaySubscriptionPurchase(PurchaseSubscriptionCommand{
+		UserID:        7363,
+		PlanID:        plan.Id,
+		PaymentChoice: SubscriptionPaymentChoiceStripeRecurring,
+		Months:        1,
+		RequestID:     "replay-recurring-mode-conflict",
+	})
+
+	require.ErrorContains(t, err, "subscription purchase idempotency conflict")
+	require.False(t, found)
+	require.Nil(t, replay)
+}
+
 func TestPurchaseSubscriptionBalanceRewardFailureDoesNotRollbackOrder(t *testing.T) {
 	setupSubscriptionPurchaseServiceTestDB(t)
 	insertPurchaseServiceUser(t, 7362, 2000)

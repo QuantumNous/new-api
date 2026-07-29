@@ -230,7 +230,6 @@ func validateExistingInviteSubscriptionRewardLedgerTx(tx *gorm.DB, inviterId int
 	}
 	if entry.UserID != inviterId ||
 		entry.EntryType != SubscriptionDiscountEntryTypeGrantInviter ||
-		entry.AvailableDeltaUSDMinor != usdMinor ||
 		entry.ReservedDeltaUSDMinor != 0 ||
 		entry.SourceType != "invite_subscription_reward" ||
 		entry.SourceKey != idempotencyKey ||
@@ -242,8 +241,8 @@ func validateExistingInviteSubscriptionRewardLedgerTx(tx *gorm.DB, inviterId int
 		return ErrSubscriptionDiscountInvalidAccountState
 	}
 	if snapshot.QuotaForInviter != rewardQuota ||
-		snapshot.QuotaPerUnit != common.QuotaPerUnit ||
-		snapshot.USDMinor != usdMinor {
+		snapshot.USDMinor <= 0 ||
+		entry.AvailableDeltaUSDMinor != snapshot.USDMinor {
 		return ErrSubscriptionDiscountInvalidAccountState
 	}
 	return nil

@@ -214,6 +214,37 @@ func TestGrantInviteSubscriptionDiscountFinalizesInviteeWhenLedgerGrantAlreadyEx
 	require.EqualValues(t, 1, entries)
 }
 
+func TestGrantInviteSubscriptionDiscountAcceptsExistingLedgerWithHistoricalQuotaPerUnit(t *testing.T) {
+	setupInviteSubRewardTest(t)
+
+	inviter := createInviteRewardUser(t, "inviter", 0)
+	invitee := createInviteRewardUser(t, "invitee", inviter.Id)
+	key := inviteSubscriptionRewardIdempotencyKey(invitee.Id)
+	snapshot, err := inviteSubscriptionRewardPricingSnapshot(common.QuotaForInviter, 750)
+	require.NoError(t, err)
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		changed, err := GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+			UserID:          inviter.Id,
+			USDMinor:        750,
+			EntryType:       SubscriptionDiscountEntryTypeGrantInviter,
+			SourceType:      "invite_subscription_reward",
+			SourceKey:       key,
+			IdempotencyKey:  key,
+			PricingSnapshot: snapshot,
+		})
+		require.True(t, changed)
+		return err
+	}))
+	common.QuotaPerUnit = common.QuotaPerUnit * 2
+	order := createCompletedSubscriptionOrder(t, invitee.Id, 5, "sub-ledger-historical-quota-unit")
+
+	grantInviteSubRewardForTest(t, order)
+
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	require.Equal(t, InviteRewardStatusGranted, refreshedInvitee.InviteRewardStatus)
+}
+
 func TestGrantInviteSubscriptionDiscountRejectsPositiveQuotaThatRoundsToZero(t *testing.T) {
 	setupInviteSubRewardTest(t)
 	common.QuotaPerUnit = 100_000

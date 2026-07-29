@@ -16,6 +16,7 @@ import (
 const (
 	inviteSubscriptionRewardReconciliationTickInterval = 15 * time.Minute
 	inviteSubscriptionRewardReconciliationBatchSize    = 100
+	inviteSubscriptionRewardReconciliationMaxRounds    = 10
 )
 
 var (
@@ -62,5 +63,16 @@ func RunInviteSubscriptionRewardReconciliationOnce() (int, error) {
 	}
 	defer inviteSubscriptionRewardReconciliationRunning.Store(false)
 
-	return inviteSubscriptionRewardReconciler(0, inviteSubscriptionRewardReconciliationBatchSize)
+	processed := 0
+	for round := 0; round < inviteSubscriptionRewardReconciliationMaxRounds; round++ {
+		count, err := inviteSubscriptionRewardReconciler(0, inviteSubscriptionRewardReconciliationBatchSize)
+		processed += count
+		if err != nil {
+			return processed, err
+		}
+		if count < inviteSubscriptionRewardReconciliationBatchSize {
+			return processed, nil
+		}
+	}
+	return processed, nil
 }

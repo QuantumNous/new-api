@@ -205,7 +205,8 @@ func migrateUserLegacyAffQuotaToSubscriptionDiscount(userId int, pricing legacyI
 		}
 		usdMinor := legacyInvitationQuotaToUSDMinor(user.AffQuota, pricing)
 		if usdMinor == 0 {
-			return ErrSubscriptionDiscountInvalidAmount
+			common.SysLog(fmt.Sprintf("skip legacy aff_quota discount migration for user %d: aff_quota %d rounds to zero USD minor", user.Id, user.AffQuota))
+			return nil
 		}
 		key := legacyInvitationValueAffQuotaKey(user.Id)
 		exists, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, user.Id, user.AffQuota, legacyInvitationValueAffQuotaSourceType)
@@ -299,7 +300,8 @@ func migrateInviteSubscriptionRewardToSubscriptionDiscount(rewardId int, pricing
 		}
 		usdMinor := legacyInvitationQuotaToUSDMinor(reward.RewardQuota, pricing)
 		if reward.RewardQuota > 0 && usdMinor == 0 {
-			return ErrSubscriptionDiscountInvalidAmount
+			common.SysLog(fmt.Sprintf("skip invite reward discount migration for reward %d: reward_quota %d rounds to zero USD minor", reward.Id, reward.RewardQuota))
+			return nil
 		}
 		key := legacyInvitationValueRewardKey(reward.Id)
 		exists, err := validateExistingLegacyInvitationMigrationEntryTx(tx, key, reward.InviterId, reward.RewardQuota, legacyInvitationValueRewardSourceType)

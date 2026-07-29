@@ -59,6 +59,19 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	} else if found {
+		if replay == nil || replay.Order == nil {
+			common.ApiErrorMsg(c, "failed to replay subscription order")
+			return
+		}
+		if replay.Order.Status == common.TopUpStatusSuccess {
+			c.JSON(http.StatusOK, subscriptionEpayPurchaseResponse(replay, paymentReturnPath("/console/topup?pay=success"), nil))
+			return
+		}
+		if replay.Order.Status != common.TopUpStatusPending ||
+			service.SubscriptionPurchaseOrderExpiresAt(replay.Order.CreateTime) <= common.GetTimestamp() {
+			common.ApiErrorMsg(c, "subscription order is not payable")
+			return
+		}
 		result = replay
 	}
 

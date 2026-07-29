@@ -34,6 +34,34 @@ func TestInviteSubscriptionRewardReconciliationRunsAllHistoryBoundedOnMaster(t *
 	require.Equal(t, inviteSubscriptionRewardReconciliationBatchSize, gotLimit)
 }
 
+func TestInviteSubscriptionRewardReconciliationContinuesFullBatchesUntilBound(t *testing.T) {
+	originalMaster := common.IsMasterNode
+	originalReconciler := inviteSubscriptionRewardReconciler
+	t.Cleanup(func() {
+		common.IsMasterNode = originalMaster
+		inviteSubscriptionRewardReconciler = originalReconciler
+		inviteSubscriptionRewardReconciliationRunning.Store(false)
+	})
+	common.IsMasterNode = true
+
+	calls := 0
+	inviteSubscriptionRewardReconciler = func(sinceSeconds int64, limit int) (int, error) {
+		require.Zero(t, sinceSeconds)
+		require.Equal(t, inviteSubscriptionRewardReconciliationBatchSize, limit)
+		calls++
+		if calls == inviteSubscriptionRewardReconciliationMaxRounds {
+			return 3, nil
+		}
+		return inviteSubscriptionRewardReconciliationBatchSize, nil
+	}
+
+	count, err := RunInviteSubscriptionRewardReconciliationOnce()
+
+	require.NoError(t, err)
+	require.Equal(t, inviteSubscriptionRewardReconciliationBatchSize*(inviteSubscriptionRewardReconciliationMaxRounds-1)+3, count)
+	require.Equal(t, inviteSubscriptionRewardReconciliationMaxRounds, calls)
+}
+
 func TestInviteSubscriptionRewardReconciliationSkipsNonMasterAndOverlaps(t *testing.T) {
 	originalMaster := common.IsMasterNode
 	originalReconciler := inviteSubscriptionRewardReconciler

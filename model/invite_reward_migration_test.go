@@ -178,7 +178,7 @@ func TestMigratePositiveAffQuotaThatRoundsToZeroPreservesSourceValue(t *testing.
 	user := User{Id: 363, Username: "rounds-zero-aff", Password: "password123", AffCode: "rounds-zero-aff-code", AffQuota: 1}
 	require.NoError(t, db.Create(&user).Error)
 
-	require.ErrorIs(t, MigrateLegacyInvitationValueToSubscriptionDiscount(), ErrSubscriptionDiscountInvalidAmount)
+	require.NoError(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
 
 	var unchanged User
 	require.NoError(t, db.First(&unchanged, user.Id).Error)
@@ -204,7 +204,7 @@ func TestMigratePositivePendingRewardThatRoundsToZeroPreservesPendingState(t *te
 	}
 	require.NoError(t, db.Create(&reward).Error)
 
-	require.ErrorIs(t, MigrateLegacyInvitationValueToSubscriptionDiscount(), ErrSubscriptionDiscountInvalidAmount)
+	require.NoError(t, MigrateLegacyInvitationValueToSubscriptionDiscount())
 
 	var unchanged InviteSubscriptionReward
 	require.NoError(t, db.First(&unchanged, reward.Id).Error)

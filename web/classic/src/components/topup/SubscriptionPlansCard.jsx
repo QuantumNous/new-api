@@ -41,6 +41,15 @@ import {
 
 const { Text } = Typography;
 
+function createStableSubscriptionRequestId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+    (Number(c) ^ ((Math.random() * 16) >> (Number(c) / 4))).toString(16),
+  );
+}
+
 // 过滤易支付方式
 function getEpayMethods(payMethods = []) {
   return (payMethods || []).filter(
@@ -88,6 +97,7 @@ const SubscriptionPlansCard = ({
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [paying, setPaying] = useState(false);
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
+  const [purchaseRequestId, setPurchaseRequestId] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
@@ -95,12 +105,14 @@ const SubscriptionPlansCard = ({
   const openBuy = (p) => {
     setSelectedPlan(p);
     setSelectedEpayMethod(epayMethods?.[0]?.type || '');
+    setPurchaseRequestId(createStableSubscriptionRequestId());
     setOpen(true);
   };
 
   const closeBuy = () => {
     setOpen(false);
     setSelectedPlan(null);
+    setPurchaseRequestId('');
     setPaying(false);
   };
 
@@ -179,6 +191,7 @@ const SubscriptionPlansCard = ({
       const res = await API.post('/api/subscription/epay/pay', {
         plan_id: selectedPlan.plan.id,
         payment_method: selectedEpayMethod,
+        request_id: purchaseRequestId || createStableSubscriptionRequestId(),
       });
       if (res.data?.message === 'success') {
         submitEpayForm({ url: res.data.url, params: res.data.data });

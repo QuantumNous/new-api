@@ -712,6 +712,31 @@ func TestSubscriptionDiscountDuplicateReserveIsIdempotent(t *testing.T) {
 	require.Len(t, readSubscriptionDiscountEntries(t), 2)
 }
 
+func TestSubscriptionDiscountExpiredDuplicateReserveReplaysBeforeValidation(t *testing.T) {
+	setupSubscriptionDiscountCreditMemoryDB(t)
+	require.True(t, grantSubscriptionDiscountForTest(t, 146, 500, "grant-expired-reserve-replay"))
+	require.True(t, reserveSubscriptionDiscountForTest(t, 146, 200, "expired-reserve-replay"))
+
+	var changed bool
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		changed, err = ReserveSubscriptionDiscountTx(tx, SubscriptionDiscountReservationInput{
+			UserID:             146,
+			USDMinor:           200,
+			OrderID:            1001,
+			TradeNo:            "trade-expired-reserve-replay",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 200,
+			PricingSnapshot:    `{"plan":"basic"}`,
+			IdempotencyKey:     "expired-reserve-replay",
+			ExpiresAt:          common.GetTimestamp() - 1,
+		})
+		return err
+	}))
+	require.False(t, changed)
+	require.Len(t, readSubscriptionDiscountEntries(t), 2)
+}
+
 func TestSubscriptionDiscountDuplicateGlobalReserveKeyDoesNotCreateSecondAccount(t *testing.T) {
 	setupSubscriptionDiscountCreditMemoryDB(t)
 
