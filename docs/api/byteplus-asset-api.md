@@ -24,7 +24,7 @@ Request fields:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `url` | string | Yes | Public HTTP or HTTPS URL that the provider can fetch. |
+| `url` | string | Yes | Public HTTPS URL that the provider can fetch. |
 | `asset_type` | string | Yes | One of `Image`, `Video`, or `Audio`. |
 | `moderation.strategy` | string | No | `Default` or `Skip`. When omitted, Flatkey uses `Default`. |
 

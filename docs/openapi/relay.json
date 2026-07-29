@@ -2556,7 +2556,8 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "公网 HTTP 或 HTTPS 素材 URL",
+            "pattern": "^https://",
+            "description": "公网 HTTPS 素材 URL",
             "example": "https://example.com/portrait.mp4"
           },
           "asset_type": {

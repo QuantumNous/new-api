@@ -79,6 +79,7 @@ func TestBytePlusAssetCreateRejectsInvalidPublicURLs(t *testing.T) {
 		"https://user@example.com/a.png",
 		"https://localhost/a.png",
 		"https://LOCALHOST./a.png",
+		"http://example.com/a.png",
 		"http://127.0.0.1/a.png",
 		"http://10.1.2.3/a.png",
 		"http://169.254.1.1/a.png",

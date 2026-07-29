@@ -313,7 +313,7 @@ func validateBytePlusAssetSourceURL(rawURL string) error {
 		return errors.New("invalid asset source url")
 	}
 	switch strings.ToLower(parsed.Scheme) {
-	case "http", "https":
+	case "https":
 	default:
 		return errors.New("invalid asset source url")
 	}
