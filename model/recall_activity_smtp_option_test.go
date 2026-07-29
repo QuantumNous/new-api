@@ -158,6 +158,32 @@ func TestUpdateRecallActivitySMTPGenericUpdateRejectsDedicatedKeys(t *testing.T)
 	}
 }
 
+func TestUpdateRecallActivitySMTPBulkUpdateRejectsDedicatedKeys(t *testing.T) {
+	original := map[string]string{
+		"recall_campaign_setting.smtp_server":           "old.smtp.example.com",
+		"recall_campaign_setting.smtp_port":             "25",
+		"recall_campaign_setting.smtp_account":          "old@example.com",
+		"recall_campaign_setting.email_from":            "Old@Example.com",
+		"recall_campaign_setting.smtp_token":            "stored-token",
+		"recall_campaign_setting.smtp_ssl_enabled":      "false",
+		"recall_campaign_setting.smtp_force_auth_login": "false",
+	}
+
+	for _, key := range testRecallActivitySMTPOptionKeys {
+		t.Run(key, func(t *testing.T) {
+			setupRecallSenderOptionTest(t)
+			seedRecallActivitySMTPOptions(t, original)
+
+			err := UpdateOptionsBulk(map[string]string{key: "value"})
+
+			require.EqualError(t, err, "activity SMTP settings must be updated together")
+			requireRecallActivitySMTPPersisted(t, original)
+			require.Equal(t, "old.smtp.example.com", operation_setting.GetRecallCampaignSetting().SMTPServer)
+			require.Equal(t, "stored-token", operation_setting.GetRecallCampaignSetting().SMTPToken)
+		})
+	}
+}
+
 func TestRecallCampaignSettingSMTPReloadObservesCommittedValues(t *testing.T) {
 	setupRecallSenderOptionTest(t)
 
