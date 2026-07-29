@@ -26,6 +26,7 @@ type recallStripeFakeClient struct {
 	updateCustomerFn      func(context.Context, string, *stripe.CustomerParams) (*stripe.Customer, error)
 	createPromotionCodeFn func(context.Context, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error)
 	getPromotionCodeFn    func(context.Context, string) (*stripe.PromotionCode, error)
+	updatePromotionCodeFn func(context.Context, string, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error)
 	getPriceFn            func(context.Context, string) (*stripe.Price, error)
 	getCheckoutSessionFn  func(context.Context, string, ...string) (*stripe.CheckoutSession, error)
 }
@@ -90,6 +91,13 @@ func (f *recallStripeFakeClient) GetPromotionCode(ctx context.Context, id string
 	return f.getPromotionCodeFn(ctx, id)
 }
 
+func (f *recallStripeFakeClient) UpdatePromotionCode(ctx context.Context, id string, params *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+	if f.updatePromotionCodeFn == nil {
+		return &stripe.PromotionCode{ID: id, Active: params == nil || params.Active == nil || *params.Active}, nil
+	}
+	return f.updatePromotionCodeFn(ctx, id, params)
+}
+
 func (f *recallStripeFakeClient) GetPrice(ctx context.Context, id string) (*stripe.Price, error) {
 	return f.getPriceFn(ctx, id)
 }
@@ -128,6 +136,8 @@ func TestRecallStripeClientUsesScopedKeyWithoutMutatingGlobal(t *testing.T) {
 	require.NoError(t, err)
 	_, err = client.GetPromotionCode(ctx, "promo_test")
 	require.NoError(t, err)
+	_, err = client.UpdatePromotionCode(ctx, "promo_test", &stripe.PromotionCodeParams{Active: stripe.Bool(false)})
+	require.NoError(t, err)
 	_, err = client.GetPrice(ctx, "price_test")
 	require.NoError(t, err)
 	_, err = client.GetCheckoutSession(ctx, "cs_test", "line_items")
@@ -137,7 +147,7 @@ func TestRecallStripeClientUsesScopedKeyWithoutMutatingGlobal(t *testing.T) {
 	require.Equal(t, []string{
 		"scoped-secret", "scoped-secret", "scoped-secret", "scoped-secret",
 		"scoped-secret", "scoped-secret", "scoped-secret", "scoped-secret",
-		"scoped-secret",
+		"scoped-secret", "scoped-secret",
 	}, recordingBackend.keys)
 }
 

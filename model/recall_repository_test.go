@@ -152,6 +152,76 @@ func TestRecallCampaignDraftUpdateDefaultsEmptyCampaignTypeToPromotion(t *testin
 	require.Equal(t, RecallCampaignTypePromotion, stored.CampaignType)
 }
 
+func TestCancelRecallCampaignMarksEligiblePromotionRevocationsAndRequeuesFailedOnly(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const now int64 = 1_800_000_000
+	campaign := newRecallRepositoryCampaign("cancel revokes promotions")
+	campaign.Status = RecallCampaignRunning
+	require.NoError(t, CreateRecallCampaign(&campaign))
+	promotionID := func(id string) *string { return &id }
+	rows := []RecallRecipient{
+		{CampaignId: campaign.Id, UserId: 101, EligibilitySnapshot: `{}`, EmailSnapshot: "pending@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: promotionID("promo_pending"), PromotionCode: "PENDING123", PromotionExpiresAt: now + 100},
+		{CampaignId: campaign.Id, UserId: 102, EligibilitySnapshot: `{}`, EmailSnapshot: "failed@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: promotionID("promo_failed"), PromotionCode: "FAILED123", PromotionExpiresAt: now + 100, PromotionRevocationState: RecallPromotionRevocationFailed, PromotionRevocationAttemptCount: 3, PromotionRevocationLastErrorCode: "stripe_permanent"},
+		{CampaignId: campaign.Id, UserId: 103, EligibilitySnapshot: `{}`, EmailSnapshot: "converted@example.com", LanguageSnapshot: "en", State: RecallRecipientConverted, StripePromotionCodeId: promotionID("promo_converted"), PromotionCode: "CONVERTED123", PromotionExpiresAt: now + 100},
+		{CampaignId: campaign.Id, UserId: 104, EligibilitySnapshot: `{}`, EmailSnapshot: "expired@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: promotionID("promo_expired"), PromotionCode: "EXPIRED123", PromotionExpiresAt: now - 1},
+		{CampaignId: campaign.Id, UserId: 105, EligibilitySnapshot: `{}`, EmailSnapshot: "codeless@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting, PromotionCode: "CODELESS123", PromotionExpiresAt: now + 100},
+	}
+	require.NoError(t, DB.Create(&rows).Error)
+
+	won, err := CancelRecallCampaignAndAdminEventWithContext(context.Background(), campaign.Id, []string{RecallCampaignRunning}, now, "campaign_cancelled", RecallEvent{
+		CampaignId: campaign.Id, EventType: "campaign_cancelled", Source: "admin", SourceEventId: "cancel-revokes", CreatedAt: now,
+	})
+	require.NoError(t, err)
+	require.True(t, won)
+	won, err = CancelRecallCampaignAndAdminEventWithContext(context.Background(), campaign.Id, []string{RecallCampaignRunning, RecallCampaignCancelled}, now+10, "campaign_cancelled", RecallEvent{
+		CampaignId: campaign.Id, EventType: "campaign_cancelled", Source: "admin", SourceEventId: "cancel-revokes-retry", CreatedAt: now + 10,
+	})
+	require.NoError(t, err)
+	require.False(t, won)
+
+	var stored []RecallRecipient
+	require.NoError(t, DB.Where("campaign_id = ?", campaign.Id).Order("user_id ASC").Find(&stored).Error)
+	require.Equal(t, RecallPromotionRevocationPending, stored[0].PromotionRevocationState)
+	require.Zero(t, stored[0].PromotionRevocationNextAttemptAt)
+	require.Empty(t, stored[0].PromotionRevocationLeaseOwner)
+	require.Equal(t, RecallPromotionRevocationPending, stored[1].PromotionRevocationState)
+	require.Zero(t, stored[1].PromotionRevocationNextAttemptAt)
+	require.Empty(t, stored[1].PromotionRevocationLastErrorCode)
+	require.Empty(t, stored[2].PromotionRevocationState)
+	require.Empty(t, stored[3].PromotionRevocationState)
+	require.Empty(t, stored[4].PromotionRevocationState)
+
+	var storedCampaign RecallCampaign
+	require.NoError(t, DB.First(&storedCampaign, campaign.Id).Error)
+	require.Equal(t, RecallCampaignCancelled, storedCampaign.Status)
+}
+
+func TestListDueRecallPromotionRevocationsIncludesLegacyCancelledRecipients(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const now int64 = 1_800_000_000
+	cancelled := newRecallRepositoryCampaign("legacy cancelled revocation")
+	cancelled.Status = RecallCampaignCancelled
+	running := newRecallRepositoryCampaign("running ignored")
+	running.Status = RecallCampaignRunning
+	require.NoError(t, DB.Create(&cancelled).Error)
+	require.NoError(t, DB.Create(&running).Error)
+	promotionID := func(id string) *string { return &id }
+	recipients := []RecallRecipient{
+		{CampaignId: cancelled.Id, UserId: 201, EligibilitySnapshot: `{}`, EmailSnapshot: "legacy@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: promotionID("promo_legacy"), PromotionCode: "LEGACY123", PromotionExpiresAt: now + 100},
+		{CampaignId: cancelled.Id, UserId: 202, EligibilitySnapshot: `{}`, EmailSnapshot: "retry-due@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: promotionID("promo_retry_due"), PromotionCode: "RETRYDUE123", PromotionExpiresAt: now + 100, PromotionRevocationState: RecallPromotionRevocationPending, PromotionRevocationNextAttemptAt: now - 1},
+		{CampaignId: cancelled.Id, UserId: 203, EligibilitySnapshot: `{}`, EmailSnapshot: "retry-future@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: promotionID("promo_retry_future"), PromotionCode: "RETRYFUTURE123", PromotionExpiresAt: now + 100, PromotionRevocationState: RecallPromotionRevocationPending, PromotionRevocationNextAttemptAt: now + 1},
+		{CampaignId: running.Id, UserId: 204, EligibilitySnapshot: `{}`, EmailSnapshot: "running@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting, StripePromotionCodeId: promotionID("promo_running"), PromotionCode: "RUNNING123", PromotionExpiresAt: now + 100},
+	}
+	require.NoError(t, DB.Create(&recipients).Error)
+
+	items, err := ListDueRecallPromotionRevocationsWithContext(context.Background(), now, 10)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	require.Equal(t, []int64{recipients[0].Id, recipients[1].Id}, []int64{items[0].Id, items[1].Id})
+}
+
 func createRecallRepositoryCandidateUser(t *testing.T, suffix string, createdAt int64, requestCount int) User {
 	t.Helper()
 	user := User{

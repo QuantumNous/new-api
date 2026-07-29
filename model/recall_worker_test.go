@@ -124,6 +124,75 @@ func TestRecallWorkerRetryDeferralKeepsStateAndGatesDueListing(t *testing.T) {
 	require.Equal(t, "stripe_retryable", stored.LastErrorCode)
 }
 
+func TestRecallWorkerRevocationLeaseRequiresExactOwnerAndEpoch(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	promotionID := "promo_revoke_cas"
+	recipient := RecallRecipient{
+		CampaignId: 1, UserId: 1, EligibilitySnapshot: `{}`, EmailSnapshot: "revoke-cas@example.com", LanguageSnapshot: "en",
+		State: RecallRecipientContacting, StripePromotionCodeId: &promotionID, PromotionCode: "REVOKECAS123", PromotionExpiresAt: 1_900_000_000,
+		PromotionRevocationState: RecallPromotionRevocationPending,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+
+	won, err := LeaseRecallPromotionRevocation(context.Background(), recipient.Id, "node-a", 1_800_000_000, 1_800_000_060)
+	require.NoError(t, err)
+	require.True(t, won)
+	won, err = LeaseRecallPromotionRevocation(context.Background(), recipient.Id, "node-b", 1_800_000_001, 1_800_000_061)
+	require.NoError(t, err)
+	require.False(t, won)
+
+	won, err = CompleteRecallPromotionRevocation(context.Background(), recipient.Id, "node-b", 1_800_000_060, 1_800_000_010, "")
+	require.NoError(t, err)
+	require.False(t, won)
+	won, err = CompleteRecallPromotionRevocation(context.Background(), recipient.Id, "node-a", 1_800_000_061, 1_800_000_010, "")
+	require.NoError(t, err)
+	require.False(t, won)
+	won, err = CompleteRecallPromotionRevocation(context.Background(), recipient.Id, "node-a", 1_800_000_060, 1_800_000_010, "")
+	require.NoError(t, err)
+	require.True(t, won)
+
+	var stored RecallRecipient
+	require.NoError(t, DB.First(&stored, recipient.Id).Error)
+	require.Equal(t, RecallPromotionRevocationCompleted, stored.PromotionRevocationState)
+	require.Empty(t, stored.PromotionRevocationLeaseOwner)
+	require.Zero(t, stored.PromotionRevocationLeaseExpiresAt)
+	require.Equal(t, int64(1_800_000_010), stored.PromotionRevokedAt)
+}
+
+func TestRecallWorkerRevocationDeferralAndPermanentFailureUseSanitizedCodes(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	promotionID := "promo_revoke_error"
+	recipient := RecallRecipient{
+		CampaignId: 1, UserId: 1, EligibilitySnapshot: `{}`, EmailSnapshot: "revoke-error@example.com", LanguageSnapshot: "en",
+		State: RecallRecipientContacting, StripePromotionCodeId: &promotionID, PromotionCode: "REVOKEERR123", PromotionExpiresAt: 1_900_000_000,
+		PromotionRevocationState: RecallPromotionRevocationPending, PromotionRevocationLeaseOwner: "node-a", PromotionRevocationLeaseExpiresAt: 1_800_000_060,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+
+	won, err := DeferRecallPromotionRevocation(context.Background(), recipient.Id, "node-a", 1_800_000_060, 1_800_000_300, "stripe_retryable")
+	require.NoError(t, err)
+	require.True(t, won)
+
+	var stored RecallRecipient
+	require.NoError(t, DB.First(&stored, recipient.Id).Error)
+	require.Equal(t, RecallPromotionRevocationPending, stored.PromotionRevocationState)
+	require.Equal(t, 1, stored.PromotionRevocationAttemptCount)
+	require.Equal(t, int64(1_800_000_300), stored.PromotionRevocationNextAttemptAt)
+	require.Equal(t, "stripe_retryable", stored.PromotionRevocationLastErrorCode)
+	require.NotContains(t, stored.PromotionRevocationLastErrorCode, "secret")
+
+	won, err = LeaseRecallPromotionRevocation(context.Background(), recipient.Id, "node-a", 1_800_000_301, 1_800_000_360)
+	require.NoError(t, err)
+	require.True(t, won)
+	won, err = FailRecallPromotionRevocation(context.Background(), recipient.Id, "node-a", 1_800_000_360, "stripe_permanent")
+	require.NoError(t, err)
+	require.True(t, won)
+	require.NoError(t, DB.First(&stored, recipient.Id).Error)
+	require.Equal(t, RecallPromotionRevocationFailed, stored.PromotionRevocationState)
+	require.Equal(t, "stripe_permanent", stored.PromotionRevocationLastErrorCode)
+	require.Empty(t, stored.PromotionRevocationLeaseOwner)
+}
+
 func TestRecallWorkerSchedulesStageOneAndContactsOnlyWithExactLease(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 	recipient := RecallRecipient{CampaignId: 1, UserId: 1, EligibilitySnapshot: `{}`, EmailSnapshot: "message@example.com", LanguageSnapshot: "en", State: RecallRecipientCodeReady, LeaseOwner: "node-a", LeaseExpiresAt: 160}

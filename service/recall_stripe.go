@@ -30,6 +30,7 @@ type RecallStripeClient interface {
 	UpdateCustomer(context.Context, string, *stripe.CustomerParams) (*stripe.Customer, error)
 	CreatePromotionCode(context.Context, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error)
 	GetPromotionCode(context.Context, string) (*stripe.PromotionCode, error)
+	UpdatePromotionCode(context.Context, string, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error)
 	GetPrice(context.Context, string) (*stripe.Price, error)
 	GetCheckoutSession(context.Context, string, ...string) (*stripe.CheckoutSession, error)
 }
@@ -107,6 +108,18 @@ func (c *StripeRecallClient) GetPromotionCode(ctx context.Context, id string) (*
 	params.Context = ctx
 	client := promotioncode.Client{B: stripe.GetBackend(stripe.APIBackend), Key: setting.StripeApiSecret}
 	return client.Get(id, params)
+}
+
+func (c *StripeRecallClient) UpdatePromotionCode(ctx context.Context, id string, params *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+	if params == nil {
+		return nil, errors.New("Stripe promotion code params are nil")
+	}
+	params.Context = ctx
+	if params.IdempotencyKey != nil {
+		params.SetIdempotencyKey(*params.IdempotencyKey)
+	}
+	client := promotioncode.Client{B: stripe.GetBackend(stripe.APIBackend), Key: setting.StripeApiSecret}
+	return client.Update(id, params)
 }
 
 func (c *StripeRecallClient) GetPrice(ctx context.Context, id string) (*stripe.Price, error) {

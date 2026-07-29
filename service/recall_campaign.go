@@ -1069,7 +1069,8 @@ func (s *RecallCampaignService) Cancel(ctx context.Context, actorID int, id int6
 		return err
 	}
 	if campaign.Status == model.RecallCampaignCancelled {
-		return nil
+		_, err := model.CancelRecallCampaignWithContext(ctx, id, []string{model.RecallCampaignRunning}, s.now().Unix(), "campaign_cancelled")
+		return err
 	}
 	if campaign.Status == model.RecallCampaignCompleted {
 		return fmt.Errorf("completed recall campaign %d cannot be cancelled", id)
