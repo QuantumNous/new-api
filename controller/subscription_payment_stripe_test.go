@@ -102,6 +102,9 @@ func TestSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testin
 func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testing.T, language string, expectedMessage string) {
 	t.Helper()
 	require.NoError(t, i18n.Init())
+	originalSingleContractEnabled := common.SubscriptionSingleContractEnabled
+	common.SubscriptionSingleContractEnabled = false
+	t.Cleanup(func() { common.SubscriptionSingleContractEnabled = originalSingleContractEnabled })
 	backend := setupSubscriptionStripeRecordingBackend(t)
 	setupSubscriptionRecallClaimDB(t)
 	confirmPaymentComplianceForTest(t)

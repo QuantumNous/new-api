@@ -30,7 +30,7 @@ func cancelStripeSubscriptionImmediately(providerSubscriptionID, idempotencyKey 
 	return err
 }
 
-func prepareStripeToBalanceCompensationTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, target *model.SubscriptionPlan) error {
+func prepareStripeToBalanceCompensationTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, target *model.SubscriptionPlan, prelockedCurrentBinding *model.SubscriptionProviderBinding) error {
 	if tx == nil || user == nil || contract == nil || intent == nil || target == nil {
 		return errors.New("invalid Stripe-to-balance compensation args")
 	}
@@ -41,14 +41,32 @@ func prepareStripeToBalanceCompensationTx(tx *gorm.DB, user *model.User, contrac
 		return errors.New("current active Stripe recurring contract ownership mismatch")
 	}
 	var binding model.SubscriptionProviderBinding
-	if err := subscriptionCommandLock(tx).Where(
-		"id = ? AND contract_id = ? AND user_id = ? AND provider = ? AND ended_at = ?",
-		contract.CurrentProviderBindingId, contract.Id, user.Id, model.PaymentProviderStripe, 0,
-	).First(&binding).Error; err != nil {
-		return err
+	if prelockedCurrentBinding != nil {
+		binding = *prelockedCurrentBinding
+		if binding.Id != contract.CurrentProviderBindingId ||
+			binding.ContractId != contract.Id ||
+			binding.UserId != user.Id ||
+			binding.Provider != model.PaymentProviderStripe ||
+			binding.EndedAt != 0 {
+			return errors.New("current active Stripe recurring contract ownership mismatch")
+		}
+	} else {
+		if err := subscriptionCommandLock(tx).Where(
+			"id = ? AND contract_id = ? AND user_id = ? AND provider = ? AND ended_at = ?",
+			contract.CurrentProviderBindingId, contract.Id, user.Id, model.PaymentProviderStripe, 0,
+		).First(&binding).Error; err != nil {
+			return err
+		}
 	}
 	if strings.TrimSpace(binding.ProviderSubscriptionId) == "" || isTerminalStripeSubscriptionStatus(binding.ProviderStatus) {
 		return errors.New("current subscription is not active Stripe recurring")
+	}
+	dbNow, err := subscriptionLifecycleDBTimestampTx(tx)
+	if err != nil {
+		return err
+	}
+	if subscriptionProviderBindingHasActiveLifecycleReservation(&binding, dbNow) {
+		return model.ErrSubscriptionProviderLifecycleConflict
 	}
 	var entitlement model.UserSubscription
 	if err := subscriptionCommandLock(tx).Where(
@@ -153,7 +171,12 @@ func executeStripeToBalanceCompensation(ctx context.Context, intentID int64) err
 		return nil
 	}
 
-	if intent.Status == model.SubscriptionChangeIntentStatusSyncing {
+	if intent.Status == model.SubscriptionChangeIntentStatusSyncing || intent.Status == model.SubscriptionChangeIntentStatusCompensationRequired {
+		reservation, reservedBinding, err := reserveStripeToBalanceCompensationCancel(intent, binding)
+		if err != nil {
+			return err
+		}
+		binding = *reservedBinding
 		if scheduleID := strings.TrimSpace(intent.ProviderScheduleId); scheduleID != "" && strings.TrimSpace(binding.ProviderScheduleId) == scheduleID {
 			if err := stripeReleaseSubscriptionSchedule(scheduleID, intent.ProviderIdempotencyKey+":release-schedule"); err != nil {
 				return markStripeToBalanceCompensationUncertain(intent, contract, err)
@@ -165,7 +188,7 @@ func executeStripeToBalanceCompensation(ctx context.Context, intentID int64) err
 			}
 			binding.ProviderScheduleId = ""
 		}
-		cancelErr := stripeCancelSubscriptionImmediately(binding.ProviderSubscriptionId, intent.ProviderIdempotencyKey+":cancel")
+		cancelErr := stripeCancelSubscriptionImmediately(binding.ProviderSubscriptionId, stripeToBalanceCompensationCancelIdempotencyKey(intent, reservation.LifecycleActionSeq))
 		snapshot, getErr := stripeSubscriptionSnapshotGetter(binding.ProviderSubscriptionId)
 		if getErr != nil {
 			if cancelErr != nil {
@@ -173,14 +196,17 @@ func executeStripeToBalanceCompensation(ctx context.Context, intentID int64) err
 			}
 			return markStripeToBalanceCompensationUncertain(intent, contract, getErr)
 		}
-		return resolveStripeToBalanceSnapshot(ctx, intent, contract, binding, snapshot)
+		if cancelErr != nil && snapshot.EndedAt == 0 && !isTerminalStripeSubscriptionStatus(snapshot.ProviderStatus) {
+			return markStripeToBalanceCompensationUncertain(intent, contract, cancelErr)
+		}
+		return resolveStripeToBalanceSnapshot(ctx, intent, contract, binding, reservation, snapshot)
 	}
 
 	snapshot, err := stripeSubscriptionSnapshotGetter(binding.ProviderSubscriptionId)
 	if err != nil {
 		return markStripeToBalanceCompensationUncertain(intent, contract, err)
 	}
-	return resolveStripeToBalanceSnapshot(ctx, intent, contract, binding, snapshot)
+	return resolveStripeToBalanceSnapshot(ctx, intent, contract, binding, nil, snapshot)
 }
 
 func loadStripeToBalanceCompensation(intentID int64) (model.SubscriptionChangeIntent, model.UserSubscriptionContract, model.SubscriptionProviderBinding, error) {
@@ -210,12 +236,18 @@ func loadStripeToBalanceCompensation(intentID int64) (model.SubscriptionChangeIn
 	return intent, contract, binding, nil
 }
 
-func resolveStripeToBalanceSnapshot(ctx context.Context, intent model.SubscriptionChangeIntent, contract model.UserSubscriptionContract, binding model.SubscriptionProviderBinding, snapshot model.ProviderSubscriptionSnapshot) error {
+func resolveStripeToBalanceSnapshot(ctx context.Context, intent model.SubscriptionChangeIntent, contract model.UserSubscriptionContract, binding model.SubscriptionProviderBinding, reservation *model.SubscriptionProviderLifecycleReservation, snapshot model.ProviderSubscriptionSnapshot) error {
 	if strings.TrimSpace(snapshot.ProviderSubscriptionId) != strings.TrimSpace(binding.ProviderSubscriptionId) {
 		return markStripeToBalanceCompensationUncertain(intent, contract, errors.New("authoritative Stripe subscription ownership mismatch"))
 	}
 	if snapshot.EndedAt > 0 || isTerminalStripeSubscriptionStatus(snapshot.ProviderStatus) {
-		if _, err := model.ApplyProviderSubscriptionTermination(binding.Id, snapshot); err != nil {
+		var err error
+		if reservation != nil {
+			_, err = model.ApplyProviderSubscriptionTerminationWithReservation(reservation, snapshot)
+		} else {
+			_, err = model.ApplyPassiveProviderSubscriptionTermination(binding.Id, snapshot)
+		}
+		if err != nil {
 			return err
 		}
 		return grantStripeToBalanceEntitlement(intent.Id)
@@ -229,13 +261,39 @@ func resolveStripeToBalanceSnapshot(ctx context.Context, intent model.Subscripti
 		snapshot.ProviderScheduleId = strings.TrimSpace(scheduleID)
 		snapshot.ProviderScheduleIdObserved = true
 	}
-	if _, err := model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot); err != nil {
-		return err
+	var applyErr error
+	if reservation != nil {
+		_, applyErr = model.ApplyProviderSubscriptionLifecycleNoChangeSnapshotStrictWithReservation(reservation, snapshot)
+	} else {
+		_, applyErr = model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot)
+	}
+	if applyErr != nil {
+		return applyErr
 	}
 	if err := refundSubscriptionCompensationWalletDebit(ctx, intent.Id); err != nil {
 		return markStripeToBalanceCompensationUncertain(intent, contract, err)
 	}
 	return nil
+}
+
+func reserveStripeToBalanceCompensationCancel(intent model.SubscriptionChangeIntent, binding model.SubscriptionProviderBinding) (*model.SubscriptionProviderLifecycleReservation, *model.SubscriptionProviderBinding, error) {
+	token := stripeToBalanceCompensationCancelReservationToken(intent)
+	return model.ReserveSubscriptionProviderLifecycleForAdministrativeTermination(
+		binding.Id,
+		binding.UserId,
+		binding.ProviderSubscriptionId,
+		binding.LifecycleActionSeq,
+		token,
+		int64(stripeSubscriptionLifecycleReservationTTL.Seconds()),
+	)
+}
+
+func stripeToBalanceCompensationCancelReservationToken(intent model.SubscriptionChangeIntent) string {
+	return fmt.Sprintf("subcomp-cancel-intent-%d", intent.Id)
+}
+
+func stripeToBalanceCompensationCancelIdempotencyKey(intent model.SubscriptionChangeIntent, actionSeq int64) string {
+	return fmt.Sprintf("%s:cancel:seq:%d", strings.TrimSpace(intent.ProviderIdempotencyKey), actionSeq)
 }
 
 func grantStripeToBalanceEntitlement(intentID int64) error {
@@ -249,6 +307,9 @@ func grantStripeToBalanceEntitlement(intentID int64) error {
 		}
 		if intent.Status != model.SubscriptionChangeIntentStatusSyncing && intent.Status != model.SubscriptionChangeIntentStatusCompensationRequired {
 			return errors.New("Stripe-to-balance compensation intent status mismatch")
+		}
+		if _, err := lockStripeToBalanceCompensationBinding(tx, &intent); err != nil {
+			return err
 		}
 		var contract model.UserSubscriptionContract
 		if err := subscriptionCommandLock(tx).Where("id = ? AND user_id = ? AND current_provider_binding_id = ?",
@@ -289,6 +350,18 @@ func grantStripeToBalanceEntitlement(intentID int64) error {
 			"updated_at":   common.GetTimestamp(),
 		}).Error
 	})
+}
+
+func lockStripeToBalanceCompensationBinding(tx *gorm.DB, intent *model.SubscriptionChangeIntent) (model.SubscriptionProviderBinding, error) {
+	var binding model.SubscriptionProviderBinding
+	if tx == nil || intent == nil || intent.ProviderBindingId <= 0 {
+		return binding, errors.New("Stripe-to-balance compensation binding is required")
+	}
+	err := subscriptionCommandLock(tx).
+		Where("id = ? AND user_id = ? AND contract_id = ? AND provider = ?",
+			intent.ProviderBindingId, intent.UserId, intent.ContractId, model.PaymentProviderStripe).
+		First(&binding).Error
+	return binding, err
 }
 
 func refundSubscriptionCompensationWalletDebitDefault(ctx context.Context, intentID int64) error {

@@ -239,6 +239,8 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/self/quote", middleware.SubscriptionPaymentRateLimit(), controller.QuoteSubscriptionSelfPurchase)
 			subscriptionRoute.POST("/self/purchase", middleware.SubscriptionPaymentRateLimit(), controller.PurchaseSubscriptionSelf)
 			subscriptionRoute.POST("/self/change-plan", middleware.SubscriptionPaymentRateLimit(), controller.ChangeSubscriptionPlan)
+			subscriptionRoute.POST("/self/renewal/cancel", middleware.CriticalRateLimit(), controller.CancelSubscriptionRenewal)
+			subscriptionRoute.POST("/self/renewal/resume", middleware.CriticalRateLimit(), controller.ResumeSubscriptionRenewal)
 			subscriptionRoute.POST("/balance/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestBalancePay)
 			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionPurchasePendingMigration)
 			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)

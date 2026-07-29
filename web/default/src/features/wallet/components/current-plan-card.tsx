@@ -16,18 +16,48 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import { CalendarDays } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import type { SubscriptionPlan } from '@/features/subscriptions/types'
+import type {
+  SubscriptionPlan,
+  SubscriptionRenewalSource,
+} from '@/features/subscriptions/types'
 import type { WalletSelfSubscriptionData } from '../lib/subscription-plan-lifecycle'
 import { UsageWindowMeter } from './usage-window-meter'
 
 type CurrentPlanCardProps = {
   plan: SubscriptionPlan
   selfData: WalletSelfSubscriptionData
+  renewalMutationPending: boolean
+  onCancelRenewal: () => Promise<void>
+  onResumeRenewal: () => Promise<void>
+}
+
+type RenewalAction = 'cancel' | 'resume'
+
+type CurrentPlanRenewalDialogContentProps = {
+  action: RenewalAction
+  renewalSource: SubscriptionRenewalSource
+  endTimestamp?: number
+  pending: boolean
+  plain?: boolean
+  onConfirm: () => void | Promise<void>
 }
 
 function getRemainingDays(selfData: WalletSelfSubscriptionData): number {
@@ -43,24 +73,128 @@ function getRemainingDays(selfData: WalletSelfSubscriptionData): number {
   return Math.max(0, Math.ceil((end * 1000 - Date.now()) / 86400000))
 }
 
-function isWalletAutoRenew(selfData: WalletSelfSubscriptionData): boolean {
-  if (selfData.renewal_source === 'provider_recurring') return false
+function getRenewalAction(
+  selfData: WalletSelfSubscriptionData
+): RenewalAction | null {
   if (
-    selfData.renewal_source === 'wallet_auto' &&
-    selfData.renewal_status === 'enabled'
+    selfData.capabilities.requires_support ||
+    (selfData.renewal_source !== 'provider_recurring' &&
+      selfData.renewal_source !== 'wallet_auto')
   ) {
-    return true
+    return null
   }
-  if (selfData.contract?.payment_mode === 'stripe_recurring') return false
-  if (selfData.contract?.payment_mode === 'balance_one_period') return true
+  if (
+    selfData.renewal_status === 'enabled' &&
+    selfData.capabilities.can_cancel
+  ) {
+    return 'cancel'
+  }
+  if (
+    selfData.renewal_status === 'cancelled_by_user' &&
+    selfData.capabilities.can_resume
+  ) {
+    return 'resume'
+  }
+  return null
+}
+
+function getRenewalBadgeLabel(action: RenewalAction): string {
+  return action === 'cancel' ? 'Auto-renew on' : 'Auto-renew off'
+}
+
+function getRenewalActionLabel(action: RenewalAction): string {
+  return action === 'cancel' ? 'Cancel subscription' : 'Resume subscription'
+}
+
+function getRenewalProviderCopy(
+  action: RenewalAction,
+  renewalSource: SubscriptionRenewalSource
+): string {
+  if (action === 'cancel') {
+    if (renewalSource === 'provider_recurring') {
+      return 'Future Stripe subscription charges stop after the current paid period.'
+    }
+    return 'Future deductions from your Flatkey wallet balance stop after the current paid period.'
+  }
+  if (renewalSource === 'provider_recurring') {
+    return 'Future Stripe subscription charges resume after the current paid period.'
+  }
+  return 'Future deductions from your Flatkey wallet balance resume after the current paid period.'
+}
+
+export function CurrentPlanRenewalDialogContent(
+  props: CurrentPlanRenewalDialogContentProps
+) {
+  const { t } = useTranslation()
+  const title =
+    props.action === 'cancel'
+      ? 'Cancel automatic renewal?'
+      : 'Resume automatic renewal?'
+  const confirmLabel =
+    props.action === 'cancel' ? 'Confirm cancellation' : 'Confirm resume'
+  const hasEndTimestamp =
+    typeof props.endTimestamp === 'number' && props.endTimestamp > 0
+
+  if (props.plain) {
+    return (
+      <>
+        <div data-slot='alert-dialog-header'>
+          <h2>{t(title)}</h2>
+          <p>{t(getRenewalProviderCopy(props.action, props.renewalSource))}</p>
+        </div>
+        {hasEndTimestamp ? (
+          <p>
+            {t('Your current access and benefits continue through {{date}}.', {
+              date: formatTimestampToDate(props.endTimestamp),
+            })}
+          </p>
+        ) : null}
+        <div data-slot='alert-dialog-footer'>
+          <Button type='button' disabled={props.pending}>
+            {t('Cancel')}
+          </Button>
+          <Button
+            type='button'
+            onClick={props.onConfirm}
+            disabled={props.pending}
+          >
+            {t(confirmLabel)}
+          </Button>
+        </div>
+      </>
+    )
+  }
+
   return (
-    selfData.renewal_source === 'balance' ||
-    selfData.renewal_status === 'enabled'
+    <>
+      <AlertDialogHeader>
+        <AlertDialogTitle>{t(title)}</AlertDialogTitle>
+        <AlertDialogDescription>
+          {t(getRenewalProviderCopy(props.action, props.renewalSource))}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      {hasEndTimestamp ? (
+        <p className='text-muted-foreground text-sm'>
+          {t('Your current access and benefits continue through {{date}}.', {
+            date: formatTimestampToDate(props.endTimestamp),
+          })}
+        </p>
+      ) : null}
+      <AlertDialogFooter>
+        <AlertDialogCancel disabled={props.pending}>
+          {t('Cancel')}
+        </AlertDialogCancel>
+        <AlertDialogAction onClick={props.onConfirm} disabled={props.pending}>
+          {t(confirmLabel)}
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </>
   )
 }
 
 export function CurrentPlanCard(props: CurrentPlanCardProps) {
   const { t } = useTranslation()
+  const [renewalDialogOpen, setRenewalDialogOpen] = useState(false)
   const start =
     props.selfData.current_period?.start ||
     props.selfData.contract?.current_period_start ||
@@ -69,6 +203,20 @@ export function CurrentPlanCard(props: CurrentPlanCardProps) {
     props.selfData.current_period?.end ||
     props.selfData.contract?.current_period_end ||
     props.selfData.current_entitlement?.end_time
+  const renewalAction = getRenewalAction(props.selfData)
+  const handleConfirmRenewal = async () => {
+    if (!renewalAction) return
+    try {
+      if (renewalAction === 'cancel') {
+        await props.onCancelRenewal()
+      } else {
+        await props.onResumeRenewal()
+      }
+      setRenewalDialogOpen(false)
+    } catch {
+      // The mutation owner shows the failure toast and keeps the dialog open.
+    }
+  }
 
   return (
     <Card className='shadow-none'>
@@ -82,8 +230,10 @@ export function CurrentPlanCard(props: CurrentPlanCardProps) {
           </div>
           <div className='flex flex-wrap gap-2'>
             <Badge>{t('Active')}</Badge>
-            {isWalletAutoRenew(props.selfData) ? (
-              <Badge variant='secondary'>{t('Auto-renew on')}</Badge>
+            {renewalAction ? (
+              <Badge variant='secondary'>
+                {t(getRenewalBadgeLabel(renewalAction))}
+              </Badge>
             ) : null}
           </div>
         </div>
@@ -130,6 +280,39 @@ export function CurrentPlanCard(props: CurrentPlanCardProps) {
             media
           />
         </div>
+
+        {renewalAction && props.selfData.renewal_source ? (
+          <div className='flex justify-end'>
+            <AlertDialog
+              open={renewalDialogOpen}
+              onOpenChange={(open) => {
+                if (!props.renewalMutationPending) setRenewalDialogOpen(open)
+              }}
+            >
+              <AlertDialogTrigger
+                render={
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    disabled={props.renewalMutationPending}
+                  />
+                }
+              >
+                {t(getRenewalActionLabel(renewalAction))}
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <CurrentPlanRenewalDialogContent
+                  action={renewalAction}
+                  renewalSource={props.selfData.renewal_source}
+                  endTimestamp={end}
+                  pending={props.renewalMutationPending}
+                  onConfirm={handleConfirmRenewal}
+                />
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )

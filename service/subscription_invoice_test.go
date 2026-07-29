@@ -374,6 +374,40 @@ func seedStripeRenewalContract(t *testing.T, userID int, planID int, providerSub
 	return contract, binding, entitlement
 }
 
+func TestLockRenewalBindingFactsTxLocksBindingBeforeContract(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	_, binding, _ := seedStripeRenewalContract(t, 8190, 8290, "sub_renewal_lock_order")
+
+	originalUsingSQLite := common.UsingSQLite
+	common.UsingSQLite = false
+	t.Cleanup(func() { common.UsingSQLite = originalUsingSQLite })
+	callbackName := "test:renewal_binding_lock_order"
+	lockedTables := make([]string, 0, 3)
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if _, locked := tx.Statement.Clauses["FOR"]; !locked {
+			return
+		}
+		if tx.Statement.Schema != nil {
+			lockedTables = append(lockedTables, tx.Statement.Schema.Table)
+		}
+		delete(tx.Statement.Clauses, "FOR")
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Query().Remove(callbackName))
+	})
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		_, _, _, _, lockErr := lockRenewalBindingFactsTx(tx, stripeInvoiceCommonFacts{
+			SubscriptionID: binding.ProviderSubscriptionId,
+		})
+		return lockErr
+	})
+
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(lockedTables), 2)
+	require.Equal(t, []string{"subscription_provider_bindings", "user_subscription_contracts"}, lockedTables[:2])
+}
+
 func TestReconcilePaidInvoiceGrantsInvoiceFirstPurchase(t *testing.T) {
 	setupSubscriptionInvoiceServiceTestDB(t)
 	contract, intent := seedStripeInvoicePurchase(t, 8101, 8201, "sub_invoice_first")
@@ -650,6 +684,214 @@ func TestReconcilePaidInvoiceIgnoresOlderRenewalAfterNewerPeriodApplied(t *testi
 	require.Equal(t, "in_renewal_period2_first", reloadedBinding.ProviderLatestInvoiceId)
 	require.Equal(t, period2Start, reloadedBinding.CurrentPeriodStart)
 	require.Equal(t, period2End, reloadedBinding.CurrentPeriodEnd)
+}
+
+func TestReconcilePaidInvoiceWithLifecycleReservationRejectsStaleSupersededRenewal(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	_, binding, oldEntitlement := seedStripeRenewalContract(t, 8127, 8227, "sub_renewal_reserved_noop")
+	period1Start := oldEntitlement.EndTime
+	period1End := period1Start + 2592000
+	period2Start := period1End
+	period2End := period2Start + 2592000
+	period1Invoice := stripeInvoiceFixture("in_renewal_reserved_period1_late", binding.ProviderSubscriptionId)
+	period1Invoice.Lines.Data[0].Period = &stripe.Period{Start: period1Start, End: period1End}
+	period2Invoice := stripeInvoiceFixture("in_renewal_reserved_period2_first", binding.ProviderSubscriptionId)
+	period2Invoice.Lines.Data[0].Period = &stripe.Period{Start: period2Start, End: period2End}
+	subscription := stripeSubscriptionFixture(binding.ProviderSubscriptionId, map[string]string{})
+	setStripeSubscriptionCurrentPeriod(subscription, period2Start, period2End)
+	originalInvoiceGetter := stripeInvoiceGetter
+	originalSubscriptionGetter := stripeSubscriptionGetter
+	t.Cleanup(func() {
+		stripeInvoiceGetter = originalInvoiceGetter
+		stripeSubscriptionGetter = originalSubscriptionGetter
+	})
+	stripeInvoiceGetter = func(ctx context.Context, invoiceID string) (*stripe.Invoice, error) {
+		switch invoiceID {
+		case period2Invoice.ID:
+			return period2Invoice, nil
+		case period1Invoice.ID:
+			return period1Invoice, nil
+		default:
+			return nil, errors.New("unexpected invoice id")
+		}
+	}
+	stripeSubscriptionGetter = func(ctx context.Context, subscriptionID string) (*stripe.Subscription, error) {
+		return subscription, nil
+	}
+
+	first, err := ReconcilePaidInvoice(context.Background(), period2Invoice.ID)
+	require.NoError(t, err)
+	require.True(t, first.Applied)
+	var currentBinding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&currentBinding, binding.Id).Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", currentBinding.Id).Update("provider_latest_invoice_id", period1Invoice.ID).Error)
+	require.NoError(t, model.DB.First(&currentBinding, binding.Id).Error)
+	reservation, _, err := model.ReserveSubscriptionProviderLifecycle(
+		currentBinding.Id,
+		currentBinding.UserId,
+		currentBinding.ProviderSubscriptionId,
+		currentBinding.LifecycleActionSeq,
+		model.SubscriptionProviderLifecycleActionCancel,
+		"paid-noop-reservation",
+		300,
+	)
+	require.NoError(t, err)
+
+	second, err := ReconcilePaidInvoiceWithLifecycleReservation(context.Background(), period1Invoice.ID, reservation)
+
+	require.ErrorIs(t, err, model.ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, second)
+	require.NoError(t, model.DB.First(&currentBinding, binding.Id).Error)
+	require.Equal(t, reservation.Token, currentBinding.LifecycleReservationToken)
+	require.Equal(t, reservation.Action, currentBinding.LifecycleReservationAction)
+	require.Equal(t, reservation.ExpiresAt, currentBinding.LifecycleReservationUntil)
+}
+
+func TestReconcilePaidInvoiceWithLifecycleReservationConsumesExactDuplicateRenewal(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	_, binding, oldEntitlement := seedStripeRenewalContract(t, 8128, 8228, "sub_renewal_reserved_exact_duplicate")
+	periodStart := oldEntitlement.EndTime
+	periodEnd := periodStart + 2592000
+	invoice := stripeInvoiceFixture("in_renewal_reserved_exact_duplicate", binding.ProviderSubscriptionId)
+	invoice.Lines.Data[0].Period = &stripe.Period{Start: periodStart, End: periodEnd}
+	subscription := stripeSubscriptionFixture(binding.ProviderSubscriptionId, map[string]string{})
+	setStripeSubscriptionCurrentPeriod(subscription, periodStart, periodEnd)
+	restore := replaceStripeInvoiceReconcilers(t, invoice, subscription)
+	defer restore()
+
+	first, err := ReconcilePaidInvoice(context.Background(), invoice.ID)
+	require.NoError(t, err)
+	require.True(t, first.Applied)
+	var currentBinding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&currentBinding, binding.Id).Error)
+	reservation, _, err := model.ReserveSubscriptionProviderLifecycle(
+		currentBinding.Id,
+		currentBinding.UserId,
+		currentBinding.ProviderSubscriptionId,
+		currentBinding.LifecycleActionSeq,
+		model.SubscriptionProviderLifecycleActionCancel,
+		"paid-exact-duplicate-reservation",
+		300,
+	)
+	require.NoError(t, err)
+
+	duplicate, err := ReconcilePaidInvoiceWithLifecycleReservation(context.Background(), invoice.ID, reservation)
+
+	require.NoError(t, err)
+	require.False(t, duplicate.Applied)
+	require.NoError(t, model.DB.First(&currentBinding, binding.Id).Error)
+	require.Equal(t, reservation.Token, currentBinding.LifecycleReservationToken)
+	require.Equal(t, strings.TrimSpace(reservation.Action), currentBinding.LifecycleReservationAction)
+	require.Zero(t, currentBinding.LifecycleReservationUntil)
+}
+
+func TestReconcilePaidInvoiceWithLifecycleReservationConsumesExactDuplicateWhenContractNeedsAttention(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	contract, binding, oldEntitlement := seedStripeRenewalContract(t, 8130, 8230, "sub_renewal_reserved_needs_attention")
+	periodStart := oldEntitlement.EndTime
+	periodEnd := periodStart + 2592000
+	invoice := stripeInvoiceFixture("in_renewal_reserved_needs_attention", binding.ProviderSubscriptionId)
+	invoice.Lines.Data[0].Period = &stripe.Period{Start: periodStart, End: periodEnd}
+	subscription := stripeSubscriptionFixture(binding.ProviderSubscriptionId, map[string]string{})
+	setStripeSubscriptionCurrentPeriod(subscription, periodStart, periodEnd)
+	restore := replaceStripeInvoiceReconcilers(t, invoice, subscription)
+	defer restore()
+
+	first, err := ReconcilePaidInvoice(context.Background(), invoice.ID)
+	require.NoError(t, err)
+	require.True(t, first.Applied)
+	var currentBinding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&currentBinding, binding.Id).Error)
+	reservation, _, err := model.ReserveSubscriptionProviderLifecycle(
+		currentBinding.Id,
+		currentBinding.UserId,
+		currentBinding.ProviderSubscriptionId,
+		currentBinding.LifecycleActionSeq,
+		model.SubscriptionProviderLifecycleActionCancel,
+		"paid-needs-attention-reservation",
+		300,
+	)
+	require.NoError(t, err)
+	reservation.Action = " " + reservation.Action + " "
+	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).
+		Where("id = ?", contract.Id).
+		Update("status", model.SubscriptionContractStatusNeedsAttention).Error)
+
+	duplicate, err := ReconcilePaidInvoiceWithLifecycleReservation(context.Background(), invoice.ID, reservation)
+
+	require.NoError(t, err)
+	require.False(t, duplicate.Applied)
+	require.NoError(t, model.DB.First(&currentBinding, binding.Id).Error)
+	require.Equal(t, reservation.Token, currentBinding.LifecycleReservationToken)
+	require.Equal(t, strings.TrimSpace(reservation.Action), currentBinding.LifecycleReservationAction)
+	require.Zero(t, currentBinding.LifecycleReservationUntil)
+}
+
+func TestReconcilePaidInvoiceWithLifecycleReservationAppliesNewRenewalWhenContractNeedsAttention(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	contract, binding, oldEntitlement := seedStripeRenewalContract(t, 8132, 8232, "sub_renewal_reserved_needs_attention_new")
+	reservation, _, err := model.ReserveSubscriptionProviderLifecycle(
+		binding.Id,
+		binding.UserId,
+		binding.ProviderSubscriptionId,
+		binding.LifecycleActionSeq,
+		model.SubscriptionProviderLifecycleActionGraceCancel,
+		"paid-needs-attention-new-reservation",
+		300,
+	)
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).
+		Where("id = ?", contract.Id).
+		Update("status", model.SubscriptionContractStatusNeedsAttention).Error)
+	periodStart := oldEntitlement.EndTime
+	periodEnd := periodStart + 2592000
+	invoice := stripeInvoiceFixture("in_renewal_reserved_needs_attention_new", binding.ProviderSubscriptionId)
+	invoice.Lines.Data[0].Period = &stripe.Period{Start: periodStart, End: periodEnd}
+	subscription := stripeSubscriptionFixture(binding.ProviderSubscriptionId, map[string]string{})
+	setStripeSubscriptionCurrentPeriod(subscription, periodStart, periodEnd)
+	restore := replaceStripeInvoiceReconcilers(t, invoice, subscription)
+	defer restore()
+
+	renewal, err := ReconcilePaidInvoiceWithLifecycleReservation(context.Background(), invoice.ID, reservation)
+
+	require.NoError(t, err)
+	require.True(t, renewal.Applied)
+	require.NotNil(t, renewal.Entitlement)
+	require.NotEqual(t, oldEntitlement.Id, renewal.Entitlement.Id)
+	require.Equal(t, periodStart, renewal.Entitlement.StartTime)
+	require.Equal(t, periodEnd, renewal.Entitlement.EndTime)
+	var currentContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&currentContract, contract.Id).Error)
+	require.Equal(t, model.SubscriptionContractStatusActive, currentContract.Status)
+	require.Equal(t, renewal.Entitlement.Id, currentContract.CurrentEntitlementId)
+	var currentBinding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&currentBinding, binding.Id).Error)
+	require.Equal(t, reservation.Token, currentBinding.LifecycleReservationToken)
+	require.Equal(t, reservation.Action, currentBinding.LifecycleReservationAction)
+	require.Zero(t, currentBinding.LifecycleReservationUntil)
+}
+
+func TestReconcilePaidInvoiceWithLifecycleReservationRejectsResumeReservationBeforeStripeLookup(t *testing.T) {
+	originalInvoiceGetter := stripeInvoiceGetter
+	t.Cleanup(func() { stripeInvoiceGetter = originalInvoiceGetter })
+	var getterCalled bool
+	stripeInvoiceGetter = func(ctx context.Context, invoiceID string) (*stripe.Invoice, error) {
+		getterCalled = true
+		return nil, errors.New("unexpected Stripe lookup")
+	}
+
+	result, err := ReconcilePaidInvoiceWithLifecycleReservation(context.Background(), "in_resume_reservation", &model.SubscriptionProviderLifecycleReservation{
+		BindingId:              1,
+		ProviderSubscriptionId: "sub_resume_reservation",
+		Token:                  "resume-reservation-token",
+		Action:                 model.SubscriptionProviderLifecycleActionResume,
+		LifecycleActionSeq:     1,
+		ExpiresAt:              common.GetTimestamp() + 300,
+	})
+
+	require.ErrorIs(t, err, model.ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, result)
+	require.False(t, getterCalled)
 }
 
 func TestReconcilePaidInvoiceIgnoresLatePaidInvoiceForTerminatedBinding(t *testing.T) {
@@ -1463,6 +1705,10 @@ func TestCompleteOneTimeStripeSubscriptionPurchaseAppliesPendingOrderOnce(t *tes
 	require.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
 	require.Equal(t, "BRL", reloaded.PaymentCurrency)
 	require.Equal(t, int64(1234), reloaded.PaymentAmountMinor)
+	var reloadedContract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&reloadedContract, "id = ?", contract.Id).Error)
+	require.Empty(t, reloadedContract.RenewalSource)
+	require.Empty(t, reloadedContract.RenewalStatus)
 	var topup model.TopUp
 	require.NoError(t, model.DB.First(&topup, "trade_no = ?", order.TradeNo).Error)
 	require.Equal(t, common.TopUpStatusSuccess, topup.Status)

@@ -27,6 +27,9 @@ import type {
   SubscriptionPaymentAvailability,
   SubscriptionPaymentQuote,
   SubscriptionPaymentQuotes,
+  SubscriptionRenewalSource,
+  SubscriptionRenewalStatus,
+  SubscriptionRenewalLifecycleResult,
   SubscriptionUsageWindow,
   SubscriptionContract,
   SubscriptionCurrentPeriod,
@@ -109,8 +112,8 @@ export type WalletSelfSubscriptionData = Omit<
   window_7d?: SubscriptionUsageWindow
   media_credits?: SubscriptionUsageWindow
   remaining_days?: number
-  renewal_source?: string
-  renewal_status?: string
+  renewal_source?: SubscriptionRenewalSource
+  renewal_status?: SubscriptionRenewalStatus
   payment_availability?: SubscriptionPaymentAvailability
   payment_quotes?: SubscriptionPaymentQuotes
   capabilities: WalletSubscriptionCapabilities
@@ -163,6 +166,29 @@ const DEFAULT_MIGRATION: WalletSelfSubscriptionData['migration'] = {
   requires_admin_review: true,
   classification: 'unknown',
   reason: '',
+}
+
+function normalizeRenewalSource(
+  source: unknown
+): SubscriptionRenewalSource | undefined {
+  if (source === 'provider_recurring' || source === 'wallet_auto') {
+    return source
+  }
+  return undefined
+}
+
+function normalizeRenewalStatus(
+  status: unknown
+): SubscriptionRenewalStatus | undefined {
+  if (
+    status === 'enabled' ||
+    status === 'cancelled_by_user' ||
+    status === 'paused_insufficient_balance' ||
+    status === 'paused_plan_unavailable'
+  ) {
+    return status
+  }
+  return undefined
 }
 
 function normalizeMigration(
@@ -239,8 +265,8 @@ export function normalizeSelfSubscriptionData(
     window_7d: data?.window_7d ?? EMPTY_USAGE_WINDOW,
     media_credits: normalizeMediaUsageWindow(data?.media_credits),
     remaining_days: data?.remaining_days,
-    renewal_source: data?.renewal_source,
-    renewal_status: data?.renewal_status,
+    renewal_source: normalizeRenewalSource(data?.renewal_source),
+    renewal_status: normalizeRenewalStatus(data?.renewal_status),
     payment_availability: data?.payment_availability ?? {},
     payment_quotes: data?.payment_quotes ?? {},
     pending_change: data?.pending_change ?? null,
@@ -263,6 +289,60 @@ export function normalizeSelfSubscriptionData(
     subscriptions: data?.subscriptions || [],
     all_subscriptions: data?.all_subscriptions || [],
     recurring_subscriptions: data?.recurring_subscriptions || [],
+  }
+}
+
+export function applyRenewalLifecycleResultToSelfData(
+  current: WalletSelfSubscriptionData,
+  result: SubscriptionRenewalLifecycleResult | undefined,
+  expectedContractId: number | null
+): WalletSelfSubscriptionData {
+  if (!result) return current
+  if (
+    typeof expectedContractId !== 'number' ||
+    expectedContractId <= 0 ||
+    current.contract?.id !== expectedContractId
+  ) {
+    return current
+  }
+  if (current.renewal_source !== result.renewal_source) {
+    return current
+  }
+  const currentPeriodEnd = Math.max(
+    current.contract?.current_period_end ?? 0,
+    current.current_period?.end ?? 0
+  )
+  if (currentPeriodEnd > 0 && result.current_period_end < currentPeriodEnd) {
+    return current
+  }
+  if (
+    current.contract?.change_version !== undefined &&
+    result.change_version < current.contract.change_version
+  ) {
+    return current
+  }
+  return {
+    ...current,
+    renewal_source: result.renewal_source,
+    renewal_status: result.renewal_status,
+    contract: current.contract
+      ? {
+          ...current.contract,
+          current_period_end: result.current_period_end,
+          change_version: result.change_version,
+        }
+      : current.contract,
+    current_period: {
+      ...(current.current_period ?? DEFAULT_CURRENT_PERIOD),
+      end: result.current_period_end,
+    },
+    remaining_days: undefined,
+    capabilities: {
+      ...current.capabilities,
+      can_cancel: result.can_cancel,
+      can_resume: result.can_resume,
+      is_cancel_at_period_end: result.is_cancel_at_period_end,
+    },
   }
 }
 

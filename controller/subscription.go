@@ -301,11 +301,11 @@ type SubscriptionMigrationDTO struct {
 }
 
 type ChangeSubscriptionPlanResponse struct {
-	Status           string                        `json:"status"`
-	Contract         *SubscriptionContractDTO      `json:"contract,omitempty"`
-	Intent           *SubscriptionPendingChangeDTO `json:"intent,omitempty"`
-	CheckoutURL      string                        `json:"checkout_url,omitempty"`
-	HostedInvoiceURL string                        `json:"hosted_invoice_url,omitempty"`
+	Status           string                            `json:"status"`
+	Contract         *SubscriptionSelfContractDTO      `json:"contract,omitempty"`
+	Intent           *SubscriptionSelfPendingChangeDTO `json:"intent,omitempty"`
+	CheckoutURL      string                            `json:"checkout_url,omitempty"`
+	HostedInvoiceURL string                            `json:"hosted_invoice_url,omitempty"`
 }
 
 var ErrSubscriptionPurchasePendingMigration = errors.New("subscription purchase initiation is pending migration")
@@ -458,7 +458,10 @@ func buildSubscriptionSelfResponse(
 		}
 		response.RemainingDays = subscriptionRemainingDays(contract.CurrentPeriodEnd)
 	}
-	response.RenewalSource, response.RenewalStatus = subscriptionSelfRenewalState(contract, currentEntitlement, recurringSubscriptions)
+	renewalRequiresSupport := subscriptionSelfRenewalRequiresSupport(contract, currentEntitlement, recurringSubscriptions, migration)
+	if !renewalRequiresSupport {
+		response.RenewalSource, response.RenewalStatus = subscriptionSelfRenewalState(contract, currentEntitlement, recurringSubscriptions)
+	}
 	if currentEntitlement != nil && currentEntitlement.Id > 0 {
 		response.CurrentEntitlement = &SubscriptionSelfEntitlementDTO{
 			EntitlementID: currentEntitlement.Id,
@@ -514,7 +517,16 @@ func buildSubscriptionSelfResponse(
 	if pendingChange != nil && pendingChange.Id > 0 {
 		response.PendingChange = subscriptionSelfPendingChangeDTO(pendingChange)
 	}
-	response.Capabilities = buildSubscriptionCapabilitiesDTO(contract, pendingChange, recurringSubscriptions, migration)
+	response.Capabilities = buildSubscriptionCapabilitiesDTO(
+		contract,
+		currentEntitlement,
+		pendingChange,
+		recurringSubscriptions,
+		migration,
+		response.RenewalSource,
+		response.RenewalStatus,
+		renewalRequiresSupport,
+	)
 	return response
 }
 
@@ -813,9 +825,13 @@ func subscriptionRemainingDays(endTime int64) int64 {
 
 func buildSubscriptionCapabilitiesDTO(
 	contract *model.UserSubscriptionContract,
+	currentEntitlement *model.UserSubscription,
 	pendingChange *model.SubscriptionChangeIntent,
 	recurringSubscriptions []RecurringSubscriptionDTO,
 	migration SubscriptionMigrationDTO,
+	renewalSource string,
+	renewalStatus string,
+	renewalRequiresSupport bool,
 ) SubscriptionCapabilitiesDTO {
 	hasPendingIntent := pendingChange != nil && pendingChange.Id > 0
 	capabilities := SubscriptionCapabilitiesDTO{
@@ -832,15 +848,43 @@ func buildSubscriptionCapabilitiesDTO(
 			capabilities.CanUseBalanceOnePeriod = false
 		}
 	}
-	for _, recurring := range recurringSubscriptions {
-		if contract != nil && contract.CurrentProviderBindingId > 0 && recurring.BindingId != contract.CurrentProviderBindingId {
-			continue
+	capabilities.RequiresSupport = capabilities.RequiresSupport || renewalRequiresSupport
+	if !capabilities.RequiresSupport && hasRenewalLifecycleActionWindow(contract, currentEntitlement) {
+		switch renewalStatus {
+		case model.SubscriptionRenewalStatusEnabled:
+			if !renewalPendingChangeBlocksAction(pendingChange, contract, renewalSource, model.SubscriptionRenewalStatusCancelledByUser) &&
+				(renewalSource == model.SubscriptionRenewalSourceProvider || renewalSource == model.SubscriptionRenewalSourceWallet) {
+				capabilities.CanCancel = true
+			}
+		case model.SubscriptionRenewalStatusCancelledByUser:
+			capabilities.IsCancelAtPeriodEnd = true
+			if !renewalPendingChangeBlocksAction(pendingChange, contract, renewalSource, model.SubscriptionRenewalStatusEnabled) &&
+				(renewalSource == model.SubscriptionRenewalSourceProvider || renewalSource == model.SubscriptionRenewalSourceWallet) {
+				capabilities.CanResume = true
+			}
 		}
-		capabilities.IsCancelAtPeriodEnd = recurring.CancelAtPeriodEnd
-		capabilities.RequiresSupport = capabilities.RequiresSupport || recurring.RequiresSupport
-		break
 	}
 	return capabilities
+}
+
+func renewalPendingChangeBlocksAction(pendingChange *model.SubscriptionChangeIntent, contract *model.UserSubscriptionContract, renewalSource string, targetStatus string) bool {
+	if pendingChange == nil || pendingChange.Id <= 0 {
+		return false
+	}
+	if renewalSource == model.SubscriptionRenewalSourceProvider &&
+		targetStatus == model.SubscriptionRenewalStatusCancelledByUser &&
+		contract != nil &&
+		contract.Id > 0 &&
+		contract.PaymentMode == model.SubscriptionPaymentModeStripeRecurring &&
+		contract.CurrentProviderBindingId > 0 &&
+		pendingChange.ContractId == contract.Id &&
+		pendingChange.Kind == model.SubscriptionChangeIntentKindDowngrade &&
+		pendingChange.PaymentMode == model.SubscriptionPaymentModeStripeRecurring &&
+		pendingChange.ProviderBindingId == contract.CurrentProviderBindingId &&
+		pendingChange.Status == model.SubscriptionChangeIntentStatusScheduled {
+		return false
+	}
+	return true
 }
 
 func buildSubscriptionMigrationDTO(
@@ -922,8 +966,10 @@ func recurringSubscriptionDTOs(bindings []model.SubscriptionProviderBinding) []R
 	result := make([]RecurringSubscriptionDTO, 0, len(bindings))
 	for _, binding := range bindings {
 		provider := strings.TrimSpace(binding.Provider)
-		complete := provider == model.PaymentProviderStripe && strings.TrimSpace(binding.ProviderSubscriptionId) != ""
+		complete := provider == model.PaymentProviderStripe &&
+			strings.TrimSpace(binding.ProviderSubscriptionId) != ""
 		terminal := isTerminalRecurringProviderStatus(binding.ProviderStatus) || binding.EndedAt > 0
+		actionable := complete && !terminal && isActionableRecurringProviderStatus(binding.ProviderStatus)
 		result = append(result, RecurringSubscriptionDTO{
 			BindingId:          binding.Id,
 			Provider:           provider,
@@ -933,9 +979,9 @@ func recurringSubscriptionDTOs(bindings []model.SubscriptionProviderBinding) []R
 			CurrentPeriodStart: binding.CurrentPeriodStart,
 			CurrentPeriodEnd:   binding.CurrentPeriodEnd,
 			GracePeriodEnd:     binding.GracePeriodEnd,
-			CanCancel:          complete && !terminal && !binding.CancelAtPeriodEnd,
-			CanResume:          complete && !terminal && binding.CancelAtPeriodEnd,
-			RequiresSupport:    !complete,
+			CanCancel:          actionable && !binding.CancelAtPeriodEnd,
+			CanResume:          actionable && binding.CancelAtPeriodEnd,
+			RequiresSupport:    !complete || (!terminal && !actionable),
 			Terminal:           terminal,
 		})
 	}
@@ -967,15 +1013,18 @@ func subscriptionSelfRenewalState(
 		storedSource = strings.TrimSpace(contract.RenewalSource)
 		storedStatus = strings.TrimSpace(contract.RenewalStatus)
 	}
-	activeRecurring := hasActiveRecurringRenewal(contract, currentEntitlement, recurringSubscriptions)
-	if isValidSubscriptionRenewalPair(storedSource, storedStatus) {
-		if storedSource == model.SubscriptionRenewalSourceProvider && !activeRecurring {
-			return "", ""
+	if hasActiveRecurringRenewal(contract, currentEntitlement, recurringSubscriptions) {
+		if recurring := currentRecurringForSubscription(contract, currentEntitlement, recurringSubscriptions); recurring != nil {
+			if recurring.CancelAtPeriodEnd {
+				return model.SubscriptionRenewalSourceProvider, model.SubscriptionRenewalStatusCancelledByUser
+			}
+			return model.SubscriptionRenewalSourceProvider, model.SubscriptionRenewalStatusEnabled
 		}
-		return storedSource, storedStatus
 	}
-	if activeRecurring {
-		return model.SubscriptionRenewalSourceProvider, model.SubscriptionRenewalStatusEnabled
+	if storedSource == model.SubscriptionRenewalSourceWallet &&
+		isValidSubscriptionRenewalPair(storedSource, storedStatus) &&
+		currentEntitlement != nil && strings.TrimSpace(currentEntitlement.Source) == model.PaymentMethodBalance {
+		return storedSource, storedStatus
 	}
 	return "", ""
 }
@@ -983,16 +1032,75 @@ func subscriptionSelfRenewalState(
 func isValidSubscriptionRenewalPair(source string, status string) bool {
 	switch source {
 	case model.SubscriptionRenewalSourceProvider:
-		return status == model.SubscriptionRenewalStatusEnabled
+		return status == model.SubscriptionRenewalStatusEnabled ||
+			status == model.SubscriptionRenewalStatusCancelledByUser
 	case model.SubscriptionRenewalSourceWallet:
 		switch status {
 		case model.SubscriptionRenewalStatusEnabled,
+			model.SubscriptionRenewalStatusCancelledByUser,
 			model.SubscriptionRenewalStatusPausedInsufficientBalance,
 			model.SubscriptionRenewalStatusPausedPlanUnavailable:
 			return true
 		}
 	}
 	return false
+}
+
+func subscriptionSelfRenewalRequiresSupport(
+	contract *model.UserSubscriptionContract,
+	currentEntitlement *model.UserSubscription,
+	recurringSubscriptions []RecurringSubscriptionDTO,
+	migration SubscriptionMigrationDTO,
+) bool {
+	if migration.RequiresAdminReview {
+		return true
+	}
+	if contract == nil || contract.Id <= 0 {
+		return false
+	}
+	stripeCurrent := contract.PaymentMode == model.SubscriptionPaymentModeStripeRecurring ||
+		(currentEntitlement != nil && currentEntitlement.PaymentMode == model.SubscriptionPaymentModeStripeRecurring)
+	if !stripeCurrent {
+		return false
+	}
+	recurring := currentRecurringForSubscription(contract, currentEntitlement, recurringSubscriptions)
+	if recurring == nil {
+		return true
+	}
+	return recurring.RequiresSupport || !isActiveRecurringBinding(*recurring, common.GetTimestamp())
+}
+
+func currentRecurringForSubscription(
+	contract *model.UserSubscriptionContract,
+	currentEntitlement *model.UserSubscription,
+	recurringSubscriptions []RecurringSubscriptionDTO,
+) *RecurringSubscriptionDTO {
+	if currentEntitlement == nil || currentEntitlement.Id <= 0 {
+		return nil
+	}
+	for _, recurring := range recurringSubscriptions {
+		if recurringMatchesCurrentSubscription(contract, currentEntitlement, recurring) {
+			current := recurring
+			return &current
+		}
+	}
+	return nil
+}
+
+func hasRenewalLifecycleActionWindow(contract *model.UserSubscriptionContract, entitlement *model.UserSubscription) bool {
+	now := common.GetTimestamp()
+	if contract == nil || contract.Id <= 0 ||
+		contract.Status != model.SubscriptionContractStatusActive ||
+		contract.CurrentPeriodEnd <= now ||
+		entitlement == nil || entitlement.Id <= 0 ||
+		contract.CurrentEntitlementId != entitlement.Id ||
+		entitlement.Status != model.SubscriptionEntitlementStatusActive ||
+		entitlement.EndTime <= now ||
+		entitlement.AccessEndTime <= now ||
+		entitlement.CurrentSlot == nil || *entitlement.CurrentSlot != 1 {
+		return false
+	}
+	return true
 }
 
 func hasActiveRecurringRenewal(
@@ -1056,11 +1164,15 @@ func recurringMatchesCurrentSubscription(
 	entitlement *model.UserSubscription,
 	recurring RecurringSubscriptionDTO,
 ) bool {
+	if entitlement == nil || entitlement.Id <= 0 {
+		return false
+	}
 	bindingID := entitlement.ProviderBindingId
 	planID := entitlement.PlanId
 	if contract != nil && contract.Id > 0 {
-		if contract.CurrentProviderBindingId > 0 {
-			bindingID = contract.CurrentProviderBindingId
+		bindingID = contract.CurrentProviderBindingId
+		if bindingID <= 0 || entitlement.ProviderBindingId != bindingID {
+			return false
 		}
 		if contract.CurrentPlanId > 0 {
 			planID = contract.CurrentPlanId
@@ -1075,7 +1187,7 @@ func recurringMatchesCurrentSubscription(
 func isActiveRecurringBinding(recurring RecurringSubscriptionDTO, now int64) bool {
 	if strings.TrimSpace(recurring.Provider) != model.PaymentProviderStripe ||
 		recurring.RequiresSupport || recurring.Terminal ||
-		isTerminalRecurringProviderStatus(recurring.ProviderStatus) {
+		!isActionableRecurringProviderStatus(recurring.ProviderStatus) {
 		return false
 	}
 	periodEnd := recurring.CurrentPeriodEnd
@@ -1083,6 +1195,18 @@ func isActiveRecurringBinding(recurring RecurringSubscriptionDTO, now int64) boo
 		periodEnd = recurring.GracePeriodEnd
 	}
 	return periodEnd > now
+}
+
+func isActionableRecurringProviderStatus(status string) bool {
+	// The wallet read model exposes lifecycle actions only for exact healthy
+	// bindings. Degraded states such as past_due require support even though a
+	// lower-level administrative termination path can still handle them.
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "active", "trialing":
+		return true
+	default:
+		return false
+	}
 }
 
 func isTerminalRecurringProviderStatus(status string) bool {
@@ -1186,10 +1310,10 @@ func sanitizedChangeSubscriptionPlanResponse(result *service.ChangePlanResult) C
 		HostedInvoiceURL: strings.TrimSpace(result.HostedInvoiceURL),
 	}
 	if result.Contract != nil && result.Contract.Id > 0 {
-		response.Contract = subscriptionContractDTO(result.Contract)
+		response.Contract = subscriptionSelfContractDTO(result.Contract)
 	}
 	if result.Intent != nil && result.Intent.Id > 0 {
-		response.Intent = subscriptionPendingChangeDTO(result.Intent)
+		response.Intent = subscriptionSelfPendingChangeDTO(result.Intent)
 	}
 	return response
 }

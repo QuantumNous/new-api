@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,6 +13,165 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestSubscriptionMigrationLifecycleReservationGuardsUseDBClock(t *testing.T) {
+	source, err := os.ReadFile("subscription_migration.go")
+	require.NoError(t, err)
+
+	require.NotContains(t, string(source), `now := common.GetTimestamp()
+		update := tx.Model(&model.SubscriptionProviderBinding{}).
+			Where("id = ? AND user_id = ?", bindingID, userID).
+			Where("(lifecycle_reservation_token = ? OR lifecycle_reservation_action = ? OR lifecycle_reservation_until <= ?)", "", "", now)`)
+	require.NotContains(t, string(source), "subscriptionProviderBindingHasActiveLifecycleReservation(&bindings[index], common.GetTimestamp())")
+	require.NotContains(t, string(source), "subscriptionProviderBindingHasActiveLifecycleReservation(&binding, common.GetTimestamp())")
+	require.Contains(t, string(source), "now, err := subscriptionLifecycleDBTimestampTx(tx)")
+	require.Contains(t, string(source), `if err != nil {
+			return err
+		}`)
+}
+
+func TestSubscriptionLifecycleDBTimestampTxDoesNotFallbackToAppClockOnQueryError(t *testing.T) {
+	setupSubscriptionMigrationServiceTestDB(t)
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingPostgreSQL := common.UsingPostgreSQL
+	t.Cleanup(func() {
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+	})
+	common.UsingSQLite = false
+	common.UsingPostgreSQL = true
+
+	got, err := subscriptionLifecycleDBTimestampTx(model.DB)
+
+	require.Zero(t, got)
+	require.Error(t, err)
+}
+
+func TestMigrationBindingBackfillAcceptsMySQLUnchangedMatchedRow(t *testing.T) {
+	setupSubscriptionMigrationServiceTestDB(t)
+	insertMigrationUser(t, 8120, 0)
+	insertMigrationPlan(t, 8220, 1, 1, 1000)
+	now := common.GetTimestamp()
+	binding := insertMigrationBinding(t, 8120, 8220, "sub_migration_unchanged_row", now+3600)
+	contract := model.UserSubscriptionContract{
+		UserId:                   8120,
+		Status:                   model.SubscriptionContractStatusActive,
+		PaymentMode:              model.SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            8220,
+		CurrentProviderBindingId: binding.Id,
+	}
+	require.NoError(t, model.DB.Create(&contract).Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Update("contract_id", contract.Id).Error)
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		dbNow, err := subscriptionLifecycleDBTimestampTx(tx)
+		if err != nil {
+			return err
+		}
+		accepted, err := acceptMigrationBindingBackfillNoRowsTx(tx, binding.Id, 8120, contract.Id, dbNow)
+		require.NoError(t, err)
+		require.True(t, accepted)
+		return nil
+	})
+
+	require.NoError(t, err)
+}
+
+func TestMigrationBindingBackfillRejectsNoRowsWithActiveReservation(t *testing.T) {
+	setupSubscriptionMigrationServiceTestDB(t)
+	insertMigrationUser(t, 8121, 0)
+	insertMigrationPlan(t, 8221, 1, 1, 1000)
+	now := common.GetTimestamp()
+	binding := insertMigrationBinding(t, 8121, 8221, "sub_migration_reserved_row", now+3600)
+	contract := model.UserSubscriptionContract{
+		UserId:                   8121,
+		Status:                   model.SubscriptionContractStatusActive,
+		PaymentMode:              model.SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            8221,
+		CurrentProviderBindingId: binding.Id,
+	}
+	require.NoError(t, model.DB.Create(&contract).Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Updates(map[string]interface{}{
+		"contract_id":                  contract.Id,
+		"lifecycle_reservation_token":  "migration-active-reservation",
+		"lifecycle_reservation_action": model.SubscriptionProviderLifecycleActionCancel,
+		"lifecycle_reservation_until":  now + 300,
+	}).Error)
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		dbNow, err := subscriptionLifecycleDBTimestampTx(tx)
+		if err != nil {
+			return err
+		}
+		accepted, err := acceptMigrationBindingBackfillNoRowsTx(tx, binding.Id, 8121, contract.Id, dbNow)
+		require.NoError(t, err)
+		require.False(t, accepted)
+		return nil
+	})
+
+	require.NoError(t, err)
+}
+
+func TestBackfillUniqueLegacySubscriptionRejectsTokenOnlyActiveReservation(t *testing.T) {
+	setupSubscriptionMigrationServiceTestDB(t)
+	insertMigrationUser(t, 8122, 0)
+	insertMigrationPlan(t, 8222, 1, 1, 1000)
+	now := common.GetTimestamp()
+	binding := insertMigrationBinding(t, 8122, 8222, "sub_migration_token_only_reserved", now+3600)
+	entitlement := insertMigrationEntitlement(t, 8122, 8222, binding.Id, model.SubscriptionPaymentModeStripeRecurring, now+3600)
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Updates(map[string]interface{}{
+		"lifecycle_reservation_token":  "migration-token-only-reservation",
+		"lifecycle_reservation_action": "",
+		"lifecycle_reservation_until":  now + 300,
+	}).Error)
+	binding.LifecycleReservationToken = "migration-token-only-reservation"
+	binding.LifecycleReservationAction = ""
+	binding.LifecycleReservationUntil = now + 300
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		return backfillUniqueLegacySubscriptionTx(tx, 8122, entitlement, []model.SubscriptionProviderBinding{binding}, nil)
+	})
+
+	require.ErrorIs(t, err, model.ErrSubscriptionProviderLifecycleConflict)
+	var stored model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&stored, binding.Id).Error)
+	require.Zero(t, stored.ContractId)
+}
+
+func TestMigrationBindingBackfillRejectsNoRowsWithTokenOnlyActiveReservation(t *testing.T) {
+	setupSubscriptionMigrationServiceTestDB(t)
+	insertMigrationUser(t, 8123, 0)
+	insertMigrationPlan(t, 8223, 1, 1, 1000)
+	now := common.GetTimestamp()
+	binding := insertMigrationBinding(t, 8123, 8223, "sub_migration_token_only_no_rows", now+3600)
+	contract := model.UserSubscriptionContract{
+		UserId:                   8123,
+		Status:                   model.SubscriptionContractStatusActive,
+		PaymentMode:              model.SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            8223,
+		CurrentProviderBindingId: binding.Id,
+	}
+	require.NoError(t, model.DB.Create(&contract).Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Updates(map[string]interface{}{
+		"contract_id":                  contract.Id,
+		"lifecycle_reservation_token":  "migration-token-only-no-rows",
+		"lifecycle_reservation_action": "",
+		"lifecycle_reservation_until":  now + 300,
+	}).Error)
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		dbNow, err := subscriptionLifecycleDBTimestampTx(tx)
+		if err != nil {
+			return err
+		}
+		accepted, err := acceptMigrationBindingBackfillNoRowsTx(tx, binding.Id, 8123, contract.Id, dbNow)
+		require.NoError(t, err)
+		require.False(t, accepted)
+		return nil
+	})
+
+	require.NoError(t, err)
+}
 
 func setupSubscriptionMigrationServiceTestDB(t *testing.T) {
 	t.Helper()
@@ -156,6 +317,75 @@ func TestAuditLegacySubscriptionsBackfillsUniqueRecurring(t *testing.T) {
 	var contractCount int64
 	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).Where("user_id = ?", 8101).Count(&contractCount).Error)
 	require.Equal(t, int64(1), contractCount)
+}
+
+func TestBackfillUniqueLegacySubscriptionAcceptsMatchedUnchangedBindingUpdate(t *testing.T) {
+	setupSubscriptionMigrationServiceTestDB(t)
+	insertMigrationUser(t, 8116, 0)
+	insertMigrationPlan(t, 8217, 1, 1, 1000)
+	now := common.GetTimestamp()
+	binding := insertMigrationBinding(t, 8116, 8217, "sub_idempotent_binding_repair", now+3600)
+	entitlement := insertMigrationEntitlement(t, 8116, 8217, binding.Id, model.SubscriptionPaymentModeStripeRecurring, now+3600)
+	contract := model.UserSubscriptionContract{
+		UserId:                   8116,
+		Status:                   model.SubscriptionContractStatusActive,
+		PaymentMode:              model.SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            8217,
+		CurrentEntitlementId:     entitlement.Id,
+		CurrentProviderBindingId: binding.Id,
+		CurrentPeriodStart:       binding.CurrentPeriodStart,
+		CurrentPeriodEnd:         binding.CurrentPeriodEnd,
+	}
+	require.NoError(t, model.DB.Create(&contract).Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).
+		Where("id = ?", binding.Id).
+		Update("contract_id", contract.Id).Error)
+	binding.ContractId = contract.Id
+	require.NoError(t, model.DB.Exec(fmt.Sprintf(`
+		CREATE TRIGGER ignore_idempotent_binding_migration_update
+		BEFORE UPDATE ON subscription_provider_bindings
+		WHEN OLD.id = %d AND NEW.contract_id = OLD.contract_id
+		BEGIN
+			SELECT RAISE(IGNORE);
+		END
+	`, binding.Id)).Error)
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS ignore_idempotent_binding_migration_update").Error)
+	})
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		return backfillUniqueLegacySubscriptionTx(tx, 8116, entitlement, []model.SubscriptionProviderBinding{binding}, &contract)
+	})
+
+	require.NoError(t, err)
+	var stored model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&stored, binding.Id).Error)
+	require.Equal(t, contract.Id, stored.ContractId)
+}
+
+func TestAuditLegacySubscriptionsRepairsDanglingCurrentBinding(t *testing.T) {
+	setupSubscriptionMigrationServiceTestDB(t)
+	insertMigrationUser(t, 8115, 0)
+	insertMigrationPlan(t, 8216, 1, 1, 1000)
+	now := common.GetTimestamp()
+	binding := insertMigrationBinding(t, 8115, 8216, "sub_dangling_contract_repair", now+3600)
+	entitlement := insertMigrationEntitlement(t, 8115, 8216, binding.Id, model.SubscriptionPaymentModeStripeRecurring, now+3600)
+	require.NoError(t, model.DB.Create(&model.UserSubscriptionContract{
+		UserId:                   8115,
+		Status:                   model.SubscriptionContractStatusActive,
+		PaymentMode:              model.SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            8216,
+		CurrentEntitlementId:     entitlement.Id,
+		CurrentProviderBindingId: 999999,
+	}).Error)
+
+	result, err := AuditLegacySubscriptionForUser(8115)
+
+	require.NoError(t, err)
+	require.True(t, result.Backfilled)
+	var contract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&contract, "user_id = ?", 8115).Error)
+	require.Equal(t, binding.Id, contract.CurrentProviderBindingId)
 }
 
 func TestAuditLegacySubscriptionsQuarantinesMultipleRecurringBindings(t *testing.T) {

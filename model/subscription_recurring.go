@@ -17,6 +17,9 @@ const (
 )
 
 var ErrSubscriptionProviderBindingConflict = errors.New("subscription provider binding conflict")
+var ErrSubscriptionProviderLifecycleConflict = errors.New("subscription provider lifecycle conflict")
+
+var terminalProviderSubscriptionStatuses = []string{"canceled", "incomplete_expired", "unpaid"}
 
 type SubscriptionProviderBinding struct {
 	Id int64 `json:"id"`
@@ -35,15 +38,18 @@ type SubscriptionProviderBinding struct {
 	ProviderLatestInvoiceId    string `json:"provider_latest_invoice_id" gorm:"type:varchar(128);default:''"`
 	ProviderStatus             string `json:"provider_status" gorm:"type:varchar(64);default:'';index"`
 
-	CancelAtPeriodEnd  bool  `json:"cancel_at_period_end" gorm:"default:false"`
-	CurrentPeriodStart int64 `json:"current_period_start" gorm:"type:bigint;default:0"`
-	CurrentPeriodEnd   int64 `json:"current_period_end" gorm:"type:bigint;default:0;index"`
-	GracePeriodEnd     int64 `json:"grace_period_end" gorm:"type:bigint;default:0"`
-	CanceledAt         int64 `json:"canceled_at" gorm:"type:bigint;default:0"`
-	EndedAt            int64 `json:"ended_at" gorm:"type:bigint;default:0"`
-	Livemode           bool  `json:"livemode" gorm:"default:false"`
-	LastSyncedAt       int64 `json:"last_synced_at" gorm:"type:bigint;default:0"`
-	LifecycleActionSeq int64 `json:"lifecycle_action_seq" gorm:"type:bigint;default:0"`
+	CancelAtPeriodEnd          bool   `json:"cancel_at_period_end" gorm:"default:false"`
+	CurrentPeriodStart         int64  `json:"current_period_start" gorm:"type:bigint;default:0"`
+	CurrentPeriodEnd           int64  `json:"current_period_end" gorm:"type:bigint;default:0;index"`
+	GracePeriodEnd             int64  `json:"grace_period_end" gorm:"type:bigint;default:0"`
+	CanceledAt                 int64  `json:"canceled_at" gorm:"type:bigint;default:0"`
+	EndedAt                    int64  `json:"ended_at" gorm:"type:bigint;default:0"`
+	Livemode                   bool   `json:"livemode" gorm:"default:false"`
+	LastSyncedAt               int64  `json:"last_synced_at" gorm:"type:bigint;default:0"`
+	LifecycleActionSeq         int64  `json:"lifecycle_action_seq" gorm:"type:bigint;default:0"`
+	LifecycleReservationToken  string `json:"-" gorm:"type:varchar(128);default:'';index"`
+	LifecycleReservationAction string `json:"-" gorm:"type:varchar(32);default:''"`
+	LifecycleReservationUntil  int64  `json:"-" gorm:"type:bigint;default:0;index"`
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
@@ -136,12 +142,13 @@ func normalizeProvider(provider string) string {
 }
 
 func isTerminalProviderSubscriptionStatus(status string) bool {
-	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "canceled", "incomplete_expired", "unpaid":
-		return true
-	default:
-		return false
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	for _, terminalStatus := range terminalProviderSubscriptionStatuses {
+		if normalized == terminalStatus {
+			return true
+		}
 	}
+	return false
 }
 
 func subscriptionProviderBindingFromSnapshot(order *SubscriptionOrder, snapshot ProviderSubscriptionSnapshot) *SubscriptionProviderBinding {
@@ -214,34 +221,100 @@ func GetRecurringSubscriptionBindingsForUser(userID int) ([]SubscriptionProvider
 }
 
 func ApplyProviderSubscriptionSnapshot(bindingID int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	return applyProviderSubscriptionSnapshot(bindingID, nil, nil, snapshot, false, false)
+}
+
+func ApplyProviderSubscriptionLifecycleSnapshot(bindingID int64, expectedLifecycleActionSeq int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	return applyProviderSubscriptionSnapshot(bindingID, &expectedLifecycleActionSeq, nil, snapshot, false, false)
+}
+
+func ApplyProviderSubscriptionLifecycleSnapshotStrict(bindingID int64, expectedLifecycleActionSeq int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	return applyProviderSubscriptionSnapshot(bindingID, &expectedLifecycleActionSeq, nil, snapshot, true, false)
+}
+
+func ApplyProviderSubscriptionLifecycleSnapshotStrictWithReservation(reservation *SubscriptionProviderLifecycleReservation, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	if reservation == nil {
+		return nil, errors.New("subscription provider lifecycle reservation is required")
+	}
+	expectedLifecycleActionSeq := reservation.LifecycleActionSeq
+	return applyProviderSubscriptionSnapshot(reservation.BindingId, &expectedLifecycleActionSeq, reservation, snapshot, true, false)
+}
+
+func ApplyProviderSubscriptionLifecycleNoChangeSnapshotStrictWithReservation(reservation *SubscriptionProviderLifecycleReservation, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	if reservation == nil {
+		return nil, errors.New("subscription provider lifecycle reservation is required")
+	}
+	expectedLifecycleActionSeq := reservation.LifecycleActionSeq
+	return applyProviderSubscriptionSnapshot(reservation.BindingId, &expectedLifecycleActionSeq, reservation, snapshot, true, true)
+}
+
+func applyProviderSubscriptionSnapshot(bindingID int64, expectedLifecycleActionSeq *int64, reservation *SubscriptionProviderLifecycleReservation, snapshot ProviderSubscriptionSnapshot, strictLifecycleCAS bool, reservationNoChange bool) (*SubscriptionProviderBinding, error) {
 	if bindingID <= 0 {
 		return nil, errors.New("invalid binding id")
 	}
 	var binding SubscriptionProviderBinding
+	lifecycleCASMiss := false
+	lifecycleSameTargetRetry := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", bindingID).First(&binding).Error; err != nil {
+		contract, err := lockSubscriptionProviderLifecycleBindingAndContractTx(tx, bindingID, reservation, &binding)
+		if err != nil {
 			return err
+		}
+		if reservation != nil {
+			if err := validateSubscriptionProviderLifecycleReservationCurrentBinding(&binding, contract, reservation.ContractId, reservation); err != nil {
+				return err
+			}
 		}
 		if strings.TrimSpace(snapshot.ProviderSubscriptionId) != "" && strings.TrimSpace(snapshot.ProviderSubscriptionId) != binding.ProviderSubscriptionId {
 			return ErrSubscriptionProviderBindingConflict
 		}
+		if snapshot.EndedAt > 0 || isTerminalProviderSubscriptionStatus(snapshot.ProviderStatus) {
+			return ErrSubscriptionProviderLifecycleConflict
+		}
 		if binding.EndedAt > 0 || isTerminalProviderSubscriptionStatus(binding.ProviderStatus) {
+			if expectedLifecycleActionSeq != nil {
+				return ErrSubscriptionProviderLifecycleConflict
+			}
 			return nil
+		}
+		now, err := getDBTimestampTxStrict(tx)
+		if err != nil {
+			return err
+		}
+		if reservation != nil {
+			if !subscriptionProviderLifecycleReservationFieldsMatch(&binding, reservation) {
+				return ErrSubscriptionProviderLifecycleConflict
+			}
+			if reservationNoChange {
+				if snapshot.CancelAtPeriodEnd != binding.CancelAtPeriodEnd {
+					return ErrSubscriptionProviderLifecycleConflict
+				}
+			} else if ((reservation.Action == SubscriptionProviderLifecycleActionCancel || reservation.Action == SubscriptionProviderLifecycleActionGraceCancel) && !snapshot.CancelAtPeriodEnd) ||
+				(reservation.Action == SubscriptionProviderLifecycleActionResume && snapshot.CancelAtPeriodEnd) {
+				return ErrSubscriptionProviderLifecycleConflict
+			}
+		} else if subscriptionProviderLifecycleReservationIsActive(&binding, now) {
+			return ErrSubscriptionProviderLifecycleConflict
+		}
+		if expectedLifecycleActionSeq != nil && binding.LifecycleActionSeq != *expectedLifecycleActionSeq {
+			if !strictLifecycleCAS && binding.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
+				lifecycleSameTargetRetry = true
+				return nil
+			}
+			return ErrSubscriptionProviderLifecycleConflict
 		}
 		updates := map[string]interface{}{
 			"provider_customer_id":       strings.TrimSpace(snapshot.ProviderCustomerId),
 			"provider_price_id":          strings.TrimSpace(snapshot.ProviderPriceId),
 			"provider_latest_invoice_id": strings.TrimSpace(snapshot.ProviderLatestInvoiceId),
 			"provider_status":            strings.TrimSpace(snapshot.ProviderStatus),
-			"cancel_at_period_end":       snapshot.CancelAtPeriodEnd,
 			"current_period_start":       snapshot.CurrentPeriodStart,
 			"current_period_end":         snapshot.CurrentPeriodEnd,
 			"grace_period_end":           snapshot.GracePeriodEnd,
-			"canceled_at":                snapshot.CanceledAt,
 			"ended_at":                   snapshot.EndedAt,
 			"livemode":                   snapshot.Livemode,
-			"last_synced_at":             common.GetTimestamp(),
-			"updated_at":                 common.GetTimestamp(),
+			"last_synced_at":             now,
+			"updated_at":                 now,
 		}
 		if providerSubscriptionItemID := strings.TrimSpace(snapshot.ProviderSubscriptionItemId); providerSubscriptionItemID != "" {
 			updates["provider_subscription_item_id"] = providerSubscriptionItemID
@@ -249,38 +322,174 @@ func ApplyProviderSubscriptionSnapshot(bindingID int64, snapshot ProviderSubscri
 		if snapshot.ProviderScheduleIdObserved {
 			updates["provider_schedule_id"] = strings.TrimSpace(snapshot.ProviderScheduleId)
 		}
-		if snapshot.CancelAtPeriodEnd != binding.CancelAtPeriodEnd {
-			updates["lifecycle_action_seq"] = binding.LifecycleActionSeq + 1
+		// Passive webhook and reconciliation snapshots can arrive out of order.
+		// Only the lifecycle CAS entry point may change cancellation state;
+		// termination has its own explicit path below.
+		if expectedLifecycleActionSeq != nil {
+			updates["cancel_at_period_end"] = snapshot.CancelAtPeriodEnd
+			updates["canceled_at"] = snapshot.CanceledAt
+			if reservation == nil && snapshot.CancelAtPeriodEnd != binding.CancelAtPeriodEnd {
+				updates["lifecycle_action_seq"] = binding.LifecycleActionSeq + 1
+			}
 		}
-		if err := tx.Model(&binding).Updates(updates).Error; err != nil {
+		if reservation != nil {
+			updates["lifecycle_reservation_until"] = 0
+		}
+		updateQuery := tx.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID)
+		if reservation == nil {
+			updateQuery = updateQuery.Where("(lifecycle_reservation_token = ? OR lifecycle_reservation_until <= ?)", "", now)
+		}
+		if expectedLifecycleActionSeq != nil {
+			updateQuery = updateQuery.Where(
+				"lifecycle_action_seq = ? AND ended_at = ? AND provider_subscription_id = ? AND provider_status NOT IN ?",
+				*expectedLifecycleActionSeq,
+				0,
+				binding.ProviderSubscriptionId,
+				terminalProviderSubscriptionStatuses,
+			)
+		}
+		if reservation != nil {
+			updateQuery = updateQuery.Where(
+				"lifecycle_reservation_token = ? AND lifecycle_reservation_action = ? AND lifecycle_reservation_until = ?",
+				reservation.Token,
+				reservation.Action,
+				reservation.ExpiresAt,
+			)
+		}
+		updateResult := updateQuery.Updates(updates)
+		if updateResult.Error != nil {
+			return updateResult.Error
+		}
+		if updateResult.RowsAffected != 1 {
+			var current SubscriptionProviderBinding
+			if err := tx.Where("id = ?", bindingID).First(&current).Error; err != nil {
+				return err
+			}
+			if reservation != nil || subscriptionProviderLifecycleReservationIsActive(&current, now) {
+				return ErrSubscriptionProviderLifecycleConflict
+			}
+			if expectedLifecycleActionSeq != nil && strictLifecycleCAS {
+				if current.LifecycleActionSeq == *expectedLifecycleActionSeq &&
+					current.EndedAt == 0 &&
+					current.ProviderSubscriptionId == binding.ProviderSubscriptionId &&
+					!isTerminalProviderSubscriptionStatus(current.ProviderStatus) &&
+					current.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
+					binding = current
+					return nil
+				}
+				return ErrSubscriptionProviderLifecycleConflict
+			}
+			if expectedLifecycleActionSeq != nil {
+				lifecycleCASMiss = true
+			} else {
+				binding = current
+			}
+			return nil
+		}
+		if err := tx.Where("id = ?", bindingID).First(&binding).Error; err != nil {
 			return err
 		}
-		return tx.Where("id = ?", bindingID).First(&binding).Error
+		return nil
 	})
 	if err != nil {
 		return nil, err
+	}
+	if lifecycleSameTargetRetry || lifecycleCASMiss {
+		updated, err := ApplyProviderSubscriptionSnapshot(bindingID, snapshot)
+		if err != nil {
+			return nil, err
+		}
+		if updated.EndedAt > 0 || isTerminalProviderSubscriptionStatus(updated.ProviderStatus) {
+			return nil, ErrSubscriptionProviderLifecycleConflict
+		}
+		if updated.CancelAtPeriodEnd == snapshot.CancelAtPeriodEnd {
+			return updated, nil
+		}
+		return nil, ErrSubscriptionProviderLifecycleConflict
 	}
 	return &binding, nil
 }
 
 func ApplyProviderSubscriptionTermination(bindingID int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	return applyProviderSubscriptionTermination(bindingID, nil, nil, snapshot, false)
+}
+
+func ApplyPassiveProviderSubscriptionTermination(bindingID int64, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	if snapshot.EndedAt <= 0 && !isTerminalProviderSubscriptionStatus(snapshot.ProviderStatus) {
+		return nil, ErrSubscriptionProviderLifecycleConflict
+	}
+	// A terminal provider snapshot is authoritative and deliberately supersedes
+	// any in-flight lifecycle lease. Foreground recovery observes the terminal
+	// binding instead of delaying local entitlement termination behind the TTL.
+	return applyProviderSubscriptionTermination(bindingID, nil, nil, snapshot, true)
+}
+
+func ApplyPassiveProviderSubscriptionTerminationWithReservationGuard(reservation *SubscriptionProviderLifecycleReservation, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	if reservation == nil {
+		return nil, errors.New("subscription provider lifecycle reservation is required")
+	}
+	if snapshot.EndedAt <= 0 && !isTerminalProviderSubscriptionStatus(snapshot.ProviderStatus) {
+		return nil, ErrSubscriptionProviderLifecycleConflict
+	}
+	return applyProviderSubscriptionTermination(reservation.BindingId, nil, reservation, snapshot, true)
+}
+
+func ApplyProviderSubscriptionTerminationWithReservation(reservation *SubscriptionProviderLifecycleReservation, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	if reservation == nil {
+		return nil, errors.New("subscription provider lifecycle reservation is required")
+	}
+	return applyProviderSubscriptionTermination(reservation.BindingId, reservation, nil, snapshot, false)
+}
+
+func applyProviderSubscriptionTermination(bindingID int64, reservation *SubscriptionProviderLifecycleReservation, passiveReservationGuard *SubscriptionProviderLifecycleReservation, snapshot ProviderSubscriptionSnapshot, passiveTerminal bool) (*SubscriptionProviderBinding, error) {
 	if bindingID <= 0 {
 		return nil, errors.New("invalid binding id")
-	}
-	now := common.GetTimestamp()
-	if snapshot.EndedAt <= 0 {
-		snapshot.EndedAt = now
 	}
 	if strings.TrimSpace(snapshot.ProviderStatus) == "" {
 		snapshot.ProviderStatus = "canceled"
 	}
 	var binding SubscriptionProviderBinding
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", bindingID).First(&binding).Error; err != nil {
+		contract, err := lockSubscriptionProviderLifecycleBindingAndContractTx(tx, bindingID, reservation, &binding)
+		if err != nil {
 			return err
+		}
+		if reservation != nil {
+			if err := validateSubscriptionProviderLifecycleReservationCurrentBinding(&binding, contract, reservation.ContractId, reservation); err != nil {
+				return err
+			}
+		}
+		if passiveReservationGuard != nil {
+			if binding.Id != passiveReservationGuard.BindingId ||
+				strings.TrimSpace(binding.ProviderSubscriptionId) != strings.TrimSpace(passiveReservationGuard.ProviderSubscriptionId) {
+				return ErrSubscriptionProviderLifecycleConflict
+			}
 		}
 		if strings.TrimSpace(snapshot.ProviderSubscriptionId) != "" && strings.TrimSpace(snapshot.ProviderSubscriptionId) != binding.ProviderSubscriptionId {
 			return ErrSubscriptionProviderBindingConflict
+		}
+		dbNow, err := getDBTimestampTxStrict(tx)
+		if err != nil {
+			return err
+		}
+		if snapshot.EndedAt <= 0 {
+			snapshot.EndedAt = dbNow
+		}
+		terminationAt := snapshot.EndedAt
+		if passiveReservationGuard != nil &&
+			subscriptionProviderLifecycleReservationIsActive(&binding, dbNow) &&
+			!subscriptionProviderLifecycleReservationFieldsMatch(&binding, passiveReservationGuard) {
+			return ErrSubscriptionProviderLifecycleConflict
+		}
+		if reservation != nil {
+			if (reservation.Action != SubscriptionProviderLifecycleActionCancel &&
+				reservation.Action != SubscriptionProviderLifecycleActionGraceCancel &&
+				reservation.Action != SubscriptionProviderLifecycleActionResume) ||
+				!subscriptionProviderLifecycleReservationFieldsMatch(&binding, reservation) {
+				return ErrSubscriptionProviderLifecycleConflict
+			}
+		} else if !passiveTerminal && subscriptionProviderLifecycleReservationIsActive(&binding, dbNow) {
+			return ErrSubscriptionProviderLifecycleConflict
 		}
 		updates := map[string]interface{}{
 			"provider_customer_id":       strings.TrimSpace(snapshot.ProviderCustomerId),
@@ -294,8 +503,15 @@ func ApplyProviderSubscriptionTermination(bindingID int64, snapshot ProviderSubs
 			"canceled_at":                snapshot.CanceledAt,
 			"ended_at":                   snapshot.EndedAt,
 			"livemode":                   snapshot.Livemode,
-			"last_synced_at":             now,
-			"updated_at":                 now,
+			"last_synced_at":             dbNow,
+			"updated_at":                 dbNow,
+		}
+		if reservation != nil {
+			updates["lifecycle_reservation_until"] = 0
+		} else {
+			updates["lifecycle_reservation_token"] = ""
+			updates["lifecycle_reservation_action"] = ""
+			updates["lifecycle_reservation_until"] = 0
 		}
 		if providerSubscriptionItemID := strings.TrimSpace(snapshot.ProviderSubscriptionItemId); providerSubscriptionItemID != "" {
 			updates["provider_subscription_item_id"] = providerSubscriptionItemID
@@ -306,15 +522,53 @@ func ApplyProviderSubscriptionTermination(bindingID int64, snapshot ProviderSubs
 		if binding.CancelAtPeriodEnd {
 			updates["lifecycle_action_seq"] = binding.LifecycleActionSeq + 1
 		}
-		if err := tx.Model(&binding).Updates(updates).Error; err != nil {
-			return err
+		updateQuery := tx.Model(&SubscriptionProviderBinding{}).Where("id = ?", binding.Id)
+		if reservation == nil && !passiveTerminal {
+			updateQuery = updateQuery.Where("(lifecycle_reservation_token = ? OR lifecycle_reservation_until <= ?)", "", dbNow)
+		}
+		if reservation != nil {
+			updateQuery = updateQuery.Where(
+				"lifecycle_action_seq = ? AND lifecycle_reservation_token = ? AND lifecycle_reservation_action = ? AND lifecycle_reservation_until = ?",
+				reservation.LifecycleActionSeq,
+				reservation.Token,
+				reservation.Action,
+				reservation.ExpiresAt,
+			)
+		}
+		if passiveReservationGuard != nil {
+			updateQuery = updateQuery.Where(
+				"(lifecycle_reservation_token = ? OR lifecycle_reservation_until <= ?) OR (lifecycle_action_seq = ? AND lifecycle_reservation_token = ? AND lifecycle_reservation_action = ? AND lifecycle_reservation_until = ?)",
+				"",
+				dbNow,
+				passiveReservationGuard.LifecycleActionSeq,
+				passiveReservationGuard.Token,
+				passiveReservationGuard.Action,
+				passiveReservationGuard.ExpiresAt,
+			)
+		}
+		updateResult := updateQuery.Updates(updates)
+		if updateResult.Error != nil {
+			return updateResult.Error
+		}
+		if updateResult.RowsAffected != 1 {
+			var current SubscriptionProviderBinding
+			if err := tx.Where("id = ?", bindingID).First(&current).Error; err != nil {
+				return err
+			}
+			if reservation != nil || passiveReservationGuard != nil || (!passiveTerminal && subscriptionProviderLifecycleReservationIsActive(&current, dbNow)) {
+				return ErrSubscriptionProviderLifecycleConflict
+			}
+			if current.EndedAt <= 0 && !isTerminalProviderSubscriptionStatus(current.ProviderStatus) {
+				return ErrSubscriptionProviderLifecycleConflict
+			}
+			binding = current
 		}
 		if err := tx.Model(&UserSubscription{}).
 			Where("provider_binding_id = ? AND status = ?", bindingID, "active").
 			Updates(map[string]interface{}{
 				"status":     "cancelled",
-				"end_time":   now,
-				"updated_at": now,
+				"end_time":   terminationAt,
+				"updated_at": dbNow,
 			}).Error; err != nil {
 			return err
 		}
@@ -324,6 +578,71 @@ func ApplyProviderSubscriptionTermination(bindingID int64, snapshot ProviderSubs
 		return nil, err
 	}
 	return &binding, nil
+}
+
+func lockSubscriptionProviderLifecycleReservationContractTx(tx *gorm.DB, contractID int64) (*UserSubscriptionContract, error) {
+	if contractID <= 0 {
+		return nil, nil
+	}
+	var contract UserSubscriptionContract
+	if err := lockQuery(tx).Where("id = ?", contractID).First(&contract).Error; err != nil {
+		return nil, err
+	}
+	return &contract, nil
+}
+
+func lockSubscriptionProviderLifecycleBindingAndContractTx(tx *gorm.DB, bindingID int64, reservation *SubscriptionProviderLifecycleReservation, binding *SubscriptionProviderBinding) (*UserSubscriptionContract, error) {
+	if binding == nil {
+		return nil, errors.New("subscription provider binding target is required")
+	}
+	if err := lockQuery(tx).Where("id = ?", bindingID).First(binding).Error; err != nil {
+		return nil, err
+	}
+	if reservation == nil {
+		return nil, nil
+	}
+	if binding.Id != reservation.BindingId ||
+		strings.TrimSpace(binding.ProviderSubscriptionId) != strings.TrimSpace(reservation.ProviderSubscriptionId) {
+		return nil, ErrSubscriptionProviderLifecycleConflict
+	}
+	return lockSubscriptionProviderLifecycleReservationContractTx(tx, reservation.ContractId)
+}
+
+func validateSubscriptionProviderLifecycleReservationCurrentBinding(binding *SubscriptionProviderBinding, contract *UserSubscriptionContract, expectedContractID int64, reservation *SubscriptionProviderLifecycleReservation) error {
+	if binding == nil || reservation == nil || binding.ContractId != expectedContractID {
+		return ErrSubscriptionProviderLifecycleConflict
+	}
+	if reservation.UserId <= 0 || reservation.UserId != binding.UserId {
+		return ErrSubscriptionProviderLifecycleConflict
+	}
+	if binding.Provider != PaymentProviderStripe {
+		return ErrSubscriptionProviderLifecycleConflict
+	}
+	if expectedContractID <= 0 {
+		if contract != nil || reservation.ContractId != 0 || binding.Provider != PaymentProviderStripe {
+			return ErrSubscriptionProviderLifecycleConflict
+		}
+		return nil
+	}
+	if reservation.ContractId <= 0 {
+		return ErrSubscriptionProviderLifecycleConflict
+	}
+	contractStatusAllowed := false
+	if contract != nil {
+		contractStatusAllowed = contract.Status == SubscriptionContractStatusActive ||
+			contract.Status == SubscriptionContractStatusGrace ||
+			(contract.Status == SubscriptionContractStatusNeedsAttention &&
+				reservation != nil &&
+				(reservation.Action == SubscriptionProviderLifecycleActionCancel ||
+					reservation.Action == SubscriptionProviderLifecycleActionGraceCancel))
+	}
+	if contract == nil || contract.Id != binding.ContractId || contract.UserId != binding.UserId ||
+		!contractStatusAllowed ||
+		contract.PaymentMode != SubscriptionPaymentModeStripeRecurring ||
+		contract.CurrentProviderBindingId != binding.Id {
+		return ErrSubscriptionProviderLifecycleConflict
+	}
+	return nil
 }
 
 func createOrLoadProviderBindingTx(tx *gorm.DB, order *SubscriptionOrder, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
