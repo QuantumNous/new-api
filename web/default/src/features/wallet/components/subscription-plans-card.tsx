@@ -778,6 +778,15 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                         {t('per month')}
                       </span>
                     </div>
+                    {recallDiscount ? (
+                      <div className='mt-1 text-xs font-medium text-[#166534] dark:text-[#86efac]'>
+                        {t('Save {{amount}}', {
+                          amount: formatPlanPrice(
+                            recallDiscount.discountAmount
+                          ),
+                        })}
+                      </div>
+                    ) : null}
 
                     <div className='mt-5 grow space-y-2 border-t pt-4'>
                       {entitlements.map((label) => (

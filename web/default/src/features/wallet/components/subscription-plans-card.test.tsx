@@ -1108,6 +1108,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(goSlice).toContain('line-through')
     expect(goSlice).toContain('$10')
     expect(goSlice).toContain('$8')
+    expect(goSlice).toContain('Save $2')
     expect(goSlice.indexOf('20% OFF')).toBeLessThan(
       goSlice.indexOf('Recommended')
     )
@@ -1159,6 +1160,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     })
 
     expect(html).toContain('2.00 USD OFF')
+    expect(html).toContain('Save $2')
     expect(html).not.toContain('$2 USD OFF')
   })
 })
