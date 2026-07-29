@@ -1,13 +1,19 @@
 package model
 
 import (
+	"bytes"
+	"log"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func setupRecallSenderOptionTest(t *testing.T) {
@@ -44,6 +50,39 @@ func seedRecallSenderOptions(t *testing.T, values map[string]string) {
 	for key, value := range values {
 		require.NoError(t, DB.Create(&Option{Key: key, Value: value}).Error)
 	}
+}
+
+func TestLoadRecallSenderOptionStateForUpdateQuotesKeyForMySQL(t *testing.T) {
+	sqliteDB, err := gorm.Open(sqlite.Open(t.TempDir()+"/recall-sender-mysql-dry-run.db"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := sqliteDB.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+
+	var sqlLog bytes.Buffer
+	mysqlDB, err := gorm.Open(mysql.New(mysql.Config{
+		Conn:                      sqlDB,
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{
+		DryRun:               true,
+		DisableAutomaticPing: true,
+		Logger: logger.New(log.New(&sqlLog, "", 0), logger.Config{
+			LogLevel: logger.Info,
+		}),
+	})
+	require.NoError(t, err)
+
+	originalKeyCol := commonKeyCol
+	commonKeyCol = "`key`"
+	t.Cleanup(func() { commonKeyCol = originalKeyCol })
+
+	_, err = loadRecallSenderOptionStateForUpdate(mysqlDB)
+	require.NoError(t, err)
+	queries := sqlLog.String()
+	require.Contains(t, queries, "WHERE `key` =")
+	require.Contains(t, queries, "WHERE `key` IN")
+	require.NotContains(t, queries, "WHERE key =")
+	require.NotContains(t, queries, "WHERE key IN")
 }
 
 func TestUpdateOptionNormalizesAndSyncsSMTPFromAliases(t *testing.T) {

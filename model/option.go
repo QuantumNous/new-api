@@ -432,13 +432,13 @@ func loadRecallSenderOptionStateForUpdate(tx *gorm.DB) (recallSenderOptionState,
 		return recallSenderOptionState{}, err
 	}
 	if err := tx.Model(&Option{}).
-		Where("key = ?", recallCampaignEmailFromOptionKey).
+		Where(commonKeyCol+" = ?", recallCampaignEmailFromOptionKey).
 		UpdateColumn("value", gorm.Expr("value")).Error; err != nil {
 		return recallSenderOptionState{}, err
 	}
 
 	var options []Option
-	if err := tx.Where("key IN ?", []string{
+	if err := tx.Where(commonKeyCol+" IN ?", []string{
 		"SMTPFrom",
 		"SMTPAccount",
 		"SMTPFromAliases",
