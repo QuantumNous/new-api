@@ -1400,8 +1400,27 @@ func TestRecallEmailActivitySMTPDefiniteFailureStoresSafeMessage(t *testing.T) {
 		gin.DefaultErrorWriter = originalErrorWriter
 		common.LogWriterMu.Unlock()
 	})
-	fixture := newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
-		return fmt.Errorf("535 authentication failed for token activity-secret after DATA %s", content)
+	fixture := newRecallEmailFixture(t, 1, func(config common.SMTPConfig, subject, receiver, content, messageID string) error {
+		return fmt.Errorf(
+			"454 temporary lookup failure server=%s port=%d account=%s from=%s token=%s ssl_enabled=%t force_auth_login=%t after DATA %s",
+			config.Server,
+			config.Port,
+			config.Account,
+			config.From,
+			config.Token,
+			config.SSLEnabled,
+			config.ForceAuthLogin,
+			content,
+		)
+	})
+	setValidRecallActivitySMTP(t, common.SMTPConfig{
+		Server:         "smtp.secret-activity.example.com",
+		Port:           2465,
+		Account:        "secret-account@example.com",
+		From:           "secret-from@example.com",
+		Token:          "activity-secret",
+		SSLEnabled:     true,
+		ForceAuthLogin: true,
 	})
 
 	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
@@ -1412,7 +1431,23 @@ func TestRecallEmailActivitySMTPDefiniteFailureStoresSafeMessage(t *testing.T) {
 	require.Equal(t, "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.", stored.LastErrorMessage)
 	require.NotContains(t, stored.LastErrorMessage, "activity-secret")
 	logged := logOutput.String()
-	require.Contains(t, logged, "535 authentication failed")
+	require.Contains(t, logged, "454 temporary lookup failure")
+	for _, sensitive := range []string{
+		"smtp.secret-activity.example.com",
+		"2465",
+		"secret-account@example.com",
+		"secret-from@example.com",
+		"activity-secret",
+		"server=smtp.secret-activity.example.com",
+		"port=2465",
+		"account=secret-account@example.com",
+		"from=secret-from@example.com",
+		"token=activity-secret",
+		"ssl_enabled=true",
+		"force_auth_login=true",
+	} {
+		require.NotContains(t, logged, sensitive)
+	}
 	require.NotContains(t, logged, "activity-secret")
 	require.NotContains(t, logged, "<!doctype html>")
 	require.Contains(t, logged, "[redacted]")

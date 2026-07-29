@@ -573,7 +573,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 			}
 			return nil
 		}
-		logger.LogWarn(ctx, fmt.Sprintf("recall activity SMTP delivery failed for message %d: %s", item.Message.Id, sanitizeRecallActivitySMTPTransportError(err, smtpConfig.Token, htmlBody)))
+		logger.LogWarn(ctx, fmt.Sprintf("recall activity SMTP delivery failed for message %d: %s", item.Message.Id, sanitizeRecallActivitySMTPTransportError(err, smtpConfig, htmlBody)))
 		return w.finishSendingErrorWithMessage(ctx, item, RecallActivitySMTPSendFailedCode, RecallActivitySMTPSendFailedMessage, true)
 	}
 	acceptedAt := w.now().Unix()
@@ -714,13 +714,31 @@ func (w *RecallEmailWorker) finishErrorWithMessage(ctx context.Context, item *mo
 	return nil
 }
 
-func sanitizeRecallActivitySMTPTransportError(err error, token string, renderedContent string) string {
+func sanitizeRecallActivitySMTPTransportError(err error, smtpConfig common.SMTPConfig, renderedContent string) string {
 	if err == nil {
 		return ""
 	}
 	message := err.Error()
-	if strings.TrimSpace(token) != "" {
-		message = strings.ReplaceAll(message, token, "[redacted]")
+	for _, value := range []string{
+		smtpConfig.Server,
+		strconv.Itoa(smtpConfig.Port),
+		smtpConfig.Account,
+		smtpConfig.From,
+		smtpConfig.Token,
+	} {
+		if strings.TrimSpace(value) != "" && value != "0" {
+			message = strings.ReplaceAll(message, value, "[redacted]")
+		}
+	}
+	for _, pair := range []struct {
+		key   string
+		value bool
+	}{
+		{key: "ssl_enabled", value: smtpConfig.SSLEnabled},
+		{key: "force_auth_login", value: smtpConfig.ForceAuthLogin},
+	} {
+		message = strings.ReplaceAll(message, fmt.Sprintf("%s=%t", pair.key, pair.value), pair.key+"=[redacted]")
+		message = strings.ReplaceAll(message, fmt.Sprintf("%s: %t", pair.key, pair.value), pair.key+": [redacted]")
 	}
 	if strings.TrimSpace(renderedContent) != "" {
 		message = strings.ReplaceAll(message, renderedContent, "[rendered content redacted]")
