@@ -677,6 +677,25 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('$1000')
   })
 
+  test('falls back to USD when backend preview quote currency is not a string', () => {
+    for (const runtimeCurrency of [null, 123]) {
+      const html = renderWalletCardWithPreviewQuote(
+        stripePaymentQuote({
+          currency: runtimeCurrency as unknown as string,
+          original_total: 10,
+          discount_kind: 'invitation',
+          discount_amount: 6,
+          invitation_discount_amount: 6,
+          total: 4,
+        })
+      )
+
+      expect(html).toContain('$10')
+      expect(html).toContain('$4')
+      expect(html).toContain('Save $6')
+    }
+  })
+
   test('does not locally discount plan card prices for recall offers', () => {
     const html = renderWalletCardWithRecall()
     const goStart = html.indexOf('Go')

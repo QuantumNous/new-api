@@ -162,8 +162,12 @@ function getPlanCardDiscountPreview(
   ) {
     return null
   }
+  const currency =
+    typeof quote.currency === 'string' && quote.currency.trim()
+      ? quote.currency.trim().toUpperCase()
+      : 'USD'
   return {
-    currency: quote.currency.trim().toUpperCase() || 'USD',
+    currency,
     discountAmount,
     discountKind: quote.discount_kind,
     originalTotal,
