@@ -164,8 +164,7 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 	if w.owner == "" {
 		return 0, fmt.Errorf("recall email worker owner is required")
 	}
-	smtpConfig, err := recallActivitySMTPPreflight()
-	if err != nil {
+	if _, err := recallActivitySMTPPreflight(); err != nil {
 		return 0, err
 	}
 	campaignSetting := operation_setting.GetRecallCampaignSetting()
@@ -278,6 +277,13 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 			break
 		}
 		_, recentlyActive := activeMessageIDs[entry.item.Message.Id]
+		smtpConfig, smtpErr := recallActivitySMTPPreflight()
+		if smtpErr != nil {
+			if releaseErr := releaseRemainingSafely(index); releaseErr != nil {
+				return processed, fmt.Errorf("%w; release remaining recall email leases: %v", smtpErr, releaseErr)
+			}
+			return processed, smtpErr
+		}
 		processErr := w.processLeasedItem(ctx, entry.item, recentlyActive, &entry.candidate, smtpConfig)
 		if processErr != nil {
 			var waitErr *RecallEmailQuotaWaitError
