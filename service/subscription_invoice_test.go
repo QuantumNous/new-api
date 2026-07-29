@@ -292,6 +292,7 @@ func setupSubscriptionInvoiceServiceTestDB(t *testing.T) {
 		&model.TopUp{},
 		&model.SubscriptionDiscountAccount{},
 		&model.SubscriptionDiscountEntry{},
+		&model.Option{},
 		&model.RecallCampaign{},
 		&model.RecallRecipient{},
 		&model.RecallEvent{},

@@ -108,6 +108,11 @@ func expireSubscriptionDiscountReservationForTest(t *testing.T, reservationKey s
 	require.NoError(t, model.DB.Exec("UPDATE subscription_discount_entries SET expires_at = ? WHERE idempotency_key = ?", common.GetTimestamp()-10, reservationKey).Error)
 }
 
+func resetStripeSubscriptionDiscountInvoiceReconciliationCursorForTest(t *testing.T) {
+	t.Helper()
+	require.NoError(t, model.DB.Where("key = ?", stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey).Delete(&model.Option{}).Error)
+}
+
 func draftRenewalInvoiceFixture(invoiceID string, subscriptionID string) *stripe.Invoice {
 	inv := stripeInvoiceFixture(invoiceID, subscriptionID)
 	inv.Status = stripe.InvoiceStatusDraft
@@ -1011,6 +1016,193 @@ func TestSubscriptionDiscountInvoiceReconciliationFullOpenPageDoesNotStarveLater
 	var paidCommitCount int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key = ? AND entry_type = ?", "stripe-invoice:in_discount_stale_paid_after_full_open:reserve", model.SubscriptionDiscountEntryTypeCommit).Count(&paidCommitCount).Error)
 	require.Equal(t, int64(1), paidCommitCount)
+}
+
+func TestSubscriptionDiscountInvoiceReconciliationPersistentCursorAdvancesPastMaxOpenPages(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	resetStripeSubscriptionDiscountInvoiceReconciliationCursorForTest(t)
+	t.Cleanup(func() {
+		resetStripeSubscriptionDiscountInvoiceReconciliationCursorForTest(t)
+	})
+	openCount := stripeSubscriptionReconciliationBatchSize * stripeSubscriptionDiscountInvoiceReconciliationMaxPages
+	grantRenewalInvitationCredit(t, 9240, int64(openCount), "grant-renewal-max-open-pages")
+	openInvoiceIDs := make(map[string]struct{}, openCount)
+	for i := 0; i < openCount; i++ {
+		invoiceID := "in_discount_stale_open_max_" + strconv.Itoa(i)
+		reservationKey := "stripe-invoice:" + invoiceID + ":reserve"
+		require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+			_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+				UserID:             9240,
+				USDMinor:           1,
+				TradeNo:            invoiceID,
+				PaymentCurrency:    "USD",
+				AppliedAmountMinor: 1,
+				PricingSnapshot:    `{"source":"open-max-pages-test"}`,
+				IdempotencyKey:     reservationKey,
+				ExpiresAt:          common.GetTimestamp() + 3600,
+			})
+			return err
+		}))
+		expireSubscriptionDiscountReservationForTest(t, reservationKey)
+		openInvoiceIDs[invoiceID] = struct{}{}
+	}
+
+	_, paidBinding, paidEntitlement := seedStripeRenewalContract(t, 9241, 9341, "sub_discount_stale_paid_after_max_open")
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", paidBinding.Id).Update("initial_order_id", seedInitialOrderSnapshotForRenewal(t, 9241, 9341, "sub_discount_stale_paid_after_max_open_initial")).Error)
+	grantRenewalInvitationCredit(t, 9241, 500, "grant-renewal-stale-paid-after-max-open")
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             9241,
+			USDMinor:           500,
+			TradeNo:            "in_discount_stale_paid_after_max_open",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 300,
+			PricingSnapshot:    renewalInvoiceSnapshotJSONForTest(t, "in_discount_stale_paid_after_max_open", "sub_discount_stale_paid_after_max_open", paidBinding.Id, paidBinding.ContractId, 9341, 9241, 1234, 200, 500, 500, 300, 734, "stripe-invoice:in_discount_stale_paid_after_max_open:reserve"),
+			IdempotencyKey:     "stripe-invoice:in_discount_stale_paid_after_max_open:reserve",
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	expireSubscriptionDiscountReservationForTest(t, "stripe-invoice:in_discount_stale_paid_after_max_open:reserve")
+
+	paidInv := stripeInvoiceFixture("in_discount_stale_paid_after_max_open", "sub_discount_stale_paid_after_max_open")
+	paidInv.AmountPaid = 734
+	paidInv.Total = 734
+	paidInv.Lines.Data[0].Period = &stripe.Period{Start: paidEntitlement.EndTime, End: paidEntitlement.EndTime + 2592000}
+	paidSub := stripeSubscriptionFixture("sub_discount_stale_paid_after_max_open", map[string]string{})
+	setStripeSubscriptionCurrentPeriod(paidSub, paidEntitlement.EndTime, paidEntitlement.EndTime+2592000)
+
+	originalInvoiceGetter := stripeInvoiceGetter
+	originalSubscriptionGetter := stripeSubscriptionGetter
+	t.Cleanup(func() {
+		stripeInvoiceGetter = originalInvoiceGetter
+		stripeSubscriptionGetter = originalSubscriptionGetter
+	})
+	stripeInvoiceGetter = func(ctx context.Context, invoiceID string) (*stripe.Invoice, error) {
+		if _, ok := openInvoiceIDs[invoiceID]; ok {
+			return &stripe.Invoice{ID: invoiceID, Status: stripe.InvoiceStatusOpen}, nil
+		}
+		if invoiceID == paidInv.ID {
+			return paidInv, nil
+		}
+		return nil, errors.New("unexpected invoice")
+	}
+	stripeSubscriptionGetter = func(ctx context.Context, subscriptionID string) (*stripe.Subscription, error) {
+		require.Equal(t, paidSub.ID, subscriptionID)
+		return paidSub, nil
+	}
+
+	firstCount, err := ReconcileStaleStripeSubscriptionDiscountInvoices(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, firstCount)
+	var cursor model.Option
+	require.NoError(t, model.DB.Where("key = ?", stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey).First(&cursor).Error)
+	cursorState, err := parseStripeSubscriptionDiscountInvoiceReconciliationCursor(cursor.Value)
+	require.NoError(t, err)
+	require.Greater(t, cursorState.LastID, int64(0))
+	require.Equal(t, int64(stripeSubscriptionDiscountInvoiceReconciliationMaxPages), cursorState.Revision)
+
+	secondCount, err := ReconcileStaleStripeSubscriptionDiscountInvoices(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, secondCount)
+	var paidCommitCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key = ? AND entry_type = ?", "stripe-invoice:in_discount_stale_paid_after_max_open:reserve", model.SubscriptionDiscountEntryTypeCommit).Count(&paidCommitCount).Error)
+	require.Equal(t, int64(1), paidCommitCount)
+}
+
+func TestSubscriptionDiscountInvoiceReconciliationDoesNotAdvanceCursorOnTransientError(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	resetStripeSubscriptionDiscountInvoiceReconciliationCursorForTest(t)
+	t.Cleanup(func() {
+		resetStripeSubscriptionDiscountInvoiceReconciliationCursorForTest(t)
+	})
+	grantRenewalInvitationCredit(t, 9242, 1, "grant-renewal-transient-error")
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             9242,
+			USDMinor:           1,
+			TradeNo:            "in_discount_stale_transient_error",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 1,
+			PricingSnapshot:    `{"source":"transient-error-test"}`,
+			IdempotencyKey:     "stripe-invoice:in_discount_stale_transient_error:reserve",
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	expireSubscriptionDiscountReservationForTest(t, "stripe-invoice:in_discount_stale_transient_error:reserve")
+
+	_, paidBinding, paidEntitlement := seedStripeRenewalContract(t, 9243, 9343, "sub_discount_paid_after_transient_error")
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", paidBinding.Id).Update("initial_order_id", seedInitialOrderSnapshotForRenewal(t, 9243, 9343, "sub_discount_paid_after_transient_error_initial")).Error)
+	grantRenewalInvitationCredit(t, 9243, 500, "grant-renewal-paid-after-transient-error")
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             9243,
+			USDMinor:           500,
+			TradeNo:            "in_discount_paid_after_transient_error",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 300,
+			PricingSnapshot:    renewalInvoiceSnapshotJSONForTest(t, "in_discount_paid_after_transient_error", "sub_discount_paid_after_transient_error", paidBinding.Id, paidBinding.ContractId, 9343, 9243, 1234, 200, 500, 500, 300, 734, "stripe-invoice:in_discount_paid_after_transient_error:reserve"),
+			IdempotencyKey:     "stripe-invoice:in_discount_paid_after_transient_error:reserve",
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	expireSubscriptionDiscountReservationForTest(t, "stripe-invoice:in_discount_paid_after_transient_error:reserve")
+
+	transientInv := &stripe.Invoice{ID: "in_discount_stale_transient_error", Status: stripe.InvoiceStatusOpen}
+	paidInv := stripeInvoiceFixture("in_discount_paid_after_transient_error", "sub_discount_paid_after_transient_error")
+	paidInv.AmountPaid = 734
+	paidInv.Total = 734
+	paidInv.Lines.Data[0].Period = &stripe.Period{Start: paidEntitlement.EndTime, End: paidEntitlement.EndTime + 2592000}
+	paidSub := stripeSubscriptionFixture("sub_discount_paid_after_transient_error", map[string]string{})
+	setStripeSubscriptionCurrentPeriod(paidSub, paidEntitlement.EndTime, paidEntitlement.EndTime+2592000)
+
+	originalInvoiceGetter := stripeInvoiceGetter
+	originalSubscriptionGetter := stripeSubscriptionGetter
+	t.Cleanup(func() {
+		stripeInvoiceGetter = originalInvoiceGetter
+		stripeSubscriptionGetter = originalSubscriptionGetter
+	})
+	transientFailures := 1
+	secondRunSeen := make([]string, 0, 2)
+	recordSecondRun := false
+	stripeInvoiceGetter = func(ctx context.Context, invoiceID string) (*stripe.Invoice, error) {
+		if recordSecondRun {
+			secondRunSeen = append(secondRunSeen, invoiceID)
+		}
+		switch invoiceID {
+		case transientInv.ID:
+			if transientFailures > 0 {
+				transientFailures--
+				return nil, errors.New("temporary Stripe read failure")
+			}
+			return transientInv, nil
+		case paidInv.ID:
+			return paidInv, nil
+		default:
+			return nil, errors.New("unexpected invoice")
+		}
+	}
+	stripeSubscriptionGetter = func(ctx context.Context, subscriptionID string) (*stripe.Subscription, error) {
+		require.Equal(t, paidSub.ID, subscriptionID)
+		return paidSub, nil
+	}
+
+	firstCount, err := ReconcileStaleStripeSubscriptionDiscountInvoices(context.Background())
+	require.ErrorContains(t, err, "temporary Stripe read failure")
+	require.Zero(t, firstCount)
+	cursorState, err := loadStripeSubscriptionDiscountInvoiceReconciliationCursor()
+	require.NoError(t, err)
+	require.Zero(t, cursorState.LastID)
+	require.Zero(t, cursorState.Revision)
+
+	recordSecondRun = true
+	secondCount, err := ReconcileStaleStripeSubscriptionDiscountInvoices(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, secondCount)
+	require.NotEmpty(t, secondRunSeen)
+	require.Equal(t, transientInv.ID, secondRunSeen[0])
 }
 
 func TestSubscriptionDiscountInvoicePersistentPreparationFailureRemainsPausedAndObservable(t *testing.T) {

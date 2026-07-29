@@ -12,10 +12,14 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stripe/stripe-go/v86"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const stripeInvoiceDiscountReservePrefix = "stripe-invoice:"
 const stripeSubscriptionDiscountInvoiceReconciliationMaxPages = 10
+const stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey = "stripe_subscription_discount_invoice_reconciliation_last_id"
+
+var errStripeSubscriptionDiscountInvoiceReconciliationCursorAdvanced = errors.New("Stripe subscription discount invoice reconciliation cursor advanced")
 
 type stripeSubscriptionDiscountInvoiceSnapshot struct {
 	Version                           int    `json:"version"`
@@ -105,6 +109,12 @@ type stripeSubscriptionDiscountInvoicePrepare struct {
 	ReservationKey         string
 	Snapshot               string
 	SnapshotFacts          stripeSubscriptionDiscountInvoiceSnapshot
+}
+
+type stripeSubscriptionDiscountInvoiceReconciliationCursor struct {
+	LastID   int64  `json:"last_id"`
+	Revision int64  `json:"revision"`
+	raw      string `json:"-"`
 }
 
 func buildStripeSubscriptionDiscountInvoicePrepareTx(facts stripeInvoiceCommonFacts, existingDiscount int64) (stripeSubscriptionDiscountInvoicePrepare, error) {
@@ -516,7 +526,12 @@ func ReconcileStaleStripeSubscriptionDiscountInvoices(ctx context.Context) (int,
 	now := common.GetTimestamp()
 	stalePreparationCutoff := now - int64((15 * time.Minute).Seconds())
 	processed := 0
-	lastID := int64(0)
+	cursor, err := loadStripeSubscriptionDiscountInvoiceReconciliationCursor()
+	if err != nil {
+		return processed, err
+	}
+	lastID := cursor.LastID
+	wrapped := lastID == 0
 	for page := 0; page < stripeSubscriptionDiscountInvoiceReconciliationMaxPages; page++ {
 		var reserves []model.SubscriptionDiscountEntry
 		if err := model.DB.
@@ -535,15 +550,28 @@ func ReconcileStaleStripeSubscriptionDiscountInvoices(ctx context.Context) (int,
 			return processed, err
 		}
 		if len(reserves) == 0 {
+			if lastID > 0 && !wrapped {
+				lastID = 0
+				wrapped = true
+				cursor, err = checkpointStripeSubscriptionDiscountInvoiceReconciliationCursor(cursor, 0)
+				if errors.Is(err, errStripeSubscriptionDiscountInvoiceReconciliationCursorAdvanced) {
+					return processed, nil
+				}
+				if err != nil {
+					return processed, err
+				}
+				continue
+			}
 			return processed, nil
 		}
+		pageLastID := lastID
 		for _, reserve := range reserves {
-			lastID = reserve.ID
 			closed, err := stripeSubscriptionDiscountReservationClosed(reserve.IdempotencyKey)
 			if err != nil {
 				return processed, err
 			}
 			if closed {
+				pageLastID = reserve.ID
 				continue
 			}
 			invoiceID := strings.TrimSpace(reserve.TradeNo)
@@ -571,6 +599,7 @@ func ReconcileStaleStripeSubscriptionDiscountInvoices(ctx context.Context) (int,
 			default:
 				if inv.Status != stripe.InvoiceStatusDraft {
 					common.SysLog(fmt.Sprintf("skip stale Stripe subscription discount invoice %s: status %s cannot be prepared", invoiceID, inv.Status))
+					pageLastID = reserve.ID
 					continue
 				}
 				if err := PrepareStripeSubscriptionDiscountInvoice(ctx, invoiceID); err != nil {
@@ -578,12 +607,131 @@ func ReconcileStaleStripeSubscriptionDiscountInvoices(ctx context.Context) (int,
 				}
 				processed++
 			}
+			pageLastID = reserve.ID
 		}
+		cursor, err = checkpointStripeSubscriptionDiscountInvoiceReconciliationCursor(cursor, pageLastID)
+		if errors.Is(err, errStripeSubscriptionDiscountInvoiceReconciliationCursorAdvanced) {
+			return processed, nil
+		}
+		if err != nil {
+			return processed, err
+		}
+		lastID = pageLastID
 		if len(reserves) < stripeSubscriptionReconciliationBatchSize {
+			if lastID > 0 && !wrapped {
+				lastID = 0
+				wrapped = true
+				cursor, err = checkpointStripeSubscriptionDiscountInvoiceReconciliationCursor(cursor, 0)
+				if errors.Is(err, errStripeSubscriptionDiscountInvoiceReconciliationCursorAdvanced) {
+					return processed, nil
+				}
+				if err != nil {
+					return processed, err
+				}
+				continue
+			}
 			return processed, nil
 		}
 	}
 	return processed, nil
+}
+
+func loadStripeSubscriptionDiscountInvoiceReconciliationCursor() (stripeSubscriptionDiscountInvoiceReconciliationCursor, error) {
+	if !stripeReconciliationTableAvailable(&model.Option{}) {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, nil
+	}
+	initial, err := stripeSubscriptionDiscountInvoiceReconciliationCursorJSON(stripeSubscriptionDiscountInvoiceReconciliationCursor{})
+	if err != nil {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, err
+	}
+	if err := model.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&model.Option{
+		Key:   stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey,
+		Value: initial,
+	}).Error; err != nil {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, err
+	}
+	var option model.Option
+	err = model.DB.Where("key = ?", stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey).First(&option).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, nil
+	}
+	if err != nil {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, err
+	}
+	cursor, err := parseStripeSubscriptionDiscountInvoiceReconciliationCursor(option.Value)
+	if err != nil {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, err
+	}
+	cursor.raw = option.Value
+	return cursor, nil
+}
+
+func checkpointStripeSubscriptionDiscountInvoiceReconciliationCursor(cursor stripeSubscriptionDiscountInvoiceReconciliationCursor, lastID int64) (stripeSubscriptionDiscountInvoiceReconciliationCursor, error) {
+	if lastID < 0 {
+		lastID = 0
+	}
+	if !stripeReconciliationTableAvailable(&model.Option{}) {
+		cursor.LastID = lastID
+		return cursor, nil
+	}
+	next := stripeSubscriptionDiscountInvoiceReconciliationCursor{
+		LastID:   lastID,
+		Revision: cursor.Revision + 1,
+	}
+	value, err := stripeSubscriptionDiscountInvoiceReconciliationCursorJSON(next)
+	if err != nil {
+		return cursor, err
+	}
+	result := model.DB.Model(&model.Option{}).
+		Where("key = ? AND value = ?", stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey, cursor.raw).
+		Update("value", value)
+	if result.Error != nil {
+		return cursor, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return cursor, errStripeSubscriptionDiscountInvoiceReconciliationCursorAdvanced
+	}
+	next.raw = value
+	return next, nil
+}
+
+func parseStripeSubscriptionDiscountInvoiceReconciliationCursor(raw string) (stripeSubscriptionDiscountInvoiceReconciliationCursor, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, nil
+	}
+	var cursor stripeSubscriptionDiscountInvoiceReconciliationCursor
+	if err := common.Unmarshal([]byte(raw), &cursor); err == nil {
+		if cursor.LastID < 0 {
+			cursor.LastID = 0
+		}
+		if cursor.Revision < 0 {
+			cursor.Revision = 0
+		}
+		return cursor, nil
+	}
+	lastID, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, nil
+	}
+	if lastID < 0 {
+		lastID = 0
+	}
+	return stripeSubscriptionDiscountInvoiceReconciliationCursor{LastID: lastID}, nil
+}
+
+func stripeSubscriptionDiscountInvoiceReconciliationCursorJSON(cursor stripeSubscriptionDiscountInvoiceReconciliationCursor) (string, error) {
+	if cursor.LastID < 0 {
+		cursor.LastID = 0
+	}
+	if cursor.Revision < 0 {
+		cursor.Revision = 0
+	}
+	data, err := common.Marshal(cursor)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func stripeSubscriptionDiscountReservationClosed(reservationKey string) (bool, error) {
