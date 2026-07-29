@@ -90,10 +90,6 @@ export function MessageMetadata(props: MessageMetadataProps) {
       modelLabel = t('Model not recorded')
     }
   }
-  const modelChange =
-    props.message.modelChangeFrom && props.message.modelChangeTo
-      ? `${props.message.modelChangeFrom} → ${props.message.modelChangeTo}`
-      : undefined
   const usage =
     props.message.from === 'assistant' ? props.message.usage : undefined
   const tokensPerSecond = usage
@@ -103,22 +99,8 @@ export function MessageMetadata(props: MessageMetadataProps) {
   const hasDiagnostics = Boolean(duration || usage)
   const showModelChip = Boolean(modelLabel) && modelLabel !== currentModel
 
-  if (!messageTime && !hasDiagnostics && !modelLabel && !modelChange) {
+  if (!messageTime && !hasDiagnostics && !modelLabel) {
     return null
-  }
-
-  if (modelChange) {
-    return (
-      <div
-        className={cn(
-          'text-muted-foreground mt-1 flex min-h-4 items-center justify-center gap-1.5 text-[11px] leading-none'
-        )}
-      >
-        <span className='bg-muted/70 text-muted-foreground ring-border/60 inline-flex items-center rounded-full px-2.5 py-0.5 font-mono text-[10px] ring-1'>
-          {t('Switched model')}: {modelChange}
-        </span>
-      </div>
-    )
   }
 
   return (

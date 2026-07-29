@@ -84,12 +84,20 @@ export type PlaygroundGenerationStatus = {
   pendingCount: number
 }
 
+/** Transient mid-thread model switch tip (not a chat message). */
+export type ModelSwitchNotice = {
+  id: number
+  from: string
+  to: string
+}
+
 interface PlaygroundStoreState extends PersistedPlaygroundState {
   // Ephemeral (not persisted)
   models: ModelOption[]
   groups: GroupOption[]
   prefill: PlaygroundPrefill | null
   generation: PlaygroundGenerationStatus
+  modelSwitchNotice: ModelSwitchNotice | null
 
   setWorkspaceMode: (mode: PlaygroundWorkspaceMode) => void
   setActiveModality: (modality: StudioModality) => void
@@ -104,6 +112,7 @@ interface PlaygroundStoreState extends PersistedPlaygroundState {
     group?: string,
     options?: { switchModality?: StudioModality; startNewSession?: boolean }
   ) => void
+  clearModelSwitchNotice: () => void
   selectDuo: () => void
   updateConfig: (patch: Partial<PlaygroundConfig>) => void
   resetConfig: () => void
@@ -283,6 +292,7 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
       groups: [],
       prefill: null,
       generation: { activeModality: null, pendingCount: 0 },
+      modelSwitchNotice: null,
 
       setWorkspaceMode: (workspaceMode) => set({ workspaceMode }),
       setActiveModality: (modality) =>
@@ -312,6 +322,8 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
             activeSessionByModality,
             modality
           )
+          let modelSwitchNotice: ModelSwitchNotice | null =
+            state.modelSwitchNotice
 
           if (startNew || !activeSession) {
             const draft = createEmptySession(
@@ -325,39 +337,35 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
               [modality]: draft.id,
             }
             activeSession = draft
+            modelSwitchNotice = null
           } else {
             const previousModel = activeSession.model
-            let nextSession: PlaygroundSession = {
+            // Strip legacy model-switch markers that used to live in the
+            // transcript as fake system turns.
+            const cleanedMessages = isChatSession(activeSession)
+              ? activeSession.messages.filter(
+                  (message) =>
+                    !(message.modelChangeFrom && message.modelChangeTo)
+                )
+              : undefined
+            const nextSession: PlaygroundSession = {
               ...activeSession,
               model,
               group: group ?? activeSession.group,
+              ...(cleanedMessages ? { messages: cleanedMessages } : {}),
             }
-            // Insert a visible model-change marker on non-empty chat threads.
+            // Mid-thread switches surface as a short-lived status tip only.
             if (
               isChatSession(activeSession) &&
               previousModel &&
               previousModel !== model &&
-              activeSession.messages.length > 0
+              (cleanedMessages?.length ?? 0) > 0
             ) {
-              const marker: Message = {
-                key: `model-change-${Date.now()}`,
-                from: 'system',
-                versions: [
-                  {
-                    id: `v-${Date.now()}`,
-                    content: `${previousModel} → ${model}`,
-                  },
-                ],
-                modelChangeFrom: previousModel,
-                modelChangeTo: model,
-                createdAt: Date.now(),
-                status: 'complete',
+              modelSwitchNotice = {
+                id: Date.now(),
+                from: previousModel,
+                to: model,
               }
-              nextSession = {
-                ...nextSession,
-                messages: [...activeSession.messages, marker],
-                isDraft: false,
-              } as PlaygroundSession
             }
             sessions = upsertSession(sessions, touchSession(nextSession))
           }
@@ -372,8 +380,10 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
             workspaceMode: 'model',
             sessions,
             activeSessionByModality,
+            modelSwitchNotice,
           }
         }),
+      clearModelSwitchNotice: () => set({ modelSwitchNotice: null }),
       selectDuo: () => set({ workspaceMode: 'duo' }),
       updateConfig: (patch) =>
         set((state) => {
@@ -652,7 +662,11 @@ export function selectActiveChatMessages(
     state.activeSessionByModality,
     'chat'
   )
-  return isChatSession(session) ? session.messages : []
+  if (!isChatSession(session)) return []
+  // Legacy sessions may still hold model-switch markers; never render them.
+  return session.messages.filter(
+    (message) => !(message.modelChangeFrom && message.modelChangeTo)
+  )
 }
 
 export function selectActiveSession(

@@ -49,6 +49,7 @@ import {
   submitVideo,
 } from './api'
 import { ModelCatalog } from './components/catalog/model-catalog'
+import { ModelSwitchNotice } from './components/chat/model-switch-notice'
 import { PlaygroundChat } from './components/chat/playground-chat'
 import { ChatComposer } from './components/composer/chat-composer'
 import {
@@ -661,7 +662,7 @@ export function Playground() {
 
       {!duoActive && activeModality === 'chat' && (
         <>
-          <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+          <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
             <PlaygroundChat
               messages={messages}
               isLoadingMessages={false}
@@ -676,6 +677,7 @@ export function Playground() {
               onSaveEdit={(newContent) => applyEdit(newContent, false)}
               onSaveEditAndSubmit={(newContent) => applyEdit(newContent, true)}
             />
+            <ModelSwitchNotice />
           </div>
           <div className='playground-composer-dock mx-auto w-full max-w-4xl shrink-0 space-y-2 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:px-3 sm:pb-3 md:px-3 md:pb-4'>
             <ChatComposer

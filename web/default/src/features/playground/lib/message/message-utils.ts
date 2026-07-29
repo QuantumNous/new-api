@@ -261,6 +261,15 @@ export function formatMessageForAPI(message: Message): ChatCompletionMessage {
 export function isValidMessage(message: Message): boolean {
   if (!message || !message.from || !message.versions.length) return false
 
+  // Model-switch markers (and any other system transcript rows) must never
+  // leave the playground UI as chat turns sent upstream.
+  if (
+    message.from === MESSAGE_ROLES.SYSTEM ||
+    (message.modelChangeFrom && message.modelChangeTo)
+  ) {
+    return false
+  }
+
   // Exclude empty assistant messages (loading/streaming placeholders)
   if (message.from === MESSAGE_ROLES.ASSISTANT && !hasMessageContent(message)) {
     return false

@@ -120,7 +120,10 @@ export interface Message {
    * (shown as "model not recorded").
    */
   model?: string
-  /** Visible marker when the user switches models mid-thread. */
+  /**
+   * Legacy mid-thread model-switch marker. No longer written; filtered out of
+   * the transcript UI and API payload. Kept for persisted session compat.
+   */
   modelChangeFrom?: string
   modelChangeTo?: string
   reasoning?: {
