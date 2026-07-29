@@ -22,6 +22,7 @@ import type {
   FlowQuotaDataItem,
   QuotaDataItem,
   SavingsSummary,
+  SavingsLifetimeSummary,
   SavingsTrend,
   SavingsTrendGranularity,
   UptimeGroupResult,
@@ -75,6 +76,14 @@ export async function getUserSavingsTrend(params: {
     '/api/user/savings/trend',
     { params }
   )
+  return res.data
+}
+
+export async function getUserSavingsLifetime() {
+  const res = await api.get<{
+    success: boolean
+    data: SavingsLifetimeSummary
+  }>('/api/user/savings/lifetime')
   return res.data
 }
 

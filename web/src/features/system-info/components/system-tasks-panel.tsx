@@ -44,10 +44,13 @@ import { cn } from '@/lib/utils'
 
 const TASK_LIMIT = 20
 const ACTIVE_POLL_INTERVAL_MS = 8000
+const TASK_SKELETON_KEYS = ['task-1', 'task-2', 'task-3', 'task-4'] as const
 
 const STATUS_VARIANT: Record<SystemTaskStatus, 'secondary' | 'destructive'> = {
   pending: 'secondary',
   running: 'secondary',
+  pause_requested: 'secondary',
+  paused: 'secondary',
   succeeded: 'secondary',
   failed: 'destructive',
 }
@@ -57,6 +60,9 @@ const STATUS_CLASS_NAME: Record<SystemTaskStatus, string> = {
     'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
   running:
     'bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300 [&_span]:bg-sky-500',
+  pause_requested:
+    'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  paused: 'bg-muted text-muted-foreground',
   succeeded:
     'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
   failed: '',
@@ -65,6 +71,8 @@ const STATUS_CLASS_NAME: Record<SystemTaskStatus, string> = {
 const STATUS_DOT_CLASS_NAME: Record<SystemTaskStatus, string> = {
   pending: 'bg-amber-500',
   running: 'bg-sky-500',
+  pause_requested: 'bg-amber-500',
+  paused: 'bg-muted-foreground',
   succeeded: 'bg-emerald-500',
   failed: 'bg-destructive',
 }
@@ -72,6 +80,8 @@ const STATUS_DOT_CLASS_NAME: Record<SystemTaskStatus, string> = {
 const PROGRESS_BAR_CLASS_NAME: Record<SystemTaskStatus, string> = {
   pending: '[&_[data-slot=progress-indicator]]:bg-amber-500',
   running: '[&_[data-slot=progress-indicator]]:bg-sky-500',
+  pause_requested: '[&_[data-slot=progress-indicator]]:bg-amber-500',
+  paused: '[&_[data-slot=progress-indicator]]:bg-muted-foreground',
   succeeded: '[&_[data-slot=progress-indicator]]:bg-emerald-500',
   failed: '[&_[data-slot=progress-indicator]]:bg-destructive',
 }
@@ -84,6 +94,7 @@ const TYPE_LABEL: Record<string, string> = {
   model_update: 'Batch upstream model update',
   midjourney_poll: 'Drawing task polling',
   async_task_poll: 'Async task polling',
+  savings_lifetime_backfill: 'Savings lifetime backfill',
 }
 
 const TYPE_DISPLAY_ID: Record<string, string> = {
@@ -91,12 +102,26 @@ const TYPE_DISPLAY_ID: Record<string, string> = {
 }
 
 function isActiveStatus(status: SystemTaskStatus) {
-  return status === 'pending' || status === 'running'
+  return (
+    status === 'pending' ||
+    status === 'running' ||
+    status === 'pause_requested' ||
+    status === 'paused'
+  )
+}
+
+function isPollingStatus(status: SystemTaskStatus) {
+  return (
+    status === 'pending' || status === 'running' || status === 'pause_requested'
+  )
 }
 
 function getProgress(task: SystemTask): number | null {
   const progress = (task.state as { progress?: unknown } | undefined)?.progress
   if (typeof progress !== 'number' || Number.isNaN(progress)) return null
+  if (task.type === 'savings_lifetime_backfill' && progress <= 1) {
+    return Math.min(100, Math.max(0, progress * 100))
+  }
   return Math.min(100, Math.max(0, progress))
 }
 
@@ -218,7 +243,7 @@ export function SystemTasksPanel() {
     staleTime: 30 * 1000,
     retry: false,
     refetchInterval: (query) =>
-      query.state.data?.some((task) => isActiveStatus(task.status))
+      query.state.data?.some((task) => isPollingStatus(task.status))
         ? ACTIVE_POLL_INTERVAL_MS
         : false,
   })
@@ -229,6 +254,87 @@ export function SystemTasksPanel() {
   const hasActiveTasks = tasks.some((task) => isActiveStatus(task.status))
   const activeTasks = tasks.filter((task) => isActiveStatus(task.status))
   const historyTasks = tasks.filter((task) => !isActiveStatus(task.status))
+  let content
+  if (loading) {
+    content = (
+      <div className='space-y-2 p-4 sm:p-5'>
+        {TASK_SKELETON_KEYS.map((key) => (
+          <Skeleton key={key} className='h-9 w-full rounded-md' />
+        ))}
+      </div>
+    )
+  } else if (tasksQuery.isError) {
+    content = (
+      <ErrorState
+        title={t('We could not load system tasks.')}
+        description={
+          tasksQuery.error instanceof Error
+            ? tasksQuery.error.message
+            : undefined
+        }
+        onRetry={() => {
+          void tasksQuery.refetch()
+        }}
+        className='min-h-[260px]'
+      />
+    )
+  } else if (tasks.length === 0) {
+    content = (
+      <div className='px-4 py-10 text-center sm:px-5'>
+        <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-lg'>
+          <ListChecks
+            className='text-muted-foreground size-5'
+            aria-hidden='true'
+          />
+        </div>
+        <p className='text-muted-foreground text-sm'>
+          {t('No system tasks yet.')}
+        </p>
+      </div>
+    )
+  } else {
+    content = (
+      <div className='space-y-4 p-4 sm:p-5'>
+        <div>
+          <div className='mb-2 flex items-center justify-between gap-3'>
+            <div>
+              <h4 className='text-sm font-medium'>{t('Active Tasks')}</h4>
+              <p className='text-muted-foreground mt-0.5 text-xs'>
+                {t('Tasks currently pending, running, or paused.')}
+              </p>
+            </div>
+            <Badge variant='outline'>{activeTasks.length}</Badge>
+          </div>
+          {activeTasks.length > 0 ? (
+            <SystemTasksTable tasks={activeTasks} />
+          ) : (
+            <div className='text-muted-foreground rounded-md border border-dashed px-4 py-6 text-center text-sm'>
+              {t('No active system tasks.')}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className='mb-2 flex items-center justify-between gap-3'>
+            <div>
+              <h4 className='text-sm font-medium'>{t('Task History')}</h4>
+              <p className='text-muted-foreground mt-0.5 text-xs'>
+                {t('Recently completed or failed system task runs.')}
+              </p>
+            </div>
+            <Badge variant='outline'>{historyTasks.length}</Badge>
+          </div>
+          {historyTasks.length > 0 ? (
+            <SystemTasksTable tasks={historyTasks} />
+          ) : (
+            <div className='text-muted-foreground rounded-md border border-dashed px-4 py-6 text-center text-sm'>
+              {t('No historical system tasks.')}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <section className='bg-card overflow-hidden rounded-lg border shadow-xs'>
@@ -284,80 +390,7 @@ export function SystemTasksPanel() {
         </div>
       </div>
 
-      <div aria-busy={tasksQuery.isFetching}>
-        {loading ? (
-          <div className='space-y-2 p-4 sm:p-5'>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className='h-9 w-full rounded-md' />
-            ))}
-          </div>
-        ) : tasksQuery.isError ? (
-          <ErrorState
-            title={t('We could not load system tasks.')}
-            description={
-              tasksQuery.error instanceof Error
-                ? tasksQuery.error.message
-                : undefined
-            }
-            onRetry={() => {
-              void tasksQuery.refetch()
-            }}
-            className='min-h-[260px]'
-          />
-        ) : tasks.length === 0 ? (
-          <div className='px-4 py-10 text-center sm:px-5'>
-            <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-lg'>
-              <ListChecks
-                className='text-muted-foreground size-5'
-                aria-hidden='true'
-              />
-            </div>
-            <p className='text-muted-foreground text-sm'>
-              {t('No system tasks yet.')}
-            </p>
-          </div>
-        ) : (
-          <div className='space-y-4 p-4 sm:p-5'>
-            <div>
-              <div className='mb-2 flex items-center justify-between gap-3'>
-                <div>
-                  <h4 className='text-sm font-medium'>{t('Active Tasks')}</h4>
-                  <p className='text-muted-foreground mt-0.5 text-xs'>
-                    {t('Tasks currently pending or running.')}
-                  </p>
-                </div>
-                <Badge variant='outline'>{activeTasks.length}</Badge>
-              </div>
-              {activeTasks.length > 0 ? (
-                <SystemTasksTable tasks={activeTasks} />
-              ) : (
-                <div className='text-muted-foreground rounded-md border border-dashed px-4 py-6 text-center text-sm'>
-                  {t('No active system tasks.')}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <div className='mb-2 flex items-center justify-between gap-3'>
-                <div>
-                  <h4 className='text-sm font-medium'>{t('Task History')}</h4>
-                  <p className='text-muted-foreground mt-0.5 text-xs'>
-                    {t('Recently completed or failed system task runs.')}
-                  </p>
-                </div>
-                <Badge variant='outline'>{historyTasks.length}</Badge>
-              </div>
-              {historyTasks.length > 0 ? (
-                <SystemTasksTable tasks={historyTasks} />
-              ) : (
-                <div className='text-muted-foreground rounded-md border border-dashed px-4 py-6 text-center text-sm'>
-                  {t('No historical system tasks.')}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      <div aria-busy={tasksQuery.isFetching}>{content}</div>
     </section>
   )
 }

@@ -22,6 +22,8 @@ import type {
   ConfirmPaymentComplianceResponse,
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
+  SavingsLifetimeBackfillTask,
+  StartSavingsLifetimeBackfillResponse,
   SystemOptionsResponse,
   SystemTaskListResponse,
   SystemTaskResponse,
@@ -65,6 +67,53 @@ export async function getCurrentLogCleanupTask() {
     '/api/system-task/current',
     {
       params: { type: 'log_cleanup' },
+    }
+  )
+  return res.data
+}
+
+export async function startSavingsLifetimeBackfill() {
+  const res = await api.post<StartSavingsLifetimeBackfillResponse>(
+    '/api/system-task/savings-lifetime-backfill'
+  )
+  return res.data
+}
+
+export async function getSavingsLifetimeBackfill() {
+  const res = await api.get<
+    SystemTaskResponse<SavingsLifetimeBackfillTask | null>
+  >('/api/system-task/savings-lifetime-backfill')
+  return res.data
+}
+
+export async function pauseSavingsLifetimeBackfill(taskId: string) {
+  const res = await api.post<SystemTaskResponse<SavingsLifetimeBackfillTask>>(
+    '/api/system-task/savings-lifetime-backfill/pause',
+    null,
+    {
+      params: { task_id: taskId },
+    }
+  )
+  return res.data
+}
+
+export async function resumeSavingsLifetimeBackfill(taskId: string) {
+  const res = await api.post<SystemTaskResponse<SavingsLifetimeBackfillTask>>(
+    '/api/system-task/savings-lifetime-backfill/resume',
+    null,
+    {
+      params: { task_id: taskId },
+    }
+  )
+  return res.data
+}
+
+export async function retrySavingsLifetimeBackfill(taskId: string) {
+  const res = await api.post<SystemTaskResponse<SavingsLifetimeBackfillTask>>(
+    '/api/system-task/savings-lifetime-backfill/retry',
+    null,
+    {
+      params: { task_id: taskId },
     }
   )
   return res.data

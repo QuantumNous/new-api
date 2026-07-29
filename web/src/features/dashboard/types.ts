@@ -52,6 +52,34 @@ export interface SavingsSummary {
   window_days: number
 }
 
+export interface SavingsLifetimeSummary {
+  enabled: boolean
+  show_on_dashboard: boolean
+  show_on_wallet: boolean
+  currency: 'CNY'
+  savings_cny_micros: string
+  savings_quota: string
+  official_quota: string
+  actual_quota: string
+  request_count: number
+  estimated_request_count: number
+  snapshot_request_count: number
+  reconstructed_request_count: number
+  coverage_ratio: number
+  statistics_started_at: number
+  last_aggregated_at: number
+  backfill_status:
+    | 'not_started'
+    | 'pending'
+    | 'running'
+    | 'pause_requested'
+    | 'paused'
+    | 'completed'
+    | 'failed'
+  backfill_progress: number
+  is_complete: boolean
+}
+
 export type SavingsTrendGranularity = 'hour' | 'day'
 
 export interface SavingsTrendBucket {

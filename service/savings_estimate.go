@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/savings_setting"
 
@@ -96,6 +98,10 @@ type SavingsEstimate struct {
 	PricingMode       string `json:"pricing_mode"`
 	CalculationMode   string `json:"calculation_mode,omitempty"`
 	Estimated         bool   `json:"estimated"`
+	AggregationKey    string `json:"savings_aggregation_key,omitempty"`
+	QuotaPerUnit      int64  `json:"quota_per_unit_snapshot,omitempty"`
+	USDCNYRateMicros  int64  `json:"usd_cny_rate_micros,omitempty"`
+	SavingsCNYMicros  string `json:"savings_cny_micros,omitempty"`
 }
 
 type SavingsEstimateResult struct {
@@ -166,6 +172,10 @@ type savingsSummaryAccumulator struct {
 
 type savingsLogOther struct {
 	SavingsEstimate json.RawMessage `json:"savings_estimate"`
+	AggregationKey  string          `json:"savings_aggregation_key"`
+	AdminInfo       struct {
+		SavingsSkipReason string `json:"savings_skip_reason"`
+	} `json:"admin_info"`
 }
 
 type legacySavingsLogOther struct {
@@ -217,11 +227,111 @@ func AttachTextSavingsEstimate(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	if other == nil {
 		return
 	}
+	aggregationKey := ""
+	if savings_setting.LifetimeEnabled() {
+		aggregationKey = "savg_" + common.GetUUID()
+		other["savings_aggregation_key"] = aggregationKey
+	}
 	result := buildTextSavingsEstimate(ctx, relayInfo, summary)
 	if result.Estimate == nil {
+		if aggregationKey != "" {
+			adminInfo, ok := other["admin_info"].(map[string]interface{})
+			if !ok || adminInfo == nil {
+				adminInfo = map[string]interface{}{}
+				other["admin_info"] = adminInfo
+			}
+			adminInfo["savings_skip_reason"] = result.SkipReason
+		}
 		return
 	}
+	attachSavingsLifetimeSnapshot(result.Estimate, aggregationKey)
 	other["savings_estimate"] = result.Estimate
+}
+
+func attachSavingsLifetimeSnapshot(estimate *SavingsEstimate, aggregationKey string) {
+	if estimate == nil || !savings_setting.LifetimeEnabled() {
+		return
+	}
+	quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit).Round(0)
+	rate := decimal.NewFromFloat(operation_setting.USDExchangeRate)
+	if quotaPerUnit.LessThanOrEqual(decimal.Zero) || rate.LessThanOrEqual(decimal.Zero) {
+		return
+	}
+	rateMicros := rate.Mul(decimal.NewFromInt(1_000_000)).Round(0)
+	amountMicros := decimal.NewFromInt(int64(estimate.SavingsQuota)).
+		Div(quotaPerUnit).
+		Mul(rate).
+		Mul(decimal.NewFromInt(1_000_000)).
+		Round(0)
+	maxInt64 := decimal.NewFromInt(math.MaxInt64)
+	if rateMicros.GreaterThan(maxInt64) || amountMicros.GreaterThan(maxInt64) {
+		common.SysError("savings lifetime currency snapshot exceeds int64")
+		return
+	}
+	estimate.AggregationKey = aggregationKey
+	estimate.QuotaPerUnit = quotaPerUnit.IntPart()
+	estimate.USDCNYRateMicros = rateMicros.IntPart()
+	estimate.SavingsCNYMicros = amountMicros.StringFixed(0)
+}
+
+func RecordSavingsLifetimeLog(log *model.Log) error {
+	if log == nil || !savings_setting.LifetimeEnabled() {
+		return nil
+	}
+	event, ok := buildSavingsLifetimeEvent(log)
+	if !ok {
+		return nil
+	}
+	if err := model.CreateSavingsLifetimeEvents([]model.SavingsLifetimeEvent{event}); err != nil {
+		return err
+	}
+	notifySavingsLifetimeAggregator()
+	return nil
+}
+
+func buildSavingsLifetimeEvent(log *model.Log) (model.SavingsLifetimeEvent, bool) {
+	if log == nil {
+		return model.SavingsLifetimeEvent{}, false
+	}
+	var other savingsLogOther
+	if err := common.UnmarshalJsonStr(log.Other, &other); err != nil || strings.TrimSpace(other.AggregationKey) == "" {
+		return model.SavingsLifetimeEvent{}, false
+	}
+	event := model.SavingsLifetimeEvent{
+		EventKey:         "log:" + other.AggregationKey + ":base",
+		SourceKey:        other.AggregationKey,
+		LogID:            int64(log.Id),
+		UserID:           log.UserId,
+		OccurredAt:       log.CreatedAt,
+		DayStartUTC:      log.CreatedAt / (24 * 60 * 60) * (24 * 60 * 60),
+		EventType:        model.SavingsLifetimeEventTypeBase,
+		CoverageState:    model.SavingsLifetimeCoverageSkipped,
+		SkipReason:       other.AdminInfo.SavingsSkipReason,
+		AggregateVersion: 1,
+	}
+	estimate := savingsEstimateFromOther(log.Other)
+	if estimate != nil {
+		amountMicros, err := strconv.ParseInt(estimate.SavingsCNYMicros, 10, 64)
+		if err != nil || estimate.QuotaPerUnit <= 0 || estimate.USDCNYRateMicros <= 0 {
+			event.SkipReason = SavingsSkipInvalidSnapshot
+		} else {
+			event.CoverageState = model.SavingsLifetimeCoverageEstimated
+			event.SkipReason = ""
+			event.CalculationMode = model.SavingsLifetimeCalculationSnapshot
+			event.OfficialQuota = int64(estimate.OfficialQuota)
+			event.ActualQuota = int64(estimate.ActualQuota)
+			event.SavingsQuota = int64(estimate.SavingsQuota)
+			event.SavingsCNYMicros = amountMicros
+			event.QuotaPerUnitSnapshot = estimate.QuotaPerUnit
+			event.USDCNYRateMicros = estimate.USDCNYRateMicros
+			event.PriceSnapshotAt = estimate.PriceSnapshotAt
+			event.PriceFingerprint = estimate.PriceFingerprint
+		}
+	}
+	if event.SkipReason == "" && event.CoverageState == model.SavingsLifetimeCoverageSkipped {
+		event.SkipReason = SavingsSkipInvalidSnapshot
+	}
+	return event, true
 }
 
 func buildTextSavingsEstimate(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, summary textQuotaSummary) SavingsEstimateResult {

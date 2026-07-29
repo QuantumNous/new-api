@@ -24,6 +24,7 @@ import {
   BadgeDollarSign,
   Flame,
   ShieldCheck,
+  Sparkles,
   TrendingDown,
 } from 'lucide-react'
 import { useMemo } from 'react'
@@ -38,11 +39,13 @@ import {
 } from '@/components/ui/tooltip'
 import {
   getUserQuotaDates,
+  getUserSavingsLifetime,
   getUserSavingsSummary,
 } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import {
   formatSavingsQuotaAsCNY,
+  formatSavingsCNYMicros,
   getRollingSavingsTimeRange,
 } from '@/features/dashboard/lib/savings'
 import type { QuotaDataItem } from '@/features/dashboard/types'
@@ -191,6 +194,13 @@ export function SummaryCards() {
     refetchInterval: 60 * 1000,
   })
 
+  const savingsLifetimeQuery = useQuery({
+    queryKey: ['dashboard', 'overview', 'savings-lifetime'],
+    queryFn: getUserSavingsLifetime,
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+  })
+
   const summaryValues = useMemo(() => {
     return {
       usedDisplay: formatQuota(usedQuota),
@@ -251,6 +261,43 @@ export function SummaryCards() {
   const reconstructedSavingsCount =
     savingsSummary?.reconstructed_request_count ?? 0
   const showSavingsSummary = savingsSummary != null
+  const savingsLifetime = savingsLifetimeQuery.data?.data
+  const showSavingsLifetime =
+    savingsLifetime?.enabled === true &&
+    savingsLifetime.show_on_dashboard === true
+  const lifetimeAmountDisplay = showSavingsLifetime
+    ? formatSavingsCNYMicros(savingsLifetime.savings_cny_micros)
+    : ''
+  const lifetimeCoverageDisplay = showSavingsLifetime
+    ? Intl.NumberFormat(undefined, {
+        style: 'percent',
+        maximumFractionDigits: 0,
+      }).format(savingsLifetime.coverage_ratio)
+    : ''
+  let lifetimeDescription = ''
+  if (showSavingsLifetime) {
+    if (savingsLifetime.backfill_status === 'failed') {
+      lifetimeDescription = t('Historical savings backfill failed')
+    } else if (!savingsLifetime.is_complete) {
+      lifetimeDescription = t(
+        'Counted so far · {{coverage}} coverage · {{progress}} backfilled',
+        {
+          coverage: lifetimeCoverageDisplay,
+          progress: Intl.NumberFormat(undefined, {
+            style: 'percent',
+            maximumFractionDigits: 0,
+          }).format(savingsLifetime.backfill_progress),
+        }
+      )
+    } else if (savingsLifetime.statistics_started_at > 0) {
+      lifetimeDescription = t('Since {{date}} · {{coverage}} coverage', {
+        date: formatTimestampToDate(savingsLifetime.statistics_started_at),
+        coverage: lifetimeCoverageDisplay,
+      })
+    } else {
+      lifetimeDescription = t('No lifetime savings records yet')
+    }
+  }
   const hasPositiveSavings =
     savingsSummary?.enabled === true &&
     !savingsSummary.is_partial &&
@@ -418,58 +465,95 @@ export function SummaryCards() {
               </div>
             </div>
 
-            {showSavingsSummary && (
+            {(showSavingsSummary || showSavingsLifetime) && (
               <div className='bg-background rounded-md border px-2.5 py-2'>
-                <div
-                  className={cn(
-                    'flex items-start justify-between gap-2 text-xs leading-snug font-semibold',
-                    hasPositiveSavings ? 'text-success' : 'text-foreground'
-                  )}
-                >
-                  <div className='flex min-w-0 items-center gap-1'>
-                    <BadgeDollarSign
-                      className='size-3.5 shrink-0'
+                {showSavingsSummary && savingsSummary && (
+                  <div>
+                    <div
+                      className={cn(
+                        'flex items-start justify-between gap-2 text-xs leading-snug font-semibold',
+                        hasPositiveSavings ? 'text-success' : 'text-foreground'
+                      )}
+                    >
+                      <div className='flex min-w-0 items-center gap-1'>
+                        <BadgeDollarSign
+                          className='size-3.5 shrink-0'
+                          aria-hidden='true'
+                        />
+                        <span className='min-w-0'>
+                          {hasPositiveSavings
+                            ? t(
+                                'In the last 24 hours, RAPI saved you about {{amount}}',
+                                { amount: savingsAmountDisplay }
+                              )
+                            : `${t('Last 24h savings estimate')}: ${savingsAmountDisplay}`}
+                        </span>
+                      </div>
+                      {savingsSummary.enabled && (
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Link
+                                to='/dashboard/$section'
+                                params={{ section: 'models' }}
+                                className='text-muted-foreground hover:text-foreground inline-flex shrink-0'
+                                aria-label={t('View savings trend')}
+                              />
+                            }
+                          >
+                            <ArrowUpRight
+                              className='size-3.5'
+                              aria-hidden='true'
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t('View savings trend')}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                    <div className='text-muted-foreground mt-1 text-[11px] leading-snug'>
+                      {savingsSummaryDescription}
+                    </div>
+                    {savingsSummary.official_price_stale &&
+                      savingsSummary.source_updated_at > 0 && (
+                        <div className='text-warning mt-1 text-[11px] leading-snug'>
+                          {t('Official price updated {{time}}', {
+                            time: formatTimestampToDate(
+                              savingsSummary.source_updated_at
+                            ),
+                          })}
+                        </div>
+                      )}
+                  </div>
+                )}
+                {showSavingsLifetime && (
+                  <div
+                    className={cn(
+                      'flex min-w-0 items-start gap-1',
+                      showSavingsSummary && 'mt-2 border-t pt-2'
+                    )}
+                  >
+                    <Sparkles
+                      className='text-success mt-0.5 size-3.5 shrink-0'
                       aria-hidden='true'
                     />
-                    <span className='min-w-0'>
-                      {hasPositiveSavings
-                        ? t('You saved about {{amount}}', {
-                            amount: savingsAmountDisplay,
-                          })
-                        : `${t('Savings estimate')}: ${savingsAmountDisplay}`}
-                    </span>
-                  </div>
-                  {savingsSummary.enabled && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Link
-                            to='/dashboard/$section'
-                            params={{ section: 'models' }}
-                            className='text-muted-foreground hover:text-foreground inline-flex shrink-0'
-                            aria-label={t('View savings trend')}
-                          />
-                        }
-                      >
-                        <ArrowUpRight className='size-3.5' aria-hidden='true' />
-                      </TooltipTrigger>
-                      <TooltipContent>{t('View savings trend')}</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-                <div className='text-muted-foreground mt-1 text-[11px] leading-snug'>
-                  {savingsSummaryDescription}
-                </div>
-                {savingsSummary.official_price_stale &&
-                  savingsSummary.source_updated_at > 0 && (
-                    <div className='text-warning mt-1 text-[11px] leading-snug'>
-                      {t('Official price updated {{time}}', {
-                        time: formatTimestampToDate(
-                          savingsSummary.source_updated_at
-                        ),
-                      })}
+                    <div className='min-w-0'>
+                      <div className='text-success text-xs leading-snug font-semibold break-words'>
+                        {savingsLifetime.is_complete
+                          ? t('RAPI has saved you about {{amount}} in total', {
+                              amount: lifetimeAmountDisplay,
+                            })
+                          : t('Lifetime savings counted so far: {{amount}}', {
+                              amount: lifetimeAmountDisplay,
+                            })}
+                      </div>
+                      <div className='text-muted-foreground mt-1 text-[11px] leading-snug'>
+                        {lifetimeDescription}
+                      </div>
                     </div>
-                  )}
+                  </div>
+                )}
               </div>
             )}
           </div>

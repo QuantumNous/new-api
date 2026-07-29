@@ -26,6 +26,10 @@ export const DEFAULT_SAVINGS_SETTING = {
   official_price_stale_days: 90,
   max_summary_days: 31,
   max_summary_log_rows: 50000,
+  lifetime_enabled: false,
+  lifetime_backfill_batch_size: 1000,
+  lifetime_show_on_dashboard: true,
+  lifetime_show_on_wallet: false,
   official_prices: {},
 }
 
@@ -39,11 +43,15 @@ export type BooleanSettingKey =
   | 'local_pricing_official_confirmed'
   | 'rebuild_legacy_logs'
   | 'require_official_confirmation'
+  | 'lifetime_enabled'
+  | 'lifetime_show_on_dashboard'
+  | 'lifetime_show_on_wallet'
 
 export type NumberSettingKey =
   | 'official_price_stale_days'
   | 'max_summary_days'
   | 'max_summary_log_rows'
+  | 'lifetime_backfill_batch_size'
 
 export function isPlainObject(
   value: unknown
@@ -72,6 +80,9 @@ export function parseSavingsSetting(
       'local_pricing_official_confirmed',
       'rebuild_legacy_logs',
       'require_official_confirmation',
+      'lifetime_enabled',
+      'lifetime_show_on_dashboard',
+      'lifetime_show_on_wallet',
     ] satisfies BooleanSettingKey[]) {
       if (typeof setting[key] !== 'boolean') {
         setting[key] = DEFAULT_SAVINGS_SETTING[key]
@@ -82,11 +93,15 @@ export function parseSavingsSetting(
       'official_price_stale_days',
       'max_summary_days',
       'max_summary_log_rows',
+      'lifetime_backfill_batch_size',
     ] satisfies NumberSettingKey[]) {
+      const minimum = key === 'lifetime_backfill_batch_size' ? 500 : 1
+      const maximum = key === 'lifetime_backfill_batch_size' ? 5000 : Infinity
       if (
         typeof setting[key] !== 'number' ||
         !Number.isFinite(setting[key]) ||
-        setting[key] < 1
+        setting[key] < minimum ||
+        setting[key] > maximum
       ) {
         setting[key] = DEFAULT_SAVINGS_SETTING[key]
       } else {

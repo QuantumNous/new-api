@@ -45,6 +45,10 @@ type Setting struct {
 	OfficialPriceStaleDays        int                      `json:"official_price_stale_days"`
 	MaxSummaryDays                int                      `json:"max_summary_days"`
 	MaxSummaryLogRows             int                      `json:"max_summary_log_rows"`
+	LifetimeEnabled               bool                     `json:"lifetime_enabled"`
+	LifetimeBackfillBatchSize     int                      `json:"lifetime_backfill_batch_size"`
+	LifetimeShowOnDashboard       bool                     `json:"lifetime_show_on_dashboard"`
+	LifetimeShowOnWallet          bool                     `json:"lifetime_show_on_wallet"`
 	UpdatedAt                     int64                    `json:"updated_at"`
 	OfficialPrices                map[string]OfficialPrice `json:"official_prices,omitempty"`
 }
@@ -53,8 +57,11 @@ const (
 	defaultOfficialPriceStaleDays = 90
 	defaultMaxSummaryDays         = 31
 	defaultMaxSummaryLogRows      = 50000
+	defaultLifetimeBatchSize      = 1000
 	maxSummaryDaysLimit           = 31
 	maxSummaryLogRowsLimit        = 50000
+	minLifetimeBatchSize          = 500
+	maxLifetimeBatchSize          = 5000
 )
 
 var (
@@ -73,6 +80,10 @@ func defaultSetting() Setting {
 		OfficialPriceStaleDays:        defaultOfficialPriceStaleDays,
 		MaxSummaryDays:                defaultMaxSummaryDays,
 		MaxSummaryLogRows:             defaultMaxSummaryLogRows,
+		LifetimeEnabled:               false,
+		LifetimeBackfillBatchSize:     defaultLifetimeBatchSize,
+		LifetimeShowOnDashboard:       true,
+		LifetimeShowOnWallet:          false,
 		OfficialPrices:                map[string]OfficialPrice{},
 	}
 }
@@ -126,6 +137,33 @@ func OfficialPriceStaleDays() int {
 		return defaultOfficialPriceStaleDays
 	}
 	return setting.OfficialPriceStaleDays
+}
+
+func LifetimeEnabled() bool {
+	settingMu.RLock()
+	defer settingMu.RUnlock()
+	return setting.Enabled && setting.LifetimeEnabled
+}
+
+func LifetimeBackfillBatchSize() int {
+	settingMu.RLock()
+	defer settingMu.RUnlock()
+	if setting.LifetimeBackfillBatchSize < minLifetimeBatchSize || setting.LifetimeBackfillBatchSize > maxLifetimeBatchSize {
+		return defaultLifetimeBatchSize
+	}
+	return setting.LifetimeBackfillBatchSize
+}
+
+func ShowLifetimeOnDashboard() bool {
+	settingMu.RLock()
+	defer settingMu.RUnlock()
+	return setting.Enabled && setting.LifetimeEnabled && setting.LifetimeShowOnDashboard
+}
+
+func ShowLifetimeOnWallet() bool {
+	settingMu.RLock()
+	defer settingMu.RUnlock()
+	return setting.Enabled && setting.LifetimeEnabled && setting.LifetimeShowOnWallet
 }
 
 func GetOfficialPrice(model string) (OfficialPrice, bool) {
@@ -197,6 +235,12 @@ func normalizeSetting(s *Setting) error {
 	}
 	if s.MaxSummaryLogRows > maxSummaryLogRowsLimit {
 		return fmt.Errorf("max_summary_log_rows must not exceed %d", maxSummaryLogRowsLimit)
+	}
+	if s.LifetimeBackfillBatchSize <= 0 {
+		s.LifetimeBackfillBatchSize = defaultLifetimeBatchSize
+	}
+	if s.LifetimeBackfillBatchSize < minLifetimeBatchSize || s.LifetimeBackfillBatchSize > maxLifetimeBatchSize {
+		return fmt.Errorf("lifetime_backfill_batch_size must be between %d and %d", minLifetimeBatchSize, maxLifetimeBatchSize)
 	}
 	if s.OfficialPrices == nil {
 		s.OfficialPrices = map[string]OfficialPrice{}

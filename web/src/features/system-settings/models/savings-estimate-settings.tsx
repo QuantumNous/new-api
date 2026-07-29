@@ -42,6 +42,7 @@ import {
   type NumberSettingKey,
   type SavingsEstimateSetting,
 } from './savings-estimate-setting'
+import { SavingsLifetimeBackfill } from './savings-lifetime-backfill'
 import { normalizeJsonString, validateJsonString } from './utils'
 
 const OPTION_KEY = 'SavingsEstimateSetting'
@@ -76,6 +77,10 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
         predicateMessage: 'JSON must be an object',
       }),
     [jsonText]
+  )
+  const savedLifetimeEnabled = useMemo(
+    () => parseSavingsSetting(defaultValue)?.lifetime_enabled === true,
+    [defaultValue]
   )
   const validationMessage =
     validation.message === 'JSON must be an object'
@@ -255,6 +260,77 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
                 />
               </SettingsSwitchRow>
             </div>
+          </section>
+
+          <section className='space-y-3 border-t pt-6'>
+            <div>
+              <h3 className='text-sm font-semibold'>{t('Lifetime savings')}</h3>
+              <p className='text-muted-foreground mt-1 text-xs'>
+                {t(
+                  'Keep a stable cumulative savings total without scanning usage logs when users open a page.'
+                )}
+              </p>
+            </div>
+            <div className='divide-border divide-y'>
+              <SettingsSwitchField
+                checked={setting.lifetime_enabled}
+                onCheckedChange={(checked) =>
+                  updateBoolean('lifetime_enabled', checked)
+                }
+                label={t('Enable lifetime savings')}
+                description={t(
+                  'Aggregate new usage into a frozen lifetime savings total.'
+                )}
+              />
+              <SettingsSwitchField
+                checked={setting.lifetime_show_on_dashboard}
+                onCheckedChange={(checked) =>
+                  updateBoolean('lifetime_show_on_dashboard', checked)
+                }
+                label={t('Show lifetime savings on dashboard')}
+                description={t(
+                  'Show cumulative savings, coverage, and backfill progress on the user dashboard.'
+                )}
+              />
+              <SettingsSwitchField
+                checked={setting.lifetime_show_on_wallet}
+                onCheckedChange={(checked) =>
+                  updateBoolean('lifetime_show_on_wallet', checked)
+                }
+                label={t('Show lifetime savings in wallet')}
+                description={t(
+                  'Add the frozen cumulative savings amount to the wallet summary.'
+                )}
+              />
+              <SettingsSwitchRow className='py-3'>
+                <div className='min-w-0 space-y-0.5'>
+                  <Label htmlFor='lifetime-backfill-batch-size'>
+                    {t('Historical backfill batch size')}
+                  </Label>
+                  <p className='text-muted-foreground text-xs'>
+                    {t('Process between 500 and 5000 usage logs per batch.')}
+                  </p>
+                </div>
+                <Input
+                  id='lifetime-backfill-batch-size'
+                  type='number'
+                  min={500}
+                  max={5000}
+                  step={100}
+                  className='w-28 shrink-0'
+                  value={setting.lifetime_backfill_batch_size}
+                  onChange={(event) =>
+                    updateNumber(
+                      'lifetime_backfill_batch_size',
+                      event.target.value
+                    )
+                  }
+                />
+              </SettingsSwitchRow>
+            </div>
+            <SavingsLifetimeBackfill
+              enabled={setting.lifetime_enabled && savedLifetimeEnabled}
+            />
           </section>
 
           <section className='space-y-1 border-t pt-6'>

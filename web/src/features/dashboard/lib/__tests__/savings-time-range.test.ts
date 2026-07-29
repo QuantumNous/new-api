@@ -21,6 +21,7 @@ import { describe, it } from 'node:test'
 
 import {
   formatSavingsQuotaAsCNY,
+  formatSavingsCNYMicros,
   getRollingSavingsTimeRange,
 } from '../savings.ts'
 
@@ -41,5 +42,23 @@ describe('formatSavingsQuotaAsCNY', () => {
     const formatted = formatSavingsQuotaAsCNY(10_537_576, 500_000, 7.3, 'zh-CN')
 
     assert.equal(formatted, '¥153.85')
+  })
+})
+
+describe('formatSavingsCNYMicros', () => {
+  it('formats frozen CNY micros without converting the full value to Number', () => {
+    assert.equal(
+      formatSavingsCNYMicros('9007199254740993123456', 'zh-CN'),
+      '¥9,007,199,254,740,993.12'
+    )
+  })
+
+  it('keeps useful precision for savings below one yuan', () => {
+    assert.equal(formatSavingsCNYMicros('123456', 'zh-CN'), '¥0.1235')
+  })
+
+  it('rejects malformed and signed values', () => {
+    assert.equal(formatSavingsCNYMicros('-1', 'zh-CN'), '-')
+    assert.equal(formatSavingsCNYMicros('1.25', 'zh-CN'), '-')
   })
 })
