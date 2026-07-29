@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html"
@@ -1094,6 +1095,7 @@ const (
 	maxAdminEmailRecipients = 100
 	maxAdminEmailSubjectLen  = 200
 	maxAdminEmailContentLen  = 10000
+	adminEmailBatchTimeout   = 2 * time.Minute
 )
 
 type SendUserEmailRequest struct {
@@ -1110,6 +1112,9 @@ func (req *SendUserEmailRequest) validate() error {
 	}
 	if len([]rune(req.Subject)) > maxAdminEmailSubjectLen {
 		return fmt.Errorf("subject must be %d characters or fewer", maxAdminEmailSubjectLen)
+	}
+	if strings.ContainsAny(req.Subject, "\r\n") {
+		return errors.New("subject must not contain line breaks")
 	}
 	if len([]rune(req.Content)) > maxAdminEmailContentLen {
 		return fmt.Errorf("content must be %d characters or fewer", maxAdminEmailContentLen)
@@ -1156,7 +1161,13 @@ func SendUserEmail(c *gin.Context) {
 	failed := 0
 	skipped := len(req.UserIds) - len(recipients)
 	content := `<div style="white-space: pre-wrap;">` + html.EscapeString(req.Content) + `</div>`
-	for _, recipient := range recipients {
+	batchCtx, cancel := context.WithTimeout(c.Request.Context(), adminEmailBatchTimeout)
+	defer cancel()
+	for index, recipient := range recipients {
+		if batchCtx.Err() != nil {
+			failed += len(recipients) - index
+			break
+		}
 		if !canManageTargetRole(myRole, recipient.Role) {
 			skipped++
 			continue
@@ -1166,7 +1177,7 @@ func SendUserEmail(c *gin.Context) {
 			skipped++
 			continue
 		}
-		if err := common.SendEmail(req.Subject, address.Address, content); err != nil {
+		if err := common.SendEmailContext(batchCtx, req.Subject, address.Address, content); err != nil {
 			failed++
 			common.SysLog(fmt.Sprintf("failed to send custom admin email to user %d: %v", recipient.Id, err))
 			continue

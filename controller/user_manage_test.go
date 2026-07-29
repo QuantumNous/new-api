@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -171,6 +172,8 @@ func TestSendUserEmailRequestValidationNormalizesSelectionAndBoundsContent(t *te
 	assert.Equal(t, []int{3, 7}, req.UserIds)
 	assert.Equal(t, "Service update", req.Subject)
 	assert.Equal(t, "Maintenance starts tonight.", req.Content)
+	multilineContent := SendUserEmailRequest{UserIds: []int{1}, Subject: "subject", Content: "line one\nline two"}
+	require.NoError(t, multilineContent.validate())
 
 	tooManyUserIds := make([]int, maxAdminEmailRecipients+1)
 	for i := range tooManyUserIds {
@@ -179,6 +182,7 @@ func TestSendUserEmailRequestValidationNormalizesSelectionAndBoundsContent(t *te
 	invalidRequests := []SendUserEmailRequest{
 		{UserIds: nil, Subject: "subject", Content: "message"},
 		{UserIds: []int{0}, Subject: "subject", Content: "message"},
+		{UserIds: []int{1}, Subject: "subject\r\nBcc: attacker@example.com", Content: "message"},
 		{UserIds: tooManyUserIds, Subject: "subject", Content: "message"},
 		{UserIds: []int{1}, Subject: strings.Repeat("s", maxAdminEmailSubjectLen+1), Content: "message"},
 		{UserIds: []int{1}, Subject: "subject", Content: strings.Repeat("m", maxAdminEmailContentLen+1)},
@@ -190,17 +194,21 @@ func TestSendUserEmailRequestValidationNormalizesSelectionAndBoundsContent(t *te
 
 func TestSendUserEmailSkipsUsersWithoutDeliverableEmail(t *testing.T) {
 	db := setupManageUserTestDB(t)
-	user := model.User{
+	users := []model.User{{
 		Username: "managed-email-user", Password: "password", Role: common.RoleCommonUser,
 		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1,
-	}
-	require.NoError(t, db.Create(&user).Error)
+	}, {
+		Username: "managed-email-injected", Password: "password", Role: common.RoleCommonUser,
+		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1,
+		Email: "receiver@example.com\r\nBcc: attacker@example.com",
+	}}
+	require.NoError(t, db.Create(&users).Error)
 
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/email", strings.NewReader(
-		fmt.Sprintf(`{"user_ids":[%d],"subject":"Notice","content":"Hello"}`, user.Id),
+		fmt.Sprintf(`{"user_ids":[%d,%d],"subject":"Notice","content":"Hello"}`, users[0].Id, users[1].Id),
 	))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("id", 9999)
@@ -212,6 +220,62 @@ func TestSendUserEmailSkipsUsersWithoutDeliverableEmail(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"success":true`)
 	assert.Contains(t, recorder.Body.String(), `"sent":0`)
+	assert.Contains(t, recorder.Body.String(), `"skipped":2`)
+	assert.Contains(t, recorder.Body.String(), `"failed":0`)
+}
+
+func TestSendUserEmailSkipsTargetsAtOrAboveAdminRole(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	target := model.User{
+		Username: "managed-email-root", Password: "password", Email: "root@example.com",
+		Role: common.RoleRootUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1,
+	}
+	require.NoError(t, db.Create(&target).Error)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/email", strings.NewReader(
+		fmt.Sprintf(`{"user_ids":[%d],"subject":"Notice","content":"Hello"}`, target.Id),
+	))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("id", 9999)
+	c.Set("role", common.RoleAdminUser)
+	c.Set("username", "admin-operator")
+
+	SendUserEmail(c)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	assert.Contains(t, recorder.Body.String(), `"sent":0`)
 	assert.Contains(t, recorder.Body.String(), `"skipped":1`)
 	assert.Contains(t, recorder.Body.String(), `"failed":0`)
+}
+
+func TestSendUserEmailStopsWhenRequestContextIsCanceled(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	target := model.User{
+		Username: "managed-email-canceled", Password: "password", Email: "user@example.com",
+		Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1,
+	}
+	require.NoError(t, db.Create(&target).Error)
+
+	requestCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	request := httptest.NewRequest(http.MethodPost, "/api/user/email", strings.NewReader(
+		fmt.Sprintf(`{"user_ids":[%d],"subject":"Notice","content":"Hello"}`, target.Id),
+	)).WithContext(requestCtx)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = request
+	c.Set("id", 9999)
+	c.Set("role", common.RoleRootUser)
+	c.Set("username", "root-operator")
+
+	SendUserEmail(c)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"sent":0`)
+	assert.Contains(t, recorder.Body.String(), `"skipped":0`)
+	assert.Contains(t, recorder.Body.String(), `"failed":1`)
 }

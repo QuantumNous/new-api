@@ -19,7 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
-import { userEmailFormSchema } from '../user-email-form'
+import {
+  MAX_USER_EMAIL_RECIPIENTS,
+  userEmailFormSchema,
+  userEmailRecipientIdsSchema,
+} from '../user-email-form'
 
 describe('user email form validation', () => {
   test('accepts a subject and message while trimming outer whitespace', () => {
@@ -46,5 +50,22 @@ describe('user email form validation', () => {
 
     assert.equal(emptyResult.success, false)
     assert.equal(oversizedResult.success, false)
+  })
+
+  test('rejects header line breaks and selections over the recipient limit', () => {
+    const headerInjectionResult = userEmailFormSchema.safeParse({
+      subject: 'Notice\r\nBcc: attacker@example.com',
+      content: 'Message',
+    })
+    const oversizedSelection = Array.from(
+      { length: MAX_USER_EMAIL_RECIPIENTS + 1 },
+      (_, index) => index + 1
+    )
+
+    assert.equal(headerInjectionResult.success, false)
+    assert.equal(
+      userEmailRecipientIdsSchema.safeParse(oversizedSelection).success,
+      false
+    )
   })
 })

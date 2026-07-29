@@ -18,12 +18,24 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
+export const MAX_USER_EMAIL_RECIPIENTS = 100
+
+export const userEmailRecipientIdsSchema = z
+  .array(z.number().int().positive())
+  .max(
+    MAX_USER_EMAIL_RECIPIENTS,
+    'You can email up to {{count}} users at once.'
+  )
+
 export const userEmailFormSchema = z.object({
   subject: z
     .string()
     .trim()
     .min(1, 'Subject is required')
-    .max(200, 'Subject must be 200 characters or fewer'),
+    .max(200, 'Subject must be 200 characters or fewer')
+    .refine((value) => !/[\r\n]/.test(value), {
+      message: 'Subject must not contain line breaks',
+    }),
   content: z
     .string()
     .trim()

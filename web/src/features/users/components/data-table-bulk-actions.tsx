@@ -36,13 +36,13 @@ interface DataTableBulkActionsProps {
   table: Table<User>
 }
 
-export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
+export function DataTableBulkActions(props: DataTableBulkActionsProps) {
   const { t } = useTranslation()
   const [showEmailDialog, setShowEmailDialog] = useState(false)
 
   return (
     <>
-      <BulkActionsToolbar table={table} entityName='user'>
+      <BulkActionsToolbar table={props.table} entityName='user'>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -55,7 +55,7 @@ export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
               />
             }
           >
-            <Mail />
+            <Mail aria-hidden='true' />
             <span className='sr-only'>{t('Send email to selected users')}</span>
           </TooltipTrigger>
           <TooltipContent>
@@ -67,7 +67,7 @@ export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
       <SendUserEmailDialog
         open={showEmailDialog}
         onOpenChange={setShowEmailDialog}
-        table={table}
+        table={props.table}
       />
     </>
   )

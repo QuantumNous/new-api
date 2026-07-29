@@ -38,7 +38,9 @@ import { Textarea } from '@/components/ui/textarea'
 
 import { sendUserEmail } from '../api'
 import {
+  MAX_USER_EMAIL_RECIPIENTS,
   type UserEmailFormData,
+  userEmailRecipientIdsSchema,
   userEmailFormSchema,
 } from '../lib/user-email-form'
 import { type User } from '../types'
@@ -61,6 +63,10 @@ export function SendUserEmailDialog(props: SendUserEmailDialogProps) {
     defaultValues,
   })
   const selectedRows = props.table.getFilteredSelectedRowModel().rows
+  const selectedUserIds = selectedRows.map((row) => row.original.id)
+  const recipientLimitExceeded = !userEmailRecipientIdsSchema.safeParse(
+    selectedUserIds
+  ).success
 
   const handleOpenChange = (open: boolean) => {
     if (form.formState.isSubmitting) return
@@ -69,12 +75,19 @@ export function SendUserEmailDialog(props: SendUserEmailDialogProps) {
   }
 
   const handleSubmit = async (values: UserEmailFormData) => {
-    const userIds = selectedRows.map((row) => row.original.id)
-    if (userIds.length === 0) return
+    if (selectedUserIds.length === 0) return
+    if (!userEmailRecipientIdsSchema.safeParse(selectedUserIds).success) {
+      toast.error(
+        t('You can email up to {{count}} users at once.', {
+          count: MAX_USER_EMAIL_RECIPIENTS,
+        })
+      )
+      return
+    }
 
     try {
       const result = await sendUserEmail({
-        user_ids: userIds,
+        user_ids: selectedUserIds,
         subject: values.subject,
         content: values.content,
       })
@@ -105,10 +118,16 @@ export function SendUserEmailDialog(props: SendUserEmailDialogProps) {
       open={props.open}
       onOpenChange={handleOpenChange}
       title={t('Send email')}
-      description={t(
-        'Email will be sent separately to {{count}} selected user(s). Users without email addresses will be skipped.',
-        { count: selectedRows.length }
-      )}
+      description={
+        recipientLimitExceeded
+          ? t('You can email up to {{count}} users at once.', {
+              count: MAX_USER_EMAIL_RECIPIENTS,
+            })
+          : t(
+              'Email will be sent separately to {{count}} selected user(s). Users without email addresses will be skipped.',
+              { count: selectedRows.length }
+            )
+      }
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={
@@ -124,12 +143,16 @@ export function SendUserEmailDialog(props: SendUserEmailDialogProps) {
           <Button
             type='submit'
             form='send-user-email-form'
-            disabled={form.formState.isSubmitting || selectedRows.length === 0}
+            disabled={
+              form.formState.isSubmitting ||
+              selectedRows.length === 0 ||
+              recipientLimitExceeded
+            }
           >
             {form.formState.isSubmitting ? (
-              <Loader2 className='animate-spin' />
+              <Loader2 className='animate-spin' aria-hidden='true' />
             ) : (
-              <Send />
+              <Send aria-hidden='true' />
             )}
             {form.formState.isSubmitting ? t('Sending...') : t('Send')}
           </Button>
