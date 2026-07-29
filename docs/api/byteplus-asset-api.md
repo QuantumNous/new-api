@@ -6,6 +6,7 @@ Flatkey exposes a private asset library for portrait/reference media used by `se
 
 ```http
 POST /v1/assets
+Authorization: Bearer <flatkey-api-key>
 Content-Type: application/json
 ```
 
@@ -46,6 +47,7 @@ Successful response:
 
 ```http
 GET /v1/assets/ast_1234567890abcdef1234567890abcdef
+Authorization: Bearer <flatkey-api-key>
 ```
 
 Successful response:

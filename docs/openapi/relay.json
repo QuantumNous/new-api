@@ -240,6 +240,25 @@
             },
             "headers": {}
           },
+          "500": {
+            "description": "素材存储错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset storage error, please try again later",
+                    "type": "asset_storage_error",
+                    "param": "",
+                    "code": "asset_storage_error"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
           "502": {
             "description": "素材服务请求失败",
             "content": {
@@ -325,12 +344,69 @@
             },
             "headers": {}
           },
+          "409": {
+            "description": "素材尚未就绪",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset is still processing, please try again later",
+                    "type": "asset_not_ready",
+                    "param": "",
+                    "code": "asset_not_ready"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
           "502": {
             "description": "素材服务请求失败",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "503": {
+            "description": "素材库暂时不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "The asset channel is currently unavailable",
+                    "type": "asset_channel_unavailable",
+                    "param": "",
+                    "code": "asset_channel_unavailable"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "500": {
+            "description": "素材存储错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset storage error, please try again later",
+                    "type": "asset_storage_error",
+                    "param": "",
+                    "code": "asset_storage_error"
+                  }
                 }
               }
             },
