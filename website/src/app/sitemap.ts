@@ -6,6 +6,7 @@ import { getMarketPathnames } from "@/lib/market-landing";
 import { getModelLandingPathnames } from "@/lib/model-landing";
 import { modelPublicPath } from "@/lib/model-public";
 import { getSkagLandingPathnames } from "@/lib/skag-landing";
+import { TOOLS_LANDING_PATH } from "@/lib/tools-landing";
 import { getPricingData, getTopVendors, getVendorName } from "@/lib/pricing";
 
 const base = "https://flatkey.ai";
@@ -54,6 +55,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...entry("/", 1, "daily"),
     ...entry("/pricing", 0.8, "daily"),
     ...entry("/models", 0.82, "daily"),
+    ...entry(TOOLS_LANDING_PATH, 0.9, "daily"),
     ...entry(CLI_LANDING_PATH, 0.86, "weekly"),
     ...entry(HIGGSFIELD_ALTERNATIVE_PATH, 0.84, "weekly"),
     ...entry("/use-case/codex", 0.84, "weekly"),
