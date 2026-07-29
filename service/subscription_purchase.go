@@ -253,10 +253,14 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 	}
 	confirmedExpiredProviderSessions := map[string]struct{}{}
 	if cmd.PaymentChoice == SubscriptionPaymentChoiceEpay || cmd.PaymentChoice == SubscriptionPaymentChoiceAlipay || cmd.PaymentChoice == SubscriptionPaymentChoicePix || cmd.PaymentChoice == SubscriptionPaymentChoiceUPI || cmd.PaymentChoice == SubscriptionPaymentChoiceBalance {
+		pendingProviderSessions, err := findReplaceablePendingStripeCheckoutSessions(cmd.UserID, cmd.RequestID)
+		if err != nil {
+			return nil, err
+		}
 		if err := preflightPrepaidPurchaseBeforeProviderExpiration(cmd, validatedQuote); err != nil {
 			return nil, err
 		}
-		confirmed, err := ensureReplaceablePendingStripeCheckoutsProviderExpired(context.Background(), cmd.UserID, cmd.RequestID)
+		confirmed, err := ensureReplaceablePendingStripeCheckoutsProviderExpired(context.Background(), cmd.UserID, cmd.RequestID, pendingProviderSessions)
 		if err != nil {
 			return nil, err
 		}
@@ -649,15 +653,14 @@ func preflightPrepaidPurchaseBeforeProviderExpiration(cmd PurchaseSubscriptionCo
 	})
 }
 
-func ensureReplaceablePendingStripeCheckoutsProviderExpired(ctx context.Context, userID int, requestID string) (map[string]struct{}, error) {
-	confirmed := map[string]struct{}{}
+func findReplaceablePendingStripeCheckoutSessions(userID int, requestID string) ([]string, error) {
 	if userID <= 0 || strings.TrimSpace(requestID) == "" {
-		return confirmed, nil
+		return nil, nil
 	}
 	if existing, found, err := findIntentByRequestTx(model.DB, userID, requestID); err != nil {
 		return nil, err
 	} else if found && existing != nil {
-		return confirmed, nil
+		return nil, nil
 	}
 	var orders []model.SubscriptionOrder
 	if err := model.DB.
@@ -677,8 +680,24 @@ func ensureReplaceablePendingStripeCheckoutsProviderExpired(ctx context.Context,
 		Find(&orders).Error; err != nil {
 		return nil, err
 	}
+	providerSessions := make([]string, 0, len(orders))
 	for _, order := range orders {
 		sessionID := strings.TrimSpace(order.ProviderSessionId)
+		if sessionID != "" {
+			providerSessions = append(providerSessions, sessionID)
+		}
+	}
+	return providerSessions, nil
+}
+
+func ensureReplaceablePendingStripeCheckoutsProviderExpired(ctx context.Context, userID int, requestID string, providerSessions []string) (map[string]struct{}, error) {
+	confirmed := map[string]struct{}{}
+	if existing, found, err := findIntentByRequestTx(model.DB, userID, requestID); err != nil {
+		return nil, err
+	} else if found && existing != nil {
+		return confirmed, nil
+	}
+	for _, sessionID := range providerSessions {
 		if err := expireReplaceableStripeCheckout(ctx, sessionID); err != nil {
 			return nil, err
 		}
