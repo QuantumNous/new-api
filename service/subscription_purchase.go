@@ -137,7 +137,7 @@ type purchasePlanSnapshot struct {
 	Title               string  `json:"title"`
 	PriceAmount         float64 `json:"price_amount"`
 	Currency            string  `json:"currency"`
-	StripePriceID       string  `json:"stripe_price_id,omitempty"`
+	StripePriceID       string  `json:"stripe_price_id"`
 	DurationUnit        string  `json:"duration_unit"`
 	DurationValue       int     `json:"duration_value"`
 	TotalAmount         int64   `json:"total_amount"`

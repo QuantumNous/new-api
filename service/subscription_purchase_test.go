@@ -2202,6 +2202,7 @@ func TestPurchaseSubscriptionRecallOneTimeOrderPersistsAttributionFields(t *test
 	require.Equal(t, int64(20), result.Order.RecallDiscountAmountMinor)
 	require.NotContains(t, result.Order.ProviderPayload, fixture.claim)
 	require.NotContains(t, result.Order.PlanSnapshot, fixture.claim)
+	require.Contains(t, result.Order.PlanSnapshot, `"stripe_price_id":"price_subscription"`)
 	var stored model.SubscriptionOrder
 	require.NoError(t, model.DB.First(&stored, result.Order.Id).Error)
 	require.Equal(t, result.Order.RecallCampaignId, stored.RecallCampaignId)

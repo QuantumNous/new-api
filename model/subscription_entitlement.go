@@ -158,14 +158,6 @@ func rotateCurrentEntitlementTx(tx *gorm.DB, input GrantEntitlementInput, reserv
 						return nil, err
 					}
 				}
-			} else {
-				now, err := getLifecycleNow()
-				if err != nil {
-					return nil, err
-				}
-				if err := ensureNoActiveLifecycleReservationForEntitlementReplayTx(contract.CurrentProviderBindingId, input.ProviderBindingId, lockedLifecycleBindings, now); err != nil {
-					return nil, err
-				}
 			}
 			return &GrantEntitlementResult{Entitlement: existing, Applied: false}, nil
 		}
@@ -306,16 +298,6 @@ func ensureEntitlementLifecycleReservationBindingWasLocked(bindingID int64, lock
 	}
 	if _, ok := lockedBindings[bindingID]; !ok {
 		return ErrSubscriptionProviderLifecycleConflict
-	}
-	return nil
-}
-
-func ensureNoActiveLifecycleReservationForEntitlementReplayTx(currentBindingID int64, inputBindingID int64, lockedBindings map[int64]SubscriptionProviderBinding, now int64) error {
-	if err := ensureNoActiveLifecycleReservationFromLockedBinding(currentBindingID, lockedBindings, now); err != nil {
-		return err
-	}
-	if inputBindingID > 0 && inputBindingID != currentBindingID {
-		return ensureNoActiveLifecycleReservationFromLockedBinding(inputBindingID, lockedBindings, now)
 	}
 	return nil
 }

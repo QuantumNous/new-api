@@ -215,7 +215,7 @@ func TestSubscriptionEntitlementGrantIdempotentAndConflict(t *testing.T) {
 	require.ErrorIs(t, err, ErrSubscriptionEntitlementGrantConflict)
 }
 
-func TestSubscriptionEntitlementGrantReplayWithoutReservationConflictsDuringLifecycleReservation(t *testing.T) {
+func TestSubscriptionEntitlementGrantReplayWithoutReservationIgnoresLifecycleReservation(t *testing.T) {
 	setupSubscriptionEntitlementTestDB(t)
 	createEntitlementTestUser(t, 9121, "plg")
 	createEntitlementTestPlan(t, 9221, 100, "")
@@ -253,8 +253,15 @@ func TestSubscriptionEntitlementGrantReplayWithoutReservationConflictsDuringLife
 
 	replayed, err := RotateCurrentEntitlement(input)
 
-	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
-	require.Nil(t, replayed)
+	require.NoError(t, err)
+	require.NotNil(t, replayed)
+	require.False(t, replayed.Applied)
+	require.Equal(t, first.Entitlement.Id, replayed.Entitlement.Id)
+	var binding SubscriptionProviderBinding
+	require.NoError(t, DB.First(&binding, input.ProviderBindingId).Error)
+	require.Equal(t, "idempotent-replay-reservation", binding.LifecycleReservationToken)
+	require.Equal(t, SubscriptionProviderLifecycleActionCancel, binding.LifecycleReservationAction)
+	require.NotZero(t, binding.LifecycleReservationUntil)
 }
 
 func TestRotateCurrentEntitlementRejectsReservedIncomingProviderBinding(t *testing.T) {

@@ -378,18 +378,21 @@ func TestStripeToBalanceUncertainOutcomeKeepsCancelReservationAndIdempotencyStab
 	require.Equal(t, expectedStripeToBalanceCompensationCancelIdempotencyKey(intent, binding.LifecycleActionSeq), cancelKeys[0])
 }
 
-func TestStripeToBalanceConfirmedActiveRestoresScheduleAndRefundsExactlyOnce(t *testing.T) {
+func TestStripeToBalanceNonTerminalSnapshotKeepsCancelReservationAndDoesNotRefund(t *testing.T) {
 	setupSubscriptionCompensationTestDB(t)
 	fx := seedStripeToBalanceFixture(t, 9002, 1, 2)
 	replaceCompensationHooks(t)
 	var refunds int64
 	stripeReleaseSubscriptionSchedule = func(scheduleID string, idempotencyKey string) error { return nil }
-	stripeRestoreSubscriptionSchedule = func(rawSnapshot string, idempotencyKey string) (string, error) { return "sched_restored", nil }
+	stripeRestoreSubscriptionSchedule = func(rawSnapshot string, idempotencyKey string) (string, error) {
+		t.Fatal("non-terminal cancellation outcome must not restore a schedule")
+		return "", nil
+	}
 	stripeCancelSubscriptionImmediately = func(providerSubscriptionID string, idempotencyKey string) error { return nil }
 	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
 		return model.ProviderSubscriptionSnapshot{
 			ProviderSubscriptionId:     providerSubscriptionID,
-			ProviderScheduleId:         "sched_restored",
+			ProviderScheduleId:         "",
 			ProviderScheduleIdObserved: true,
 			ProviderStatus:             "active",
 			CurrentPeriodStart:         1000,
@@ -409,23 +412,19 @@ func TestStripeToBalanceConfirmedActiveRestoresScheduleAndRefundsExactlyOnce(t *
 		PaymentMode: model.SubscriptionPaymentModeBalanceOnePeriod,
 		RequestID:   "stripe-to-balance-active",
 	})
-	require.NoError(t, err)
-	require.Equal(t, ChangePlanStatusApplied, result.Status)
-	_, err = ReconcileSubscriptionCompensationRequired(context.Background(), 100)
-	require.NoError(t, err)
-	_, err = ReconcileSubscriptionCompensationRequired(context.Background(), 100)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "has not reached a terminal provider state")
+	require.Nil(t, result)
 
-	require.Equal(t, int64(1), refunds)
-	var user model.User
-	require.NoError(t, model.DB.First(&user, fx.user.Id).Error)
-	require.Equal(t, fx.user.Quota, user.Quota)
-	var entitlementCount int64
-	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("contract_id = ? AND plan_id = ?", fx.contract.Id, fx.target.Id).Count(&entitlementCount).Error)
-	require.Zero(t, entitlementCount)
+	require.Zero(t, refunds)
+	assertStripeToBalanceNoRefundOrGrant(t, fx)
+	var intent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.Where("request_id = ?", "stripe-to-balance-active").First(&intent).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusCompensationRequired, intent.Status)
 	var binding model.SubscriptionProviderBinding
 	require.NoError(t, model.DB.First(&binding, fx.binding.Id).Error)
-	require.Equal(t, "sched_restored", binding.ProviderScheduleId)
+	require.Equal(t, expectedStripeToBalanceCompensationCancelReservationToken(intent), binding.LifecycleReservationToken)
+	require.Equal(t, model.SubscriptionProviderLifecycleActionCancel, binding.LifecycleReservationAction)
+	require.Greater(t, binding.LifecycleReservationUntil, common.GetTimestamp())
 }
 
 func TestStripeToBalanceConfirmedCanceledNeverRefundsAndGrantsExactlyOnce(t *testing.T) {

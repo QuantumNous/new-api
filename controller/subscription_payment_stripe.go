@@ -300,6 +300,7 @@ type oneTimePlanSnapshot struct {
 	Title            string  `json:"title"`
 	PriceAmount      float64 `json:"price_amount"`
 	Currency         string  `json:"currency"`
+	StripePriceId    string  `json:"stripe_price_id"`
 	DurationUnit     string  `json:"duration_unit"`
 	DurationValue    int     `json:"duration_value"`
 	TotalAmount      int64   `json:"total_amount"`
@@ -320,6 +321,7 @@ type oneTimeStripeCheckoutSession struct {
 
 var stripeOneTimeCheckoutSessionCreator = createOneTimeStripeCheckoutSession
 var stripeOneTimeCheckoutSessionGetter = getOneTimeStripeCheckoutSession
+var stripeOneTimeRecallClient service.RecallStripeClient = service.NewStripeRecallClient()
 
 func createOneTimeStripeCheckoutSession(ctx context.Context, order *model.SubscriptionOrder, user *model.User, presentations ...service.StripeCheckoutPresentation) (*oneTimeStripeCheckoutSession, error) {
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
@@ -329,6 +331,11 @@ func createOneTimeStripeCheckoutSession(ctx context.Context, order *model.Subscr
 	if err != nil {
 		return nil, err
 	}
+	recallProductID, err := validateOneTimePlanRecallPromotionForCheckout(ctx, order)
+	if err != nil {
+		return nil, err
+	}
+	applyOneTimeRecallScopedProduct(params, recallProductID)
 	stripe.Key = setting.StripeApiSecret
 	created, err := session.New(params)
 	if err != nil {
@@ -608,6 +615,170 @@ func validateOneTimePlanRecallAttributionTuple(order *model.SubscriptionOrder) e
 		return errors.New("one-time recall attribution tuple is incomplete")
 	}
 	return nil
+}
+
+func validateOneTimePlanRecallPromotionForCheckout(ctx context.Context, order *model.SubscriptionOrder) (string, error) {
+	if order == nil {
+		return "", errors.New("subscription order is required")
+	}
+	if order.RecallDiscountAmountMinor <= 0 {
+		return "", nil
+	}
+	client := stripeOneTimeRecallClient
+	if client == nil {
+		client = service.NewStripeRecallClient()
+	}
+	quote, err := oneTimePlanQuoteFromOrder(order)
+	if err != nil {
+		return "", err
+	}
+	priceID, err := oneTimePlanStripePriceIDForRecallValidation(order)
+	if err != nil {
+		return "", err
+	}
+	price, err := client.GetPrice(ctx, priceID)
+	if err != nil {
+		return "", fmt.Errorf("validate one-time recall price: %w", err)
+	}
+	if price == nil || price.Deleted || !price.Active || strings.TrimSpace(price.ID) != priceID {
+		return "", errors.New("one-time recall Stripe price is unavailable")
+	}
+	productID := ""
+	if price.Product != nil {
+		productID = strings.TrimSpace(price.Product.ID)
+	}
+	if productID == "" {
+		return "", errors.New("one-time recall Stripe price product is unavailable")
+	}
+	promotion, err := client.GetPromotionCode(ctx, strings.TrimSpace(order.RecallPromotionCodeId))
+	if err != nil {
+		return "", fmt.Errorf("validate one-time recall promotion code: %w", err)
+	}
+	couponID := ""
+	if promotion != nil && promotion.Promotion != nil && promotion.Promotion.Coupon != nil {
+		couponID = strings.TrimSpace(promotion.Promotion.Coupon.ID)
+	}
+	if promotion == nil || strings.TrimSpace(promotion.ID) != strings.TrimSpace(order.RecallPromotionCodeId) ||
+		!promotion.Active || couponID == "" {
+		return "", errors.New("one-time recall promotion code is unavailable")
+	}
+	if promotion.Restrictions != nil {
+		if promotion.Restrictions.FirstTimeTransaction || len(promotion.Restrictions.CurrencyOptions) > 0 {
+			return "", errors.New("one-time recall promotion restrictions are unsupported")
+		}
+		if promotion.Restrictions.MinimumAmount > 0 {
+			if !strings.EqualFold(string(promotion.Restrictions.MinimumAmountCurrency), quote.Currency) ||
+				quote.TotalAmountMinor < promotion.Restrictions.MinimumAmount {
+				return "", errors.New("one-time recall promotion minimum amount mismatch")
+			}
+		}
+	}
+	if promotion.MaxRedemptions > 0 && promotion.TimesRedeemed >= promotion.MaxRedemptions {
+		return "", errors.New("one-time recall promotion code is exhausted")
+	}
+	if promotion.ExpiresAt > 0 && promotion.ExpiresAt <= time.Now().Unix() {
+		return "", errors.New("one-time recall promotion code is expired")
+	}
+	coupon, err := client.GetCoupon(ctx, couponID)
+	if err != nil {
+		return "", fmt.Errorf("validate one-time recall coupon: %w", err)
+	}
+	if coupon == nil || coupon.Deleted || !coupon.Valid {
+		return "", errors.New("one-time recall coupon is unavailable")
+	}
+	if coupon.RedeemBy > 0 && coupon.RedeemBy <= time.Now().Unix() {
+		return "", errors.New("one-time recall coupon is expired")
+	}
+	if coupon.Duration != stripe.CouponDurationOnce {
+		return "", errors.New("one-time recall coupon duration mismatch")
+	}
+	if coupon.MaxRedemptions > 0 && coupon.TimesRedeemed >= coupon.MaxRedemptions {
+		return "", errors.New("one-time recall coupon is exhausted")
+	}
+	if coupon.AppliesTo != nil && len(coupon.AppliesTo.Products) > 0 && !oneTimeRecallProductScopeContains(coupon.AppliesTo.Products, productID) {
+		return "", errors.New("one-time recall coupon product scope mismatch")
+	}
+	actualDiscount := oneTimeRecallDiscountAmountMinor(coupon, quote.Currency, quote.TotalAmountMinor)
+	if actualDiscount != order.RecallDiscountAmountMinor {
+		return "", fmt.Errorf("one-time recall discount mismatch: expected %d got %d", order.RecallDiscountAmountMinor, actualDiscount)
+	}
+	if quote.TotalAmountMinor-actualDiscount != order.PaymentAmountMinor {
+		return "", errors.New("one-time recall payment amount mismatch")
+	}
+	return productID, nil
+}
+
+func applyOneTimeRecallScopedProduct(params *stripe.CheckoutSessionParams, productID string) {
+	productID = strings.TrimSpace(productID)
+	if params == nil || productID == "" {
+		return
+	}
+	for _, item := range params.LineItems {
+		if item == nil || item.PriceData == nil {
+			continue
+		}
+		item.PriceData.Product = stripe.String(productID)
+		item.PriceData.ProductData = nil
+	}
+}
+
+func oneTimePlanStripePriceIDForRecallValidation(order *model.SubscriptionOrder) (string, error) {
+	snapshot := oneTimePlanSnapshotFromOrder(order)
+	if priceID := strings.TrimSpace(snapshot.StripePriceId); priceID != "" {
+		return priceID, nil
+	}
+	if order.PlanId <= 0 {
+		return "", errors.New("one-time recall Stripe price id is required")
+	}
+	plan, err := model.GetSubscriptionPlanById(order.PlanId)
+	if err != nil {
+		return "", err
+	}
+	if plan == nil || strings.TrimSpace(plan.StripePriceId) == "" {
+		return "", errors.New("one-time recall Stripe price id is required")
+	}
+	return strings.TrimSpace(plan.StripePriceId), nil
+}
+
+func oneTimeRecallProductScopeContains(products []string, productID string) bool {
+	productID = strings.TrimSpace(productID)
+	for _, product := range products {
+		if strings.TrimSpace(product) == productID {
+			return true
+		}
+	}
+	return false
+}
+
+func oneTimeRecallDiscountAmountMinor(coupon *stripe.Coupon, currency string, amountMinor int64) int64 {
+	if coupon == nil || amountMinor <= 0 {
+		return 0
+	}
+	currency = strings.ToLower(strings.TrimSpace(currency))
+	var discount int64
+	if coupon.PercentOff > 0 {
+		if coupon.PercentOff >= 100 {
+			return amountMinor
+		}
+		discount = int64(math.Round(float64(amountMinor) * coupon.PercentOff / 100))
+	} else {
+		option, found := coupon.CurrencyOptions[currency]
+		if found && option != nil {
+			discount = option.AmountOff
+		} else {
+			if !strings.EqualFold(string(coupon.Currency), currency) {
+				return 0
+			}
+			discount = coupon.AmountOff
+		}
+	}
+	if discount < 0 {
+		return 0
+	}
+	if discount > amountMinor {
+		return amountMinor
+	}
+	return discount
 }
 
 func oneTimePlanProductText(order *model.SubscriptionOrder) (string, string) {

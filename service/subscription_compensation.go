@@ -196,8 +196,11 @@ func executeStripeToBalanceCompensation(ctx context.Context, intentID int64) err
 			}
 			return markStripeToBalanceCompensationUncertain(intent, contract, getErr)
 		}
-		if cancelErr != nil && snapshot.EndedAt == 0 && !isTerminalStripeSubscriptionStatus(snapshot.ProviderStatus) {
-			return markStripeToBalanceCompensationUncertain(intent, contract, cancelErr)
+		if snapshot.EndedAt == 0 && !isTerminalStripeSubscriptionStatus(snapshot.ProviderStatus) {
+			if cancelErr != nil {
+				return markStripeToBalanceCompensationUncertain(intent, contract, cancelErr)
+			}
+			return markStripeToBalanceCompensationUncertain(intent, contract, errors.New("Stripe cancellation has not reached a terminal provider state"))
 		}
 		return resolveStripeToBalanceSnapshot(ctx, intent, contract, binding, reservation, snapshot)
 	}

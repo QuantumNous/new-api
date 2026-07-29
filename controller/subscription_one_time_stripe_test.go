@@ -16,6 +16,68 @@ import (
 	"github.com/stripe/stripe-go/v86"
 )
 
+type oneTimeStripeRecallFakeClient struct {
+	getCouponFn          func(context.Context, string) (*stripe.Coupon, error)
+	getPromotionCodeFn   func(context.Context, string) (*stripe.PromotionCode, error)
+	getPriceFn           func(context.Context, string) (*stripe.Price, error)
+	getCheckoutSessionFn func(context.Context, string, ...string) (*stripe.CheckoutSession, error)
+}
+
+func (f *oneTimeStripeRecallFakeClient) CreateCoupon(context.Context, *stripe.CouponParams) (*stripe.Coupon, error) {
+	return nil, errors.New("unexpected CreateCoupon")
+}
+
+func (f *oneTimeStripeRecallFakeClient) GetCoupon(ctx context.Context, id string) (*stripe.Coupon, error) {
+	return f.getCouponFn(ctx, id)
+}
+
+func (f *oneTimeStripeRecallFakeClient) CreateCustomer(context.Context, *stripe.CustomerParams) (*stripe.Customer, error) {
+	return nil, errors.New("unexpected CreateCustomer")
+}
+
+func (f *oneTimeStripeRecallFakeClient) GetCustomer(context.Context, string) (*stripe.Customer, error) {
+	return nil, errors.New("unexpected GetCustomer")
+}
+
+func (f *oneTimeStripeRecallFakeClient) UpdateCustomer(context.Context, string, *stripe.CustomerParams) (*stripe.Customer, error) {
+	return nil, errors.New("unexpected UpdateCustomer")
+}
+
+func (f *oneTimeStripeRecallFakeClient) CreatePromotionCode(context.Context, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+	return nil, errors.New("unexpected CreatePromotionCode")
+}
+
+func (f *oneTimeStripeRecallFakeClient) GetPromotionCode(ctx context.Context, id string) (*stripe.PromotionCode, error) {
+	return f.getPromotionCodeFn(ctx, id)
+}
+
+func (f *oneTimeStripeRecallFakeClient) UpdatePromotionCode(context.Context, string, *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+	return nil, errors.New("unexpected UpdatePromotionCode")
+}
+
+func (f *oneTimeStripeRecallFakeClient) GetPrice(ctx context.Context, id string) (*stripe.Price, error) {
+	return f.getPriceFn(ctx, id)
+}
+
+func (f *oneTimeStripeRecallFakeClient) GetCheckoutSession(ctx context.Context, id string, expand ...string) (*stripe.CheckoutSession, error) {
+	return f.getCheckoutSessionFn(ctx, id, expand...)
+}
+
+type oneTimeStripeCheckoutRecordingBackend struct {
+	stripe.Backend
+	checkoutCalls int
+	params        []*stripe.CheckoutSessionParams
+}
+
+func (b *oneTimeStripeCheckoutRecordingBackend) Call(method string, path string, key string, params stripe.ParamsContainer, result stripe.LastResponseSetter) error {
+	b.checkoutCalls++
+	b.params = append(b.params, params.(*stripe.CheckoutSessionParams))
+	session := result.(*stripe.CheckoutSession)
+	session.ID = "cs_one_time_created"
+	session.URL = "https://checkout.stripe.test/one-time"
+	return nil
+}
+
 func oneTimeStripeOrderForTest(method string, currency string, amountMinor int64, months int) *model.SubscriptionOrder {
 	if months <= 0 {
 		months = 1
@@ -148,6 +210,144 @@ func TestBuildOneTimePlanCheckoutFullyDiscountedRecallUsesOriginalAmountAndPromo
 	require.Len(t, params.Discounts, 1)
 	require.NotNil(t, params.Discounts[0].PromotionCode)
 	require.Equal(t, "promo_full_discount", *params.Discounts[0].PromotionCode)
+}
+
+func TestCreateOneTimePlanCheckoutRejectsRecallDiscountDriftBeforeCheckout(t *testing.T) {
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	originalSecret := setting.StripeApiSecret
+	backend := &oneTimeStripeCheckoutRecordingBackend{}
+	stripe.SetBackend(stripe.APIBackend, backend)
+	setting.StripeApiSecret = "sk_test_one_time"
+	t.Cleanup(func() {
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		setting.StripeApiSecret = originalSecret
+	})
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoiceAlipay, "USD", 280, 3)
+	order.RecallCampaignId = 41
+	order.RecallRecipientId = 82
+	order.RecallPromotionCodeId = "promo_drifted"
+	order.RecallDiscountAmountMinor = 20
+	order.PlanSnapshot = `{"plan_id":901,"title":"Pro Local","price_amount":3,"currency":"USD","stripe_price_id":"price_one_time","duration_unit":"month","duration_value":1,"total_amount":300}`
+	client := &oneTimeStripeRecallFakeClient{
+		getPromotionCodeFn: func(_ context.Context, id string) (*stripe.PromotionCode, error) {
+			require.Equal(t, "promo_drifted", id)
+			return &stripe.PromotionCode{
+				ID:     id,
+				Active: true,
+				Promotion: &stripe.PromotionCodePromotion{
+					Type:   stripe.PromotionCodePromotionTypeCoupon,
+					Coupon: &stripe.Coupon{ID: "coupon_drifted"},
+				},
+			}, nil
+		},
+		getCouponFn: func(_ context.Context, id string) (*stripe.Coupon, error) {
+			require.Equal(t, "coupon_drifted", id)
+			return &stripe.Coupon{
+				ID:        id,
+				Valid:     true,
+				Duration:  stripe.CouponDurationOnce,
+				AmountOff: 10,
+				Currency:  stripe.CurrencyUSD,
+				AppliesTo: &stripe.CouponAppliesTo{Products: []string{"prod_one_time"}},
+			}, nil
+		},
+		getPriceFn: func(_ context.Context, id string) (*stripe.Price, error) {
+			require.Equal(t, "price_one_time", id)
+			return &stripe.Price{
+				ID:       id,
+				Active:   true,
+				Currency: stripe.CurrencyUSD,
+				Product:  &stripe.Product{ID: "prod_one_time"},
+			}, nil
+		},
+	}
+	originalRecallClient := stripeOneTimeRecallClient
+	stripeOneTimeRecallClient = client
+	t.Cleanup(func() { stripeOneTimeRecallClient = originalRecallClient })
+
+	_, err := createOneTimeStripeCheckoutSession(context.Background(), order, &model.User{Id: 501, Email: "buyer@example.com"})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "recall discount")
+	require.Zero(t, backend.checkoutCalls, "discount drift must stop before Stripe Checkout creation")
+}
+
+func TestCreateOneTimePlanCheckoutUsesRecallScopedProductForPriceData(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	originalSecret := setting.StripeApiSecret
+	backend := &oneTimeStripeCheckoutRecordingBackend{}
+	stripe.SetBackend(stripe.APIBackend, backend)
+	setting.StripeApiSecret = "sk_test_one_time"
+	t.Cleanup(func() {
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		setting.StripeApiSecret = originalSecret
+	})
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoicePix, "BRL", 4980, 1)
+	order.RecallCampaignId = 41
+	order.RecallRecipientId = 82
+	order.RecallPromotionCodeId = "promo_scoped"
+	order.RecallDiscountAmountMinor = 20
+	order.PlanSnapshot = `{"plan_id":901,"title":"Pro Local","price_amount":50,"currency":"BRL","stripe_price_id":"price_one_time","duration_unit":"month","duration_value":1,"total_amount":5000}`
+	require.NoError(t, model.DB.Create(order).Error)
+	client := &oneTimeStripeRecallFakeClient{
+		getPromotionCodeFn: func(_ context.Context, id string) (*stripe.PromotionCode, error) {
+			require.Equal(t, "promo_scoped", id)
+			return &stripe.PromotionCode{
+				ID:     id,
+				Active: true,
+				Promotion: &stripe.PromotionCodePromotion{
+					Type:   stripe.PromotionCodePromotionTypeCoupon,
+					Coupon: &stripe.Coupon{ID: "coupon_scoped"},
+				},
+			}, nil
+		},
+		getCouponFn: func(_ context.Context, id string) (*stripe.Coupon, error) {
+			require.Equal(t, "coupon_scoped", id)
+			return &stripe.Coupon{
+				ID:              id,
+				Valid:           true,
+				Duration:        stripe.CouponDurationOnce,
+				AmountOff:       10,
+				Currency:        stripe.CurrencyUSD,
+				CurrencyOptions: map[string]*stripe.CouponCurrencyOptions{"brl": {AmountOff: 20}},
+				AppliesTo:       &stripe.CouponAppliesTo{Products: []string{"prod_one_time"}},
+			}, nil
+		},
+		getPriceFn: func(_ context.Context, id string) (*stripe.Price, error) {
+			require.Equal(t, "price_one_time", id)
+			return &stripe.Price{
+				ID:       id,
+				Active:   true,
+				Currency: stripe.CurrencyUSD,
+				Product:  &stripe.Product{ID: "prod_one_time"},
+			}, nil
+		},
+	}
+	originalRecallClient := stripeOneTimeRecallClient
+	stripeOneTimeRecallClient = client
+	t.Cleanup(func() { stripeOneTimeRecallClient = originalRecallClient })
+
+	checkoutSession, err := createOneTimeStripeCheckoutSession(context.Background(), order, &model.User{Id: 501, Email: "buyer@example.com"})
+
+	require.NoError(t, err)
+	require.Equal(t, "https://checkout.stripe.test/one-time", checkoutSession.URL)
+	require.Len(t, backend.params, 1)
+	priceData := backend.params[0].LineItems[0].PriceData
+	require.NotNil(t, priceData.Product)
+	require.Equal(t, "prod_one_time", *priceData.Product)
+	require.Nil(t, priceData.ProductData)
+}
+
+func TestOneTimeRecallDiscountAmountMinorUsesBaseAndCurrencyOptions(t *testing.T) {
+	coupon := &stripe.Coupon{
+		AmountOff:       20,
+		Currency:        stripe.CurrencyUSD,
+		CurrencyOptions: map[string]*stripe.CouponCurrencyOptions{"brl": {AmountOff: 100}},
+	}
+
+	require.Equal(t, int64(20), oneTimeRecallDiscountAmountMinor(coupon, "USD", 500))
+	require.Equal(t, int64(100), oneTimeRecallDiscountAmountMinor(coupon, "BRL", 500))
 }
 
 func TestBuildOneTimePlanCheckoutRejectsIncompleteRecallAttributionTuple(t *testing.T) {
