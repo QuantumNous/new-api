@@ -229,15 +229,20 @@ describe('InvitationView', () => {
     expect(html).not.toContain('API balance')
   })
 
-  test('uses neutral referral copy until the reward mode is available', () => {
+  test('keeps neutral sharing until the reward mode is available', () => {
     const html = renderView({ data: null })
 
     expect(html).toContain('Share your referral link to get started.')
-    expect(html).not.toContain(
+    expect(html).toContain(
       'Referral rewards are processed after their first successful top-up.'
     )
+    expect(html).toContain(
+      encodeURIComponent('Share your referral link to get started.')
+    )
     expect(html).not.toContain(
-      'You receive your package discount immediately after their first successful paid package purchase.'
+      encodeURIComponent(
+        'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
+      )
     )
   })
 
