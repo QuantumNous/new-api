@@ -301,7 +301,81 @@ func TestBuildRequestBodyRejectsUnresolvedStrictAssetURI(t *testing.T) {
 	}`)
 
 	_, err := a.BuildRequestBody(c, info)
-	if err == nil || !strings.Contains(err.Error(), "unresolved byteplus asset reference") {
-		t.Fatalf("BuildRequestBody error = %v, want unresolved asset reference", err)
+	if err == nil || !strings.Contains(err.Error(), "invalid byteplus asset reference") {
+		t.Fatalf("BuildRequestBody error = %v, want invalid asset reference", err)
+	}
+}
+
+func TestRewriteBytePlusAssetReferencesRejectsUnsafeAssetMediaURLs(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "native asset URI",
+			body: `{"content":[{"type":"image_url","image_url":{"url":"asset://native-portrait"}}]}`,
+		},
+		{
+			name: "wrong asset colon prefix",
+			body: `{"content":[{"type":"video_url","video_url":{"url":"asset:ast_1234567890abcdefABCDEF1234567890"}}]}`,
+		},
+		{
+			name: "wrong asset slash prefix",
+			body: `{"content":[{"type":"audio_url","audio_url":{"url":"asset:/ast_1234567890abcdefABCDEF1234567890"}}]}`,
+		},
+		{
+			name: "uppercase scheme",
+			body: `{"content":[{"type":"image_url","image_url":{"url":"ASSET://ast_1234567890abcdefABCDEF1234567890"}}]}`,
+		},
+		{
+			name: "leading whitespace",
+			body: `{"content":[{"type":"video_url","video_url":{"url":" asset://ast_1234567890abcdefABCDEF1234567890"}}]}`,
+		},
+		{
+			name: "trailing whitespace",
+			body: `{"content":[{"type":"audio_url","audio_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890 "}}]}`,
+		},
+		{
+			name: "strict unresolved",
+			body: `{"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"}}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := rewriteBytePlusAssetReferences([]byte(tt.body), map[string]string{})
+			if err == nil {
+				t.Fatal("expected unsafe asset reference error")
+			}
+			assertNoAssetRewriteLeak(t, err)
+		})
+	}
+}
+
+func TestRewriteBytePlusAssetReferencesPreservesOrdinaryBodyAndTextMentions(t *testing.T) {
+	raw := []byte(`{"content":[{"type":"text","text":"plain asset://native-portrait mention"},{"type":"image_url","image_url":{"url":"https://example.com/i.png"}},{"type":"video_url","video_url":{"url":"http://example.com/v.mp4"}}]}`)
+
+	rewritten, err := rewriteBytePlusAssetReferences(raw, map[string]string{})
+	if err != nil {
+		t.Fatalf("rewriteBytePlusAssetReferences error: %v", err)
+	}
+	if string(rewritten) != string(raw) {
+		t.Fatalf("ordinary body changed:\ngot  %s\nwant %s", rewritten, raw)
+	}
+}
+
+func assertNoAssetRewriteLeak(t *testing.T, err error) {
+	t.Helper()
+	text := err.Error()
+	for _, marker := range []string{
+		"asset://native-portrait",
+		"asset://ast_1234567890abcdefABCDEF1234567890",
+		"asset:ast_1234567890abcdefABCDEF1234567890",
+		"asset:/ast_1234567890abcdefABCDEF1234567890",
+		"upstream",
+		"internal",
+	} {
+		if strings.Contains(text, marker) {
+			t.Fatalf("error leaked %q in %q", marker, text)
+		}
 	}
 }

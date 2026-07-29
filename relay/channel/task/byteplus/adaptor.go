@@ -75,7 +75,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func rewriteBytePlusAssetReferences(raw []byte, rewriteMap map[string]string) ([]byte, error) {
-	if !bytes.Contains(raw, []byte("asset://ast_")) {
+	if !bytes.Contains(bytes.ToLower(raw), []byte("asset:")) {
 		return raw, nil
 	}
 	var payload map[string]any
@@ -86,6 +86,7 @@ func rewriteBytePlusAssetReferences(raw []byte, rewriteMap map[string]string) ([
 	if !ok {
 		return raw, nil
 	}
+	rewritten := false
 	for _, itemAny := range content {
 		item, ok := itemAny.(map[string]any)
 		if !ok {
@@ -97,17 +98,28 @@ func rewriteBytePlusAssetReferences(raw []byte, rewriteMap map[string]string) ([
 				continue
 			}
 			urlValue, ok := media["url"].(string)
-			if !ok || !service.IsStrictBytePlusAssetURI(urlValue) {
+			if !ok || !isBytePlusAssetSchemeURL(urlValue) {
 				continue
+			}
+			if !service.IsStrictBytePlusAssetURI(urlValue) {
+				return nil, fmt.Errorf("invalid byteplus asset reference")
 			}
 			upstreamURL, ok := rewriteMap[urlValue]
 			if !ok || strings.TrimSpace(upstreamURL) == "" {
-				return nil, fmt.Errorf("unresolved byteplus asset reference")
+				return nil, fmt.Errorf("invalid byteplus asset reference")
 			}
 			media["url"] = upstreamURL
+			rewritten = true
 		}
 	}
+	if !rewritten {
+		return raw, nil
+	}
 	return common.Marshal(payload)
+}
+
+func isBytePlusAssetSchemeURL(raw string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "asset:")
 }
 
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
