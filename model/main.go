@@ -65,6 +65,20 @@ var DB *gorm.DB
 
 var LOG_DB *gorm.DB
 
+const skipDatabaseMigrationEnv = "SKIP_DATABASE_MIGRATION"
+
+func shouldRunDatabaseMigration(isMasterNode bool, skipMigrationValue string) bool {
+	return isMasterNode && skipMigrationValue != "true"
+}
+
+func shouldRunDatabaseMigrationForCurrentNode() bool {
+	return shouldRunDatabaseMigration(common.IsMasterNode, os.Getenv(skipDatabaseMigrationEnv))
+}
+
+func logDatabaseMigrationSkipped() {
+	common.SysLog(skipDatabaseMigrationEnv + "=true: database migration skipped; master node duties remain enabled")
+}
+
 func createRootAccountIfNeed() error {
 	var user User
 	//if user.Status != common.UserStatusEnabled {
@@ -195,7 +209,10 @@ func InitDB() (err error) {
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
-		if !common.IsMasterNode {
+		if !shouldRunDatabaseMigrationForCurrentNode() {
+			if common.IsMasterNode {
+				logDatabaseMigrationSkipped()
+			}
 			return nil
 		}
 		if common.UsingMySQL {
@@ -235,7 +252,10 @@ func InitLogDB() (err error) {
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
-		if !common.IsMasterNode {
+		if !shouldRunDatabaseMigrationForCurrentNode() {
+			if common.IsMasterNode {
+				logDatabaseMigrationSkipped()
+			}
 			return nil
 		}
 		common.SysLog("database migration started")
