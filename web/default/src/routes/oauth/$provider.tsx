@@ -111,7 +111,8 @@ function OAuthCallback() {
         window.close()
         setTimeout(() => {
           if (!window.closed) {
-            window.location.replace('/_authenticated/profile/')
+            // Real URL path — `/_authenticated/...` is a route id, not a pathname.
+            window.location.replace('/profile')
           }
         }, 200)
       }
@@ -179,7 +180,7 @@ function OAuthCallback() {
               // Close the callback window if we opened a new tab for binding
               closeBindingWindow()
             } else {
-              safeNavigate('/_authenticated/profile/')
+              safeNavigate('/profile')
             }
             return
           }

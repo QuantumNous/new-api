@@ -25,13 +25,30 @@ function containsControlCharacter(value: string): boolean {
   })
 }
 
+/**
+ * TanStack pathless layouts (`_authenticated`, `(auth)`, `(errors)`) appear in
+ * route ids but must never be used as browser pathnames. Rewrite accidental
+ * copies (e.g. `/_authenticated/profile/`) to the real URL (`/profile/`).
+ */
+function stripPathlessLayoutPrefixes(pathname: string): string {
+  let next = pathname
+  for (;;) {
+    const stripped = next
+      .replace(/^\/_authenticated(?=\/|$)/, '')
+      .replace(/^\/\([^/]+\)(?=\/|$)/, '')
+    if (stripped === next) break
+    next = stripped || '/'
+  }
+  return next.startsWith('/') ? next : `/${next}`
+}
+
 export function normalizeReturnTarget(target?: string | null): string {
   if (!target || containsControlCharacter(target) || target.includes('\\')) {
     return FALLBACK_RETURN_TARGET
   }
 
   if (target.startsWith('/') && !target.startsWith('//')) {
-    return target
+    return stripPathlessLayoutPrefixes(target)
   }
 
   if (typeof window === 'undefined') {
@@ -43,7 +60,7 @@ export function normalizeReturnTarget(target?: string | null): string {
     if (url.origin !== window.location.origin) {
       return FALLBACK_RETURN_TARGET
     }
-    return `${url.pathname}${url.search}${url.hash}`
+    return `${stripPathlessLayoutPrefixes(url.pathname)}${url.search}${url.hash}`
   } catch {
     return FALLBACK_RETURN_TARGET
   }

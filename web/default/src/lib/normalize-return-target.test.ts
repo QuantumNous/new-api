@@ -29,6 +29,10 @@ describe('normalizeReturnTarget', () => {
       '/desktop/authorize?request=abc#decision',
       '/desktop/authorize?request=abc#decision',
     ],
+    ['/_authenticated/profile/', '/profile/'],
+    ['/_authenticated/profile', '/profile'],
+    ['/(auth)/sign-in', '/sign-in'],
+    ['/(errors)/404', '/404'],
   ])('keeps an internal path', (target, expected) => {
     expect(normalizeReturnTarget(target)).toBe(expected)
   })
