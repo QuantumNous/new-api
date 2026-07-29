@@ -17,15 +17,56 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, type ReactNode } from 'react'
-
-import { useIsAdmin } from '@/hooks/use-admin'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  type ReactNode,
+} from 'react'
+import { useNavigate } from '@tanstack/react-router'
 
 import type { ChannelAffinityInfo } from '../types'
+import type { UsageLogsSectionId } from '../section-registry'
 
-export type LogsViewScope = 'all' | 'self'
+/**
+ * Usage-logs page mode.
+ *
+ * - `self`: personal logs only (`/api/log/self`, console entry)
+ * - `site`: platform-wide admin logs (`/api/log`, admin entry)
+ *
+ * Mode is fixed by route so console and admin no longer share one blended page.
+ */
+export type UsageLogsMode = 'self' | 'site'
+
+/** Search params shared by personal and site usage-logs routes. */
+export type UsageLogsSearch = {
+  page?: number
+  pageSize?: number
+  type?: string[]
+  filter?: string
+  model?: string
+  token?: string
+  channel?: string
+  group?: string
+  username?: string
+  requestId?: string
+  upstreamRequestId?: string
+  startTime?: number
+  endTime?: number
+}
 
 interface UsageLogsContextValue {
+  mode: UsageLogsMode
+  /** Path prefix without trailing section, e.g. `/usage-logs` or `/admin/usage-logs`. */
+  basePath: string
+  section: UsageLogsSectionId
+  searchParams: UsageLogsSearch
+  /** Navigate within the current mode's usage-logs section, merging search. */
+  navigateLogs: (options: {
+    section?: UsageLogsSectionId
+    search?: UsageLogsSearch
+  }) => void
   selectedUserId: number | null
   setSelectedUserId: (userId: number | null) => void
   userInfoDialogOpen: boolean
@@ -36,26 +77,51 @@ interface UsageLogsContextValue {
   setAffinityDialogOpen: (open: boolean) => void
   sensitiveVisible: boolean
   setSensitiveVisible: (visible: boolean) => void
-  viewScope: LogsViewScope
-  setViewScope: (scope: LogsViewScope) => void
 }
 
 const UsageLogsContext = createContext<UsageLogsContextValue | undefined>(
   undefined
 )
 
-export function UsageLogsProvider({ children }: { children: ReactNode }) {
+export function UsageLogsProvider(props: {
+  mode: UsageLogsMode
+  basePath: string
+  section: UsageLogsSectionId
+  searchParams: UsageLogsSearch
+  children: ReactNode
+}) {
+  const navigate = useNavigate()
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [userInfoDialogOpen, setUserInfoDialogOpen] = useState(false)
   const [affinityTarget, setAffinityTarget] =
     useState<ChannelAffinityInfo | null>(null)
   const [affinityDialogOpen, setAffinityDialogOpen] = useState(false)
   const [sensitiveVisible, setSensitiveVisible] = useState(true)
-  const [viewScope, setViewScope] = useState<LogsViewScope>('all')
+
+  const navigateLogs = useCallback(
+    (options: { section?: UsageLogsSectionId; search?: UsageLogsSearch }) => {
+      const nextSection = options.section ?? props.section
+      const to =
+        props.mode === 'site'
+          ? '/admin/usage-logs/$section'
+          : '/usage-logs/$section'
+      void navigate({
+        to,
+        params: { section: nextSection },
+        search: options.search ?? props.searchParams,
+      })
+    },
+    [navigate, props.mode, props.searchParams, props.section]
+  )
 
   return (
     <UsageLogsContext.Provider
       value={{
+        mode: props.mode,
+        basePath: props.basePath,
+        section: props.section,
+        searchParams: props.searchParams,
+        navigateLogs,
         selectedUserId,
         setSelectedUserId,
         userInfoDialogOpen,
@@ -66,11 +132,9 @@ export function UsageLogsProvider({ children }: { children: ReactNode }) {
         setAffinityDialogOpen,
         sensitiveVisible,
         setSensitiveVisible,
-        viewScope,
-        setViewScope,
       }}
     >
-      {children}
+      {props.children}
     </UsageLogsContext.Provider>
   )
 }
@@ -84,21 +148,16 @@ export function useUsageLogsContext() {
 }
 
 /**
- * Resolves the effective admin scope for usage logs: whether the current
- * user is allowed to view all users' logs (`canManageScope`), and whether
- * their current view preference (`viewScope`) has that scope active
- * (`isAdminView`). Data fetching and admin-only UI should key off
- * `isAdminView` rather than raw role, so an admin who switches to "only
- * mine" is treated exactly like a regular user for that view.
+ * Resolves whether the current usage-logs page is the site-wide admin view.
+ * Data fetching and admin-only UI must key off `isAdminView`, which is fixed
+ * by route mode — not by an in-page All/Mine toggle.
  */
 export function useLogsViewScope() {
-  const canManageScope = useIsAdmin()
-  const { viewScope, setViewScope } = useUsageLogsContext()
+  const { mode } = useUsageLogsContext()
 
   return {
-    canManageScope,
-    viewScope,
-    setViewScope,
-    isAdminView: canManageScope && viewScope === 'all',
+    mode,
+    /** Site-wide page is only mounted for admins; still true when mode is site. */
+    isAdminView: mode === 'site',
   }
 }

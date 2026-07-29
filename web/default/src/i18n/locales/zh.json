@@ -2480,7 +2480,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For example: 70B": "例如：70B",
     "For OpenAI-compatible HTTP endpoints, request streaming in the payload and read each SSE data frame as it arrives. A data frame containing [DONE] ends the stream.": "对于与 OpenAI 兼容的 HTTP endpoints，在 payload 中请求 streaming，并在每个 SSE data frame 到达时读取。包含 [DONE] 的 data frame 结束 stream。",
@@ -6388,6 +6388,10 @@
     "Zhipu V4": "智谱 V4",
     "Zoom": "缩放",
     "Zoom in": "放大",
-    "Zoom out": "缩小"
+    "Zoom out": "缩小",
+    "Site Analytics": "全站数据分析",
+    "Site Usage Logs": "全站使用日志",
+    "Site Common Logs": "全站通用日志",
+    "Site Task Logs": "全站任务日志"
   }
 }

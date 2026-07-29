@@ -48,7 +48,7 @@ import type {
 } from '@/features/dashboard/types'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/stores/auth-store'
+import { useDashboardScope } from '../dashboard-scope'
 
 interface ModelsFilterProps {
   preferences: DashboardChartPreferences
@@ -98,9 +98,8 @@ const SectionDivider = ({ label }: { label: string }) => (
 
 export function ModelsFilter(props: ModelsFilterProps) {
   const { t } = useTranslation()
-  // 使用已缓存的用户数据，避免重复调用 API
-  const user = useAuthStore((state) => state.auth.user)
-  const isAdmin = user?.role && user.role >= 10
+  // Username filter is only meaningful on the site-wide admin analytics page.
+  const { isSiteWide: isAdmin } = useDashboardScope()
 
   const [open, setOpen] = useState(false)
   const [filters, setFilters] = useState<DashboardFilters>(

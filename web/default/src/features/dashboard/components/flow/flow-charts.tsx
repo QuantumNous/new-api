@@ -80,6 +80,7 @@ import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { useDashboardScope } from '../dashboard-scope'
 import { FlowNodeFilterControl } from './flow-node-filter'
 import { FlowSankeyChart } from './flow-sankey-chart'
 
@@ -198,8 +199,13 @@ function formatFlowMetricNumber(value: number): string {
 export function FlowCharts(props: FlowChartsProps) {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
-  const isRoot = Boolean(user?.role && user.role >= ROLE.SUPER_ADMIN)
-  const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
+  const { isSiteWide } = useDashboardScope()
+  const isRoot = Boolean(
+    isSiteWide && user?.role && user.role >= ROLE.SUPER_ADMIN
+  )
+  const isAdmin = Boolean(
+    isSiteWide && user?.role && user.role >= ROLE.ADMIN
+  )
   let flowRole: FlowRole = 'user'
   if (isRoot) {
     flowRole = 'root'

@@ -2480,7 +2480,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For example: 70B": "Например: 70Б",
     "For OpenAI-compatible HTTP endpoints, request streaming in the payload and read each SSE data frame as it arrives. A data frame containing [DONE] ends the stream.": "Для конечных точек HTTP, совместимых с OpenAI, запрашивайте потоковую передачу полезных данных и читайте каждый кадр данных SSE по мере его поступления. Кадр данных, содержащий [DONE], завершает поток.",
@@ -6388,6 +6388,10 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "Zoom in": "Приблизить",
-    "Zoom out": "Отдалить"
+    "Zoom out": "Отдалить",
+    "Site Analytics": "Аналитика платформы",
+    "Site Usage Logs": "Логи использования платформы",
+    "Site Common Logs": "Общие логи платформы",
+    "Site Task Logs": "Логи задач платформы"
   }
 }

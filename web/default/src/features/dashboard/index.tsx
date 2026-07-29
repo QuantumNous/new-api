@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { useNavigate, useParams } from '@tanstack/react-router'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,10 +31,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/stores/auth-store'
 
+import {
+  DashboardScopeProvider,
+  type DashboardDataScope,
+  useDashboardScope,
+} from './components/dashboard-scope'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
@@ -57,8 +60,6 @@ import type {
   QuotaDataItem,
   UserChartsFilters,
 } from './types'
-
-const route = getRouteApi('/_authenticated/dashboard/$section')
 
 const LOG_STAT_CARD_FALLBACK_KEYS = [
   'count',
@@ -188,11 +189,11 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   },
 }
 
-export function Dashboard() {
+function DashboardContent() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const params = route.useParams()
-  const userRole = useAuthStore((state) => state.auth.user?.role)
+  const params = useParams({ strict: false }) as { section?: string }
+  const { isSiteWide } = useDashboardScope()
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
@@ -241,22 +242,33 @@ export function Dashboard() {
   )
 
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
-  const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  // Site-wide admin page exposes multi-user analytics; console stays personal.
   const visibleSections = useMemo(
     () =>
-      DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
-      ),
-    [isAdmin]
+      DASHBOARD_SECTION_IDS.filter((section) => {
+        if (section === 'overview') return false
+        if (section === 'users') return isSiteWide
+        // Personal console analytics: models only (flow is multi-user oriented).
+        if (!isSiteWide && section === 'flow') return false
+        return true
+      }),
+    [isSiteWide]
   )
   const handleSectionChange = useCallback(
     (section: string) => {
+      if (isSiteWide) {
+        void navigate({
+          to: '/admin/analytics/$section',
+          params: { section: section as DashboardSectionId },
+        })
+        return
+      }
       void navigate({
         to: '/dashboard/$section',
         params: { section: section as DashboardSectionId },
       })
     },
-    [navigate]
+    [isSiteWide, navigate]
   )
   const showSectionTabs =
     activeSection !== 'overview' && visibleSections.length > 1
@@ -314,9 +326,14 @@ export function Dashboard() {
     ) : null
   const sectionActions = modelActions ?? flowActions
 
+  const pageTitleKey =
+    isSiteWide && activeSection === 'models'
+      ? 'Site Analytics'
+      : meta.titleKey
+
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t(pageTitleKey)}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <div className='space-y-3 sm:space-y-4'>
           {activeSection !== 'overview' && (
@@ -341,7 +358,9 @@ export function Dashboard() {
               )}
             </div>
           )}
-          {activeSection === 'overview' && <OverviewDashboard />}
+          {activeSection === 'overview' && !isSiteWide && (
+            <OverviewDashboard />
+          )}
           {activeSection === 'models' && (
             <>
               <FadeIn>
@@ -352,7 +371,7 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
-              {isAdmin && (
+              {isSiteWide && (
                 <FadeIn delay={0.05}>
                   <Suspense fallback={<PerformanceOverviewFallback />}>
                     <LazyPerformanceOverview />
@@ -387,7 +406,7 @@ export function Dashboard() {
               </FadeIn>
             </>
           )}
-          {activeSection === 'users' && (
+          {activeSection === 'users' && isSiteWide && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts
@@ -397,7 +416,7 @@ export function Dashboard() {
               </Suspense>
             </FadeIn>
           )}
-          {activeSection === 'flow' && (
+          {activeSection === 'flow' && isSiteWide && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyFlowCharts
@@ -410,5 +429,14 @@ export function Dashboard() {
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>
+  )
+}
+
+export function Dashboard(props: { scope?: DashboardDataScope } = {}) {
+  const scope = props.scope ?? 'self'
+  return (
+    <DashboardScopeProvider scope={scope}>
+      <DashboardContent />
+    </DashboardScopeProvider>
   )
 }

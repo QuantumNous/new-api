@@ -17,61 +17,47 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import z from 'zod'
 
 import { UsageLogs } from '@/features/usage-logs'
 import {
   isUsageLogsSectionId,
   USAGE_LOGS_DEFAULT_SECTION,
 } from '@/features/usage-logs/section-registry'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
-const logTypeValues = ['0', '1', '2', '3', '4', '5', '6', '7'] as const
-const logTypeSearchSchema = z
-  .preprocess((value) => {
-    if (value == null || value === '') return undefined
-    return Array.isArray(value) ? value : [value]
-  }, z.array(z.enum(logTypeValues)).optional())
-  .catch([])
+import { usageLogsSearchSchema } from '../../usage-logs/$section'
 
-export const usageLogsSearchSchema = z.object({
-  page: z.number().optional().catch(1),
-  pageSize: z.number().optional().catch(undefined),
-  type: logTypeSearchSchema.optional(),
-  filter: z.string().optional().catch(''),
-  model: z.string().optional().catch(''),
-  token: z.string().optional().catch(''),
-  channel: z.string().optional().catch(''),
-  group: z.string().optional().catch(''),
-  username: z.string().optional().catch(''),
-  requestId: z.string().optional().catch(''),
-  upstreamRequestId: z.string().optional().catch(''),
-  startTime: z.number().optional(),
-  endTime: z.number().optional(),
-})
-
-function PersonalUsageLogsPage() {
+function SiteUsageLogsPage() {
   const { section } = Route.useParams()
   const searchParams = Route.useSearch()
   return (
-    <UsageLogs mode='self' section={section} searchParams={searchParams} />
+    <UsageLogs mode='site' section={section} searchParams={searchParams} />
   )
 }
 
-export const Route = createFileRoute('/_authenticated/usage-logs/$section')({
+export const Route = createFileRoute(
+  '/_authenticated/admin/usage-logs/$section'
+)({
   beforeLoad: ({ params, search }) => {
+    const { auth } = useAuthStore.getState()
+    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+      throw redirect({ to: '/403' })
+    }
+
     if (!isUsageLogsSectionId(params.section)) {
       throw redirect({
-        to: '/usage-logs/$section',
+        to: '/admin/usage-logs/$section',
         params: { section: USAGE_LOGS_DEFAULT_SECTION },
       })
     }
-    // type 仅 common 使用，非 common 时清掉 URL 里的 type
+
     const hasTypeSearch = Array.isArray(search?.type)
       ? search.type.length > 0
       : search?.type != null && search.type !== ''
     if (params.section !== 'common' && hasTypeSearch) {
       throw redirect({
-        to: '/usage-logs/$section',
+        to: '/admin/usage-logs/$section',
         params: { section: params.section },
         search: { ...search, type: undefined },
         replace: true,
@@ -79,5 +65,5 @@ export const Route = createFileRoute('/_authenticated/usage-logs/$section')({
     }
   },
   validateSearch: usageLogsSearchSchema,
-  component: PersonalUsageLogsPage,
+  component: SiteUsageLogsPage,
 })

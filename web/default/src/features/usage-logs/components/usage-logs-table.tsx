@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -43,9 +42,7 @@ import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 import { UsageLogsMobileList } from './usage-logs-mobile-card'
-import { useLogsViewScope } from './usage-logs-provider'
-
-const route = getRouteApi('/_authenticated/usage-logs/$section')
+import { useLogsViewScope, useUsageLogsContext } from './usage-logs-provider'
 
 const logTypeRowTint: Record<number, string> = {
   [LOG_TYPE_ENUM.ERROR]: 'bg-rose-50/40 dark:bg-rose-950/20',
@@ -82,8 +79,8 @@ interface UsageLogsTableProps {
 export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const { t } = useTranslation()
   const { isAdminView: isAdmin } = useLogsViewScope()
+  const { searchParams, navigateLogs, section } = useUsageLogsContext()
   const isMobile = useSmDown()
-  const searchParams = route.useSearch()
 
   const {
     columnFilters,
@@ -92,8 +89,21 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     onPaginationChange,
     ensurePageInRange,
   } = useTableUrlState({
-    search: route.useSearch(),
-    navigate: route.useNavigate(),
+    search: searchParams as Record<string, unknown>,
+    navigate: ({ search, replace: _replace }) => {
+      let next: typeof searchParams
+      if (typeof search === 'function') {
+        next = search(searchParams as Record<string, unknown>) as typeof searchParams
+      } else if (search === true) {
+        next = searchParams
+      } else {
+        next = search as typeof searchParams
+      }
+      navigateLogs({
+        section,
+        search: next,
+      })
+    },
     pagination: { defaultPage: 1, defaultPageSize: isMobile ? 20 : 100 },
     globalFilter: { enabled: false },
     columnFilters: [

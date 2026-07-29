@@ -97,11 +97,13 @@ export function useSidebarData(): SidebarData {
         title: t('Log monitoring'),
         items: [
           {
+            // Personal consumption analytics (always /api/data/self)
             title: t('Analytics'),
             url: '/dashboard/models',
             icon: Activity,
           },
           {
+            // Personal usage logs (always /api/log/self)
             title: t('Usage Logs'),
             url: '/usage-logs/common',
             icon: FileText,
@@ -123,6 +125,20 @@ export function useSidebarData(): SidebarData {
         id: 'admin',
         title: t('Admin'),
         items: [
+          {
+            // Platform-wide analytics (admin APIs); separate from console Analytics
+            title: t('Site Analytics'),
+            url: '/admin/analytics/models',
+            icon: Activity,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            // Platform-wide usage logs (admin APIs); separate from console Usage Logs
+            title: t('Site Usage Logs'),
+            url: '/admin/usage-logs/common',
+            icon: FileText,
+            requiredRole: ROLE.ADMIN,
+          },
           {
             title: t('Channels'),
             url: '/channels',

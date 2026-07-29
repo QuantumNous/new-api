@@ -2480,7 +2480,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For example: 70B": "例: 70B",
     "For OpenAI-compatible HTTP endpoints, request streaming in the payload and read each SSE data frame as it arrives. A data frame containing [DONE] ends the stream.": "OpenAI 互換の HTTP エンドポイントの場合、ペイロードでストリーミングをリクエストし、到着時に各 SSE データ フレームを読み取ります。 [DONE] を含むデータ フレームはストリームを終了します。",
@@ -6388,6 +6388,10 @@
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム",
     "Zoom in": "拡大",
-    "Zoom out": "縮小"
+    "Zoom out": "縮小",
+    "Site Analytics": "サイト全体の分析",
+    "Site Usage Logs": "サイト全体の使用ログ",
+    "Site Common Logs": "サイト全体の一般ログ",
+    "Site Task Logs": "サイト全体のタスクログ"
   }
 }

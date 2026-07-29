@@ -2480,7 +2480,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For example: 70B": "Ví dụ: 70B",
     "For OpenAI-compatible HTTP endpoints, request streaming in the payload and read each SSE data frame as it arrives. A data frame containing [DONE] ends the stream.": "Đối với các endpoint HTTP tương thích với OpenAI, hãy yêu cầu streaming trong payload và đọc từng khung dữ liệu SSE khi nó đến. Khung dữ liệu chứa [DONE] kết thúc luồng.",
@@ -6388,6 +6388,10 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "Zoom in": "Phóng to",
-    "Zoom out": "Thu nhỏ"
+    "Zoom out": "Thu nhỏ",
+    "Site Analytics": "Phân tích toàn trang",
+    "Site Usage Logs": "Nhật ký sử dụng toàn trang",
+    "Site Common Logs": "Nhật ký chung toàn trang",
+    "Site Task Logs": "Nhật ký tác vụ toàn trang"
   }
 }

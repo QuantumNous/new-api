@@ -2480,7 +2480,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For example: 70B": "Par exemple : 70B",
     "For OpenAI-compatible HTTP endpoints, request streaming in the payload and read each SSE data frame as it arrives. A data frame containing [DONE] ends the stream.": "Pour les points de terminaison HTTP compatibles OpenAI, demandez le streaming dans la charge utile et lisez chaque trame de données SSE au fur et à mesure de son arrivée. Une trame de données contenant [DONE] termine le flux.",
@@ -6388,6 +6388,10 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "Zoom in": "Zoom avant",
-    "Zoom out": "Zoom arrière"
+    "Zoom out": "Zoom arrière",
+    "Site Analytics": "Analytique du site",
+    "Site Usage Logs": "Journaux d'utilisation du site",
+    "Site Common Logs": "Journaux communs du site",
+    "Site Task Logs": "Journaux de tâches du site"
   }
 }

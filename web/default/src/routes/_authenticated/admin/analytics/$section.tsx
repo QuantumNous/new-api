@@ -19,27 +19,29 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { Dashboard } from '@/features/dashboard'
-import {
-  DASHBOARD_SECTION_IDS,
-  DASHBOARD_DEFAULT_SECTION,
-} from '@/features/dashboard/section-registry'
+import { DASHBOARD_SECTION_IDS } from '@/features/dashboard/section-registry'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
-export const Route = createFileRoute('/_authenticated/dashboard/$section')({
+const SITE_ANALYTICS_SECTIONS = DASHBOARD_SECTION_IDS.filter(
+  (section) => section !== 'overview'
+) as string[]
+
+export const Route = createFileRoute(
+  '/_authenticated/admin/analytics/$section'
+)({
   beforeLoad: ({ params }) => {
-    const validSections = DASHBOARD_SECTION_IDS as unknown as string[]
-    if (!validSections.includes(params.section)) {
-      throw redirect({
-        to: '/dashboard/$section',
-        params: { section: DASHBOARD_DEFAULT_SECTION },
-      })
+    const { auth } = useAuthStore.getState()
+    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+      throw redirect({ to: '/403' })
     }
-    // Console dashboard is personal: multi-user analytics live under /admin/analytics.
-    if (params.section === 'users' || params.section === 'flow') {
+
+    if (!SITE_ANALYTICS_SECTIONS.includes(params.section)) {
       throw redirect({
-        to: '/dashboard/$section',
+        to: '/admin/analytics/$section',
         params: { section: 'models' },
       })
     }
   },
-  component: () => <Dashboard scope='self' />,
+  component: () => <Dashboard scope='site' />,
 })

@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,9 +27,9 @@ import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import {
-  type LogsViewScope,
+  type UsageLogsMode,
+  type UsageLogsSearch,
   UsageLogsProvider,
-  useLogsViewScope,
   useUsageLogsContext,
 } from './components/usage-logs-provider'
 import { UsageLogsTable } from './components/usage-logs-table'
@@ -40,7 +39,6 @@ import {
   type UsageLogsSectionId,
 } from './section-registry'
 
-const route = getRouteApi('/_authenticated/usage-logs/$section')
 const TASK_LOG_SECTIONS = ['drawing', 'task'] as const
 
 const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
@@ -57,13 +55,10 @@ const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
 
 function UsageLogsContent() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
-  const params = route.useParams()
-  const activeCategory: UsageLogsSectionId =
-    params.section && isUsageLogsSectionId(params.section)
-      ? params.section
-      : USAGE_LOGS_DEFAULT_SECTION
   const {
+    mode,
+    section: activeCategory,
+    navigateLogs,
     selectedUserId,
     userInfoDialogOpen,
     setUserInfoDialogOpen,
@@ -71,18 +66,21 @@ function UsageLogsContent() {
     affinityDialogOpen,
     setAffinityDialogOpen,
   } = useUsageLogsContext()
-  const { canManageScope, viewScope, setViewScope } = useLogsViewScope()
+
   const tabNavGroups = useMemo<NavGroup[]>(
     () => [
       {
         title: 'Task Logs',
         items: TASK_LOG_SECTIONS.map((section) => ({
           title: SECTION_META[section].titleKey,
-          url: `/usage-logs/${section}`,
+          url:
+            mode === 'site'
+              ? `/admin/usage-logs/${section}`
+              : `/usage-logs/${section}`,
         })),
       },
     ],
-    []
+    [mode]
   )
   const filteredTabGroups = useSidebarConfig(tabNavGroups)
   const visibleSections = useMemo(
@@ -100,44 +98,26 @@ function UsageLogsContent() {
 
   const handleSectionChange = useCallback(
     (section: string) => {
-      void navigate({
-        to: '/usage-logs/$section',
-        params: { section: section as UsageLogsSectionId },
-      })
+      if (!isUsageLogsSectionId(section)) return
+      navigateLogs({ section })
     },
-    [navigate]
-  )
-
-  const handleViewScopeChange = useCallback(
-    (scope: string) => {
-      if (scope === 'all' || scope === 'self') {
-        setViewScope(scope as LogsViewScope)
-      }
-    },
-    [setViewScope]
+    [navigateLogs]
   )
 
   const pageMeta =
     activeCategory === 'common' ? SECTION_META.common : SECTION_META.task
   const showTaskSwitcher =
     activeCategory !== 'common' && visibleSections.length > 1
+  let titleKey = pageMeta.titleKey
+  if (mode === 'site') {
+    titleKey =
+      activeCategory === 'common' ? 'Site Common Logs' : 'Site Task Logs'
+  }
 
   return (
     <>
       <SectionPageLayout fixedContent>
-        <SectionPageLayout.Title>
-          {t(pageMeta.titleKey)}
-        </SectionPageLayout.Title>
-        {canManageScope && (
-          <SectionPageLayout.Actions>
-            <Tabs value={viewScope} onValueChange={handleViewScopeChange}>
-              <TabsList>
-                <TabsTrigger value='all'>{t('All')}</TabsTrigger>
-                <TabsTrigger value='self'>{t('Only Mine')}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </SectionPageLayout.Actions>
-        )}
+        <SectionPageLayout.Title>{t(titleKey)}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='flex h-full min-h-0 flex-col gap-4'>
             {showTaskSwitcher && (
@@ -185,9 +165,25 @@ function UsageLogsContent() {
   )
 }
 
-export function UsageLogs() {
+export interface UsageLogsProps {
+  mode: UsageLogsMode
+  section: string
+  searchParams: UsageLogsSearch
+}
+
+export function UsageLogs(props: UsageLogsProps) {
+  const section = isUsageLogsSectionId(props.section)
+    ? props.section
+    : USAGE_LOGS_DEFAULT_SECTION
+  const basePath = props.mode === 'site' ? '/admin/usage-logs' : '/usage-logs'
+
   return (
-    <UsageLogsProvider>
+    <UsageLogsProvider
+      mode={props.mode}
+      basePath={basePath}
+      section={section}
+      searchParams={props.searchParams}
+    >
       <UsageLogsContent />
     </UsageLogsProvider>
   )
