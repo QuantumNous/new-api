@@ -362,8 +362,8 @@ func confirmStripeLifecycleMutationAfterProviderError(binding *model.Subscriptio
 	providerStatus := strings.ToLower(strings.TrimSpace(confirmed.ProviderStatus))
 	terminal := confirmed.EndedAt > 0 || isTerminalStripeSubscriptionStatus(providerStatus)
 	if terminal {
-		if !targetCancelAtPeriodEnd || reservation.Action != model.SubscriptionProviderLifecycleActionCancel || providerStatus != "canceled" {
-			return nil, fmt.Errorf("Stripe lifecycle update failed: %v; authoritative Stripe subscription is not a canceled terminal snapshot", providerErr)
+		if !targetCancelAtPeriodEnd || reservation.Action != model.SubscriptionProviderLifecycleActionCancel {
+			return nil, fmt.Errorf("Stripe lifecycle update failed: %v; authoritative Stripe subscription is not a cancel terminal snapshot", providerErr)
 		}
 		if consumed, ok := stripeLifecycleConsumedTargetState(binding, reservation, targetCancelAtPeriodEnd, true); ok {
 			return consumed, nil
@@ -1235,10 +1235,10 @@ func activeCancelDowngradeCompensationReservation(binding *model.SubscriptionPro
 		return nil, nil
 	}
 	now := model.GetDBTimestamp()
+	if binding.LifecycleReservationUntil <= now {
+		return nil, nil
+	}
 	if binding.LifecycleReservationAction != model.SubscriptionProviderLifecycleActionCancel {
-		if binding.LifecycleReservationUntil <= now {
-			return nil, nil
-		}
 		return nil, model.ErrSubscriptionProviderLifecycleConflict
 	}
 	return model.GetSubscriptionProviderLifecycleReservation(binding.Id, model.SubscriptionProviderLifecycleActionCancel)
