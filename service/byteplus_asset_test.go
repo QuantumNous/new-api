@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -299,6 +300,30 @@ func TestBytePlusAssetCreateReReadsFreshGroupLeaseAndReusesWhenItBecomesActive(t
 	}
 	if fake.lastCreate.GroupID != "ready-group" || reloads != 2 {
 		t.Fatalf("retry reuse failed group=%q reloads=%d", fake.lastCreate.GroupID, reloads)
+	}
+}
+
+func TestBytePlusAssetGroupRetryDelayDefaultUsesPositiveBoundedBackoff(t *testing.T) {
+	defaultDelay := bytePlusAssetGroupRetryDelay
+	oldSleep := bytePlusAssetGroupRetrySleep
+	var delays []time.Duration
+	bytePlusAssetGroupRetrySleep = func(delay time.Duration) {
+		delays = append(delays, delay)
+	}
+	defer func() { bytePlusAssetGroupRetrySleep = oldSleep }()
+
+	for attempt := 1; attempt <= 3; attempt++ {
+		defaultDelay(attempt)
+		delay := delays[len(delays)-1]
+		if delay <= 0 {
+			t.Fatalf("attempt %d delay = %s, want positive backoff", attempt, delay)
+		}
+		if delay >= time.Second {
+			t.Fatalf("attempt %d delay = %s, want bounded short backoff", attempt, delay)
+		}
+	}
+	if got, want := delays, []time.Duration{50 * time.Millisecond, 100 * time.Millisecond, 150 * time.Millisecond}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Fatalf("retry delays = %v, want %v", got, want)
 	}
 }
 

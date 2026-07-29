@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -23,6 +24,7 @@ const (
 	bytePlusAssetPublicIDRandomLen     = 32
 	bytePlusAssetGroupLeaseStaleSecs   = int64(300)
 	bytePlusAssetGroupNameRandomLength = 16
+	bytePlusAssetGroupRetryBaseDelay   = 50 * time.Millisecond
 )
 
 type bytePlusAssetAPI interface {
@@ -43,7 +45,8 @@ var (
 	bytePlusAssetClientFactory = func(channel *model.Channel) (bytePlusAssetAPI, error) {
 		return NewBytePlusAssetClient(nil, ""), nil
 	}
-	bytePlusAssetGroupRetryDelay            = func(attempt int) {}
+	bytePlusAssetGroupRetrySleep            = time.Sleep
+	bytePlusAssetGroupRetryDelay            = defaultBytePlusAssetGroupRetryDelay
 	bytePlusAssetUpdateAssetUpstreamCreated = model.UpdateBytePlusAssetUpstreamCreated
 	bytePlusAssetRestrictedLog              = common.SysLog
 )
@@ -394,6 +397,13 @@ func waitForActiveBytePlusAssetGroup(userID int, channelID int) (*model.BytePlus
 		}
 	}
 	return nil, nil
+}
+
+func defaultBytePlusAssetGroupRetryDelay(attempt int) {
+	if attempt < 1 {
+		attempt = 1
+	}
+	bytePlusAssetGroupRetrySleep(time.Duration(attempt) * bytePlusAssetGroupRetryBaseDelay)
 }
 
 func logBytePlusAssetPersistenceFailure(ctx context.Context, channelID int, upstreamRequestID string) {
