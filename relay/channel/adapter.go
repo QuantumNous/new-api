@@ -81,3 +81,7 @@ type TaskAdaptor interface {
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }
+
+type OpenAIImageTaskConverter interface {
+	ConvertToOpenAIImageTask(originTask *model.Task) ([]byte, error)
+}

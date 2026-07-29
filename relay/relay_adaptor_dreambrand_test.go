@@ -21,4 +21,10 @@ func TestGetDreamBrandTaskAdaptor(t *testing.T) {
 	if !slices.Contains(adaptor.GetModelList(), "seedance-2.0-standard") {
 		t.Fatalf("model list = %v", adaptor.GetModelList())
 	}
+	if !slices.Contains(adaptor.GetModelList(), "seedream-5.0-lite") || !slices.Contains(adaptor.GetModelList(), "seedream-4.5") {
+		t.Fatalf("image models missing from model list = %v", adaptor.GetModelList())
+	}
+	if !slices.Contains(adaptor.GetModelList(), "doubao-seedream-5.0-lite") || !slices.Contains(adaptor.GetModelList(), "doubao-seedream-4.5") {
+		t.Fatalf("image model aliases missing from model list = %v", adaptor.GetModelList())
+	}
 }

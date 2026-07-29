@@ -190,6 +190,15 @@ func isKnownTaskField(field string) bool {
 		"images":          true,
 		"size":            true,
 		"duration":        true,
+		"seconds":         true,
+		"aspectRatio":     true,
+		"aspect_ratio":    true,
+		"pic":             true,
+		"pic2":            true,
+		"pics":            true,
+		"audio":           true,
+		"videoType":       true,
+		"video_type":      true,
 		"input_reference": true, // Sora 特有字段
 	}
 	return knownFields[field]

@@ -18,22 +18,34 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
 
 type requestPayload struct {
-	Prompt   string  `json:"prompt"`
-	Model    string  `json:"model"`
-	Size     *string `json:"size,omitempty"`
-	Duration *string `json:"duration,omitempty"`
-	Pic      *string `json:"pic,omitempty"`
+	Prompt      string   `json:"prompt"`
+	Model       string   `json:"model"`
+	Size        *string  `json:"size,omitempty"`
+	Duration    *string  `json:"duration,omitempty"`
+	AspectRatio *string  `json:"aspectRatio,omitempty"`
+	Pic         *string  `json:"pic,omitempty"`
+	Pic2        *string  `json:"pic2,omitempty"`
+	Pics        []string `json:"pics,omitempty"`
+	Audio       *bool    `json:"audio,omitempty"`
+	VideoType   *string  `json:"videoType,omitempty"`
 }
 
 type createResponse struct {
-	ID     string `json:"id"`
-	TaskID string `json:"task_id"`
+	ID      string          `json:"id"`
+	TaskID  string          `json:"task_id"`
+	Status  string          `json:"status"`
+	Created int64           `json:"created"`
+	Code    json.RawMessage `json:"code"`
+	Message string          `json:"message"`
+	Msg     string          `json:"msg"`
+	Error   json.RawMessage `json:"error"`
 }
 
 type createResponseEnvelope struct {
@@ -50,10 +62,19 @@ type taskResponse struct {
 	Msg     string          `json:"msg"`
 	Reason  string          `json:"reason"`
 	Error   json.RawMessage `json:"error"`
+	Code    json.RawMessage `json:"code"`
 }
 
 type taskResponseEnvelope struct {
 	Data taskResponse `json:"data"`
+}
+
+type imageTaskAPIResponse struct {
+	ID      string  `json:"id"`
+	Status  string  `json:"status"`
+	URL     *string `json:"url"`
+	Created int64   `json:"created"`
+	Error   any     `json:"error,omitempty"`
 }
 
 type TaskAdaptor struct {
@@ -72,11 +93,66 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
+	if taskErr := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); taskErr != nil {
+		return taskErr
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return localTaskError(err)
+	}
+	if isImageRequest(info, req.Model) {
+		info.Action = constant.TaskActionImageGenerate
+		if len(referenceImages(req)) > 6 {
+			return localTaskError(errors.New("DreamBrand image generation supports at most 6 reference images"))
+		}
+		if ResolveModelName(req.Model) == "seedream-5.0-lite" && req.Size == "2160p" {
+			return localTaskError(errors.New("seedream-5.0-lite supports resolutions up to 1800p"))
+		}
+		return nil
+	}
+	if len(referenceImages(req)) > 9 {
+		return localTaskError(errors.New("DreamBrand Seedance 2.0 supports at most 9 reference images"))
+	}
+	if ResolveModelName(req.Model) == "seedance-2.0-fast" && req.Size == "1080p" {
+		return localTaskError(errors.New("seedance-2.0-fast supports resolutions up to 720p"))
+	}
+	if req.VideoTypeSet && req.VideoType != "0" && req.VideoType != "1" {
+		return localTaskError(errors.New("DreamBrand videoType must be 0 or 1"))
+	}
+	if duration, ok := resolveDuration(req); ok {
+		seconds, parseErr := strconv.Atoi(duration)
+		if parseErr != nil || seconds < 4 || seconds > 15 {
+			return localTaskError(errors.New("DreamBrand video duration must be between 4 and 15 seconds"))
+		}
+	}
+	return nil
 }
 
-func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return buildURL(a.baseURL, CreatePath), nil
+func localTaskError(err error) *dto.TaskError {
+	return &dto.TaskError{Code: "invalid_request", Message: err.Error(), StatusCode: http.StatusBadRequest, LocalError: true, Error: err}
+}
+
+func isImageRequest(info *relaycommon.RelayInfo, modelName string) bool {
+	if info != nil && info.RelayMode == relayconstant.RelayModeImagesGenerations {
+		return true
+	}
+	modelName = ResolveModelName(modelName)
+	return strings.HasPrefix(modelName, "seedream-")
+}
+
+func upstreamModelName(info *relaycommon.RelayInfo) string {
+	if info == nil || info.ChannelMeta == nil {
+		return ""
+	}
+	return info.UpstreamModelName
+}
+
+func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	modelName := upstreamModelName(info)
+	if info != nil && isImageRequest(info, modelName) {
+		return buildURL(a.baseURL, ImageCreatePath), nil
+	}
+	return buildURL(a.baseURL, VideoCreatePath), nil
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
@@ -95,20 +171,46 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	payload := requestPayload{
 		Prompt: req.Prompt,
 	}
-	modelName := info.UpstreamModelName
+	modelName := upstreamModelName(info)
 	if modelName == "" {
 		modelName = req.Model
 	}
 	payload.Model = ResolveModelName(modelName)
-	info.UpstreamModelName = payload.Model
+	if info.ChannelMeta != nil {
+		info.UpstreamModelName = payload.Model
+	}
 	if req.Size != "" {
 		payload.Size = stringPointer(req.Size)
 	}
-	if duration, ok := resolveDuration(req); ok {
-		payload.Duration = stringPointer(duration)
+	if req.AspectRatio != "" {
+		payload.AspectRatio = stringPointer(req.AspectRatio)
 	}
-	if pic := firstImage(req); pic != "" {
-		payload.Pic = stringPointer(pic)
+	references := referenceImages(req)
+	if len(references) > 0 {
+		payload.Pic = stringPointer(references[0])
+	}
+	if isImageRequest(info, payload.Model) {
+		if len(references) > 1 {
+			payload.Pics = references[1:]
+		}
+	} else {
+		if duration, ok := resolveDuration(req); ok {
+			payload.Duration = stringPointer(duration)
+		}
+		payload.Audio = req.Audio
+		if len(references) > 1 {
+			payload.Pic2 = stringPointer(references[1])
+		}
+		if len(references) > 2 {
+			payload.Pics = references[2:]
+		}
+		if len(references) > 2 {
+			payload.VideoType = stringPointer("1")
+		} else if req.VideoTypeSet {
+			payload.VideoType = stringPointer(req.VideoType)
+		} else if len(references) == 2 {
+			payload.VideoType = stringPointer("0")
+		}
 	}
 
 	data, err := common.Marshal(payload)
@@ -133,14 +235,32 @@ func resolveDuration(req relaycommon.TaskSubmitReq) (string, bool) {
 	return "", false
 }
 
-func firstImage(req relaycommon.TaskSubmitReq) string {
-	if len(req.Images) > 0 {
-		return strings.TrimSpace(req.Images[0])
+func referenceImages(req relaycommon.TaskSubmitReq) []string {
+	native := make([]string, 0, 2+len(req.Pics))
+	for _, image := range append([]string{req.Pic, req.Pic2}, req.Pics...) {
+		if image = strings.TrimSpace(image); image != "" {
+			native = append(native, image)
+		}
 	}
-	if image := strings.TrimSpace(req.Image); image != "" {
-		return image
+	if len(native) > 0 {
+		return native
 	}
-	return strings.TrimSpace(req.InputReference)
+
+	standard := make([]string, 0, len(req.Images)+2)
+	for _, image := range req.Images {
+		if image = strings.TrimSpace(image); image != "" {
+			standard = append(standard, image)
+		}
+	}
+	if len(standard) == 0 {
+		for _, image := range []string{req.Image, req.InputReference} {
+			if image = strings.TrimSpace(image); image != "" {
+				standard = append(standard, image)
+				break
+			}
+		}
+	}
+	return standard
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
@@ -163,7 +283,28 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		taskID = created.TaskID
 	}
 	if taskID == "" {
+		code, message := parseUpstreamError(responseBody)
+		if message != "" {
+			if code == "" {
+				code = "upstream_error"
+			}
+			return "", nil, service.TaskErrorWrapper(errors.New(message), code, http.StatusBadRequest)
+		}
 		return "", nil, service.TaskErrorWrapper(errors.New("task_id is empty"), "invalid_response", http.StatusInternalServerError)
+	}
+
+	if isImageRequest(info, upstreamModelName(info)) {
+		createdAt := created.Created
+		if createdAt == 0 {
+			createdAt = time.Now().Unix()
+		}
+		c.JSON(http.StatusOK, imageTaskAPIResponse{
+			ID:      info.PublicTaskID,
+			Status:  publicStatus(created.Status, model.TaskStatusInProgress),
+			URL:     nil,
+			Created: createdAt,
+		})
+		return taskID, responseBody, nil
 	}
 
 	video := dto.NewOpenAIVideo()
@@ -180,6 +321,53 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	c.JSON(http.StatusOK, video)
 
 	return taskID, responseBody, nil
+}
+
+func parseUpstreamError(body []byte) (string, string) {
+	var response struct {
+		Code    json.RawMessage `json:"code"`
+		Message string          `json:"message"`
+		Msg     string          `json:"msg"`
+		Error   json.RawMessage `json:"error"`
+		Data    json.RawMessage `json:"data"`
+	}
+	if err := common.Unmarshal(body, &response); err != nil {
+		return "", ""
+	}
+	code := strings.Trim(string(response.Code), `"`)
+	message := strings.TrimSpace(response.Message)
+	if message == "" {
+		message = strings.TrimSpace(response.Msg)
+	}
+	if message == "" && len(response.Error) > 0 && string(response.Error) != "null" {
+		var errorText string
+		if err := common.Unmarshal(response.Error, &errorText); err == nil {
+			message = errorText
+		} else {
+			var errorObject struct {
+				Code    json.RawMessage `json:"code"`
+				Message string          `json:"message"`
+				Msg     string          `json:"msg"`
+			}
+			if err := common.Unmarshal(response.Error, &errorObject); err == nil {
+				message = strings.TrimSpace(errorObject.Message)
+				if message == "" {
+					message = strings.TrimSpace(errorObject.Msg)
+				}
+				if code == "" {
+					code = strings.Trim(string(errorObject.Code), `"`)
+				}
+			}
+		}
+	}
+	if message == "" && len(response.Data) > 0 && string(response.Data) != "null" {
+		dataCode, dataMessage := parseUpstreamError(response.Data)
+		if code == "" {
+			code = dataCode
+		}
+		message = dataMessage
+	}
+	return code, message
 }
 
 func parseCreateResponse(body []byte) (createResponse, error) {
@@ -204,7 +392,21 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 		return nil, errors.New("invalid task_id")
 	}
 
-	uri := buildURL(baseURL, fmt.Sprintf(QueryPath, url.PathEscape(taskID)))
+	action, _ := body["action"].(string)
+	path := VideoQueryPath
+	if action == constant.TaskActionImageGenerate {
+		path = ImageQueryPath
+	}
+	response, err := fetchTaskURL(baseURL, key, proxy, fmt.Sprintf(path, url.PathEscape(taskID)))
+	if err != nil || response == nil || action == constant.TaskActionImageGenerate || response.StatusCode != http.StatusNotFound {
+		return response, err
+	}
+	_ = response.Body.Close()
+	return fetchTaskURL(baseURL, key, proxy, fmt.Sprintf(LegacyVideoQueryPath, url.PathEscape(taskID)))
+}
+
+func fetchTaskURL(baseURL, key, proxy, path string) (*http.Response, error) {
+	uri := buildURL(baseURL, path)
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, err
@@ -226,7 +428,7 @@ func parseTaskResponse(body []byte) (taskResponse, error) {
 		return taskResponse{}, err
 	}
 	if direct.ID != "" || direct.TaskID != "" || direct.Status != "" || direct.URL != "" ||
-		direct.Message != "" || direct.Msg != "" || direct.Reason != "" || len(direct.Error) > 0 {
+		direct.Message != "" || direct.Msg != "" || direct.Reason != "" || len(direct.Error) > 0 || len(direct.Code) > 0 {
 		return direct, nil
 	}
 
@@ -263,7 +465,7 @@ func errorReason(response taskResponse) string {
 		}
 	}
 	if len(response.Error) == 0 || string(response.Error) == "null" {
-		return ""
+		return strings.Trim(string(response.Code), `"`)
 	}
 	var message string
 	if err := common.Unmarshal(response.Error, &message); err == nil {
@@ -291,6 +493,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	}
 	status := normalizeStatus(response.Status)
 	reason := errorReason(response)
+	if reason == "" {
+		_, reason = parseUpstreamError(respBody)
+	}
 	if strings.TrimSpace(response.Status) == "" && reason != "" {
 		status = model.TaskStatusFailure
 	}
@@ -314,6 +519,56 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		result.Progress = taskcommon.ProgressComplete
 	}
 	return result, nil
+}
+
+func publicStatus(upstreamStatus string, fallback model.TaskStatus) string {
+	status := fallback
+	if strings.TrimSpace(upstreamStatus) != "" {
+		status = normalizeStatus(upstreamStatus)
+	}
+	switch status {
+	case model.TaskStatusSubmitted, model.TaskStatusQueued, model.TaskStatusNotStart:
+		return "queued"
+	case model.TaskStatusSuccess:
+		return "success"
+	case model.TaskStatusFailure:
+		return "failed"
+	default:
+		return "processing"
+	}
+}
+
+func (a *TaskAdaptor) ConvertToOpenAIImageTask(originTask *model.Task) ([]byte, error) {
+	response, err := parseTaskResponse(originTask.Data)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal dreambrand image task data failed")
+	}
+	createdAt := originTask.CreatedAt
+	if response.Created > 0 {
+		createdAt = response.Created
+	}
+	resultURL := response.URL
+	if resultURL == "" {
+		resultURL = originTask.GetResultURL()
+	}
+	var urlValue *string
+	if resultURL != "" {
+		urlValue = stringPointer(resultURL)
+	}
+	result := imageTaskAPIResponse{
+		ID:      originTask.TaskID,
+		Status:  publicStatus(response.Status, originTask.Status),
+		URL:     urlValue,
+		Created: createdAt,
+	}
+	if originTask.Status == model.TaskStatusFailure {
+		message := errorReason(response)
+		if message == "" {
+			message = originTask.FailReason
+		}
+		result.Error = map[string]any{"code": "failed", "message": message}
+	}
+	return common.Marshal(result)
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error) {

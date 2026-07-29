@@ -8,9 +8,11 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -21,12 +23,22 @@ func TestBuildRequestURL(t *testing.T) {
 		ChannelBaseUrl: "https://ai.dreambrand.studio/",
 	}})
 
-	got, err := adaptor.BuildRequestURL(nil)
-	if err != nil {
-		t.Fatalf("BuildRequestURL() error = %v", err)
+	tests := []struct {
+		name string
+		info *relaycommon.RelayInfo
+		want string
+	}{
+		{name: "video default", info: nil, want: "https://ai.dreambrand.studio/ai/v1/videos/generations"},
+		{name: "image relay", info: &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}, want: "https://ai.dreambrand.studio/ai/v1/images/generations"},
 	}
-	if got != "https://ai.dreambrand.studio/ai/v1/videos/generations" {
-		t.Fatalf("BuildRequestURL() = %q", got)
+	for _, tt := range tests {
+		got, err := adaptor.BuildRequestURL(tt.info)
+		if err != nil {
+			t.Fatalf("BuildRequestURL() error = %v", err)
+		}
+		if got != tt.want {
+			t.Fatalf("BuildRequestURL() = %q, want %q", got, tt.want)
+		}
 	}
 }
 
@@ -57,11 +69,12 @@ func TestBuildRequestBodyMapsStandardFields(t *testing.T) {
 			wantDuration:  "10",
 		},
 		{
-			name:          "explicit zero duration",
-			body:          `{"prompt":"ride","model":"public-model","duration":0}`,
+			name:          "native pic and minimum duration",
+			body:          `{"prompt":"ride","model":"public-model","duration":4,"pic":"https://example.com/native.png","audio":false}`,
 			upstreamModel: "seedance-2.0-standard",
 			wantModel:     "seedance-2.0-standard",
-			wantDuration:  "0",
+			wantPic:       "https://example.com/native.png",
+			wantDuration:  "4",
 		},
 	}
 
@@ -112,8 +125,92 @@ func TestBuildRequestBodyMapsStandardFields(t *testing.T) {
 	}
 }
 
+func TestBuildImageRequestBody(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		wantPic  string
+		wantPics []string
+	}{
+		{name: "text to image", body: `{"prompt":"sunset","model":"seedream-5.0-lite","size":"1080p","aspect_ratio":"16:9"}`},
+		{name: "image to image", body: `{"prompt":"restyle","model":"seedream-4.5","image":"https://example.com/a.png"}`, wantPic: "https://example.com/a.png"},
+		{name: "multiple references", body: `{"prompt":"combine","model":"seedream-4.5","images":["https://example.com/a.png","https://example.com/b.png","https://example.com/c.png"]}`, wantPic: "https://example.com/a.png", wantPics: []string{"https://example.com/b.png", "https://example.com/c.png"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload, info := buildPayloadForTest(t, "/v1/images/generations", tt.body, relayconstant.RelayModeImagesGenerations)
+			if info.Action != constant.TaskActionImageGenerate {
+				t.Fatalf("action = %q", info.Action)
+			}
+			if pointerValue(payload.Pic) != tt.wantPic || strings.Join(payload.Pics, ",") != strings.Join(tt.wantPics, ",") {
+				t.Fatalf("references = %q/%v", pointerValue(payload.Pic), payload.Pics)
+			}
+			if payload.Duration != nil || payload.Pic2 != nil || payload.VideoType != nil {
+				t.Fatalf("video-only fields leaked into image payload: %+v", payload)
+			}
+		})
+	}
+}
+
+func TestBuildVideoReferenceModes(t *testing.T) {
+	tests := []struct {
+		name          string
+		body          string
+		wantPic       string
+		wantPic2      string
+		wantPics      []string
+		wantVideoType string
+	}{
+		{name: "text to video", body: `{"prompt":"ride","model":"seedance-2.0-fast","duration":"4","audio":false}`},
+		{name: "single reference", body: `{"prompt":"ride","model":"seedance-2.0-fast","duration":4,"image":"a"}`, wantPic: "a"},
+		{name: "first and last frame default", body: `{"prompt":"ride","model":"seedance-2.0-standard","duration":8,"images":["a","b"]}`, wantPic: "a", wantPic2: "b", wantVideoType: "0"},
+		{name: "two reference images", body: `{"prompt":"ride","model":"seedance-2.0-standard","duration":8,"pic":"a","pic2":"b","videoType":1}`, wantPic: "a", wantPic2: "b", wantVideoType: "1"},
+		{name: "more than two forces reference mode", body: `{"prompt":"ride","model":"seedance-2.0-standard","duration":8,"images":["a","b","c","d"],"video_type":"0"}`, wantPic: "a", wantPic2: "b", wantPics: []string{"c", "d"}, wantVideoType: "1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload, _ := buildPayloadForTest(t, "/v1/video/generations", tt.body, relayconstant.RelayModeVideoSubmit)
+			if pointerValue(payload.Pic) != tt.wantPic || pointerValue(payload.Pic2) != tt.wantPic2 || strings.Join(payload.Pics, ",") != strings.Join(tt.wantPics, ",") || pointerValue(payload.VideoType) != tt.wantVideoType {
+				t.Fatalf("payload references = pic:%q pic2:%q pics:%v videoType:%q", pointerValue(payload.Pic), pointerValue(payload.Pic2), payload.Pics, pointerValue(payload.VideoType))
+			}
+			if strings.Contains(tt.body, `"audio":false`) && (payload.Audio == nil || *payload.Audio) {
+				t.Fatalf("explicit audio=false was not preserved")
+			}
+		})
+	}
+}
+
+func buildPayloadForTest(t *testing.T, path, body string, relayMode int) (requestPayload, *relaycommon.RelayInfo) {
+	t.Helper()
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	info := &relaycommon.RelayInfo{RelayMode: relayMode, ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://ai.dreambrand.studio"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+	adaptor := &TaskAdaptor{}
+	adaptor.Init(info)
+	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		t.Fatalf("ValidateRequestAndSetAction() error = %v", taskErr)
+	}
+	info.UpstreamModelName = info.OriginModelName
+	request, err := adaptor.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody() error = %v", err)
+	}
+	data, err := io.ReadAll(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload requestPayload
+	if err := common.Unmarshal(data, &payload); err != nil {
+		t.Fatal(err)
+	}
+	return payload, info
+}
+
 func TestResolveModelName(t *testing.T) {
 	tests := map[string]string{
+		"doubao-seedream-5.0-lite": "seedream-5.0-lite",
+		"doubao-seedream-4.5":      "seedream-4.5",
 		"doubao-seedance-2.0":      "seedance-2.0-standard",
 		"doubao-seedance-2.0-fast": "seedance-2.0-fast",
 		"seedance-2.0-standard":    "seedance-2.0-standard",
@@ -186,27 +283,92 @@ func TestDoResponseUsesPublicTaskID(t *testing.T) {
 	}
 }
 
-func TestFetchTask(t *testing.T) {
+func TestDoResponseImageAndUpstreamError(t *testing.T) {
+	t.Run("image creation", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "seedream-5.0-lite"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "task_public"}}
+		resp := &http.Response{Body: io.NopCloser(strings.NewReader(`{"id":"TASK_upstream","status":"processing","created":123}`))}
+		taskID, _, taskErr := (&TaskAdaptor{}).DoResponse(c, resp, info)
+		if taskErr != nil || taskID != "TASK_upstream" {
+			t.Fatalf("taskID/error = %q/%v", taskID, taskErr)
+		}
+		var result imageTaskAPIResponse
+		if err := common.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.ID != "task_public" || result.Status != "processing" || result.URL != nil || result.Created != 123 {
+			t.Fatalf("result = %+v", result)
+		}
+	})
+
+	t.Run("http 200 error payload", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "task_public"}}
+		resp := &http.Response{Body: io.NopCloser(strings.NewReader(`{"code":30001,"message":"MODEL_NOT_FOUND"}`))}
+		_, _, taskErr := (&TaskAdaptor{}).DoResponse(c, resp, info)
+		if taskErr == nil || taskErr.Code != "30001" || taskErr.Message != "MODEL_NOT_FOUND" {
+			t.Fatalf("task error = %+v", taskErr)
+		}
+	})
+}
+
+func TestFetchTaskPaths(t *testing.T) {
 	service.InitHttpClient()
-	var gotPath string
+	var paths []string
 	var gotAuthorization string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
+		paths = append(paths, r.URL.Path)
 		gotAuthorization = r.Header.Get("Authorization")
+		if strings.Contains(r.URL.Path, "/videos/") && r.URL.Query().Get("fallback") == "1" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		_, _ = io.WriteString(w, `{"id":"TASK_1","status":"success"}`)
 	}))
 	defer server.Close()
 
-	resp, err := (&TaskAdaptor{}).FetchTask(server.URL+"/", "test-key", map[string]any{"task_id": "TASK_1"}, "")
+	resp, err := (&TaskAdaptor{}).FetchTask(server.URL+"/", "test-key", map[string]any{"task_id": "TASK_1", "action": constant.TaskActionImageGenerate}, "")
 	if err != nil {
 		t.Fatalf("FetchTask() error = %v", err)
 	}
-	defer resp.Body.Close()
-	if gotPath != "/ai/v1/images/generations/TASK_1" {
-		t.Fatalf("path = %q", gotPath)
+	_ = resp.Body.Close()
+	if paths[0] != "/ai/v1/images/generations/TASK_1" {
+		t.Fatalf("image path = %q", paths[0])
+	}
+
+	resp, err = (&TaskAdaptor{}).FetchTask(server.URL+"/", "test-key", map[string]any{"task_id": "TASK_2", "action": constant.TaskActionGenerate}, "")
+	if err != nil {
+		t.Fatalf("FetchTask() error = %v", err)
+	}
+	_ = resp.Body.Close()
+	if paths[1] != "/ai/v1/videos/generations/TASK_2" {
+		t.Fatalf("video path = %q", paths[1])
 	}
 	if gotAuthorization != "Bearer test-key" {
 		t.Fatalf("authorization = %q", gotAuthorization)
+	}
+}
+
+func TestFetchTaskVideoLegacyFallback(t *testing.T) {
+	service.InitHttpClient()
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if strings.Contains(r.URL.Path, "/videos/") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = io.WriteString(w, `{"id":"TASK_1","status":"processing"}`)
+	}))
+	defer server.Close()
+	resp, err := (&TaskAdaptor{}).FetchTask(server.URL, "key", map[string]any{"task_id": "TASK_1", "action": constant.TaskActionGenerate}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if len(paths) != 2 || paths[1] != "/ai/v1/images/generations/TASK_1" {
+		t.Fatalf("fallback paths = %v", paths)
 	}
 }
 
@@ -298,5 +460,37 @@ func TestConvertToOpenAIVideo(t *testing.T) {
 	}
 	if video.CreatedAt != 1784883387 {
 		t.Fatalf("created_at = %d", video.CreatedAt)
+	}
+}
+
+func TestConvertToOpenAIImageTask(t *testing.T) {
+	originTask := &model.Task{
+		TaskID:      "task_public",
+		Status:      model.TaskStatusSuccess,
+		CreatedAt:   100,
+		PrivateData: model.TaskPrivateData{ResultURL: "https://example.com/final.png"},
+		Data:        []byte(`{"id":"TASK_1","status":"success","url":"https://example.com/final.png","created":123}`),
+	}
+	data, err := (&TaskAdaptor{}).ConvertToOpenAIImageTask(originTask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result imageTaskAPIResponse
+	if err := common.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.ID != "task_public" || result.Status != "success" || pointerValue(result.URL) != "https://example.com/final.png" || result.Created != 123 {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestDreamBrandReferenceLimits(t *testing.T) {
+	images := `["1","2","3","4","5","6","7"]`
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"prompt":"x","model":"seedream-4.5","images":`+images+`}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+	if taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(c, info); taskErr == nil || taskErr.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected image reference limit error, got %+v", taskErr)
 	}
 }

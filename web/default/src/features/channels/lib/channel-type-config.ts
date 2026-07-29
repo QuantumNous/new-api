@@ -163,15 +163,19 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     icon: 'doubao',
     defaultBaseUrl: 'https://ai.dreambrand.studio',
     supportedModels: [
+      'seedream-5.0-lite',
+      'seedream-4.5',
       'seedance-2.0-standard',
       'seedance-2.0-fast',
+      'doubao-seedream-5.0-lite',
+      'doubao-seedream-4.5',
       'doubao-seedance-2.0',
       'doubao-seedance-2.0-fast',
     ],
     hints: {
       key: 'DreamBrand API Key',
       models:
-        'seedance-2.0-standard,seedance-2.0-fast,doubao-seedance-2.0,doubao-seedance-2.0-fast',
+        'seedream-5.0-lite,seedream-4.5,seedance-2.0-standard,seedance-2.0-fast,doubao-seedream-5.0-lite,doubao-seedream-4.5,doubao-seedance-2.0,doubao-seedance-2.0-fast',
       baseUrl: 'Default: https://ai.dreambrand.studio',
     },
   },
