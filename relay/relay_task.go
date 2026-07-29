@@ -282,7 +282,6 @@ var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp 
 	relayconstant.RelayModeSunoFetchByID:  sunoFetchByIDRespBodyBuilder,
 	relayconstant.RelayModeSunoFetch:      sunoFetchRespBodyBuilder,
 	relayconstant.RelayModeVideoFetchByID: videoFetchByIDRespBodyBuilder,
-	relayconstant.RelayModeImageFetchByID: imageFetchByIDRespBodyBuilder,
 }
 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
@@ -306,32 +305,6 @@ func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
 		return
 	}
 	return
-}
-
-func imageFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
-	taskID := c.Param("task_id")
-	userID := c.GetInt("id")
-	originTask, exist, err := model.GetByTaskId(userID, taskID)
-	if err != nil {
-		return nil, service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
-	}
-	if !exist {
-		return nil, service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
-	}
-
-	adaptor := GetTaskAdaptor(originTask.Platform)
-	if adaptor == nil {
-		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
-	}
-	converter, ok := adaptor.(channel.OpenAIImageTaskConverter)
-	if !ok {
-		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
-	}
-	respBody, err = converter.ConvertToOpenAIImageTask(originTask)
-	if err != nil {
-		return nil, service.TaskErrorWrapper(err, "convert_to_openai_image_failed", http.StatusInternalServerError)
-	}
-	return respBody, nil
 }
 
 func sunoFetchRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {

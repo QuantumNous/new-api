@@ -15,7 +15,6 @@ const (
 	TaskActionTextGenerate      = "textGenerate"
 	TaskActionFirstTailGenerate = "firstTailGenerate"
 	TaskActionReferenceGenerate = "referenceGenerate"
-	TaskActionImageGenerate     = "imageGenerate"
 	TaskActionRemix             = "remixGenerate"
 )
 

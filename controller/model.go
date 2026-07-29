@@ -15,7 +15,6 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/lingyiwanwu"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/moonshot"
-	"github.com/QuantumNous/new-api/relay/channel/task/dreambrand"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
@@ -87,14 +86,6 @@ func init() {
 		Created: 1626777600,
 		OwnedBy: "zlhub-asset",
 	})
-	for _, modelName := range dreambrand.ModelList {
-		openAIModels = append(openAIModels, dto.OpenAIModels{
-			Id:      modelName,
-			Object:  "model",
-			Created: 1626777600,
-			OwnedBy: dreambrand.ChannelName,
-		})
-	}
 	for modelName, _ := range constant.MidjourneyModel2Action {
 		openAIModels = append(openAIModels, dto.OpenAIModels{
 			Id:      modelName,
@@ -121,7 +112,6 @@ func init() {
 		channelId2Models[i] = adaptor.GetModelList()
 	}
 	channelId2Models[constant.ChannelTypeZLHubAsset] = []string{constant.AssetAuditModelName}
-	channelId2Models[constant.ChannelTypeDreamBrand] = dreambrand.ModelList
 	openAIModels = lo.UniqBy(openAIModels, func(m dto.OpenAIModels) string {
 		return m.Id
 	})

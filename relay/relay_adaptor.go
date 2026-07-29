@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/coze"
 	"github.com/QuantumNous/new-api/relay/channel/deepseek"
 	"github.com/QuantumNous/new-api/relay/channel/dify"
+	dreambrandchannel "github.com/QuantumNous/new-api/relay/channel/dreambrand"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/jina"
@@ -32,7 +33,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
-	"github.com/QuantumNous/new-api/relay/channel/task/dreambrand"
+	taskdreambrand "github.com/QuantumNous/new-api/relay/channel/task/dreambrand"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
@@ -121,6 +122,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &replicate.Adaptor{}
 	case constant.APITypeCodex:
 		return &codex.Adaptor{}
+	case constant.APITypeDreamBrand:
+		return &dreambrandchannel.Adaptor{}
 	}
 	return nil
 }
@@ -157,7 +160,7 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 		case constant.ChannelTypeZLHubVideo:
 			return taskdoubao.NewZLHubTaskAdaptor()
 		case constant.ChannelTypeDreamBrand:
-			return &dreambrand.TaskAdaptor{}
+			return &taskdreambrand.TaskAdaptor{}
 		case constant.ChannelTypeSora, constant.ChannelTypeOpenAI:
 			return &tasksora.TaskAdaptor{}
 		case constant.ChannelTypeGemini:

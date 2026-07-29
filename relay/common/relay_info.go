@@ -692,13 +692,6 @@ type TaskSubmitReq struct {
 	DurationSet    bool                   `json:"-"`
 	Seconds        string                 `json:"seconds,omitempty"`
 	InputReference string                 `json:"input_reference,omitempty"`
-	AspectRatio    string                 `json:"aspectRatio,omitempty"`
-	Pic            string                 `json:"pic,omitempty"`
-	Pic2           string                 `json:"pic2,omitempty"`
-	Pics           []string               `json:"pics,omitempty"`
-	Audio          *bool                  `json:"audio,omitempty"`
-	VideoType      string                 `json:"videoType,omitempty"`
-	VideoTypeSet   bool                   `json:"-"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -707,17 +700,15 @@ func (t *TaskSubmitReq) GetPrompt() string {
 }
 
 func (t *TaskSubmitReq) HasImage() bool {
-	return len(t.Images) > 0 || t.Image != "" || t.Pic != "" || t.Pic2 != "" || len(t.Pics) > 0
+	return len(t.Images) > 0 || t.Image != ""
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	type Alias TaskSubmitReq
 	aux := &struct {
-		Metadata         json.RawMessage `json:"metadata,omitempty"`
-		Duration         json.RawMessage `json:"duration,omitempty"`
-		AspectRatioSnake string          `json:"aspect_ratio,omitempty"`
-		VideoTypeRaw     json.RawMessage `json:"videoType,omitempty"`
-		VideoTypeSnake   json.RawMessage `json:"video_type,omitempty"`
+		Metadata json.RawMessage `json:"metadata,omitempty"`
+		Duration json.RawMessage `json:"duration,omitempty"`
+		Seconds  json.RawMessage `json:"seconds,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -726,10 +717,6 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	if err := common.Unmarshal(data, &aux); err != nil {
 		return err
 	}
-	if t.AspectRatio == "" {
-		t.AspectRatio = aux.AspectRatioSnake
-	}
-
 	t.DurationSet = false
 	if len(aux.Duration) > 0 && string(aux.Duration) != "null" {
 		var durationInt int
@@ -747,6 +734,16 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	t.Seconds = ""
+	if len(aux.Seconds) > 0 && string(aux.Seconds) != "null" {
+		if err := common.Unmarshal(aux.Seconds, &t.Seconds); err != nil {
+			var secondsNumber json.Number
+			if err := common.Unmarshal(aux.Seconds, &secondsNumber); err == nil {
+				t.Seconds = secondsNumber.String()
+			}
+		}
+	}
+
 	if len(aux.Metadata) > 0 {
 		var metadataStr string
 		if err := common.Unmarshal(aux.Metadata, &metadataStr); err == nil && metadataStr != "" {
@@ -759,25 +756,6 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		var metadataObj map[string]interface{}
 		if err := common.Unmarshal(aux.Metadata, &metadataObj); err == nil {
 			t.Metadata = metadataObj
-		}
-	}
-
-	t.VideoTypeSet = false
-	videoTypeRaw := aux.VideoTypeRaw
-	if len(videoTypeRaw) == 0 || string(videoTypeRaw) == "null" {
-		videoTypeRaw = aux.VideoTypeSnake
-	}
-	if len(videoTypeRaw) > 0 && string(videoTypeRaw) != "null" {
-		var videoType string
-		if err := common.Unmarshal(videoTypeRaw, &videoType); err == nil {
-			t.VideoType = videoType
-			t.VideoTypeSet = true
-		} else {
-			var videoTypeNumber json.Number
-			if err := common.Unmarshal(videoTypeRaw, &videoTypeNumber); err == nil {
-				t.VideoType = videoTypeNumber.String()
-				t.VideoTypeSet = true
-			}
 		}
 	}
 
