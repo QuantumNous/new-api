@@ -653,6 +653,12 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
   )
 )
 
+const EMPTY_CHAT_MESSAGES: Message[] = []
+
+function isLegacyModelSwitchMarker(message: Message): boolean {
+  return Boolean(message.modelChangeFrom && message.modelChangeTo)
+}
+
 /** Active chat messages for the current chat session (empty if none). */
 export function selectActiveChatMessages(
   state: PlaygroundStoreState
@@ -662,10 +668,16 @@ export function selectActiveChatMessages(
     state.activeSessionByModality,
     'chat'
   )
-  if (!isChatSession(session)) return []
+  if (!isChatSession(session)) return EMPTY_CHAT_MESSAGES
   // Legacy sessions may still hold model-switch markers; never render them.
+  // Important: return the original array when nothing needs filtering.
+  // A fresh `.filter()` result every getSnapshot re-renders forever under
+  // useSyncExternalStore ("getSnapshot should be cached").
+  if (!session.messages.some(isLegacyModelSwitchMarker)) {
+    return session.messages
+  }
   return session.messages.filter(
-    (message) => !(message.modelChangeFrom && message.modelChangeTo)
+    (message) => !isLegacyModelSwitchMarker(message)
   )
 }
 
