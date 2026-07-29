@@ -11,6 +11,7 @@ import { CLI_LANDING_PATH, cliLandingCopy } from "@/lib/cli-landing";
 import { getCopy } from "@/lib/copy";
 import { type Locale, localizePath, stripLocale, withIdFallback } from "@/lib/locales";
 import { consoleUrl } from "@/lib/origins";
+import { TOOLS_LANDING_PATH, toolsLandingCopy } from "@/lib/tools-landing";
 import { cn } from "@/lib/utils";
 
 // Console links carry ?lng=<locale> so the console SPA (i18next querystring
@@ -51,6 +52,7 @@ export function SiteHeader(props: Props) {
   const { docsUrl } = useSiteConfig();
   const copy = getCopy(props.locale);
   const cliCopy = cliLandingCopy[props.locale] ?? cliLandingCopy.en;
+  const toolsCopy = toolsLandingCopy[props.locale];
   const consoleHref = consoleUrl("/dashboard", `lng=${props.locale}`);
   const signInHref = consoleUrl("/sign-in", `lng=${props.locale}`);
   const useCaseLabel = useCaseLabelByLocale[props.locale] ?? useCaseLabelByLocale.en;
@@ -61,6 +63,7 @@ export function SiteHeader(props: Props) {
     { href: "/blog", label: copy.nav.blog, publicPath: true },
     { href: "/pricing", label: copy.nav.pricing, publicPath: true },
     { href: "/models", label: copy.nav.modelPricing, publicPath: true },
+    { href: TOOLS_LANDING_PATH, label: toolsCopy.navLabel, publicPath: true },
     { href: CLI_LANDING_PATH, label: cliCopy.navLabel, publicPath: true },
     ...(docsUrl ? [{ href: docsUrl, label: copy.nav.docs, external: true }] : []),
     // Rankings is the website's own daily-updated data page (same pipeline

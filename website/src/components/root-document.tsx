@@ -40,7 +40,7 @@ export const ATTRIBUTION_COOKIE_SCRIPT = `(function(){
       aff:1, fbclid:1, gad_campaignid:1, gad_source:1, gbraid:1, gclid:1,
       lng:1, msclkid:1, ttclid:1, wbraid:1, yclid:1, account:1,
       campaign_id:1, ad_group:1, ad_group_id:1, creative:1, creative_id:1,
-      placement:1, network:1, device:1, market:1, country:1, match_type:1,
+      placement:1, network:1, device:1, keyword:1, market:1, country:1, match_type:1,
       target_id:1, location_id:1, loc_physical_ms:1, language:1,
       experiment:1, experiment_id:1
     };

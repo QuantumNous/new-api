@@ -2,6 +2,8 @@ import { getBlogCategories, getBlogPosts } from "@/lib/blog";
 import { CLI_LANDING_PATH, HIGGSFIELD_ALTERNATIVE_PATH } from "@/lib/cli-landing";
 import { ROUTER_ORIGIN, SITE_ORIGIN } from "@/lib/origins";
 import { getDocsUrl } from "@/lib/public-site-settings";
+import { TOOLS_LANDING_PATH } from "@/lib/tools-landing";
+import { APIFY_ALTERNATIVE_PATH } from "@/lib/tools-conquest-landing";
 
 export async function GET() {
   const [posts, categories, docsUrl] = await Promise.all([getBlogPosts(), getBlogCategories(), getDocsUrl()]);
@@ -44,6 +46,8 @@ export async function GET() {
     "## Core Pages",
     "",
     `- Home: ${SITE_ORIGIN}/`,
+    `- Flatkey Tools: ${SITE_ORIGIN}${TOOLS_LANDING_PATH}`,
+    `- Flatkey as an Apify alternative: ${SITE_ORIGIN}${APIFY_ALTERNATIVE_PATH}`,
     `- Flatkey CLI: ${SITE_ORIGIN}${CLI_LANDING_PATH}`,
     `- Flatkey vs Higgsfield: ${SITE_ORIGIN}${HIGGSFIELD_ALTERNATIVE_PATH}`,
     `- Model pricing: ${SITE_ORIGIN}/pricing`,
