@@ -1337,7 +1337,8 @@ func validateOneTimePlanStripeSessionEvent(event stripe.Event, order *model.Subs
 		return errors.New("Stripe one-time checkout mode mismatch")
 	}
 	paymentStatus := strings.TrimSpace(event.GetObjectValue("payment_status"))
-	if paymentStatus != "paid" {
+	if paymentStatus != string(stripe.CheckoutSessionPaymentStatusPaid) &&
+		paymentStatus != string(stripe.CheckoutSessionPaymentStatusNoPaymentRequired) {
 		return errors.New("Stripe one-time checkout is not paid")
 	}
 	actualAmount := stripeEventAmountMinor(event, "amount_total")
@@ -1514,6 +1515,10 @@ func handleStripeSubscriptionUpdated(ctx context.Context, event stripe.Event) (e
 		}
 		return err
 	}
+	if snapshot.EndedAt > 0 || isTerminalRecurringProviderStatus(snapshot.ProviderStatus) {
+		_, err = model.ApplyPassiveProviderSubscriptionTermination(binding.Id, snapshot)
+		return err
+	}
 	if binding.EndedAt > 0 || isTerminalRecurringProviderStatus(binding.ProviderStatus) {
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe subscription updated ignored for terminal binding_id=%d subscription_id=%s", binding.Id, binding.ProviderSubscriptionId))
 		return nil
@@ -1528,7 +1533,10 @@ func handleStripeSubscriptionDeleted(ctx context.Context, event stripe.Event) (e
 		return err
 	}
 	defer finishStripeSubscriptionWebhookEvent(event, processingToken, &err)
-	snapshot := stripeSubscriptionSnapshotFromDeletedEvent(event)
+	snapshot, err := stripeSubscriptionSnapshotFromSubscriptionEvent(event)
+	if err != nil {
+		return err
+	}
 	binding, err := model.FindBindingByProviderSubscriptionID(model.PaymentProviderStripe, snapshot.ProviderSubscriptionId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1540,7 +1548,17 @@ func handleStripeSubscriptionDeleted(ctx context.Context, event stripe.Event) (e
 		}
 		return err
 	}
-	_, err = model.ApplyProviderSubscriptionTermination(binding.Id, snapshot)
+	if snapshot.EndedAt <= 0 && !isTerminalRecurringProviderStatus(snapshot.ProviderStatus) {
+		if _, err = model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot); err != nil {
+			if errors.Is(err, model.ErrSubscriptionProviderLifecycleConflict) {
+				logger.LogInfo(ctx, fmt.Sprintf("Stripe subscription deleted treated as stale no-op for subscription_id=%s status=%s", snapshot.ProviderSubscriptionId, snapshot.ProviderStatus))
+				return nil
+			}
+			return err
+		}
+		return nil
+	}
+	_, err = model.ApplyPassiveProviderSubscriptionTermination(binding.Id, snapshot)
 	return err
 }
 
@@ -1771,29 +1789,6 @@ func stripeSubscriptionSnapshotFromStripeSubscription(sub *stripe.Subscription) 
 		EndedAt:                    sub.EndedAt,
 		Livemode:                   sub.Livemode,
 	}
-}
-
-func stripeSubscriptionSnapshotFromDeletedEvent(event stripe.Event) model.ProviderSubscriptionSnapshot {
-	periodStart, periodEnd := stripeSubscriptionDeletedCurrentPeriod(event)
-	return model.ProviderSubscriptionSnapshot{
-		ProviderSubscriptionId: strings.TrimSpace(stripeEventObjectValue(event, "id")),
-		ProviderCustomerId:     strings.TrimSpace(stripeEventObjectValue(event, "customer")),
-		ProviderStatus:         strings.TrimSpace(stripeEventObjectValue(event, "status")),
-		CurrentPeriodStart:     periodStart,
-		CurrentPeriodEnd:       periodEnd,
-		CanceledAt:             stripeEventUnix(event, "canceled_at"),
-		EndedAt:                stripeEventUnix(event, "ended_at"),
-		Livemode:               event.Livemode,
-	}
-}
-
-func stripeSubscriptionDeletedCurrentPeriod(event stripe.Event) (int64, int64) {
-	itemStart := stripeEventUnix(event, "items", "data", "0", "current_period_start")
-	itemEnd := stripeEventUnix(event, "items", "data", "0", "current_period_end")
-	if itemStart > 0 && itemEnd > itemStart {
-		return itemStart, itemEnd
-	}
-	return stripeEventUnix(event, "current_period_start"), stripeEventUnix(event, "current_period_end")
 }
 
 func stripeEventUnix(event stripe.Event, keys ...string) int64 {

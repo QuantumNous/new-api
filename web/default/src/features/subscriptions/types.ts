@@ -193,8 +193,8 @@ export interface FlexiblePurchaseRequest {
 
 export interface FlexiblePurchaseResponse {
   status: 'applied' | 'checkout_required' | 'payment_action_required' | 'failed'
-  contract?: SubscriptionContract
-  intent?: SubscriptionPendingChange
+  contract?: SubscriptionSelfContractDTO
+  intent?: SubscriptionSelfPendingChangeDTO
   checkout_url?: string
   hosted_invoice_url?: string
   client_secret?: string
@@ -269,6 +269,18 @@ export interface SubscriptionContractDTO {
   change_version: number
 }
 
+export interface SubscriptionSelfContractDTO {
+  contract_id: number
+  status: SubscriptionContractStatus
+  payment_mode: SubscriptionPaymentMode
+  current_plan_id: number
+  current_entitlement_id: number
+  latest_change_intent_id: number
+  pending_plan_id: number
+  pending_effective_at: number
+  change_version: number
+}
+
 export interface SubscriptionEntitlement {
   entitlement_id: number
   plan_id: number
@@ -279,6 +291,11 @@ export interface SubscriptionEntitlement {
   end_time: number
   access_end_time: number
 }
+
+export type SubscriptionSelfEntitlementDTO = Omit<
+  SubscriptionEntitlement,
+  'provider_binding_id'
+>
 
 export interface SubscriptionCurrentPeriod {
   start: number
@@ -339,6 +356,11 @@ export type SubscriptionPendingChangeDTO = Omit<
   'request_id'
 >
 
+export type SubscriptionSelfPendingChangeDTO = Omit<
+  SubscriptionPendingChangeDTO,
+  'provider_binding_id'
+>
+
 export interface ChangePlanRequest {
   plan_id: number
   payment_mode: ChangePlanPaymentMode
@@ -351,8 +373,8 @@ export interface ChangePlanResponse {
     | 'scheduled'
     | 'checkout_required'
     | 'payment_action_required'
-  contract: SubscriptionContract
-  intent: SubscriptionPendingChange
+  contract: SubscriptionSelfContractDTO
+  intent: SubscriptionSelfPendingChangeDTO
   checkout_url?: string
   hosted_invoice_url?: string
 }
@@ -373,6 +395,53 @@ export interface RecurringSubscription {
   can_cancel: boolean
   can_resume: boolean
   requires_support: boolean
+}
+
+export interface SelfRecurringSubscription {
+  plan_id: number
+  cancel_at_period_end: boolean
+  current_period_start: number
+  current_period_end: number
+  grace_period_end: number
+  requires_support: boolean
+}
+
+export type SubscriptionRenewalSource = 'provider_recurring' | 'wallet_auto'
+
+export type SelfSubscriptionRenewalSource =
+  | SubscriptionRenewalSource
+  | ''
+  | (string & {})
+
+export type SubscriptionRenewalStatus =
+  | 'enabled'
+  | 'cancelled_by_user'
+  | 'paused_insufficient_balance'
+  | 'paused_plan_unavailable'
+
+export type SelfSubscriptionRenewalStatus =
+  | SubscriptionRenewalStatus
+  | ''
+  | (string & {})
+
+export type SubscriptionRenewalLifecycleStatus = 'enabled' | 'cancelled_by_user'
+
+export interface SubscriptionRenewalLifecyclePrecondition {
+  expected_contract_id: number
+  expected_change_version: number
+  expected_current_period_end: number
+  expected_renewal_source: SubscriptionRenewalSource
+  expected_renewal_status: SubscriptionRenewalLifecycleStatus
+}
+
+export interface SubscriptionRenewalLifecycleResult {
+  renewal_source: SubscriptionRenewalSource
+  renewal_status: SubscriptionRenewalLifecycleStatus
+  current_period_end: number
+  change_version: number
+  can_cancel: boolean
+  can_resume: boolean
+  is_cancel_at_period_end: boolean
 }
 
 // ============================================================================
@@ -412,8 +481,8 @@ export interface SelfSubscriptionData {
   billing_preference: string
   billing_order?: ['subscription', 'wallet']
   current_subscription?: CurrentSubscriptionRecord | null
-  contract?: SubscriptionContract | null
-  current_entitlement?: SubscriptionEntitlement | null
+  contract?: SubscriptionSelfContractDTO | null
+  current_entitlement?: SubscriptionSelfEntitlementDTO | null
   current_period?: SubscriptionCurrentPeriod
   quota?: SubscriptionQuota
   monthly_bucket?: SubscriptionUsageWindow
@@ -421,21 +490,26 @@ export interface SelfSubscriptionData {
   window_7d?: SubscriptionUsageWindow
   media_credits?: SubscriptionUsageWindow
   remaining_days?: number
-  renewal_source?: string
-  renewal_status?: string
+  renewal_source?: SubscriptionRenewalSource
+  renewal_status?: SubscriptionRenewalStatus
   payment_availability?: SubscriptionPaymentAvailability
   payment_quotes?: SubscriptionPaymentQuotes
-  pending_change?: SubscriptionPendingChange | null
+  pending_change?: SubscriptionSelfPendingChangeDTO | null
   capabilities: SelfSubscriptionCapabilities
   migration: SelfSubscriptionMigration
   subscriptions: UserSubscriptionRecord[]
   all_subscriptions: UserSubscriptionRecord[]
-  recurring_subscriptions: RecurringSubscription[]
+  recurring_subscriptions: SelfRecurringSubscription[]
 }
 
 export interface SelfSubscriptionDataResponse extends Partial<
-  Omit<SelfSubscriptionData, 'capabilities' | 'migration'>
+  Omit<
+    SelfSubscriptionData,
+    'capabilities' | 'migration' | 'renewal_source' | 'renewal_status'
+  >
 > {
+  renewal_source?: SelfSubscriptionRenewalSource
+  renewal_status?: SelfSubscriptionRenewalStatus
   capabilities?: Partial<SelfSubscriptionCapabilities> & {
     has_migration_conflict?: boolean
   }

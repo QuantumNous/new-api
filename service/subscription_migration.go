@@ -95,18 +95,6 @@ func auditLegacySubscriptionForUserTx(tx *gorm.DB, userID int) (SubscriptionMigr
 		result.Reason = "invalid user id"
 		return result, nil
 	}
-	var existing model.UserSubscriptionContract
-	existingQuery := subscriptionMigrationLock(tx).Where("user_id = ?", userID).Limit(1).Find(&existing)
-	if existingQuery.Error != nil {
-		return result, existingQuery.Error
-	}
-	hasExistingContract := existingQuery.RowsAffected > 0
-	if hasExistingContract && existing.Status == model.SubscriptionContractStatusNeedsAttention {
-		result.Classification = SubscriptionMigrationClassificationMultipleActiveEntitlements
-		result.Reason = "contract already needs attention"
-		return result, nil
-	}
-
 	now := common.GetTimestamp()
 	var entitlements []model.UserSubscription
 	if err := subscriptionMigrationLock(tx).
@@ -124,6 +112,17 @@ func auditLegacySubscriptionForUserTx(tx *gorm.DB, userID int) (SubscriptionMigr
 		return result, err
 	}
 	bindings = activeRecurringBindings(bindings)
+	var existing model.UserSubscriptionContract
+	existingQuery := subscriptionMigrationLock(tx).Where("user_id = ?", userID).Order("id ASC").Limit(1).Find(&existing)
+	if existingQuery.Error != nil {
+		return result, existingQuery.Error
+	}
+	hasExistingContract := existingQuery.RowsAffected > 0
+	if hasExistingContract && existing.Status == model.SubscriptionContractStatusNeedsAttention {
+		result.Classification = SubscriptionMigrationClassificationMultipleActiveEntitlements
+		result.Reason = "contract already needs attention"
+		return result, nil
+	}
 	if hasExistingContract && isValidSingleSubscriptionAggregate(existing, entitlements, bindings) {
 		result.Classification = SubscriptionMigrationClassificationNoActive
 		result.Reason = "single-contract aggregate already valid"
@@ -157,6 +156,32 @@ func subscriptionMigrationLock(tx *gorm.DB) *gorm.DB {
 		return tx
 	}
 	return tx.Clauses(clause.Locking{Strength: "UPDATE"})
+}
+
+func subscriptionLifecycleDBTimestampTx(tx *gorm.DB) (int64, error) {
+	if tx == nil {
+		return 0, errors.New("subscription lifecycle DB timestamp transaction is required")
+	}
+	var ts int64
+	err := tx.Raw(subscriptionLifecycleDBTimestampQuery()).Scan(&ts).Error
+	if err != nil {
+		return 0, err
+	}
+	if ts <= 0 {
+		return 0, errors.New("subscription lifecycle DB timestamp is invalid")
+	}
+	return ts, nil
+}
+
+func subscriptionLifecycleDBTimestampQuery() string {
+	switch {
+	case common.UsingPostgreSQL:
+		return "SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()))::bigint"
+	case common.UsingSQLite:
+		return "SELECT strftime('%s','now')"
+	default:
+		return "SELECT UNIX_TIMESTAMP()"
+	}
 }
 
 func activeRecurringBindings(bindings []model.SubscriptionProviderBinding) []model.SubscriptionProviderBinding {
@@ -241,6 +266,16 @@ func backfillUniqueLegacySubscriptionTx(tx *gorm.DB, userID int, entitlement mod
 		paymentMode = model.SubscriptionPaymentModeStripeRecurring
 		bindingID = bindings[0].Id
 	}
+	if existing != nil {
+		if err := ensureNoActiveLifecycleReservationInLockedBindingsTx(tx, bindings, userID, existing.CurrentProviderBindingId); err != nil {
+			return err
+		}
+	}
+	if bindingID > 0 && (existing == nil || bindingID != existing.CurrentProviderBindingId) {
+		if err := ensureNoActiveLifecycleReservationInLockedBindingsTx(tx, bindings, userID, bindingID); err != nil {
+			return err
+		}
+	}
 	contract := model.UserSubscriptionContract{
 		UserId:                   userID,
 		Status:                   model.SubscriptionContractStatusActive,
@@ -296,15 +331,87 @@ func backfillUniqueLegacySubscriptionTx(tx *gorm.DB, userID int, entitlement mod
 		return err
 	}
 	if bindingID > 0 {
-		if err := tx.Model(&model.SubscriptionProviderBinding{}).Where("id = ? AND user_id = ?", bindingID, userID).
+		now, err := subscriptionLifecycleDBTimestampTx(tx)
+		if err != nil {
+			return err
+		}
+		update := tx.Model(&model.SubscriptionProviderBinding{}).
+			Where("id = ? AND user_id = ?", bindingID, userID).
+			Where("(lifecycle_reservation_token = ? OR lifecycle_reservation_until <= ?)", "", now).
 			Updates(map[string]interface{}{
 				"contract_id": contract.Id,
-				"updated_at":  common.GetTimestamp(),
-			}).Error; err != nil {
-			return err
+				"updated_at":  now,
+			})
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected == 0 {
+			accepted, err := acceptMigrationBindingBackfillNoRowsTx(tx, bindingID, userID, contract.Id, now)
+			if err != nil {
+				return err
+			}
+			if !accepted {
+				return model.ErrSubscriptionProviderLifecycleConflict
+			}
+		} else if update.RowsAffected != 1 {
+			return model.ErrSubscriptionProviderLifecycleConflict
 		}
 	}
 	return nil
+}
+
+func acceptMigrationBindingBackfillNoRowsTx(tx *gorm.DB, bindingID int64, userID int, contractID int64, now int64) (bool, error) {
+	var binding model.SubscriptionProviderBinding
+	if err := subscriptionMigrationLock(tx).Where("id = ? AND user_id = ?", bindingID, userID).First(&binding).Error; err != nil {
+		return false, err
+	}
+	if binding.ContractId != contractID ||
+		binding.Provider != model.PaymentProviderStripe ||
+		binding.EndedAt > 0 ||
+		isTerminalRecurringProviderStatusForMigration(binding.ProviderStatus) ||
+		subscriptionProviderBindingHasActiveLifecycleReservation(&binding, now) {
+		return false, nil
+	}
+	return true, nil
+}
+
+func ensureNoActiveLifecycleReservationInLockedBindingsTx(tx *gorm.DB, bindings []model.SubscriptionProviderBinding, userID int, bindingID int64) error {
+	if bindingID <= 0 {
+		return nil
+	}
+	now, err := subscriptionLifecycleDBTimestampTx(tx)
+	if err != nil {
+		return err
+	}
+	for index := range bindings {
+		if bindings[index].Id != bindingID {
+			continue
+		}
+		if bindings[index].UserId != userID {
+			return nil
+		}
+		if subscriptionProviderBindingHasActiveLifecycleReservation(&bindings[index], now) {
+			return model.ErrSubscriptionProviderLifecycleConflict
+		}
+		return nil
+	}
+	var binding model.SubscriptionProviderBinding
+	if err := subscriptionMigrationLock(tx).Where("id = ? AND user_id = ?", bindingID, userID).First(&binding).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if subscriptionProviderBindingHasActiveLifecycleReservation(&binding, now) {
+		return model.ErrSubscriptionProviderLifecycleConflict
+	}
+	return nil
+}
+
+func subscriptionProviderBindingHasActiveLifecycleReservation(binding *model.SubscriptionProviderBinding, now int64) bool {
+	return binding != nil &&
+		strings.TrimSpace(binding.LifecycleReservationToken) != "" &&
+		binding.LifecycleReservationUntil > now
 }
 
 func legacySubscriptionMigrationBlocksWrite(classification string) bool {

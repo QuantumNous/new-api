@@ -1,9 +1,11 @@
 package router
 
 import (
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -79,6 +81,8 @@ func TestSubscriptionSelfLifecycleRoutesUseLocalContractHandlers(t *testing.T) {
 		"POST /api/subscription/self/quote":                                    "controller.QuoteSubscriptionSelfPurchase",
 		"POST /api/subscription/self/purchase":                                 "controller.PurchaseSubscriptionSelf",
 		"POST /api/subscription/self/change-plan":                              "controller.ChangeSubscriptionPlan",
+		"POST /api/subscription/self/renewal/cancel":                           "controller.CancelSubscriptionRenewal",
+		"POST /api/subscription/self/renewal/resume":                           "controller.ResumeSubscriptionRenewal",
 	}
 	for routeKey, expectedHandler := range expectedHandlers {
 		handler, ok := routes[routeKey]
@@ -92,4 +96,97 @@ func TestSubscriptionSelfLifecycleRoutesUseLocalContractHandlers(t *testing.T) {
 		_, ok := routes[routeKey]
 		require.False(t, ok, "user lifecycle route should not be public: %s", routeKey)
 	}
+}
+
+func TestSubscriptionSelfLifecycleRoutesAreAuthenticatedAndCriticalLimited(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	SetApiRouter(engine)
+
+	for _, route := range []struct {
+		method string
+		path   string
+	}{
+		{method: "POST", path: "/api/subscription/self/renewal/cancel"},
+		{method: "POST", path: "/api/subscription/self/renewal/resume"},
+	} {
+		found := false
+		for _, registered := range engine.Routes() {
+			if registered.Method == route.method && registered.Path == route.path {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "missing %s %s", route.method, route.path)
+	}
+
+	source, err := os.ReadFile("api-router.go")
+	require.NoError(t, err)
+	routerSource := string(source)
+	require.Contains(t, routerSource, "subscriptionRoute.Use(middleware.UserAuth())")
+	require.Contains(t, routerSource, `subscriptionRoute.POST("/self/renewal/cancel", middleware.CriticalRateLimit(), controller.CancelSubscriptionRenewal)`)
+	require.Contains(t, routerSource, `subscriptionRoute.POST("/self/renewal/resume", middleware.CriticalRateLimit(), controller.ResumeSubscriptionRenewal)`)
+}
+
+func TestSubscriptionSelfOpenAPIUsesSelfSpecificSchemas(t *testing.T) {
+	raw, err := os.ReadFile("../docs/openapi/api.json")
+	require.NoError(t, err)
+	var document map[string]any
+	require.NoError(t, common.Unmarshal(raw, &document))
+
+	components := document["components"].(map[string]any)
+	schemas := components["schemas"].(map[string]any)
+	selfResponse := schemas["SubscriptionSelfResponse"].(map[string]any)
+	properties := selfResponse["properties"].(map[string]any)
+
+	require.NotContains(t, schemas, "RecurringSubscription")
+	require.NotContains(t, schemas, "RecurringSubscriptionResponse")
+	require.Contains(t, schemas, "SubscriptionSelfRecurringSubscription")
+
+	expectedRefs := map[string]string{
+		"contract":            "#/components/schemas/SubscriptionSelfContract",
+		"current_entitlement": "#/components/schemas/SubscriptionSelfEntitlement",
+		"pending_change":      "#/components/schemas/SubscriptionSelfPendingChange",
+	}
+	for property, expectedRef := range expectedRefs {
+		schema := properties[property].(map[string]any)
+		require.Equal(t, expectedRef, schema["$ref"])
+	}
+
+	selfSchemas := []string{
+		"SubscriptionSelfContract",
+		"SubscriptionSelfEntitlement",
+		"SubscriptionSelfPendingChange",
+	}
+	for _, schemaName := range selfSchemas {
+		schema := schemas[schemaName].(map[string]any)
+		schemaProperties := schema["properties"].(map[string]any)
+		require.NotContains(t, schemaProperties, "current_provider_binding_id", schemaName)
+		require.NotContains(t, schemaProperties, "provider_binding_id", schemaName)
+	}
+
+	selfContract := schemas["SubscriptionSelfContract"].(map[string]any)
+	selfContractProperties := selfContract["properties"].(map[string]any)
+	paymentMode := selfContractProperties["payment_mode"].(map[string]any)
+	require.ElementsMatch(t, []any{
+		"stripe_recurring",
+		"prepaid",
+		"balance_one_period",
+		"external_one_period",
+	}, paymentMode["enum"])
+
+	changePlan := schemas["ChangeSubscriptionPlanResponse"].(map[string]any)
+	changePlanProperties := changePlan["properties"].(map[string]any)
+	changePlanData := changePlanProperties["data"].(map[string]any)
+	changePlanDataProperties := changePlanData["properties"].(map[string]any)
+	require.Equal(t, "#/components/schemas/SubscriptionSelfContract", changePlanDataProperties["contract"].(map[string]any)["$ref"])
+	require.Equal(t, "#/components/schemas/SubscriptionSelfPendingChange", changePlanDataProperties["intent"].(map[string]any)["$ref"])
+
+	renewalLifecycle := schemas["SubscriptionRenewalLifecycleResult"].(map[string]any)
+	renewalLifecycleProperties := renewalLifecycle["properties"].(map[string]any)
+	require.Contains(t, renewalLifecycleProperties, "change_version")
+	require.Contains(t, renewalLifecycle["required"].([]any), "change_version")
+	require.NotContains(t, renewalLifecycleProperties, "sync_pending")
+	require.NotContains(t, renewalLifecycle["required"].([]any), "sync_pending")
 }

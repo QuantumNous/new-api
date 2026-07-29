@@ -7,7 +7,7 @@ const root = resolve(fileURLToPath(new URL("./html/", import.meta.url)));
 const port = Number(process.env.PORT || 4000);
 const host = process.env.HOST || "127.0.0.1";
 const routes = new Map([
-  ["/", "index.html"], ["/models", "models.html"], ["/cli", "cli.html"], ["/docs", "docs.html"],
+  ["/", "index.html"], ["/models", "models.html"], ["/docs", "docs.html"],
   ["/playground", "playground.html"], ["/pricing", "topup.html"], ["/compute", "compute.html"],
   ["/usecases", "usecases.html"], ["/contact", "contact.html"], ["/status", "status.html"],
   ["/terms", "terms.html"], ["/privacy", "privacy.html"], ["/refund-policy", "refund-policy.html"],

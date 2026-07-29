@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -278,6 +279,44 @@ func TestStripeUpgradeUpdateFailureRestoresReleasedDowngradeSchedule(t *testing.
 	require.Equal(t, model.SubscriptionContractStatusActive, reloadedContract.Status)
 	require.Equal(t, downgradePlan.Id, reloadedContract.PendingPlanId)
 	require.Equal(t, int64(2000), reloadedContract.PendingEffectiveAt)
+}
+
+func TestRestoreStripeSubscriptionUpgradeScheduleUsesIndependentRequestTimeouts(t *testing.T) {
+	originalTimeout := stripeSubscriptionLifecycleRequestTimeout
+	t.Cleanup(func() { stripeSubscriptionLifecycleRequestTimeout = originalTimeout })
+	stripeSubscriptionLifecycleRequestTimeout = 400 * time.Millisecond
+
+	useStripeUpgradeTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/subscription_schedules":
+			time.Sleep(250 * time.Millisecond)
+			_, _ = w.Write([]byte(`{"id":"sched_independent_timeout","object":"subscription_schedule","status":"active","subscription":"sub_independent_timeout"}`))
+		case "/v1/subscription_schedules/sched_independent_timeout":
+			time.Sleep(250 * time.Millisecond)
+			_, _ = w.Write([]byte(`{"id":"sched_independent_timeout","object":"subscription_schedule","status":"active","end_behavior":"release","subscription":"sub_independent_timeout","phases":[{"start_date":1000,"end_date":2000,"items":[{"price":"price_independent_timeout","quantity":1}]}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	raw, err := common.Marshal(stripeSubscriptionUpgradeScheduleSnapshot{
+		SubscriptionID: "sub_independent_timeout",
+		EndBehavior:    "release",
+		Phases: []stripeSubscriptionUpgradeSchedulePhaseSnapshot{{
+			StartDate: 1000,
+			EndDate:   2000,
+			Items: []stripeSubscriptionUpgradeScheduleItemSnapshot{{
+				PriceID:  "price_independent_timeout",
+				Quantity: 1,
+			}},
+		}},
+	})
+	require.NoError(t, err)
+
+	scheduleID, err := restoreStripeSubscriptionUpgradeSchedule(string(raw), "independent-timeout")
+
+	require.NoError(t, err)
+	require.Equal(t, "sched_independent_timeout", scheduleID)
 }
 
 func TestStripeUpgradePendingPaymentPreservesPreexistingCancelAtPeriodEnd(t *testing.T) {

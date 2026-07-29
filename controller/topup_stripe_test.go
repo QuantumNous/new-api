@@ -1047,7 +1047,18 @@ func TestSessionCompletedFulfillsNoPaymentRequiredTopUpOnce(t *testing.T) {
 
 func TestSessionCompletedFulfillsNoPaymentRequiredSubscriptionOnce(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.UserSubscriptionContract{},
+		&model.SubscriptionChangeIntent{},
+		&model.SubscriptionTermSegment{},
+		&model.WalletLedgerEntry{},
+		&model.RecallCampaign{},
+		&model.RecallRecipient{},
+		&model.RecallMessage{},
+		&model.RecallEvent{},
+	))
 	insertStripeFulfillmentUser(t, 909)
+	_, recipient := createStripeWebhookRecallRecipient(t, 909, "promo_no_payment_required_subscription")
 	plan := model.SubscriptionPlan{
 		Id:            9309,
 		Title:         "Fully discounted plan",
@@ -1063,32 +1074,64 @@ func TestSessionCompletedFulfillsNoPaymentRequiredSubscriptionOnce(t *testing.T)
 	t.Cleanup(func() {
 		model.InvalidateSubscriptionPlanCache(plan.Id)
 	})
-	order := model.SubscriptionOrder{
-		UserId:          909,
-		PlanId:          plan.Id,
-		Money:           29,
-		TradeNo:         "ref_stripe_no_payment_required_subscription",
-		PaymentMethod:   model.PaymentMethodStripe,
-		PaymentProvider: model.PaymentProviderStripe,
-		Status:          common.TopUpStatusPending,
-		CreateTime:      time.Now().Unix(),
+	contract := model.UserSubscriptionContract{
+		UserId:      909,
+		Status:      model.SubscriptionContractStatusEnded,
+		PaymentMode: model.SubscriptionPaymentModePrepaid,
 	}
-	require.NoError(t, order.Insert())
+	require.NoError(t, model.DB.Create(&contract).Error)
+	intent := model.SubscriptionChangeIntent{
+		ContractId:  contract.Id,
+		UserId:      909,
+		RequestId:   "no-payment-required-subscription",
+		Kind:        model.SubscriptionChangeIntentKindPurchase,
+		PaymentMode: model.SubscriptionPaymentModePrepaid,
+		Status:      model.SubscriptionChangeIntentStatusAwaitingPayment,
+		ToPlanId:    plan.Id,
+	}
+	require.NoError(t, model.DB.Create(&intent).Error)
+	require.NoError(t, model.DB.Model(&model.UserSubscriptionContract{}).
+		Where("id = ?", contract.Id).
+		Update("latest_change_intent_id", intent.Id).Error)
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoiceAlipay, "USD", 0, 1)
+	order.UserId = 909
+	order.PlanId = plan.Id
+	order.TradeNo = "ref_stripe_no_payment_required_subscription"
+	order.ProviderSessionId = "cs_no_payment_required_subscription"
+	order.ChangeIntentId = intent.Id
+	order.UnitPrice = plan.PriceAmount
+	order.RecallCampaignId = recipient.CampaignId
+	order.RecallRecipientId = recipient.Id
+	order.RecallPromotionCodeId = "promo_no_payment_required_subscription"
+	order.RecallDiscountAmountMinor = 2900
+	order.PlanSnapshot = `{"plan_id":9309,"title":"Fully discounted plan","price_amount":29,"currency":"USD","duration_unit":"month","duration_value":1,"total_amount":1000}`
+	require.NoError(t, model.DB.Create(order).Error)
+	runtime := service.GetRecallRuntime()
+	originalAttribution := runtime.Attribution
+	runtime.Attribution = service.NewRecallAttributionService(&stripeWebhookRecallClient{getCheckoutSessionFn: func(_ context.Context, id string, _ ...string) (*stripe.CheckoutSession, error) {
+		return &stripe.CheckoutSession{
+			ID:           id,
+			AmountTotal:  0,
+			Currency:     stripe.CurrencyUSD,
+			Discounts:    []*stripe.CheckoutSessionDiscount{{PromotionCode: &stripe.PromotionCode{ID: order.RecallPromotionCodeId}}},
+			TotalDetails: &stripe.CheckoutSessionTotalDetails{AmountDiscount: order.RecallDiscountAmountMinor},
+		}, nil
+	}})
+	t.Cleanup(func() { runtime.Attribution = originalAttribution })
 
-	event := stripe.Event{
-		ID:   "evt_no_payment_required_subscription",
-		Type: stripe.EventTypeCheckoutSessionCompleted,
-		Data: &stripe.EventData{Object: map[string]interface{}{
-			"id":                  "cs_no_payment_required_subscription",
-			"status":              "complete",
-			"mode":                string(stripe.CheckoutSessionModePayment),
-			"payment_status":      string(stripe.CheckoutSessionPaymentStatusNoPaymentRequired),
-			"amount_total":        float64(0),
-			"currency":            "usd",
-			"client_reference_id": order.TradeNo,
-			"customer":            "cus_no_payment_required_subscription",
-		}},
-	}
+	object := oneTimeStripePaidSessionObject(order)
+	object["payment_status"] = string(stripe.CheckoutSessionPaymentStatusNoPaymentRequired)
+	event := stripeRecallWebhookEvent(
+		"evt_no_payment_required_subscription",
+		order.ProviderSessionId,
+		order.TradeNo,
+		0,
+		order.RecallDiscountAmountMinor,
+		recipient,
+		true,
+	)
+	event.Type = stripe.EventTypeCheckoutSessionCompleted
+	event.Data.Object = object
 
 	require.NoError(t, sessionCompleted(context.Background(), event, "127.0.0.1"))
 	require.NoError(t, sessionCompleted(context.Background(), event, "127.0.0.1"))
@@ -2395,7 +2438,7 @@ func TestFulfillSubscriptionOrderBindsCheckoutSubscriptionOnce(t *testing.T) {
 	require.EqualValues(t, 1, subCount)
 }
 
-func TestStripeSubscriptionWebhookUpdatedAppliesSnapshotOnce(t *testing.T) {
+func TestStripeSubscriptionWebhookUpdatedAppliesPassiveSnapshotOnceWithoutOverwritingLifecycle(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	binding := insertStripeFulfillmentSubscriptionBinding(t, 703, "sub_webhook_update", "active", false)
 	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
@@ -2404,13 +2447,17 @@ func TestStripeSubscriptionWebhookUpdatedAppliesSnapshotOnce(t *testing.T) {
 	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
 		calls++
 		return model.ProviderSubscriptionSnapshot{
-			ProviderSubscriptionId: "sub_webhook_update",
-			ProviderCustomerId:     "cus_subscription",
-			ProviderPriceId:        "price_subscription",
-			ProviderStatus:         "active",
-			CancelAtPeriodEnd:      true,
-			CurrentPeriodStart:     1000,
-			CurrentPeriodEnd:       2000,
+			ProviderSubscriptionId:  "sub_webhook_update",
+			ProviderCustomerId:      "cus_subscription_updated",
+			ProviderPriceId:         "price_subscription_updated",
+			ProviderLatestInvoiceId: "in_subscription_updated",
+			ProviderStatus:          "past_due",
+			CancelAtPeriodEnd:       true,
+			CurrentPeriodStart:      1500,
+			CurrentPeriodEnd:        2500,
+			GracePeriodEnd:          2600,
+			CanceledAt:              1700,
+			Livemode:                true,
 		}, nil
 	}
 	event := stripe.Event{
@@ -2427,12 +2474,133 @@ func TestStripeSubscriptionWebhookUpdatedAppliesSnapshotOnce(t *testing.T) {
 	require.Equal(t, 1, calls)
 	var updated model.SubscriptionProviderBinding
 	require.NoError(t, model.DB.First(&updated, binding.Id).Error)
-	require.True(t, updated.CancelAtPeriodEnd)
+	require.Equal(t, "cus_subscription_updated", updated.ProviderCustomerId)
+	require.Equal(t, "price_subscription_updated", updated.ProviderPriceId)
+	require.Equal(t, "in_subscription_updated", updated.ProviderLatestInvoiceId)
+	require.Equal(t, "past_due", updated.ProviderStatus)
+	require.EqualValues(t, 1500, updated.CurrentPeriodStart)
+	require.EqualValues(t, 2500, updated.CurrentPeriodEnd)
+	require.EqualValues(t, 2600, updated.GracePeriodEnd)
+	require.True(t, updated.Livemode)
+	require.False(t, updated.CancelAtPeriodEnd)
+	require.Zero(t, updated.CanceledAt)
+	require.Equal(t, binding.LifecycleActionSeq, updated.LifecycleActionSeq)
+}
+
+func TestStripeSubscriptionWebhookUpdatedRoutesTerminalStatusToTermination(t *testing.T) {
+	for index, status := range []string{"unpaid", "incomplete_expired"} {
+		t.Run(status, func(t *testing.T) {
+			setupStripeFulfillmentTestDB(t)
+			binding := insertStripeFulfillmentSubscriptionBinding(t, 713+index, "sub_webhook_terminal_"+status, "active", false)
+			_, _, err := model.ReserveSubscriptionProviderLifecycle(
+				binding.Id,
+				binding.UserId,
+				binding.ProviderSubscriptionId,
+				binding.LifecycleActionSeq,
+				model.SubscriptionProviderLifecycleActionResume,
+				"webhook-terminal-reservation-"+status,
+				300,
+			)
+			require.NoError(t, err)
+			originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
+			t.Cleanup(func() { stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot })
+			var calls int
+			stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
+				calls++
+				return model.ProviderSubscriptionSnapshot{
+					ProviderSubscriptionId: binding.ProviderSubscriptionId,
+					ProviderCustomerId:     "cus_subscription",
+					ProviderPriceId:        "price_subscription",
+					ProviderStatus:         status,
+					CurrentPeriodStart:     1000,
+					CurrentPeriodEnd:       2000,
+				}, nil
+			}
+			event := stripe.Event{
+				ID:   "evt_subscription_terminal_" + status,
+				Type: stripe.EventTypeCustomerSubscriptionUpdated,
+				Data: &stripe.EventData{Object: map[string]interface{}{
+					"id": binding.ProviderSubscriptionId,
+				}},
+			}
+
+			require.NoError(t, handleStripeSubscriptionUpdated(context.Background(), event))
+			require.NoError(t, handleStripeSubscriptionUpdated(context.Background(), event))
+
+			require.Equal(t, 1, calls)
+			var updated model.SubscriptionProviderBinding
+			require.NoError(t, model.DB.First(&updated, binding.Id).Error)
+			require.Equal(t, status, updated.ProviderStatus)
+			require.Greater(t, updated.EndedAt, int64(0))
+			require.Empty(t, updated.LifecycleReservationToken)
+			require.Empty(t, updated.LifecycleReservationAction)
+			require.Zero(t, updated.LifecycleReservationUntil)
+			var entitlement model.UserSubscription
+			require.NoError(t, model.DB.Where("provider_binding_id = ?", binding.Id).First(&entitlement).Error)
+			require.Equal(t, "cancelled", entitlement.Status)
+		})
+	}
+}
+
+func TestStripeSubscriptionWebhookUpdatedTerminalSnapshotRepairsLocalTerminalDrift(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	binding := insertStripeFulfillmentSubscriptionBinding(t, 715, "sub_webhook_terminal_drift", "canceled", false)
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Updates(map[string]interface{}{
+		"ended_at":                     common.GetTimestamp(),
+		"lifecycle_reservation_token":  "terminal-drift-token",
+		"lifecycle_reservation_action": model.SubscriptionProviderLifecycleActionResume,
+		"lifecycle_reservation_until":  common.GetTimestamp() + 300,
+	}).Error)
+	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
+	t.Cleanup(func() { stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot })
+	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: binding.ProviderSubscriptionId,
+			ProviderCustomerId:     "cus_subscription",
+			ProviderPriceId:        "price_subscription",
+			ProviderStatus:         "canceled",
+			CurrentPeriodStart:     1000,
+			CurrentPeriodEnd:       2000,
+			EndedAt:                common.GetTimestamp(),
+		}, nil
+	}
+	event := stripe.Event{
+		ID:   "evt_subscription_terminal_drift",
+		Type: stripe.EventTypeCustomerSubscriptionUpdated,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id": binding.ProviderSubscriptionId,
+		}},
+	}
+
+	require.NoError(t, handleStripeSubscriptionUpdated(context.Background(), event))
+
+	var updated model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&updated, binding.Id).Error)
+	require.Equal(t, "canceled", updated.ProviderStatus)
+	require.Greater(t, updated.EndedAt, int64(0))
+	require.Empty(t, updated.LifecycleReservationToken)
+	require.Empty(t, updated.LifecycleReservationAction)
+	require.Zero(t, updated.LifecycleReservationUntil)
+	var entitlement model.UserSubscription
+	require.NoError(t, model.DB.Where("provider_binding_id = ?", binding.Id).First(&entitlement).Error)
+	require.Equal(t, "cancelled", entitlement.Status)
 }
 
 func TestStripeSubscriptionWebhookDeletedTerminatesBinding(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	binding := insertStripeFulfillmentSubscriptionBinding(t, 704, "sub_webhook_deleted", "active", false)
+	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
+	t.Cleanup(func() { stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot })
+	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: "sub_webhook_deleted",
+			ProviderCustomerId:     "cus_subscription",
+			ProviderStatus:         "canceled",
+			CurrentPeriodStart:     1000,
+			CurrentPeriodEnd:       2000,
+			EndedAt:                1500,
+		}, nil
+	}
 	event := stripe.Event{
 		ID:   "evt_subscription_deleted",
 		Type: stripe.EventTypeCustomerSubscriptionDeleted,
@@ -2459,6 +2627,18 @@ func TestStripeSubscriptionWebhookDeletedTerminatesBinding(t *testing.T) {
 func TestStripeSubscriptionWebhookDeletedUsesItemCurrentPeriod(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	binding := insertStripeFulfillmentSubscriptionBinding(t, 705, "sub_webhook_deleted_v86", "active", false)
+	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
+	t.Cleanup(func() { stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot })
+	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: "sub_webhook_deleted_v86",
+			ProviderCustomerId:     "cus_subscription",
+			ProviderStatus:         "canceled",
+			CurrentPeriodStart:     3000,
+			CurrentPeriodEnd:       4000,
+			EndedAt:                2500,
+		}, nil
+	}
 	event := stripe.Event{
 		ID:   "evt_subscription_deleted_v86",
 		Type: stripe.EventTypeCustomerSubscriptionDeleted,
@@ -2485,6 +2665,50 @@ func TestStripeSubscriptionWebhookDeletedUsesItemCurrentPeriod(t *testing.T) {
 	require.NoError(t, model.DB.First(&updated, binding.Id).Error)
 	require.Equal(t, int64(3000), updated.CurrentPeriodStart)
 	require.Equal(t, int64(4000), updated.CurrentPeriodEnd)
+}
+
+func TestStripeSubscriptionWebhookDeletedUsesCurrentStripeStateBeforeTermination(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	binding := insertStripeFulfillmentSubscriptionBinding(t, 706, "sub_webhook_deleted_stale", "active", false)
+	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
+	t.Cleanup(func() { stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot })
+	var calls int
+	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
+		calls++
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: "sub_webhook_deleted_stale",
+			ProviderStatus:         "active",
+			CurrentPeriodStart:     3000,
+			CurrentPeriodEnd:       4000,
+		}, nil
+	}
+	event := stripe.Event{
+		ID:   "evt_subscription_deleted_stale",
+		Type: stripe.EventTypeCustomerSubscriptionDeleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":       "sub_webhook_deleted_stale",
+			"status":   "canceled",
+			"ended_at": float64(2500),
+		}},
+	}
+
+	require.NoError(t, handleStripeSubscriptionDeleted(context.Background(), event))
+	require.NoError(t, handleStripeSubscriptionDeleted(context.Background(), event))
+
+	require.Equal(t, 1, calls)
+	var updated model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&updated, binding.Id).Error)
+	require.Equal(t, "active", updated.ProviderStatus)
+	require.Zero(t, updated.EndedAt)
+	require.Equal(t, int64(3000), updated.CurrentPeriodStart)
+	require.Equal(t, int64(4000), updated.CurrentPeriodEnd)
+	var entitlement model.UserSubscription
+	require.NoError(t, model.DB.Where("provider_binding_id = ?", binding.Id).First(&entitlement).Error)
+	require.Equal(t, "active", entitlement.Status)
+	var webhookEvent model.PaymentWebhookEvent
+	require.NoError(t, model.DB.Where("provider = ? AND event_id = ?", model.PaymentProviderStripe, event.ID).First(&webhookEvent).Error)
+	require.Equal(t, model.PaymentWebhookEventStatusProcessed, webhookEvent.Status)
+	require.Greater(t, webhookEvent.ProcessedAt, int64(0))
 }
 
 func TestStripeSubscriptionWebhookAcknowledgesUnrelatedSignedEvent(t *testing.T) {
@@ -2565,6 +2789,15 @@ func TestStripeSubscriptionWebhookNewAPIMetadataMissingOrderRetries(t *testing.T
 func TestStripeSubscriptionWebhookUpdatedDoesNotReviveDeletedBinding(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	binding := insertStripeFulfillmentSubscriptionBinding(t, 706, "sub_late_update", "active", false)
+	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
+	t.Cleanup(func() { stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot })
+	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: "sub_late_update",
+			ProviderStatus:         "canceled",
+			EndedAt:                2000,
+		}, nil
+	}
 	deletedEvent := stripe.Event{
 		ID:   "evt_subscription_deleted_before_update",
 		Type: stripe.EventTypeCustomerSubscriptionDeleted,
@@ -2575,8 +2808,6 @@ func TestStripeSubscriptionWebhookUpdatedDoesNotReviveDeletedBinding(t *testing.
 	}
 	require.NoError(t, handleStripeSubscriptionDeleted(context.Background(), deletedEvent))
 
-	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
-	t.Cleanup(func() { stripeSubscriptionSnapshotFromSubscriptionEvent = originalSnapshot })
 	var calls int
 	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
 		calls++

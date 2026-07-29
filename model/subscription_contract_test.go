@@ -35,6 +35,9 @@ func TestSubscriptionContractMigrationCreatesLifecycleTablesAndColumns(t *testin
 	require.True(t, DB.Migrator().HasColumn(&SubscriptionProviderBinding{}, "contract_id"))
 	require.True(t, DB.Migrator().HasColumn(&SubscriptionProviderBinding{}, "provider_subscription_item_id"))
 	require.True(t, DB.Migrator().HasColumn(&SubscriptionProviderBinding{}, "provider_schedule_id"))
+	require.True(t, DB.Migrator().HasColumn(&SubscriptionProviderBinding{}, "lifecycle_reservation_token"))
+	require.True(t, DB.Migrator().HasColumn(&SubscriptionProviderBinding{}, "lifecycle_reservation_action"))
+	require.True(t, DB.Migrator().HasColumn(&SubscriptionProviderBinding{}, "lifecycle_reservation_until"))
 }
 
 func TestSubscriptionContractAllowsOnlyOneContractPerUser(t *testing.T) {

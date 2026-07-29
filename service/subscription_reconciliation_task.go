@@ -114,7 +114,7 @@ func RunStripeSubscriptionReconciliationOnce() (int, error) {
 			snapshot.ProviderSubscriptionId = binding.ProviderSubscriptionId
 		}
 		if snapshot.EndedAt > 0 || isTerminalStripeSubscriptionStatus(snapshot.ProviderStatus) {
-			updated, err := model.ApplyProviderSubscriptionTermination(binding.Id, snapshot)
+			updated, err := model.ApplyPassiveProviderSubscriptionTermination(binding.Id, snapshot)
 			if err != nil {
 				return processed, err
 			}
@@ -319,56 +319,121 @@ func reconcileExpiredStripeGraceContract(ctx context.Context, contract model.Use
 		return true, markStripeGraceContractNeedsAttention(contract.Id, err.Error())
 	}
 	if stripeInvoiceIsPaid(inv) {
+		reservation, hasReservation, reservationErr := stripeGracePaidInvoiceReservation(binding.Id)
+		if reservationErr != nil {
+			return false, reservationErr
+		}
+		if hasReservation {
+			_, err := ReconcilePaidInvoiceWithLifecycleReservation(ctx, invoiceID, reservation)
+			return err == nil, err
+		}
 		_, err := ReconcilePaidInvoice(ctx, invoiceID)
 		return err == nil, err
 	}
-	shouldCancel, err := fenceStripeGraceInvoiceBeforeCancel(ctx, invoiceID, binding)
+	reservation, reservedBinding, err := reserveStripeSubscriptionLifecycle(&binding, model.SubscriptionProviderLifecycleActionGraceCancel)
 	if err != nil {
 		return false, err
 	}
-	if !shouldCancel {
-		return true, nil
-	}
-	snapshot, err := stripeCancelSubscriptionNow(binding.ProviderSubscriptionId, recurringLifecycleIdempotencyKey(&binding, "grace_expired"))
+	fenceResult, err := fenceStripeGraceInvoiceBeforeCancel(ctx, invoiceID, *reservedBinding)
 	if err != nil {
+		if releaseErr := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); releaseErr != nil {
+			return false, fmt.Errorf("%w; failed to release lifecycle reservation: %v", err, releaseErr)
+		}
 		return false, err
+	}
+	if fenceResult == stripeGraceInvoiceFencePaid {
+		// Keep the reservation on reconciliation failure. The paid invoice may
+		// already be authoritative, and releasing here would let cancel/resume
+		// race the retry with a different lifecycle sequence.
+		_, err := ReconcilePaidInvoiceWithLifecycleReservation(ctx, invoiceID, reservation)
+		return err == nil, err
+	}
+	if fenceResult != stripeGraceInvoiceFenceCancel {
+		if releaseErr := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); releaseErr != nil {
+			return false, releaseErr
+		}
+		return false, errors.New("Stripe grace invoice fence returned invalid state")
+	}
+	snapshot, cancelErr := stripeCancelSubscriptionNow(reservedBinding.ProviderSubscriptionId, recurringLifecycleIdempotencyKey(reservedBinding, "grace_expired"))
+	if cancelErr != nil {
+		// A transport error does not prove the Stripe mutation failed. Retain
+		// the exact reservation until authoritative confirmation or lease expiry
+		// so a retry reuses the same lifecycle sequence and idempotency key.
+		confirmed, confirmErr := stripeSubscriptionSnapshotGetter(reservedBinding.ProviderSubscriptionId)
+		if confirmErr != nil {
+			return false, fmt.Errorf("%w; authoritative Stripe subscription confirmation failed: %v", cancelErr, confirmErr)
+		}
+		if strings.TrimSpace(confirmed.ProviderSubscriptionId) != strings.TrimSpace(reservedBinding.ProviderSubscriptionId) {
+			return false, fmt.Errorf("%w; authoritative Stripe subscription ownership mismatch", cancelErr)
+		}
+		if confirmed.EndedAt <= 0 && !isTerminalStripeSubscriptionStatus(confirmed.ProviderStatus) {
+			if releaseErr := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); releaseErr != nil {
+				return false, fmt.Errorf("%w; failed to release lifecycle reservation: %v", cancelErr, releaseErr)
+			}
+			return false, cancelErr
+		}
+		snapshot = confirmed
 	}
 	if strings.TrimSpace(snapshot.ProviderSubscriptionId) == "" {
-		snapshot.ProviderSubscriptionId = binding.ProviderSubscriptionId
+		snapshot.ProviderSubscriptionId = reservedBinding.ProviderSubscriptionId
 	}
 	if strings.TrimSpace(snapshot.ProviderLatestInvoiceId) == "" {
 		snapshot.ProviderLatestInvoiceId = invoiceID
 	}
-	if _, err := model.ApplyProviderSubscriptionTermination(binding.Id, snapshot); err != nil {
+	if _, err := model.ApplyProviderSubscriptionTerminationWithReservation(reservation, snapshot); err != nil {
 		return false, err
 	}
 	return true, closeExpiredStripeGraceContract(contract, binding, entitlement)
 }
 
-func fenceStripeGraceInvoiceBeforeCancel(ctx context.Context, invoiceID string, binding model.SubscriptionProviderBinding) (bool, error) {
+func stripeGracePaidInvoiceReservation(bindingID int64) (*model.SubscriptionProviderLifecycleReservation, bool, error) {
+	reservation, err := model.GetActiveSubscriptionProviderLifecycleReservation(bindingID, model.SubscriptionProviderLifecycleActionGraceCancel)
+	if err == nil {
+		return reservation, true, nil
+	}
+	if !errors.Is(err, model.ErrSubscriptionProviderLifecycleConflict) {
+		return nil, false, err
+	}
+	reservation, err = model.GetSubscriptionProviderLifecycleReservation(bindingID, model.SubscriptionProviderLifecycleActionGraceCancel)
+	if err == nil {
+		return reservation, true, nil
+	}
+	if !errors.Is(err, model.ErrSubscriptionProviderLifecycleConflict) {
+		return nil, false, err
+	}
+	return nil, false, nil
+}
+
+type stripeGraceInvoiceFenceResult string
+
+const (
+	stripeGraceInvoiceFenceCancel stripeGraceInvoiceFenceResult = "cancel"
+	stripeGraceInvoiceFencePaid   stripeGraceInvoiceFenceResult = "paid"
+)
+
+func fenceStripeGraceInvoiceBeforeCancel(ctx context.Context, invoiceID string, binding model.SubscriptionProviderBinding) (stripeGraceInvoiceFenceResult, error) {
 	voided, voidErr := stripeInvoiceVoider(ctx, invoiceID, recurringLifecycleIdempotencyKey(&binding, "grace_invoice_void"))
 	if voidErr == nil {
 		if voided == nil || strings.TrimSpace(voided.ID) != invoiceID || voided.Status != stripe.InvoiceStatusVoid {
-			return false, errors.New("Stripe grace invoice void returned invalid state")
+			return "", errors.New("Stripe grace invoice void returned invalid state")
 		}
-		return true, nil
+		return stripeGraceInvoiceFenceCancel, nil
 	}
 
 	authoritative, fetchErr := stripeInvoiceGetter(ctx, invoiceID)
 	if fetchErr != nil {
-		return false, fmt.Errorf("Stripe grace invoice void failed: %v; authoritative refetch failed: %w", voidErr, fetchErr)
+		return "", fmt.Errorf("Stripe grace invoice void failed: %v; authoritative refetch failed: %w", voidErr, fetchErr)
 	}
 	if authoritative == nil || strings.TrimSpace(authoritative.ID) != invoiceID {
-		return false, errors.New("Stripe grace invoice is missing after void failure")
+		return "", errors.New("Stripe grace invoice is missing after void failure")
 	}
 	if stripeInvoiceIsPaid(authoritative) {
-		_, err := ReconcilePaidInvoice(ctx, invoiceID)
-		return false, err
+		return stripeGraceInvoiceFencePaid, nil
 	}
 	if isTerminalStripeInvoiceStatus(authoritative.Status) {
-		return true, nil
+		return stripeGraceInvoiceFenceCancel, nil
 	}
-	return false, voidErr
+	return "", voidErr
 }
 
 func currentStripeGraceFacts(contract model.UserSubscriptionContract) (model.SubscriptionProviderBinding, model.UserSubscription, bool, error) {
@@ -427,8 +492,15 @@ func validateStripeGraceRemoteFacts(inv *stripe.Invoice, sub *stripe.Subscriptio
 }
 
 func closeExpiredStripeGraceContract(contract model.UserSubscriptionContract, binding model.SubscriptionProviderBinding, entitlement model.UserSubscription) error {
-	now := common.GetTimestamp()
 	return model.DB.Transaction(func(tx *gorm.DB) error {
+		now, err := subscriptionLifecycleDBTimestampTx(tx)
+		if err != nil {
+			return err
+		}
+		var lockedBinding model.SubscriptionProviderBinding
+		if err := subscriptionCommandLock(tx).Where("id = ? AND user_id = ?", binding.Id, binding.UserId).First(&lockedBinding).Error; err != nil {
+			return err
+		}
 		var locked model.UserSubscriptionContract
 		if err := subscriptionCommandLock(tx).Where("id = ?", contract.Id).First(&locked).Error; err != nil {
 			return err
@@ -436,8 +508,15 @@ func closeExpiredStripeGraceContract(contract model.UserSubscriptionContract, bi
 		if locked.Status == model.SubscriptionContractStatusEnded && locked.CurrentProviderBindingId == 0 && locked.CurrentEntitlementId == 0 {
 			return nil
 		}
-		if locked.Status != model.SubscriptionContractStatusGrace || locked.CurrentProviderBindingId != binding.Id || locked.CurrentEntitlementId != entitlement.Id {
+		if locked.Status != model.SubscriptionContractStatusGrace ||
+			locked.CurrentProviderBindingId != lockedBinding.Id ||
+			locked.CurrentEntitlementId != entitlement.Id ||
+			lockedBinding.ContractId != locked.Id ||
+			lockedBinding.UserId != locked.UserId {
 			return nil
+		}
+		if subscriptionProviderBindingHasActiveLifecycleReservation(&lockedBinding, now) {
+			return model.ErrSubscriptionProviderLifecycleConflict
 		}
 		if err := tx.Model(&model.UserSubscription{}).
 			Where("id = ? AND contract_id = ? AND user_id = ?", entitlement.Id, contract.Id, contract.UserId).
@@ -719,6 +798,16 @@ func reconcileStripeBindingPointerDrift(ctx context.Context) (int, error) {
 			if err != nil {
 				return processed, err
 			}
+			if snapshot.EndedAt > 0 || isTerminalStripeSubscriptionStatus(snapshot.ProviderStatus) {
+				if _, err := model.ApplyPassiveProviderSubscriptionTermination(binding.Id, snapshot); err != nil {
+					return processed, err
+				}
+				if err := markStripeContractNeedsAttention(contract.Id); err != nil {
+					return processed, err
+				}
+				processed++
+				continue
+			}
 			if snapshot.ProviderScheduleIdObserved && strings.TrimSpace(snapshot.ProviderScheduleId) != strings.TrimSpace(binding.ProviderScheduleId) {
 				if _, err := model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot); err != nil {
 					return processed, err
@@ -751,6 +840,9 @@ func getStripeSubscriptionSnapshotForReconciliation(providerSubscriptionID strin
 		return model.ProviderSubscriptionSnapshot{}, err
 	}
 	params := &stripe.SubscriptionParams{}
+	ctx, cancel := context.WithTimeout(context.Background(), stripeSubscriptionLifecycleRequestTimeout)
+	defer cancel()
+	params.Context = ctx
 	params.AddExpand("latest_invoice")
 	params.AddExpand("items.data.price")
 	sub, err := stripesubscription.Get(strings.TrimSpace(providerSubscriptionID), params)

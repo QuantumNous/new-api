@@ -60,13 +60,13 @@ type SubscriptionSelfPaymentQuote struct {
 }
 
 type SubscriptionSelfPurchaseResponse struct {
-	Status           string                        `json:"status"`
-	Contract         *SubscriptionContractDTO      `json:"contract,omitempty"`
-	Intent           *SubscriptionPendingChangeDTO `json:"intent,omitempty"`
-	CheckoutURL      string                        `json:"checkout_url,omitempty"`
-	HostedInvoiceURL string                        `json:"hosted_invoice_url,omitempty"`
-	ClientSecret     string                        `json:"client_secret,omitempty"`
-	PublishableKey   string                        `json:"publishable_key,omitempty"`
+	Status           string                            `json:"status"`
+	Contract         *SubscriptionSelfContractDTO      `json:"contract,omitempty"`
+	Intent           *SubscriptionSelfPendingChangeDTO `json:"intent,omitempty"`
+	CheckoutURL      string                            `json:"checkout_url,omitempty"`
+	HostedInvoiceURL string                            `json:"hosted_invoice_url,omitempty"`
+	ClientSecret     string                            `json:"client_secret,omitempty"`
+	PublishableKey   string                            `json:"publishable_key,omitempty"`
 }
 
 func QuoteSubscriptionSelfPurchase(c *gin.Context) {
@@ -547,10 +547,10 @@ func subscriptionSelfPurchaseResponse(result *service.PurchaseSubscriptionResult
 		response.PublishableKey = strings.TrimSpace(setting.StripePublishableKey)
 	}
 	if result.Contract != nil && result.Contract.Id > 0 {
-		response.Contract = subscriptionContractDTO(result.Contract)
+		response.Contract = subscriptionSelfContractDTO(result.Contract)
 	}
 	if result.Intent != nil && result.Intent.Id > 0 {
-		response.Intent = subscriptionPendingChangeDTO(result.Intent)
+		response.Intent = subscriptionSelfPendingChangeDTO(result.Intent)
 	}
 	return response
 }

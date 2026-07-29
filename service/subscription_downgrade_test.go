@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v86"
+	"gorm.io/gorm"
 )
 
 func TestStripeDowngradeLatestSelectionSupersedesPreviousAndKeepsOnlyLatestPending(t *testing.T) {
@@ -116,6 +117,322 @@ func TestStripeDowngradeScheduleUsesCurrentAndNextPhaseWithoutImmediateEntitleme
 	var reloadedBinding model.SubscriptionProviderBinding
 	require.NoError(t, model.DB.First(&reloadedBinding, "id = ?", binding.Id).Error)
 	require.Equal(t, "sched_down_schedule", reloadedBinding.ProviderScheduleId)
+}
+
+func TestStripeDowngradeRejectsActiveLifecycleReservationAfterProviderReadBeforeScheduleMutation(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	insertContractServiceUser(t, 7159, 0)
+	currentPlan := insertStripeUpgradePlan(t, 7280, 3, 30, 3000, "price_current_down_lifecycle_guard")
+	targetPlan := insertStripeUpgradePlan(t, 7281, 1, 10, 1000, "price_target_down_lifecycle_guard")
+	contract, binding, _ := seedStripeUpgradeContract(t, 7159, currentPlan)
+	intent := &model.SubscriptionChangeIntent{
+		ContractId:             contract.Id,
+		UserId:                 7159,
+		RequestId:              "down-lifecycle-guard",
+		ChangeVersion:          1,
+		Kind:                   model.SubscriptionChangeIntentKindDowngrade,
+		PaymentMode:            model.SubscriptionPaymentModeStripeRecurring,
+		Status:                 model.SubscriptionChangeIntentStatusSyncing,
+		FromPlanId:             currentPlan.Id,
+		ToPlanId:               targetPlan.Id,
+		ProviderBindingId:      binding.Id,
+		EffectiveAt:            2000,
+		ProviderIdempotencyKey: stripeSubscriptionDowngradeIntentIdempotencyKey(contract.Id, 1, targetPlan.Id, 1),
+	}
+	require.NoError(t, model.DB.Create(intent).Error)
+	require.NoError(t, model.DB.Model(contract).Updates(map[string]interface{}{
+		"latest_change_intent_id": intent.Id,
+		"pending_plan_id":         targetPlan.Id,
+		"pending_effective_at":    int64(2000),
+		"change_version":          int64(1),
+	}).Error)
+	_, _, err := model.ReserveSubscriptionProviderLifecycle(
+		binding.Id,
+		binding.UserId,
+		binding.ProviderSubscriptionId,
+		binding.LifecycleActionSeq,
+		model.SubscriptionProviderLifecycleActionCancel,
+		"down-lifecycle-active-cancel",
+		300,
+	)
+	require.NoError(t, err)
+
+	getCalls := 0
+	createCalls := 0
+	updateCalls := 0
+	useStripeUpgradeTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/subscriptions/sub_upgrade":
+			getCalls++
+			_, _ = w.Write([]byte(`{"id":"sub_upgrade","object":"subscription","status":"active","cancel_at_period_end":false,"current_period_start":1000,"current_period_end":2000,"customer":"cus_upgrade","items":{"object":"list","data":[{"id":"si_current_item","object":"subscription_item","price":{"id":"price_current_down_lifecycle_guard","object":"price"}}]}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/subscription_schedules":
+			createCalls++
+			_, _ = w.Write([]byte(`{"id":"sched_down_lifecycle_guard","object":"subscription_schedule","status":"active","subscription":"sub_upgrade"}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/subscription_schedules/sched_down_lifecycle_guard":
+			updateCalls++
+			_, _ = w.Write([]byte(`{"id":"sched_down_lifecycle_guard","object":"subscription_schedule","status":"active","end_behavior":"release","subscription":"sub_upgrade"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	result, err := executeStripeSubscriptionDowngrade(context.Background(), StripeSubscriptionDowngradeInput{
+		ContractID:                 contract.Id,
+		ChangeIntentID:             intent.Id,
+		ChangeVersion:              intent.ChangeVersion,
+		CurrentPlanID:              currentPlan.Id,
+		TargetPlanID:               targetPlan.Id,
+		CurrentPriceID:             currentPlan.StripePriceId,
+		TargetPriceID:              targetPlan.StripePriceId,
+		ProviderSubscriptionID:     binding.ProviderSubscriptionId,
+		ProviderSubscriptionItemID: binding.ProviderSubscriptionItemId,
+		CurrentPeriodStart:         1000,
+		CurrentPeriodEnd:           2000,
+		IdempotencyKey:             intent.ProviderIdempotencyKey,
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionChangeInProgress)
+	require.Nil(t, result)
+	require.Equal(t, 1, getCalls)
+	require.Zero(t, createCalls)
+	require.Zero(t, updateCalls)
+}
+
+func TestStripeDowngradeScheduledReconciliationBlocksLifecycleReservationBeforeProviderMutation(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	insertContractServiceUser(t, 7199, 0)
+	currentPlan := insertStripeUpgradePlan(t, 7298, 3, 30, 3000, "price_current_down_reconcile_guard")
+	targetPlan := insertStripeUpgradePlan(t, 7299, 1, 10, 1000, "price_target_down_reconcile_guard")
+	contract, binding, _ := seedStripeUpgradeContract(t, 7199, currentPlan)
+	intent := &model.SubscriptionChangeIntent{
+		ContractId:             contract.Id,
+		UserId:                 contract.UserId,
+		RequestId:              "down-reconcile-lifecycle-guard",
+		ChangeVersion:          1,
+		Kind:                   model.SubscriptionChangeIntentKindDowngrade,
+		PaymentMode:            model.SubscriptionPaymentModeStripeRecurring,
+		Status:                 model.SubscriptionChangeIntentStatusScheduled,
+		FromPlanId:             currentPlan.Id,
+		ToPlanId:               targetPlan.Id,
+		ProviderBindingId:      binding.Id,
+		EffectiveAt:            2000,
+		ProviderIdempotencyKey: stripeSubscriptionDowngradeIntentIdempotencyKey(contract.Id, 1, targetPlan.Id, 1),
+	}
+	require.NoError(t, model.DB.Create(intent).Error)
+	require.NoError(t, model.DB.Model(contract).Updates(map[string]interface{}{
+		"latest_change_intent_id": intent.Id,
+		"pending_plan_id":         targetPlan.Id,
+		"pending_effective_at":    int64(2000),
+		"change_version":          int64(1),
+	}).Error)
+
+	_, _, err := latestStripeDowngradeScheduleInput(StripeSubscriptionDowngradeInput{
+		ContractID:                 contract.Id,
+		ChangeIntentID:             intent.Id,
+		ChangeVersion:              intent.ChangeVersion,
+		CurrentPlanID:              currentPlan.Id,
+		TargetPlanID:               targetPlan.Id,
+		CurrentPriceID:             currentPlan.StripePriceId,
+		TargetPriceID:              targetPlan.StripePriceId,
+		ProviderSubscriptionID:     binding.ProviderSubscriptionId,
+		ProviderSubscriptionItemID: binding.ProviderSubscriptionItemId,
+		CurrentPeriodStart:         1000,
+		CurrentPeriodEnd:           2000,
+		IdempotencyKey:             intent.ProviderIdempotencyKey,
+	}, nil)
+	require.NoError(t, err)
+
+	_, _, err = reserveStripeSubscriptionLifecycle(binding, model.SubscriptionProviderLifecycleActionCancel)
+	require.ErrorIs(t, err, ErrSubscriptionChangeInProgress)
+	var storedIntent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&storedIntent, intent.Id).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusSyncing, storedIntent.Status)
+}
+
+func TestStripeDowngradeScheduledClaimRejectsSameRowDriftWithStatusStillScheduled(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	insertContractServiceUser(t, 7198, 0)
+	currentPlan := insertStripeUpgradePlan(t, 7300, 3, 30, 3000, "price_current_down_claim_cas")
+	staleTarget := insertStripeUpgradePlan(t, 7301, 2, 20, 2000, "price_stale_down_claim_cas")
+	latestTarget := insertStripeUpgradePlan(t, 7302, 1, 10, 1000, "price_latest_down_claim_cas")
+	contract, binding, _ := seedStripeUpgradeContract(t, 7198, currentPlan)
+	intent := &model.SubscriptionChangeIntent{
+		ContractId:             contract.Id,
+		UserId:                 contract.UserId,
+		RequestId:              "down-claim-cas",
+		ChangeVersion:          1,
+		Kind:                   model.SubscriptionChangeIntentKindDowngrade,
+		PaymentMode:            model.SubscriptionPaymentModeStripeRecurring,
+		Status:                 model.SubscriptionChangeIntentStatusScheduled,
+		FromPlanId:             currentPlan.Id,
+		ToPlanId:               staleTarget.Id,
+		ProviderBindingId:      binding.Id,
+		EffectiveAt:            2000,
+		ProviderIdempotencyKey: stripeSubscriptionDowngradeIntentIdempotencyKey(contract.Id, 1, staleTarget.Id, 1),
+	}
+	require.NoError(t, model.DB.Create(intent).Error)
+	require.NoError(t, model.DB.Model(contract).Updates(map[string]interface{}{
+		"latest_change_intent_id": intent.Id,
+		"pending_plan_id":         staleTarget.Id,
+		"pending_effective_at":    int64(2000),
+		"change_version":          int64(1),
+	}).Error)
+
+	callbackName := "test:stripe_downgrade_claim_same_row_drift"
+	changed := false
+	require.NoError(t, model.DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if changed || tx.Statement.Table != "subscription_change_intents" {
+			return
+		}
+		changed = true
+		require.NoError(t, tx.Exec(
+			"UPDATE subscription_change_intents SET change_version = ?, to_plan_id = ?, effective_at = ?, provider_idempotency_key = ?, updated_at = ? WHERE id = ? AND status = ?",
+			int64(2),
+			latestTarget.Id,
+			int64(3000),
+			stripeSubscriptionDowngradeIntentIdempotencyKey(contract.Id, 2, latestTarget.Id, intent.Id),
+			common.GetTimestamp(),
+			intent.Id,
+			model.SubscriptionChangeIntentStatusScheduled,
+		).Error)
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Update().Remove(callbackName))
+	})
+
+	latest, target, err := latestStripeDowngradeScheduleInput(StripeSubscriptionDowngradeInput{
+		ContractID:                 contract.Id,
+		ChangeIntentID:             intent.Id,
+		ChangeVersion:              intent.ChangeVersion,
+		CurrentPlanID:              currentPlan.Id,
+		TargetPlanID:               staleTarget.Id,
+		CurrentPriceID:             currentPlan.StripePriceId,
+		TargetPriceID:              staleTarget.StripePriceId,
+		ProviderSubscriptionID:     binding.ProviderSubscriptionId,
+		ProviderSubscriptionItemID: binding.ProviderSubscriptionItemId,
+		CurrentPeriodStart:         1000,
+		CurrentPeriodEnd:           2000,
+		IdempotencyKey:             intent.ProviderIdempotencyKey,
+	}, nil)
+
+	require.ErrorIs(t, err, ErrSubscriptionChangeInProgress)
+	require.Equal(t, StripeSubscriptionDowngradeInput{}, latest)
+	require.Nil(t, target)
+	require.True(t, changed)
+	var storedIntent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&storedIntent, intent.Id).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusScheduled, storedIntent.Status)
+	require.Equal(t, int64(1), storedIntent.ChangeVersion)
+	require.Equal(t, staleTarget.Id, storedIntent.ToPlanId)
+	require.Equal(t, int64(2000), storedIntent.EffectiveAt)
+}
+
+func TestStripeDowngradeProviderMutationBlocksConcurrentRenewalCancel(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	insertContractServiceUser(t, 7160, 0)
+	currentPlan := insertStripeUpgradePlan(t, 7282, 3, 30, 3000, "price_current_down_cancel_race")
+	targetPlan := insertStripeUpgradePlan(t, 7283, 1, 10, 1000, "price_target_down_cancel_race")
+	contract, binding, entitlement := seedStripeUpgradeContract(t, 7160, currentPlan)
+	futurePeriodStart := common.GetTimestamp() - 3600
+	futurePeriodEnd := common.GetTimestamp() + 3600
+	require.NoError(t, model.DB.Model(contract).Updates(map[string]interface{}{
+		"renewal_source":       model.SubscriptionRenewalSourceProvider,
+		"renewal_status":       model.SubscriptionRenewalStatusEnabled,
+		"current_period_start": futurePeriodStart,
+		"current_period_end":   futurePeriodEnd,
+	}).Error)
+	contract.RenewalSource = model.SubscriptionRenewalSourceProvider
+	contract.RenewalStatus = model.SubscriptionRenewalStatusEnabled
+	contract.CurrentPeriodStart = futurePeriodStart
+	contract.CurrentPeriodEnd = futurePeriodEnd
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("id = ?", entitlement.Id).Updates(map[string]interface{}{
+		"start_time":      futurePeriodStart,
+		"end_time":        futurePeriodEnd,
+		"access_end_time": futurePeriodEnd,
+	}).Error)
+	require.NoError(t, model.DB.Model(binding).Updates(map[string]interface{}{
+		"provider_schedule_id": "sched_down_cancel_race",
+		"current_period_start": futurePeriodStart,
+		"current_period_end":   futurePeriodEnd,
+	}).Error)
+	intent := &model.SubscriptionChangeIntent{
+		ContractId:             contract.Id,
+		UserId:                 contract.UserId,
+		RequestId:              "down-cancel-race",
+		ChangeVersion:          1,
+		Kind:                   model.SubscriptionChangeIntentKindDowngrade,
+		PaymentMode:            model.SubscriptionPaymentModeStripeRecurring,
+		Status:                 model.SubscriptionChangeIntentStatusScheduled,
+		FromPlanId:             currentPlan.Id,
+		ToPlanId:               targetPlan.Id,
+		ProviderBindingId:      binding.Id,
+		EffectiveAt:            2000,
+		ProviderScheduleId:     "sched_down_cancel_race",
+		ProviderIdempotencyKey: stripeSubscriptionDowngradeIntentIdempotencyKey(contract.Id, 1, targetPlan.Id, 1),
+	}
+	require.NoError(t, model.DB.Create(intent).Error)
+	require.NoError(t, model.DB.Model(contract).Updates(map[string]interface{}{
+		"latest_change_intent_id": intent.Id,
+		"pending_plan_id":         targetPlan.Id,
+		"pending_effective_at":    int64(2000),
+		"change_version":          int64(1),
+	}).Error)
+
+	originalHook := stripeSubscriptionDowngradeAfterLatestRead
+	originalCancel := cancelCurrentStripeRecurringSubscription
+	t.Cleanup(func() {
+		stripeSubscriptionDowngradeAfterLatestRead = originalHook
+		cancelCurrentStripeRecurringSubscription = originalCancel
+	})
+	cancelCalls := 0
+	cancelCurrentStripeRecurringSubscription = func(userID int, bindingID int64, guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+		cancelCalls++
+		updated := *binding
+		updated.CancelAtPeriodEnd = true
+		return &updated, nil
+	}
+	var cancelErr error
+	stripeSubscriptionDowngradeAfterLatestRead = func() {
+		_, cancelErr = CancelCurrentSubscriptionRenewal(contract.UserId, renewalLifecyclePrecondition(contract, model.SubscriptionRenewalStatusEnabled))
+	}
+
+	getCalls := 0
+	updateCalls := 0
+	useStripeUpgradeTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/subscriptions/sub_upgrade":
+			getCalls++
+			_, _ = w.Write([]byte(`{"id":"sub_upgrade","object":"subscription","status":"active","schedule":"sched_down_cancel_race","cancel_at_period_end":false,"current_period_start":1000,"current_period_end":2000,"customer":"cus_upgrade","items":{"object":"list","data":[{"id":"si_current_item","object":"subscription_item","price":{"id":"price_current_down_cancel_race","object":"price"}}]}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/subscription_schedules/sched_down_cancel_race":
+			updateCalls++
+			_, _ = w.Write([]byte(`{"id":"sched_down_cancel_race","object":"subscription_schedule","status":"active","end_behavior":"release","subscription":"sub_upgrade"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	_, _ = executeStripeSubscriptionDowngrade(context.Background(), StripeSubscriptionDowngradeInput{
+		ContractID:                 contract.Id,
+		ChangeIntentID:             intent.Id,
+		ChangeVersion:              intent.ChangeVersion,
+		CurrentPlanID:              currentPlan.Id,
+		TargetPlanID:               targetPlan.Id,
+		CurrentPriceID:             currentPlan.StripePriceId,
+		TargetPriceID:              targetPlan.StripePriceId,
+		ProviderSubscriptionID:     binding.ProviderSubscriptionId,
+		ProviderSubscriptionItemID: binding.ProviderSubscriptionItemId,
+		ProviderScheduleID:         "sched_down_cancel_race",
+		CurrentPeriodStart:         1000,
+		CurrentPeriodEnd:           2000,
+		IdempotencyKey:             intent.ProviderIdempotencyKey,
+	})
+
+	require.ErrorIs(t, cancelErr, ErrSubscriptionChangeInProgress)
+	require.Zero(t, cancelCalls)
+	require.Equal(t, 1, updateCalls)
+	require.GreaterOrEqual(t, getCalls, 1)
 }
 
 func TestStripeDowngradeStaleWriterConvergesScheduleToLatestVersion(t *testing.T) {
@@ -360,7 +677,7 @@ func TestStripeDowngradePaidTargetInvoiceSwitchesPlanAndClearsPending(t *testing
 	subscription.Customer = &stripe.Customer{ID: "cus_upgrade"}
 	subscription.Items.Data[0].ID = binding.ProviderSubscriptionItemId
 	subscription.Items.Data[0].Price = &stripe.Price{ID: "price_target_down_paid"}
-	setStripeSubscriptionCurrentPeriod(subscription, oldEntitlement.EndTime, oldEntitlement.EndTime + 2592000)
+	setStripeSubscriptionCurrentPeriod(subscription, oldEntitlement.EndTime, oldEntitlement.EndTime+2592000)
 	restore := replaceStripeInvoiceReconcilers(t, invoice, subscription)
 	defer restore()
 
@@ -420,7 +737,7 @@ func TestStripeDowngradeFailedTargetInvoiceKeepsCurrentPlanAndPending(t *testing
 	subscription.Customer = &stripe.Customer{ID: "cus_upgrade"}
 	subscription.Items.Data[0].ID = binding.ProviderSubscriptionItemId
 	subscription.Items.Data[0].Price = &stripe.Price{ID: "price_target_down_failed"}
-	setStripeSubscriptionCurrentPeriod(subscription, oldEntitlement.EndTime, oldEntitlement.EndTime + 2592000)
+	setStripeSubscriptionCurrentPeriod(subscription, oldEntitlement.EndTime, oldEntitlement.EndTime+2592000)
 	restore := replaceStripeInvoiceReconcilers(t, invoice, subscription)
 	defer restore()
 

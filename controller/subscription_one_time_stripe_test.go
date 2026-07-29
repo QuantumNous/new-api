@@ -118,7 +118,10 @@ func TestBuildOneTimePlanCheckoutRecallMetadataUsesDiscountedOrderWithoutRawClai
 	params, err := buildOneTimePlanCheckoutSessionParams(order, &model.User{Id: 501, Email: "buyer@example.com"})
 
 	require.NoError(t, err)
-	require.EqualValues(t, 280, *params.LineItems[0].PriceData.UnitAmount)
+	require.EqualValues(t, 300, *params.LineItems[0].PriceData.UnitAmount)
+	require.Len(t, params.Discounts, 1)
+	require.NotNil(t, params.Discounts[0].PromotionCode)
+	require.Equal(t, "promo_local", *params.Discounts[0].PromotionCode)
 	require.Equal(t, "41", params.Metadata["recall_campaign_id"])
 	require.Equal(t, "82", params.Metadata["recall_recipient_id"])
 	require.Equal(t, "promo_local", params.Metadata["recall_promotion_code_id"])
@@ -129,6 +132,22 @@ func TestBuildOneTimePlanCheckoutRecallMetadataUsesDiscountedOrderWithoutRawClai
 		require.NotContains(t, strings.ToLower(value), "claim")
 		require.NotContains(t, value, "FKSECRET234")
 	}
+}
+
+func TestBuildOneTimePlanCheckoutFullyDiscountedRecallUsesOriginalAmountAndPromotion(t *testing.T) {
+	order := oneTimeStripeOrderForTest(service.SubscriptionPaymentChoiceAlipay, "USD", 0, 1)
+	order.RecallCampaignId = 41
+	order.RecallRecipientId = 82
+	order.RecallPromotionCodeId = "promo_full_discount"
+	order.RecallDiscountAmountMinor = 1234
+
+	params, err := buildOneTimePlanCheckoutSessionParams(order, &model.User{Id: 501, Email: "buyer@example.com"})
+
+	require.NoError(t, err)
+	require.EqualValues(t, 1234, *params.LineItems[0].PriceData.UnitAmount)
+	require.Len(t, params.Discounts, 1)
+	require.NotNil(t, params.Discounts[0].PromotionCode)
+	require.Equal(t, "promo_full_discount", *params.Discounts[0].PromotionCode)
 }
 
 func TestBuildOneTimePlanCheckoutRejectsIncompleteRecallAttributionTuple(t *testing.T) {
@@ -691,7 +710,6 @@ func TestOneTimePlanPaidWebhookDoesNotFulfillSupersededCheckout(t *testing.T) {
 }
 
 func oneTimeStripePaidSessionObject(order *model.SubscriptionOrder) map[string]interface{} {
-	quote, _ := oneTimePlanQuoteFromOrder(order)
 	metadata := map[string]interface{}{
 		"trade_no":         order.TradeNo,
 		"user_id":          strconv.Itoa(order.UserId),
@@ -713,8 +731,8 @@ func oneTimeStripePaidSessionObject(order *model.SubscriptionOrder) map[string]i
 		"status":               "complete",
 		"payment_status":       "paid",
 		"client_reference_id":  order.TradeNo,
-		"amount_total":         float64(quote.TotalAmountMinor),
-		"currency":             strings.ToLower(quote.Currency),
+		"amount_total":         float64(order.PaymentAmountMinor),
+		"currency":             strings.ToLower(strings.TrimSpace(order.PaymentCurrency)),
 		"livemode":             false,
 		"payment_method_types": []interface{}{order.PaymentMethod},
 		"metadata":             metadata,

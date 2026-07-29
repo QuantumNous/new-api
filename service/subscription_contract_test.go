@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -847,4 +848,182 @@ func TestUnresolvedPurchaseBlocksSecondChange(t *testing.T) {
 	_, err := ChangeSubscriptionPlan(balanceChangeCommand(7105, 7208, "blocked-by-pending"))
 
 	require.ErrorIs(t, err, ErrSubscriptionChangeInProgress)
+}
+
+func TestFreshStripeRecurringPlanChangeRejectsActiveProviderLifecycleReservationBeforeIntent(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7113, false, "sub_plan_change_active_reservation")
+	targetPlan := insertPurchaseServicePlan(t, 7218, 2, 3, 3000)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).
+		Where("id = ?", targetPlan.Id).
+		Update("stripe_price_id", "price_plan_change_active_reservation").Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).
+		Where("id = ?", binding.Id).
+		Update("provider_subscription_item_id", "si_plan_change_active_reservation").Error)
+	reservation, _, err := model.ReserveSubscriptionProviderLifecycle(
+		binding.Id,
+		binding.UserId,
+		binding.ProviderSubscriptionId,
+		binding.LifecycleActionSeq,
+		model.SubscriptionProviderLifecycleActionCancel,
+		"fresh-plan-change-active-reservation",
+		300,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, reservation)
+
+	createAttempts := countSubscriptionChangeIntentCreates(t)
+	originalUpgrade := stripeSubscriptionUpgradeExecutor
+	t.Cleanup(func() { stripeSubscriptionUpgradeExecutor = originalUpgrade })
+	var upgradeCalls atomic.Int32
+	stripeSubscriptionUpgradeExecutor = func(context.Context, StripeSubscriptionUpgradeInput) (*StripeSubscriptionUpgradeResult, error) {
+		upgradeCalls.Add(1)
+		return nil, errors.New("fresh plan change reached Stripe upgrade executor")
+	}
+
+	result, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      contract.UserId,
+		PlanID:      targetPlan.Id,
+		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:   "fresh-plan-change-active-reservation",
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionChangeInProgress)
+	require.Nil(t, result)
+	require.Zero(t, upgradeCalls.Load())
+	require.Zero(t, createAttempts.Load())
+	var intentCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).
+		Where("user_id = ?", contract.UserId).
+		Count(&intentCount).Error)
+	require.Zero(t, intentCount)
+}
+
+func TestStripeRecurringPlanChangeCreatedReplayAllowsActiveProviderLifecycleReservation(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	contract, binding, _ := seedStripeRenewalLifecycleContract(t, 7114, false, "sub_plan_change_replay_active_reservation")
+	targetPlan := insertPurchaseServicePlan(t, 7219, 2, 3, 3000)
+	require.NoError(t, model.DB.Create(&model.SubscriptionChangeIntent{
+		ContractId:        contract.Id,
+		UserId:            contract.UserId,
+		RequestId:         "replay-active-reservation",
+		ChangeVersion:     contract.ChangeVersion + 1,
+		Kind:              model.SubscriptionChangeIntentKindUpgrade,
+		PaymentMode:       model.SubscriptionPaymentModeStripeRecurring,
+		Status:            model.SubscriptionChangeIntentStatusCreated,
+		FromPlanId:        contract.CurrentPlanId,
+		ToPlanId:          targetPlan.Id,
+		ProviderBindingId: binding.Id,
+		EffectiveAt:       common.GetTimestamp(),
+	}).Error)
+	reservation, _, err := model.ReserveSubscriptionProviderLifecycle(
+		binding.Id,
+		binding.UserId,
+		binding.ProviderSubscriptionId,
+		binding.LifecycleActionSeq,
+		model.SubscriptionProviderLifecycleActionCancel,
+		"replay-plan-change-active-reservation",
+		300,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, reservation)
+
+	originalUpgrade := stripeSubscriptionUpgradeExecutor
+	t.Cleanup(func() { stripeSubscriptionUpgradeExecutor = originalUpgrade })
+	stripeSubscriptionUpgradeExecutor = func(context.Context, StripeSubscriptionUpgradeInput) (*StripeSubscriptionUpgradeResult, error) {
+		return nil, errors.New("replay should not execute Stripe upgrade")
+	}
+
+	result, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      contract.UserId,
+		PlanID:      targetPlan.Id,
+		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:   "replay-active-reservation",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, model.SubscriptionChangeIntentStatusCreated, result.Status)
+	require.NotNil(t, result.Intent)
+	require.Equal(t, "replay-active-reservation", result.Intent.RequestId)
+}
+
+func TestStripeRecurringPlanChangeSyncingReplayRejectsActiveProviderLifecycleReservationBeforeUpgradeExecutor(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	insertContractServiceUser(t, 7115, 0)
+	currentPlan := insertStripeUpgradePlan(t, 7220, 1, 10, 1000, "price_syncing_replay_current")
+	targetPlan := insertStripeUpgradePlan(t, 7221, 2, 25, 2500, "price_syncing_replay_target")
+	contract, binding, _ := seedStripeUpgradeContract(t, 7115, currentPlan)
+	require.NoError(t, model.DB.Model(binding).
+		Update("provider_subscription_id", "sub_syncing_replay_active_reservation").Error)
+	binding.ProviderSubscriptionId = "sub_syncing_replay_active_reservation"
+	intent := &model.SubscriptionChangeIntent{
+		ContractId:             contract.Id,
+		UserId:                 contract.UserId,
+		RequestId:              "syncing-replay-active-reservation",
+		ChangeVersion:          contract.ChangeVersion + 1,
+		Kind:                   model.SubscriptionChangeIntentKindUpgrade,
+		PaymentMode:            model.SubscriptionPaymentModeStripeRecurring,
+		Status:                 model.SubscriptionChangeIntentStatusSyncing,
+		FromPlanId:             currentPlan.Id,
+		ToPlanId:               targetPlan.Id,
+		ProviderBindingId:      binding.Id,
+		ProviderIdempotencyKey: "subscription-upgrade:syncing-replay-active-reservation",
+		EffectiveAt:            common.GetTimestamp(),
+	}
+	require.NoError(t, model.DB.Create(intent).Error)
+	require.NoError(t, model.DB.Model(contract).Update("latest_change_intent_id", intent.Id).Error)
+	reservation, _, err := model.ReserveSubscriptionProviderLifecycle(
+		binding.Id,
+		binding.UserId,
+		binding.ProviderSubscriptionId,
+		binding.LifecycleActionSeq,
+		model.SubscriptionProviderLifecycleActionCancel,
+		"syncing-replay-active-reservation",
+		300,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, reservation)
+
+	originalUpgrade := stripeSubscriptionUpgradeExecutor
+	t.Cleanup(func() { stripeSubscriptionUpgradeExecutor = originalUpgrade })
+	var upgradeCalls atomic.Int32
+	stripeSubscriptionUpgradeExecutor = func(context.Context, StripeSubscriptionUpgradeInput) (*StripeSubscriptionUpgradeResult, error) {
+		upgradeCalls.Add(1)
+		return nil, errors.New("syncing replay reached Stripe upgrade executor")
+	}
+
+	result, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      contract.UserId,
+		PlanID:      targetPlan.Id,
+		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:   intent.RequestId,
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionChangeInProgress)
+	require.Nil(t, result)
+	require.Zero(t, upgradeCalls.Load())
+	var reloadedIntent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.First(&reloadedIntent, "id = ?", intent.Id).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusSyncing, reloadedIntent.Status)
+	var intentCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionChangeIntent{}).
+		Where("user_id = ?", contract.UserId).
+		Count(&intentCount).Error)
+	require.Equal(t, int64(1), intentCount)
+}
+
+func countSubscriptionChangeIntentCreates(t *testing.T) *atomic.Int32 {
+	t.Helper()
+	var count atomic.Int32
+	callbackName := "test:subscription_change_intent_creates:" + t.Name()
+	require.NoError(t, model.DB.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Table == "subscription_change_intents" {
+			count.Add(1)
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Create().Remove(callbackName))
+	})
+	return &count
 }

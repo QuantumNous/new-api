@@ -29,13 +29,23 @@ import { useSidebarData } from './use-sidebar-data'
 /** Sentinel key used for the root navigation in animation `key=` props */
 const ROOT_VIEW_KEY = '__root'
 
+export function filterToolsGroupByRole(
+  navGroups: NavGroup[],
+  userRole: number | undefined
+): NavGroup[] {
+  const canViewTools = userRole !== undefined && userRole >= ROLE.ADMIN
+  return navGroups.filter((group) =>
+    group.id === 'tools' ? canViewTools : true
+  )
+}
+
 /**
  * Resolve the active sidebar view for the current location.
  *
  * - Returns the matching nested {@link SidebarView} (with its nav
  *   groups) when the URL belongs to a registered drill-in workspace.
  * - Otherwise returns the root navigation, narrowed by:
- *     · admin-only group visibility (role-based);
+ *     · admin and tools group visibility (role-based);
  *     · `useSidebarConfig` (admin × user `sidebar_modules` overlay).
  *
  * Nested views are intentionally NOT passed through `useSidebarConfig`
@@ -51,7 +61,11 @@ export function useSidebarView(): ResolvedSidebarView {
 
   const rootNavGroups = useMemo<NavGroup[]>(() => {
     const isAdmin = userRole !== undefined && userRole >= ROLE.ADMIN
-    return configFilteredRoot.filter((group) =>
+    const toolsFilteredRoot = filterToolsGroupByRole(
+      configFilteredRoot,
+      userRole
+    )
+    return toolsFilteredRoot.filter((group) =>
       group.id === 'admin' ? isAdmin : true
     )
   }, [configFilteredRoot, userRole])

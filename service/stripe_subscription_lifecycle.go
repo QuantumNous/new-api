@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -23,40 +24,124 @@ var stripeSubscriptionSnapshotGetter = getStripeSubscriptionSnapshotForReconcili
 
 const cancelDowngradeCompensationErrorPrefix = "cancel coordination uncertain: "
 
+var stripeSubscriptionLifecycleRequestTimeout = 30 * time.Second
+
+const stripeSubscriptionLifecycleReservationTTL = 5 * time.Minute
+
+type stripeSubscriptionLifecycleMutationError struct {
+	cause       error
+	reservation *model.SubscriptionProviderLifecycleReservation
+}
+
+func (e *stripeSubscriptionLifecycleMutationError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *stripeSubscriptionLifecycleMutationError) Unwrap() error {
+	return e.cause
+}
+
+func wrapStripeSubscriptionLifecycleMutationError(err error, reservation *model.SubscriptionProviderLifecycleReservation) error {
+	if err == nil || reservation == nil {
+		return err
+	}
+	return &stripeSubscriptionLifecycleMutationError{cause: err, reservation: reservation}
+}
+
 func CancelStripeRecurringSubscription(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+	return cancelStripeRecurringSubscription(userID, bindingID, nil)
+}
+
+func cancelCurrentStripeRecurringSubscriptionWithGuard(userID int, bindingID int64, guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+	if guard == nil {
+		return nil, errors.New("subscription renewal mutation guard is required")
+	}
+	return cancelStripeRecurringSubscription(userID, bindingID, guard)
+}
+
+func cancelStripeRecurringSubscription(userID int, bindingID int64, guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+	reservation := currentStripeRenewalGuardReservation(guard, model.SubscriptionProviderLifecycleActionCancel)
 	binding, err := recurringBindingForUser(userID, bindingID)
 	if err != nil {
-		return nil, err
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, err)
 	}
-	idempotencyKey := recurringLifecycleIdempotencyKey(binding, "cancel")
-	if strings.EqualFold(binding.ProviderStatus, "past_due") {
-		snapshot, err := stripeCancelSubscriptionNow(binding.ProviderSubscriptionId, idempotencyKey)
-		if err != nil {
+	if stripeLifecycleReservationConflictsWithAction(binding, model.SubscriptionProviderLifecycleActionCancel) {
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, model.ErrSubscriptionProviderLifecycleConflict)
+	}
+	if binding.ContractId <= 0 {
+		if guard != nil {
+			return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, errors.New("subscription renewal precondition conflict"))
+		}
+		return cancelContractlessStripeRecurringSubscription(binding)
+	}
+	expectedProviderSubscriptionID := binding.ProviderSubscriptionId
+	if reservation != nil && !subscriptionRenewalReservationMatchesBinding(reservation, binding) {
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, errors.New("subscription renewal precondition conflict"))
+	}
+	if reservation == nil {
+		var reserveErr error
+		reservation, binding, reserveErr = reserveStripeSubscriptionLifecycle(binding, model.SubscriptionProviderLifecycleActionCancel)
+		if reserveErr != nil {
+			if errors.Is(reserveErr, model.ErrSubscriptionProviderLifecycleConflict) {
+				if satisfied, ok := stripeLifecycleSatisfiedStateAfterReserveConflict(userID, bindingID, expectedProviderSubscriptionID, model.SubscriptionProviderLifecycleActionCancel); ok {
+					if err := validateCurrentStripeRenewalLifecycleSatisfiedMutationGuardForAction(satisfied, model.SubscriptionProviderLifecycleActionCancel, true, guard); err != nil {
+						return nil, err
+					}
+					return satisfied, nil
+				}
+			}
+			return nil, reserveErr
+		}
+	}
+	if err := validateCurrentStripeRenewalLifecycleMutationGuard(binding, reservation, true, guard); err != nil {
+		return nil, releaseStripeRenewalLifecycleReservationAfterGuardConflict(reservation, err)
+	}
+	pastDue := strings.EqualFold(binding.ProviderStatus, "past_due")
+	if binding.CancelAtPeriodEnd && !pastDue {
+		if err := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); err != nil {
 			return nil, err
 		}
-		return model.ApplyProviderSubscriptionTermination(binding.Id, snapshot)
+		return recurringBindingForUser(userID, bindingID)
 	}
-	if binding.CancelAtPeriodEnd {
-		return binding, nil
+	idempotencyKey := recurringLifecycleIdempotencyKey(binding, "cancel")
+	if pastDue {
+		snapshot, err := stripeCancelSubscriptionNow(binding.ProviderSubscriptionId, idempotencyKey)
+		if err != nil {
+			if updated, confirmErr := confirmStripeLifecycleMutationAfterProviderError(binding, reservation, true, err); confirmErr == nil {
+				return updated, nil
+			}
+			return nil, wrapStripeSubscriptionLifecycleMutationError(err, reservation)
+		}
+		updated, err := model.ApplyProviderSubscriptionTerminationWithReservation(reservation, snapshot)
+		return updated, wrapStripeSubscriptionLifecycleMutationError(err, reservation)
 	}
 	downgrade, hasPendingDowngrade, err := releasePendingDowngradeBeforeCancel(binding)
 	if err != nil {
 		if !hasPendingDowngrade {
+			if releaseErr := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); releaseErr != nil {
+				return nil, fmt.Errorf("%w; failed to release lifecycle reservation: %v", err, releaseErr)
+			}
 			return nil, err
 		}
-		return resolvePendingDowngradeAfterCancelAttempt(binding, downgrade, err)
+		updated, resolveErr := resolvePendingDowngradeAfterCancelAttempt(binding, reservation, downgrade, err)
+		return updated, wrapStripeSubscriptionLifecycleMutationError(resolveErr, reservation)
 	}
 	snapshot, err := stripeUpdateSubscriptionCancelAtPeriodEnd(binding.ProviderSubscriptionId, true, idempotencyKey)
 	if !hasPendingDowngrade {
 		if err != nil {
-			return nil, err
+			if updated, confirmErr := confirmStripeLifecycleMutationAfterProviderError(binding, reservation, true, err); confirmErr == nil {
+				return updated, nil
+			}
+			return nil, wrapStripeSubscriptionLifecycleMutationError(err, reservation)
 		}
-		return model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot)
+		updated, applyErr := applyStripeLifecycleMutationSnapshot(reservation, snapshot)
+		return updated, wrapStripeSubscriptionLifecycleMutationError(applyErr, reservation)
 	}
-	return resolvePendingDowngradeAfterCancelAttempt(binding, downgrade, err)
+	updated, resolveErr := resolvePendingDowngradeAfterCancelAttempt(binding, reservation, downgrade, err)
+	return updated, wrapStripeSubscriptionLifecycleMutationError(resolveErr, reservation)
 }
 
-func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProviderBinding, downgrade model.SubscriptionChangeIntent, updateErr error) (*model.SubscriptionProviderBinding, error) {
+func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProviderBinding, reservation *model.SubscriptionProviderLifecycleReservation, downgrade model.SubscriptionChangeIntent, updateErr error) (*model.SubscriptionProviderBinding, error) {
 	confirmed, confirmErr := stripeSubscriptionSnapshotGetter(binding.ProviderSubscriptionId)
 	if confirmErr != nil || strings.TrimSpace(confirmed.ProviderSubscriptionId) != binding.ProviderSubscriptionId {
 		cause := confirmErr
@@ -72,7 +157,7 @@ func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProvid
 		return nil, cause
 	}
 	if confirmed.CancelAtPeriodEnd {
-		updated, applyErr := model.ApplyProviderSubscriptionSnapshot(binding.Id, confirmed)
+		updated, applyErr := applyStripeLifecycleMutationSnapshot(reservation, confirmed)
 		if applyErr != nil {
 			_ = markCancelDowngradeCompensationUncertain(binding, downgrade, applyErr)
 			return nil, applyErr
@@ -83,8 +168,20 @@ func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProvid
 		}
 		return updated, nil
 	}
+	if confirmed.EndedAt > 0 || isTerminalStripeSubscriptionStatus(confirmed.ProviderStatus) {
+		updated, applyErr := model.ApplyProviderSubscriptionTerminationWithReservation(reservation, confirmed)
+		if applyErr != nil {
+			_ = markCancelDowngradeCompensationUncertain(binding, downgrade, applyErr)
+			return nil, applyErr
+		}
+		if clearErr := clearPendingDowngradeAfterTerminalCancel(binding, downgrade); clearErr != nil {
+			_ = markCancelDowngradeCompensationUncertain(binding, downgrade, clearErr)
+			return nil, clearErr
+		}
+		return updated, nil
+	}
 
-	if _, applyErr := model.ApplyProviderSubscriptionSnapshot(binding.Id, confirmed); applyErr != nil {
+	if _, applyErr := model.ApplyProviderSubscriptionLifecycleNoChangeSnapshotStrictWithReservation(reservation, confirmed); applyErr != nil {
 		return nil, applyErr
 	}
 	restoreCause := updateErr
@@ -102,21 +199,345 @@ func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProvid
 }
 
 func ResumeStripeRecurringSubscription(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+	return resumeStripeRecurringSubscription(userID, bindingID, nil)
+}
+
+func resumeCurrentStripeRecurringSubscriptionWithGuard(userID int, bindingID int64, guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+	if guard == nil {
+		return nil, errors.New("subscription renewal mutation guard is required")
+	}
+	return resumeStripeRecurringSubscription(userID, bindingID, guard)
+}
+
+func resumeStripeRecurringSubscription(userID int, bindingID int64, guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+	reservation := currentStripeRenewalGuardReservation(guard, model.SubscriptionProviderLifecycleActionResume)
 	binding, err := recurringBindingForUser(userID, bindingID)
 	if err != nil {
-		return nil, err
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, err)
 	}
 	if isTerminalStripeSubscriptionStatus(binding.ProviderStatus) || binding.EndedAt > 0 {
-		return nil, errors.New("terminal Stripe subscription cannot be resumed")
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, errors.New("terminal Stripe subscription cannot be resumed"))
+	}
+	if stripeLifecycleReservationConflictsWithAction(binding, model.SubscriptionProviderLifecycleActionResume) {
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, model.ErrSubscriptionProviderLifecycleConflict)
+	}
+	if binding.ContractId <= 0 {
+		if guard != nil {
+			return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, errors.New("subscription renewal precondition conflict"))
+		}
+		return resumeContractlessStripeRecurringSubscription(binding)
+	}
+	expectedProviderSubscriptionID := binding.ProviderSubscriptionId
+	if reservation != nil && !subscriptionRenewalReservationMatchesBinding(reservation, binding) {
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, errors.New("subscription renewal precondition conflict"))
+	}
+	if reservation == nil {
+		var reserveErr error
+		reservation, binding, reserveErr = reserveStripeSubscriptionLifecycle(binding, model.SubscriptionProviderLifecycleActionResume)
+		if reserveErr != nil {
+			if errors.Is(reserveErr, model.ErrSubscriptionProviderLifecycleConflict) {
+				if satisfied, ok := stripeLifecycleSatisfiedStateAfterReserveConflict(userID, bindingID, expectedProviderSubscriptionID, model.SubscriptionProviderLifecycleActionResume); ok {
+					if err := validateCurrentStripeRenewalLifecycleSatisfiedMutationGuardForAction(satisfied, model.SubscriptionProviderLifecycleActionResume, false, guard); err != nil {
+						return nil, err
+					}
+					return satisfied, nil
+				}
+			}
+			return nil, reserveErr
+		}
+	}
+	if err := validateCurrentStripeRenewalLifecycleMutationGuard(binding, reservation, false, guard); err != nil {
+		return nil, releaseStripeRenewalLifecycleReservationAfterGuardConflict(reservation, err)
+	}
+	if !binding.CancelAtPeriodEnd {
+		if err := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); err != nil {
+			return nil, err
+		}
+		return recurringBindingForUser(userID, bindingID)
+	}
+	snapshot, err := stripeUpdateSubscriptionCancelAtPeriodEnd(binding.ProviderSubscriptionId, false, recurringLifecycleIdempotencyKey(binding, "resume"))
+	if err != nil {
+		if updated, confirmErr := confirmStripeLifecycleMutationAfterProviderError(binding, reservation, false, err); confirmErr == nil {
+			return updated, nil
+		}
+		return nil, wrapStripeSubscriptionLifecycleMutationError(err, reservation)
+	}
+	updated, applyErr := applyStripeLifecycleMutationSnapshot(reservation, snapshot)
+	return updated, wrapStripeSubscriptionLifecycleMutationError(applyErr, reservation)
+}
+
+func cancelContractlessStripeRecurringSubscription(binding *model.SubscriptionProviderBinding) (*model.SubscriptionProviderBinding, error) {
+	if stripeLifecycleHasActiveReservation(binding) {
+		return nil, model.ErrSubscriptionProviderLifecycleConflict
+	}
+	pastDue := strings.EqualFold(binding.ProviderStatus, "past_due")
+	if binding.CancelAtPeriodEnd && !pastDue {
+		return binding, nil
+	}
+	expectedProviderSubscriptionID := binding.ProviderSubscriptionId
+	reservation, binding, err := reserveStripeSubscriptionLifecycle(binding, model.SubscriptionProviderLifecycleActionCancel)
+	if err != nil {
+		if errors.Is(err, model.ErrSubscriptionProviderLifecycleConflict) {
+			if satisfied, ok := stripeLifecycleSatisfiedStateAfterReserveConflict(binding.UserId, binding.Id, expectedProviderSubscriptionID, model.SubscriptionProviderLifecycleActionCancel); ok {
+				return satisfied, nil
+			}
+		}
+		return nil, err
+	}
+	pastDue = strings.EqualFold(binding.ProviderStatus, "past_due")
+	if binding.CancelAtPeriodEnd && !pastDue {
+		if err := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); err != nil {
+			return nil, err
+		}
+		return recurringBindingForUser(binding.UserId, binding.Id)
+	}
+	idempotencyKey := recurringLifecycleIdempotencyKey(binding, "cancel")
+	if pastDue {
+		snapshot, err := stripeCancelSubscriptionNow(binding.ProviderSubscriptionId, idempotencyKey)
+		if err != nil {
+			if updated, confirmErr := confirmStripeLifecycleMutationAfterProviderError(binding, reservation, true, err); confirmErr == nil {
+				return updated, nil
+			}
+			return nil, wrapStripeSubscriptionLifecycleMutationError(err, reservation)
+		}
+		updated, applyErr := model.ApplyProviderSubscriptionTerminationWithReservation(reservation, snapshot)
+		return updated, wrapStripeSubscriptionLifecycleMutationError(applyErr, reservation)
+	}
+	snapshot, err := stripeUpdateSubscriptionCancelAtPeriodEnd(binding.ProviderSubscriptionId, true, idempotencyKey)
+	if err != nil {
+		if updated, confirmErr := confirmStripeLifecycleMutationAfterProviderError(binding, reservation, true, err); confirmErr == nil {
+			return updated, nil
+		}
+		return nil, wrapStripeSubscriptionLifecycleMutationError(err, reservation)
+	}
+	updated, applyErr := applyStripeLifecycleMutationSnapshot(reservation, snapshot)
+	return updated, wrapStripeSubscriptionLifecycleMutationError(applyErr, reservation)
+}
+
+func resumeContractlessStripeRecurringSubscription(binding *model.SubscriptionProviderBinding) (*model.SubscriptionProviderBinding, error) {
+	if stripeLifecycleHasActiveReservation(binding) {
+		return nil, model.ErrSubscriptionProviderLifecycleConflict
 	}
 	if !binding.CancelAtPeriodEnd {
 		return binding, nil
 	}
-	snapshot, err := stripeUpdateSubscriptionCancelAtPeriodEnd(binding.ProviderSubscriptionId, false, recurringLifecycleIdempotencyKey(binding, "resume"))
+	expectedProviderSubscriptionID := binding.ProviderSubscriptionId
+	reservation, binding, err := reserveStripeSubscriptionLifecycle(binding, model.SubscriptionProviderLifecycleActionResume)
 	if err != nil {
+		if errors.Is(err, model.ErrSubscriptionProviderLifecycleConflict) {
+			if satisfied, ok := stripeLifecycleSatisfiedStateAfterReserveConflict(binding.UserId, binding.Id, expectedProviderSubscriptionID, model.SubscriptionProviderLifecycleActionResume); ok {
+				return satisfied, nil
+			}
+		}
 		return nil, err
 	}
-	return model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot)
+	if !binding.CancelAtPeriodEnd {
+		if err := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); err != nil {
+			return nil, err
+		}
+		return recurringBindingForUser(binding.UserId, binding.Id)
+	}
+	snapshot, err := stripeUpdateSubscriptionCancelAtPeriodEnd(binding.ProviderSubscriptionId, false, recurringLifecycleIdempotencyKey(binding, "resume"))
+	if err != nil {
+		if updated, confirmErr := confirmStripeLifecycleMutationAfterProviderError(binding, reservation, false, err); confirmErr == nil {
+			return updated, nil
+		}
+		return nil, wrapStripeSubscriptionLifecycleMutationError(err, reservation)
+	}
+	updated, applyErr := applyStripeLifecycleMutationSnapshot(reservation, snapshot)
+	return updated, wrapStripeSubscriptionLifecycleMutationError(applyErr, reservation)
+}
+
+func confirmStripeLifecycleMutationAfterProviderError(binding *model.SubscriptionProviderBinding, reservation *model.SubscriptionProviderLifecycleReservation, targetCancelAtPeriodEnd bool, providerErr error) (*model.SubscriptionProviderBinding, error) {
+	if binding == nil || reservation == nil || providerErr == nil {
+		return nil, errors.New("invalid Stripe lifecycle confirmation target")
+	}
+	confirmed, confirmErr := stripeSubscriptionSnapshotGetter(binding.ProviderSubscriptionId)
+	if confirmErr != nil {
+		return nil, fmt.Errorf("Stripe lifecycle update failed: %v; authoritative confirmation failed: %w", providerErr, confirmErr)
+	}
+	if strings.TrimSpace(confirmed.ProviderSubscriptionId) != strings.TrimSpace(binding.ProviderSubscriptionId) {
+		return nil, fmt.Errorf("Stripe lifecycle update failed: %v; authoritative Stripe subscription ownership mismatch", providerErr)
+	}
+	providerStatus := strings.ToLower(strings.TrimSpace(confirmed.ProviderStatus))
+	terminal := confirmed.EndedAt > 0 || isTerminalStripeSubscriptionStatus(providerStatus)
+	if terminal {
+		if !targetCancelAtPeriodEnd || reservation.Action != model.SubscriptionProviderLifecycleActionCancel || providerStatus != "canceled" {
+			return nil, fmt.Errorf("Stripe lifecycle update failed: %v; authoritative Stripe subscription is not a canceled terminal snapshot", providerErr)
+		}
+		if consumed, ok := stripeLifecycleConsumedTargetState(binding, reservation, targetCancelAtPeriodEnd, true); ok {
+			return consumed, nil
+		}
+		updated, applyErr := model.ApplyProviderSubscriptionTerminationWithReservation(reservation, confirmed)
+		if applyErr != nil {
+			return nil, fmt.Errorf("Stripe lifecycle update failed: %v; authoritative terminal apply failed: %w", providerErr, applyErr)
+		}
+		return updated, nil
+	}
+	if !isActionableStripeRenewalStatus(confirmed.ProviderStatus) {
+		return nil, fmt.Errorf("Stripe lifecycle update failed: %v; authoritative Stripe subscription is not actionable", providerErr)
+	}
+	if confirmed.CancelAtPeriodEnd != targetCancelAtPeriodEnd {
+		return nil, fmt.Errorf("Stripe lifecycle update failed: %v; authoritative Stripe subscription did not reach requested lifecycle state", providerErr)
+	}
+	if consumed, ok := stripeLifecycleConsumedTargetState(binding, reservation, targetCancelAtPeriodEnd, false); ok {
+		return consumed, nil
+	}
+	updated, applyErr := applyStripeLifecycleMutationSnapshot(reservation, confirmed)
+	if applyErr != nil {
+		return nil, fmt.Errorf("Stripe lifecycle update failed: %v; authoritative lifecycle apply failed: %w", providerErr, applyErr)
+	}
+	return updated, nil
+}
+
+func stripeLifecycleConsumedTargetState(binding *model.SubscriptionProviderBinding, reservation *model.SubscriptionProviderLifecycleReservation, targetCancelAtPeriodEnd bool, terminal bool) (*model.SubscriptionProviderBinding, bool) {
+	fresh, err := model.FindBindingByIDForUser(binding.Id, binding.UserId)
+	if err != nil {
+		return nil, false
+	}
+	if fresh.Id != binding.Id ||
+		strings.TrimSpace(fresh.ProviderSubscriptionId) != strings.TrimSpace(binding.ProviderSubscriptionId) ||
+		fresh.LifecycleActionSeq != reservation.LifecycleActionSeq ||
+		strings.TrimSpace(fresh.LifecycleReservationToken) != strings.TrimSpace(reservation.Token) ||
+		strings.TrimSpace(fresh.LifecycleReservationAction) != strings.TrimSpace(reservation.Action) ||
+		fresh.LifecycleReservationUntil != 0 {
+		return nil, false
+	}
+	if terminal {
+		if fresh.EndedAt <= 0 && !isTerminalStripeSubscriptionStatus(fresh.ProviderStatus) {
+			return nil, false
+		}
+		return fresh, true
+	}
+	if fresh.EndedAt > 0 || isTerminalStripeSubscriptionStatus(fresh.ProviderStatus) ||
+		fresh.CancelAtPeriodEnd != targetCancelAtPeriodEnd {
+		return nil, false
+	}
+	return fresh, true
+}
+
+func applyStripeLifecycleMutationSnapshot(reservation *model.SubscriptionProviderLifecycleReservation, snapshot model.ProviderSubscriptionSnapshot) (*model.SubscriptionProviderBinding, error) {
+	if snapshot.EndedAt > 0 || isTerminalStripeSubscriptionStatus(snapshot.ProviderStatus) {
+		return model.ApplyProviderSubscriptionTerminationWithReservation(reservation, snapshot)
+	}
+	return model.ApplyProviderSubscriptionLifecycleSnapshotStrictWithReservation(reservation, snapshot)
+}
+
+func stripeLifecycleReservationConflictsWithAction(binding *model.SubscriptionProviderBinding, action string) bool {
+	return binding != nil &&
+		stripeLifecycleHasActiveReservation(binding) &&
+		strings.TrimSpace(binding.LifecycleReservationAction) != strings.TrimSpace(action)
+}
+
+func stripeLifecycleHasActiveReservation(binding *model.SubscriptionProviderBinding) bool {
+	return binding != nil &&
+		strings.TrimSpace(binding.LifecycleReservationToken) != "" &&
+		binding.LifecycleReservationUntil > model.GetDBTimestamp()
+}
+
+func stripeLifecycleSatisfiedStateAfterReserveConflict(userID int, bindingID int64, expectedProviderSubscriptionID string, action string) (*model.SubscriptionProviderBinding, bool) {
+	fresh, err := model.FindBindingByIDForUser(bindingID, userID)
+	if err != nil ||
+		fresh.Provider != model.PaymentProviderStripe ||
+		strings.TrimSpace(fresh.ProviderSubscriptionId) != strings.TrimSpace(expectedProviderSubscriptionID) ||
+		stripeLifecycleReservationConflictsWithAction(fresh, action) {
+		return nil, false
+	}
+	switch strings.TrimSpace(action) {
+	case model.SubscriptionProviderLifecycleActionCancel:
+		if fresh.EndedAt > 0 || isTerminalStripeSubscriptionStatus(fresh.ProviderStatus) {
+			return fresh, true
+		}
+		fresh, err = recurringBindingForUser(userID, bindingID)
+		if err != nil || strings.TrimSpace(fresh.ProviderSubscriptionId) != strings.TrimSpace(expectedProviderSubscriptionID) {
+			return nil, false
+		}
+		if fresh.CancelAtPeriodEnd && !strings.EqualFold(fresh.ProviderStatus, "past_due") {
+			return fresh, true
+		}
+	case model.SubscriptionProviderLifecycleActionResume:
+		if fresh.EndedAt > 0 || isTerminalStripeSubscriptionStatus(fresh.ProviderStatus) {
+			return nil, false
+		}
+		fresh, err = recurringBindingForUser(userID, bindingID)
+		if err != nil || strings.TrimSpace(fresh.ProviderSubscriptionId) != strings.TrimSpace(expectedProviderSubscriptionID) {
+			return nil, false
+		}
+		if !fresh.CancelAtPeriodEnd {
+			return fresh, true
+		}
+	}
+	return nil, false
+}
+
+func reserveStripeSubscriptionLifecycle(binding *model.SubscriptionProviderBinding, action string) (*model.SubscriptionProviderLifecycleReservation, *model.SubscriptionProviderBinding, error) {
+	if binding == nil {
+		return nil, nil, errors.New("Stripe subscription binding is required")
+	}
+	token, err := common.GenerateRandomCharsKey(32)
+	if err != nil {
+		return nil, nil, err
+	}
+	var reservation *model.SubscriptionProviderLifecycleReservation
+	var reservedBinding *model.SubscriptionProviderBinding
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		var current model.SubscriptionProviderBinding
+		if err := subscriptionCommandLock(tx).Where("id = ? AND user_id = ?", binding.Id, binding.UserId).First(&current).Error; err != nil {
+			return err
+		}
+		if current.ContractId > 0 {
+			var contract model.UserSubscriptionContract
+			if err := subscriptionCommandLock(tx).Where("id = ? AND user_id = ?", current.ContractId, current.UserId).First(&contract).Error; err != nil {
+				return err
+			}
+			if contract.Status != model.SubscriptionContractStatusActive &&
+				contract.Status != model.SubscriptionContractStatusGrace {
+				return model.ErrSubscriptionProviderLifecycleConflict
+			}
+			if contract.PaymentMode != model.SubscriptionPaymentModeStripeRecurring ||
+				contract.CurrentProviderBindingId != current.Id {
+				return model.ErrSubscriptionProviderLifecycleConflict
+			}
+			var replaceableDowngradeBinding *model.SubscriptionProviderBinding
+			if strings.TrimSpace(action) == model.SubscriptionProviderLifecycleActionCancel {
+				replaceableDowngradeBinding = &current
+			}
+			if err := rejectUnresolvedRenewalPlanChangeTx(tx, current.UserId, replaceableDowngradeBinding); err != nil {
+				return err
+			}
+		}
+		var reserveErr error
+		reservation, reservedBinding, reserveErr = model.ReserveSubscriptionProviderLifecycleExactTx(
+			tx,
+			binding,
+			action,
+			token,
+			int64(stripeSubscriptionLifecycleReservationTTL/time.Second),
+		)
+		return reserveErr
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return reservation, reservedBinding, nil
+}
+
+func reserveStripeSubscriptionAdministrativeTermination(binding *model.SubscriptionProviderBinding) (*model.SubscriptionProviderLifecycleReservation, *model.SubscriptionProviderBinding, error) {
+	if binding == nil {
+		return nil, nil, errors.New("Stripe subscription binding is required")
+	}
+	token, err := common.GenerateRandomCharsKey(32)
+	if err != nil {
+		return nil, nil, err
+	}
+	return model.ReserveSubscriptionProviderLifecycleForAdministrativeTermination(
+		binding.Id,
+		binding.UserId,
+		binding.ProviderSubscriptionId,
+		binding.LifecycleActionSeq,
+		token,
+		int64(stripeSubscriptionLifecycleReservationTTL/time.Second),
+	)
 }
 
 func AdminInvalidateUserSubscriptionWithRecurringPolicy(userSubscriptionID int) (string, error) {
@@ -127,15 +548,28 @@ func AdminInvalidateUserSubscriptionWithRecurringPolicy(userSubscriptionID int) 
 	if !managed {
 		return model.AdminInvalidateUserSubscription(userSubscriptionID)
 	}
-	snapshot, err := stripeCancelSubscriptionNow(binding.ProviderSubscriptionId, recurringLifecycleIdempotencyKey(binding, "admin_invalidate"))
+	reservation, binding, err := reserveStripeSubscriptionAdministrativeTermination(binding)
 	if err != nil {
 		return "", err
+	}
+	snapshot, err := stripeCancelSubscriptionNow(binding.ProviderSubscriptionId, recurringLifecycleIdempotencyKey(binding, "admin_invalidate"))
+	if err != nil {
+		return "", wrapStripeSubscriptionLifecycleMutationError(err, reservation)
 	}
 	if strings.TrimSpace(snapshot.ProviderSubscriptionId) == "" {
 		snapshot.ProviderSubscriptionId = binding.ProviderSubscriptionId
 	}
-	if _, err := model.ApplyProviderSubscriptionTermination(binding.Id, snapshot); err != nil {
-		return "", err
+	if _, err := model.ApplyProviderSubscriptionTerminationWithReservation(reservation, snapshot); err != nil {
+		if snapshot.EndedAt > 0 || isTerminalStripeSubscriptionStatus(snapshot.ProviderStatus) {
+			if _, fallbackErr := model.ApplyPassiveProviderSubscriptionTerminationWithReservationGuard(reservation, snapshot); fallbackErr != nil {
+				return "", wrapStripeSubscriptionLifecycleMutationError(
+					fmt.Errorf("passive terminal fallback failed after strict reservation apply failed: %w; fallback error: %v", err, fallbackErr),
+					reservation,
+				)
+			}
+		} else {
+			return "", wrapStripeSubscriptionLifecycleMutationError(err, reservation)
+		}
 	}
 	return model.AdminInvalidateUserSubscription(sub.Id)
 }
@@ -231,6 +665,9 @@ func updateStripeSubscriptionCancelAtPeriodEnd(providerSubscriptionID string, ca
 	params := &stripe.SubscriptionParams{
 		CancelAtPeriodEnd: stripe.Bool(cancelAtPeriodEnd),
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), stripeSubscriptionLifecycleRequestTimeout)
+	defer cancel()
+	params.Context = ctx
 	params.SetIdempotencyKey(idempotencyKey)
 	params.AddExpand("latest_invoice")
 	params.AddExpand("items.data.price")
@@ -246,6 +683,9 @@ func cancelStripeSubscriptionNow(providerSubscriptionID string, idempotencyKey s
 		return model.ProviderSubscriptionSnapshot{}, err
 	}
 	params := &stripe.SubscriptionCancelParams{}
+	ctx, cancel := context.WithTimeout(context.Background(), stripeSubscriptionLifecycleRequestTimeout)
+	defer cancel()
+	params.Context = ctx
 	params.SetIdempotencyKey(idempotencyKey)
 	sub, err := stripesubscription.Cancel(strings.TrimSpace(providerSubscriptionID), params)
 	if err != nil {
@@ -262,6 +702,9 @@ func releaseStripeSubscriptionSchedule(scheduleID string, idempotencyKey string)
 		return err
 	}
 	params := &stripe.SubscriptionScheduleReleaseParams{PreserveCancelDate: stripe.Bool(true)}
+	ctx, cancel := context.WithTimeout(context.Background(), stripeSubscriptionLifecycleRequestTimeout)
+	defer cancel()
+	params.Context = ctx
 	params.SetIdempotencyKey(strings.TrimSpace(idempotencyKey))
 	released, err := stripeschedule.Release(strings.TrimSpace(scheduleID), params)
 	if err != nil {
@@ -308,7 +751,16 @@ func releasePendingDowngradeBeforeCancel(binding *model.SubscriptionProviderBind
 	if err := stripeReleaseSubscriptionSchedule(binding.ProviderScheduleId, recurringLifecycleIdempotencyKey(binding, "cancel_release_schedule")); err != nil {
 		return downgrade, true, err
 	}
-	bindingUpdate := model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ? AND provider_schedule_id = ?", binding.Id, binding.ProviderScheduleId).
+	bindingUpdate := model.DB.Model(&model.SubscriptionProviderBinding{}).Where(
+		"id = ? AND provider_schedule_id = ? AND provider_subscription_id = ? AND lifecycle_action_seq = ? AND lifecycle_reservation_token = ? AND lifecycle_reservation_action = ? AND lifecycle_reservation_until = ?",
+		binding.Id,
+		binding.ProviderScheduleId,
+		binding.ProviderSubscriptionId,
+		binding.LifecycleActionSeq,
+		binding.LifecycleReservationToken,
+		binding.LifecycleReservationAction,
+		binding.LifecycleReservationUntil,
+	).
 		Updates(map[string]interface{}{"provider_schedule_id": "", "updated_at": common.GetTimestamp()})
 	if bindingUpdate.Error != nil {
 		return downgrade, true, bindingUpdate.Error
@@ -316,6 +768,7 @@ func releasePendingDowngradeBeforeCancel(binding *model.SubscriptionProviderBind
 	if bindingUpdate.RowsAffected != 1 {
 		return downgrade, true, errors.New("cancel downgrade schedule binding state mismatch")
 	}
+	binding.ProviderScheduleId = ""
 	return downgrade, true, nil
 }
 
@@ -377,6 +830,9 @@ func restorePendingDowngradeAfterCancelFailure(binding *model.SubscriptionProvid
 	if binding == nil || downgrade.Id <= 0 {
 		return nil
 	}
+	if err := validateRestorableCancelDowngradeOwnership(model.DB, binding, downgrade, snapshot); err != nil {
+		return err
+	}
 	scheduleID := ""
 	if snapshot.ProviderScheduleIdObserved {
 		scheduleID = strings.TrimSpace(snapshot.ProviderScheduleId)
@@ -388,29 +844,143 @@ func restorePendingDowngradeAfterCancelFailure(binding *model.SubscriptionProvid
 			return markCancelDowngradeRecoveryUncertain(binding, downgrade, cause, restoreErr)
 		}
 	}
-	return model.DB.Transaction(func(tx *gorm.DB) error {
-		now := common.GetTimestamp()
-		if err := tx.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Updates(map[string]interface{}{
-			"provider_schedule_id": strings.TrimSpace(scheduleID),
-			"updated_at":           now,
-		}).Error; err != nil {
+	restoredScheduleCreated := !snapshot.ProviderScheduleIdObserved || strings.TrimSpace(snapshot.ProviderScheduleId) == ""
+	txErr := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := validateRestorableCancelDowngradeOwnership(tx, binding, downgrade, snapshot); err != nil {
 			return err
 		}
-		if err := tx.Model(&model.UserSubscriptionContract{}).Where("id = ?", binding.ContractId).Updates(map[string]interface{}{
+		now := common.GetTimestamp()
+		bindingUpdate := tx.Model(&model.SubscriptionProviderBinding{}).Where(
+			"id = ? AND contract_id = ? AND user_id = ? AND provider = ? AND provider_subscription_id = ? AND ended_at = ?",
+			binding.Id,
+			binding.ContractId,
+			binding.UserId,
+			model.PaymentProviderStripe,
+			strings.TrimSpace(binding.ProviderSubscriptionId),
+			0,
+		).Where("provider_status NOT IN ?", []string{"canceled", "incomplete_expired", "unpaid"}).Updates(map[string]interface{}{
+			"provider_schedule_id": strings.TrimSpace(scheduleID),
+			"updated_at":           now,
+		})
+		if bindingUpdate.Error != nil {
+			return bindingUpdate.Error
+		}
+		if bindingUpdate.RowsAffected != 1 {
+			return errors.New("cancel downgrade restore binding ownership mismatch")
+		}
+		contractUpdate := tx.Model(&model.UserSubscriptionContract{}).Where(
+			"id = ? AND user_id = ? AND status = ? AND payment_mode = ? AND current_provider_binding_id = ? AND pending_plan_id = ? AND pending_effective_at = ?",
+			binding.ContractId,
+			binding.UserId,
+			model.SubscriptionContractStatusNeedsAttention,
+			model.SubscriptionPaymentModeStripeRecurring,
+			binding.Id,
+			downgrade.ToPlanId,
+			downgrade.EffectiveAt,
+		).Updates(map[string]interface{}{
 			"status":               model.SubscriptionContractStatusActive,
 			"pending_plan_id":      downgrade.ToPlanId,
 			"pending_effective_at": downgrade.EffectiveAt,
 			"updated_at":           now,
-		}).Error; err != nil {
-			return err
+		})
+		if contractUpdate.Error != nil {
+			return contractUpdate.Error
 		}
-		return tx.Model(&model.SubscriptionChangeIntent{}).Where("id = ?", downgrade.Id).Updates(map[string]interface{}{
+		if contractUpdate.RowsAffected != 1 {
+			return errors.New("cancel downgrade restore contract ownership mismatch")
+		}
+		intentUpdate := tx.Model(&model.SubscriptionChangeIntent{}).Where(
+			"id = ? AND contract_id = ? AND user_id = ? AND provider_binding_id = ? AND kind = ? AND from_plan_id = ? AND to_plan_id = ? AND effective_at = ? AND previous_schedule_snapshot = ? AND status IN ?",
+			downgrade.Id,
+			binding.ContractId,
+			binding.UserId,
+			binding.Id,
+			model.SubscriptionChangeIntentKindDowngrade,
+			downgrade.FromPlanId,
+			downgrade.ToPlanId,
+			downgrade.EffectiveAt,
+			downgrade.PreviousScheduleSnapshot,
+			[]string{
+				model.SubscriptionChangeIntentStatusSyncing,
+				model.SubscriptionChangeIntentStatusScheduled,
+				model.SubscriptionChangeIntentStatusCompensationRequired,
+			},
+		).Updates(map[string]interface{}{
 			"status":               model.SubscriptionChangeIntentStatusScheduled,
 			"provider_schedule_id": strings.TrimSpace(scheduleID),
 			"last_error":           "",
 			"updated_at":           now,
-		}).Error
+		})
+		if intentUpdate.Error != nil {
+			return intentUpdate.Error
+		}
+		if intentUpdate.RowsAffected != 1 {
+			return errors.New("cancel downgrade restore intent ownership mismatch")
+		}
+		return nil
 	})
+	if txErr != nil && restoredScheduleCreated {
+		releaseErr := stripeReleaseSubscriptionSchedule(scheduleID, recurringLifecycleIdempotencyKey(binding, "cancel_restore_schedule_rollback"))
+		if releaseErr != nil {
+			return markCancelDowngradeRecoveryUncertain(binding, downgrade, cause, fmt.Errorf("restored schedule %s could not be persisted: %v; rollback failed: %w", scheduleID, txErr, releaseErr))
+		}
+	}
+	return txErr
+}
+
+func validateRestorableCancelDowngradeOwnership(db *gorm.DB, binding *model.SubscriptionProviderBinding, downgrade model.SubscriptionChangeIntent, snapshot model.ProviderSubscriptionSnapshot) error {
+	if binding == nil || binding.Id <= 0 || binding.ContractId <= 0 || binding.UserId <= 0 || strings.TrimSpace(binding.ProviderSubscriptionId) == "" || downgrade.Id <= 0 {
+		return errors.New("cancel downgrade restore ownership target is incomplete")
+	}
+	if strings.TrimSpace(snapshot.ProviderSubscriptionId) != "" && strings.TrimSpace(snapshot.ProviderSubscriptionId) != strings.TrimSpace(binding.ProviderSubscriptionId) {
+		return errors.New("cancel downgrade restore Stripe subscription ownership mismatch")
+	}
+	var contract model.UserSubscriptionContract
+	if err := db.Where(
+		"id = ? AND user_id = ? AND status = ? AND payment_mode = ? AND current_provider_binding_id = ? AND pending_plan_id = ? AND pending_effective_at = ?",
+		binding.ContractId,
+		binding.UserId,
+		model.SubscriptionContractStatusNeedsAttention,
+		model.SubscriptionPaymentModeStripeRecurring,
+		binding.Id,
+		downgrade.ToPlanId,
+		downgrade.EffectiveAt,
+	).First(&contract).Error; err != nil {
+		return errors.New("cancel downgrade restore contract ownership mismatch")
+	}
+	var currentBinding model.SubscriptionProviderBinding
+	if err := db.Where(
+		"id = ? AND contract_id = ? AND user_id = ? AND provider = ? AND provider_subscription_id = ? AND ended_at = ?",
+		binding.Id,
+		binding.ContractId,
+		binding.UserId,
+		model.PaymentProviderStripe,
+		strings.TrimSpace(binding.ProviderSubscriptionId),
+		0,
+	).Where("provider_status NOT IN ?", []string{"canceled", "incomplete_expired", "unpaid"}).First(&currentBinding).Error; err != nil {
+		return errors.New("cancel downgrade restore binding ownership mismatch")
+	}
+	var intent model.SubscriptionChangeIntent
+	if err := db.Where(
+		"id = ? AND contract_id = ? AND user_id = ? AND provider_binding_id = ? AND kind = ? AND from_plan_id = ? AND to_plan_id = ? AND effective_at = ? AND previous_schedule_snapshot = ? AND status IN ?",
+		downgrade.Id,
+		binding.ContractId,
+		binding.UserId,
+		binding.Id,
+		model.SubscriptionChangeIntentKindDowngrade,
+		downgrade.FromPlanId,
+		downgrade.ToPlanId,
+		downgrade.EffectiveAt,
+		downgrade.PreviousScheduleSnapshot,
+		[]string{
+			model.SubscriptionChangeIntentStatusSyncing,
+			model.SubscriptionChangeIntentStatusScheduled,
+			model.SubscriptionChangeIntentStatusCompensationRequired,
+		},
+	).First(&intent).Error; err != nil {
+		return errors.New("cancel downgrade restore intent ownership mismatch")
+	}
+	return nil
 }
 
 func markCancelDowngradeRecoveryUncertain(binding *model.SubscriptionProviderBinding, downgrade model.SubscriptionChangeIntent, cancelErr error, restoreErr error) error {
@@ -505,6 +1075,59 @@ func clearPendingDowngradeAfterCancel(binding *model.SubscriptionProviderBinding
 	})
 }
 
+func clearPendingDowngradeAfterTerminalCancel(binding *model.SubscriptionProviderBinding, downgrade model.SubscriptionChangeIntent) error {
+	if binding == nil || downgrade.Id <= 0 {
+		return nil
+	}
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		now := common.GetTimestamp()
+		contractUpdate := tx.Model(&model.UserSubscriptionContract{}).Where(
+			"id = ? AND user_id = ? AND status IN ? AND payment_mode = ? AND current_provider_binding_id = ? AND pending_plan_id = ? AND pending_effective_at = ?",
+			binding.ContractId,
+			binding.UserId,
+			[]string{
+				model.SubscriptionContractStatusActive,
+				model.SubscriptionContractStatusGrace,
+				model.SubscriptionContractStatusNeedsAttention,
+			},
+			model.SubscriptionPaymentModeStripeRecurring,
+			binding.Id,
+			downgrade.ToPlanId,
+			downgrade.EffectiveAt,
+		).Updates(map[string]interface{}{
+			"status":                      model.SubscriptionContractStatusEnded,
+			"current_entitlement_id":      0,
+			"current_provider_binding_id": 0,
+			"pending_plan_id":             0,
+			"pending_effective_at":        0,
+			"updated_at":                  now,
+		})
+		if contractUpdate.Error != nil {
+			return contractUpdate.Error
+		}
+		if contractUpdate.RowsAffected != 1 {
+			return errors.New("terminal cancel downgrade contract state mismatch")
+		}
+		intentUpdate := tx.Model(&model.SubscriptionChangeIntent{}).Where(
+			"id = ? AND contract_id = ? AND user_id = ? AND provider_binding_id = ? AND kind = ? AND status IN ?",
+			downgrade.Id, binding.ContractId, binding.UserId, binding.Id,
+			model.SubscriptionChangeIntentKindDowngrade,
+			[]string{model.SubscriptionChangeIntentStatusSyncing, model.SubscriptionChangeIntentStatusScheduled, model.SubscriptionChangeIntentStatusCompensationRequired},
+		).Updates(map[string]interface{}{
+			"status":     model.SubscriptionChangeIntentStatusSuperseded,
+			"last_error": "",
+			"updated_at": now,
+		})
+		if intentUpdate.Error != nil {
+			return intentUpdate.Error
+		}
+		if intentUpdate.RowsAffected != 1 {
+			return errors.New("terminal cancel downgrade intent state mismatch")
+		}
+		return nil
+	})
+}
+
 func ReconcileCancelDowngradeCompensationRequired(ctx context.Context, limit int) (int, error) {
 	_ = ctx
 	if limit <= 0 {
@@ -545,6 +1168,9 @@ func reconcileCancelDowngradeCompensation(intent model.SubscriptionChangeIntent)
 	if err := model.DB.Where("id = ? AND contract_id = ? AND user_id = ? AND provider = ? AND ended_at = ?",
 		intent.ProviderBindingId, contract.Id, contract.UserId, model.PaymentProviderStripe, 0,
 	).First(&binding).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return reconcileEndedCancelDowngradeCompensationBinding(contract, intent)
+		}
 		return err
 	}
 	if strings.TrimSpace(binding.ProviderSubscriptionId) == "" || isTerminalStripeSubscriptionStatus(binding.ProviderStatus) {
@@ -557,16 +1183,65 @@ func reconcileCancelDowngradeCompensation(intent model.SubscriptionChangeIntent)
 	if strings.TrimSpace(snapshot.ProviderSubscriptionId) != binding.ProviderSubscriptionId {
 		return errors.New("cancel downgrade compensation Stripe subscription mismatch")
 	}
+	reservation, err := activeCancelDowngradeCompensationReservation(&binding)
+	if err != nil {
+		return err
+	}
+	if snapshot.EndedAt > 0 || isTerminalStripeSubscriptionStatus(snapshot.ProviderStatus) {
+		if reservation != nil {
+			if _, err := model.ApplyProviderSubscriptionTerminationWithReservation(reservation, snapshot); err != nil {
+				return err
+			}
+		} else if _, err := model.ApplyPassiveProviderSubscriptionTermination(binding.Id, snapshot); err != nil {
+			return err
+		}
+		return clearPendingDowngradeAfterTerminalCancel(&binding, intent)
+	}
 	if snapshot.CancelAtPeriodEnd {
-		if _, err := model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot); err != nil {
+		if reservation != nil {
+			if _, err := model.ApplyProviderSubscriptionLifecycleSnapshotStrictWithReservation(reservation, snapshot); err != nil {
+				return err
+			}
+		} else if _, err := model.ApplyProviderSubscriptionLifecycleSnapshotStrict(binding.Id, binding.LifecycleActionSeq, snapshot); err != nil {
 			return err
 		}
 		return clearPendingDowngradeAfterCancel(&binding, intent)
 	}
-	if _, err := model.ApplyProviderSubscriptionSnapshot(binding.Id, snapshot); err != nil {
+	if reservation != nil {
+		if _, err := model.ApplyProviderSubscriptionLifecycleNoChangeSnapshotStrictWithReservation(reservation, snapshot); err != nil {
+			return err
+		}
+	} else if _, err := model.ApplyProviderSubscriptionLifecycleSnapshotStrict(binding.Id, binding.LifecycleActionSeq, snapshot); err != nil {
 		return err
 	}
 	return restorePendingDowngradeAfterCancelFailure(&binding, intent, snapshot, errors.New("authoritative Stripe subscription is not canceled at period end"))
+}
+
+func reconcileEndedCancelDowngradeCompensationBinding(contract model.UserSubscriptionContract, intent model.SubscriptionChangeIntent) error {
+	var binding model.SubscriptionProviderBinding
+	if err := model.DB.Where("id = ? AND contract_id = ? AND user_id = ? AND provider = ?",
+		intent.ProviderBindingId, contract.Id, contract.UserId, model.PaymentProviderStripe,
+	).First(&binding).Error; err != nil {
+		return err
+	}
+	if strings.TrimSpace(binding.ProviderSubscriptionId) == "" || (binding.EndedAt <= 0 && !isTerminalStripeSubscriptionStatus(binding.ProviderStatus)) {
+		return errors.New("cancel downgrade compensation binding is not terminal Stripe recurring")
+	}
+	return clearPendingDowngradeAfterTerminalCancel(&binding, intent)
+}
+
+func activeCancelDowngradeCompensationReservation(binding *model.SubscriptionProviderBinding) (*model.SubscriptionProviderLifecycleReservation, error) {
+	if binding == nil || strings.TrimSpace(binding.LifecycleReservationToken) == "" || binding.LifecycleReservationUntil <= 0 {
+		return nil, nil
+	}
+	now := model.GetDBTimestamp()
+	if binding.LifecycleReservationAction != model.SubscriptionProviderLifecycleActionCancel {
+		if binding.LifecycleReservationUntil <= now {
+			return nil, nil
+		}
+		return nil, model.ErrSubscriptionProviderLifecycleConflict
+	}
+	return model.GetSubscriptionProviderLifecycleReservation(binding.Id, model.SubscriptionProviderLifecycleActionCancel)
 }
 
 func reconcileCancelDowngradeCompensations(ctx context.Context) (int, error) {

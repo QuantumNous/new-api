@@ -25,59 +25,46 @@ const CLI_GITHUB_URL = "https://github.com/flatkey-ai/flatkey-cli";
 
 const workflowIcons = [FileVideo2, WandSparkles, MonitorPlay, Terminal] as const;
 const painIcons = [BadgeDollarSign, GitBranch, Layers3, Check] as const;
-const mediaExamples = [
+const mediaAssets: Array<{
+  type: "image" | "video";
+  media: string;
+  poster?: string;
+  showPlay: boolean;
+}> = [
   {
-    kind: "Video",
     type: "video",
     media: "/assets/cli/ugc-ad-clips.mp4",
     poster: "/assets/cli/ugc-ad-clips.png",
-    title: "9:16 UGC ad clips",
-    body: "Tell your AI agent the product, audience, angle, and aspect ratio; let it use Flatkey CLI to produce short paid-social clips.",
-    outcome: "Output: video clips, hooks, first frames",
+    showPlay: true,
   },
   {
-    kind: "Image",
     type: "image",
     media: "/assets/cli/campaign-hero.png",
-    title: "Campaign hero images",
-    body: "Give the agent a launch brief and brand direction; it can create cover images, landing visuals, product scenes, and variants.",
-    outcome: "Output: hero images, product scenes",
+    showPlay: false,
   },
   {
-    kind: "Video",
     type: "video",
     media: "/assets/cli/product-reveal.mp4",
     poster: "/assets/cli/product-reveal.png",
-    title: "Product reveal sequences",
-    body: "Ask the agent to start from a product shot, plan reveal directions, generate clips, and keep the usable files together.",
-    outcome: "Output: reveal clips, edit-ready files",
+    showPlay: true,
   },
   {
-    kind: "Image",
     type: "image",
     media: "/assets/cli/thumbnail-test-set.png",
-    title: "Thumbnail test sets",
-    body: "Let an agent explore thumbnail directions, generate options, rank what works, and write titles or overlays.",
-    outcome: "Output: thumbnail sets, ranking notes",
+    showPlay: false,
   },
   {
-    kind: "Video",
     type: "video",
     media: "/assets/cli/localized-variants.mp4",
     poster: "/assets/cli/localized-variants.png",
-    title: "Localized market variants",
-    body: "Give the agent markets and constraints; it can create localized visuals, clips, voiceover direction, captions, and copy.",
-    outcome: "Output: localized image, video, audio, copy",
+    showPlay: true,
   },
   {
-    kind: "Image + Video",
     type: "image",
     media: "/assets/cli/storyboard-motion.png",
-    title: "Storyboard to motion",
-    body: "Ask the agent to draft scenes, create still frames, choose the best direction, and turn the storyboard into motion assets.",
-    outcome: "Output: storyboard frames, motion assets",
+    showPlay: true,
   },
-] as const;
+];
 
 export function CliLandingPage(props: CliLandingPageProps) {
   const copy = cliLandingCopy[props.locale];
@@ -98,7 +85,7 @@ export function CliLandingPage(props: CliLandingPageProps) {
           stats={copy.stats}
           code={copy.codeSamples[0]}
         />
-        <MediaExamples />
+        <MediaExamples copy={copy.sections.media} />
 
         <section className="border-y border-black/10 bg-white/70 px-6 py-18 dark:border-white/10 dark:bg-white/[0.03]">
           <div className="mx-auto max-w-6xl">
@@ -261,30 +248,32 @@ export function HiggsfieldAlternativePage(props: HiggsfieldAlternativePageProps)
   );
 }
 
-function MediaExamples() {
+function MediaExamples(props: { copy: (typeof cliLandingCopy)[Locale]["sections"]["media"] }) {
   return (
     <section className="border-y border-black/10 bg-[#ebe8de] px-6 py-18 dark:border-white/10 dark:bg-white/[0.03]">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="mb-3 text-xs font-semibold tracking-[0.18em] text-emerald-700 uppercase dark:text-emerald-300">Real media jobs</p>
-            <h2 className="max-w-2xl text-3xl leading-tight font-semibold tracking-tight md:text-4xl">Use the CLI to produce files, not just prompts</h2>
+            <p className="mb-3 text-xs font-semibold tracking-[0.18em] text-emerald-700 uppercase dark:text-emerald-300">{props.copy.eyebrow}</p>
+            <h2 className="max-w-2xl text-3xl leading-tight font-semibold tracking-tight md:text-4xl">{props.copy.title}</h2>
           </div>
           <p className="max-w-md text-sm leading-6 text-[#626861] dark:text-[#b7bdb4]">
-            Install once, run <code className="rounded bg-black/8 px-1.5 py-0.5 dark:bg-white/10">flatkey login</code>, then batch images and videos from briefs, folders, CSVs, or agents.
+            {props.copy.body}
           </p>
         </div>
         <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {mediaExamples.map((example, index) => (
+          {mediaAssets.map((asset, index) => {
+            const example = props.copy.items[index];
+            return (
             <article key={example.title} className="overflow-hidden rounded-lg border border-black/10 bg-[#f8f7f2] dark:border-white/10 dark:bg-white/[0.05]">
               <div className="relative aspect-[4/3] overflow-hidden bg-[#111412]">
-                {example.type === "video" ? (
-                  <video className="h-full w-full object-cover" autoPlay muted loop playsInline preload="metadata" poster={example.poster}>
-                    <source src={example.media} type="video/mp4" />
+                {asset.type === "video" ? (
+                  <video className="h-full w-full object-cover" autoPlay muted loop playsInline preload="metadata" poster={asset.poster}>
+                    <source src={asset.media} type="video/mp4" />
                   </video>
                 ) : (
                   <Image
-                    src={example.media}
+                    src={asset.media}
                     alt={example.title}
                     fill
                     sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
@@ -293,7 +282,7 @@ function MediaExamples() {
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/28 via-transparent to-transparent" />
                 <div className="absolute top-4 left-4 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white">{example.kind}</div>
-                {example.kind.includes("Video") ? (
+                {asset.showPlay ? (
                   <div className="absolute right-4 bottom-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/75 text-white">
                     <span className="ml-0.5 h-0 w-0 border-y-[7px] border-y-transparent border-l-[11px] border-l-white" />
                   </div>
@@ -309,7 +298,8 @@ function MediaExamples() {
                 <p className="mt-4 rounded-md bg-[#111412] p-3 text-[11px] leading-5 font-semibold tracking-[0.08em] text-emerald-100 uppercase">{example.outcome}</p>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

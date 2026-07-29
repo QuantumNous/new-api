@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test'
 import { api, type ApiRequestConfig } from '@/lib/api'
-import { getSelfSubscriptionFull } from './api'
+import * as subscriptionApi from './api'
+import {
+  cancelSubscriptionRenewal,
+  getSelfSubscriptionFull,
+  resumeSubscriptionRenewal,
+} from './api'
 
 afterEach(() => {
   mock.restore()
@@ -36,5 +41,43 @@ describe('getSelfSubscriptionFull', () => {
     await expect(getSelfSubscriptionFull(config)).resolves.toBe(response)
 
     expect(api.get).toHaveBeenCalledWith('/api/subscription/self', config)
+  })
+})
+
+describe('subscription renewal lifecycle API', () => {
+  const precondition = {
+    expected_contract_id: 123,
+    expected_change_version: 7,
+    expected_current_period_end: 456,
+    expected_renewal_source: 'wallet_auto',
+    expected_renewal_status: 'enabled',
+  } as const
+
+  test.each([
+    ['cancel', cancelSubscriptionRenewal],
+    ['resume', resumeSubscriptionRenewal],
+  ] as const)(
+    '%s keeps renewal error toasts owned by the caller',
+    async (action, request) => {
+      const response = { success: false, message: `${action} failed` }
+      const post = spyOn(api, 'post').mockResolvedValue({
+        data: response,
+      } as never)
+
+      await expect(request(precondition)).resolves.toEqual(response)
+      expect(post).toHaveBeenCalledWith(
+        `/api/subscription/self/renewal/${action}`,
+        precondition,
+        {
+          skipBusinessError: true,
+          skipErrorHandler: true,
+        }
+      )
+    }
+  )
+
+  test('does not expose legacy binding-id recurring helpers', () => {
+    expect('cancelRecurringSubscription' in subscriptionApi).toBe(false)
+    expect('resumeRecurringSubscription' in subscriptionApi).toBe(false)
   })
 })

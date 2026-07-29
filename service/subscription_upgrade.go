@@ -343,6 +343,9 @@ func restoreStripeSubscriptionUpgradeSchedule(rawSnapshot string, idempotencyKey
 		return "", errors.New("Stripe subscription upgrade schedule snapshot is incomplete")
 	}
 	createParams := &stripe.SubscriptionScheduleParams{FromSubscription: stripe.String(snapshot.SubscriptionID)}
+	ctx, cancel := context.WithTimeout(context.Background(), stripeSubscriptionLifecycleRequestTimeout)
+	defer cancel()
+	createParams.Context = ctx
 	createParams.SetIdempotencyKey(idempotencyKey + ":restore-schedule:create")
 	created, err := stripeschedule.New(createParams)
 	if err != nil {
@@ -355,6 +358,9 @@ func restoreStripeSubscriptionUpgradeSchedule(rawSnapshot string, idempotencyKey
 		EndBehavior: stripe.String(snapshot.EndBehavior),
 		Metadata:    snapshot.Metadata,
 	}
+	updateCtx, updateCancel := context.WithTimeout(context.Background(), stripeSubscriptionLifecycleRequestTimeout)
+	defer updateCancel()
+	updateParams.Context = updateCtx
 	for _, phase := range snapshot.Phases {
 		phaseParams := &stripe.SubscriptionSchedulePhaseParams{
 			StartDate: stripe.Int64(phase.StartDate),
@@ -686,15 +692,12 @@ func reconcilePaidInvoiceUpgradeTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 		return true, PermanentPaidInvoiceError(err)
 	}
 
-	var contract model.UserSubscriptionContract
-	if err := subscriptionCommandLock(tx).Where("id = ? AND user_id = ?", intent.ContractId, intent.UserId).First(&contract).Error; err != nil {
+	binding, err := lockStripeUpgradeIntentBinding(tx, &intent)
+	if err != nil {
 		return true, err
 	}
-	var binding model.SubscriptionProviderBinding
-	if err := subscriptionCommandLock(tx).
-		Where("id = ? AND user_id = ? AND contract_id = ? AND provider = ?",
-			intent.ProviderBindingId, intent.UserId, intent.ContractId, model.PaymentProviderStripe).
-		First(&binding).Error; err != nil {
+	var contract model.UserSubscriptionContract
+	if err := subscriptionCommandLock(tx).Where("id = ? AND user_id = ?", intent.ContractId, intent.UserId).First(&contract).Error; err != nil {
 		return true, err
 	}
 	var plan model.SubscriptionPlan
@@ -841,6 +844,18 @@ func recurringInvoiceInitialOrderID(current int, planSnapshot recurringInvoicePl
 		return planSnapshot.OrderID
 	}
 	return current
+}
+
+func lockStripeUpgradeIntentBinding(tx *gorm.DB, intent *model.SubscriptionChangeIntent) (model.SubscriptionProviderBinding, error) {
+	var binding model.SubscriptionProviderBinding
+	if tx == nil || intent == nil || intent.ProviderBindingId <= 0 {
+		return binding, errors.New("Stripe upgrade intent binding is required")
+	}
+	err := subscriptionCommandLock(tx).
+		Where("id = ? AND user_id = ? AND contract_id = ? AND provider = ?",
+			intent.ProviderBindingId, intent.UserId, intent.ContractId, model.PaymentProviderStripe).
+		First(&binding).Error
+	return binding, err
 }
 
 func validateStripeUpgradePaidInvoiceFacts(facts paidInvoiceFacts, intent *model.SubscriptionChangeIntent, contract *model.UserSubscriptionContract, binding *model.SubscriptionProviderBinding, plan *model.SubscriptionPlan, user *model.User, planSnapshot recurringInvoicePlanSnapshot) error {
