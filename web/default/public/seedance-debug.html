@@ -551,7 +551,7 @@
             <label class="upload">
               <input id="assetFiles" type="file" accept="image/*,audio/*,video/*" multiple>
               <strong>上传参考素材</strong>
-              <span>支持多文件；提示词输入 @ 插入引用</span>
+              <span>图片走图床；音频/视频≤5MB 自动上传至 83zi；提示词输入 @ 插入引用</span>
             </label>
             <div class="asset-list" id="assetList"></div>
           </section>
@@ -723,6 +723,8 @@
   <script>
     const DEFAULT_IMAGE_HOST = "https://imageproxy.zhongzhuan.chat/api/upload";
     const DEFAULT_IMAGE_TOKEN = "sk-6In87eJEghtCGtvHEL8rNyR9lnDLlbcTQeqZpgjCPP8zmWab";
+    const DEFAULT_MEDIA_HOST = "https://83zi.com/api/upload";
+    const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
     const FACE_DETECT_API = "https://face.83zi.com/api/detect";
     const STORAGE = {
       key: "sd4_api_key",
@@ -984,6 +986,14 @@
     }
     function imageToken() {
       return normalizeApiKey(els.imageToken.value) || normalizeApiKey(readLocal(STORAGE.imageToken)) || DEFAULT_IMAGE_TOKEN;
+    }
+    function mediaHost() {
+      return DEFAULT_MEDIA_HOST;
+    }
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     }
     function apiBase() {
       const v = (els.apiBase.value || "").trim().replace(/\/$/, "");
@@ -1809,7 +1819,7 @@
       }
       if (asset.kind !== "image") {
         asset.uploadStatus = "local";
-        asset.uploadError = "非图片请粘贴公网 URL，或 mingiz 用 multipart";
+        asset.uploadError = "非图片请使用音/视频上传或粘贴公网 URL";
         return asset;
       }
       asset.uploadStatus = "uploading";
@@ -1825,6 +1835,47 @@
       if (!response.ok) throw new Error(formatError(data, response.status));
       const url = extractUploadUrl(data);
       if (!url) throw new Error("图床未返回 url");
+      asset.publicUrl = url;
+      asset.uploadStatus = "ready";
+      asset.previewUrl = asset.previewUrl || url;
+      renderAssets();
+      return asset;
+    }
+
+    async function uploadToMediaHost(asset) {
+      if (asset.publicUrl) {
+        asset.uploadStatus = "ready";
+        return asset;
+      }
+      if (!asset.file) {
+        asset.uploadStatus = "failed";
+        asset.uploadError = "无本地文件";
+        return asset;
+      }
+      if (asset.kind !== "audio" && asset.kind !== "video") {
+        asset.uploadStatus = "failed";
+        asset.uploadError = "仅音频/视频可走 83zi 上传";
+        return asset;
+      }
+      if (asset.file.size > MAX_MEDIA_BYTES) {
+        asset.uploadStatus = "failed";
+        asset.uploadError = `超过 5MB 限制（当前 ${formatFileSize(asset.file.size)}）`;
+        renderAssets();
+        throw new Error(asset.uploadError);
+      }
+      asset.uploadStatus = "uploading";
+      renderAssets();
+      const form = new FormData();
+      form.append("file", asset.file, asset.file.name);
+      const response = await fetch(mediaHost(), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${imageToken()}` },
+        body: form,
+      });
+      const data = await readJson(response);
+      if (!response.ok) throw new Error(formatError(data, response.status));
+      const url = extractUploadUrl(data);
+      if (!url) throw new Error("83zi 上传未返回 url");
       asset.publicUrl = url;
       asset.uploadStatus = "ready";
       asset.previewUrl = asset.previewUrl || url;
@@ -1849,8 +1900,10 @@
         }
         if (asset.file && asset.kind === "image") {
           await uploadImageAsset(asset, facePassEnabled() || !!asset.viaFacePass);
+        } else if (asset.file && (asset.kind === "audio" || asset.kind === "video")) {
+          await uploadToMediaHost(asset);
         } else if (!asset.publicUrl) {
-          throw new Error(`素材 @${asset.tag || asset.name} 需要公网 URL（可上传图床或粘贴链接）`);
+          throw new Error(`素材 @${asset.tag || asset.name} 需要公网 URL（可上传或粘贴链接）`);
         }
       }
     }
@@ -2359,9 +2412,14 @@
     }
 
     async function handleFilesSelected() {
-      const incoming = Array.from(els.assetFiles.files || []).map((file) => {
+      const skipped = [];
+      const incoming = Array.from(els.assetFiles.files || []).flatMap((file) => {
         const kind = assetKind(file);
-        return {
+        if ((kind === "audio" || kind === "video") && file.size > MAX_MEDIA_BYTES) {
+          skipped.push(`${file.name}（${formatFileSize(file.size)}）`);
+          return [];
+        }
+        return [{
           id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
           file,
           kind,
@@ -2372,9 +2430,13 @@
           publicUrl: "",
           uploadError: "",
           viaFacePass: false,
-        };
+        }];
       });
       els.assetFiles.value = "";
+      if (skipped.length) {
+        setStatus(`以下音/视频超过 5MB 已跳过：${skipped.join("、")}`, "bad");
+      }
+      if (!incoming.length) return;
       assets = assets.concat(incoming);
       renderAssets();
       const p = profile();
@@ -2384,11 +2446,13 @@
         try {
           if (useFacePass && asset.kind === "image" && asset.file) {
             await uploadImageAsset(asset, true);
-          } else if (preferMultipart && asset.file) {
+          } else if (preferMultipart && asset.file && asset.kind === "image") {
             asset.uploadStatus = "local";
             renderAssets();
           } else if (asset.kind === "image") {
             await uploadImageAsset(asset, false);
+          } else if (asset.kind === "audio" || asset.kind === "video") {
+            await uploadToMediaHost(asset);
           } else {
             asset.uploadStatus = "failed";
             asset.uploadError = "请粘贴公网 URL";
