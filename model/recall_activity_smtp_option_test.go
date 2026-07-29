@@ -104,6 +104,45 @@ func TestRecallCampaignSettingSMTPBlankSubmittedTokenPreservesStoredToken(t *tes
 	require.Equal(t, "stored-token", operation_setting.GetRecallCampaignSetting().SMTPToken)
 }
 
+func TestRecallCampaignSettingSMTPBlankSubmittedTokenDoesNotOverwriteTokenRotatedDuringSave(t *testing.T) {
+	setupRecallSenderOptionTest(t)
+	seedRecallActivitySMTPOptions(t, map[string]string{
+		"recall_campaign_setting.smtp_server":           "old.smtp.example.com",
+		"recall_campaign_setting.smtp_port":             "25",
+		"recall_campaign_setting.smtp_account":          "old@example.com",
+		"recall_campaign_setting.email_from":            "Old@Example.com",
+		"recall_campaign_setting.smtp_token":            "stored-token",
+		"recall_campaign_setting.smtp_ssl_enabled":      "false",
+		"recall_campaign_setting.smtp_force_auth_login": "false",
+	})
+	require.NoError(t, DB.Exec(`
+		CREATE TRIGGER rotate_recall_activity_smtp_token
+		AFTER UPDATE ON options
+		WHEN NEW.key = 'recall_campaign_setting.smtp_server'
+		BEGIN
+			UPDATE options
+			SET value = 'rotated-token'
+			WHERE key = 'recall_campaign_setting.smtp_token';
+		END;
+	`).Error)
+
+	require.NoError(t, UpdateRecallActivitySMTPOptions(RecallActivitySMTPOptionInput{
+		SMTPConfig: common.SMTPConfig{
+			Server:         "new.smtp.example.com",
+			Port:           587,
+			Account:        "new@example.com",
+			From:           "New@Example.com",
+			Token:          "",
+			SSLEnabled:     true,
+			ForceAuthLogin: true,
+		},
+	}))
+
+	require.Equal(t, "rotated-token", persistedOptionValue(t, "recall_campaign_setting.smtp_token"))
+	require.Equal(t, "rotated-token", common.OptionMap["recall_campaign_setting.smtp_token"])
+	require.Equal(t, "rotated-token", operation_setting.GetRecallCampaignSetting().SMTPToken)
+}
+
 func TestRecallCampaignSettingSMTPFailedDBWriteChangesNeitherDBNorRuntime(t *testing.T) {
 	setupRecallSenderOptionTest(t)
 	original := map[string]string{

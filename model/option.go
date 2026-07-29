@@ -381,18 +381,18 @@ func UpdateRecallActivitySMTPOptions(input RecallActivitySMTPOptionInput) error 
 	}
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		if input.Token == "" {
-			var tokenOption Option
-			err := tx.Where(commonKeyCol+" = ?", "recall_campaign_setting.smtp_token").First(&tokenOption).Error
-			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-			if err == nil {
-				values["recall_campaign_setting.smtp_token"] = tokenOption.Value
-			}
-		}
-
 		for _, key := range recallActivitySMTPOptionKeys {
+			if key == "recall_campaign_setting.smtp_token" && input.Token == "" {
+				var tokenOption Option
+				err := tx.Where(commonKeyCol+" = ?", key).First(&tokenOption).Error
+				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
+				}
+				if err == nil {
+					values[key] = tokenOption.Value
+					continue
+				}
+			}
 			option := Option{Key: key}
 			if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
 				return err
