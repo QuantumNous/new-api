@@ -230,6 +230,54 @@ func TestGetOptionsOmitsRetiredInviteRewardUnlockDelay(t *testing.T) {
 	}
 }
 
+func TestGetOptionsRedactsLowercaseTokenKeys(t *testing.T) {
+	setupOptionControllerTestDB(t)
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap["recall_campaign_setting.smtp_token"] = "activity-secret"
+	common.OptionMap["legacy_token"] = "legacy-secret"
+	common.OptionMap["WorkerValidKey"] = "worker-secret"
+	common.OptionMap["StripeWebhookSecret"] = "stripe-secret"
+	common.OptionMap["VisibleOption"] = "visible"
+	common.OptionMapRWMutex.Unlock()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/option/", nil)
+	GetOptions(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected option response to succeed, got message: %s", response.Message)
+	}
+	rawData, err := json.Marshal(response.Data)
+	if err != nil {
+		t.Fatalf("failed to marshal option response data: %v", err)
+	}
+	var options []model.Option
+	if err := json.Unmarshal(rawData, &options); err != nil {
+		t.Fatalf("failed to unmarshal option response data: %v", err)
+	}
+	keys := make(map[string]string, len(options))
+	for _, option := range options {
+		keys[option.Key] = option.Value
+	}
+	if _, ok := keys["recall_campaign_setting.smtp_token"]; ok {
+		t.Fatalf("expected activity SMTP token option to be omitted from GET response")
+	}
+	if _, ok := keys["legacy_token"]; ok {
+		t.Fatalf("expected lowercase _token option to be omitted from GET response")
+	}
+	if _, ok := keys["WorkerValidKey"]; ok {
+		t.Fatalf("expected existing Key suffix redaction to remain")
+	}
+	if _, ok := keys["StripeWebhookSecret"]; ok {
+		t.Fatalf("expected existing Secret suffix redaction to remain")
+	}
+	if keys["VisibleOption"] != "visible" {
+		t.Fatalf("expected unrelated visible option to remain visible")
+	}
+}
+
 func TestUpdateOptionRejectsRetiredInviteRewardUnlockDelay(t *testing.T) {
 	db := setupOptionControllerTestDB(t)
 	originalDelay := common.InviteRewardUnlockDelaySeconds
