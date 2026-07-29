@@ -87,6 +87,25 @@ func TestCreateBytePlusAssetRejectsInvalidBodyWithOpenAIEnvelope(t *testing.T) {
 	requireBytePlusAssetPublicBody(t, recorder.Body.String())
 }
 
+func TestCreateBytePlusAssetMapsNilServiceResponseToStorageError(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+
+	originalCreate := createBytePlusAsset
+	t.Cleanup(func() { createBytePlusAsset = originalCreate })
+	createBytePlusAsset = func(context.Context, int, string, string, int, dto.BytePlusAssetCreateRequest) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
+		return nil, nil
+	}
+
+	ctx, recorder := newBytePlusAssetJSONContext(http.MethodPost, "/v1/assets", `{"url":"https://cdn.example.com/public.png","asset_type":"Image"}`)
+	setBytePlusAssetTokenContext(ctx)
+	CreateBytePlusAsset(ctx)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+	requireBytePlusAssetError(t, recorder.Body.Bytes(), "asset_storage_error", "Asset storage error, please try again later")
+	requireBytePlusAssetPublicBody(t, recorder.Body.String())
+}
+
 func TestGetBytePlusAssetUsesPathIDAndAuthenticatedUser(t *testing.T) {
 	require.NoError(t, backendI18n.Init())
 	gin.SetMode(gin.TestMode)
@@ -123,6 +142,26 @@ func TestGetBytePlusAssetUsesPathIDAndAuthenticatedUser(t *testing.T) {
 	require.Equal(t, "asset", response.Object)
 	require.Equal(t, "Video", response.AssetType)
 	require.Equal(t, model.BytePlusAssetStatusActive, response.Status)
+}
+
+func TestGetBytePlusAssetMapsNilServiceResponseToStorageError(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+
+	originalGet := getBytePlusAsset
+	t.Cleanup(func() { getBytePlusAsset = originalGet })
+	getBytePlusAsset = func(context.Context, int, string) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
+		return nil, nil
+	}
+
+	ctx, recorder := newBytePlusAssetJSONContext(http.MethodGet, "/v1/assets/ast_1234567890abcdefABCDEF1234567890", "")
+	ctx.Params = gin.Params{{Key: "asset_id", Value: "ast_1234567890abcdefABCDEF1234567890"}}
+	setBytePlusAssetTokenContext(ctx)
+	GetBytePlusAsset(ctx)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+	requireBytePlusAssetError(t, recorder.Body.Bytes(), "asset_storage_error", "Asset storage error, please try again later")
+	requireBytePlusAssetPublicBody(t, recorder.Body.String())
 }
 
 func TestGetBytePlusAssetMapsServiceErrorToI18nOpenAIEnvelopeWithoutLeaks(t *testing.T) {

@@ -45,6 +45,10 @@ func CreateBytePlusAsset(c *gin.Context) {
 		writeBytePlusAssetError(c, apiErr)
 		return
 	}
+	if response == nil {
+		writeBytePlusAssetError(c, nil)
+		return
+	}
 	c.JSON(http.StatusOK, response)
 }
 
@@ -58,6 +62,10 @@ func GetBytePlusAsset(c *gin.Context) {
 	response, apiErr := getBytePlusAsset(c.Request.Context(), common.GetContextKeyInt(c, constant.ContextKeyUserId), assetID)
 	if apiErr != nil {
 		writeBytePlusAssetError(c, apiErr)
+		return
+	}
+	if response == nil {
+		writeBytePlusAssetError(c, nil)
 		return
 	}
 	c.JSON(http.StatusOK, response)
