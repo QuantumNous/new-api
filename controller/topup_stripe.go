@@ -391,6 +391,22 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
+	service.RecordRecallClaimAttribution(c.Request.Context(), id, req.RecallClaim)
+	resolvedRecallOffer, err := service.GetRecallRuntime().Claims.ResolveBestRecallOffer(
+		c.Request.Context(),
+		id,
+		service.RecallPurchaseKindTopUp,
+		checkout.PriceId,
+		checkout.PaymentCurrency,
+		checkout.AmountMinor*checkout.Quantity,
+	)
+	if err != nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe top-up recall offer resolution failed user_id=%d price_id=%s error=%q", id, checkout.PriceId, err.Error()))
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable)})
+		return
+	}
+	recallDiscount := service.RecallCheckoutDiscountFromResolvedOffer(resolvedRecallOffer)
+
 	var invoiceFields model.InvoiceProfileFields
 	var invoiceRequested bool
 	if req.InvoiceRequested {
@@ -497,27 +513,6 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	// it configured we silently keep the hosted redirect so payment never breaks.
 	embedded := strings.EqualFold(strings.TrimSpace(req.UIMode), "embedded") &&
 		strings.TrimSpace(setting.StripePublishableKey) != ""
-
-	var recallDiscount *service.RecallCheckoutDiscount
-	if strings.TrimSpace(req.RecallClaim) != "" {
-		recallDiscount, err = service.GetRecallRuntime().Claims.BuildCheckoutDiscount(
-			c.Request.Context(),
-			id,
-			req.RecallClaim,
-			service.RecallPurchaseKindTopUp,
-			checkout.PriceId,
-		)
-		if err != nil {
-			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe top-up recall claim rejected user_id=%d trade_no=%s price_id=%s error=%q", id, referenceId, checkout.PriceId, err.Error()))
-			topUp.Status = common.TopUpStatusFailed
-			_ = topUp.Update()
-			if invoiceRequested {
-				_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
-			}
-			c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable)})
-			return
-		}
-	}
 
 	checkoutSession, err := genStripeLink(referenceId, checkoutCustomerId, checkoutEmail, checkout, req.SuccessURL, req.CancelURL, invoiceRequested, req.SaveCard, embedded, stripeCheckoutSubmitMessage(normalizedAmount, bonusAmount), recallDiscount)
 	if err != nil {
@@ -2618,6 +2613,7 @@ func genStripeLink(referenceId string, customerId string, email string, checkout
 	}
 
 	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, checkout.PaymentCurrency, successURL, cancelURL, invoiceRequested, saveCard, embedded, submitMessage, recall)
+	params.SetIdempotencyKey("topup-stripe:" + strings.TrimSpace(referenceId))
 
 	result, err := session.New(params)
 	if err != nil {

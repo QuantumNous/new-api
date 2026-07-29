@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,27 @@ type recallControllerStripeFake struct {
 	createPromotionCode int
 	getCoupon           int
 	getPrice            int
+}
+
+type recallControllerEmailTranslator struct {
+	calls int
+}
+
+func (f *recallControllerEmailTranslator) Translate(_ context.Context, stages []service.RecallEmailStage) (map[int]map[string]service.RecallEmailTemplate, error) {
+	f.calls++
+	result := make(map[int]map[string]service.RecallEmailTemplate, len(stages))
+	for _, stage := range stages {
+		english := stage.Templates["en"]
+		translations := make(map[string]service.RecallEmailTemplate, 7)
+		for _, language := range []string{"zh", "es", "fr", "pt", "ru", "ja", "vi"} {
+			translations[language] = service.RecallEmailTemplate{
+				Subject:  language + ":" + english.Subject,
+				BodyText: language + ":" + english.BodyText,
+			}
+		}
+		result[stage.StageNo] = translations
+	}
+	return result, nil
 }
 
 func (f *recallControllerStripeFake) CreateCoupon(_ context.Context, _ *stripe.CouponParams) (*stripe.Coupon, error) {
@@ -74,6 +96,10 @@ func (f *recallControllerStripeFake) GetPromotionCode(_ context.Context, id stri
 	return &stripe.PromotionCode{ID: id}, nil
 }
 
+func (f *recallControllerStripeFake) UpdatePromotionCode(_ context.Context, id string, _ *stripe.PromotionCodeParams) (*stripe.PromotionCode, error) {
+	return &stripe.PromotionCode{ID: id}, nil
+}
+
 func (f *recallControllerStripeFake) GetPrice(_ context.Context, id string) (*stripe.Price, error) {
 	f.getPrice++
 	return &stripe.Price{
@@ -89,10 +115,11 @@ func (f *recallControllerStripeFake) GetCheckoutSession(_ context.Context, id st
 }
 
 type recallControllerHarness struct {
-	db        *gorm.DB
-	runtime   *service.RecallRuntime
-	stripe    *recallControllerStripeFake
-	sendCount int
+	db         *gorm.DB
+	runtime    *service.RecallRuntime
+	stripe     *recallControllerStripeFake
+	translator *recallControllerEmailTranslator
+	sendCount  int
 }
 
 func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
@@ -121,6 +148,7 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 	setting.StripePriceId20 = ""
 	setting.StripePriceId200 = ""
 	require.NoError(t, db.AutoMigrate(
+		&model.Option{},
 		&model.User{},
 		&model.TopUp{},
 		&model.SubscriptionOrder{},
@@ -131,19 +159,21 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 		&model.RecallRecipient{},
 		&model.RecallMessage{},
 		&model.RecallEvent{},
+		&model.RecallEmailQuotaWindow{},
 	))
 
 	setRecallControllerEnabled(t, true)
 	stripeFake := &recallControllerStripeFake{}
 	claims := service.NewRecallClaimService()
 	audience := service.NewRecallAudienceSelector()
-	harness := &recallControllerHarness{db: db, stripe: stripeFake}
+	translator := &recallControllerEmailTranslator{}
+	harness := &recallControllerHarness{db: db, stripe: stripeFake, translator: translator}
 	stripeService := service.NewRecallStripeService(stripeFake)
 	harness.runtime = &service.RecallRuntime{
-		Campaigns:   service.NewRecallCampaignService(audience, stripeService),
+		Campaigns:   service.NewRecallCampaignServiceWithTranslator(audience, stripeService, translator),
 		Claims:      claims,
 		Recipients:  service.NewRecallRecipientWorker(stripeService, claims, "controller-test"),
-		Emails:      service.NewRecallEmailWorker(func(_, _, _, _ string) error { harness.sendCount++; return nil }, audience, claims, "controller-test"),
+		Emails:      service.NewRecallEmailWorker(func(_, _, _, _, _ string) error { harness.sendCount++; return nil }, audience, claims, "controller-test"),
 		Attribution: service.NewRecallAttributionService(stripeFake),
 	}
 	originalProvider := recallRuntimeProvider
@@ -170,15 +200,17 @@ func setRecallControllerEnabled(t *testing.T, enabled bool) {
 		value = "true"
 	}
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"recall_campaign_setting.enabled":      value,
-		"recall_campaign_setting.batch_size":   "100",
-		"recall_campaign_setting.tick_seconds": "30",
+		"recall_campaign_setting.enabled":            value,
+		"recall_campaign_setting.batch_size":         "100",
+		"recall_campaign_setting.tick_seconds":       "30",
+		"recall_campaign_setting.email_hourly_limit": "100",
 	}))
 	t.Cleanup(func() {
 		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-			"recall_campaign_setting.enabled":      "false",
-			"recall_campaign_setting.batch_size":   "100",
-			"recall_campaign_setting.tick_seconds": "30",
+			"recall_campaign_setting.enabled":            "false",
+			"recall_campaign_setting.batch_size":         "100",
+			"recall_campaign_setting.tick_seconds":       "30",
+			"recall_campaign_setting.email_hourly_limit": "100",
 		}))
 	})
 }
@@ -256,6 +288,98 @@ func requireRecallFailure(t *testing.T, recorder *httptest.ResponseRecorder, con
 	payload := decodeRecallEnvelope(t, recorder)
 	require.Equal(t, false, payload["success"])
 	require.Contains(t, payload["message"], contains)
+}
+
+func TestRecallEmailSenderGetReturnsRedactedStatus(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	setRecallControllerSenderOptions(t, "system@example.com", "smtp-login@example.com", "Campaigns@Example.com,alerts@example.com", "")
+
+	recorder := invokeRecallHandler(t, GetRecallEmailSender, http.MethodGet, "/", nil, 7, nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	data := payload["data"].(map[string]any)
+	require.Equal(t, "", data["configured_email_from"])
+	require.Equal(t, "system@example.com", data["effective_email_from"])
+	require.Equal(t, true, data["uses_default"])
+	require.NotContains(t, recorder.Body.String(), "smtp-login@example.com")
+	require.NotContains(t, strings.ToLower(recorder.Body.String()), "token")
+	require.NotContains(t, strings.ToLower(recorder.Body.String()), "server")
+
+	require.NoError(t, harness.db.First(&model.Option{Key: "SMTPFrom"}, "key = ?", "SMTPFrom").Error)
+}
+
+func TestRecallEmailSenderPutPersistsCanonicalAliasAndReturnsStatus(t *testing.T) {
+	setupRecallControllerHarness(t)
+	setRecallControllerSenderOptions(t, "system@example.com", "smtp-login@example.com", "Campaigns@Example.com,alerts@example.com", "")
+
+	recorder := invokeRecallHandler(t, UpdateRecallEmailSender, http.MethodPut, "/", []byte(`{"email_from":" campaigns@example.com "}`), 7, nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	data := payload["data"].(map[string]any)
+	require.Equal(t, "Campaigns@Example.com", data["configured_email_from"])
+	require.Equal(t, "Campaigns@Example.com", data["effective_email_from"])
+	require.Equal(t, false, data["uses_default"])
+	require.Equal(t, "Campaigns@Example.com", operation_setting.GetRecallCampaignSetting().EmailFrom)
+}
+
+func TestRecallEmailSenderPutRejectsInvalidRequestAndUnlistedSender(t *testing.T) {
+	setupRecallControllerHarness(t)
+	setRecallControllerSenderOptions(t, "system@example.com", "smtp-login@example.com", "Campaigns@Example.com", "")
+
+	invalidJSON := invokeRecallHandler(t, UpdateRecallEmailSender, http.MethodPut, "/", []byte(`not-json`), 7, nil)
+	require.Equal(t, http.StatusBadRequest, invalidJSON.Code)
+	require.Contains(t, invalidJSON.Body.String(), "invalid request")
+
+	unlisted := invokeRecallHandler(t, UpdateRecallEmailSender, http.MethodPut, "/", []byte(`{"email_from":"missing@example.com"}`), 7, nil)
+	require.Equal(t, http.StatusOK, unlisted.Code)
+	requireRecallFailure(t, unlisted, "configured SMTP aliases")
+
+	defaultAddress := invokeRecallHandler(t, UpdateRecallEmailSender, http.MethodPut, "/", []byte(`{"email_from":"system@example.com"}`), 7, nil)
+	require.Equal(t, http.StatusOK, defaultAddress.Code)
+	requireRecallFailure(t, defaultAddress, "configured SMTP aliases")
+	require.Empty(t, operation_setting.GetRecallCampaignSetting().EmailFrom)
+}
+
+func setRecallControllerSenderOptions(t *testing.T, smtpFrom string, smtpAccount string, aliases string, configured string) {
+	t.Helper()
+	originalFrom := common.SMTPFrom
+	originalAccount := common.SMTPAccount
+	originalAliases := common.SMTPFromAliases
+	originalOptionMap := common.OptionMap
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
+	t.Cleanup(func() {
+		common.SMTPFrom = originalFrom
+		common.SMTPAccount = originalAccount
+		common.SMTPFromAliases = originalAliases
+		common.OptionMap = originalOptionMap
+	})
+	common.SMTPFrom = smtpFrom
+	common.SMTPAccount = smtpAccount
+	common.SMTPFromAliases = aliases
+	common.OptionMap["SMTPFrom"] = smtpFrom
+	common.OptionMap["SMTPAccount"] = smtpAccount
+	common.OptionMap["SMTPFromAliases"] = aliases
+	for key, value := range map[string]string{
+		"SMTPFrom":                           smtpFrom,
+		"SMTPAccount":                        smtpAccount,
+		"SMTPFromAliases":                    aliases,
+		"recall_campaign_setting.email_from": configured,
+	} {
+		require.NoError(t, model.DB.Save(&model.Option{Key: key, Value: value}).Error)
+	}
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"recall_campaign_setting.enabled":            "true",
+		"recall_campaign_setting.batch_size":         "100",
+		"recall_campaign_setting.tick_seconds":       "30",
+		"recall_campaign_setting.email_hourly_limit": "100",
+		"recall_campaign_setting.email_from":         configured,
+	}))
 }
 
 func seedRecallControllerCampaign(t *testing.T, harness *recallControllerHarness, status string) *model.RecallCampaign {
@@ -619,6 +743,99 @@ func TestRecallCampaignCreateAndUpdateRequireJSONAndAdminActor(t *testing.T) {
 	require.Equal(t, draft.Name, campaign.Name)
 }
 
+func TestRecallEmailGenerationHandlerUpdatesAllTranslations(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
+	detail, err := harness.runtime.Campaigns.GetDetail(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	detail.Draft.Emails[0].Templates["en"] = service.RecallEmailTemplate{Subject: "Generated English", BodyText: "Generated body"}
+	beforeCalls := harness.translator.calls
+	body := recallControllerJSON(t, service.RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         detail.Draft.Emails,
+	})
+
+	recorder := invokeRecallHandler(t, GenerateRecallEmailTranslations, http.MethodPost, "/", body, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	require.Equal(t, beforeCalls+1, harness.translator.calls)
+	data := payload["data"].(map[string]any)
+	require.Equal(t, float64(campaign.ConfigRevision+1), data["config_revision"])
+	emails := data["email_sequence"].([]any)
+	templates := emails[0].(map[string]any)["templates"].(map[string]any)
+	require.Equal(t, "fr:Generated English", templates["fr"].(map[string]any)["subject"])
+}
+
+func TestRecallEmailGenerationActivationReturnsStructuredBlockers(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	draft := recallControllerDraft()
+	draft.DeferLocalization = true
+	campaign, err := harness.runtime.Campaigns.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+
+	recorder := invokeRecallHandler(t, ActivateRecallCampaign, http.MethodPost, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, false, payload["success"])
+	data := payload["data"].(map[string]any)
+	blockers := data["blockers"].([]any)
+	require.NotEmpty(t, blockers)
+	first := blockers[0].(map[string]any)
+	require.Equal(t, float64(1), first["stage_no"])
+	require.Equal(t, "zh", first["locale"])
+	require.Equal(t, "missing", first["reason"])
+}
+
+func TestRecallEmailQuotaStatusRouteReturnsActivityOnlyWindow(t *testing.T) {
+	setupRecallControllerHarness(t)
+	_, reserved, err := model.ReserveRecallEmailQuotaWithContext(context.Background(), 100)
+	require.NoError(t, err)
+	require.True(t, reserved)
+	_, reserved, err = model.ReserveRecallEmailQuotaWithContext(context.Background(), 100)
+	require.NoError(t, err)
+	require.True(t, reserved)
+
+	recorder := invokeRecallHandler(t, GetRecallEmailQuotaStatus, http.MethodGet, "/", nil, 7, nil)
+
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	data := payload["data"].(map[string]any)
+	require.Equal(t, float64(100), data["limit"])
+	require.Equal(t, float64(2), data["used"])
+	require.Equal(t, float64(98), data["remaining"])
+	require.Equal(t, false, data["exhausted"])
+	require.NotZero(t, data["window_started_at"])
+	require.NotZero(t, data["resets_at"])
+	require.Len(t, data, 6)
+}
+
+func TestUpdateRecallEmailQuotaLimitPersistsActivityScopedSetting(t *testing.T) {
+	setupRecallControllerHarness(t)
+	common.OptionMapRWMutex.Lock()
+	previousOptionMap := common.OptionMap
+	common.OptionMap = make(map[string]string)
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previousOptionMap
+		common.OptionMapRWMutex.Unlock()
+	})
+	body := recallControllerJSON(t, map[string]any{"limit": 250})
+
+	recorder := invokeRecallHandler(t, UpdateRecallEmailQuotaLimit, http.MethodPut, "/", body, 7, nil)
+
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	data := payload["data"].(map[string]any)
+	require.Equal(t, float64(250), data["limit"])
+	require.Equal(t, 250, operation_setting.GetRecallCampaignSetting().EmailHourlyLimit)
+	var option model.Option
+	require.NoError(t, model.DB.Where("key = ?", "recall_campaign_setting.email_hourly_limit").First(&option).Error)
+	require.Equal(t, "250", option.Value)
+}
+
 func TestRecallCampaignPreviewReturnsAudienceAndStripeWithoutCreateOrSend(t *testing.T) {
 	harness := setupRecallControllerHarness(t)
 	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
@@ -768,6 +985,129 @@ func TestRecallClaimUsesAuthenticatedUserAndRejectsAnotherUser(t *testing.T) {
 	require.NotContains(t, correct.Body.String(), claim)
 	require.NotContains(t, correct.Body.String(), claimHash)
 	require.NotContains(t, correct.Body.String(), "CLAIMSECRET99")
+}
+
+func TestListRecallOffersReturnsCurrentUserSafeFieldsAndNoStore(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	owner := seedRecallControllerUser(t, harness, 101, "offer-owner")
+	other := seedRecallControllerUser(t, harness, 102, "offer-other")
+	ownerPromotionID := "promo_owner_secret"
+	otherPromotionID := "promo_other_secret"
+	ownerClaimHash := strings.Repeat("a", 64)
+	ownerRecipient := model.RecallRecipient{
+		CampaignId:            campaign.Id,
+		UserId:                owner.Id,
+		EligibilitySnapshot:   `{"secret":"eligibility"}`,
+		EmailSnapshot:         owner.Email,
+		LanguageSnapshot:      "en",
+		State:                 model.RecallRecipientContacting,
+		StripeCustomerId:      "cus_owner_secret",
+		StripePromotionCodeId: &ownerPromotionID,
+		PromotionCode:         "OWNERSECRET99",
+		PromotionExpiresAt:    time.Now().Add(time.Hour).Unix(),
+		PromotionIssuedAt:     recallControllerBoundary + 20,
+		ClaimTokenHash:        &ownerClaimHash,
+	}
+	otherRecipient := model.RecallRecipient{
+		CampaignId:            campaign.Id,
+		UserId:                other.Id,
+		EligibilitySnapshot:   `{"secret":"other"}`,
+		EmailSnapshot:         other.Email,
+		LanguageSnapshot:      "en",
+		State:                 model.RecallRecipientContacting,
+		StripeCustomerId:      "cus_other_secret",
+		StripePromotionCodeId: &otherPromotionID,
+		PromotionCode:         "OTHERSECRET99",
+		PromotionExpiresAt:    time.Now().Add(time.Hour).Unix(),
+		PromotionIssuedAt:     recallControllerBoundary + 10,
+	}
+	require.NoError(t, harness.db.Create(&[]model.RecallRecipient{ownerRecipient, otherRecipient}).Error)
+
+	recorder := invokeRecallHandler(t, ListRecallOffers, http.MethodGet, "/", nil, owner.Id, nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	offers := payload["data"].([]any)
+	require.Len(t, offers, 1)
+	offer := offers[0].(map[string]any)
+	require.Equal(t, float64(campaign.Id), offer["campaign_id"])
+	require.Equal(t, campaign.Name, offer["campaign_name"])
+	require.Equal(t, model.MaskPromotionCode("OWNERSECRET99"), offer["promotion_code_masked"])
+	require.NotContains(t, recorder.Body.String(), "promo_owner_secret")
+	require.NotContains(t, recorder.Body.String(), "OWNERSECRET99")
+	require.NotContains(t, recorder.Body.String(), ownerClaimHash)
+	require.NotContains(t, strings.ToLower(recorder.Body.String()), "claim_token")
+	require.NotContains(t, strings.ToLower(recorder.Body.String()), "claim_token_hash")
+	require.NotContains(t, strings.ToLower(recorder.Body.String()), "promotion_code_id")
+	require.NotContains(t, strings.ToLower(recorder.Body.String()), "stripe_promotion")
+	require.NotContains(t, recorder.Body.String(), "cus_owner_secret")
+	require.NotContains(t, recorder.Body.String(), owner.Email)
+	require.NotContains(t, recorder.Body.String(), "eligibility")
+	require.NotContains(t, recorder.Body.String(), "promo_other_secret")
+	require.NotContains(t, recorder.Body.String(), "OTHERSECRET99")
+	require.NotContains(t, recorder.Body.String(), other.Email)
+}
+
+func TestListRecallOffersReturnsEmptyArrayWhenDisabledOrNoCandidates(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	user := seedRecallControllerUser(t, harness, 103, "offer-empty")
+
+	noCandidates := invokeRecallHandler(t, ListRecallOffers, http.MethodGet, "/", nil, user.Id, nil)
+	require.Equal(t, http.StatusOK, noCandidates.Code)
+	require.Equal(t, "no-store", noCandidates.Header().Get("Cache-Control"))
+	payload := decodeRecallEnvelope(t, noCandidates)
+	require.Equal(t, true, payload["success"])
+	require.Empty(t, payload["data"].([]any))
+	require.Contains(t, noCandidates.Body.String(), `"data":[]`)
+
+	setRecallControllerEnabled(t, false)
+	disabled := invokeRecallHandler(t, ListRecallOffers, http.MethodGet, "/", nil, user.Id, nil)
+	require.Equal(t, http.StatusOK, disabled.Code)
+	require.Equal(t, "no-store", disabled.Header().Get("Cache-Control"))
+	payload = decodeRecallEnvelope(t, disabled)
+	require.Equal(t, true, payload["success"])
+	require.Empty(t, payload["data"].([]any))
+	require.Contains(t, disabled.Body.String(), `"data":[]`)
+}
+
+func TestListRecallOffersReturnsApiErrorWithoutPartialCandidatesOnDBError(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	user := seedRecallControllerUser(t, harness, 104, "offer-error")
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	rawProducts, err := common.Marshal(service.RecallProductScope{SubscriptionPriceIDs: []string{"price_plan_error"}})
+	require.NoError(t, err)
+	require.NoError(t, harness.db.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Update("product_scope", string(rawProducts)).Error)
+	promotionID := "promo_error_secret"
+	claimHash := strings.Repeat("b", 64)
+	recipient := model.RecallRecipient{
+		CampaignId:            campaign.Id,
+		UserId:                user.Id,
+		EligibilitySnapshot:   `{}`,
+		EmailSnapshot:         user.Email,
+		LanguageSnapshot:      "en",
+		State:                 model.RecallRecipientContacting,
+		StripePromotionCodeId: &promotionID,
+		PromotionCode:         "ERRORSECRET99",
+		PromotionExpiresAt:    time.Now().Add(time.Hour).Unix(),
+		ClaimTokenHash:        &claimHash,
+	}
+	require.NoError(t, harness.db.Create(&recipient).Error)
+	require.NoError(t, harness.db.Migrator().DropTable(&model.SubscriptionPlan{}))
+
+	recorder := invokeRecallHandler(t, ListRecallOffers, http.MethodGet, "/", nil, user.Id, nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, false, payload["success"])
+	require.NotContains(t, recorder.Body.String(), "ERRORSECRET99")
+	require.NotContains(t, recorder.Body.String(), promotionID)
+	require.NotContains(t, recorder.Body.String(), claimHash)
+	require.NotContains(t, recorder.Body.String(), model.MaskPromotionCode("ERRORSECRET99"))
+	require.NotContains(t, strings.ToLower(recorder.Body.String()), `"data"`)
 }
 
 func TestRecallUnsubscribeRequiresSignedTokenAndImmediatelySuppressesMail(t *testing.T) {
@@ -995,11 +1335,12 @@ func TestRecallExportMasksCodesAndSeparatesCurrencyAmounts(t *testing.T) {
 	rows, err := csv.NewReader(strings.NewReader(recorder.Body.String())).ReadAll()
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
-	require.Equal(t, []string{"recipient_id", "user_id", "state", "promotion_code_masked", "conversion_kind", "currency", "conversion_amount", "discount_amount", "converted_at"}, rows[0])
-	require.Equal(t, "USD", rows[1][5])
-	require.Equal(t, "1250", rows[1][6])
-	require.Equal(t, "250", rows[1][7])
-	require.Equal(t, "EUR", rows[2][5])
-	require.Equal(t, "900", rows[2][6])
-	require.Equal(t, "100", rows[2][7])
+	require.Equal(t, []string{"campaign_type", "recipient_id", "user_id", "state", "promotion_code_masked", "conversion_kind", "currency", "conversion_amount", "discount_amount", "converted_at"}, rows[0])
+	require.Equal(t, model.RecallCampaignTypePromotion, rows[1][0])
+	require.Equal(t, "USD", rows[1][6])
+	require.Equal(t, "1250", rows[1][7])
+	require.Equal(t, "250", rows[1][8])
+	require.Equal(t, "EUR", rows[2][6])
+	require.Equal(t, "900", rows[2][7])
+	require.Equal(t, "100", rows[2][8])
 }

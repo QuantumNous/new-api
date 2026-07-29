@@ -556,19 +556,31 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 		}
 	}
 	if checkoutInput != nil {
-		if cmd.RecallClaim != "" && checkoutInput.RecallDiscount == nil {
-			discount, err := GetRecallRuntime().Claims.BuildCheckoutDiscount(
+		if checkoutInput.DiscountKind == SubscriptionDiscountKindRecall {
+			RecordRecallClaimAttribution(context.Background(), cmd.UserID, cmd.RecallClaim)
+			checkoutInput.RecallDiscount, err = resolveOrReuseStripeSubscriptionRecallDiscount(
 				context.Background(),
-				cmd.UserID,
-				cmd.RecallClaim,
-				RecallPurchaseKindSubscription,
-				checkoutInput.PriceID,
+				checkoutInput.TradeNo,
+				func() (*RecallCheckoutDiscount, error) {
+					offer, resolveErr := GetRecallRuntime().Claims.ResolveBestRecallOffer(
+						context.Background(),
+						cmd.UserID,
+						RecallPurchaseKindSubscription,
+						checkoutInput.PriceID,
+						checkoutInput.Currency,
+						checkoutInput.SubtotalMinor,
+					)
+					if resolveErr != nil {
+						common.SysLog(fmt.Sprintf("Stripe subscription Recall discount resolution failed user_id=%d trade_no=%s price_id=%s error=%q", cmd.UserID, checkoutInput.TradeNo, checkoutInput.PriceID, resolveErr.Error()))
+						return nil, resolveErr
+					}
+					return RecallCheckoutDiscountFromResolvedOffer(offer), nil
+				},
 			)
 			if err != nil {
 				_ = TerminatePendingStripePurchase(context.Background(), checkoutInput.TradeNo, model.SubscriptionChangeIntentStatusFailed)
 				return nil, err
 			}
-			checkoutInput.RecallDiscount = discount
 		}
 		checkout, err := stripeSubscriptionCheckoutCreator(context.Background(), *checkoutInput)
 		if err != nil {
@@ -642,6 +654,83 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 	}
 	applyBalanceOnePeriodSideEffects(balanceEffects)
 	return result, nil
+}
+
+func resolveOrReuseStripeSubscriptionRecallDiscount(
+	ctx context.Context,
+	tradeNo string,
+	resolve func() (*RecallCheckoutDiscount, error),
+) (*RecallCheckoutDiscount, error) {
+	if ctx == nil {
+		return nil, errors.New("Stripe subscription Recall discount context is nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	tradeNo = strings.TrimSpace(tradeNo)
+	if tradeNo == "" {
+		return nil, errors.New("Stripe subscription Recall discount trade number is required")
+	}
+	if resolve == nil {
+		return nil, errors.New("Stripe subscription Recall discount resolver is required")
+	}
+
+	load := func() (model.SubscriptionOrder, error) {
+		var order model.SubscriptionOrder
+		err := model.DB.WithContext(ctx).Where("trade_no = ?", tradeNo).First(&order).Error
+		return order, err
+	}
+	stored, err := load()
+	if err != nil {
+		return nil, err
+	}
+	if stored.RecallOfferResolved {
+		return recallCheckoutDiscountFromSubscriptionOrder(stored), nil
+	}
+
+	resolved, err := resolve()
+	if err != nil {
+		return nil, err
+	}
+	updates := map[string]interface{}{
+		"recall_offer_resolved":        true,
+		"recall_campaign_id":           int64(0),
+		"recall_recipient_id":          int64(0),
+		"recall_promotion_code_id":     "",
+		"recall_discount_amount_minor": int64(0),
+	}
+	if resolved != nil {
+		updates["recall_campaign_id"] = resolved.CampaignID
+		updates["recall_recipient_id"] = resolved.RecipientID
+		updates["recall_promotion_code_id"] = strings.TrimSpace(resolved.PromotionCodeID)
+		updates["recall_discount_amount_minor"] = resolved.DiscountAmountMinor
+	}
+	result := model.DB.WithContext(ctx).Model(&model.SubscriptionOrder{}).
+		Where("trade_no = ? AND recall_offer_resolved = ?", tradeNo, false).
+		Updates(updates)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	stored, err = load()
+	if err != nil {
+		return nil, err
+	}
+	if !stored.RecallOfferResolved {
+		return nil, errors.New("Stripe subscription Recall discount decision was not persisted")
+	}
+	return recallCheckoutDiscountFromSubscriptionOrder(stored), nil
+}
+
+func recallCheckoutDiscountFromSubscriptionOrder(order model.SubscriptionOrder) *RecallCheckoutDiscount {
+	if !order.RecallOfferResolved || strings.TrimSpace(order.RecallPromotionCodeId) == "" {
+		return nil
+	}
+	return &RecallCheckoutDiscount{
+		PromotionCodeID:     strings.TrimSpace(order.RecallPromotionCodeId),
+		CampaignID:          order.RecallCampaignId,
+		RecipientID:         order.RecallRecipientId,
+		DiscountAmountMinor: order.RecallDiscountAmountMinor,
+	}
 }
 
 func (cmd *ChangePlanCommand) normalize() {
@@ -1400,6 +1489,11 @@ func stripeSubscriptionCheckoutInputFromOrder(order *model.SubscriptionOrder, us
 		return nil, errors.New("Stripe checkout order snapshot is invalid")
 	}
 	priceID := strings.TrimSpace(snapshot.Snapshot.StripePriceID)
+	currency := strings.ToUpper(strings.TrimSpace(snapshot.Snapshot.Currency))
+	subtotalMinor, err := stripeMinorUnitAmountForSubscription(snapshot.Snapshot.PriceAmount, currency)
+	if err != nil {
+		return nil, err
+	}
 	input := &StripeSubscriptionCheckoutInput{
 		TradeNo:                strings.TrimSpace(order.TradeNo),
 		UserID:                 user.Id,
@@ -1409,6 +1503,8 @@ func stripeSubscriptionCheckoutInputFromOrder(order *model.SubscriptionOrder, us
 		CustomerID:             strings.TrimSpace(user.StripeCustomer),
 		Email:                  strings.TrimSpace(user.Email),
 		PriceID:                priceID,
+		Currency:               currency,
+		SubtotalMinor:          subtotalMinor,
 		IdempotencyKey:         strings.TrimSpace(intent.ProviderIdempotencyKey),
 		Presentation:           presentation,
 		DiscountKind:           strings.TrimSpace(order.DiscountKind),

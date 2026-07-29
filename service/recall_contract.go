@@ -10,12 +10,15 @@ import (
 const (
 	RecallPurchaseKindTopUp        = "topup"
 	RecallPurchaseKindSubscription = "subscription"
+	RecallPromotionExpiryRelative  = "relative"
+	RecallPromotionExpiryFixed     = "fixed"
 )
 
 type RecallCheckoutDiscount struct {
-	PromotionCodeID string `json:"promotion_code_id"`
-	CampaignID      int64  `json:"campaign_id"`
-	RecipientID     int64  `json:"recipient_id"`
+	PromotionCodeID     string `json:"promotion_code_id"`
+	CampaignID          int64  `json:"campaign_id"`
+	RecipientID         int64  `json:"recipient_id"`
+	DiscountAmountMinor int64  `json:"discount_amount_minor"`
 }
 
 type RecallPurchaseDiscount struct {
@@ -47,10 +50,13 @@ type RecallCampaignDraft struct {
 	ExistingCouponID      string               `json:"existing_coupon_id"`
 	Discount              RecallDiscountConfig `json:"discount_config"`
 	Products              RecallProductScope   `json:"product_scope"`
+	PromotionExpiryMode   string               `json:"promotion_expiry_mode"`
+	PromotionExpiresAt    int64                `json:"promotion_expires_at"`
 	PromotionValidSeconds int64                `json:"promotion_valid_seconds"`
 	EnrollmentLimit       int                  `json:"enrollment_limit"`
 	WorkerConcurrency     int                  `json:"worker_concurrency"`
 	Emails                []RecallEmailStage   `json:"email_sequence"`
+	DeferLocalization     bool                 `json:"defer_localization,omitempty"`
 }
 
 type RecallAudienceConfig struct {
@@ -83,14 +89,20 @@ type RecallScheduleConfig struct {
 }
 
 type RecallDiscountConfig struct {
-	Type                  string           `json:"type"`
-	PercentOff            float64          `json:"percent_off"`
-	AmountOff             int64            `json:"amount_off"`
-	Currency              string           `json:"currency"`
-	CurrencyOptions       map[string]int64 `json:"currency_options"`
-	MinimumAmount         int64            `json:"minimum_amount"`
-	MinimumAmountCurrency string           `json:"minimum_amount_currency"`
-	CouponRedeemBy        int64            `json:"coupon_redeem_by"`
+	Type                  string                    `json:"type"`
+	PercentOff            float64                   `json:"percent_off"`
+	AmountOff             int64                     `json:"amount_off"`
+	Currency              string                    `json:"currency"`
+	CurrencyOptions       map[string]int64          `json:"currency_options"`
+	MinimumSpend          *RecallMinimumSpendConfig `json:"minimum_spend,omitempty"`
+	MinimumAmount         int64                     `json:"minimum_amount"`
+	MinimumAmountCurrency string                    `json:"minimum_amount_currency"`
+	CouponRedeemBy        int64                     `json:"coupon_redeem_by"`
+}
+
+type RecallMinimumSpendConfig struct {
+	Enabled bool             `json:"enabled"`
+	Amounts map[string]int64 `json:"amounts"`
 }
 
 type RecallProductScope struct {
@@ -102,10 +114,13 @@ type RecallProductScope struct {
 }
 
 type RecallEmailStage struct {
-	StageNo         int                            `json:"stage_no"`
-	DelaySeconds    int64                          `json:"delay_seconds"`
-	TemplateVersion int                            `json:"template_version"`
-	Templates       map[string]RecallEmailTemplate `json:"templates"`
+	StageNo                  int                            `json:"stage_no"`
+	DelaySeconds             int64                          `json:"delay_seconds"`
+	TemplateVersion          int                            `json:"template_version"`
+	SourceRevision           int                            `json:"source_revision,omitempty"`
+	TranslatedSourceRevision int                            `json:"translated_source_revision,omitempty"`
+	ManualLocales            []string                       `json:"manual_locales,omitempty"`
+	Templates                map[string]RecallEmailTemplate `json:"templates"`
 }
 
 type RecallEmailTemplate struct {
@@ -122,6 +137,35 @@ type RecallEmailPreviewRequest struct {
 type RecallEmailPreviewResponse struct {
 	Subject  string `json:"subject"`
 	BodyHTML string `json:"body_html"`
+}
+
+type RecallEmailGenerationRequest struct {
+	ConfigRevision int64              `json:"config_revision"`
+	Name           string             `json:"name"`
+	Emails         []RecallEmailStage `json:"email_sequence"`
+}
+
+type RecallEmailGenerationResponse struct {
+	ConfigRevision int64              `json:"config_revision"`
+	Emails         []RecallEmailStage `json:"email_sequence"`
+}
+
+type RecallEmailLocalizationBlocker struct {
+	StageNo int    `json:"stage_no"`
+	Locale  string `json:"locale"`
+	Reason  string `json:"reason"`
+}
+
+type RecallActivationBlockedError struct {
+	Blockers []RecallEmailLocalizationBlocker
+}
+
+func (e *RecallActivationBlockedError) Error() string {
+	if e == nil || len(e.Blockers) == 0 {
+		return "recall campaign activation is blocked by email localization"
+	}
+	blocker := e.Blockers[0]
+	return fmt.Sprintf("recall email stage %d language %s translation is %s", blocker.StageNo, blocker.Locale, blocker.Reason)
 }
 
 func PreviewRecallEmail(request RecallEmailPreviewRequest) (RecallEmailPreviewResponse, error) {

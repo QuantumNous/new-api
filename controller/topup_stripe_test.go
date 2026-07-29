@@ -410,6 +410,127 @@ func TestStripeCheckoutSessionRecallPromotionCode(t *testing.T) {
 	require.Equal(t, "84", params.Metadata["recall_recipient_id"])
 }
 
+func TestStripeCheckoutSessionNoClaimAppliesBestAccountRecallOffer(t *testing.T) {
+	backend := setupSubscriptionStripeRecordingBackend(t)
+	setupStripeFulfillmentTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.RecallCampaign{},
+		&model.RecallRecipient{},
+		&model.RecallMessage{},
+		&model.RecallEvent{},
+	))
+	enableRecallCampaignForControllerTest(t)
+
+	originalTopUpPriceIDs := setting.StripeTopUpPriceIds
+	originalDisplayType := operation_setting.GetQuotaDisplayType()
+	originalPriceAmountResolver := stripePriceAmountMinorForCheckoutCurrency
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalAmountOptions := append([]int(nil), paymentSetting.AmountOptions...)
+	setting.StripeTopUpPriceIds = `{"20":"price_topup"}`
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	paymentSetting.AmountOptions = []int{20}
+	stripePriceAmountMinorForCheckoutCurrency = func(string, string) (int64, error) {
+		return 2000, nil
+	}
+	t.Cleanup(func() {
+		setting.StripeTopUpPriceIds = originalTopUpPriceIDs
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalDisplayType
+		paymentSetting.AmountOptions = originalAmountOptions
+		stripePriceAmountMinorForCheckoutCurrency = originalPriceAmountResolver
+	})
+
+	const userID = 720101
+	user := model.User{
+		Id:       userID,
+		Username: "topup_best_offer_user",
+		Email:    "topup-best-offer@example.com",
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, model.DB.Create(&user).Error)
+	weakerCampaign, _ := seedControllerRecallOffer(t, user, "topup weak", service.RecallDiscountConfig{Type: "percent", PercentOff: 10}, "price_topup", "promo_topup_weak", model.RecallRecipientContacting)
+	strongerCampaign, strongerRecipient := seedControllerRecallOffer(t, user, "topup strong", service.RecallDiscountConfig{Type: "percent", PercentOff: 25}, "price_topup", "promo_topup_strong", model.RecallRecipientContacting)
+	require.NotEqual(t, weakerCampaign.Id, strongerCampaign.Id)
+
+	body, err := common.Marshal(StripePayRequest{
+		Amount:         20,
+		PaymentMethod:  model.PaymentMethodStripe,
+		StripeCurrency: "USD",
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/stripe/pay", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", userID)
+
+	RequestStripePay(ctx)
+
+	require.Len(t, backend.params, 1)
+	params := backend.params[0]
+	require.NotNil(t, params.IdempotencyKey)
+	var persisted model.TopUp
+	require.NoError(t, model.DB.Where("user_id = ?", userID).First(&persisted).Error)
+	require.Equal(t, "topup-stripe:"+persisted.TradeNo, *params.IdempotencyKey)
+	require.Len(t, params.Discounts, 1)
+	require.Equal(t, "promo_topup_strong", *params.Discounts[0].PromotionCode)
+	require.Equal(t, fmt.Sprintf("%d", strongerCampaign.Id), params.Metadata["recall_campaign_id"])
+	require.Equal(t, fmt.Sprintf("%d", strongerRecipient.Id), params.Metadata["recall_recipient_id"])
+}
+
+func TestStripeCheckoutSessionRecallLookupFailureStopsBeforeCheckout(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	backend := setupSubscriptionStripeRecordingBackend(t)
+	setupStripeFulfillmentTestDB(t)
+	enableRecallCampaignForControllerTest(t)
+
+	originalTopUpPriceIDs := setting.StripeTopUpPriceIds
+	originalDisplayType := operation_setting.GetQuotaDisplayType()
+	originalPriceAmountResolver := stripePriceAmountMinorForCheckoutCurrency
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalAmountOptions := append([]int(nil), paymentSetting.AmountOptions...)
+	setting.StripeTopUpPriceIds = `{"20":"price_topup_degraded"}`
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	paymentSetting.AmountOptions = []int{20}
+	stripePriceAmountMinorForCheckoutCurrency = func(string, string) (int64, error) {
+		return 2000, nil
+	}
+	t.Cleanup(func() {
+		setting.StripeTopUpPriceIds = originalTopUpPriceIDs
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalDisplayType
+		paymentSetting.AmountOptions = originalAmountOptions
+		stripePriceAmountMinorForCheckoutCurrency = originalPriceAmountResolver
+	})
+
+	const userID = 720102
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       userID,
+		Username: "topup_recall_degraded",
+		Email:    "topup-recall-degraded@example.com",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	body, err := common.Marshal(StripePayRequest{
+		Amount:         20,
+		PaymentMethod:  model.PaymentMethodStripe,
+		StripeCurrency: "USD",
+		RecallClaim:    "topup-recall-degraded@example.com",
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/stripe/pay", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", userID)
+
+	RequestStripePay(ctx)
+
+	require.Contains(t, recorder.Body.String(), `"message":"error"`)
+	require.Empty(t, backend.params)
+	var persistedCount int64
+	require.NoError(t, model.DB.Model(&model.TopUp{}).Where("user_id = ?", userID).Count(&persistedCount).Error)
+	require.Zero(t, persistedCount)
+}
+
 func TestStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t *testing.T) {
 	for _, tc := range []struct {
 		language string
@@ -419,12 +540,12 @@ func TestStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t *tes
 		{language: "zh-CN", message: "此优惠无效、已过期或不适用于本次购买。"},
 	} {
 		t.Run(tc.language, func(t *testing.T) {
-			testStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t, tc.language, tc.message)
+			testStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t, tc.language)
 		})
 	}
 }
 
-func testStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t *testing.T, language string, expectedMessage string) {
+func testStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t *testing.T, language string) {
 	t.Helper()
 	require.NoError(t, i18n.Init())
 	backend := setupSubscriptionStripeRecordingBackend(t)
@@ -508,12 +629,46 @@ func testStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t *tes
 
 	RequestStripePay(ctx)
 
-	require.Empty(t, backend.params, "a wrong-price recall claim must stop before Stripe Checkout creation")
+	require.Len(t, backend.params, 1)
+	require.Empty(t, backend.params[0].Discounts)
 	responseBody := recorder.Body.String()
-	require.Contains(t, responseBody, `"message":"error"`)
-	require.Contains(t, responseBody, expectedMessage)
+	require.Contains(t, responseBody, `"message":"success"`)
 	require.NotContains(t, responseBody, service.ErrRecallClaimWrongPrice.Error())
 	require.NotContains(t, responseBody, claim)
+}
+
+func seedControllerRecallOffer(t *testing.T, user model.User, name string, discount service.RecallDiscountConfig, topUpPriceID string, promotionCodeID string, state string) (model.RecallCampaign, model.RecallRecipient) {
+	t.Helper()
+	discountJSON, err := common.Marshal(discount)
+	require.NoError(t, err)
+	productsJSON, err := common.Marshal(service.RecallProductScope{TopUpPriceIDs: []string{topUpPriceID}})
+	require.NoError(t, err)
+	campaign := model.RecallCampaign{
+		Name:                name,
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "specified_users",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "automatic",
+		DiscountConfig:      string(discountJSON),
+		ProductScope:        string(productsJSON),
+		EmailSequenceConfig: `[]`,
+	}
+	require.NoError(t, model.DB.Create(&campaign).Error)
+	recipient := model.RecallRecipient{
+		CampaignId:            campaign.Id,
+		UserId:                user.Id,
+		EligibilitySnapshot:   `{}`,
+		EmailSnapshot:         user.Email,
+		LanguageSnapshot:      "en",
+		State:                 state,
+		StripePromotionCodeId: &promotionCodeID,
+		PromotionCode:         "FK" + strings.ToUpper(strings.ReplaceAll(name, " ", "")) + "234",
+		PromotionExpiresAt:    time.Now().Add(time.Hour).Unix(),
+		PromotionIssuedAt:     time.Now().Add(-time.Minute).Unix(),
+	}
+	require.NoError(t, model.DB.Create(&recipient).Error)
+	return campaign, recipient
 }
 
 func TestStripeCheckoutSessionRequestsThreeDSecure(t *testing.T) {

@@ -11,6 +11,10 @@ import type {
   RecallCampaignSummary,
   RecallEmailPreviewRequest,
   RecallEmailPreviewResponse,
+  RecallEmailGenerationRequest,
+  RecallEmailGenerationResponse,
+  RecallEmailQuotaStatus,
+  RecallEmailSenderStatus,
   RecallEvent,
   RecallPage,
   RecallAudienceUserOption,
@@ -22,6 +26,8 @@ import type {
 
 export const recallCampaignKeys = {
   all: ['recall-campaigns'] as const,
+  emailQuota: ['recall-campaigns', 'email-quota'] as const,
+  emailSender: ['recall-campaigns', 'email-sender'] as const,
   list: (search: RecallCampaignSearch) =>
     ['recall-campaigns', 'list', search] as const,
   detail: (id: number) => ['recall-campaigns', 'detail', id] as const,
@@ -45,9 +51,22 @@ export const recallCampaignKeys = {
     ['recall-campaigns', 'audience-options', 'users', params] as const,
 }
 
+export class RecallApiError<T = unknown> extends Error {
+  data?: T
+
+  constructor(message: string, data?: T) {
+    super(message)
+    this.name = 'RecallApiError'
+    this.data = data
+  }
+}
+
 function requireRecallSuccess<T>(response: ApiResponse<T>): ApiResponse<T> {
   if (response?.success !== true) {
-    throw new Error(response?.message || 'Recall campaign request failed')
+    throw new RecallApiError(
+      response?.message || 'Recall campaign request failed',
+      response?.data
+    )
   }
   return response
 }
@@ -98,6 +117,47 @@ export async function previewRecallEmail(
     '/api/recall-campaigns/email-preview',
     request
   )
+  return requireRecallSuccess(response.data)
+}
+
+export async function generateRecallEmailTranslations(
+  id: number,
+  request: RecallEmailGenerationRequest
+): Promise<ApiResponse<RecallEmailGenerationResponse>> {
+  const response = await api.post(
+    `/api/recall-campaigns/${id}/email-translations/generate`,
+    request
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallEmailQuotaStatus(): Promise<
+  ApiResponse<RecallEmailQuotaStatus>
+> {
+  const response = await api.get('/api/recall-campaigns/email-quota')
+  return requireRecallSuccess(response.data)
+}
+
+export async function updateRecallEmailQuotaLimit(
+  limit: number
+): Promise<ApiResponse<RecallEmailQuotaStatus>> {
+  const response = await api.put('/api/recall-campaigns/email-quota', { limit })
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallEmailSenderStatus(): Promise<
+  ApiResponse<RecallEmailSenderStatus>
+> {
+  const response = await api.get('/api/recall-campaigns/email-sender')
+  return requireRecallSuccess(response.data)
+}
+
+export async function updateRecallEmailSender(
+  emailFrom: string
+): Promise<ApiResponse<RecallEmailSenderStatus>> {
+  const response = await api.put('/api/recall-campaigns/email-sender', {
+    email_from: emailFrom,
+  })
   return requireRecallSuccess(response.data)
 }
 
@@ -230,9 +290,10 @@ export function useRecallCampaignMutations(id?: number) {
     onSuccess: invalidate,
   })
   const update = useMutation({
-    mutationFn: (draft: RecallCampaignDraft) => {
-      if (!id) throw new Error('Recall campaign ID is required')
-      return updateRecallCampaign(id, draft)
+    mutationFn: (value: { id?: number; draft: RecallCampaignDraft }) => {
+      const campaignID = value.id ?? id
+      if (!campaignID) throw new Error('Recall campaign ID is required')
+      return updateRecallCampaign(campaignID, value.draft)
     },
     onSuccess: invalidate,
   })
@@ -257,6 +318,13 @@ export function useRecallCampaignMutations(id?: number) {
     },
     onSuccess: invalidate,
   })
+  const generate = useMutation({
+    mutationFn: (value: {
+      id: number
+      request: RecallEmailGenerationRequest
+    }) => generateRecallEmailTranslations(value.id, value.request),
+    onSuccess: invalidate,
+  })
 
-  return { create, update, action, retry }
+  return { create, update, action, retry, generate }
 }

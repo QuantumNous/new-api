@@ -17,18 +17,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
-import type { RecallClaimView } from '../types'
+import type { RecallOfferView } from '../types'
 import {
   getRecallPriceDiscount,
   getTopupStripePriceId,
   isRecallPriceEligible,
+  selectBestRecallOffer,
   normalizeRecallClaim,
   removeRecallClaimFromSearch,
 } from './recall-claim'
 
-const claimView: RecallClaimView = {
+const claimView: RecallOfferView = {
   campaign_id: 17,
   recipient_id: 29,
+  issued_at: 1_700_000_000,
   campaign_name: 'Come back offer',
   promotion_code_masked: 'FKSE****34',
   expires_at: 1_800_000_000,
@@ -237,5 +239,56 @@ describe('getRecallPriceDiscount', () => {
       discountedAmount: 0,
       currency: 'USD',
     })
+  })
+})
+
+describe('selectBestRecallOffer', () => {
+  test('selects largest actual discount then latest issue then lowest recipient id', () => {
+    const offers: RecallOfferView[] = [
+      {
+        ...claimView,
+        recipient_id: 50,
+        issued_at: 1_700_000_010,
+        discount: { ...claimView.discount, type: 'percent', percent_off: 20 },
+      },
+      {
+        ...claimView,
+        recipient_id: 30,
+        issued_at: 1_700_000_020,
+        discount: { ...claimView.discount, type: 'percent', percent_off: 25 },
+      },
+      {
+        ...claimView,
+        recipient_id: 20,
+        issued_at: 1_700_000_020,
+        discount: {
+          ...claimView.discount,
+          type: 'fixed',
+          amount_off: 250,
+          currency: 'USD',
+        },
+      },
+      {
+        ...claimView,
+        recipient_id: 10,
+        issued_at: 1_700_000_000,
+        discount: {
+          ...claimView.discount,
+          type: 'fixed',
+          amount_off: 250,
+          currency: 'USD',
+        },
+      },
+    ]
+
+    expect(
+      selectBestRecallOffer(offers, {
+        purchaseKind: 'topup',
+        productId: 'price_topup_20',
+        amountMajor: 10,
+        currency: 'USD',
+        nowSeconds: 1_700_000_000,
+      })?.recipient_id
+    ).toBe(20)
   })
 })

@@ -10,7 +10,9 @@ export type RecallCampaignType = 'promotion' | 'content_only'
 export type RecallExecutionMode = 'manual' | 'scheduled_once' | 'recurring'
 export type RecallCouponSource = 'automatic' | 'existing'
 export type RecallDiscountType = 'percent' | 'fixed'
+export type RecallPromotionExpiryMode = 'relative' | 'fixed'
 export type RecallFixedCurrency = 'USD' | 'INR' | 'BRL' | 'JPY'
+export type RecallMinimumSpendCurrency = 'usd' | 'inr' | 'brl' | 'jpy'
 export type RecallFrequency = 'daily' | 'weekly'
 export type RecallGroupMode = '' | 'allow' | 'block'
 
@@ -59,7 +61,13 @@ export interface RecallDiscountConfig {
   currency_options: Record<string, number>
   minimum_amount: number
   minimum_amount_currency: string
+  minimum_spend?: RecallMinimumSpendConfig
   coupon_redeem_by: number
+}
+
+export interface RecallMinimumSpendConfig {
+  enabled: boolean
+  amounts: Partial<Record<RecallMinimumSpendCurrency, number>>
 }
 
 export interface RecallProductScope {
@@ -104,8 +112,13 @@ export interface RecallEmailStage {
   stage_no: number
   delay_seconds: number
   template_version: number
+  source_revision?: number
+  translated_source_revision?: number
+  manual_locales?: string[]
   templates: Record<string, RecallEmailTemplate>
 }
+
+export type RecallEmailLocaleStatus = 'ready' | 'stale' | 'manual' | 'missing'
 
 export interface RecallCampaignDraft {
   campaign_type: RecallCampaignType
@@ -118,19 +131,17 @@ export interface RecallCampaignDraft {
   existing_coupon_id: string
   discount_config: RecallDiscountConfig
   product_scope: RecallProductScope
+  promotion_expiry_mode: RecallPromotionExpiryMode
+  promotion_expires_at: number
   promotion_valid_seconds: number
   enrollment_limit: number
   worker_concurrency: number
   email_sequence: RecallEmailStage[]
+  defer_localization: boolean
 }
 
 export type RecallCampaignStatus =
-  | 'draft'
-  | 'scheduled'
-  | 'running'
-  | 'paused'
-  | 'cancelled'
-  | 'completed'
+  'draft' | 'scheduled' | 'running' | 'paused' | 'cancelled' | 'completed'
 
 export type RecallRecipientState =
   | 'queued'
@@ -185,6 +196,8 @@ export interface RecallCampaignSummary {
   next_run_at: number
   coupon_source: RecallCouponSource
   stripe_coupon_id: string
+  promotion_expiry_mode: RecallPromotionExpiryMode
+  promotion_expires_at: number
   promotion_valid_seconds: number
   enrollment_limit: number
   worker_concurrency: number
@@ -199,6 +212,47 @@ export interface RecallCampaignSummary {
 
 export interface RecallCampaignDetail extends RecallCampaignSummary {
   draft: RecallCampaignDraft
+}
+
+export interface RecallEmailGenerationRequest {
+  config_revision: number
+  name: string
+  email_sequence: RecallEmailStage[]
+}
+
+export interface RecallEmailGenerationResponse {
+  config_revision: number
+  email_sequence: RecallEmailStage[]
+}
+
+export interface RecallEmailQuotaStatus {
+  limit: number
+  used: number
+  remaining: number
+  window_started_at: number
+  resets_at: number
+  exhausted: boolean
+}
+
+export interface RecallEmailSenderOption {
+  email: string
+  is_default: boolean
+}
+
+export interface RecallEmailSenderStatus {
+  configured_email_from: string
+  effective_email_from: string
+  uses_default: boolean
+  options: RecallEmailSenderOption[]
+}
+
+export type RecallEmailLocalizationBlockerReason =
+  'missing' | 'stale' | 'invalid'
+
+export interface RecallEmailLocalizationBlocker {
+  stage_no: number
+  locale: string
+  reason: RecallEmailLocalizationBlockerReason
 }
 
 export interface RecallMessage {
@@ -309,8 +363,4 @@ export interface RecallCampaignPreview {
 }
 
 export type RecallCampaignAction =
-  | 'activate'
-  | 'pause'
-  | 'resume'
-  | 'cancel'
-  | 'complete'
+  'activate' | 'pause' | 'resume' | 'cancel' | 'complete'

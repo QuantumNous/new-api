@@ -36,6 +36,8 @@ type RecallCampaign struct {
 	StripeCouponId        string `json:"stripe_coupon_id" gorm:"type:varchar(128);index"`
 	DiscountConfig        string `json:"discount_config" gorm:"type:text;not null"`
 	ProductScope          string `json:"product_scope" gorm:"type:text;not null"`
+	PromotionExpiryMode   string `json:"promotion_expiry_mode" gorm:"type:varchar(16)"`
+	PromotionExpiresAt    int64  `json:"promotion_expires_at"`
 	PromotionValidSeconds int64  `json:"promotion_valid_seconds"`
 	EmailSequenceConfig   string `json:"email_sequence_config" gorm:"type:text;not null"`
 	EnrollmentLimit       int    `json:"enrollment_limit"`
@@ -130,6 +132,8 @@ func UpdateRecallCampaignDraftWithContext(ctx context.Context, campaign *RecallC
 			"stripe_coupon_id":        campaign.StripeCouponId,
 			"discount_config":         campaign.DiscountConfig,
 			"product_scope":           campaign.ProductScope,
+			"promotion_expiry_mode":   campaign.PromotionExpiryMode,
+			"promotion_expires_at":    campaign.PromotionExpiresAt,
 			"promotion_valid_seconds": campaign.PromotionValidSeconds,
 			"email_sequence_config":   campaign.EmailSequenceConfig,
 			"enrollment_limit":        campaign.EnrollmentLimit,
@@ -211,6 +215,8 @@ func recallCampaignTransitionUpdates(to string, fields map[string]any) (map[stri
 		"stripe_coupon_id":        {},
 		"discount_config":         {},
 		"product_scope":           {},
+		"promotion_expiry_mode":   {},
+		"promotion_expires_at":    {},
 		"promotion_valid_seconds": {},
 		"email_sequence_config":   {},
 		"enrollment_limit":        {},
@@ -232,6 +238,25 @@ func recallCampaignTransitionUpdates(to string, fields map[string]any) (map[stri
 func UpdateRecallCampaignEmailSequenceWithContext(ctx context.Context, id int64, expectedConfigRevision int64, name string, emailSequence string) (bool, error) {
 	result := DB.WithContext(ctx).Model(&RecallCampaign{}).
 		Where("id = ? AND status IN ? AND config_revision = ?", id, []string{
+			RecallCampaignScheduled,
+			RecallCampaignRunning,
+			RecallCampaignPaused,
+		}, expectedConfigRevision).
+		Updates(map[string]any{
+			"name":                  name,
+			"email_sequence_config": emailSequence,
+			"config_revision":       gorm.Expr("config_revision + ?", 1),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func UpdateRecallCampaignEmailTranslationsWithContext(ctx context.Context, id int64, expectedStatus string, expectedConfigRevision int64, name string, emailSequence string) (bool, error) {
+	result := DB.WithContext(ctx).Model(&RecallCampaign{}).
+		Where("id = ? AND status = ? AND status IN ? AND config_revision = ?", id, expectedStatus, []string{
+			RecallCampaignDraft,
 			RecallCampaignScheduled,
 			RecallCampaignRunning,
 			RecallCampaignPaused,
@@ -364,6 +389,13 @@ func cancelRecallCampaignWithContext(ctx context.Context, id int64, from []strin
 	}
 	cancelled := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing RecallCampaign
+		if err := tx.Select("status").First(&existing, id).Error; err != nil {
+			return err
+		}
+		if existing.Status == RecallCampaignCancelled {
+			return markRecallPromotionRevocationsPending(tx, id, now, true)
+		}
 		result := tx.Model(&RecallCampaign{}).
 			Where("id = ? AND status IN ?", id, from).
 			Update("status", RecallCampaignCancelled)
@@ -395,6 +427,9 @@ func cancelRecallCampaignWithContext(ctx context.Context, id int64, from []strin
 			}).Error; err != nil {
 			return err
 		}
+		if err := markRecallPromotionRevocationsPending(tx, id, now, false); err != nil {
+			return err
+		}
 		if event != nil {
 			return insertRequiredRecallAdminEvent(tx, event)
 		}
@@ -404,4 +439,25 @@ func cancelRecallCampaignWithContext(ctx context.Context, id int64, from []strin
 		return false, err
 	}
 	return cancelled, nil
+}
+
+func markRecallPromotionRevocationsPending(tx *gorm.DB, campaignID int64, now int64, failedOnly bool) error {
+	query := tx.Model(&RecallRecipient{}).
+		Where("campaign_id = ?", campaignID).
+		Where("state <> ?", RecallRecipientConverted).
+		Where("stripe_promotion_code_id IS NOT NULL AND stripe_promotion_code_id <> ''").
+		Where("promotion_code <> ''").
+		Where("promotion_expires_at > ?", now)
+	if failedOnly {
+		query = query.Where("promotion_revocation_state = ?", RecallPromotionRevocationFailed)
+	} else {
+		query = query.Where("promotion_revocation_state IN ?", []string{"", RecallPromotionRevocationFailed})
+	}
+	return query.Updates(map[string]any{
+		"promotion_revocation_state":            RecallPromotionRevocationPending,
+		"promotion_revocation_next_attempt_at":  int64(0),
+		"promotion_revocation_lease_owner":      "",
+		"promotion_revocation_lease_expires_at": int64(0),
+		"promotion_revocation_last_error_code":  "",
+	}).Error
 }

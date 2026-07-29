@@ -47,6 +47,18 @@ interface DateTimePickerProps {
   onChange?: (date: Date | undefined) => void
   placeholder?: string
   className?: string
+  id?: string
+  disabled?: boolean
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function getDateTimePickerOpenState(
+  disabled: boolean,
+  requestedOpen: boolean
+): boolean {
+  return !disabled && requestedOpen
 }
 
 export function DateTimePicker({
@@ -54,6 +66,10 @@ export function DateTimePicker({
   onChange,
   placeholder,
   className,
+  id,
+  disabled = false,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: DateTimePickerProps) {
   const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Select date')
@@ -65,6 +81,8 @@ export function DateTimePicker({
   const [time, setTime] = React.useState<string>('00:00')
 
   React.useEffect(() => {
+    // Controlled values can change when a form is reset or loaded asynchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDate(value)
     setMonth(value)
     if (value) {
@@ -74,7 +92,15 @@ export function DateTimePicker({
     }
   }, [value])
 
+  React.useEffect(() => {
+    if (disabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false)
+    }
+  }, [disabled])
+
   const handleDateSelect = (selectedDate: Date | undefined) => {
+    if (disabled) return
     if (selectedDate) {
       const [hours, minutes] = time.split(':').map(Number)
       const newDate = new Date(selectedDate)
@@ -91,6 +117,7 @@ export function DateTimePicker({
   }
 
   const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return
     const newTime = e.target.value
     setTime(newTime)
 
@@ -104,6 +131,7 @@ export function DateTimePicker({
   }
 
   const handleClear = () => {
+    if (disabled) return
     setDate(undefined)
     setMonth(undefined)
     setTime('00:00')
@@ -112,10 +140,19 @@ export function DateTimePicker({
 
   return (
     <div className={cn('flex gap-2', className)}>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(requestedOpen) =>
+          setOpen(getDateTimePickerOpenState(disabled, requestedOpen))
+        }
+      >
         <PopoverTrigger
           render={
             <Button
+              id={id}
+              disabled={disabled}
+              aria-describedby={ariaDescribedBy}
+              aria-invalid={ariaInvalid}
               variant='outline'
               className={cn(
                 'flex-1 justify-between font-normal',
@@ -135,16 +172,20 @@ export function DateTimePicker({
             onMonthChange={setMonth}
             captionLayout='dropdown'
             onSelect={handleDateSelect}
+            disabled={disabled}
             locale={calendarLocale}
           />
         </PopoverContent>
       </Popover>
       <Input
+        id={id ? `${id}-time` : undefined}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         type='time'
         value={time}
         onChange={handleTimeChange}
         className='w-32 appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none'
-        disabled={!date}
+        disabled={disabled || !date}
       />
       {date && (
         <Button
@@ -152,6 +193,7 @@ export function DateTimePicker({
           variant='outline'
           size='icon'
           onClick={handleClear}
+          disabled={disabled}
           className='shrink-0'
           aria-label={t('Clear')}
         >

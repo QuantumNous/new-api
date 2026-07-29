@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"gorm.io/gorm"
@@ -49,25 +50,142 @@ type RecallEmailWorkItem struct {
 	User      User
 }
 
+type RecallDueMessage struct {
+	ID                   int64
+	State                string
+	EffectiveDueAt       int64
+	PreviousLeaseExpires int64
+}
+
+func ListDueRecallMessages(now int64, limit int) ([]RecallDueMessage, error) {
+	due := make([]RecallDueMessage, 0)
+	if limit <= 0 {
+		return due, nil
+	}
+	scheduled, err := listDueRecallMessagesForState(RecallMessageScheduled, "scheduled_at", "scheduled_at <= ?", now, limit)
+	if err != nil {
+		return nil, err
+	}
+	retryWait, err := listDueRecallMessagesForState(RecallMessageRetryWait, "next_attempt_at", "next_attempt_at <= ?", now, limit)
+	if err != nil {
+		return nil, err
+	}
+	leased, err := listDueRecallMessagesForState(RecallMessageLeased, "lease_expires_at", "lease_expires_at < ?", now, limit)
+	if err != nil {
+		return nil, err
+	}
+	return mergeDueRecallMessages(limit, scheduled, retryWait, leased), nil
+}
+
+func listDueRecallMessagesForState(state string, dueColumn string, duePredicate string, now int64, limit int) ([]RecallDueMessage, error) {
+	due := make([]RecallDueMessage, 0, limit)
+	err := DB.Model(&RecallMessage{}).
+		Select("id, state, lease_expires_at AS previous_lease_expires, "+dueColumn+" AS effective_due_at").
+		Where("state = ?", state).
+		Where(duePredicate, now).
+		Order(dueColumn + " ASC").
+		Order("id ASC").
+		Limit(limit).
+		Find(&due).Error
+	return due, err
+}
+
+func mergeDueRecallMessages(limit int, sources ...[]RecallDueMessage) []RecallDueMessage {
+	total := 0
+	for _, source := range sources {
+		total += len(source)
+	}
+	due := make([]RecallDueMessage, 0, total)
+	for _, source := range sources {
+		due = append(due, source...)
+	}
+	sort.SliceStable(due, func(i int, j int) bool {
+		if due[i].EffectiveDueAt != due[j].EffectiveDueAt {
+			return due[i].EffectiveDueAt < due[j].EffectiveDueAt
+		}
+		return due[i].ID < due[j].ID
+	})
+	if len(due) > limit {
+		due = due[:limit]
+	}
+	return due
+}
+
+func LeaseDueRecallMessage(candidate RecallDueMessage, owner string, now int64, leaseUntil int64) (bool, error) {
+	query := DB.Model(&RecallMessage{}).
+		Where("id = ? AND state = ?", candidate.ID, candidate.State)
+	switch candidate.State {
+	case RecallMessageScheduled:
+		query = query.Where("scheduled_at = ? AND scheduled_at <= ?", candidate.EffectiveDueAt, now)
+	case RecallMessageRetryWait:
+		query = query.Where("next_attempt_at = ? AND next_attempt_at <= ?", candidate.EffectiveDueAt, now)
+	case RecallMessageLeased:
+		query = query.Where("lease_expires_at = ? AND lease_expires_at < ?", candidate.PreviousLeaseExpires, now)
+	default:
+		return false, nil
+	}
+	result := query.Updates(map[string]any{
+		"state":            RecallMessageLeased,
+		"lease_owner":      owner,
+		"lease_expires_at": leaseUntil,
+	})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func ReleaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage) (bool, error) {
+	return releaseRecallMessageLeaseWithContext(ctx, id, owner, expectedLeaseUntil, candidate, expectedLeaseUntil, false)
+}
+
+func ReleaseRecallMessageLeaseForRetryWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage, retryAt int64) (bool, error) {
+	return releaseRecallMessageLeaseWithContext(ctx, id, owner, expectedLeaseUntil, candidate, retryAt, true)
+}
+
+func releaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage, retryAt int64, forceRetry bool) (bool, error) {
+	restoredState := candidate.State
+	updates := map[string]any{
+		"state":            restoredState,
+		"lease_owner":      "",
+		"lease_expires_at": int64(0),
+	}
+	if forceRetry || candidate.State == RecallMessageLeased {
+		updates["state"] = RecallMessageRetryWait
+		updates["next_attempt_at"] = retryAt
+	}
+	result := DB.WithContext(ctx).Model(&RecallMessage{}).
+		Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, RecallMessageLeased, owner, expectedLeaseUntil).
+		Updates(updates)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func DeferRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, deferUntil int64) (bool, error) {
+	result := DB.WithContext(ctx).Model(&RecallMessage{}).
+		Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, RecallMessageLeased, owner, expectedLeaseUntil).
+		Update("lease_expires_at", deferUntil)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 func ListDueRecallMessageIDs(now int64, limit int) ([]int64, error) {
 	ids := make([]int64, 0)
 	if limit <= 0 {
 		return ids, nil
 	}
-	err := DB.Model(&RecallMessage{}).
-		Where(
-			"(state = ? AND scheduled_at <= ?) OR (state = ? AND next_attempt_at <= ?) OR (state = ? AND lease_expires_at < ?)",
-			RecallMessageScheduled,
-			now,
-			RecallMessageRetryWait,
-			now,
-			RecallMessageLeased,
-			now,
-		).
-		Order("id ASC").
-		Limit(limit).
-		Pluck("id", &ids).Error
-	return ids, err
+	due, err := ListDueRecallMessages(now, limit)
+	if err != nil {
+		return nil, err
+	}
+	for _, candidate := range due {
+		ids = append(ids, candidate.ID)
+	}
+	return ids, nil
 }
 
 func LeaseRecallMessage(id int64, owner string, now int64, leaseUntil int64) (bool, error) {

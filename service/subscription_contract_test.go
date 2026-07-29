@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v86"
@@ -102,6 +103,105 @@ func balanceChangeCommand(userID int, planID int, requestID string) ChangePlanCo
 		PaymentMode: model.SubscriptionPaymentModeBalanceOnePeriod,
 		RequestID:   requestID,
 	}
+}
+
+func TestResolveOrReuseStripeSubscriptionRecallDiscountFreezesFirstDecision(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	plan := insertContractServicePlan(t, 7290, 1, 2.5, 250)
+	order := model.SubscriptionOrder{
+		UserId:          7190,
+		PlanId:          plan.Id,
+		TradeNo:         "subscription-recall-frozen",
+		PaymentMethod:   model.PaymentMethodStripe,
+		PaymentProvider: model.PaymentProviderStripe,
+		Status:          common.TopUpStatusPending,
+	}
+	require.NoError(t, model.DB.Create(&order).Error)
+	firstDiscount := &RecallCheckoutDiscount{
+		PromotionCodeID:     "promo_first",
+		CampaignID:          901,
+		RecipientID:         902,
+		DiscountAmountMinor: 250,
+	}
+	resolveCalls := 0
+
+	first, err := resolveOrReuseStripeSubscriptionRecallDiscount(
+		context.Background(),
+		order.TradeNo,
+		func() (*RecallCheckoutDiscount, error) {
+			resolveCalls++
+			return firstDiscount, nil
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, firstDiscount, first)
+
+	second, err := resolveOrReuseStripeSubscriptionRecallDiscount(
+		context.Background(),
+		order.TradeNo,
+		func() (*RecallCheckoutDiscount, error) {
+			resolveCalls++
+			return &RecallCheckoutDiscount{
+				PromotionCodeID:     "promo_later_stronger",
+				CampaignID:          903,
+				RecipientID:         904,
+				DiscountAmountMinor: 500,
+			}, nil
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, firstDiscount, second)
+	require.Equal(t, 1, resolveCalls)
+
+	var stored model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&stored, order.Id).Error)
+	require.True(t, stored.RecallOfferResolved)
+	require.Equal(t, firstDiscount.PromotionCodeID, stored.RecallPromotionCodeId)
+	require.Equal(t, firstDiscount.CampaignID, stored.RecallCampaignId)
+	require.Equal(t, firstDiscount.RecipientID, stored.RecallRecipientId)
+	require.Equal(t, firstDiscount.DiscountAmountMinor, stored.RecallDiscountAmountMinor)
+}
+
+func TestResolveOrReuseStripeSubscriptionRecallDiscountFreezesNoOffer(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	plan := insertContractServicePlan(t, 7291, 1, 2.5, 250)
+	order := model.SubscriptionOrder{
+		UserId:          7191,
+		PlanId:          plan.Id,
+		TradeNo:         "subscription-recall-none-frozen",
+		PaymentMethod:   model.PaymentMethodStripe,
+		PaymentProvider: model.PaymentProviderStripe,
+		Status:          common.TopUpStatusPending,
+	}
+	require.NoError(t, model.DB.Create(&order).Error)
+	resolveCalls := 0
+
+	first, err := resolveOrReuseStripeSubscriptionRecallDiscount(
+		context.Background(),
+		order.TradeNo,
+		func() (*RecallCheckoutDiscount, error) {
+			resolveCalls++
+			return nil, nil
+		},
+	)
+	require.NoError(t, err)
+	require.Nil(t, first)
+
+	second, err := resolveOrReuseStripeSubscriptionRecallDiscount(
+		context.Background(),
+		order.TradeNo,
+		func() (*RecallCheckoutDiscount, error) {
+			resolveCalls++
+			return &RecallCheckoutDiscount{PromotionCodeID: "promo_too_late"}, nil
+		},
+	)
+	require.NoError(t, err)
+	require.Nil(t, second)
+	require.Equal(t, 1, resolveCalls)
+
+	var stored model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&stored, order.Id).Error)
+	require.True(t, stored.RecallOfferResolved)
 }
 
 func TestBalancePurchaseCreatesOnePeriodWithoutBinding(t *testing.T) {
@@ -507,6 +607,133 @@ func TestStripeRecurringChangePlanRequiresSignedQuoteBeforeCreatingCheckout(t *t
 	var orderCount int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 7113).Count(&orderCount).Error)
 	require.Zero(t, orderCount)
+}
+
+func TestStripeRecurringCheckoutInvitationQuoteSkipsRecallResolution(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	require.NoError(t, model.DB.AutoMigrate(&model.SubscriptionDiscountAccount{}, &model.SubscriptionDiscountEntry{}))
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.RecallCampaign{},
+		&model.RecallRecipient{},
+		&model.RecallMessage{},
+		&model.RecallEvent{},
+	))
+	require.NoError(t, model.DB.Migrator().DropTable(&model.RecallRecipient{}))
+	insertContractServiceUser(t, 7119, 3000)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 7119).Update("email", "contract-invite-over-recall@example.com").Error)
+	plan := insertContractServicePlan(t, 7229, 1, 12.34, 1234)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_invitation_skips_recall_contract").Error)
+	_, err := model.GrantSubscriptionDiscountTx(model.DB, model.SubscriptionDiscountGrantInput{
+		UserID:         7119,
+		USDMinor:       500,
+		EntryType:      model.SubscriptionDiscountEntryTypeGrantInvitee,
+		SourceType:     "test",
+		SourceKey:      "grant-invite-over-recall",
+		IdempotencyKey: "grant-invite-over-recall",
+	})
+	require.NoError(t, err)
+	originalCreator := stripeSubscriptionCheckoutCreator
+	t.Cleanup(func() { stripeSubscriptionCheckoutCreator = originalCreator })
+	var capturedInput StripeSubscriptionCheckoutInput
+	stripeSubscriptionCheckoutCreator = func(ctx context.Context, input StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		capturedInput = input
+		return &StripeSubscriptionCheckoutSession{ID: "cs_invitation_skips_recall_contract", URL: "https://checkout.example/invite"}, nil
+	}
+
+	result, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      7119,
+		PlanID:      plan.Id,
+		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:   "stripe-invitation-skips-recall",
+		RecallClaim: "buyer@example.com",
+		VerifiedQuote: &SubscriptionPurchaseQuote{
+			Currency:                      "USD",
+			UnitPrice:                     12.34,
+			UnitAmountMinor:               1234,
+			OriginalTotal:                 12.34,
+			OriginalTotalAmountMinor:      1234,
+			DiscountKind:                  SubscriptionDiscountKindInvitation,
+			DiscountAmount:                5,
+			DiscountAmountMinor:           500,
+			Total:                         7.34,
+			PaymentAmountMinor:            734,
+			InvitationAvailableUSDMinor:   500,
+			InvitationDiscountUSDMinor:    500,
+			InvitationDiscountAmountMinor: 500,
+			InvitationRemainingUSDMinor:   0,
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, ChangePlanStatusCheckoutRequired, result.Status)
+	require.Equal(t, SubscriptionDiscountKindInvitation, capturedInput.DiscountKind)
+	require.Nil(t, capturedInput.RecallDiscount)
+	require.EqualValues(t, 500, capturedInput.DiscountAmountMinor)
+	require.NotEmpty(t, capturedInput.DiscountReservationKey)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "user_id = ?", 7119).Error)
+	require.Equal(t, SubscriptionDiscountKindInvitation, order.DiscountKind)
+	require.Empty(t, order.RecallPromotionCodeId)
+	require.False(t, order.RecallOfferResolved)
+	require.NotEmpty(t, order.SubscriptionDiscountReservationKey)
+}
+
+func TestStripeRecurringCheckoutRecallLookupFailureStopsWithoutFreezingNoOffer(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	require.True(t, operation_setting.IsRecallCampaignEnabled())
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.RecallCampaign{},
+		&model.RecallRecipient{},
+		&model.RecallMessage{},
+		&model.RecallEvent{},
+	))
+	require.NoError(t, model.DB.Migrator().DropTable(&model.RecallRecipient{}))
+	insertContractServiceUser(t, 7118, 3000)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 7118).Update("email", "contract-recall-degraded@example.com").Error)
+	plan := insertContractServicePlan(t, 7218, 1, 12.34, 1234)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_recall_degraded_contract").Error)
+	originalCreator := stripeSubscriptionCheckoutCreator
+	t.Cleanup(func() { stripeSubscriptionCheckoutCreator = originalCreator })
+	creatorCalled := false
+	stripeSubscriptionCheckoutCreator = func(ctx context.Context, input StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		creatorCalled = true
+		return &StripeSubscriptionCheckoutSession{ID: "cs_recall_degraded_contract", URL: "https://checkout.example/degraded"}, nil
+	}
+
+	result, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      7118,
+		PlanID:      plan.Id,
+		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:   "stripe-recall-degraded",
+		VerifiedQuote: &SubscriptionPurchaseQuote{
+			Currency:                 "USD",
+			UnitPrice:                12.34,
+			UnitAmountMinor:          1234,
+			OriginalTotal:            12.34,
+			OriginalTotalAmountMinor: 1234,
+			DiscountKind:             SubscriptionDiscountKindRecall,
+			DiscountAmount:           5,
+			DiscountAmountMinor:      500,
+			Total:                    7.34,
+			PaymentAmountMinor:       734,
+			RecallCampaignID:         901,
+			RecallRecipientID:        902,
+		},
+	})
+
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.False(t, creatorCalled)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "user_id = ?", 7118).Error)
+	require.False(t, order.RecallOfferResolved)
+	require.Empty(t, order.RecallPromotionCodeId)
+	require.Equal(t, common.TopUpStatusFailed, order.Status)
 }
 
 func TestStripeRecurringReplacementQuoteGateRunsBeforeSupersedingPendingCheckout(t *testing.T) {

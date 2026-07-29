@@ -48,7 +48,7 @@ import {
   isRecallPriceEligible,
   validateRecallClaim,
 } from '@/features/wallet/lib/recall-claim'
-import type { RecallClaimView } from '@/features/wallet/types'
+import type { RecallClaimView, RecallOfferView } from '@/features/wallet/types'
 import {
   paySubscriptionStripe,
   paySubscriptionCreem,
@@ -80,20 +80,38 @@ interface Props {
 }
 
 interface RecallClaimContextValue {
+  offers: RecallOfferView[]
+  loading: boolean
   claim?: string
   view?: RecallClaimView
 }
 
-const RecallClaimContext = createContext<RecallClaimContextValue>({})
+const RecallClaimContext = createContext<RecallClaimContextValue>({
+  offers: [],
+  loading: false,
+})
 
-interface RecallClaimProviderProps extends RecallClaimContextValue {
+interface RecallClaimProviderProps {
   children: ReactNode
+  offers?: RecallOfferView[]
+  loading?: boolean
+  claim?: string
+  view?: RecallClaimView
 }
 
 export function RecallClaimProvider(props: RecallClaimProviderProps) {
+  const offers =
+    props.offers ??
+    (props.view ? [{ ...props.view, issued_at: 0 } as RecallOfferView] : [])
+
   return (
     <RecallClaimContext.Provider
-      value={{ claim: props.claim, view: props.view }}
+      value={{
+        offers,
+        loading: props.loading === true,
+        claim: props.claim,
+        view: props.view,
+      }}
     >
       {props.children}
     </RecallClaimContext.Provider>
@@ -128,10 +146,14 @@ export function SubscriptionPurchaseDialog(props: Props) {
     : ''
 
   useEffect(() => {
-    if (!props.open) {
+    if (props.open && props.epayMethods && props.epayMethods.length > 0) {
+      const firstMethod = props.epayMethods[0].type
+      queueMicrotask(() => setSelectedEpayMethod(firstMethod))
+    } else if (!props.open) {
       purchaseRequestIdsRef.current = {}
+      queueMicrotask(() => setSelectedEpayMethod(''))
     }
-  }, [props.open])
+  }, [props.open, props.epayMethods])
 
   const getStablePurchaseRequestId = (scope: string) => {
     if (!scope) return createStableSubscriptionRequestId()
@@ -157,10 +179,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
   if (!plan) return null
 
   const hasStripe = props.enableStripe && !!plan.stripe_price_id
-  const recallPlanEligible = isRecallPriceEligible(
-    recallClaim.view,
-    plan.id,
-    'subscription'
+  const recallPlanEligible = recallClaim.offers.some((offer) =>
+    isRecallPriceEligible(
+      offer,
+      plan.stripe_price_id || plan.id,
+      'subscription'
+    )
   )
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
@@ -455,7 +479,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
           </Alert>
         )}
 
-        {recallClaim.view && (
+        {recallClaim.offers.length > 0 && (
           <Alert>
             <AlertDescription>
               {recallPlanEligible

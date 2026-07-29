@@ -33,6 +33,8 @@ type StripeSubscriptionCheckoutInput struct {
 	CustomerID             string
 	Email                  string
 	PriceID                string
+	Currency               string
+	SubtotalMinor          int64
 	IdempotencyKey         string
 	Presentation           StripeCheckoutPresentation
 	DiscountKind           string
@@ -2181,4 +2183,8 @@ func stripeMinorUnitAmountForSubscription(amount float64, currency string) (int6
 		scale = 0
 	}
 	return decimal.NewFromFloat(amount).Shift(scale).Round(0).IntPart(), nil
+}
+
+func StripeMinorUnitAmountForSubscription(amount float64, currency string) (int64, error) {
+	return stripeMinorUnitAmountForSubscription(amount, currency)
 }

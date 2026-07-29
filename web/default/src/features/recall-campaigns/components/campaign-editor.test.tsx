@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import * as React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createFormControl, type UseFormReturn } from 'react-hook-form'
 import {
   afterAll,
   beforeAll,
@@ -47,10 +48,63 @@ const firstPurchaseHelp =
 const groupHelp =
   'Choose Allow or Block, then select the user groups to include or exclude. With no group filter, eligible users from every group are included.'
 const testI18n = createInstance()
-const createMutation = mock(async (draft: RecallCampaignDraft) => ({
-  success: true,
-  data: { id: 123, name: draft.name },
-}))
+const operationOrder: string[] = []
+const createMutation = mock(async (draft: RecallCampaignDraft) => {
+  operationOrder.push('save')
+  return {
+    success: true,
+    data: { id: 123, name: draft.name, config_revision: 7 },
+  }
+})
+const updateMutation = mock(
+  async (value: { id: number; draft: RecallCampaignDraft }) => {
+    operationOrder.push('update')
+    return {
+      success: true,
+      data: {
+        id: value.id,
+        name: value.draft.name,
+        config_revision: 9,
+      },
+    }
+  }
+)
+const generateMutation = mock(
+  async (value: {
+    id: number
+    request: {
+      config_revision: number
+      name: string
+      email_sequence: RecallCampaignDraft['email_sequence']
+    }
+  }) => {
+    operationOrder.push('generate')
+    return {
+      success: true,
+      data: {
+        config_revision: value.request.config_revision + 1,
+        email_sequence: value.request.email_sequence.map((stage) => ({
+          ...stage,
+          source_revision: Math.max(1, stage.source_revision ?? 0),
+          translated_source_revision: Math.max(1, stage.source_revision ?? 0),
+          manual_locales: [],
+          templates: {
+            ...stage.templates,
+            ...Object.fromEntries(
+              ['zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'].map((locale) => [
+                locale,
+                {
+                  subject: `${locale} subject`,
+                  body_html: `<p>${locale} body</p>`,
+                },
+              ])
+            ),
+          },
+        })),
+      },
+    }
+  }
+)
 let latestSpecifiedUsersProps:
   | {
       userIDs: number[]
@@ -66,10 +120,18 @@ const latestInputProps: Record<
   string,
   React.InputHTMLAttributes<HTMLInputElement>
 > = {}
+const latestSwitchProps: Record<
+  string,
+  {
+    checked?: boolean
+    disabled?: boolean
+    onCheckedChange?: (checked: boolean) => void
+  }
+> = {}
 
 spyOn(recallApi, 'useRecallCampaignMutations').mockImplementation(() => ({
   create: { isPending: false, mutateAsync: createMutation },
-  update: { isPending: false, mutateAsync: createMutation },
+  update: { isPending: false, mutateAsync: updateMutation },
   action: {
     isPending: false,
     mutateAsync: mock(async () => ({ success: true })),
@@ -78,6 +140,7 @@ spyOn(recallApi, 'useRecallCampaignMutations').mockImplementation(() => ({
     isPending: false,
     mutateAsync: mock(async () => ({ success: true })),
   },
+  generate: { isPending: false, mutateAsync: generateMutation },
 }))
 
 mock.module('@/components/ui/select', () => ({
@@ -149,6 +212,29 @@ mock.module('@/components/ui/input', () => ({
   },
 }))
 
+mock.module('@/components/ui/switch', () => ({
+  Switch: (props: {
+    checked?: boolean
+    disabled?: boolean
+    id?: string
+    onCheckedChange?: (checked: boolean) => void
+  }) => {
+    if (props.id) latestSwitchProps[props.id] = props
+    return (
+      <input
+        checked={props.checked}
+        disabled={props.disabled}
+        id={props.id}
+        onChange={(event) =>
+          props.onCheckedChange?.(event.currentTarget.checked)
+        }
+        role='switch'
+        type='checkbox'
+      />
+    )
+  },
+}))
+
 mock.module('@/components/multi-select', () => ({
   MultiSelect: (props: {
     disabled?: boolean
@@ -173,6 +259,9 @@ mock.module('@/components/multi-select', () => ({
   ),
 }))
 
+const { CampaignOfferValidityFields } = await import(
+  './campaign-offer-validity-fields'
+)
 const { CampaignEditor, createRecallCampaignFormDraft } =
   await import('./campaign-editor')
 
@@ -248,6 +337,8 @@ function makeDraft(template: RecallAudienceTemplate): RecallCampaignDraft {
       topup_price_ids: ['price_topup_usd'],
       subscription_price_ids: [],
     },
+    promotion_expiry_mode: 'relative',
+    promotion_expires_at: 0,
     promotion_valid_seconds: 604800,
     enrollment_limit: 1000,
     worker_concurrency: 5,
@@ -262,6 +353,7 @@ function makeDraft(template: RecallAudienceTemplate): RecallCampaignDraft {
         },
       },
     ],
+    defer_localization: true,
   }
 }
 
@@ -426,6 +518,12 @@ function setupDom() {
       }
       return null
     }
+
+    focus() {
+      ;(
+        globalThis.document as unknown as { activeElement: ElementShim }
+      ).activeElement = this
+    }
   }
 
   class TextShim extends NodeShim {
@@ -452,6 +550,7 @@ function setupDom() {
     addEventListener() {},
     removeEventListener() {},
     defaultView: globalThis,
+    activeElement: null,
   }
   defineTestGlobal('document', shimDocument as unknown as Document)
   defineTestGlobal(
@@ -552,6 +651,57 @@ function renderEditorDom(
   return { root, container }
 }
 
+function createOfferValidityForm(
+  draft: RecallCampaignDraft
+): UseFormReturn<RecallCampaignDraft> {
+  const form = createFormControl<RecallCampaignDraft>({
+    defaultValues: createRecallCampaignFormDraft(draft),
+  })
+  form.subscribe({
+    formState: { errors: true, values: true },
+    callback: () => undefined,
+  })
+  for (const field of [
+    'discount_config.minimum_amount',
+    'discount_config.minimum_amount_currency',
+    'discount_config.minimum_spend.enabled',
+    'discount_config.minimum_spend.amounts.usd',
+    'discount_config.minimum_spend.amounts.inr',
+    'discount_config.minimum_spend.amounts.brl',
+    'discount_config.minimum_spend.amounts.jpy',
+    'discount_config.coupon_redeem_by',
+    'promotion_expiry_mode',
+    'promotion_expires_at',
+    'promotion_valid_seconds',
+  ] as const) {
+    form.register(field)
+  }
+  return form as unknown as UseFormReturn<RecallCampaignDraft>
+}
+
+function renderOfferValidityFieldsDom(draft: RecallCampaignDraft): {
+  form: UseFormReturn<RecallCampaignDraft>
+  root: Root
+} {
+  const form = createOfferValidityForm(draft)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+
+  React.act(() => {
+    root.render(
+      <I18nextProvider i18n={testI18n}>
+        <CampaignOfferValidityFields
+          form={form}
+          immutable={false}
+          nowSeconds={2_000_000_000}
+        />
+      </I18nextProvider>
+    )
+  })
+
+  return { form, root }
+}
+
 function dispose(root: Root) {
   React.act(() => {
     root.unmount()
@@ -562,6 +712,34 @@ async function submit(container: HTMLElement) {
   const form = container.childNodes[0] as HTMLFormElement
   await React.act(async () => {
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+  })
+}
+
+async function clickByID(container: HTMLElement, id: string) {
+  const element = container.querySelector(`#${id}`)
+  expect(element).toBeTruthy()
+  await React.act(async () => {
+    element?.dispatchEvent(
+      new Event('click', { bubbles: true, cancelable: true })
+    )
+    await Promise.resolve()
+  })
+}
+
+async function changeInputProp(id: string, value: string) {
+  await React.act(async () => {
+    latestInputProps[id]?.onChange?.({
+      target: { name: latestInputProps[id]?.name, value },
+      type: 'change',
+    } as React.ChangeEvent<HTMLInputElement>)
+    await Promise.resolve()
+  })
+}
+
+async function setSwitchProp(id: string, checked: boolean) {
+  await React.act(async () => {
+    latestSwitchProps[id]?.onCheckedChange?.(checked)
+    await Promise.resolve()
   })
 }
 
@@ -615,7 +793,40 @@ beforeEach(() => {
   for (const key of Object.keys(latestInputProps)) {
     delete latestInputProps[key]
   }
+  for (const key of Object.keys(latestSwitchProps)) {
+    delete latestSwitchProps[key]
+  }
   createMutation.mockClear()
+  updateMutation.mockClear()
+  generateMutation.mockClear()
+  generateMutation.mockImplementation(async (value) => {
+    operationOrder.push('generate')
+    return {
+      success: true,
+      data: {
+        config_revision: value.request.config_revision + 1,
+        email_sequence: value.request.email_sequence.map((stage) => ({
+          ...stage,
+          source_revision: Math.max(1, stage.source_revision ?? 0),
+          translated_source_revision: Math.max(1, stage.source_revision ?? 0),
+          manual_locales: [],
+          templates: {
+            ...stage.templates,
+            ...Object.fromEntries(
+              ['zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'].map((locale) => [
+                locale,
+                {
+                  subject: `${locale} subject`,
+                  body_html: `<p>${locale} body</p>`,
+                },
+              ])
+            ),
+          },
+        })),
+      },
+    }
+  })
+  operationOrder.length = 0
 })
 
 afterAll(() => {
@@ -700,7 +911,9 @@ describe('CampaignEditor audience rules', () => {
     expect(submitted.campaign_type).toBe('content_only')
     expect(submitted.coupon_source).toBe('existing')
     expect(submitted.existing_coupon_id).toBe('coupon_preserve')
-    expect(submitted.discount_config).toEqual(draft.discount_config)
+    expect(submitted.discount_config).toEqual(
+      createRecallCampaignFormDraft(draft).discount_config
+    )
     expect(submitted.product_scope).toEqual(draft.product_scope)
     for (const template of Object.values(
       submitted.email_sequence[0].templates
@@ -1075,6 +1288,200 @@ describe('CampaignEditor audience rules', () => {
   })
 })
 
+describe('CampaignEditor offer validity', () => {
+  test('replaces timestamp, seconds, and minimum-currency inputs with guided controls', () => {
+    const html = renderEditor('first_purchase')
+
+    expect(html).toContain('Coupon redeem-by')
+    expect(html).toContain('Promotion expiry mode')
+    expect(html).toContain('Relative duration')
+    expect(html).toContain('Set minimum spend')
+    expect(html).not.toContain('Coupon redeem-by timestamp')
+    expect(html).not.toContain('Promotion validity seconds')
+    expect(html).not.toContain('Minimum amount currency')
+  })
+
+  test('shows minimum spend toggle for automatic fixed coupons', () => {
+    const draft = makeDraft('first_purchase')
+    draft.discount_config.type = 'fixed'
+    draft.discount_config.percent_off = 0
+    draft.discount_config.amount_off = 500
+    draft.discount_config.currency = 'USD'
+    draft.discount_config.currency_options = {
+      inr: 45_000,
+      brl: 2_500,
+      jpy: 750,
+    }
+
+    const html = renderEditor('first_purchase', draft)
+
+    expect(html).toContain('Set minimum spend')
+    expect(html).toContain('id="recall-minimum-spend-enabled"')
+  })
+
+  test('minimum spend switch and inputs submit canonical values and clear when disabled', async () => {
+    const draft = makeDraft('first_purchase')
+    const { root, container } = renderEditorDom(draft)
+
+    expect(latestInputProps['recall-minimum-spend-usd']).toBeUndefined()
+
+    await setSwitchProp('recall-minimum-spend-enabled', true)
+    for (const currency of ['usd', 'inr', 'brl', 'jpy']) {
+      expect(latestInputProps[`recall-minimum-spend-${currency}`]).toBeTruthy()
+    }
+
+    await changeInputProp('recall-minimum-spend-usd', '12.34')
+    await changeInputProp('recall-minimum-spend-inr', '900.50')
+    await changeInputProp('recall-minimum-spend-brl', '25.99')
+    await changeInputProp('recall-minimum-spend-jpy', '750')
+    await submit(container)
+
+    expect(createMutation).toHaveBeenCalledTimes(1)
+    let submitted = createMutation.mock.calls[0][0] as RecallCampaignDraft
+    expect(submitted.discount_config.minimum_spend).toEqual({
+      enabled: true,
+      amounts: { usd: 1234, inr: 90050, brl: 2599, jpy: 750 },
+    })
+    expect(submitted.discount_config.minimum_amount).toBe(1234)
+    expect(submitted.discount_config.minimum_amount_currency).toBe('USD')
+
+    createMutation.mockClear()
+    updateMutation.mockClear()
+    await setSwitchProp('recall-minimum-spend-enabled', false)
+    expect(container.querySelector('#recall-minimum-spend-usd')).toBeNull()
+    await submit(container)
+
+    expect(createMutation).not.toHaveBeenCalled()
+    expect(updateMutation).toHaveBeenCalledTimes(1)
+    submitted = updateMutation.mock.calls[0][0].draft as RecallCampaignDraft
+    expect(submitted.discount_config.minimum_spend).toEqual({
+      enabled: false,
+      amounts: {},
+    })
+    expect(submitted.discount_config.minimum_amount).toBe(0)
+    expect(submitted.discount_config.minimum_amount_currency).toBe('')
+
+    await setSwitchProp('recall-minimum-spend-enabled', true)
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('')
+    dispose(root)
+  })
+
+  test('minimum spend inputs preserve raw typing while canonical values validate', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1200, inr: 90050, brl: 2599, jpy: 750 },
+    }
+    draft.discount_config.minimum_amount = 1200
+    draft.discount_config.minimum_amount_currency = 'USD'
+    const { root, container } = renderEditorDom(draft)
+
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.00')
+    expect(latestInputProps['recall-minimum-spend-jpy']?.value).toBe('750')
+
+    for (const value of ['1', '12', '12.', '12.3', '12.34']) {
+      await changeInputProp('recall-minimum-spend-usd', value)
+      expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe(value)
+    }
+
+    await changeInputProp('recall-minimum-spend-jpy', '7')
+    expect(latestInputProps['recall-minimum-spend-jpy']?.value).toBe('7')
+
+    await changeInputProp('recall-minimum-spend-usd', '12.345')
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.345')
+    await submit(container)
+    expect(createMutation).not.toHaveBeenCalled()
+    expect(container.textContent).toContain(
+      'Please correct the highlighted fields.'
+    )
+
+    await changeInputProp('recall-minimum-spend-usd', '12.34')
+    await submit(container)
+    expect(createMutation).toHaveBeenCalledTimes(1)
+    const submitted = createMutation.mock.calls[0][0] as RecallCampaignDraft
+    expect(submitted.discount_config.minimum_spend).toEqual({
+      enabled: true,
+      amounts: { usd: 1234, inr: 90050, brl: 2599, jpy: 7 },
+    })
+    expect(submitted.discount_config.minimum_amount).toBe(1234)
+    expect(submitted.discount_config.minimum_amount_currency).toBe('USD')
+    dispose(root)
+  })
+
+  test('minimum spend raw values sync after same-value input and external amount changes', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1200, inr: 90050, brl: 2599, jpy: 750 },
+    }
+    draft.discount_config.minimum_amount = 1200
+    draft.discount_config.minimum_amount_currency = 'USD'
+    const { form, root } = renderOfferValidityFieldsDom(draft)
+
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.00')
+    await changeInputProp('recall-minimum-spend-usd', '12.00')
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.00')
+
+    await React.act(async () => {
+      form.setValue('discount_config.minimum_spend.amounts.usd', 0, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+      await Promise.resolve()
+    })
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('')
+
+    await React.act(async () => {
+      form.setValue('discount_config.minimum_spend.amounts.usd', 1200, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+      await Promise.resolve()
+    })
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.00')
+    dispose(root)
+  })
+
+  test('minimum spend raw values clear when zero-default form reset keeps canonical zero', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 0, inr: 90050, brl: 2599, jpy: 750 },
+    }
+    draft.discount_config.minimum_amount = 0
+    draft.discount_config.minimum_amount_currency = ''
+    const { form, root } = renderOfferValidityFieldsDom(draft)
+
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('')
+    await changeInputProp('recall-minimum-spend-usd', '12.345')
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('12.345')
+    expect(form.getValues('discount_config.minimum_spend.amounts.usd')).toBe(0)
+
+    const resetDraft = form.getValues()
+    await React.act(async () => {
+      form.reset({
+        ...resetDraft,
+        discount_config: {
+          ...resetDraft.discount_config,
+          minimum_amount: 0,
+          minimum_amount_currency: '',
+          minimum_spend: {
+            enabled: true,
+            amounts: {
+              ...resetDraft.discount_config.minimum_spend.amounts,
+              usd: 0,
+            },
+          },
+        },
+      })
+      await Promise.resolve()
+    })
+
+    expect(latestInputProps['recall-minimum-spend-usd']?.value).toBe('')
+    dispose(root)
+  })
+})
+
 describe('CampaignEditor email sequence', () => {
   test('uses the campaign name when an email subject is left empty', async () => {
     const draft = makeDraft('first_purchase')
@@ -1094,16 +1501,216 @@ describe('CampaignEditor email sequence', () => {
     dispose(root)
   })
 
-  test('renders eight language buttons and the active English fields', () => {
+  test('renders English-first tabs and the active English fields', () => {
     const draft = makeDraft('first_purchase')
     const html = renderEditor('first_purchase', draft)
 
-    expect(html.match(/aria-pressed=/g) ?? []).toHaveLength(8)
-    expect(html).toContain('English')
+    expect(html.match(/role="tab"/g) ?? []).toHaveLength(2)
+    expect(html).toContain('English content')
+    expect(html).toContain('Translation review')
     expect(html).toContain('name="email_sequence.0.templates.en.subject"')
     expect(html).toContain('name="email_sequence.0.templates.en.body_html"')
     expect(html).not.toContain('name="email_sequence.0.templates.en.body_text"')
     expect(html).not.toContain('templates.fr')
+  })
+
+  test('keeps new drafts English-only before explicit generation', () => {
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={createQueryClient()}>
+        <I18nextProvider i18n={testI18n}>
+          <CampaignEditor />
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+
+    expect(html).toContain('name="email_sequence.0.templates.en.subject"')
+    expect(html).not.toContain('templates.es')
+    expect(html).toContain('Generate 7 translations')
+  })
+
+  test('saves a new draft before one all-stage generation request', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates = {
+      en: draft.email_sequence[0].templates.en,
+    }
+    draft.email_sequence[0].translated_source_revision = 0
+    const onSaved = mock(() => undefined)
+    const { root, container } = renderEditorDom(draft, { onSaved })
+
+    await clickByID(container, 'recall-generate-translations')
+
+    expect(operationOrder).toEqual(['save', 'generate'])
+    expect(onSaved).toHaveBeenCalledTimes(1)
+    expect(onSaved).toHaveBeenCalledWith(123)
+    expect(generateMutation).toHaveBeenCalledTimes(1)
+    expect(generateMutation.mock.calls[0][0]).toMatchObject({
+      id: 123,
+      request: { config_revision: 7, name: 'Test campaign' },
+    })
+    expect(container.textContent).toContain('7 / 7 ready')
+    dispose(root)
+  })
+
+  test('generates new draft translations after reviewing missing targets with an empty product scope', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.product_scope = { topup_price_ids: [], subscription_price_ids: [] }
+    draft.email_sequence[0].templates = {
+      en: draft.email_sequence[0].templates.en,
+    }
+    draft.email_sequence[0].translated_source_revision = 0
+    const { root, container } = renderEditorDom(draft)
+
+    await clickByID(container, 'recall-email-tab-translations')
+    expect(
+      (
+        container.querySelector(
+          '#recall-email-0-zh-subject'
+        ) as HTMLInputElement | null
+      )?.value
+    ).toBe('')
+
+    await clickByID(container, 'recall-generate-translations')
+
+    expect(container.textContent).not.toContain(
+      'Please correct the highlighted fields.'
+    )
+    expect(operationOrder).toEqual(['save', 'generate'])
+    expect(createMutation).toHaveBeenCalledTimes(1)
+    expect(generateMutation).toHaveBeenCalledTimes(1)
+    const submitted = createMutation.mock.calls[0][0] as RecallCampaignDraft
+    expect(Object.keys(submitted.email_sequence[0].templates)).toEqual(['en'])
+    expect(submitted.product_scope).toEqual({
+      topup_price_ids: [],
+      subscription_price_ids: [],
+    })
+    dispose(root)
+  })
+
+  test('updates the persisted draft before generating again in the same new editor', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates = {
+      en: draft.email_sequence[0].templates.en,
+    }
+    draft.email_sequence[0].translated_source_revision = 0
+    const onSaved = mock(() => undefined)
+    const { root, container } = renderEditorDom(draft, { onSaved })
+
+    await clickByID(container, 'recall-generate-translations')
+    React.act(() => {
+      latestInputProps['recall-email-0-en-subject'].onChange?.({
+        target: {
+          name: 'email_sequence.0.templates.en.subject',
+          value: 'Changed English subject',
+        },
+        type: 'change',
+      } as React.ChangeEvent<HTMLInputElement>)
+    })
+    await clickByID(container, 'recall-generate-translations')
+
+    expect(createMutation).toHaveBeenCalledTimes(1)
+    expect(onSaved).toHaveBeenCalledTimes(1)
+    expect(updateMutation).toHaveBeenCalledTimes(1)
+    expect(updateMutation.mock.calls[0][0]).toMatchObject({
+      id: 123,
+      draft: { name: 'Test campaign' },
+    })
+    expect(generateMutation).toHaveBeenCalledTimes(2)
+    dispose(root)
+  })
+
+  test('shows stale targets immediately after English changes', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].source_revision = 1
+    draft.email_sequence[0].translated_source_revision = 1
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    React.act(() => {
+      latestInputProps['recall-email-0-en-subject'].onChange?.({
+        target: {
+          name: 'email_sequence.0.templates.en.subject',
+          value: 'Changed English subject',
+        },
+        type: 'change',
+      } as React.ChangeEvent<HTMLInputElement>)
+    })
+    await clickByID(container, 'recall-email-tab-translations')
+
+    expect(container.textContent).toContain('stale')
+    dispose(root)
+  })
+
+  test('marks manual locale edits and warns before replacing them', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].source_revision = 1
+    draft.email_sequence[0].translated_source_revision = 1
+    draft.email_sequence[0].templates.es = {
+      subject: 'Asunto español',
+      body_text: 'Cuerpo español',
+    }
+    draft.email_sequence[0].manual_locales = ['es', 'fr']
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    await clickByID(container, 'recall-generate-translations')
+    expect(generateMutation).not.toHaveBeenCalled()
+    expect(container.textContent).toContain(
+      'Regenerating will replace 2 manually edited translations.'
+    )
+
+    await clickByID(container, 'recall-confirm-regenerate-translations')
+    expect(generateMutation).toHaveBeenCalledTimes(1)
+    dispose(root)
+  })
+
+  test('preserves previous targets when generation fails', async () => {
+    generateMutation.mockImplementationOnce(async () => {
+      operationOrder.push('generate')
+      throw new Error('Translation unavailable')
+    })
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].source_revision = 1
+    draft.email_sequence[0].translated_source_revision = 1
+    draft.email_sequence[0].manual_locales = []
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    await clickByID(container, 'recall-generate-translations')
+    await clickByID(container, 'recall-email-tab-translations')
+
+    const french = container.querySelector(
+      '#recall-email-0-fr-subject'
+    ) as HTMLInputElement | null
+    expect(french?.value).toBe('Sujet français')
+    expect(container.textContent).toContain('Translation unavailable')
+    dispose(root)
+  })
+
+  test('focuses the first structured activation blocker without acknowledgments', () => {
+    const draft = makeDraft('first_purchase')
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+      focusBlocker: { stage_no: 1, locale: 'fr', reason: 'missing' },
+    })
+
+    expect(container.textContent).toContain('Translation review')
+    expect(container.querySelector('#recall-email-0-fr-subject')).toBeTruthy()
+    expect(
+      (
+        document.activeElement as unknown as {
+          attributes?: Record<string, string>
+        }
+      )?.attributes?.id
+    ).toBe('recall-email-0-fr-subject')
+    expect(container.textContent).not.toContain('Acknowledge locale')
+    dispose(root)
   })
 
   test('loads legacy text as visible editable HTML without UTF-16 native limits', () => {

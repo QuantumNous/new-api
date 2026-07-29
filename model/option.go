@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Option struct {
@@ -24,6 +25,8 @@ type Option struct {
 }
 
 const OptionKeyPlaygroundDefaultModel = "PlaygroundDefaultModel"
+
+const recallCampaignEmailFromOptionKey = "recall_campaign_setting.email_from"
 
 var (
 	optionReloadHooksMu sync.RWMutex
@@ -103,6 +106,7 @@ func InitOptionMap() {
 	common.OptionMap["EmailDomainWhitelist"] = strings.Join(common.EmailDomainWhitelist, ",")
 	common.OptionMap["SMTPServer"] = ""
 	common.OptionMap["SMTPFrom"] = ""
+	common.OptionMap["SMTPFromAliases"] = ""
 	common.OptionMap["SMTPPort"] = strconv.Itoa(common.SMTPPort)
 	common.OptionMap["SMTPAccount"] = ""
 	common.OptionMap["SMTPToken"] = ""
@@ -292,6 +296,10 @@ func UpdateOption(key string, value string) error {
 	if IsRetiredOptionKey(key) {
 		return errors.New("option is retired")
 	}
+	if isRecallSenderOptionKey(key) {
+		return updateRecallSenderOption(key, value)
+	}
+
 	normalizedValue, err := validateAndNormalizeOptionValue(key, value)
 	if err != nil {
 		return err
@@ -302,9 +310,13 @@ func UpdateOption(key string, value string) error {
 	option := Option{
 		Key: key,
 	}
-	DB.FirstOrCreate(&option, Option{Key: key})
+	if err := DB.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+		return err
+	}
 	option.Value = value
-	DB.Save(&option)
+	if err := DB.Save(&option).Error; err != nil {
+		return err
+	}
 
 	// Update local OptionMap
 	if err := updateOptionMap(key, value); err != nil {
@@ -324,6 +336,140 @@ func UpdateOption(key string, value string) error {
 	return nil
 }
 
+func isRecallSenderOptionKey(key string) bool {
+	return key == "SMTPFrom" ||
+		key == "SMTPAccount" ||
+		key == "SMTPFromAliases" ||
+		key == recallCampaignEmailFromOptionKey
+}
+
+type recallSenderOptionState struct {
+	SMTPFrom        string
+	SMTPAccount     string
+	SMTPFromAliases string
+	EmailFrom       string
+}
+
+func updateRecallSenderOption(key string, value string) error {
+	applyValues := make(map[string]string)
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		current, err := loadRecallSenderOptionStateForUpdate(tx)
+		if err != nil {
+			return err
+		}
+
+		proposed := current
+		switch key {
+		case "SMTPFrom":
+			proposed.SMTPFrom = strings.TrimSpace(value)
+		case "SMTPAccount":
+			proposed.SMTPAccount = strings.TrimSpace(value)
+		case "SMTPFromAliases":
+			proposed.SMTPFromAliases = value
+		case recallCampaignEmailFromOptionKey:
+			proposed.EmailFrom = strings.TrimSpace(value)
+		}
+
+		normalizedAliases, err := common.NormalizeSMTPFromAliases(proposed.SMTPFromAliases, proposed.SMTPFrom, proposed.SMTPAccount)
+		if err != nil {
+			return err
+		}
+		proposed.SMTPFromAliases = normalizedAliases
+
+		if key == recallCampaignEmailFromOptionKey {
+			if proposed.EmailFrom != "" {
+				resolved, err := common.ResolveSMTPSenderFromConfig(proposed.EmailFrom, proposed.SMTPFrom, proposed.SMTPAccount, proposed.SMTPFromAliases)
+				if err != nil || resolved.UsesDefault {
+					return errors.New("Activity sender must be one of the configured SMTP aliases")
+				}
+				proposed.EmailFrom = resolved.Email
+			}
+		} else if proposed.EmailFrom != "" {
+			if _, err := common.ResolveSMTPSenderFromConfig(proposed.EmailFrom, proposed.SMTPFrom, proposed.SMTPAccount, proposed.SMTPFromAliases); err != nil {
+				if key == "SMTPFromAliases" {
+					return errors.New("the currently selected Activity sender must be changed before removing this alias")
+				}
+				return err
+			}
+		}
+
+		finalValues := map[string]string{
+			"SMTPFrom":                       proposed.SMTPFrom,
+			"SMTPAccount":                    proposed.SMTPAccount,
+			"SMTPFromAliases":                proposed.SMTPFromAliases,
+			recallCampaignEmailFromOptionKey: proposed.EmailFrom,
+		}
+		applyValues = finalValues
+		currentValues := map[string]string{
+			"SMTPFrom":                       current.SMTPFrom,
+			"SMTPAccount":                    current.SMTPAccount,
+			"SMTPFromAliases":                current.SMTPFromAliases,
+			recallCampaignEmailFromOptionKey: current.EmailFrom,
+		}
+		for optionKey, finalValue := range finalValues {
+			if finalValue == currentValues[optionKey] {
+				continue
+			}
+			option := Option{Key: optionKey, Value: finalValue}
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if len(applyValues) == 0 {
+		return nil
+	}
+	if err := applyOptionMapValues(applyValues); err != nil {
+		return err
+	}
+	if pubErr := common.PublishConfigChanged(context.Background(), common.ConfigScopeOptions); pubErr != nil {
+		common.SysError("pubsub: failed to publish options change: " + pubErr.Error())
+	}
+	return nil
+}
+
+func loadRecallSenderOptionStateForUpdate(tx *gorm.DB) (recallSenderOptionState, error) {
+	seedOptions := []Option{
+		{Key: "SMTPFrom", Value: strings.TrimSpace(common.SMTPFrom)},
+		{Key: "SMTPAccount", Value: strings.TrimSpace(common.SMTPAccount)},
+		{Key: "SMTPFromAliases", Value: ""},
+		{Key: recallCampaignEmailFromOptionKey, Value: ""},
+	}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&seedOptions).Error; err != nil {
+		return recallSenderOptionState{}, err
+	}
+	if err := tx.Model(&Option{}).
+		Where(commonKeyCol+" = ?", recallCampaignEmailFromOptionKey).
+		UpdateColumn("value", gorm.Expr("value")).Error; err != nil {
+		return recallSenderOptionState{}, err
+	}
+
+	var options []Option
+	if err := tx.Where(commonKeyCol+" IN ?", []string{
+		"SMTPFrom",
+		"SMTPAccount",
+		"SMTPFromAliases",
+		recallCampaignEmailFromOptionKey,
+	}).Find(&options).Error; err != nil {
+		return recallSenderOptionState{}, err
+	}
+
+	values := make(map[string]string, len(options))
+	for _, option := range options {
+		values[option.Key] = option.Value
+	}
+	return recallSenderOptionState{
+		SMTPFrom:        strings.TrimSpace(values["SMTPFrom"]),
+		SMTPAccount:     strings.TrimSpace(values["SMTPAccount"]),
+		SMTPFromAliases: values["SMTPFromAliases"],
+		EmailFrom:       strings.TrimSpace(values[recallCampaignEmailFromOptionKey]),
+	}, nil
+}
+
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
 // transaction, then dispatches them through updateOptionMap in one pass. If
 // any DB write fails the whole transaction rolls back and no in-memory state
@@ -332,6 +478,11 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	for key := range values {
+		if isRecallSenderOptionKey(key) {
+			return errors.New("recall sender options must be updated individually")
+		}
 	}
 	normalizedValues := make(map[string]string, len(values))
 	var incomingAmountBonus map[int]int64
@@ -741,6 +892,8 @@ func applyOptionMapValue(key string, value string) (err error) {
 		common.SMTPAccount = value
 	case "SMTPFrom":
 		common.SMTPFrom = value
+	case "SMTPFromAliases":
+		common.SMTPFromAliases = value
 	case "SMTPToken":
 		common.SMTPToken = value
 	case "ServerAddress":

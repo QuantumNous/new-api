@@ -25,14 +25,24 @@ import (
 
 type subscriptionStripeRecordingBackend struct {
 	stripe.Backend
-	params []*stripe.CheckoutSessionParams
+	params       []*stripe.CheckoutSessionParams
+	couponParams []*stripe.CouponParams
 }
 
 func (b *subscriptionStripeRecordingBackend) Call(_ string, _ string, _ string, params stripe.ParamsContainer, result stripe.LastResponseSetter) error {
-	b.params = append(b.params, params.(*stripe.CheckoutSessionParams))
-	session := result.(*stripe.CheckoutSession)
-	session.ID = "cs_subscription_test"
-	session.URL = "https://checkout.stripe.test/subscription"
+	switch typed := params.(type) {
+	case *stripe.CheckoutSessionParams:
+		b.params = append(b.params, typed)
+		session := result.(*stripe.CheckoutSession)
+		session.ID = "cs_subscription_test"
+		session.URL = "https://checkout.stripe.test/subscription"
+	case *stripe.CouponParams:
+		b.couponParams = append(b.couponParams, typed)
+		coupon := result.(*stripe.Coupon)
+		coupon.ID = fmt.Sprintf("coupon_subscription_test_%d", len(b.couponParams))
+	default:
+		return fmt.Errorf("unexpected Stripe params type %T", params)
+	}
 	return nil
 }
 
@@ -50,21 +60,72 @@ func setupSubscriptionStripeRecordingBackend(t *testing.T) *subscriptionStripeRe
 	return backend
 }
 
+func TestSubscriptionStripeOrdinaryPromotionCodes(t *testing.T) {
+	backend := setupSubscriptionStripeRecordingBackend(t)
+
+	checkoutSession, err := genStripeSubscriptionLink("sub_ref_ordinary", "", "buyer@example.com", "price_subscription", 7, 11, 0, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "https://checkout.stripe.test/subscription", checkoutSession.URL)
+	require.Len(t, backend.params, 1)
+	params := backend.params[0]
+	require.NotNil(t, params.IdempotencyKey)
+	require.Equal(t, "subscription-stripe:sub_ref_ordinary", *params.IdempotencyKey)
+	require.NotNil(t, params.AllowPromotionCodes)
+	require.True(t, *params.AllowPromotionCodes)
+	require.Empty(t, params.Discounts)
+}
+
+func TestSubscriptionStripeRecallPromotionCode(t *testing.T) {
+	backend := setupSubscriptionStripeRecordingBackend(t)
+
+	checkoutSession, err := genStripeSubscriptionLink("sub_ref_recall", "cus_123", "buyer@example.com", "price_subscription", 7, 11, 0, &service.RecallCheckoutDiscount{
+		PromotionCodeID: "promo_subscription_recall",
+		CampaignID:      42,
+		RecipientID:     84,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "https://checkout.stripe.test/subscription", checkoutSession.URL)
+	require.Len(t, backend.params, 1)
+	params := backend.params[0]
+	require.Nil(t, params.AllowPromotionCodes)
+	require.Len(t, params.Discounts, 1)
+	require.NotNil(t, params.Discounts[0].PromotionCode)
+	require.Equal(t, "promo_subscription_recall", *params.Discounts[0].PromotionCode)
+	require.Equal(t, "42", params.Metadata["recall_campaign_id"])
+	require.Equal(t, "84", params.Metadata["recall_recipient_id"])
+}
+
+func TestSubscriptionStripeInviteCouponDisablesPromotionCodeEntry(t *testing.T) {
+	backend := setupSubscriptionStripeRecordingBackend(t)
+
+	checkoutSession, err := genStripeSubscriptionLink("sub_ref_invite", "", "buyer@example.com", "price_subscription", 7, 11, 5, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, "https://checkout.stripe.test/subscription", checkoutSession.URL)
+	require.Len(t, backend.params, 1)
+	require.Len(t, backend.couponParams, 1)
+	params := backend.params[0]
+	require.Nil(t, params.AllowPromotionCodes)
+	require.Len(t, params.Discounts, 1)
+	require.Equal(t, "coupon_subscription_test_1", *params.Discounts[0].Coupon)
+}
+
 func TestSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testing.T) {
 	for _, tc := range []struct {
 		language string
-		message  string
 	}{
-		{language: "en", message: "This discount is invalid or no longer available for this purchase."},
-		{language: "zh-CN", message: "此优惠无效、已过期或不适用于本次购买。"},
+		{language: "en"},
+		{language: "zh-CN"},
 	} {
 		t.Run(tc.language, func(t *testing.T) {
-			testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t, tc.language, tc.message)
+			testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t, tc.language)
 		})
 	}
 }
 
-func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testing.T, language string, expectedMessage string) {
+func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testing.T, language string) {
 	t.Helper()
 	require.NoError(t, i18n.Init())
 	originalSingleContractEnabled := common.SubscriptionSingleContractEnabled
@@ -144,16 +205,19 @@ func testSubscriptionStripeWrongScopePromotionClaimStopsBeforeCheckout(t *testin
 
 	SubscriptionRequestStripePay(ctx)
 
-	require.Empty(t, backend.params, "a wrong-scope recall claim must stop before Stripe Checkout creation")
+	require.Len(t, backend.params, 1)
+	require.Empty(t, backend.params[0].Discounts)
 	responseBody := recorder.Body.String()
-	require.Contains(t, responseBody, `"message":"error"`)
-	require.Contains(t, responseBody, expectedMessage)
+	require.Contains(t, responseBody, `"message":"success"`)
 	require.NotContains(t, responseBody, service.ErrRecallClaimWrongPrice.Error())
 	require.NotContains(t, responseBody, claim)
 }
 
 func TestSubscriptionStripeReplayIgnoresDisabledPlanAndProviderConfig(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
+	originalSingleContractEnabled := common.SubscriptionSingleContractEnabled
+	common.SubscriptionSingleContractEnabled = false
+	t.Cleanup(func() { common.SubscriptionSingleContractEnabled = originalSingleContractEnabled })
 	setupSubscriptionControllerTestDB(t)
 	backend := setupSubscriptionStripeRecordingBackend(t)
 	originalWebhookSecret := setting.StripeWebhookSecret

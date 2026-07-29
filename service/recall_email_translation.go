@@ -453,8 +453,9 @@ func buildRecallEmailTranslationRequest(modelName string, stages []recallEmailPr
 			{Role: "system", Content: strings.Join([]string{
 				"Translate recall marketing email templates from English into Simplified Chinese, Spanish, French, Portuguese, Russian, Japanese, and Vietnamese.",
 				"Each stage contains only a subject and ordered body_segments array of visible text; no HTML, URLs, CSS, images, or markup are provided.",
+				"Subjects must preserve every protected marker exactly once and in its original order.",
 				"Every body segment starts with a protected segment identity marker; keep that exact marker in the same body_segments array index.",
-				"Return exactly the same number of body_segments for every language as the source stage, preserving item order and every protected marker exactly in the same order within its segment.",
+				"Return exactly the same number of body_segments for every language as the source stage, preserving item order. Keep every protected marker exactly once in its original segment; it may move within that segment only as required by target-language grammar.",
 				"Do not add markup, URLs, claims, or content. Subjects must be single-line. Return JSON only following the schema.",
 			}, " ")},
 			{Role: "user", Content: "Translate every stage and target language in this JSON:\n" + string(stagesJSON)},
@@ -650,7 +651,7 @@ func validateAndRestoreRecallEmailTranslations(campaignType string, result recal
 				if segmentWithoutIdentity == "" {
 					return nil, fmt.Errorf("invalid recall email translation output: stage %d language %s body segment %d is empty after segment identity marker removal", stage.StageNo, language, index+1)
 				}
-				restored, err := restoreRecallEmailProtectedValue(segmentWithoutIdentity, protected.segmentValues[index])
+				restored, err := restoreRecallEmailProtectedSegmentValue(segmentWithoutIdentity, protected.segmentValues[index])
 				if err != nil {
 					return nil, fmt.Errorf("recall email translation stage %d language %s body segment %d: %w", stage.StageNo, language, index+1, err)
 				}
@@ -700,6 +701,28 @@ func restoreRecallEmailProtectedValue(value string, protected []recallEmailProte
 			return "", fmt.Errorf("protected marker sequence changed")
 		}
 		replacements[item.Sentinel] = item.Original
+	}
+	return recallEmailSentinelPattern.ReplaceAllStringFunc(value, func(match string) string {
+		return replacements[match]
+	}), nil
+}
+
+func restoreRecallEmailProtectedSegmentValue(value string, protected []recallEmailProtectedValue) (string, error) {
+	found := recallEmailSentinelPattern.FindAllString(value, -1)
+	if len(found) != len(protected) {
+		return "", fmt.Errorf("protected marker sequence changed")
+	}
+	replacements := make(map[string]string, len(protected))
+	remaining := make(map[string]struct{}, len(protected))
+	for _, item := range protected {
+		replacements[item.Sentinel] = item.Original
+		remaining[item.Sentinel] = struct{}{}
+	}
+	for _, sentinel := range found {
+		if _, exists := remaining[sentinel]; !exists {
+			return "", fmt.Errorf("protected marker sequence changed")
+		}
+		delete(remaining, sentinel)
 	}
 	return recallEmailSentinelPattern.ReplaceAllStringFunc(value, func(match string) string {
 		return replacements[match]

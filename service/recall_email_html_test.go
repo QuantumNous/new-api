@@ -179,8 +179,8 @@ func TestRecallEmailHTMLTranslationPlan(t *testing.T) {
 		"Hello {{.RecipientName}}",
 		"{{.PromotionCodeMasked}} · {{.ProductSummary}} · {{.ExpiresAt}}",
 		"Claim offer",
-		"Support center",
 		"Get help",
+		"Support center",
 		"Help",
 		"Unsubscribe",
 	}, document.TranslationSegments())
@@ -192,8 +192,8 @@ func TestRecallEmailHTMLTranslationPlan(t *testing.T) {
 		"Hola {{.RecipientName}}",
 		"{{.PromotionCodeMasked}} · {{.ProductSummary}} · {{.ExpiresAt}}",
 		"Reclamar oferta",
-		"Centro de soporte",
 		"Obtener ayuda",
+		"Centro de soporte",
 		"Ayuda",
 		"Cancelar suscripcion",
 	})
@@ -206,8 +206,8 @@ func TestRecallEmailHTMLTranslationPlan(t *testing.T) {
 		"Hola {{.RecipientName}}",
 		"{{.PromotionCodeMasked}} · {{.ProductSummary}} · {{.ExpiresAt}}",
 		"Reclamar oferta",
-		"Centro de soporte",
 		"Obtener ayuda",
+		"Centro de soporte",
 		"Ayuda",
 		strings.Repeat("x", recallEmailHTMLMaxBytes),
 	})

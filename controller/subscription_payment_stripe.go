@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
+	stripecoupon "github.com/stripe/stripe-go/v86/coupon"
 	"gorm.io/gorm"
 )
 
@@ -84,6 +86,9 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "Stripe webhook is not configured")
 		return
 	}
+	if rejectSubscriptionPurchasePendingMigration(c) {
+		return
+	}
 
 	user, err := model.GetUserById(userId, false)
 	if err != nil {
@@ -123,6 +128,68 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 			"pay_link": result.CheckoutURL,
 		},
 	})
+}
+
+func applySubscriptionCheckoutDiscountSelection(order *model.SubscriptionOrder, plan *model.SubscriptionPlan, recall *service.RecallCheckoutDiscount) error {
+	if order == nil || plan == nil || recall == nil || recall.DiscountAmountMinor <= 0 {
+		return nil
+	}
+	if order.DiscountUSD > 0 {
+		if !strings.EqualFold(strings.TrimSpace(plan.Currency), "USD") {
+			return nil
+		}
+		inviteDiscountMinor, err := service.StripeMinorUnitAmountForSubscription(order.DiscountUSD, plan.Currency)
+		if err != nil {
+			return err
+		}
+		if inviteDiscountMinor >= recall.DiscountAmountMinor {
+			return nil
+		}
+		order.DiscountUSD = 0
+		order.Money = plan.PriceAmount
+	}
+	order.RecallCampaignId = recall.CampaignID
+	order.RecallRecipientId = recall.RecipientID
+	order.RecallPromotionCodeId = recall.PromotionCodeID
+	order.RecallDiscountAmountMinor = recall.DiscountAmountMinor
+	return order.Update()
+}
+
+func genStripeSubscriptionLink(referenceId string, customerId string, email string, priceId string, userId int, planId int, discountUSD float64, recall *service.RecallCheckoutDiscount) (*stripe.CheckoutSession, error) {
+	stripe.Key = setting.StripeApiSecret
+
+	params := buildStripeSubscriptionCheckoutSessionParams(referenceId, customerId, email, priceId, userId, planId)
+	params.SetIdempotencyKey("subscription-stripe:" + strings.TrimSpace(referenceId))
+	if recall != nil {
+		params.Discounts = append(params.Discounts, &stripe.CheckoutSessionDiscountParams{
+			PromotionCode: stripe.String(recall.PromotionCodeID),
+		})
+		params.Metadata["recall_campaign_id"] = strconv.FormatInt(recall.CampaignID, 10)
+		params.Metadata["recall_recipient_id"] = strconv.FormatInt(recall.RecipientID, 10)
+		params.SubscriptionData.Metadata["recall_campaign_id"] = strconv.FormatInt(recall.CampaignID, 10)
+		params.SubscriptionData.Metadata["recall_recipient_id"] = strconv.FormatInt(recall.RecipientID, 10)
+	} else if discountUSD <= 0 {
+		params.AllowPromotionCodes = stripe.Bool(true)
+	}
+	if discountUSD > 0 {
+		couponParams := &stripe.CouponParams{
+			AmountOff: stripe.Int64(int64(math.Round(discountUSD * 100))),
+			Currency:  stripe.String(string(stripe.CurrencyUSD)),
+			Duration:  stripe.String(string(stripe.CouponDurationOnce)),
+			Name:      stripe.String("Invite first-month discount"),
+		}
+		cp, err := stripecoupon.New(couponParams)
+		if err != nil {
+			return nil, fmt.Errorf("create invite discount coupon: %w", err)
+		}
+		params.Discounts = append(params.Discounts, &stripe.CheckoutSessionDiscountParams{Coupon: stripe.String(cp.ID)})
+	}
+
+	result, err := session.New(params)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func requestStripeRecurringSubscriptionViaPurchasePath(userID int, plan *model.SubscriptionPlan, req SubscriptionStripePayRequest) (*service.PurchaseSubscriptionResult, error) {

@@ -155,6 +155,7 @@ func setupRecallCampaignTestDB(t *testing.T) *gorm.DB {
 		&model.RecallCampaign{},
 		&model.RecallRecipient{},
 		&model.RecallMessage{},
+		&model.RecallEmailQuotaWindow{},
 		&model.RecallEvent{},
 		&model.Log{},
 	))
@@ -300,7 +301,7 @@ func createRecallCampaignEligibleUser(t *testing.T, db *gorm.DB, now time.Time, 
 }
 
 func validRecallCampaignDraft(now time.Time) RecallCampaignDraft {
-	return RecallCampaignDraft{
+	draft := RecallCampaignDraft{
 		Name:             "First purchase win-back",
 		AudienceTemplate: "first_purchase",
 		Audience: RecallAudienceConfig{
@@ -327,6 +328,21 @@ func validRecallCampaignDraft(now time.Time) RecallCampaignDraft {
 		}},
 		Schedule: RecallScheduleConfig{ScheduledAt: now.Add(time.Hour).Unix()},
 	}
+	english := draft.Emails[0].Templates["en"]
+	for _, language := range recallEmailTranslationLanguages {
+		draft.Emails[0].Templates[language] = RecallEmailTemplate{
+			Subject:  language + ":" + english.Subject,
+			BodyText: language + ":" + english.BodyText,
+		}
+	}
+	return draft
+}
+
+func englishOnlyRecallCampaignDraft(now time.Time) RecallCampaignDraft {
+	draft := validRecallCampaignDraft(now)
+	english := draft.Emails[0].Templates["en"]
+	draft.Emails[0].Templates = map[string]RecallEmailTemplate{"en": english}
+	return draft
 }
 
 func TestRecallCampaignReadPaginationIsNormalizedAndBounded(t *testing.T) {
@@ -667,7 +683,7 @@ func TestRecallCampaignSaveDraftTranslatesAndPersistsAllLanguages(t *testing.T) 
 	translator := &recallCampaignFakeEmailTranslator{}
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
+	draft := englishOnlyRecallCampaignDraft(now)
 	draft.Emails = append(draft.Emails, RecallEmailStage{
 		StageNo:      2,
 		DelaySeconds: 3600,
@@ -691,6 +707,430 @@ func TestRecallCampaignSaveDraftTranslatesAndPersistsAllLanguages(t *testing.T) 
 	require.Equal(t, "vi:Your offer is still waiting.", stored[1].Templates["vi"].BodyText)
 }
 
+func TestDeferredRecallDraftSaveStoresEnglishWithoutCallingTranslator(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+
+	require.NoError(t, err)
+	require.Zero(t, translator.callCount())
+	var stages []RecallEmailStage
+	require.NoError(t, common.Unmarshal([]byte(campaign.EmailSequenceConfig), &stages))
+	require.Len(t, stages, 1)
+	require.Equal(t, 1, stages[0].SourceRevision)
+	require.Zero(t, stages[0].TranslatedSourceRevision)
+	require.Empty(t, stages[0].ManualLocales)
+	require.Equal(t, map[string]RecallEmailTemplate{"en": stages[0].Templates["en"]}, stages[0].Templates)
+}
+
+func TestDeferredRecallDraftEnglishEditMarksStoredTargetsStale(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	edit, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	previousFrench := edit.Emails[0].Templates["fr"]
+	edit.DeferLocalization = true
+	edit.Emails[0].Templates = map[string]RecallEmailTemplate{
+		"en": {Subject: "Fresh English", BodyText: "Fresh body"},
+	}
+
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, edit)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, translator.callCount())
+	updatedDraft, err := recallCampaignDraftFromModel(updated)
+	require.NoError(t, err)
+	require.Equal(t, 2, updatedDraft.Emails[0].SourceRevision)
+	require.Equal(t, 1, updatedDraft.Emails[0].TranslatedSourceRevision)
+	require.Empty(t, updatedDraft.Emails[0].ManualLocales)
+	require.Equal(t, previousFrench, updatedDraft.Emails[0].Templates["fr"])
+}
+
+func TestDeferredRecallDraftNormalizedEnglishDoesNotIncrementSourceRevision(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, englishOnlyRecallCampaignDraft(now))
+	require.NoError(t, err)
+	var storedStages []RecallEmailStage
+	require.NoError(t, common.Unmarshal([]byte(campaign.EmailSequenceConfig), &storedStages))
+	english := storedStages[0].Templates["en"]
+	english.Subject = "  " + english.Subject + "  "
+	english.BodyText = "\n" + english.BodyText + "\n"
+	storedStages[0].Templates["en"] = english
+	raw, err := common.Marshal(storedStages)
+	require.NoError(t, err)
+	require.NoError(t, db.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Update("email_sequence_config", string(raw)).Error)
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	edit, err := recallCampaignDraftFromModel(stored)
+	require.NoError(t, err)
+	edit.DeferLocalization = true
+
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, edit)
+
+	require.NoError(t, err)
+	updatedDraft, err := recallCampaignDraftFromModel(updated)
+	require.NoError(t, err)
+	require.Equal(t, 1, updatedDraft.Emails[0].SourceRevision)
+	require.Equal(t, 1, updatedDraft.Emails[0].TranslatedSourceRevision)
+}
+
+func TestDeferredRecallManualLocaleEditMarksOnlyThatLocale(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, englishOnlyRecallCampaignDraft(now))
+	require.NoError(t, err)
+	edit, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	edit.DeferLocalization = true
+	edit.Emails[0].Templates["es"] = RecallEmailTemplate{Subject: "Corrección", BodyText: "Texto corregido"}
+
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, edit)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, translator.callCount())
+	updatedDraft, err := recallCampaignDraftFromModel(updated)
+	require.NoError(t, err)
+	require.Equal(t, 1, updatedDraft.Emails[0].SourceRevision)
+	require.Equal(t, 1, updatedDraft.Emails[0].TranslatedSourceRevision)
+	require.Equal(t, []string{"es"}, updatedDraft.Emails[0].ManualLocales)
+}
+
+func TestLegacyCompleteRecallLocalesNormalizeCurrentAndEnglishOnlyNormalizeStale(t *testing.T) {
+	stage := RecallEmailStage{StageNo: 1, Templates: recallCampaignManualLocaleTemplates()}
+	completeJSON, err := common.Marshal([]RecallEmailStage{stage})
+	require.NoError(t, err)
+	stage.Templates = map[string]RecallEmailTemplate{"en": stage.Templates[" EN "]}
+	englishJSON, err := common.Marshal([]RecallEmailStage{stage})
+	require.NoError(t, err)
+
+	for _, testCase := range []struct {
+		name              string
+		emailSequenceJSON string
+		wantTranslatedRev int
+	}{
+		{name: "complete", emailSequenceJSON: string(completeJSON), wantTranslatedRev: 1},
+		{name: "english only", emailSequenceJSON: string(englishJSON), wantTranslatedRev: 0},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			campaign := &model.RecallCampaign{
+				AudienceConfig:      `{}`,
+				DiscountConfig:      `{}`,
+				ProductScope:        `{}`,
+				EmailSequenceConfig: testCase.emailSequenceJSON,
+			}
+
+			draft, err := recallCampaignDraftFromModel(campaign)
+
+			require.NoError(t, err)
+			require.Equal(t, 1, draft.Emails[0].SourceRevision)
+			require.Equal(t, testCase.wantTranslatedRev, draft.Emails[0].TranslatedSourceRevision)
+		})
+	}
+}
+
+func TestExistingEnglishOnlyAPIClientStillAutomaticallyLocalizes(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+
+	campaign, err := service.SaveDraft(context.Background(), 7, englishOnlyRecallCampaignDraft(now))
+
+	require.NoError(t, err)
+	require.Equal(t, 1, translator.callCount())
+	draft, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	requireRecallCampaignCanonicalLanguages(t, draft.Emails)
+	require.Equal(t, 1, draft.Emails[0].SourceRevision)
+	require.Equal(t, 1, draft.Emails[0].TranslatedSourceRevision)
+	require.Empty(t, draft.Emails[0].ManualLocales)
+}
+
+func TestRecallCampaignDraftActivationRequiresFreshCompleteTranslations(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	calls := &recallCampaignStripeCalls{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, calls), &recallCampaignFakeEmailTranslator{})
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+
+	err = service.Activate(context.Background(), 7, campaign.Id)
+
+	require.ErrorContains(t, err, "stage 1")
+	require.ErrorContains(t, err, "zh")
+	require.Zero(t, calls.getPrice)
+	require.Zero(t, calls.createCoupon)
+}
+
+func TestGenerateRecallEmailTranslationsUpdatesEveryStageAtomically(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	draft.Emails = append(draft.Emails, RecallEmailStage{
+		StageNo:      2,
+		DelaySeconds: 3600,
+		Templates: map[string]RecallEmailTemplate{
+			"en": {Subject: "Second stage", BodyText: "Second body"},
+		},
+	})
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.Zero(t, translator.callCount())
+	storedDraft, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	require.Len(t, storedDraft.Emails[0].ManualLocales, len(recallEmailTranslationLanguages))
+
+	response, err := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, translator.callCount())
+	require.Len(t, translator.calls[0], 2)
+	require.EqualValues(t, campaign.ConfigRevision+1, response.ConfigRevision)
+	require.Len(t, response.Emails, 2)
+	requireRecallCampaignCanonicalLanguages(t, response.Emails)
+	for _, stage := range response.Emails {
+		require.Equal(t, stage.SourceRevision, stage.TranslatedSourceRevision)
+		require.Empty(t, stage.ManualLocales)
+	}
+	require.Equal(t, 1, response.Emails[0].TemplateVersion, "unchanged generated content must not bump the version")
+	require.Equal(t, 2, response.Emails[1].TemplateVersion, "new target content must bump the version once")
+}
+
+func TestGenerateRecallEmailTranslationsHonorsGlobalFeatureGate(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	setRecallCampaignEnabled(t, false)
+
+	_, err = service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         draft.Emails,
+	})
+
+	require.ErrorIs(t, err, ErrRecallDisabled)
+	require.Zero(t, translator.callCount())
+}
+
+func TestGenerateRecallEmailTranslationsRejectsStaleRevisionBeforeTranslation(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+
+	_, err = service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision + 1,
+		Name:           campaign.Name,
+		Emails:         draft.Emails,
+	})
+
+	require.ErrorContains(t, err, "revision")
+	require.Zero(t, translator.callCount())
+}
+
+func TestGenerateRecallEmailTranslationsFailurePersistsNothing(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{err: errors.New("translation unavailable")}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	beforeSequence := campaign.EmailSequenceConfig
+
+	_, err = service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         draft.Emails,
+	})
+
+	require.ErrorContains(t, err, "translation unavailable")
+	stored, getErr := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, getErr)
+	require.Equal(t, beforeSequence, stored.EmailSequenceConfig)
+	require.Equal(t, campaign.ConfigRevision, stored.ConfigRevision)
+}
+
+func TestGenerateRecallEmailTranslationsPropagatesProtectedContentValidation(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	translator.translateFn = func(stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+		translations := recallCampaignHTMLTranslations(stages, "generated")
+		translations[1]["zh"] = RecallEmailTemplate{
+			Subject:  "zh:generated:HTML offer",
+			BodyHTML: strings.Replace(validRecallHTML, `href="{{.ClaimURL}}"`, `href="https://flatkey.ai/help"`, 1),
+		}
+		return translations, nil
+	}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	draft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "HTML offer", BodyHTML: validRecallHTML}
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+
+	_, err = service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         draft.Emails,
+	})
+
+	require.ErrorContains(t, err, "ClaimURL action must appear in an anchor href")
+	stored, getErr := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, getErr)
+	require.Equal(t, campaign.EmailSequenceConfig, stored.EmailSequenceConfig)
+	require.Equal(t, campaign.ConfigRevision, stored.ConfigRevision)
+}
+
+func TestGenerateRecallEmailTranslationsRejectsConcurrentRevisionWithoutPartialWrite(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	translator.translateFn = func(stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+		require.NoError(t, db.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).UpdateColumn("config_revision", gorm.Expr("config_revision + 1")).Error)
+		return recallCampaignTestTranslations(stages), nil
+	}
+
+	_, err = service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         draft.Emails,
+	})
+
+	require.ErrorContains(t, err, "revision")
+	stored, getErr := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, getErr)
+	require.Equal(t, campaign.EmailSequenceConfig, stored.EmailSequenceConfig)
+	require.Equal(t, campaign.ConfigRevision+1, stored.ConfigRevision)
+}
+
+func TestGenerateRecallEmailTranslationsRejectsConcurrentStatusChangeWithoutPartialWrite(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	translator.translateFn = func(stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+		require.NoError(t, db.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).UpdateColumn("status", model.RecallCampaignRunning).Error)
+		return recallCampaignTestTranslations(stages), nil
+	}
+
+	_, err = service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         draft.Emails,
+	})
+
+	require.ErrorContains(t, err, "status")
+	stored, getErr := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, getErr)
+	require.Equal(t, model.RecallCampaignRunning, stored.Status)
+	require.Equal(t, campaign.EmailSequenceConfig, stored.EmailSequenceConfig)
+	require.Equal(t, campaign.ConfigRevision, stored.ConfigRevision)
+}
+
+func TestGenerateRecallEmailTranslationsUpdatesActiveCampaignAtomically(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}), translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	activeDraft, err := recallCampaignDraftFromModel(stored)
+	require.NoError(t, err)
+	activeDraft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "Active English", BodyText: "Active body"}
+
+	response, err := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: stored.ConfigRevision,
+		Name:           stored.Name,
+		Emails:         activeDraft.Emails,
+	})
+
+	require.NoError(t, err)
+	require.EqualValues(t, stored.ConfigRevision+1, response.ConfigRevision)
+	require.Equal(t, "Active English", response.Emails[0].Templates["en"].Subject)
+	require.Equal(t, "fr:Active English", response.Emails[0].Templates["fr"].Subject)
+	require.Equal(t, 2, response.Emails[0].TemplateVersion)
+	stored, err = model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignRunning, stored.Status)
+}
+
 func TestRecallCampaignSaveDraftFallsBackToEnglishWhenTranslationIsNotConfigured(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -699,7 +1139,7 @@ func TestRecallCampaignSaveDraftFallsBackToEnglishWhenTranslationIsNotConfigured
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
 
-	campaign, err := service.SaveDraft(context.Background(), 7, validRecallCampaignDraft(now))
+	campaign, err := service.SaveDraft(context.Background(), 7, englishOnlyRecallCampaignDraft(now))
 
 	require.NoError(t, err)
 	require.NotNil(t, campaign)
@@ -719,7 +1159,7 @@ func TestRecallCampaignSaveDraftTranslationFailureDoesNotPersist(t *testing.T) {
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
 
-	campaign, err := service.SaveDraft(context.Background(), 7, validRecallCampaignDraft(now))
+	campaign, err := service.SaveDraft(context.Background(), 7, englishOnlyRecallCampaignDraft(now))
 
 	require.ErrorContains(t, err, "translation unavailable")
 	require.Nil(t, campaign)
@@ -735,7 +1175,7 @@ func TestRecallCampaignUpdateDraftReusesCompleteStoredTranslations(t *testing.T)
 	translator := &recallCampaignFakeEmailTranslator{}
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
+	draft := englishOnlyRecallCampaignDraft(now)
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 	require.NoError(t, err)
 
@@ -757,7 +1197,7 @@ func TestRecallCampaignUpdateDraftRepairsMissingLocalizedTemplate(t *testing.T) 
 	translator := &recallCampaignFakeEmailTranslator{}
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
+	draft := englishOnlyRecallCampaignDraft(now)
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 	require.NoError(t, err)
 	var damaged []RecallEmailStage
@@ -784,7 +1224,7 @@ func TestRecallCampaignUpdateDraftReplacesGeneratedTranslationsWhenEnglishChange
 	translator := &recallCampaignFakeEmailTranslator{}
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
+	draft := englishOnlyRecallCampaignDraft(now)
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 	require.NoError(t, err)
 	draft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "A new subject", BodyText: "A new body"}
@@ -809,7 +1249,7 @@ func TestRecallCampaignUpdateDraftReusesUnchangedEnglishHTMLTranslations(t *test
 	}
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
+	draft := englishOnlyRecallCampaignDraft(now)
 	draft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "HTML offer", BodyHTML: validRecallHTML}
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 	require.NoError(t, err)
@@ -837,7 +1277,7 @@ func TestRecallCampaignUpdateDraftReplacesAllGeneratedHTMLTranslationsWhenEnglis
 	}
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
+	draft := englishOnlyRecallCampaignDraft(now)
 	draft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "HTML offer", BodyHTML: validRecallHTML}
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 	require.NoError(t, err)
@@ -877,7 +1317,7 @@ func TestRecallCampaignSaveDraftRejectsInvalidTranslatedHTMLBeforePersistence(t 
 	}
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
+	draft := englishOnlyRecallCampaignDraft(now)
 	draft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "HTML offer", BodyHTML: validRecallHTML}
 
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
@@ -937,7 +1377,7 @@ func TestRecallCampaignSaveDraftRejectsIncompleteOrUnknownManualLocales(t *testi
 				"en": {Subject: "Come back", BodyText: "A Stripe offer is waiting."},
 				"de": {Subject: "Betreff", BodyText: "Text"},
 			},
-			wantError: "manual locales must contain either only en or all eight supported languages",
+			wantError: "unsupported language de",
 		},
 	}
 	for _, test := range tests {
@@ -960,7 +1400,7 @@ func TestRecallCampaignActivatedTranslatedEmailUpdateIncrementsVersionOnce(t *te
 	translator := &recallCampaignFakeEmailTranslator{}
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}), translator)
 	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
+	draft := englishOnlyRecallCampaignDraft(now)
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 	require.NoError(t, err)
 	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
@@ -1067,13 +1507,13 @@ func TestRecallCampaignConcurrentEmailEditsUseConfigRevisionFenceAfterTranslatio
 	}
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}), translator)
 	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
+	draft := englishOnlyRecallCampaignDraft(now)
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 	require.NoError(t, err)
 	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
 
 	makeEdit := func(subject string) RecallCampaignDraft {
-		edit := validRecallCampaignDraft(now)
+		edit := englishOnlyRecallCampaignDraft(now)
 		edit.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: subject, BodyText: subject + " body"}
 		return edit
 	}
@@ -1224,7 +1664,6 @@ func TestRecallCampaignSaveDraftRejectsInvalidBoundaries(t *testing.T) {
 		}},
 		{name: "automatic coupon has existing id", mutate: func(d *RecallCampaignDraft) { d.ExistingCouponID = "coupon_existing" }},
 		{name: "existing coupon lacks id", mutate: func(d *RecallCampaignDraft) { d.CouponSource = "existing" }},
-		{name: "no prices", mutate: func(d *RecallCampaignDraft) { d.Products = RecallProductScope{} }},
 		{name: "zero validity", mutate: func(d *RecallCampaignDraft) { d.PromotionValidSeconds = 0 }},
 		{name: "zero enrollment", mutate: func(d *RecallCampaignDraft) { d.EnrollmentLimit = 0 }},
 		{name: "too much enrollment", mutate: func(d *RecallCampaignDraft) { d.EnrollmentLimit = 100001 }},
@@ -1276,6 +1715,254 @@ func TestRecallCampaignSaveDraftRejectsInvalidBoundaries(t *testing.T) {
 			tt.mutate(&draft)
 			_, err := service.SaveDraft(context.Background(), 7, draft)
 			require.Error(t, err)
+		})
+	}
+}
+
+func TestRecallCampaignDraftPersistenceAllowsEmptyProductScope(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.Products = RecallProductScope{}
+
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignDraft, campaign.Status)
+
+	updatedDraft := draft
+	updatedDraft.Name = "Updated empty product draft"
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, updatedDraft)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignDraft, updated.Status)
+	require.Equal(t, updatedDraft.Name, updated.Name)
+
+	detail, err := service.GetDetail(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	require.Empty(t, detail.Draft.Products.TopUpPriceIDs)
+	require.Empty(t, detail.Draft.Products.SubscriptionPriceIDs)
+}
+
+func TestRecallCampaignStripeValidationStillRejectsEmptyProductScope(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.Products = RecallProductScope{}
+
+	_, err := service.ValidateStripe(context.Background(), draft)
+
+	require.ErrorContains(t, err, "at least one Stripe Price")
+}
+
+func TestRecallCampaignPreviewAndActivationRejectPersistedEmptyProductScope(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.Products = RecallProductScope{}
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+
+	_, _, err = service.Preview(context.Background(), campaign.Id, 1)
+	require.ErrorContains(t, err, "at least one Stripe Price")
+
+	err = service.Activate(context.Background(), 7, campaign.Id)
+	require.ErrorContains(t, err, "at least one Stripe Price")
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignDraft, stored.Status)
+}
+
+func TestValidateRecallCampaignDraftSupportsFixedAndRelativePromotionExpiry(t *testing.T) {
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+
+	t.Run("relative clears fixed expiry", func(t *testing.T) {
+		draft := validRecallCampaignDraft(now)
+		draft.PromotionExpiryMode = RecallPromotionExpiryRelative
+		draft.PromotionValidSeconds = 2 * 60 * 60
+		draft.PromotionExpiresAt = now.Add(24 * time.Hour).Unix()
+
+		normalized, err := validateAndNormalizeRecallCampaignDraft(draft, now)
+
+		require.NoError(t, err)
+		require.Equal(t, RecallPromotionExpiryRelative, normalized.PromotionExpiryMode)
+		require.EqualValues(t, 2*60*60, normalized.PromotionValidSeconds)
+		require.Zero(t, normalized.PromotionExpiresAt)
+	})
+
+	t.Run("fixed clears relative validity", func(t *testing.T) {
+		draft := validRecallCampaignDraft(now)
+		draft.PromotionExpiryMode = RecallPromotionExpiryFixed
+		draft.PromotionValidSeconds = 0
+		draft.PromotionExpiresAt = now.Add(24 * time.Hour).Unix()
+
+		normalized, err := validateAndNormalizeRecallCampaignDraft(draft, now)
+
+		require.NoError(t, err)
+		require.Equal(t, RecallPromotionExpiryFixed, normalized.PromotionExpiryMode)
+		require.Zero(t, normalized.PromotionValidSeconds)
+		require.Equal(t, now.Add(24*time.Hour).Unix(), normalized.PromotionExpiresAt)
+	})
+
+	for _, testCase := range []struct {
+		name   string
+		mutate func(*RecallCampaignDraft)
+	}{
+		{name: "relative requires positive validity", mutate: func(draft *RecallCampaignDraft) {
+			draft.PromotionExpiryMode = RecallPromotionExpiryRelative
+			draft.PromotionValidSeconds = 0
+		}},
+		{name: "fixed requires expiry", mutate: func(draft *RecallCampaignDraft) {
+			draft.PromotionExpiryMode = RecallPromotionExpiryFixed
+			draft.PromotionExpiresAt = 0
+		}},
+		{name: "fixed requires future expiry", mutate: func(draft *RecallCampaignDraft) {
+			draft.PromotionExpiryMode = RecallPromotionExpiryFixed
+			draft.PromotionExpiresAt = now.Unix()
+		}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			testCase.mutate(&draft)
+
+			_, err := validateAndNormalizeRecallCampaignDraft(draft, now)
+
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestRecallCampaignEffectiveExpiryUsesCouponAsHardUpperBound(t *testing.T) {
+	runAt := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	couponBound := runAt.Add(90 * time.Minute).Unix()
+
+	for _, testCase := range []struct {
+		name  string
+		draft RecallCampaignDraft
+	}{
+		{
+			name: "relative",
+			draft: RecallCampaignDraft{
+				PromotionExpiryMode:   RecallPromotionExpiryRelative,
+				PromotionValidSeconds: 2 * 60 * 60,
+				Discount:              RecallDiscountConfig{CouponRedeemBy: couponBound},
+			},
+		},
+		{
+			name: "fixed",
+			draft: RecallCampaignDraft{
+				PromotionExpiryMode: RecallPromotionExpiryFixed,
+				PromotionExpiresAt:  runAt.Add(3 * time.Hour).Unix(),
+				Discount:            RecallDiscountConfig{CouponRedeemBy: couponBound},
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			expiresAt, err := recallPromotionExpiryAt(testCase.draft, runAt)
+
+			require.NoError(t, err)
+			require.Equal(t, couponBound, expiresAt)
+		})
+	}
+}
+
+func TestNewAndEditableRecallMinimumAmountsCanonicalizeToUSD(t *testing.T) {
+	tests := []struct {
+		name             string
+		minimumSpend     *RecallMinimumSpendConfig
+		minimumAmount    int64
+		minimumCurrency  string
+		wantSpend        *RecallMinimumSpendConfig
+		wantLegacyAmount int64
+		wantLegacyCurr   string
+	}{
+		{
+			name: "canonical enabled exact four dual writes usd",
+			minimumSpend: &RecallMinimumSpendConfig{
+				Enabled: true,
+				Amounts: map[string]int64{
+					" USD ": 2500,
+					"INR":   200000,
+					"brl":   12500,
+					"JPY":   3750,
+				},
+			},
+			minimumAmount:   9999,
+			minimumCurrency: "eur",
+			wantSpend: &RecallMinimumSpendConfig{
+				Enabled: true,
+				Amounts: map[string]int64{"usd": 2500, "inr": 200000, "brl": 12500, "jpy": 3750},
+			},
+			wantLegacyAmount: 2500,
+			wantLegacyCurr:   "usd",
+		},
+		{
+			name: "canonical disabled clears all minimum fields",
+			minimumSpend: &RecallMinimumSpendConfig{
+				Enabled: false,
+				Amounts: map[string]int64{"usd": 2500, "inr": 200000, "brl": 12500, "jpy": 3750},
+			},
+			wantSpend: &RecallMinimumSpendConfig{Amounts: map[string]int64{}},
+		},
+		{
+			name:             "legacy pair keeps exact requested currency when canonical missing",
+			minimumAmount:    2500,
+			minimumCurrency:  " EUR ",
+			wantLegacyAmount: 2500,
+			wantLegacyCurr:   "eur",
+		},
+		{
+			name:            "empty legacy clears legacy currency when canonical missing",
+			minimumCurrency: "eur",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+			service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
+			service.now = func() time.Time { return now }
+			draft := validRecallCampaignDraft(now)
+			draft.Discount.MinimumSpend = tt.minimumSpend
+			draft.Discount.MinimumAmount = tt.minimumAmount
+			draft.Discount.MinimumAmountCurrency = tt.minimumCurrency
+
+			campaign, err := service.SaveDraft(context.Background(), 7, draft)
+			require.NoError(t, err)
+			storedDraft, err := recallCampaignDraftFromModel(campaign)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSpend, storedDraft.Discount.MinimumSpend)
+			require.Equal(t, tt.wantLegacyAmount, storedDraft.Discount.MinimumAmount)
+			require.Equal(t, tt.wantLegacyCurr, storedDraft.Discount.MinimumAmountCurrency)
+			if tt.wantSpend != nil && !tt.wantSpend.Enabled {
+				var persisted map[string]any
+				require.NoError(t, common.Unmarshal([]byte(campaign.DiscountConfig), &persisted))
+				minimumSpend, ok := persisted["minimum_spend"].(map[string]any)
+				require.True(t, ok)
+				require.Equal(t, map[string]any{}, minimumSpend["amounts"])
+			}
+
+			updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, storedDraft)
+			require.NoError(t, err)
+			updatedDraft, err := recallCampaignDraftFromModel(updated)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSpend, updatedDraft.Discount.MinimumSpend)
+			require.Equal(t, tt.wantLegacyAmount, updatedDraft.Discount.MinimumAmount)
+			require.Equal(t, tt.wantLegacyCurr, updatedDraft.Discount.MinimumAmountCurrency)
+			if tt.wantSpend != nil && !tt.wantSpend.Enabled {
+				var persisted map[string]any
+				require.NoError(t, common.Unmarshal([]byte(updated.DiscountConfig), &persisted))
+				minimumSpend, ok := persisted["minimum_spend"].(map[string]any)
+				require.True(t, ok)
+				require.Equal(t, map[string]any{}, minimumSpend["amounts"])
+			}
 		})
 	}
 }
@@ -1914,6 +2601,7 @@ func TestRecallCampaignRecurringStopsSchedulingAfterLastValidRun(t *testing.T) {
 	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
 	stored, err := model.GetRecallCampaignByID(campaign.Id)
 	require.NoError(t, err)
+	firstRunAt := stored.NextRunAt
 
 	processed, err := service.RunDueCampaigns(context.Background(), time.Unix(stored.NextRunAt, 0), 10)
 
@@ -1921,15 +2609,49 @@ func TestRecallCampaignRecurringStopsSchedulingAfterLastValidRun(t *testing.T) {
 	require.Equal(t, 1, processed)
 	stored, err = model.GetRecallCampaignByID(campaign.Id)
 	require.NoError(t, err)
-	require.Equal(t, model.RecallCampaignRunning, stored.Status)
+	require.Equal(t, model.RecallCampaignCompleted, stored.Status)
 	require.Zero(t, stored.NextRunAt)
-	require.Zero(t, stored.CompletedAt)
+	require.Equal(t, firstRunAt, stored.CompletedAt)
 	var recipient model.RecallRecipient
 	require.NoError(t, db.First(&recipient).Error)
 	require.Equal(t, model.RecallRecipientQueued, recipient.State)
 	var messageCount int64
 	require.NoError(t, db.Model(&model.RecallMessage{}).Count(&messageCount).Error)
 	require.Zero(t, messageCount)
+}
+
+func TestRecurringFixedExpiryCompletesAfterFinalEligibleRun(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 0, 30, 0, 0, time.UTC)
+	createRecallCampaignEligibleUser(t, db, now, "recurring-fixed-expiry")
+	draft := validRecallCampaignDraft(now)
+	draft.Audience.LastAPICallAgeDays = 0
+	draft.ExecutionMode = "recurring"
+	draft.Schedule = RecallScheduleConfig{Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}
+	draft.PromotionExpiryMode = RecallPromotionExpiryFixed
+	draft.PromotionExpiresAt = time.Date(2026, 7, 17, 1, 0, 0, 0, time.UTC).Unix()
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	firstRunAt := stored.NextRunAt
+
+	processed, err := service.RunDueCampaigns(context.Background(), time.Unix(firstRunAt, 0), 10)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	stored, err = model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignCompleted, stored.Status)
+	require.Zero(t, stored.NextRunAt)
+	require.Equal(t, firstRunAt, stored.CompletedAt)
+	var recipient model.RecallRecipient
+	require.NoError(t, db.First(&recipient).Error)
+	require.Equal(t, draft.PromotionExpiresAt, recipient.PromotionExpiresAt)
 }
 
 func TestRecallCampaignDueRunCompletesWhenCouponRedeemByAlreadyReached(t *testing.T) {
@@ -2131,6 +2853,44 @@ func TestRecallCampaignActivatedEmailUpdateIgnoresPastImmutableTimestamps(t *tes
 	require.NoError(t, common.Unmarshal([]byte(updated.EmailSequenceConfig), &stages))
 	require.Equal(t, "Updated subject", stages[0].Templates["en"].Subject)
 	require.Equal(t, 2, stages[0].TemplateVersion)
+}
+
+func TestLegacyRunningRecallMinimumCurrencyIsNotRewritten(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	draft := validRecallCampaignDraft(now)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+
+	legacyDiscount := draft.Discount
+	legacyDiscount.MinimumAmount = 2500
+	legacyDiscount.MinimumAmountCurrency = "eur"
+	discountJSON, err := common.Marshal(legacyDiscount)
+	require.NoError(t, err)
+	require.NoError(t, db.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Updates(map[string]any{
+		"promotion_expiry_mode": "",
+		"discount_config":       string(discountJSON),
+	}).Error)
+
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	edit, err := recallCampaignDraftFromModel(stored)
+	require.NoError(t, err)
+	require.Equal(t, RecallPromotionExpiryRelative, edit.PromotionExpiryMode)
+	require.Equal(t, "eur", edit.Discount.MinimumAmountCurrency)
+	edit.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "Updated subject", BodyText: "Updated body"}
+
+	_, err = service.UpdateDraft(context.Background(), 7, campaign.Id, edit)
+	require.NoError(t, err)
+	stored, err = model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Empty(t, stored.PromotionExpiryMode)
+	require.NoError(t, common.Unmarshal([]byte(stored.DiscountConfig), &legacyDiscount))
+	require.Equal(t, "eur", legacyDiscount.MinimumAmountCurrency)
 }
 
 func TestRecallCampaignConcurrentEmailEditsUseConfigRevisionFence(t *testing.T) {

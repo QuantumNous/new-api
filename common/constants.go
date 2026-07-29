@@ -125,6 +125,7 @@ var SMTPSSLEnabled = false
 var SMTPForceAuthLogin = false
 var SMTPAccount = ""
 var SMTPFrom = ""
+var SMTPFromAliases = ""
 var SMTPToken = ""
 
 var GitHubClientId = ""
