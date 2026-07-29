@@ -32,12 +32,13 @@ export {
   openExternalSpeedTest,
   getDefaultPingStatus,
 } from './api-info'
+export { getDashboardChartColors, USER_CHART_COLORS } from './chart-palette'
 export { processChartData, processUserChartData } from './charts'
 export {
   buildDashboardFlowData,
-  buildFlowSankeySpec,
-  flowNodeFilterFromSankeyDatum,
-  flowSankeyDatumValue,
+  buildFlowSankeyRechartsData,
+  flowLinkSelectionFromSankeyLink,
+  flowNodeFilterFromSankeyNode,
   getFlowStages,
 } from './flow'
 export { safeDivide, calculateDashboardStats } from './stats'

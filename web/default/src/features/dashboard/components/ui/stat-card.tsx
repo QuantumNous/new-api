@@ -17,10 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { LucideIcon } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import { useId, type ReactNode } from 'react'
 
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { MOTION_TRANSITION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 type StatCardTone = 'accent-1' | 'accent-2' | 'accent-3'
@@ -41,7 +43,7 @@ export interface StatCardDetail {
 interface StatCardProps {
   title: string
   value: string | number
-  description: string
+  description?: string
   icon: LucideIcon
   sparkline?: number[]
   sparklineVariant?: StatCardSparklineVariant
@@ -52,6 +54,7 @@ interface StatCardProps {
   action?: ReactNode
   iconTone?: IconBadgeTone
   compactMobile?: boolean
+  animateSparkline?: boolean
 }
 
 const TONE_CLASSES: Record<StatCardTone, string> = {
@@ -144,17 +147,23 @@ function buildLineSparkline(values?: number[]) {
   }
 }
 
-function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
+function LineSparkline(props: {
+  values?: number[]
+  tone: StatCardTone
+  animate?: boolean
+}) {
   const rawGradientId = useId()
   const gradientId = `stat-card-line-${rawGradientId.replaceAll(':', '')}`
   const paths = buildLineSparkline(props.values)
+  const shouldReduce = useReducedMotion()
+  const animate = Boolean(props.animate) && !shouldReduce
 
-  if (!paths) return <div className='h-8' aria-hidden='true' />
+  if (!paths) return <div className='h-9' aria-hidden='true' />
 
   return (
     <div
       className={cn(
-        'relative h-8 overflow-hidden rounded-lg',
+        'relative h-9 overflow-hidden rounded-lg',
         LINE_TONE_CLASSES[props.tone]
       )}
       aria-hidden='true'
@@ -166,12 +175,18 @@ function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
       >
         <defs>
           <linearGradient id={gradientId} x1='0' x2='0' y1='0' y2='1'>
-            <stop offset='0%' stopColor='currentColor' stopOpacity='0.24' />
+            <stop offset='0%' stopColor='currentColor' stopOpacity='0.22' />
             <stop offset='100%' stopColor='currentColor' stopOpacity='0' />
           </linearGradient>
         </defs>
-        <path d={paths.areaPath} fill={`url(#${gradientId})`} />
-        <path
+        <motion.path
+          d={paths.areaPath}
+          fill={`url(#${gradientId})`}
+          initial={animate ? { opacity: 0 } : false}
+          animate={{ opacity: 1 }}
+          transition={{ ...MOTION_TRANSITION.slow, delay: 0.15 }}
+        />
+        <motion.path
           d={paths.linePath}
           fill='none'
           stroke='currentColor'
@@ -179,25 +194,40 @@ function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
           strokeLinejoin='round'
           strokeWidth='2.25'
           vectorEffect='non-scaling-stroke'
+          initial={animate ? { pathLength: 0, opacity: 0.35 } : false}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={MOTION_TRANSITION.slow}
         />
       </svg>
     </div>
   )
 }
 
-function BarSparkline(props: { values?: number[]; tone: StatCardTone }) {
+function BarSparkline(props: {
+  values?: number[]
+  tone: StatCardTone
+  animate?: boolean
+}) {
   const sparkline = normalizeSparkline(props.values)
+  const shouldReduce = useReducedMotion()
+  const animate = Boolean(props.animate) && !shouldReduce
 
   return (
-    <div className='flex h-8 items-end gap-1' aria-hidden='true'>
+    <div className='flex h-9 items-end gap-1' aria-hidden='true'>
       {sparkline.map((bucket) => (
-        <span
+        <motion.span
           key={bucket.position}
           className={cn(
-            'flex-1 rounded-t-sm bg-linear-to-t',
+            'flex-1 origin-bottom rounded-t-sm bg-linear-to-t',
             bucket.height <= 0 && 'opacity-20',
             TONE_CLASSES[props.tone]
           )}
+          initial={animate ? { scaleY: 0, opacity: 0.4 } : false}
+          animate={{ scaleY: 1, opacity: bucket.height <= 0 ? 0.2 : 1 }}
+          transition={{
+            ...MOTION_TRANSITION.default,
+            delay: bucket.position * 0.03,
+          }}
           style={{ height: `${bucket.height}%` }}
         />
       ))}
@@ -236,6 +266,8 @@ export function StatCard(props: StatCardProps) {
   const tone = props.tone ?? 'accent-3'
   const iconTone = props.iconTone ?? ICON_TONE_BY_STAT_TONE[tone]
   const sparklineVariant = props.sparklineVariant ?? 'bars'
+  const hasDescription = Boolean(props.description)
+
   let valueContent: ReactNode
   if (props.loading) {
     valueContent = (
@@ -245,45 +277,51 @@ export function StatCard(props: StatCardProps) {
           props.compactMobile ? 'gap-1' : 'gap-1.5'
         )}
       >
-        <Skeleton className='h-5 w-16 sm:h-7 sm:w-24' />
-        <Skeleton
-          className={cn(
-            'h-3 w-24 sm:h-3.5 sm:w-32',
-            props.compactMobile && 'hidden sm:block'
-          )}
-        />
+        <Skeleton className='h-6 w-20 sm:h-8 sm:w-28' />
+        {hasDescription && (
+          <Skeleton
+            className={cn(
+              'h-3 w-24 sm:h-3.5 sm:w-32',
+              props.compactMobile && 'hidden sm:block'
+            )}
+          />
+        )}
       </div>
     )
   } else if (props.error) {
     valueContent = (
       <div className='flex flex-col gap-1'>
-        <div className='text-muted-foreground mt-0.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:text-2xl'>
+        <div className='text-muted-foreground mt-0.5 font-mono text-xl font-semibold tracking-tight break-all tabular-nums sm:text-2xl'>
           --
         </div>
-        <p
-          className={cn(
-            'text-muted-foreground/60 line-clamp-1 text-[11px] sm:text-xs',
-            props.compactMobile && 'hidden sm:block'
-          )}
-        >
-          {props.description}
-        </p>
+        {hasDescription && (
+          <p
+            className={cn(
+              'text-muted-foreground/60 line-clamp-1 text-[11px] sm:text-xs',
+              props.compactMobile && 'hidden sm:block'
+            )}
+          >
+            {props.description}
+          </p>
+        )}
       </div>
     )
   } else {
     valueContent = (
       <div className='flex flex-col gap-1'>
-        <div className='text-foreground font-mono text-base font-semibold tracking-tight break-all tabular-nums sm:text-2xl'>
+        <div className='text-foreground font-mono text-xl font-semibold tracking-tight break-all tabular-nums sm:text-2xl'>
           {props.value}
         </div>
-        <p
-          className={cn(
-            'text-muted-foreground/60 line-clamp-1 text-[11px] leading-relaxed sm:text-xs',
-            props.compactMobile && 'hidden sm:block'
-          )}
-        >
-          {props.description}
-        </p>
+        {hasDescription && (
+          <p
+            className={cn(
+              'text-muted-foreground/60 line-clamp-1 text-[11px] leading-relaxed sm:text-xs',
+              props.compactMobile && 'hidden sm:block'
+            )}
+          >
+            {props.description}
+          </p>
+        )}
       </div>
     )
   }
@@ -292,20 +330,32 @@ export function StatCard(props: StatCardProps) {
   if (props.details?.length) {
     visualization = <StatCardDetails details={props.details} />
   } else if (sparklineVariant === 'line') {
-    visualization = <LineSparkline values={props.sparkline} tone={tone} />
+    visualization = (
+      <LineSparkline
+        values={props.sparkline}
+        tone={tone}
+        animate={props.animateSparkline}
+      />
+    )
   } else {
-    visualization = <BarSparkline values={props.sparkline} tone={tone} />
+    visualization = (
+      <BarSparkline
+        values={props.sparkline}
+        tone={tone}
+        animate={props.animateSparkline}
+      />
+    )
   }
 
   return (
     <div
       className={cn(
-        'group flex flex-col justify-between sm:min-h-32 sm:gap-3',
-        props.compactMobile ? 'gap-1' : 'gap-1.5'
+        'group flex h-full flex-col justify-between gap-3',
+        props.compactMobile && 'gap-1 sm:gap-3'
       )}
     >
       <div className='flex items-start justify-between gap-1'>
-        <div className='text-muted-foreground flex items-center gap-1 text-[11px] font-medium sm:gap-2 sm:text-xs'>
+        <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
           <IconBadge
             tone={iconTone}
             size='stat'
@@ -316,16 +366,16 @@ export function StatCard(props: StatCardProps) {
           >
             <Icon />
           </IconBadge>
-          <span className='line-clamp-1 leading-snug sm:line-clamp-2'>
-            {props.title}
-          </span>
+          <span className='line-clamp-1 leading-snug'>{props.title}</span>
         </div>
         {props.action && <div className='shrink-0'>{props.action}</div>}
       </div>
 
       {valueContent}
 
-      <div className='hidden sm:block'>{visualization}</div>
+      <div className={cn(props.compactMobile && 'hidden sm:block')}>
+        {visualization}
+      </div>
     </div>
   )
 }

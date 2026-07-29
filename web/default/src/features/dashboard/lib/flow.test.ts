@@ -22,7 +22,9 @@ import type { FlowQuotaDataItem } from '../types'
 import {
   buildDashboardFlowData,
   buildFlowFilterOptions,
-  buildFlowSankeySpec,
+  buildFlowSankeyRechartsData,
+  flowLinkSelectionFromSankeyLink,
+  flowNodeFilterFromSankeyNode,
 } from './flow'
 
 const rows: FlowQuotaDataItem[] = [
@@ -691,86 +693,131 @@ describe('dashboard flow data', () => {
     ).toBe(true)
   })
 
-  it('builds Sankey spec with quota token request tooltips', () => {
+  it('addresses Recharts Sankey links by node index', () => {
     const result = buildDashboardFlowData(rows.slice(0, 1), 'quota', {
       role: 'root',
     })
-    const flowSpec = buildFlowSankeySpec(result.flow, 'Flow')
-    const values = flowSpec.data[0].values[0]
-    const aliceNode = values.nodes.find(
-      (node: Record<string, unknown>) => node.key === 'user:1'
-    )
-    const userNodeLink = values.links.find(
-      (link: Record<string, unknown>) =>
-        link.source === 'user:1' && link.target === 'node:node-a'
+    const sankey = buildFlowSankeyRechartsData(result.flow)
+    const userNodeLink = sankey.links.find(
+      (link) => link.sourceId === 'user:1' && link.targetId === 'node:node-a'
     )
 
-    expect(flowSpec.type).toBe('sankey')
-    expect(flowSpec.title.text).toBe('Flow')
-    expect(flowSpec.emphasis).toStrictEqual({ enable: false })
-    expect(flowSpec.tooltip.mark.visible({ datum: aliceNode })).toBe(true)
-    expect(flowSpec.tooltip.mark.visible({ datum: userNodeLink })).toBe(true)
-    expect(flowSpec.animation).toBe(false)
-    expect(values.nodes.length).toBe(6)
-    expect(values.links.length).toBe(5)
-    expect(aliceNode.name).toBe('alice')
-    expect(userNodeLink.linkColor).toMatch(/^rgba\(/)
-
-    const tooltipRows = flowSpec.tooltip.mark.content
+    expect(sankey.nodes.length).toBe(6)
     expect(
-      tooltipRows
-        .filter((row: Record<string, unknown>) =>
-          typeof row.visible === 'function'
-            ? row.visible({ datum: userNodeLink })
-            : true
-        )
-        .map((row: Record<string, unknown>) => [
-          row.key,
-          typeof row.value === 'function'
-            ? row.value({ datum: userNodeLink })
-            : row.value,
-        ])
+      sankey.links.map((link) => [
+        sankey.nodes[link.source].nodeId,
+        sankey.nodes[link.target].nodeId,
+        link.value,
+      ])
     ).toStrictEqual([
-      ['Quota', '100'],
-      ['Tokens', '40'],
-      ['Requests', '2'],
-      ['Share', '100.0%'],
+      ['group:vip', 'model:gpt-4.1', 100],
+      ['model:gpt-4.1', 'channel:101', 100],
+      ['node:node-a', 'token:11', 100],
+      ['token:11', 'group:vip', 100],
+      ['user:1', 'node:node-a', 100],
     ])
+    // The index pair and the id pair must always describe the same edge, since
+    // Recharts lays out from the indices while clicks resolve from the ids.
+    expect(
+      sankey.links.every(
+        (link) =>
+          sankey.nodes[link.source].nodeId === link.sourceId &&
+          sankey.nodes[link.target].nodeId === link.targetId
+      )
+    ).toBe(true)
+    expect(sankey.nodes.find((node) => node.nodeId === 'user:1')?.name).toBe(
+      'alice'
+    )
+    expect(userNodeLink?.quota).toBe(100)
+    expect(userNodeLink?.tokens).toBe(40)
+    expect(userNodeLink?.requests).toBe(2)
+    expect(userNodeLink?.share).toBe(1)
+    // The renderers branch on booleans, so an unselected graph must not leak
+    // the graph's undefined highlight flags.
+    expect(
+      sankey.nodes.every((node) => !node.highlighted && !node.dimmed)
+    ).toBe(true)
+    expect(
+      sankey.links.every((link) => !link.highlighted && !link.dimmed)
+    ).toBe(true)
   })
 
-  it('maps active flow highlight states into the Sankey spec', () => {
+  it('drops zero-value links and reindexes the remaining nodes', () => {
+    const zeroValueRows: FlowQuotaDataItem[] = [
+      ...rows.slice(0, 1),
+      {
+        user_id: 3,
+        username: 'carol',
+        use_group: 'free',
+        channel_id: 103,
+        channel_name: 'north',
+        model_name: 'model-idle',
+        quota: 0,
+        token_used: 0,
+        count: 0,
+      },
+    ]
+    const result = buildDashboardFlowData(zeroValueRows, 'quota', {
+      role: 'admin',
+    })
+    const sankey = buildFlowSankeyRechartsData(result.flow)
+    const nodeIds = sankey.nodes.map((node) => node.nodeId)
+
+    expect(result.flow.nodes.some((node) => node.id === 'user:3')).toBe(true)
+    expect(nodeIds).not.toContain('user:3')
+    expect(nodeIds).not.toContain('model:model-idle')
+    expect(sankey.links.every((link) => link.value > 0)).toBe(true)
+    expect(
+      sankey.links.every(
+        (link) =>
+          sankey.nodes[link.source] !== undefined &&
+          sankey.nodes[link.target] !== undefined
+      )
+    ).toBe(true)
+  })
+
+  it('paints highlighted Sankey links above dimmed ones', () => {
     const result = buildDashboardFlowData(rows, 'quota', {
       role: 'root',
       activeNode: { kind: 'user', id: 'user:1' },
     })
-    const flowSpec = buildFlowSankeySpec(result.flow, 'Flow')
-    const values = flowSpec.data[0].values[0]
-    const aliceNode = values.nodes.find(
-      (node: Record<string, unknown>) => node.key === 'user:1'
-    )
-    const bobNode = values.nodes.find(
-      (node: Record<string, unknown>) => node.key === 'user:2'
-    )
-    const highlightedLink = values.links.find(
-      (link: Record<string, unknown>) =>
-        link.source === 'model:gpt-4.1' && link.target === 'channel:101'
-    )
-    const dimmedLink = values.links.find(
-      (link: Record<string, unknown>) =>
-        link.source === 'model:claude-4-sonnet' && link.target === 'channel:101'
-    )
-    const nodeOpacity = flowSpec.node.style.fillOpacity
-    const linkOpacity = flowSpec.link.style.fillOpacity
+    const sankey = buildFlowSankeyRechartsData(result.flow)
+    const lastDimmed = sankey.links.findLastIndex((link) => link.dimmed)
+    const firstHighlighted = sankey.links.findIndex((link) => link.highlighted)
 
-    expect(flowSpec.emphasis).toStrictEqual({ enable: false })
-    expect(aliceNode.highlighted).toBe(true)
-    expect(bobNode.dimmed).toBe(true)
-    expect(highlightedLink.highlighted).toBe(true)
-    expect(dimmedLink.dimmed).toBe(true)
-    expect(nodeOpacity(aliceNode)).toBe(1)
-    expect(nodeOpacity(bobNode)).toBe(0.18)
-    expect(linkOpacity(highlightedLink)).toBe(0.86)
-    expect(linkOpacity(dimmedLink)).toBe(0.08)
-    expect(highlightedLink.zIndex > dimmedLink.zIndex).toBe(true)
+    expect(lastDimmed).toBeGreaterThanOrEqual(0)
+    expect(firstHighlighted).toBeGreaterThan(lastDimmed)
+    expect(
+      sankey.nodes.find((node) => node.nodeId === 'user:1')?.highlighted
+    ).toBe(true)
+    expect(sankey.nodes.find((node) => node.nodeId === 'user:2')?.dimmed).toBe(
+      true
+    )
+  })
+
+  it('reads node and link selections from Recharts payloads', () => {
+    const result = buildDashboardFlowData(rows.slice(0, 1), 'quota', {
+      role: 'root',
+    })
+    const sankey = buildFlowSankeyRechartsData(result.flow)
+    const node = sankey.nodes.find((item) => item.nodeId === 'user:1')
+    const link = sankey.links.find(
+      (item) => item.sourceId === 'user:1' && item.targetId === 'node:node-a'
+    )
+
+    expect(flowNodeFilterFromSankeyNode(node)).toStrictEqual({
+      kind: 'user',
+      id: 'user:1',
+    })
+    expect(flowLinkSelectionFromSankeyLink(link)).toStrictEqual({
+      source: 'user:1',
+      target: 'node:node-a',
+    })
+    // A click must never resolve to the wrong selection type: node payloads
+    // carry no link ids and link payloads carry no node kind.
+    expect(flowNodeFilterFromSankeyNode(link)).toBeUndefined()
+    expect(flowLinkSelectionFromSankeyLink(node)).toBeUndefined()
+    expect(flowNodeFilterFromSankeyNode(undefined)).toBeUndefined()
+    expect(flowLinkSelectionFromSankeyLink(undefined)).toBeUndefined()
   })
 })

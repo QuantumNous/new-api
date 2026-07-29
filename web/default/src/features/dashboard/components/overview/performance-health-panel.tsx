@@ -92,14 +92,14 @@ export function PerformanceHealthPanel() {
   const hasData = models.length > 0
 
   return (
-    <section className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>
-      <div className='flex items-center gap-2 border-b px-4 py-3 sm:px-5'>
+    <section className='bg-card ring-foreground/10 h-full overflow-hidden rounded-xl ring-1'>
+      <div className='flex items-center gap-2 border-b px-4 py-3'>
         <IconBadge tone='success' size='sm'>
           <HeartPulse />
         </IconBadge>
         <h3 className='text-sm font-semibold'>{t('Performance health')}</h3>
-        <span className='text-muted-foreground ml-auto text-xs'>
-          {t('Performance metrics for the last 24 hours')}
+        <span className='text-muted-foreground bg-muted/50 ml-auto rounded-md px-1.5 py-0.5 font-mono text-[11px] tabular-nums'>
+          24h
         </span>
       </div>
 
@@ -138,14 +138,11 @@ export function PerformanceHealthPanel() {
         ) : (
           hasData && (
             <div>
-              <span className='text-muted-foreground mb-1 block text-[11px] font-medium'>
-                {t('Top models by traffic')}
-              </span>
               <div className='grid grid-cols-1 gap-x-4 sm:grid-cols-2'>
                 {topModels.map((model) => (
                   <div
                     key={model.model_name}
-                    className='flex items-center justify-between gap-2 rounded px-1.5 py-1'
+                    className='hover:bg-muted/40 flex items-center justify-between gap-2 rounded-lg px-1.5 py-1.5 transition-colors'
                   >
                     <span className='min-w-0 flex-1 truncate font-mono text-[11px]'>
                       {model.model_name}
@@ -188,7 +185,7 @@ function MetricCell(props: {
 }) {
   const Icon = props.icon
   return (
-    <div className='bg-muted/40 rounded-xl px-3 py-2.5'>
+    <div className='bg-muted/35 rounded-xl px-3 py-2.5'>
       <div className='text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium'>
         <IconBadge tone={props.tone} size='xs'>
           <Icon />

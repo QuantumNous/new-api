@@ -29,27 +29,20 @@ import type {
   FlowOverflowMode,
   FlowQuotaDataItem,
   FlowRole,
+  FlowSankeyData,
+  FlowSankeyLinkDatum,
+  FlowSankeyNodeDatum,
   FlowSummary,
   ProcessedFlowData,
 } from '@/features/dashboard/types'
 import { getCurrentIntlLocale } from '@/i18n/languages'
 
-import { getDashboardChartColors } from './charts'
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type VChartSpec = Record<string, any>
+import { USER_CHART_COLORS } from './chart-palette'
 
 type FlowMetrics = {
   quota: number
   tokens: number
   requests: number
-}
-
-type FlowSankeyLabels = {
-  quota: string
-  tokens: string
-  requests: string
-  share: string
 }
 
 type FlowPathNode = {
@@ -91,13 +84,6 @@ const EMPTY_FLOW_PATH_CONTEXT: FlowPathContext = {}
 const DEFAULT_FLOW_ROLE: FlowRole = 'user'
 
 const DEFAULT_FLOW_OVERFLOW_MODE: FlowOverflowMode = 'aggregate'
-
-const DEFAULT_FLOW_SANKEY_LABELS: FlowSankeyLabels = {
-  quota: 'Quota',
-  tokens: 'Tokens',
-  requests: 'Requests',
-  share: 'Share',
-}
 
 const DEFAULT_FLOW_CHART_COLOR = '#1664FF'
 
@@ -277,40 +263,13 @@ function flowPathForStages(
   return stages.map((stage) => NODE_BUILDERS[stage](row, ctx))
 }
 
+// Link colors are derived by blending alpha into the node color, and the Sankey
+// paints them as SVG fills, so the flow palette must be resolved hex rather
+// than the CSS variables the DOM-based dashboard charts use.
 function colorAt(index: number, palette?: readonly string[]): string {
-  const colors =
-    palette && palette.length > 0 ? palette : getDashboardChartColors(index + 1)
+  const colors = palette && palette.length > 0 ? palette : USER_CHART_COLORS
   if (colors.length === 0) return DEFAULT_FLOW_CHART_COLOR
   return colors[index % colors.length] ?? DEFAULT_FLOW_CHART_COLOR
-}
-
-function colorPalette(
-  colorCount: number,
-  palette?: readonly string[]
-): readonly string[] {
-  if (palette && palette.length > 0) return palette
-  const colors = getDashboardChartColors(colorCount)
-  return colors.length > 0 ? colors : [DEFAULT_FLOW_CHART_COLOR]
-}
-
-function alphaColor(
-  color: string,
-  alpha: number
-): { color: string; alpha: number } {
-  const normalized = color.trim()
-  const hex = normalized.startsWith('#') ? normalized.slice(1) : normalized
-  if (!/^[0-9a-f]{6}$/i.test(hex)) {
-    return { color: normalized, alpha }
-  }
-
-  const value = Number.parseInt(hex, 16)
-  const red = (value >> 16) & 255
-  const green = (value >> 8) & 255
-  const blue = value & 255
-  return {
-    color: `rgba(${red}, ${green}, ${blue}, ${alpha.toFixed(2)})`,
-    alpha: 1,
-  }
 }
 
 function stableColorMap(
@@ -319,9 +278,8 @@ function stableColorMap(
 ): Map<string, string> {
   const map = new Map<string, string>()
   const uniqueKeys = [...new Set(keys)]
-  const colors = colorPalette(uniqueKeys.length, palette)
   uniqueKeys.forEach((key, index) => {
-    map.set(key, colorAt(index, colors))
+    map.set(key, colorAt(index, palette))
   })
   return map
 }
@@ -415,8 +373,7 @@ function addNode(
   pathNode: FlowPathNode,
   metrics: FlowMetrics,
   metric: FlowMetric,
-  color: string,
-  colorKey: string
+  color: string
 ): void {
   const previous = map.get(pathNode.id) ?? {
     id: pathNode.id,
@@ -427,7 +384,6 @@ function addNode(
     quota: 0,
     tokens: 0,
     color,
-    colorKey,
   }
   previous.value += metricValue(metrics, metric)
   previous.requests += metrics.requests
@@ -442,8 +398,7 @@ function addLink(
   target: FlowPathNode,
   metrics: FlowMetrics,
   metric: FlowMetric,
-  color: string,
-  colorKey: string
+  color: string
 ): void {
   const key = `${source.id}\u0000${target.id}`
   const previous = map.get(key) ?? {
@@ -456,10 +411,7 @@ function addLink(
     sourceLabel: source.label,
     targetLabel: target.label,
     color,
-    linkColor: color,
     linkAlpha: 1,
-    hoverColor: color,
-    colorKey,
     share: 0,
   }
   previous.value += metricValue(metrics, metric)
@@ -469,7 +421,10 @@ function addLink(
   map.set(key, previous)
 }
 
-function assignLinkDisplayColors(links: DashboardFlowLink[]): void {
+// Links leaving the same node share its color, so they are separated by resting
+// opacity instead: the widest ribbon is the faintest, which keeps the narrow
+// ribbons stacked above it readable.
+function assignLinkRestingOpacity(links: DashboardFlowLink[]): void {
   const linksBySource = new Map<string, DashboardFlowLink[]>()
   for (const link of links) {
     const sourceLinks = linksBySource.get(link.source) ?? []
@@ -484,12 +439,8 @@ function assignLinkDisplayColors(links: DashboardFlowLink[]): void {
     )
     const denominator = Math.max(sortedLinks.length - 1, 1)
     sortedLinks.forEach((link, index) => {
-      const alpha =
+      link.linkAlpha =
         sortedLinks.length === 1 ? 0.34 : 0.24 + (index / denominator) * 0.2
-      const displayColor = alphaColor(link.color, alpha)
-      link.linkColor = displayColor.color
-      link.linkAlpha = displayColor.alpha
-      link.hoverColor = link.color
     })
   }
 }
@@ -509,13 +460,15 @@ function pathLinkKey(source: FlowPathNode, target: FlowPathNode): string {
   return `${source.id}\u0000${target.id}`
 }
 
-function byLinkDrawPriority(
-  a: DashboardFlowLink,
-  b: DashboardFlowLink
-): number {
+// Recharts paints links in array order, so the array is ordered back to front:
+// dimmed ribbons first, highlighted ribbons last, and wider ribbons beneath
+// narrower ones so a thin flow never disappears under a thick one.
+// `highlighted`/`dimmed` are undefined while nothing is selected, which makes
+// those subtractions NaN and falls through to the value ordering.
+function byLinkPaintOrder(a: DashboardFlowLink, b: DashboardFlowLink): number {
   return (
-    Number(a.dimmed) - Number(b.dimmed) ||
-    Number(b.highlighted) - Number(a.highlighted) ||
+    Number(b.dimmed) - Number(a.dimmed) ||
+    Number(a.highlighted) - Number(b.highlighted) ||
     b.value - a.value ||
     linkStableKey(a).localeCompare(linkStableKey(b))
   )
@@ -783,13 +736,13 @@ function buildFlowGraph(
     const color = colors.get(root.id) ?? colorAt(0, palette)
 
     for (const node of path) {
-      addNode(nodes, node, metrics, metric, color, root.id)
+      addNode(nodes, node, metrics, metric, color)
     }
     for (let i = 0; i < path.length - 1; i++) {
       const source = path[i]
       const target = path[i + 1]
       if (!source || !target) continue
-      addLink(links, source, target, metrics, metric, color, root.id)
+      addLink(links, source, target, metrics, metric, color)
     }
   }
   if (options.maskSensitive) {
@@ -821,7 +774,7 @@ function buildFlowGraph(
   for (const link of flowLinks) {
     link.share = total > 0 ? link.value / total : 0
   }
-  assignLinkDisplayColors(flowLinks)
+  assignLinkRestingOpacity(flowLinks)
 
   return {
     nodes: [...nodes.values()].sort(byValueThenLabel),
@@ -1028,309 +981,89 @@ function recordValue(value: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
-function sankeyDatumSource(
-  datum: Record<string, unknown>
-): Record<string, unknown> {
-  const nested = datum.datum
-  if (Array.isArray(nested)) {
-    const depth = numberValue(datum.depth)
-    return recordValue(nested[depth]) ?? recordValue(nested[0]) ?? datum
-  }
-  return recordValue(nested) ?? datum
-}
-
-function sankeyDatumValue(
-  datum: Record<string, unknown>,
-  key: string
-): unknown {
-  if (datum[key] !== undefined) return datum[key]
-  return sankeyDatumSource(datum)[key]
-}
-
-function sankeyDatumFlag(datum: Record<string, unknown>, key: string): boolean {
-  return sankeyDatumValue(datum, key) === true
-}
-
-export function flowSankeyDatumValue(datum: unknown, key: string): unknown {
-  const record = recordValue(datum)
-  return record ? sankeyDatumValue(record, key) : undefined
-}
-
-function isSankeyLinkDatum(datum: Record<string, unknown>): boolean {
-  return (
-    sankeyDatumValue(datum, 'source') !== undefined &&
-    sankeyDatumValue(datum, 'target') !== undefined
-  )
-}
-
-export function flowNodeFilterFromSankeyDatum(
-  datum: unknown
+// Recharts hands the datum we supplied back as `payload` on the clicked node or
+// link, so selections are read straight from that payload. Node payloads are
+// merged with the computed layout and link payloads replace `source`/`target`
+// with node objects, which is why both carry their own id fields.
+export function flowNodeFilterFromSankeyNode(
+  payload: unknown
 ): FlowNodeFilter | undefined {
-  const record = recordValue(datum)
-  if (!record || isSankeyLinkDatum(record)) return undefined
-
-  const id = flowSankeyDatumValue(record, 'key')
-  const kind = flowSankeyDatumValue(record, 'kind')
-  if (
-    (typeof id === 'string' || typeof id === 'number') &&
-    isFlowNodeKind(kind)
-  ) {
-    return { kind, id: String(id) }
-  }
-  return undefined
+  const record = recordValue(payload)
+  const id = record?.nodeId
+  const kind = record?.kind
+  if (typeof id !== 'string' || !isFlowNodeKind(kind)) return undefined
+  return { kind, id }
 }
 
-function tooltipMetricLines(
-  valueFormatter: (value: number) => string,
-  labels: FlowSankeyLabels
-) {
-  const metricValue = (datum: Record<string, unknown>, key: string) =>
-    numberValue(sankeyDatumValue(datum, key))
-  const formattedNumber = (datum: Record<string, unknown>, key: string) =>
-    formatNumber(metricValue(datum, key))
-  const hasMetric = (datum: Record<string, unknown>, key: string) =>
-    metricValue(datum, key) > 0
-
-  return [
-    {
-      key: labels.quota,
-      value: (datum: Record<string, unknown>) =>
-        valueFormatter(metricValue(datum, 'quota')),
-    },
-    {
-      key: labels.tokens,
-      value: (datum: Record<string, unknown>) =>
-        formattedNumber(datum, 'tokens'),
-    },
-    {
-      key: labels.requests,
-      value: (datum: Record<string, unknown>) =>
-        formattedNumber(datum, 'requests'),
-    },
-    {
-      key: labels.share,
-      value: (datum: Record<string, unknown>) =>
-        `${(metricValue(datum, 'share') * 100).toFixed(1)}%`,
-      visible: (datum: Record<string, unknown>) => hasMetric(datum, 'share'),
-    },
-  ]
+export function flowLinkSelectionFromSankeyLink(
+  payload: unknown
+): FlowLinkSelection | undefined {
+  const record = recordValue(payload)
+  const source = record?.sourceId
+  const target = record?.targetId
+  if (typeof source !== 'string' || typeof target !== 'string') return undefined
+  return { source, target }
 }
 
-export function buildFlowSankeySpec(
-  flow: DashboardFlowGraph,
-  title: string,
-  valueFormatter: (value: number) => string = formatNumber,
-  labels: FlowSankeyLabels = DEFAULT_FLOW_SANKEY_LABELS
-): VChartSpec {
-  return {
-    type: 'sankey',
-    data: [
-      {
-        id: 'flow',
-        values: [
-          {
-            nodes: flow.nodes.map((node) => ({
-              key: node.id,
-              name: node.label,
-              rawLabel: node.label,
-              kind: node.kind,
-              value: node.value,
-              requests: node.requests,
-              quota: node.quota,
-              tokens: node.tokens,
-              color: node.color,
-              colorKey: node.colorKey,
-              highlighted: node.highlighted,
-              dimmed: node.dimmed,
-            })),
-            links: flow.links
-              .filter((link) => link.value > 0)
-              .sort(byLinkDrawPriority)
-              .map((link, index) => {
-                let zIndex = 100_000 + index
-                if (link.highlighted) {
-                  zIndex = 1_000_000 + index
-                } else if (link.dimmed) {
-                  zIndex = index
-                }
-
-                return {
-                  source: link.source,
-                  target: link.target,
-                  linkKey: linkStableKey(link),
-                  sourceLabel: link.sourceLabel,
-                  targetLabel: link.targetLabel,
-                  value: link.value,
-                  requests: link.requests,
-                  quota: link.quota,
-                  tokens: link.tokens,
-                  color: link.color,
-                  linkColor: link.linkColor,
-                  linkAlpha: link.linkAlpha,
-                  hoverColor: link.hoverColor,
-                  colorKey: link.colorKey,
-                  share: link.share,
-                  highlighted: link.highlighted,
-                  dimmed: link.dimmed,
-                  zIndex,
-                }
-              }),
-          },
-        ],
-      },
-    ],
-    categoryField: 'name',
-    sourceField: 'source',
-    targetField: 'target',
-    valueField: 'value',
-    nodeKey: 'key',
-    direction: 'horizontal',
-    nodeAlign: 'justify',
-    crossNodeAlign: 'middle',
-    linkSortBy: (
-      a: { value?: number; source?: string; target?: string; index?: number },
-      b: { value?: number; source?: string; target?: string; index?: number }
-    ) =>
-      numberValue(b.value) - numberValue(a.value) ||
-      `${a.source ?? ''}\u0000${a.target ?? ''}`.localeCompare(
-        `${b.source ?? ''}\u0000${b.target ?? ''}`
-      ) ||
-      numberValue(a.index) - numberValue(b.index),
-    nodeGap: 14,
-    nodeWidth: 16,
-    minLinkHeight: 2,
-    minNodeHeight: 8,
-    title: {
-      visible: false,
-      text: title,
-    },
-    legends: { visible: false },
-    label: {
-      visible: true,
-      position: 'outside',
-      limit: 220,
-      interactive: false,
-      style: {
-        fill: '#475569',
-        fontSize: 11,
-        fontWeight: 600,
-      },
-    },
-    node: {
-      interactive: true,
-      style: {
-        fill: (datum: Record<string, unknown>) =>
-          String(sankeyDatumValue(datum, 'color') ?? colorAt(0)),
-        fillOpacity: (datum: Record<string, unknown>) => {
-          if (sankeyDatumFlag(datum, 'dimmed')) return 0.18
-          if (sankeyDatumFlag(datum, 'highlighted')) return 1
-          return 0.92
-        },
-        stroke: (datum: Record<string, unknown>) =>
-          sankeyDatumFlag(datum, 'highlighted')
-            ? 'rgba(15, 23, 42, 0.74)'
-            : 'rgba(148, 163, 184, 0.45)',
-        lineWidth: (datum: Record<string, unknown>) =>
-          sankeyDatumFlag(datum, 'highlighted') ? 1.5 : 1,
-        cursor: 'pointer',
-        pickMode: 'accurate',
-      },
-      state: {
-        hover: {
-          fillOpacity: 1,
-          stroke: 'rgba(15, 23, 42, 0.68)',
-          lineWidth: 1.5,
-        },
-        selected: {
-          fillOpacity: 1,
-          stroke: 'rgba(15, 23, 42, 0.68)',
-          lineWidth: 1.5,
-        },
-        blur: {
-          fillOpacity: 0.22,
-        },
-      },
-    },
-    link: {
-      interactive: true,
-      style: {
-        fill: (datum: Record<string, unknown>) =>
-          String(
-            sankeyDatumValue(datum, 'linkColor') ??
-              sankeyDatumValue(datum, 'color') ??
-              colorAt(0)
-          ),
-        fillOpacity: (datum: Record<string, unknown>) => {
-          if (sankeyDatumFlag(datum, 'dimmed')) return 0.08
-          if (sankeyDatumFlag(datum, 'highlighted')) return 0.86
-          return numberValue(sankeyDatumValue(datum, 'linkAlpha')) || 1
-        },
-        cursor: 'pointer',
-        pickMode: 'accurate',
-        boundsMode: 'accurate',
-        zIndex: (datum: Record<string, unknown>) => {
-          const zIndex = sankeyDatumValue(datum, 'zIndex')
-          if (zIndex !== undefined) return numberValue(zIndex)
-          return 1_000_000_000 - numberValue(sankeyDatumValue(datum, 'value'))
-        },
-      },
-      state: {
-        hover: {
-          fill: (datum: Record<string, unknown>) =>
-            String(
-              sankeyDatumValue(datum, 'hoverColor') ??
-                sankeyDatumValue(datum, 'color') ??
-                colorAt(0)
-            ),
-          fillOpacity: 0.9,
-        },
-        selected: {
-          fill: (datum: Record<string, unknown>) =>
-            String(
-              sankeyDatumValue(datum, 'hoverColor') ??
-                sankeyDatumValue(datum, 'color') ??
-                colorAt(0)
-            ),
-          fillOpacity: 0.9,
-        },
-        blur: {
-          fillOpacity: 0.22,
-        },
-      },
-    },
-    // Highlighting is driven entirely by our own `highlighted`/`dimmed` data
-    // flags (see fillOpacity above). VChart's built-in click emphasis is
-    // disabled because its Sankey "related" handler crashes on click
-    // (_handleLinkRelatedClick) and would otherwise fight our full-path
-    // highlight.
-    emphasis: { enable: false },
-    tooltip: {
-      trigger: 'hover',
-      activeType: 'mark',
-      dimension: { visible: false },
-      group: { visible: false },
-      mark: {
-        checkOverlap: true,
-        positionMode: 'pointer',
-        visible: (datum: Record<string, unknown>) =>
-          isSankeyLinkDatum(datum) ||
-          sankeyDatumValue(datum, 'key') !== undefined,
-        title: {
-          value: (datum: Record<string, unknown>) => {
-            const source = sankeyDatumValue(datum, 'source')
-            const target = sankeyDatumValue(datum, 'target')
-            if (source && target) {
-              const sourceLabel = sankeyDatumValue(datum, 'sourceLabel')
-              const targetLabel = sankeyDatumValue(datum, 'targetLabel')
-              return `${sourceLabel ?? source} -> ${targetLabel ?? target}`
-            }
-            return `${sankeyDatumValue(datum, 'name') ?? sankeyDatumValue(datum, 'rawLabel') ?? ''}`
-          },
-        },
-        content: tooltipMetricLines(valueFormatter, labels),
-      },
-    },
-    background: { fill: 'transparent' },
-    animation: false,
+/**
+ * Adapts the graph to the shape the Recharts `Sankey` expects: links address
+ * nodes by their index in the `nodes` array, so zero-value links are dropped
+ * first and only the nodes they connect are emitted.
+ */
+export function buildFlowSankeyRechartsData(
+  flow: DashboardFlowGraph
+): FlowSankeyData {
+  const drawableLinks = flow.links.filter((link) => link.value > 0)
+  const linkedNodeIds = new Set<string>()
+  for (const link of drawableLinks) {
+    linkedNodeIds.add(link.source)
+    linkedNodeIds.add(link.target)
   }
+
+  // Node order decides the vertical order inside each Sankey column, so it
+  // follows the graph order (value descending) and stays independent of the
+  // current selection to keep the layout stable while highlighting.
+  const nodes: FlowSankeyNodeDatum[] = []
+  const nodeIndexById = new Map<string, number>()
+  for (const node of flow.nodes) {
+    if (!linkedNodeIds.has(node.id)) continue
+    nodeIndexById.set(node.id, nodes.length)
+    nodes.push({
+      name: node.label,
+      nodeId: node.id,
+      kind: node.kind,
+      requests: node.requests,
+      quota: node.quota,
+      tokens: node.tokens,
+      color: node.color,
+      highlighted: node.highlighted === true,
+      dimmed: node.dimmed === true,
+    })
+  }
+
+  const links: FlowSankeyLinkDatum[] = []
+  for (const link of [...drawableLinks].sort(byLinkPaintOrder)) {
+    const source = nodeIndexById.get(link.source)
+    const target = nodeIndexById.get(link.target)
+    if (source === undefined || target === undefined) continue
+    links.push({
+      source,
+      target,
+      value: link.value,
+      sourceId: link.source,
+      targetId: link.target,
+      sourceLabel: link.sourceLabel,
+      targetLabel: link.targetLabel,
+      requests: link.requests,
+      quota: link.quota,
+      tokens: link.tokens,
+      color: link.color,
+      linkAlpha: link.linkAlpha,
+      share: link.share,
+      highlighted: link.highlighted === true,
+      dimmed: link.dimmed === true,
+    })
+  }
+
+  return { nodes, links }
 }

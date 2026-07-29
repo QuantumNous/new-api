@@ -17,15 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { VChart } from '@visactor/react-vchart'
 import { Users, Loader2 } from 'lucide-react'
-import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
+import { useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useTheme } from '@/context/theme-provider'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
 import {
   TIME_GRANULARITY_OPTIONS,
@@ -36,33 +34,14 @@ import {
   saveGranularity,
   processUserChartData,
 } from '@/features/dashboard/lib'
-import type {
-  ProcessedUserChartData,
-  UserChartsFilters,
-} from '@/features/dashboard/types'
+import type { UserChartsFilters } from '@/features/dashboard/types'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
-import { VCHART_OPTION } from '@/lib/vchart'
 
-let themeManagerPromise: Promise<
-  (typeof import('@visactor/vchart'))['ThemeManager']
-> | null = null
-
-const USER_CHARTS: {
-  value: string
-  labelKey: string
-  specKey: keyof ProcessedUserChartData
-}[] = [
-  {
-    value: 'rank',
-    labelKey: 'User Consumption Ranking',
-    specKey: 'spec_user_rank',
-  },
-  {
-    value: 'trend',
-    labelKey: 'User Consumption Trend',
-    specKey: 'spec_user_trend',
-  },
-]
+import {
+  DashboardRankChartView,
+  DashboardSeriesChartView,
+  USER_CHART_COLORS,
+} from '../ui/dashboard-charts'
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
 
@@ -73,14 +52,7 @@ interface UserChartsProps {
 
 export function UserCharts(props: UserChartsProps) {
   const { t } = useTranslation()
-  const { resolvedTheme } = useTheme()
-  const [themeReady, setThemeReady] = useState(false)
-  const themeManagerRef = useRef<
-    (typeof import('@visactor/vchart'))['ThemeManager'] | null
-  >(null)
 
-  // The selection is owned by the dashboard parent so it persists across
-  // sub-section switches; the rolling window is derived from the chosen range.
   const timeGranularity = props.filters.timeGranularity
   const selectedRange = props.filters.selectedRange
   const topUserLimit = props.filters.topUserLimit
@@ -119,22 +91,6 @@ export function UserCharts(props: UserChartsProps) {
     },
     [onFiltersChange, props.filters]
   )
-
-  useEffect(() => {
-    const updateTheme = async () => {
-      setThemeReady(false)
-      if (!themeManagerPromise) {
-        themeManagerPromise = import('@visactor/vchart').then(
-          (m) => m.ThemeManager
-        )
-      }
-      const ThemeManager = await themeManagerPromise
-      themeManagerRef.current = ThemeManager
-      ThemeManager.setCurrentTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
-      setThemeReady(true)
-    }
-    updateTheme()
-  }, [resolvedTheme])
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ['dashboard', 'user-quota', timeRange],
@@ -222,42 +178,50 @@ export function UserCharts(props: UserChartsProps) {
       </div>
 
       <div className='grid gap-3'>
-        {USER_CHARTS.map((chart) => {
-          const spec = chartData[chart.specKey]
-
-          return (
-            <div
-              key={chart.value}
-              className='overflow-hidden rounded-lg border'
-            >
-              <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
-                <IconBadge tone='info' size='sm'>
-                  <Users />
-                </IconBadge>
-                <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
-              </div>
-
-              <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
-                {isLoading ? (
-                  <Skeleton className='h-full w-full' />
-                ) : (
-                  themeReady &&
-                  spec && (
-                    <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}`}
-                      spec={{
-                        ...spec,
-                        theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                        background: 'transparent',
-                      }}
-                      option={VCHART_OPTION}
-                    />
-                  )
-                )}
-              </div>
+        <div className='bg-card ring-foreground/10 overflow-hidden rounded-xl ring-1'>
+          <div className='flex w-full items-center gap-2 border-b px-3 py-2.5 sm:px-5 sm:py-3'>
+            <IconBadge tone='info' size='sm'>
+              <Users />
+            </IconBadge>
+            <div className='text-sm font-semibold'>
+              {t('User Consumption Ranking')}
             </div>
-          )
-        })}
+            {chartData.rank.subtext && (
+              <span className='text-muted-foreground text-xs'>
+                {chartData.rank.subtext}
+              </span>
+            )}
+          </div>
+          <div className='h-[300px] p-2 sm:h-96 sm:p-3'>
+            {isLoading ? (
+              <Skeleton className='h-full w-full' />
+            ) : (
+              <DashboardRankChartView chart={chartData.rank} />
+            )}
+          </div>
+        </div>
+
+        <div className='bg-card ring-foreground/10 overflow-hidden rounded-xl ring-1'>
+          <div className='flex w-full items-center gap-2 border-b px-3 py-2.5 sm:px-5 sm:py-3'>
+            <IconBadge tone='info' size='sm'>
+              <Users />
+            </IconBadge>
+            <div className='text-sm font-semibold'>
+              {t('User Consumption Trend')}
+            </div>
+          </div>
+          <div className='h-[300px] p-2 sm:h-96 sm:p-3'>
+            {isLoading ? (
+              <Skeleton className='h-full w-full' />
+            ) : (
+              <DashboardSeriesChartView
+                chart={chartData.trend}
+                variant='area'
+                colors={USER_CHART_COLORS}
+              />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

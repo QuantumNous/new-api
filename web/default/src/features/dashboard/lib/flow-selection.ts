@@ -43,12 +43,10 @@ export function flowDisplayState(options: {
   isLoading: boolean
   isError: boolean
   linkCount: number
-  themeReady: boolean
 }): FlowDisplayState {
   if (options.isLoading) return 'loading'
   if (options.isError) return 'error'
   if (options.linkCount === 0) return 'empty'
-  if (!options.themeReady) return 'loading'
   return 'chart'
 }
 

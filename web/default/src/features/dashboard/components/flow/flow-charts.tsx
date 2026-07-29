@@ -17,8 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { VChart } from '@visactor/react-vchart'
-import type { EventParamsDefinition, IVChart } from '@visactor/vchart'
 import {
   Activity,
   ChevronRight,
@@ -31,14 +29,7 @@ import {
   Route,
   WalletCards,
 } from 'lucide-react'
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MultiSelect } from '@/components/multi-select'
@@ -63,10 +54,8 @@ import {
 import { getFlowQuotaDates } from '@/features/dashboard/api'
 import {
   buildDashboardFlowData,
-  buildFlowSankeySpec,
+  buildFlowSankeyRechartsData,
   buildQueryParams,
-  flowNodeFilterFromSankeyDatum,
-  flowSankeyDatumValue,
   getDefaultDays,
   getFlowStages,
 } from '@/features/dashboard/lib'
@@ -88,12 +77,11 @@ import { getCurrentIntlLocale } from '@/i18n/languages'
 import { formatQuota } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 import { computeTimeRange } from '@/lib/time'
-import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
-import { VCHART_OPTION } from '@/lib/vchart'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { FlowNodeFilterControl } from './flow-node-filter'
+import { FlowSankeyChart } from './flow-sankey-chart'
 
 interface FlowChartsProps {
   filters?: DashboardFilters
@@ -173,52 +161,6 @@ const FLOW_OTHER_NODE_LABEL_KEYS: Record<FlowNodeKind, string> = {
   channel: 'Other channels',
 }
 
-type FlowChartPointerEvent = EventParamsDefinition['pointerdown']
-
-function chartRecordValue(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object'
-    ? (value as Record<string, unknown>)
-    : undefined
-}
-
-function looksLikeFlowDatum(value: unknown): boolean {
-  const record = chartRecordValue(value)
-  if (!record) return false
-  return (
-    (record.key !== undefined && record.kind !== undefined) ||
-    (record.source !== undefined && record.target !== undefined)
-  )
-}
-
-function chartGraphicDatum(value: unknown): unknown {
-  const record = chartRecordValue(value)
-  const context = chartRecordValue(record?.context)
-  const data = context?.data
-  if (Array.isArray(data)) return data[0]
-  return data
-}
-
-function flowChartEventDatum(event: FlowChartPointerEvent): unknown {
-  const record = chartRecordValue(event)
-  if (!record) return undefined
-
-  if (record.datum !== undefined && record.datum !== null) return record.datum
-
-  const itemRecord = chartRecordValue(record.item)
-  if (itemRecord?.datum !== undefined && itemRecord.datum !== null) {
-    return itemRecord.datum
-  }
-
-  const graphicDatum = chartGraphicDatum(record.item)
-  if (graphicDatum !== undefined && graphicDatum !== null) return graphicDatum
-
-  const itemData = itemRecord?.data
-  if (Array.isArray(itemData)) return itemData[0]
-  if (itemData !== undefined && itemData !== null) return itemData
-
-  return looksLikeFlowDatum(record) ? record : undefined
-}
-
 function flowNodeFilterKey(filter: FlowNodeFilter): string {
   return `${filter.kind}\u0000${filter.id}`
 }
@@ -255,8 +197,6 @@ function formatFlowMetricNumber(value: number): string {
 
 export function FlowCharts(props: FlowChartsProps) {
   const { t } = useTranslation()
-  const { resolvedTheme, themeReady } = useChartTheme()
-  const chartInstanceRef = useRef<IVChart | null>(null)
   const user = useAuthStore((state) => state.auth.user)
   const isRoot = Boolean(user?.role && user.role >= ROLE.SUPER_ADMIN)
   const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
@@ -421,88 +361,50 @@ export function FlowCharts(props: FlowChartsProps) {
   const clearFlowNodeFilters = useCallback(() => {
     setSelectedNodes([])
   }, [])
-  // Clicking a node only drives the highlight: keep every node/link on screen
-  // but emphasize the full paths through the clicked node and dim the rest.
-  // Clicking the active node again, or clicking empty space, clears it.
-  const handleChartPointerDown = useCallback((event: FlowChartPointerEvent) => {
-    const datum = flowChartEventDatum(event)
-    const filter = flowNodeFilterFromSankeyDatum(datum)
-    if (filter) {
-      setActiveFlowLink(undefined)
-      setActiveFlowNode((prev) =>
-        isSameFlowNodeFilter(prev, filter) ? undefined : filter
-      )
-      return
-    }
-
-    const source = flowSankeyDatumValue(datum, 'source')
-    const target = flowSankeyDatumValue(datum, 'target')
-    if (typeof source === 'string' && typeof target === 'string') {
-      setActiveFlowNode(undefined)
-      setActiveFlowLink((prev) =>
-        prev && prev.source === source && prev.target === target
-          ? undefined
-          : { source, target }
-      )
-      return
-    }
-
+  // Clicking a node or a link only drives the highlight: every node and link
+  // stays on screen, but the full paths through the clicked element are
+  // emphasized and the rest is dimmed. Clicking the active element again, or
+  // clicking empty space inside the chart, clears the highlight.
+  const selectFlowNode = useCallback((filter: FlowNodeFilter) => {
+    setActiveFlowLink(undefined)
+    setActiveFlowNode((prev) =>
+      isSameFlowNodeFilter(prev, filter) ? undefined : filter
+    )
+  }, [])
+  const selectFlowLink = useCallback((selection: FlowLinkSelection) => {
+    setActiveFlowNode(undefined)
+    setActiveFlowLink((prev) =>
+      prev &&
+      prev.source === selection.source &&
+      prev.target === selection.target
+        ? undefined
+        : selection
+    )
+  }, [])
+  const clearFlowSelection = useCallback(() => {
     setActiveFlowNode(undefined)
     setActiveFlowLink(undefined)
-    chartInstanceRef.current?.clearState('selected')
-    chartInstanceRef.current?.clearState('blur')
   }, [])
   const chartTitle = t('Flow')
-  const flowSpec = useMemo(
-    () =>
-      buildFlowSankeySpec(flowData.flow, chartTitle, formatQuota, {
-        quota: t('Quota'),
-        tokens: t('Tokens'),
-        requests: t('Requests'),
-        share: t('Share'),
-      }),
-    [chartTitle, flowData.flow, t]
+  const sankeyData = useMemo(
+    () => buildFlowSankeyRechartsData(flowData.flow),
+    [flowData.flow]
   )
-  const chartTheme = resolvedTheme === 'dark' ? 'dark' : 'light'
-  const chartKey = [
-    metric,
-    topNodeLimit,
-    overflowMode,
-    flowRole,
-    activeFlowNode ? flowNodeFilterKey(activeFlowNode) : '',
-    activeFlowLink
-      ? `${activeFlowLink.source}\u0000${activeFlowLink.target}`
-      : '',
-    selectedNodes.map(flowNodeFilterKey).join(','),
-    selectedUsers.join(','),
-    visibleStages.join(','),
-    maskSensitive ? 'masked' : 'plain',
-    flowRows?.length ?? 0,
-    resolvedTheme,
-  ].join('-')
   const displayState = flowDisplayState({
     isLoading,
     isError,
-    linkCount: flowData.flow.links.length,
-    themeReady,
+    linkCount: sankeyData.links.length,
   })
   const flowErrorMessage =
     flowError instanceof Error
       ? flowError.message
       : t('Please try again later.')
   let chartContent = (
-    <VChart
-      key={`flow-${chartKey}`}
-      spec={{
-        ...flowSpec,
-        theme: chartTheme,
-        background: 'transparent',
-      }}
-      option={VCHART_OPTION}
-      onReady={(instance: IVChart) => {
-        chartInstanceRef.current = instance
-      }}
-      onPointerDown={handleChartPointerDown}
+    <FlowSankeyChart
+      data={sankeyData}
+      onSelectNode={selectFlowNode}
+      onSelectLink={selectFlowLink}
+      onClearSelection={clearFlowSelection}
     />
   )
   if (displayState === 'loading') {

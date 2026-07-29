@@ -84,8 +84,6 @@
         "@tanstack/react-query": "^5.101.2",
         "@tanstack/react-router": "^1.170.17",
         "@tanstack/react-table": "^8.21.3",
-        "@visactor/react-vchart": "^2.1.2",
-        "@visactor/vchart": "^2.1.2",
         "ai": "^7.0.14",
         "auto-skeleton-react": "^1.0.5",
         "axios": "catalog:",
@@ -1222,17 +1220,15 @@
 
     "@vercel/oidc": ["@vercel/oidc@3.2.0", "", {}, "sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug=="],
 
-    "@visactor/react-vchart": ["@visactor/react-vchart@2.1.2", "", { "dependencies": { "@visactor/vchart": "2.1.2", "@visactor/vchart-extension": "2.1.2", "@visactor/vrender-core": "^1.1.3", "@visactor/vrender-kits": "^1.1.3", "@visactor/vutils": "~1.0.23", "react-is": "^18.2.0" }, "peerDependencies": { "react": ">=16.0.0", "react-dom": ">=16.0.0" } }, "sha512-7EadIvN/ORSTvSNw5cvGL53X+dKWFVwa5J2k7n99PA3xSAGnpZl2tBR9uKRf9BFOsTN8RmniO1dafJDuRTnvaw=="],
+    "@visactor/react-vchart": ["@visactor/react-vchart@1.8.11", "", { "dependencies": { "@visactor/vchart": "1.8.11", "@visactor/vgrammar-core": "0.10.11", "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vutils": "~0.17.3", "react-is": "^18.2.0" }, "peerDependencies": { "react": ">=16.0.0", "react-dom": ">=16.0.0" } }, "sha512-wHnCex9gOpnttTtSu04ozKJhTveUk8Ln2KX/7PZyCJxqlXq+eWvW4zvM6Ja8T8kGXfXtFYVVNh9zBMQ7y2T/Sw=="],
 
-    "@visactor/vchart": ["@visactor/vchart@2.1.2", "", { "dependencies": { "@visactor/vdataset": "~1.0.23", "@visactor/vlayouts": "~1.0.23", "@visactor/vrender": "^1.1.3", "@visactor/vrender-animate": "^1.1.3", "@visactor/vrender-components": "^1.1.3", "@visactor/vrender-core": "^1.1.3", "@visactor/vrender-kits": "^1.1.3", "@visactor/vscale": "~1.0.23", "@visactor/vutils": "~1.0.23", "@visactor/vutils-extension": "2.1.2" } }, "sha512-mJqm7LoC4lBs7e+5tCPtZJjqh/+DebXrcBzea54iuetVOxBcVJU2Ph731lMnegVwbbccZSTJN9xjxXiTiCtuMw=="],
-
-    "@visactor/vchart-extension": ["@visactor/vchart-extension@2.1.2", "", { "dependencies": { "@visactor/vchart": "2.1.2", "@visactor/vdataset": "~1.0.23", "@visactor/vlayouts": "~1.0.23", "@visactor/vrender-animate": "^1.1.3", "@visactor/vrender-components": "^1.1.3", "@visactor/vrender-core": "^1.1.3", "@visactor/vrender-kits": "^1.1.3", "@visactor/vutils": "~1.0.23" } }, "sha512-iZ4DESeOObKU2oREeqBQ/vYgI3gM+pTGnrqeVkm5RECbeuS44IPOSrkNh4mCcSdJO36nAcfJ5MqYhK4fh7pxug=="],
+    "@visactor/vchart": ["@visactor/vchart@1.8.11", "", { "dependencies": { "@visactor/vdataset": "~0.17.3", "@visactor/vgrammar-core": "0.10.11", "@visactor/vgrammar-hierarchy": "0.10.11", "@visactor/vgrammar-projection": "0.10.11", "@visactor/vgrammar-sankey": "0.10.11", "@visactor/vgrammar-util": "0.10.11", "@visactor/vgrammar-wordcloud": "0.10.11", "@visactor/vgrammar-wordcloud-shape": "0.10.11", "@visactor/vrender-components": "0.17.17", "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3", "@visactor/vutils-extension": "1.8.11" } }, "sha512-RdQ822J02GgAQNXvO1LiT0T3O6FjdgPdcm9hVBFyrpBBmuI8MH02IE7Y1kGe9NiFTH4tDwP0ixRgBmqNSGSLZQ=="],
 
     "@visactor/vchart-semi-theme": ["@visactor/vchart-semi-theme@1.8.8", "", { "dependencies": { "@visactor/vchart-theme-utils": "1.8.8" }, "peerDependencies": { "@visactor/vchart": "~1.8.8" } }, "sha512-lm57CX3r6Bm7iGBYYyWhDY+1BvkyhNVLEckKx2PnlPKpJHikKSIK2ACyI5SmHuSOOdYzhY2QK6ZfYa2NShJ83w=="],
 
     "@visactor/vchart-theme-utils": ["@visactor/vchart-theme-utils@1.8.8", "", { "peerDependencies": { "@visactor/vchart": "~1.8.8" } }, "sha512-RdCey3/t0+82EYyFZvx210rgJJWti9rsgcL3ROZS7o9CtRW1CMj9u9LKLDNIcPLNcLNACFC0aoT03jpdD1BCpA=="],
 
-    "@visactor/vdataset": ["@visactor/vdataset@1.0.23", "", { "dependencies": { "@turf/flatten": "^6.5.0", "@turf/helpers": "^6.5.0", "@turf/rewind": "^6.5.0", "@visactor/vutils": "1.0.23", "d3-dsv": "^2.0.0", "d3-geo": "^1.12.1", "d3-hexbin": "^0.2.2", "d3-hierarchy": "^3.1.1", "eventemitter3": "^4.0.7", "geobuf": "^3.0.1", "geojson-dissolve": "^3.1.0", "path-browserify": "^1.0.1", "pbf": "^3.2.1", "point-at-length": "^1.1.0", "simple-statistics": "^7.7.3", "simplify-geojson": "^1.0.4", "topojson-client": "^3.1.0" } }, "sha512-zrLk9FBUWJoW6b30XnPKzXwAXl8USdLDfed6QZLsmdkylRU8V7yZeXE2aKwU8Lg1U4HmQngqmqOx7/QlbX44Tg=="],
+    "@visactor/vdataset": ["@visactor/vdataset@0.17.5", "", { "dependencies": { "@turf/flatten": "^6.5.0", "@turf/helpers": "^6.5.0", "@turf/rewind": "^6.5.0", "@visactor/vutils": "0.17.5", "d3-dsv": "^2.0.0", "d3-geo": "^1.12.1", "d3-hexbin": "^0.2.2", "d3-hierarchy": "^3.1.1", "eventemitter3": "^4.0.7", "geobuf": "^3.0.1", "geojson-dissolve": "^3.1.0", "path-browserify": "^1.0.1", "pbf": "^3.2.1", "point-at-length": "^1.1.0", "simple-statistics": "^7.7.3", "simplify-geojson": "^1.0.4", "topojson-client": "^3.1.0" } }, "sha512-zVBdLWHWrhldGc8JDjSYF9lvpFT4ZEFQDB0b6yvfSiHzHKHiSco+rWmUFvA7r4ObT6j2QWF1vZAV9To8Ml4vHw=="],
 
     "@visactor/vgrammar-coordinate": ["@visactor/vgrammar-coordinate@0.10.11", "", { "dependencies": { "@visactor/vgrammar-util": "0.10.11", "@visactor/vutils": "~0.17.3" } }, "sha512-XSUvEkaf/NQHFafmTwqoIMZicp9fF3o6NB2FDpuWrK4DI1lTuip/0RkqrC+kBAjc5erjt0em0TiITyqXpp4G6w=="],
 
@@ -1250,23 +1246,17 @@
 
     "@visactor/vgrammar-wordcloud-shape": ["@visactor/vgrammar-wordcloud-shape@0.10.11", "", { "dependencies": { "@visactor/vgrammar-core": "0.10.11", "@visactor/vgrammar-util": "0.10.11", "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3" } }, "sha512-NsQOYJp+9WHnIApMvkcUOaajxIg5U/r6rD8LKnoXW/HqAN2TFYXcRR3Daqmk9rrpM5VztQimKOsA1yZWyzozrA=="],
 
-    "@visactor/vlayouts": ["@visactor/vlayouts@1.0.23", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "@visactor/vscale": "1.0.23", "@visactor/vutils": "1.0.23", "eventemitter3": "^4.0.7" } }, "sha512-fK1f5LmuumhYanLArk5yrT4BZxu4IAmdc8WMwfB/KAvV+2dTPFuBUMWbWnDl0siQoU9SX9l/bLozUnI9n7BwBQ=="],
+    "@visactor/vrender-components": ["@visactor/vrender-components@0.17.17", "", { "dependencies": { "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3" } }, "sha512-7gYFQrozvBkyGF7s/JHXdWDZnATzymxzug63CZd4EB7A0OXKatVDImXRePqwzlPD3QamF7QMVWn0CuIx3gQ2gA=="],
 
-    "@visactor/vrender": ["@visactor/vrender@1.1.4", "", { "dependencies": { "@visactor/vrender-animate": "1.1.4", "@visactor/vrender-components": "1.1.4", "@visactor/vrender-core": "1.1.4", "@visactor/vrender-kits": "1.1.4" } }, "sha512-+T09pS5EJ2HizxMCa3r8MuvgcWnoJpGUK2ykLZLcR6w+5kfpfbu2B8uQzetTOKn1CVIhDbuO05monfI7mCYGQA=="],
+    "@visactor/vrender-core": ["@visactor/vrender-core@0.17.17", "", { "dependencies": { "@visactor/vutils": "~0.17.3", "color-convert": "2.0.1" } }, "sha512-pAZGaimunDAWOBdFhzPh0auH5ryxAHr+MVoz+QdASG+6RZXy8D02l8v2QYu4+e4uorxe/s2ZkdNDm81SlNkoHQ=="],
 
-    "@visactor/vrender-animate": ["@visactor/vrender-animate@1.1.4", "", { "dependencies": { "@visactor/vrender-core": "1.1.4", "@visactor/vutils": "~1.0.12" } }, "sha512-XBaCXMLSNw9E+htAEaqjby28mdINyVokNkLjKJ/ukmGobi3XX8siekXTNzCfe9M9UG4QGRTqyph848sxLB02Tw=="],
+    "@visactor/vrender-kits": ["@visactor/vrender-kits@0.17.17", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "0.17.17", "@visactor/vutils": "~0.17.3", "roughjs": "4.5.2" } }, "sha512-noRP1hAHvPCv36nf2P6sZ930Tk+dJ8jpPWIUm1cFYmUNdcumgIS8Cug0RyeZ+saSqVt5FDTwIwifhOqupw5Zaw=="],
 
-    "@visactor/vrender-components": ["@visactor/vrender-components@1.1.4", "", { "dependencies": { "@visactor/vrender-animate": "1.1.4", "@visactor/vrender-core": "1.1.4", "@visactor/vrender-kits": "1.1.4", "@visactor/vscale": "~1.0.12", "@visactor/vutils": "~1.0.12" } }, "sha512-N1bnIuefe6Lms7Ij8NGjKfNUYQpZ+M8RYsnjBR2So0wmnxAnXUTgqbpWDT9DiXzRF17qYSkF0HZJIdS/wN2o3Q=="],
+    "@visactor/vscale": ["@visactor/vscale@0.17.5", "", { "dependencies": { "@visactor/vutils": "0.17.5" } }, "sha512-2dkS1IlAJ/IdTp8JElbctOOv6lkHKBKPDm8KvwBo0NuGWQeYAebSeyN3QCdwKbj76gMlCub4zc+xWrS5YiA2zA=="],
 
-    "@visactor/vrender-core": ["@visactor/vrender-core@1.1.4", "", { "dependencies": { "@visactor/vutils": "~1.0.12", "color-convert": "2.0.1" } }, "sha512-AyMKFohr/iK1Wc5jxvE/04MLcFI0VAR5qleDy+b2WwLi7UoeXn0tBhtzz72xIOKU1OrzvmflWsVmdnlh6ittwg=="],
+    "@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
 
-    "@visactor/vrender-kits": ["@visactor/vrender-kits@1.1.4", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "1.1.4", "@visactor/vutils": "~1.0.12", "gifuct-js": "2.1.2", "lottie-web": "^5.12.2", "roughjs": "4.6.6" } }, "sha512-YD1y2TWh5yl6AzpW47HPcYogk0d6KntuwUrGocXqSkLXwzsGnYntE9RvAEGTu4ketdeahh+8/0w34d6BU0Hzig=="],
-
-    "@visactor/vscale": ["@visactor/vscale@1.0.23", "", { "dependencies": { "@visactor/vutils": "1.0.23" } }, "sha512-XePhYuRoNAp+8MeSMuEOOvhVAlOwvM1sDT2yFxE6zdwVB2GjZk8mH+5N2xQGQWk75YmGJjlJASFtgwjlb1yWxw=="],
-
-    "@visactor/vutils": ["@visactor/vutils@1.0.23", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-M8SLqgdHhKN8QmQKTWD1gzEaHptpIV9pvMYvC6+VeOsqYvZZ6UdhSCAAczTYVo+m/uwcEC2JHSUspbrs8rzlRQ=="],
-
-    "@visactor/vutils-extension": ["@visactor/vutils-extension@2.1.2", "", { "dependencies": { "@visactor/vdataset": "~1.0.23", "@visactor/vutils": "~1.0.23" } }, "sha512-9ss8NpeD5N8oo0dgHo1ZIRVJZ0oEFQbMMD4xBtsXqmz0TCFyFu2icoxAdTupjbo/3GtdZX7wqayPkEIm6Za+Ow=="],
+    "@visactor/vutils-extension": ["@visactor/vutils-extension@1.8.11", "", { "dependencies": { "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3" } }, "sha512-Hknzpy3+xh4sdL0iSn5N93BHiMJF4FdwSwhHYEibRpriZmWKG6wBxsJ0Bll4d7oS4f+svxt8Sg2vRYKzQEcIxQ=="],
 
     "@vitest/expect": ["@vitest/expect@4.1.10", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "@types/chai": "^5.2.2", "@vitest/spy": "4.1.10", "@vitest/utils": "4.1.10", "chai": "^6.2.2", "tinyrainbow": "^3.1.0" } }, "sha512-YsCn+qAk1GWjQOWFEsEcL2gNQ0zmVmQu3T03qP6UyjhtmdtwtbuI+DASn/7iQB3HGTXkdBwGddzxPlmiql5vlA=="],
 
@@ -1500,7 +1490,7 @@
 
     "d3-drag": ["d3-drag@3.0.0", "", { "dependencies": { "d3-dispatch": "1 - 3", "d3-selection": "3" } }, "sha512-pWbUJLdETVA8lQNJecMxoXfH6x+mO2UQo8rSmZ+QqxcbyA3hfeprFgIT//HW2nlHChWeIIMwS2Fq+gEARkhTkg=="],
 
-    "d3-dsv": ["d3-dsv@2.0.0", "", { "dependencies": { "commander": "2", "iconv-lite": "0.4", "rw": "1" }, "bin": { "csv2json": "bin/dsv2json", "csv2tsv": "bin/dsv2dsv", "dsv2dsv": "bin/dsv2dsv", "dsv2json": "bin/dsv2json", "json2csv": "bin/json2dsv", "json2dsv": "bin/json2dsv", "json2tsv": "bin/json2dsv", "tsv2csv": "bin/dsv2dsv", "tsv2json": "bin/dsv2json" } }, "sha512-E+Pn8UJYx9mViuIUkoc93gJGGYut6mSDKy2+XaPwccwkRGlR+LO97L2VCCRjQivTwLHkSnAJG7yo00BWY6QM+w=="],
+    "d3-dsv": ["d3-dsv@3.0.1", "", { "dependencies": { "commander": "7", "iconv-lite": "0.6", "rw": "1" }, "bin": { "csv2json": "bin/dsv2json.js", "csv2tsv": "bin/dsv2dsv.js", "dsv2dsv": "bin/dsv2dsv.js", "dsv2json": "bin/dsv2json.js", "json2csv": "bin/json2dsv.js", "json2dsv": "bin/json2dsv.js", "json2tsv": "bin/json2dsv.js", "tsv2csv": "bin/dsv2dsv.js", "tsv2json": "bin/dsv2json.js" } }, "sha512-UG6OvdI5afDIFP9w4G0mNq50dSOsXHJaRE8arAS5o9ApWnIElp8GZw1Dun8vP8OyHOZ/QJUKUJwxiiCCnUwm+Q=="],
 
     "d3-ease": ["d3-ease@3.0.1", "", {}, "sha512-wR/XK3D3XcLIZwpbvQwQ5fK+8Ykds1ip7A2Txe0yxncXSdq1L9skcG7blcedkOX+ZcgxGAmLX1FrRGbADwzi0w=="],
 
@@ -1510,7 +1500,7 @@
 
     "d3-format": ["d3-format@3.1.2", "", {}, "sha512-AJDdYOdnyRDV5b6ArilzCPPwc1ejkHcoyFarqlPqT7zRYjhavcT3uSrqcMvsgh2CgoPbK3RCwyHaVyxYcP2Arg=="],
 
-    "d3-geo": ["d3-geo@1.12.1", "", { "dependencies": { "d3-array": "1" } }, "sha512-XG4d1c/UJSEX9NfU02KwBL6BYPj8YKHxgBEw5om2ZnTRSbIcego6dhHwcxuSR3clxh0EpE38os1DVPOmnYtTPg=="],
+    "d3-geo": ["d3-geo@3.1.1", "", { "dependencies": { "d3-array": "2.5.0 - 3" } }, "sha512-637ln3gXKXOwhalDzinUgY83KzNWZRKbYubaG+fGVuc/dxO64RRljtCTnf5ecMyE1RIdtqpkVcq0IbtU2S8j2Q=="],
 
     "d3-hexbin": ["d3-hexbin@0.2.2", "", {}, "sha512-KS3fUT2ReD4RlGCjvCEm1RgMtp2NFZumdMu4DBzQK8AZv3fXRM6Xm8I4fSU07UXvH4xxg03NwWKWdvxfS/yc4w=="],
 
@@ -1810,8 +1800,6 @@
 
     "get-value": ["get-value@2.0.6", "", {}, "sha512-Ln0UQDlxH1BapMu3GPtf7CuYNwRZf2gwCuPqbyG6pB8WfmFpzqcy4xtAaAMUhnNqjMKTiCPZG2oMT3YSx8U2NA=="],
 
-    "gifuct-js": ["gifuct-js@2.1.2", "", { "dependencies": { "js-binary-schema-parser": "^2.0.3" } }, "sha512-rI2asw77u0mGgwhV3qA+OEgYqaDn5UNqgs+Bx0FGwSpuqfYn+Ir6RQY5ENNQ8SbIiG/m5gVa7CD5RriO4f4Lsg=="],
-
     "giscus": ["giscus@1.6.0", "", { "dependencies": { "lit": "^3.2.1" } }, "sha512-Zrsi8r4t1LVW950keaWcsURuZUQwUaMKjvJgTCY125vkW6OiEBkatE7ScJDbpqKHdZwb///7FVC21SE3iFK3PQ=="],
 
     "glob": ["glob@13.0.6", "", { "dependencies": { "minimatch": "^10.2.2", "minipass": "^7.1.3", "path-scurry": "^2.0.2" } }, "sha512-Wjlyrolmm8uDpm/ogGyXZXb1Z+Ca2B8NbJwqBVg0axK9GbBeoS7yGV6vjXnYdGm6X53iehEuxxbyiKp8QmN4Vw=="],
@@ -1989,8 +1977,6 @@
     "jiti": ["jiti@2.7.0", "", { "bin": { "jiti": "lib/jiti-cli.mjs" } }, "sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ=="],
 
     "jose": ["jose@6.2.3", "", {}, "sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw=="],
-
-    "js-binary-schema-parser": ["js-binary-schema-parser@2.0.3", "", {}, "sha512-xezGJmOb4lk/M1ZZLTR/jaBHQ4gG/lqQnJqdIv4721DMggsa1bDVlHXNeHYogaIEHD9vCRv0fcL4hMA+Coarkg=="],
 
     "js-cookie": ["js-cookie@3.0.8", "", {}, "sha512-yeJd4aNAdYZQjaon2bpD/Gb0B/omw7HQOsynXXcOiWVCacbBcPlgn8S/d1X6blFSaHao7ozqtW7NZW19xpCtIw=="],
 
@@ -3116,57 +3102,15 @@
 
     "@ts-morph/common/minimatch": ["minimatch@10.2.5", "", { "dependencies": { "brace-expansion": "^5.0.5" } }, "sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg=="],
 
-    "@visactor/vchart-semi-theme/@visactor/vchart": ["@visactor/vchart@1.8.11", "", { "dependencies": { "@visactor/vdataset": "~0.17.3", "@visactor/vgrammar-core": "0.10.11", "@visactor/vgrammar-hierarchy": "0.10.11", "@visactor/vgrammar-projection": "0.10.11", "@visactor/vgrammar-sankey": "0.10.11", "@visactor/vgrammar-util": "0.10.11", "@visactor/vgrammar-wordcloud": "0.10.11", "@visactor/vgrammar-wordcloud-shape": "0.10.11", "@visactor/vrender-components": "0.17.17", "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3", "@visactor/vutils-extension": "1.8.11" } }, "sha512-RdQ822J02GgAQNXvO1LiT0T3O6FjdgPdcm9hVBFyrpBBmuI8MH02IE7Y1kGe9NiFTH4tDwP0ixRgBmqNSGSLZQ=="],
+    "@visactor/vdataset/d3-dsv": ["d3-dsv@2.0.0", "", { "dependencies": { "commander": "2", "iconv-lite": "0.4", "rw": "1" }, "bin": { "csv2json": "bin/dsv2json", "csv2tsv": "bin/dsv2dsv", "dsv2dsv": "bin/dsv2dsv", "dsv2json": "bin/dsv2json", "json2csv": "bin/json2dsv", "json2dsv": "bin/json2dsv", "json2tsv": "bin/json2dsv", "tsv2csv": "bin/dsv2dsv", "tsv2json": "bin/dsv2json" } }, "sha512-E+Pn8UJYx9mViuIUkoc93gJGGYut6mSDKy2+XaPwccwkRGlR+LO97L2VCCRjQivTwLHkSnAJG7yo00BWY6QM+w=="],
 
-    "@visactor/vchart-theme-utils/@visactor/vchart": ["@visactor/vchart@1.8.11", "", { "dependencies": { "@visactor/vdataset": "~0.17.3", "@visactor/vgrammar-core": "0.10.11", "@visactor/vgrammar-hierarchy": "0.10.11", "@visactor/vgrammar-projection": "0.10.11", "@visactor/vgrammar-sankey": "0.10.11", "@visactor/vgrammar-util": "0.10.11", "@visactor/vgrammar-wordcloud": "0.10.11", "@visactor/vgrammar-wordcloud-shape": "0.10.11", "@visactor/vrender-components": "0.17.17", "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3", "@visactor/vutils-extension": "1.8.11" } }, "sha512-RdQ822J02GgAQNXvO1LiT0T3O6FjdgPdcm9hVBFyrpBBmuI8MH02IE7Y1kGe9NiFTH4tDwP0ixRgBmqNSGSLZQ=="],
+    "@visactor/vdataset/d3-geo": ["d3-geo@1.12.1", "", { "dependencies": { "d3-array": "1" } }, "sha512-XG4d1c/UJSEX9NfU02KwBL6BYPj8YKHxgBEw5om2ZnTRSbIcego6dhHwcxuSR3clxh0EpE38os1DVPOmnYtTPg=="],
 
     "@visactor/vdataset/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
 
-    "@visactor/vgrammar-coordinate/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
+    "@visactor/vgrammar-projection/d3-geo": ["d3-geo@1.12.1", "", { "dependencies": { "d3-array": "1" } }, "sha512-XG4d1c/UJSEX9NfU02KwBL6BYPj8YKHxgBEw5om2ZnTRSbIcego6dhHwcxuSR3clxh0EpE38os1DVPOmnYtTPg=="],
 
-    "@visactor/vgrammar-core/@visactor/vdataset": ["@visactor/vdataset@0.17.5", "", { "dependencies": { "@turf/flatten": "^6.5.0", "@turf/helpers": "^6.5.0", "@turf/rewind": "^6.5.0", "@visactor/vutils": "0.17.5", "d3-dsv": "^2.0.0", "d3-geo": "^1.12.1", "d3-hexbin": "^0.2.2", "d3-hierarchy": "^3.1.1", "eventemitter3": "^4.0.7", "geobuf": "^3.0.1", "geojson-dissolve": "^3.1.0", "path-browserify": "^1.0.1", "pbf": "^3.2.1", "point-at-length": "^1.1.0", "simple-statistics": "^7.7.3", "simplify-geojson": "^1.0.4", "topojson-client": "^3.1.0" } }, "sha512-zVBdLWHWrhldGc8JDjSYF9lvpFT4ZEFQDB0b6yvfSiHzHKHiSco+rWmUFvA7r4ObT6j2QWF1vZAV9To8Ml4vHw=="],
-
-    "@visactor/vgrammar-core/@visactor/vrender-components": ["@visactor/vrender-components@0.17.17", "", { "dependencies": { "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3" } }, "sha512-7gYFQrozvBkyGF7s/JHXdWDZnATzymxzug63CZd4EB7A0OXKatVDImXRePqwzlPD3QamF7QMVWn0CuIx3gQ2gA=="],
-
-    "@visactor/vgrammar-core/@visactor/vrender-core": ["@visactor/vrender-core@0.17.17", "", { "dependencies": { "@visactor/vutils": "~0.17.3", "color-convert": "2.0.1" } }, "sha512-pAZGaimunDAWOBdFhzPh0auH5ryxAHr+MVoz+QdASG+6RZXy8D02l8v2QYu4+e4uorxe/s2ZkdNDm81SlNkoHQ=="],
-
-    "@visactor/vgrammar-core/@visactor/vrender-kits": ["@visactor/vrender-kits@0.17.17", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "0.17.17", "@visactor/vutils": "~0.17.3", "roughjs": "4.5.2" } }, "sha512-noRP1hAHvPCv36nf2P6sZ930Tk+dJ8jpPWIUm1cFYmUNdcumgIS8Cug0RyeZ+saSqVt5FDTwIwifhOqupw5Zaw=="],
-
-    "@visactor/vgrammar-core/@visactor/vscale": ["@visactor/vscale@0.17.5", "", { "dependencies": { "@visactor/vutils": "0.17.5" } }, "sha512-2dkS1IlAJ/IdTp8JElbctOOv6lkHKBKPDm8KvwBo0NuGWQeYAebSeyN3QCdwKbj76gMlCub4zc+xWrS5YiA2zA=="],
-
-    "@visactor/vgrammar-core/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "@visactor/vgrammar-hierarchy/@visactor/vrender-core": ["@visactor/vrender-core@0.17.17", "", { "dependencies": { "@visactor/vutils": "~0.17.3", "color-convert": "2.0.1" } }, "sha512-pAZGaimunDAWOBdFhzPh0auH5ryxAHr+MVoz+QdASG+6RZXy8D02l8v2QYu4+e4uorxe/s2ZkdNDm81SlNkoHQ=="],
-
-    "@visactor/vgrammar-hierarchy/@visactor/vrender-kits": ["@visactor/vrender-kits@0.17.17", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "0.17.17", "@visactor/vutils": "~0.17.3", "roughjs": "4.5.2" } }, "sha512-noRP1hAHvPCv36nf2P6sZ930Tk+dJ8jpPWIUm1cFYmUNdcumgIS8Cug0RyeZ+saSqVt5FDTwIwifhOqupw5Zaw=="],
-
-    "@visactor/vgrammar-hierarchy/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "@visactor/vgrammar-projection/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "@visactor/vgrammar-sankey/@visactor/vrender-core": ["@visactor/vrender-core@0.17.17", "", { "dependencies": { "@visactor/vutils": "~0.17.3", "color-convert": "2.0.1" } }, "sha512-pAZGaimunDAWOBdFhzPh0auH5ryxAHr+MVoz+QdASG+6RZXy8D02l8v2QYu4+e4uorxe/s2ZkdNDm81SlNkoHQ=="],
-
-    "@visactor/vgrammar-sankey/@visactor/vrender-kits": ["@visactor/vrender-kits@0.17.17", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "0.17.17", "@visactor/vutils": "~0.17.3", "roughjs": "4.5.2" } }, "sha512-noRP1hAHvPCv36nf2P6sZ930Tk+dJ8jpPWIUm1cFYmUNdcumgIS8Cug0RyeZ+saSqVt5FDTwIwifhOqupw5Zaw=="],
-
-    "@visactor/vgrammar-sankey/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "@visactor/vgrammar-util/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "@visactor/vgrammar-wordcloud/@visactor/vrender-core": ["@visactor/vrender-core@0.17.17", "", { "dependencies": { "@visactor/vutils": "~0.17.3", "color-convert": "2.0.1" } }, "sha512-pAZGaimunDAWOBdFhzPh0auH5ryxAHr+MVoz+QdASG+6RZXy8D02l8v2QYu4+e4uorxe/s2ZkdNDm81SlNkoHQ=="],
-
-    "@visactor/vgrammar-wordcloud/@visactor/vrender-kits": ["@visactor/vrender-kits@0.17.17", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "0.17.17", "@visactor/vutils": "~0.17.3", "roughjs": "4.5.2" } }, "sha512-noRP1hAHvPCv36nf2P6sZ930Tk+dJ8jpPWIUm1cFYmUNdcumgIS8Cug0RyeZ+saSqVt5FDTwIwifhOqupw5Zaw=="],
-
-    "@visactor/vgrammar-wordcloud/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "@visactor/vgrammar-wordcloud-shape/@visactor/vrender-core": ["@visactor/vrender-core@0.17.17", "", { "dependencies": { "@visactor/vutils": "~0.17.3", "color-convert": "2.0.1" } }, "sha512-pAZGaimunDAWOBdFhzPh0auH5ryxAHr+MVoz+QdASG+6RZXy8D02l8v2QYu4+e4uorxe/s2ZkdNDm81SlNkoHQ=="],
-
-    "@visactor/vgrammar-wordcloud-shape/@visactor/vrender-kits": ["@visactor/vrender-kits@0.17.17", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "0.17.17", "@visactor/vutils": "~0.17.3", "roughjs": "4.5.2" } }, "sha512-noRP1hAHvPCv36nf2P6sZ930Tk+dJ8jpPWIUm1cFYmUNdcumgIS8Cug0RyeZ+saSqVt5FDTwIwifhOqupw5Zaw=="],
-
-    "@visactor/vgrammar-wordcloud-shape/@visactor/vscale": ["@visactor/vscale@0.17.5", "", { "dependencies": { "@visactor/vutils": "0.17.5" } }, "sha512-2dkS1IlAJ/IdTp8JElbctOOv6lkHKBKPDm8KvwBo0NuGWQeYAebSeyN3QCdwKbj76gMlCub4zc+xWrS5YiA2zA=="],
-
-    "@visactor/vgrammar-wordcloud-shape/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "@visactor/vlayouts/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
+    "@visactor/vrender-kits/roughjs": ["roughjs@4.5.2", "", { "dependencies": { "path-data-parser": "^0.1.0", "points-on-curve": "^0.2.0", "points-on-path": "^0.2.1" } }, "sha512-2xSlLDKdsWyFxrveYWk9YQ/Y9UfK38EAMRNkYkMqYBJvPX8abCa9PN0x3w02H8Oa6/0bcZICJU+U95VumPqseg=="],
 
     "@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
 
@@ -3188,17 +3132,9 @@
 
     "cytoscape-fcose/cose-base": ["cose-base@2.2.0", "", { "dependencies": { "layout-base": "^2.0.0" } }, "sha512-AzlgcsCbUMymkADOJtQm3wO9S3ltPfYOFD5033keQn9NJzIbtnZj+UdBJe7DYml/8TdbtHJW3j58SOnKhWY/5g=="],
 
-    "d3/d3-dsv": ["d3-dsv@3.0.1", "", { "dependencies": { "commander": "7", "iconv-lite": "0.6", "rw": "1" }, "bin": { "csv2json": "bin/dsv2json.js", "csv2tsv": "bin/dsv2dsv.js", "dsv2dsv": "bin/dsv2dsv.js", "dsv2json": "bin/dsv2json.js", "json2csv": "bin/json2dsv.js", "json2dsv": "bin/json2dsv.js", "json2tsv": "bin/json2dsv.js", "tsv2csv": "bin/dsv2dsv.js", "tsv2json": "bin/dsv2json.js" } }, "sha512-UG6OvdI5afDIFP9w4G0mNq50dSOsXHJaRE8arAS5o9ApWnIElp8GZw1Dun8vP8OyHOZ/QJUKUJwxiiCCnUwm+Q=="],
+    "d3-dsv/commander": ["commander@7.2.0", "", {}, "sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw=="],
 
-    "d3/d3-geo": ["d3-geo@3.1.1", "", { "dependencies": { "d3-array": "2.5.0 - 3" } }, "sha512-637ln3gXKXOwhalDzinUgY83KzNWZRKbYubaG+fGVuc/dxO64RRljtCTnf5ecMyE1RIdtqpkVcq0IbtU2S8j2Q=="],
-
-    "d3-dsv/commander": ["commander@2.20.3", "", {}, "sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ=="],
-
-    "d3-dsv/iconv-lite": ["iconv-lite@0.4.24", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3" } }, "sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA=="],
-
-    "d3-fetch/d3-dsv": ["d3-dsv@3.0.1", "", { "dependencies": { "commander": "7", "iconv-lite": "0.6", "rw": "1" }, "bin": { "csv2json": "bin/dsv2json.js", "csv2tsv": "bin/dsv2dsv.js", "dsv2dsv": "bin/dsv2dsv.js", "dsv2json": "bin/dsv2json.js", "json2csv": "bin/json2dsv.js", "json2dsv": "bin/json2dsv.js", "json2tsv": "bin/json2dsv.js", "tsv2csv": "bin/dsv2dsv.js", "tsv2json": "bin/dsv2json.js" } }, "sha512-UG6OvdI5afDIFP9w4G0mNq50dSOsXHJaRE8arAS5o9ApWnIElp8GZw1Dun8vP8OyHOZ/QJUKUJwxiiCCnUwm+Q=="],
-
-    "d3-geo/d3-array": ["d3-array@1.2.4", "", {}, "sha512-KHW6M86R+FUPYGb3R5XiYjXPq7VzwxZ22buHhAEVG5ztoEcZZMLov530mmccaqA1GghZArjQV46fuc8kUqhhHw=="],
+    "d3-dsv/iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
 
     "d3-sankey/d3-array": ["d3-array@2.12.1", "", { "dependencies": { "internmap": "^1.0.0" } }, "sha512-B0ErZK/66mHtEsR1TkPEEkwdy+WDesimkM5gpZr5Dsg54BiTA5RXtYW5qTLIAcekaS9xfZrzBLF/OAkB3Qn1YQ=="],
 
@@ -3279,10 +3215,6 @@
     "react-rnd/tslib": ["tslib@2.6.2", "", {}, "sha512-AEYxH93jGFPn/a2iVAwW87VuUIkR1FVUKB77NwMF7nBTDkDrrT/Hpt/IrCJ0QXhW27jTBDcf5ZY7w6RiqTMw2Q=="],
 
     "react-telegram-login/react": ["react@16.14.0", "", { "dependencies": { "loose-envify": "^1.1.0", "object-assign": "^4.1.1", "prop-types": "^15.6.2" } }, "sha512-0X2CImDkJGApiAlcf0ODKIneSwBPhqJawOa5wCtKbu7ZECrmS26NvtSILynQ66cgkT/RJ4LidJOc3bUESwmU8g=="],
-
-    "react-template/@visactor/react-vchart": ["@visactor/react-vchart@1.8.11", "", { "dependencies": { "@visactor/vchart": "1.8.11", "@visactor/vgrammar-core": "0.10.11", "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vutils": "~0.17.3", "react-is": "^18.2.0" }, "peerDependencies": { "react": ">=16.0.0", "react-dom": ">=16.0.0" } }, "sha512-wHnCex9gOpnttTtSu04ozKJhTveUk8Ln2KX/7PZyCJxqlXq+eWvW4zvM6Ja8T8kGXfXtFYVVNh9zBMQ7y2T/Sw=="],
-
-    "react-template/@visactor/vchart": ["@visactor/vchart@1.8.11", "", { "dependencies": { "@visactor/vdataset": "~0.17.3", "@visactor/vgrammar-core": "0.10.11", "@visactor/vgrammar-hierarchy": "0.10.11", "@visactor/vgrammar-projection": "0.10.11", "@visactor/vgrammar-sankey": "0.10.11", "@visactor/vgrammar-util": "0.10.11", "@visactor/vgrammar-wordcloud": "0.10.11", "@visactor/vgrammar-wordcloud-shape": "0.10.11", "@visactor/vrender-components": "0.17.17", "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3", "@visactor/vutils-extension": "1.8.11" } }, "sha512-RdQ822J02GgAQNXvO1LiT0T3O6FjdgPdcm9hVBFyrpBBmuI8MH02IE7Y1kGe9NiFTH4tDwP0ixRgBmqNSGSLZQ=="],
 
     "react-template/i18next": ["i18next@23.16.8", "", { "dependencies": { "@babel/runtime": "^7.23.2" } }, "sha512-06r/TitrM88Mg5FdUXAKL96dJMzgqLE5dv3ryBAra4KCwD9mJ4ndOTS95ZuymIGoE+2hzfdaMak2X11/es7ZWg=="],
 
@@ -3402,61 +3334,13 @@
 
     "@ts-morph/common/minimatch/brace-expansion": ["brace-expansion@5.0.6", "", { "dependencies": { "balanced-match": "^4.0.2" } }, "sha512-kLpxurY4Z4r9sgMsyG0Z9uzsBlgiU/EFKhj/h91/8yHu0edo7XuixOIH3VcJ8kkxs6/jPzoI6U9Vj3WqbMQ94g=="],
 
-    "@visactor/vchart-semi-theme/@visactor/vchart/@visactor/vdataset": ["@visactor/vdataset@0.17.5", "", { "dependencies": { "@turf/flatten": "^6.5.0", "@turf/helpers": "^6.5.0", "@turf/rewind": "^6.5.0", "@visactor/vutils": "0.17.5", "d3-dsv": "^2.0.0", "d3-geo": "^1.12.1", "d3-hexbin": "^0.2.2", "d3-hierarchy": "^3.1.1", "eventemitter3": "^4.0.7", "geobuf": "^3.0.1", "geojson-dissolve": "^3.1.0", "path-browserify": "^1.0.1", "pbf": "^3.2.1", "point-at-length": "^1.1.0", "simple-statistics": "^7.7.3", "simplify-geojson": "^1.0.4", "topojson-client": "^3.1.0" } }, "sha512-zVBdLWHWrhldGc8JDjSYF9lvpFT4ZEFQDB0b6yvfSiHzHKHiSco+rWmUFvA7r4ObT6j2QWF1vZAV9To8Ml4vHw=="],
+    "@visactor/vdataset/d3-dsv/commander": ["commander@2.20.3", "", {}, "sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ=="],
 
-    "@visactor/vchart-semi-theme/@visactor/vchart/@visactor/vrender-components": ["@visactor/vrender-components@0.17.17", "", { "dependencies": { "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3" } }, "sha512-7gYFQrozvBkyGF7s/JHXdWDZnATzymxzug63CZd4EB7A0OXKatVDImXRePqwzlPD3QamF7QMVWn0CuIx3gQ2gA=="],
+    "@visactor/vdataset/d3-dsv/iconv-lite": ["iconv-lite@0.4.24", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3" } }, "sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA=="],
 
-    "@visactor/vchart-semi-theme/@visactor/vchart/@visactor/vrender-core": ["@visactor/vrender-core@0.17.17", "", { "dependencies": { "@visactor/vutils": "~0.17.3", "color-convert": "2.0.1" } }, "sha512-pAZGaimunDAWOBdFhzPh0auH5ryxAHr+MVoz+QdASG+6RZXy8D02l8v2QYu4+e4uorxe/s2ZkdNDm81SlNkoHQ=="],
+    "@visactor/vdataset/d3-geo/d3-array": ["d3-array@1.2.4", "", {}, "sha512-KHW6M86R+FUPYGb3R5XiYjXPq7VzwxZ22buHhAEVG5ztoEcZZMLov530mmccaqA1GghZArjQV46fuc8kUqhhHw=="],
 
-    "@visactor/vchart-semi-theme/@visactor/vchart/@visactor/vrender-kits": ["@visactor/vrender-kits@0.17.17", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "0.17.17", "@visactor/vutils": "~0.17.3", "roughjs": "4.5.2" } }, "sha512-noRP1hAHvPCv36nf2P6sZ930Tk+dJ8jpPWIUm1cFYmUNdcumgIS8Cug0RyeZ+saSqVt5FDTwIwifhOqupw5Zaw=="],
-
-    "@visactor/vchart-semi-theme/@visactor/vchart/@visactor/vscale": ["@visactor/vscale@0.17.5", "", { "dependencies": { "@visactor/vutils": "0.17.5" } }, "sha512-2dkS1IlAJ/IdTp8JElbctOOv6lkHKBKPDm8KvwBo0NuGWQeYAebSeyN3QCdwKbj76gMlCub4zc+xWrS5YiA2zA=="],
-
-    "@visactor/vchart-semi-theme/@visactor/vchart/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "@visactor/vchart-semi-theme/@visactor/vchart/@visactor/vutils-extension": ["@visactor/vutils-extension@1.8.11", "", { "dependencies": { "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3" } }, "sha512-Hknzpy3+xh4sdL0iSn5N93BHiMJF4FdwSwhHYEibRpriZmWKG6wBxsJ0Bll4d7oS4f+svxt8Sg2vRYKzQEcIxQ=="],
-
-    "@visactor/vchart-theme-utils/@visactor/vchart/@visactor/vdataset": ["@visactor/vdataset@0.17.5", "", { "dependencies": { "@turf/flatten": "^6.5.0", "@turf/helpers": "^6.5.0", "@turf/rewind": "^6.5.0", "@visactor/vutils": "0.17.5", "d3-dsv": "^2.0.0", "d3-geo": "^1.12.1", "d3-hexbin": "^0.2.2", "d3-hierarchy": "^3.1.1", "eventemitter3": "^4.0.7", "geobuf": "^3.0.1", "geojson-dissolve": "^3.1.0", "path-browserify": "^1.0.1", "pbf": "^3.2.1", "point-at-length": "^1.1.0", "simple-statistics": "^7.7.3", "simplify-geojson": "^1.0.4", "topojson-client": "^3.1.0" } }, "sha512-zVBdLWHWrhldGc8JDjSYF9lvpFT4ZEFQDB0b6yvfSiHzHKHiSco+rWmUFvA7r4ObT6j2QWF1vZAV9To8Ml4vHw=="],
-
-    "@visactor/vchart-theme-utils/@visactor/vchart/@visactor/vrender-components": ["@visactor/vrender-components@0.17.17", "", { "dependencies": { "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3" } }, "sha512-7gYFQrozvBkyGF7s/JHXdWDZnATzymxzug63CZd4EB7A0OXKatVDImXRePqwzlPD3QamF7QMVWn0CuIx3gQ2gA=="],
-
-    "@visactor/vchart-theme-utils/@visactor/vchart/@visactor/vrender-core": ["@visactor/vrender-core@0.17.17", "", { "dependencies": { "@visactor/vutils": "~0.17.3", "color-convert": "2.0.1" } }, "sha512-pAZGaimunDAWOBdFhzPh0auH5ryxAHr+MVoz+QdASG+6RZXy8D02l8v2QYu4+e4uorxe/s2ZkdNDm81SlNkoHQ=="],
-
-    "@visactor/vchart-theme-utils/@visactor/vchart/@visactor/vrender-kits": ["@visactor/vrender-kits@0.17.17", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "0.17.17", "@visactor/vutils": "~0.17.3", "roughjs": "4.5.2" } }, "sha512-noRP1hAHvPCv36nf2P6sZ930Tk+dJ8jpPWIUm1cFYmUNdcumgIS8Cug0RyeZ+saSqVt5FDTwIwifhOqupw5Zaw=="],
-
-    "@visactor/vchart-theme-utils/@visactor/vchart/@visactor/vscale": ["@visactor/vscale@0.17.5", "", { "dependencies": { "@visactor/vutils": "0.17.5" } }, "sha512-2dkS1IlAJ/IdTp8JElbctOOv6lkHKBKPDm8KvwBo0NuGWQeYAebSeyN3QCdwKbj76gMlCub4zc+xWrS5YiA2zA=="],
-
-    "@visactor/vchart-theme-utils/@visactor/vchart/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "@visactor/vchart-theme-utils/@visactor/vchart/@visactor/vutils-extension": ["@visactor/vutils-extension@1.8.11", "", { "dependencies": { "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3" } }, "sha512-Hknzpy3+xh4sdL0iSn5N93BHiMJF4FdwSwhHYEibRpriZmWKG6wBxsJ0Bll4d7oS4f+svxt8Sg2vRYKzQEcIxQ=="],
-
-    "@visactor/vgrammar-coordinate/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vgrammar-core/@visactor/vdataset/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vgrammar-core/@visactor/vrender-kits/roughjs": ["roughjs@4.5.2", "", { "dependencies": { "path-data-parser": "^0.1.0", "points-on-curve": "^0.2.0", "points-on-path": "^0.2.1" } }, "sha512-2xSlLDKdsWyFxrveYWk9YQ/Y9UfK38EAMRNkYkMqYBJvPX8abCa9PN0x3w02H8Oa6/0bcZICJU+U95VumPqseg=="],
-
-    "@visactor/vgrammar-core/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vgrammar-hierarchy/@visactor/vrender-kits/roughjs": ["roughjs@4.5.2", "", { "dependencies": { "path-data-parser": "^0.1.0", "points-on-curve": "^0.2.0", "points-on-path": "^0.2.1" } }, "sha512-2xSlLDKdsWyFxrveYWk9YQ/Y9UfK38EAMRNkYkMqYBJvPX8abCa9PN0x3w02H8Oa6/0bcZICJU+U95VumPqseg=="],
-
-    "@visactor/vgrammar-hierarchy/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vgrammar-projection/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vgrammar-sankey/@visactor/vrender-kits/roughjs": ["roughjs@4.5.2", "", { "dependencies": { "path-data-parser": "^0.1.0", "points-on-curve": "^0.2.0", "points-on-path": "^0.2.1" } }, "sha512-2xSlLDKdsWyFxrveYWk9YQ/Y9UfK38EAMRNkYkMqYBJvPX8abCa9PN0x3w02H8Oa6/0bcZICJU+U95VumPqseg=="],
-
-    "@visactor/vgrammar-sankey/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vgrammar-util/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vgrammar-wordcloud-shape/@visactor/vrender-kits/roughjs": ["roughjs@4.5.2", "", { "dependencies": { "path-data-parser": "^0.1.0", "points-on-curve": "^0.2.0", "points-on-path": "^0.2.1" } }, "sha512-2xSlLDKdsWyFxrveYWk9YQ/Y9UfK38EAMRNkYkMqYBJvPX8abCa9PN0x3w02H8Oa6/0bcZICJU+U95VumPqseg=="],
-
-    "@visactor/vgrammar-wordcloud-shape/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vgrammar-wordcloud/@visactor/vrender-kits/roughjs": ["roughjs@4.5.2", "", { "dependencies": { "path-data-parser": "^0.1.0", "points-on-curve": "^0.2.0", "points-on-path": "^0.2.1" } }, "sha512-2xSlLDKdsWyFxrveYWk9YQ/Y9UfK38EAMRNkYkMqYBJvPX8abCa9PN0x3w02H8Oa6/0bcZICJU+U95VumPqseg=="],
-
-    "@visactor/vgrammar-wordcloud/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
+    "@visactor/vgrammar-projection/d3-geo/d3-array": ["d3-array@1.2.4", "", {}, "sha512-KHW6M86R+FUPYGb3R5XiYjXPq7VzwxZ22buHhAEVG5ztoEcZZMLov530mmccaqA1GghZArjQV46fuc8kUqhhHw=="],
 
     "accepts/mime-types/mime-db": ["mime-db@1.54.0", "", {}, "sha512-aU5EJuIN2WDemCcAp2vFBfp/m4EAhWJnUNSSw0ixs7/kXbd6Pg64EmwJkNdFhB8aWt1sH2CTXrLxo/iAGV3oPQ=="],
 
@@ -3472,17 +3356,9 @@
 
     "cytoscape-fcose/cose-base/layout-base": ["layout-base@2.0.1", "", {}, "sha512-dp3s92+uNI1hWIpPGH3jK2kxE2lMjdXdr+DH8ynZHpd6PUlH6x6cbuXnoMmiNumznqaNO31xu9e79F0uuZ0JFg=="],
 
-    "d3-fetch/d3-dsv/commander": ["commander@7.2.0", "", {}, "sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw=="],
-
-    "d3-fetch/d3-dsv/iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
-
     "d3-sankey/d3-array/internmap": ["internmap@1.0.1", "", {}, "sha512-lDB5YccMydFBtasVtxnZ3MRBHuaoE8GKsppq+EchKL2U4nK/DmEpPHNH8MZe5HkMtpSiTSOZwfN0tzYjO/lJEw=="],
 
     "d3-sankey/d3-shape/d3-path": ["d3-path@1.0.9", "", {}, "sha512-VLaYcn81dtHVTjEHd8B+pbe9yHWpXKZUC87PzoFmsFrJqgFwDe/qxfp5MlfsfM1V5E/iVt0MmEbWQ7FVIXh/bg=="],
-
-    "d3/d3-dsv/commander": ["commander@7.2.0", "", {}, "sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw=="],
-
-    "d3/d3-dsv/iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
 
     "express/mime-types/mime-db": ["mime-db@1.54.0", "", {}, "sha512-aU5EJuIN2WDemCcAp2vFBfp/m4EAhWJnUNSSw0ixs7/kXbd6Pg64EmwJkNdFhB8aWt1sH2CTXrLxo/iAGV3oPQ=="],
 
@@ -3507,26 +3383,6 @@
     "micromark-extension-math/katex/commander": ["commander@8.3.0", "", {}, "sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww=="],
 
     "ora/strip-ansi/ansi-regex": ["ansi-regex@6.2.2", "", {}, "sha512-Bq3SmSpyFHaWjPk8If9yc6svM8c56dB5BAtW4Qbw5jHTwwXXcTLoRMkpDJp6VL0XzlWaCHTXrkFURMYmD0sLqg=="],
-
-    "react-template/@visactor/react-vchart/@visactor/vrender-core": ["@visactor/vrender-core@0.17.17", "", { "dependencies": { "@visactor/vutils": "~0.17.3", "color-convert": "2.0.1" } }, "sha512-pAZGaimunDAWOBdFhzPh0auH5ryxAHr+MVoz+QdASG+6RZXy8D02l8v2QYu4+e4uorxe/s2ZkdNDm81SlNkoHQ=="],
-
-    "react-template/@visactor/react-vchart/@visactor/vrender-kits": ["@visactor/vrender-kits@0.17.17", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "0.17.17", "@visactor/vutils": "~0.17.3", "roughjs": "4.5.2" } }, "sha512-noRP1hAHvPCv36nf2P6sZ930Tk+dJ8jpPWIUm1cFYmUNdcumgIS8Cug0RyeZ+saSqVt5FDTwIwifhOqupw5Zaw=="],
-
-    "react-template/@visactor/react-vchart/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "react-template/@visactor/vchart/@visactor/vdataset": ["@visactor/vdataset@0.17.5", "", { "dependencies": { "@turf/flatten": "^6.5.0", "@turf/helpers": "^6.5.0", "@turf/rewind": "^6.5.0", "@visactor/vutils": "0.17.5", "d3-dsv": "^2.0.0", "d3-geo": "^1.12.1", "d3-hexbin": "^0.2.2", "d3-hierarchy": "^3.1.1", "eventemitter3": "^4.0.7", "geobuf": "^3.0.1", "geojson-dissolve": "^3.1.0", "path-browserify": "^1.0.1", "pbf": "^3.2.1", "point-at-length": "^1.1.0", "simple-statistics": "^7.7.3", "simplify-geojson": "^1.0.4", "topojson-client": "^3.1.0" } }, "sha512-zVBdLWHWrhldGc8JDjSYF9lvpFT4ZEFQDB0b6yvfSiHzHKHiSco+rWmUFvA7r4ObT6j2QWF1vZAV9To8Ml4vHw=="],
-
-    "react-template/@visactor/vchart/@visactor/vrender-components": ["@visactor/vrender-components@0.17.17", "", { "dependencies": { "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3" } }, "sha512-7gYFQrozvBkyGF7s/JHXdWDZnATzymxzug63CZd4EB7A0OXKatVDImXRePqwzlPD3QamF7QMVWn0CuIx3gQ2gA=="],
-
-    "react-template/@visactor/vchart/@visactor/vrender-core": ["@visactor/vrender-core@0.17.17", "", { "dependencies": { "@visactor/vutils": "~0.17.3", "color-convert": "2.0.1" } }, "sha512-pAZGaimunDAWOBdFhzPh0auH5ryxAHr+MVoz+QdASG+6RZXy8D02l8v2QYu4+e4uorxe/s2ZkdNDm81SlNkoHQ=="],
-
-    "react-template/@visactor/vchart/@visactor/vrender-kits": ["@visactor/vrender-kits@0.17.17", "", { "dependencies": { "@resvg/resvg-js": "2.4.1", "@visactor/vrender-core": "0.17.17", "@visactor/vutils": "~0.17.3", "roughjs": "4.5.2" } }, "sha512-noRP1hAHvPCv36nf2P6sZ930Tk+dJ8jpPWIUm1cFYmUNdcumgIS8Cug0RyeZ+saSqVt5FDTwIwifhOqupw5Zaw=="],
-
-    "react-template/@visactor/vchart/@visactor/vscale": ["@visactor/vscale@0.17.5", "", { "dependencies": { "@visactor/vutils": "0.17.5" } }, "sha512-2dkS1IlAJ/IdTp8JElbctOOv6lkHKBKPDm8KvwBo0NuGWQeYAebSeyN3QCdwKbj76gMlCub4zc+xWrS5YiA2zA=="],
-
-    "react-template/@visactor/vchart/@visactor/vutils": ["@visactor/vutils@0.17.5", "", { "dependencies": { "@turf/helpers": "^6.5.0", "@turf/invariant": "^6.5.0", "eventemitter3": "^4.0.7" } }, "sha512-HFN6Pk1Wc1RK842g02MeKOlvdri5L7/nqxMVTqxIvi0XMhHXpmoqN4+/9H+h8LmJpVohyrI/MT85TRBV/rManw=="],
-
-    "react-template/@visactor/vchart/@visactor/vutils-extension": ["@visactor/vutils-extension@1.8.11", "", { "dependencies": { "@visactor/vrender-core": "0.17.17", "@visactor/vrender-kits": "0.17.17", "@visactor/vscale": "~0.17.3", "@visactor/vutils": "~0.17.3" } }, "sha512-Hknzpy3+xh4sdL0iSn5N93BHiMJF4FdwSwhHYEibRpriZmWKG6wBxsJ0Bll4d7oS4f+svxt8Sg2vRYKzQEcIxQ=="],
 
     "react-template/katex/commander": ["commander@8.3.0", "", {}, "sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww=="],
 
@@ -3558,18 +3414,6 @@
 
     "@ts-morph/common/minimatch/brace-expansion/balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 
-    "@visactor/vchart-semi-theme/@visactor/vchart/@visactor/vdataset/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vchart-semi-theme/@visactor/vchart/@visactor/vrender-kits/roughjs": ["roughjs@4.5.2", "", { "dependencies": { "path-data-parser": "^0.1.0", "points-on-curve": "^0.2.0", "points-on-path": "^0.2.1" } }, "sha512-2xSlLDKdsWyFxrveYWk9YQ/Y9UfK38EAMRNkYkMqYBJvPX8abCa9PN0x3w02H8Oa6/0bcZICJU+U95VumPqseg=="],
-
-    "@visactor/vchart-semi-theme/@visactor/vchart/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vchart-theme-utils/@visactor/vchart/@visactor/vdataset/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "@visactor/vchart-theme-utils/@visactor/vchart/@visactor/vrender-kits/roughjs": ["roughjs@4.5.2", "", { "dependencies": { "path-data-parser": "^0.1.0", "points-on-curve": "^0.2.0", "points-on-path": "^0.2.1" } }, "sha512-2xSlLDKdsWyFxrveYWk9YQ/Y9UfK38EAMRNkYkMqYBJvPX8abCa9PN0x3w02H8Oa6/0bcZICJU+U95VumPqseg=="],
-
-    "@visactor/vchart-theme-utils/@visactor/vchart/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
     "concat-stream/readable-stream/string_decoder/safe-buffer": ["safe-buffer@5.2.1", "", {}, "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ=="],
 
     "glob/minimatch/brace-expansion/balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
@@ -3577,16 +3421,6 @@
     "i18next-cli/minimatch/brace-expansion/balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 
     "i18next-cli/ora/string-width/strip-ansi": ["strip-ansi@7.2.0", "", { "dependencies": { "ansi-regex": "^6.2.2" } }, "sha512-yDPMNjp4WyfYBkHnjIRLfca1i6KMyGCtsVgoKe/z1+6vukgaENdgGBZt+ZmKPc4gavvEZ5OgHfHdrazhgNyG7w=="],
-
-    "react-template/@visactor/react-vchart/@visactor/vrender-kits/roughjs": ["roughjs@4.5.2", "", { "dependencies": { "path-data-parser": "^0.1.0", "points-on-curve": "^0.2.0", "points-on-path": "^0.2.1" } }, "sha512-2xSlLDKdsWyFxrveYWk9YQ/Y9UfK38EAMRNkYkMqYBJvPX8abCa9PN0x3w02H8Oa6/0bcZICJU+U95VumPqseg=="],
-
-    "react-template/@visactor/react-vchart/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "react-template/@visactor/vchart/@visactor/vdataset/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
-
-    "react-template/@visactor/vchart/@visactor/vrender-kits/roughjs": ["roughjs@4.5.2", "", { "dependencies": { "path-data-parser": "^0.1.0", "points-on-curve": "^0.2.0", "points-on-path": "^0.2.1" } }, "sha512-2xSlLDKdsWyFxrveYWk9YQ/Y9UfK38EAMRNkYkMqYBJvPX8abCa9PN0x3w02H8Oa6/0bcZICJU+U95VumPqseg=="],
-
-    "react-template/@visactor/vchart/@visactor/vutils/eventemitter3": ["eventemitter3@4.0.7", "", {}, "sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw=="],
 
     "react-template/tailwindcss/chokidar/glob-parent": ["glob-parent@5.1.2", "", { "dependencies": { "is-glob": "^4.0.1" } }, "sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow=="],
 

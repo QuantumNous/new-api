@@ -80,7 +80,7 @@ export type RankingMover = {
 
 /**
  * One sample of a model's token usage at a given timestamp.
- * Flat shape ready to feed VChart's stacked-bar spec.
+ * Flat shape, pivoted into stacked-bar rows by the chart component.
  */
 export type ModelHistoryPoint = {
   ts: string
@@ -94,7 +94,7 @@ export type ModelHistoryPoint = {
 }
 
 export type ModelHistorySeries = {
-  /** Flat points ready for VChart, ordered oldest → newest. */
+  /** Flat points, ordered oldest → newest. */
   points: ModelHistoryPoint[]
   /** Models that appear in the series, sorted by total tokens desc. */
   models: Array<{ name: string; vendor: string; total: number }>
@@ -116,7 +116,7 @@ export type VendorSharePoint = {
 }
 
 export type VendorShareSeries = {
-  /** Flat points ready for VChart, ordered oldest → newest. */
+  /** Flat points, ordered oldest → newest. */
   points: VendorSharePoint[]
   /** Vendors that appear in the series, sorted by aggregate tokens desc. */
   vendors: Array<{ name: string; total: number; share: number }>

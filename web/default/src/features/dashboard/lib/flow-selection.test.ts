@@ -68,37 +68,17 @@ describe('dashboard flow selection helpers', () => {
 
   it('prioritizes loading and error states before empty flow data', () => {
     expect(
-      flowDisplayState({
-        isLoading: true,
-        isError: true,
-        linkCount: 0,
-        themeReady: true,
-      })
+      flowDisplayState({ isLoading: true, isError: true, linkCount: 0 })
     ).toBe('loading')
     expect(
-      flowDisplayState({
-        isLoading: false,
-        isError: true,
-        linkCount: 0,
-        themeReady: true,
-      })
+      flowDisplayState({ isLoading: false, isError: true, linkCount: 0 })
     ).toBe('error')
     expect(
-      flowDisplayState({
-        isLoading: false,
-        isError: false,
-        linkCount: 0,
-        themeReady: true,
-      })
+      flowDisplayState({ isLoading: false, isError: false, linkCount: 0 })
     ).toBe('empty')
     expect(
-      flowDisplayState({
-        isLoading: false,
-        isError: false,
-        linkCount: 1,
-        themeReady: false,
-      })
-    ).toBe('loading')
+      flowDisplayState({ isLoading: false, isError: false, linkCount: 1 })
+    ).toBe('chart')
   })
 
   it('throws unsuccessful flow responses instead of treating them as empty data', () => {

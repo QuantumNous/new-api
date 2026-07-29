@@ -16,13 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { VChart } from '@visactor/react-vchart'
 import { PieChart } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  type TooltipContentProps,
+} from 'recharts'
 
-import { useChartTheme } from '@/lib/use-chart-theme'
-import { VCHART_OPTION } from '@/lib/vchart'
+import {
+  ChartContainer,
+  ChartTooltip,
+  type ChartConfig,
+} from '@/components/ui/chart'
 
 import { formatShare, formatTokens } from '../lib/format'
 import type { RankingPeriod, VendorRanking, VendorShareSeries } from '../types'
@@ -89,10 +99,72 @@ function buildVendorColourMap(names: string[]): Record<string, string> {
 
 const MAX_VENDORS_IN_LIST = 12
 
+/** Minimum share for a vendor to show up in the shared tooltip. */
+const TOOLTIP_MIN_SHARE = 0.001
+
+/** Token counts per vendor, carried alongside the shares for tooltip use. */
+const TOKENS_FIELD = '__tokens'
+
+type ShareRow = Record<string, number | string | Record<string, number>> & {
+  label: string
+  [TOKENS_FIELD]: Record<string, number>
+}
+
 type MarketShareSectionProps = {
   history: VendorShareSeries
   rows: VendorRanking[]
   period: RankingPeriod
+}
+
+function VendorShareTooltip(props: Partial<TooltipContentProps>) {
+  if (!props.active || !props.payload?.length) return null
+
+  const tokensByVendor = (props.payload[0]?.payload as ShareRow | undefined)?.[
+    TOKENS_FIELD
+  ]
+
+  const entries = props.payload
+    .map((item) => ({
+      name: String(item.name ?? ''),
+      color: item.color,
+      share: Number(item.value) || 0,
+    }))
+    .filter((item) => item.share > TOOLTIP_MIN_SHARE)
+    .sort((a, b) => b.share - a.share)
+
+  if (entries.length === 0) return null
+
+  return (
+    <div className='border-border/50 bg-background grid min-w-40 items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl'>
+      {props.label != null && (
+        <div className='font-medium'>{String(props.label)}</div>
+      )}
+      <div className='grid gap-1'>
+        {entries.map((item) => (
+          <div
+            key={item.name}
+            className='flex items-center justify-between gap-4'
+          >
+            <span className='flex min-w-0 items-center gap-1.5'>
+              <span
+                aria-hidden
+                className='size-2.5 shrink-0 rounded-[2px]'
+                style={{ backgroundColor: item.color }}
+              />
+              <span className='text-muted-foreground truncate'>
+                {item.name}
+              </span>
+            </span>
+            <span className='text-foreground font-mono tabular-nums'>
+              {`${(item.share * 100).toFixed(1)}%`}
+              {tokensByVendor?.[item.name] != null &&
+                ` · ${formatTokens(tokensByVendor[item.name])}`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -102,109 +174,37 @@ type MarketShareSectionProps = {
  */
 export function MarketShareSection(props: MarketShareSectionProps) {
   const { t } = useTranslation()
-  const { resolvedTheme, themeReady } = useChartTheme()
-  const chartTextColor =
-    resolvedTheme === 'dark'
-      ? 'rgba(255, 255, 255, 0.68)'
-      : 'rgba(15, 23, 42, 0.58)'
-  const chartGridColor =
-    resolvedTheme === 'dark'
-      ? 'rgba(255, 255, 255, 0.12)'
-      : 'rgba(15, 23, 42, 0.12)'
 
   const colourMap = useMemo(
     () => buildVendorColourMap(props.history.vendors.map((v) => v.name)),
     [props.history]
   )
 
-  const orderedPoints = useMemo(() => {
-    const order = new Map(
-      props.history.vendors.map((v, idx) => [v.name, idx] as const)
-    )
-    return [...props.history.points].sort((a, b) => {
-      const tsCmp = a.ts.localeCompare(b.ts)
-      if (tsCmp !== 0) return tsCmp
-      return (order.get(a.vendor) ?? 999) - (order.get(b.vendor) ?? 999)
-    })
-  }, [props.history])
+  const chart = useMemo(() => {
+    const vendors = props.history.vendors.map((vendor) => vendor.name)
+    const rowsByTs = new Map<string, ShareRow>()
 
-  const spec = useMemo(() => {
-    if (orderedPoints.length === 0) return null
-    return {
-      type: 'bar' as const,
-      data: [{ id: 'vendor-share', values: orderedPoints }],
-      xField: 'label',
-      yField: 'share',
-      seriesField: 'vendor',
-      stack: true,
-      paddingInner: 0.12,
-      legends: { visible: false },
-      color: { specified: colourMap },
-      axes: [
-        {
-          orient: 'bottom',
-          label: {
-            style: { fill: chartTextColor, fontSize: 10 },
-            autoHide: true,
-            autoLimit: true,
-          },
-          tick: { visible: false },
-        },
-        {
-          orient: 'left',
-          min: 0,
-          max: 1,
-          label: {
-            formatMethod: (val: number | string) =>
-              `${Math.round(Number(val) * 100)}%`,
-            style: { fill: chartTextColor, fontSize: 10 },
-          },
-          grid: {
-            visible: true,
-            style: { lineDash: [3, 3], stroke: chartGridColor },
-          },
-        },
-      ],
-      tooltip: {
-        mark: {
-          content: [
-            {
-              key: (datum: Record<string, unknown>) =>
-                String(datum?.vendor ?? ''),
-              value: (datum: Record<string, unknown>) =>
-                `${(Number(datum?.share) * 100).toFixed(1)}% · ${formatTokens(Number(datum?.tokens) || 0)}`,
-            },
-          ],
-        },
-        dimension: {
-          title: {
-            value: (datum: Record<string, unknown>) =>
-              String(datum?.label ?? ''),
-          },
-          content: [
-            {
-              key: (datum: Record<string, unknown>) =>
-                String(datum?.vendor ?? ''),
-              value: (datum: Record<string, unknown>) =>
-                Number(datum?.share) || 0,
-            },
-          ],
-          updateContent: (
-            array: Array<{ key: string; value: string | number }>
-          ) => {
-            return array
-              .filter((item) => Number(item.value) > 0.001)
-              .sort((a, b) => Number(b.value) - Number(a.value))
-              .map((item) => ({
-                key: item.key,
-                value: `${(Number(item.value) * 100).toFixed(1)}%`,
-              }))
-          },
-        },
-      },
-      animationAppear: { duration: 500 },
+    for (const point of [...props.history.points].sort((a, b) =>
+      a.ts.localeCompare(b.ts)
+    )) {
+      let row = rowsByTs.get(point.ts)
+      if (!row) {
+        row = { label: point.label, [TOKENS_FIELD]: {} }
+        rowsByTs.set(point.ts, row)
+      }
+      row[point.vendor] = point.share
+      row[TOKENS_FIELD][point.vendor] = point.tokens
     }
-  }, [chartGridColor, chartTextColor, colourMap, orderedPoints])
+
+    const config: ChartConfig = {}
+    for (const vendor of vendors) {
+      config[vendor] = { label: vendor, color: colourMap[vendor] ?? '#94a3b8' }
+    }
+
+    return { rows: [...rowsByTs.values()], vendors, config }
+  }, [colourMap, props.history])
+
+  const hasChartData = chart.rows.length > 0 && chart.vendors.length > 0
 
   const visible = props.rows.slice(0, MAX_VENDORS_IN_LIST)
   const half = Math.ceil(visible.length / 2)
@@ -225,19 +225,52 @@ export function MarketShareSection(props: MarketShareSectionProps) {
       </header>
 
       <div className='px-5 pb-5'>
-        <div className='h-60 sm:h-72'>
-          {themeReady && spec ? (
-            <VChart
-              key={`vendor-share-${resolvedTheme}-${props.period}`}
-              spec={{
-                ...spec,
-                theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                background: 'transparent',
-              }}
-              option={VCHART_OPTION}
-            />
+        <div className='ring-foreground/10 overflow-hidden rounded-xl p-3 ring-1'>
+          {hasChartData ? (
+            <ChartContainer
+              config={chart.config}
+              className='aspect-auto h-60 w-full sm:h-72'
+            >
+              <BarChart
+                data={chart.rows}
+                margin={{ left: 4, right: 8, top: 8 }}
+                barCategoryGap='12%'
+              >
+                <CartesianGrid vertical={false} strokeDasharray='3 3' />
+                <XAxis
+                  dataKey='label'
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={24}
+                  tickMargin={8}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  width={44}
+                  domain={[0, 1]}
+                  tickFormatter={(value) =>
+                    `${Math.round(Number(value) * 100)}%`
+                  }
+                />
+                <ChartTooltip
+                  cursor={{ fillOpacity: 0.12 }}
+                  content={<VendorShareTooltip />}
+                />
+                {chart.vendors.map((vendor) => (
+                  <Bar
+                    key={vendor}
+                    dataKey={vendor}
+                    name={vendor}
+                    stackId='share'
+                    fill={colourMap[vendor] ?? '#94a3b8'}
+                    isAnimationActive
+                  />
+                ))}
+              </BarChart>
+            </ChartContainer>
           ) : (
-            <div className='text-muted-foreground/80 flex h-full items-center justify-center text-xs'>
+            <div className='text-muted-foreground/80 flex h-60 items-center justify-center text-xs sm:h-72'>
               {t('No history data available')}
             </div>
           )}

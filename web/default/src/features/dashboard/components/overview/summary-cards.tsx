@@ -18,27 +18,37 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Flame, ShieldCheck, TrendingDown } from 'lucide-react'
-import { useMemo } from 'react'
+import {
+  Activity,
+  ArrowRight,
+  Flame,
+  ShieldCheck,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react'
+import { useId, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
+import { IconBadge } from '@/components/ui/icon-badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
-import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
-import { useStatus } from '@/hooks/use-status'
-import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { StatCard } from '../ui/stat-card'
-
-const SUMMARY_SPARKLINE_BUCKETS = 12
-
-type SummarySparklineKey = 'balance' | 'usage' | 'requests'
+const SUMMARY_BUCKETS = 24
 
 function getBucketIndex(
   timestamp: number,
@@ -51,52 +61,26 @@ function getBucketIndex(
   return Math.min(bucketCount - 1, Math.max(0, Math.floor(ratio * bucketCount)))
 }
 
-function buildSummarySparklines(
+function buildTrendRows(
   data: QuotaDataItem[],
-  currentBalance: number,
   start: number,
   end: number
-): Record<SummarySparklineKey, number[]> {
-  const usage = Array.from({ length: SUMMARY_SPARKLINE_BUCKETS }, () => 0)
-  const requests = Array.from({ length: SUMMARY_SPARKLINE_BUCKETS }, () => 0)
+): Array<{ label: string; usage: number; requests: number }> {
+  const usage = Array.from({ length: SUMMARY_BUCKETS }, () => 0)
+  const requests = Array.from({ length: SUMMARY_BUCKETS }, () => 0)
 
   for (const item of data) {
     const timestamp = Number(item.created_at) || start
-    const index = getBucketIndex(
-      timestamp,
-      start,
-      end,
-      SUMMARY_SPARKLINE_BUCKETS
-    )
+    const index = getBucketIndex(timestamp, start, end, SUMMARY_BUCKETS)
     usage[index] += Number(item.quota) || 0
     requests[index] += Number(item.count) || 0
   }
 
-  let balance = currentBalance
-  const balanceTrend = Array.from(
-    { length: SUMMARY_SPARKLINE_BUCKETS },
-    () => 0
-  )
-
-  for (let index = SUMMARY_SPARKLINE_BUCKETS - 1; index >= 0; index--) {
-    balanceTrend[index] = Math.max(0, balance)
-    balance += usage[index]
-  }
-
-  return {
-    balance: balanceTrend,
-    usage,
-    requests,
-  }
-}
-
-function getSummarySparkline(
-  key: string,
-  sparklineData: Record<SummarySparklineKey, number[]>
-): number[] | undefined {
-  if (key === 'usage') return sparklineData.usage
-  if (key === 'requests') return sparklineData.requests
-  return undefined
+  return usage.map((value, index) => ({
+    label: `${index}`,
+    usage: value,
+    requests: requests[index],
+  }))
 }
 
 function getRunwayDays(
@@ -122,24 +106,42 @@ const HEALTH_CONFIG: Record<
   HealthLevel,
   { dotClass: string; labelKey: string }
 > = {
-  healthy: {
-    dotClass: 'bg-success',
-    labelKey: 'Healthy',
-  },
-  caution: {
-    dotClass: 'bg-warning',
-    labelKey: 'Low balance',
-  },
-  critical: {
-    dotClass: 'bg-destructive',
-    labelKey: 'Balance depleted',
-  },
+  healthy: { dotClass: 'bg-success', labelKey: 'Healthy' },
+  caution: { dotClass: 'bg-warning', labelKey: 'Low balance' },
+  critical: { dotClass: 'bg-destructive', labelKey: 'Balance depleted' },
+}
+
+function KpiTile(props: {
+  title: string
+  value: string
+  icon: React.ComponentType<{ className?: string }>
+  tone: 'chart-1' | 'chart-2' | 'chart-3'
+  loading?: boolean
+}) {
+  const Icon = props.icon
+  return (
+    <div className='bg-card ring-foreground/10 flex flex-col gap-3 rounded-xl p-4 ring-1'>
+      <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
+        <IconBadge tone={props.tone} size='stat'>
+          <Icon />
+        </IconBadge>
+        <span className='truncate'>{props.title}</span>
+      </div>
+      {props.loading ? (
+        <Skeleton className='h-8 w-24' />
+      ) : (
+        <div className='font-mono text-xl font-semibold tracking-tight tabular-nums sm:text-2xl'>
+          {props.value}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function SummaryCards() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
-  const { status, loading } = useStatus()
+  const gradientId = useId().replaceAll(':', '')
 
   const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
   const remainQuota = Number(user?.quota ?? 0)
@@ -163,34 +165,14 @@ export function SummaryCards() {
     staleTime: 60 * 1000,
   })
 
-  const summaryValues = useMemo(() => {
-    return {
-      usedDisplay: formatQuota(usedQuota),
-      requestCountDisplay: formatNumber(requestCount),
-    }
-  }, [requestCount, usedQuota])
-
-  const currencyEnabledFromStore = isCurrencyDisplayEnabled()
-  const statusCurrencyFlag =
-    typeof status?.display_in_currency === 'boolean'
-      ? Boolean(status.display_in_currency)
-      : undefined
-  const currencyEnabled =
-    statusCurrencyFlag !== undefined
-      ? statusCurrencyFlag
-      : currencyEnabledFromStore
-  const currencyLabel = currencyEnabled ? getCurrencyLabel() : 'Tokens'
-
-  const sparklineData = useMemo(
+  const trendRows = useMemo(
     () =>
-      buildSummarySparklines(
+      buildTrendRows(
         usageTrendQuery.data?.data ?? [],
-        remainQuota,
         summaryTimeRange.start_timestamp,
         summaryTimeRange.end_timestamp
       ),
     [
-      remainQuota,
       summaryTimeRange.end_timestamp,
       summaryTimeRange.start_timestamp,
       usageTrendQuery.data?.data,
@@ -198,19 +180,15 @@ export function SummaryCards() {
   )
 
   const recentUsage = useMemo(
-    () =>
-      (usageTrendQuery.data?.data ?? []).reduce(
-        (total, item) => total + (Number(item.quota) || 0),
-        0
-      ),
-    [usageTrendQuery.data?.data]
+    () => trendRows.reduce((total, row) => total + row.usage, 0),
+    [trendRows]
   )
 
   const healthLevel = getHealthLevel(remainQuota, recentUsage)
   const healthCfg = HEALTH_CONFIG[healthLevel]
   const runwayDays = getRunwayDays(remainQuota, recentUsage)
+  const loading = usageTrendQuery.isLoading
 
-  const todayUsageDisplay = formatQuota(recentUsage)
   let runwayDisplay: string
   if (runwayDays !== null) {
     if (runwayDays < 1) {
@@ -226,74 +204,100 @@ export function SummaryCards() {
     runwayDisplay = t('No recent usage')
   }
 
-  const items = useSummaryCardsConfig({
-    ...summaryValues,
-    todayUsageDisplay,
-    currencyEnabled,
-    currencyLabel,
-  }).map((config, index) => {
-    const tones = ['accent-1', 'accent-2', 'accent-3'] as const
-
-    return {
-      key: config.key,
-      title: config.title,
-      value: config.value,
-      desc: config.description,
-      icon: config.icon,
-      tone: tones[index] ?? 'accent-3',
-      sparkline:
-        config.key === 'todayUsage'
-          ? sparklineData.usage
-          : getSummarySparkline(config.key, sparklineData),
-      sparklineVariant: 'line' as const,
-    }
-  })
+  const chartConfig = {
+    usage: { label: t('Last 24h usage'), color: 'var(--chart-1)' },
+  } satisfies ChartConfig
 
   return (
-    <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
-      <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
-        <div className='flex flex-col gap-2.5 p-3 sm:gap-3 sm:p-5'>
-          <div className='flex flex-wrap items-start justify-between gap-3'>
-            <div className='flex flex-col gap-1'>
-              <h3 className='text-sm font-semibold sm:text-base'>
-                {t('Usage at a glance')}
-              </h3>
-              <p className='text-muted-foreground text-xs sm:text-sm'>
-                {t('Monitor balance, usage, and request volume')}
-              </p>
+    <StaggerContainer className='grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.9fr)] lg:gap-4'>
+      <StaggerItem className='min-w-0'>
+        <div className='bg-card ring-foreground/10 flex h-full flex-col overflow-hidden rounded-xl ring-1'>
+          <div className='flex items-center justify-between gap-3 border-b px-4 py-3'>
+            <div className='flex items-center gap-2'>
+              <IconBadge tone='chart-1' size='sm'>
+                <Flame />
+              </IconBadge>
+              <h3 className='text-sm font-semibold'>{t('Last 24h usage')}</h3>
             </div>
+            <span className='font-mono text-sm font-semibold tabular-nums'>
+              {formatQuota(recentUsage)}
+            </span>
           </div>
-          <StaggerContainer className='grid grid-cols-3 gap-1.5 sm:gap-3'>
-            {items.map((it) => (
-              <StaggerItem
-                key={it.key}
-                className='bg-background/60 rounded-lg border px-2 py-1.5 sm:rounded-xl sm:p-3'
+          <div className='min-h-52 flex-1 p-3 sm:min-h-64 sm:p-4'>
+            {loading ? (
+              <Skeleton className='h-full w-full' />
+            ) : (
+              <ChartContainer
+                config={chartConfig}
+                className='aspect-auto h-full w-full'
               >
-                <StatCard
-                  title={it.title}
-                  value={it.value}
-                  description={it.desc}
-                  icon={it.icon}
-                  tone={it.tone}
-                  sparkline={it.sparkline}
-                  sparklineVariant={it.sparklineVariant}
-                  loading={loading}
-                  compactMobile
-                />
-              </StaggerItem>
-            ))}
-          </StaggerContainer>
+                <AreaChart
+                  data={trendRows}
+                  margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id={gradientId} x1='0' y1='0' x2='0' y2='1'>
+                      <stop
+                        offset='0%'
+                        stopColor='var(--chart-1)'
+                        stopOpacity={0.4}
+                      />
+                      <stop
+                        offset='100%'
+                        stopColor='var(--chart-1)'
+                        stopOpacity={0.02}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray='3 3' />
+                  <XAxis dataKey='label' hide />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                    tickFormatter={(value) => formatQuota(Number(value) || 0)}
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) => (
+                          <span className='font-mono tabular-nums'>
+                            {formatQuota(Number(value) || 0)}
+                          </span>
+                        )}
+                      />
+                    }
+                  />
+                  <Area
+                    type='monotone'
+                    dataKey='usage'
+                    stroke='var(--chart-1)'
+                    fill={`url(#${gradientId})`}
+                    strokeWidth={2.25}
+                    dot={false}
+                    isAnimationActive
+                  />
+                </AreaChart>
+              </ChartContainer>
+            )}
+          </div>
         </div>
+      </StaggerItem>
 
-        <div className='flex flex-col justify-between gap-3 border-t bg-[linear-gradient(135deg,color-mix(in_oklch,var(--overview-accent-2)_12%,var(--background))_0%,color-mix(in_oklch,oklch(0.82_0.04_155)_8%,var(--background))_48%,color-mix(in_oklch,var(--overview-accent-1)_7%,var(--background))_100%)] p-3 sm:gap-4 sm:p-5 xl:border-t-0 xl:border-l'>
-          <div className='flex flex-col gap-2 sm:gap-3'>
-            <div className='flex items-center justify-between'>
+      <StaggerItem className='flex min-w-0 flex-col gap-3'>
+        <div className='bg-card ring-foreground/10 flex flex-1 flex-col justify-between gap-4 rounded-xl p-4 ring-1 sm:p-5'>
+          <div className='flex flex-col gap-3'>
+            <div className='flex items-center justify-between gap-2'>
               <span className='text-muted-foreground text-xs font-medium'>
                 {t('Credit remaining')}
               </span>
-              <span className='flex items-center gap-1.5'>
+              <span className='inline-flex items-center gap-1.5'>
                 <span
-                  className={cn('size-1.5 rounded-full', healthCfg.dotClass)}
+                  className={cn(
+                    'size-1.5 rounded-full',
+                    healthCfg.dotClass,
+                    healthLevel === 'healthy' && 'motion-safe:animate-pulse'
+                  )}
                   aria-hidden='true'
                 />
                 <span className='text-muted-foreground text-[11px] font-medium'>
@@ -301,55 +305,56 @@ export function SummaryCards() {
                 </span>
               </span>
             </div>
-
-            <div className='font-mono text-xl font-semibold tracking-tight sm:text-2xl'>
+            <div className='font-mono text-3xl font-semibold tracking-tight tabular-nums'>
               {formatQuota(remainQuota)}
             </div>
-
-            <div className='grid grid-cols-2 gap-2'>
-              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
-                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
-                  <Flame className='size-3 shrink-0' aria-hidden='true' />
-                  <span className='truncate'>{t('Last 24h usage')}</span>
-                </div>
-                <div className='text-foreground mt-1.5 truncate text-xs font-semibold tabular-nums'>
-                  {formatQuota(recentUsage)}
-                </div>
+            <div className='bg-muted/40 flex items-center justify-between gap-2 rounded-lg px-3 py-2.5'>
+              <div className='text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium'>
+                {runwayDays !== null && runwayDays < 3 ? (
+                  <TrendingDown className='size-3' aria-hidden='true' />
+                ) : (
+                  <ShieldCheck className='size-3' aria-hidden='true' />
+                )}
+                {t('Runway')}
               </div>
-              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
-                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
-                  {runwayDays !== null && runwayDays < 3 ? (
-                    <TrendingDown
-                      className='size-3 shrink-0'
-                      aria-hidden='true'
-                    />
-                  ) : (
-                    <ShieldCheck
-                      className='size-3 shrink-0'
-                      aria-hidden='true'
-                    />
-                  )}
-                  <span className='truncate'>{t('Runway')}</span>
-                </div>
-                <div
-                  className={cn(
-                    'mt-1.5 truncate text-xs font-semibold tabular-nums',
-                    healthLevel === 'critical' && 'text-destructive',
-                    healthLevel === 'caution' && 'text-warning'
-                  )}
-                >
-                  {runwayDisplay}
-                </div>
+              <div
+                className={cn(
+                  'text-xs font-semibold tabular-nums',
+                  healthLevel === 'critical' && 'text-destructive',
+                  healthLevel === 'caution' && 'text-warning'
+                )}
+              >
+                {runwayDisplay}
               </div>
             </div>
           </div>
-
-          <Button className='justify-between' render={<Link to='/wallet' />}>
-            <span>{t('Wallet')}</span>
+          <Button
+            className='w-full justify-between'
+            render={<Link to='/wallet' />}
+          >
+            <span className='inline-flex items-center gap-2'>
+              <Wallet className='size-4' aria-hidden='true' />
+              {t('Wallet')}
+            </span>
             <ArrowRight data-icon='inline-end' />
           </Button>
         </div>
-      </div>
-    </div>
+
+        <div className='grid grid-cols-2 gap-3'>
+          <KpiTile
+            title={t('Historical Usage')}
+            value={formatQuota(usedQuota)}
+            icon={TrendingUp}
+            tone='chart-2'
+          />
+          <KpiTile
+            title={t('Request Count')}
+            value={formatNumber(requestCount)}
+            icon={Activity}
+            tone='chart-3'
+          />
+        </div>
+      </StaggerItem>
+    </StaggerContainer>
   )
 }

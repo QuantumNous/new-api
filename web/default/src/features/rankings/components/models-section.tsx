@@ -16,13 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { VChart } from '@visactor/react-vchart'
 import { BarChart3, Trophy } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  type TooltipContentProps,
+} from 'recharts'
 
-import { useChartTheme } from '@/lib/use-chart-theme'
-import { VCHART_OPTION } from '@/lib/vchart'
+import {
+  ChartContainer,
+  ChartTooltip,
+  type ChartConfig,
+} from '@/components/ui/chart'
 
 import { formatTokens } from '../lib/format'
 import type { ModelHistorySeries, ModelRanking, RankingPeriod } from '../types'
@@ -37,10 +47,98 @@ const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
 
 const TOOLTIP_MAX_ROWS = 10
 
+/** Stable colour cycle for stacked model series. */
+const MODEL_COLOURS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  '#5B8FF9',
+  '#5AD8A6',
+  '#F6BD16',
+  '#E8684A',
+  '#6DC8EC',
+  '#9270CA',
+  '#FF9D4D',
+  '#269A99',
+  '#FF99C3',
+  '#5D7092',
+]
+
 type ModelsSectionProps = {
   history: ModelHistorySeries
   rows: ModelRanking[]
   period: RankingPeriod
+}
+
+/** Shared tooltip: sorted model rows, capped with an aggregated overflow row. */
+function ModelsHistoryTooltip(props: Partial<TooltipContentProps>) {
+  const { t } = useTranslation()
+
+  if (!props.active || !props.payload?.length) return null
+
+  const entries = props.payload
+    .map((item) => ({
+      name: String(item.name ?? ''),
+      color: item.color,
+      value: Number(item.value) || 0,
+    }))
+    .filter((item) => item.value > 0)
+    .sort((a, b) => b.value - a.value)
+
+  if (entries.length === 0) return null
+
+  const total = entries.reduce((sum, item) => sum + item.value, 0)
+  const visible = entries.slice(0, TOOLTIP_MAX_ROWS)
+  const overflow = entries.slice(TOOLTIP_MAX_ROWS)
+  const overflowTotal = overflow.reduce((sum, item) => sum + item.value, 0)
+
+  return (
+    <div className='border-border/50 bg-background grid min-w-40 items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl'>
+      {props.label != null && (
+        <div className='font-medium'>{String(props.label)}</div>
+      )}
+      <div className='grid gap-1'>
+        <div className='flex items-center justify-between gap-4 font-medium'>
+          <span className='text-muted-foreground'>{t('Total:')}</span>
+          <span className='text-foreground font-mono tabular-nums'>
+            {formatTokens(total)}
+          </span>
+        </div>
+        {visible.map((item) => (
+          <div
+            key={item.name}
+            className='flex items-center justify-between gap-4'
+          >
+            <span className='flex min-w-0 items-center gap-1.5'>
+              <span
+                aria-hidden
+                className='size-2.5 shrink-0 rounded-[2px]'
+                style={{ backgroundColor: item.color }}
+              />
+              <span className='text-muted-foreground truncate'>
+                {item.name}
+              </span>
+            </span>
+            <span className='text-foreground font-mono tabular-nums'>
+              {formatTokens(item.value)}
+            </span>
+          </div>
+        ))}
+        {overflow.length > 0 && (
+          <div className='flex items-center justify-between gap-4'>
+            <span className='text-muted-foreground'>
+              {t('+{{count}} more', { count: overflow.length })}
+            </span>
+            <span className='text-foreground font-mono tabular-nums'>
+              {formatTokens(overflowTotal)}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -50,118 +148,41 @@ type ModelsSectionProps = {
  */
 export function ModelsSection(props: ModelsSectionProps) {
   const { t } = useTranslation()
-  const { resolvedTheme, themeReady } = useChartTheme()
-  const chartTextColor =
-    resolvedTheme === 'dark'
-      ? 'rgba(255, 255, 255, 0.68)'
-      : 'rgba(15, 23, 42, 0.58)'
-  const chartGridColor =
-    resolvedTheme === 'dark'
-      ? 'rgba(255, 255, 255, 0.12)'
-      : 'rgba(15, 23, 42, 0.12)'
-
-  // Order points so the largest model appears at the bottom of every stack.
-  const orderedPoints = useMemo(() => {
-    const order = new Map(
-      props.history.models.map((m, idx) => [m.name, idx] as const)
-    )
-    return [...props.history.points].sort((a, b) => {
-      const tsCmp = a.ts.localeCompare(b.ts)
-      if (tsCmp !== 0) return tsCmp
-      return (order.get(a.model) ?? 999) - (order.get(b.model) ?? 999)
-    })
-  }, [props.history])
 
   const totalTokens = useMemo(
     () => props.rows.reduce((s, r) => s + r.total_tokens, 0),
     [props.rows]
   )
 
-  const spec = useMemo(() => {
-    if (orderedPoints.length === 0) return null
-    return {
-      type: 'bar' as const,
-      data: [{ id: 'models-history', values: orderedPoints }],
-      xField: 'label',
-      yField: 'tokens',
-      seriesField: 'model',
-      stack: true,
-      legends: { visible: false },
-      axes: [
-        {
-          orient: 'bottom',
-          label: {
-            style: { fill: chartTextColor, fontSize: 10 },
-            autoHide: true,
-            autoLimit: true,
-          },
-          tick: { visible: false },
-        },
-        {
-          orient: 'left',
-          label: {
-            formatMethod: (val: number | string) => formatTokens(Number(val)),
-            style: { fill: chartTextColor, fontSize: 10 },
-          },
-          grid: {
-            visible: true,
-            style: { lineDash: [3, 3], stroke: chartGridColor },
-          },
-        },
-      ],
-      tooltip: {
-        mark: {
-          content: [
-            {
-              key: (datum: Record<string, unknown>) =>
-                String(datum?.model ?? ''),
-              value: (datum: Record<string, unknown>) =>
-                formatTokens(Number(datum?.tokens) || 0),
-            },
-          ],
-        },
-        dimension: {
-          title: {
-            value: (datum: Record<string, unknown>) =>
-              String(datum?.label ?? ''),
-          },
-          content: [
-            {
-              key: (datum: Record<string, unknown>) =>
-                String(datum?.model ?? ''),
-              value: (datum: Record<string, unknown>) =>
-                Number(datum?.tokens) || 0,
-            },
-          ],
-          updateContent: (
-            array: Array<{ key: string; value: string | number }>
-          ) => {
-            array.sort((a, b) => Number(b.value) - Number(a.value))
-            const sum = array.reduce((s, x) => s + (Number(x.value) || 0), 0)
-            const visible = array.slice(0, TOOLTIP_MAX_ROWS)
-            const overflow = array.slice(TOOLTIP_MAX_ROWS)
-            const result = visible.map((item) => ({
-              key: item.key,
-              value: formatTokens(Number(item.value) || 0),
-            }))
-            if (overflow.length > 0) {
-              const otherSum = overflow.reduce(
-                (s, item) => s + (Number(item.value) || 0),
-                0
-              )
-              result.push({
-                key: t('+{{count}} more', { count: overflow.length }),
-                value: formatTokens(otherSum),
-              })
-            }
-            result.unshift({ key: t('Total:'), value: formatTokens(sum) })
-            return result
-          },
-        },
-      },
-      animationAppear: { duration: 500 },
+  // Series are ordered by total tokens desc so the largest model sits at the
+  // bottom of every stack; rows stay in chronological bucket order.
+  const chart = useMemo(() => {
+    const models = props.history.models.map((model) => model.name)
+    const rowsByTs = new Map<string, Record<string, number | string>>()
+
+    for (const point of [...props.history.points].sort((a, b) =>
+      a.ts.localeCompare(b.ts)
+    )) {
+      let row = rowsByTs.get(point.ts)
+      if (!row) {
+        row = { label: point.label }
+        rowsByTs.set(point.ts, row)
+      }
+      row[point.model] = (Number(row[point.model]) || 0) + point.tokens
     }
-  }, [chartGridColor, chartTextColor, orderedPoints, t])
+
+    const config: ChartConfig = {}
+    models.forEach((model, index) => {
+      config[model] = {
+        label: model,
+        color: MODEL_COLOURS[index % MODEL_COLOURS.length],
+      }
+    })
+
+    return { rows: [...rowsByTs.values()], models, config }
+  }, [props.history])
+
+  const hasChartData = chart.rows.length > 0 && chart.models.length > 0
 
   return (
     <section className='bg-card overflow-hidden rounded-lg border'>
@@ -187,19 +208,48 @@ export function ModelsSection(props: ModelsSectionProps) {
       </header>
 
       <div className='px-5 pb-5'>
-        <div className='h-60 sm:h-72'>
-          {themeReady && spec ? (
-            <VChart
-              key={`models-history-${resolvedTheme}-${props.period}`}
-              spec={{
-                ...spec,
-                theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                background: 'transparent',
-              }}
-              option={VCHART_OPTION}
-            />
+        <div className='ring-foreground/10 overflow-hidden rounded-xl p-3 ring-1'>
+          {hasChartData ? (
+            <ChartContainer
+              config={chart.config}
+              className='aspect-auto h-60 w-full sm:h-72'
+            >
+              <BarChart
+                data={chart.rows}
+                margin={{ left: 4, right: 8, top: 8 }}
+              >
+                <CartesianGrid vertical={false} strokeDasharray='3 3' />
+                <XAxis
+                  dataKey='label'
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={24}
+                  tickMargin={8}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  width={52}
+                  tickFormatter={(value) => formatTokens(Number(value) || 0)}
+                />
+                <ChartTooltip
+                  cursor={{ fillOpacity: 0.12 }}
+                  content={<ModelsHistoryTooltip />}
+                />
+                {chart.models.map((model, index) => (
+                  <Bar
+                    key={model}
+                    dataKey={model}
+                    name={model}
+                    stackId='tokens'
+                    fill={MODEL_COLOURS[index % MODEL_COLOURS.length]}
+                    isAnimationActive
+                  />
+                ))}
+              </BarChart>
+            </ChartContainer>
           ) : (
-            <div className='text-muted-foreground/80 flex h-full items-center justify-center text-xs'>
+            <div className='text-muted-foreground/80 flex h-60 items-center justify-center text-xs sm:h-72'>
               {t('No history data available')}
             </div>
           )}

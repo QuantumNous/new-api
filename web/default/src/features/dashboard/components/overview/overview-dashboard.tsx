@@ -34,9 +34,7 @@ import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getApiKeys } from '@/features/keys/api'
 import { useStatus } from '@/hooks/use-status'
@@ -63,45 +61,16 @@ interface OverviewSignal {
   label: string
   value: string
   icon: LucideIcon
-  tone: IconBadgeTone
   loading?: boolean
 }
 
 interface NextAction {
   title: string
-  description: string
   to: DashboardActionPath
   icon: LucideIcon
 }
 
-function OverviewSignalCard(props: { signal: OverviewSignal }) {
-  const Icon = props.signal.icon
-
-  return (
-    <div className='bg-background/65 flex min-w-0 items-center gap-3 rounded-xl border p-3 shadow-xs backdrop-blur-sm'>
-      <IconBadge tone={props.signal.tone} size='sm'>
-        <Icon />
-      </IconBadge>
-      <div className='min-w-0'>
-        <div className='text-muted-foreground truncate text-xs font-medium'>
-          {props.signal.label}
-        </div>
-        {props.signal.loading ? (
-          <Skeleton className='mt-1 h-5 w-16' />
-        ) : (
-          <div
-            className='truncate font-mono text-sm font-semibold tabular-nums'
-            title={props.signal.value}
-          >
-            {props.signal.value}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function DashboardHero(props: {
+function OverviewToolbar(props: {
   signals: OverviewSignal[]
   online: boolean
   statusLoading: boolean
@@ -116,111 +85,94 @@ function DashboardHero(props: {
   }
 
   return (
-    <section className='bg-card relative overflow-hidden rounded-3xl border shadow-sm'>
-      <div
-        className='pointer-events-none absolute -top-24 right-[-5rem] size-72 rounded-full bg-[color-mix(in_oklch,var(--overview-accent-1)_14%,transparent)] blur-3xl'
-        aria-hidden='true'
-      />
-      <div
-        className='pointer-events-none absolute -bottom-32 left-[30%] size-80 rounded-full bg-[color-mix(in_oklch,var(--overview-accent-3)_10%,transparent)] blur-3xl'
-        aria-hidden='true'
-      />
-      <div
-        className='pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,color-mix(in_oklch,var(--card)_96%,transparent)_0%,transparent_55%,color-mix(in_oklch,var(--overview-accent-2)_7%,transparent)_100%)]'
-        aria-hidden='true'
-      />
+    <section className='bg-card ring-foreground/10 flex flex-col gap-3 rounded-xl px-4 py-3 ring-1 sm:px-5 sm:py-3.5'>
+      <div className='flex flex-wrap items-center justify-between gap-3'>
+        <div className='flex min-w-0 items-center gap-2.5'>
+          <span
+            className={cn(
+              'size-2 shrink-0 rounded-full',
+              props.online ? 'bg-success' : 'bg-muted-foreground/45',
+              props.online && 'motion-safe:animate-pulse'
+            )}
+            aria-hidden='true'
+          />
+          <span className='text-muted-foreground truncate text-xs font-medium sm:text-sm'>
+            {statusLabel}
+          </span>
+        </div>
 
-      <div className='relative flex flex-col gap-6 p-5 sm:p-6'>
-        <div className='flex flex-col justify-between gap-5 lg:flex-row lg:items-end'>
-          <div className='flex max-w-2xl flex-col gap-3'>
-            <Badge
-              variant='outline'
-              className='bg-background/65 w-fit backdrop-blur-sm'
+        <div className='flex flex-wrap items-center gap-1.5'>
+          <Button size='sm' render={<Link to='/playground' />}>
+            <Play data-icon='inline-start' />
+            {t('Playground')}
+          </Button>
+          <Button variant='outline' size='sm' render={<Link to='/keys' />}>
+            <KeyRound data-icon='inline-start' />
+            {t('API Keys')}
+          </Button>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='hidden sm:inline-flex'
+            render={<Link to='/usage-logs' />}
+          >
+            <FileText data-icon='inline-start' />
+            {t('Usage Logs')}
+          </Button>
+        </div>
+      </div>
+
+      <div className='flex flex-wrap gap-2'>
+        {props.signals.map((signal) => {
+          const Icon = signal.icon
+          return (
+            <div
+              key={signal.label}
+              className='bg-muted/45 text-muted-foreground inline-flex max-w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs'
             >
-              <span
-                className={cn(
-                  'size-2 rounded-full',
-                  props.online ? 'bg-success' : 'bg-muted-foreground/45',
-                  props.online && 'motion-safe:animate-pulse'
-                )}
+              <Icon
+                className='size-3.5 shrink-0 opacity-70'
                 aria-hidden='true'
               />
-              {statusLabel}
-            </Badge>
-            <div className='flex flex-col gap-1.5'>
-              <h2 className='text-2xl font-semibold tracking-tight sm:text-3xl'>
-                {t('Live Platform Data')}
-              </h2>
-              <p className='text-muted-foreground max-w-xl text-sm leading-relaxed sm:text-base'>
-                {t(
-                  'A focused home for keys, balance, routing, and service health.'
-                )}
-              </p>
+              <span className='truncate font-medium'>{signal.label}</span>
+              {signal.loading ? (
+                <Skeleton className='h-3.5 w-10' />
+              ) : (
+                <span
+                  className='text-foreground truncate font-mono font-semibold tabular-nums'
+                  title={signal.value}
+                >
+                  {signal.value}
+                </span>
+              )}
             </div>
-          </div>
-
-          <div className='flex flex-wrap gap-2'>
-            <Button size='sm' render={<Link to='/playground' />}>
-              <Play data-icon='inline-start' />
-              {t('Playground')}
-            </Button>
-            <Button variant='outline' size='sm' render={<Link to='/keys' />}>
-              <KeyRound data-icon='inline-start' />
-              {t('API Keys')}
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              render={<Link to='/usage-logs' />}
-            >
-              <FileText data-icon='inline-start' />
-              {t('Usage Logs')}
-            </Button>
-          </div>
-        </div>
-
-        <div className='grid gap-2 sm:grid-cols-3'>
-          {props.signals.map((signal) => (
-            <OverviewSignalCard key={signal.label} signal={signal} />
-          ))}
-        </div>
+          )
+        })}
       </div>
     </section>
   )
 }
 
-function NextActionCard(props: { action: NextAction }) {
+function NextActionBar(props: { action: NextAction }) {
   const { t } = useTranslation()
   const Icon = props.action.icon
 
   return (
-    <section className='bg-card flex flex-col justify-between gap-3 rounded-2xl border p-4 shadow-xs sm:flex-row sm:items-center'>
-      <div className='flex min-w-0 items-center gap-3'>
-        <IconBadge tone='info'>
-          <Icon />
-        </IconBadge>
-        <div className='min-w-0'>
-          <div className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
-            {t('Get started')}
-          </div>
-          <div className='truncate text-sm font-semibold'>
-            {props.action.title}
-          </div>
-          <p className='text-muted-foreground line-clamp-1 text-xs'>
-            {props.action.description}
-          </p>
-        </div>
-      </div>
-      <Button
-        variant='outline'
-        size='sm'
-        className='shrink-0'
-        render={<Link to={props.action.to} />}
-      >
+    <Link
+      to={props.action.to}
+      className='bg-card ring-foreground/10 group hover:bg-muted/30 flex items-center gap-3 rounded-xl px-4 py-3 ring-1 transition-colors'
+    >
+      <span className='bg-muted/60 text-foreground inline-flex size-8 shrink-0 items-center justify-center rounded-lg'>
+        <Icon className='size-4' aria-hidden='true' />
+      </span>
+      <span className='min-w-0 flex-1 truncate text-sm font-medium'>
+        {props.action.title}
+      </span>
+      <span className='text-muted-foreground group-hover:text-foreground inline-flex items-center gap-1 text-xs font-medium transition-colors'>
         {t('Open')}
-        <ArrowRight data-icon='inline-end' />
-      </Button>
-    </section>
+        <ArrowRight className='size-3.5 transition-transform group-hover:translate-x-0.5' />
+      </span>
+    </Link>
   )
 }
 
@@ -267,7 +219,6 @@ export function OverviewDashboard() {
           ? t('No data')
           : formatNumber(apiKeysQuery.data.total),
       icon: KeyRound,
-      tone: 'info',
       loading: apiKeysQuery.isLoading,
     },
     {
@@ -277,14 +228,12 @@ export function OverviewDashboard() {
           ? t('No data')
           : formatNumber(modelsQuery.data.length),
       icon: CircleGauge,
-      tone: 'chart-4',
       loading: modelsQuery.isLoading,
     },
     {
       label: t('Endpoint'),
       value: apiInfoItems[0]?.route || t('Current domain'),
       icon: RadioTower,
-      tone: 'success',
       loading: apiInfoLoading,
     },
   ]
@@ -294,21 +243,18 @@ export function OverviewDashboard() {
     if (!preferredKey) {
       nextAction = {
         title: t('Create API Key'),
-        description: t('Create a key for your app or service'),
         to: '/keys',
         icon: KeyRound,
       }
     } else if (remainQuota <= 0 && usedQuota <= 0) {
       nextAction = {
         title: t('Add credits'),
-        description: t('Keep enough balance before production traffic'),
         to: '/wallet',
         icon: CreditCard,
       }
     } else if (requestCount <= 0) {
       nextAction = {
         title: t('Send a request'),
-        description: t('Verify routing with Playground or your client'),
         to: '/playground',
         icon: Play,
       }
@@ -326,10 +272,10 @@ export function OverviewDashboard() {
   const visiblePanels = panelKeys.slice(0, 2)
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex flex-col gap-3 sm:gap-4'>
       <CardStaggerContainer>
         <CardStaggerItem>
-          <DashboardHero
+          <OverviewToolbar
             signals={signals}
             online={Boolean(status)}
             statusLoading={statusLoading}
@@ -340,7 +286,7 @@ export function OverviewDashboard() {
       {nextAction && (
         <CardStaggerContainer>
           <CardStaggerItem>
-            <NextActionCard action={nextAction} />
+            <NextActionBar action={nextAction} />
           </CardStaggerItem>
         </CardStaggerContainer>
       )}
@@ -350,7 +296,7 @@ export function OverviewDashboard() {
       {visiblePanels.length > 0 && (
         <CardStaggerContainer
           className={cn(
-            'grid grid-cols-1 gap-4',
+            'grid grid-cols-1 gap-3 sm:gap-4',
             visiblePanels.length > 1 && 'lg:grid-cols-2'
           )}
         >

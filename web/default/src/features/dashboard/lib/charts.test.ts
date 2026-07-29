@@ -27,6 +27,14 @@ vi.mock('@/i18n/languages', () => ({
 
 const timestamp = (iso: string) => new Date(iso).getTime() / 1000
 
+const seriesPoints = (
+  rows: Array<Record<string, string | number>>,
+  seriesKey: string
+) =>
+  rows
+    .filter((row) => Number(row[seriesKey]) > 0)
+    .map((row) => ({ time: String(row.Time), value: Number(row[seriesKey]) }))
+
 describe('dashboard chart chronology', () => {
   const data: QuotaDataItem[] = [
     {
@@ -54,29 +62,24 @@ describe('dashboard chart chronology', () => {
 
   it('keeps model trend points chronological across month boundaries', () => {
     const result = processChartData(data, 'day')
-    const values = result.spec_model_line.data[0].values as Array<{
-      Time: string
-      Count: number
-    }>
 
-    expect(
-      values
-        .filter((item) => item.Count > 0)
-        .map((item) => ({ time: item.Time, count: item.Count }))
-    ).toEqual([
-      { time: '31-07', count: 3 },
-      { time: '01-08', count: 1 },
+    expect(result.trendCount.xKey).toBe('Time')
+    expect(result.trendCount.seriesKeys).toEqual(['model-a'])
+    expect(seriesPoints(result.trendCount.rows, 'model-a')).toEqual([
+      { time: '31-07', value: 3 },
+      { time: '01-08', value: 1 },
     ])
   })
 
   it('keeps user trend points chronological across month boundaries', () => {
     const result = processUserChartData(data, 'day')
-    const values = result.spec_user_trend.data[0].values as Array<{
-      Time: string
-      rawQuota: number
-    }>
 
-    expect(values.map((item) => item.rawQuota)).toEqual([15, 20])
+    expect(result.trend.seriesKeys).toEqual(['alice'])
+    expect(
+      result.trend.rows.map(
+        (row) => result.trend.rawByKey?.[`${String(row.Time)}::alice`]
+      )
+    ).toEqual([15, 20])
   })
 
   it('pads daily and weekly charts from normalized calendar buckets', () => {
@@ -91,11 +94,8 @@ describe('dashboard chart chronology', () => {
       ],
       'day'
     )
-    const dailyValues = daily.spec_model_line.data[0].values as Array<{
-      Count: number
-    }>
-    expect(dailyValues.filter((item) => item.Count > 0)).toEqual([
-      expect.objectContaining({ Count: 2 }),
+    expect(seriesPoints(daily.trendCount.rows, 'model-a')).toEqual([
+      { time: '01-08', value: 2 },
     ])
 
     const weekly = processChartData(
@@ -109,12 +109,9 @@ describe('dashboard chart chronology', () => {
       ],
       'week'
     )
-    const weeklyValues = weekly.spec_model_line.data[0].values as Array<{
-      Count: number
-    }>
-    expect(weeklyValues.filter((item) => item.Count > 0)).toEqual([
-      expect.objectContaining({ Count: 3 }),
-    ])
+    expect(
+      seriesPoints(weekly.trendCount.rows, 'model-a').map((item) => item.value)
+    ).toEqual([3])
   })
 
   it('keeps distinct absolute hourly buckets', () => {
@@ -133,11 +130,105 @@ describe('dashboard chart chronology', () => {
       ],
       'hour'
     )
-    const values = result.spec_model_line.data[0].values as Array<{
-      Count: number
-    }>
+
     expect(
-      values.filter((item) => item.Count > 0).map((item) => item.Count)
+      seriesPoints(result.trendCount.rows, 'model-a').map((item) => item.value)
     ).toEqual([1, 2])
+  })
+})
+
+describe('dashboard chart aggregation shape', () => {
+  const data: QuotaDataItem[] = [
+    {
+      created_at: timestamp('2026-08-01T01:00:00Z'),
+      model_name: 'model-a',
+      quota: 100,
+      count: 3,
+    },
+    {
+      created_at: timestamp('2026-08-01T01:00:00Z'),
+      model_name: 'model-b',
+      quota: 40,
+      count: 1,
+    },
+    {
+      created_at: timestamp('2026-08-01T02:00:00Z'),
+      model_name: 'model-b',
+      quota: 60,
+      count: 5,
+    },
+  ]
+
+  it('ranks pie and rank rows by call count with a color per row', () => {
+    const result = processChartData(data, 'hour')
+
+    expect(result.pie.rows.map((row) => [row.name, row.value])).toEqual([
+      ['model-b', 6],
+      ['model-a', 3],
+    ])
+    expect(result.pie.rows.every((row) => row.fill.length > 0)).toBe(true)
+    expect(result.rankCount.rows.map((row) => row.name)).toEqual([
+      'model-b',
+      'model-a',
+    ])
+    expect(result.rankCount.valueKind).toBe('count')
+  })
+
+  it('pivots quota series to one row per bucket with every series filled', () => {
+    const result = processChartData(data, 'hour')
+    const rows = result.stackedQuota.rows
+
+    expect(result.stackedQuota.seriesKeys).toEqual(['model-a', 'model-b'])
+    expect(result.stackedQuota.stacked).toBe(true)
+    expect(rows.every((row) => 'model-a' in row && 'model-b' in row)).toBe(true)
+
+    const bucket = rows.find((row) => row['model-a'] !== 0)
+    expect(bucket).toBeDefined()
+    const bucketTime = String(bucket?.Time)
+    expect(result.stackedQuota.rawByKey?.[`${bucketTime}::model-a`]).toBe(100)
+    expect(result.stackedQuota.rawByKey?.[`${bucketTime}::model-b`]).toBe(40)
+  })
+
+  it('reports user ranking totals and colors for the top users', () => {
+    const result = processUserChartData(
+      [
+        {
+          created_at: timestamp('2026-08-01T01:00:00Z'),
+          username: 'alice',
+          quota: 100,
+          count: 1,
+        },
+        {
+          created_at: timestamp('2026-08-01T01:00:00Z'),
+          username: 'bob',
+          quota: 300,
+          count: 1,
+        },
+      ],
+      'hour'
+    )
+
+    expect(result.rank.rows.map((row) => row.name)).toEqual(['bob', 'alice'])
+    expect(result.rank.layout).toBe('vertical')
+    expect(result.rank.valueKind).toBe('quota')
+    expect(new Set(result.rank.rows.map((row) => row.fill)).size).toBe(2)
+    expect(result.trend.seriesKeys).toEqual(['bob', 'alice'])
+  })
+})
+
+describe('empty dashboard chart data', () => {
+  it('returns empty rows with titles instead of undefined charts', () => {
+    const result = processChartData([], 'day')
+
+    expect(result.pie.rows).toEqual([])
+    expect(result.stackedQuota.rows).toEqual([])
+    expect(result.stackedQuota.seriesKeys).toEqual([])
+    expect(result.trendCount.valueKind).toBe('count')
+    expect(result.rankCount.rows).toEqual([])
+    expect(result.pie.title.length).toBeGreaterThan(0)
+
+    const users = processUserChartData([], 'day')
+    expect(users.rank.rows).toEqual([])
+    expect(users.trend.rows).toEqual([])
   })
 })

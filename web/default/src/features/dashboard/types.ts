@@ -101,7 +101,6 @@ export interface DashboardFlowNode {
   quota: number
   tokens: number
   color: string
-  colorKey: string
   highlighted?: boolean
   dimmed?: boolean
 }
@@ -116,10 +115,8 @@ export interface DashboardFlowLink {
   sourceLabel: string
   targetLabel: string
   color: string
-  linkColor: string
+  /** Resting opacity, which separates links that share a source node color. */
   linkAlpha: number
-  hoverColor: string
-  colorKey: string
   share: number
   highlighted?: boolean
   dimmed?: boolean
@@ -128,6 +125,53 @@ export interface DashboardFlowLink {
 export interface DashboardFlowGraph {
   nodes: DashboardFlowNode[]
   links: DashboardFlowLink[]
+}
+
+/**
+ * Node datum handed to the Recharts `Sankey`. Recharts overwrites `value`,
+ * `x`, `y`, `dx`, `dy` and `depth` on every node while laying out the graph, so
+ * the flow metrics keep their own field names to survive that merge.
+ */
+export interface FlowSankeyNodeDatum {
+  /** Rendered label, also the `nameKey` Recharts uses for tooltips. */
+  name: string
+  nodeId: string
+  kind: FlowNodeKind
+  requests: number
+  quota: number
+  tokens: number
+  color: string
+  highlighted: boolean
+  dimmed: boolean
+}
+
+/**
+ * Link datum handed to the Recharts `Sankey`. Recharts addresses nodes by their
+ * position in the `nodes` array, so `source`/`target` are indices and the node
+ * ids travel alongside them for selection handling.
+ */
+export interface FlowSankeyLinkDatum {
+  source: number
+  target: number
+  value: number
+  sourceId: string
+  targetId: string
+  sourceLabel: string
+  targetLabel: string
+  requests: number
+  quota: number
+  tokens: number
+  color: string
+  /** Resting stroke opacity; highlighted and dimmed links override it. */
+  linkAlpha: number
+  share: number
+  highlighted: boolean
+  dimmed: boolean
+}
+
+export interface FlowSankeyData {
+  nodes: FlowSankeyNodeDatum[]
+  links: FlowSankeyLinkDatum[]
 }
 
 export interface FlowUserFilterOption {
@@ -233,22 +277,47 @@ export type PingStatusMap = Record<string, PingStatus>
 // Chart Types
 // ============================================================================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type VChartSpec = Record<string, any>
+export interface DashboardPieChart {
+  rows: Array<{ name: string; value: number; fill: string }>
+  title: string
+}
+
+export interface DashboardSeriesChart {
+  /** Wide rows: one entry per x value, one numeric field per series key. */
+  rows: Array<Record<string, string | number>>
+  xKey: string
+  seriesKeys: string[]
+  /** optional raw quota totals keyed by `${xValue}::${seriesKey}` for tooltip */
+  rawByKey?: Record<string, number>
+  /** `quota` values are in currency display units, `count` values are integers. */
+  valueKind: 'quota' | 'count'
+  stacked?: boolean
+  title: string
+}
+
+export interface DashboardRankChart {
+  /** `value` follows `valueKind`: currency display units for `quota`. */
+  rows: Array<{ name: string; value: number; fill: string }>
+  valueKind: 'quota' | 'count'
+  /** Recharts bar orientation: `horizontal` puts categories on the x axis. */
+  layout: 'vertical' | 'horizontal'
+  title: string
+  subtext?: string
+}
 
 export interface ProcessedChartData {
-  spec_pie: VChartSpec
-  spec_line: VChartSpec
-  spec_area: VChartSpec
-  spec_model_line: VChartSpec
-  spec_rank_bar: VChartSpec
+  pie: DashboardPieChart
+  stackedQuota: DashboardSeriesChart
+  areaQuota: DashboardSeriesChart
+  trendCount: DashboardSeriesChart
+  rankCount: DashboardRankChart
   totalQuotaDisplay: string
   totalCountDisplay: string
 }
 
 export interface ProcessedUserChartData {
-  spec_user_rank: VChartSpec
-  spec_user_trend: VChartSpec
+  rank: DashboardRankChart
+  trend: DashboardSeriesChart
 }
 
 // ============================================================================
