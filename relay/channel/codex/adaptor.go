@@ -3,6 +3,7 @@ package codex
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -54,6 +56,26 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
+
+	rewrittenInput, err := rewriteRemoteInputFiles(request.Input, func(fileURL string) (string, error) {
+		cachedData, err := service.LoadFileSource(c, types.NewURLFileSource(fileURL), "codex_input_file")
+		if err != nil {
+			return "", err
+		}
+		base64Data, err := cachedData.GetBase64Data()
+		if err != nil {
+			return "", err
+		}
+		mimeType := strings.TrimSpace(cachedData.MimeType)
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+		return fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	request.Input = rewrittenInput
 
 	if info != nil && info.ChannelSetting.SystemPrompt != "" {
 		systemPrompt := info.ChannelSetting.SystemPrompt
