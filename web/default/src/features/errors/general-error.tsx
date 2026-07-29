@@ -24,8 +24,6 @@ import { Button } from '@/components/ui/button'
 
 import { ErrorPage } from './error-page'
 
-const FEEDBACK_URL = 'https://github.com/QuantumNous/new-api/issues'
-
 type GeneralErrorProps = {
   minimal?: boolean
   error?: unknown
@@ -52,10 +50,10 @@ export function GeneralError({
   const isRateLimited = status === 429
   const title = isRateLimited
     ? t('Too many requests')
-    : `${t('Oops! Something went wrong')} ${`:')`}`
+    : t('Something went wrong')
   const description = isRateLimited
     ? t('Please wait a moment before trying again.')
-    : t('Please try again later.')
+    : t('We ran into an unexpected problem. Please try again in a moment.')
 
   if (minimal) {
     return (
@@ -65,11 +63,7 @@ export function GeneralError({
         icon={isRateLimited ? <Timer /> : <ServerCrash />}
         title={title}
         className={className}
-        description={
-          <>
-            {t('We apologize for the inconvenience.')} {description}
-          </>
-        }
+        description={description}
       />
     )
   }
@@ -81,30 +75,14 @@ export function GeneralError({
       iconTone={isRateLimited ? 'warning' : 'destructive'}
       title={title}
       className={className}
-      description={
-        <>
-          {t('We apologize for the inconvenience.')} {description}{' '}
-          <span className='mt-1 block text-xs'>
-            {t('If this keeps happening, please report it on GitHub Issues.')}
-          </span>
-        </>
-      }
+      description={description}
       actions={
         <>
           <Button variant='outline' onClick={() => history.go(-1)}>
             {t('Go Back')}
           </Button>
-          <Button
-            variant='outline'
-            render={
-              <a
-                href={FEEDBACK_URL}
-                target='_blank'
-                rel='noopener noreferrer'
-              />
-            }
-          >
-            {t('Report an issue')}
+          <Button variant='outline' onClick={() => window.location.reload()}>
+            {t('Try again')}
           </Button>
           <Button onClick={() => navigate({ to: '/' })}>
             {t('Back to Home')}

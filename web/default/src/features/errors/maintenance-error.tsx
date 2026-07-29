@@ -30,13 +30,10 @@ export function MaintenanceError() {
       code='503'
       icon={<Wrench />}
       iconTone='info'
-      title={t('Website is under maintenance!')}
-      description={
-        <>
-          {t('The site is not available at the moment.')}{' '}
-          {t("We'll be back online shortly.")}
-        </>
-      }
+      title={t('Under maintenance')}
+      description={t(
+        "We're doing a short upgrade. Please try again in a few minutes."
+      )}
       actions={
         <Button variant='outline' onClick={() => window.location.reload()}>
           {t('Try again')}

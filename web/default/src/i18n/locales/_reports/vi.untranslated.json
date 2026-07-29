@@ -3,5 +3,6 @@
   "Connection from {{from}} to {{to}}": "Connection from {{from}} to {{to}}",
   "Could not capture the video frame. Check that the video allows cross-origin access.": "Could not capture the video frame. Check that the video allows cross-origin access.",
   "Drag a free rectangle over the image.": "Drag a free rectangle over the image.",
-  "Image processing failed. The original was kept.": "Image processing failed. The original was kept."
+  "Image processing failed. The original was kept.": "Image processing failed. The original was kept.",
+  "Thinking to Content": "Thinking to Content"
 }

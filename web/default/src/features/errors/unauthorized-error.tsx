@@ -33,19 +33,19 @@ export function UnauthorisedError() {
       code='401'
       icon={<KeyRound />}
       iconTone='warning'
-      title={t('Unauthorized Access')}
-      description={
-        <>
-          {t('Please log in with the appropriate credentials')}{' '}
-          {t('to access this resource.')}
-        </>
-      }
+      title={t('Sign in required')}
+      description={t(
+        'Please sign in with an account that has access to continue.'
+      )}
       actions={
         <>
           <Button variant='outline' onClick={() => history.go(-1)}>
             {t('Go Back')}
           </Button>
-          <Button onClick={() => navigate({ to: '/' })}>
+          <Button onClick={() => navigate({ to: '/sign-in' })}>
+            {t('Sign in')}
+          </Button>
+          <Button variant='outline' onClick={() => navigate({ to: '/' })}>
             {t('Back to Home')}
           </Button>
         </>

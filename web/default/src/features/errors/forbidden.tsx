@@ -33,13 +33,10 @@ export function ForbiddenError() {
       code='403'
       icon={<ShieldX />}
       iconTone='destructive'
-      title={t('Access Forbidden')}
-      description={
-        <>
-          {t("You don't have necessary permission")}{' '}
-          {t('to view this resource.')}
-        </>
-      }
+      title={t('Access forbidden')}
+      description={t(
+        "You don't have permission to view this page. Switch accounts or go back home."
+      )}
       actions={
         <>
           <Button variant='outline' onClick={() => history.go(-1)}>

@@ -32,13 +32,10 @@ export function NotFoundError() {
     <ErrorPage
       code='404'
       icon={<SearchX />}
-      title={t('Oops! Page Not Found!')}
-      description={
-        <>
-          {t("It seems like the page you're looking for")}{' '}
-          {t('does not exist or might have been removed.')}
-        </>
-      }
+      title={t('Page not found')}
+      description={t(
+        "This page doesn't exist or may have been moved. Check the URL, or head back home."
+      )}
       actions={
         <>
           <Button variant='outline' onClick={() => history.go(-1)}>
