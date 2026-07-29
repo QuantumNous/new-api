@@ -10,15 +10,16 @@ import { useTranslation } from 'react-i18next'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import { formatInvitationUSD } from '../lib/usd'
-import type { InvitationSummary } from '../types'
+import type { InvitationRewardMode, InvitationSummary } from '../types'
 
 interface RewardStepsCardProps {
   summary: InvitationSummary | null
+  guidanceMode: InvitationRewardMode
 }
 
 export function RewardStepsCard(props: RewardStepsCardProps) {
   const { t } = useTranslation()
-  const subscriptionMode = props.summary?.reward_mode === 'subscription'
+  const subscriptionMode = props.guidanceMode === 'subscription'
   let rewardTitle: string | null = null
   if (props.summary !== null) {
     if (subscriptionMode) {
@@ -55,14 +56,17 @@ export function RewardStepsCard(props: RewardStepsCardProps) {
         },
         {
           title: rewardTitle,
-          description: t(
-            'You receive {{reward}} package discount immediately after their first successful paid package purchase. Package discounts never expire and can only be used for package purchases or renewals.',
-            {
-              reward: formatInvitationUSD(
-                props.summary?.inviter_reward_usd ?? 0
-              ),
-            }
-          ),
+          description:
+            props.summary === null
+              ? null
+              : t(
+                  'You receive {{reward}} package discount immediately after their first successful paid package purchase. Package discounts never expire and can only be used for package purchases or renewals.',
+                  {
+                    reward: formatInvitationUSD(
+                      props.summary.inviter_reward_usd
+                    ),
+                  }
+                ),
         },
       ]
     : [
@@ -98,9 +102,13 @@ export function RewardStepsCard(props: RewardStepsCardProps) {
               ) : (
                 <h3 className='font-medium'>{step.title}</h3>
               )}
-              <p className='text-muted-foreground mt-1 text-sm'>
-                {step.description}
-              </p>
+              {step.description === null ? (
+                <Skeleton className='mt-1 h-4 w-full' />
+              ) : (
+                <p className='text-muted-foreground mt-1 text-sm'>
+                  {step.description}
+                </p>
+              )}
             </div>
           </li>
         ))}
