@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -40,13 +41,15 @@ type BytePlusAsset struct {
 	UpstreamAssetId    string `json:"-" gorm:"type:varchar(128);index"`
 	UpstreamRequestId  string `json:"-" gorm:"type:varchar(128)"`
 	AssetType          string `json:"asset_type" gorm:"type:varchar(32)"`
-	SourceURL          string `json:"-" gorm:"type:text"`
+	SourceURL          string `json:"-" gorm:"-"`
 	ModerationStrategy string `json:"moderation_strategy" gorm:"type:varchar(32)"`
 	Status             string `json:"status" gorm:"type:varchar(32);index"`
 	ErrorMessage       string `json:"-" gorm:"type:text"`
 	CreatedTime        int64  `json:"created_time" gorm:"bigint"`
 	UpdatedTime        int64  `json:"updated_time" gorm:"bigint"`
 }
+
+var ErrBytePlusAssetNotUpdatable = errors.New("byteplus asset is not updatable")
 
 func ClaimBytePlusAssetGroup(userID int, channelID int, now int64, staleBefore int64) (*BytePlusAssetGroup, bool, error) {
 	group := &BytePlusAssetGroup{
@@ -151,15 +154,22 @@ func GetBytePlusAssetsByPublicIDsForUser(userID int, publicIDs []string) ([]Byte
 }
 
 func UpdateBytePlusAssetUpstreamCreated(assetID int64, upstreamAssetID string, upstreamRequestID string, status string, now int64) error {
-	return DB.Model(&BytePlusAsset{}).
-		Where("id = ?", assetID).
+	result := DB.Model(&BytePlusAsset{}).
+		Where("id = ? AND status = ?", assetID, BytePlusAssetStatusCreating).
 		Updates(map[string]any{
 			"upstream_asset_id":   upstreamAssetID,
 			"upstream_request_id": upstreamRequestID,
 			"status":              status,
 			"error_message":       "",
 			"updated_time":        now,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return fmt.Errorf("%w: id=%d", ErrBytePlusAssetNotUpdatable, assetID)
+	}
+	return nil
 }
 
 func UpdateBytePlusAssetStatus(assetID int64, status string, errorMessage string, now int64) error {

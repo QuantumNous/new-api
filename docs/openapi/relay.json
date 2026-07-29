@@ -240,6 +240,25 @@
             },
             "headers": {}
           },
+          "403": {
+            "description": "Token 无权访问 seedance-2.0",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "This token has no access to model seedance-2.0",
+                    "type": "access_denied",
+                    "param": "",
+                    "code": "access_denied"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
           "500": {
             "description": "素材存储错误",
             "content": {
@@ -333,6 +352,25 @@
             },
             "headers": {}
           },
+          "403": {
+            "description": "Token 无权访问 seedance-2.0",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "This token has no access to model seedance-2.0",
+                    "type": "access_denied",
+                    "param": "",
+                    "code": "access_denied"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
           "404": {
             "description": "素材不存在",
             "content": {
@@ -357,6 +395,25 @@
                     "type": "asset_not_ready",
                     "param": "",
                     "code": "asset_not_ready"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "素材处理失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset processing failed",
+                    "type": "asset_failed",
+                    "param": "",
+                    "code": "asset_failed"
                   }
                 }
               }

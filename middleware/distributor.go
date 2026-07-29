@@ -101,6 +101,9 @@ func Distribute() func(c *gin.Context) {
 		}
 		assetResolution, assetErr := resolveBytePlusAssetResolution(c, shouldSelectChannel)
 		if assetErr != nil {
+			if abortBytePlusAssetSpecificChannelConflict(c, channelId, ok, assetResolution.PinnedChannelID) {
+				return
+			}
 			abortWithOpenAiMessage(c, assetErr.StatusCode, bytePlusAssetPublicMessage(assetErr.GetErrorCode()), assetErr.GetErrorCode())
 			return
 		}
@@ -298,6 +301,27 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func abortBytePlusAssetSpecificChannelConflict(c *gin.Context, channelId any, hasSpecificChannel bool, pinnedChannelID int) bool {
+	if !hasSpecificChannel || pinnedChannelID == 0 {
+		return false
+	}
+	specificChannelID, ok := channelId.(string)
+	if !ok {
+		abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
+		return true
+	}
+	id, err := strconv.Atoi(specificChannelID)
+	if err != nil {
+		abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
+		return true
+	}
+	if id != pinnedChannelID {
+		abortWithOpenAiMessage(c, http.StatusConflict, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelConflict), types.ErrorCodeAssetChannelConflict)
+		return true
+	}
+	return false
 }
 
 // resolveBytePlusAssetResolution parses reusable video submit bodies only far

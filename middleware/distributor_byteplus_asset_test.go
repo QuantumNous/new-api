@@ -74,6 +74,63 @@ func TestBytePlusAssetSpecificChannelMustMatchPinnedChannel(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), string(constant.ContextKeyBytePlusAssetPinnedChannelID)[:0]+`asset_channel_conflict`)
 }
 
+func TestBytePlusAssetSpecificChannelConflictWinsOverOwnedAssetResolutionErrors(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    string
+		assetType string
+		body      string
+	}{
+		{
+			name:      "processing",
+			status:    model.BytePlusAssetStatusProcessing,
+			assetType: "Image",
+			body: `{
+				"model":"seedance-2.0",
+				"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+			}`,
+		},
+		{
+			name:      "failed",
+			status:    model.BytePlusAssetStatusFailed,
+			assetType: "Image",
+			body: `{
+				"model":"seedance-2.0",
+				"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+			}`,
+		},
+		{
+			name:      "type mismatch",
+			status:    model.BytePlusAssetStatusActive,
+			assetType: "Video",
+			body: `{
+				"model":"seedance-2.0",
+				"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+			}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+			defer restoreDB()
+			insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+			insertMiddlewareBytePlusAssetChannel(t, 132, "default", common.ChannelStatusEnabled, 1, 1)
+			insertMiddlewareBytePlusAssetWithType(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", tt.status, tt.assetType)
+			model.InitChannelCache()
+
+			router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+				c.String(http.StatusInternalServerError, "handler should not run")
+			})
+			recorder := performBytePlusAssetDistributorRequest(router, "132", tt.body)
+			require.Equal(t, http.StatusConflict, recorder.Code, recorder.Body.String())
+			require.Contains(t, recorder.Body.String(), "asset_channel_conflict")
+			require.NotContains(t, recorder.Body.String(), "asset_not_ready")
+			require.NotContains(t, recorder.Body.String(), "asset_failed")
+			require.NotContains(t, recorder.Body.String(), "invalid_asset_request")
+		})
+	}
+}
+
 func TestBytePlusAssetPinnedChannelRequiresEnabledBytePlusAbility(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -478,12 +535,17 @@ func insertMiddlewareAbility(t *testing.T, channelID int, group string, modelNam
 
 func insertMiddlewareBytePlusAsset(t *testing.T, userID int, channelID int, publicID string, upstreamID string, status string) {
 	t.Helper()
+	insertMiddlewareBytePlusAssetWithType(t, userID, channelID, publicID, upstreamID, status, "Image")
+}
+
+func insertMiddlewareBytePlusAssetWithType(t *testing.T, userID int, channelID int, publicID string, upstreamID string, status string, assetType string) {
+	t.Helper()
 	require.NoError(t, model.DB.Create(&model.BytePlusAsset{
 		PublicId:        publicID,
 		UserId:          userID,
 		ChannelId:       channelID,
 		UpstreamAssetId: upstreamID,
-		AssetType:       "Image",
+		AssetType:       assetType,
 		Status:          status,
 	}).Error)
 }

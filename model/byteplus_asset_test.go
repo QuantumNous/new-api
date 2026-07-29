@@ -11,6 +11,10 @@ import (
 func TestBytePlusAssetModelsAutoMigrateAndUniqueness(t *testing.T) {
 	db := newBytePlusAssetTestDB(t)
 
+	if db.Migrator().HasColumn(&BytePlusAsset{}, "source_url") {
+		t.Fatal("source_url must not be migrated because upload URLs can contain signed secrets")
+	}
+
 	if err := db.Create(&BytePlusAssetGroup{UserId: 1, ChannelId: 101, Status: BytePlusAssetGroupStatusCreating}).Error; err != nil {
 		t.Fatalf("create group: %v", err)
 	}
@@ -216,6 +220,46 @@ func TestBytePlusAssetStatusUpdateDoesNotRegressTerminalAsset(t *testing.T) {
 	}
 	if got.Status != BytePlusAssetStatusActive || got.UpdatedTime != 2020 {
 		t.Fatalf("terminal asset regressed: %+v", got)
+	}
+}
+
+func TestBytePlusAssetUpstreamCreatedDoesNotRegressTerminalAsset(t *testing.T) {
+	newBytePlusAssetTestDB(t)
+
+	for _, status := range []string{BytePlusAssetStatusActive, BytePlusAssetStatusFailed} {
+		t.Run(status, func(t *testing.T) {
+			asset, err := CreateBytePlusAsset(BytePlusAsset{
+				PublicId:           "ast_upstream_created_terminal_" + status,
+				UserId:             20,
+				AssetGroupId:       7,
+				ChannelId:          131,
+				UpstreamAssetId:    "upstream-existing",
+				UpstreamRequestId:  "req-existing",
+				AssetType:          "Video",
+				SourceURL:          "https://example.com/a.mp4",
+				ModerationStrategy: "Skip",
+				Status:             status,
+				ErrorMessage:       "terminal message",
+				CreatedTime:        2000,
+				UpdatedTime:        2020,
+			})
+			if err != nil {
+				t.Fatalf("create asset: %v", err)
+			}
+
+			err = UpdateBytePlusAssetUpstreamCreated(asset.Id, "upstream-late", "req-late", BytePlusAssetStatusProcessing, 2030)
+			if err == nil {
+				t.Fatal("late upstream-created update on terminal asset should return an error")
+			}
+
+			got, err := GetBytePlusAssetByPublicIDForUser(20, asset.PublicId)
+			if err != nil {
+				t.Fatalf("lookup asset: %v", err)
+			}
+			if got.Status != status || got.UpstreamAssetId != "upstream-existing" || got.UpstreamRequestId != "req-existing" || got.UpdatedTime != 2020 || got.ErrorMessage != "terminal message" {
+				t.Fatalf("terminal asset regressed: %+v", got)
+			}
+		})
 	}
 }
 

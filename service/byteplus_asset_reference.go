@@ -59,26 +59,26 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 		if !ok {
 			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
 		}
+		if pinnedChannelID == 0 {
+			pinnedChannelID = asset.ChannelId
+		} else if pinnedChannelID != asset.ChannelId {
+			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset channels do not match"), types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+		}
 		if asset.AssetType != reference.ExpectedAssetType {
-			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset type does not match media type"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset type does not match media type"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 		}
 		switch asset.Status {
 		case model.BytePlusAssetStatusActive:
 		case model.BytePlusAssetStatusCreating, model.BytePlusAssetStatusProcessing:
-			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
+			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
 		case model.BytePlusAssetStatusFailed:
-			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset failed"), types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
+			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset failed"), types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
 		default:
-			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
+			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
 		}
 		upstreamAssetID := strings.TrimSpace(asset.UpstreamAssetId)
 		if upstreamAssetID == "" {
-			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
-		}
-		if pinnedChannelID == 0 {
-			pinnedChannelID = asset.ChannelId
-		} else if pinnedChannelID != asset.ChannelId {
-			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset channels do not match"), types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
 		}
 		rewriteMap["asset://"+reference.PublicID] = "asset://" + upstreamAssetID
 	}
