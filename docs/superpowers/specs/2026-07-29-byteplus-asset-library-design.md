@@ -5,7 +5,7 @@
 
 ## 1. 背景与目标
 
-Flatkey 已通过现有 `DoubaoVideo` / VolcEngine 任务链路成功调用 BytePlus Seedance 2.0。下一步是在不新增渠道 Type 的前提下接入 BytePlus 虚拟人像素材库，并让 Flatkey API Token 用户可以创建、查询和安全引用自己的素材。
+Flatkey 已通过现有 `ChannelTypeBytePlus` 及其 Seedance 任务适配器成功调用 BytePlus Seedance 2.0。下一步是在不新增渠道 Type 的前提下接入 BytePlus 虚拟人像素材库，并让 Flatkey API Token 用户可以创建、查询和安全引用自己的素材。
 
 本设计的目标是：
 
@@ -41,9 +41,9 @@ Flatkey 已通过现有 `DoubaoVideo` / VolcEngine 任务链路成功调用 Byte
 
 ## 3. 方案选择
 
-### 3.1 采用方案：复用现有渠道 Type
+### 3.1 采用方案：复用现有 BytePlus 渠道 Type
 
-视频 API Key、BytePlus AK/SK 和 ProjectName 作为结构化凭据保存在现有 `Channel.Key` 中。资产组绑定具体渠道，资产继承资产组渠道，使用资产的视频请求固定到该渠道。
+视频 API Key、BytePlus AK/SK 和 ProjectName 作为结构化凭据保存在现有 `ChannelTypeBytePlus` 的 `Channel.Key` 中。资产组绑定具体渠道，资产继承资产组渠道，使用资产的视频请求固定到该渠道。现有 BytePlus 适配器继续复用 Doubao/Ark 的协议映射，但资产能力不开放给其他渠道 Type。
 
 选择该方案的原因：
 
@@ -189,7 +189,7 @@ ark-...
 - JSON 必须由统一解析器读取，业务代码使用仓库 `common.*` JSON 包装函数；
 - JSON 只要被识别为结构化凭据但格式错误或字段类型错误，就返回配置错误，不把整段 JSON 当作 Bearer Key；
 - 视频提交、视频轮询和后台任务轮询都只向 Authorization Header 写入解析后的 `api_key`；
-- 只有启用状态、类型兼容、支持目标模型且 AK、SK、ProjectName 完整的渠道才具备资产能力；
+- 只有启用状态、类型为 `ChannelTypeBytePlus`、支持目标模型且 AK、SK、ProjectName 完整的渠道才具备资产能力；
 - 缺少资产字段的旧渠道仍可处理不含 Flatkey 资产引用的普通视频请求。
 
 ### 6.2 安全边界
@@ -291,7 +291,7 @@ BytePlus `CreateAssetGroup` 没有纳入本期的删除或幂等补偿能力。�
 7. Token 已固定渠道时，固定渠道必须与资产渠道一致，否则拒绝；
 8. 分发器把资产渠道作为本次请求的强制渠道，不参与随机选择，也不因失败静默切换其他 BytePlus 账号；
 9. service 把 `public_id -> upstream_asset_id` 映射放入请求 context；
-10. Doubao/Ark 适配器构建上游请求时，将 `asset://ast_...` 改写为 `asset://<upstream_asset_id>`；
+10. BytePlus 适配器复用的 Ark 请求构建逻辑将 `asset://ast_...` 改写为 `asset://<upstream_asset_id>`；
 11. 不含 Flatkey 资产引用的请求完全沿用现有分发和内容透传行为。
 
 失败或重试时必须保持资产渠道亲和性。资产渠道禁用、并发耗尽或模型不兼容时返回明确错误，不能切换到无法访问该上游资产的渠道。
@@ -359,7 +359,7 @@ BytePlus `CreateAssetGroup` 没有纳入本期的删除或幂等补偿能力。�
 
 - 需要数据库 AutoMigrate 新增两张表；
 - 需要将目标 BytePlus 渠道的 Key 从旧纯字符串更新为结构化 JSON；
-- 改动影响 `/v1` 资产路由、视频分发、Doubao/Ark 适配器和后台任务轮询；
+- 改动影响 `/v1` 资产路由、视频分发、BytePlus 适配器及其复用的 Ark 请求构建逻辑和后台任务轮询；
 - `Router deploy: required`，因为视频请求路由、上游鉴权和新 `/v1/assets` 接口均在 router 节点执行；
 - `newapi-console` 同样需要部署，以保持共享数据库迁移和后台任务代码版本一致；
 - `newapi-web`、Terraform 和 Cloudflare 不涉及；
