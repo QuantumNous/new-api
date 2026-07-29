@@ -169,7 +169,7 @@ func TestTelegramBindCommitsFlowAssertionAndBindingAtomically(t *testing.T) {
 		&model.User{},
 		&model.UserSession{},
 		&model.AuthFlow{},
-		&model.AuthIdentity{},
+		&model.ExternalIdentityClaim{},
 	))
 	model.DB = db
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
@@ -250,9 +250,10 @@ func TestTelegramBindCommitsFlowAssertionAndBindingAtomically(t *testing.T) {
 	var storedUser model.User
 	require.NoError(t, db.First(&storedUser, user.Id).Error)
 	assert.Equal(t, "123456", storedUser.TelegramId)
-	identityOwner, err := model.GetUserByAuthIdentity(model.AuthIdentityProviderTelegram, "123456")
-	require.NoError(t, err)
-	assert.Equal(t, user.Id, identityOwner.Id)
+	var identityClaim model.ExternalIdentityClaim
+	require.NoError(t, db.Where("provider = ? AND subject = ?", model.ExternalIdentityProviderTelegram, "123456").
+		First(&identityClaim).Error)
+	assert.Equal(t, user.Id, identityClaim.UserId)
 	_, err = model.GetAuthFlow(flowToken, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeTelegramBind})
 	assert.ErrorIs(t, err, model.ErrAuthFlowConsumed)
 

@@ -30,7 +30,6 @@ import {
   ServerCog,
   Settings,
   Ticket,
-  TicketCheck,
   User,
   Users,
   Wallet,
@@ -134,12 +133,6 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
-          },
-          {
-            title: t('Invitation codes'),
-            url: '/invitation-codes',
-            icon: TicketCheck,
-            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('Redemption Codes'),

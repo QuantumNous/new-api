@@ -24,10 +24,6 @@ import { clearAuthentication, isAuthBundle } from '@/lib/api'
 
 import { createOAuthFlow, logout, telegramLogin } from '../api'
 import {
-  isInvitationCodeRequired,
-  type InvitationRegistrationMethod,
-} from '../lib/invitation'
-import {
   buildGitHubOAuthUrl,
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
@@ -37,22 +33,12 @@ import { pickTelegramAuthorization } from '../lib/telegram-login'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
 import { useAuthRedirect } from './use-auth-redirect'
 
-export type OAuthLoginOptions = {
-  /**
-   * In-memory invitation code from the registration form.
-   * Only attached to login AuthFlow create for providers that require it.
-   * Never persisted, never placed in OAuth state/URLs, never used for bind/Telegram.
-   */
-  invitationCode?: string
-}
-
 /**
  * Hook for managing OAuth login
  */
 export function useOAuthLogin(
   status: SystemStatus | null,
-  redirectTo?: string,
-  options?: OAuthLoginOptions
+  redirectTo?: string
 ) {
   const { t } = useTranslation()
   const { handleLoginSuccess } = useAuthRedirect()
@@ -81,24 +67,6 @@ export function useOAuthLogin(
     clearAuthentication()
   }
 
-  /**
-   * Invitation is only for login AuthFlow POST body, and only for the
-   * provider currently being started when that method requires it.
-   * Missing invitation never blocks OAuth (existing users may log in).
-   */
-  const loginFlowOptions = (
-    method: InvitationRegistrationMethod
-  ): { invitationCode?: string } | undefined => {
-    if (!isInvitationCodeRequired(status, method)) {
-      return undefined
-    }
-    const invitationCode = options?.invitationCode?.trim()
-    if (!invitationCode) {
-      return undefined
-    }
-    return { invitationCode }
-  }
-
   const handleGitHubLogin = async () => {
     if (!status?.github_client_id) return
     if (githubButtonDisabled) return
@@ -121,11 +89,7 @@ export function useOAuthLogin(
 
     try {
       await resetSession()
-      const state = await createOAuthFlow(
-        'github',
-        'login',
-        loginFlowOptions('github')
-      )
+      const state = await createOAuthFlow('github', 'login')
 
       const url = buildGitHubOAuthUrl(status.github_client_id, state)
       window.open(url, '_self')
@@ -146,11 +110,7 @@ export function useOAuthLogin(
     setIsLoading(true)
     try {
       await resetSession()
-      const state = await createOAuthFlow(
-        'discord',
-        'login',
-        loginFlowOptions('discord')
-      )
+      const state = await createOAuthFlow('discord', 'login')
 
       const url = buildDiscordOAuthUrl(status.discord_client_id, state)
       window.open(url, '_self')
@@ -167,11 +127,7 @@ export function useOAuthLogin(
     setIsLoading(true)
     try {
       await resetSession()
-      const state = await createOAuthFlow(
-        'oidc',
-        'login',
-        loginFlowOptions('oidc')
-      )
+      const state = await createOAuthFlow('oidc', 'login')
 
       const url = buildOIDCOAuthUrl(
         status.oidc_authorization_endpoint,
@@ -192,11 +148,7 @@ export function useOAuthLogin(
     setIsLoading(true)
     try {
       await resetSession()
-      const state = await createOAuthFlow(
-        'linuxdo',
-        'login',
-        loginFlowOptions('linuxdo')
-      )
+      const state = await createOAuthFlow('linuxdo', 'login')
 
       const url = buildLinuxDOOAuthUrl(status.linuxdo_client_id, state)
       window.open(url, '_self')
@@ -235,7 +187,6 @@ export function useOAuthLogin(
 
     setIsTelegramPending(true)
     try {
-      // Telegram never carries invitation codes.
       const response = await telegramLogin(authorization)
       if (!response.success || !isAuthBundle(response.data)) {
         toast.error(t('Login failed'))
@@ -258,12 +209,7 @@ export function useOAuthLogin(
     setIsLoading(true)
     try {
       await resetSession()
-      // Use configured provider slug; invitation method is custom_oauth.
-      const state = await createOAuthFlow(
-        provider.slug,
-        'login',
-        loginFlowOptions('custom_oauth')
-      )
+      const state = await createOAuthFlow(provider.slug, 'login')
 
       const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
       const url = new URL(provider.authorization_endpoint)

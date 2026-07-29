@@ -45,9 +45,7 @@ import { registerFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
-import { isInvitationCodeRequired } from '@/features/auth/lib/invitation'
 import {
-  clearLegacyInvitationCodeStorage,
   getAffiliateCode,
   saveAffiliateCode,
 } from '@/features/auth/lib/storage'
@@ -96,12 +94,10 @@ export function SignUpForm({
       email: '',
       password: '',
       confirmPassword: '',
-      invitationCode: '',
     },
   })
 
   const emailValue = form.watch('email')
-  const invitationCode = form.watch('invitationCode') ?? ''
   const emailVerificationRequired = !!status?.email_verification
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
@@ -112,16 +108,6 @@ export function SignUpForm({
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
   const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
-  const passwordInvitationRequired = isInvitationCodeRequired(
-    status,
-    'password'
-  )
-  // Show invitation field whenever invitation registration is enabled for any method.
-  // Password requires it when configured; OAuth/WeChat use it only for new accounts
-  // and never block start when empty (existing users may log in without a code).
-  const showInvitationCodeField = Boolean(
-    status?.invitation_code_required ?? status?.data?.invitation_code_required
-  )
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -146,8 +132,6 @@ export function SignUpForm({
   }, [requiresLegalConsent])
 
   useEffect(() => {
-    // Drop any legacy invitation keys; never re-read them for submission.
-    clearLegacyInvitationCodeStorage()
     const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
     if (aff) {
       saveAffiliateCode(aff)
@@ -157,13 +141,6 @@ export function SignUpForm({
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
       toast.error(legalConsentErrorMessage)
-      return
-    }
-
-    if (passwordInvitationRequired && !data.invitationCode?.trim()) {
-      form.setError('invitationCode', {
-        message: t('Please enter an invitation code'),
-      })
       return
     }
 
@@ -189,9 +166,6 @@ export function SignUpForm({
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
-        invitation_code: showInvitationCodeField
-          ? data.invitationCode?.trim() || undefined
-          : undefined,
         turnstile: turnstileToken,
       })
 
@@ -221,7 +195,6 @@ export function SignUpForm({
       return
     }
 
-    // Do not block WeChat when invitation is missing — existing users may log in.
     setIsWeChatDialogOpen(true)
   }
 
@@ -241,11 +214,7 @@ export function SignUpForm({
 
     setIsWeChatSubmitting(true)
     try {
-      // Invitation only in POST body via wechatLoginByCode; omit when blank.
-      const res = await wechatLoginByCode(
-        wechatCode,
-        isInvitationCodeRequired(status, 'wechat') ? invitationCode : undefined
-      )
+      const res = await wechatLoginByCode(wechatCode)
       if (res?.success && isAuthBundle(res.data)) {
         await handleLoginSuccess(res.data)
         toast.success(t('Signed in via WeChat'))
@@ -292,39 +261,6 @@ export function SignUpForm({
             </FormItem>
           )}
         />
-
-        {showInvitationCodeField ? (
-          <FormField
-            control={form.control}
-            name='invitationCode'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  {t('Invitation code')}
-                  {passwordInvitationRequired ? ` (${t('Required')})` : ''}
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder={t('Enter invitation code')}
-                    autoComplete='off'
-                    aria-required={passwordInvitationRequired}
-                    {...field}
-                    onChange={(event) => {
-                      field.onChange(event)
-                      form.clearErrors('invitationCode')
-                    }}
-                  />
-                </FormControl>
-                <p className='text-muted-foreground text-xs'>
-                  {t(
-                    'Required for password registration when configured. For OAuth or WeChat, only new accounts need it — existing accounts can leave it blank.'
-                  )}
-                </p>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        ) : null}
 
         {/* Password Field */}
         <FormField
@@ -448,9 +384,6 @@ export function SignUpForm({
             disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
             onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
             isWeChatLoading={isWeChatSubmitting}
-            invitationCode={
-              showInvitationCodeField ? invitationCode : undefined
-            }
             className='pt-2'
           />
         )}

@@ -137,49 +137,17 @@ export async function githubOAuthStart(clientId: string, state: string) {
   window.open(url)
 }
 
-export type CreateOAuthFlowOptions = {
-  /**
-   * Optional invitation code for login AuthFlow creation only.
-   * Never sent for bind intent. Blank values are omitted from the body.
-   * Must not be placed in OAuth state, redirect URLs, storage, or callbacks.
-   */
-  invitationCode?: string
-}
-
-type CreateOAuthFlowBody = {
-  provider: string
-  intent: 'login' | 'bind'
-  aff?: string
-  invitation_code?: string
-}
-
-/**
- * Create an OAuth AuthFlow (login or bind).
- * Returns the flow_token used as the OAuth `state` parameter.
- * Invitation codes are only included for intent=login when non-empty after trim.
- */
+// Get OAuth state for CSRF protection
 export async function createOAuthFlow(
   provider: string,
-  intent: 'login' | 'bind',
-  options?: CreateOAuthFlowOptions
+  intent: 'login' | 'bind'
 ): Promise<string> {
   const aff = intent === 'login' ? getAffiliateCode() : ''
-  const body: CreateOAuthFlowBody = {
-    provider,
-    intent,
-    aff: aff || undefined,
-  }
-
-  if (intent === 'login') {
-    const invitationCode = options?.invitationCode?.trim()
-    if (invitationCode) {
-      body.invitation_code = invitationCode
-    }
-  }
-
-  const res = await api.post('/api/oauth/state', body, {
-    skipAuthRefresh: intent === 'login',
-  })
+  const res = await api.post(
+    '/api/oauth/state',
+    { provider, intent, aff: aff || undefined },
+    { skipAuthRefresh: intent === 'login' }
+  )
   if (res.data?.success) {
     if (typeof res.data.data === 'string') return res.data.data
     if (typeof res.data.data?.flow_token === 'string') {
@@ -189,23 +157,8 @@ export async function createOAuthFlow(
   throw new Error(res.data?.message || 'Failed to initialize OAuth')
 }
 
-/**
- * WeChat login by authorization code.
- * Invitation codes (when present) are sent only in the POST JSON body — never as query params.
- * Without an invitation code, uses GET with the protocol `code` only (existing-user path).
- */
-export async function wechatLoginByCode(
-  code: string,
-  invitationCode?: string
-): Promise<ApiResponse> {
-  const trimmedInvitationCode = invitationCode?.trim()
-  if (trimmedInvitationCode) {
-    const res = await api.post('/api/oauth/wechat', {
-      code,
-      invitation_code: trimmedInvitationCode,
-    })
-    return res.data
-  }
+// WeChat login by authorization code
+export async function wechatLoginByCode(code: string): Promise<ApiResponse> {
   const res = await api.get('/api/oauth/wechat', { params: { code } })
   return res.data
 }

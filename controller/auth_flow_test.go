@@ -126,7 +126,7 @@ func TestGenerateOAuthCodeBindsFlowToAuthenticatedSession(t *testing.T) {
 	assert.Equal(t, "session-42", flow.SessionId)
 }
 
-func TestOAuthLoginConsumesFlowBeforeProviderIdentity(t *testing.T) {
+func TestOAuthLoginConsumesFlowOnlyAfterProviderIdentity(t *testing.T) {
 	provider := setupAuthFlowControllerTest(t)
 
 	tests := []struct {
@@ -153,15 +153,16 @@ func TestOAuthLoginConsumesFlowBeforeProviderIdentity(t *testing.T) {
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, request)
 
-			_, err = model.GetAuthFlow(token, model.AuthFlowMatch{
+			flow, err := model.GetAuthFlow(token, model.AuthFlowMatch{
 				Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentLogin,
 			})
-			assert.ErrorIs(t, err, model.ErrAuthFlowConsumed)
+			require.NoError(t, err)
+			assert.Nil(t, flow.ConsumedAt)
 		})
 	}
 }
 
-func TestOAuthLoginConsumesFlowBeforePayloadAndOnProviderError(t *testing.T) {
+func TestOAuthLoginConsumesFlowAfterProviderIdentityAndOnProviderError(t *testing.T) {
 	provider := setupAuthFlowControllerTest(t)
 
 	provider.exchangeErr = nil

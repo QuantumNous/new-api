@@ -19,12 +19,6 @@ import (
 
 const UserNameMaxLength = 20
 
-const generatedAffiliateCodeLength = 12
-
-func GenerateAffiliateCode() (string, error) {
-	return common.GenerateRandomCharsKey(generatedAffiliateCodeLength)
-}
-
 var userSortColumns = map[string]string{
 	"id":            "id",
 	"username":      "username",
@@ -216,7 +210,6 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"channel":    true,
 			"models":     true,
 			"redemption": true,
-			"invitation": true,
 			"user":       true,
 			"setting":    false, // 管理员不能访问系统设置
 		}
@@ -227,7 +220,6 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"channel":    true,
 			"models":     true,
 			"redemption": true,
-			"invitation": true,
 			"user":       true,
 			"setting":    true,
 		}
@@ -603,11 +595,7 @@ func (user *User) Insert(inviterId int) error {
 				return err
 			}
 			user.Quota = common.QuotaForNewUser
-			affCode, err := GenerateAffiliateCode()
-			if err != nil {
-				return err
-			}
-			user.AffCode = affCode
+			user.AffCode = common.GetRandomString(4)
 
 			// 初始化用户设置，包括默认的边栏配置
 			if user.Setting == "" {
@@ -671,11 +659,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			return err
 		}
 		user.Quota = common.QuotaForNewUser
-		affCode, err := GenerateAffiliateCode()
-		if err != nil {
-			return err
-		}
-		user.AffCode = affCode
+		user.AffCode = common.GetRandomString(4)
 
 		// 初始化用户设置
 		if user.Setting == "" {
@@ -848,12 +832,13 @@ func (user *User) ClearBinding(bindingType string) error {
 	}
 
 	if err := DB.Transaction(func(tx *gorm.DB) error {
-		if bindingType != "email" {
-			if err := DeleteAuthIdentityWithTx(tx, user.Id, bindingType); err != nil {
-				return err
-			}
+		if err := tx.Model(&User{}).Where("id = ?", user.Id).Update(column, "").Error; err != nil {
+			return err
 		}
-		return tx.Model(&User{}).Where("id = ?", user.Id).Update(column, "").Error
+		if bindingType == ExternalIdentityProviderTelegram {
+			return ReleaseExternalIdentityWithTx(tx, ExternalIdentityProviderTelegram, user.Id)
+		}
+		return nil
 	}); err != nil {
 		return err
 	}
@@ -930,9 +915,6 @@ func deleteUserAuthenticationData(tx *gorm.DB, userId int) error {
 	if err := releaseAllExternalIdentitiesWithTx(tx, userId); err != nil {
 		return err
 	}
-	if err := deleteLegacyAuthIdentitySourcesWithTx(tx, userId); err != nil {
-		return err
-	}
 	for _, authenticationData := range []any{
 		&TwoFABackupCode{},
 		&TwoFA{},
@@ -945,7 +927,7 @@ func deleteUserAuthenticationData(tx *gorm.DB, userId int) error {
 			return err
 		}
 	}
-	return nil
+	return deleteUserOAuthBindingsByUserId(tx, userId)
 }
 
 // ValidateAndFill check password & user status
@@ -1005,7 +987,7 @@ func (user *User) UpdateGitHubId(newGitHubId string) error {
 	if user.Id == 0 {
 		return errors.New("user id is empty")
 	}
-	return SetBuiltInAuthIdentity(user, AuthIdentityProviderGitHub, newGitHubId)
+	return DB.Model(user).Update("github_id", newGitHubId).Error
 }
 
 func (user *User) FillUserByDiscordId() error {
