@@ -94,11 +94,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 	payload := requestPayload{
 		Prompt: req.Prompt,
-		Model:  info.UpstreamModelName,
 	}
-	if payload.Model == "" {
-		payload.Model = req.Model
+	modelName := info.UpstreamModelName
+	if modelName == "" {
+		modelName = req.Model
 	}
+	payload.Model = ResolveModelName(modelName)
+	info.UpstreamModelName = payload.Model
 	if req.Size != "" {
 		payload.Size = stringPointer(req.Size)
 	}

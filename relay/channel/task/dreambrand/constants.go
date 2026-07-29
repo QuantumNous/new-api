@@ -2,6 +2,21 @@ package dreambrand
 
 var ModelList = []string{
 	"seedance-2.0-standard",
+	"seedance-2.0-fast",
+	"doubao-seedance-2.0",
+	"doubao-seedance-2.0-fast",
+}
+
+var modelAliases = map[string]string{
+	"doubao-seedance-2.0":      "seedance-2.0-standard",
+	"doubao-seedance-2.0-fast": "seedance-2.0-fast",
+}
+
+func ResolveModelName(model string) string {
+	if upstreamModel, ok := modelAliases[model]; ok {
+		return upstreamModel
+	}
+	return model
 }
 
 const (

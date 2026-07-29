@@ -33,27 +33,35 @@ func TestBuildRequestURL(t *testing.T) {
 func TestBuildRequestBodyMapsStandardFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tests := []struct {
-		name         string
-		body         string
-		wantPic      string
-		wantDuration string
+		name          string
+		body          string
+		upstreamModel string
+		wantModel     string
+		wantPic       string
+		wantDuration  string
 	}{
 		{
-			name:         "single image and string duration",
-			body:         `{"prompt":"ride","model":"public-model","size":"1080p","duration":"15","image":"https://example.com/a.png"}`,
-			wantPic:      "https://example.com/a.png",
-			wantDuration: "15",
+			name:          "single image and string duration",
+			body:          `{"prompt":"ride","model":"public-model","size":"1080p","duration":"15","image":"https://example.com/a.png"}`,
+			upstreamModel: "doubao-seedance-2.0",
+			wantModel:     "seedance-2.0-standard",
+			wantPic:       "https://example.com/a.png",
+			wantDuration:  "15",
 		},
 		{
-			name:         "images and numeric duration",
-			body:         `{"prompt":"ride","model":"public-model","duration":10,"images":["https://example.com/first.png","https://example.com/second.png"]}`,
-			wantPic:      "https://example.com/first.png",
-			wantDuration: "10",
+			name:          "images and numeric duration",
+			body:          `{"prompt":"ride","model":"public-model","duration":10,"images":["https://example.com/first.png","https://example.com/second.png"]}`,
+			upstreamModel: "doubao-seedance-2.0-fast",
+			wantModel:     "seedance-2.0-fast",
+			wantPic:       "https://example.com/first.png",
+			wantDuration:  "10",
 		},
 		{
-			name:         "explicit zero duration",
-			body:         `{"prompt":"ride","model":"public-model","duration":0}`,
-			wantDuration: "0",
+			name:          "explicit zero duration",
+			body:          `{"prompt":"ride","model":"public-model","duration":0}`,
+			upstreamModel: "seedance-2.0-standard",
+			wantModel:     "seedance-2.0-standard",
+			wantDuration:  "0",
 		},
 	}
 
@@ -74,7 +82,7 @@ func TestBuildRequestBodyMapsStandardFields(t *testing.T) {
 			if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
 				t.Fatalf("ValidateRequestAndSetAction() error = %v", taskErr)
 			}
-			info.UpstreamModelName = "seedance-2.0-standard"
+			info.UpstreamModelName = tt.upstreamModel
 
 			reader, err := adaptor.BuildRequestBody(c, info)
 			if err != nil {
@@ -88,8 +96,11 @@ func TestBuildRequestBodyMapsStandardFields(t *testing.T) {
 			if err := common.Unmarshal(data, &payload); err != nil {
 				t.Fatalf("unmarshal request payload error = %v", err)
 			}
-			if payload.Model != "seedance-2.0-standard" {
-				t.Fatalf("Model = %q", payload.Model)
+			if payload.Model != tt.wantModel {
+				t.Fatalf("Model = %q, want %q", payload.Model, tt.wantModel)
+			}
+			if info.UpstreamModelName != tt.wantModel {
+				t.Fatalf("UpstreamModelName = %q, want %q", info.UpstreamModelName, tt.wantModel)
 			}
 			if got := pointerValue(payload.Pic); got != tt.wantPic {
 				t.Fatalf("Pic = %q, want %q", got, tt.wantPic)
@@ -98,6 +109,21 @@ func TestBuildRequestBodyMapsStandardFields(t *testing.T) {
 				t.Fatalf("Duration = %q, want %q", got, tt.wantDuration)
 			}
 		})
+	}
+}
+
+func TestResolveModelName(t *testing.T) {
+	tests := map[string]string{
+		"doubao-seedance-2.0":      "seedance-2.0-standard",
+		"doubao-seedance-2.0-fast": "seedance-2.0-fast",
+		"seedance-2.0-standard":    "seedance-2.0-standard",
+		"seedance-2.0-fast":        "seedance-2.0-fast",
+		"doubao-seedance-2.0-mini": "doubao-seedance-2.0-mini",
+	}
+	for input, want := range tests {
+		if got := ResolveModelName(input); got != want {
+			t.Fatalf("ResolveModelName(%q) = %q, want %q", input, got, want)
+		}
 	}
 }
 
