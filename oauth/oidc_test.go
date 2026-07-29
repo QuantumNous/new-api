@@ -17,6 +17,6 @@ func TestOIDCProvider_GetName(t *testing.T) {
 	settings.DisplayName = ""
 	assert.Equal(t, "OIDC", p.GetName())
 
-	settings.DisplayName = "Acme SSO"
+	settings.DisplayName = "  Acme SSO  "
 	assert.Equal(t, "Acme SSO", p.GetName())
 }

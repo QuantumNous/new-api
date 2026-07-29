@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +51,7 @@ func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, req.Stream)
 		require.True(t, *req.Stream)
-		require.True(t, req.IsStream(c))
+		require.True(t, req.IsStream(c.Request))
 
 		bodyAfterValidation, err := io.ReadAll(c.Request.Body)
 		require.NoError(t, err)
@@ -109,6 +109,16 @@ func TestGetAndValidOpenAIImageRequestNBounds(t *testing.T) {
 			wantN: dto.MaxImageN,
 		},
 		{
+			name:  "explicit n is accepted",
+			body:  `{"model":"gpt-image-1","prompt":"a cat","n":3}`,
+			wantN: 3,
+		},
+		{
+			name:  "zero n defaults to 1",
+			body:  `{"model":"gpt-image-1","prompt":"a cat","n":0}`,
+			wantN: 1,
+		},
+		{
 			name:  "absent n defaults to 1",
 			body:  `{"model":"gpt-image-1","prompt":"a cat"}`,
 			wantN: 1,
@@ -127,6 +137,7 @@ func TestGetAndValidOpenAIImageRequestNBounds(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, req.N)
 			require.Equal(t, tt.wantN, *req.N)
+			require.Equal(t, float64(tt.wantN), req.GetTokenCountMeta().BillingRatios["n"])
 		})
 	}
 
