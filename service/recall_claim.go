@@ -43,6 +43,8 @@ type RecallClaimService struct {
 	random io.Reader
 }
 
+const recallOfferCandidateServicePageSize = 500
+
 func NewRecallClaimService() *RecallClaimService {
 	return &RecallClaimService{
 		now:    time.Now,
@@ -171,43 +173,52 @@ func (s *RecallClaimService) ResolveBestRecallOffer(ctx context.Context, userID 
 	if !ok {
 		return nil, nil
 	}
-	candidates, err := model.ListRecallOfferCandidatesForUserWithContext(ctx, user.Id, strings.ToLower(strings.TrimSpace(user.Email)), s.now().Unix())
-	if err != nil {
-		return nil, err
-	}
-	resolved := make([]RecallResolvedOffer, 0, len(candidates))
-	for _, candidate := range candidates {
-		offer, err := s.recallOfferFromCandidate(ctx, candidate, false)
+	var best *RecallResolvedOffer
+	afterRecipientID := int64(0)
+	now := s.now().Unix()
+	for {
+		page, err := model.ListRecallOfferCandidatePageForUserWithContext(ctx, user.Id, strings.ToLower(strings.TrimSpace(user.Email)), now, afterRecipientID, recallOfferCandidateServicePageSize)
 		if err != nil {
-			if isSkippableRecallOfferCandidateError(err) {
-				logRecallOfferCandidateSkip(candidate, err)
-				continue
-			}
 			return nil, err
 		}
-		if !recallOfferAppliesToPrice(offer.View.Products, purchaseKind, priceID) {
-			continue
+		for _, candidate := range page.Candidates {
+			offer, err := s.recallOfferFromCandidate(ctx, candidate, false)
+			if err != nil {
+				if isSkippableRecallOfferCandidateError(err) {
+					logRecallOfferCandidateSkip(candidate, err)
+					continue
+				}
+				return nil, err
+			}
+			if !recallOfferAppliesToPrice(offer.View.Products, purchaseKind, priceID) {
+				continue
+			}
+			discountMinor := calculateRecallActualDiscountAmountMinor(offer.View.Discount, currency, subtotalMinor)
+			if discountMinor <= 0 {
+				continue
+			}
+			offer.DiscountMinor = discountMinor
+			if best == nil || recallResolvedOfferBeats(*offer, *best) {
+				selected := *offer
+				best = &selected
+			}
 		}
-		discountMinor := calculateRecallActualDiscountAmountMinor(offer.View.Discount, currency, subtotalMinor)
-		if discountMinor <= 0 {
-			continue
+		if !page.HasMore {
+			break
 		}
-		offer.DiscountMinor = discountMinor
-		resolved = append(resolved, *offer)
+		afterRecipientID = page.NextAfterRecipientID
 	}
-	if len(resolved) == 0 {
-		return nil, nil
+	return best, nil
+}
+
+func recallResolvedOfferBeats(candidate RecallResolvedOffer, current RecallResolvedOffer) bool {
+	if candidate.DiscountMinor != current.DiscountMinor {
+		return candidate.DiscountMinor > current.DiscountMinor
 	}
-	sort.SliceStable(resolved, func(i, j int) bool {
-		if resolved[i].DiscountMinor != resolved[j].DiscountMinor {
-			return resolved[i].DiscountMinor > resolved[j].DiscountMinor
-		}
-		if resolved[i].View.IssuedAt != resolved[j].View.IssuedAt {
-			return resolved[i].View.IssuedAt > resolved[j].View.IssuedAt
-		}
-		return resolved[i].View.RecipientID < resolved[j].View.RecipientID
-	})
-	return &resolved[0], nil
+	if candidate.View.IssuedAt != current.View.IssuedAt {
+		return candidate.View.IssuedAt > current.View.IssuedAt
+	}
+	return candidate.View.RecipientID < current.View.RecipientID
 }
 
 func (s *RecallClaimService) validateClaim(ctx context.Context, userID int, claim string) (*model.RecallClaimRecord, *RecallClaimView, error) {

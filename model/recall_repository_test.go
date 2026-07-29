@@ -252,6 +252,52 @@ func TestRecallOfferCandidatesApplyLimitOrderAndBindOnlySelectedEmailRows(t *tes
 	require.EqualValues(t, wantLimit, bound)
 }
 
+func TestRecallOfferCandidatePageScansPastDisplayLimit(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	const now int64 = 1_721_000_000
+	user := createRecallRepositoryCandidateUser(t, "offer_page", now-10_000, 0)
+	user.Email = "offer-page@example.com"
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("email", user.Email).Error)
+
+	promotionID := func(value string) *string { return &value }
+	for i := 0; i < recallOfferCandidateLimit+5; i++ {
+		campaign := newRecallRepositoryCampaign(fmt.Sprintf("offer-page-%03d", i))
+		campaign.Status = RecallCampaignRunning
+		campaign.CampaignType = RecallCampaignTypePromotion
+		require.NoError(t, CreateRecallCampaign(&campaign))
+		recipient := RecallRecipient{
+			CampaignId:            campaign.Id,
+			UserId:                user.Id,
+			EligibilitySnapshot:   `{}`,
+			EmailSnapshot:         user.Email,
+			LanguageSnapshot:      "en",
+			State:                 RecallRecipientContacting,
+			StripePromotionCodeId: promotionID(fmt.Sprintf("promo_page_%03d", i)),
+			PromotionCode:         fmt.Sprintf("FKPAGE%03d", i),
+			PromotionExpiresAt:    now + 3_600,
+			PromotionIssuedAt:     now - int64(i),
+		}
+		require.NoError(t, DB.Create(&recipient).Error)
+	}
+
+	displayCandidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), user.Id, user.Email, now)
+	require.NoError(t, err)
+	require.Len(t, displayCandidates, recallOfferCandidateLimit)
+
+	firstPage, err := ListRecallOfferCandidatePageForUserWithContext(context.Background(), user.Id, user.Email, now, 0, 60)
+	require.NoError(t, err)
+	require.Len(t, firstPage.Candidates, 60)
+	require.True(t, firstPage.HasMore)
+	require.NotZero(t, firstPage.NextAfterRecipientID)
+
+	secondPage, err := ListRecallOfferCandidatePageForUserWithContext(context.Background(), user.Id, user.Email, now, firstPage.NextAfterRecipientID, 60)
+	require.NoError(t, err)
+	require.Len(t, secondPage.Candidates, 45)
+	require.False(t, secondPage.HasMore)
+	require.Greater(t, secondPage.Candidates[0].Recipient.Id, firstPage.Candidates[len(firstPage.Candidates)-1].Recipient.Id)
+}
+
 func TestListRecallCandidateFactsNewAudiencePredicates(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 	require.NoError(t, DB.AutoMigrate(&TopUp{}, &SubscriptionOrder{}, &UserSubscription{}))

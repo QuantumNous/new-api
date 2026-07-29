@@ -283,6 +283,51 @@ func TestRecallClaimListOffersBatchHydratesSubscriptionPlans(t *testing.T) {
 	require.Equal(t, []int{20, 30}, offers[2].Products.SubscriptionPlanIDs)
 }
 
+func TestRecallResolveBestOfferScansPastDisplayLimitForHighestActualDiscount(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_000_000, 0).UTC()
+	user := model.User{Username: "recall-best-over-limit", AffCode: "recall-best-over-limit-aff", Password: "hash", Status: common.UserStatusEnabled, Email: "best-over-limit@example.com"}
+	require.NoError(t, db.Create(&user).Error)
+
+	createOffer := func(index int, issuedAt int64, percentOff float64) model.RecallRecipient {
+		t.Helper()
+		discountJSON, err := common.Marshal(RecallDiscountConfig{Type: "percent", PercentOff: percentOff})
+		require.NoError(t, err)
+		productsJSON, err := common.Marshal(RecallProductScope{SubscriptionPriceIDs: []string{"price_subscription"}})
+		require.NoError(t, err)
+		campaign := model.RecallCampaign{
+			Name: fmt.Sprintf("best-over-limit-%03d", index), Status: model.RecallCampaignRunning, CampaignType: model.RecallCampaignTypePromotion,
+			AudienceTemplate: "specified_users", AudienceConfig: `{}`, ExecutionMode: "manual", CouponSource: "automatic",
+			DiscountConfig: string(discountJSON), ProductScope: string(productsJSON), EmailSequenceConfig: `[]`,
+		}
+		require.NoError(t, db.Create(&campaign).Error)
+		promotionID := fmt.Sprintf("promo_best_over_limit_%03d", index)
+		recipient := model.RecallRecipient{
+			CampaignId: campaign.Id, UserId: user.Id, EligibilitySnapshot: `{}`, EmailSnapshot: user.Email,
+			LanguageSnapshot: "en", State: model.RecallRecipientContacting,
+			StripePromotionCodeId: &promotionID, PromotionCode: fmt.Sprintf("FKBEST%03d", index),
+			PromotionExpiresAt: now.Add(time.Hour).Unix(), PromotionIssuedAt: issuedAt,
+		}
+		require.NoError(t, db.Create(&recipient).Error)
+		return recipient
+	}
+
+	for i := 0; i < 100; i++ {
+		createOffer(i, now.Unix()-int64(i), 5)
+	}
+	bestRecipient := createOffer(100, now.Unix()-1_000, 50)
+
+	claimService := NewRecallClaimService()
+	claimService.now = func() time.Time { return now }
+	best, err := claimService.ResolveBestRecallOffer(context.Background(), user.Id, RecallPurchaseKindSubscription, "price_subscription", "USD", 10_000)
+
+	require.NoError(t, err)
+	require.NotNil(t, best)
+	require.Equal(t, bestRecipient.Id, best.View.RecipientID)
+	require.EqualValues(t, 5_000, best.DiscountMinor)
+}
+
 func TestRecallContentOnlyClaimValidationFailsClosedWithoutClick(t *testing.T) {
 	db := setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
