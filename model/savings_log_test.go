@@ -56,6 +56,7 @@ func TestGetSavingsLifetimeLogBatchUsesRelationalIDKeyset(t *testing.T) {
 }
 
 func TestGetSavingsLifetimeLogBatchUsesClickHouseCompositeKeyset(t *testing.T) {
+	// SQLite exercises the keyset predicate shape, not ClickHouse SQL compatibility.
 	setupSavingsLogTestDB(t)
 	common.SetLogDatabaseType(common.DatabaseTypeClickHouse)
 	logs := []Log{

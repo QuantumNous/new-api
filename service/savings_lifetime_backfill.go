@@ -80,9 +80,6 @@ func StartSavingsLifetimeBackfill() (*model.SystemTask, bool, error) {
 	if !savings_setting.LifetimeEnabled() {
 		return nil, false, errors.New("savings lifetime estimate is not enabled")
 	}
-	if err := model.CheckSavingsLifetimeSQLiteIntegrity(); err != nil {
-		return nil, false, err
-	}
 	target, total, err := model.GetSavingsLifetimeLogBoundary()
 	if err != nil {
 		return nil, false, err
@@ -146,9 +143,6 @@ func ResumeSavingsLifetimeBackfill(taskID string) (*model.SystemTask, error) {
 func RetrySavingsLifetimeBackfill(taskID string) (*model.SystemTask, error) {
 	task, err := savingsLifetimeBackfillTask(taskID)
 	if err != nil {
-		return nil, err
-	}
-	if err := model.CheckSavingsLifetimeSQLiteIntegrity(); err != nil {
 		return nil, err
 	}
 	retried, err := model.RetryFailedSystemTask(task.TaskID, model.SystemTaskTypeSavingsBackfill)
@@ -221,11 +215,13 @@ func GetUserSavingsLifetimeSummary(userID int) (*SavingsLifetimeSummary, error) 
 			summary.BackfillProgress = 1
 		}
 	}
-	pending, err := model.CountPendingSavingsLifetimeEvents()
-	if err != nil {
-		return nil, err
+	if summary.BackfillStatus == "completed" {
+		hasPending, err := model.HasPendingSavingsLifetimeEvents()
+		if err != nil {
+			return nil, err
+		}
+		summary.IsComplete = !hasPending
 	}
-	summary.IsComplete = summary.BackfillStatus == "completed" && pending == 0
 	return summary, nil
 }
 
@@ -236,6 +232,10 @@ func (savingsLifetimeBackfillHandler) Run(ctx context.Context, task *model.Syste
 		return
 	}
 	if err := validateSavingsLifetimeBackfillPayload(payload); err != nil {
+		finishSavingsLifetimeBackfill(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	if err := model.CheckSavingsLifetimeSQLiteIntegrity(ctx); err != nil {
 		finishSavingsLifetimeBackfill(task, runnerID, model.SystemTaskStatusFailed, nil, err)
 		return
 	}
@@ -397,18 +397,16 @@ func buildSavingsLifetimeBackfillEvent(row *model.SavingsLifetimeLogRow, estimat
 		return event, false, nil
 	}
 	estimate := result.Estimate
-	amountMicros, err := savingsLifetimeAmountMicros(int64(estimate.SavingsQuota), payload.QuotaPerUnit, payload.USDCNYRateMicros)
-	if err != nil {
-		return model.SavingsLifetimeEvent{}, false, err
-	}
-	if estimate.SavingsCNYMicros != "" && estimate.QuotaPerUnit > 0 && estimate.USDCNYRateMicros > 0 {
-		if frozen, parseErr := strconv.ParseInt(estimate.SavingsCNYMicros, 10, 64); parseErr == nil {
-			amountMicros = frozen
-			event.QuotaPerUnitSnapshot = estimate.QuotaPerUnit
-			event.USDCNYRateMicros = estimate.USDCNYRateMicros
+	amountMicros, frozenUsed := savingsLifetimeFrozenAmount(estimate)
+	if frozenUsed {
+		event.QuotaPerUnitSnapshot = estimate.QuotaPerUnit
+		event.USDCNYRateMicros = estimate.USDCNYRateMicros
+	} else {
+		converted, err := savingsLifetimeAmountMicros(int64(estimate.SavingsQuota), payload.QuotaPerUnit, payload.USDCNYRateMicros)
+		if err != nil {
+			return model.SavingsLifetimeEvent{}, false, err
 		}
-	}
-	if event.QuotaPerUnitSnapshot == 0 {
+		amountMicros = converted
 		event.QuotaPerUnitSnapshot = payload.QuotaPerUnit
 		event.USDCNYRateMicros = payload.USDCNYRateMicros
 	}

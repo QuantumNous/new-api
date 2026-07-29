@@ -3,6 +3,7 @@ package service
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"math"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -130,6 +131,128 @@ func TestGetUserSavingsLifetimeSummarySeparatesFeatureAndPlacementFlags(t *testi
 	assert.True(t, summary.ShowOnWallet)
 	assert.Equal(t, "12345678", summary.SavingsCNYMicros)
 	assert.Equal(t, 0.75, summary.CoverageRatio)
+}
+
+func TestGetUserSavingsLifetimeSummarySkipsPendingLookupBeforeBackfillCompletes(t *testing.T) {
+	setupSavingsLifetimeServiceTest(t)
+	require.NoError(t, model.DB.Migrator().DropTable(&model.SavingsLifetimeEvent{}))
+
+	summary, err := GetUserSavingsLifetimeSummary(7)
+
+	require.NoError(t, err)
+	assert.Equal(t, "not_started", summary.BackfillStatus)
+	assert.False(t, summary.IsComplete)
+}
+
+func TestGetUserSavingsLifetimeSummaryChecksPendingEventsAfterBackfillCompletes(t *testing.T) {
+	setupSavingsLifetimeServiceTest(t)
+	require.NoError(t, model.DB.Create(&model.SystemTask{
+		TaskID: "systask_savings_complete",
+		Type:   model.SystemTaskTypeSavingsBackfill,
+		Status: model.SystemTaskStatusSucceeded,
+	}).Error)
+
+	summary, err := GetUserSavingsLifetimeSummary(7)
+	require.NoError(t, err)
+	assert.True(t, summary.IsComplete)
+
+	require.NoError(t, model.DB.Create(&model.SavingsLifetimeEvent{
+		EventKey: "log:pending:base",
+	}).Error)
+	summary, err = GetUserSavingsLifetimeSummary(7)
+
+	require.NoError(t, err)
+	assert.False(t, summary.IsComplete)
+}
+
+func TestBuildSavingsLifetimeBackfillEventPrefersFrozenCurrencySnapshot(t *testing.T) {
+	estimate := SavingsEstimate{
+		SchemaVersion:    savingsEstimateSchemaVersion,
+		OfficialQuota:    3,
+		ActualQuota:      1,
+		SavingsQuota:     2,
+		SavingsCNYMicros: "123",
+		QuotaPerUnit:     500_000,
+		USDCNYRateMicros: 7_250_000,
+	}
+	row := &model.SavingsLifetimeLogRow{
+		Id:        1,
+		UserId:    7,
+		CreatedAt: 1_785_081_610,
+		Other: common.MapToJsonStr(map[string]any{
+			"savings_estimate": estimate,
+		}),
+	}
+	payload := SavingsLifetimeBackfillPayload{
+		QuotaPerUnit:     1,
+		USDCNYRateMicros: math.MaxInt64,
+	}
+
+	event, estimated, err := buildSavingsLifetimeBackfillEvent(row, savingsLogEstimator{}, payload)
+
+	require.NoError(t, err)
+	assert.True(t, estimated)
+	assert.Equal(t, int64(123), event.SavingsCNYMicros)
+	assert.Equal(t, estimate.QuotaPerUnit, event.QuotaPerUnitSnapshot)
+	assert.Equal(t, estimate.USDCNYRateMicros, event.USDCNYRateMicros)
+}
+
+func TestBuildSavingsLifetimeBackfillEventRejectsNegativeFrozenAmount(t *testing.T) {
+	estimate := SavingsEstimate{
+		SchemaVersion:    savingsEstimateSchemaVersion,
+		OfficialQuota:    3,
+		ActualQuota:      1,
+		SavingsQuota:     2,
+		SavingsCNYMicros: "-123",
+		QuotaPerUnit:     500_000,
+		USDCNYRateMicros: 7_250_000,
+	}
+	row := &model.SavingsLifetimeLogRow{
+		Id:        2,
+		UserId:    7,
+		CreatedAt: 1_785_081_620,
+		Other: common.MapToJsonStr(map[string]any{
+			"savings_estimate": estimate,
+		}),
+	}
+	payload := SavingsLifetimeBackfillPayload{
+		QuotaPerUnit:     500_000,
+		USDCNYRateMicros: 7_250_000,
+	}
+
+	event, estimated, err := buildSavingsLifetimeBackfillEvent(row, savingsLogEstimator{}, payload)
+
+	require.NoError(t, err)
+	assert.True(t, estimated)
+	assert.Equal(t, int64(29), event.SavingsCNYMicros)
+	assert.Equal(t, payload.QuotaPerUnit, event.QuotaPerUnitSnapshot)
+	assert.Equal(t, payload.USDCNYRateMicros, event.USDCNYRateMicros)
+}
+
+func TestBuildSavingsLifetimeEventRejectsNegativeFrozenAmount(t *testing.T) {
+	estimate := SavingsEstimate{
+		SchemaVersion:    savingsEstimateSchemaVersion,
+		OfficialQuota:    3,
+		ActualQuota:      1,
+		SavingsQuota:     2,
+		SavingsCNYMicros: "-123",
+		QuotaPerUnit:     500_000,
+		USDCNYRateMicros: 7_250_000,
+	}
+	event, ok := buildSavingsLifetimeEvent(&model.Log{
+		Id:        3,
+		UserId:    7,
+		CreatedAt: 1_785_081_630,
+		Other: common.MapToJsonStr(map[string]any{
+			"savings_aggregation_key": "savg_negative",
+			"savings_estimate":        estimate,
+		}),
+	})
+
+	assert.True(t, ok)
+	assert.Equal(t, model.SavingsLifetimeCoverageSkipped, event.CoverageState)
+	assert.Equal(t, SavingsSkipInvalidSnapshot, event.SkipReason)
+	assert.Zero(t, event.SavingsCNYMicros)
 }
 
 func TestValidateSavingsLifetimeBackfillPayloadRejectsChangedSnapshot(t *testing.T) {

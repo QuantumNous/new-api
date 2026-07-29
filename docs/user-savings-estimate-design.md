@@ -6,6 +6,7 @@
 > 累计扩展确认日期：2026-07-29
 > 相关页面：用户概览、钱包、用量日志、模型广场
 > 相关模块：`model/pricing.go`、`controller/pricing.go`、`service/text_quota.go`、`model/log.go`、`web/src/features/pricing/**`、`web/src/features/dashboard/**`、`web/src/features/usage-logs/**`
+> 后续 UI 改造：`docs/user-savings-summary-ui-redesign.md`
 
 ## 1. 背景
 
@@ -223,6 +224,7 @@ savings_ratio = savings_quota / estimated_official_quota
 配置原则：
 
 - 默认关闭，只有官方定价快照和展示文案确认后再开启。
+- `enabled=true` 时必须同时满足 `require_official_confirmation=true`；服务端拒绝保存其他组合，管理设置需先关闭整个节省功能才能关闭官方确认要求。
 - 关闭时不计算、不展示；已写入的历史 `savings_estimate` 仍保留在日志中，但前端不展示。
 - `local_pricing_official_confirmed=true` 同时表示允许读取 `model.GetPricing()`，也是管理员对当前实例本地基础定价来源的明确声明；默认开启。关闭后本地价格不得参与估算或“官方定价”文案。
 - `rebuild_legacy_logs=true` 时回算缺少快照的已有消费日志；关闭后只聚合新日志快照。
@@ -646,14 +648,14 @@ type SavingsSummary = {
 
 ### 8.2 钱包页
 
-钱包页展示后置到累计聚合完成后。只有当后台回算状态为 `completed` 且长期累计值可靠时，才在充值主流程附近展示累计节省：
+钱包页可以在累计聚合期间展示已处理的部分金额，但必须明确标记为“累计统计中”或“已统计节省”。只有当后台回算状态为 `completed` 且长期累计值可靠时，才使用最终累计口径：
 
 ```text
 累计估算节省：¥1,284.90
 自 2024-03-12 开始统计 · 覆盖率 91%
 ```
 
-用途是增强用户充值前的价值感知，但不能遮挡充值金额、到账金额和支付方式。累计回算未完成时只能展示“累计统计中”或“已统计节省”，不能把部分结果标成最终累计值；金额仍需明确为估算，不得表述为现金返还或付款差额。
+用途是增强用户充值前的价值感知，但不能遮挡充值金额、到账金额和支付方式。累计回算未完成时，部分金额必须同时展示未完成状态或进度，不能标成最终累计值；金额仍需明确为估算，不得表述为现金返还或付款差额。
 
 ### 8.3 用量日志
 

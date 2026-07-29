@@ -33,6 +33,7 @@ import {
   retrySavingsLifetimeBackfill,
   startSavingsLifetimeBackfill,
 } from '../api'
+import { invalidateSavingsLifetimeQueries } from '../lib/savings-lifetime-query'
 import type { SavingsLifetimeBackfillTask } from '../types'
 
 const QUERY_KEY = ['system-settings', 'savings-lifetime-backfill'] as const
@@ -87,6 +88,7 @@ export function SavingsLifetimeBackfill(props: SavingsLifetimeBackfillProps) {
         message: '',
         data: response.data.task,
       })
+      void invalidateSavingsLifetimeQueries(queryClient)
       toast.success(
         response.data.created
           ? t('Historical savings backfill started')
@@ -105,6 +107,7 @@ export function SavingsLifetimeBackfill(props: SavingsLifetimeBackfillProps) {
         return
       }
       queryClient.setQueryData(QUERY_KEY, response)
+      void invalidateSavingsLifetimeQueries(queryClient)
       toast.success(t('Historical savings backfill pause requested'))
     },
     onError: () => toast.error(t('Failed to pause historical backfill')),
@@ -119,6 +122,7 @@ export function SavingsLifetimeBackfill(props: SavingsLifetimeBackfillProps) {
         return
       }
       queryClient.setQueryData(QUERY_KEY, response)
+      void invalidateSavingsLifetimeQueries(queryClient)
       toast.success(t('Historical savings backfill resumed'))
     },
     onError: () => toast.error(t('Failed to resume historical backfill')),
@@ -133,6 +137,7 @@ export function SavingsLifetimeBackfill(props: SavingsLifetimeBackfillProps) {
         return
       }
       queryClient.setQueryData(QUERY_KEY, response)
+      void invalidateSavingsLifetimeQueries(queryClient)
       toast.success(t('Historical savings backfill retry started'))
     },
     onError: () => toast.error(t('Failed to retry historical backfill')),

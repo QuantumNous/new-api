@@ -1,6 +1,7 @@
 package savings_setting
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -221,6 +222,9 @@ func copySetting(src Setting) Setting {
 }
 
 func normalizeSetting(s *Setting) error {
+	if s.Enabled && !s.RequireOfficialConfirmation {
+		return errors.New("require_official_confirmation must be enabled when savings estimates are enabled")
+	}
 	if s.OfficialPriceStaleDays <= 0 {
 		s.OfficialPriceStaleDays = defaultOfficialPriceStaleDays
 	}

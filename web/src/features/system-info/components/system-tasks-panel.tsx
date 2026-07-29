@@ -33,6 +33,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  isActiveStatus,
+  isPollingStatus,
+} from '@/features/system-info/lib/system-task-status'
 import { listSystemTasks } from '@/features/system-settings/api'
 import type {
   SystemTask,
@@ -99,21 +103,6 @@ const TYPE_LABEL: Record<string, string> = {
 
 const TYPE_DISPLAY_ID: Record<string, string> = {
   midjourney_poll: 'drawing_task_poll',
-}
-
-function isActiveStatus(status: SystemTaskStatus) {
-  return (
-    status === 'pending' ||
-    status === 'running' ||
-    status === 'pause_requested' ||
-    status === 'paused'
-  )
-}
-
-function isPollingStatus(status: SystemTaskStatus) {
-  return (
-    status === 'pending' || status === 'running' || status === 'pause_requested'
-  )
 }
 
 function getProgress(task: SystemTask): number | null {
@@ -251,7 +240,7 @@ export function SystemTasksPanel() {
   const tasks = tasksQuery.data ?? []
   const loading = tasksQuery.isLoading
   const refreshing = tasksQuery.isFetching && !tasksQuery.isLoading
-  const hasActiveTasks = tasks.some((task) => isActiveStatus(task.status))
+  const hasPollingTasks = tasks.some((task) => isPollingStatus(task.status))
   const activeTasks = tasks.filter((task) => isActiveStatus(task.status))
   const historyTasks = tasks.filter((task) => !isActiveStatus(task.status))
   let content
@@ -362,11 +351,11 @@ export function SystemTasksPanel() {
             <span
               className={cn(
                 'size-1.5 rounded-full',
-                hasActiveTasks ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+                hasPollingTasks ? 'bg-emerald-500' : 'bg-muted-foreground/40'
               )}
               aria-hidden='true'
             />
-            {hasActiveTasks
+            {hasPollingTasks
               ? t('Auto-refreshing every {{seconds}}s', {
                   seconds: ACTIVE_POLL_INTERVAL_MS / 1000,
                 })

@@ -16,9 +16,53 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { SavingsLifetimeSummary } from '@/features/dashboard/types'
+
 const SAVINGS_WINDOW_SECONDS = 24 * 60 * 60
 const SECONDS_PER_MINUTE = 60
 const CNY_MICROS_PER_YUAN = 1_000_000n
+
+export type SavingsLifetimeViewState =
+  | 'complete'
+  | 'empty'
+  | 'failed'
+  | 'no_estimates'
+  | 'not_started'
+  | 'paused'
+  | 'processing'
+
+export function getLifetimeSavingsViewState(
+  summary: SavingsLifetimeSummary
+): SavingsLifetimeViewState {
+  if (summary.backfill_status === 'failed') return 'failed'
+  if (summary.request_count <= 0) return 'empty'
+
+  if (summary.is_complete) {
+    return summary.estimated_request_count > 0 ? 'complete' : 'no_estimates'
+  }
+
+  if (
+    summary.backfill_status === 'pause_requested' ||
+    summary.backfill_status === 'paused'
+  ) {
+    return 'paused'
+  }
+  if (summary.backfill_status === 'not_started') return 'not_started'
+  return 'processing'
+}
+
+export function formatSavingsPercent(
+  value: number,
+  locales?: Intl.LocalesArgument,
+  maximumFractionDigits = 0
+): string {
+  if (!Number.isFinite(value) || value < 0 || value > 1) return '-'
+
+  return new Intl.NumberFormat(locales, {
+    style: 'percent',
+    maximumFractionDigits,
+  }).format(value)
+}
 
 export function getRollingSavingsTimeRange(nowMs = Date.now()): {
   start_timestamp: number

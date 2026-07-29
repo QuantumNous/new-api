@@ -22,9 +22,11 @@ import {
   ArrowRight,
   ArrowUpRight,
   BadgeDollarSign,
+  Clock,
   Flame,
+  Info,
+  RefreshCw,
   ShieldCheck,
-  Sparkles,
   TrendingDown,
 } from 'lucide-react'
 import { useMemo } from 'react'
@@ -46,10 +48,14 @@ import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-
 import {
   formatSavingsQuotaAsCNY,
   formatSavingsCNYMicros,
+  formatSavingsPercent,
   getRollingSavingsTimeRange,
+  getLifetimeSavingsViewState,
 } from '@/features/dashboard/lib/savings'
+import { savingsQueryKeys } from '@/features/dashboard/lib/savings-query-keys'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { useStatus } from '@/hooks/use-status'
+import { toIntlLocale } from '@/i18n/languages'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota, formatTimestampToDate } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
@@ -58,6 +64,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { StatCard } from '../ui/stat-card'
+import { summaryCardsLayoutClasses } from './summary-cards-layout'
 
 const SUMMARY_SPARKLINE_BUCKETS = 12
 
@@ -160,7 +167,8 @@ const HEALTH_CONFIG: Record<
 }
 
 export function SummaryCards() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const user = useAuthStore((state) => state.auth.user)
   const currency = useSystemConfigStore((state) => state.config.currency)
   const { status, loading } = useStatus()
@@ -195,7 +203,7 @@ export function SummaryCards() {
   })
 
   const savingsLifetimeQuery = useQuery({
-    queryKey: ['dashboard', 'overview', 'savings-lifetime'],
+    queryKey: savingsQueryKeys.lifetime,
     queryFn: getUserSavingsLifetime,
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
@@ -256,46 +264,87 @@ export function SummaryCards() {
       : formatSavingsQuotaAsCNY(
           savingsSummary.savings_quota,
           currency.quotaPerUnit,
-          currency.usdExchangeRate
+          currency.usdExchangeRate,
+          locale
         )
   const reconstructedSavingsCount =
     savingsSummary?.reconstructed_request_count ?? 0
-  const showSavingsSummary = savingsSummary != null
+  const showSavingsSummary = savingsSummary?.enabled === true
   const savingsLifetime = savingsLifetimeQuery.data?.data
   const showSavingsLifetime =
     savingsLifetime?.enabled === true &&
     savingsLifetime.show_on_dashboard === true
   const lifetimeAmountDisplay = showSavingsLifetime
-    ? formatSavingsCNYMicros(savingsLifetime.savings_cny_micros)
+    ? formatSavingsCNYMicros(savingsLifetime.savings_cny_micros, locale)
     : ''
   const lifetimeCoverageDisplay = showSavingsLifetime
-    ? Intl.NumberFormat(undefined, {
-        style: 'percent',
-        maximumFractionDigits: 0,
-      }).format(savingsLifetime.coverage_ratio)
+    ? formatSavingsPercent(savingsLifetime.coverage_ratio, locale)
     : ''
+  const lifetimeState = showSavingsLifetime
+    ? getLifetimeSavingsViewState(savingsLifetime)
+    : null
+  const hasLifetimeAmount = Boolean(
+    showSavingsLifetime && savingsLifetime.estimated_request_count > 0
+  )
+  const hasPositiveLifetimeSavings = Boolean(
+    showSavingsLifetime && /^[1-9]\d*$/.test(savingsLifetime.savings_cny_micros)
+  )
+  const lifetimeTitle =
+    lifetimeState === 'complete' ||
+    lifetimeState === 'empty' ||
+    lifetimeState === 'no_estimates'
+      ? t('Lifetime savings')
+      : t('Lifetime savings counted so far')
+  let lifetimeValue = lifetimeAmountDisplay
   let lifetimeDescription = ''
-  if (showSavingsLifetime) {
-    if (savingsLifetime.backfill_status === 'failed') {
-      lifetimeDescription = t('Historical savings backfill failed')
-    } else if (!savingsLifetime.is_complete) {
-      lifetimeDescription = t(
-        'Counted so far · {{coverage}} coverage · {{progress}} backfilled',
-        {
-          coverage: lifetimeCoverageDisplay,
-          progress: Intl.NumberFormat(undefined, {
-            style: 'percent',
-            maximumFractionDigits: 0,
-          }).format(savingsLifetime.backfill_progress),
-        }
-      )
-    } else if (savingsLifetime.statistics_started_at > 0) {
+  if (showSavingsLifetime && lifetimeState) {
+    const coverageText =
+      lifetimeCoverageDisplay === '-'
+        ? `${t('Coverage')}: -`
+        : t('{{coverage}} coverage', {
+            coverage: lifetimeCoverageDisplay,
+          })
+
+    if (!hasLifetimeAmount) {
+      if (lifetimeState === 'empty') {
+        lifetimeValue = t('No lifetime savings records yet')
+      } else if (lifetimeState === 'failed') {
+        lifetimeValue = t('Historical savings backfill failed')
+      } else {
+        lifetimeValue = t('No eligible savings records yet')
+      }
+    }
+
+    if (
+      lifetimeState === 'complete' &&
+      savingsLifetime.statistics_started_at > 0
+    ) {
       lifetimeDescription = t('Since {{date}} · {{coverage}} coverage', {
         date: formatTimestampToDate(savingsLifetime.statistics_started_at),
         coverage: lifetimeCoverageDisplay,
       })
-    } else {
-      lifetimeDescription = t('No lifetime savings records yet')
+    } else if (lifetimeState === 'complete') {
+      lifetimeDescription = coverageText
+    } else if (lifetimeState === 'no_estimates') {
+      lifetimeDescription = coverageText
+    } else if (lifetimeState === 'failed') {
+      lifetimeDescription = savingsLifetime.request_count
+        ? `${coverageText} · ${t(
+            'Historical savings backfill failed; results are incomplete.'
+          )}`
+        : t('Historical savings backfill failed; results are incomplete.')
+    } else if (lifetimeState === 'paused') {
+      lifetimeDescription = `${coverageText} · ${t(
+        'System historical data counting is paused'
+      )}`
+    } else if (lifetimeState === 'not_started') {
+      lifetimeDescription = savingsLifetime.request_count
+        ? `${coverageText} · ${t('Historical usage has not been backfilled')}`
+        : t('Historical usage has not been backfilled')
+    } else if (lifetimeState === 'processing') {
+      lifetimeDescription = `${coverageText} · ${t(
+        'System historical data is being counted'
+      )}`
     }
   }
   const hasPositiveSavings =
@@ -304,26 +353,21 @@ export function SummaryCards() {
     savingsSummary.savings_quota > 0
   const savingsCoverageDisplay =
     savingsSummary != null
-      ? Intl.NumberFormat(undefined, {
-          style: 'percent',
-          maximumFractionDigits: 0,
-        }).format(savingsSummary.coverage_ratio)
+      ? formatSavingsPercent(savingsSummary.coverage_ratio, locale)
       : ''
-  let savingsSummaryDescription = t('Estimated from official pricing')
+  let savingsSummaryDescription = ''
   if (savingsSummary) {
-    if (!savingsSummary.enabled) {
-      savingsSummaryDescription = t('Savings estimate is not enabled')
-    } else if (savingsSummary.is_partial) {
+    if (savingsSummary.is_partial) {
       savingsSummaryDescription = t('Too many records to summarize')
     } else if (savingsSummary.estimated_request_count === 0) {
       savingsSummaryDescription = t('No eligible savings records yet')
     } else {
-      savingsSummaryDescription = `${t('Estimated from official pricing')} · ${t(
-        '{{coverage}} coverage',
-        {
-          coverage: savingsCoverageDisplay,
-        }
-      )}`
+      savingsSummaryDescription =
+        savingsCoverageDisplay === '-'
+          ? `${t('Coverage')}: -`
+          : t('{{coverage}} coverage', {
+              coverage: savingsCoverageDisplay,
+            })
     }
   }
   if (
@@ -332,9 +376,24 @@ export function SummaryCards() {
     reconstructedSavingsCount > 0
   ) {
     savingsSummaryDescription = `${savingsSummaryDescription} · ${t(
-      '{{count}} historical requests recalculated at current official prices',
+      'Historical requests recalculated at current official prices: {{count}}',
       { count: reconstructedSavingsCount }
     )}`
+  }
+  const hasSavingsSummaryAmount = Boolean(
+    showSavingsSummary &&
+    !savingsSummary.is_partial &&
+    savingsSummary.estimated_request_count > 0
+  )
+  const savingsRefreshFailed = Boolean(
+    (showSavingsSummary && savingsSummaryQuery.isRefetchError) ||
+    (showSavingsLifetime && savingsLifetimeQuery.isRefetchError)
+  )
+  let primarySavingsValue = '-'
+  if (showSavingsLifetime) {
+    primarySavingsValue = lifetimeValue
+  } else if (hasSavingsSummaryAmount) {
+    primarySavingsValue = savingsAmountDisplay
   }
   let runwayDisplay: string
   if (runwayDays !== null) {
@@ -376,8 +435,8 @@ export function SummaryCards() {
 
   return (
     <div className='bg-card overflow-hidden rounded-lg border shadow-xs'>
-      <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
-        <div className='flex flex-col gap-2.5 p-3 sm:gap-3 sm:p-5'>
+      <div className={summaryCardsLayoutClasses.grid}>
+        <div className={summaryCardsLayoutClasses.usage}>
           <div className='flex flex-wrap items-start justify-between gap-3'>
             <div className='flex flex-col gap-1'>
               <h3 className='text-sm font-semibold sm:text-base'>
@@ -407,7 +466,7 @@ export function SummaryCards() {
           </StaggerContainer>
         </div>
 
-        <div className='bg-muted/40 flex flex-col justify-between gap-3 border-t p-3 sm:gap-4 sm:p-5 xl:border-t-0 xl:border-l'>
+        <div className={summaryCardsLayoutClasses.account}>
           <div className='flex flex-col gap-2 sm:gap-3'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-xs font-medium'>
@@ -464,98 +523,6 @@ export function SummaryCards() {
                 </div>
               </div>
             </div>
-
-            {(showSavingsSummary || showSavingsLifetime) && (
-              <div className='bg-background rounded-md border px-2.5 py-2'>
-                {showSavingsSummary && savingsSummary && (
-                  <div>
-                    <div
-                      className={cn(
-                        'flex items-start justify-between gap-2 text-xs leading-snug font-semibold',
-                        hasPositiveSavings ? 'text-success' : 'text-foreground'
-                      )}
-                    >
-                      <div className='flex min-w-0 items-center gap-1'>
-                        <BadgeDollarSign
-                          className='size-3.5 shrink-0'
-                          aria-hidden='true'
-                        />
-                        <span className='min-w-0'>
-                          {hasPositiveSavings
-                            ? t(
-                                'In the last 24 hours, RAPI saved you about {{amount}}',
-                                { amount: savingsAmountDisplay }
-                              )
-                            : `${t('Last 24h savings estimate')}: ${savingsAmountDisplay}`}
-                        </span>
-                      </div>
-                      {savingsSummary.enabled && (
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Link
-                                to='/dashboard/$section'
-                                params={{ section: 'models' }}
-                                className='text-muted-foreground hover:text-foreground inline-flex shrink-0'
-                                aria-label={t('View savings trend')}
-                              />
-                            }
-                          >
-                            <ArrowUpRight
-                              className='size-3.5'
-                              aria-hidden='true'
-                            />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t('View savings trend')}
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </div>
-                    <div className='text-muted-foreground mt-1 text-[11px] leading-snug'>
-                      {savingsSummaryDescription}
-                    </div>
-                    {savingsSummary.official_price_stale &&
-                      savingsSummary.source_updated_at > 0 && (
-                        <div className='text-warning mt-1 text-[11px] leading-snug'>
-                          {t('Official price updated {{time}}', {
-                            time: formatTimestampToDate(
-                              savingsSummary.source_updated_at
-                            ),
-                          })}
-                        </div>
-                      )}
-                  </div>
-                )}
-                {showSavingsLifetime && (
-                  <div
-                    className={cn(
-                      'flex min-w-0 items-start gap-1',
-                      showSavingsSummary && 'mt-2 border-t pt-2'
-                    )}
-                  >
-                    <Sparkles
-                      className='text-success mt-0.5 size-3.5 shrink-0'
-                      aria-hidden='true'
-                    />
-                    <div className='min-w-0'>
-                      <div className='text-success text-xs leading-snug font-semibold break-words'>
-                        {savingsLifetime.is_complete
-                          ? t('RAPI has saved you about {{amount}} in total', {
-                              amount: lifetimeAmountDisplay,
-                            })
-                          : t('Lifetime savings counted so far: {{amount}}', {
-                              amount: lifetimeAmountDisplay,
-                            })}
-                      </div>
-                      <div className='text-muted-foreground mt-1 text-[11px] leading-snug'>
-                        {lifetimeDescription}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           <Button className='justify-between' render={<Link to='/wallet' />}>
@@ -563,6 +530,190 @@ export function SummaryCards() {
             <ArrowRight data-icon='inline-end' />
           </Button>
         </div>
+
+        {(showSavingsSummary || showSavingsLifetime) && (
+          <div className={summaryCardsLayoutClasses.savings}>
+            <div className='grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,0.65fr)] lg:items-end lg:gap-6'>
+              <div className='min-w-0'>
+                <div className='flex min-w-0 items-start justify-between gap-2'>
+                  <div className='text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs font-medium'>
+                    <BadgeDollarSign
+                      className='text-success size-3.5 shrink-0'
+                      aria-hidden='true'
+                    />
+                    <span>
+                      {showSavingsLifetime
+                        ? lifetimeTitle
+                        : t('Last 24h savings estimate')}
+                    </span>
+                  </div>
+                  {showSavingsSummary && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Link
+                            to='/dashboard/$section'
+                            params={{ section: 'models' }}
+                            className='text-muted-foreground hover:text-foreground inline-flex shrink-0 lg:hidden'
+                            aria-label={t('View savings trend')}
+                          />
+                        }
+                      >
+                        <ArrowUpRight className='size-3.5' aria-hidden='true' />
+                      </TooltipTrigger>
+                      <TooltipContent>{t('View savings trend')}</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+
+                <div
+                  className={cn(
+                    'text-foreground mt-2 font-mono text-lg font-bold break-all tabular-nums sm:text-xl',
+                    (showSavingsLifetime
+                      ? hasPositiveLifetimeSavings
+                      : hasPositiveSavings) && 'text-success',
+                    showSavingsLifetime &&
+                      !hasLifetimeAmount &&
+                      'text-muted-foreground font-sans text-xs font-medium sm:text-sm'
+                  )}
+                >
+                  {primarySavingsValue}
+                </div>
+
+                {(showSavingsLifetime
+                  ? lifetimeDescription
+                  : savingsSummaryDescription) && (
+                  <div
+                    className={cn(
+                      'text-muted-foreground mt-1 text-[11px] leading-snug',
+                      showSavingsLifetime &&
+                        (lifetimeState === 'failed' ||
+                          lifetimeState === 'paused') &&
+                        'text-warning'
+                    )}
+                  >
+                    {showSavingsLifetime
+                      ? lifetimeDescription
+                      : savingsSummaryDescription}
+                  </div>
+                )}
+              </div>
+
+              <div className='min-w-0 space-y-2 lg:border-l lg:pl-5'>
+                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-snug lg:justify-end'>
+                  <span>{t('Estimated from official public pricing')}</span>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type='button'
+                          className='hover:text-foreground inline-flex shrink-0'
+                          aria-label={t('About official pricing estimates')}
+                        />
+                      }
+                    >
+                      <Info className='size-3' aria-hidden='true' />
+                    </TooltipTrigger>
+                    <TooltipContent className='max-w-72'>
+                      {t(
+                        'Official prices are confirmed snapshots from the model marketplace; estimates are for cost comparison only.'
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                  {showSavingsSummary && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Link
+                            to='/dashboard/$section'
+                            params={{ section: 'models' }}
+                            className='text-muted-foreground hover:text-foreground ml-1 hidden shrink-0 lg:inline-flex'
+                            aria-label={t('View savings trend')}
+                          />
+                        }
+                      >
+                        <ArrowUpRight className='size-3.5' aria-hidden='true' />
+                      </TooltipTrigger>
+                      <TooltipContent>{t('View savings trend')}</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+
+                {showSavingsLifetime &&
+                  showSavingsSummary &&
+                  savingsSummary && (
+                    <div>
+                      <div className='flex min-w-0 items-center justify-between gap-3 text-xs lg:justify-end'>
+                        <span className='text-muted-foreground flex min-w-0 items-center gap-1.5'>
+                          <Clock
+                            className='size-3.5 shrink-0'
+                            aria-hidden='true'
+                          />
+                          <span>{t('Last 24 hours')}</span>
+                        </span>
+                        <strong
+                          className={cn(
+                            'text-foreground shrink-0 font-mono tabular-nums',
+                            hasPositiveSavings && 'text-success'
+                          )}
+                        >
+                          {hasSavingsSummaryAmount ? savingsAmountDisplay : '-'}
+                        </strong>
+                      </div>
+                      {savingsSummaryDescription && (
+                        <div className='text-muted-foreground mt-1 text-[11px] leading-snug lg:text-right'>
+                          {savingsSummaryDescription}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                {showSavingsSummary &&
+                  savingsSummary?.official_price_stale &&
+                  savingsSummary.source_updated_at > 0 && (
+                    <div className='text-warning text-[11px] leading-snug lg:text-right'>
+                      {t('Official price updated {{time}}', {
+                        time: formatTimestampToDate(
+                          savingsSummary.source_updated_at
+                        ),
+                      })}
+                    </div>
+                  )}
+
+                {savingsRefreshFailed && (
+                  <div className='text-warning flex items-center gap-1 text-[11px] lg:justify-end'>
+                    <span>{t('Savings data update failed')}</span>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='icon-sm'
+                            onClick={() => {
+                              if (showSavingsSummary) {
+                                void savingsSummaryQuery.refetch()
+                              }
+                              if (showSavingsLifetime) {
+                                void savingsLifetimeQuery.refetch()
+                              }
+                            }}
+                            aria-label={t('Reload savings data')}
+                          />
+                        }
+                      >
+                        <RefreshCw aria-hidden='true' />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t('Reload savings data')}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

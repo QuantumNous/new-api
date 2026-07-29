@@ -89,7 +89,13 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
 
   const updateBoolean = useCallback(
     (key: BooleanSettingKey, checked: boolean) => {
-      setSetting((current) => ({ ...current, [key]: checked }))
+      setSetting((current) => ({
+        ...current,
+        [key]: checked,
+        ...(key === 'enabled' && checked
+          ? { require_official_confirmation: true }
+          : {}),
+      }))
     },
     []
   )
@@ -128,6 +134,17 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
       editMode === 'visual' ? setting : parseSavingsSetting(jsonText)
     if (!currentSetting) {
       toast.error(validationMessage)
+      return
+    }
+    if (
+      currentSetting.enabled &&
+      !currentSetting.require_official_confirmation
+    ) {
+      toast.error(
+        t(
+          'Official price confirmation is required while savings estimates are enabled.'
+        )
+      )
       return
     }
 
@@ -230,8 +247,11 @@ export const SavingsEstimateSettings = memo(function SavingsEstimateSettings({
                 }
                 label={t('Require official price confirmation')}
                 description={t(
-                  'Exclude prices that have not been confirmed as official.'
+                  setting.enabled
+                    ? 'Required while savings estimates are enabled.'
+                    : 'Exclude prices that have not been confirmed as official.'
                 )}
+                disabled={setting.enabled}
               />
               <SettingsSwitchRow className='py-3'>
                 <div className='min-w-0 space-y-0.5'>

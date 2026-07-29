@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"math"
 	"testing"
 
@@ -143,6 +144,27 @@ func TestAggregatePendingSavingsLifetimeEventsRollsBackOnOverflow(t *testing.T) 
 	assert.Zero(t, dailyCount)
 }
 
+func TestHasPendingSavingsLifetimeEventsReportsExistence(t *testing.T) {
+	setupSavingsLifetimeTestDB(t)
+
+	hasPending, err := HasPendingSavingsLifetimeEvents()
+	require.NoError(t, err)
+	assert.False(t, hasPending)
+
+	require.NoError(t, CreateSavingsLifetimeEvents([]SavingsLifetimeEvent{{
+		EventKey: "log:pending:base",
+	}}))
+	hasPending, err = HasPendingSavingsLifetimeEvents()
+	require.NoError(t, err)
+	assert.True(t, hasPending)
+
+	_, err = AggregatePendingSavingsLifetimeEvents(1)
+	require.NoError(t, err)
+	hasPending, err = HasPendingSavingsLifetimeEvents()
+	require.NoError(t, err)
+	assert.False(t, hasPending)
+}
+
 func TestCheckSavingsLifetimeSQLiteIntegrityAcceptsHealthyDatabase(t *testing.T) {
 	setupSavingsLifetimeTestDB(t)
 	previousLogDB := LOG_DB
@@ -154,5 +176,5 @@ func TestCheckSavingsLifetimeSQLiteIntegrityAcceptsHealthyDatabase(t *testing.T)
 		common.SetLogDatabaseType(previousLogType)
 	})
 
-	require.NoError(t, CheckSavingsLifetimeSQLiteIntegrity())
+	require.NoError(t, CheckSavingsLifetimeSQLiteIntegrity(context.Background()))
 }

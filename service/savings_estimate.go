@@ -311,8 +311,8 @@ func buildSavingsLifetimeEvent(log *model.Log) (model.SavingsLifetimeEvent, bool
 	}
 	estimate := savingsEstimateFromOther(log.Other)
 	if estimate != nil {
-		amountMicros, err := strconv.ParseInt(estimate.SavingsCNYMicros, 10, 64)
-		if err != nil || estimate.QuotaPerUnit <= 0 || estimate.USDCNYRateMicros <= 0 {
+		amountMicros, valid := savingsLifetimeFrozenAmount(estimate)
+		if !valid {
 			event.SkipReason = SavingsSkipInvalidSnapshot
 		} else {
 			event.CoverageState = model.SavingsLifetimeCoverageEstimated
@@ -332,6 +332,17 @@ func buildSavingsLifetimeEvent(log *model.Log) (model.SavingsLifetimeEvent, bool
 		event.SkipReason = SavingsSkipInvalidSnapshot
 	}
 	return event, true
+}
+
+func savingsLifetimeFrozenAmount(estimate *SavingsEstimate) (int64, bool) {
+	if estimate == nil || estimate.QuotaPerUnit <= 0 || estimate.USDCNYRateMicros <= 0 {
+		return 0, false
+	}
+	amountMicros, err := strconv.ParseInt(estimate.SavingsCNYMicros, 10, 64)
+	if err != nil || amountMicros < 0 {
+		return 0, false
+	}
+	return amountMicros, true
 }
 
 func buildTextSavingsEstimate(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, summary textQuotaSummary) SavingsEstimateResult {

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -17,26 +18,26 @@ type sqliteQuickCheckRow struct {
 	Result string `gorm:"column:quick_check"`
 }
 
-func CheckSavingsLifetimeSQLiteIntegrity() error {
+func CheckSavingsLifetimeSQLiteIntegrity(ctx context.Context) error {
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
-		if err := checkSQLiteDatabaseIntegrity(DB, "main database"); err != nil {
+		if err := checkSQLiteDatabaseIntegrity(ctx, DB, "main database"); err != nil {
 			return err
 		}
 	}
 	if common.UsingLogDatabase(common.DatabaseTypeSQLite) && LOG_DB != DB {
-		if err := checkSQLiteDatabaseIntegrity(LOG_DB, "log database"); err != nil {
+		if err := checkSQLiteDatabaseIntegrity(ctx, LOG_DB, "log database"); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func checkSQLiteDatabaseIntegrity(db *gorm.DB, label string) error {
+func checkSQLiteDatabaseIntegrity(ctx context.Context, db *gorm.DB, label string) error {
 	if db == nil {
 		return fmt.Errorf("%s is not initialized", label)
 	}
 	var rows []sqliteQuickCheckRow
-	if err := db.Raw("PRAGMA quick_check").Scan(&rows).Error; err != nil {
+	if err := db.WithContext(ctx).Raw("PRAGMA quick_check(1)").Scan(&rows).Error; err != nil {
 		return fmt.Errorf("check %s integrity: %w", label, err)
 	}
 	if len(rows) == 1 && strings.EqualFold(strings.TrimSpace(rows[0].Result), "ok") {
@@ -63,7 +64,7 @@ const (
 )
 
 type SavingsLifetimeEvent struct {
-	ID                   int64  `json:"id" gorm:"primaryKey"`
+	ID                   int64  `json:"id" gorm:"primaryKey;index:idx_savings_events_pending,priority:2"`
 	EventKey             string `json:"event_key" gorm:"type:varchar(128);uniqueIndex"`
 	SourceKey            string `json:"source_key" gorm:"type:varchar(128);index"`
 	LogID                int64  `json:"log_id" gorm:"index"`
@@ -321,8 +322,12 @@ func GetSavingsLifetimeTotal(userID int) (*SavingsLifetimeTotal, error) {
 	return &total, nil
 }
 
-func CountPendingSavingsLifetimeEvents() (int64, error) {
-	var count int64
-	err := DB.Model(&SavingsLifetimeEvent{}).Where("aggregated_at = ?", 0).Count(&count).Error
-	return count, err
+func HasPendingSavingsLifetimeEvents() (bool, error) {
+	var event SavingsLifetimeEvent
+	result := DB.Select("id").
+		Where("aggregated_at = ?", 0).
+		Order("id asc").
+		Limit(1).
+		Find(&event)
+	return result.RowsAffected > 0, result.Error
 }

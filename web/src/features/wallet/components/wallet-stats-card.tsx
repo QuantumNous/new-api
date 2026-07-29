@@ -17,14 +17,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Activity, BarChart3, Sparkles, WalletCards } from 'lucide-react'
+import {
+  Activity,
+  BadgeDollarSign,
+  BarChart3,
+  Info,
+  RefreshCw,
+  WalletCards,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { getUserSavingsLifetime } from '@/features/dashboard/api'
-import { formatSavingsCNYMicros } from '@/features/dashboard/lib/savings'
-import { formatQuota } from '@/lib/format'
+import {
+  formatSavingsCNYMicros,
+  formatSavingsPercent,
+  getLifetimeSavingsViewState,
+} from '@/features/dashboard/lib/savings'
+import { savingsQueryKeys } from '@/features/dashboard/lib/savings-query-keys'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatQuota, formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 import type { UserWalletData } from '../types'
 
@@ -34,9 +54,10 @@ interface WalletStatsCardProps {
 }
 
 export function WalletStatsCard(props: WalletStatsCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const lifetimeQuery = useQuery({
-    queryKey: ['wallet', 'savings-lifetime'],
+    queryKey: savingsQueryKeys.lifetime,
     queryFn: getUserSavingsLifetime,
     staleTime: 60 * 1000,
   })
@@ -86,6 +107,72 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
 
   const lifetime = lifetimeQuery.data?.data
   const showLifetime = lifetime?.enabled && lifetime.show_on_wallet
+  const lifetimeState = lifetime ? getLifetimeSavingsViewState(lifetime) : null
+  const hasLifetimeAmount = Boolean(
+    lifetime && lifetime.estimated_request_count > 0
+  )
+  const hasPositiveLifetimeSavings = Boolean(
+    lifetime && /^[1-9]\d*$/.test(lifetime.savings_cny_micros)
+  )
+  const lifetimeTitle =
+    lifetimeState === 'complete' ||
+    lifetimeState === 'empty' ||
+    lifetimeState === 'no_estimates'
+      ? t('Lifetime savings')
+      : t('Lifetime savings counted so far')
+  let lifetimeValue = ''
+  let lifetimeDescription = ''
+
+  if (lifetime && lifetimeState) {
+    const coverage = formatSavingsPercent(lifetime.coverage_ratio, locale)
+    const coverageText =
+      coverage === '-'
+        ? `${t('Coverage')}: -`
+        : t('{{coverage}} coverage', { coverage })
+
+    if (hasLifetimeAmount) {
+      lifetimeValue = formatSavingsCNYMicros(
+        lifetime.savings_cny_micros,
+        locale
+      )
+    } else if (lifetimeState === 'empty') {
+      lifetimeValue = t('No lifetime savings records yet')
+    } else if (lifetimeState === 'failed') {
+      lifetimeValue = t('Historical savings backfill failed')
+    } else {
+      lifetimeValue = t('No eligible savings records yet')
+    }
+
+    if (lifetimeState === 'complete') {
+      lifetimeDescription =
+        lifetime.statistics_started_at > 0
+          ? t('Since {{date}} · {{coverage}} coverage', {
+              date: formatTimestampToDate(lifetime.statistics_started_at),
+              coverage,
+            })
+          : coverageText
+    } else if (lifetimeState === 'no_estimates') {
+      lifetimeDescription = coverageText
+    } else if (lifetimeState === 'failed') {
+      lifetimeDescription = lifetime.request_count
+        ? `${coverageText} · ${t(
+            'Historical savings backfill failed; results are incomplete.'
+          )}`
+        : t('Historical savings backfill failed; results are incomplete.')
+    } else if (lifetimeState === 'paused') {
+      lifetimeDescription = `${coverageText} · ${t(
+        'System historical data counting is paused'
+      )}`
+    } else if (lifetimeState === 'not_started') {
+      lifetimeDescription = lifetime.request_count
+        ? `${coverageText} · ${t('Historical usage has not been backfilled')}`
+        : t('Historical usage has not been backfilled')
+    } else if (lifetimeState === 'processing') {
+      lifetimeDescription = `${coverageText} · ${t(
+        'System historical data is being counted'
+      )}`
+    }
+  }
 
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -114,20 +201,84 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
         ))}
       </div>
       {showLifetime && (
-        <div className='bg-muted/30 flex min-w-0 items-center gap-2 border-t px-2.5 py-2.5 sm:px-5'>
-          <Sparkles
-            className='text-success size-4 shrink-0'
-            aria-hidden='true'
-          />
-          <span className='text-muted-foreground text-xs'>
-            {lifetime.is_complete
-              ? t('RAPI has saved you about {{amount}} in total', {
-                  amount: formatSavingsCNYMicros(lifetime.savings_cny_micros),
-                })
-              : t('Lifetime savings counted so far: {{amount}}', {
-                  amount: formatSavingsCNYMicros(lifetime.savings_cny_micros),
-                })}
-          </span>
+        <div className='bg-muted/30 min-w-0 border-t px-3 py-3 sm:px-5 sm:py-4'>
+          <div className='flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6'>
+            <div className='min-w-0'>
+              <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
+                <IconBadge tone='success' size='sm'>
+                  <BadgeDollarSign aria-hidden='true' />
+                </IconBadge>
+                <span>{lifetimeTitle}</span>
+              </div>
+              <div
+                className={cn(
+                  'text-foreground mt-2 font-mono text-lg font-bold break-all tabular-nums sm:text-xl',
+                  hasPositiveLifetimeSavings && 'text-success',
+                  !hasLifetimeAmount &&
+                    'text-muted-foreground font-sans text-sm font-medium'
+                )}
+              >
+                {lifetimeValue}
+              </div>
+            </div>
+
+            <div className='min-w-0 space-y-1 sm:max-w-[34rem] sm:text-right'>
+              <div className='text-muted-foreground flex items-center gap-1 text-xs sm:justify-end'>
+                <span>{t('Estimated from official public pricing')}</span>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type='button'
+                        className='hover:text-foreground inline-flex shrink-0'
+                        aria-label={t('About official pricing estimates')}
+                      />
+                    }
+                  >
+                    <Info className='size-3.5' aria-hidden='true' />
+                  </TooltipTrigger>
+                  <TooltipContent className='max-w-72'>
+                    {t(
+                      'Official prices are confirmed snapshots from the model marketplace; estimates are for cost comparison only.'
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              {lifetimeDescription && (
+                <div
+                  className={cn(
+                    'text-muted-foreground text-xs leading-relaxed',
+                    (lifetimeState === 'failed' ||
+                      lifetimeState === 'paused') &&
+                      'text-warning'
+                  )}
+                >
+                  {lifetimeDescription}
+                </div>
+              )}
+              {lifetimeQuery.isRefetchError && (
+                <div className='text-warning flex items-center gap-1 text-xs sm:justify-end'>
+                  <span>{t('Savings data update failed')}</span>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='icon-sm'
+                          onClick={() => void lifetimeQuery.refetch()}
+                          aria-label={t('Reload savings data')}
+                        />
+                      }
+                    >
+                      <RefreshCw aria-hidden='true' />
+                    </TooltipTrigger>
+                    <TooltipContent>{t('Reload savings data')}</TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@
 
 > 状态：已实施并完成桌面/移动端验证（2026-07-28）
 > 前置设计：`docs/user-savings-estimate-design.md`
+> 关联摘要改造：`docs/user-savings-summary-ui-redesign.md`
 > 适用页面：用户仪表盘「模型调用分析」
 > 数据口径：估算，不作为财务账单
 

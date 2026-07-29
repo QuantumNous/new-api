@@ -46,6 +46,20 @@ func TestValidateSettingRejectsInvalidJSON(t *testing.T) {
 	require.Error(t, ValidateSettingJSONString("{bad json"))
 }
 
+func TestValidateSettingRequiresOfficialConfirmationWhenEnabled(t *testing.T) {
+	err := ValidateSettingJSONString(`{
+		"enabled": true,
+		"require_official_confirmation": false
+	}`)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "require_official_confirmation")
+	require.NoError(t, ValidateSettingJSONString(`{
+		"enabled": false,
+		"require_official_confirmation": false
+	}`))
+}
+
 func TestValidateSettingRejectsSummaryLimitsAboveHardMaximum(t *testing.T) {
 	tests := []struct {
 		name  string

@@ -72,21 +72,25 @@ export async function getCurrentLogCleanupTask() {
   return res.data
 }
 
-export async function startSavingsLifetimeBackfill() {
+export async function startSavingsLifetimeBackfill(): Promise<StartSavingsLifetimeBackfillResponse> {
   const res = await api.post<StartSavingsLifetimeBackfillResponse>(
     '/api/system-task/savings-lifetime-backfill'
   )
   return res.data
 }
 
-export async function getSavingsLifetimeBackfill() {
+export async function getSavingsLifetimeBackfill(): Promise<
+  SystemTaskResponse<SavingsLifetimeBackfillTask | null>
+> {
   const res = await api.get<
     SystemTaskResponse<SavingsLifetimeBackfillTask | null>
   >('/api/system-task/savings-lifetime-backfill')
   return res.data
 }
 
-export async function pauseSavingsLifetimeBackfill(taskId: string) {
+export async function pauseSavingsLifetimeBackfill(
+  taskId: string
+): Promise<SystemTaskResponse<SavingsLifetimeBackfillTask>> {
   const res = await api.post<SystemTaskResponse<SavingsLifetimeBackfillTask>>(
     '/api/system-task/savings-lifetime-backfill/pause',
     null,
@@ -97,7 +101,9 @@ export async function pauseSavingsLifetimeBackfill(taskId: string) {
   return res.data
 }
 
-export async function resumeSavingsLifetimeBackfill(taskId: string) {
+export async function resumeSavingsLifetimeBackfill(
+  taskId: string
+): Promise<SystemTaskResponse<SavingsLifetimeBackfillTask>> {
   const res = await api.post<SystemTaskResponse<SavingsLifetimeBackfillTask>>(
     '/api/system-task/savings-lifetime-backfill/resume',
     null,
@@ -108,7 +114,9 @@ export async function resumeSavingsLifetimeBackfill(taskId: string) {
   return res.data
 }
 
-export async function retrySavingsLifetimeBackfill(taskId: string) {
+export async function retrySavingsLifetimeBackfill(
+  taskId: string
+): Promise<SystemTaskResponse<SavingsLifetimeBackfillTask>> {
   const res = await api.post<SystemTaskResponse<SavingsLifetimeBackfillTask>>(
     '/api/system-task/savings-lifetime-backfill/retry',
     null,

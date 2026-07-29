@@ -433,7 +433,7 @@ export function SavingsTrendChart(props: SavingsTrendChartProps) {
               <Info className='size-3.5 shrink-0' aria-hidden='true' />
               <span>
                 {t(
-                  '{{count}} historical requests recalculated at current official prices',
+                  'Historical requests recalculated at current official prices: {{count}}',
                   { count: summary.reconstructed_request_count ?? 0 }
                 )}
               </span>
