@@ -127,7 +127,7 @@ function ApiKeysMobileList({
   }
 
   return (
-    <div className='border-border divide-border overflow-hidden rounded-md border'>
+    <div className='grid grid-cols-1 gap-3'>
       {rows.map((row) => {
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]
@@ -137,7 +137,7 @@ function ApiKeysMobileList({
           <div
             key={row.id}
             className={cn(
-              'bg-card space-y-2 border-b px-3 py-3 last:border-b-0',
+              'border-border/60 bg-card space-y-2.5 rounded-xl border px-3.5 py-3 shadow-[0_1px_0_0_color-mix(in_oklch,var(--foreground)_3%,transparent)]',
               isDisabledApiKeyRow(apiKey) && DISABLED_ROW_MOBILE
             )}
           >
@@ -304,6 +304,9 @@ export function ApiKeysTable() {
       )}
       skeletonKeyPrefix='api-keys-skeleton'
       applyHeaderSize
+      enableCardView
+      defaultViewMode='card'
+      viewModeStorageKey='api-keys:view-mode:v1'
       toolbarProps={{
         searchPlaceholder: t('Filter by name...'),
         additionalSearch: (

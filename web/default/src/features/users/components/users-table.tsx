@@ -204,6 +204,9 @@ export function UsersTable() {
 
   return (
     <DataTablePage
+      enableCardView
+      defaultViewMode='card'
+      viewModeStorageKey='users:view-mode:v1'
       table={table}
       columns={columns}
       isLoading={isLoading}

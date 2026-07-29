@@ -157,14 +157,15 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
   }
 
   return (
-    <div className='border-border divide-border divide-y overflow-hidden rounded-md border'>
+    <div className='grid grid-cols-1 gap-3'>
       {rows.map((row) => {
         const key = getRowKey ? getRowKey(row) : row.id
         return (
           <div
             key={key}
             className={cn(
-              '[background-color:var(--data-table-card-bg,var(--table-row))] px-3 py-3',
+              'border-border/60 bg-card rounded-xl border px-3.5 py-3 shadow-[0_1px_0_0_color-mix(in_oklch,var(--foreground)_3%,transparent)]',
+              '[background-color:var(--data-table-card-bg,var(--card))]',
               getRowClassName?.(row)
             )}
           >

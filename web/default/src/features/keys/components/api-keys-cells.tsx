@@ -83,7 +83,7 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
   }
 
   return (
-    <div className='border-border bg-muted/30 flex max-w-full min-w-0 items-center gap-0.5 rounded-md border px-1.5 py-0.5'>
+    <div className='border-border/50 bg-muted/20 flex max-w-full min-w-0 items-center gap-0.5 rounded-md border px-1.5 py-0.5'>
       <Popover open={popoverOpen} onOpenChange={handlePopoverOpen}>
         <PopoverTrigger
           render={

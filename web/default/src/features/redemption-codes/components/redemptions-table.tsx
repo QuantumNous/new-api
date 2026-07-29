@@ -159,6 +159,9 @@ export function RedemptionsTable() {
 
   return (
     <DataTablePage
+      enableCardView
+      defaultViewMode='card'
+      viewModeStorageKey='redemptions:view-mode:v1'
       table={table}
       columns={columns}
       isLoading={isLoading}

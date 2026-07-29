@@ -18,24 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { Row, Table } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
+import { motion, useReducedMotion } from 'motion/react'
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -47,6 +30,11 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  CARD_STAGGER_VARIANTS,
+  MOTION_TRANSITION,
+  MOTION_VARIANTS,
+} from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 import { tableHasCompactMeta } from './card-cell-utils'
@@ -90,7 +78,9 @@ export interface DataTableCardGridProps<TData> {
 }
 
 const DEFAULT_GRID_CLASSNAME =
-  'grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3'
+  'grid grid-cols-1 gap-3 sm:gap-3.5 md:grid-cols-2 xl:grid-cols-3'
+
+const cardItemTransition = MOTION_TRANSITION.default
 
 function CardGridSkeleton(props: {
   gridClassName?: string
@@ -102,7 +92,7 @@ function CardGridSkeleton(props: {
       {[1, 2, 3, 4, 5, 6].map((i) => (
         <div
           key={`${prefix}-${i}`}
-          className='space-y-3 rounded-lg border bg-(--table-row) p-3'
+          className='border-border/60 bg-card space-y-3 rounded-xl border p-3.5'
         >
           <div className='flex items-center justify-between gap-2'>
             <Skeleton className='h-4 w-32' />
@@ -123,18 +113,12 @@ function CardGridSkeleton(props: {
 }
 
 /**
- * Desktop card view for table data — a responsive grid of bordered cards.
- *
- * Renders the same per-row content as {@link MobileCardList} (via
- * {@link CardRowContent}) unless a custom `renderCard` is supplied. This keeps
- * the card view reusable across any table with zero per-feature work while
- * still allowing a bespoke card design when desired.
- *
- * The default generic card omits the `select` column. Custom `renderCard`
- * implementations can use `helpers.isSelected` to keep selection UI in sync.
+ * Desktop card view for table data — a responsive grid of soft cards with
+ * staggered enter motion.
  */
 export function DataTableCardGrid<TData>(props: DataTableCardGridProps<TData>) {
   const { t } = useTranslation()
+  const shouldReduce = useReducedMotion()
 
   const resolvedEmptyTitle = props.emptyTitle ?? t('No Data')
   const resolvedEmptyDescription =
@@ -160,7 +144,7 @@ export function DataTableCardGrid<TData>(props: DataTableCardGridProps<TData>) {
 
   if (!rows || rows.length === 0) {
     return (
-      <div className='rounded-lg border p-6'>
+      <div className='border-border/60 bg-card/40 rounded-xl border border-dashed p-8'>
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>
@@ -174,18 +158,63 @@ export function DataTableCardGrid<TData>(props: DataTableCardGridProps<TData>) {
     )
   }
 
+  const gridClass = props.gridClassName ?? DEFAULT_GRID_CLASSNAME
+
+  if (shouldReduce) {
+    return (
+      <div className={gridClass}>
+        {rows.map((row) => {
+          const key = props.getRowKey ? props.getRowKey(row) : row.id
+          const isSelected = row.getIsSelected()
+          return (
+            <div
+              key={key}
+              data-slot='data-table-card'
+              data-state={isSelected ? 'selected' : undefined}
+              className={cn(
+                'border-border/60 bg-card hover:border-border hover:bg-card/90 rounded-xl border px-3.5 py-3 shadow-[0_1px_0_0_color-mix(in_oklch,var(--foreground)_3%,transparent)] transition-[background-color,border-color,box-shadow] duration-150',
+                'data-[state=selected]:border-primary/35 data-[state=selected]:bg-primary/5',
+                props.getRowClassName?.(row)
+              )}
+            >
+              {props.renderCard ? (
+                props.renderCard(row, { compact, isSelected })
+              ) : (
+                <CardRowContent row={row} compact={compact} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
-    <div className={props.gridClassName ?? DEFAULT_GRID_CLASSNAME}>
+    <motion.div
+      className={gridClass}
+      variants={CARD_STAGGER_VARIANTS}
+      initial='initial'
+      animate='animate'
+    >
       {rows.map((row) => {
         const key = props.getRowKey ? props.getRowKey(row) : row.id
         const isSelected = row.getIsSelected()
         return (
-          <div
+          <motion.div
             key={key}
             data-slot='data-table-card'
             data-state={isSelected ? 'selected' : undefined}
+            variants={{
+              initial: MOTION_VARIANTS.cardItem.initial,
+              animate: {
+                ...MOTION_VARIANTS.cardItem.animate,
+                transition: cardItemTransition,
+              },
+            }}
+            whileHover={{ y: -2, transition: { duration: 0.15 } }}
             className={cn(
-              'rounded-lg border bg-(--data-table-card-bg,var(--table-row)) px-3 py-2.5 transition-[background-color,border-color] duration-150 data-[state=selected]:[--data-table-card-bg:color-mix(in_oklch,var(--primary)_7%,var(--table-row))] data-[state=selected]:border-primary/40',
+              'border-border/60 bg-card hover:border-border rounded-xl border px-3.5 py-3 shadow-[0_1px_0_0_color-mix(in_oklch,var(--foreground)_3%,transparent)] transition-[background-color,border-color,box-shadow] duration-150',
+              'data-[state=selected]:border-primary/35 data-[state=selected]:bg-primary/5',
               props.getRowClassName?.(row)
             )}
           >
@@ -194,9 +223,9 @@ export function DataTableCardGrid<TData>(props: DataTableCardGridProps<TData>) {
             ) : (
               <CardRowContent row={row} compact={compact} />
             )}
-          </div>
+          </motion.div>
         )
       })}
-    </div>
+    </motion.div>
   )
 }

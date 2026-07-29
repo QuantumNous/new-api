@@ -68,9 +68,9 @@ body[data-brand-token-preset='box-ai']:not([data-theme-preset]) {
   --info-foreground: #ffffff;
   --neutral: #64748b;
   --neutral-foreground: #ffffff;
-  /* Solid neutral grays for borders / form chrome (no blue tint, no alpha). */
-  --border: #e5e5e5;
-  --input: #a3a3a3;
+  /* Soft gray borders — avoid heavy outline chrome. */
+  --border: #e8eaef;
+  --input: #c8ced8;
   --ring: var(--brand-primary, #2563eb);
   --chart-1: var(--brand-primary, #2563eb);
   --chart-2: #7c3aed;
@@ -86,7 +86,7 @@ body[data-brand-token-preset='box-ai']:not([data-theme-preset]) {
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e8f0ff;
   --sidebar-accent-foreground: #1d4ed8;
-  --sidebar-border: #e5e5e5;
+  --sidebar-border: #e8eaef;
   --sidebar-ring: var(--brand-primary, #2563eb);
   --skeleton-base: #e7edf6;
   --skeleton-highlight: #f8fbff;
@@ -127,9 +127,9 @@ body.dark[data-brand-token-preset='box-ai']:not([data-theme-preset]) {
   --info-foreground: #06202a;
   --neutral: #8091ab;
   --neutral-foreground: #071126;
-  /* Solid grays on dark brand canvas (no blue-tinted translucent edges). */
-  --border: #3f3f46;
-  --input: #52525b;
+  /* Soft dark edges — subtle separation without harsh boxes. */
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 12%);
   --ring: var(--brand-primary, #2563eb);
   --chart-1: #60a5fa;
   --chart-2: #a78bfa;
@@ -145,7 +145,7 @@ body.dark[data-brand-token-preset='box-ai']:not([data-theme-preset]) {
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #172b52;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #3f3f46;
+  --sidebar-border: rgb(255 255 255 / 8%);
   --sidebar-ring: #60a5fa;
   --skeleton-base: #162844;
   --skeleton-highlight: #263d62;

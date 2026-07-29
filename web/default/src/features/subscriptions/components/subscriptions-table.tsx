@@ -51,6 +51,9 @@ export function SubscriptionsTable() {
 
   return (
     <DataTablePage
+      enableCardView
+      defaultViewMode='card'
+      viewModeStorageKey='subscriptions:view-mode:v1'
       table={table}
       columns={columns}
       isLoading={isLoading}
