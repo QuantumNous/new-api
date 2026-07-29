@@ -15,6 +15,7 @@ import (
 )
 
 const stripeInvoiceDiscountReservePrefix = "stripe-invoice:"
+const stripeSubscriptionDiscountInvoiceReconciliationMaxPages = 10
 
 type stripeSubscriptionDiscountInvoiceSnapshot struct {
 	Version                           int    `json:"version"`
@@ -514,61 +515,72 @@ func ReconcileStaleStripeSubscriptionDiscountInvoices(ctx context.Context) (int,
 	}
 	now := common.GetTimestamp()
 	stalePreparationCutoff := now - int64((15 * time.Minute).Seconds())
-	var reserves []model.SubscriptionDiscountEntry
-	if err := model.DB.
-		Where("entry_type = ? AND idempotency_key LIKE ? AND ((expires_at > ? AND expires_at <= ?) OR (expires_at > ? AND created_at > ? AND created_at <= ?))",
-			model.SubscriptionDiscountEntryTypeReserve,
-			stripeInvoiceDiscountReservePrefix+"%:reserve",
-			0,
-			now,
-			now,
-			0,
-			stalePreparationCutoff).
-		Order("id asc").
-		Limit(stripeSubscriptionReconciliationBatchSize).
-		Find(&reserves).Error; err != nil {
-		return 0, err
-	}
 	processed := 0
-	for _, reserve := range reserves {
-		closed, err := stripeSubscriptionDiscountReservationClosed(reserve.IdempotencyKey)
-		if err != nil {
+	lastID := int64(0)
+	for page := 0; page < stripeSubscriptionDiscountInvoiceReconciliationMaxPages; page++ {
+		var reserves []model.SubscriptionDiscountEntry
+		if err := model.DB.
+			Where("id > ? AND entry_type = ? AND idempotency_key LIKE ? AND ((expires_at > ? AND expires_at <= ?) OR (expires_at > ? AND created_at > ? AND created_at <= ?))",
+				lastID,
+				model.SubscriptionDiscountEntryTypeReserve,
+				stripeInvoiceDiscountReservePrefix+"%:reserve",
+				0,
+				now,
+				now,
+				0,
+				stalePreparationCutoff).
+			Order("id asc").
+			Limit(stripeSubscriptionReconciliationBatchSize).
+			Find(&reserves).Error; err != nil {
 			return processed, err
 		}
-		if closed {
-			continue
+		if len(reserves) == 0 {
+			return processed, nil
 		}
-		invoiceID := strings.TrimSpace(reserve.TradeNo)
-		if invoiceID == "" {
-			invoiceID = strings.TrimSuffix(strings.TrimPrefix(reserve.IdempotencyKey, stripeInvoiceDiscountReservePrefix), ":reserve")
-		}
-		inv, err := stripeInvoiceGetter(ctx, invoiceID)
-		if err != nil {
-			return processed, err
-		}
-		if inv == nil || strings.TrimSpace(inv.ID) == "" {
-			return processed, errors.New("Stripe invoice is missing")
-		}
-		switch {
-		case stripeInvoiceIsPaid(inv):
-			if _, err := ReconcilePaidInvoice(ctx, invoiceID); err != nil {
+		for _, reserve := range reserves {
+			lastID = reserve.ID
+			closed, err := stripeSubscriptionDiscountReservationClosed(reserve.IdempotencyKey)
+			if err != nil {
 				return processed, err
 			}
-			processed++
-		case isTerminalStripeInvoiceStatus(inv.Status):
-			if err := ReleaseStripeSubscriptionDiscountInvoice(ctx, invoiceID); err != nil {
-				return processed, err
-			}
-			processed++
-		default:
-			if inv.Status != stripe.InvoiceStatusDraft {
-				common.SysLog(fmt.Sprintf("skip stale Stripe subscription discount invoice %s: status %s cannot be prepared", invoiceID, inv.Status))
+			if closed {
 				continue
 			}
-			if err := PrepareStripeSubscriptionDiscountInvoice(ctx, invoiceID); err != nil {
+			invoiceID := strings.TrimSpace(reserve.TradeNo)
+			if invoiceID == "" {
+				invoiceID = strings.TrimSuffix(strings.TrimPrefix(reserve.IdempotencyKey, stripeInvoiceDiscountReservePrefix), ":reserve")
+			}
+			inv, err := stripeInvoiceGetter(ctx, invoiceID)
+			if err != nil {
 				return processed, err
 			}
-			processed++
+			if inv == nil || strings.TrimSpace(inv.ID) == "" {
+				return processed, errors.New("Stripe invoice is missing")
+			}
+			switch {
+			case stripeInvoiceIsPaid(inv):
+				if _, err := ReconcilePaidInvoice(ctx, invoiceID); err != nil {
+					return processed, err
+				}
+				processed++
+			case isTerminalStripeInvoiceStatus(inv.Status):
+				if err := ReleaseStripeSubscriptionDiscountInvoice(ctx, invoiceID); err != nil {
+					return processed, err
+				}
+				processed++
+			default:
+				if inv.Status != stripe.InvoiceStatusDraft {
+					common.SysLog(fmt.Sprintf("skip stale Stripe subscription discount invoice %s: status %s cannot be prepared", invoiceID, inv.Status))
+					continue
+				}
+				if err := PrepareStripeSubscriptionDiscountInvoice(ctx, invoiceID); err != nil {
+					return processed, err
+				}
+				processed++
+			}
+		}
+		if len(reserves) < stripeSubscriptionReconciliationBatchSize {
+			return processed, nil
 		}
 	}
 	return processed, nil

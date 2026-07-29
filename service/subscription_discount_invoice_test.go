@@ -931,6 +931,88 @@ func TestSubscriptionDiscountInvoiceReconciliationOpenInvoiceDoesNotStarveLaterP
 	require.Equal(t, int64(1), paidCommitCount)
 }
 
+func TestSubscriptionDiscountInvoiceReconciliationFullOpenPageDoesNotStarveLaterPaidReserve(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	grantRenewalInvitationCredit(t, 9230, int64(stripeSubscriptionReconciliationBatchSize), "grant-renewal-full-open-page")
+	openReservationKeys := make([]string, 0, stripeSubscriptionReconciliationBatchSize)
+	openInvoiceIDs := make(map[string]struct{}, stripeSubscriptionReconciliationBatchSize)
+	for i := 0; i < stripeSubscriptionReconciliationBatchSize; i++ {
+		invoiceID := "in_discount_stale_open_full_" + strconv.Itoa(i)
+		reservationKey := "stripe-invoice:" + invoiceID + ":reserve"
+		require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+			_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+				UserID:             9230,
+				USDMinor:           1,
+				TradeNo:            invoiceID,
+				PaymentCurrency:    "USD",
+				AppliedAmountMinor: 1,
+				PricingSnapshot:    `{"source":"open-full-page-test"}`,
+				IdempotencyKey:     reservationKey,
+				ExpiresAt:          common.GetTimestamp() + 3600,
+			})
+			return err
+		}))
+		expireSubscriptionDiscountReservationForTest(t, reservationKey)
+		openReservationKeys = append(openReservationKeys, reservationKey)
+		openInvoiceIDs[invoiceID] = struct{}{}
+	}
+
+	_, paidBinding, paidEntitlement := seedStripeRenewalContract(t, 9231, 9331, "sub_discount_stale_paid_after_full_open")
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", paidBinding.Id).Update("initial_order_id", seedInitialOrderSnapshotForRenewal(t, 9231, 9331, "sub_discount_stale_paid_after_full_open_initial")).Error)
+	grantRenewalInvitationCredit(t, 9231, 500, "grant-renewal-stale-paid-after-full-open")
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.ReserveSubscriptionDiscountTx(tx, model.SubscriptionDiscountReservationInput{
+			UserID:             9231,
+			USDMinor:           500,
+			TradeNo:            "in_discount_stale_paid_after_full_open",
+			PaymentCurrency:    "USD",
+			AppliedAmountMinor: 300,
+			PricingSnapshot:    renewalInvoiceSnapshotJSONForTest(t, "in_discount_stale_paid_after_full_open", "sub_discount_stale_paid_after_full_open", paidBinding.Id, paidBinding.ContractId, 9331, 9231, 1234, 200, 500, 500, 300, 734, "stripe-invoice:in_discount_stale_paid_after_full_open:reserve"),
+			IdempotencyKey:     "stripe-invoice:in_discount_stale_paid_after_full_open:reserve",
+			ExpiresAt:          common.GetTimestamp() + 3600,
+		})
+		return err
+	}))
+	expireSubscriptionDiscountReservationForTest(t, "stripe-invoice:in_discount_stale_paid_after_full_open:reserve")
+
+	paidInv := stripeInvoiceFixture("in_discount_stale_paid_after_full_open", "sub_discount_stale_paid_after_full_open")
+	paidInv.AmountPaid = 734
+	paidInv.Total = 734
+	paidInv.Lines.Data[0].Period = &stripe.Period{Start: paidEntitlement.EndTime, End: paidEntitlement.EndTime + 2592000}
+	paidSub := stripeSubscriptionFixture("sub_discount_stale_paid_after_full_open", map[string]string{})
+	setStripeSubscriptionCurrentPeriod(paidSub, paidEntitlement.EndTime, paidEntitlement.EndTime+2592000)
+
+	originalInvoiceGetter := stripeInvoiceGetter
+	originalSubscriptionGetter := stripeSubscriptionGetter
+	t.Cleanup(func() {
+		stripeInvoiceGetter = originalInvoiceGetter
+		stripeSubscriptionGetter = originalSubscriptionGetter
+	})
+	stripeInvoiceGetter = func(ctx context.Context, invoiceID string) (*stripe.Invoice, error) {
+		if _, ok := openInvoiceIDs[invoiceID]; ok {
+			return &stripe.Invoice{ID: invoiceID, Status: stripe.InvoiceStatusOpen}, nil
+		}
+		if invoiceID == paidInv.ID {
+			return paidInv, nil
+		}
+		return nil, errors.New("unexpected invoice")
+	}
+	stripeSubscriptionGetter = func(ctx context.Context, subscriptionID string) (*stripe.Subscription, error) {
+		require.Equal(t, paidSub.ID, subscriptionID)
+		return paidSub, nil
+	}
+
+	count, err := ReconcileStaleStripeSubscriptionDiscountInvoices(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	var openTerminalCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key IN ?", openReservationKeys).Count(&openTerminalCount).Error)
+	require.Zero(t, openTerminalCount)
+	var paidCommitCount int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionDiscountEntry{}).Where("terminal_reservation_key = ? AND entry_type = ?", "stripe-invoice:in_discount_stale_paid_after_full_open:reserve", model.SubscriptionDiscountEntryTypeCommit).Count(&paidCommitCount).Error)
+	require.Equal(t, int64(1), paidCommitCount)
+}
+
 func TestSubscriptionDiscountInvoicePersistentPreparationFailureRemainsPausedAndObservable(t *testing.T) {
 	setupSubscriptionInvoiceServiceTestDB(t)
 	_, binding, entitlement := seedStripeRenewalContract(t, 9221, 9321, "sub_discount_stale_failure")
