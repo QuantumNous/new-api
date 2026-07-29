@@ -402,8 +402,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	)
 	if err != nil {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe top-up recall offer resolution failed user_id=%d price_id=%s error=%q", id, checkout.PriceId, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable)})
-		return
+		resolvedRecallOffer = nil
 	}
 	recallDiscount := service.RecallCheckoutDiscountFromResolvedOffer(resolvedRecallOffer)
 

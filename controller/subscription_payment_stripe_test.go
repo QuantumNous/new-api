@@ -362,6 +362,67 @@ func TestSubscriptionStripeAutoRecallDiscoveryFailureFallsBackToOriginalPrice(t 
 	require.Zero(t, order.RecallDiscountAmountMinor)
 }
 
+func TestSubscriptionStripeEmailRecallClaimLookupFailureFallsBackToOriginalPrice(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	backend := setupSubscriptionStripeRecordingBackend(t)
+	setupSubscriptionRecallClaimDB(t)
+	confirmPaymentComplianceForTest(t)
+	enableRecallCampaignForControllerTest(t)
+	originalGate := common.SubscriptionSingleContractEnabled
+	common.SubscriptionSingleContractEnabled = false
+	t.Cleanup(func() { common.SubscriptionSingleContractEnabled = originalGate })
+	originalInviteMode := common.InviteRewardSubscriptionMode
+	common.InviteRewardSubscriptionMode = false
+	t.Cleanup(func() { common.InviteRewardSubscriptionMode = originalInviteMode })
+	originalWebhookSecret := setting.StripeWebhookSecret
+	setting.StripeWebhookSecret = "whsec_subscription_test"
+	t.Cleanup(func() { setting.StripeWebhookSecret = originalWebhookSecret })
+
+	const userID = 710403
+	const planID = 910403
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       userID,
+		Username: "subscription_email_claim_recall_failure",
+		Email:    "subscription-email-claim-failure@example.com",
+		Status:   common.UserStatusEnabled,
+		AffCode:  "subscription_email_claim_recall_failure",
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Id:            planID,
+		Title:         "Email claim Recall failure fallback",
+		PriceAmount:   20,
+		Currency:      "USD",
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		StripePriceId: "price_email_claim_recall_failure",
+	}).Error)
+	model.InvalidateSubscriptionPlanCache(planID)
+	require.NoError(t, model.DB.Migrator().DropTable(&model.RecallRecipient{}))
+
+	body, err := common.Marshal(SubscriptionStripePayRequest{
+		PlanId:      planID,
+		RecallClaim: "subscription-email-claim-failure@example.com",
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/subscription/stripe/pay", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", userID)
+
+	SubscriptionRequestStripePay(ctx)
+
+	require.Contains(t, recorder.Body.String(), `"message":"success"`)
+	require.Len(t, backend.params, 1)
+	require.Empty(t, backend.params[0].Discounts)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "user_id = ?", userID).Error)
+	require.Zero(t, order.RecallCampaignId)
+	require.Zero(t, order.RecallRecipientId)
+	require.Zero(t, order.RecallDiscountAmountMinor)
+}
+
 func TestSubscriptionStripeNoClaimAppliesBestAccountRecallOffer(t *testing.T) {
 	backend := setupSubscriptionStripeRecordingBackend(t)
 	setupSubscriptionRecallClaimDB(t)

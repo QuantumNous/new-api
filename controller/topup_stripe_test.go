@@ -477,6 +477,61 @@ func TestStripeCheckoutSessionNoClaimAppliesBestAccountRecallOffer(t *testing.T)
 	require.Equal(t, fmt.Sprintf("%d", strongerRecipient.Id), params.Metadata["recall_recipient_id"])
 }
 
+func TestStripeCheckoutSessionRecallLookupFailureFallsBackToOriginalPrice(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	backend := setupSubscriptionStripeRecordingBackend(t)
+	setupStripeFulfillmentTestDB(t)
+	enableRecallCampaignForControllerTest(t)
+
+	originalTopUpPriceIDs := setting.StripeTopUpPriceIds
+	originalDisplayType := operation_setting.GetQuotaDisplayType()
+	originalPriceAmountResolver := stripePriceAmountMinorForCheckoutCurrency
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalAmountOptions := append([]int(nil), paymentSetting.AmountOptions...)
+	setting.StripeTopUpPriceIds = `{"20":"price_topup_degraded"}`
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	paymentSetting.AmountOptions = []int{20}
+	stripePriceAmountMinorForCheckoutCurrency = func(string, string) (int64, error) {
+		return 2000, nil
+	}
+	t.Cleanup(func() {
+		setting.StripeTopUpPriceIds = originalTopUpPriceIDs
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalDisplayType
+		paymentSetting.AmountOptions = originalAmountOptions
+		stripePriceAmountMinorForCheckoutCurrency = originalPriceAmountResolver
+	})
+
+	const userID = 720102
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       userID,
+		Username: "topup_recall_degraded",
+		Email:    "topup-recall-degraded@example.com",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	body, err := common.Marshal(StripePayRequest{
+		Amount:         20,
+		PaymentMethod:  model.PaymentMethodStripe,
+		StripeCurrency: "USD",
+		RecallClaim:    "topup-recall-degraded@example.com",
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/stripe/pay", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", userID)
+
+	RequestStripePay(ctx)
+
+	require.Contains(t, recorder.Body.String(), `"message":"success"`)
+	require.Len(t, backend.params, 1)
+	require.Empty(t, backend.params[0].Discounts)
+	var persisted model.TopUp
+	require.NoError(t, model.DB.Where("user_id = ?", userID).First(&persisted).Error)
+	require.Equal(t, 20.0, persisted.Money)
+}
+
 func TestStripeCheckoutSessionWrongPricePromotionClaimStopsBeforeCheckout(t *testing.T) {
 	for _, tc := range []struct {
 		language string

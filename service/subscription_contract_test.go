@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -566,6 +567,48 @@ func TestStripeRecurringCheckoutLeavesProviderRenewalUnsetUntilInvoiceApplies(t 
 	require.Empty(t, contract.RenewalStatus)
 	require.Equal(t, model.SubscriptionPaymentModeExternalOnePeriod, contract.PaymentMode)
 	require.Equal(t, model.SubscriptionContractStatusEnded, contract.Status)
+}
+
+func TestStripeRecurringCheckoutFailOpenWhenRecallLookupDegraded(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	require.True(t, operation_setting.IsRecallCampaignEnabled())
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.RecallCampaign{},
+		&model.RecallRecipient{},
+		&model.RecallMessage{},
+		&model.RecallEvent{},
+	))
+	require.NoError(t, model.DB.Migrator().DropTable(&model.RecallRecipient{}))
+	insertContractServiceUser(t, 7118, 3000)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 7118).Update("email", "contract-recall-degraded@example.com").Error)
+	plan := insertContractServicePlan(t, 7218, 1, 12.34, 1234)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("stripe_price_id", "price_recall_degraded_contract").Error)
+	originalCreator := stripeSubscriptionCheckoutCreator
+	t.Cleanup(func() { stripeSubscriptionCheckoutCreator = originalCreator })
+	var captured StripeSubscriptionCheckoutInput
+	stripeSubscriptionCheckoutCreator = func(ctx context.Context, input StripeSubscriptionCheckoutInput) (*StripeSubscriptionCheckoutSession, error) {
+		captured = input
+		return &StripeSubscriptionCheckoutSession{ID: "cs_recall_degraded_contract", URL: "https://checkout.example/degraded"}, nil
+	}
+
+	result, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      7118,
+		PlanID:      plan.Id,
+		PaymentMode: model.SubscriptionPaymentModeStripeRecurring,
+		RequestID:   "stripe-recall-degraded",
+		RecallClaim: "buyer@example.com",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ChangePlanStatusCheckoutRequired, result.Status)
+	require.Equal(t, "https://checkout.example/degraded", result.CheckoutURL)
+	require.Nil(t, captured.RecallDiscount)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&order, "trade_no = ?", captured.TradeNo).Error)
+	require.True(t, order.RecallOfferResolved)
+	require.Empty(t, order.RecallPromotionCodeId)
 }
 
 func TestUnresolvedPurchaseBlocksSecondChange(t *testing.T) {

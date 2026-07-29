@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -105,10 +104,6 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	)
 	if err != nil {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Stripe subscription recall offer resolution failed user_id=%d plan_id=%d price_id=%s error=%q", userId, plan.Id, plan.StripePriceId, err.Error()))
-		if strings.TrimSpace(req.RecallClaim) != "" {
-			common.ApiErrorMsg(c, i18n.T(c, i18n.MsgPaymentRecallClaimUnavailable))
-			return
-		}
 		resolvedRecallOffer = nil
 	}
 	recallDiscount := service.RecallCheckoutDiscountFromResolvedOffer(resolvedRecallOffer)

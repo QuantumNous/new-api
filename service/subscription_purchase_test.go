@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v86"
@@ -128,6 +129,28 @@ func subscriptionPurchaseTestQuote(currency string, unitPrice float64, months in
 		Total:                    float64(totalMinor) / 100,
 		PaymentAmountMinor:       totalMinor,
 	}
+}
+
+func TestApplyRecallFirstMonthDiscountFailOpenWhenLookupDegraded(t *testing.T) {
+	setupSubscriptionPurchaseServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	require.True(t, operation_setting.IsRecallCampaignEnabled())
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.RecallCampaign{},
+		&model.RecallRecipient{},
+		&model.RecallMessage{},
+		&model.RecallEvent{},
+	))
+	require.NoError(t, model.DB.Migrator().DropTable(&model.RecallRecipient{}))
+	insertPurchaseServiceUser(t, 7118, 3000)
+	plan := insertPurchaseServicePlan(t, 7218, 1, 12.34, 1234)
+	plan.StripePriceId = "price_recall_degraded"
+	quote := *subscriptionPurchaseTestQuote("USD", plan.PriceAmount, 1)
+
+	result, err := applyRecallFirstMonthDiscount(context.Background(), 7118, "buyer@example.com", plan, quote)
+
+	require.NoError(t, err)
+	require.Equal(t, quote, result)
 }
 
 func TestPurchaseSubscriptionRejectsMonthsOutsideOneToTwelve(t *testing.T) {

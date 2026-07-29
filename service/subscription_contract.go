@@ -551,7 +551,8 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 					checkoutInput.SubtotalMinor,
 				)
 				if resolveErr != nil {
-					return nil, resolveErr
+					common.SysLog(fmt.Sprintf("Stripe subscription Recall discount resolution failed user_id=%d trade_no=%s price_id=%s error=%q", cmd.UserID, checkoutInput.TradeNo, checkoutInput.PriceID, resolveErr.Error()))
+					return nil, nil
 				}
 				return RecallCheckoutDiscountFromResolvedOffer(offer), nil
 			},

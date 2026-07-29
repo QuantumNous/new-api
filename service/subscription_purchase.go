@@ -921,7 +921,8 @@ func applyRecallFirstMonthDiscount(ctx context.Context, userID int, claim string
 		quote.UnitAmountMinor,
 	)
 	if err != nil {
-		return SubscriptionPurchaseQuote{}, err
+		common.SysLog(fmt.Sprintf("subscription purchase recall offer resolution failed user_id=%d plan_id=%d price_id=%s error=%q", userID, plan.Id, plan.StripePriceId, err.Error()))
+		return quote, nil
 	}
 	if offer == nil || offer.DiscountMinor <= 0 {
 		return quote, nil
