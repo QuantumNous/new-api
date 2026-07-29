@@ -1163,6 +1163,55 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).toContain('Save $2')
     expect(html).not.toContain('$2 USD OFF')
   })
+
+  test('formats recall subscription savings in the plan currency', () => {
+    const formatBrl = (amount: number) =>
+      Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount)
+    const basePlan = plan(4, 'Brazil', 50)
+    const brlPlan = {
+      ...basePlan,
+      plan: {
+        ...basePlan.plan,
+        currency: 'BRL',
+        stripe_price_id: 'price_brl',
+      },
+    }
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <RecallClaimProvider
+          claim='signed-recall-claim'
+          view={{
+            ...subscriptionRecallClaim,
+            products: {
+              topup_price_ids: [],
+              subscription_price_ids: ['price_brl'],
+              subscription_plan_ids: [4],
+            },
+          }}
+        >
+          <SubscriptionPlansCard
+            topupInfo={topupInfo}
+            initialPlans={[brlPlan]}
+            initialSelfData={normalizeSelfSubscriptionData(undefined)}
+            initialLoading={false}
+            userQuota={12345}
+          />
+        </RecallClaimProvider>
+      </I18nextProvider>
+    )
+
+    expect(html).toContain(formatBrl(50))
+    expect(html).toContain(formatBrl(40))
+    expect(html).toContain(`Save ${formatBrl(10)}`)
+    expect(html).not.toContain('$50')
+    expect(html).not.toContain('$40')
+    expect(html).not.toContain('Save $10')
+  })
 })
 
 describe('PlanPurchaseDialog payment choices', () => {

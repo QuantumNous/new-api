@@ -109,7 +109,23 @@ function getPlanDisplayOrder(title: string): number {
   return PLAN_DISPLAY_ORDER[title.trim().toLowerCase()] ?? 99
 }
 
-function formatPlanPrice(amount: number): string {
+function formatPlanPrice(amount: number, currency = 'USD'): string {
+  if (currency === 'BRL') {
+    return Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+  }
+  if (currency === 'INR') {
+    return Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+  }
   return `$${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`
 }
 
@@ -689,7 +705,10 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
           <div className='grid grid-cols-1 gap-3 md:grid-cols-3 xl:gap-4'>
             {orderedPlans.map((item) => {
               const plan = item.plan
-              const price = formatPlanPrice(Number(plan.price_amount || 0))
+              const price = formatPlanPrice(
+                Number(plan.price_amount || 0),
+                plan.currency || 'USD'
+              )
               const recallOffer = selectBestRecallOffer(recallClaim.offers, {
                 purchaseKind: 'subscription',
                 productId: plan.stripe_price_id || plan.id,
@@ -766,7 +785,10 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                     <div className='mt-6 flex items-end gap-2'>
                       <span className='text-5xl font-semibold tracking-tight tabular-nums'>
                         {recallDiscount
-                          ? formatPlanPrice(recallDiscount.discountedAmount)
+                          ? formatPlanPrice(
+                              recallDiscount.discountedAmount,
+                              recallDiscount.currency
+                            )
                           : price}
                       </span>
                       {recallDiscount ? (
@@ -782,7 +804,8 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                       <div className='mt-1 text-xs font-medium text-[#166534] dark:text-[#86efac]'>
                         {t('Save {{amount}}', {
                           amount: formatPlanPrice(
-                            recallDiscount.discountAmount
+                            recallDiscount.discountAmount,
+                            recallDiscount.currency
                           ),
                         })}
                       </div>
