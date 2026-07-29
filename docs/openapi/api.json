@@ -4862,11 +4862,11 @@
         ]
       }
     },
-    "/api/option/rest_model_ratio": {
-      "post": {
-        "summary": "重置模型倍率",
+    "/api/admin/pricing/models": {
+      "get": {
+        "summary": "获取模型定价目录",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 需要超级管理员权限（Root）。返回渠道自动发现的服务模型、当前手工定价和 CAS revision。",
         "tags": [
           "系统设置"
         ],
@@ -4874,7 +4874,139 @@
         "responses": {
           "200": {
             "description": "成功",
-            "headers": {}
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "revision": {
+                          "type": "integer",
+                          "format": "int64"
+                        },
+                        "summary": {
+                          "type": "object"
+                        },
+                        "models": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/ModelPricingRow"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "更新单个模型定价",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。按模型全量替换定价；revision 过期时返回 409。",
+        "tags": [
+          "系统设置"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "revision",
+                  "model"
+                ],
+                "properties": {
+                  "revision": {
+                    "type": "integer",
+                    "format": "int64"
+                  },
+                  "model": {
+                    "$ref": "#/components/schemas/ModelPricingUpdate"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功"
+          },
+          "409": {
+            "description": "定价 revision 已过期"
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/admin/pricing/models/bulk": {
+      "post": {
+        "summary": "原子批量更新模型定价",
+        "deprecated": false,
+        "description": "👑 需要超级管理员权限（Root）。所有模型在同一事务和同一 revision 下提交。",
+        "tags": [
+          "系统设置"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "revision",
+                  "models"
+                ],
+                "properties": {
+                  "revision": {
+                    "type": "integer",
+                    "format": "int64"
+                  },
+                  "models": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/components/schemas/ModelPricingUpdate"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功"
+          },
+          "409": {
+            "description": "定价 revision 已过期"
           }
         },
         "security": [
@@ -4912,11 +5044,11 @@
         ]
       }
     },
-    "/api/ratio_sync/channels": {
+    "/api/admin/pricing/references/channels": {
       "get": {
-        "summary": "获取可同步渠道",
+        "summary": "获取可用的定价参考来源",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 需要超级管理员权限（Root）。只返回可供管理员比较的渠道和官方参考源。",
         "tags": [
           "系统设置"
         ],
@@ -4937,15 +5069,61 @@
         ]
       }
     },
-    "/api/ratio_sync/fetch": {
+    "/api/admin/pricing/references/preview": {
       "post": {
-        "summary": "获取上游倍率",
+        "summary": "预览参考价格差异",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 需要超级管理员权限（Root）。只抓取和比较参考价格，不写入本地定价。",
         "tags": [
           "系统设置"
         ],
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channel_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  },
+                  "upstreams": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "name",
+                        "base_url"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "base_url": {
+                          "type": "string"
+                        },
+                        "endpoint": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "成功",
@@ -4975,6 +5153,101 @@
             "type": "string"
           },
           "data": {}
+        }
+      },
+      "ModelPricing": {
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "per-token",
+              "per-request",
+              "tiered_expr",
+              "unset"
+            ]
+          },
+          "model_price": {
+            "type": "number",
+            "minimum": 0
+          },
+          "model_ratio": {
+            "type": "number",
+            "minimum": 0
+          },
+          "completion_ratio": {
+            "type": "number",
+            "minimum": 0
+          },
+          "cache_ratio": {
+            "type": "number",
+            "minimum": 0
+          },
+          "create_cache_ratio": {
+            "type": "number",
+            "minimum": 0
+          },
+          "image_ratio": {
+            "type": "number",
+            "minimum": 0
+          },
+          "audio_ratio": {
+            "type": "number",
+            "minimum": 0
+          },
+          "audio_completion_ratio": {
+            "type": "number",
+            "minimum": 0
+          },
+          "billing_expr": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelPricingUpdate": {
+        "type": "object",
+        "required": [
+          "model_name",
+          "pricing"
+        ],
+        "properties": {
+          "model_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/ModelPricing"
+          }
+        }
+      },
+      "ModelPricingRow": {
+        "type": "object",
+        "required": [
+          "model_name",
+          "has_channel",
+          "configured",
+          "completion_ratio_locked",
+          "pricing"
+        ],
+        "properties": {
+          "model_name": {
+            "type": "string"
+          },
+          "has_channel": {
+            "type": "boolean"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "completion_ratio_locked": {
+            "type": "boolean"
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/ModelPricing"
+          }
         }
       },
       "PageInfo": {

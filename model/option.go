@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -209,6 +211,38 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if IsCanonicalPricingOption(key) {
+		committedRevision := int64(0)
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			revision := Option{Key: ModelPricingRevisionKey, Value: "0"}
+			if err := tx.FirstOrCreate(&revision, Option{Key: ModelPricingRevisionKey}).Error; err != nil {
+				return err
+			}
+			if err := lockForUpdate(tx).Where("key = ?", ModelPricingRevisionKey).First(&revision).Error; err != nil {
+				return err
+			}
+			current, err := strconv.ParseInt(revision.Value, 10, 64)
+			if err != nil || current < 0 {
+				return fmt.Errorf("invalid model pricing revision %q", revision.Value)
+			}
+			if current == math.MaxInt64 {
+				return fmt.Errorf("model pricing revision overflow")
+			}
+			if err := tx.Save(&Option{Key: key, Value: value}).Error; err != nil {
+				return err
+			}
+			committedRevision = current + 1
+			revision.Value = strconv.FormatInt(committedRevision, 10)
+			return tx.Save(&revision).Error
+		})
+		if err != nil {
+			return err
+		}
+		if err := updateOptionMap(key, value); err != nil {
+			return err
+		}
+		return updateOptionMap(ModelPricingRevisionKey, strconv.FormatInt(committedRevision, 10))
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -607,7 +641,9 @@ func handleConfigUpdate(key, value string) bool {
 	configMap := map[string]string{
 		configKey: value,
 	}
-	config.UpdateConfigFromMap(cfg, configMap)
+	if err := config.GlobalConfig.UpdateRegistered(configName, configMap); err != nil {
+		return false
+	}
 
 	// 特定配置的后处理
 	if configName == "performance_setting" {

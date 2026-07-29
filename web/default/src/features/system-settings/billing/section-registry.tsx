@@ -26,20 +26,6 @@ import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
-const getModelDefaults = (settings: BillingSettings) => ({
-  ModelPrice: settings.ModelPrice,
-  ModelRatio: settings.ModelRatio,
-  CacheRatio: settings.CacheRatio,
-  CreateCacheRatio: settings.CreateCacheRatio,
-  CompletionRatio: settings.CompletionRatio,
-  ImageRatio: settings.ImageRatio,
-  AudioRatio: settings.AudioRatio,
-  AudioCompletionRatio: settings.AudioCompletionRatio,
-  ExposeRatioEnabled: settings.ExposeRatioEnabled,
-  BillingMode: settings['billing_setting.billing_mode'],
-  BillingExpr: settings['billing_setting.billing_expr'],
-})
-
 const getGroupDefaults = (settings: BillingSettings) => ({
   TopupGroupRatio: settings.TopupGroupRatio,
   GroupRatio: settings.GroupRatio,
@@ -84,6 +70,7 @@ const BILLING_SECTIONS = [
           USDExchangeRate: settings.USDExchangeRate,
           DisplayInCurrencyEnabled: settings.DisplayInCurrencyEnabled,
           DisplayTokenStatEnabled: settings.DisplayTokenStatEnabled,
+          ExposeRatioEnabled: settings.ExposeRatioEnabled,
           general_setting: {
             quota_display_type: parseCurrencyDisplayType(
               settings['general_setting.quota_display_type']
@@ -101,28 +88,26 @@ const BILLING_SECTIONS = [
     ),
   },
   {
-    id: 'model-pricing',
-    titleKey: 'Model Pricing',
-    build: (settings: BillingSettings) => (
-      <RatioSettingsCard
-        titleKey='Model Pricing'
-        modelDefaults={getModelDefaults(settings)}
-        groupDefaults={getGroupDefaults(settings)}
-        toolPricesDefault={settings['tool_price_setting.prices']}
-        visibleTabs={['models', 'unset-models', 'tool-prices', 'upstream-sync']}
-      />
-    ),
-  },
-  {
     id: 'group-pricing',
     titleKey: 'Group Pricing',
     build: (settings: BillingSettings) => (
       <RatioSettingsCard
         titleKey='Group Pricing'
-        modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
         visibleTabs={['groups']}
+      />
+    ),
+  },
+  {
+    id: 'tool-pricing',
+    titleKey: 'Tool Prices',
+    build: (settings: BillingSettings) => (
+      <RatioSettingsCard
+        titleKey='Tool Prices'
+        groupDefaults={getGroupDefaults(settings)}
+        toolPricesDefault={settings['tool_price_setting.prices']}
+        visibleTabs={['tool-prices']}
       />
     ),
   },

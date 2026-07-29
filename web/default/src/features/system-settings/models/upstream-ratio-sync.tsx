@@ -24,11 +24,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 
-import {
-  fetchUpstreamRatios,
-  getUpstreamChannels,
-  updateSystemOption,
-} from '../api'
+import { fetchUpstreamRatios, getUpstreamChannels } from '../api'
 import type {
   DifferencesMap,
   RatioType,
@@ -79,6 +75,7 @@ type UpstreamRatioSyncProps = {
     'billing_setting.billing_mode': string
     'billing_setting.billing_expr': string
   }
+  onApply?: (resolutions: ResolutionsMap) => void | Promise<unknown>
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +116,10 @@ function parseJsonRecord<T>(raw: string | undefined | null): Record<string, T> {
 // Component
 // ---------------------------------------------------------------------------
 
-export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
+export function UpstreamRatioSync({
+  modelRatios,
+  onApply,
+}: UpstreamRatioSyncProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
@@ -193,14 +193,17 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   })
 
   const { mutate: syncMutate, isPending: isSyncPending } = useMutation({
-    mutationFn: async (updates: Array<{ key: string; value: string }>) => {
-      for (const update of updates) {
-        await updateSystemOption(update)
-      }
+    mutationFn: async (_updates: Array<{ key: string; value: string }>) => {
+      if (onApply) return onApply(resolutions)
+      throw new Error(
+        t('Reference prices can only be applied from Pricing Center')
+      )
     },
     onSuccess: () => {
       toast.success(t('Prices synced successfully'))
-      queryClient.invalidateQueries({ queryKey: ['system-options'] })
+      queryClient.invalidateQueries({
+        queryKey: ['admin', 'pricing', 'models'],
+      })
 
       setDifferences((prevDiffs) => {
         const newDiffs = { ...prevDiffs }

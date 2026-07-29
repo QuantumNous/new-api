@@ -452,6 +452,7 @@ export const ModelPricingEditorPanel = forwardRef<
         imageRatio: values.imageRatio || '',
         audioRatio: values.audioRatio || '',
         audioCompletionRatio: values.audioCompletionRatio || '',
+        completionRatioLocked: editData?.completionRatioLocked,
       }
 
       if (pricingMode === 'tiered_expr') {
@@ -461,7 +462,7 @@ export const ModelPricingEditorPanel = forwardRef<
 
       return data
     },
-    [billingExpr, pricingMode, requestRuleExpr]
+    [billingExpr, editData?.completionRatioLocked, pricingMode, requestRuleExpr]
   )
 
   useImperativeHandle(
@@ -574,9 +575,11 @@ export const ModelPricingEditorPanel = forwardRef<
                       <div className='grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(400px,1fr))]'>
                         {laneConfigs.map((lane) => {
                           const disabled =
-                            lane.key === 'audioOutput' &&
-                            (!laneEnabled.audioInput ||
-                              !hasValue(lanePrices.audioInput))
+                            (lane.key === 'completion' &&
+                              editData?.completionRatioLocked) ||
+                            (lane.key === 'audioOutput' &&
+                              (!laneEnabled.audioInput ||
+                                !hasValue(lanePrices.audioInput)))
                           return (
                             <PriceLane
                               key={lane.key}

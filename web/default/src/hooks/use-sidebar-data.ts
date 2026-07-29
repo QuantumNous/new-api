@@ -28,6 +28,7 @@ import {
   Lightbulb,
   ListTodo,
   PenTool,
+  BadgeDollarSign,
   Radio,
   ServerCog,
   Settings,
@@ -152,6 +153,12 @@ export function useSidebarData(): SidebarData {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,
+          },
+          {
+            title: t('Pricing Center'),
+            url: '/pricing-center',
+            icon: BadgeDollarSign,
+            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('Inspiration templates'),

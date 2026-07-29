@@ -543,14 +543,18 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
 
 	for _, field := range pricingSyncFields {
 		for modelName := range valueMap(localData[field]) {
-			allModels[modelName] = struct{}{}
+			if model.IsConcretePricingModel(modelName) {
+				allModels[modelName] = struct{}{}
+			}
 		}
 	}
 
 	for _, channel := range successfulChannels {
 		for _, field := range pricingSyncFields {
 			for modelName := range valueMap(channel.data[field]) {
-				allModels[modelName] = struct{}{}
+				if model.IsConcretePricingModel(modelName) {
+					allModels[modelName] = struct{}{}
+				}
 			}
 		}
 	}

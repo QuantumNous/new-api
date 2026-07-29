@@ -114,6 +114,9 @@ func GetOptions(c *gin.Context) {
 	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
+		if k == model.ModelPricingRevisionKey {
+			continue
+		}
 		value := common.Interface2String(v)
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
@@ -159,6 +162,10 @@ func UpdateOption(c *gin.Context) {
 			"success": false,
 			"message": i18n.T(c, i18n.MsgOptionInvalidParams),
 		})
+		return
+	}
+	if option.Key == model.ModelPricingRevisionKey {
+		common.ApiErrorMsg(c, "model pricing revision is managed internally")
 		return
 	}
 	if strings.HasPrefix(option.Key, "bank_qr_setting.") {

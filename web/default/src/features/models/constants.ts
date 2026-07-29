@@ -181,11 +181,5 @@ export function getSyncSourceOptions(t: TFunction) {
       description: t('Sync from the public upstream metadata repository.'),
       disabled: false,
     },
-    {
-      label: t('Configuration File'),
-      value: 'config' as SyncSource,
-      description: t('Upload or reference a local configuration file.'),
-      disabled: true,
-    },
   ] as const
 }

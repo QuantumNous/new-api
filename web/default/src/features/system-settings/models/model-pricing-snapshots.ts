@@ -56,6 +56,9 @@ export type ModelRow = ModelPricingSnapshot & {
   isDraftChanged: boolean
   isDraftDeleted: boolean
   isDraftNew: boolean
+  hasChannel?: boolean
+  configured?: boolean
+  completionRatioLocked?: boolean
 }
 
 export const hasPricingValue = (value?: string) =>

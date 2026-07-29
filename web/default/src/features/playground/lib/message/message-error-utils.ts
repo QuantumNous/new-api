@@ -20,8 +20,7 @@ import { MESSAGE_STATUS } from '../../constants'
 import type { Message } from '../../types'
 import { getMessageContent } from './message-utils'
 
-export const MODEL_PRICING_SETTINGS_PATH =
-  '/system-settings/billing/model-pricing'
+export const MODEL_PRICING_SETTINGS_PATH = '/pricing-center'
 
 export const TOPUP_PATH = '/console/topup'
 

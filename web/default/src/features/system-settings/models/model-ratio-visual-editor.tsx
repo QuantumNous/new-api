@@ -88,11 +88,23 @@ type ModelRatioVisualEditorProps = {
   billingMode: string
   billingExpr: string
   candidateModelNames?: string[]
+  modelMetadata?: Record<
+    string,
+    {
+      hasChannel: boolean
+      configured: boolean
+      completionRatioLocked: boolean
+    }
+  >
   candidateModelsLoading?: boolean
   filterMode?: 'all' | 'unset'
   onChange: (field: string, value: string) => void
   onSave: () => void | Promise<void>
   isSaving: boolean
+  onSaveModel?: (data: ModelRatioData) => void | Promise<void>
+  onUnsetModel?: (name: string) => void | Promise<void>
+  onBulkCopy?: (data: ModelRatioData, names: string[]) => void | Promise<void>
+  initialModelFilter?: string
 }
 
 export type ModelRatioVisualEditorHandle = {
@@ -127,11 +139,16 @@ const ModelRatioVisualEditorComponent = forwardRef<
     billingMode,
     billingExpr,
     candidateModelNames,
+    modelMetadata,
     candidateModelsLoading,
     filterMode = 'all',
     onChange,
     onSave,
     isSaving,
+    onSaveModel,
+    onUnsetModel,
+    onBulkCopy,
+    initialModelFilter,
   },
   ref
 ) {
@@ -142,7 +159,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
   const [editData, setEditData] = useState<ModelRatioData | null>(null)
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [globalFilter, setGlobalFilter] = useState('')
+  const [globalFilter, setGlobalFilter] = useState(initialModelFilter ?? '')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const editorPanelRef = useRef<ModelPricingEditorPanelHandle>(null)
   const [pagination, setPagination] = useState<PaginationState>({
@@ -188,6 +205,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columnVisibility))
   }, [columnVisibility])
 
+  useEffect(() => {
+    setGlobalFilter(initialModelFilter ?? '')
+  }, [initialModelFilter])
+
   const models = useMemo(() => {
     const savedRows = buildModelSnapshots({
       modelPrice: savedModelPrice,
@@ -216,10 +237,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
 
     const savedByName = new Map(savedRows.map((row) => [row.name, row]))
     const draftByName = new Map(draftRows.map((row) => [row.name, row]))
-    const modelNames =
-      filterMode === 'unset'
-        ? new Set(candidateModelNames ?? [])
-        : new Set([...savedByName.keys(), ...draftByName.keys()])
+    const modelNames = new Set([
+      ...savedByName.keys(),
+      ...draftByName.keys(),
+      ...(candidateModelNames ?? []),
+    ])
 
     return [...modelNames]
       .map((name) => {
@@ -232,6 +254,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
 
         return {
           ...displayed,
+          ...modelMetadata?.[name],
           saved,
           draft,
           isDraftChanged: savedSignature !== draftSignature,
@@ -244,6 +267,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [
     candidateModelNames,
+    modelMetadata,
     filterMode,
     savedModelPrice,
     savedModelRatio,
@@ -310,6 +334,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         billingMode: editBillingMode,
         billingExpr: editableModel.billingExpr,
         requestRuleExpr: editableModel.requestRuleExpr,
+        completionRatioLocked: model.completionRatioLocked,
       })
       setEditorOpen(true)
       if (isMobile) setSheetOpen(true)
@@ -339,7 +364,15 @@ const ModelRatioVisualEditorComponent = forwardRef<
   )
 
   const handleDelete = useCallback(
-    (name: string) => {
+    async (name: string) => {
+      if (onUnsetModel) {
+        try {
+          await onUnsetModel(name)
+        } catch {
+          // The mutation callback owns user-facing error reporting.
+        }
+        return
+      }
       const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
         fallback: {},
         silent: true,
@@ -431,6 +464,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingExpr,
       onChange,
       editData,
+      onUnsetModel,
     ]
   )
 
@@ -637,9 +671,14 @@ const ModelRatioVisualEditorComponent = forwardRef<
 
     // Persist to the source model too, so targets never carry pricing the
     // source itself would lose if the editor draft were abandoned.
-    persistPricingData(sourceData, [
-      ...new Set([sourceData.name, ...targetNames]),
-    ])
+    const copyNames = [...new Set([sourceData.name, ...targetNames])]
+    try {
+      if (onBulkCopy) await onBulkCopy(sourceData, copyNames)
+      else persistPricingData(sourceData, copyNames)
+    } catch {
+      // The mutation callback owns user-facing error reporting.
+      return
+    }
     table.resetRowSelection()
     toast.success(
       t('Applied {{name}} pricing to {{count}} models', {
@@ -647,7 +686,22 @@ const ModelRatioVisualEditorComponent = forwardRef<
         count: targetNames.length,
       })
     )
-  }, [editData, editorOpen, persistPricingData, t, table])
+  }, [editData, editorOpen, onBulkCopy, persistPricingData, t, table])
+
+  const handleEditorSave = useCallback(async () => {
+    if (!onSaveModel) {
+      await onSave()
+      return
+    }
+    const data = await editorPanelRef.current?.commitDraft()
+    if (!data) return
+    try {
+      await onSaveModel(data)
+      setEditData(data)
+    } catch {
+      // The mutation callback owns user-facing error reporting.
+    }
+  }, [onSave, onSaveModel])
 
   useImperativeHandle(
     ref,
@@ -656,12 +710,17 @@ const ModelRatioVisualEditorComponent = forwardRef<
         if (!editorOpen || !editorPanelRef.current) return true
         const data = await editorPanelRef.current.commitDraft()
         if (!data) return false
-        persistPricingData(data)
+        try {
+          if (onSaveModel) await onSaveModel(data)
+          else persistPricingData(data)
+        } catch {
+          return false
+        }
         setEditData(data)
         return true
       },
     }),
-    [editorOpen, persistPricingData]
+    [editorOpen, onSaveModel, persistPricingData]
   )
 
   const hasRows = table.getRowModel().rows.length > 0
@@ -777,7 +836,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
             <ModelPricingEditorPanel
               ref={editorPanelRef}
               editData={editData}
-              onSave={onSave}
+              onSave={handleEditorSave}
               isSaving={isSaving}
               className='h-full min-h-0'
             />
@@ -817,7 +876,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           editData={editData}
-          onSave={onSave}
+          onSave={handleEditorSave}
           isSaving={isSaving}
         />
       )}
@@ -852,11 +911,16 @@ export const ModelRatioVisualEditor = memo(
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
       prevProps.candidateModelNames === nextProps.candidateModelNames &&
+      prevProps.modelMetadata === nextProps.modelMetadata &&
       prevProps.candidateModelsLoading === nextProps.candidateModelsLoading &&
       prevProps.filterMode === nextProps.filterMode &&
       prevProps.onChange === nextProps.onChange &&
       prevProps.onSave === nextProps.onSave &&
-      prevProps.isSaving === nextProps.isSaving
+      prevProps.isSaving === nextProps.isSaving &&
+      prevProps.onSaveModel === nextProps.onSaveModel &&
+      prevProps.onUnsetModel === nextProps.onUnsetModel &&
+      prevProps.onBulkCopy === nextProps.onBulkCopy &&
+      prevProps.initialModelFilter === nextProps.initialModelFilter
     )
   }
 )

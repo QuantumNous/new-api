@@ -28,6 +28,7 @@ import { Route as InspirationProjectIdRouteImport } from './routes/inspiration/$
 import { Route as DocsSlugRouteImport } from './routes/docs/$slug'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
 import { Route as ConsoleLogRouteImport } from './routes/console/log'
+import { Route as AuthenticatedPricingCenterRouteImport } from './routes/_authenticated/pricing-center'
 import { Route as AuthenticatedInspirationAdminRouteImport } from './routes/_authenticated/inspiration-admin'
 import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
 import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authenticated/chat2link'
@@ -175,6 +176,12 @@ const ConsoleLogRoute = ConsoleLogRouteImport.update({
   path: '/console/log',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedPricingCenterRoute =
+  AuthenticatedPricingCenterRouteImport.update({
+    id: '/pricing-center',
+    path: '/pricing-center',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedInspirationAdminRoute =
   AuthenticatedInspirationAdminRouteImport.update({
     id: '/inspiration-admin',
@@ -495,6 +502,7 @@ export interface FileRoutesByFullPath {
   '/chat2link': typeof AuthenticatedChat2linkRoute
   '/device': typeof AuthenticatedDeviceRoute
   '/inspiration-admin': typeof AuthenticatedInspirationAdminRoute
+  '/pricing-center': typeof AuthenticatedPricingCenterRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/docs/$slug': typeof DocsSlugRoute
@@ -565,6 +573,7 @@ export interface FileRoutesByTo {
   '/chat2link': typeof AuthenticatedChat2linkRoute
   '/device': typeof AuthenticatedDeviceRoute
   '/inspiration-admin': typeof AuthenticatedInspirationAdminRoute
+  '/pricing-center': typeof AuthenticatedPricingCenterRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/docs/$slug': typeof DocsSlugRoute
@@ -640,6 +649,7 @@ export interface FileRoutesById {
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
   '/_authenticated/device': typeof AuthenticatedDeviceRoute
   '/_authenticated/inspiration-admin': typeof AuthenticatedInspirationAdminRoute
+  '/_authenticated/pricing-center': typeof AuthenticatedPricingCenterRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/docs/$slug': typeof DocsSlugRoute
@@ -714,6 +724,7 @@ export interface FileRouteTypes {
     | '/chat2link'
     | '/device'
     | '/inspiration-admin'
+    | '/pricing-center'
     | '/console/log'
     | '/console/topup'
     | '/docs/$slug'
@@ -784,6 +795,7 @@ export interface FileRouteTypes {
     | '/chat2link'
     | '/device'
     | '/inspiration-admin'
+    | '/pricing-center'
     | '/console/log'
     | '/console/topup'
     | '/docs/$slug'
@@ -858,6 +870,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chat2link'
     | '/_authenticated/device'
     | '/_authenticated/inspiration-admin'
+    | '/_authenticated/pricing-center'
     | '/console/log'
     | '/console/topup'
     | '/docs/$slug'
@@ -1071,6 +1084,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/console/log'
       preLoaderRoute: typeof ConsoleLogRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/pricing-center': {
+      id: '/_authenticated/pricing-center'
+      path: '/pricing-center'
+      fullPath: '/pricing-center'
+      preLoaderRoute: typeof AuthenticatedPricingCenterRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/inspiration-admin': {
       id: '/_authenticated/inspiration-admin'
@@ -1534,6 +1554,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
   AuthenticatedDeviceRoute: typeof AuthenticatedDeviceRoute
   AuthenticatedInspirationAdminRoute: typeof AuthenticatedInspirationAdminRoute
+  AuthenticatedPricingCenterRoute: typeof AuthenticatedPricingCenterRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedDesktopAuthorizeRoute: typeof AuthenticatedDesktopAuthorizeRoute
@@ -1561,6 +1582,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,
   AuthenticatedDeviceRoute: AuthenticatedDeviceRoute,
   AuthenticatedInspirationAdminRoute: AuthenticatedInspirationAdminRoute,
+  AuthenticatedPricingCenterRoute: AuthenticatedPricingCenterRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedDesktopAuthorizeRoute: AuthenticatedDesktopAuthorizeRoute,

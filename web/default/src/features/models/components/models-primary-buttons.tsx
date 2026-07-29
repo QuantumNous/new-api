@@ -16,14 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  Plus,
-  MoreHorizontal,
-  RefreshCw,
-  List,
-  Building2,
-  AlertCircle,
-} from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Plus, MoreHorizontal, RefreshCw, List, Building2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -35,20 +29,20 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { useModels } from './models-provider'
 
 export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
+  const isSuperAdmin =
+    useAuthStore((state) => state.auth.user?.role) === ROLE.SUPER_ADMIN
 
   const handleCreateModel = () => {
     setCurrentRow(null)
     setOpen('create-model')
-  }
-
-  const handleMissingModels = () => {
-    setOpen('missing-models')
   }
 
   const handleSync = () => {
@@ -65,6 +59,15 @@ export function ModelsPrimaryButtons() {
 
   return (
     <div className='flex items-center gap-2'>
+      {isSuperAdmin && (
+        <Button
+          variant='outline'
+          size='sm'
+          render={<Link to='/pricing-center' />}
+        >
+          {t('Configure pricing')}
+        </Button>
+      )}
       {/* Create Model */}
       <Button onClick={handleCreateModel} size='sm'>
         <Plus className='h-4 w-4' />
@@ -77,13 +80,6 @@ export function ModelsPrimaryButtons() {
           <MoreHorizontal className='h-4 w-4' />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-56'>
-          <DropdownMenuItem onClick={handleMissingModels}>
-            {t('Missing Models')}
-            <DropdownMenuShortcut>
-              <AlertCircle className='h-4 w-4' />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-
           <DropdownMenuItem onClick={handleSync}>
             {t('Sync Upstream')}
             <DropdownMenuShortcut>

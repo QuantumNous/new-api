@@ -16,7 +16,9 @@ import {
 
 describe('DEFAULT_CHAT_TOOLS', () => {
   it('ships with the built-in assistant system prompt', () => {
-    expect(DEFAULT_CHAT_TOOLS.systemPrompt).toBe(BUILTIN_ASSISTANT_SYSTEM_PROMPT)
+    expect(DEFAULT_CHAT_TOOLS.systemPrompt).toBe(
+      BUILTIN_ASSISTANT_SYSTEM_PROMPT
+    )
     expect(BUILTIN_ASSISTANT_SYSTEM_PROMPT.length).toBeGreaterThan(0)
   })
 })

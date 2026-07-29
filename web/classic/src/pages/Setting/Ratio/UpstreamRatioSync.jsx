@@ -143,7 +143,7 @@ export default function UpstreamRatioSync(props) {
   const fetchAllChannels = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/ratio_sync/channels');
+      const res = await API.get('/api/admin/pricing/references/channels');
 
       if (res.data.success) {
         const channels = res.data.data || [];
@@ -229,7 +229,10 @@ export default function UpstreamRatioSync(props) {
     };
 
     try {
-      const res = await API.post('/api/ratio_sync/fetch', payload);
+      const res = await API.post(
+        '/api/admin/pricing/references/preview',
+        payload,
+      );
 
       if (!res.data.success) {
         showError(res.data.message || t('后端请求失败'));
@@ -261,17 +264,19 @@ export default function UpstreamRatioSync(props) {
     }
   };
 
-  const ratioSyncFields = [
-    'model_ratio',
-    'completion_ratio',
-    'cache_ratio',
-    'create_cache_ratio',
-    'image_ratio',
-    'audio_ratio',
-    'audio_completion_ratio',
-  ];
+  const ratioSyncFields = useMemo(
+    () => [
+      'model_ratio',
+      'completion_ratio',
+      'cache_ratio',
+      'create_cache_ratio',
+      'image_ratio',
+      'audio_ratio',
+      'audio_completion_ratio',
+    ],
+    [],
+  );
 
-  const numericSyncFields = new Set([...ratioSyncFields, 'model_price']);
   const syncFieldOrder = [
     ...ratioSyncFields,
     'model_price',
@@ -326,18 +331,6 @@ export default function UpstreamRatioSync(props) {
       return 'tiered';
     }
     return 'ratio';
-  }
-
-  function optionKeyBySyncField(ratioType) {
-    const explicit = {
-      billing_mode: 'billing_setting.billing_mode',
-      billing_expr: 'billing_setting.billing_expr',
-    };
-    if (explicit[ratioType]) return explicit[ratioType];
-    return ratioType
-      .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join('');
   }
 
   function getUpstreamValue(model, ratioType, sourceName) {
@@ -515,102 +508,135 @@ export default function UpstreamRatioSync(props) {
     await performSync(currentRatios);
   };
 
-  const performSync = useCallback(
-    async (currentRatios) => {
-      const finalRatios = {
-        ModelRatio: { ...currentRatios.ModelRatio },
-        CompletionRatio: { ...currentRatios.CompletionRatio },
-        CacheRatio: { ...currentRatios.CacheRatio },
-        CreateCacheRatio: { ...currentRatios.CreateCacheRatio },
-        ImageRatio: { ...currentRatios.ImageRatio },
-        AudioRatio: { ...currentRatios.AudioRatio },
-        AudioCompletionRatio: { ...currentRatios.AudioCompletionRatio },
-        ModelPrice: { ...currentRatios.ModelPrice },
-        'billing_setting.billing_mode': {
-          ...currentRatios['billing_setting.billing_mode'],
+  const performSync = useCallback(async () => {
+    setLoading(true);
+    showInfo(t('正在同步价格，请稍候'));
+    let success = false;
+    try {
+      const pricingResponse = await API.get('/api/admin/pricing/models');
+      if (!pricingResponse?.data?.success) {
+        throw new Error(pricingResponse?.data?.message || t('保存失败'));
+      }
+      const currentByName = new Map(
+        pricingResponse.data.data.models.map((item) => [item.model_name, item]),
+      );
+      let skippedIncompleteModel = '';
+      const models = Object.entries(resolutions).flatMap(
+        ([model, selected]) => {
+          const current = currentByName.get(model);
+          const pricing = { ...(current?.pricing || { mode: 'unset' }) };
+          const hasPrice = selected.model_price !== undefined;
+          const hasModelRatio = selected.model_ratio !== undefined;
+          const hasExtraRatio = ratioSyncFields.some(
+            (field) => field !== 'model_ratio' && selected[field] !== undefined,
+          );
+          const selectsTiered =
+            selected.billing_mode === 'tiered_expr' ||
+            selected.billing_expr !== undefined;
+          const selectsRatioMode =
+            selected.billing_mode === 'ratio' ||
+            selected.billing_mode === 'per-token';
+          if (hasPrice) {
+            pricing.mode = 'per-request';
+            ratioSyncFields.forEach((field) => delete pricing[field]);
+            delete pricing.billing_expr;
+          } else if (hasModelRatio || selectsRatioMode) {
+            if (
+              selected.model_ratio === undefined &&
+              pricing.model_ratio === undefined
+            ) {
+              if (!skippedIncompleteModel) skippedIncompleteModel = model;
+              return [];
+            }
+            pricing.mode = 'per-token';
+            delete pricing.model_price;
+            delete pricing.billing_expr;
+          } else if (
+            hasExtraRatio &&
+            pricing.mode !== 'per-token' &&
+            !selectsTiered
+          ) {
+            if (!skippedIncompleteModel) skippedIncompleteModel = model;
+            return [];
+          }
+          Object.entries(selected).forEach(([field, value]) => {
+            if (field === 'billing_mode') {
+              pricing.mode = value === 'ratio' ? 'per-token' : value;
+            } else if (field === 'billing_expr') {
+              pricing.mode = 'tiered_expr';
+              pricing.billing_expr = String(value);
+            } else pricing[field] = Number(value);
+          });
+          if (current?.completion_ratio_locked) {
+            delete pricing.completion_ratio;
+          }
+          const missingRequiredValue =
+            (pricing.mode === 'per-token' &&
+              pricing.model_ratio === undefined) ||
+            (pricing.mode === 'per-request' &&
+              pricing.model_price === undefined) ||
+            (pricing.mode === 'tiered_expr' &&
+              (!pricing.billing_expr || !pricing.billing_expr.trim()));
+          if (missingRequiredValue) {
+            if (!skippedIncompleteModel) skippedIncompleteModel = model;
+            return [];
+          }
+          return [{ model_name: model, pricing }];
         },
-        'billing_setting.billing_expr': {
-          ...currentRatios['billing_setting.billing_expr'],
-        },
-      };
-
-      Object.entries(resolutions).forEach(([model, ratios]) => {
-        const selectedTypes = Object.keys(ratios);
-        const hasPrice = selectedTypes.includes('model_price');
-        const hasRatio = selectedTypes.some((rt) =>
-          ratioSyncFields.includes(rt),
+      );
+      if (skippedIncompleteModel) {
+        showWarning(
+          t(
+            '模型 {{name}} 缺少输入价格，无法计算补全/缓存/图片/音频价格对应的倍率',
+            { name: skippedIncompleteModel },
+          ),
         );
-
-        if (hasPrice) {
-          delete finalRatios.ModelRatio[model];
-          delete finalRatios.CompletionRatio[model];
-          delete finalRatios.CacheRatio[model];
-          delete finalRatios.CreateCacheRatio[model];
-          delete finalRatios.ImageRatio[model];
-          delete finalRatios.AudioRatio[model];
-          delete finalRatios.AudioCompletionRatio[model];
-        }
-        if (hasRatio) {
-          delete finalRatios.ModelPrice[model];
-        }
-
-        Object.entries(ratios).forEach(([ratioType, value]) => {
-          const optionKey = optionKeyBySyncField(ratioType);
-          finalRatios[optionKey][model] = numericSyncFields.has(ratioType)
-            ? parseFloat(value)
-            : value;
-        });
+      }
+      if (models.length === 0) {
+        throw new Error(
+          t(
+            '模型 {{name}} 缺少输入价格，无法计算补全/缓存/图片/音频价格对应的倍率',
+            { name: skippedIncompleteModel },
+          ),
+        );
+      }
+      const response = await API.post('/api/admin/pricing/models/bulk', {
+        revision: pricingResponse.data.data.revision,
+        models,
       });
 
-      setLoading(true);
-      showInfo(t('正在同步价格，请稍候'));
-      let success = false;
-      try {
-        const updates = Object.entries(finalRatios).map(([key, value]) =>
-          API.put('/api/option/', {
-            key,
-            value: JSON.stringify(value, null, 2),
-          }),
-        );
+      if (response.data.success) {
+        showSuccess(t('同步成功'));
+        props.refresh();
 
-        const results = await Promise.all(updates);
+        setDifferences((prevDifferences) => {
+          const newDifferences = { ...prevDifferences };
 
-        if (results.every((res) => res.data.success)) {
-          showSuccess(t('同步成功'));
-          props.refresh();
+          Object.entries(resolutions).forEach(([model, ratios]) => {
+            Object.keys(ratios).forEach((ratioType) => {
+              if (newDifferences[model] && newDifferences[model][ratioType]) {
+                delete newDifferences[model][ratioType];
 
-          setDifferences((prevDifferences) => {
-            const newDifferences = { ...prevDifferences };
-
-            Object.entries(resolutions).forEach(([model, ratios]) => {
-              Object.keys(ratios).forEach((ratioType) => {
-                if (newDifferences[model] && newDifferences[model][ratioType]) {
-                  delete newDifferences[model][ratioType];
-
-                  if (Object.keys(newDifferences[model]).length === 0) {
-                    delete newDifferences[model];
-                  }
+                if (Object.keys(newDifferences[model]).length === 0) {
+                  delete newDifferences[model];
                 }
-              });
+              }
             });
-
-            return newDifferences;
           });
 
-          setResolutions({});
-          success = true;
-        } else {
-          showError(t('部分保存失败'));
-        }
-      } catch (error) {
-        showError(t('保存失败'));
-      } finally {
-        setLoading(false);
-      }
-      return success;
-    },
-    [resolutions, props.options, props.refresh],
-  );
+          return newDifferences;
+        });
+
+        setResolutions({});
+        success = true;
+      } else throw new Error(response.data.message || t('保存失败'));
+    } catch (error) {
+      showError(error.message || t('保存失败'));
+    } finally {
+      setLoading(false);
+    }
+    return success;
+  }, [resolutions, props.refresh, ratioSyncFields, t]);
 
   const getCurrentPageData = (dataSource) => {
     const startIndex = (currentPage - 1) * pageSize;

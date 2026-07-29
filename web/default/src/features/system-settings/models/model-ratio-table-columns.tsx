@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
+import { LockKeyhole } from 'lucide-react'
 
 import { DataTableColumnHeader } from '@/components/data-table/core/column-header'
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
@@ -82,8 +83,33 @@ export function buildModelRatioColumns({
         <DataTableColumnHeader column={column} title={t('Model name')} />
       ),
       cell: ({ row }) => (
-        <div className='flex min-w-0 items-center gap-2 font-medium'>
+        <div className='flex min-w-0 flex-wrap items-center gap-2 font-medium'>
           <span className='min-w-0 truncate'>{row.getValue('name')}</span>
+          {row.original.hasChannel === false && (
+            <StatusBadge
+              label={t('No active channel')}
+              variant='warning'
+              copyable={false}
+              className='shrink-0'
+            />
+          )}
+          {row.original.configured === false && (
+            <StatusBadge
+              label={t('Unset price')}
+              variant='neutral'
+              copyable={false}
+              className='shrink-0'
+            />
+          )}
+          {row.original.completionRatioLocked && (
+            <StatusBadge
+              label={t('Output ratio locked')}
+              icon={LockKeyhole}
+              variant='info'
+              copyable={false}
+              className='shrink-0'
+            />
+          )}
           {row.original.billingMode === 'tiered_expr' && (
             <StatusBadge
               label={t('Tiered')}

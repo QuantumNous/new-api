@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react';
-import { API, showError, showSuccess } from '../../../../helpers';
+import { API, showError, showSuccess, showWarning } from '../../../../helpers';
 import {
   combineBillingExpr,
   splitBillingExprAndRequestRules,
@@ -26,6 +26,12 @@ import {
 export const PAGE_SIZE = 10;
 export const PRICE_SUFFIX = '$/1M tokens';
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
+
+const isConcreteServiceModel = (name) =>
+  typeof name === 'string' &&
+  name.trim() !== '' &&
+  !name.includes('*') &&
+  !name.endsWith('-all');
 
 const EMPTY_MODEL = {
   name: '',
@@ -123,21 +129,10 @@ const normalizeCompletionRatioMeta = (rawMeta) => {
 
 const buildModelState = (name, sourceMaps) => {
   const billingMode = sourceMaps.ModelBillingMode?.[name];
-  if (billingMode === 'tiered_expr') {
-    const fullBillingExpr = sourceMaps.ModelBillingExpr?.[name] || '';
-    const { billingExpr, requestRuleExpr } =
-      splitBillingExprAndRequestRules(fullBillingExpr);
-    return {
-      ...EMPTY_MODEL,
-      name,
-      billingMode: 'tiered_expr',
-      billingExpr,
-      requestRuleExpr,
-      rawRatios: { ...EMPTY_MODEL.rawRatios },
-      hasConflict: false,
-    };
-  }
-
+  const isTiered = billingMode === 'tiered_expr';
+  const { billingExpr, requestRuleExpr } = isTiered
+    ? splitBillingExprAndRequestRules(sourceMaps.ModelBillingExpr?.[name] || '')
+    : { billingExpr: '', requestRuleExpr: '' };
   const modelRatio = toNumericString(sourceMaps.ModelRatio[name]);
   const completionRatio = toNumericString(sourceMaps.CompletionRatio[name]);
   const completionRatioMeta = normalizeCompletionRatioMeta(
@@ -161,7 +156,11 @@ const buildModelState = (name, sourceMaps) => {
   return {
     ...EMPTY_MODEL,
     name,
-    billingMode: hasValue(fixedPrice) ? 'per-request' : 'per-token',
+    billingMode: isTiered
+      ? 'tiered_expr'
+      : hasValue(fixedPrice)
+        ? 'per-request'
+        : 'per-token',
     fixedPrice,
     inputPrice,
     completionRatioLocked: completionRatioMeta.locked,
@@ -199,7 +198,8 @@ const buildModelState = (name, sourceMaps) => {
       toNumberOrNull(audioInputPrice) !== null && hasValue(audioCompletionRatio)
         ? formatNumber(Number(audioInputPrice) * Number(audioCompletionRatio))
         : '',
-    requestRuleExpr: '',
+    billingExpr,
+    requestRuleExpr,
     rawRatios: {
       modelRatio,
       completionRatio,
@@ -225,7 +225,8 @@ const buildModelState = (name, sourceMaps) => {
 
 export const isBasePricingUnset = (model) =>
   model.billingMode !== 'tiered_expr' &&
-  !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
+  !hasValue(model.fixedPrice) &&
+  !hasValue(model.inputPrice);
 
 export const getModelWarnings = (model, t) => {
   if (!model) {
@@ -291,8 +292,8 @@ export const getModelWarnings = (model, t) => {
 export const buildSummaryText = (model, t) => {
   const requestRuleSuffix =
     model.billingMode === 'tiered_expr' && model.requestRuleExpr
-    ? `，${t('请求规则')}`
-    : '';
+      ? `，${t('请求规则')}`
+      : '';
   if (model.billingMode === 'tiered_expr') {
     const expr = model.billingExpr;
     if (!expr) return `${t('表达式计费')}${requestRuleSuffix}`;
@@ -345,6 +346,10 @@ const serializeModel = (model, t) => {
     AudioRatio: null,
     AudioCompletionRatio: null,
   };
+
+  if (model.billingMode === 'tiered_expr' && hasValue(model.fixedPrice)) {
+    result.ModelPrice = toNormalizedNumber(model.fixedPrice);
+  }
 
   if (model.billingMode === 'per-request') {
     if (hasValue(model.fixedPrice)) {
@@ -623,10 +628,13 @@ export function useModelPricingEditorState({
   refresh,
   t,
   candidateModelNames = EMPTY_CANDIDATE_MODEL_NAMES,
+  pricingRevision = 0,
   filterMode = 'all',
 }) {
   const [models, setModels] = useState([]);
   const [initialVisibleModelNames, setInitialVisibleModelNames] = useState([]);
+  const [initialBasePricingNames, setInitialBasePricingNames] = useState([]);
+  const [deletedModelNames, setDeletedModelNames] = useState([]);
   const [selectedModelName, setSelectedModelName] = useState('');
   const [selectedModelNames, setSelectedModelNames] = useState([]);
   const [searchText, setSearchText] = useState('');
@@ -646,8 +654,12 @@ export function useModelPricingEditorState({
       ImageRatio: parseOptionJSON(options.ImageRatio),
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
-      ModelBillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
-      ModelBillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
+      ModelBillingMode: parseOptionJSON(
+        options['billing_setting.billing_mode'],
+      ),
+      ModelBillingExpr: parseOptionJSON(
+        options['billing_setting.billing_expr'],
+      ),
     };
 
     const names = new Set([
@@ -666,10 +678,17 @@ export function useModelPricingEditorState({
     ]);
 
     const nextModels = Array.from(names)
+      .filter(isConcreteServiceModel)
       .map((name) => buildModelState(name, sourceMaps))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     setModels(nextModels);
+    setInitialBasePricingNames(
+      nextModels
+        .filter((model) => !isBasePricingUnset(model))
+        .map((model) => model.name),
+    );
+    setDeletedModelNames([]);
     setInitialVisibleModelNames(
       filterMode === 'unset'
         ? nextModels
@@ -917,6 +936,9 @@ export function useModelPricingEditorState({
     };
 
     setModels((previous) => [nextModel, ...previous]);
+    setDeletedModelNames((previous) =>
+      previous.filter((name) => name !== trimmedName),
+    );
     setOptionalFieldToggles((prev) => ({
       ...prev,
       [trimmedName]: buildOptionalFieldToggles(nextModel),
@@ -929,6 +951,11 @@ export function useModelPricingEditorState({
   const deleteModel = (name) => {
     const nextModels = models.filter((model) => model.name !== name);
     setModels(nextModels);
+    if (initialBasePricingNames.includes(name)) {
+      setDeletedModelNames((previous) =>
+        previous.includes(name) ? previous : [...previous, name],
+      );
+    }
     setOptionalFieldToggles((prev) => {
       const next = { ...prev };
       delete next[name];
@@ -1023,79 +1050,71 @@ export function useModelPricingEditorState({
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const output = {
-        ModelPrice: {},
-        ModelRatio: {},
-        CompletionRatio: {},
-        CacheRatio: {},
-        CreateCacheRatio: {},
-        ImageRatio: {},
-        AudioRatio: {},
-        AudioCompletionRatio: {},
+      const fieldMap = {
+        ModelPrice: 'model_price',
+        ModelRatio: 'model_ratio',
+        CompletionRatio: 'completion_ratio',
+        CacheRatio: 'cache_ratio',
+        CreateCacheRatio: 'create_cache_ratio',
+        ImageRatio: 'image_ratio',
+        AudioRatio: 'audio_ratio',
+        AudioCompletionRatio: 'audio_completion_ratio',
       };
-
-      const tieredOutput = {
-        'billing_setting.billing_mode': {},
-        'billing_setting.billing_expr': {},
-      };
-
+      const updates = [];
       for (const model of models) {
+        let serialized = {};
+        try {
+          serialized = serializeModel(model, t);
+        } catch (error) {
+          if (model.billingMode !== 'tiered_expr') throw error;
+        }
+
+        let mode = model.billingMode;
+        if (mode === 'per-token' && serialized.ModelRatio === null) {
+          mode = 'unset';
+        } else if (mode === 'per-request' && serialized.ModelPrice === null) {
+          mode = 'unset';
+        }
+        if (mode === 'unset' && !initialBasePricingNames.includes(model.name)) {
+          continue;
+        }
+        const pricing = { mode };
+        Object.entries(serialized).forEach(([key, value]) => {
+          if (value !== null) pricing[fieldMap[key]] = value;
+        });
         if (model.billingMode === 'tiered_expr') {
           const finalBillingExpr = combineBillingExpr(
             model.billingExpr,
             model.requestRuleExpr,
           );
-          if (finalBillingExpr) {
-            tieredOutput['billing_setting.billing_mode'][model.name] = 'tiered_expr';
-            tieredOutput['billing_setting.billing_expr'][model.name] = finalBillingExpr;
-          }
+          pricing.billing_expr = finalBillingExpr;
         }
+        updates.push({ model_name: model.name, pricing });
+      }
+      deletedModelNames.forEach((modelName) => {
+        updates.push({ model_name: modelName, pricing: { mode: 'unset' } });
+      });
 
-        // Always serialize ratio/price values for all models (including
-        // tiered_expr) so they serve as fallback during multi-instance sync
-        // delay.  ModelPriceHelper checks billing_mode first, so these values
-        // are only used when billing_setting hasn't propagated yet.
-        try {
-          const serialized = serializeModel(model, t);
-          Object.entries(serialized).forEach(([key, value]) => {
-            if (value !== null) {
-              output[key][model.name] = value;
-            }
-          });
-        } catch (e) {
-          if (model.billingMode !== 'tiered_expr') {
-            throw e;
-          }
-        }
+      if (updates.length === 0) {
+        showWarning(t('你似乎并没有修改什么'));
+        return;
       }
 
-      const requestQueue = [
-        ...Object.entries(output).map(([key, value]) =>
-          API.put('/api/option/', {
-            key,
-            value: JSON.stringify(value, null, 2),
-          }),
-        ),
-        ...Object.entries(tieredOutput).map(([key, value]) =>
-          API.put('/api/option/', {
-            key,
-            value: JSON.stringify(value, null, 2),
-          }),
-        ),
-      ];
-
-      const results = await Promise.all(requestQueue);
-      for (const res of results) {
-        if (!res?.data?.success) {
-          throw new Error(res?.data?.message || t('保存失败，请重试'));
-        }
+      const response = await API.post('/api/admin/pricing/models/bulk', {
+        revision: pricingRevision,
+        models: updates,
+      });
+      if (!response?.data?.success) {
+        throw new Error(response?.data?.message || t('保存失败，请重试'));
       }
 
       showSuccess(t('保存成功'));
       await refresh();
     } catch (error) {
       console.error('保存失败:', error);
-      showError(error.message || t('保存失败，请重试'));
+      showError(
+        error.response?.data?.message || error.message || t('保存失败，请重试'),
+      );
     } finally {
       setLoading(false);
     }

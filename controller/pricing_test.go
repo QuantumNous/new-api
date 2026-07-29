@@ -77,3 +77,28 @@ func TestNormalizeModelMetadataValidatesOfficialDiscount(t *testing.T) {
 	metadata := model.Model{OfficialDiscount: &discount}
 	require.NoError(t, normalizeModelMetadata(&metadata))
 }
+
+func TestPricingReferenceDifferencesExcludeWildcardKeys(t *testing.T) {
+	local := map[string]any{
+		"model_ratio": map[string]float64{
+			"gpt-4-gizmo-*": 15,
+			"service-model": 1,
+		},
+	}
+	channels := []struct {
+		name string
+		data map[string]any
+	}{{
+		name: "reference",
+		data: map[string]any{
+			"model_ratio": map[string]float64{
+				"gpt-4-gizmo-*": 20,
+				"service-model": 2,
+			},
+		},
+	}}
+
+	differences := buildDifferences(local, channels)
+	assert.NotContains(t, differences, "gpt-4-gizmo-*")
+	assert.Contains(t, differences, "service-model")
+}

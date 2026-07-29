@@ -13,6 +13,7 @@
     "@visactor/vchart-semi-theme": "~1.8.8",
     "axios": "catalog:",
     "clsx": "catalog:",
+    "date-fns": "^2.30.0",
     "dayjs": "catalog:",
     "history": "^5.3.0",
     "highlight.js": "^11.11.1",
