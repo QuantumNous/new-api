@@ -73,6 +73,7 @@ import {
   extractManagedSearchResult,
   updateManagedAssistant,
 } from './lib/managed-tools'
+import { updateAssistantMessageWithError } from './lib/message/message-update-utils'
 import { setMessageActiveVersion } from './lib/message/message-utils'
 import { isPlaygroundImageModel } from './lib/studio/image-request-schema'
 import { getModelModality } from './lib/studio/model-modality'
@@ -386,9 +387,7 @@ export function Playground() {
           })
         } else if (assistantKey) {
           updateMessages((previous) =>
-            previous.map((item) =>
-              item.key === assistantKey ? { ...item, status: 'error' } : item
-            )
+            updateAssistantMessageWithError(previous, message)
           )
         }
       } finally {

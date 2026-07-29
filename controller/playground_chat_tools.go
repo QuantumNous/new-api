@@ -43,8 +43,8 @@ func CreatePlaygroundChatToolRun(c *gin.Context) {
 	req.ClientRequestId = strings.TrimSpace(req.ClientRequestId)
 	req.UserText = strings.TrimSpace(req.UserText)
 	req.Group = strings.TrimSpace(req.Group)
-	if req.ClientRequestId == "" || len(req.ClientRequestId) > 191 || req.UserText == "" || len([]rune(req.UserText)) > service.MaxPlaygroundSearchQueryRunes {
-		common.ApiErrorMsg(c, "client_request_id and bounded user_text are required")
+	if req.ClientRequestId == "" || len(req.ClientRequestId) > 191 || req.UserText == "" {
+		common.ApiErrorMsg(c, "client_request_id and user_text are required")
 		return
 	}
 	if existing, err := model.GetPlaygroundChatToolRunByRequest(userID, req.ClientRequestId); err == nil {
@@ -72,6 +72,10 @@ func CreatePlaygroundChatToolRun(c *gin.Context) {
 	}
 	if action != service.PlaygroundToolChat && req.ToolPolicy.Mode != "direct" && !stringSliceContains(req.ToolPolicy.Enabled, action) {
 		action = service.PlaygroundToolChat
+	}
+	if action == service.PlaygroundToolSearch && len([]rune(req.UserText)) > service.MaxPlaygroundSearchQueryRunes {
+		common.ApiErrorMsg(c, "search query is too large")
+		return
 	}
 	run := &model.PlaygroundChatToolRun{UserId: userID, ClientRequestId: req.ClientRequestId, Action: action, Status: "ready", ChatModel: req.Model, UsingGroup: req.Group, Prompt: req.UserText, ExecutionToken: uuid.NewString()}
 	args := map[string]any{}

@@ -6,18 +6,65 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestCreatePlaygroundChatToolRunAllowsLongOrdinaryChat(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.PlaygroundChatToolRun{}))
+	oldDB := model.DB
+	model.DB = db
+	t.Cleanup(func() { model.DB = oldDB })
+	require.NoError(t, model.CreatePlaygroundChatToolRun(&model.PlaygroundChatToolRun{
+		UserId:          7,
+		ClientRequestId: "long-chat-request",
+		Action:          service.PlaygroundToolChat,
+		Status:          "completed",
+		ChatModel:       "gpt-test",
+		UsingGroup:      "default",
+	}))
+
+	body, err := common.Marshal(map[string]any{
+		"client_request_id": "long-chat-request",
+		"model":             "gpt-test",
+		"user_text":         strings.Repeat("普通对话内容", service.MaxPlaygroundSearchQueryRunes),
+		"tool_policy":       map[string]any{"mode": "auto", "enabled": []string{}},
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/playground/chat/runs", bytes.NewReader(body))
+	ctx.Set("id", 7)
+
+	CreatePlaygroundChatToolRun(ctx)
+
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Run struct {
+				Action string `json:"action"`
+				Status string `json:"status"`
+			} `json:"run"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.True(t, response.Success)
+	assert.Equal(t, service.PlaygroundToolChat, response.Data.Run.Action)
+	assert.Equal(t, "completed", response.Data.Run.Status)
+}
 
 func TestManagedSearchTerminalResult(t *testing.T) {
 	status := json.RawMessage(`"completed"`)
