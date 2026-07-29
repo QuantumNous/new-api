@@ -90,6 +90,17 @@ export function convertDetectedLanguage(value: string): string {
  */
 export function toIntlLocale(value?: string | null): string | undefined {
   if (!value) return undefined
+
+  // Project i18n codes are camelCase (`zhCN`/`zhTW`), not BCP-47. Also accept
+  // common accidental variants so callers cannot crash DateTimeFormat again.
+  const compact = value.trim().replaceAll('_', '-').replaceAll('-', '')
+  const lower = compact.toLowerCase()
+  if (lower === 'zhcn' || lower === 'zhhans') return 'zh-CN'
+  if (lower === 'zhtw' || lower === 'zhhant' || lower === 'zhhk' || lower === 'zhmo') {
+    return 'zh-TW'
+  }
+  if (lower === 'vi' || lower.startsWith('vi')) return 'vi-VN'
+
   switch (value) {
     case 'zhCN':
       return 'zh-CN'

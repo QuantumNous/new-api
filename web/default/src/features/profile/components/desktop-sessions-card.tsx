@@ -35,6 +35,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
+import { toIntlLocale } from '@/i18n/languages'
 
 import { getDesktopSessions, revokeDesktopSession } from '../api'
 import type { DesktopSession } from '../types'
@@ -72,10 +73,14 @@ export function DesktopSessionsCard() {
   const formatDate = (value: number) => {
     const date = new Date(value * 1000)
     if (Number.isNaN(date.getTime())) return '—'
-    return new Intl.DateTimeFormat(i18n.resolvedLanguage, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(date)
+    // i18n uses project codes like `zhCN`; Intl requires BCP-47 (`zh-CN`).
+    return new Intl.DateTimeFormat(
+      toIntlLocale(i18n.resolvedLanguage || i18n.language),
+      {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }
+    ).format(date)
   }
 
   let content: ReactNode = (
