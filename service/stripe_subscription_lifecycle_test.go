@@ -569,6 +569,47 @@ func TestStripeSubscriptionLifecycleCancelConfirmsAuthoritativeStateAfterProvide
 	require.Zero(t, updated.LifecycleReservationUntil)
 }
 
+func TestStripeSubscriptionLifecycleCancelConfirmsUnpaidTerminalStateAfterProviderError(t *testing.T) {
+	setupStripeSubscriptionLifecycleTestDB(t)
+	binding := insertStripeLifecycleBindingWithSubscriptionID(t, 867, "sub_cancel_timeout_unpaid", "active", false)
+	originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+	originalGet := stripeSubscriptionSnapshotGetter
+	t.Cleanup(func() {
+		stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate
+		stripeSubscriptionSnapshotGetter = originalGet
+	})
+	stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
+		require.True(t, cancelAtPeriodEnd)
+		return model.ProviderSubscriptionSnapshot{}, errors.New("stripe update timeout")
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		require.Equal(t, binding.ProviderSubscriptionId, providerSubscriptionID)
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId: providerSubscriptionID,
+			ProviderCustomerId:     binding.ProviderCustomerId,
+			ProviderPriceId:        binding.ProviderPriceId,
+			ProviderStatus:         "unpaid",
+			CurrentPeriodStart:     binding.CurrentPeriodStart,
+			CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+			EndedAt:                common.GetTimestamp(),
+		}, nil
+	}
+
+	updated, err := CancelStripeRecurringSubscription(binding.UserId, binding.Id)
+
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.Equal(t, "unpaid", updated.ProviderStatus)
+	require.Greater(t, updated.EndedAt, int64(0))
+	require.NotEmpty(t, updated.LifecycleReservationToken)
+	require.Equal(t, model.SubscriptionProviderLifecycleActionCancel, updated.LifecycleReservationAction)
+	require.Zero(t, updated.LifecycleReservationUntil)
+	var entitlement model.UserSubscription
+	require.NoError(t, model.DB.Where("provider_binding_id = ?", binding.Id).First(&entitlement).Error)
+	require.Equal(t, "cancelled", entitlement.Status)
+}
+
 func TestStripeSubscriptionLifecycleResumeConfirmsAuthoritativeStateAfterProviderError(t *testing.T) {
 	setupStripeSubscriptionLifecycleTestDB(t)
 	binding := insertStripeLifecycleBindingWithSubscriptionID(t, 853, "sub_resume_direct_timeout_confirmed", "active", true)
@@ -1776,7 +1817,7 @@ func TestCancelDowngradeCompensationReconciliationClosesAuthoritativeBranches(t 
 	}
 }
 
-func TestCancelDowngradeCompensationConsumesExpiredExactReservation(t *testing.T) {
+func TestCancelDowngradeCompensationIgnoresExpiredExactReservation(t *testing.T) {
 	setupStripeSubscriptionLifecycleTestDB(t)
 	binding, contract, intent := seedPendingDowngradeCancelFixture(t, 842, "sched_cancel_expired_compensation", "cancel-expired-compensation")
 	require.NoError(t, model.DB.First(binding, binding.Id).Error)
@@ -1811,12 +1852,18 @@ func TestCancelDowngradeCompensationConsumesExpiredExactReservation(t *testing.T
 	err = reconcileCancelDowngradeCompensation(*intent)
 
 	require.NoError(t, err)
+	require.NoError(t, model.DB.First(contract, contract.Id).Error)
+	require.Equal(t, model.SubscriptionContractStatusActive, contract.Status)
+	require.Zero(t, contract.PendingPlanId)
+	require.NoError(t, model.DB.First(intent, intent.Id).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusSuperseded, intent.Status)
 	var stored model.SubscriptionProviderBinding
 	require.NoError(t, model.DB.First(&stored, binding.Id).Error)
 	require.True(t, stored.CancelAtPeriodEnd)
+	require.Equal(t, reservation.LifecycleActionSeq+1, stored.LifecycleActionSeq)
 	require.Equal(t, reservation.Token, stored.LifecycleReservationToken)
 	require.Equal(t, reservation.Action, stored.LifecycleReservationAction)
-	require.Zero(t, stored.LifecycleReservationUntil)
+	require.Equal(t, expiredAt, stored.LifecycleReservationUntil)
 }
 
 func TestCancelDowngradeCompensationIgnoresExpiredOppositeReservation(t *testing.T) {

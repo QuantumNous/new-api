@@ -393,13 +393,6 @@ func stripeGracePaidInvoiceReservation(bindingID int64) (*model.SubscriptionProv
 	if !errors.Is(err, model.ErrSubscriptionProviderLifecycleConflict) {
 		return nil, false, err
 	}
-	reservation, err = model.GetSubscriptionProviderLifecycleReservation(bindingID, model.SubscriptionProviderLifecycleActionGraceCancel)
-	if err == nil {
-		return reservation, true, nil
-	}
-	if !errors.Is(err, model.ErrSubscriptionProviderLifecycleConflict) {
-		return nil, false, err
-	}
 	return nil, false, nil
 }
 

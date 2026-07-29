@@ -112,6 +112,7 @@ type purchasePlanSnapshot struct {
 	Title               string  `json:"title"`
 	PriceAmount         float64 `json:"price_amount"`
 	Currency            string  `json:"currency"`
+	StripePriceID       string  `json:"stripe_price_id"`
 	DurationUnit        string  `json:"duration_unit"`
 	DurationValue       int     `json:"duration_value"`
 	TotalAmount         int64   `json:"total_amount"`
@@ -786,6 +787,7 @@ func subscriptionPurchasePlanSnapshot(plan *model.SubscriptionPlan) (string, err
 		Title:               plan.Title,
 		PriceAmount:         plan.PriceAmount,
 		Currency:            plan.Currency,
+		StripePriceID:       plan.StripePriceId,
 		DurationUnit:        plan.DurationUnit,
 		DurationValue:       plan.DurationValue,
 		TotalAmount:         plan.TotalAmount,

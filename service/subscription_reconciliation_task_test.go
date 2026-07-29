@@ -465,7 +465,7 @@ func TestStripeSubscriptionReconciliationInitialPaidRetryReusesCancelReservation
 	require.NotEqual(t, reservedUntil, reloadedBinding.LifecycleReservationUntil)
 }
 
-func TestStripeSubscriptionReconciliationInitialPaidRetryReusesExpiredExactCancelReservation(t *testing.T) {
+func TestStripeSubscriptionReconciliationInitialPaidRetryIgnoresExpiredCancelReservation(t *testing.T) {
 	setupSubscriptionInvoiceServiceTestDB(t)
 	contract, binding, entitlement := seedStripeRenewalContract(t, 9141, 9241, "sub_grace_paid_retry_expired_reserved")
 	now := common.GetTimestamp()
@@ -526,7 +526,7 @@ func TestStripeSubscriptionReconciliationInitialPaidRetryReusesExpiredExactCance
 	require.NoError(t, model.DB.First(&reloadedBinding, binding.Id).Error)
 	require.Equal(t, "expired-cancel-reservation", reloadedBinding.LifecycleReservationToken)
 	require.Equal(t, model.SubscriptionProviderLifecycleActionGraceCancel, reloadedBinding.LifecycleReservationAction)
-	require.Zero(t, reloadedBinding.LifecycleReservationUntil)
+	require.Equal(t, expiredUntil, reloadedBinding.LifecycleReservationUntil)
 }
 
 func TestStripeSubscriptionReconciliationReleasesReservationWhenInvoiceFenceFailsBeforeCancel(t *testing.T) {
