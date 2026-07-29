@@ -760,8 +760,8 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		if !plan.Enabled {
 			return errors.New("套餐未启用")
 		}
-		if plan.PriceAmount < 0 {
-			return errors.New("套餐价格不能为负数")
+		if plan.PriceAmount <= 0 {
+			return errors.New("余额兑换套餐价格必须大于 0")
 		}
 		if plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
 			return errors.New("该套餐不允许使用余额兑换")
