@@ -65,6 +65,10 @@ describe("language routing", () => {
       "/openai-compatible",
       "/gateway",
       "/apify-alternative",
+      "/tools/web-scraping-api",
+      "/tools/google-search-api",
+      "/lp/tools-ads-review",
+      "/lp/tools-ads/claude/web-scraping-api",
     ]) {
       expect(getLanguageRedirectPath({ pathname, method: "GET", cookieLocale: "zh", acceptLanguage: "zh-CN" })).toBeNull();
     }
