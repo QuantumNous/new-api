@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -9,6 +10,74 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+const maxLogUsageExportRangeSeconds int64 = 31 * 24 * 60 * 60
+
+func getLogUsageSummaryFilter(c *gin.Context, userId int, allowAdminFilters bool) (model.LogUsageSummaryFilter, error) {
+	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	if err != nil || startTimestamp <= 0 {
+		return model.LogUsageSummaryFilter{}, errors.New("请选择有效的导出开始时间")
+	}
+	endTimestamp, err := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if err != nil || endTimestamp <= 0 {
+		return model.LogUsageSummaryFilter{}, errors.New("请选择有效的导出结束时间")
+	}
+	if endTimestamp < startTimestamp {
+		return model.LogUsageSummaryFilter{}, errors.New("导出结束时间不能早于开始时间")
+	}
+	if endTimestamp-startTimestamp > maxLogUsageExportRangeSeconds {
+		return model.LogUsageSummaryFilter{}, errors.New("单次导出时间范围不能超过 31 天")
+	}
+
+	filter := model.LogUsageSummaryFilter{
+		UserId:         userId,
+		TokenName:      c.Query("token_name"),
+		ModelName:      c.Query("model_name"),
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+		Group:          c.Query("group"),
+		RequestId:      c.Query("request_id"),
+	}
+	if allowAdminFilters {
+		filter.Username = c.Query("username")
+		channelRaw := c.Query("channel")
+		if channelRaw != "" {
+			filter.Channel, err = strconv.Atoi(channelRaw)
+			if err != nil || filter.Channel <= 0 {
+				return model.LogUsageSummaryFilter{}, errors.New("请输入有效的渠道 ID")
+			}
+		}
+	}
+	return filter, nil
+}
+
+func GetLogUsageSummary(c *gin.Context) {
+	filter, err := getLogUsageSummaryFilter(c, 0, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	summary, err := model.GetLogUsageSummary(filter)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, summary)
+}
+
+func GetLogSelfUsageSummary(c *gin.Context) {
+	filter, err := getLogUsageSummaryFilter(c, c.GetInt("id"), false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	summary, err := model.GetLogUsageSummary(filter)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, summary)
+}
 
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useMemo } from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { IconDownload, IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 import { selectFilter } from '../../../helpers';
@@ -65,6 +65,8 @@ const LogsFilters = ({
   formApi,
   setLogType,
   loading,
+  exporting,
+  exportUsageSummary,
   isAdminUser,
   logs,
   filterOptionLogs,
@@ -187,6 +189,15 @@ const LogsFilters = ({
           </div>
 
           <div className='flex gap-2 w-full sm:w-auto justify-end'>
+            <Button
+              type='tertiary'
+              icon={<IconDownload />}
+              onClick={exportUsageSummary}
+              loading={exporting}
+              size='small'
+            >
+              {t('导出消费汇总')}
+            </Button>
             <Button
               type='tertiary'
               htmlType='submit'

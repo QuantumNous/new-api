@@ -432,6 +432,82 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
+type LogUsageSummaryFilter struct {
+	UserId         int
+	Username       string
+	TokenName      string
+	ModelName      string
+	StartTimestamp int64
+	EndTimestamp   int64
+	Channel        int
+	Group          string
+	RequestId      string
+}
+
+type LogUsageSummary struct {
+	ModelName        string `json:"model_name"`
+	RequestCount     int64  `json:"request_count"`
+	PromptTokens     int64  `json:"prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens"`
+	Quota            int64  `json:"quota"`
+}
+
+// GetLogUsageSummary returns successful consumption grouped by model. It
+// intentionally excludes prompt content, IP addresses, token values and error
+// details so the result can be safely used for reconciliation exports.
+func GetLogUsageSummary(filter LogUsageSummaryFilter) (summary []LogUsageSummary, err error) {
+	tx := LOG_DB.Table("logs").
+		Select(
+			"model_name, count(*) request_count, "+
+				"coalesce(sum(prompt_tokens), 0) prompt_tokens, "+
+				"coalesce(sum(completion_tokens), 0) completion_tokens, "+
+				"coalesce(sum(quota), 0) quota",
+		).
+		Where("type = ?", LogTypeConsume)
+
+	if filter.UserId != 0 {
+		tx = tx.Where("user_id = ?", filter.UserId)
+	}
+	if filter.Username != "" {
+		tx = tx.Where("username = ?", filter.Username)
+	}
+	if filter.TokenName != "" {
+		tx = tx.Where("token_name = ?", filter.TokenName)
+	}
+	if filter.ModelName != "" {
+		modelNamePattern, sanitizeErr := sanitizeLikePattern(filter.ModelName)
+		if sanitizeErr != nil {
+			return nil, sanitizeErr
+		}
+		tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	}
+	if filter.StartTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", filter.StartTimestamp)
+	}
+	if filter.EndTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", filter.EndTimestamp)
+	}
+	if filter.Channel != 0 {
+		tx = tx.Where("channel_id = ?", filter.Channel)
+	}
+	if filter.Group != "" {
+		tx = tx.Where(logGroupCol+" = ?", filter.Group)
+	}
+	if filter.RequestId != "" {
+		tx = tx.Where("request_id = ?", filter.RequestId)
+	}
+
+	err = tx.Group("model_name").Order("quota desc").Limit(1001).Scan(&summary).Error
+	if err != nil {
+		common.SysError("failed to query log usage summary: " + err.Error())
+		return nil, errors.New("查询消费汇总失败")
+	}
+	if len(summary) > 1000 {
+		return nil, errors.New("匹配的模型数量超过 1000 个，请缩小筛选范围后重试")
+	}
+	return summary, nil
+}
+
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 

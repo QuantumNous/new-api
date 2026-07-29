@@ -38,6 +38,7 @@ import {
   renderModelPrice,
   renderTieredModelPrice,
   renderTaskBillingProcess,
+  getQuotaPerUnit,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -71,6 +72,7 @@ export const useLogsData = () => {
   const [expandData, setExpandData] = useState({});
   const [showStat, setShowStat] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [loadingStat, setLoadingStat] = useState(false);
   const [activePage, setActivePage] = useState(1);
   const [logCount, setLogCount] = useState(0);
@@ -859,6 +861,131 @@ export const useLogsData = () => {
     await loadLogs(1, pageSize);
   };
 
+  const escapeCsvCell = (value) => {
+    let text = String(value ?? '');
+    if (/^[\t\r\n ]*[=+\-@]/.test(text)) {
+      text = `'${text}`;
+    }
+    return `"${text.replaceAll('"', '""')}"`;
+  };
+
+  const exportUsageSummary = async () => {
+    if (exporting) {
+      return;
+    }
+
+    const {
+      username,
+      token_name,
+      model_name,
+      start_timestamp,
+      end_timestamp,
+      channel,
+      group,
+      request_id,
+    } = getFormValues();
+    const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+    const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+    if (
+      !Number.isFinite(localStartTimestamp) ||
+      !Number.isFinite(localEndTimestamp)
+    ) {
+      showError(t('请选择有效的导出时间范围'));
+      return;
+    }
+
+    const params = new URLSearchParams({
+      token_name,
+      model_name,
+      start_timestamp: String(localStartTimestamp),
+      end_timestamp: String(localEndTimestamp),
+      group,
+      request_id,
+    });
+    if (isAdminUser) {
+      params.set('username', username);
+      params.set('channel', channel);
+    }
+
+    setExporting(true);
+    try {
+      const path = isAdminUser
+        ? '/api/log/export/summary'
+        : '/api/log/self/export/summary';
+      const res = await API.get(`${path}?${params.toString()}`);
+      const { success, message, data } = res.data;
+      if (!success) {
+        showError(message);
+        return;
+      }
+      if (!Array.isArray(data) || data.length === 0) {
+        showError(t('当前筛选条件下没有消费记录'));
+        return;
+      }
+
+      const quotaPerUnit = getQuotaPerUnit();
+      const safeQuotaPerUnit =
+        Number.isFinite(quotaPerUnit) && quotaPerUnit > 0
+          ? quotaPerUnit
+          : 500000;
+      const header = [
+        '模型',
+        '成功消费次数',
+        '输入 Tokens',
+        '输出 Tokens',
+        '消费金额（USD）',
+      ];
+      const rows = data.map((item) => [
+        item.model_name || '(未标记模型)',
+        Number(item.request_count || 0),
+        Number(item.prompt_tokens || 0),
+        Number(item.completion_tokens || 0),
+        (Number(item.quota || 0) / safeQuotaPerUnit).toFixed(6),
+      ]);
+      const totals = [
+        '合计',
+        data.reduce((sum, item) => sum + Number(item.request_count || 0), 0),
+        data.reduce((sum, item) => sum + Number(item.prompt_tokens || 0), 0),
+        data.reduce(
+          (sum, item) => sum + Number(item.completion_tokens || 0),
+          0,
+        ),
+        (
+          data.reduce((sum, item) => sum + Number(item.quota || 0), 0) /
+          safeQuotaPerUnit
+        ).toFixed(6),
+      ];
+
+      const csv = [header, ...rows, totals]
+        .map((row) => row.map(escapeCsvCell).join(','))
+        .join('\r\n');
+      const blob = new Blob([`\uFEFF${csv}`], {
+        type: 'text/csv;charset=utf-8',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const datePart = String(start_timestamp)
+        .slice(0, 10)
+        .replaceAll('-', '');
+      const safeUsername = String(username || 'self')
+        .replaceAll(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 40);
+      link.href = url;
+      link.download = `aibuff-usage-by-model-${safeUsername}-${datePart}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showSuccess(t('消费汇总导出成功'));
+    } catch (error) {
+      showError(
+        `${t('导出日志失败')}: ${error?.response?.data?.message || error.message}`,
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Copy text function
   const copyText = async (e, text) => {
     e.stopPropagation();
@@ -902,6 +1029,7 @@ export const useLogsData = () => {
     expandData,
     showStat,
     loading,
+    exporting,
     loadingStat,
     activePage,
     logCount,
@@ -951,6 +1079,7 @@ export const useLogsData = () => {
     handlePageChange,
     handlePageSizeChange,
     refresh,
+    exportUsageSummary,
     copyText,
     handleEyeClick,
     setLogsFormat,
