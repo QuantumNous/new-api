@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Sheet,
   SheetContent,
@@ -41,8 +42,8 @@ import {
 
 function DetailRow(props: { label: string; children: React.ReactNode }) {
   return (
-    <div className='border-border grid grid-cols-[7.5rem_1fr] gap-3 border-b py-2.5 last:border-b-0'>
-      <div className='text-muted-foreground text-xs font-medium'>
+    <div className='grid grid-cols-1 gap-1 sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:items-start sm:gap-3'>
+      <div className='text-muted-foreground pt-0.5 text-xs font-medium tracking-wide uppercase'>
         {props.label}
       </div>
       <div className='min-w-0 text-sm'>{props.children}</div>
@@ -80,94 +81,105 @@ export function ApiKeyDetailsSheet(props: {
 
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <SheetContent side='right' className='w-full sm:max-w-md'>
-        <SheetHeader>
-          <SheetTitle className='truncate'>{apiKey.name}</SheetTitle>
-          <SheetDescription>
+      <SheetContent
+        side='right'
+        className='flex w-full flex-col gap-0 p-0 sm:max-w-md'
+      >
+        <SheetHeader className='border-border space-y-1 border-b px-5 py-4 text-left'>
+          <SheetTitle className='truncate pr-8 text-base'>
+            {apiKey.name}
+          </SheetTitle>
+          <SheetDescription className='text-xs'>
             {t('Full key metadata and restrictions')}
           </SheetDescription>
         </SheetHeader>
 
-        <div className='mt-4 px-1'>
-          <DetailRow label={t('Status')}>
-            {statusConfig ? (
-              <StatusBadge
-                label={t(statusConfig.label)}
-                variant={statusConfig.variant}
-                copyable={false}
-              />
-            ) : (
-              '—'
-            )}
-          </DetailRow>
+        <ScrollArea className='min-h-0 flex-1'>
+          <div className='space-y-4 px-5 py-4'>
+            <DetailRow label={t('Status')}>
+              {statusConfig ? (
+                <StatusBadge
+                  label={t(statusConfig.label)}
+                  variant={statusConfig.variant}
+                  copyable={false}
+                />
+              ) : (
+                <span className='text-muted-foreground'>—</span>
+              )}
+            </DetailRow>
 
-          <DetailRow label={t('Key')}>
-            <ApiKeyCell apiKey={apiKey} />
-          </DetailRow>
+            <DetailRow label={t('Key')}>
+              <ApiKeyCell apiKey={apiKey} />
+            </DetailRow>
 
-          <DetailRow label={t('Quota')}>
-            {apiKey.unlimited_quota ? (
-              <span>{t('Follow user')}</span>
-            ) : (
-              <span className='font-mono text-xs tabular-nums'>
-                {formatQuota(apiKey.remain_quota)}
-                <span className='text-muted-foreground'>
-                  {' / '}
-                  {formatQuota(total)}
+            <DetailRow label={t('Quota')}>
+              {apiKey.unlimited_quota ? (
+                <span>{t('Follow user')}</span>
+              ) : (
+                <div className='space-y-0.5'>
+                  <div className='font-mono text-xs tabular-nums'>
+                    {formatQuota(apiKey.remain_quota)}
+                    <span className='text-muted-foreground'>
+                      {' / '}
+                      {formatQuota(total)}
+                    </span>
+                  </div>
+                  <div className='text-muted-foreground text-xs'>
+                    {t('Used:')} {formatQuota(apiKey.used_quota)}
+                  </div>
+                </div>
+              )}
+            </DetailRow>
+
+            <DetailRow label={t('Channel group')}>
+              {group === 'auto' ? (
+                <GroupBadge group='auto' />
+              ) : (
+                <GroupBadge group={group} ratio={ratio} />
+              )}
+            </DetailRow>
+
+            <DetailRow label={t('Models')}>
+              <ModelLimitsCell apiKey={apiKey} />
+            </DetailRow>
+
+            <DetailRow label={t('IP Restriction')}>
+              <IpRestrictionsCell apiKey={apiKey} />
+            </DetailRow>
+
+            <div className='border-border space-y-4 border-t pt-4'>
+              <DetailRow label={t('Created')}>
+                <span className='text-muted-foreground font-mono text-xs tabular-nums'>
+                  {apiKey.created_time
+                    ? formatTimestampToDate(apiKey.created_time)
+                    : '—'}
                 </span>
-                <span className='text-muted-foreground ml-2'>
-                  ({t('Used:')} {formatQuota(apiKey.used_quota)})
+              </DetailRow>
+
+              <DetailRow label={t('Last Used')}>
+                <span className='text-muted-foreground font-mono text-xs tabular-nums'>
+                  {apiKey.accessed_time
+                    ? formatTimestampToDate(apiKey.accessed_time)
+                    : '—'}
                 </span>
-              </span>
-            )}
-          </DetailRow>
+              </DetailRow>
 
-          <DetailRow label={t('Channel group')}>
-            {group === 'auto' ? (
-              <GroupBadge group='auto' />
-            ) : (
-              <GroupBadge group={group} ratio={ratio} />
-            )}
-          </DetailRow>
-
-          <DetailRow label={t('Models')}>
-            <ModelLimitsCell apiKey={apiKey} />
-          </DetailRow>
-
-          <DetailRow label={t('IP Restriction')}>
-            <IpRestrictionsCell apiKey={apiKey} />
-          </DetailRow>
-
-          <DetailRow label={t('Created')}>
-            <span className='text-muted-foreground text-xs'>
-              {apiKey.created_time
-                ? formatTimestampToDate(apiKey.created_time)
-                : '—'}
-            </span>
-          </DetailRow>
-
-          <DetailRow label={t('Last Used')}>
-            <span className='text-muted-foreground text-xs'>
-              {apiKey.accessed_time
-                ? formatTimestampToDate(apiKey.accessed_time)
-                : '—'}
-            </span>
-          </DetailRow>
-
-          <DetailRow label={t('Expires')}>
-            {apiKey.expired_time === -1 ? (
-              <StatusBadge
-                label={t('Never')}
-                variant='neutral'
-                copyable={false}
-              />
-            ) : (
-              <span className='text-muted-foreground text-xs'>
-                {formatTimestampToDate(apiKey.expired_time)}
-              </span>
-            )}
-          </DetailRow>
-        </div>
+              <DetailRow label={t('Expires')}>
+                {apiKey.expired_time === -1 ? (
+                  <StatusBadge
+                    label={t('Never')}
+                    variant='neutral'
+                    copyable={false}
+                  />
+                ) : (
+                  <span className='text-muted-foreground font-mono text-xs tabular-nums'>
+                    {formatTimestampToDate(apiKey.expired_time)}
+                  </span>
+                )}
+              </DetailRow>
+            </div>
+          </div>
+        </ScrollArea>
       </SheetContent>
     </Sheet>
   )

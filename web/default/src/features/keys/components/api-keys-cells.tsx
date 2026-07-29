@@ -83,14 +83,14 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
   }
 
   return (
-    <div className='flex max-w-full min-w-0 items-center'>
+    <div className='border-border bg-muted/30 flex max-w-full min-w-0 items-center gap-0.5 rounded-md border px-1.5 py-0.5'>
       <Popover open={popoverOpen} onOpenChange={handlePopoverOpen}>
         <PopoverTrigger
           render={
             <Button
               variant='ghost'
               size='sm'
-              className='text-muted-foreground h-7 max-w-full min-w-0 justify-start truncate px-0 font-mono text-xs hover:bg-transparent aria-expanded:bg-transparent'
+              className='text-muted-foreground h-6 max-w-full min-w-0 flex-1 justify-start truncate px-1 font-mono text-xs hover:bg-transparent aria-expanded:bg-transparent'
             />
           }
         >
@@ -115,7 +115,7 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
                 value={resolvedFullKey || maskedKey}
                 autoFocus
                 onFocus={(e) => e.target.select()}
-                className='bg-muted/50 w-full min-w-[280px] rounded-md border px-3 py-2 font-mono text-xs outline-none'
+                className='border-border bg-background w-full min-w-[280px] rounded-md border px-3 py-2 font-mono text-xs outline-none'
               />
             )}
           </div>
@@ -126,8 +126,8 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
           render={
             <Button
               variant='ghost'
-              size='icon'
-              className='size-7 shrink-0'
+              size='icon-sm'
+              className='text-muted-foreground hover:text-foreground size-6 shrink-0'
               onClick={handleCopy}
               disabled={isLoading}
             />

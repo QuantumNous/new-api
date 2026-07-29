@@ -43,10 +43,7 @@ export function DataTableViewOptions<TData>({
     () =>
       table
         .getAllColumns()
-        .filter(
-          (column) =>
-            typeof column.accessorFn !== 'undefined' && column.getCanHide()
-        ),
+        .filter((column) => column.getCanHide() && column.id !== 'select'),
     [table]
   )
 
@@ -56,27 +53,36 @@ export function DataTableViewOptions<TData>({
         render={
           <Button
             variant='outline'
-            className='shrink-0'
-            aria-label={t('View')}
+            size='sm'
+            className='h-8 shrink-0'
+            aria-label={t('Columns')}
           />
         }
       >
-        {t('View')}
+        {t('Columns')}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='w-[150px]'>
+      <DropdownMenuContent align='end' className='w-48'>
         <DropdownMenuGroup>
           <DropdownMenuLabel>{t('Toggle columns')}</DropdownMenuLabel>
           {hideableColumns.map((column) => {
+            const meta = column.columnDef.meta as
+              | { label?: string }
+              | undefined
+            let label: string
+            if (typeof column.columnDef.header === 'string') {
+              label = column.columnDef.header
+            } else if (typeof meta?.label === 'string') {
+              label = meta.label
+            } else {
+              label = column.id
+            }
             return (
               <DropdownMenuCheckboxItem
                 key={column.id}
-                className='capitalize'
                 checked={column.getIsVisible()}
                 onCheckedChange={(value) => column.toggleVisibility(!!value)}
               >
-                {typeof column.columnDef.header === 'string'
-                  ? column.columnDef.header
-                  : (column.columnDef.meta?.label ?? column.id)}
+                {label}
               </DropdownMenuCheckboxItem>
             )
           })}

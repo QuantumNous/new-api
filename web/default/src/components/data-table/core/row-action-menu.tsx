@@ -42,13 +42,13 @@ export function DataTableRowActionMenu(props: DataTableRowActionMenuProps) {
         render={
           <Button
             variant='ghost'
-            size='icon'
-            className='data-popup-open:bg-muted'
+            size='icon-sm'
+            className='text-muted-foreground hover:text-foreground data-popup-open:bg-muted data-popup-open:text-foreground size-8'
             aria-label={props.ariaLabel}
           />
         }
       >
-        <MoreHorizontal aria-hidden='true' />
+        <MoreHorizontal className='size-4' aria-hidden='true' />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align='end'

@@ -119,21 +119,24 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       cell: ({ row }) => {
         const statusConfig = API_KEY_STATUSES[row.original.status]
         return (
-          <div className='flex min-w-0 flex-col gap-0.5'>
-            <span className='truncate font-medium'>{row.getValue('name')}</span>
+          <div className='flex min-w-0 items-center gap-2'>
+            <span className='text-foreground min-w-0 truncate text-sm font-medium'>
+              {row.getValue('name')}
+            </span>
             {statusConfig && (
               <StatusBadge
                 label={t(statusConfig.label)}
                 variant={statusConfig.variant}
                 copyable={false}
-                className='-ml-1 w-fit'
+                type='text'
+                className='shrink-0 text-xs'
               />
             )}
           </div>
         )
       },
-      size: 200,
-      meta: { priority: 'primary', mobileTitle: true },
+      size: 220,
+      meta: { priority: 'primary', mobileTitle: true, label: t('Name') },
     },
     {
       // Kept for filtering / view-options; merged into Name for default display.
