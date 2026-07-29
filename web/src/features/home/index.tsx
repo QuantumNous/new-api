@@ -27,7 +27,7 @@ import { isLikelyHtml } from '@/lib/content-format'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CTA, Features, Hero, HowItWorks, Stats } from './components'
-import { useHomePageContent } from './hooks'
+import { useHomePageContent, useHomeSeo } from './hooks'
 
 export function Home() {
   const { i18n, t } = useTranslation()
@@ -36,6 +36,8 @@ export function Home() {
   const { auth } = useAuthStore()
   const isAuthenticated = !!auth.user
   const { content, isLoaded, isUrl } = useHomePageContent()
+
+  useHomeSeo()
 
   const syncIframePreferences = useCallback(() => {
     try {

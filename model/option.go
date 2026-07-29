@@ -176,6 +176,15 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
 
+	// SEO options
+	common.OptionMap["SEO.Title"] = common.SEOTitle
+	common.OptionMap["SEO.TitleSuffix"] = common.SEOTitleSuffix
+	common.OptionMap["SEO.Description"] = common.SEODescription
+	common.OptionMap["SEO.Keywords"] = common.SEOKeywords
+	common.OptionMap["SEO.SiteURL"] = common.SEOSiteURL
+	common.OptionMap["SEO.OGImage"] = common.SEOOGImage
+	common.OptionMap["SEO.RobotsIndex"] = strconv.FormatBool(common.SEORobotsIndex)
+
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
 	for k, v := range modelConfigs {
@@ -593,6 +602,20 @@ func updateOptionMap(key string, value string) (err error) {
 		// WaffoPayMethods is read directly from OptionMap via setting.GetWaffoPayMethods().
 		// The value is already stored in OptionMap at the top of this function (line: common.OptionMap[key] = value).
 		// No additional in-memory variable to update.
+	case "SEO.Title":
+		common.SEOTitle = value
+	case "SEO.TitleSuffix":
+		common.SEOTitleSuffix = value
+	case "SEO.Description":
+		common.SEODescription = value
+	case "SEO.Keywords":
+		common.SEOKeywords = value
+	case "SEO.SiteURL":
+		common.SEOSiteURL = value
+	case "SEO.OGImage":
+		common.SEOOGImage = value
+	case "SEO.RobotsIndex":
+		common.SEORobotsIndex = value == "true"
 	}
 	return err
 }

@@ -46,6 +46,15 @@ const SITE_SECTIONS = [
             user_agreement: settings['legal.user_agreement'],
             privacy_policy: settings['legal.privacy_policy'],
           },
+          seo: {
+            title: settings['SEO.Title'],
+            titleSuffix: settings['SEO.TitleSuffix'],
+            description: settings['SEO.Description'],
+            keywords: settings['SEO.Keywords'],
+            siteUrl: settings['SEO.SiteURL'],
+            ogImage: settings['SEO.OGImage'],
+            robotsIndex: settings['SEO.RobotsIndex'],
+          },
         }}
       />
     ),
