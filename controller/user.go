@@ -467,22 +467,18 @@ func GetAffCode(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if user.AffCode == "" {
-		user.AffCode = common.GetRandomString(4)
-		if err := user.Update(false); err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
-			return
-		}
+	if err := user.EnsureAffCode(); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data":    user.AffCode,
 	})
-	return
 }
 
 func GetSelf(c *gin.Context) {
@@ -1033,6 +1029,10 @@ func CreateUser(c *gin.Context) {
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
 		Role:        user.Role, // 保持管理员设置的角色
+	}
+	if err := cleanUser.PrepareAffCode(); err != nil {
+		common.ApiError(c, err)
+		return
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
