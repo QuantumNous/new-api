@@ -362,6 +362,50 @@ func TestEmailMessageNonTLSReturnedErrorIsConservativelyUncertain(t *testing.T) 
 	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
 }
 
+func TestSendEmailWithSMTPConfigNonTLSClassifiesSMTPPhasesWhileGlobalWrapperStaysUncertain(t *testing.T) {
+	tests := []struct {
+		name          string
+		script        smtpTestScript
+		wantError     bool
+		wantUncertain bool
+		wantCommands  []string
+	}{
+		{name: "MAIL rejection is definite", script: smtpTestScript{failAt: "MAIL"}, wantError: true, wantCommands: []string{"EHLO", "AUTH", "MAIL"}},
+		{name: "DATA writer close failure is uncertain", script: smtpTestScript{closeBeforeDataResponse: true}, wantError: true, wantUncertain: true, wantCommands: []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}},
+		{name: "cleanup reset after final 250 stays accepted", script: smtpTestScript{resetAfterFinalResponse: true}, wantCommands: []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			port, wait := startSMTPTestServer(t, testCase.script)
+			config := SMTPConfig{
+				Server:  "localhost",
+				Port:    port,
+				Account: "activity@example.com",
+				From:    "activity@example.com",
+				Token:   "activity-secret",
+			}
+
+			err := SendEmailWithSMTPConfig(config, "subject", "user@example.com", "body", "<recall-1-1@example.com>")
+			result := wait()
+			if testCase.wantError {
+				require.Error(t, err)
+				require.Equal(t, testCase.wantUncertain, IsEmailSendUncertain(err))
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, testCase.wantCommands, smtpCommandNames(result.commands))
+		})
+	}
+
+	port, wait := startSMTPTestServer(t, smtpTestScript{failAt: "MAIL"})
+	configureSMTPTestClient(t, port, false)
+	err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.Error(t, err)
+	require.True(t, IsEmailSendUncertain(err))
+	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
+}
+
 func TestSendEmailWithSMTPConfigSuppressesCommonLayerNonTLSFailureLog(t *testing.T) {
 	var logOutput bytes.Buffer
 	LogWriterMu.Lock()
@@ -385,7 +429,7 @@ func TestSendEmailWithSMTPConfigSuppressesCommonLayerNonTLSFailureLog(t *testing
 	result := wait()
 
 	require.Error(t, err)
-	require.True(t, IsEmailSendUncertain(err))
+	require.False(t, IsEmailSendUncertain(err))
 	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
 	require.NotContains(t, logOutput.String(), "failed to send email")
 	require.NotContains(t, logOutput.String(), "activity-recipient@example.com")

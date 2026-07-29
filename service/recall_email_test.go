@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -9,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -1525,6 +1527,32 @@ func TestRecallEmailActivitySMTPDefiniteFailureStoresSafeMessage(t *testing.T) {
 	require.Contains(t, logged, "[rendered content redacted]")
 }
 
+func TestRecallEmailActivitySMTPNonTLSCommandRejectionStoresDefiniteSafeFailure(t *testing.T) {
+	for _, failAt := range []string{"AUTH", "MAIL", "RCPT"} {
+		t.Run(failAt, func(t *testing.T) {
+			port, wait := startRecallSMTPTestServer(t, failAt)
+			fixture := newRecallEmailFixture(t, 1, common.SendEmailWithSMTPConfig)
+			setValidRecallActivitySMTP(t, common.SMTPConfig{
+				Server:  "localhost",
+				Port:    port,
+				Account: "activity@example.com",
+				From:    "activity@example.com",
+				Token:   "activity-secret",
+			})
+
+			require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+			result := wait()
+
+			stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+			require.Equal(t, model.RecallMessageRetryWait, stored.State)
+			require.Equal(t, RecallActivitySMTPSendFailedCode, stored.LastErrorCode)
+			require.Equal(t, RecallActivitySMTPSendFailedMessage, stored.LastErrorMessage)
+			require.NotContains(t, stored.LastErrorMessage, "activity-secret")
+			require.Equal(t, []string{"EHLO", "AUTH", "MAIL", "RCPT"}[:len(result.commands)], recallSMTPCommandNames(result.commands))
+		})
+	}
+}
+
 func TestRecallEmailActivitySMTPPathDoesNotCallGlobalSendWrappers(t *testing.T) {
 	source, err := os.ReadFile("recall_email.go")
 	require.NoError(t, err)
@@ -2124,6 +2152,133 @@ func newRecallEmailUncertainError(t *testing.T) error {
 	require.Error(t, err)
 	require.True(t, common.IsEmailSendUncertain(err))
 	return err
+}
+
+type recallSMTPTestResult struct {
+	commands []string
+	err      error
+}
+
+func startRecallSMTPTestServer(t *testing.T, failAt string) (int, func() recallSMTPTestResult) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+	results := make(chan recallSMTPTestResult, 1)
+	go func() {
+		result := recallSMTPTestResult{}
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			result.err = acceptErr
+			results <- result
+			return
+		}
+		_ = listener.Close()
+		defer conn.Close()
+		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+		result.err = runRecallSMTPTestScript(conn, failAt, &result)
+		results <- result
+	}()
+	port := listener.Addr().(*net.TCPAddr).Port
+	return port, func() recallSMTPTestResult {
+		t.Helper()
+		select {
+		case result := <-results:
+			require.NoError(t, result.err)
+			return result
+		case <-time.After(6 * time.Second):
+			require.FailNow(t, "scripted recall SMTP server timed out")
+			return recallSMTPTestResult{}
+		}
+	}
+}
+
+func runRecallSMTPTestScript(conn net.Conn, failAt string, result *recallSMTPTestResult) error {
+	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(conn)
+	writeReply := func(reply string) error {
+		if _, err := writer.WriteString(reply); err != nil {
+			return err
+		}
+		return writer.Flush()
+	}
+	readCommand := func(name string) error {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(strings.ToUpper(line), name) {
+			return fmt.Errorf("expected SMTP %s command, got %q", name, line)
+		}
+		result.commands = append(result.commands, line)
+		return nil
+	}
+	if err := writeReply("220 localhost ESMTP ready\r\n"); err != nil {
+		return err
+	}
+	if err := readCommand("EHLO"); err != nil {
+		return err
+	}
+	if err := writeReply("250-localhost\r\n250 AUTH PLAIN\r\n"); err != nil {
+		return err
+	}
+	if err := readCommand("AUTH"); err != nil {
+		return err
+	}
+	if failAt == "AUTH" {
+		return writeReply("535 5.7.8 authentication rejected\r\n")
+	}
+	if err := writeReply("235 2.7.0 authenticated\r\n"); err != nil {
+		return err
+	}
+	for _, command := range []string{"MAIL", "RCPT", "DATA"} {
+		if err := readCommand(command); err != nil {
+			return err
+		}
+		if failAt == command {
+			return writeReply("550 5.1.0 scripted rejection\r\n")
+		}
+		if command == "DATA" {
+			if err := writeReply("354 send message, end with dot\r\n"); err != nil {
+				return err
+			}
+			break
+		}
+		if err := writeReply("250 2.1.0 ok\r\n"); err != nil {
+			return err
+		}
+	}
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		if line == ".\r\n" {
+			break
+		}
+	}
+	if err := writeReply("250 2.0.0 queued\r\n"); err != nil {
+		return err
+	}
+	line, err := reader.ReadString('\n')
+	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+		return nil
+	}
+	if err == nil && strings.HasPrefix(strings.ToUpper(strings.TrimSpace(line)), "QUIT") {
+		result.commands = append(result.commands, strings.TrimSpace(line))
+		return writeReply("221 2.0.0 bye\r\n")
+	}
+	return err
+}
+
+func recallSMTPCommandNames(commands []string) []string {
+	names := make([]string, 0, len(commands))
+	for _, command := range commands {
+		name, _, _ := strings.Cut(command, " ")
+		names = append(names, strings.ToUpper(name))
+	}
+	return names
 }
 
 func installRecallEmailOutcomeUpdateFailure(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"net/mail"
 	"net/smtp"
 	"regexp"
@@ -185,12 +186,58 @@ func sendEmailWithSMTPConfigAndLogPolicy(config SMTPConfig, subject string, rece
 	if config.Port == 465 || config.SSLEnabled {
 		return sendEmailTLS(config, addr, sender, recipients, auth, message)
 	}
+	if !logTransportFailure {
+		return sendEmailSMTPByPhase(config, addr, sender, recipients, auth, message)
+	}
 	if err := smtp.SendMail(addr, auth, sender, recipients, message); err != nil {
 		wrapped := &emailSendError{Uncertain: true, Err: err}
 		if logTransportFailure {
 			SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, wrapped))
 		}
 		return wrapped
+	}
+	return nil
+}
+
+func sendEmailSMTPByPhase(config SMTPConfig, addr string, sender string, recipients []string, auth smtp.Auth, message []byte) error {
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return &emailSendError{Err: err}
+	}
+	client, err := smtp.NewClient(conn, config.Server)
+	if err != nil {
+		_ = conn.Close()
+		return &emailSendError{Err: err}
+	}
+	defer client.Close()
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		tlsConfig := &tls.Config{ServerName: config.Server}
+		if err := client.StartTLS(tlsConfig); err != nil {
+			return &emailSendError{Err: err}
+		}
+	}
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return &emailSendError{Err: err}
+		}
+	}
+	if err := client.Mail(sender); err != nil {
+		return &emailSendError{Err: err}
+	}
+	for _, receiver := range recipients {
+		if err := client.Rcpt(receiver); err != nil {
+			return &emailSendError{Err: err}
+		}
+	}
+	w, err := client.Data()
+	if err != nil {
+		return &emailSendError{Err: err}
+	}
+	if _, err := w.Write(message); err != nil {
+		return &emailSendError{Uncertain: true, Err: err}
+	}
+	if err := w.Close(); err != nil {
+		return &emailSendError{Uncertain: true, Err: err}
 	}
 	return nil
 }
