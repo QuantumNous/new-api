@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -249,5 +250,58 @@ func TestBuildRequestBodyUsesConfiguredModelMapping(t *testing.T) {
 	}
 	if payload["model"] != "ep-test-configured-endpoint" {
 		t.Fatalf("upstream model = %v, want configured mapping", payload["model"])
+	}
+}
+
+func TestBuildRequestBodyRewritesResolvedAssetURIsOnly(t *testing.T) {
+	a := &TaskAdaptor{}
+	info := newTestRelayInfo("https://ark.example", "test-key")
+	c := newTestContext(`{
+		"model":"seedance-2.0",
+		"content":[
+			{"type":"text","text":"hello"},
+			{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"},
+			{"type":"video_url","video_url":{"url":"https://example.com/v.mp4"},"role":"reference_video"}
+		]
+	}`)
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://upstream-image",
+	})
+
+	body, err := a.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !strings.Contains(string(raw), `"url":"asset://upstream-image"`) {
+		t.Fatalf("rewritten body missing upstream asset URI: %s", raw)
+	}
+	if !strings.Contains(string(raw), `"url":"https://example.com/v.mp4"`) {
+		t.Fatalf("ordinary URL changed or missing: %s", raw)
+	}
+
+	var original dto.SeedanceVideoRequest
+	if err := common.UnmarshalBodyReusable(c, &original); err != nil {
+		t.Fatalf("re-read original body: %v", err)
+	}
+	if original.Content[1].ImageURL.URL != "asset://ast_1234567890abcdefABCDEF1234567890" {
+		t.Fatalf("reusable body was mutated: %+v", original.Content[1].ImageURL)
+	}
+}
+
+func TestBuildRequestBodyRejectsUnresolvedStrictAssetURI(t *testing.T) {
+	a := &TaskAdaptor{}
+	info := newTestRelayInfo("https://ark.example", "test-key")
+	c := newTestContext(`{
+		"model":"seedance-2.0",
+		"content":[{"type":"audio_url","audio_url":{"url":"asset://ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"role":"reference_audio"}]
+	}`)
+
+	_, err := a.BuildRequestBody(c, info)
+	if err == nil || !strings.Contains(err.Error(), "unresolved byteplus asset reference") {
+		t.Fatalf("BuildRequestBody error = %v, want unresolved asset reference", err)
 	}
 }

@@ -1,12 +1,16 @@
 package byteplus
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -51,6 +55,59 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, info
 // adapter's fixed moderation header.
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
+}
+
+func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	body, err := a.TaskAdaptor.BuildRequestBody(c, info)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return nil, err
+	}
+	rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyBytePlusAssetRewriteMap)
+	rewritten, err := rewriteBytePlusAssetReferences(raw, rewriteMap)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(rewritten), nil
+}
+
+func rewriteBytePlusAssetReferences(raw []byte, rewriteMap map[string]string) ([]byte, error) {
+	if !bytes.Contains(raw, []byte("asset://ast_")) {
+		return raw, nil
+	}
+	var payload map[string]any
+	if err := common.Unmarshal(raw, &payload); err != nil {
+		return nil, err
+	}
+	content, ok := payload["content"].([]any)
+	if !ok {
+		return raw, nil
+	}
+	for _, itemAny := range content {
+		item, ok := itemAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, field := range []string{"image_url", "video_url", "audio_url"} {
+			media, ok := item[field].(map[string]any)
+			if !ok {
+				continue
+			}
+			urlValue, ok := media["url"].(string)
+			if !ok || !service.IsStrictBytePlusAssetURI(urlValue) {
+				continue
+			}
+			upstreamURL, ok := rewriteMap[urlValue]
+			if !ok || strings.TrimSpace(upstreamURL) == "" {
+				return nil, fmt.Errorf("unresolved byteplus asset reference")
+			}
+			media["url"] = upstreamURL
+		}
+	}
+	return common.Marshal(payload)
 }
 
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
