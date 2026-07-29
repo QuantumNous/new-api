@@ -53,3 +53,37 @@ func TestDoAwsClientRequest_AppliesRuntimeHeaderOverrideToAnthropicBeta(t *testi
 	require.True(t, ok)
 	require.Equal(t, []any{"computer-use-2025-01-24"}, values)
 }
+
+func TestDoAwsClientRequest_RemovesAnthropicBetaWhenRuntimeOverrideDeletesIt(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	ctx.Request.Header.Set("anthropic-beta", "claude-code-20250219,effort-2025-11-24")
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName:           "claude-3-5-sonnet-20240620",
+		IsStream:                  false,
+		UseRuntimeHeadersOverride: true,
+		RuntimeHeadersOverride:    map[string]any{},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "access-key|secret-key|us-east-1",
+			UpstreamModelName: "claude-3-5-sonnet-20240620",
+		},
+	}
+
+	requestBody := bytes.NewBufferString(`{"messages":[{"role":"user","content":"hello"}],"max_tokens":128}`)
+	adaptor := &Adaptor{}
+
+	_, err := doAwsClientRequest(ctx, info, adaptor, requestBody)
+	require.NoError(t, err)
+
+	awsReq, ok := adaptor.AwsReq.(*bedrockruntime.InvokeModelInput)
+	require.True(t, ok)
+
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal(awsReq.Body, &payload))
+	require.NotContains(t, payload, "anthropic_beta")
+}
