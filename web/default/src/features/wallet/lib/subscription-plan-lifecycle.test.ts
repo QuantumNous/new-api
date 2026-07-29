@@ -196,7 +196,6 @@ describe('normalizeSelfSubscriptionData', () => {
       current_entitlement: {
         entitlement_id: 11,
         plan_id: 1,
-        provider_binding_id: 12,
         status: 'active',
         payment_mode: 'stripe_recurring',
         start_time: 1000,
@@ -432,10 +431,10 @@ describe('applyRenewalLifecycleResultToSelfData', () => {
       renewal_source: source,
       renewal_status: status,
       current_period_end: 3000,
+      change_version: 2,
       can_cancel: status === 'enabled',
       can_resume: status === 'cancelled_by_user',
       is_cancel_at_period_end: status === 'cancelled_by_user',
-      sync_pending: false,
     } satisfies SubscriptionRenewalLifecycleResult
   }
 
@@ -455,6 +454,7 @@ describe('applyRenewalLifecycleResultToSelfData', () => {
     expect(projected.capabilities.can_resume).toBe(true)
     expect(projected.capabilities.is_cancel_at_period_end).toBe(true)
     expect(projected.contract?.current_period_end).toBe(3000)
+    expect(projected.contract?.change_version).toBe(2)
     expect(projected.current_period?.end).toBe(3000)
     expect(projected.remaining_days).toBeUndefined()
     expect(current.renewal_status).toBe('enabled')
@@ -549,6 +549,35 @@ describe('applyRenewalLifecycleResultToSelfData', () => {
     expect(projected.capabilities.is_cancel_at_period_end).toBe(false)
     expect(projected.contract?.current_period_end).toBe(4000)
     expect(projected.current_period?.end).toBe(4000)
+    expect(projected.remaining_days).toBe(31)
+  })
+
+  test('does not project a same-source older contract version onto canonical data', () => {
+    const current = createRenewalLifecycleData('provider_recurring', 'enabled')
+    const olderVersionResult = {
+      ...createRenewalLifecycleResult(
+        'provider_recurring',
+        'cancelled_by_user'
+      ),
+      current_period_end: 3000,
+      change_version: 0,
+    } satisfies SubscriptionRenewalLifecycleResult
+
+    const projected = applyRenewalLifecycleResultToSelfData(
+      current,
+      olderVersionResult,
+      10
+    )
+
+    expect(projected).toBe(current)
+    expect(projected.renewal_source).toBe('provider_recurring')
+    expect(projected.renewal_status).toBe('enabled')
+    expect(projected.capabilities.can_cancel).toBe(true)
+    expect(projected.capabilities.can_resume).toBe(false)
+    expect(projected.capabilities.is_cancel_at_period_end).toBe(false)
+    expect(projected.contract?.change_version).toBe(1)
+    expect(projected.contract?.current_period_end).toBe(2000)
+    expect(projected.current_period?.end).toBe(2000)
     expect(projected.remaining_days).toBe(31)
   })
 

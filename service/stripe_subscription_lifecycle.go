@@ -49,25 +49,52 @@ func wrapStripeSubscriptionLifecycleMutationError(err error, reservation *model.
 }
 
 func CancelStripeRecurringSubscription(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+	return cancelStripeRecurringSubscription(userID, bindingID, nil)
+}
+
+func cancelCurrentStripeRecurringSubscriptionWithGuard(userID int, bindingID int64, guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+	if guard == nil {
+		return nil, errors.New("subscription renewal mutation guard is required")
+	}
+	return cancelStripeRecurringSubscription(userID, bindingID, guard)
+}
+
+func cancelStripeRecurringSubscription(userID int, bindingID int64, guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+	reservation := currentStripeRenewalGuardReservation(guard, model.SubscriptionProviderLifecycleActionCancel)
 	binding, err := recurringBindingForUser(userID, bindingID)
 	if err != nil {
-		return nil, err
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, err)
 	}
 	if stripeLifecycleReservationConflictsWithAction(binding, model.SubscriptionProviderLifecycleActionCancel) {
-		return nil, model.ErrSubscriptionProviderLifecycleConflict
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, model.ErrSubscriptionProviderLifecycleConflict)
 	}
 	if binding.ContractId <= 0 {
+		if guard != nil {
+			return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, errors.New("subscription renewal precondition conflict"))
+		}
 		return cancelContractlessStripeRecurringSubscription(binding)
 	}
 	expectedProviderSubscriptionID := binding.ProviderSubscriptionId
-	reservation, binding, err := reserveStripeSubscriptionLifecycle(binding, model.SubscriptionProviderLifecycleActionCancel)
-	if err != nil {
-		if errors.Is(err, model.ErrSubscriptionProviderLifecycleConflict) {
-			if satisfied, ok := stripeLifecycleSatisfiedStateAfterReserveConflict(userID, bindingID, expectedProviderSubscriptionID, model.SubscriptionProviderLifecycleActionCancel); ok {
-				return satisfied, nil
+	if reservation != nil && !subscriptionRenewalReservationMatchesBinding(reservation, binding) {
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, errors.New("subscription renewal precondition conflict"))
+	}
+	if reservation == nil {
+		var reserveErr error
+		reservation, binding, reserveErr = reserveStripeSubscriptionLifecycle(binding, model.SubscriptionProviderLifecycleActionCancel)
+		if reserveErr != nil {
+			if errors.Is(reserveErr, model.ErrSubscriptionProviderLifecycleConflict) {
+				if satisfied, ok := stripeLifecycleSatisfiedStateAfterReserveConflict(userID, bindingID, expectedProviderSubscriptionID, model.SubscriptionProviderLifecycleActionCancel); ok {
+					if err := validateCurrentStripeRenewalLifecycleSatisfiedMutationGuardForAction(satisfied, model.SubscriptionProviderLifecycleActionCancel, true, guard); err != nil {
+						return nil, err
+					}
+					return satisfied, nil
+				}
 			}
+			return nil, reserveErr
 		}
-		return nil, err
+	}
+	if err := validateCurrentStripeRenewalLifecycleMutationGuard(binding, reservation, true, guard); err != nil {
+		return nil, releaseStripeRenewalLifecycleReservationAfterGuardConflict(reservation, err)
 	}
 	pastDue := strings.EqualFold(binding.ProviderStatus, "past_due")
 	if binding.CancelAtPeriodEnd && !pastDue {
@@ -172,28 +199,55 @@ func resolvePendingDowngradeAfterCancelAttempt(binding *model.SubscriptionProvid
 }
 
 func ResumeStripeRecurringSubscription(userID int, bindingID int64) (*model.SubscriptionProviderBinding, error) {
+	return resumeStripeRecurringSubscription(userID, bindingID, nil)
+}
+
+func resumeCurrentStripeRecurringSubscriptionWithGuard(userID int, bindingID int64, guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+	if guard == nil {
+		return nil, errors.New("subscription renewal mutation guard is required")
+	}
+	return resumeStripeRecurringSubscription(userID, bindingID, guard)
+}
+
+func resumeStripeRecurringSubscription(userID int, bindingID int64, guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+	reservation := currentStripeRenewalGuardReservation(guard, model.SubscriptionProviderLifecycleActionResume)
 	binding, err := recurringBindingForUser(userID, bindingID)
 	if err != nil {
-		return nil, err
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, err)
 	}
 	if isTerminalStripeSubscriptionStatus(binding.ProviderStatus) || binding.EndedAt > 0 {
-		return nil, errors.New("terminal Stripe subscription cannot be resumed")
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, errors.New("terminal Stripe subscription cannot be resumed"))
 	}
 	if stripeLifecycleReservationConflictsWithAction(binding, model.SubscriptionProviderLifecycleActionResume) {
-		return nil, model.ErrSubscriptionProviderLifecycleConflict
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, model.ErrSubscriptionProviderLifecycleConflict)
 	}
 	if binding.ContractId <= 0 {
+		if guard != nil {
+			return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, errors.New("subscription renewal precondition conflict"))
+		}
 		return resumeContractlessStripeRecurringSubscription(binding)
 	}
 	expectedProviderSubscriptionID := binding.ProviderSubscriptionId
-	reservation, binding, err := reserveStripeSubscriptionLifecycle(binding, model.SubscriptionProviderLifecycleActionResume)
-	if err != nil {
-		if errors.Is(err, model.ErrSubscriptionProviderLifecycleConflict) {
-			if satisfied, ok := stripeLifecycleSatisfiedStateAfterReserveConflict(userID, bindingID, expectedProviderSubscriptionID, model.SubscriptionProviderLifecycleActionResume); ok {
-				return satisfied, nil
+	if reservation != nil && !subscriptionRenewalReservationMatchesBinding(reservation, binding) {
+		return nil, abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation, errors.New("subscription renewal precondition conflict"))
+	}
+	if reservation == nil {
+		var reserveErr error
+		reservation, binding, reserveErr = reserveStripeSubscriptionLifecycle(binding, model.SubscriptionProviderLifecycleActionResume)
+		if reserveErr != nil {
+			if errors.Is(reserveErr, model.ErrSubscriptionProviderLifecycleConflict) {
+				if satisfied, ok := stripeLifecycleSatisfiedStateAfterReserveConflict(userID, bindingID, expectedProviderSubscriptionID, model.SubscriptionProviderLifecycleActionResume); ok {
+					if err := validateCurrentStripeRenewalLifecycleSatisfiedMutationGuardForAction(satisfied, model.SubscriptionProviderLifecycleActionResume, false, guard); err != nil {
+						return nil, err
+					}
+					return satisfied, nil
+				}
 			}
+			return nil, reserveErr
 		}
-		return nil, err
+	}
+	if err := validateCurrentStripeRenewalLifecycleMutationGuard(binding, reservation, false, guard); err != nil {
+		return nil, releaseStripeRenewalLifecycleReservationAfterGuardConflict(reservation, err)
 	}
 	if !binding.CancelAtPeriodEnd {
 		if err := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); err != nil {
@@ -424,15 +478,48 @@ func reserveStripeSubscriptionLifecycle(binding *model.SubscriptionProviderBindi
 	if err != nil {
 		return nil, nil, err
 	}
-	return model.ReserveSubscriptionProviderLifecycle(
-		binding.Id,
-		binding.UserId,
-		binding.ProviderSubscriptionId,
-		binding.LifecycleActionSeq,
-		action,
-		token,
-		int64(stripeSubscriptionLifecycleReservationTTL/time.Second),
-	)
+	var reservation *model.SubscriptionProviderLifecycleReservation
+	var reservedBinding *model.SubscriptionProviderBinding
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		var current model.SubscriptionProviderBinding
+		if err := subscriptionCommandLock(tx).Where("id = ? AND user_id = ?", binding.Id, binding.UserId).First(&current).Error; err != nil {
+			return err
+		}
+		if current.ContractId > 0 {
+			var contract model.UserSubscriptionContract
+			if err := subscriptionCommandLock(tx).Where("id = ? AND user_id = ?", current.ContractId, current.UserId).First(&contract).Error; err != nil {
+				return err
+			}
+			if contract.Status != model.SubscriptionContractStatusActive &&
+				contract.Status != model.SubscriptionContractStatusGrace {
+				return model.ErrSubscriptionProviderLifecycleConflict
+			}
+			if contract.PaymentMode != model.SubscriptionPaymentModeStripeRecurring ||
+				contract.CurrentProviderBindingId != current.Id {
+				return model.ErrSubscriptionProviderLifecycleConflict
+			}
+			var replaceableDowngradeBinding *model.SubscriptionProviderBinding
+			if strings.TrimSpace(action) == model.SubscriptionProviderLifecycleActionCancel {
+				replaceableDowngradeBinding = &current
+			}
+			if err := rejectUnresolvedRenewalPlanChangeTx(tx, current.UserId, replaceableDowngradeBinding); err != nil {
+				return err
+			}
+		}
+		var reserveErr error
+		reservation, reservedBinding, reserveErr = model.ReserveSubscriptionProviderLifecycleExactTx(
+			tx,
+			binding,
+			action,
+			token,
+			int64(stripeSubscriptionLifecycleReservationTTL/time.Second),
+		)
+		return reserveErr
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return reservation, reservedBinding, nil
 }
 
 func reserveStripeSubscriptionAdministrativeTermination(binding *model.SubscriptionProviderBinding) (*model.SubscriptionProviderLifecycleReservation, *model.SubscriptionProviderBinding, error) {

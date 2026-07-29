@@ -24,6 +24,7 @@ import type {
 
 type Assert<T extends true> = T
 type Extends<T, U> = T extends U ? true : false
+type HasKey<T, K extends PropertyKey> = K extends keyof T ? true : false
 
 declare const _self: SelfSubscriptionData
 declare const changeResponse: ChangePlanResponse
@@ -32,7 +33,7 @@ export type _SelfContractIncludesSingleContract = Assert<
   Extends<
     NonNullable<typeof _self.contract>,
     {
-      id: number
+      contract_id: number
       status: 'active' | 'grace' | 'ended' | 'needs_attention'
       payment_mode:
         | 'stripe_recurring'
@@ -41,8 +42,7 @@ export type _SelfContractIncludesSingleContract = Assert<
         | 'external_one_period'
       current_plan_id: number
       pending_plan_id: number
-      current_period_end: number
-      grace_period_end: number
+      change_version: number
     }
   >
 >
@@ -93,7 +93,6 @@ export type _ChangePlanResponseShape = Assert<
         | 'payment_action_required'
       contract: NonNullable<SelfSubscriptionData['contract']>
       intent: {
-        request_id: string
         payment_mode:
           | 'stripe_recurring'
           | 'prepaid'
@@ -104,6 +103,33 @@ export type _ChangePlanResponseShape = Assert<
       hosted_invoice_url?: string
     }
   >
+>
+
+export type _ChangePlanResponseContractDoesNotExposeProviderBinding = Assert<
+  HasKey<
+    NonNullable<ChangePlanResponse['contract']>,
+    'current_provider_binding_id'
+  > extends false
+    ? true
+    : false
+>
+
+export type _ChangePlanResponseIntentDoesNotExposeProviderBinding = Assert<
+  HasKey<
+    NonNullable<ChangePlanResponse['intent']>,
+    'provider_binding_id'
+  > extends false
+    ? true
+    : false
+>
+
+export type _SelfCurrentEntitlementDoesNotExposeProviderBinding = Assert<
+  HasKey<
+    NonNullable<SelfSubscriptionData['current_entitlement']>,
+    'provider_binding_id'
+  > extends false
+    ? true
+    : false
 >
 
 if (changeResponse.status === 'payment_action_required') {

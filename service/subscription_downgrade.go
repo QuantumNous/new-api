@@ -132,8 +132,21 @@ func executeStripeSubscriptionDowngrade(ctx context.Context, input StripeSubscri
 func latestStripeDowngradeScheduleInput(input StripeSubscriptionDowngradeInput, sub *stripe.Subscription) (StripeSubscriptionDowngradeInput, *model.SubscriptionPlan, error) {
 	latest := input
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		var binding model.SubscriptionProviderBinding
+		if err := subscriptionCommandLock(tx).
+			Where("contract_id = ? AND provider = ? AND provider_subscription_id = ?",
+				input.ContractID, model.PaymentProviderStripe, strings.TrimSpace(input.ProviderSubscriptionID)).
+			First(&binding).Error; err != nil {
+			return err
+		}
+		if err := rejectPrelockedProviderLifecycleReservationForPlanExecutorTx(tx, &binding); err != nil {
+			return err
+		}
 		var contract model.UserSubscriptionContract
-		if err := subscriptionCommandLock(tx).Where("id = ?", input.ContractID).First(&contract).Error; err != nil {
+		if err := subscriptionCommandLock(tx).
+			Where("id = ? AND user_id = ? AND current_provider_binding_id = ?",
+				input.ContractID, binding.UserId, binding.Id).
+			First(&contract).Error; err != nil {
 			return err
 		}
 		var intent model.SubscriptionChangeIntent
@@ -149,9 +162,39 @@ func latestStripeDowngradeScheduleInput(input StripeSubscriptionDowngradeInput, 
 				return err
 			}
 		}
-		var binding model.SubscriptionProviderBinding
-		if err := subscriptionCommandLock(tx).Where("id = ? AND contract_id = ? AND provider = ?", intent.ProviderBindingId, contract.Id, model.PaymentProviderStripe).First(&binding).Error; err != nil {
-			return err
+		if intent.ProviderBindingId != binding.Id ||
+			intent.UserId != binding.UserId ||
+			intent.ContractId != contract.Id ||
+			binding.ContractId != contract.Id {
+			return ErrSubscriptionChangeInProgress
+		}
+		if intent.Status == model.SubscriptionChangeIntentStatusScheduled {
+			update := tx.Model(&model.SubscriptionChangeIntent{}).
+				Where(
+					"id = ? AND status = ? AND contract_id = ? AND user_id = ? AND provider_binding_id = ? AND kind = ? AND payment_mode = ? AND change_version = ? AND from_plan_id = ? AND to_plan_id = ? AND effective_at = ?",
+					intent.Id,
+					model.SubscriptionChangeIntentStatusScheduled,
+					intent.ContractId,
+					intent.UserId,
+					intent.ProviderBindingId,
+					intent.Kind,
+					intent.PaymentMode,
+					intent.ChangeVersion,
+					intent.FromPlanId,
+					intent.ToPlanId,
+					intent.EffectiveAt,
+				).
+				Updates(map[string]interface{}{
+					"status":     model.SubscriptionChangeIntentStatusSyncing,
+					"updated_at": common.GetTimestamp(),
+				})
+			if update.Error != nil {
+				return update.Error
+			}
+			if update.RowsAffected != 1 {
+				return ErrSubscriptionChangeInProgress
+			}
+			intent.Status = model.SubscriptionChangeIntentStatusSyncing
 		}
 		var target model.SubscriptionPlan
 		if err := tx.Where("id = ?", intent.ToPlanId).First(&target).Error; err != nil {

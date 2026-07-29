@@ -615,6 +615,9 @@ func validateSubscriptionProviderLifecycleReservationCurrentBinding(binding *Sub
 	if reservation.UserId <= 0 || reservation.UserId != binding.UserId {
 		return ErrSubscriptionProviderLifecycleConflict
 	}
+	if binding.Provider != PaymentProviderStripe {
+		return ErrSubscriptionProviderLifecycleConflict
+	}
 	if expectedContractID <= 0 {
 		if contract != nil || reservation.ContractId != 0 || binding.Provider != PaymentProviderStripe {
 			return ErrSubscriptionProviderLifecycleConflict

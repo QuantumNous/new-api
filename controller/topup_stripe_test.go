@@ -2316,7 +2316,7 @@ func TestFulfillSubscriptionOrderBindsCheckoutSubscriptionOnce(t *testing.T) {
 	require.EqualValues(t, 1, subCount)
 }
 
-func TestStripeSubscriptionWebhookUpdatedAppliesPassiveSnapshotOnceWithoutChangingRenewalDecision(t *testing.T) {
+func TestStripeSubscriptionWebhookUpdatedAppliesPassiveSnapshotOnceWithoutOverwritingLifecycle(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	binding := insertStripeFulfillmentSubscriptionBinding(t, 703, "sub_webhook_update", "active", false)
 	originalSnapshot := stripeSubscriptionSnapshotFromSubscriptionEvent
@@ -2325,13 +2325,17 @@ func TestStripeSubscriptionWebhookUpdatedAppliesPassiveSnapshotOnceWithoutChangi
 	stripeSubscriptionSnapshotFromSubscriptionEvent = func(event stripe.Event) (model.ProviderSubscriptionSnapshot, error) {
 		calls++
 		return model.ProviderSubscriptionSnapshot{
-			ProviderSubscriptionId: "sub_webhook_update",
-			ProviderCustomerId:     "cus_subscription",
-			ProviderPriceId:        "price_subscription",
-			ProviderStatus:         "active",
-			CancelAtPeriodEnd:      true,
-			CurrentPeriodStart:     1000,
-			CurrentPeriodEnd:       2000,
+			ProviderSubscriptionId:  "sub_webhook_update",
+			ProviderCustomerId:      "cus_subscription_updated",
+			ProviderPriceId:         "price_subscription_updated",
+			ProviderLatestInvoiceId: "in_subscription_updated",
+			ProviderStatus:          "past_due",
+			CancelAtPeriodEnd:       true,
+			CurrentPeriodStart:      1500,
+			CurrentPeriodEnd:        2500,
+			GracePeriodEnd:          2600,
+			CanceledAt:              1700,
+			Livemode:                true,
 		}, nil
 	}
 	event := stripe.Event{
@@ -2348,7 +2352,17 @@ func TestStripeSubscriptionWebhookUpdatedAppliesPassiveSnapshotOnceWithoutChangi
 	require.Equal(t, 1, calls)
 	var updated model.SubscriptionProviderBinding
 	require.NoError(t, model.DB.First(&updated, binding.Id).Error)
+	require.Equal(t, "cus_subscription_updated", updated.ProviderCustomerId)
+	require.Equal(t, "price_subscription_updated", updated.ProviderPriceId)
+	require.Equal(t, "in_subscription_updated", updated.ProviderLatestInvoiceId)
+	require.Equal(t, "past_due", updated.ProviderStatus)
+	require.EqualValues(t, 1500, updated.CurrentPeriodStart)
+	require.EqualValues(t, 2500, updated.CurrentPeriodEnd)
+	require.EqualValues(t, 2600, updated.GracePeriodEnd)
+	require.True(t, updated.Livemode)
 	require.False(t, updated.CancelAtPeriodEnd)
+	require.Zero(t, updated.CanceledAt)
+	require.Equal(t, binding.LifecycleActionSeq, updated.LifecycleActionSeq)
 }
 
 func TestStripeSubscriptionWebhookUpdatedRoutesTerminalStatusToTermination(t *testing.T) {

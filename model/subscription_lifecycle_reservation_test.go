@@ -1,12 +1,268 @@
 package model
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func createExactLifecycleReservationTarget(t *testing.T, userID int, planID int, contractID int64, bindingID int64, providerSubscriptionID string) {
+	t.Helper()
+	createEntitlementTestUser(t, userID, "default")
+	createEntitlementTestPlan(t, planID, 100, "")
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                       contractID,
+		UserId:                   userID,
+		Status:                   SubscriptionContractStatusActive,
+		PaymentMode:              SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            planID,
+		CurrentProviderBindingId: bindingID,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     bindingID,
+		UserId:                 userID,
+		PlanId:                 planID,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: providerSubscriptionID,
+		ProviderStatus:         "active",
+	}).Error)
+}
+
+func TestReserveSubscriptionProviderLifecycleExactTxRefreshesActiveSameTokenLease(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	const (
+		userID                 = 9281
+		planID                 = 9381
+		contractID             = int64(9481)
+		bindingID              = int64(9581)
+		providerSubscriptionID = "sub_exact_active_idempotent"
+		token                  = "exact-active-idempotent-token"
+	)
+	createExactLifecycleReservationTarget(t, userID, planID, contractID, bindingID, providerSubscriptionID)
+
+	var first *SubscriptionProviderLifecycleReservation
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var binding SubscriptionProviderBinding
+		if err := lockQuery(tx).Where("id = ?", bindingID).First(&binding).Error; err != nil {
+			return err
+		}
+		var err error
+		first, _, err = ReserveSubscriptionProviderLifecycleExactTx(tx, &binding, SubscriptionProviderLifecycleActionCancel, token, 300)
+		return err
+	}))
+	now := GetDBTimestamp()
+	require.Equal(t, bindingID, first.BindingId)
+	require.Equal(t, userID, first.UserId)
+	require.Equal(t, contractID, first.ContractId)
+	require.Equal(t, providerSubscriptionID, first.ProviderSubscriptionId)
+	require.Equal(t, token, first.Token)
+	require.Equal(t, SubscriptionProviderLifecycleActionCancel, first.Action)
+	require.Equal(t, int64(1), first.LifecycleActionSeq)
+	require.Greater(t, first.ExpiresAt, now)
+	aboutToExpireAt := now + 1
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID).
+		Update("lifecycle_reservation_until", aboutToExpireAt).Error)
+
+	var retry *SubscriptionProviderLifecycleReservation
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var binding SubscriptionProviderBinding
+		if err := lockQuery(tx).Where("id = ?", bindingID).First(&binding).Error; err != nil {
+			return err
+		}
+		var err error
+		retry, _, err = ReserveSubscriptionProviderLifecycleExactTx(tx, &binding, SubscriptionProviderLifecycleActionCancel, token, 600)
+		return err
+	}))
+
+	require.Equal(t, first.BindingId, retry.BindingId)
+	require.Equal(t, first.UserId, retry.UserId)
+	require.Equal(t, first.ContractId, retry.ContractId)
+	require.Equal(t, first.ProviderSubscriptionId, retry.ProviderSubscriptionId)
+	require.Equal(t, first.Token, retry.Token)
+	require.Equal(t, first.Action, retry.Action)
+	require.Equal(t, first.LifecycleActionSeq, retry.LifecycleActionSeq)
+	require.Greater(t, retry.ExpiresAt, aboutToExpireAt)
+	var stored SubscriptionProviderBinding
+	require.NoError(t, DB.First(&stored, bindingID).Error)
+	require.Equal(t, token, stored.LifecycleReservationToken)
+	require.Equal(t, SubscriptionProviderLifecycleActionCancel, stored.LifecycleReservationAction)
+	require.Equal(t, retry.ExpiresAt, stored.LifecycleReservationUntil)
+	require.Equal(t, first.LifecycleActionSeq, stored.LifecycleActionSeq)
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var binding SubscriptionProviderBinding
+		if lockErr := lockQuery(tx).Where("id = ?", bindingID).First(&binding).Error; lockErr != nil {
+			return lockErr
+		}
+		_, _, reserveErr := ReserveSubscriptionProviderLifecycleExactTx(tx, &binding, SubscriptionProviderLifecycleActionCancel, "exact-active-foreign-reclaim-token", 600)
+		return reserveErr
+	})
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+}
+
+func TestReserveSubscriptionProviderLifecycleExactTxRejectsDifferentActiveTokenWithoutMutation(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	const (
+		userID                 = 9282
+		planID                 = 9382
+		contractID             = int64(9482)
+		bindingID              = int64(9582)
+		providerSubscriptionID = "sub_exact_active_conflict"
+	)
+	createExactLifecycleReservationTarget(t, userID, planID, contractID, bindingID, providerSubscriptionID)
+	var first *SubscriptionProviderLifecycleReservation
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var binding SubscriptionProviderBinding
+		if err := lockQuery(tx).Where("id = ?", bindingID).First(&binding).Error; err != nil {
+			return err
+		}
+		var err error
+		first, _, err = ReserveSubscriptionProviderLifecycleExactTx(tx, &binding, SubscriptionProviderLifecycleActionResume, "exact-active-owner-token", 300)
+		return err
+	}))
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var binding SubscriptionProviderBinding
+		if lockErr := lockQuery(tx).Where("id = ?", bindingID).First(&binding).Error; lockErr != nil {
+			return lockErr
+		}
+		_, _, reserveErr := ReserveSubscriptionProviderLifecycleExactTx(tx, &binding, SubscriptionProviderLifecycleActionResume, "exact-active-foreign-token", 300)
+		return reserveErr
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	var stored SubscriptionProviderBinding
+	require.NoError(t, DB.First(&stored, bindingID).Error)
+	require.Equal(t, first.Token, stored.LifecycleReservationToken)
+	require.Equal(t, first.Action, stored.LifecycleReservationAction)
+	require.Equal(t, first.ExpiresAt, stored.LifecycleReservationUntil)
+	require.Equal(t, first.LifecycleActionSeq, stored.LifecycleActionSeq)
+}
+
+func TestReserveSubscriptionProviderLifecycleExactTxRejectsStaleActiveOwnerSnapshot(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	const (
+		userID                 = 9285
+		planID                 = 9385
+		contractID             = int64(9485)
+		bindingID              = int64(9585)
+		providerSubscriptionID = "sub_exact_stale_active_owner"
+		token                  = "exact-stale-owner-token"
+	)
+	createExactLifecycleReservationTarget(t, userID, planID, contractID, bindingID, providerSubscriptionID)
+	stale := SubscriptionProviderBinding{
+		Id:                         bindingID,
+		UserId:                     userID,
+		PlanId:                     planID,
+		ContractId:                 contractID,
+		Provider:                   PaymentProviderStripe,
+		ProviderSubscriptionId:     providerSubscriptionID,
+		ProviderStatus:             "active",
+		LifecycleActionSeq:         1,
+		LifecycleReservationToken:  token,
+		LifecycleReservationAction: SubscriptionProviderLifecycleActionCancel,
+		LifecycleReservationUntil:  GetDBTimestamp() + 300,
+	}
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		_, _, reserveErr := ReserveSubscriptionProviderLifecycleExactTx(tx, &stale, SubscriptionProviderLifecycleActionCancel, token, 300)
+		return reserveErr
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	var stored SubscriptionProviderBinding
+	require.NoError(t, DB.First(&stored, bindingID).Error)
+	require.Empty(t, stored.LifecycleReservationToken)
+	require.Empty(t, stored.LifecycleReservationAction)
+	require.Zero(t, stored.LifecycleReservationUntil)
+	require.Zero(t, stored.LifecycleActionSeq)
+}
+
+func TestReserveSubscriptionProviderLifecycleExactTxReclaimsExpiredSameActionWithoutAdvancingSequence(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	const (
+		userID                 = 9283
+		planID                 = 9383
+		contractID             = int64(9483)
+		bindingID              = int64(9583)
+		providerSubscriptionID = "sub_exact_expired_reclaim"
+	)
+	createExactLifecycleReservationTarget(t, userID, planID, contractID, bindingID, providerSubscriptionID)
+	var first *SubscriptionProviderLifecycleReservation
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var binding SubscriptionProviderBinding
+		if err := lockQuery(tx).Where("id = ?", bindingID).First(&binding).Error; err != nil {
+			return err
+		}
+		var err error
+		first, _, err = ReserveSubscriptionProviderLifecycleExactTx(tx, &binding, SubscriptionProviderLifecycleActionGraceCancel, "exact-expired-original-token", 300)
+		return err
+	}))
+	expiredAt := GetDBTimestamp() - 10
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID).
+		Update("lifecycle_reservation_until", expiredAt).Error)
+
+	var reclaimed *SubscriptionProviderLifecycleReservation
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var binding SubscriptionProviderBinding
+		if err := lockQuery(tx).Where("id = ?", bindingID).First(&binding).Error; err != nil {
+			return err
+		}
+		var err error
+		reclaimed, _, err = ReserveSubscriptionProviderLifecycleExactTx(tx, &binding, SubscriptionProviderLifecycleActionGraceCancel, "exact-expired-reclaimed-token", 600)
+		return err
+	}))
+
+	require.Equal(t, first.LifecycleActionSeq, reclaimed.LifecycleActionSeq)
+	require.Equal(t, SubscriptionProviderLifecycleActionGraceCancel, reclaimed.Action)
+	require.Equal(t, "exact-expired-reclaimed-token", reclaimed.Token)
+	require.NotEqual(t, first.Token, reclaimed.Token)
+	require.Greater(t, reclaimed.ExpiresAt, expiredAt)
+	var stored SubscriptionProviderBinding
+	require.NoError(t, DB.First(&stored, bindingID).Error)
+	require.Equal(t, reclaimed.Token, stored.LifecycleReservationToken)
+	require.Equal(t, reclaimed.ExpiresAt, stored.LifecycleReservationUntil)
+	require.Equal(t, first.LifecycleActionSeq, stored.LifecycleActionSeq)
+}
+
+func TestReserveSubscriptionProviderLifecycleExactTxRollbackLeavesNoReservation(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	const (
+		userID                 = 9284
+		planID                 = 9384
+		contractID             = int64(9484)
+		bindingID              = int64(9584)
+		providerSubscriptionID = "sub_exact_rollback"
+	)
+	createExactLifecycleReservationTarget(t, userID, planID, contractID, bindingID, providerSubscriptionID)
+	rollbackErr := errors.New("rollback exact reservation")
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var binding SubscriptionProviderBinding
+		if lockErr := lockQuery(tx).Where("id = ?", bindingID).First(&binding).Error; lockErr != nil {
+			return lockErr
+		}
+		reservation, _, reserveErr := ReserveSubscriptionProviderLifecycleExactTx(tx, &binding, SubscriptionProviderLifecycleActionCancel, "exact-rollback-token", 300)
+		require.NoError(t, reserveErr)
+		require.Equal(t, "exact-rollback-token", reservation.Token)
+		var inside SubscriptionProviderBinding
+		require.NoError(t, tx.First(&inside, bindingID).Error)
+		require.Equal(t, reservation.Token, inside.LifecycleReservationToken)
+		return rollbackErr
+	})
+
+	require.ErrorIs(t, err, rollbackErr)
+	var stored SubscriptionProviderBinding
+	require.NoError(t, DB.First(&stored, bindingID).Error)
+	require.Empty(t, stored.LifecycleReservationToken)
+	require.Empty(t, stored.LifecycleReservationAction)
+	require.Zero(t, stored.LifecycleReservationUntil)
+	require.Zero(t, stored.LifecycleActionSeq)
+}
 
 func TestConsumeCurrentSubscriptionProviderLifecycleReservationAllowsExpiredExactOwner(t *testing.T) {
 	setupSubscriptionEntitlementTestDB(t)
@@ -114,6 +370,133 @@ func TestReleaseSubscriptionProviderLifecycleReservationRejectsTerminalBindingWi
 	require.Equal(t, reservation.Action, binding.LifecycleReservationAction)
 	require.Equal(t, reservation.ExpiresAt, binding.LifecycleReservationUntil)
 	require.Equal(t, reservation.LifecycleActionSeq, binding.LifecycleActionSeq)
+}
+
+func TestAbandonSubscriptionProviderLifecycleReservationBeforeProviderCallClearsOwnedDriftedGuard(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	const (
+		userID                 = 9291
+		planID                 = 9391
+		contractID             = int64(9491)
+		bindingID              = int64(9591)
+		providerSubscriptionID = "sub_abandon_guard_original"
+	)
+	createExactLifecycleReservationTarget(t, userID, planID, contractID, bindingID, providerSubscriptionID)
+	reservation, _, err := ReserveSubscriptionProviderLifecycle(
+		bindingID,
+		userID,
+		providerSubscriptionID,
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"abandon-drifted-guard-token",
+		300,
+	)
+	require.NoError(t, err)
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID).Updates(map[string]interface{}{
+		"contract_id":              0,
+		"provider_subscription_id": "sub_abandon_guard_replacement",
+	}).Error)
+	require.ErrorIs(t, ReleaseSubscriptionProviderLifecycleReservation(reservation), ErrSubscriptionProviderLifecycleConflict)
+
+	err = AbandonSubscriptionProviderLifecycleReservationBeforeProviderCall(reservation)
+
+	require.NoError(t, err)
+	var binding SubscriptionProviderBinding
+	require.NoError(t, DB.First(&binding, bindingID).Error)
+	require.Equal(t, reservation.LifecycleActionSeq+1, binding.LifecycleActionSeq)
+	require.Empty(t, binding.LifecycleReservationToken)
+	require.Empty(t, binding.LifecycleReservationAction)
+	require.Zero(t, binding.LifecycleReservationUntil)
+	require.Zero(t, binding.ContractId)
+	require.Equal(t, "sub_abandon_guard_replacement", binding.ProviderSubscriptionId)
+}
+
+func TestAbandonSubscriptionProviderLifecycleReservationBeforeProviderCallClearsOwnedTerminalProviderDrift(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	const (
+		userID                 = 9292
+		planID                 = 9392
+		contractID             = int64(9492)
+		bindingID              = int64(9592)
+		providerSubscriptionID = "sub_abandon_terminal_original"
+	)
+	createExactLifecycleReservationTarget(t, userID, planID, contractID, bindingID, providerSubscriptionID)
+	reservation, _, err := ReserveSubscriptionProviderLifecycle(
+		bindingID,
+		userID,
+		providerSubscriptionID,
+		0,
+		SubscriptionProviderLifecycleActionResume,
+		"abandon-terminal-provider-drift-token",
+		300,
+	)
+	require.NoError(t, err)
+	endedAt := GetDBTimestamp()
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID).Updates(map[string]interface{}{
+		"provider":        PaymentProviderCreem,
+		"provider_status": "canceled",
+		"ended_at":        endedAt,
+	}).Error)
+
+	err = AbandonSubscriptionProviderLifecycleReservationBeforeProviderCall(reservation)
+
+	require.NoError(t, err)
+	var binding SubscriptionProviderBinding
+	require.NoError(t, DB.First(&binding, bindingID).Error)
+	require.Equal(t, reservation.LifecycleActionSeq+1, binding.LifecycleActionSeq)
+	require.Empty(t, binding.LifecycleReservationToken)
+	require.Empty(t, binding.LifecycleReservationAction)
+	require.Zero(t, binding.LifecycleReservationUntil)
+	require.Equal(t, PaymentProviderCreem, binding.Provider)
+	require.Equal(t, "canceled", binding.ProviderStatus)
+	require.Equal(t, endedAt, binding.EndedAt)
+}
+
+func TestAbandonSubscriptionProviderLifecycleReservationBeforeProviderCallRejectsReclaimedOwner(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	const (
+		userID                 = 9293
+		planID                 = 9393
+		contractID             = int64(9493)
+		bindingID              = int64(9593)
+		providerSubscriptionID = "sub_abandon_reclaimed_owner"
+	)
+	createExactLifecycleReservationTarget(t, userID, planID, contractID, bindingID, providerSubscriptionID)
+	original, _, err := ReserveSubscriptionProviderLifecycle(
+		bindingID,
+		userID,
+		providerSubscriptionID,
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"abandon-reclaimed-original-token",
+		300,
+	)
+	require.NoError(t, err)
+	expiredAt := GetDBTimestamp() - 10
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID).
+		Update("lifecycle_reservation_until", expiredAt).Error)
+	original.ExpiresAt = expiredAt
+	reclaimed, _, err := ReserveSubscriptionProviderLifecycle(
+		bindingID,
+		userID,
+		providerSubscriptionID,
+		original.LifecycleActionSeq,
+		SubscriptionProviderLifecycleActionCancel,
+		"abandon-reclaimed-current-token",
+		300,
+	)
+	require.NoError(t, err)
+	require.NotEqual(t, original.Token, reclaimed.Token)
+
+	err = AbandonSubscriptionProviderLifecycleReservationBeforeProviderCall(original)
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	var binding SubscriptionProviderBinding
+	require.NoError(t, DB.First(&binding, bindingID).Error)
+	require.Equal(t, reclaimed.LifecycleActionSeq, binding.LifecycleActionSeq)
+	require.Equal(t, reclaimed.Token, binding.LifecycleReservationToken)
+	require.Equal(t, reclaimed.Action, binding.LifecycleReservationAction)
+	require.Equal(t, reclaimed.ExpiresAt, binding.LifecycleReservationUntil)
 }
 
 func TestConsumeCurrentSubscriptionProviderLifecycleReservationRejectsExpiredOwnerAfterReclaim(t *testing.T) {
@@ -595,7 +978,7 @@ func TestReserveSubscriptionProviderLifecycleRejectsActiveSameTokenWithStaleExpe
 	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
 }
 
-func TestReserveSubscriptionProviderLifecycleAllowsActiveSameTokenWithFreshExpectedSeq(t *testing.T) {
+func TestReserveSubscriptionProviderLifecycleRefreshesActiveSameTokenWithFreshExpectedSeq(t *testing.T) {
 	setupSubscriptionEntitlementTestDB(t)
 	const (
 		userID    = 9266
@@ -624,6 +1007,9 @@ func TestReserveSubscriptionProviderLifecycleAllowsActiveSameTokenWithFreshExpec
 		300,
 	)
 	require.NoError(t, err)
+	aboutToExpireAt := GetDBTimestamp() + 1
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID).
+		Update("lifecycle_reservation_until", aboutToExpireAt).Error)
 
 	retry, _, err := ReserveSubscriptionProviderLifecycle(
 		bindingID,
@@ -632,7 +1018,7 @@ func TestReserveSubscriptionProviderLifecycleAllowsActiveSameTokenWithFreshExpec
 		first.LifecycleActionSeq,
 		SubscriptionProviderLifecycleActionResume,
 		"same-token-fresh-seq",
-		300,
+		600,
 	)
 
 	require.NoError(t, err)
@@ -641,7 +1027,21 @@ func TestReserveSubscriptionProviderLifecycleAllowsActiveSameTokenWithFreshExpec
 	require.Equal(t, first.Token, retry.Token)
 	require.Equal(t, first.Action, retry.Action)
 	require.Equal(t, first.LifecycleActionSeq, retry.LifecycleActionSeq)
-	require.Equal(t, first.ExpiresAt, retry.ExpiresAt)
+	require.Greater(t, retry.ExpiresAt, aboutToExpireAt)
+	var stored SubscriptionProviderBinding
+	require.NoError(t, DB.First(&stored, bindingID).Error)
+	require.Equal(t, retry.ExpiresAt, stored.LifecycleReservationUntil)
+
+	_, _, err = ReserveSubscriptionProviderLifecycle(
+		bindingID,
+		userID,
+		"stripe_active_same_token_fresh_seq",
+		retry.LifecycleActionSeq,
+		SubscriptionProviderLifecycleActionResume,
+		"same-token-foreign-reclaim",
+		600,
+	)
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
 }
 
 func TestReserveSubscriptionProviderLifecycleUpdateSQLKeepsReservationOrGrouped(t *testing.T) {

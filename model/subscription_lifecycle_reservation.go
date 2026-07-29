@@ -67,6 +67,106 @@ func ReserveSubscriptionProviderLifecycleForAdministrativeTermination(
 	)
 }
 
+func ReserveSubscriptionProviderLifecycleExactTx(
+	tx *gorm.DB,
+	binding *SubscriptionProviderBinding,
+	action string,
+	token string,
+	ttlSeconds int64,
+) (*SubscriptionProviderLifecycleReservation, *SubscriptionProviderBinding, error) {
+	if tx == nil || binding == nil {
+		return nil, nil, errors.New("invalid subscription provider lifecycle reservation target")
+	}
+	action = strings.ToLower(strings.TrimSpace(action))
+	token = strings.TrimSpace(token)
+	if binding.Id <= 0 || binding.UserId <= 0 || strings.TrimSpace(binding.ProviderSubscriptionId) == "" {
+		return nil, nil, errors.New("invalid subscription provider lifecycle reservation target")
+	}
+	if action != SubscriptionProviderLifecycleActionCancel &&
+		action != SubscriptionProviderLifecycleActionGraceCancel &&
+		action != SubscriptionProviderLifecycleActionResume {
+		return nil, nil, errors.New("invalid subscription provider lifecycle reservation action")
+	}
+	if token == "" || len(token) > 128 || ttlSeconds <= 0 || ttlSeconds > subscriptionProviderLifecycleReservationMaxTTLSeconds {
+		return nil, nil, errors.New("invalid subscription provider lifecycle reservation lease")
+	}
+	var current SubscriptionProviderBinding
+	if err := lockQuery(tx).Where("id = ? AND user_id = ?", binding.Id, binding.UserId).First(&current).Error; err != nil {
+		return nil, nil, err
+	}
+	if current.ContractId != binding.ContractId ||
+		strings.TrimSpace(current.ProviderSubscriptionId) != strings.TrimSpace(binding.ProviderSubscriptionId) ||
+		current.LifecycleActionSeq != binding.LifecycleActionSeq ||
+		strings.TrimSpace(current.LifecycleReservationToken) != strings.TrimSpace(binding.LifecycleReservationToken) ||
+		strings.TrimSpace(current.LifecycleReservationAction) != strings.TrimSpace(binding.LifecycleReservationAction) ||
+		current.LifecycleReservationUntil != binding.LifecycleReservationUntil {
+		return nil, nil, ErrSubscriptionProviderLifecycleConflict
+	}
+	binding = &current
+	if binding.Provider != PaymentProviderStripe ||
+		binding.EndedAt > 0 ||
+		isTerminalProviderSubscriptionStatus(binding.ProviderStatus) {
+		return nil, nil, ErrSubscriptionProviderLifecycleConflict
+	}
+	now, err := getDBTimestampTxStrict(tx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if subscriptionProviderLifecycleReservationIsActive(binding, now) {
+		if binding.LifecycleReservationAction != action || binding.LifecycleReservationToken != token {
+			return nil, nil, ErrSubscriptionProviderLifecycleConflict
+		}
+		binding, err = refreshActiveSubscriptionProviderLifecycleReservationTx(tx, binding, action, token, now+ttlSeconds)
+		if err != nil {
+			return nil, nil, err
+		}
+		reservation := subscriptionProviderLifecycleReservationFromBinding(binding)
+		if reservation == nil {
+			return nil, nil, ErrSubscriptionProviderLifecycleConflict
+		}
+		return reservation, binding, nil
+	}
+	nextLifecycleActionSeq := binding.LifecycleActionSeq + 1
+	if binding.LifecycleReservationAction == action && binding.LifecycleReservationUntil > 0 {
+		nextLifecycleActionSeq = binding.LifecycleActionSeq
+	}
+	until := now + ttlSeconds
+	update := tx.Model(&SubscriptionProviderBinding{}).
+		Where("id = ? AND user_id = ? AND contract_id = ? AND provider = ? AND provider_subscription_id = ? AND lifecycle_action_seq = ? AND ended_at = ? AND provider_status NOT IN ? AND (lifecycle_reservation_token = ? OR lifecycle_reservation_until <= ?)",
+			binding.Id,
+			binding.UserId,
+			binding.ContractId,
+			PaymentProviderStripe,
+			strings.TrimSpace(binding.ProviderSubscriptionId),
+			binding.LifecycleActionSeq,
+			0,
+			terminalProviderSubscriptionStatuses,
+			"",
+			now,
+		).
+		Updates(map[string]interface{}{
+			"lifecycle_action_seq":         nextLifecycleActionSeq,
+			"lifecycle_reservation_token":  token,
+			"lifecycle_reservation_action": action,
+			"lifecycle_reservation_until":  until,
+		})
+	if update.Error != nil {
+		return nil, nil, update.Error
+	}
+	if update.RowsAffected != 1 {
+		return nil, nil, ErrSubscriptionProviderLifecycleConflict
+	}
+	var reserved SubscriptionProviderBinding
+	if err := tx.Where("id = ?", binding.Id).First(&reserved).Error; err != nil {
+		return nil, nil, err
+	}
+	reservation := subscriptionProviderLifecycleReservationFromBinding(&reserved)
+	if reservation == nil || reservation.Action != action || reservation.Token != token {
+		return nil, nil, ErrSubscriptionProviderLifecycleConflict
+	}
+	return reservation, &reserved, nil
+}
+
 func reserveSubscriptionProviderLifecycle(
 	bindingID int64,
 	userID int,
@@ -130,6 +230,11 @@ func reserveSubscriptionProviderLifecycle(
 			if reserved.LifecycleReservationAction != action || reserved.LifecycleReservationToken != token {
 				return ErrSubscriptionProviderLifecycleConflict
 			}
+			refreshed, err := refreshActiveSubscriptionProviderLifecycleReservationTx(tx, &reserved, action, token, now+ttlSeconds)
+			if err != nil {
+				return err
+			}
+			reserved = *refreshed
 			return nil
 		}
 		if reserved.LifecycleActionSeq != expectedLifecycleActionSeq {
@@ -179,6 +284,48 @@ func reserveSubscriptionProviderLifecycle(
 	return reservation, &reserved, nil
 }
 
+func refreshActiveSubscriptionProviderLifecycleReservationTx(
+	tx *gorm.DB,
+	binding *SubscriptionProviderBinding,
+	action string,
+	token string,
+	until int64,
+) (*SubscriptionProviderBinding, error) {
+	if tx == nil || binding == nil {
+		return nil, errors.New("invalid subscription provider lifecycle reservation target")
+	}
+	if until <= binding.LifecycleReservationUntil {
+		return binding, nil
+	}
+	update := tx.Model(&SubscriptionProviderBinding{}).
+		Where(
+			"id = ? AND user_id = ? AND contract_id = ? AND provider = ? AND provider_subscription_id = ? AND lifecycle_action_seq = ? AND lifecycle_reservation_token = ? AND lifecycle_reservation_action = ? AND lifecycle_reservation_until = ? AND ended_at = ? AND provider_status NOT IN ?",
+			binding.Id,
+			binding.UserId,
+			binding.ContractId,
+			PaymentProviderStripe,
+			strings.TrimSpace(binding.ProviderSubscriptionId),
+			binding.LifecycleActionSeq,
+			strings.TrimSpace(token),
+			strings.TrimSpace(action),
+			binding.LifecycleReservationUntil,
+			0,
+			terminalProviderSubscriptionStatuses,
+		).
+		Update("lifecycle_reservation_until", until)
+	if update.Error != nil {
+		return nil, update.Error
+	}
+	if update.RowsAffected != 1 {
+		return nil, ErrSubscriptionProviderLifecycleConflict
+	}
+	var refreshed SubscriptionProviderBinding
+	if err := tx.Where("id = ?", binding.Id).First(&refreshed).Error; err != nil {
+		return nil, err
+	}
+	return &refreshed, nil
+}
+
 func ReleaseSubscriptionProviderLifecycleReservation(reservation *SubscriptionProviderLifecycleReservation) error {
 	if reservation == nil || reservation.BindingId <= 0 || reservation.LifecycleActionSeq < 0 ||
 		reservation.UserId <= 0 ||
@@ -199,6 +346,38 @@ func ReleaseSubscriptionProviderLifecycleReservation(reservation *SubscriptionPr
 			terminalProviderSubscriptionStatuses,
 		).
 		Where("user_id = ? AND contract_id = ?", reservation.UserId, reservation.ContractId).
+		Updates(map[string]interface{}{
+			"lifecycle_action_seq":         gorm.Expr("lifecycle_action_seq + ?", 1),
+			"lifecycle_reservation_token":  "",
+			"lifecycle_reservation_action": "",
+			"lifecycle_reservation_until":  0,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return ErrSubscriptionProviderLifecycleConflict
+	}
+	return nil
+}
+
+func AbandonSubscriptionProviderLifecycleReservationBeforeProviderCall(reservation *SubscriptionProviderLifecycleReservation) error {
+	if reservation == nil || reservation.BindingId <= 0 || reservation.LifecycleActionSeq < 0 ||
+		reservation.UserId <= 0 ||
+		strings.TrimSpace(reservation.Token) == "" || strings.TrimSpace(reservation.Action) == "" ||
+		reservation.ExpiresAt <= 0 {
+		return errors.New("invalid subscription provider lifecycle reservation")
+	}
+	result := DB.Model(&SubscriptionProviderBinding{}).
+		Where(
+			"id = ? AND user_id = ? AND lifecycle_action_seq = ? AND lifecycle_reservation_token = ? AND lifecycle_reservation_action = ? AND lifecycle_reservation_until = ?",
+			reservation.BindingId,
+			reservation.UserId,
+			reservation.LifecycleActionSeq,
+			strings.TrimSpace(reservation.Token),
+			strings.TrimSpace(reservation.Action),
+			reservation.ExpiresAt,
+		).
 		Updates(map[string]interface{}{
 			"lifecycle_action_seq":         gorm.Expr("lifecycle_action_seq + ?", 1),
 			"lifecycle_reservation_token":  "",

@@ -704,6 +704,29 @@ func TestSubscriptionSelfPurchaseResponseUsesRecurringHostedInvoiceURL(t *testin
 	require.Equal(t, "https://invoice.example/recurring-upgrade", response.HostedInvoiceURL)
 }
 
+func TestSubscriptionSelfPurchaseResponseOmitsProviderBindingIDs(t *testing.T) {
+	response := subscriptionSelfPurchaseResponse(&service.PurchaseSubscriptionResult{
+		Status: service.ChangePlanStatusApplied,
+		Contract: &model.UserSubscriptionContract{
+			Id:                       12,
+			CurrentProviderBindingId: 34,
+		},
+		Intent: &model.SubscriptionChangeIntent{
+			Id:                56,
+			ContractId:        12,
+			ProviderBindingId: 34,
+		},
+	}, "")
+
+	body, err := common.Marshal(response)
+	require.NoError(t, err)
+	bodyText := string(body)
+	require.Contains(t, bodyText, `"contract_id":12`)
+	require.Contains(t, bodyText, `"intent_id":56`)
+	require.NotContains(t, bodyText, "current_provider_binding_id")
+	require.NotContains(t, bodyText, "provider_binding_id")
+}
+
 func TestSubscriptionSelfPurchaseRejectsExpiredQuote(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)

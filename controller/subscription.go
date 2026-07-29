@@ -301,11 +301,11 @@ type SubscriptionMigrationDTO struct {
 }
 
 type ChangeSubscriptionPlanResponse struct {
-	Status           string                        `json:"status"`
-	Contract         *SubscriptionContractDTO      `json:"contract,omitempty"`
-	Intent           *SubscriptionPendingChangeDTO `json:"intent,omitempty"`
-	CheckoutURL      string                        `json:"checkout_url,omitempty"`
-	HostedInvoiceURL string                        `json:"hosted_invoice_url,omitempty"`
+	Status           string                            `json:"status"`
+	Contract         *SubscriptionSelfContractDTO      `json:"contract,omitempty"`
+	Intent           *SubscriptionSelfPendingChangeDTO `json:"intent,omitempty"`
+	CheckoutURL      string                            `json:"checkout_url,omitempty"`
+	HostedInvoiceURL string                            `json:"hosted_invoice_url,omitempty"`
 }
 
 var ErrSubscriptionPurchasePendingMigration = errors.New("subscription purchase initiation is pending migration")
@@ -852,17 +852,39 @@ func buildSubscriptionCapabilitiesDTO(
 	if !capabilities.RequiresSupport && hasRenewalLifecycleActionWindow(contract, currentEntitlement) {
 		switch renewalStatus {
 		case model.SubscriptionRenewalStatusEnabled:
-			if renewalSource == model.SubscriptionRenewalSourceProvider || renewalSource == model.SubscriptionRenewalSourceWallet {
+			if !renewalPendingChangeBlocksAction(pendingChange, contract, renewalSource, model.SubscriptionRenewalStatusCancelledByUser) &&
+				(renewalSource == model.SubscriptionRenewalSourceProvider || renewalSource == model.SubscriptionRenewalSourceWallet) {
 				capabilities.CanCancel = true
 			}
 		case model.SubscriptionRenewalStatusCancelledByUser:
-			if renewalSource == model.SubscriptionRenewalSourceProvider || renewalSource == model.SubscriptionRenewalSourceWallet {
+			capabilities.IsCancelAtPeriodEnd = true
+			if !renewalPendingChangeBlocksAction(pendingChange, contract, renewalSource, model.SubscriptionRenewalStatusEnabled) &&
+				(renewalSource == model.SubscriptionRenewalSourceProvider || renewalSource == model.SubscriptionRenewalSourceWallet) {
 				capabilities.CanResume = true
-				capabilities.IsCancelAtPeriodEnd = true
 			}
 		}
 	}
 	return capabilities
+}
+
+func renewalPendingChangeBlocksAction(pendingChange *model.SubscriptionChangeIntent, contract *model.UserSubscriptionContract, renewalSource string, targetStatus string) bool {
+	if pendingChange == nil || pendingChange.Id <= 0 {
+		return false
+	}
+	if renewalSource == model.SubscriptionRenewalSourceProvider &&
+		targetStatus == model.SubscriptionRenewalStatusCancelledByUser &&
+		contract != nil &&
+		contract.Id > 0 &&
+		contract.PaymentMode == model.SubscriptionPaymentModeStripeRecurring &&
+		contract.CurrentProviderBindingId > 0 &&
+		pendingChange.ContractId == contract.Id &&
+		pendingChange.Kind == model.SubscriptionChangeIntentKindDowngrade &&
+		pendingChange.PaymentMode == model.SubscriptionPaymentModeStripeRecurring &&
+		pendingChange.ProviderBindingId == contract.CurrentProviderBindingId &&
+		pendingChange.Status == model.SubscriptionChangeIntentStatusScheduled {
+		return false
+	}
+	return true
 }
 
 func buildSubscriptionMigrationDTO(
@@ -1288,10 +1310,10 @@ func sanitizedChangeSubscriptionPlanResponse(result *service.ChangePlanResult) C
 		HostedInvoiceURL: strings.TrimSpace(result.HostedInvoiceURL),
 	}
 	if result.Contract != nil && result.Contract.Id > 0 {
-		response.Contract = subscriptionContractDTO(result.Contract)
+		response.Contract = subscriptionSelfContractDTO(result.Contract)
 	}
 	if result.Intent != nil && result.Intent.Id > 0 {
-		response.Intent = subscriptionPendingChangeDTO(result.Intent)
+		response.Intent = subscriptionSelfPendingChangeDTO(result.Intent)
 	}
 	return response
 }

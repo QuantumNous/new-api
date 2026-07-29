@@ -130,11 +130,21 @@
       "post": {
         "summary": "Cancel current subscription auto-renewal",
         "deprecated": false,
-        "description": "Cancels auto-renewal for the user's current renewable subscription. The endpoint is provider-neutral and does not accept a request body or provider binding ID.",
+        "description": "Cancels auto-renewal for the user's current renewable subscription. The endpoint is provider-neutral and accepts only a stale-target precondition, never a provider binding ID.",
         "tags": [
           "Subscription"
         ],
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionRenewalLifecyclePrecondition"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success or lifecycle error in the standard API envelope",
@@ -158,11 +168,21 @@
       "post": {
         "summary": "Resume current subscription auto-renewal",
         "deprecated": false,
-        "description": "Resumes auto-renewal for the user's current renewable subscription. The endpoint is provider-neutral and does not accept a request body or provider binding ID.",
+        "description": "Resumes auto-renewal for the user's current renewable subscription. The endpoint is provider-neutral and accepts only a stale-target precondition, never a provider binding ID.",
         "tags": [
           "Subscription"
         ],
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionRenewalLifecyclePrecondition"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success or lifecycle error in the standard API envelope",
@@ -208,84 +228,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChangeSubscriptionPlanResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Combination343": []
-          }
-        ]
-      }
-    },
-    "/api/subscription/self/recurring/{binding_id}/cancel": {
-      "post": {
-        "summary": "Cancel recurring subscription auto-renewal",
-        "deprecated": false,
-        "description": "Cancels a precise Stripe recurring binding at period end using the local binding ID.",
-        "tags": [
-          "Subscription"
-        ],
-        "parameters": [
-          {
-            "name": "binding_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "minimum": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecurringSubscriptionResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Combination343": []
-          }
-        ]
-      }
-    },
-    "/api/subscription/self/recurring/{binding_id}/resume": {
-      "post": {
-        "summary": "Resume recurring subscription auto-renewal",
-        "deprecated": false,
-        "description": "Resumes auto-renewal for a precise Stripe recurring binding using the local binding ID.",
-        "tags": [
-          "Subscription"
-        ],
-        "parameters": [
-          {
-            "name": "binding_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "minimum": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecurringSubscriptionResponse"
                 }
               }
             }
@@ -5527,9 +5469,9 @@
           },
           "recurring_subscriptions": {
             "type": "array",
-            "description": "Legacy manageable recurring bindings bucket retained during migration.",
+            "description": "Public recurring subscription state for the current user. Provider names, provider statuses, and local binding IDs are intentionally omitted.",
             "items": {
-              "$ref": "#/components/schemas/RecurringSubscription"
+              "$ref": "#/components/schemas/SubscriptionSelfRecurringSubscription"
             }
           }
         },
@@ -5567,6 +5509,7 @@
             "type": "string",
             "enum": [
               "stripe_recurring",
+              "prepaid",
               "balance_one_period",
               "external_one_period"
             ]
@@ -5874,6 +5817,46 @@
           }
         }
       },
+      "SubscriptionRenewalLifecyclePrecondition": {
+        "type": "object",
+        "description": "Provider-neutral stale-target precondition built from the canonical /api/subscription/self response.",
+        "additionalProperties": false,
+        "properties": {
+          "expected_contract_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expected_change_version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expected_current_period_end": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expected_renewal_source": {
+            "type": "string",
+            "enum": [
+              "provider_recurring",
+              "wallet_auto"
+            ]
+          },
+          "expected_renewal_status": {
+            "type": "string",
+            "enum": [
+              "enabled",
+              "cancelled_by_user"
+            ]
+          }
+        },
+        "required": [
+          "expected_contract_id",
+          "expected_change_version",
+          "expected_current_period_end",
+          "expected_renewal_source",
+          "expected_renewal_status"
+        ]
+      },
       "SubscriptionRenewalLifecycleResult": {
         "type": "object",
         "description": "Provider-neutral lifecycle result for the current subscription renewal state.",
@@ -5896,6 +5879,10 @@
             "type": "integer",
             "format": "int64"
           },
+          "change_version": {
+            "type": "integer",
+            "format": "int64"
+          },
           "can_cancel": {
             "type": "boolean"
           },
@@ -5904,20 +5891,16 @@
           },
           "is_cancel_at_period_end": {
             "type": "boolean"
-          },
-          "sync_pending": {
-            "type": "boolean",
-            "description": "True when the provider mutation was confirmed but local subscription state still requires reconciliation."
           }
         },
         "required": [
           "renewal_source",
           "renewal_status",
           "current_period_end",
+          "change_version",
           "can_cancel",
           "can_resume",
-          "is_cancel_at_period_end",
-          "sync_pending"
+          "is_cancel_at_period_end"
         ]
       },
       "SubscriptionMigration": {
@@ -5981,10 +5964,10 @@
                 ]
               },
               "contract": {
-                "$ref": "#/components/schemas/SubscriptionContract"
+                "$ref": "#/components/schemas/SubscriptionSelfContract"
               },
               "intent": {
-                "$ref": "#/components/schemas/SubscriptionPendingChange"
+                "$ref": "#/components/schemas/SubscriptionSelfPendingChange"
               },
               "checkout_url": {
                 "type": "string"
@@ -5996,22 +5979,12 @@
           }
         }
       },
-      "RecurringSubscription": {
+      "SubscriptionSelfRecurringSubscription": {
         "type": "object",
-        "description": "User-manageable recurring subscription binding keyed by local binding_id.",
+        "description": "Public recurring subscription state for the current user. Contains subscription timing and support flags only.",
         "properties": {
-          "binding_id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "provider": {
-            "type": "string"
-          },
           "plan_id": {
             "type": "integer"
-          },
-          "provider_status": {
-            "type": "string"
           },
           "cancel_at_period_end": {
             "type": "boolean"
@@ -6028,43 +6001,18 @@
             "type": "integer",
             "format": "int64"
           },
-          "can_cancel": {
-            "type": "boolean"
-          },
-          "can_resume": {
-            "type": "boolean"
-          },
           "requires_support": {
             "type": "boolean"
           }
         },
         "required": [
-          "binding_id",
-          "provider",
           "plan_id",
-          "provider_status",
           "cancel_at_period_end",
           "current_period_start",
           "current_period_end",
           "grace_period_end",
-          "can_cancel",
-          "can_resume",
           "requires_support"
         ]
-      },
-      "RecurringSubscriptionResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/RecurringSubscription"
-          }
-        }
       },
       "PageInfo": {
         "type": "object",

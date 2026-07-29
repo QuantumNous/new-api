@@ -76,10 +76,17 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 		if existing, found, err := findIntentByRequestTx(tx, cmd.UserID, cmd.RequestID); err != nil {
 			return err
 		} else if found {
+			prelockedExistingBinding, err := lockStripePlanChangeIntentBindingBeforeContractTx(tx, existing, cmd.UserID)
+			if err != nil {
+				return err
+			}
 			var contract model.UserSubscriptionContract
 			if err := subscriptionCommandLock(tx).
 				Where("id = ? AND user_id = ?", existing.ContractId, cmd.UserID).
 				First(&contract).Error; err != nil {
+				return err
+			}
+			if err := validatePrelockedStripePlanChangeBindingForContract(prelockedExistingBinding, &contract, false); err != nil {
 				return err
 			}
 			if existing.Kind == model.SubscriptionChangeIntentKindUpgrade &&
@@ -87,13 +94,7 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 				existing.ProviderBindingId > 0 &&
 				(existing.Status == model.SubscriptionChangeIntentStatusSyncing ||
 					existing.Status == model.SubscriptionChangeIntentStatusAwaitingPayment) {
-				var binding model.SubscriptionProviderBinding
-				if err := subscriptionCommandLock(tx).
-					Where("id = ? AND user_id = ? AND contract_id = ? AND provider = ?",
-						existing.ProviderBindingId, cmd.UserID, contract.Id, model.PaymentProviderStripe).
-					First(&binding).Error; err != nil {
-					return err
-				}
+				binding := *prelockedExistingBinding
 				providerSubscriptionID := strings.TrimSpace(binding.ProviderSubscriptionId)
 				if providerSubscriptionID == "" {
 					return errors.New("Stripe subscription binding is incomplete")
@@ -114,6 +115,9 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 				}
 				if strings.TrimSpace(plan.StripePriceId) == "" {
 					return errors.New("subscription plan Stripe price id is required")
+				}
+				if err := rejectPrelockedProviderLifecycleReservationForPlanExecutorTx(tx, prelockedExistingBinding); err != nil {
+					return err
 				}
 				idempotencyKey := strings.TrimSpace(existing.ProviderIdempotencyKey)
 				if idempotencyKey == "" {
@@ -146,19 +150,19 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 				existing.PaymentMode == model.SubscriptionPaymentModeStripeRecurring &&
 				(existing.Status == model.SubscriptionChangeIntentStatusSyncing || existing.Status == model.SubscriptionChangeIntentStatusScheduled) {
 				if existing.Status == model.SubscriptionChangeIntentStatusSyncing {
-					var binding model.SubscriptionProviderBinding
-					if err := subscriptionCommandLock(tx).
-						Where("id = ? AND user_id = ? AND contract_id = ? AND provider = ?",
-							existing.ProviderBindingId, cmd.UserID, contract.Id, model.PaymentProviderStripe).
-						First(&binding).Error; err != nil {
-						return err
+					if prelockedExistingBinding == nil {
+						return errors.New("Stripe subscription binding is incomplete")
 					}
+					binding := *prelockedExistingBinding
 					var currentPlan model.SubscriptionPlan
 					if err := tx.Where("id = ?", existing.FromPlanId).First(&currentPlan).Error; err != nil {
 						return err
 					}
 					var targetPlan model.SubscriptionPlan
 					if err := tx.Where("id = ?", existing.ToPlanId).First(&targetPlan).Error; err != nil {
+						return err
+					}
+					if err := rejectPrelockedProviderLifecycleReservationForPlanExecutorTx(tx, prelockedExistingBinding); err != nil {
 						return err
 					}
 					idempotencyKey := strings.TrimSpace(existing.ProviderIdempotencyKey)
@@ -241,8 +245,15 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 			return err
 		}
 
+		prelockedCurrentBinding, err := prelockCurrentStripePlanChangeBindingBeforeContractTx(tx, cmd.UserID)
+		if err != nil {
+			return err
+		}
 		contract, err := getOrCreateContractForUserTx(tx, cmd.UserID)
 		if err != nil {
+			return err
+		}
+		if err := validatePrelockedStripePlanChangeBindingForContract(prelockedCurrentBinding, contract, true); err != nil {
 			return err
 		}
 
@@ -267,6 +278,11 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 		}
 		if kind == model.SubscriptionChangeIntentKindDowngrade && !canScheduleSubscriptionDowngrade(contract) {
 			return ErrSubscriptionDowngradeUnsupported
+		}
+		if cmd.PaymentMode == model.SubscriptionPaymentModeStripeRecurring {
+			if err := rejectPrelockedProviderLifecycleReservationForPlanExecutorTx(tx, prelockedCurrentBinding); err != nil {
+				return err
+			}
 		}
 
 		intentPaymentMode := cmd.PaymentMode
@@ -312,7 +328,10 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 		switch cmd.PaymentMode {
 		case model.SubscriptionPaymentModeBalanceOnePeriod:
 			if kind == model.SubscriptionChangeIntentKindDowngrade {
-				input, err := prepareStripeSubscriptionDowngradeTx(tx, cmd.UserID, contract, intent, plan)
+				if err := rejectPrelockedProviderLifecycleReservationForPlanExecutorTx(tx, prelockedCurrentBinding); err != nil {
+					return err
+				}
+				input, err := prepareStripeSubscriptionDowngradeTx(tx, cmd.UserID, contract, intent, plan, prelockedCurrentBinding)
 				if err != nil {
 					return err
 				}
@@ -333,7 +352,7 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 					Contract: contract,
 					Intent:   intent,
 				}
-				return prepareStripeToBalanceCompensationTx(tx, &user, contract, intent, plan)
+				return prepareStripeToBalanceCompensationTx(tx, &user, contract, intent, plan, prelockedCurrentBinding)
 			}
 			effects, err := applyBalanceOnePeriodChangeTx(tx, &user, contract, intent, plan)
 			if err != nil {
@@ -348,7 +367,10 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 			return nil
 		case model.SubscriptionPaymentModeStripeRecurring:
 			if kind == model.SubscriptionChangeIntentKindDowngrade {
-				input, err := prepareStripeSubscriptionDowngradeTx(tx, cmd.UserID, contract, intent, plan)
+				if err := rejectPrelockedProviderLifecycleReservationForPlanExecutorTx(tx, prelockedCurrentBinding); err != nil {
+					return err
+				}
+				input, err := prepareStripeSubscriptionDowngradeTx(tx, cmd.UserID, contract, intent, plan, prelockedCurrentBinding)
 				if err != nil {
 					return err
 				}
@@ -365,13 +387,13 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 					return errors.New("subscription plan Stripe price id is required")
 				}
 				if contract.PaymentMode == model.SubscriptionPaymentModeStripeRecurring && contract.CurrentProviderBindingId > 0 {
-					var binding model.SubscriptionProviderBinding
-					if err := subscriptionCommandLock(tx).
-						Where("id = ? AND user_id = ? AND contract_id = ? AND provider = ?",
-							contract.CurrentProviderBindingId, cmd.UserID, contract.Id, model.PaymentProviderStripe).
-						First(&binding).Error; err != nil {
+					if err := rejectPrelockedProviderLifecycleReservationForPlanExecutorTx(tx, prelockedCurrentBinding); err != nil {
 						return err
 					}
+					if prelockedCurrentBinding == nil {
+						return ErrSubscriptionChangeInProgress
+					}
+					binding := *prelockedCurrentBinding
 					if strings.TrimSpace(binding.ProviderSubscriptionId) == "" || strings.TrimSpace(binding.ProviderSubscriptionItemId) == "" {
 						return errors.New("Stripe subscription binding is incomplete")
 					}
@@ -700,6 +722,89 @@ func findIntentByRequestTx(tx *gorm.DB, userID int, requestID string) (*model.Su
 	return &intent, true, nil
 }
 
+func lockStripePlanChangeIntentBindingBeforeContractTx(tx *gorm.DB, intent *model.SubscriptionChangeIntent, userID int) (*model.SubscriptionProviderBinding, error) {
+	if tx == nil || intent == nil ||
+		intent.ProviderBindingId <= 0 ||
+		(intent.Status != model.SubscriptionChangeIntentStatusSyncing &&
+			intent.Status != model.SubscriptionChangeIntentStatusAwaitingPayment &&
+			intent.Status != model.SubscriptionChangeIntentStatusScheduled &&
+			intent.Status != model.SubscriptionChangeIntentStatusCompensationRequired) {
+		return nil, nil
+	}
+	var binding model.SubscriptionProviderBinding
+	if err := subscriptionCommandLock(tx).
+		Where("id = ? AND user_id = ? AND provider = ?",
+			intent.ProviderBindingId, userID, model.PaymentProviderStripe).
+		First(&binding).Error; err != nil {
+		return nil, err
+	}
+	return &binding, nil
+}
+
+func prelockCurrentStripePlanChangeBindingBeforeContractTx(tx *gorm.DB, userID int) (*model.SubscriptionProviderBinding, error) {
+	if tx == nil {
+		return nil, errors.New("subscription plan change transaction is required")
+	}
+	var snapshot model.UserSubscriptionContract
+	query := tx.Select("id", "user_id", "status", "payment_mode", "current_provider_binding_id").
+		Where("user_id = ?", userID).
+		Limit(1).
+		Find(&snapshot)
+	if query.Error != nil {
+		return nil, query.Error
+	}
+	if query.RowsAffected == 0 ||
+		snapshot.Status != model.SubscriptionContractStatusActive ||
+		snapshot.PaymentMode != model.SubscriptionPaymentModeStripeRecurring ||
+		snapshot.CurrentProviderBindingId <= 0 {
+		return nil, nil
+	}
+	var binding model.SubscriptionProviderBinding
+	if err := subscriptionCommandLock(tx).
+		Where("id = ? AND user_id = ? AND contract_id = ? AND provider = ?",
+			snapshot.CurrentProviderBindingId, userID, snapshot.Id, model.PaymentProviderStripe).
+		First(&binding).Error; err != nil {
+		return nil, err
+	}
+	return &binding, nil
+}
+
+func validatePrelockedStripePlanChangeBindingForContract(binding *model.SubscriptionProviderBinding, contract *model.UserSubscriptionContract, requireCurrentStripeBinding bool) error {
+	if contract == nil {
+		return errors.New("subscription contract is required")
+	}
+	if binding == nil {
+		if requireCurrentStripeBinding &&
+			contract.Status == model.SubscriptionContractStatusActive &&
+			contract.PaymentMode == model.SubscriptionPaymentModeStripeRecurring &&
+			contract.CurrentProviderBindingId > 0 {
+			return ErrSubscriptionChangeInProgress
+		}
+		return nil
+	}
+	if binding.UserId != contract.UserId ||
+		binding.ContractId != contract.Id ||
+		binding.Provider != model.PaymentProviderStripe ||
+		contract.CurrentProviderBindingId != binding.Id {
+		return ErrSubscriptionChangeInProgress
+	}
+	return nil
+}
+
+func rejectPrelockedProviderLifecycleReservationForPlanExecutorTx(tx *gorm.DB, binding *model.SubscriptionProviderBinding) error {
+	if binding == nil {
+		return nil
+	}
+	now, err := subscriptionLifecycleDBTimestampTx(tx)
+	if err != nil {
+		return err
+	}
+	if subscriptionProviderBindingHasActiveLifecycleReservation(binding, now) {
+		return ErrSubscriptionChangeInProgress
+	}
+	return nil
+}
+
 func rejectUnresolvedPlanChangeTx(tx *gorm.DB, userID int, allowDowngradeReplacement ...bool) error {
 	allowDowngrade := len(allowDowngradeReplacement) > 0 && allowDowngradeReplacement[0]
 	kinds := []string{
@@ -745,7 +850,7 @@ func canScheduleSubscriptionDowngrade(contract *model.UserSubscriptionContract) 
 		contract.CurrentProviderBindingId > 0
 }
 
-func prepareStripeSubscriptionDowngradeTx(tx *gorm.DB, userID int, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, targetPlan *model.SubscriptionPlan) (*StripeSubscriptionDowngradeInput, error) {
+func prepareStripeSubscriptionDowngradeTx(tx *gorm.DB, userID int, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, targetPlan *model.SubscriptionPlan, prelockedBinding *model.SubscriptionProviderBinding) (*StripeSubscriptionDowngradeInput, error) {
 	if tx == nil || contract == nil || intent == nil || targetPlan == nil {
 		return nil, errors.New("subscription downgrade facts are incomplete")
 	}
@@ -758,12 +863,15 @@ func prepareStripeSubscriptionDowngradeTx(tx *gorm.DB, userID int, contract *mod
 	if strings.TrimSpace(targetPlan.StripePriceId) == "" {
 		return nil, errors.New("subscription plan Stripe price id is required")
 	}
-	var binding model.SubscriptionProviderBinding
-	if err := subscriptionCommandLock(tx).
-		Where("id = ? AND user_id = ? AND contract_id = ? AND provider = ?",
-			contract.CurrentProviderBindingId, userID, contract.Id, model.PaymentProviderStripe).
-		First(&binding).Error; err != nil {
-		return nil, err
+	if prelockedBinding == nil {
+		return nil, ErrSubscriptionChangeInProgress
+	}
+	binding := *prelockedBinding
+	if binding.Id != contract.CurrentProviderBindingId ||
+		binding.UserId != userID ||
+		binding.ContractId != contract.Id ||
+		binding.Provider != model.PaymentProviderStripe {
+		return nil, ErrSubscriptionChangeInProgress
 	}
 	if strings.TrimSpace(binding.ProviderSubscriptionId) == "" || strings.TrimSpace(binding.ProviderSubscriptionItemId) == "" {
 		return nil, errors.New("Stripe subscription binding is incomplete")

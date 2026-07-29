@@ -29,7 +29,7 @@ func TestProviderSubscriptionTerminationUsesStrictDBTimestamp(t *testing.T) {
 	require.Contains(t, body, "snapshot.EndedAt = dbNow")
 	require.Contains(t, body, "terminationAt := snapshot.EndedAt")
 	require.Contains(t, body, `"end_time":   terminationAt`)
-	require.Contains(t, body, `"updated_at": terminationAt`)
+	require.Contains(t, body, `"updated_at": dbNow`)
 }
 
 func setupSubscriptionRecurringTestDB(t *testing.T) {
@@ -1073,6 +1073,161 @@ func TestReservationOwnedProviderLifecycleTerminationRejectsResumeWhenContractNe
 	require.Equal(t, reservation.ExpiresAt, stored.LifecycleReservationUntil)
 }
 
+func TestReservationOwnedProviderLifecycleApplyRejectsProviderDrift(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 526, "default")
+	createEntitlementTestPlan(t, 626, 1000, "")
+	const (
+		contractID = int64(726)
+		bindingID  = int64(826)
+	)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                       contractID,
+		UserId:                   526,
+		Status:                   SubscriptionContractStatusActive,
+		PaymentMode:              SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            626,
+		CurrentProviderBindingId: bindingID,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     bindingID,
+		UserId:                 526,
+		PlanId:                 626,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_provider_drift_apply",
+		ProviderStatus:         "active",
+		CurrentPeriodStart:     1000,
+		CurrentPeriodEnd:       2000,
+	}).Error)
+	require.NoError(t, DB.Create(&UserSubscription{
+		UserId:            526,
+		PlanId:            626,
+		ContractId:        contractID,
+		ProviderBindingId: bindingID,
+		AmountTotal:       1000,
+		StartTime:         1000,
+		EndTime:           2000,
+		AccessEndTime:     2000,
+		Status:            "active",
+		Source:            "stripe",
+		PaymentMode:       SubscriptionPaymentModeStripeRecurring,
+	}).Error)
+	reservation, _, err := ReserveSubscriptionProviderLifecycle(
+		bindingID,
+		526,
+		"sub_provider_drift_apply",
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"provider-drift-apply",
+		300,
+	)
+	require.NoError(t, err)
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID).
+		Update("provider", PaymentProviderCreem).Error)
+
+	updated, err := ApplyProviderSubscriptionLifecycleSnapshotStrictWithReservation(reservation, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId: "sub_provider_drift_apply",
+		ProviderStatus:         "active",
+		CancelAtPeriodEnd:      true,
+		CurrentPeriodStart:     1000,
+		CurrentPeriodEnd:       2000,
+		CanceledAt:             1500,
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, updated)
+	var stored SubscriptionProviderBinding
+	require.NoError(t, DB.First(&stored, bindingID).Error)
+	require.Equal(t, PaymentProviderCreem, stored.Provider)
+	require.False(t, stored.CancelAtPeriodEnd)
+	require.Zero(t, stored.CanceledAt)
+	require.Equal(t, reservation.Token, stored.LifecycleReservationToken)
+	require.Equal(t, SubscriptionProviderLifecycleActionCancel, stored.LifecycleReservationAction)
+	require.Equal(t, reservation.ExpiresAt, stored.LifecycleReservationUntil)
+	var entitlement UserSubscription
+	require.NoError(t, DB.Where("provider_binding_id = ?", bindingID).First(&entitlement).Error)
+	require.Equal(t, "active", entitlement.Status)
+	require.Equal(t, int64(2000), entitlement.EndTime)
+}
+
+func TestReservationOwnedProviderLifecycleTerminationRejectsProviderDrift(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 527, "default")
+	createEntitlementTestPlan(t, 627, 1000, "")
+	const (
+		contractID = int64(727)
+		bindingID  = int64(827)
+	)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                       contractID,
+		UserId:                   527,
+		Status:                   SubscriptionContractStatusActive,
+		PaymentMode:              SubscriptionPaymentModeStripeRecurring,
+		CurrentPlanId:            627,
+		CurrentProviderBindingId: bindingID,
+	}).Error)
+	require.NoError(t, DB.Create(&SubscriptionProviderBinding{
+		Id:                     bindingID,
+		UserId:                 527,
+		PlanId:                 627,
+		ContractId:             contractID,
+		Provider:               PaymentProviderStripe,
+		ProviderSubscriptionId: "sub_provider_drift_termination",
+		ProviderStatus:         "active",
+		CurrentPeriodStart:     1000,
+		CurrentPeriodEnd:       2000,
+	}).Error)
+	require.NoError(t, DB.Create(&UserSubscription{
+		UserId:            527,
+		PlanId:            627,
+		ContractId:        contractID,
+		ProviderBindingId: bindingID,
+		AmountTotal:       1000,
+		StartTime:         1000,
+		EndTime:           2000,
+		AccessEndTime:     2000,
+		Status:            "active",
+		Source:            "stripe",
+		PaymentMode:       SubscriptionPaymentModeStripeRecurring,
+	}).Error)
+	reservation, _, err := ReserveSubscriptionProviderLifecycle(
+		bindingID,
+		527,
+		"sub_provider_drift_termination",
+		0,
+		SubscriptionProviderLifecycleActionCancel,
+		"provider-drift-termination",
+		300,
+	)
+	require.NoError(t, err)
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("id = ?", bindingID).
+		Update("provider", PaymentProviderCreem).Error)
+
+	updated, err := ApplyProviderSubscriptionTerminationWithReservation(reservation, ProviderSubscriptionSnapshot{
+		ProviderSubscriptionId: "sub_provider_drift_termination",
+		ProviderStatus:         "canceled",
+		CurrentPeriodStart:     1000,
+		CurrentPeriodEnd:       2000,
+		EndedAt:                GetDBTimestamp(),
+	})
+
+	require.ErrorIs(t, err, ErrSubscriptionProviderLifecycleConflict)
+	require.Nil(t, updated)
+	var stored SubscriptionProviderBinding
+	require.NoError(t, DB.First(&stored, bindingID).Error)
+	require.Equal(t, PaymentProviderCreem, stored.Provider)
+	require.Zero(t, stored.EndedAt)
+	require.Equal(t, "active", stored.ProviderStatus)
+	require.Equal(t, reservation.Token, stored.LifecycleReservationToken)
+	require.Equal(t, SubscriptionProviderLifecycleActionCancel, stored.LifecycleReservationAction)
+	require.Equal(t, reservation.ExpiresAt, stored.LifecycleReservationUntil)
+	var entitlement UserSubscription
+	require.NoError(t, DB.Where("provider_binding_id = ?", bindingID).First(&entitlement).Error)
+	require.Equal(t, "active", entitlement.Status)
+	require.Equal(t, int64(2000), entitlement.EndTime)
+}
+
 func TestReservationOwnedProviderLifecycleApplyAcceptsExpiredExactLease(t *testing.T) {
 	testCases := []struct {
 		name  string
@@ -1343,7 +1498,7 @@ func TestApplyProviderSubscriptionSnapshotDoesNotReviveTerminalBinding(t *testin
 	var terminatedEntitlement UserSubscription
 	require.NoError(t, DB.Where("provider_binding_id = ?", binding.Id).First(&terminatedEntitlement).Error)
 	require.Equal(t, int64(1500), terminatedEntitlement.EndTime)
-	require.Equal(t, int64(1500), terminatedEntitlement.UpdatedAt)
+	require.Greater(t, terminatedEntitlement.UpdatedAt, terminatedEntitlement.EndTime)
 
 	updated, err := ApplyProviderSubscriptionSnapshot(binding.Id, ProviderSubscriptionSnapshot{
 		ProviderSubscriptionId:  "sub_terminal",

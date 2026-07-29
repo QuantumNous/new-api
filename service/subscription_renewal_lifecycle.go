@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -14,36 +15,58 @@ type SubscriptionRenewalLifecycleResult struct {
 	RenewalSource     string
 	RenewalStatus     string
 	CurrentPeriodEnd  int64
+	ChangeVersion     int64
 	CanCancel         bool
 	CanResume         bool
 	CancelAtPeriodEnd bool
-	SyncPending       bool
 }
 
-var cancelCurrentStripeRecurringSubscription = CancelStripeRecurringSubscription
-var resumeCurrentStripeRecurringSubscription = ResumeStripeRecurringSubscription
-
-func CancelCurrentSubscriptionRenewal(userID int) (*SubscriptionRenewalLifecycleResult, error) {
-	return updateCurrentSubscriptionRenewal(userID, model.SubscriptionRenewalStatusEnabled, model.SubscriptionRenewalStatusCancelledByUser)
+type SubscriptionRenewalLifecyclePrecondition struct {
+	ExpectedContractID       int64
+	ExpectedChangeVersion    int64
+	ExpectedCurrentPeriodEnd int64
+	ExpectedRenewalSource    string
+	ExpectedRenewalStatus    string
 }
 
-func ResumeCurrentSubscriptionRenewal(userID int) (*SubscriptionRenewalLifecycleResult, error) {
-	return updateCurrentSubscriptionRenewal(userID, model.SubscriptionRenewalStatusCancelledByUser, model.SubscriptionRenewalStatusEnabled)
+var cancelCurrentStripeRecurringSubscription = cancelCurrentStripeRecurringSubscriptionWithGuard
+var resumeCurrentStripeRecurringSubscription = resumeCurrentStripeRecurringSubscriptionWithGuard
+
+type currentStripeRenewalLifecycleMutationGuard struct {
+	action       string
+	precondition SubscriptionRenewalLifecyclePrecondition
+	reservation  *model.SubscriptionProviderLifecycleReservation
 }
 
-func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus string) (*SubscriptionRenewalLifecycleResult, error) {
+func CancelCurrentSubscriptionRenewal(userID int, precondition SubscriptionRenewalLifecyclePrecondition) (*SubscriptionRenewalLifecycleResult, error) {
+	return updateCurrentSubscriptionRenewal(userID, model.SubscriptionRenewalStatusEnabled, model.SubscriptionRenewalStatusCancelledByUser, precondition)
+}
+
+func ResumeCurrentSubscriptionRenewal(userID int, precondition SubscriptionRenewalLifecyclePrecondition) (*SubscriptionRenewalLifecycleResult, error) {
+	return updateCurrentSubscriptionRenewal(userID, model.SubscriptionRenewalStatusCancelledByUser, model.SubscriptionRenewalStatusEnabled, precondition)
+}
+
+func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus string, precondition SubscriptionRenewalLifecyclePrecondition) (*SubscriptionRenewalLifecycleResult, error) {
 	if userID <= 0 {
 		return nil, errors.New("invalid user id")
 	}
+	if err := validateSubscriptionRenewalLifecyclePreconditionInput(precondition); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(precondition.ExpectedRenewalStatus) != fromStatus {
+		return nil, errors.New("subscription renewal precondition conflict")
+	}
 	var result *SubscriptionRenewalLifecycleResult
 	var stripeBinding *model.SubscriptionProviderBinding
+	var stripeReservation *model.SubscriptionProviderLifecycleReservation
+	var stripeChangeVersion int64
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		contractSnapshot, err := readRenewalLifecycleContractSnapshotTx(tx, userID)
 		if err != nil {
 			return err
 		}
 		if contractSnapshot.RenewalSource == model.SubscriptionRenewalSourceProvider {
-			binding, _, err := lockStripeRenewalLifecycleBindingThenContractTx(tx, contractSnapshot)
+			binding, contract, err := lockStripeRenewalLifecycleBindingThenContractTx(tx, contractSnapshot)
 			if err != nil {
 				return err
 			}
@@ -51,16 +74,53 @@ func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus st
 			if binding.CancelAtPeriodEnd {
 				currentStatus = model.SubscriptionRenewalStatusCancelledByUser
 			}
-			// Stripe already-at-target requests intentionally fail locally: an
-			// opposite provider mutation may still be in flight. Wallet renewal is
-			// fully local and row-locked, so its repeated actions remain idempotent.
-			if currentStatus == toStatus {
-				return errors.New("subscription renewal status already matches requested state")
+			if err := validateSubscriptionRenewalLifecyclePrecondition(contract, currentStatus, precondition); err != nil {
+				return err
 			}
-			if currentStatus != fromStatus {
-				return errors.New("subscription renewal status cannot be changed")
+			var replaceableDowngradeBinding *model.SubscriptionProviderBinding
+			if toStatus == model.SubscriptionRenewalStatusCancelledByUser {
+				replaceableDowngradeBinding = binding
 			}
-			stripeBinding = binding
+			if err := rejectUnresolvedRenewalPlanChangeTx(tx, userID, replaceableDowngradeBinding); err != nil {
+				return err
+			}
+			token, err := common.GenerateRandomCharsKey(32)
+			if err != nil {
+				return err
+			}
+			action := model.SubscriptionProviderLifecycleActionResume
+			if toStatus == model.SubscriptionRenewalStatusCancelledByUser {
+				action = model.SubscriptionProviderLifecycleActionCancel
+			}
+			reservation, reservedBinding, err := model.ReserveSubscriptionProviderLifecycleExactTx(
+				tx,
+				binding,
+				action,
+				token,
+				int64(stripeSubscriptionLifecycleReservationTTL/time.Second),
+			)
+			if err != nil {
+				return err
+			}
+			update := tx.Model(&model.UserSubscriptionContract{}).
+				Where("id = ? AND user_id = ? AND renewal_source = ? AND current_provider_binding_id = ? AND change_version = ?",
+					contract.Id,
+					userID,
+					model.SubscriptionRenewalSourceProvider,
+					binding.Id,
+					precondition.ExpectedChangeVersion,
+				).
+				Update("change_version", gorm.Expr("change_version + ?", 1))
+			if update.Error != nil {
+				return update.Error
+			}
+			if update.RowsAffected != 1 {
+				return errors.New("subscription renewal precondition conflict")
+			}
+			contract.ChangeVersion++
+			stripeBinding = reservedBinding
+			stripeReservation = reservation
+			stripeChangeVersion = contract.ChangeVersion
 			return nil
 		}
 		contract, err := loadRenewalLifecycleContractTx(tx, userID)
@@ -70,16 +130,18 @@ func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus st
 		if contract.RenewalSource != model.SubscriptionRenewalSourceWallet {
 			return errors.New("only wallet or provider recurring subscription renewal can be changed")
 		}
-		if contract.RenewalStatus == toStatus {
-			result = buildSubscriptionRenewalLifecycleResult(contract)
-			return nil
+		if err := validateSubscriptionRenewalLifecyclePrecondition(contract, contract.RenewalStatus, precondition); err != nil {
+			return err
 		}
-		if contract.RenewalStatus != fromStatus {
-			return errors.New("subscription renewal status cannot be changed")
+		if err := rejectUnresolvedPlanChangeTx(tx, userID); err != nil {
+			return err
 		}
 		update := tx.Model(&model.UserSubscriptionContract{}).
-			Where("id = ? AND user_id = ? AND renewal_status = ?", contract.Id, userID, fromStatus).
-			Update("renewal_status", toStatus)
+			Where("id = ? AND user_id = ? AND renewal_status = ? AND change_version = ?", contract.Id, userID, fromStatus, precondition.ExpectedChangeVersion).
+			Updates(map[string]interface{}{
+				"renewal_status": toStatus,
+				"change_version": gorm.Expr("change_version + ?", 1),
+			})
 		if update.Error != nil {
 			return update.Error
 		}
@@ -87,6 +149,7 @@ func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus st
 			return errors.New("subscription renewal status cannot be changed")
 		}
 		contract.RenewalStatus = toStatus
+		contract.ChangeVersion++
 		result = buildSubscriptionRenewalLifecycleResult(contract)
 		return nil
 	})
@@ -95,24 +158,143 @@ func updateCurrentSubscriptionRenewal(userID int, fromStatus string, toStatus st
 	}
 	if stripeBinding != nil {
 		var binding *model.SubscriptionProviderBinding
+		stripeMutationPrecondition := precondition
+		stripeMutationPrecondition.ExpectedChangeVersion = stripeChangeVersion
 		if toStatus == model.SubscriptionRenewalStatusCancelledByUser {
-			binding, err = cancelCurrentStripeRecurringSubscription(userID, stripeBinding.Id)
+			binding, err = withCurrentStripeRenewalLifecycleMutationGuard(
+				userID,
+				stripeBinding.Id,
+				model.SubscriptionProviderLifecycleActionCancel,
+				stripeMutationPrecondition,
+				stripeReservation,
+				func(guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+					return cancelCurrentStripeRecurringSubscription(userID, stripeBinding.Id, guard)
+				},
+			)
 		} else {
-			binding, err = resumeCurrentStripeRecurringSubscription(userID, stripeBinding.Id)
+			binding, err = withCurrentStripeRenewalLifecycleMutationGuard(
+				userID,
+				stripeBinding.Id,
+				model.SubscriptionProviderLifecycleActionResume,
+				stripeMutationPrecondition,
+				stripeReservation,
+				func(guard *currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error) {
+					return resumeCurrentStripeRecurringSubscription(userID, stripeBinding.Id, guard)
+				},
+			)
 		}
 		if err != nil {
 			if confirmedResult, ok := confirmStripeRenewalMutationAfterError(stripeBinding, toStatus, err); ok {
+				if versionErr := validateConfirmedStripeRenewalChangeVersion(stripeBinding, stripeChangeVersion); versionErr != nil {
+					return nil, versionErr
+				}
+				confirmedResult.ChangeVersion = stripeChangeVersion
 				return confirmedResult, nil
 			}
 			return nil, err
 		}
 		result := buildStripeSubscriptionRenewalLifecycleResult(binding)
+		result.ChangeVersion = stripeChangeVersion
 		if result.RenewalStatus == "" {
-			return nil, errors.New("current Stripe renewal state requires support")
+			return nil, releaseStripeRenewalLifecycleReservationAfterUnsupportedResult(stripeReservation, errors.New("current Stripe renewal state requires support"))
 		}
 		return result, nil
 	}
 	return result, nil
+}
+
+func validateSubscriptionRenewalLifecyclePreconditionInput(precondition SubscriptionRenewalLifecyclePrecondition) error {
+	if precondition.ExpectedContractID <= 0 ||
+		precondition.ExpectedChangeVersion < 0 ||
+		precondition.ExpectedCurrentPeriodEnd <= 0 ||
+		strings.TrimSpace(precondition.ExpectedRenewalSource) == "" ||
+		strings.TrimSpace(precondition.ExpectedRenewalStatus) == "" {
+		return errors.New("subscription renewal precondition is required")
+	}
+	return nil
+}
+
+func rejectUnresolvedRenewalPlanChangeTx(tx *gorm.DB, userID int, replaceableDowngradeBinding *model.SubscriptionProviderBinding) error {
+	kinds := []string{
+		model.SubscriptionChangeIntentKindPurchase,
+		model.SubscriptionChangeIntentKindRepurchase,
+		model.SubscriptionChangeIntentKindUpgrade,
+	}
+	if replaceableDowngradeBinding == nil {
+		kinds = append(kinds, model.SubscriptionChangeIntentKindDowngrade)
+	}
+	var count int64
+	query := tx.Model(&model.SubscriptionChangeIntent{}).
+		Where("user_id = ? AND kind IN ? AND status IN ?",
+			userID,
+			kinds,
+			[]string{
+				model.SubscriptionChangeIntentStatusCreated,
+				model.SubscriptionChangeIntentStatusSyncing,
+				model.SubscriptionChangeIntentStatusAwaitingPayment,
+				model.SubscriptionChangeIntentStatusScheduled,
+				model.SubscriptionChangeIntentStatusCompensationRequired,
+			},
+		).
+		Count(&count)
+	if query.Error != nil {
+		return query.Error
+	}
+	if count > 0 {
+		return ErrSubscriptionChangeInProgress
+	}
+	if replaceableDowngradeBinding == nil {
+		return nil
+	}
+	if replaceableDowngradeBinding.Id <= 0 ||
+		replaceableDowngradeBinding.UserId != userID ||
+		replaceableDowngradeBinding.ContractId <= 0 {
+		return ErrSubscriptionChangeInProgress
+	}
+	query = tx.Model(&model.SubscriptionChangeIntent{}).
+		Where("user_id = ? AND kind = ?", userID, model.SubscriptionChangeIntentKindDowngrade).
+		Where("status IN ? OR (status = ? AND (provider_binding_id <> ? OR contract_id <> ?))",
+			[]string{
+				model.SubscriptionChangeIntentStatusCreated,
+				model.SubscriptionChangeIntentStatusSyncing,
+				model.SubscriptionChangeIntentStatusAwaitingPayment,
+				model.SubscriptionChangeIntentStatusCompensationRequired,
+			},
+			model.SubscriptionChangeIntentStatusScheduled,
+			replaceableDowngradeBinding.Id,
+			replaceableDowngradeBinding.ContractId,
+		).
+		Count(&count)
+	if query.Error != nil {
+		return query.Error
+	}
+	if count > 0 {
+		return ErrSubscriptionChangeInProgress
+	}
+	return nil
+}
+
+func validateSubscriptionRenewalLifecyclePrecondition(contract *model.UserSubscriptionContract, currentStatus string, precondition SubscriptionRenewalLifecyclePrecondition) error {
+	return validateSubscriptionRenewalLifecyclePreconditionWithStatuses(contract, currentStatus, precondition, []string{precondition.ExpectedRenewalStatus})
+}
+
+func validateSubscriptionRenewalLifecyclePreconditionWithStatuses(contract *model.UserSubscriptionContract, currentStatus string, precondition SubscriptionRenewalLifecyclePrecondition, allowedStatuses []string) error {
+	if contract == nil || contract.Id <= 0 {
+		return errors.New("current subscription contract is required")
+	}
+	if contract.Id != precondition.ExpectedContractID ||
+		contract.ChangeVersion != precondition.ExpectedChangeVersion ||
+		contract.CurrentPeriodEnd != precondition.ExpectedCurrentPeriodEnd ||
+		strings.TrimSpace(contract.RenewalSource) != strings.TrimSpace(precondition.ExpectedRenewalSource) {
+		return errors.New("subscription renewal precondition conflict")
+	}
+	trimmedCurrentStatus := strings.TrimSpace(currentStatus)
+	for _, allowedStatus := range allowedStatuses {
+		if trimmedCurrentStatus == strings.TrimSpace(allowedStatus) {
+			return nil
+		}
+	}
+	return errors.New("subscription renewal precondition conflict")
 }
 
 func readRenewalLifecycleContractSnapshotTx(tx *gorm.DB, userID int) (*model.UserSubscriptionContract, error) {
@@ -405,6 +587,24 @@ func confirmStripeRenewalMutationAfterError(
 	return result, true
 }
 
+func validateConfirmedStripeRenewalChangeVersion(binding *model.SubscriptionProviderBinding, expectedChangeVersion int64) error {
+	if binding == nil || binding.ContractId <= 0 || binding.UserId <= 0 || expectedChangeVersion < 0 {
+		return errors.New("subscription renewal precondition conflict")
+	}
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		var contract model.UserSubscriptionContract
+		if err := subscriptionCommandLock(tx).
+			Where("id = ? AND user_id = ?", binding.ContractId, binding.UserId).
+			First(&contract).Error; err != nil {
+			return err
+		}
+		if contract.ChangeVersion != expectedChangeVersion {
+			return errors.New("subscription renewal precondition conflict")
+		}
+		return nil
+	})
+}
+
 func terminalStripeRenewalMutationTarget(binding *model.SubscriptionProviderBinding, reservation *model.SubscriptionProviderLifecycleReservation) (*model.SubscriptionProviderBinding, bool) {
 	if binding == nil ||
 		reservation == nil ||
@@ -559,6 +759,7 @@ func buildSubscriptionRenewalLifecycleResult(contract *model.UserSubscriptionCon
 		RenewalSource:    contract.RenewalSource,
 		RenewalStatus:    contract.RenewalStatus,
 		CurrentPeriodEnd: contract.CurrentPeriodEnd,
+		ChangeVersion:    contract.ChangeVersion,
 	}
 	switch contract.RenewalStatus {
 	case model.SubscriptionRenewalStatusEnabled:
@@ -568,6 +769,184 @@ func buildSubscriptionRenewalLifecycleResult(contract *model.UserSubscriptionCon
 		result.CancelAtPeriodEnd = true
 	}
 	return result
+}
+
+func withCurrentStripeRenewalLifecycleMutationGuard(
+	userID int,
+	bindingID int64,
+	action string,
+	precondition SubscriptionRenewalLifecyclePrecondition,
+	reservation *model.SubscriptionProviderLifecycleReservation,
+	mutate func(*currentStripeRenewalLifecycleMutationGuard) (*model.SubscriptionProviderBinding, error),
+) (*model.SubscriptionProviderBinding, error) {
+	if mutate == nil {
+		return nil, errors.New("subscription renewal mutation is required")
+	}
+	if userID <= 0 || bindingID <= 0 {
+		return nil, errors.New("invalid subscription renewal mutation target")
+	}
+	guard := &currentStripeRenewalLifecycleMutationGuard{
+		action:       strings.TrimSpace(action),
+		precondition: precondition,
+		reservation:  reservation,
+	}
+	return mutate(guard)
+}
+
+func validateCurrentStripeRenewalLifecycleMutationGuard(binding *model.SubscriptionProviderBinding, reservation *model.SubscriptionProviderLifecycleReservation, allowReplaceableDowngrade bool, guard *currentStripeRenewalLifecycleMutationGuard) error {
+	if reservation == nil {
+		return nil
+	}
+	return validateCurrentStripeRenewalLifecycleMutationGuardForAction(binding, reservation.Action, allowReplaceableDowngrade, guard)
+}
+
+func currentStripeRenewalGuardReservation(guard *currentStripeRenewalLifecycleMutationGuard, action string) *model.SubscriptionProviderLifecycleReservation {
+	if guard == nil || guard.reservation == nil {
+		return nil
+	}
+	if strings.TrimSpace(guard.action) != strings.TrimSpace(action) ||
+		strings.TrimSpace(guard.reservation.Action) != strings.TrimSpace(action) {
+		return nil
+	}
+	return guard.reservation
+}
+
+func subscriptionRenewalReservationMatchesBinding(reservation *model.SubscriptionProviderLifecycleReservation, binding *model.SubscriptionProviderBinding) bool {
+	return reservation != nil &&
+		binding != nil &&
+		reservation.BindingId == binding.Id &&
+		reservation.UserId == binding.UserId &&
+		reservation.ContractId == binding.ContractId &&
+		strings.TrimSpace(reservation.ProviderSubscriptionId) == strings.TrimSpace(binding.ProviderSubscriptionId)
+}
+
+func validateCurrentStripeRenewalLifecycleMutationGuardForAction(binding *model.SubscriptionProviderBinding, action string, allowReplaceableDowngrade bool, guard *currentStripeRenewalLifecycleMutationGuard) error {
+	return validateCurrentStripeRenewalLifecycleMutationGuardForActionWithStatuses(binding, action, allowReplaceableDowngrade, guard, nil)
+}
+
+func validateCurrentStripeRenewalLifecycleSatisfiedMutationGuardForAction(binding *model.SubscriptionProviderBinding, action string, allowReplaceableDowngrade bool, guard *currentStripeRenewalLifecycleMutationGuard) error {
+	if guard == nil {
+		return nil
+	}
+	targetStatus := targetRenewalStatusForProviderLifecycleAction(action)
+	if targetStatus == "" {
+		return errors.New("subscription renewal precondition conflict")
+	}
+	return validateCurrentStripeRenewalLifecycleMutationGuardForActionWithStatuses(
+		binding,
+		action,
+		allowReplaceableDowngrade,
+		guard,
+		[]string{guard.precondition.ExpectedRenewalStatus, targetStatus},
+	)
+}
+
+func targetRenewalStatusForProviderLifecycleAction(action string) string {
+	switch strings.TrimSpace(action) {
+	case model.SubscriptionProviderLifecycleActionCancel:
+		return model.SubscriptionRenewalStatusCancelledByUser
+	case model.SubscriptionProviderLifecycleActionResume:
+		return model.SubscriptionRenewalStatusEnabled
+	default:
+		return ""
+	}
+}
+
+func validateCurrentStripeRenewalLifecycleMutationGuardForActionWithStatuses(binding *model.SubscriptionProviderBinding, action string, allowReplaceableDowngrade bool, guard *currentStripeRenewalLifecycleMutationGuard, allowedStatuses []string) error {
+	if binding == nil || guard == nil {
+		return nil
+	}
+	if strings.TrimSpace(action) == "" || strings.TrimSpace(guard.action) != strings.TrimSpace(action) {
+		return errors.New("subscription renewal precondition conflict")
+	}
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		freshBinding, err := lockStripeRenewalLifecycleBindingTx(tx, binding.Id, binding.UserId)
+		if err != nil {
+			return err
+		}
+		contract, err := loadRenewalLifecycleContractByIDForConfirmationTx(tx, freshBinding.ContractId, freshBinding.UserId, false)
+		if err != nil {
+			return err
+		}
+		if contract.RenewalSource != model.SubscriptionRenewalSourceProvider ||
+			contract.CurrentProviderBindingId != freshBinding.Id {
+			return errors.New("subscription renewal precondition conflict")
+		}
+		if err := validateStripeRenewalLifecycleBindingForContractTx(tx, contract, freshBinding, false, false); err != nil {
+			return err
+		}
+		currentStatus := model.SubscriptionRenewalStatusEnabled
+		if freshBinding.CancelAtPeriodEnd {
+			currentStatus = model.SubscriptionRenewalStatusCancelledByUser
+		}
+		if guard.reservation != nil {
+			if !subscriptionRenewalReservationMatchesBinding(guard.reservation, freshBinding) ||
+				freshBinding.LifecycleActionSeq != guard.reservation.LifecycleActionSeq ||
+				strings.TrimSpace(freshBinding.LifecycleReservationToken) != strings.TrimSpace(guard.reservation.Token) ||
+				strings.TrimSpace(freshBinding.LifecycleReservationAction) != strings.TrimSpace(guard.reservation.Action) ||
+				freshBinding.LifecycleReservationUntil != guard.reservation.ExpiresAt {
+				return errors.New("subscription renewal reservation changed")
+			}
+			now, err := subscriptionLifecycleDBTimestampTx(tx)
+			if err != nil {
+				return err
+			}
+			if freshBinding.LifecycleReservationUntil <= now {
+				return errors.New("subscription renewal reservation changed")
+			}
+		}
+		if len(allowedStatuses) == 0 {
+			allowedStatuses = []string{guard.precondition.ExpectedRenewalStatus}
+		}
+		if err := validateSubscriptionRenewalLifecycleMutationGuardPrecondition(contract, currentStatus, guard.precondition, allowedStatuses); err != nil {
+			return err
+		}
+		var replaceableDowngradeBinding *model.SubscriptionProviderBinding
+		if allowReplaceableDowngrade {
+			replaceableDowngradeBinding = freshBinding
+		}
+		return rejectUnresolvedRenewalPlanChangeTx(tx, freshBinding.UserId, replaceableDowngradeBinding)
+	})
+}
+
+func validateSubscriptionRenewalLifecycleMutationGuardPrecondition(contract *model.UserSubscriptionContract, currentStatus string, precondition SubscriptionRenewalLifecyclePrecondition, allowedStatuses []string) error {
+	return validateSubscriptionRenewalLifecyclePreconditionWithStatuses(contract, currentStatus, precondition, allowedStatuses)
+}
+
+func releaseStripeRenewalLifecycleReservationAfterGuardConflict(reservation *model.SubscriptionProviderLifecycleReservation, guardErr error) error {
+	if guardErr == nil {
+		return nil
+	}
+	if reservation == nil {
+		return guardErr
+	}
+	if releaseErr := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); releaseErr != nil {
+		return fmt.Errorf("%w; failed to release lifecycle reservation: %v", guardErr, releaseErr)
+	}
+	return guardErr
+}
+
+func abandonStripeRenewalLifecycleReservationAfterGuardConflict(reservation *model.SubscriptionProviderLifecycleReservation, guardErr error) error {
+	if guardErr == nil {
+		return nil
+	}
+	if reservation == nil {
+		return guardErr
+	}
+	if releaseErr := model.AbandonSubscriptionProviderLifecycleReservationBeforeProviderCall(reservation); releaseErr != nil {
+		return fmt.Errorf("%w; failed to release lifecycle reservation: %v", guardErr, releaseErr)
+	}
+	return guardErr
+}
+
+func releaseStripeRenewalLifecycleReservationAfterUnsupportedResult(reservation *model.SubscriptionProviderLifecycleReservation, resultErr error) error {
+	if resultErr == nil || reservation == nil {
+		return resultErr
+	}
+	if err := model.ReleaseSubscriptionProviderLifecycleReservation(reservation); err != nil {
+		return fmt.Errorf("%w; failed to release lifecycle reservation: %v", resultErr, err)
+	}
+	return resultErr
 }
 
 func buildStripeSubscriptionRenewalLifecycleResult(binding *model.SubscriptionProviderBinding) *SubscriptionRenewalLifecycleResult {

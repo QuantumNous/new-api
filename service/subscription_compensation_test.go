@@ -286,6 +286,61 @@ func TestStripeToBalanceConfirmedCanceledConsumesExactCancelReservation(t *testi
 	require.Equal(t, expectedStripeToBalanceCompensationCancelIdempotencyKey(intent, binding.LifecycleActionSeq), cancelKey)
 }
 
+func TestStripeToBalanceCancelErrorWithActiveSnapshotRemainsUncertain(t *testing.T) {
+	setupSubscriptionCompensationTestDB(t)
+	fx := seedStripeToBalanceFixture(t, 9011, 1, 2)
+	replaceCompensationHooks(t)
+	var cancelKeys []string
+	var refunds int64
+	stripeReleaseSubscriptionSchedule = func(scheduleID string, idempotencyKey string) error { return nil }
+	stripeCancelSubscriptionImmediately = func(providerSubscriptionID string, idempotencyKey string) error {
+		cancelKeys = append(cancelKeys, idempotencyKey)
+		return errors.New("stripe cancel timeout")
+	}
+	stripeSubscriptionSnapshotGetter = func(providerSubscriptionID string) (model.ProviderSubscriptionSnapshot, error) {
+		return model.ProviderSubscriptionSnapshot{
+			ProviderSubscriptionId:     providerSubscriptionID,
+			ProviderScheduleId:         "sched_comp",
+			ProviderScheduleIdObserved: true,
+			ProviderStatus:             "active",
+			CurrentPeriodStart:         1000,
+			CurrentPeriodEnd:           2000,
+		}, nil
+	}
+	originalRefund := refundSubscriptionCompensationWalletDebit
+	t.Cleanup(func() { refundSubscriptionCompensationWalletDebit = originalRefund })
+	refundSubscriptionCompensationWalletDebit = func(ctx context.Context, intentID int64) error {
+		refunds++
+		return refundSubscriptionCompensationWalletDebitDefault(ctx, intentID)
+	}
+
+	_, err := ChangeSubscriptionPlan(ChangePlanCommand{
+		UserID:      fx.user.Id,
+		PlanID:      fx.target.Id,
+		PaymentMode: model.SubscriptionPaymentModeBalanceOnePeriod,
+		RequestID:   "stripe-to-balance-cancel-timeout-active",
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "stripe cancel timeout")
+	require.Zero(t, refunds)
+	assertStripeToBalanceNoRefundOrGrant(t, fx)
+	require.Len(t, cancelKeys, 1)
+	var intent model.SubscriptionChangeIntent
+	require.NoError(t, model.DB.Where("request_id = ?", "stripe-to-balance-cancel-timeout-active").First(&intent).Error)
+	require.Equal(t, model.SubscriptionChangeIntentStatusCompensationRequired, intent.Status)
+	require.NotEmpty(t, intent.WalletDebitTradeNo)
+	var contract model.UserSubscriptionContract
+	require.NoError(t, model.DB.First(&contract, fx.contract.Id).Error)
+	require.Equal(t, model.SubscriptionContractStatusNeedsAttention, contract.Status)
+	var binding model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&binding, fx.binding.Id).Error)
+	require.Equal(t, expectedStripeToBalanceCompensationCancelReservationToken(intent), binding.LifecycleReservationToken)
+	require.Equal(t, model.SubscriptionProviderLifecycleActionCancel, binding.LifecycleReservationAction)
+	require.Greater(t, binding.LifecycleReservationUntil, common.GetTimestamp())
+	require.Equal(t, expectedStripeToBalanceCompensationCancelIdempotencyKey(intent, binding.LifecycleActionSeq), cancelKeys[0])
+}
+
 func TestStripeToBalanceUncertainOutcomeKeepsCancelReservationAndIdempotencyStable(t *testing.T) {
 	setupSubscriptionCompensationTestDB(t)
 	fx := seedStripeToBalanceFixture(t, 9010, 1, 2)
@@ -509,7 +564,7 @@ func TestStripeToBalanceReconciliationRecoversPreparedSyncingIntentExactlyOnce(t
 		if err := tx.Model(&contract).Update("latest_change_intent_id", intent.Id).Error; err != nil {
 			return err
 		}
-		return prepareStripeToBalanceCompensationTx(tx, &user, &contract, &intent, &fx.target)
+		return prepareStripeToBalanceCompensationTx(tx, &user, &contract, &intent, &fx.target, nil)
 	}))
 
 	var cancels int
@@ -585,7 +640,7 @@ func TestStripeToBalanceZeroRowDebitRollsBackPreparation(t *testing.T) {
 		if err := tx.Model(&contract).Update("latest_change_intent_id", intent.Id).Error; err != nil {
 			return err
 		}
-		return prepareStripeToBalanceCompensationTx(tx, &staleUser, &contract, intent, &fx.target)
+		return prepareStripeToBalanceCompensationTx(tx, &staleUser, &contract, intent, &fx.target, nil)
 	})
 	require.Error(t, err)
 
@@ -633,7 +688,7 @@ func TestStripeToBalanceRefundZeroRowTransitionDoesNotCreditQuota(t *testing.T) 
 		if err := tx.Model(&contract).Update("latest_change_intent_id", intent.Id).Error; err != nil {
 			return err
 		}
-		return prepareStripeToBalanceCompensationTx(tx, &user, &contract, &intent, &fx.target)
+		return prepareStripeToBalanceCompensationTx(tx, &user, &contract, &intent, &fx.target, nil)
 	}))
 	var charged model.User
 	require.NoError(t, model.DB.First(&charged, fx.user.Id).Error)

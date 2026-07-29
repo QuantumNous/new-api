@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test'
 import { api, type ApiRequestConfig } from '@/lib/api'
+import * as subscriptionApi from './api'
 import {
   cancelSubscriptionRenewal,
   getSelfSubscriptionFull,
@@ -44,6 +45,14 @@ describe('getSelfSubscriptionFull', () => {
 })
 
 describe('subscription renewal lifecycle API', () => {
+  const precondition = {
+    expected_contract_id: 123,
+    expected_change_version: 7,
+    expected_current_period_end: 456,
+    expected_renewal_source: 'wallet_auto',
+    expected_renewal_status: 'enabled',
+  } as const
+
   test.each([
     ['cancel', cancelSubscriptionRenewal],
     ['resume', resumeSubscriptionRenewal],
@@ -55,10 +64,10 @@ describe('subscription renewal lifecycle API', () => {
         data: response,
       } as never)
 
-      await expect(request()).resolves.toEqual(response)
+      await expect(request(precondition)).resolves.toEqual(response)
       expect(post).toHaveBeenCalledWith(
         `/api/subscription/self/renewal/${action}`,
-        undefined,
+        precondition,
         {
           skipBusinessError: true,
           skipErrorHandler: true,
@@ -66,4 +75,9 @@ describe('subscription renewal lifecycle API', () => {
       )
     }
   )
+
+  test('does not expose legacy binding-id recurring helpers', () => {
+    expect('cancelRecurringSubscription' in subscriptionApi).toBe(false)
+    expect('resumeRecurringSubscription' in subscriptionApi).toBe(false)
+  })
 })

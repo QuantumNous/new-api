@@ -198,6 +198,63 @@ func TestStripeSubscriptionLifecycleCancelMarksPeriodEnd(t *testing.T) {
 	require.True(t, updated.CancelAtPeriodEnd)
 }
 
+func TestDirectCancelStripeRecurringSubscriptionRejectsSyncingDowngradeBeforeReservation(t *testing.T) {
+	setupStripeSubscriptionLifecycleTestDB(t)
+	binding, _, intent := seedPendingDowngradeCancelFixture(t, 851, "sched_direct_cancel_syncing", "direct-cancel-syncing-downgrade")
+	require.NoError(t, model.DB.Model(intent).Update("status", model.SubscriptionChangeIntentStatusSyncing).Error)
+	originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+	originalRelease := stripeReleaseSubscriptionSchedule
+	t.Cleanup(func() {
+		stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate
+		stripeReleaseSubscriptionSchedule = originalRelease
+	})
+	var stripeCalls atomic.Int32
+	stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+		stripeCalls.Add(1)
+		return model.ProviderSubscriptionSnapshot{}, errors.New("Stripe update must not happen with syncing downgrade")
+	}
+	stripeReleaseSubscriptionSchedule = func(scheduleID string, idempotencyKey string) error {
+		stripeCalls.Add(1)
+		return errors.New("Stripe schedule release must not happen with syncing downgrade")
+	}
+
+	updated, err := CancelStripeRecurringSubscription(binding.UserId, binding.Id)
+
+	require.ErrorIs(t, err, ErrSubscriptionChangeInProgress)
+	require.Nil(t, updated)
+	require.Zero(t, stripeCalls.Load())
+	var stored model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&stored, binding.Id).Error)
+	require.Empty(t, stored.LifecycleReservationToken)
+	require.Empty(t, stored.LifecycleReservationAction)
+	require.Zero(t, stored.LifecycleReservationUntil)
+}
+
+func TestDirectResumeStripeRecurringSubscriptionRejectsSyncingDowngradeBeforeReservation(t *testing.T) {
+	setupStripeSubscriptionLifecycleTestDB(t)
+	binding, _, intent := seedPendingDowngradeCancelFixture(t, 852, "sched_direct_resume_syncing", "direct-resume-syncing-downgrade")
+	require.NoError(t, model.DB.Model(binding).Update("cancel_at_period_end", true).Error)
+	require.NoError(t, model.DB.Model(intent).Update("status", model.SubscriptionChangeIntentStatusSyncing).Error)
+	originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+	t.Cleanup(func() { stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate })
+	var stripeCalls atomic.Int32
+	stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+		stripeCalls.Add(1)
+		return model.ProviderSubscriptionSnapshot{}, errors.New("Stripe update must not happen with syncing downgrade")
+	}
+
+	updated, err := ResumeStripeRecurringSubscription(binding.UserId, binding.Id)
+
+	require.ErrorIs(t, err, ErrSubscriptionChangeInProgress)
+	require.Nil(t, updated)
+	require.Zero(t, stripeCalls.Load())
+	var stored model.SubscriptionProviderBinding
+	require.NoError(t, model.DB.First(&stored, binding.Id).Error)
+	require.Empty(t, stored.LifecycleReservationToken)
+	require.Empty(t, stored.LifecycleReservationAction)
+	require.Zero(t, stored.LifecycleReservationUntil)
+}
+
 func TestStripeSubscriptionLifecycleRoutesTerminalMutationSnapshotToTermination(t *testing.T) {
 	testCases := []struct {
 		name              string
@@ -2147,6 +2204,72 @@ func TestStripeSubscriptionLifecycleResumeUsesStateReadAfterReservation(t *testi
 	var stored model.SubscriptionProviderBinding
 	require.NoError(t, model.DB.First(&stored, binding.Id).Error)
 	require.False(t, stored.CancelAtPeriodEnd)
+}
+
+func TestStripeSubscriptionLifecycleRejectsProviderSubscriptionIDDriftBetweenInitialReadAndReservation(t *testing.T) {
+	cases := []struct {
+		name              string
+		userID            int
+		cancelAtPeriodEnd bool
+		invoke            func(int, int64) (*model.SubscriptionProviderBinding, error)
+	}{
+		{name: "cancel", userID: 832, cancelAtPeriodEnd: false, invoke: CancelStripeRecurringSubscription},
+		{name: "resume", userID: 833, cancelAtPeriodEnd: true, invoke: ResumeStripeRecurringSubscription},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupStripeSubscriptionLifecycleTestDB(t)
+			binding := insertStripeLifecycleBindingWithSubscriptionID(t, tc.userID, "sub_"+tc.name+"_initial_snapshot", "active", tc.cancelAtPeriodEnd)
+			originalUpdate := stripeUpdateSubscriptionCancelAtPeriodEnd
+			originalCancelNow := stripeCancelSubscriptionNow
+			t.Cleanup(func() {
+				stripeUpdateSubscriptionCancelAtPeriodEnd = originalUpdate
+				stripeCancelSubscriptionNow = originalCancelNow
+			})
+			var remoteCalls atomic.Int32
+			stripeUpdateSubscriptionCancelAtPeriodEnd = func(providerSubscriptionID string, cancelAtPeriodEnd bool, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+				remoteCalls.Add(1)
+				return model.ProviderSubscriptionSnapshot{
+					ProviderSubscriptionId: providerSubscriptionID,
+					ProviderStatus:         "active",
+					CancelAtPeriodEnd:      cancelAtPeriodEnd,
+					CurrentPeriodStart:     binding.CurrentPeriodStart,
+					CurrentPeriodEnd:       binding.CurrentPeriodEnd,
+				}, nil
+			}
+			stripeCancelSubscriptionNow = func(providerSubscriptionID string, idempotencyKey string) (model.ProviderSubscriptionSnapshot, error) {
+				remoteCalls.Add(1)
+				return model.ProviderSubscriptionSnapshot{
+					ProviderSubscriptionId: providerSubscriptionID,
+					ProviderStatus:         "canceled",
+					EndedAt:                common.GetTimestamp(),
+				}, nil
+			}
+			callbackName := "drift_" + tc.name + "_provider_subscription_after_initial_read"
+			var injected atomic.Bool
+			var injectErr error
+			require.NoError(t, model.DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+				loaded, ok := tx.Statement.Dest.(*model.SubscriptionProviderBinding)
+				if !ok || loaded.Id != binding.Id || !injected.CompareAndSwap(false, true) {
+					return
+				}
+				injectErr = model.DB.Model(&model.SubscriptionProviderBinding{}).
+					Where("id = ?", binding.Id).
+					Update("provider_subscription_id", binding.ProviderSubscriptionId+"_drifted").Error
+			}))
+			t.Cleanup(func() {
+				model.DB.Callback().Query().Remove(callbackName)
+			})
+
+			updated, err := tc.invoke(binding.UserId, binding.Id)
+
+			require.NoError(t, injectErr)
+			require.True(t, injected.Load())
+			require.ErrorIs(t, err, model.ErrSubscriptionProviderLifecycleConflict)
+			require.Nil(t, updated)
+			require.Zero(t, remoteCalls.Load())
+		})
+	}
 }
 
 func TestStripeSubscriptionLifecyclePastDueCancelTerminatesLocalEntitlement(t *testing.T) {

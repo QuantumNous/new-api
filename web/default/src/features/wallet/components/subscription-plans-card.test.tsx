@@ -325,7 +325,6 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
         current_entitlement: {
           entitlement_id: 20,
           plan_id: 2,
-          provider_binding_id: 0,
           status: 'active',
           payment_mode: 'balance_one_period',
           start_time: 1717200000,
@@ -616,14 +615,32 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).toContain('Cancel subscription')
   })
 
-  test('uses parameterless renewal helpers and keeps a successful canonical refresh authoritative', () => {
+  test('uses renewal preconditions and keeps a successful canonical refresh authoritative', () => {
     const cardSource = readFileSync(
       new URL('./subscription-plans-card.tsx', import.meta.url),
       'utf8'
     )
 
-    expect(cardSource).toContain('cancelSubscriptionRenewal()')
-    expect(cardSource).toContain('resumeSubscriptionRenewal()')
+    expect(cardSource).toContain('buildRenewalLifecyclePrecondition(')
+    expect(cardSource).toContain('status !== expectedStatus')
+    expect(cardSource).toContain('!Number.isSafeInteger(contract.id)')
+    expect(cardSource).toContain(
+      '!Number.isSafeInteger(contract.change_version)'
+    )
+    expect(cardSource).toContain(
+      '!Number.isSafeInteger(contract.current_period_end)'
+    )
+    expect(cardSource).toContain('cancelSubscriptionRenewal(precondition)')
+    expect(cardSource).toContain('resumeSubscriptionRenewal(precondition)')
+    expect(cardSource).toContain('expected_contract_id: contract.id')
+    expect(cardSource).toContain(
+      'expected_change_version: contract.change_version'
+    )
+    expect(cardSource).toContain(
+      'expected_current_period_end: contract.current_period_end'
+    )
+    expect(cardSource).toContain('expected_renewal_source: source')
+    expect(cardSource).toContain('expected_renewal_status: expectedStatus')
     expect(cardSource).toContain(
       "toast.success(t('Subscription renewal canceled'))"
     )
@@ -631,10 +648,8 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       "toast.success(t('Subscription renewal resumed'))"
     )
     expect(cardSource).toContain('await fetchSelfSubscription()')
-    expect(cardSource).toMatch(
-      /const refreshAfterRenewal = async \(\s*result: SubscriptionRenewalLifecycleResult \| undefined\s*\) =>/
-    )
-    expect(cardSource).toContain('await refreshAfterRenewal(res.data)')
+    expect(cardSource).toMatch(/const refreshAfterRenewal = async \(\) =>/)
+    expect(cardSource).toContain('await refreshAfterRenewal()')
     expect(cardSource).toContain('const selfRefreshResult =')
     expect(cardSource).toMatch(
       /try \{\s*await onPurchaseSuccess\?\.\(\)\s*\} catch \{\s*\/\/ onPurchaseSuccess is best-effort/
@@ -642,22 +657,16 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(cardSource).not.toContain('callbackFailed')
     expect(cardSource).not.toContain('if (callbackFailed) return')
     expect(cardSource).not.toContain('if (selfRefreshSucceeded && result)')
-    expect(cardSource).toContain(
-      "if (result?.sync_pending === true && selfRefreshResult === 'applied')"
-    )
+    expect(cardSource).not.toContain('SubscriptionRenewalLifecycleResult')
+    expect(cardSource).not.toContain('sync_pending')
     expect(cardSource).not.toContain(
-      "if (result?.sync_pending === true && selfRefreshResult !== 'applied')"
-    )
-    expect(cardSource).not.toContain('else if (result?.sync_pending === true)')
-    const syncPendingInfoIndex = cardSource.indexOf(
-      "if (result?.sync_pending === true && selfRefreshResult === 'applied')"
+      'Subscription updated; renewal status is still syncing'
     )
     const selfRefreshFailureIndex = cardSource.indexOf(
       "if (selfRefreshResult === 'failed')"
     )
     const callbackIndex = cardSource.indexOf('await onPurchaseSuccess?.()')
-    expect(syncPendingInfoIndex).toBeGreaterThan(-1)
-    expect(selfRefreshFailureIndex).toBeGreaterThan(syncPendingInfoIndex)
+    expect(selfRefreshFailureIndex).toBeGreaterThan(-1)
     expect(callbackIndex).toBeGreaterThan(selfRefreshFailureIndex)
     expect(cardSource).not.toContain(
       'applyRenewalLifecycleResultToSelfData(current, result)'
@@ -676,7 +685,13 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       "toast.error(t('Subscription updated, but failed to refresh status'))"
     )
     expect(cardSource).toContain(
-      "toast.info(t('Subscription updated; renewal status is still syncing'))"
+      "toast.error(t('Failed to refresh subscription status'))"
+    )
+    expect(cardSource).not.toMatch(
+      /if \(!precondition\) \{\s*toast\.error\(t\('Payment request failed'\)\)/
+    )
+    expect(cardSource).not.toMatch(
+      /if \(!precondition\) \{\s*toast\.error\(t\('Failed to refresh subscription status'\)\)/
     )
     expect(cardSource).toMatch(
       /await fetchSelfSubscription\(\{\s*preserveOnFailure: true,\s*\}\)/
@@ -723,7 +738,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     )
     expect(cardSource).toContain("return 'superseded'")
     expect(cardSource).not.toContain('return true\n        }')
-    expect(cardSource).toContain("selfRefreshResult === 'applied'")
+    expect(cardSource).toContain("selfRefreshResult === 'failed'")
     expect(cardSource).toContain("selfRefreshResult === 'failed'")
     expect(
       cardSource.match(
@@ -751,9 +766,55 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(cardSource).not.toContain('cancelRecurringSubscription')
     expect(cardSource).not.toContain('resumeRecurringSubscription')
     expect(cardSource).not.toContain('current_provider_binding_id')
+    expect(
+      cardSource.match(/let failureRefreshAttempted = false/g)
+    ).toHaveLength(2)
+    expect(cardSource.match(/failureRefreshAttempted = true/g)).toHaveLength(2)
+    expect(
+      cardSource.match(/if \(!failureRefreshAttempted\) \{/g)
+    ).toHaveLength(2)
   })
 
-  test('localizes renewal refresh and reconciliation warnings in every wallet locale', () => {
+  test('refreshes the canonical subscription after renewal mutation failures', () => {
+    const cardSource = readFileSync(
+      new URL('./subscription-plans-card.tsx', import.meta.url),
+      'utf8'
+    )
+
+    expect(cardSource).toMatch(
+      /const refreshAfterRenewalFailure = async \(\s*options: \{ staleFeedbackOnRefresh\?: boolean \} = \{\}\s*\) => \{\s*const selfRefreshResult = await fetchSelfSubscription\(\{\s*preserveOnFailure: true,\s*\}\)\s*if \(selfRefreshResult === 'failed'\) \{\s*toast\.error\(t\('Failed to refresh subscription status'\)\)\s*\} else if \(options\.staleFeedbackOnRefresh\) \{\s*toast\.error\(\s*t\('Subscription status changed\. Refresh complete; please retry\.'\)\s*\)\s*\}\s*\}/
+    )
+    expect(
+      cardSource.match(/await refreshAfterRenewalFailure\(\)/g)
+    ).toHaveLength(2)
+    expect(
+      cardSource.match(
+        /await refreshAfterRenewalFailure\(\{ staleFeedbackOnRefresh: true \}\)/g
+      )
+    ).toHaveLength(2)
+  })
+
+  test('shows stale retry feedback when precondition refresh succeeds before renewal mutation', () => {
+    const cardSource = readFileSync(
+      new URL('./subscription-plans-card.tsx', import.meta.url),
+      'utf8'
+    )
+
+    expect(cardSource).toMatch(
+      /toast\.error\(\s*t\('Subscription status changed\. Refresh complete; please retry\.'\)\s*\)/
+    )
+    expect(cardSource).toMatch(
+      /if \(!precondition\) \{\s*await refreshAfterRenewalFailure\(\{ staleFeedbackOnRefresh: true \}\)\s*failureRefreshAttempted = true\s*throw new Error\(RENEWAL_FAILURE_TOAST_SHOWN\)\s*\}\s*const res = await cancelSubscriptionRenewal\(precondition\)/
+    )
+    expect(cardSource).toMatch(
+      /if \(!precondition\) \{\s*await refreshAfterRenewalFailure\(\{ staleFeedbackOnRefresh: true \}\)\s*failureRefreshAttempted = true\s*throw new Error\(RENEWAL_FAILURE_TOAST_SHOWN\)\s*\}\s*const res = await resumeSubscriptionRenewal\(precondition\)/
+    )
+    expect(cardSource).not.toMatch(
+      /if \(!precondition\) \{\s*toast\.error\(t\('Payment request failed'\)\)/
+    )
+  })
+
+  test('localizes renewal refresh warnings in every wallet locale', () => {
     for (const localeCode of ['en', 'zh', 'fr', 'ru', 'ja', 'vi', 'es', 'pt']) {
       const locale = JSON.parse(
         readFileSync(
@@ -766,10 +827,18 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
         locale.translation['Subscription updated, but failed to refresh status']
       ).toBeTruthy()
       expect(
+        locale.translation['Failed to refresh subscription status']
+      ).toBeTruthy()
+      expect(
+        locale.translation[
+          'Subscription status changed. Refresh complete; please retry.'
+        ]
+      ).toBeTruthy()
+      expect(
         locale.translation[
           'Subscription updated; renewal status is still syncing'
         ]
-      ).toBeTruthy()
+      ).toBeUndefined()
     }
   })
 

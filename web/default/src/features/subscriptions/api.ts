@@ -26,12 +26,12 @@ import type {
   SubscriptionPayResponse,
   SubscriptionPayRequest,
   SelfSubscriptionDataResponse,
-  RecurringSubscription,
   ChangePlanRequest,
   ChangePlanResponse,
   FlexiblePurchaseRequest,
   FlexiblePurchaseResponse,
   SubscriptionPaymentQuotes,
+  SubscriptionRenewalLifecyclePrecondition,
   SubscriptionRenewalLifecycleResult,
 } from './types'
 
@@ -242,40 +242,30 @@ export async function updateBillingPreference(
   return res.data
 }
 
-export async function cancelSubscriptionRenewal(): Promise<
-  ApiResponse<SubscriptionRenewalLifecycleResult>
-> {
-  const res = await api.post('/api/subscription/self/renewal/cancel', undefined, {
-    skipBusinessError: true,
-    skipErrorHandler: true,
-  })
-  return res.data
-}
-
-export async function resumeSubscriptionRenewal(): Promise<
-  ApiResponse<SubscriptionRenewalLifecycleResult>
-> {
-  const res = await api.post('/api/subscription/self/renewal/resume', undefined, {
-    skipBusinessError: true,
-    skipErrorHandler: true,
-  })
-  return res.data
-}
-
-export async function cancelRecurringSubscription(
-  bindingId: number
-): Promise<ApiResponse<RecurringSubscription>> {
+export async function cancelSubscriptionRenewal(
+  precondition: SubscriptionRenewalLifecyclePrecondition
+): Promise<ApiResponse<SubscriptionRenewalLifecycleResult>> {
   const res = await api.post(
-    `/api/subscription/self/recurring/${bindingId}/cancel`
+    '/api/subscription/self/renewal/cancel',
+    precondition,
+    {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    }
   )
   return res.data
 }
 
-export async function resumeRecurringSubscription(
-  bindingId: number
-): Promise<ApiResponse<RecurringSubscription>> {
+export async function resumeSubscriptionRenewal(
+  precondition: SubscriptionRenewalLifecyclePrecondition
+): Promise<ApiResponse<SubscriptionRenewalLifecycleResult>> {
   const res = await api.post(
-    `/api/subscription/self/recurring/${bindingId}/resume`
+    '/api/subscription/self/renewal/resume',
+    precondition,
+    {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    }
   )
   return res.data
 }

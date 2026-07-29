@@ -41,7 +41,7 @@ import {
   type FlexiblePurchaseResponse,
   type PlanRecord,
   type SubscriptionPaymentAvailability,
-  type SubscriptionRenewalLifecycleResult,
+  type SubscriptionRenewalLifecyclePrecondition,
 } from '@/features/subscriptions/types'
 import type {
   StripeCheckoutOpenResult,
@@ -171,6 +171,35 @@ function isPaymentChoiceAvailable(
   choice: FlexiblePaymentChoice
 ): boolean {
   return availability[choice]?.available !== false
+}
+
+function buildRenewalLifecyclePrecondition(
+  selfData: WalletSelfSubscriptionData,
+  expectedStatus: SubscriptionRenewalLifecyclePrecondition['expected_renewal_status']
+): SubscriptionRenewalLifecyclePrecondition | undefined {
+  const contract = selfData.contract
+  const source = selfData.renewal_source
+  const status = selfData.renewal_status
+  if (
+    !contract ||
+    !Number.isSafeInteger(contract.id) ||
+    !Number.isSafeInteger(contract.change_version) ||
+    !Number.isSafeInteger(contract.current_period_end) ||
+    contract.id <= 0 ||
+    contract.change_version < 0 ||
+    contract.current_period_end <= 0 ||
+    (source !== 'provider_recurring' && source !== 'wallet_auto') ||
+    status !== expectedStatus
+  ) {
+    return undefined
+  }
+  return {
+    expected_contract_id: contract.id,
+    expected_change_version: contract.change_version,
+    expected_current_period_end: contract.current_period_end,
+    expected_renewal_source: source,
+    expected_renewal_status: expectedStatus,
+  }
 }
 
 function getPlanEntitlements(plan: PlanRecord['plan'], t: Translate) {
@@ -364,15 +393,10 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
   }
 
-  const refreshAfterRenewal = async (
-    result: SubscriptionRenewalLifecycleResult | undefined
-  ) => {
+  const refreshAfterRenewal = async () => {
     const selfRefreshResult = await fetchSelfSubscription({
       preserveOnFailure: true,
     })
-    if (result?.sync_pending === true && selfRefreshResult === 'applied') {
-      toast.info(t('Subscription updated; renewal status is still syncing'))
-    }
     if (selfRefreshResult === 'failed') {
       toast.error(t('Subscription updated, but failed to refresh status'))
     }
@@ -383,6 +407,21 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     }
   }
 
+  const refreshAfterRenewalFailure = async (
+    options: { staleFeedbackOnRefresh?: boolean } = {}
+  ) => {
+    const selfRefreshResult = await fetchSelfSubscription({
+      preserveOnFailure: true,
+    })
+    if (selfRefreshResult === 'failed') {
+      toast.error(t('Failed to refresh subscription status'))
+    } else if (options.staleFeedbackOnRefresh) {
+      toast.error(
+        t('Subscription status changed. Refresh complete; please retry.')
+      )
+    }
+  }
+
   const handleCancelRenewal = async () => {
     if (renewalMutationInFlightRef.current) {
       throw new Error(RENEWAL_MUTATION_ALREADY_IN_FLIGHT)
@@ -390,8 +429,18 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     renewalMutationInFlightRef.current = true
     setRenewalMutationPending(true)
     const renewalContractId = selfData.contract?.id ?? null
+    let failureRefreshAttempted = false
     try {
-      const res = await cancelSubscriptionRenewal()
+      const precondition = buildRenewalLifecyclePrecondition(
+        selfData,
+        'enabled'
+      )
+      if (!precondition) {
+        await refreshAfterRenewalFailure({ staleFeedbackOnRefresh: true })
+        failureRefreshAttempted = true
+        throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
+      }
+      const res = await cancelSubscriptionRenewal(precondition)
       if (!res.success) {
         toast.error(res.message || t('Payment request failed'))
         throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
@@ -409,13 +458,16 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         return next
       })
       toast.success(t('Subscription renewal canceled'))
-      await refreshAfterRenewal(res.data)
+      await refreshAfterRenewal()
     } catch (error) {
       if (
         !(error instanceof Error) ||
         error.message !== RENEWAL_FAILURE_TOAST_SHOWN
       ) {
         toast.error(t('Payment request failed'))
+      }
+      if (!failureRefreshAttempted) {
+        await refreshAfterRenewalFailure()
       }
       throw error
     } finally {
@@ -431,8 +483,18 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     renewalMutationInFlightRef.current = true
     setRenewalMutationPending(true)
     const renewalContractId = selfData.contract?.id ?? null
+    let failureRefreshAttempted = false
     try {
-      const res = await resumeSubscriptionRenewal()
+      const precondition = buildRenewalLifecyclePrecondition(
+        selfData,
+        'cancelled_by_user'
+      )
+      if (!precondition) {
+        await refreshAfterRenewalFailure({ staleFeedbackOnRefresh: true })
+        failureRefreshAttempted = true
+        throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
+      }
+      const res = await resumeSubscriptionRenewal(precondition)
       if (!res.success) {
         toast.error(res.message || t('Payment request failed'))
         throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
@@ -450,13 +512,16 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         return next
       })
       toast.success(t('Subscription renewal resumed'))
-      await refreshAfterRenewal(res.data)
+      await refreshAfterRenewal()
     } catch (error) {
       if (
         !(error instanceof Error) ||
         error.message !== RENEWAL_FAILURE_TOAST_SHOWN
       ) {
         toast.error(t('Payment request failed'))
+      }
+      if (!failureRefreshAttempted) {
+        await refreshAfterRenewalFailure()
       }
       throw error
     } finally {

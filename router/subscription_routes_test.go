@@ -133,6 +133,10 @@ func TestSubscriptionSelfOpenAPIUsesSelfSpecificSchemas(t *testing.T) {
 	selfResponse := schemas["SubscriptionSelfResponse"].(map[string]any)
 	properties := selfResponse["properties"].(map[string]any)
 
+	require.NotContains(t, schemas, "RecurringSubscription")
+	require.NotContains(t, schemas, "RecurringSubscriptionResponse")
+	require.Contains(t, schemas, "SubscriptionSelfRecurringSubscription")
+
 	expectedRefs := map[string]string{
 		"contract":            "#/components/schemas/SubscriptionSelfContract",
 		"current_entitlement": "#/components/schemas/SubscriptionSelfEntitlement",
@@ -154,4 +158,28 @@ func TestSubscriptionSelfOpenAPIUsesSelfSpecificSchemas(t *testing.T) {
 		require.NotContains(t, schemaProperties, "current_provider_binding_id", schemaName)
 		require.NotContains(t, schemaProperties, "provider_binding_id", schemaName)
 	}
+
+	selfContract := schemas["SubscriptionSelfContract"].(map[string]any)
+	selfContractProperties := selfContract["properties"].(map[string]any)
+	paymentMode := selfContractProperties["payment_mode"].(map[string]any)
+	require.ElementsMatch(t, []any{
+		"stripe_recurring",
+		"prepaid",
+		"balance_one_period",
+		"external_one_period",
+	}, paymentMode["enum"])
+
+	changePlan := schemas["ChangeSubscriptionPlanResponse"].(map[string]any)
+	changePlanProperties := changePlan["properties"].(map[string]any)
+	changePlanData := changePlanProperties["data"].(map[string]any)
+	changePlanDataProperties := changePlanData["properties"].(map[string]any)
+	require.Equal(t, "#/components/schemas/SubscriptionSelfContract", changePlanDataProperties["contract"].(map[string]any)["$ref"])
+	require.Equal(t, "#/components/schemas/SubscriptionSelfPendingChange", changePlanDataProperties["intent"].(map[string]any)["$ref"])
+
+	renewalLifecycle := schemas["SubscriptionRenewalLifecycleResult"].(map[string]any)
+	renewalLifecycleProperties := renewalLifecycle["properties"].(map[string]any)
+	require.Contains(t, renewalLifecycleProperties, "change_version")
+	require.Contains(t, renewalLifecycle["required"].([]any), "change_version")
+	require.NotContains(t, renewalLifecycleProperties, "sync_pending")
+	require.NotContains(t, renewalLifecycle["required"].([]any), "sync_pending")
 }

@@ -315,6 +315,12 @@ export function applyRenewalLifecycleResultToSelfData(
   if (currentPeriodEnd > 0 && result.current_period_end < currentPeriodEnd) {
     return current
   }
+  if (
+    current.contract?.change_version !== undefined &&
+    result.change_version < current.contract.change_version
+  ) {
+    return current
+  }
   return {
     ...current,
     renewal_source: result.renewal_source,
@@ -323,6 +329,7 @@ export function applyRenewalLifecycleResultToSelfData(
       ? {
           ...current.contract,
           current_period_end: result.current_period_end,
+          change_version: result.change_version,
         }
       : current.contract,
     current_period: {

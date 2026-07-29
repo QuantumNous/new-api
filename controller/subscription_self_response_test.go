@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,6 +17,53 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSubscriptionSelfOpenAPIUsesSelfSpecificSchemas(t *testing.T) {
+	body, err := os.ReadFile("../docs/openapi/api.json")
+	require.NoError(t, err)
+
+	var spec map[string]any
+	require.NoError(t, common.Unmarshal(body, &spec))
+
+	paths := spec["paths"].(map[string]any)
+	require.Contains(t, paths, "/api/subscription/self/renewal/cancel")
+	require.Contains(t, paths, "/api/subscription/self/renewal/resume")
+	require.NotContains(t, paths, "/api/subscription/self/recurring/{binding_id}/cancel")
+	require.NotContains(t, paths, "/api/subscription/self/recurring/{binding_id}/resume")
+
+	components := spec["components"].(map[string]any)
+	schemas := components["schemas"].(map[string]any)
+	selfSubscription := schemas["SubscriptionSelfResponse"].(map[string]any)
+	selfProperties := selfSubscription["properties"].(map[string]any)
+	recurringSubscriptions := selfProperties["recurring_subscriptions"].(map[string]any)
+	recurringItems := recurringSubscriptions["items"].(map[string]any)
+	require.Equal(
+		t,
+		"#/components/schemas/SubscriptionSelfRecurringSubscription",
+		recurringItems["$ref"],
+	)
+
+	selfRecurring := schemas["SubscriptionSelfRecurringSubscription"].(map[string]any)
+	selfRecurringProperties := selfRecurring["properties"].(map[string]any)
+	for _, key := range []string{"binding_id", "provider", "provider_status", "can_cancel", "can_resume"} {
+		require.NotContains(t, selfRecurringProperties, key)
+	}
+	require.ElementsMatch(t, []any{
+		"plan_id",
+		"cancel_at_period_end",
+		"current_period_start",
+		"current_period_end",
+		"grace_period_end",
+		"requires_support",
+	}, selfRecurring["required"])
+
+	changePlan := schemas["ChangeSubscriptionPlanResponse"].(map[string]any)
+	changePlanProperties := changePlan["properties"].(map[string]any)
+	changePlanData := changePlanProperties["data"].(map[string]any)
+	changePlanDataProperties := changePlanData["properties"].(map[string]any)
+	require.Equal(t, "#/components/schemas/SubscriptionSelfContract", changePlanDataProperties["contract"].(map[string]any)["$ref"])
+	require.Equal(t, "#/components/schemas/SubscriptionSelfPendingChange", changePlanDataProperties["intent"].(map[string]any)["$ref"])
+}
 
 func TestGetSubscriptionSelfReturnsCanonicalContractWithoutProviderIDs(t *testing.T) {
 	setupSubscriptionControllerTestDB(t)
@@ -267,7 +315,7 @@ func TestGetSubscriptionSelfReturnsProviderNeutralRecurringReviewShape(t *testin
 	require.NotContains(t, pendingDTO, "provider_binding_id")
 	capabilities := data["capabilities"].(map[string]any)
 	require.Equal(t, false, capabilities["can_cancel"])
-	require.Equal(t, true, capabilities["can_resume"])
+	require.Equal(t, false, capabilities["can_resume"])
 
 	recurring := data["recurring_subscriptions"].([]any)
 	require.Len(t, recurring, 1)
@@ -568,6 +616,7 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 		contract        model.UserSubscriptionContract
 		entitlement     model.UserSubscription
 		bindings        []RecurringSubscriptionDTO
+		pendingChange   *model.SubscriptionChangeIntent
 		migration       SubscriptionMigrationDTO
 		wantSource      string
 		wantStatus      string
@@ -632,6 +681,125 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 			wantSource:    model.SubscriptionRenewalSourceWallet,
 			wantStatus:    model.SubscriptionRenewalStatusEnabled,
 			wantCanCancel: true,
+		},
+		{
+			name: "wallet pending intent hides renewal actions",
+			contract: func() model.UserSubscriptionContract {
+				contract := activeContract
+				contract.PaymentMode = model.SubscriptionPaymentModeBalanceOnePeriod
+				contract.RenewalSource = model.SubscriptionRenewalSourceWallet
+				contract.RenewalStatus = model.SubscriptionRenewalStatusEnabled
+				return contract
+			}(),
+			entitlement: func() model.UserSubscription {
+				entitlement := activeEntitlement
+				entitlement.PaymentMode = model.SubscriptionPaymentModeBalanceOnePeriod
+				entitlement.Source = model.PaymentMethodBalance
+				return entitlement
+			}(),
+			pendingChange: &model.SubscriptionChangeIntent{
+				Id:     5001,
+				Status: model.SubscriptionChangeIntentStatusAwaitingPayment,
+			},
+			wantSource: model.SubscriptionRenewalSourceWallet,
+			wantStatus: model.SubscriptionRenewalStatusEnabled,
+		},
+		{
+			name: "stripe scheduled downgrade keeps cancel action",
+			contract: func() model.UserSubscriptionContract {
+				contract := activeContract
+				contract.CurrentProviderBindingId = activeBinding.BindingId
+				return contract
+			}(),
+			entitlement: activeEntitlement,
+			bindings:    []RecurringSubscriptionDTO{activeBinding},
+			pendingChange: &model.SubscriptionChangeIntent{
+				Id:                5002,
+				ContractId:        activeContract.Id,
+				Kind:              model.SubscriptionChangeIntentKindDowngrade,
+				PaymentMode:       model.SubscriptionPaymentModeStripeRecurring,
+				Status:            model.SubscriptionChangeIntentStatusScheduled,
+				ProviderBindingId: activeBinding.BindingId,
+			},
+			wantSource:    model.SubscriptionRenewalSourceProvider,
+			wantStatus:    model.SubscriptionRenewalStatusEnabled,
+			wantCanCancel: true,
+		},
+		{
+			name: "stripe scheduled downgrade for stale binding hides cancel action",
+			contract: func() model.UserSubscriptionContract {
+				contract := activeContract
+				contract.CurrentProviderBindingId = activeBinding.BindingId
+				return contract
+			}(),
+			entitlement: activeEntitlement,
+			bindings:    []RecurringSubscriptionDTO{activeBinding},
+			pendingChange: &model.SubscriptionChangeIntent{
+				Id:                5006,
+				ContractId:        activeContract.Id,
+				Kind:              model.SubscriptionChangeIntentKindDowngrade,
+				PaymentMode:       model.SubscriptionPaymentModeStripeRecurring,
+				Status:            model.SubscriptionChangeIntentStatusScheduled,
+				ProviderBindingId: activeBinding.BindingId + 100,
+			},
+			wantSource: model.SubscriptionRenewalSourceProvider,
+			wantStatus: model.SubscriptionRenewalStatusEnabled,
+		},
+		{
+			name: "stripe syncing downgrade hides renewal actions",
+			contract: func() model.UserSubscriptionContract {
+				contract := activeContract
+				contract.CurrentProviderBindingId = activeBinding.BindingId
+				return contract
+			}(),
+			entitlement: activeEntitlement,
+			bindings:    []RecurringSubscriptionDTO{activeBinding},
+			pendingChange: &model.SubscriptionChangeIntent{
+				Id:     5005,
+				Kind:   model.SubscriptionChangeIntentKindDowngrade,
+				Status: model.SubscriptionChangeIntentStatusSyncing,
+			},
+			wantSource: model.SubscriptionRenewalSourceProvider,
+			wantStatus: model.SubscriptionRenewalStatusEnabled,
+		},
+		{
+			name: "stripe pending upgrade hides cancel action",
+			contract: func() model.UserSubscriptionContract {
+				contract := activeContract
+				contract.CurrentProviderBindingId = activeBinding.BindingId
+				return contract
+			}(),
+			entitlement: activeEntitlement,
+			bindings:    []RecurringSubscriptionDTO{activeBinding},
+			pendingChange: &model.SubscriptionChangeIntent{
+				Id:     5003,
+				Kind:   model.SubscriptionChangeIntentKindUpgrade,
+				Status: model.SubscriptionChangeIntentStatusAwaitingPayment,
+			},
+			wantSource: model.SubscriptionRenewalSourceProvider,
+			wantStatus: model.SubscriptionRenewalStatusEnabled,
+		},
+		{
+			name: "stripe scheduled downgrade hides resume action",
+			contract: func() model.UserSubscriptionContract {
+				contract := activeContract
+				contract.CurrentProviderBindingId = activeBinding.BindingId
+				return contract
+			}(),
+			entitlement: activeEntitlement,
+			bindings: []RecurringSubscriptionDTO{func() RecurringSubscriptionDTO {
+				binding := activeBinding
+				binding.CancelAtPeriodEnd = true
+				return binding
+			}()},
+			pendingChange: &model.SubscriptionChangeIntent{
+				Id:     5004,
+				Kind:   model.SubscriptionChangeIntentKindDowngrade,
+				Status: model.SubscriptionChangeIntentStatusScheduled,
+			},
+			wantSource:      model.SubscriptionRenewalSourceProvider,
+			wantStatus:      model.SubscriptionRenewalStatusCancelledByUser,
+			wantCancelAtEnd: true,
 		},
 		{
 			name: "wallet cancelled persists",
@@ -783,7 +951,7 @@ func TestSubscriptionSelfRenewalCanonicalProjectionAndCapabilities(t *testing.T)
 				"subscription_first",
 				&testCase.contract,
 				&testCase.entitlement,
-				nil,
+				testCase.pendingChange,
 				testCase.migration,
 				nil,
 				nil,
@@ -1343,6 +1511,7 @@ func TestChangeSubscriptionPlanReplayReturnsSanitizedLocalContract(t *testing.T)
 		CurrentPeriodEnd:         now + 3600,
 	}
 	require.NoError(t, model.DB.Create(&contract).Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("id = ?", binding.Id).Update("contract_id", contract.Id).Error)
 	intent := model.SubscriptionChangeIntent{
 		ContractId:               contract.Id,
 		UserId:                   913,
@@ -1389,7 +1558,8 @@ func TestChangeSubscriptionPlanReplayReturnsSanitizedLocalContract(t *testing.T)
 	contractDTO := data["contract"].(map[string]any)
 	intentDTO := data["intent"].(map[string]any)
 	require.Equal(t, float64(contract.Id), contractDTO["contract_id"])
+	require.NotContains(t, contractDTO, "current_provider_binding_id")
 	require.Equal(t, float64(intent.Id), intentDTO["intent_id"])
-	require.Equal(t, float64(binding.Id), intentDTO["provider_binding_id"])
+	require.NotContains(t, intentDTO, "provider_binding_id")
 	require.NotContains(t, intentDTO, "provider_schedule_id")
 }
