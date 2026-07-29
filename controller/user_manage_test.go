@@ -159,3 +159,59 @@ func TestManageUserDeleteReturnsImmediatelyAndUnknownActionFails(t *testing.T) {
 	assert.EqualValues(t, 1, unchanged.AuthVersion)
 	assert.Equal(t, common.UserStatusEnabled, unchanged.Status)
 }
+
+func TestSendUserEmailRequestValidationNormalizesSelectionAndBoundsContent(t *testing.T) {
+	req := SendUserEmailRequest{
+		UserIds: []int{3, 3, 7},
+		Subject: "  Service update  ",
+		Content: "  Maintenance starts tonight.  ",
+	}
+
+	require.NoError(t, req.validate())
+	assert.Equal(t, []int{3, 7}, req.UserIds)
+	assert.Equal(t, "Service update", req.Subject)
+	assert.Equal(t, "Maintenance starts tonight.", req.Content)
+
+	tooManyUserIds := make([]int, maxAdminEmailRecipients+1)
+	for i := range tooManyUserIds {
+		tooManyUserIds[i] = i + 1
+	}
+	invalidRequests := []SendUserEmailRequest{
+		{UserIds: nil, Subject: "subject", Content: "message"},
+		{UserIds: []int{0}, Subject: "subject", Content: "message"},
+		{UserIds: tooManyUserIds, Subject: "subject", Content: "message"},
+		{UserIds: []int{1}, Subject: strings.Repeat("s", maxAdminEmailSubjectLen+1), Content: "message"},
+		{UserIds: []int{1}, Subject: "subject", Content: strings.Repeat("m", maxAdminEmailContentLen+1)},
+	}
+	for _, invalidReq := range invalidRequests {
+		assert.Error(t, invalidReq.validate())
+	}
+}
+
+func TestSendUserEmailSkipsUsersWithoutDeliverableEmail(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	user := model.User{
+		Username: "managed-email-user", Password: "password", Role: common.RoleCommonUser,
+		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1,
+	}
+	require.NoError(t, db.Create(&user).Error)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/email", strings.NewReader(
+		fmt.Sprintf(`{"user_ids":[%d],"subject":"Notice","content":"Hello"}`, user.Id),
+	))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("id", 9999)
+	c.Set("role", common.RoleRootUser)
+	c.Set("username", "root-operator")
+
+	SendUserEmail(c)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	assert.Contains(t, recorder.Body.String(), `"sent":0`)
+	assert.Contains(t, recorder.Body.String(), `"skipped":1`)
+	assert.Contains(t, recorder.Body.String(), `"failed":0`)
+}
