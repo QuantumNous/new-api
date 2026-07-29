@@ -125,6 +125,38 @@ func TestBytePlusAssetPinnedChannelRequiresEnabledBytePlusAbility(t *testing.T) 
 	}
 }
 
+func TestBytePlusAssetNoReferenceSpecificChannelKeepsHistoricalTokenModelBypass(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	model.InitChannelCache()
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyUserId, 7)
+		common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, "131")
+		common.SetContextKey(c, constant.ContextKeyTokenModelLimitEnabled, true)
+		common.SetContextKey(c, constant.ContextKeyTokenModelLimit, map[string]bool{"gpt-4": true})
+		c.Next()
+	})
+	router.Use(Distribute())
+	router.POST("/v1/videos", func(c *gin.Context) {
+		if got := common.GetContextKeyInt(c, constant.ContextKeyChannelId); got != 131 {
+			c.String(http.StatusInternalServerError, "selected channel = %d, want specific 131", got)
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+
+	recorder := performBytePlusAssetDistributorRequest(router, "", `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"https://example.com/image.png"},"role":"reference_image"}]
+	}`)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+}
+
 func TestBytePlusAssetPinnedChannelHonorsTokenModelAccessBeforeSpecificChannel(t *testing.T) {
 	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
 	defer restoreDB()

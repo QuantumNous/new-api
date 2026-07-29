@@ -71,7 +71,13 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
-		if shouldSelectChannel {
+		assetResolution, assetErr := resolveBytePlusAssetResolution(c, shouldSelectChannel)
+		if assetErr != nil {
+			abortWithOpenAiMessage(c, assetErr.StatusCode, bytePlusAssetPublicMessage(assetErr.GetErrorCode()), assetErr.GetErrorCode())
+			return
+		}
+		hasAssetRefs := assetResolution.HasReferences()
+		if shouldSelectChannel && (!ok || hasAssetRefs) {
 			if modelRequest.Model == "" {
 				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
 				return
@@ -94,10 +100,15 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
-		pinnedChannel, pinnedSelectGroup, pinnedErr := resolveBytePlusPinnedAssetChannel(c, modelRequest, shouldSelectChannel)
-		if pinnedErr != nil {
-			abortWithOpenAiMessage(c, pinnedErr.StatusCode, bytePlusAssetPublicMessage(pinnedErr.GetErrorCode()), pinnedErr.GetErrorCode())
-			return
+		var pinnedChannel *model.Channel
+		pinnedSelectGroup := ""
+		if hasAssetRefs {
+			var pinnedErr *types.NewAPIError
+			pinnedChannel, pinnedSelectGroup, pinnedErr = selectBytePlusPinnedAssetChannel(c, modelRequest, assetResolution)
+			if pinnedErr != nil {
+				abortWithOpenAiMessage(c, pinnedErr.StatusCode, bytePlusAssetPublicMessage(pinnedErr.GetErrorCode()), pinnedErr.GetErrorCode())
+				return
+			}
 		}
 		if pinnedChannel != nil {
 			if ok {
@@ -284,29 +295,27 @@ func Distribute() func(c *gin.Context) {
 	}
 }
 
-// getModelFromRequest 从请求中读取模型信息
-// 根据 Content-Type 自动处理：
-// - application/json
-// BytePlus asset references are resolved here before the normal channel
-// selection paths so they cannot fall back to a different upstream account.
-func resolveBytePlusPinnedAssetChannel(c *gin.Context, modelRequest *ModelRequest, shouldSelectChannel bool) (*model.Channel, string, *types.NewAPIError) {
-	if !shouldSelectChannel || c == nil || c.Request == nil || modelRequest == nil {
-		return nil, "", nil
+// resolveBytePlusAssetResolution parses reusable video submit bodies only far
+// enough to authorize strict BytePlus asset references before channel routing.
+func resolveBytePlusAssetResolution(c *gin.Context, shouldSelectChannel bool) (service.BytePlusAssetReferenceResolution, *types.NewAPIError) {
+	if !shouldSelectChannel || c == nil || c.Request == nil {
+		return service.BytePlusAssetReferenceResolution{}, nil
 	}
 	relayMode, _ := c.Get("relay_mode")
 	if relayMode != relayconstant.RelayModeVideoSubmit {
-		return nil, "", nil
+		return service.BytePlusAssetReferenceResolution{}, nil
 	}
 
 	var seedanceReq dto.SeedanceVideoRequest
 	if err := common.UnmarshalBodyReusable(c, &seedanceReq); err != nil {
-		return nil, "", bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+		return service.BytePlusAssetReferenceResolution{}, bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 	}
-	resolution, apiErr := service.ResolveBytePlusAssetReferences(c, common.GetContextKeyInt(c, constant.ContextKeyUserId), &seedanceReq)
-	if apiErr != nil || !resolution.HasReferences() {
-		return nil, "", apiErr
-	}
+	return service.ResolveBytePlusAssetReferences(c, common.GetContextKeyInt(c, constant.ContextKeyUserId), &seedanceReq)
+}
 
+// BytePlus asset references are resolved before normal channel selection so
+// they cannot fall back to a different upstream account.
+func selectBytePlusPinnedAssetChannel(c *gin.Context, modelRequest *ModelRequest, resolution service.BytePlusAssetReferenceResolution) (*model.Channel, string, *types.NewAPIError) {
 	channel, err := model.GetChannelById(resolution.PinnedChannelID, true)
 	if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled || channel.Type != constant.ChannelTypeBytePlus {
 		return nil, "", bytePlusAssetDistributionError(types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
