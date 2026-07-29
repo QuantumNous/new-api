@@ -25,18 +25,23 @@ const moderationSceneSkip = "skip-ark-moderation"
 // existing Doubao and VolcEngine channels.
 type TaskAdaptor struct {
 	doubao.TaskAdaptor
-	apiKey string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.TaskAdaptor.Init(info)
-	a.apiKey = info.ApiKey
 }
 
-func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
+func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
+	if info == nil {
+		return errors.New("missing byteplus relay info")
+	}
+	creds, err := service.ParseBytePlusCredentials(info.ApiKey)
+	if err != nil {
+		return err
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+a.apiKey)
+	req.Header.Set("Authorization", "Bearer "+creds.APIKey)
 	req.Header.Set(moderationSceneHeader, moderationSceneSkip)
 	return nil
 }
@@ -46,6 +51,14 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 // adapter's fixed moderation header.
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
+}
+
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	creds, err := service.ParseBytePlusCredentials(key)
+	if err != nil {
+		return nil, err
+	}
+	return a.TaskAdaptor.FetchTask(baseUrl, creds.APIKey, body, proxy)
 }
 
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {

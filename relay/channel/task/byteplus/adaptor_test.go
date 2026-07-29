@@ -181,6 +181,52 @@ func TestDoRequestEnforcesModerationSkipHeader(t *testing.T) {
 	}
 }
 
+func TestBuildRequestHeaderUsesStructuredAPIKeyOnly(t *testing.T) {
+	info := newTestRelayInfo("https://ark.example", `{
+		"api_key": "ark-video-key",
+		"access_key_id": "ak-example",
+		"secret_access_key": "sk-should-not-leak",
+		"project_name": "project3"
+	}`)
+	a := &TaskAdaptor{}
+	req := httptest.NewRequest(http.MethodPost, "/upstream", nil)
+
+	if err := a.BuildRequestHeader(newTestContext(`{}`), req, info); err != nil {
+		t.Fatalf("BuildRequestHeader error: %v", err)
+	}
+
+	if got := req.Header.Get("Authorization"); got != "Bearer ark-video-key" {
+		t.Fatalf("Authorization = %q", got)
+	}
+}
+
+func TestFetchTaskUsesStructuredAPIKeyOnly(t *testing.T) {
+	service.InitHttpClient()
+	var authorizationHeader string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorizationHeader = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"task-1","status":"succeeded"}`))
+	}))
+	defer server.Close()
+
+	key := `{
+		"api_key": "ark-video-key",
+		"access_key_id": "ak-example",
+		"secret_access_key": "sk-should-not-leak",
+		"project_name": "project3"
+	}`
+	resp, err := (&TaskAdaptor{}).FetchTask(server.URL, key, map[string]any{"task_id": "task-1"}, "")
+	if err != nil {
+		t.Fatalf("FetchTask error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if authorizationHeader != "Bearer ark-video-key" {
+		t.Fatalf("Authorization = %q", authorizationHeader)
+	}
+}
+
 func TestBuildRequestBodyUsesConfiguredModelMapping(t *testing.T) {
 	a := &TaskAdaptor{}
 	info := newTestRelayInfo("https://ark.example", "test-key")
