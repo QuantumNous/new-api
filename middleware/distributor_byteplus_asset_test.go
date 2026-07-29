@@ -275,6 +275,26 @@ func TestBytePlusAssetResolverErrorsPropagateBeforeSelection(t *testing.T) {
 	}
 }
 
+func TestBytePlusAssetMalformedMediaURIAbortsBeforeSelection(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	insertMiddlewareBytePlusAssetChannel(t, 132, "default", common.ChannelStatusEnabled, 1000, 1000)
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		c.String(http.StatusInternalServerError, "handler should not run")
+	})
+	recorder := performBytePlusAssetDistributorRequest(router, "", `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_short"},"role":"reference_image"}]
+	}`)
+	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "invalid_asset_request")
+	require.NotContains(t, recorder.Body.String(), "131")
+	require.NotContains(t, recorder.Body.String(), "132")
+}
+
 func TestBytePlusAssetPinnedChannelConcurrencyLimitDoesNotFallback(t *testing.T) {
 	restoreRuntime := useMiddlewareMemoryChannelConcurrencyForTest(t)
 	defer restoreRuntime()

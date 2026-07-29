@@ -26,7 +26,10 @@ func (r BytePlusAssetReferenceResolution) HasReferences() bool {
 }
 
 func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.SeedanceVideoRequest) (BytePlusAssetReferenceResolution, *types.NewAPIError) {
-	publicIDs := extractBytePlusAssetPublicIDs(req)
+	publicIDs, apiErr := extractBytePlusAssetPublicIDs(req)
+	if apiErr != nil {
+		return BytePlusAssetReferenceResolution{}, apiErr
+	}
 	if len(publicIDs) == 0 {
 		return BytePlusAssetReferenceResolution{}, nil
 	}
@@ -83,38 +86,52 @@ func IsStrictBytePlusAssetURI(raw string) bool {
 	return bytePlusAssetURIPattern.MatchString(raw)
 }
 
-func extractBytePlusAssetPublicIDs(req *dto.SeedanceVideoRequest) []string {
+func extractBytePlusAssetPublicIDs(req *dto.SeedanceVideoRequest) ([]string, *types.NewAPIError) {
 	if req == nil {
-		return nil
+		return nil, nil
 	}
 	seen := make(map[string]struct{})
 	ids := make([]string, 0)
-	add := func(raw string) {
+	add := func(raw string) *types.NewAPIError {
 		matches := bytePlusAssetURIPattern.FindStringSubmatch(raw)
 		if len(matches) != 2 {
-			return
+			if isMalformedBytePlusAssetURI(raw) {
+				return assetError(errors.New("invalid asset URI"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+			}
+			return nil
 		}
 		if _, ok := seen[matches[1]]; ok {
-			return
+			return nil
 		}
 		seen[matches[1]] = struct{}{}
 		ids = append(ids, matches[1])
+		return nil
 	}
 	for _, item := range req.Content {
 		switch item.Type {
 		case dto.SeedanceContentImage:
 			if item.ImageURL != nil {
-				add(item.ImageURL.URL)
+				if apiErr := add(item.ImageURL.URL); apiErr != nil {
+					return nil, apiErr
+				}
 			}
 		case dto.SeedanceContentVideo:
 			if item.VideoURL != nil {
-				add(item.VideoURL.URL)
+				if apiErr := add(item.VideoURL.URL); apiErr != nil {
+					return nil, apiErr
+				}
 			}
 		case dto.SeedanceContentAudio:
 			if item.AudioURL != nil {
-				add(item.AudioURL.URL)
+				if apiErr := add(item.AudioURL.URL); apiErr != nil {
+					return nil, apiErr
+				}
 			}
 		}
 	}
-	return ids
+	return ids, nil
+}
+
+func isMalformedBytePlusAssetURI(raw string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "asset:")
 }

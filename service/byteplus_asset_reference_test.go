@@ -136,12 +136,97 @@ func TestResolveBytePlusAssetReferencesRejectsActiveAssetWithoutUpstreamID(t *te
 	}
 }
 
-func TestResolveBytePlusAssetReferencesIgnoresNonStrictAssetURLs(t *testing.T) {
-	newBytePlusAssetReferenceDB(t)
+func TestResolveBytePlusAssetReferencesRejectsMalformedAssetMediaURLs(t *testing.T) {
+	malformedValues := []string{
+		"asset://ast_short",
+		"asset://ast_1234567890abcdefABCDEF123456789012",
+		"asset://ast_1234567890abcdefABCDEF12345678--",
+		"asset://",
+		"asset://ast_1234567890abcdefABCDEF1234567890?x=1",
+		"asset://ast_1234567890abcdefABCDEF1234567890#ref",
+		"asset://ast_1234567890abcdefABCDEF1234567890/extra",
+		"asset:ast_1234567890abcdefABCDEF1234567890",
+		"asset:/ast_1234567890abcdefABCDEF1234567890",
+		" asset://ast_1234567890abcdefABCDEF1234567890",
+		"asset://ast_1234567890abcdefABCDEF1234567890 ",
+		"ASSET://ast_1234567890abcdefABCDEF1234567890",
+	}
+	mediaItems := []struct {
+		name string
+		item func(string) dto.SeedanceContentItem
+	}{
+		{
+			name: "image_url",
+			item: func(url string) dto.SeedanceContentItem {
+				return dto.SeedanceContentItem{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: url}}
+			},
+		},
+		{
+			name: "video_url",
+			item: func(url string) dto.SeedanceContentItem {
+				return dto.SeedanceContentItem{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: url}}
+			},
+		},
+		{
+			name: "audio_url",
+			item: func(url string) dto.SeedanceContentItem {
+				return dto.SeedanceContentItem{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: url}}
+			},
+		},
+	}
+	for _, media := range mediaItems {
+		for _, malformed := range malformedValues {
+			t.Run(media.name+"/"+malformed, func(t *testing.T) {
+				db := newBytePlusAssetReferenceDB(t)
+				sqlDB, err := db.DB()
+				if err != nil {
+					t.Fatalf("get sqlite handle: %v", err)
+				}
+				if err := sqlDB.Close(); err != nil {
+					t.Fatalf("close sqlite: %v", err)
+				}
+				c := newAssetReferenceContext()
+				req := &dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{media.item(malformed)}}
+
+				resolution, apiErr := ResolveBytePlusAssetReferences(c, 7, req)
+				if apiErr == nil {
+					t.Fatal("expected invalid asset request")
+				}
+				if apiErr.GetErrorCode() != types.ErrorCodeInvalidAssetRequest || apiErr.StatusCode != http.StatusBadRequest {
+					t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+				}
+				text := apiErr.ToOpenAIError().Message + " " + apiErr.Error()
+				if strings.Contains(text, malformed) {
+					t.Fatalf("public error leaked malformed URI %q in %q", malformed, text)
+				}
+				if resolution.HasReferences() {
+					t.Fatalf("unexpected references: %#v", resolution)
+				}
+				if _, ok := common.GetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap); ok {
+					t.Fatal("rewrite map should not be stored for malformed asset URI")
+				}
+				if got := common.GetContextKeyInt(c, constant.ContextKeyBytePlusAssetPinnedChannelID); got != 0 {
+					t.Fatalf("pinned channel id = %d, want 0", got)
+				}
+			})
+		}
+	}
+}
+
+func TestResolveBytePlusAssetReferencesAllowsNonAssetURLsAndTextMentions(t *testing.T) {
+	db := newBytePlusAssetReferenceDB(t)
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get sqlite handle: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close sqlite: %v", err)
+	}
 	c := newAssetReferenceContext()
 	req := &dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{
-		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "asset://ast_short"}},
-		{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "https://example.com/video.mp4"}},
+		{Type: dto.SeedanceContentText, Text: "use asset://ast_short as plain text"},
+		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/image.png"}},
+		{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "http://example.com/video.mp4"}},
 	}}
 
 	resolution, apiErr := ResolveBytePlusAssetReferences(c, 7, req)
@@ -152,7 +237,7 @@ func TestResolveBytePlusAssetReferencesIgnoresNonStrictAssetURLs(t *testing.T) {
 		t.Fatalf("unexpected references: %#v", resolution)
 	}
 	if _, ok := common.GetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap); ok {
-		t.Fatal("rewrite map should not be stored when no strict asset URI exists")
+		t.Fatal("rewrite map should not be stored when no asset URI media reference exists")
 	}
 }
 
