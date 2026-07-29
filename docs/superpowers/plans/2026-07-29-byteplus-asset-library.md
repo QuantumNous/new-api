@@ -320,4 +320,3 @@ Run specification review first, then code quality and security review. Fix every
 - [ ] **Step 7: Final commit**
 
 Use Lore trailers. Do not push, merge, modify main, or promote staging without a separate request.
-
