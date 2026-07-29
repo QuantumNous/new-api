@@ -64,7 +64,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     {
       accessorKey: 'id',
       header: t('ID'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         return (
           <TableId value={row.getValue('id') as number} className='w-[60px]' />
@@ -75,7 +75,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     {
       accessorKey: 'name',
       header: t('Name'),
-      meta: { mobileTitle: true },
+      meta: { priority: 'secondary', mobileTitle: true },
       cell: ({ row }) => (
         <span className='font-medium'>{row.getValue('name')}</span>
       ),
@@ -173,7 +173,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     {
       accessorKey: 'created_time',
       header: t('Created'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         return (
           <div className='min-w-[160px] font-mono text-sm'>
@@ -186,7 +186,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     {
       accessorKey: 'expired_time',
       header: t('Expires'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'secondary', mobileHidden: true },
       cell: ({ row }) => {
         const expiredTime = row.getValue('expired_time') as number
         if (expiredTime === 0) {
@@ -213,7 +213,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     {
       accessorKey: 'used_user_id',
       header: t('Redeemed By'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         const userId = row.getValue('used_user_id') as number
         const redemption = row.original

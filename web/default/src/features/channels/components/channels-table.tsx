@@ -66,7 +66,7 @@ import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
 const route = getRouteApi('/_authenticated/channels/')
-const CHANNELS_COLUMN_VISIBILITY_STORAGE_KEY = 'channels:column-visibility'
+const CHANNELS_COLUMN_VISIBILITY_STORAGE_KEY = 'channels:column-visibility:v2'
 const CHANNELS_COLUMN_SIZING_STORAGE_KEY = 'channels:column-sizing'
 const CHANNELS_VIEW_MODE_STORAGE_KEY = 'channels:view-mode'
 const CHANNELS_STATUS_FILTER_STORAGE_KEY = 'channel-status-filter'

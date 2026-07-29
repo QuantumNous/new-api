@@ -27,13 +27,13 @@ import {
   Copy,
   Link,
   Loader2,
+  Info,
 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -42,11 +42,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
@@ -190,54 +185,43 @@ export function DataTableRowActions<TData>({
   }
 
   return (
-    <div className='-ml-1.5 flex items-center gap-1'>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              onClick={handleToggleStatus}
-              disabled={isTogglingStatus}
-              aria-label={toggleLabel}
-              className={
-                isEnabled
-                  ? 'text-destructive hover:text-destructive'
-                  : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
-              }
-            />
-          }
-        >
-          {statusIcon}
-        </TooltipTrigger>
-        <TooltipContent>{toggleLabel}</TooltipContent>
-      </Tooltip>
-
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              onClick={() => {
-                setCurrentRow(apiKey)
-                setOpen('update')
-              }}
-              aria-label={t('Edit')}
-            />
-          }
-        >
-          <Edit />
-        </TooltipTrigger>
-        <TooltipContent>{t('Edit')}</TooltipContent>
-      </Tooltip>
-
+    <div className='flex items-center justify-end gap-0.5'>
       <DataTableRowActionMenu
         ariaLabel={t('Open menu')}
-        contentClassName='w-[200px]'
+        contentClassName='w-[220px]'
         modal={false}
         onOpenChange={handleMenuOpenChange}
       >
+        <DropdownMenuItem
+          onClick={() => {
+            setCurrentRow(apiKey)
+            setOpen('details')
+          }}
+        >
+          {t('Details')}
+          <DropdownMenuShortcut>
+            <Info size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            setCurrentRow(apiKey)
+            setOpen('update')
+          }}
+        >
+          {t('Edit')}
+          <DropdownMenuShortcut>
+            <Edit size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => void handleToggleStatus()}
+          disabled={isTogglingStatus}
+        >
+          {toggleLabel}
+          <DropdownMenuShortcut>{statusIcon}</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={async () => {
             const realKey = getCachedRealKey()

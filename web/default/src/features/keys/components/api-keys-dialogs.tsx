@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ApiKeyDetailsSheet } from './api-key-details-sheet'
 import { ApiKeysDeleteDialog } from './api-keys-delete-dialog'
 import { ApiKeysMutateDrawer } from './api-keys-mutate-drawer'
 import { useApiKeys } from './api-keys-provider'
@@ -36,6 +37,11 @@ export function ApiKeysDialogs() {
         open={open === 'cc-switch'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
         tokenKey={resolvedKey}
+      />
+      <ApiKeyDetailsSheet
+        apiKey={currentRow}
+        open={open === 'details'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
       />
     </>
   )

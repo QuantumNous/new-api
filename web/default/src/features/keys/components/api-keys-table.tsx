@@ -60,7 +60,8 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { DataTableRowActions } from './data-table-row-actions'
 
 const route = getRouteApi('/_authenticated/keys/')
-const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY = 'api-keys:column-visibility'
+// Bump when default column priorities change so users pick up the new layout.
+const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY = 'api-keys:column-visibility:v2'
 const API_KEYS_MOBILE_SKELETON_IDS = Array.from(
   { length: 5 },
   (_, index) => `api-key-mobile-skeleton-${index + 1}`
@@ -126,7 +127,7 @@ function ApiKeysMobileList({
   }
 
   return (
-    <div className='divide-border overflow-hidden rounded-lg border'>
+    <div className='border-border divide-border overflow-hidden rounded-md border'>
       {rows.map((row) => {
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]
@@ -136,41 +137,39 @@ function ApiKeysMobileList({
           <div
             key={row.id}
             className={cn(
-              'bg-card space-y-2.5 border-b px-3 py-2.5 last:border-b-0',
+              'bg-card space-y-2 border-b px-3 py-3 last:border-b-0',
               isDisabledApiKeyRow(apiKey) && DISABLED_ROW_MOBILE
             )}
           >
-            <div className='flex items-start justify-between gap-3'>
-              <div className='min-w-0'>
-                <div className='truncate text-sm font-semibold'>
-                  {apiKey.name}
+            <div className='flex items-start justify-between gap-2'>
+              <div className='min-w-0 flex-1'>
+                <div className='flex min-w-0 flex-wrap items-center gap-2'>
+                  <span className='truncate text-sm font-semibold'>
+                    {apiKey.name}
+                  </span>
+                  {statusConfig && (
+                    <StatusBadge
+                      label={t(statusConfig.label)}
+                      variant={statusConfig.variant}
+                      copyable={false}
+                    />
+                  )}
                 </div>
-                <div className='text-muted-foreground text-[11px]'>
-                  {t('API Key')}
+                <div className='mt-1.5 min-w-0 [&_button:first-child]:max-w-full [&_button:first-child]:truncate [&_button:first-child]:px-0'>
+                  <ApiKeyCell apiKey={apiKey} />
                 </div>
-              </div>
-              {statusConfig && (
-                <StatusBadge
-                  label={t(statusConfig.label)}
-                  variant={statusConfig.variant}
-                  copyable={false}
-                />
-              )}
-            </div>
-
-            <div className='flex min-w-0 items-center justify-between gap-2'>
-              <div className='min-w-0 flex-1 [&_button:first-child]:max-w-full [&_button:first-child]:truncate [&_button:first-child]:px-0'>
-                <ApiKeyCell apiKey={apiKey} />
               </div>
               <DataTableRowActions row={row} />
             </div>
 
-            <div className='flex items-center justify-between gap-2 text-xs'>
-              <span className='text-muted-foreground'>{t('Quota')}</span>
+            <div className='text-muted-foreground flex items-center justify-between gap-2 text-xs'>
+              <span>{t('Quota')}</span>
               {apiKey.unlimited_quota ? (
-                <span className='font-medium'>{t('Unlimited')}</span>
+                <span className='text-foreground font-medium'>
+                  {t('Unlimited')}
+                </span>
               ) : (
-                <span className='font-medium tabular-nums'>
+                <span className='text-foreground font-medium tabular-nums'>
                   {formatQuota(apiKey.remain_quota)}
                   <span className='text-muted-foreground font-normal'>
                     {' / '}

@@ -143,7 +143,7 @@ export function LogStatCards(props: LogStatCardsProps) {
   })
 
   return (
-    <StaggerContainer className='bg-border ring-foreground/10 grid min-w-0 grid-cols-2 gap-px overflow-hidden rounded-xl ring-1 sm:grid-cols-3 lg:grid-cols-5'>
+    <StaggerContainer className='bg-border ring-border grid min-w-0 grid-cols-2 gap-px overflow-hidden rounded-xl ring-1 sm:grid-cols-3 lg:grid-cols-5'>
       {items.map((it, idx) => {
         const Icon = it.icon
         let valueContent

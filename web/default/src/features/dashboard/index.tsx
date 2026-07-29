@@ -116,7 +116,7 @@ const LazyFlowCharts = lazy(() =>
 
 function LogStatCardsFallback() {
   return (
-    <div className='bg-border ring-foreground/10 grid grid-cols-2 gap-px overflow-hidden rounded-xl ring-1 sm:grid-cols-3 lg:grid-cols-5'>
+    <div className='bg-border ring-border grid grid-cols-2 gap-px overflow-hidden rounded-xl ring-1 sm:grid-cols-3 lg:grid-cols-5'>
       {LOG_STAT_CARD_FALLBACK_KEYS.map((key, index) => (
         <div
           key={key}

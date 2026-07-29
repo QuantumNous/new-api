@@ -570,7 +570,7 @@ export function useChannelsColumns(
       {
         accessorKey: 'id',
         header: t('ID'),
-        meta: { mobileHidden: true },
+        meta: { priority: 'detail', mobileHidden: true },
         cell: ({ row }) => {
           const id = row.getValue('id') as number
           return <TableId value={sensitiveVisible ? id : SENSITIVE_MASK} />
@@ -957,7 +957,7 @@ export function useChannelsColumns(
       {
         accessorKey: 'models',
         header: t('Models'),
-        meta: { mobileHidden: true },
+        meta: { priority: 'secondary', mobileHidden: true },
         cell: ({ row }) => {
           const models = row.getValue('models') as string
           const modelArray = parseModelsList(models)
@@ -983,7 +983,7 @@ export function useChannelsColumns(
       {
         accessorKey: 'group',
         header: t('Groups'),
-        meta: { mobileHidden: true },
+        meta: { priority: 'secondary', mobileHidden: true },
         cell: ({ row }) => {
           const group = row.getValue('group') as string
           const groupArray = parseGroupsList(group)
@@ -1016,7 +1016,7 @@ export function useChannelsColumns(
       {
         accessorKey: 'tag',
         header: t('Tag'),
-        meta: { mobileHidden: true },
+        meta: { priority: 'secondary', mobileHidden: true },
         cell: ({ row }) => {
           const tag = row.getValue('tag') as string | null
           if (!tag) {
@@ -1040,7 +1040,7 @@ export function useChannelsColumns(
       {
         accessorKey: 'priority',
         header: t('Priority'),
-        meta: { mobileHidden: true },
+        meta: { priority: 'detail', mobileHidden: true },
         cell: ({ row }) => <PriorityCell channel={row.original} />,
         size: 100,
       },
@@ -1049,7 +1049,7 @@ export function useChannelsColumns(
       {
         accessorKey: 'weight',
         header: t('Weight'),
-        meta: { mobileHidden: true },
+        meta: { priority: 'detail', mobileHidden: true },
         cell: ({ row }) => <WeightCell channel={row.original} />,
         size: 90,
         enableSorting: false,
@@ -1067,7 +1067,7 @@ export function useChannelsColumns(
       {
         accessorKey: 'response_time',
         header: t('Response'),
-        meta: { mobileHidden: true },
+        meta: { priority: 'detail', mobileHidden: true },
         cell: ({ row }) => {
           const responseTime = row.getValue('response_time') as number
           const config = getResponseTimeConfig(responseTime)
@@ -1089,7 +1089,7 @@ export function useChannelsColumns(
       {
         accessorKey: 'test_time',
         header: t('Last Tested'),
-        meta: { mobileHidden: true },
+        meta: { priority: 'detail', mobileHidden: true },
         cell: ({ row }) => {
           const testTime = row.getValue('test_time') as number
 

@@ -44,7 +44,7 @@ import { cn } from '@/lib/utils'
 import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
 
 const CHART_FRAME_CLASS =
-  'bg-card ring-foreground/10 overflow-hidden rounded-xl p-3 ring-1'
+  'bg-card ring-border overflow-hidden rounded-xl p-3 ring-1'
 
 const SERIES_COLORS = [
   'var(--chart-1)',

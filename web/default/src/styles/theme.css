@@ -96,7 +96,9 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 :root {
-  --radius: 1rem;
+  /* Base corner radius — halved from 1rem for a tighter, less rounded UI.
+   * All --radius-* steps (sm/md/lg/xl/…) scale from this token. */
+  --radius: 0.5rem;
   --app-header-height: 3rem;
   /* Static build-channel fallback consumed when JS hasn't booted yet. */
   --app-rev: '2k6e8r7p';
@@ -129,8 +131,9 @@ For commercial licensing, please contact support@quantumnous.com
   --info-foreground: oklch(0.985 0 0);
   --neutral: oklch(0.708 0 0);
   --neutral-foreground: oklch(0.145 0 0);
-  --border: oklch(0.93 0 0);
-  --input: oklch(0.93 0 0);
+  /* Solid neutral grays (no chroma, no alpha) for borders and form chrome. */
+  --border: oklch(0.88 0 0);
+  --input: oklch(0.78 0 0);
   --ring: oklch(0.708 0.16 249.003);
   --chart-1: oklch(0.72 0.18 250);
   --chart-2: oklch(0.65 0.15 200);
@@ -146,7 +149,7 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: color-mix(in oklch, var(--primary) 12%, var(--background));
   --sidebar-accent-foreground: oklch(0.579 0.196 255.909);
-  --sidebar-border: oklch(0.93 0 0);
+  --sidebar-border: oklch(0.88 0 0);
   --sidebar-ring: oklch(0.58 0.2 250);
   --skeleton-base: oklch(0.97 0 0);
   --skeleton-highlight: oklch(0.985 0 0);
@@ -206,8 +209,9 @@ For commercial licensing, please contact support@quantumnous.com
   --info-foreground: oklch(0.145 0 0);
   --neutral: oklch(0.76 0 0);
   --neutral-foreground: oklch(0.155 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 17%);
+  /* Solid grays instead of translucent white overlays. */
+  --border: oklch(0.38 0 0);
+  --input: oklch(0.46 0 0);
   --ring: oklch(0.554 0.148 250.726);
   --chart-1: oklch(0.76 0.14 250);
   --chart-2: oklch(0.76 0.13 200);
@@ -220,7 +224,7 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: color-mix(in oklch, var(--primary) 20%, var(--background));
   --sidebar-accent-foreground: oklch(0.9 0.05 250);
-  --sidebar-border: oklch(1 0 0 / 11%);
+  --sidebar-border: oklch(0.38 0 0);
   --sidebar-ring: oklch(0.7 0.17 250);
   --skeleton-base: oklch(0.335 0 0);
   --skeleton-highlight: oklch(0.44 0 0);

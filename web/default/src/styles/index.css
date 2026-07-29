@@ -49,7 +49,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    /* Default chrome uses solid gray border token, not the primary-colored ring. */
+    @apply border-border outline-border;
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
   }

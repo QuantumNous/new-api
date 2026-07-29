@@ -178,7 +178,7 @@ export function UserCharts(props: UserChartsProps) {
       </div>
 
       <div className='grid gap-3'>
-        <div className='bg-card ring-foreground/10 overflow-hidden rounded-xl ring-1'>
+        <div className='bg-card ring-border overflow-hidden rounded-xl ring-1'>
           <div className='flex w-full items-center gap-2 border-b px-3 py-2.5 sm:px-5 sm:py-3'>
             <IconBadge tone='info' size='sm'>
               <Users />
@@ -201,7 +201,7 @@ export function UserCharts(props: UserChartsProps) {
           </div>
         </div>
 
-        <div className='bg-card ring-foreground/10 overflow-hidden rounded-xl ring-1'>
+        <div className='bg-card ring-border overflow-hidden rounded-xl ring-1'>
           <div className='flex w-full items-center gap-2 border-b px-3 py-2.5 sm:px-5 sm:py-3'>
             <IconBadge tone='info' size='sm'>
               <Users />

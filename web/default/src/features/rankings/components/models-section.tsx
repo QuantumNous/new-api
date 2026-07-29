@@ -208,7 +208,7 @@ export function ModelsSection(props: ModelsSectionProps) {
       </header>
 
       <div className='px-5 pb-5'>
-        <div className='ring-foreground/10 overflow-hidden rounded-xl p-3 ring-1'>
+        <div className='ring-border overflow-hidden rounded-xl p-3 ring-1'>
           {hasChartData ? (
             <ChartContainer
               config={chart.config}

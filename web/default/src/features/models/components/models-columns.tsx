@@ -94,7 +94,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'id',
       header: t('ID'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         const id = row.getValue('id') as number
         return <TableId value={id} />
@@ -206,7 +206,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'status',
       header: t('Status'),
-      meta: { mobileBadge: true },
+      meta: { priority: 'detail', mobileBadge: true },
       cell: ({ row }) => {
         const status = row.getValue('status') as number
         const config =
@@ -265,7 +265,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'description',
       header: t('Description'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         const description = row.getValue('description') as string
         const modelName = row.getValue('model_name') as string
@@ -282,7 +282,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'tags',
       header: t('Tags'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         const tags = row.getValue('tags') as string
         const tagArray = parseModelTags(tags)
@@ -302,7 +302,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'endpoints',
       header: t('Endpoints'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         const endpoints = row.getValue('endpoints') as string
         const endpointArray = formatEndpointsDisplay(endpoints)
@@ -323,7 +323,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'bound_channels',
       header: t('Bound Channels'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'secondary', mobileHidden: true },
       cell: ({ row }) => {
         const channels = row.getValue('bound_channels') as Array<{
           id: number
@@ -352,7 +352,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'enable_groups',
       header: t('Enable Groups'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         const groups = row.getValue('enable_groups') as string[]
         return (
@@ -372,7 +372,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'quota_types',
       header: t('Quota Types'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'secondary', mobileHidden: true },
       cell: ({ row }) => {
         const quotaTypes = row.getValue('quota_types') as number[]
         return (
@@ -406,7 +406,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'sync_official',
       header: t('Official Sync'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         const syncOfficial = row.getValue('sync_official') as number
         return (
@@ -435,7 +435,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'created_time',
       header: t('Created'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         const timestamp = row.getValue('created_time') as number
         return (
@@ -451,7 +451,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     {
       accessorKey: 'updated_time',
       header: t('Updated'),
-      meta: { mobileHidden: true },
+      meta: { priority: 'detail', mobileHidden: true },
       cell: ({ row }) => {
         const timestamp = row.getValue('updated_time') as number
         return (

@@ -72,6 +72,16 @@ function useGroupRatios(): Record<string, number> {
   return data ?? {}
 }
 
+/**
+ * API Keys list columns.
+ *
+ * Primary (always on): select · name+status · key · remaining · actions
+ * Secondary/detail (hidden by default, enable via Columns or Details menu):
+ * used, group, models, IP, created, last used, expires.
+ *
+ * This keeps the default table within a typical desktop/laptop width so
+ * users do not need horizontal scrolling for day-to-day key management.
+ */
 export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
   const { t, i18n } = useTranslation()
   const groupRatios = useGroupRatios()
@@ -101,17 +111,32 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       enableSorting: false,
       enableHiding: false,
       size: 40,
+      meta: { priority: 'primary' },
     },
     {
       accessorKey: 'name',
       header: t('Name'),
-      cell: ({ row }) => (
-        <span className='font-medium'>{row.getValue('name')}</span>
-      ),
-      size: 180,
-      meta: { mobileTitle: true },
+      cell: ({ row }) => {
+        const statusConfig = API_KEY_STATUSES[row.original.status]
+        return (
+          <div className='flex min-w-0 flex-col gap-0.5'>
+            <span className='truncate font-medium'>{row.getValue('name')}</span>
+            {statusConfig && (
+              <StatusBadge
+                label={t(statusConfig.label)}
+                variant={statusConfig.variant}
+                copyable={false}
+                className='-ml-1 w-fit'
+              />
+            )}
+          </div>
+        )
+      },
+      size: 200,
+      meta: { priority: 'primary', mobileTitle: true },
     },
     {
+      // Kept for filtering / view-options; merged into Name for default display.
       accessorKey: 'status',
       header: t('Status'),
       cell: ({ row }) => {
@@ -128,24 +153,25 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       },
       filterFn: (row, id, value) => value.includes(String(row.getValue(id))),
       size: 100,
-      meta: { mobileBadge: true },
+      meta: {
+        priority: 'secondary',
+        mobileBadge: true,
+        mobileHidden: true,
+      },
     },
     {
-      id: 'used_quota',
-      accessorKey: 'used_quota',
-      header: t('Used quota'),
-      cell: ({ row }) => (
-        <span className='font-mono text-xs tabular-nums'>
-          {formatQuota(row.original.used_quota)}
-        </span>
-      ),
-      size: 110,
-      meta: { mobileHidden: true },
+      id: 'key',
+      accessorKey: 'key',
+      header: t('Key'),
+      cell: ({ row }) => <ApiKeyCell apiKey={row.original} />,
+      enableSorting: false,
+      size: 200,
+      meta: { priority: 'primary' },
     },
     {
       id: 'remain_quota',
       accessorKey: 'remain_quota',
-      header: t('Remaining quota'),
+      header: t('Quota'),
       cell: ({ row }) => {
         const apiKey = row.original
         if (apiKey.unlimited_quota) {
@@ -166,13 +192,19 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
 
         return (
           <Tooltip>
-            <TooltipTrigger render={<div className='w-[130px] space-y-1' />}>
+            <TooltipTrigger
+              render={<div className='w-full max-w-[140px] space-y-1' />}
+            >
               <div className='font-mono text-xs font-medium tabular-nums'>
                 {formatQuota(remaining)}
+                <span className='text-muted-foreground font-normal'>
+                  {' / '}
+                  {formatQuota(total)}
+                </span>
               </div>
               <Progress
                 value={percentage}
-                className={cn('h-1.5', getQuotaProgressColor(percentage))}
+                className={cn('h-1', getQuotaProgressColor(percentage))}
               />
             </TooltipTrigger>
             <TooltipContent>
@@ -189,15 +221,20 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
           </Tooltip>
         )
       },
-      size: 140,
+      size: 150,
+      meta: { priority: 'primary' },
     },
     {
-      id: 'key',
-      accessorKey: 'key',
-      header: t('Key'),
-      cell: ({ row }) => <ApiKeyCell apiKey={row.original} />,
-      enableSorting: false,
-      size: 160,
+      id: 'used_quota',
+      accessorKey: 'used_quota',
+      header: t('Used quota'),
+      cell: ({ row }) => (
+        <span className='font-mono text-xs tabular-nums'>
+          {formatQuota(row.original.used_quota)}
+        </span>
+      ),
+      size: 110,
+      meta: { priority: 'detail', mobileHidden: true },
     },
     {
       accessorKey: 'group',
@@ -242,8 +279,8 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
           </TruncatedCell>
         )
       },
-      size: 160,
-      meta: { mobileHidden: true },
+      size: 140,
+      meta: { priority: 'secondary', mobileHidden: true },
     },
     {
       id: 'model_limits',
@@ -251,8 +288,8 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       header: t('Models'),
       cell: ({ row }) => <ModelLimitsCell apiKey={row.original} />,
       enableSorting: false,
-      size: 160,
-      meta: { mobileHidden: true },
+      size: 140,
+      meta: { priority: 'detail', mobileHidden: true },
     },
     {
       id: 'allow_ips',
@@ -260,8 +297,8 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       header: t('IP Restriction'),
       cell: ({ row }) => <IpRestrictionsCell apiKey={row.original} />,
       enableSorting: false,
-      size: 160,
-      meta: { mobileHidden: true },
+      size: 140,
+      meta: { priority: 'detail', mobileHidden: true },
     },
     {
       accessorKey: 'created_time',
@@ -275,8 +312,8 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
           className='text-muted-foreground'
         />
       ),
-      size: 180,
-      meta: { mobileHidden: true },
+      size: 140,
+      meta: { priority: 'detail', mobileHidden: true },
     },
     {
       accessorKey: 'accessed_time',
@@ -296,8 +333,8 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
           />
         )
       },
-      size: 180,
-      meta: { mobileHidden: true },
+      size: 140,
+      meta: { priority: 'secondary', mobileHidden: true },
     },
     {
       accessorKey: 'expired_time',
@@ -327,14 +364,16 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
           />
         )
       },
-      size: 180,
-      meta: { mobileHidden: true },
+      size: 140,
+      meta: { priority: 'secondary', mobileHidden: true },
     },
     {
       id: 'actions',
       header: () => t('Actions'),
       cell: ({ row }) => <DataTableRowActions row={row} />,
-      meta: { pinned: 'right' as const },
+      enableHiding: false,
+      size: 100,
+      meta: { priority: 'primary', pinned: 'right' as const },
     },
   ]
 }

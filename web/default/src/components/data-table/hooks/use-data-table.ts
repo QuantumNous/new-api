@@ -39,6 +39,8 @@ import {
 } from '@tanstack/react-table'
 import * as React from 'react'
 
+import { getPriorityColumnVisibility } from '../core/column-priority'
+
 type DataTableFeatureOptions<TData> = Pick<
   TableOptions<TData>,
   | 'enableRowSelection'
@@ -306,13 +308,19 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     typeof options.columnSizingStorageKey === 'string'
       ? options.columnSizingStorageKey
       : undefined
-  const resolvedInitialColumnVisibility = React.useMemo(
-    () => ({
+  const resolvedInitialColumnVisibility = React.useMemo(() => {
+    // Priority meta (secondary/detail → hidden) is the baseline so list pages
+    // show only essential columns by default and avoid horizontal scrolling.
+    // Call-site `initialColumnVisibility` can override that baseline, and a
+    // stored user preference (view options) always wins last.
+    const fromPriority = getPriorityColumnVisibility(columns)
+    const stored = readColumnVisibility(columnVisibilityStorageKey)
+    return {
+      ...fromPriority,
       ...initialColumnVisibility,
-      ...readColumnVisibility(columnVisibilityStorageKey),
-    }),
-    [columnVisibilityStorageKey, initialColumnVisibility]
-  )
+      ...stored,
+    }
+  }, [columnVisibilityStorageKey, columns, initialColumnVisibility])
   const columnSizingBounds = React.useMemo(
     () => buildColumnSizingBounds(columns),
     [columns]

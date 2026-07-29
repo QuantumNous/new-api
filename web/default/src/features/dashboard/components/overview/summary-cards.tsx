@@ -120,7 +120,7 @@ function KpiTile(props: {
 }) {
   const Icon = props.icon
   return (
-    <div className='bg-card ring-foreground/10 flex flex-col gap-3 rounded-xl p-4 ring-1'>
+    <div className='bg-card ring-border flex flex-col gap-3 rounded-xl p-4 ring-1'>
       <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
         <IconBadge tone={props.tone} size='stat'>
           <Icon />
@@ -211,7 +211,7 @@ export function SummaryCards() {
   return (
     <StaggerContainer className='grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.9fr)] lg:gap-4'>
       <StaggerItem className='min-w-0'>
-        <div className='bg-card ring-foreground/10 flex h-full flex-col overflow-hidden rounded-xl ring-1'>
+        <div className='bg-card ring-border flex h-full flex-col overflow-hidden rounded-xl ring-1'>
           <div className='flex items-center justify-between gap-3 border-b px-4 py-3'>
             <div className='flex items-center gap-2'>
               <IconBadge tone='chart-1' size='sm'>
@@ -285,7 +285,7 @@ export function SummaryCards() {
       </StaggerItem>
 
       <StaggerItem className='flex min-w-0 flex-col gap-3'>
-        <div className='bg-card ring-foreground/10 flex flex-1 flex-col justify-between gap-4 rounded-xl p-4 ring-1 sm:p-5'>
+        <div className='bg-card ring-border flex flex-1 flex-col justify-between gap-4 rounded-xl p-4 ring-1 sm:p-5'>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between gap-2'>
               <span className='text-muted-foreground text-xs font-medium'>
