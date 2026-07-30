@@ -47,6 +47,43 @@ func (f *recallCampaignFakeEmailTranslator) callCount() int {
 	return len(f.calls)
 }
 
+type recallCampaignAwareFakeEmailTranslator struct {
+	mu            sync.Mutex
+	genericCalls  [][]RecallEmailStage
+	campaignCalls [][]RecallEmailStage
+	campaignTypes []string
+}
+
+func (f *recallCampaignAwareFakeEmailTranslator) Translate(_ context.Context, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+	f.mu.Lock()
+	f.genericCalls = append(f.genericCalls, cloneRecallCampaignTestStages(stages))
+	f.mu.Unlock()
+	return nil, errors.New("generic translation path must not be used")
+}
+
+func (f *recallCampaignAwareFakeEmailTranslator) TranslateForCampaign(_ context.Context, campaignType string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+	f.mu.Lock()
+	f.campaignTypes = append(f.campaignTypes, campaignType)
+	f.campaignCalls = append(f.campaignCalls, cloneRecallCampaignTestStages(stages))
+	f.mu.Unlock()
+	if campaignType != model.RecallCampaignTypeContentOnly {
+		return nil, fmt.Errorf("unexpected campaign type %q", campaignType)
+	}
+	return recallCampaignHTMLTranslationsForCampaign(campaignType, stages, "content"), nil
+}
+
+func (f *recallCampaignAwareFakeEmailTranslator) genericCallCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.genericCalls)
+}
+
+func (f *recallCampaignAwareFakeEmailTranslator) campaignCallSnapshot() ([]string, [][]RecallEmailStage) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string{}, f.campaignTypes...), append([][]RecallEmailStage{}, f.campaignCalls...)
+}
+
 func cloneRecallCampaignTestStages(stages []RecallEmailStage) []RecallEmailStage {
 	cloned := make([]RecallEmailStage, len(stages))
 	for i := range stages {
@@ -76,10 +113,14 @@ func recallCampaignTestTranslations(stages []RecallEmailStage) map[int]map[strin
 }
 
 func recallCampaignHTMLTranslations(stages []RecallEmailStage, version string) map[int]map[string]RecallEmailTemplate {
+	return recallCampaignHTMLTranslationsForCampaign(model.RecallCampaignTypePromotion, stages, version)
+}
+
+func recallCampaignHTMLTranslationsForCampaign(campaignType string, stages []RecallEmailStage, version string) map[int]map[string]RecallEmailTemplate {
 	translations := make(map[int]map[string]RecallEmailTemplate, len(stages))
 	for _, stage := range stages {
 		english := stage.Templates["en"]
-		document, err := parseRecallEmailHTML(english.BodyHTML)
+		document, err := parseRecallEmailHTMLForCampaign(campaignType, english.BodyHTML)
 		if err != nil {
 			panic(err)
 		}
@@ -102,6 +143,16 @@ func recallCampaignHTMLTranslations(stages []RecallEmailStage, version string) m
 		translations[stage.StageNo] = localized
 	}
 	return translations
+}
+
+func validRecallContentOnlyHTML() string {
+	source := strings.ReplaceAll(validRecallHTML,
+		`<a class="cta" href="{{.ClaimURL}}">Claim offer</a>`,
+		`<a class="cta" href="https://flatkey.ai/console">Open Flatkey</a>`)
+	source = strings.ReplaceAll(source, "{{.PromotionCodeMasked}}", "News")
+	source = strings.ReplaceAll(source, "{{.ProductSummary}}", "your account")
+	source = strings.ReplaceAll(source, "{{.ExpiresAt}}", "today")
+	return source
 }
 
 func requireRecallCampaignCanonicalLanguages(t *testing.T, stages []RecallEmailStage) {
@@ -1052,6 +1103,44 @@ func TestGenerateRecallEmailTranslationsUpdatesEveryStageAtomically(t *testing.T
 	}
 	require.Equal(t, 1, response.Emails[0].TemplateVersion, "unchanged generated content must not bump the version")
 	require.Equal(t, 2, response.Emails[1].TemplateVersion, "new target content must bump the version once")
+}
+
+func TestGenerateRecallEmailTranslationsUsesStoredContentOnlyCampaignType(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignAwareFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.CampaignType = model.RecallCampaignTypeContentOnly
+	draft.CouponSource = ""
+	draft.Discount = RecallDiscountConfig{}
+	draft.Products = RecallProductScope{}
+	draft.DeferLocalization = true
+	draft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "Activity update", BodyHTML: validRecallContentOnlyHTML()}
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	storedDraft, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+
+	response, err := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+
+	require.NoError(t, err)
+	require.Zero(t, translator.genericCallCount())
+	campaignTypes, campaignCalls := translator.campaignCallSnapshot()
+	require.Equal(t, []string{model.RecallCampaignTypeContentOnly}, campaignTypes)
+	require.Len(t, campaignCalls, 1)
+	require.Len(t, campaignCalls[0], 1)
+	require.NotContains(t, campaignCalls[0][0].Templates["en"].BodyHTML, "ClaimURL")
+	require.EqualValues(t, campaign.ConfigRevision+1, response.ConfigRevision)
+	requireRecallCampaignCanonicalLanguages(t, response.Emails)
+	require.Contains(t, response.Emails[0].Templates["zh"].BodyHTML, "zh:content:Open Flatkey")
+	require.NotContains(t, response.Emails[0].Templates["zh"].BodyHTML, "ClaimURL")
 }
 
 func TestGenerateRecallEmailTranslationsHonorsGlobalFeatureGate(t *testing.T) {
