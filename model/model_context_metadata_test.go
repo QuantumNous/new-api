@@ -80,10 +80,14 @@ func TestModelTokenLimits(t *testing.T) {
 
 	t.Run("ignores disabled exact entries", func(t *testing.T) {
 		setupModelMetadataTestDB(t)
-		require.NoError(t, DB.Create(&[]Model{
-			{ModelName: "disabled-exact", NameRule: NameRuleExact, Status: 0, ContextWindow: 262144},
-			{ModelName: "disabled-", NameRule: NameRulePrefix, Status: 1, ContextWindow: 65536},
+		disabledExact := &Model{ModelName: "disabled-exact", NameRule: NameRuleExact, Status: 0, ContextWindow: 262144}
+		require.NoError(t, disabledExact.Insert())
+		require.NoError(t, DB.Create(&Model{
+			ModelName: "disabled-", NameRule: NameRulePrefix, Status: 1, ContextWindow: 65536,
 		}).Error)
+		var storedDisabledExact Model
+		require.NoError(t, DB.Where("model_name = ?", "disabled-exact").First(&storedDisabledExact).Error)
+		require.Zero(t, storedDisabledExact.Status)
 
 		limits, err := GetModelTokenLimits([]string{"disabled-exact"})
 		require.NoError(t, err)
