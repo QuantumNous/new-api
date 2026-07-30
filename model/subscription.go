@@ -391,6 +391,25 @@ func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	return &plan, nil
 }
 
+// GetSubscriptionPlanByAirwallexPriceId maps a live Airwallex price back to its
+// local plan row. Returns (nil, nil) when nothing matches — an unmapped price is
+// a normal condition (e.g. a price created before its plan row was seeded), so
+// callers fall back rather than fail.
+func GetSubscriptionPlanByAirwallexPriceId(priceId string) (*SubscriptionPlan, error) {
+	priceId = strings.TrimSpace(priceId)
+	if priceId == "" {
+		return nil, nil
+	}
+	var plans []SubscriptionPlan
+	if err := DB.Where("airwallex_price_id = ?", priceId).Order("id asc").Limit(1).Find(&plans).Error; err != nil {
+		return nil, err
+	}
+	if len(plans) == 0 {
+		return nil, nil
+	}
+	return &plans[0], nil
+}
+
 func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 	if userId <= 0 || planId <= 0 {
 		return 0, errors.New("invalid userId or planId")
