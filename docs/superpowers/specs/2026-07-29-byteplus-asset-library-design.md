@@ -1,68 +1,204 @@
-# BytePlus 虚拟人像素材库设计
+# BytePlus 素材库功能架构设计
 
-日期：2026-07-29
-状态：已完成会话设计确认，等待书面规格审阅
+> 状态：已实现并完成正式环境端到端验证<br>
+> 初始设计日期：2026-07-29<br>
+> 最近更新：2026-07-30<br>
+> 适用范围：Flatkey / New API 的 BytePlus 素材创建、查询与 `asset://` 引用链路<br>
+> API 说明：[BytePlus 素材库 API 文档](../../api/byteplus-asset-api.md)
 
-## 1. 背景与目标
+## 1. 文档目的
 
-Flatkey 已通过现有 `ChannelTypeBytePlus` 及其 Seedance 任务适配器成功调用 BytePlus Seedance 2.0。下一步是在不新增渠道 Type 的前提下接入 BytePlus 虚拟人像素材库，并让 Flatkey API Token 用户可以创建、查询和安全引用自己的素材。
+本文是 BytePlus 素材库功能的架构与实现边界说明。它描述素材如何创建、持久化、查询、鉴权，并在 `seedance-2.0` 视频请求中被安全引用。
 
-本设计的目标是：
+本文不扩展为通用 Seedance 视频架构，也不重复完整的调用参数、响应字段和 SDK 示例；调用方应同时阅读独立的 API 文档。
 
-- 复用现有 BytePlus 视频渠道及其生命周期；
-- 由 Flatkey 内部管理 BytePlus 资产组，不向客户暴露上游 `GroupId`；
-- 向客户返回 Flatkey 自有资产 ID，不暴露上游 `AssetId`；
-- 使用数据库持久化资产归属，保证生产多节点下的一致权限判断；
-- 在 Seedance 2.0 视频提交前完成资产归属校验、状态校验和渠道固定；
-- 保持旧纯字符串渠道 Key 和现有非素材视频请求兼容。
+## 2. 背景、目标与范围
 
-## 2. 范围
+### 2.1 背景
 
-### 2.1 本期包含
+Flatkey 已通过现有 BytePlus 渠道提供 Seedance 视频任务能力。BytePlus 素材库需要使用同一上游账号和项目创建素材，并确保后续视频任务仍路由到创建素材的上游渠道。若素材创建和视频生成落到不同 BytePlus 账号，即使模型相同，上游也无法识别该素材。
 
-1. 内部创建或复用 BytePlus 资产组；
-2. 对外提供创建资产接口；
-3. 对外提供查询资产状态接口；
-4. 支持 `Image`、`Video`、`Audio` 三种资产类型；
-5. 创建资产时默认使用 `Moderation.Strategy=Default`，调用方可显式使用 `Skip`；
-6. Seedance 2.0 视频请求支持 `asset://<flatkey_asset_id>`；
-7. 视频提交前校验用户归属、资产状态及渠道兼容性，并将 Flatkey 资产 ID 改写为 BytePlus 上游资产 ID；
-8. 使用渠道 131 完成真实的创建、轮询和生视频冒烟验证，但代码不得硬编码生产渠道 ID。
+因此，素材库不能只做一个上游 API 代理。它必须同时解决：
 
-### 2.2 本期不包含
+- Flatkey 用户与上游素材之间的所有权映射；
+- 上游 `GroupId`、`AssetId` 和凭据的隐藏；
+- 多节点部署下素材组唯一创建与失败恢复；
+- 视频分发前的素材归属、类型、状态和渠道校验；
+- 素材渠道固定以及适配器内的 URI 改写；
+- 旧 BytePlus 纯字符串 API Key 和普通视频请求兼容。
 
-- 不新增视频渠道 Type；
-- 不向客户开放资产组 CRUD 或 BytePlus `GroupId`；
-- 不允许共享 Flatkey BytePlus 账号的客户直接进入 BytePlus 控制台管理资产；
-- 不支持客户自带 BytePlus AK/SK（BYOK）；
-- 不实现资产删除、资产组删除或资产列表接口；
-- 不改变 Seedance 2.0 视频 Content Pre-filter 的现有行为；资产创建的 `Moderation.Strategy` 与视频 Content Pre-filter 是两个独立机制；
-- 不为 `seedance-2.0-fast` 或 `seedance-2.0-mini` 承诺跨渠道复用资产；本期验收模型为 `seedance-2.0`。
+### 2.2 目标
 
-## 3. 方案选择
+1. 复用现有 `ChannelTypeBytePlus` 的配置、启停、分组和模型能力。
+2. 为调用方提供稳定的 Flatkey 素材 ID，不暴露上游素材标识。
+3. 每个素材始终归属于创建它的 Flatkey 用户和 BytePlus 渠道。
+4. 视频提交前完成素材授权，并强制路由到素材所属渠道。
+5. 使用数据库租约和条件更新支持生产多节点部署。
+6. 对凭据、源 URL、上游 ID 和错误正文实施最小暴露。
+7. 不改变不含素材引用的现有 Seedance 视频链路。
 
-### 3.1 采用方案：复用现有 BytePlus 渠道 Type
+### 2.3 本期包含
 
-视频 API Key、BytePlus AK/SK 和 ProjectName 作为结构化凭据保存在现有 `ChannelTypeBytePlus` 的 `Channel.Key` 中。资产组绑定具体渠道，资产继承资产组渠道，使用资产的视频请求固定到该渠道。现有 BytePlus 适配器继续复用 Doubao/Ark 的协议映射，但资产能力不开放给其他渠道 Type。
+- 内部创建或复用用户在某个 BytePlus 渠道下的素材组；
+- `POST /v1/assets` 创建 `Image`、`Video`、`Audio` 素材；
+- `GET /v1/assets/:asset_id` 查询并同步素材状态；
+- `Moderation.Strategy` 的 `Default` 和 `Skip`；
+- 严格格式的 `asset://ast_<32-character-id>`；
+- `seedance-2.0` 视频请求中的图片、视频和音频素材引用；
+- 用户所有权、媒体类型、素材状态和单渠道一致性校验；
+- BytePlus 渠道固定、上游素材 URI 改写和视频结果代理；
+- 结构化渠道凭据和旧纯字符串 API Key 的兼容读取；
+- 数据库迁移、多节点租约、终态保护和安全错误模型。
 
-选择该方案的原因：
+### 2.4 非目标
 
-- 凭据、启停状态、模型能力和渠道生命周期保持在同一配置对象中；
-- 支持未来配置多个 BytePlus 账号或项目；
-- 不需要复制一套资产专用渠道协议和后台配置；
-- `Channel.Key` 已有现成的后台隐藏处理，而 `Channel.OtherSettings` 会作为 `settings` 返回前端，不适合保存 AK/SK。
+- 不新增素材专用渠道类型；
+- 不向调用方开放素材组 CRUD、列表或删除接口；
+- 不暴露或允许调用方提交上游 `GroupId`、`AssetId`、`ProjectName` 或渠道 ID；
+- 不支持调用方自带 BytePlus AK/SK；
+- 不允许共享上游账号的用户直接在 BytePlus 控制台创建素材后绕过 Flatkey 所有权登记；
+- 不改变视频 Content Pre-filter；素材创建的 Moderation 与视频 Content Pre-filter 是两套机制；
+- 不承诺在不同 BytePlus 账号、项目或渠道之间迁移或复用素材；
+- 不把本设计扩展为 `seedance-2.0-fast`、`seedance-2.0-mini` 或其他模型的通用素材协议。
 
-### 3.2 未采用方案
+## 3. 架构原则与关键决策
 
-1. **全局系统配置**：实现较简单，但凭据脱离渠道生命周期，不利于多账号、多项目和故障隔离。
-2. **新增资产专用渠道 Type**：边界独立，但与现有 BytePlus 渠道重复配置及协议，当前三个资产操作不足以抵消维护成本。
-3. **客户直接使用 BytePlus 控制台，Flatkey 仅拦截权限**：共享 BytePlus 账号无法可靠证明某个上游资产属于哪个 Flatkey 用户，且客户可以绕过 Flatkey 的创建记录和状态同步。本期不采用；未来若支持 BYOK，可重新评估。
+### 3.1 复用现有 BytePlus 渠道
 
-## 4. 外部 API
+素材凭据和视频 API Key 都保存在现有 BytePlus 渠道的 `Channel.Key` 中。素材组绑定具体渠道，素材继承素材组渠道，引用素材的视频请求再固定到该渠道。
 
-所有接口位于 `/v1`，使用 `middleware.TokenAuth()`。资产接口不挂载普通视频请求使用的 `middleware.Distribute()`，而是在资产服务内选择并固定有素材库能力的渠道。
+选择该方案的理由：
 
-### 4.1 创建资产
+- 凭据、模型能力、用户分组、渠道启停和并发额度保持同一生命周期；
+- 同一部署可配置多个 BytePlus 账号或项目并进行故障隔离；
+- 不复制一套素材专用的渠道管理和运维协议；
+- `Channel.Key` 已有后台隐藏边界，而 `OtherSettings` 会作为设置数据返回前端，不适合保存 AK/SK。
+
+### 3.2 Flatkey ID 是唯一外部标识
+
+调用方只接触 `ast_` 前缀的随机 ID。数据库保存 `public_id -> upstream_asset_id` 映射，上游 ID 只在服务层、BytePlus Client 和请求上下文的改写表中流动。
+
+素材 URI 的完整正则为：
+
+```text
+^asset://(ast_[A-Za-z0-9]{32})$
+```
+
+不允许空格、查询参数、片段、路径后缀或短 ID。普通 HTTPS URL 不受影响；媒体 URL 字段中任何以 `asset:` 开头但不满足严格格式的值都会被拒绝。
+
+### 3.3 授权先于路由
+
+`middleware.Distribute()` 在随机选择渠道之前读取可复用请求体并解析素材引用。只有完成所有权、类型、状态和跨渠道检查后，才把素材所属渠道设置为本次请求的强制渠道。
+
+这是一条安全不变量：**带素材引用的视频请求不得先随机选渠道，也不得在失败后静默切换渠道。**
+
+### 3.4 数据库是多节点协调源
+
+素材组创建权由唯一索引、数据库租约和带旧租约值的条件更新决定。进程锁和内存状态不能作为正确性基础。
+
+### 3.5 兼容优先、能力渐进启用
+
+旧渠道的纯字符串 `Channel.Key` 继续作为视频 API Key 使用。不完整的结构化凭据或旧字符串凭据不能创建素材，但仍可处理不含 Flatkey 素材引用的普通视频请求。
+
+## 4. 组件架构
+
+```mermaid
+flowchart LR
+    Client["API 调用方"] --> Router["asset-router.go\n鉴权与限流"]
+    Router --> Controller["byteplus_asset.go\n参数与 Token 权限"]
+    Controller --> Service["byteplus_asset.go\n编排与业务规则"]
+    Service --> Model["model/byteplus_asset.go\n归属、租约、状态"]
+    Service --> Client["byteplus_asset_client.go\n签名与上游协议"]
+    Client --> Upstream["BytePlus Assets API"]
+
+    Video["Seedance 视频提交"] --> Distributor["middleware.Distribute\n解析引用并固定渠道"]
+    Distributor --> Resolver["byteplus_asset_reference.go\n批量授权与改写表"]
+    Resolver --> Model
+    Distributor --> Adaptor["BytePlus TaskAdaptor\n改写 URI 与提交"]
+    Adaptor --> Ark["BytePlus Seedance API"]
+    Ark --> Proxy["BytePlus 视频结果代理"]
+```
+
+### 4.1 Router
+
+实现文件：`router/asset-router.go`
+
+职责：
+
+- 注册 `POST /v1/assets` 和 `GET /v1/assets/:asset_id`；
+- 应用 `RouteTag("asset")`、全局 API 限流、Token 鉴权和模型请求限流；
+- 不挂载普通视频的 `Distribute()`，因为素材创建需要在 Service 内选择具备素材凭据的 BytePlus 渠道。
+
+### 4.2 Controller
+
+实现文件：`controller/byteplus_asset.go`
+
+职责：
+
+- 解析 JSON 和路径参数；
+- 读取 Token 的用户、用户组、使用组和固定渠道约束；
+- 要求 Token 有权使用 `seedance-2.0`；
+- 将内部错误转换为稳定的 OpenAI 兼容错误结构和国际化文案；
+- 确保响应不附带内部错误元数据。
+
+### 4.3 Service
+
+主要文件：
+
+- `service/byteplus_asset.go`
+- `service/byteplus_asset_reference.go`
+- `service/byteplus_credentials.go`
+
+职责：
+
+- 校验素材请求和源 URL；
+- 选择支持素材能力的 BytePlus 渠道；
+- 创建或复用素材组；
+- 生成不可预测的 Flatkey 素材 ID；
+- 编排上游创建、状态查询和本地持久化；
+- 从视频 `content[]` 中提取素材 URI；
+- 批量执行用户所有权、媒体类型、状态和渠道一致性校验；
+- 生成仅在请求上下文中存在的 URI 改写表。
+
+### 4.4 Model
+
+实现文件：`model/byteplus_asset.go`
+
+职责：
+
+- 保存素材组、素材、渠道归属和上游映射；
+- 使用唯一索引和条件更新分配素材组创建租约；
+- 使用 `lease_updated_time` 防止旧节点覆盖新租约结果；
+- 使用终态保护避免 `Active` 或 `Failed` 被迟到轮询回写。
+
+### 4.5 BytePlus Client
+
+实现文件：`service/byteplus_asset_client.go`
+
+职责：
+
+- 封装 `CreateAssetGroup`、`CreateAsset`、`GetAsset`；
+- 构造固定版本、区域和服务名的 BytePlus 请求；
+- 使用共享的火山引擎签名器；
+- 限制请求时长和响应体大小；
+- 验证响应 ID、状态和错误 envelope；
+- 只向上层返回脱敏错误和必要的 Request ID。
+
+### 4.6 BytePlus TaskAdaptor 与视频代理
+
+主要文件：
+
+- `relay/channel/task/byteplus/adaptor.go`
+- `relay/channel/task/byteplus/constants.go`
+- `controller/video_proxy_byteplus.go`
+
+BytePlus 使用独立 `TaskAdaptor`。它可以嵌入并复用 Doubao 的协议兼容实现，但 BytePlus 的鉴权头、Moderation Header、素材 URI 改写、任务响应脱敏和视频结果提取保持独立边界。
+
+## 5. 对外接口边界
+
+详细参数、响应、调用示例和轮询建议见 [BytePlus 素材库 API 文档](../../api/byteplus-asset-api.md)。本节只描述架构约束。
+
+### 5.1 创建素材
 
 ```http
 POST /v1/assets
@@ -72,7 +208,7 @@ Content-Type: application/json
 
 ```json
 {
-  "url": "https://example.com/portrait.mp4",
+  "url": "https://example.com/reference.mp4",
   "asset_type": "Video",
   "moderation": {
     "strategy": "Default"
@@ -80,316 +216,534 @@ Content-Type: application/json
 }
 ```
 
-请求规则：
+约束：
 
-- `url` 必填，必须是 BytePlus 可访问的绝对 HTTPS 公网地址；Flatkey 不主动下载该 URL；
-- `asset_type` 必须是 `Image`、`Video` 或 `Audio`；
-- `moderation` 可省略；省略时发送 `Default`；
-- `moderation.strategy` 只允许 `Default` 或 `Skip`；
-- 客户不能提交 `GroupId`、ProjectName、渠道 ID 或上游 AssetId。
+- `url` 必须是无用户信息的绝对 HTTPS 公网地址；
+- URL 还必须通过系统统一的域名、IP 和端口过滤规则；
+- Flatkey 不下载素材内容，只把 URL 传给 BytePlus；
+- `asset_type` 只允许 `Image`、`Video`、`Audio`；
+- Moderation 缺省为 `Default`，只允许 `Default` 或 `Skip`；
+- 调用方不能指定素材组、上游素材 ID、项目或渠道；
+- 成功响应只返回 Flatkey 素材对象。
 
-成功响应只返回 Flatkey 资产标识：
-
-```json
-{
-  "id": "ast_xxxxxxxxxxxxxxxxxxxxxxxx",
-  "object": "asset",
-  "asset_type": "Video",
-  "status": "Processing",
-  "moderation": {
-    "strategy": "Default"
-  },
-  "created_at": 1785292000
-}
-```
-
-### 4.2 查询资产
+### 5.2 查询素材
 
 ```http
-GET /v1/assets/ast_xxxxxxxxxxxxxxxxxxxxxxxx
+GET /v1/assets/ast_<32-character-id>
 Authorization: Bearer <flatkey-api-key>
 ```
 
-处理流程：
+查询流程始终带当前 `user_id` 条件。不存在和不属于当前用户使用相同的 404 语义，避免枚举他人素材。
 
-1. 按当前 `user_id` 和 Flatkey 资产 ID 查询本地记录；
-2. 加载资产绑定渠道的凭据；
-3. 使用本地保存的上游 AssetId 调用 BytePlus `GetAsset`；
-4. 将 `Processing`、`Active` 或 `Failed` 及脱敏错误信息同步到本地；
-5. 返回 Flatkey 资产对象，不返回上游 AssetId、GroupId、渠道 ID、ProjectName 或供应商主机名。
+对本地 `Processing` 素材，服务调用绑定渠道的 `GetAsset` 并同步状态。`Active` 和 `Failed` 是受保护终态，不允许迟到响应反向覆盖。
 
-## 5. 数据模型
-
-### 5.1 BytePlusAssetGroup
-
-资产组是纯内部实体，不提供外部路由。
-
-建议字段：
-
-- `id`：本地主键；
-- `user_id`：Flatkey 用户 ID，建立索引；
-- `channel_id`：创建资产组所使用的渠道，建立索引；
-- `upstream_group_id`：BytePlus GroupId，不对外返回；
-- `status`：`Creating`、`Active` 或 `Failed`；
-- `error_message`：脱敏后的最近错误；
-- `created_time`、`updated_time`：Unix 时间；
-- `lease_updated_time`：内部创建租约更新时间，用于多节点崩溃恢复。
-
-约束：
-
-- 对 `(user_id, channel_id)` 建唯一索引；
-- 不依赖数据库外键级联，保持与仓库现有 GORM 和三数据库兼容策略一致；
-- 上游名称使用不包含邮箱、用户名等个人信息的内部标识。
-
-### 5.2 BytePlusAsset
-
-建议字段：
-
-- `id`：本地主键；
-- `public_id`：对外的不透明 `ast_...` 标识，建立唯一索引；
-- `user_id`：资产所有者，建立组合查询索引；
-- `asset_group_id`：本地资产组主键；
-- `channel_id`：冗余保存固定渠道，便于视频分发前快速校验；
-- `upstream_asset_id`：BytePlus AssetId，不对外返回；
-- `asset_type`：`Image`、`Video` 或 `Audio`；
-- `source_url`：调用方提交的源 URL；
-- `moderation_strategy`：最终发送的 `Default` 或 `Skip`；
-- `status`：本地创建阶段为 `Creating`，上游阶段为 `Processing`、`Active` 或 `Failed`；
-- `error_message`：脱敏后的最近错误；
-- `created_time`、`updated_time`：Unix 时间。
-
-`public_id` 必须使用密码学安全的随机值，不得使用可枚举的自增主键编码。
-
-两个模型都加入 `model/main.go` 的普通和快速 AutoMigrate 路径，并且只使用 GORM 可跨 SQLite、MySQL 5.7.8+、PostgreSQL 9.6+ 表达的字段与索引。
-
-## 6. 渠道凭据
-
-### 6.1 兼容格式
-
-旧渠道继续允许纯视频 API Key：
-
-```text
-ark-...
-```
-
-启用素材库的渠道使用 JSON：
+### 5.3 在视频中引用素材
 
 ```json
 {
-  "api_key": "ark-...",
-  "access_key_id": "...",
-  "secret_access_key": "...",
-  "project_name": "..."
+  "model": "seedance-2.0",
+  "content": [
+    {
+      "type": "image_url",
+      "image_url": {
+        "url": "asset://ast_<32-character-id>"
+      },
+      "role": "reference_image"
+    }
+  ]
+}
+```
+
+图片字段只能引用 `Image`，视频字段只能引用 `Video`，音频字段只能引用 `Audio`。校验依据是实际填充的媒体字段，而不是仅信任调用方传入的 `type` 文本。
+
+## 6. 凭据模型与安全边界
+
+### 6.1 兼容格式
+
+旧渠道继续支持纯字符串视频 API Key：
+
+```text
+<byteplus-video-api-key>
+```
+
+启用素材能力的渠道使用结构化 JSON：
+
+```json
+{
+  "api_key": "<byteplus-video-api-key>",
+  "access_key_id": "<byteplus-access-key-id>",
+  "secret_access_key": "<byteplus-secret-access-key>",
+  "project_name": "<byteplus-project-name>"
 }
 ```
 
 解析规则：
 
 - 非 JSON 字符串按旧 `api_key` 处理；
-- JSON 必须由统一解析器读取，业务代码使用仓库 `common.*` JSON 包装函数；
-- JSON 只要被识别为结构化凭据但格式错误或字段类型错误，就返回配置错误，不把整段 JSON 当作 Bearer Key；
-- 视频提交、视频轮询和后台任务轮询都只向 Authorization Header 写入解析后的 `api_key`；
-- 只有启用状态、类型为 `ChannelTypeBytePlus`、支持目标模型且 AK、SK、ProjectName 完整的渠道才具备资产能力；
-- 缺少资产字段的旧渠道仍可处理不含 Flatkey 资产引用的普通视频请求。
+- 以 `{` 开头的值必须按结构化凭据严格解析；
+- JSON 格式错误或字段类型错误时返回配置错误，不得把整段 JSON 当作 Bearer Token；
+- 视频提交和任务轮询只使用解析后的 `api_key`；
+- 素材 API 必须同时具备四个字段；
+- 凭据只保存在 `Channel.Key`，不写入 `OtherSettings`。
 
-### 6.2 安全边界
+### 6.2 信任边界
 
-- 不把 AK/SK 放进 `Channel.OtherSettings`；
-- API 响应、普通日志、上游错误和测试输出中不得出现任何完整凭据或签名头；
-- 延用现有 `Channel.Key` 存储和后台掩码机制。本期不改变数据库静态加密能力；
-- 凭据解析错误只返回字段级的通用配置说明，不回显 Key 内容。
+| 边界 | 可见数据 | 禁止暴露 |
+| --- | --- | --- |
+| 调用方 ↔ Flatkey | Flatkey Token、公开素材 ID、公开状态 | 上游 ID、渠道 ID、项目名、上游凭据 |
+| Controller ↔ Service | 用户、Token 约束、经过解析的请求 | 原始响应体和签名细节 |
+| Service ↔ Model | 用户/渠道归属、上游映射、脱敏错误 | 源 URL 持久化、任何凭据 |
+| Service ↔ BytePlus Client | 内存中的结构化凭据、上游 ID | 写日志、写 API 响应 |
+| Distributor ↔ TaskAdaptor | 固定渠道 ID、临时 URI 改写表 | 向调用方回显改写表 |
 
-## 7. BytePlus Client 与签名
+### 6.3 源 URL 与 SSRF 防护
 
-资产 Client 封装三个操作：
+虽然 Flatkey 不主动抓取素材 URL，仍在提交给上游前执行统一 URL 安全校验：
 
-- `CreateAssetGroup`
-- `CreateAsset`
-- `GetAsset`
+- 只允许 HTTPS；
+- 禁止 URL userinfo；
+- 禁止 localhost；
+- 使用系统 Fetch Setting 的域名、IP、端口过滤；
+- 不把完整源 URL持久化到数据库；`SourceURL` 明确标记为 `gorm:"-"`；
+- 日志不得记录含查询参数的完整源 URL。
 
-固定协议参数：
+## 7. 数据模型
 
-- Host：`ark.ap-southeast-1.byteplusapi.com`
-- Version：`2024-01-01`
-- Service：`ark`
-- Region：`ap-southeast-1`
-- Algorithm：`HMAC-SHA256`
+### 7.1 `BytePlusAssetGroup`
 
-实现应提取或泛化现有 Jimeng 火山签名逻辑，形成可传入 service、region、时间和请求内容的可测试签名器；不得复制一份难以校验的签名实现，也不新增依赖。所有 JSON 编解码使用 `common.*`。
+素材组是内部实体，不提供外部路由。
 
-上游请求：
+| 字段 | 用途 | 外部可见 |
+| --- | --- | --- |
+| `id` | 本地主键 | 否 |
+| `user_id` | Flatkey 所有者 | 否 |
+| `channel_id` | 绑定 BytePlus 渠道 | 否 |
+| `upstream_group_id` | BytePlus GroupId | 否 |
+| `upstream_request_id` | 运维关联 Request ID | 否 |
+| `status` | `Creating` / `Active` / `Failed` | 否 |
+| `error_message` | 脱敏错误 | 否 |
+| `lease_updated_time` | 创建租约版本和超时判断 | 否 |
+| `created_time` / `updated_time` | Unix 时间 | 否 |
 
-### 7.1 CreateAssetGroup
+`(user_id, channel_id)` 有唯一索引，因此同一用户可以在不同 BytePlus 渠道各有一个素材组，但不能在同一渠道重复创建本地组记录。
+
+### 7.2 `BytePlusAsset`
+
+| 字段 | 用途 | 外部可见 |
+| --- | --- | --- |
+| `id` | 本地主键 | 否 |
+| `public_id` | `ast_` + 32 位密码学随机字符 | 是 |
+| `user_id` | Flatkey 所有者 | 否 |
+| `asset_group_id` | 本地素材组 | 否 |
+| `channel_id` | 固定渠道冗余字段 | 否 |
+| `upstream_asset_id` | BytePlus AssetId | 否 |
+| `upstream_request_id` | 运维关联 Request ID | 否 |
+| `asset_type` | `Image` / `Video` / `Audio` | 是 |
+| `moderation_strategy` | `Default` / `Skip` | 是 |
+| `status` | 素材状态 | 是 |
+| `error_message` | 脱敏错误 | 否 |
+| `created_time` / `updated_time` | Unix 时间 | 创建时间可见 |
+
+`public_id` 有唯一索引，所有按公开 ID 的业务查询都同时带 `user_id`。`source_url` 仅作为内存字段存在，不落库。
+
+### 7.3 状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> Creating: 写入本地占位
+    Creating --> Processing: 上游创建成功且映射落库
+    Creating --> Failed: 上游创建或本地回写失败
+    Processing --> Processing: 上游仍在处理
+    Processing --> Active: 上游可用
+    Processing --> Failed: 上游处理失败
+    Active --> Active: 终态保护
+    Failed --> Failed: 终态保护
+```
+
+状态语义：
+
+- `Creating`：本地记录已建立，但上游 ID 尚未可靠持久化；
+- `Processing`：上游已接受创建，可查询进度但不能用于视频；
+- `Active`：可用于视频引用；
+- `Failed`：不可恢复的当前素材记录终态，调用方需要重新创建素材。
+
+## 8. 核心调用流程
+
+### 8.1 创建素材
+
+```mermaid
+sequenceDiagram
+    participant U as 调用方
+    participant R as Router/Controller
+    participant S as Asset Service
+    participant DB as Database
+    participant BP as BytePlus Assets API
+
+    U->>R: POST /v1/assets
+    R->>R: Token、模型权限、请求格式校验
+    R->>S: user/group/specific-channel + request
+    S->>S: HTTPS 与 Fetch Setting 校验
+    S->>DB: 选择素材能力渠道
+    S->>DB: ClaimAssetGroup(user, channel)
+    alt 已有 Active 素材组
+        DB-->>S: 返回现有组
+    else 当前节点取得租约
+        S->>BP: CreateAssetGroup（签名请求）
+        BP-->>S: GroupId + RequestId
+        S->>DB: 条件更新为 Active
+    else 其他节点持有有效租约
+        S->>DB: 有上限地重读
+        DB-->>S: Active 或初始化中
+    end
+    S->>DB: 写入 Creating 素材和公开 ID
+    S->>BP: CreateAsset（签名请求）
+    BP-->>S: AssetId + RequestId
+    S->>DB: Creating -> Processing
+    S-->>R: 脱敏素材对象
+    R-->>U: 200
+```
+
+关键失败边界：
+
+- 上游创建素材失败：本地素材转为 `Failed`；
+- 上游创建成功但本地映射持久化失败：记录受限日志并返回存储错误，不伪报成功；
+- 上游创建组成功但本地激活失败：可能产生孤立上游组，只能依靠 Request ID 运维定位；
+- 当前版本没有自动删除或幂等查询上游孤立组的能力。
+
+### 8.2 查询并同步状态
+
+1. 以 `(user_id, public_id)` 查询本地素材。
+2. `Creating` 返回 409，`Failed` 返回 422。
+3. 加载记录绑定的 BytePlus 渠道和结构化凭据。
+4. 使用本地保存的上游 ID 调用 `GetAsset`。
+5. 验证响应 ID 与请求 ID 一致，只接受已知状态。
+6. 以条件更新写入状态；终态记录不被覆盖。
+7. 再次按用户读取本地记录并返回脱敏对象。
+
+### 8.3 视频引用、授权、固定路由与改写
+
+```mermaid
+sequenceDiagram
+    participant U as 调用方
+    participant D as middleware.Distribute
+    participant S as Reference Service
+    participant DB as Database
+    participant A as BytePlus TaskAdaptor
+    participant BP as BytePlus Seedance
+
+    U->>D: 提交含 asset://ast_... 的视频请求
+    D->>D: 读取可复用请求体
+    D->>S: ResolveBytePlusAssetReferences
+    S->>DB: 按 user_id 批量查 public_id
+    DB-->>S: 素材、类型、状态、channel_id、上游 ID
+    S->>S: 所有权/类型/状态/单渠道校验
+    S-->>D: PinnedChannelID + RewriteMap
+    D->>D: 校验 Token 固定渠道与模型能力
+    D->>D: 强制使用素材渠道，跳过随机选择
+    D->>A: 转交请求与上下文改写表
+    A->>A: Flatkey URI -> 上游 URI
+    A->>BP: 仅发送改写后的请求
+    BP-->>A: 任务响应
+    A-->>U: Flatkey 公共任务 ID
+```
+
+授权与路由顺序：
+
+1. 扫描 `content[]` 实际存在的 `image_url`、`video_url`、`audio_url`；
+2. 严格解析 Flatkey 素材 URI，并对重复引用去重；
+3. 用当前用户和公开 ID 批量查询；
+4. 缺失或跨用户统一返回 404；
+5. 在逐项状态和类型校验前先检查跨渠道冲突，使错误语义稳定；
+6. 校验媒体字段与素材类型匹配；
+7. 只允许 `Active` 且有上游 ID 的素材；
+8. 要求所有素材绑定同一个正整数渠道 ID；
+9. 校验渠道仍启用、类型为 BytePlus、对当前组和模型可用；
+10. 若 Token 固定渠道，必须与素材渠道一致；
+11. 将固定渠道和 URI 改写表写入当前 Gin Context；
+12. `TaskAdaptor` 在序列化后的上游请求体中完成精确替换；
+13. 改写表缺失或 URI 非严格格式时拒绝提交，不原样透传给上游。
+
+## 9. 多节点并发、租约与失败恢复
+
+### 9.1 素材组唯一创建
+
+`ClaimBytePlusAssetGroup()` 首先尝试 `INSERT ... ON CONFLICT DO NOTHING`。插入成功的节点取得租约；插入失败的节点读取已有记录。
+
+可取得或接管创建权的条件：
+
+- 当前没有 `(user_id, channel_id)` 记录；
+- 现有记录为 `Failed`；
+- 现有记录为 `Creating`，且 `lease_updated_time` 早于 300 秒恢复阈值。
+
+其他节点遇到有效 `Creating` 租约时进行 3 次有上限的短暂重读。若仍未变为 `Active`，返回 `asset_group_initializing`，由客户端稍后重试。
+
+### 9.2 租约防陈旧写
+
+`ActivateBytePlusAssetGroup()` 和 `FailBytePlusAssetGroup()` 的更新条件同时包含：
+
+- 本地主键；
+- 当前状态必须为 `Creating`；
+- `lease_updated_time` 必须等于取得创建权时的旧值。
+
+因此，已被新节点接管的旧节点不能再激活或失败覆盖新租约。
+
+### 9.3 素材终态保护
+
+素材创建从 `Creating` 到 `Processing` 使用条件更新。后续状态同步只更新非 `Active`、非 `Failed` 记录。迟到、重复或乱序轮询不会把终态改回处理中。
+
+### 9.4 幂等边界
+
+- 素材组创建在 Flatkey 数据库范围内具备每用户、每渠道的唯一性；
+- 创建素材接口本身没有客户端幂等键，每次成功调用都会产生新的 Flatkey 素材；
+- 视频任务的幂等与重试沿用既有视频任务机制；
+- 带素材的任务重试必须保持原固定渠道，不能故障转移到其他 BytePlus 账号。
+
+## 10. 上游协议与签名
+
+素材 Client 使用以下固定协议参数：
+
+| 参数 | 值 |
+| --- | --- |
+| Host | `ark.ap-southeast-1.byteplusapi.com` |
+| Version | `2024-01-01` |
+| Service | `ark` |
+| Region | `ap-southeast-1` |
+| Algorithm | `HMAC-SHA256` |
+| HTTP 方法 | `POST` |
+| 请求超时 | 30 秒 |
+| 最大响应体 | 1 MiB |
+
+Action 通过排序后的查询参数传递，例如 `CreateAssetGroup`、`CreateAsset`、`GetAsset`。请求使用共享 `pkg/volcengineauth.Signer`，签名输入包含请求体 hash、规范化查询、规范化 Header 和时间。
+
+安全约束：
+
+- 签名器不新增外部依赖；
+- AK/SK 只在请求构造期间存在于内存；
+- 日志不记录 Authorization、签名字符串或规范请求；
+- 非 2xx、超大响应、无法解析的响应、错误 envelope、缺失 ID、ID 不匹配和未知状态都归为上游协议错误；
+- 上游错误正文不直接返回调用方。
+
+## 11. 错误模型
+
+错误正文沿用 OpenAI 兼容结构：
 
 ```json
 {
-  "Name": "<opaque-internal-name>",
-  "Description": "Flatkey managed virtual portrait assets",
-  "GroupType": "AIGC",
-  "ProjectName": "<channel-project-name>"
+  "error": {
+    "message": "<localized-public-message>",
+    "type": "asset_not_ready",
+    "code": "asset_not_ready",
+    "param": ""
+  }
 }
 ```
-
-### 7.2 CreateAsset
-
-```json
-{
-  "GroupId": "<stored-upstream-group-id>",
-  "URL": "https://example.com/portrait.mp4",
-  "AssetType": "Video",
-  "Moderation": {
-    "Strategy": "Default"
-  },
-  "ProjectName": "<channel-project-name>"
-}
-```
-
-### 7.3 GetAsset
-
-请求使用本地保存的上游 AssetId 和渠道 ProjectName。响应状态只接受 `Processing`、`Active`、`Failed`；未知状态不得被当作成功，应记录为可诊断的上游协议错误。
-
-## 8. 资产组创建与多节点一致性
-
-生产环境有多个应用实例，不能使用进程锁或内存状态保证资产组唯一性。
-
-创建资产时执行以下流程：
-
-1. 选择一个满足 Seedance 2.0、渠道启用、凭据完整条件的资产渠道；
-2. 查询 `(user_id, channel_id)` 的 Active 资产组；
-3. 不存在时尝试插入 `Creating` 占位记录，唯一约束决定唯一创建者；
-4. 唯一创建者调用 BytePlus `CreateAssetGroup`，成功后写入 GroupId 并改为 `Active`；
-5. 其他节点发现 `Creating` 时进行有上限的短暂等待和重读，超时后返回可重试错误；
-6. `Creating` 租约超过恢复阈值时，后续请求可通过数据库条件更新取得恢复权，不依赖单节点定时器；
-7. `Failed` 状态保存脱敏原因，并允许后续请求通过条件更新重试。
-
-BytePlus `CreateAssetGroup` 没有纳入本期的删除或幂等补偿能力。如果上游成功后本地持久化永久失败，可能产生一个无法自动回收的上游孤立资产组。实现必须记录可关联的 Request ID 和渠道 ID 供运维定位，但不能向客户返回 GroupId；下一次恢复可创建新组，不得把未知结果伪报为成功。
-
-## 9. 视频引用、权限校验与固定路由
-
-客户在官方 Seedance `content[]` 中使用：
-
-```json
-{
-  "type": "image_url",
-  "image_url": {
-    "url": "asset://ast_xxxxxxxxxxxxxxxxxxxxxxxx"
-  },
-  "role": "reference_image"
-}
-```
-
-现有 `/v1` 视频路由顺序为 `TokenAuth()` 后执行 `Distribute()`。资产解析必须发生在随机渠道选择之前，不能等随机分发完成后再比较渠道，否则同一资产会出现偶发成功和偶发失败。
-
-设计要求：
-
-1. `Distribute()` 读取可复用请求体并仅对 Seedance 视频创建请求解析 `asset://ast_...`；
-2. service 层按当前 Token 的 `user_id` 批量查询资产，不在 middleware 中直接执行 SQL；
-3. 任何资产不存在或不属于当前用户时统一返回 404，防止枚举；
-4. 所有资产必须为 `Active`；
-5. 一个请求中的全部 Flatkey 资产必须绑定同一渠道；
-6. 该渠道必须仍为启用状态、允许当前用户组、支持请求模型及当前请求端点，并正常取得渠道并发额度；
-7. Token 已固定渠道时，固定渠道必须与资产渠道一致，否则拒绝；
-8. 分发器把资产渠道作为本次请求的强制渠道，不参与随机选择，也不因失败静默切换其他 BytePlus 账号；
-9. service 把 `public_id -> upstream_asset_id` 映射放入请求 context；
-10. BytePlus 适配器复用的 Ark 请求构建逻辑将 `asset://ast_...` 改写为 `asset://<upstream_asset_id>`；
-11. 不含 Flatkey 资产引用的请求完全沿用现有分发和内容透传行为。
-
-失败或重试时必须保持资产渠道亲和性。资产渠道禁用、并发耗尽或模型不兼容时返回明确错误，不能切换到无法访问该上游资产的渠道。
-
-## 10. 错误语义
 
 | 场景 | HTTP | 稳定错误码 |
 | --- | ---: | --- |
-| URL、类型、Moderation 或资产 URI 非法 | 400 | `invalid_asset_request` |
-| Token 无效 | 401 | 延用现有鉴权错误 |
-| 资产不存在或不属于当前用户 | 404 | `asset_not_found` |
-| 资产仍为 Creating/Processing | 409 | `asset_not_ready` |
-| 资产已 Failed | 422 | `asset_failed` |
-| 同一视频请求混用不同渠道的资产 | 409 | `asset_channel_conflict` |
-| 资产渠道被禁用或不支持请求模型 | 503 | `asset_channel_unavailable` |
-| 资产组正在由其他节点初始化 | 503 | `asset_group_initializing` |
+| URL、类型、Moderation 或素材 URI 非法 | 400 | `invalid_asset_request` |
+| Token 无效 | 401 | 既有鉴权错误 |
+| Token 无 `seedance-2.0` 权限 | 403 | `access_denied` |
+| 素材不存在或不属于当前用户 | 404 | `asset_not_found` |
+| 素材仍为 `Creating` / `Processing` | 409 | `asset_not_ready` |
+| 素材已 `Failed` | 422 | `asset_failed` |
+| 请求混用不同渠道素材或 Token 固定渠道冲突 | 409 | `asset_channel_conflict` |
+| 素材渠道禁用、配置不完整或模型不可用 | 503 | `asset_channel_unavailable` |
+| 素材组由其他节点初始化 | 503 | `asset_group_initializing` |
 | BytePlus 超时、非成功响应或协议异常 | 502 | `asset_upstream_error` |
-| 数据库失败 | 500 | `asset_storage_error` |
+| 数据库读写失败 | 500 | `asset_storage_error` |
 
-错误正文使用现有 OpenAI 兼容错误结构。上游响应在写日志和返回前都要脱敏，不返回上游 Host、ProjectName、GroupId、AssetId、AK、SK、API Key、Authorization 或完整签名信息。
+控制器会移除内部 Metadata 并使用稳定国际化文案。上游 Host、项目名、GroupId、AssetId、AK、SK、API Key、Authorization、完整签名和源 URL不进入对外错误。
 
-## 11. 测试与验收
+## 12. 计费与配额边界
 
-### 11.1 单元测试
+### 12.1 素材接口
 
-- 旧纯字符串 Key、新 JSON Key、结构化 Key 错误及缺字段；
-- 视频提交与轮询均只使用 `api_key`；
-- BytePlus HMAC 签名固定测试向量，包括 query 排序、header 排序、payload hash 和固定时间；
-- CreateAssetGroup、CreateAsset、GetAsset 请求映射；
-- Moderation 缺省为 `Default`，显式 `Skip` 原样发送；
-- 资产状态映射和未知状态处理；
-- `asset://ast_...` 解析、批量归属查询与上游 URI 改写；
-- Processing、Failed、跨用户、跨渠道、渠道禁用、模型不兼容和 Token 固定渠道冲突；
-- 不含 Flatkey 资产的普通 URL 请求保持原样。
+当前 `POST /v1/assets` 和 `GET /v1/assets/:asset_id` 只执行 API 级限流和模型请求限流，不调用视频配额预扣、结算或 Token 计费逻辑。素材上游可能产生的供应商侧费用由 BytePlus 账号承担，Flatkey 当前没有为素材操作建立单独的用户账单项。
 
-### 11.2 数据与并发测试
+### 12.2 视频任务
 
-- GORM AutoMigrate 在 SQLite 测试库成功；
-- 唯一索引阻止两个节点为同一 `(user_id, channel_id)` 同时取得创建权；
-- Creating 租约超时后的条件接管；
-- 资产查询始终带 `user_id` 条件；
-- 使用仓库现有数据库兼容检查覆盖 MySQL/PostgreSQL 生成或集成路径。
+素材只改变视频请求的引用解析和渠道选择，不改变现有 Seedance 视频任务的计费路径。视频任务仍按既有提交、轮询、完成和用量结算逻辑计费。
 
-### 11.3 HTTP 与适配器测试
+### 12.3 未来扩展约束
 
-- `POST /v1/assets` 和 `GET /v1/assets/:id` 必须要求 Token；
-- 对外响应不包含上游 ID、渠道 ID、ProjectName 或凭据；
-- 视频分发在随机选渠道前固定到资产渠道；
-- 现有 Seedance 创建、轮询、下载和非素材 `content[]` 回归通过；
-- 运行相关包测试、`go test ./...`、`go vet ./...` 和 `go build ./...`。
+若未来对素材创建或存储收费，应新增明确的计费事件、幂等键和账单展示，不能复用视频 Token 用量字段隐式扣费，也不能在查询素材状态时重复计费。
 
-### 11.4 真实冒烟验证
+## 13. 日志、可观测性与隐私
 
-在获得明确的生产测试授权并配置渠道 131 的结构化 Key 后：
+### 13.1 可记录字段
 
-1. 使用一个无敏感内容的公网测试素材创建资产；
-2. 轮询 Flatkey 资产 ID，直到 `Active`；
-3. 使用 `asset://<flatkey_asset_id>` 创建 `seedance-2.0` 视频；
-4. 确认实际渠道为 131；
-5. 轮询任务并下载结果；
-6. 使用另一用户 Token 验证同一资产返回 404；
-7. 检查应用日志及客户端响应无上游 ID 和凭据泄漏。
+- Flatkey 请求 ID；
+- 内部渠道 ID；
+- 脱敏的上游 Request ID；
+- 操作名、HTTP 状态、耗时和稳定错误码；
+- 素材状态迁移和租约接管结果；
+- 视频任务公共 ID及其既有任务指标。
 
-## 12. 部署与运维影响
+### 13.2 禁止记录字段
 
-- 需要数据库 AutoMigrate 新增两张表；
-- 需要将目标 BytePlus 渠道的 Key 从旧纯字符串更新为结构化 JSON；
-- 改动影响 `/v1` 资产路由、视频分发、BytePlus 适配器及其复用的 Ark 请求构建逻辑和后台任务轮询；
-- `Router deploy: required`，因为视频请求路由、上游鉴权和新 `/v1/assets` 接口均在 router 节点执行；
-- `newapi-console` 同样需要部署，以保持共享数据库迁移和后台任务代码版本一致；
-- `newapi-web`、Terraform 和 Cloudflare 不涉及；
-- 应先部署 staging，执行迁移和真实或受控上游验证，再考虑生产 router/console 滚动发布；
-- 回滚旧版本前必须确认新结构化 Key 不会被旧适配器当成 Bearer Token。安全回滚方式是先恢复渠道的旧纯字符串 Key，再回滚应用版本；新增数据表可以保留。
+- Flatkey Token、BytePlus API Key、AK、SK；
+- Authorization 和签名头；
+- 完整结构化 `Channel.Key`；
+- 上游 GroupId、AssetId；
+- 带查询参数的源 URL；
+- 上游原始错误正文和响应体。
 
-## 13. 安全说明
+### 13.3 建议监控
 
-本设计文档不记录任何真实 API Key、AK、SK、Cookie 或 Session。实现和测试也不得把这些值写入仓库、测试快照或构建日志。曾通过聊天或临时命令传递过的凭据应在接入完成后轮换。
+- `asset_upstream_error`、`asset_storage_error` 的错误率；
+- 素材从 `Processing` 到 `Active` 的耗时分布；
+- `asset_group_initializing` 频率和租约接管次数；
+- 素材渠道不可用和固定渠道冲突次数；
+- 上游请求延迟、超时、非 2xx 和未知状态；
+- 上游创建成功但本地持久化失败的受限日志告警。
 
-## 14. 验收条件
+## 14. 部署、迁移与回滚
 
-实现完成必须同时满足：
+### 14.1 数据库迁移
 
-1. 客户无需知道或提交 BytePlus GroupId；
-2. 客户只能看到 Flatkey 资产 ID；
-3. 跨用户资产访问和视频引用均被阻止；
-4. 资产视频请求稳定固定到资产渠道；
-5. 旧渠道 Key 和普通 Seedance 请求无回归；
-6. 多节点下资产组创建不会因进程本地锁而重复；
-7. 数据库迁移兼容 SQLite、MySQL 和 PostgreSQL；
-8. 自动测试、构建、静态检查及渠道 131 冒烟验证均通过；
-9. 响应和日志中不泄露凭据或上游资产标识。
+普通和快速迁移路径都包含：
 
-## 15. 官方参考
+- `BytePlusAssetGroup`
+- `BytePlusAsset`
+
+模型只使用仓库现有 GORM 和跨 SQLite、MySQL、PostgreSQL 的字段/索引表达。部署前应确认目标数据库账号具备建表和建索引权限。
+
+### 14.2 发布顺序
+
+1. 备份目标 BytePlus 渠道的当前 Key 配置。
+2. 部署包含新模型的 console/router 版本，使共享数据库完成迁移。
+3. 将目标 BytePlus 渠道 Key 更新为结构化凭据。
+4. 验证 `/v1/models`、素材创建、状态轮询、视频提交、任务轮询和下载。
+5. 观察素材错误、租约和视频渠道指标。
+6. 逐步开放调用方。
+
+需要部署：
+
+- router：新路由、分发前解析、BytePlus 适配器和视频代理；
+- console：共享模型迁移和后台任务代码需保持同版本。
+
+不涉及：
+
+- newapi-web 的新增页面；
+- Terraform、Cloudflare 或新的外部基础设施；
+- 独立缓存或消息队列。
+
+### 14.3 回滚
+
+安全回滚顺序：
+
+1. 停止新的素材调用流量。
+2. 确认没有正在创建的素材组或素材请求。
+3. 将渠道 Key 从结构化 JSON 恢复为旧纯字符串视频 API Key。
+4. 回滚 router/console 应用版本。
+5. 保留新增表，避免破坏已创建素材的审计和未来恢复。
+
+不能先回滚旧应用再保留结构化 Key，因为旧适配器可能把整段 JSON 当作 Bearer Token。回滚后已创建的 Flatkey 素材不可用于旧版本视频请求。
+
+## 15. 测试策略与覆盖矩阵
+
+### 15.1 自动测试
+
+| 层级 | 重点场景 |
+| --- | --- |
+| 凭据 | 旧字符串、新 JSON、缺字段、错误 JSON、视频只取 `api_key` |
+| URL 安全 | HTTPS、localhost、userinfo、私网/IP/端口过滤、源 URL 不落库 |
+| Client | 签名、Action/Version、请求映射、超时、响应上限、ID/状态校验、错误脱敏 |
+| Model | AutoMigrate、唯一索引、租约接管、陈旧写保护、终态保护、按用户查询 |
+| Service | 渠道选择、素材组复用、Moderation、创建/查询状态、失败映射 |
+| 引用解析 | 严格 URI、三种媒体、重复引用、跨用户、跨渠道、状态、类型、空上游 ID |
+| Distributor | 授权早于随机路由、Token 固定渠道冲突、模型和分组能力、禁用渠道 |
+| Adaptor | URI 精确改写、缺失改写表拒绝、普通 URL 原样、BytePlus Header 隔离 |
+| HTTP | Token 必需、模型权限、公开错误结构、响应字段脱敏 |
+| 回归 | 非素材 Seedance 创建、轮询、下载和原有 BytePlus 视频链路 |
+
+### 15.2 建议验证命令
+
+```powershell
+go test ./service ./model ./middleware ./controller ./relay/channel/task/byteplus
+go test ./...
+go vet ./...
+go build ./...
+```
+
+若全仓测试受外部依赖或环境限制，应保留目标包测试结果，并明确记录未运行或失败的非本功能检查。
+
+### 15.3 安全检查
+
+- 文档和 Git 差异扫描真实 Key、AK/SK、素材 ID和任务 ID；
+- 响应快照确认不含上游 ID、渠道 ID和项目名；
+- 日志测试确认源 URL、凭据和原始上游错误不回显；
+- 跨用户查询与引用均返回相同 404；
+- 跨渠道素材在提交上游之前即被拒绝。
+
+## 16. 正式环境验证结果
+
+2026-07-30 已在经授权的正式环境完成一次端到端验收。验证使用临时测试素材，文档不保存完整素材 ID、任务 ID或任何凭据。
+
+| 验证项 | 结果 |
+| --- | --- |
+| 模型发现 | `/v1/models` 返回 200，包含 `seedance-2.0` |
+| 创建素材 | 返回 200，仅得到 Flatkey 公开素材对象 |
+| 素材就绪 | 轮询进入 `Active` |
+| 提交视频 | 返回 200，客户端只创建一次任务 |
+| 视频完成 | 状态 `completed`，进度 100% |
+| 用量记录 | 108,900 tokens |
+| 结果下载 | 返回 200，`Content-Type: video/mp4` |
+| 文件完整性 | 2,793,631 bytes；SHA-256 `51de8ba895392456209f552bf63c320a4105d09b8bb71e0adee36ee0b75cd7c8` |
+
+该验证证明了以下完整链路：素材创建 → 素材状态同步 → `asset://` 授权与改写 → 素材渠道固定 → Seedance 视频生成 → 任务轮询 → 视频代理下载。
+
+正式验证不替代自动化回归；两者分别证明真实集成可用性和可重复的软件行为。
+
+## 17. 已知限制与后续演进
+
+- 没有素材列表、删除、过期和垃圾回收；
+- 没有客户端素材创建幂等键；
+- 上游组创建成功但本地激活失败时，可能留下孤立上游组；
+- 素材不可跨 BytePlus 账号或项目迁移；
+- 当前只把 `seedance-2.0` 作为素材能力验收模型；
+- 素材接口没有独立用户计费事件；
+- 状态同步是查询驱动，没有独立后台轮询器或 webhook；
+- 结构化凭据仍依赖现有 `Channel.Key` 存储和后台隐藏机制，本期不新增静态加密层。
+
+未来若增加列表、删除、幂等或后台同步，应保持以下不变量：外部只见 Flatkey ID；所有查询带用户所有权；视频授权先于路由；带素材请求不得跨渠道重试；凭据和上游标识不出信任边界。
+
+## 18. 验收条件
+
+当前实现和发布必须持续满足：
+
+1. 调用方不需要知道或提交 BytePlus GroupId。
+2. 调用方只能看到 Flatkey 素材 ID和公开状态。
+3. 跨用户素材查询和视频引用都被阻止且不可枚举。
+4. 媒体字段、素材类型和素材状态在提交上游前完成校验。
+5. 带素材的视频请求稳定固定到素材渠道，失败时不切换账号。
+6. 旧纯字符串渠道 Key 和普通视频请求保持兼容。
+7. 多节点素材组创建不依赖进程锁，陈旧租约不能覆盖新结果。
+8. 数据库迁移路径包含两张素材表。
+9. 对外响应和普通日志不泄露凭据、上游 ID或完整源 URL。
+10. 自动测试、静态检查、构建和受控正式环境冒烟按发布风险执行并留存证据。
+
+## 19. 实现索引与参考
+
+### 19.1 代码索引
+
+- Router：`router/asset-router.go`
+- Controller：`controller/byteplus_asset.go`
+- 业务编排：`service/byteplus_asset.go`
+- 引用解析：`service/byteplus_asset_reference.go`
+- 凭据解析：`service/byteplus_credentials.go`
+- 上游 Client：`service/byteplus_asset_client.go`
+- 数据模型：`model/byteplus_asset.go`
+- 分发固定：`middleware/distributor.go`
+- BytePlus 适配器：`relay/channel/task/byteplus/adaptor.go`
+- 视频结果代理：`controller/video_proxy_byteplus.go`
+
+### 19.2 官方参考
 
 - [虚拟人像库接入总览](https://docs.byteplus.com/en/docs/ModelArk/2333565#assets-api-list)
-- [创建资产组](https://docs.byteplus.com/en/docs/ModelArk/2318270)
-- [创建资产](https://docs.byteplus.com/en/docs/ModelArk/2318271)
-- [查询资产](https://docs.byteplus.com/en/docs/ModelArk/2318274)
-- [使用人像资产生成视频](https://docs.byteplus.com/en/docs/ModelArk/2333565#generate-video-using-portrait-assets)
+- [创建素材组](https://docs.byteplus.com/en/docs/ModelArk/2318270)
+- [创建素材](https://docs.byteplus.com/en/docs/ModelArk/2318271)
+- [查询素材](https://docs.byteplus.com/en/docs/ModelArk/2318274)
+- [使用人像素材生成视频](https://docs.byteplus.com/en/docs/ModelArk/2333565#generate-video-using-portrait-assets)
 - [虚拟人像库 API 示例](https://docs.byteplus.com/en/docs/ModelArk/2333565#sample-code-in-other-programming-languages)
 - [Seedance 2.0 Content Pre-filter](https://docs.byteplus.com/en/docs/ModelArk/Content_Pre-filter)

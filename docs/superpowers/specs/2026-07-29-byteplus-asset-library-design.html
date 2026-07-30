@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Flatkey BytePlus 素材库功能架构设计：素材创建、查询、授权、固定渠道、租约与安全边界。">
+  <title>BytePlus 素材库功能架构设计</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f6fb;
+      --surface: #ffffff;
+      --surface-soft: #f7f9fc;
+      --ink: #152033;
+      --muted: #5f6b7c;
+      --line: #d8e0eb;
+      --line-strong: #b9c6d8;
+      --primary: #2457d6;
+      --primary-soft: #eaf0ff;
+      --accent: #0b7a75;
+      --accent-soft: #e3f7f4;
+      --success: #247044;
+      --success-soft: #e8f6ee;
+      --warning: #9b5b00;
+      --warning-soft: #fff3dc;
+      --danger: #a33b3b;
+      --danger-soft: #fdecec;
+      --code: #101827;
+      --code-ink: #dce7f7;
+      --shadow: 0 18px 48px rgba(39, 55, 83, .10);
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #eaf0fb 0, var(--bg) 360px);
+      color: var(--ink);
+      font: 15.5px/1.72 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .hero {
+      max-width: 1420px;
+      margin: 0 auto;
+      padding: 56px 34px 36px;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--primary);
+      font-weight: 750;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+    .eyebrow::before { content: ""; width: 28px; height: 3px; border-radius: 99px; background: var(--primary); }
+    .hero h1 { margin: 12px 0 12px; font-size: clamp(32px, 5vw, 54px); line-height: 1.13; letter-spacing: -.035em; }
+    .hero p { max-width: 880px; margin: 0; color: var(--muted); font-size: 18px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+    .pill { padding: 7px 11px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.72); color: #40506a; font-size: 13px; }
+    .pill.status { color: var(--success); border-color: #b9dfc7; background: var(--success-soft); font-weight: 700; }
+    .layout { max-width: 1420px; margin: 0 auto; padding: 0 34px 64px; display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 28px; align-items: start; }
+    .toc {
+      position: sticky;
+      top: 20px;
+      max-height: calc(100vh - 40px);
+      overflow: auto;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.92);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px 12px;
+    }
+    .toc-title { padding: 0 8px 10px; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+    .toc a { display: block; padding: 6px 8px; border-radius: 7px; color: #43516a; font-size: 13px; line-height: 1.35; }
+    .toc a:hover { color: var(--primary); background: var(--primary-soft); text-decoration: none; }
+    .toc .api-link { margin-top: 12px; padding-top: 13px; border-top: 1px solid var(--line); color: var(--primary); font-weight: 700; }
+    main {
+      min-width: 0;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 38px clamp(24px, 4vw, 58px) 54px;
+    }
+    h2, h3 { scroll-margin-top: 24px; position: relative; }
+    h2 { margin: 54px 0 18px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 28px; line-height: 1.25; letter-spacing: -.02em; }
+    h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+    h3 { margin: 32px 0 12px; font-size: 20px; line-height: 1.35; }
+    .anchor { margin-left: 9px; opacity: 0; font-weight: 500; }
+    h2:hover .anchor, h3:hover .anchor, .anchor:focus { opacity: 1; }
+    p { margin: 10px 0 16px; }
+    ul, ol { padding-left: 24px; }
+    li { margin: 5px 0; }
+    strong { color: #0f1a2d; }
+    code {
+      padding: .12em .38em;
+      border: 1px solid #d7dfeb;
+      border-radius: 5px;
+      background: #f1f4f9;
+      color: #7143a8;
+      font: .91em/1.5 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    }
+    pre {
+      margin: 18px 0;
+      padding: 18px 20px;
+      overflow: auto;
+      border-radius: 12px;
+      background: var(--code);
+      color: var(--code-ink);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+    }
+    pre code { padding: 0; border: 0; background: transparent; color: inherit; font-size: 13px; }
+    p code, li code, td code, h2 code, h3 code { overflow-wrap: anywhere; word-break: break-word; }
+    .table-scroll { margin: 18px 0 24px; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 11px 13px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+    th { background: #edf2fa; color: #263752; font-weight: 750; white-space: nowrap; }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr:nth-child(even) { background: #fafbfd; }
+    blockquote { margin: 18px 0; padding: 12px 18px; border-left: 4px solid var(--primary); background: var(--primary-soft); color: #3d4c66; }
+    .diagram {
+      margin: 24px 0 30px;
+      padding: 22px;
+      border: 1px solid #c9d5e7;
+      border-radius: 16px;
+      background: linear-gradient(145deg, #fbfdff, #f1f5fb);
+      overflow: hidden;
+    }
+    .diagram-title { margin-bottom: 12px; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .diagram-divider { height: 1px; margin: 22px 0; background: var(--line); }
+    .flow-line { display: grid; align-items: stretch; gap: 8px; }
+    .flow-line.six { grid-template-columns: 1fr auto 1fr auto 1fr auto 1.15fr auto 1fr auto 1.1fr; }
+    .flow-line.five { grid-template-columns: 1fr auto 1.1fr auto 1.1fr auto 1fr auto 1.15fr; }
+    .node { display: flex; min-width: 0; flex-direction: column; justify-content: center; padding: 13px 10px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); text-align: center; }
+    .node strong { font-size: 13px; }
+    .node span { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .node.primary { border-color: #8aa8ef; background: var(--primary-soft); }
+    .node.accent { border-color: #84c7bf; background: var(--accent-soft); }
+    .node.upstream { border-color: #e0bd7b; background: var(--warning-soft); }
+    .arrow { align-self: center; color: var(--primary); font-size: 20px; font-weight: 800; }
+    figcaption { margin-top: 16px; color: var(--muted); font-size: 12.5px; text-align: center; }
+    .state-row { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 12px; align-items: center; }
+    .state { padding: 16px; border: 1px solid var(--line-strong); border-radius: 12px; background: white; text-align: center; }
+    .state strong { display: block; }
+    .state span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .state.processing { border-color: #e0bd7b; background: var(--warning-soft); }
+    .state.success { border-color: #a7d5b7; background: var(--success-soft); }
+    .state.failed { min-width: 220px; border-color: #e2aeae; background: var(--danger-soft); }
+    .state-arrow { color: var(--muted); font-size: 12px; font-weight: 700; text-align: center; }
+    .failure-row { display: flex; justify-content: center; align-items: center; gap: 14px; margin-top: 18px; padding-top: 18px; border-top: 1px dashed var(--line-strong); color: var(--muted); font-size: 12px; }
+    .sequence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .seq-step { display: grid; grid-template-columns: 40px 1fr; gap: 11px; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: white; }
+    .seq-number { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 50%; background: var(--primary); color: white; font-size: 11px; font-weight: 800; }
+    .seq-step strong { font-size: 13px; }
+    .seq-step p { margin: 2px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    footer { max-width: 1420px; margin: 0 auto; padding: 0 34px 36px; color: var(--muted); font-size: 12px; text-align: right; }
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 220px minmax(0, 1fr); gap: 18px; padding-left: 20px; padding-right: 20px; }
+      .hero { padding-left: 24px; padding-right: 24px; }
+      .flow-line.six, .flow-line.five { grid-template-columns: 1fr; }
+      .flow-line .arrow { transform: rotate(90deg); justify-self: center; }
+      .state-row { grid-template-columns: 1fr; }
+      .state-arrow { padding: 2px; }
+    }
+    @media (max-width: 780px) {
+      .hero { padding-top: 34px; }
+      .layout { display: block; padding: 0 12px 36px; }
+      .toc { position: relative; top: auto; max-height: none; margin-bottom: 14px; }
+      .toc nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      main { padding: 25px 18px 38px; border-radius: 14px; }
+      h2 { font-size: 23px; }
+      .sequence-grid { grid-template-columns: 1fr; }
+      .failure-row { flex-direction: column; }
+      footer { padding-left: 18px; padding-right: 18px; text-align: left; }
+    }
+    @media (max-width: 480px) {
+      .toc nav { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 31px; }
+      .meta { gap: 7px; }
+      .pill { font-size: 12px; }
+    }
+    @media print {
+      @page { size: A4; margin: 16mm 14mm; }
+      body { background: white; color: black; font-size: 10pt; }
+      .hero { max-width: none; padding: 0 0 8mm; }
+      .hero h1 { font-size: 25pt; }
+      .hero p { font-size: 11pt; }
+      .layout { display: block; max-width: none; padding: 0; }
+      .toc { display: none; }
+      main { padding: 0; border: 0; box-shadow: none; }
+      h2 { margin-top: 8mm; break-after: avoid; }
+      h3 { break-after: avoid; }
+      pre, table, .diagram { break-inside: avoid; }
+      .diagram { background: white; box-shadow: none; }
+      .anchor { display: none; }
+      a { color: inherit; text-decoration: none; }
+      footer { max-width: none; padding: 8mm 0 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <span class="eyebrow">Architecture Design</span>
+    <h1>BytePlus 素材库功能架构设计</h1>
+    <p>聚焦素材创建、查询、所有权、固定渠道、URI 改写、多节点租约和安全边界；不扩展为通用 Seedance 架构。</p>
+    <div class="meta">
+      <span class="pill status">已实现 · 正式环境验证通过</span>
+      <span class="pill">初始设计 2026-07-29</span>
+      <span class="pill">更新 2026-07-30</span>
+      <span class="pill">离线单文件 · 无外部运行时依赖</span>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="toc" aria-label="文档目录">
+      <div class="toc-title">目录</div>
+      <nav><a href="#section-1">1. 文档目的</a>
+<a href="#section-2">2. 背景、目标与范围</a>
+<a href="#section-3">3. 架构原则与关键决策</a>
+<a href="#section-4">4. 组件架构</a>
+<a href="#section-5">5. 对外接口边界</a>
+<a href="#section-6">6. 凭据模型与安全边界</a>
+<a href="#section-7">7. 数据模型</a>
+<a href="#section-8">8. 核心调用流程</a>
+<a href="#section-9">9. 多节点并发、租约与失败恢复</a>
+<a href="#section-10">10. 上游协议与签名</a>
+<a href="#section-11">11. 错误模型</a>
+<a href="#section-12">12. 计费与配额边界</a>
+<a href="#section-13">13. 日志、可观测性与隐私</a>
+<a href="#section-14">14. 部署、迁移与回滚</a>
+<a href="#section-15">15. 测试策略与覆盖矩阵</a>
+<a href="#section-16">16. 正式环境验证结果</a>
+<a href="#section-17">17. 已知限制与后续演进</a>
+<a href="#section-18">18. 验收条件</a>
+<a href="#section-19">19. 实现索引与参考</a></nav>
+      <a class="api-link" href="../../api/byteplus-asset-api.md">查看详细 API 文档 →</a>
+    </aside>
+    <main><h2 id="section-1">1. 文档目的<a class="anchor" href="#section-1" aria-label="链接到本节">#</a></h2><p>本文是 BytePlus 素材库功能的架构与实现边界说明。它描述素材如何创建、持久化、查询、鉴权，并在 <code>seedance-2.0</code> 视频请求中被安全引用。</p>
+<p>本文不扩展为通用 Seedance 视频架构，也不重复完整的调用参数、响应字段和 SDK 示例；调用方应同时阅读独立的 API 文档。</p>
+<h2 id="section-2">2. 背景、目标与范围<a class="anchor" href="#section-2" aria-label="链接到本节">#</a></h2><h3 id="section-2-1">2.1 背景<a class="anchor" href="#section-2-1" aria-label="链接到本节">#</a></h3><p>Flatkey 已通过现有 BytePlus 渠道提供 Seedance 视频任务能力。BytePlus 素材库需要使用同一上游账号和项目创建素材，并确保后续视频任务仍路由到创建素材的上游渠道。若素材创建和视频生成落到不同 BytePlus 账号，即使模型相同，上游也无法识别该素材。</p>
+<p>因此，素材库不能只做一个上游 API 代理。它必须同时解决：</p>
+<ul>
+<li>Flatkey 用户与上游素材之间的所有权映射；</li>
+<li>上游 <code>GroupId</code>、<code>AssetId</code> 和凭据的隐藏；</li>
+<li>多节点部署下素材组唯一创建与失败恢复；</li>
+<li>视频分发前的素材归属、类型、状态和渠道校验；</li>
+<li>素材渠道固定以及适配器内的 URI 改写；</li>
+<li>旧 BytePlus 纯字符串 API Key 和普通视频请求兼容。</li>
+</ul>
+<h3 id="section-2-2">2.2 目标<a class="anchor" href="#section-2-2" aria-label="链接到本节">#</a></h3><ol>
+<li>复用现有 <code>ChannelTypeBytePlus</code> 的配置、启停、分组和模型能力。</li>
+<li>为调用方提供稳定的 Flatkey 素材 ID，不暴露上游素材标识。</li>
+<li>每个素材始终归属于创建它的 Flatkey 用户和 BytePlus 渠道。</li>
+<li>视频提交前完成素材授权，并强制路由到素材所属渠道。</li>
+<li>使用数据库租约和条件更新支持生产多节点部署。</li>
+<li>对凭据、源 URL、上游 ID 和错误正文实施最小暴露。</li>
+<li>不改变不含素材引用的现有 Seedance 视频链路。</li>
+</ol>
+<h3 id="section-2-3">2.3 本期包含<a class="anchor" href="#section-2-3" aria-label="链接到本节">#</a></h3><ul>
+<li>内部创建或复用用户在某个 BytePlus 渠道下的素材组；</li>
+<li><code>POST /v1/assets</code> 创建 <code>Image</code>、<code>Video</code>、<code>Audio</code> 素材；</li>
+<li><code>GET /v1/assets/:asset_id</code> 查询并同步素材状态；</li>
+<li><code>Moderation.Strategy</code> 的 <code>Default</code> 和 <code>Skip</code>；</li>
+<li>严格格式的 <code>asset://ast_&lt;32-character-id&gt;</code>；</li>
+<li><code>seedance-2.0</code> 视频请求中的图片、视频和音频素材引用；</li>
+<li>用户所有权、媒体类型、素材状态和单渠道一致性校验；</li>
+<li>BytePlus 渠道固定、上游素材 URI 改写和视频结果代理；</li>
+<li>结构化渠道凭据和旧纯字符串 API Key 的兼容读取；</li>
+<li>数据库迁移、多节点租约、终态保护和安全错误模型。</li>
+</ul>
+<h3 id="section-2-4">2.4 非目标<a class="anchor" href="#section-2-4" aria-label="链接到本节">#</a></h3><ul>
+<li>不新增素材专用渠道类型；</li>
+<li>不向调用方开放素材组 CRUD、列表或删除接口；</li>
+<li>不暴露或允许调用方提交上游 <code>GroupId</code>、<code>AssetId</code>、<code>ProjectName</code> 或渠道 ID；</li>
+<li>不支持调用方自带 BytePlus AK/SK；</li>
+<li>不允许共享上游账号的用户直接在 BytePlus 控制台创建素材后绕过 Flatkey 所有权登记；</li>
+<li>不改变视频 Content Pre-filter；素材创建的 Moderation 与视频 Content Pre-filter 是两套机制；</li>
+<li>不承诺在不同 BytePlus 账号、项目或渠道之间迁移或复用素材；</li>
+<li>不把本设计扩展为 <code>seedance-2.0-fast</code>、<code>seedance-2.0-mini</code> 或其他模型的通用素材协议。</li>
+</ul>
+<h2 id="section-3">3. 架构原则与关键决策<a class="anchor" href="#section-3" aria-label="链接到本节">#</a></h2><h3 id="section-3-1">3.1 复用现有 BytePlus 渠道<a class="anchor" href="#section-3-1" aria-label="链接到本节">#</a></h3><p>素材凭据和视频 API Key 都保存在现有 BytePlus 渠道的 <code>Channel.Key</code> 中。素材组绑定具体渠道，素材继承素材组渠道，引用素材的视频请求再固定到该渠道。</p>
+<p>选择该方案的理由：</p>
+<ul>
+<li>凭据、模型能力、用户分组、渠道启停和并发额度保持同一生命周期；</li>
+<li>同一部署可配置多个 BytePlus 账号或项目并进行故障隔离；</li>
+<li>不复制一套素材专用的渠道管理和运维协议；</li>
+<li><code>Channel.Key</code> 已有后台隐藏边界，而 <code>OtherSettings</code> 会作为设置数据返回前端，不适合保存 AK/SK。</li>
+</ul>
+<h3 id="section-3-2">3.2 Flatkey ID 是唯一外部标识<a class="anchor" href="#section-3-2" aria-label="链接到本节">#</a></h3><p>调用方只接触 <code>ast_</code> 前缀的随机 ID。数据库保存 <code>public_id -&gt; upstream_asset_id</code> 映射，上游 ID 只在服务层、BytePlus Client 和请求上下文的改写表中流动。</p>
+<p>素材 URI 的完整正则为：</p>
+<pre><code class="language-text">^asset://(ast_[A-Za-z0-9]{32})$
+</code></pre>
+<p>不允许空格、查询参数、片段、路径后缀或短 ID。普通 HTTPS URL 不受影响；媒体 URL 字段中任何以 <code>asset:</code> 开头但不满足严格格式的值都会被拒绝。</p>
+<h3 id="section-3-3">3.3 授权先于路由<a class="anchor" href="#section-3-3" aria-label="链接到本节">#</a></h3><p><code>middleware.Distribute()</code> 在随机选择渠道之前读取可复用请求体并解析素材引用。只有完成所有权、类型、状态和跨渠道检查后，才把素材所属渠道设置为本次请求的强制渠道。</p>
+<p>这是一条安全不变量：<strong>带素材引用的视频请求不得先随机选渠道，也不得在失败后静默切换渠道。</strong></p>
+<h3 id="section-3-4">3.4 数据库是多节点协调源<a class="anchor" href="#section-3-4" aria-label="链接到本节">#</a></h3><p>素材组创建权由唯一索引、数据库租约和带旧租约值的条件更新决定。进程锁和内存状态不能作为正确性基础。</p>
+<h3 id="section-3-5">3.5 兼容优先、能力渐进启用<a class="anchor" href="#section-3-5" aria-label="链接到本节">#</a></h3><p>旧渠道的纯字符串 <code>Channel.Key</code> 继续作为视频 API Key 使用。不完整的结构化凭据或旧字符串凭据不能创建素材，但仍可处理不含 Flatkey 素材引用的普通视频请求。</p>
+<h2 id="section-4">4. 组件架构<a class="anchor" href="#section-4" aria-label="链接到本节">#</a></h2><figure class="diagram" aria-labelledby="component-caption">
+  <div class="diagram-title">素材管理链路</div>
+  <div class="flow-line six">
+    <div class="node accent"><strong>API 调用方</strong><span>Flatkey Token</span></div><span class="arrow">→</span>
+    <div class="node"><strong>Router</strong><span>鉴权与限流</span></div><span class="arrow">→</span>
+    <div class="node"><strong>Controller</strong><span>参数与权限</span></div><span class="arrow">→</span>
+    <div class="node primary"><strong>Asset Service</strong><span>业务编排</span></div><span class="arrow">→</span>
+    <div class="node"><strong>Model</strong><span>归属 / 租约 / 状态</span></div><span class="arrow">↔</span>
+    <div class="node upstream"><strong>BytePlus Client</strong><span>签名与 Assets API</span></div>
+  </div>
+  <div class="diagram-divider"></div>
+  <div class="diagram-title">视频素材引用链路</div>
+  <div class="flow-line five">
+    <div class="node accent"><strong>视频提交</strong><span>asset://ast_…</span></div><span class="arrow">→</span>
+    <div class="node primary"><strong>Distributor</strong><span>授权并固定渠道</span></div><span class="arrow">→</span>
+    <div class="node"><strong>Reference Service</strong><span>批量校验 / 改写表</span></div><span class="arrow">→</span>
+    <div class="node"><strong>TaskAdaptor</strong><span>URI 改写</span></div><span class="arrow">→</span>
+    <div class="node upstream"><strong>BytePlus Seedance</strong><span>生成与结果代理</span></div>
+  </div>
+  <figcaption id="component-caption">控制面保存素材归属；数据面在视频请求进入随机分发前完成授权和渠道固定。</figcaption>
+</figure>
+
+<h3 id="section-4-1">4.1 Router<a class="anchor" href="#section-4-1" aria-label="链接到本节">#</a></h3><p>实现文件：<code>router/asset-router.go</code></p>
+<p>职责：</p>
+<ul>
+<li>注册 <code>POST /v1/assets</code> 和 <code>GET /v1/assets/:asset_id</code>；</li>
+<li>应用 <code>RouteTag(&quot;asset&quot;)</code>、全局 API 限流、Token 鉴权和模型请求限流；</li>
+<li>不挂载普通视频的 <code>Distribute()</code>，因为素材创建需要在 Service 内选择具备素材凭据的 BytePlus 渠道。</li>
+</ul>
+<h3 id="section-4-2">4.2 Controller<a class="anchor" href="#section-4-2" aria-label="链接到本节">#</a></h3><p>实现文件：<code>controller/byteplus_asset.go</code></p>
+<p>职责：</p>
+<ul>
+<li>解析 JSON 和路径参数；</li>
+<li>读取 Token 的用户、用户组、使用组和固定渠道约束；</li>
+<li>要求 Token 有权使用 <code>seedance-2.0</code>；</li>
+<li>将内部错误转换为稳定的 OpenAI 兼容错误结构和国际化文案；</li>
+<li>确保响应不附带内部错误元数据。</li>
+</ul>
+<h3 id="section-4-3">4.3 Service<a class="anchor" href="#section-4-3" aria-label="链接到本节">#</a></h3><p>主要文件：</p>
+<ul>
+<li><code>service/byteplus_asset.go</code></li>
+<li><code>service/byteplus_asset_reference.go</code></li>
+<li><code>service/byteplus_credentials.go</code></li>
+</ul>
+<p>职责：</p>
+<ul>
+<li>校验素材请求和源 URL；</li>
+<li>选择支持素材能力的 BytePlus 渠道；</li>
+<li>创建或复用素材组；</li>
+<li>生成不可预测的 Flatkey 素材 ID；</li>
+<li>编排上游创建、状态查询和本地持久化；</li>
+<li>从视频 <code>content[]</code> 中提取素材 URI；</li>
+<li>批量执行用户所有权、媒体类型、状态和渠道一致性校验；</li>
+<li>生成仅在请求上下文中存在的 URI 改写表。</li>
+</ul>
+<h3 id="section-4-4">4.4 Model<a class="anchor" href="#section-4-4" aria-label="链接到本节">#</a></h3><p>实现文件：<code>model/byteplus_asset.go</code></p>
+<p>职责：</p>
+<ul>
+<li>保存素材组、素材、渠道归属和上游映射；</li>
+<li>使用唯一索引和条件更新分配素材组创建租约；</li>
+<li>使用 <code>lease_updated_time</code> 防止旧节点覆盖新租约结果；</li>
+<li>使用终态保护避免 <code>Active</code> 或 <code>Failed</code> 被迟到轮询回写。</li>
+</ul>
+<h3 id="section-4-5">4.5 BytePlus Client<a class="anchor" href="#section-4-5" aria-label="链接到本节">#</a></h3><p>实现文件：<code>service/byteplus_asset_client.go</code></p>
+<p>职责：</p>
+<ul>
+<li>封装 <code>CreateAssetGroup</code>、<code>CreateAsset</code>、<code>GetAsset</code>；</li>
+<li>构造固定版本、区域和服务名的 BytePlus 请求；</li>
+<li>使用共享的火山引擎签名器；</li>
+<li>限制请求时长和响应体大小；</li>
+<li>验证响应 ID、状态和错误 envelope；</li>
+<li>只向上层返回脱敏错误和必要的 Request ID。</li>
+</ul>
+<h3 id="section-4-6">4.6 BytePlus TaskAdaptor 与视频代理<a class="anchor" href="#section-4-6" aria-label="链接到本节">#</a></h3><p>主要文件：</p>
+<ul>
+<li><code>relay/channel/task/byteplus/adaptor.go</code></li>
+<li><code>relay/channel/task/byteplus/constants.go</code></li>
+<li><code>controller/video_proxy_byteplus.go</code></li>
+</ul>
+<p>BytePlus 使用独立 <code>TaskAdaptor</code>。它可以嵌入并复用 Doubao 的协议兼容实现，但 BytePlus 的鉴权头、Moderation Header、素材 URI 改写、任务响应脱敏和视频结果提取保持独立边界。</p>
+<h2 id="section-5">5. 对外接口边界<a class="anchor" href="#section-5" aria-label="链接到本节">#</a></h2><p>详细参数、响应、调用示例和轮询建议见 <a href="../../api/byteplus-asset-api.md">BytePlus 素材库 API 文档</a>。本节只描述架构约束。</p>
+<h3 id="section-5-1">5.1 创建素材<a class="anchor" href="#section-5-1" aria-label="链接到本节">#</a></h3><pre><code class="language-http">POST /v1/assets
+Authorization: Bearer &lt;flatkey-api-key&gt;
+Content-Type: application/json
+</code></pre>
+<pre><code class="language-json">{
+  &quot;url&quot;: &quot;https://example.com/reference.mp4&quot;,
+  &quot;asset_type&quot;: &quot;Video&quot;,
+  &quot;moderation&quot;: {
+    &quot;strategy&quot;: &quot;Default&quot;
+  }
+}
+</code></pre>
+<p>约束：</p>
+<ul>
+<li><code>url</code> 必须是无用户信息的绝对 HTTPS 公网地址；</li>
+<li>URL 还必须通过系统统一的域名、IP 和端口过滤规则；</li>
+<li>Flatkey 不下载素材内容，只把 URL 传给 BytePlus；</li>
+<li><code>asset_type</code> 只允许 <code>Image</code>、<code>Video</code>、<code>Audio</code>；</li>
+<li>Moderation 缺省为 <code>Default</code>，只允许 <code>Default</code> 或 <code>Skip</code>；</li>
+<li>调用方不能指定素材组、上游素材 ID、项目或渠道；</li>
+<li>成功响应只返回 Flatkey 素材对象。</li>
+</ul>
+<h3 id="section-5-2">5.2 查询素材<a class="anchor" href="#section-5-2" aria-label="链接到本节">#</a></h3><pre><code class="language-http">GET /v1/assets/ast_&lt;32-character-id&gt;
+Authorization: Bearer &lt;flatkey-api-key&gt;
+</code></pre>
+<p>查询流程始终带当前 <code>user_id</code> 条件。不存在和不属于当前用户使用相同的 404 语义，避免枚举他人素材。</p>
+<p>对本地 <code>Processing</code> 素材，服务调用绑定渠道的 <code>GetAsset</code> 并同步状态。<code>Active</code> 和 <code>Failed</code> 是受保护终态，不允许迟到响应反向覆盖。</p>
+<h3 id="section-5-3">5.3 在视频中引用素材<a class="anchor" href="#section-5-3" aria-label="链接到本节">#</a></h3><pre><code class="language-json">{
+  &quot;model&quot;: &quot;seedance-2.0&quot;,
+  &quot;content&quot;: [
+    {
+      &quot;type&quot;: &quot;image_url&quot;,
+      &quot;image_url&quot;: {
+        &quot;url&quot;: &quot;asset://ast_&lt;32-character-id&gt;&quot;
+      },
+      &quot;role&quot;: &quot;reference_image&quot;
+    }
+  ]
+}
+</code></pre>
+<p>图片字段只能引用 <code>Image</code>，视频字段只能引用 <code>Video</code>，音频字段只能引用 <code>Audio</code>。校验依据是实际填充的媒体字段，而不是仅信任调用方传入的 <code>type</code> 文本。</p>
+<h2 id="section-6">6. 凭据模型与安全边界<a class="anchor" href="#section-6" aria-label="链接到本节">#</a></h2><h3 id="section-6-1">6.1 兼容格式<a class="anchor" href="#section-6-1" aria-label="链接到本节">#</a></h3><p>旧渠道继续支持纯字符串视频 API Key：</p>
+<pre><code class="language-text">&lt;byteplus-video-api-key&gt;
+</code></pre>
+<p>启用素材能力的渠道使用结构化 JSON：</p>
+<pre><code class="language-json">{
+  &quot;api_key&quot;: &quot;&lt;byteplus-video-api-key&gt;&quot;,
+  &quot;access_key_id&quot;: &quot;&lt;byteplus-access-key-id&gt;&quot;,
+  &quot;secret_access_key&quot;: &quot;&lt;byteplus-secret-access-key&gt;&quot;,
+  &quot;project_name&quot;: &quot;&lt;byteplus-project-name&gt;&quot;
+}
+</code></pre>
+<p>解析规则：</p>
+<ul>
+<li>非 JSON 字符串按旧 <code>api_key</code> 处理；</li>
+<li>以 <code>{</code> 开头的值必须按结构化凭据严格解析；</li>
+<li>JSON 格式错误或字段类型错误时返回配置错误，不得把整段 JSON 当作 Bearer Token；</li>
+<li>视频提交和任务轮询只使用解析后的 <code>api_key</code>；</li>
+<li>素材 API 必须同时具备四个字段；</li>
+<li>凭据只保存在 <code>Channel.Key</code>，不写入 <code>OtherSettings</code>。</li>
+</ul>
+<h3 id="section-6-2">6.2 信任边界<a class="anchor" href="#section-6-2" aria-label="链接到本节">#</a></h3><div class="table-scroll"><table>
+<thead>
+<tr>
+<th>边界</th>
+<th>可见数据</th>
+<th>禁止暴露</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>调用方 ↔ Flatkey</td>
+<td>Flatkey Token、公开素材 ID、公开状态</td>
+<td>上游 ID、渠道 ID、项目名、上游凭据</td>
+</tr>
+<tr>
+<td>Controller ↔ Service</td>
+<td>用户、Token 约束、经过解析的请求</td>
+<td>原始响应体和签名细节</td>
+</tr>
+<tr>
+<td>Service ↔ Model</td>
+<td>用户/渠道归属、上游映射、脱敏错误</td>
+<td>源 URL 持久化、任何凭据</td>
+</tr>
+<tr>
+<td>Service ↔ BytePlus Client</td>
+<td>内存中的结构化凭据、上游 ID</td>
+<td>写日志、写 API 响应</td>
+</tr>
+<tr>
+<td>Distributor ↔ TaskAdaptor</td>
+<td>固定渠道 ID、临时 URI 改写表</td>
+<td>向调用方回显改写表</td>
+</tr>
+</tbody></table></div>
+<h3 id="section-6-3">6.3 源 URL 与 SSRF 防护<a class="anchor" href="#section-6-3" aria-label="链接到本节">#</a></h3><p>虽然 Flatkey 不主动抓取素材 URL，仍在提交给上游前执行统一 URL 安全校验：</p>
+<ul>
+<li>只允许 HTTPS；</li>
+<li>禁止 URL userinfo；</li>
+<li>禁止 localhost；</li>
+<li>使用系统 Fetch Setting 的域名、IP、端口过滤；</li>
+<li>不把完整源 URL持久化到数据库；<code>SourceURL</code> 明确标记为 <code>gorm:&quot;-&quot;</code>；</li>
+<li>日志不得记录含查询参数的完整源 URL。</li>
+</ul>
+<h2 id="section-7">7. 数据模型<a class="anchor" href="#section-7" aria-label="链接到本节">#</a></h2><h3 id="section-7-1">7.1 <code>BytePlusAssetGroup</code><a class="anchor" href="#section-7-1" aria-label="链接到本节">#</a></h3><p>素材组是内部实体，不提供外部路由。</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>用途</th>
+<th>外部可见</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>id</code></td>
+<td>本地主键</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>user_id</code></td>
+<td>Flatkey 所有者</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>channel_id</code></td>
+<td>绑定 BytePlus 渠道</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>upstream_group_id</code></td>
+<td>BytePlus GroupId</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>upstream_request_id</code></td>
+<td>运维关联 Request ID</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>Creating</code> / <code>Active</code> / <code>Failed</code></td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>error_message</code></td>
+<td>脱敏错误</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>lease_updated_time</code></td>
+<td>创建租约版本和超时判断</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>created_time</code> / <code>updated_time</code></td>
+<td>Unix 时间</td>
+<td>否</td>
+</tr>
+</tbody></table></div>
+<p><code>(user_id, channel_id)</code> 有唯一索引，因此同一用户可以在不同 BytePlus 渠道各有一个素材组，但不能在同一渠道重复创建本地组记录。</p>
+<h3 id="section-7-2">7.2 <code>BytePlusAsset</code><a class="anchor" href="#section-7-2" aria-label="链接到本节">#</a></h3><div class="table-scroll"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>用途</th>
+<th>外部可见</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>id</code></td>
+<td>本地主键</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>public_id</code></td>
+<td><code>ast_</code> + 32 位密码学随机字符</td>
+<td>是</td>
+</tr>
+<tr>
+<td><code>user_id</code></td>
+<td>Flatkey 所有者</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>asset_group_id</code></td>
+<td>本地素材组</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>channel_id</code></td>
+<td>固定渠道冗余字段</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>upstream_asset_id</code></td>
+<td>BytePlus AssetId</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>upstream_request_id</code></td>
+<td>运维关联 Request ID</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>asset_type</code></td>
+<td><code>Image</code> / <code>Video</code> / <code>Audio</code></td>
+<td>是</td>
+</tr>
+<tr>
+<td><code>moderation_strategy</code></td>
+<td><code>Default</code> / <code>Skip</code></td>
+<td>是</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>素材状态</td>
+<td>是</td>
+</tr>
+<tr>
+<td><code>error_message</code></td>
+<td>脱敏错误</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>created_time</code> / <code>updated_time</code></td>
+<td>Unix 时间</td>
+<td>创建时间可见</td>
+</tr>
+</tbody></table></div>
+<p><code>public_id</code> 有唯一索引，所有按公开 ID 的业务查询都同时带 <code>user_id</code>。<code>source_url</code> 仅作为内存字段存在，不落库。</p>
+<h3 id="section-7-3">7.3 状态机<a class="anchor" href="#section-7-3" aria-label="链接到本节">#</a></h3><figure class="diagram state-machine" aria-labelledby="state-caption">
+  <div class="state-row">
+    <div class="state start"><strong>Creating</strong><span>本地占位，上游映射未可靠落库</span></div>
+    <span class="state-arrow">创建成功 →</span>
+    <div class="state processing"><strong>Processing</strong><span>上游已接受，尚不可引用</span></div>
+    <span class="state-arrow">上游就绪 →</span>
+    <div class="state success"><strong>Active</strong><span>可用于视频，受终态保护</span></div>
+  </div>
+  <div class="failure-row">
+    <span>Creating / Processing</span><span class="state-arrow">失败 ↓</span>
+    <div class="state failed"><strong>Failed</strong><span>不可用于视频，受终态保护</span></div>
+  </div>
+  <figcaption id="state-caption">只有 Active 素材允许进入视频引用链路；Active 和 Failed 不接受迟到状态覆盖。</figcaption>
+</figure>
+
+<p>状态语义：</p>
+<ul>
+<li><code>Creating</code>：本地记录已建立，但上游 ID 尚未可靠持久化；</li>
+<li><code>Processing</code>：上游已接受创建，可查询进度但不能用于视频；</li>
+<li><code>Active</code>：可用于视频引用；</li>
+<li><code>Failed</code>：不可恢复的当前素材记录终态，调用方需要重新创建素材。</li>
+</ul>
+<h2 id="section-8">8. 核心调用流程<a class="anchor" href="#section-8" aria-label="链接到本节">#</a></h2><h3 id="section-8-1">8.1 创建素材<a class="anchor" href="#section-8-1" aria-label="链接到本节">#</a></h3><figure class="diagram sequence" aria-labelledby="create-caption">
+    <div class="sequence-grid"><div class="seq-step"><span class="seq-number">01</span><div><strong>Router / Controller</strong><p>Token、模型权限与请求格式校验</p></div></div><div class="seq-step"><span class="seq-number">02</span><div><strong>Asset Service</strong><p>校验 HTTPS 与系统 Fetch Setting</p></div></div><div class="seq-step"><span class="seq-number">03</span><div><strong>Database</strong><p>选择素材渠道并申领素材组租约</p></div></div><div class="seq-step"><span class="seq-number">04</span><div><strong>BytePlus Assets API</strong><p>必要时创建素材组并条件激活</p></div></div><div class="seq-step"><span class="seq-number">05</span><div><strong>Database</strong><p>写入 Creating 素材与随机公开 ID</p></div></div><div class="seq-step"><span class="seq-number">06</span><div><strong>BytePlus Assets API</strong><p>签名调用 CreateAsset</p></div></div><div class="seq-step"><span class="seq-number">07</span><div><strong>Database</strong><p>原子写入上游映射并转为 Processing</p></div></div><div class="seq-step"><span class="seq-number">08</span><div><strong>API 调用方</strong><p>仅接收脱敏的 Flatkey 素材对象</p></div></div></div>
+    <figcaption id="create-caption">创建素材时，先保证素材组唯一可用，再建立本地占位，最后持久化上游素材映射。</figcaption>
+  </figure>
+
+<p>关键失败边界：</p>
+<ul>
+<li>上游创建素材失败：本地素材转为 <code>Failed</code>；</li>
+<li>上游创建成功但本地映射持久化失败：记录受限日志并返回存储错误，不伪报成功；</li>
+<li>上游创建组成功但本地激活失败：可能产生孤立上游组，只能依靠 Request ID 运维定位；</li>
+<li>当前版本没有自动删除或幂等查询上游孤立组的能力。</li>
+</ul>
+<h3 id="section-8-2">8.2 查询并同步状态<a class="anchor" href="#section-8-2" aria-label="链接到本节">#</a></h3><ol>
+<li>以 <code>(user_id, public_id)</code> 查询本地素材。</li>
+<li><code>Creating</code> 返回 409，<code>Failed</code> 返回 422。</li>
+<li>加载记录绑定的 BytePlus 渠道和结构化凭据。</li>
+<li>使用本地保存的上游 ID 调用 <code>GetAsset</code>。</li>
+<li>验证响应 ID 与请求 ID 一致，只接受已知状态。</li>
+<li>以条件更新写入状态；终态记录不被覆盖。</li>
+<li>再次按用户读取本地记录并返回脱敏对象。</li>
+</ol>
+<h3 id="section-8-3">8.3 视频引用、授权、固定路由与改写<a class="anchor" href="#section-8-3" aria-label="链接到本节">#</a></h3><figure class="diagram sequence" aria-labelledby="reference-caption">
+    <div class="sequence-grid"><div class="seq-step"><span class="seq-number">01</span><div><strong>Distributor</strong><p>复用请求体并扫描媒体 URL 字段</p></div></div><div class="seq-step"><span class="seq-number">02</span><div><strong>Reference Service</strong><p>严格解析并去重 asset:// 引用</p></div></div><div class="seq-step"><span class="seq-number">03</span><div><strong>Database</strong><p>按当前 user_id 批量查询素材</p></div></div><div class="seq-step"><span class="seq-number">04</span><div><strong>Reference Service</strong><p>校验所有权、跨渠道、类型、状态和上游 ID</p></div></div><div class="seq-step"><span class="seq-number">05</span><div><strong>Distributor</strong><p>校验 Token 约束并强制使用素材渠道</p></div></div><div class="seq-step"><span class="seq-number">06</span><div><strong>Gin Context</strong><p>仅在当前请求保存 PinnedChannelID 与 RewriteMap</p></div></div><div class="seq-step"><span class="seq-number">07</span><div><strong>TaskAdaptor</strong><p>把 Flatkey URI 精确改写为上游 URI</p></div></div><div class="seq-step"><span class="seq-number">08</span><div><strong>BytePlus Seedance</strong><p>接收改写后的请求并返回公共任务映射</p></div></div></div>
+    <figcaption id="reference-caption">素材授权先于渠道选择；一旦固定渠道，任务失败也不得切换到其他 BytePlus 账号。</figcaption>
+  </figure>
+
+<p>授权与路由顺序：</p>
+<ol>
+<li>扫描 <code>content[]</code> 实际存在的 <code>image_url</code>、<code>video_url</code>、<code>audio_url</code>；</li>
+<li>严格解析 Flatkey 素材 URI，并对重复引用去重；</li>
+<li>用当前用户和公开 ID 批量查询；</li>
+<li>缺失或跨用户统一返回 404；</li>
+<li>在逐项状态和类型校验前先检查跨渠道冲突，使错误语义稳定；</li>
+<li>校验媒体字段与素材类型匹配；</li>
+<li>只允许 <code>Active</code> 且有上游 ID 的素材；</li>
+<li>要求所有素材绑定同一个正整数渠道 ID；</li>
+<li>校验渠道仍启用、类型为 BytePlus、对当前组和模型可用；</li>
+<li>若 Token 固定渠道，必须与素材渠道一致；</li>
+<li>将固定渠道和 URI 改写表写入当前 Gin Context；</li>
+<li><code>TaskAdaptor</code> 在序列化后的上游请求体中完成精确替换；</li>
+<li>改写表缺失或 URI 非严格格式时拒绝提交，不原样透传给上游。</li>
+</ol>
+<h2 id="section-9">9. 多节点并发、租约与失败恢复<a class="anchor" href="#section-9" aria-label="链接到本节">#</a></h2><h3 id="section-9-1">9.1 素材组唯一创建<a class="anchor" href="#section-9-1" aria-label="链接到本节">#</a></h3><p><code>ClaimBytePlusAssetGroup()</code> 首先尝试 <code>INSERT ... ON CONFLICT DO NOTHING</code>。插入成功的节点取得租约；插入失败的节点读取已有记录。</p>
+<p>可取得或接管创建权的条件：</p>
+<ul>
+<li>当前没有 <code>(user_id, channel_id)</code> 记录；</li>
+<li>现有记录为 <code>Failed</code>；</li>
+<li>现有记录为 <code>Creating</code>，且 <code>lease_updated_time</code> 早于 300 秒恢复阈值。</li>
+</ul>
+<p>其他节点遇到有效 <code>Creating</code> 租约时进行 3 次有上限的短暂重读。若仍未变为 <code>Active</code>，返回 <code>asset_group_initializing</code>，由客户端稍后重试。</p>
+<h3 id="section-9-2">9.2 租约防陈旧写<a class="anchor" href="#section-9-2" aria-label="链接到本节">#</a></h3><p><code>ActivateBytePlusAssetGroup()</code> 和 <code>FailBytePlusAssetGroup()</code> 的更新条件同时包含：</p>
+<ul>
+<li>本地主键；</li>
+<li>当前状态必须为 <code>Creating</code>；</li>
+<li><code>lease_updated_time</code> 必须等于取得创建权时的旧值。</li>
+</ul>
+<p>因此，已被新节点接管的旧节点不能再激活或失败覆盖新租约。</p>
+<h3 id="section-9-3">9.3 素材终态保护<a class="anchor" href="#section-9-3" aria-label="链接到本节">#</a></h3><p>素材创建从 <code>Creating</code> 到 <code>Processing</code> 使用条件更新。后续状态同步只更新非 <code>Active</code>、非 <code>Failed</code> 记录。迟到、重复或乱序轮询不会把终态改回处理中。</p>
+<h3 id="section-9-4">9.4 幂等边界<a class="anchor" href="#section-9-4" aria-label="链接到本节">#</a></h3><ul>
+<li>素材组创建在 Flatkey 数据库范围内具备每用户、每渠道的唯一性；</li>
+<li>创建素材接口本身没有客户端幂等键，每次成功调用都会产生新的 Flatkey 素材；</li>
+<li>视频任务的幂等与重试沿用既有视频任务机制；</li>
+<li>带素材的任务重试必须保持原固定渠道，不能故障转移到其他 BytePlus 账号。</li>
+</ul>
+<h2 id="section-10">10. 上游协议与签名<a class="anchor" href="#section-10" aria-label="链接到本节">#</a></h2><p>素材 Client 使用以下固定协议参数：</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Host</td>
+<td><code>ark.ap-southeast-1.byteplusapi.com</code></td>
+</tr>
+<tr>
+<td>Version</td>
+<td><code>2024-01-01</code></td>
+</tr>
+<tr>
+<td>Service</td>
+<td><code>ark</code></td>
+</tr>
+<tr>
+<td>Region</td>
+<td><code>ap-southeast-1</code></td>
+</tr>
+<tr>
+<td>Algorithm</td>
+<td><code>HMAC-SHA256</code></td>
+</tr>
+<tr>
+<td>HTTP 方法</td>
+<td><code>POST</code></td>
+</tr>
+<tr>
+<td>请求超时</td>
+<td>30 秒</td>
+</tr>
+<tr>
+<td>最大响应体</td>
+<td>1 MiB</td>
+</tr>
+</tbody></table></div>
+<p>Action 通过排序后的查询参数传递，例如 <code>CreateAssetGroup</code>、<code>CreateAsset</code>、<code>GetAsset</code>。请求使用共享 <code>pkg/volcengineauth.Signer</code>，签名输入包含请求体 hash、规范化查询、规范化 Header 和时间。</p>
+<p>安全约束：</p>
+<ul>
+<li>签名器不新增外部依赖；</li>
+<li>AK/SK 只在请求构造期间存在于内存；</li>
+<li>日志不记录 Authorization、签名字符串或规范请求；</li>
+<li>非 2xx、超大响应、无法解析的响应、错误 envelope、缺失 ID、ID 不匹配和未知状态都归为上游协议错误；</li>
+<li>上游错误正文不直接返回调用方。</li>
+</ul>
+<h2 id="section-11">11. 错误模型<a class="anchor" href="#section-11" aria-label="链接到本节">#</a></h2><p>错误正文沿用 OpenAI 兼容结构：</p>
+<pre><code class="language-json">{
+  &quot;error&quot;: {
+    &quot;message&quot;: &quot;&lt;localized-public-message&gt;&quot;,
+    &quot;type&quot;: &quot;asset_not_ready&quot;,
+    &quot;code&quot;: &quot;asset_not_ready&quot;,
+    &quot;param&quot;: &quot;&quot;
+  }
+}
+</code></pre>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>场景</th>
+<th align="right">HTTP</th>
+<th>稳定错误码</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>URL、类型、Moderation 或素材 URI 非法</td>
+<td align="right">400</td>
+<td><code>invalid_asset_request</code></td>
+</tr>
+<tr>
+<td>Token 无效</td>
+<td align="right">401</td>
+<td>既有鉴权错误</td>
+</tr>
+<tr>
+<td>Token 无 <code>seedance-2.0</code> 权限</td>
+<td align="right">403</td>
+<td><code>access_denied</code></td>
+</tr>
+<tr>
+<td>素材不存在或不属于当前用户</td>
+<td align="right">404</td>
+<td><code>asset_not_found</code></td>
+</tr>
+<tr>
+<td>素材仍为 <code>Creating</code> / <code>Processing</code></td>
+<td align="right">409</td>
+<td><code>asset_not_ready</code></td>
+</tr>
+<tr>
+<td>素材已 <code>Failed</code></td>
+<td align="right">422</td>
+<td><code>asset_failed</code></td>
+</tr>
+<tr>
+<td>请求混用不同渠道素材或 Token 固定渠道冲突</td>
+<td align="right">409</td>
+<td><code>asset_channel_conflict</code></td>
+</tr>
+<tr>
+<td>素材渠道禁用、配置不完整或模型不可用</td>
+<td align="right">503</td>
+<td><code>asset_channel_unavailable</code></td>
+</tr>
+<tr>
+<td>素材组由其他节点初始化</td>
+<td align="right">503</td>
+<td><code>asset_group_initializing</code></td>
+</tr>
+<tr>
+<td>BytePlus 超时、非成功响应或协议异常</td>
+<td align="right">502</td>
+<td><code>asset_upstream_error</code></td>
+</tr>
+<tr>
+<td>数据库读写失败</td>
+<td align="right">500</td>
+<td><code>asset_storage_error</code></td>
+</tr>
+</tbody></table></div>
+<p>控制器会移除内部 Metadata 并使用稳定国际化文案。上游 Host、项目名、GroupId、AssetId、AK、SK、API Key、Authorization、完整签名和源 URL不进入对外错误。</p>
+<h2 id="section-12">12. 计费与配额边界<a class="anchor" href="#section-12" aria-label="链接到本节">#</a></h2><h3 id="section-12-1">12.1 素材接口<a class="anchor" href="#section-12-1" aria-label="链接到本节">#</a></h3><p>当前 <code>POST /v1/assets</code> 和 <code>GET /v1/assets/:asset_id</code> 只执行 API 级限流和模型请求限流，不调用视频配额预扣、结算或 Token 计费逻辑。素材上游可能产生的供应商侧费用由 BytePlus 账号承担，Flatkey 当前没有为素材操作建立单独的用户账单项。</p>
+<h3 id="section-12-2">12.2 视频任务<a class="anchor" href="#section-12-2" aria-label="链接到本节">#</a></h3><p>素材只改变视频请求的引用解析和渠道选择，不改变现有 Seedance 视频任务的计费路径。视频任务仍按既有提交、轮询、完成和用量结算逻辑计费。</p>
+<h3 id="section-12-3">12.3 未来扩展约束<a class="anchor" href="#section-12-3" aria-label="链接到本节">#</a></h3><p>若未来对素材创建或存储收费，应新增明确的计费事件、幂等键和账单展示，不能复用视频 Token 用量字段隐式扣费，也不能在查询素材状态时重复计费。</p>
+<h2 id="section-13">13. 日志、可观测性与隐私<a class="anchor" href="#section-13" aria-label="链接到本节">#</a></h2><h3 id="section-13-1">13.1 可记录字段<a class="anchor" href="#section-13-1" aria-label="链接到本节">#</a></h3><ul>
+<li>Flatkey 请求 ID；</li>
+<li>内部渠道 ID；</li>
+<li>脱敏的上游 Request ID；</li>
+<li>操作名、HTTP 状态、耗时和稳定错误码；</li>
+<li>素材状态迁移和租约接管结果；</li>
+<li>视频任务公共 ID及其既有任务指标。</li>
+</ul>
+<h3 id="section-13-2">13.2 禁止记录字段<a class="anchor" href="#section-13-2" aria-label="链接到本节">#</a></h3><ul>
+<li>Flatkey Token、BytePlus API Key、AK、SK；</li>
+<li>Authorization 和签名头；</li>
+<li>完整结构化 <code>Channel.Key</code>；</li>
+<li>上游 GroupId、AssetId；</li>
+<li>带查询参数的源 URL；</li>
+<li>上游原始错误正文和响应体。</li>
+</ul>
+<h3 id="section-13-3">13.3 建议监控<a class="anchor" href="#section-13-3" aria-label="链接到本节">#</a></h3><ul>
+<li><code>asset_upstream_error</code>、<code>asset_storage_error</code> 的错误率；</li>
+<li>素材从 <code>Processing</code> 到 <code>Active</code> 的耗时分布；</li>
+<li><code>asset_group_initializing</code> 频率和租约接管次数；</li>
+<li>素材渠道不可用和固定渠道冲突次数；</li>
+<li>上游请求延迟、超时、非 2xx 和未知状态；</li>
+<li>上游创建成功但本地持久化失败的受限日志告警。</li>
+</ul>
+<h2 id="section-14">14. 部署、迁移与回滚<a class="anchor" href="#section-14" aria-label="链接到本节">#</a></h2><h3 id="section-14-1">14.1 数据库迁移<a class="anchor" href="#section-14-1" aria-label="链接到本节">#</a></h3><p>普通和快速迁移路径都包含：</p>
+<ul>
+<li><code>BytePlusAssetGroup</code></li>
+<li><code>BytePlusAsset</code></li>
+</ul>
+<p>模型只使用仓库现有 GORM 和跨 SQLite、MySQL、PostgreSQL 的字段/索引表达。部署前应确认目标数据库账号具备建表和建索引权限。</p>
+<h3 id="section-14-2">14.2 发布顺序<a class="anchor" href="#section-14-2" aria-label="链接到本节">#</a></h3><ol>
+<li>备份目标 BytePlus 渠道的当前 Key 配置。</li>
+<li>部署包含新模型的 console/router 版本，使共享数据库完成迁移。</li>
+<li>将目标 BytePlus 渠道 Key 更新为结构化凭据。</li>
+<li>验证 <code>/v1/models</code>、素材创建、状态轮询、视频提交、任务轮询和下载。</li>
+<li>观察素材错误、租约和视频渠道指标。</li>
+<li>逐步开放调用方。</li>
+</ol>
+<p>需要部署：</p>
+<ul>
+<li>router：新路由、分发前解析、BytePlus 适配器和视频代理；</li>
+<li>console：共享模型迁移和后台任务代码需保持同版本。</li>
+</ul>
+<p>不涉及：</p>
+<ul>
+<li>newapi-web 的新增页面；</li>
+<li>Terraform、Cloudflare 或新的外部基础设施；</li>
+<li>独立缓存或消息队列。</li>
+</ul>
+<h3 id="section-14-3">14.3 回滚<a class="anchor" href="#section-14-3" aria-label="链接到本节">#</a></h3><p>安全回滚顺序：</p>
+<ol>
+<li>停止新的素材调用流量。</li>
+<li>确认没有正在创建的素材组或素材请求。</li>
+<li>将渠道 Key 从结构化 JSON 恢复为旧纯字符串视频 API Key。</li>
+<li>回滚 router/console 应用版本。</li>
+<li>保留新增表，避免破坏已创建素材的审计和未来恢复。</li>
+</ol>
+<p>不能先回滚旧应用再保留结构化 Key，因为旧适配器可能把整段 JSON 当作 Bearer Token。回滚后已创建的 Flatkey 素材不可用于旧版本视频请求。</p>
+<h2 id="section-15">15. 测试策略与覆盖矩阵<a class="anchor" href="#section-15" aria-label="链接到本节">#</a></h2><h3 id="section-15-1">15.1 自动测试<a class="anchor" href="#section-15-1" aria-label="链接到本节">#</a></h3><div class="table-scroll"><table>
+<thead>
+<tr>
+<th>层级</th>
+<th>重点场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>凭据</td>
+<td>旧字符串、新 JSON、缺字段、错误 JSON、视频只取 <code>api_key</code></td>
+</tr>
+<tr>
+<td>URL 安全</td>
+<td>HTTPS、localhost、userinfo、私网/IP/端口过滤、源 URL 不落库</td>
+</tr>
+<tr>
+<td>Client</td>
+<td>签名、Action/Version、请求映射、超时、响应上限、ID/状态校验、错误脱敏</td>
+</tr>
+<tr>
+<td>Model</td>
+<td>AutoMigrate、唯一索引、租约接管、陈旧写保护、终态保护、按用户查询</td>
+</tr>
+<tr>
+<td>Service</td>
+<td>渠道选择、素材组复用、Moderation、创建/查询状态、失败映射</td>
+</tr>
+<tr>
+<td>引用解析</td>
+<td>严格 URI、三种媒体、重复引用、跨用户、跨渠道、状态、类型、空上游 ID</td>
+</tr>
+<tr>
+<td>Distributor</td>
+<td>授权早于随机路由、Token 固定渠道冲突、模型和分组能力、禁用渠道</td>
+</tr>
+<tr>
+<td>Adaptor</td>
+<td>URI 精确改写、缺失改写表拒绝、普通 URL 原样、BytePlus Header 隔离</td>
+</tr>
+<tr>
+<td>HTTP</td>
+<td>Token 必需、模型权限、公开错误结构、响应字段脱敏</td>
+</tr>
+<tr>
+<td>回归</td>
+<td>非素材 Seedance 创建、轮询、下载和原有 BytePlus 视频链路</td>
+</tr>
+</tbody></table></div>
+<h3 id="section-15-2">15.2 建议验证命令<a class="anchor" href="#section-15-2" aria-label="链接到本节">#</a></h3><pre><code class="language-powershell">go test ./service ./model ./middleware ./controller ./relay/channel/task/byteplus
+go test ./...
+go vet ./...
+go build ./...
+</code></pre>
+<p>若全仓测试受外部依赖或环境限制，应保留目标包测试结果，并明确记录未运行或失败的非本功能检查。</p>
+<h3 id="section-15-3">15.3 安全检查<a class="anchor" href="#section-15-3" aria-label="链接到本节">#</a></h3><ul>
+<li>文档和 Git 差异扫描真实 Key、AK/SK、素材 ID和任务 ID；</li>
+<li>响应快照确认不含上游 ID、渠道 ID和项目名；</li>
+<li>日志测试确认源 URL、凭据和原始上游错误不回显；</li>
+<li>跨用户查询与引用均返回相同 404；</li>
+<li>跨渠道素材在提交上游之前即被拒绝。</li>
+</ul>
+<h2 id="section-16">16. 正式环境验证结果<a class="anchor" href="#section-16" aria-label="链接到本节">#</a></h2><p>2026-07-30 已在经授权的正式环境完成一次端到端验收。验证使用临时测试素材，文档不保存完整素材 ID、任务 ID或任何凭据。</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>验证项</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>模型发现</td>
+<td><code>/v1/models</code> 返回 200，包含 <code>seedance-2.0</code></td>
+</tr>
+<tr>
+<td>创建素材</td>
+<td>返回 200，仅得到 Flatkey 公开素材对象</td>
+</tr>
+<tr>
+<td>素材就绪</td>
+<td>轮询进入 <code>Active</code></td>
+</tr>
+<tr>
+<td>提交视频</td>
+<td>返回 200，客户端只创建一次任务</td>
+</tr>
+<tr>
+<td>视频完成</td>
+<td>状态 <code>completed</code>，进度 100%</td>
+</tr>
+<tr>
+<td>用量记录</td>
+<td>108,900 tokens</td>
+</tr>
+<tr>
+<td>结果下载</td>
+<td>返回 200，<code>Content-Type: video/mp4</code></td>
+</tr>
+<tr>
+<td>文件完整性</td>
+<td>2,793,631 bytes；SHA-256 <code>51de8ba895392456209f552bf63c320a4105d09b8bb71e0adee36ee0b75cd7c8</code></td>
+</tr>
+</tbody></table></div>
+<p>该验证证明了以下完整链路：素材创建 → 素材状态同步 → <code>asset://</code> 授权与改写 → 素材渠道固定 → Seedance 视频生成 → 任务轮询 → 视频代理下载。</p>
+<p>正式验证不替代自动化回归；两者分别证明真实集成可用性和可重复的软件行为。</p>
+<h2 id="section-17">17. 已知限制与后续演进<a class="anchor" href="#section-17" aria-label="链接到本节">#</a></h2><ul>
+<li>没有素材列表、删除、过期和垃圾回收；</li>
+<li>没有客户端素材创建幂等键；</li>
+<li>上游组创建成功但本地激活失败时，可能留下孤立上游组；</li>
+<li>素材不可跨 BytePlus 账号或项目迁移；</li>
+<li>当前只把 <code>seedance-2.0</code> 作为素材能力验收模型；</li>
+<li>素材接口没有独立用户计费事件；</li>
+<li>状态同步是查询驱动，没有独立后台轮询器或 webhook；</li>
+<li>结构化凭据仍依赖现有 <code>Channel.Key</code> 存储和后台隐藏机制，本期不新增静态加密层。</li>
+</ul>
+<p>未来若增加列表、删除、幂等或后台同步，应保持以下不变量：外部只见 Flatkey ID；所有查询带用户所有权；视频授权先于路由；带素材请求不得跨渠道重试；凭据和上游标识不出信任边界。</p>
+<h2 id="section-18">18. 验收条件<a class="anchor" href="#section-18" aria-label="链接到本节">#</a></h2><p>当前实现和发布必须持续满足：</p>
+<ol>
+<li>调用方不需要知道或提交 BytePlus GroupId。</li>
+<li>调用方只能看到 Flatkey 素材 ID和公开状态。</li>
+<li>跨用户素材查询和视频引用都被阻止且不可枚举。</li>
+<li>媒体字段、素材类型和素材状态在提交上游前完成校验。</li>
+<li>带素材的视频请求稳定固定到素材渠道，失败时不切换账号。</li>
+<li>旧纯字符串渠道 Key 和普通视频请求保持兼容。</li>
+<li>多节点素材组创建不依赖进程锁，陈旧租约不能覆盖新结果。</li>
+<li>数据库迁移路径包含两张素材表。</li>
+<li>对外响应和普通日志不泄露凭据、上游 ID或完整源 URL。</li>
+<li>自动测试、静态检查、构建和受控正式环境冒烟按发布风险执行并留存证据。</li>
+</ol>
+<h2 id="section-19">19. 实现索引与参考<a class="anchor" href="#section-19" aria-label="链接到本节">#</a></h2><h3 id="section-19-1">19.1 代码索引<a class="anchor" href="#section-19-1" aria-label="链接到本节">#</a></h3><ul>
+<li>Router：<code>router/asset-router.go</code></li>
+<li>Controller：<code>controller/byteplus_asset.go</code></li>
+<li>业务编排：<code>service/byteplus_asset.go</code></li>
+<li>引用解析：<code>service/byteplus_asset_reference.go</code></li>
+<li>凭据解析：<code>service/byteplus_credentials.go</code></li>
+<li>上游 Client：<code>service/byteplus_asset_client.go</code></li>
+<li>数据模型：<code>model/byteplus_asset.go</code></li>
+<li>分发固定：<code>middleware/distributor.go</code></li>
+<li>BytePlus 适配器：<code>relay/channel/task/byteplus/adaptor.go</code></li>
+<li>视频结果代理：<code>controller/video_proxy_byteplus.go</code></li>
+</ul>
+<h3 id="section-19-2">19.2 官方参考<a class="anchor" href="#section-19-2" aria-label="链接到本节">#</a></h3><ul>
+<li><a href="https://docs.byteplus.com/en/docs/ModelArk/2333565#assets-api-list" target="_blank" rel="noreferrer">虚拟人像库接入总览</a></li>
+<li><a href="https://docs.byteplus.com/en/docs/ModelArk/2318270" target="_blank" rel="noreferrer">创建素材组</a></li>
+<li><a href="https://docs.byteplus.com/en/docs/ModelArk/2318271" target="_blank" rel="noreferrer">创建素材</a></li>
+<li><a href="https://docs.byteplus.com/en/docs/ModelArk/2318274" target="_blank" rel="noreferrer">查询素材</a></li>
+<li><a href="https://docs.byteplus.com/en/docs/ModelArk/2333565#generate-video-using-portrait-assets" target="_blank" rel="noreferrer">使用人像素材生成视频</a></li>
+<li><a href="https://docs.byteplus.com/en/docs/ModelArk/2333565#sample-code-in-other-programming-languages" target="_blank" rel="noreferrer">虚拟人像库 API 示例</a></li>
+<li><a href="https://docs.byteplus.com/en/docs/ModelArk/Content_Pre-filter" target="_blank" rel="noreferrer">Seedance 2.0 Content Pre-filter</a></li>
+</ul>
+</main>
+  </div>
+  <footer>Markdown 为唯一源文档 · 本页为同名自包含 HTML 快照 · 2026-07-30</footer>
+</body>
+</html>
