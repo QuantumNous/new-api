@@ -2300,7 +2300,7 @@ func recallCampaignModelFromDraft(draft RecallCampaignDraft, actorID int) (*mode
 		PromotionExpiryMode:   draft.PromotionExpiryMode,
 		PromotionExpiresAt:    draft.PromotionExpiresAt,
 		PromotionValidSeconds: draft.PromotionValidSeconds,
-		EmailSequenceConfig:   model.LargeText(emailJSON),
+		EmailSequenceConfig:   string(emailJSON),
 		EnrollmentLimit:       draft.EnrollmentLimit,
 		WorkerConcurrency:     draft.WorkerConcurrency,
 		CreatedBy:             actorID,

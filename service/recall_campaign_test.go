@@ -1065,7 +1065,7 @@ func TestLegacyCompleteRecallLocalesNormalizeCurrentAndEnglishOnlyNormalizeStale
 				AudienceConfig:      `{}`,
 				DiscountConfig:      `{}`,
 				ProductScope:        `{}`,
-				EmailSequenceConfig: model.LargeText(testCase.emailSequenceJSON),
+				EmailSequenceConfig: testCase.emailSequenceJSON,
 			}
 
 			draft, err := recallCampaignDraftFromModel(campaign)
