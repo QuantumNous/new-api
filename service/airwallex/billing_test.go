@@ -118,3 +118,51 @@ func TestListBillingSubscriptionsFiltersByCustomer(t *testing.T) {
 		t.Fatalf("query missing filters: %s", gotQuery)
 	}
 }
+
+func TestGetBillingSubscriptionItemsParsesPriceId(t *testing.T) {
+	var logins int32
+	var gotPath string
+	mockServer(t, &logins, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Write([]byte(`{"items":[{"id":"sit_1","price":{"id":"pri_plus_month"}}]}`))
+	})
+	items, err := GetBillingSubscriptionItems("sub_9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/api/v1/billing/subscriptions/sub_9/items" {
+		t.Fatalf("wrong path %s", gotPath)
+	}
+	if len(items) != 1 || items[0].Id != "sit_1" || items[0].Price.Id != "pri_plus_month" {
+		t.Fatalf("unexpected items %+v", items)
+	}
+}
+
+func TestSwitchBillingSubscriptionPriceSendsProrationShape(t *testing.T) {
+	var logins int32
+	var gotPath, gotBody string
+	mockServer(t, &logins, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		buf := make([]byte, r.ContentLength)
+		r.Body.Read(buf)
+		gotBody = string(buf)
+		w.Write([]byte(`{"id":"sub_9","status":"ACTIVE"}`))
+	})
+	if err := SwitchBillingSubscriptionPrice("sub_9", "req-1", "sit_1", "pri_plus_year"); err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/api/v1/billing/subscriptions/sub_9/update" {
+		t.Fatalf("wrong path %s", gotPath)
+	}
+	for _, want := range []string{
+		`"billing_action":"IMMEDIATE_CHARGE_AND_RESET_CYCLE"`,
+		`"default_proration_mode":"PRORATED"`,
+		`"id":"sit_1"`,
+		`"deleted":true`,
+		`"price_id":"pri_plus_year"`,
+	} {
+		if !strings.Contains(gotBody, want) {
+			t.Fatalf("body missing %s: %s", want, gotBody)
+		}
+	}
+}

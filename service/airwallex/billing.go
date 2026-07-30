@@ -125,3 +125,53 @@ func CancelBillingSubscription(id, requestId, prorationBehavior string) error {
 	body := map[string]any{"request_id": requestId, "proration_behavior": prorationBehavior}
 	return do(http.MethodPost, "/api/v1/billing/subscriptions/"+url.PathEscape(id)+"/cancel", body, nil)
 }
+
+// BillingSubscriptionItem is one line of a managed subscription. The
+// subscription object itself carries no items array — they come from the
+// separate /items endpoint.
+type BillingSubscriptionItem struct {
+	Id    string `json:"id"`
+	Price struct {
+		Id string `json:"id"`
+	} `json:"price"`
+}
+
+// GetBillingSubscriptionItems lists the subscription's current line items. Used
+// to learn which plan a live subscription is actually on (its price id), which
+// is authoritative over any locally stored plan id.
+func GetBillingSubscriptionItems(subId string) ([]BillingSubscriptionItem, error) {
+	var page struct {
+		Items []BillingSubscriptionItem `json:"items"`
+	}
+	if err := do(http.MethodGet, "/api/v1/billing/subscriptions/"+url.PathEscape(subId)+"/items", nil, &page); err != nil {
+		return nil, err
+	}
+	return page.Items, nil
+}
+
+type updateBillingSubscriptionItem struct {
+	Id       string `json:"id,omitempty"`
+	PriceId  string `json:"price_id,omitempty"`
+	Quantity int    `json:"quantity,omitempty"`
+	Deleted  bool   `json:"deleted,omitempty"`
+}
+
+// SwitchBillingSubscriptionPrice moves a live subscription onto newPriceId with
+// Claude-style semantics: unused time on the old price is credited, the new
+// price is charged immediately, and the billing anchor resets to now.
+//
+// Airwallex forbids mutating price_id on an existing item, so the swap is
+// delete-old + add-new inside ONE update call (a single call keeps it atomic —
+// two calls could leave the subscription itemless or double-priced).
+func SwitchBillingSubscriptionPrice(subId, requestId, oldItemId, newPriceId string) error {
+	body := map[string]any{
+		"request_id": requestId,
+		"items": []updateBillingSubscriptionItem{
+			{Id: oldItemId, Deleted: true},
+			{PriceId: newPriceId, Quantity: 1},
+		},
+		"billing_action":         "IMMEDIATE_CHARGE_AND_RESET_CYCLE",
+		"default_proration_mode": "PRORATED",
+	}
+	return do(http.MethodPost, "/api/v1/billing/subscriptions/"+url.PathEscape(subId)+"/update", body, nil)
+}
