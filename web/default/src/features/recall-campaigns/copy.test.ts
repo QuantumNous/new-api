@@ -146,14 +146,36 @@ const activityEmailLocalizationAndQuotaKeys = [
   'Save hourly limit',
 ] as const
 
-const activityEmailSenderCopyKeys = [
-  'Activity sender address',
-  'All Activity Configuration campaigns share this sender. Other system emails are unaffected.',
-  'Default SMTP sender ({{email}})',
-  'Failed to load sender addresses.',
-  'Failed to update sender address.',
-  'Sender address choices changed. Review and save again.',
-  'Save sender address',
+const recallActivitySMTPCopyKeys = [
+  'Activity SMTP settings',
+  'All Activity Configuration campaigns use this dedicated SMTP account.',
+  'SMTP server',
+  'SMTP port',
+  'SMTP account',
+  'Sender email',
+  'SMTP token',
+  'Leave blank to keep the existing SMTP token.',
+  'Enter the SMTP token before saving.',
+  'SSL enabled',
+  'Force AUTH LOGIN',
+  'Save SMTP settings',
+  'Saving',
+  'Activity SMTP settings saved.',
+  'Failed to load Activity SMTP settings.',
+  'Failed to update Activity SMTP settings.',
+  'Loading SMTP settings',
+  'Configured',
+  'Not configured',
+  'SMTP server is required.',
+  'SMTP port is required.',
+  'SMTP port must be an integer.',
+  'SMTP port must be between 1 and 65535.',
+  'SMTP account is required.',
+  'Sender must be a plain email address.',
+  'SMTP token is required for first save.',
+  'Activity SMTP is not configured. Configure it before sending.',
+  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
+  'Delivery status is uncertain. Check the mailbox provider before retrying.',
 ] as const
 
 const recallHelpKeys = [
@@ -177,6 +199,7 @@ const recallHelpKeys = [
   ...specifiedUsersSelectorKeys,
   ...recallEmailPlaceholderHelpKeys,
   ...activityEmailLocalizationAndQuotaKeys,
+  ...recallActivitySMTPCopyKeys,
   ...translatedAudienceTemplateDescriptionKeys,
 ] as const
 
@@ -186,6 +209,45 @@ const legacyActivityConfigurationKeys = [
   'No recall campaigns',
   'Back to Recall Campaigns',
 ] as const
+
+const activitySMTPNaturalTranslationExpectations = {
+  es: {
+    'Activity SMTP settings': 'Configuración SMTP de actividades',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Todas las campañas de Configuración de actividad usan esta cuenta SMTP dedicada.',
+    'SMTP server is required.': 'El servidor SMTP es obligatorio.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'Falló la entrega SMTP de la actividad. Revisa el host, el puerto, las credenciales, el modo TLS y la autorización del remitente, y vuelve a intentarlo.',
+    'Save SMTP settings': 'Guardar configuración SMTP',
+  },
+  fr: {
+    'Activity SMTP settings': 'Paramètres SMTP des activités',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Toutes les campagnes de configuration d’activité utilisent ce compte SMTP dédié.',
+    'SMTP server is required.': 'Le serveur SMTP est obligatoire.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'L’envoi SMTP de l’activité a échoué. Vérifiez l’hôte, le port, les identifiants, le mode TLS et l’autorisation de l’expéditeur, puis réessayez.',
+    'Save SMTP settings': 'Enregistrer les paramètres SMTP',
+  },
+  pt: {
+    'Activity SMTP settings': 'Configurações SMTP de atividades',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Todas as campanhas de Configuração de atividade usam esta conta SMTP dedicada.',
+    'SMTP server is required.': 'O servidor SMTP é obrigatório.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'A entrega SMTP da atividade falhou. Verifique host, porta, credenciais, modo TLS e autorização do remetente, depois tente novamente.',
+    'Save SMTP settings': 'Salvar configurações de SMTP',
+  },
+  vi: {
+    'Activity SMTP settings': 'Cài đặt SMTP cho hoạt động',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Tất cả chiến dịch Cấu hình hoạt động dùng tài khoản SMTP chuyên dụng này.',
+    'SMTP server is required.': 'Bắt buộc nhập máy chủ SMTP.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'Gửi SMTP cho hoạt động thất bại. Hãy kiểm tra máy chủ, cổng, thông tin xác thực, chế độ TLS và ủy quyền người gửi, rồi thử lại.',
+    'Save SMTP settings': 'Lưu cài đặt SMTP',
+  },
+} as const
 
 describe('recall campaign copy', () => {
   test('maps each audience template to its explanation', () => {
@@ -218,10 +280,28 @@ describe('recall campaign copy', () => {
     )
   })
 
-  test('registers source copy for the activity email sender control without owning locale translations', () => {
-    expect(recallCopy.recallActivityEmailCopyKeys).toEqual(
-      expect.arrayContaining([...activityEmailSenderCopyKeys])
+  test('registers source copy for dedicated Activity SMTP settings without legacy sender aliases', () => {
+    expect(recallCopy.recallActivitySMTPCopyKeys).toEqual(
+      expect.arrayContaining([...recallActivitySMTPCopyKeys])
     )
+    expect(recallCopy.recallActivityEmailCopyKeys).not.toEqual(
+      expect.arrayContaining([
+        ['Activity', 'sender', 'address'].join(' '),
+        ['Save', 'sender', 'address'].join(' '),
+        ['Failed to load', 'sender addresses.'].join(' '),
+      ])
+    )
+  })
+
+  test('keeps Activity SMTP locale values as natural UTF-8 translations', () => {
+    for (const [locale, expectations] of Object.entries(
+      activitySMTPNaturalTranslationExpectations
+    )) {
+      const translations = localeTranslations[locale]
+      for (const [key, expected] of Object.entries(expectations)) {
+        expect(translations[key], `${locale} ${key}`).toBe(expected)
+      }
+    }
   })
 
   for (const [locale, translations] of Object.entries(localeTranslations)) {

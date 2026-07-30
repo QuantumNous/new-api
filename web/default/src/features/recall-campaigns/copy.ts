@@ -18,6 +18,79 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { RecallAudienceTemplate } from './types'
 
+export const activitySMTPDeliveryFailureCopyKey =
+  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+
+export const recallDeliveryErrorCopyByCode: Record<string, string> = {
+  activity_smtp_not_configured:
+    'Activity SMTP is not configured. Configure it before sending.',
+  activity_smtp_send_failed: activitySMTPDeliveryFailureCopyKey,
+  smtp_uncertain:
+    'Delivery status is uncertain. Check the mailbox provider before retrying.',
+}
+
+const activitySMTPSaveFallbackCopyKey =
+  'Failed to update Activity SMTP settings.'
+
+const activitySMTPSaveValidationCopyByMessage: Record<string, string> = {
+  'SMTP server is required': 'SMTP server is required.',
+  'SMTP server is required.': 'SMTP server is required.',
+  'SMTP port must be between 1 and 65535':
+    'SMTP port must be between 1 and 65535.',
+  'SMTP port must be between 1 and 65535.':
+    'SMTP port must be between 1 and 65535.',
+  'SMTP account is required': 'SMTP account is required.',
+  'SMTP account is required.': 'SMTP account is required.',
+  'SMTP token is required': 'SMTP token is required for first save.',
+  'SMTP token is required.': 'SMTP token is required for first save.',
+  'SMTP token is required for first save.':
+    'SMTP token is required for first save.',
+  'invalid SMTP sender': 'Sender must be a plain email address.',
+  'Sender must be a plain email address.':
+    'Sender must be a plain email address.',
+}
+
+function getObjectRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  return value as Record<string, unknown>
+}
+
+function getRecallApiErrorData(
+  error: unknown
+): Record<string, unknown> | undefined {
+  return getObjectRecord(getObjectRecord(error)?.data)
+}
+
+export function getRecallDeliveryErrorCopyKey(
+  code: unknown
+): string | undefined {
+  if (typeof code !== 'string') return undefined
+  return recallDeliveryErrorCopyByCode[code]
+}
+
+export function getRecallApiErrorCodeCopyKey(
+  error: unknown
+): string | undefined {
+  return getRecallDeliveryErrorCopyKey(getRecallApiErrorData(error)?.code)
+}
+
+export function getRecallActivitySMTPSafeSaveErrorCopyKey(
+  error: unknown
+): string {
+  const codeCopy = getRecallApiErrorCodeCopyKey(error)
+  if (codeCopy) return codeCopy
+
+  const message =
+    typeof error === 'string'
+      ? error
+      : error instanceof Error
+        ? error.message
+        : ''
+  const validationCopy =
+    activitySMTPSaveValidationCopyByMessage[message.trim()]
+  return validationCopy ?? activitySMTPSaveFallbackCopyKey
+}
+
 export const audienceTemplateDescriptionKeys: Record<
   RecallAudienceTemplate,
   string
@@ -58,19 +131,42 @@ export const recallActivityEmailCopyKeys = [
   'recall.translation_status.missing',
   'recall.translation_status.invalid',
   'Activity email hourly limit',
-  'Activity sender address',
   'All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.',
-  'All Activity Configuration campaigns share this sender. Other system emails are unaffected.',
   'Attempts count when SMTP sending starts and are not refunded.',
-  'Default SMTP sender ({{email}})',
   '{{used}} / {{limit}} sent this hour',
   'Hourly limit reached. Queued activity emails will resume at {{time}}.',
   'Quota resets at {{time}}.',
   'Hourly limit must be between 1 and 100000.',
   'Failed to load email quota.',
-  'Failed to load sender addresses.',
-  'Failed to update sender address.',
-  'Sender address choices changed. Review and save again.',
   'Save hourly limit',
-  'Save sender address',
+] as const
+
+export const recallActivitySMTPCopyKeys = [
+  'Activity SMTP settings',
+  'All Activity Configuration campaigns use this dedicated SMTP account.',
+  'SMTP server',
+  'SMTP port',
+  'SMTP account',
+  'Sender email',
+  'SMTP token',
+  'Leave blank to keep the existing SMTP token.',
+  'Enter the SMTP token before saving.',
+  'SSL enabled',
+  'Force AUTH LOGIN',
+  'Save SMTP settings',
+  'Saving',
+  'Activity SMTP settings saved.',
+  'Failed to load Activity SMTP settings.',
+  'Failed to update Activity SMTP settings.',
+  'Loading SMTP settings',
+  'Configured',
+  'Not configured',
+  'SMTP server is required.',
+  'SMTP port is required.',
+  'SMTP port must be an integer.',
+  'SMTP port must be between 1 and 65535.',
+  'SMTP account is required.',
+  'Sender must be a plain email address.',
+  'SMTP token is required for first save.',
+  ...Object.values(recallDeliveryErrorCopyByCode),
 ] as const

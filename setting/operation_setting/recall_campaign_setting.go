@@ -8,11 +8,17 @@ import (
 )
 
 type RecallCampaignSetting struct {
-	Enabled          bool   `json:"enabled"`
-	BatchSize        int    `json:"batch_size"`
-	TickSeconds      int    `json:"tick_seconds"`
-	EmailHourlyLimit int    `json:"email_hourly_limit"`
-	EmailFrom        string `json:"email_from"`
+	Enabled            bool   `json:"enabled"`
+	BatchSize          int    `json:"batch_size"`
+	TickSeconds        int    `json:"tick_seconds"`
+	EmailHourlyLimit   int    `json:"email_hourly_limit"`
+	SMTPServer         string `json:"smtp_server"`
+	SMTPPort           int    `json:"smtp_port"`
+	SMTPAccount        string `json:"smtp_account"`
+	EmailFrom          string `json:"email_from"`
+	SMTPToken          string `json:"smtp_token"`
+	SMTPSSLEnabled     bool   `json:"smtp_ssl_enabled"`
+	SMTPForceAuthLogin bool   `json:"smtp_force_auth_login"`
 }
 
 var recallCampaignSetting = RecallCampaignSetting{

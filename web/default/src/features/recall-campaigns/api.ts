@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type {
   ApiResponse,
+  RecallActivitySMTPInput,
+  RecallActivitySMTPStatus,
   RecallCampaignAction,
   RecallCampaignDetail,
   RecallCampaignDraft,
@@ -14,7 +16,6 @@ import type {
   RecallEmailGenerationRequest,
   RecallEmailGenerationResponse,
   RecallEmailQuotaStatus,
-  RecallEmailSenderStatus,
   RecallEvent,
   RecallPage,
   RecallAudienceUserOption,
@@ -27,7 +28,7 @@ import type {
 export const recallCampaignKeys = {
   all: ['recall-campaigns'] as const,
   emailQuota: ['recall-campaigns', 'email-quota'] as const,
-  emailSender: ['recall-campaigns', 'email-sender'] as const,
+  smtp: ['recall-campaigns', 'smtp'] as const,
   list: (search: RecallCampaignSearch) =>
     ['recall-campaigns', 'list', search] as const,
   detail: (id: number) => ['recall-campaigns', 'detail', id] as const,
@@ -145,18 +146,19 @@ export async function updateRecallEmailQuotaLimit(
   return requireRecallSuccess(response.data)
 }
 
-export async function getRecallEmailSenderStatus(): Promise<
-  ApiResponse<RecallEmailSenderStatus>
+export async function getRecallActivitySMTPStatus(): Promise<
+  ApiResponse<RecallActivitySMTPStatus>
 > {
-  const response = await api.get('/api/recall-campaigns/email-sender')
+  const response = await api.get('/api/recall-campaigns/smtp')
   return requireRecallSuccess(response.data)
 }
 
-export async function updateRecallEmailSender(
-  emailFrom: string
-): Promise<ApiResponse<RecallEmailSenderStatus>> {
-  const response = await api.put('/api/recall-campaigns/email-sender', {
-    email_from: emailFrom,
+export async function updateRecallActivitySMTP(
+  input: RecallActivitySMTPInput
+): Promise<ApiResponse<RecallActivitySMTPStatus>> {
+  const response = await api.put('/api/recall-campaigns/smtp', input, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
   })
   return requireRecallSuccess(response.data)
 }
@@ -214,7 +216,14 @@ export async function runRecallCampaignAction(
   id: number,
   action: RecallCampaignAction
 ): Promise<ApiResponse> {
-  const response = await api.post(`/api/recall-campaigns/${id}/${action}`)
+  const response = await api.post(
+    `/api/recall-campaigns/${id}/${action}`,
+    undefined,
+    {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    }
+  )
   return requireRecallSuccess(response.data)
 }
 

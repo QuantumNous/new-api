@@ -12,7 +12,7 @@ import {
 import { SectionPageLayout } from '@/components/layout'
 import { CampaignEditor } from './components/campaign-editor'
 import { CampaignEmailHourlyLimitControl } from './components/campaign-email-hourly-limit-control'
-import { CampaignEmailSenderControl } from './components/campaign-email-sender-control'
+import { CampaignSMTPSettings } from './components/campaign-smtp-settings'
 import { CampaignTable } from './components/campaign-table'
 
 export function RecallCampaigns() {
@@ -27,7 +27,6 @@ export function RecallCampaigns() {
       </SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <div className='flex flex-wrap items-end gap-2'>
-          <CampaignEmailSenderControl />
           <CampaignEmailHourlyLimitControl />
         </div>
         <Button onClick={() => setCreating(true)}>
@@ -35,7 +34,10 @@ export function RecallCampaigns() {
         </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-        <CampaignTable />
+        <div className='space-y-4'>
+          <CampaignSMTPSettings />
+          <CampaignTable />
+        </div>
         <Dialog open={creating} onOpenChange={setCreating}>
           <DialogContent className='max-h-[92vh] overflow-y-auto sm:max-w-5xl'>
             <DialogHeader>

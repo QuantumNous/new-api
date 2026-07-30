@@ -5,7 +5,7 @@ import {
   createRecallCampaign,
   exportRecallCampaign,
   generateRecallEmailTranslations,
-  getRecallEmailSenderStatus,
+  getRecallActivitySMTPStatus,
   getRecallEmailQuotaStatus,
   updateRecallEmailQuotaLimit,
   getRecallSubscriptionProductConfiguration,
@@ -23,11 +23,15 @@ import {
   retryRecallRecipient,
   runRecallCampaignAction,
   updateRecallCampaign,
-  updateRecallEmailSender,
+  updateRecallActivitySMTP,
   validateRecallStripeConfig,
   RecallApiError,
 } from './api'
-import type { RecallCampaignDraft, RecallEmailGenerationRequest } from './types'
+import type {
+  RecallActivitySMTPInput,
+  RecallCampaignDraft,
+  RecallEmailGenerationRequest,
+} from './types'
 
 const originalAdapter = api.defaults.adapter
 let capturedConfig: InternalAxiosRequestConfig | undefined
@@ -171,6 +175,17 @@ describe('recall campaign API contracts', () => {
     }
   })
 
+  test('posts campaign actions with local error handling enabled', async () => {
+    respondWith({ success: true })
+
+    await runRecallCampaignAction(9, 'activate')
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/9/activate')
+    expect(capturedConfig?.method).toBe('post')
+    expect(capturedConfig?.skipBusinessError).toBe(true)
+    expect(capturedConfig?.skipErrorHandler).toBe(true)
+  })
+
   test('posts email preview requests with the template wrapper', async () => {
     respondWith({
       success: true,
@@ -243,46 +258,73 @@ describe('recall campaign API contracts', () => {
     expect(JSON.parse(String(capturedConfig?.data))).toEqual({ limit: 250 })
   })
 
-  test('loads the activity email sender from its dedicated endpoint', async () => {
-    respondWith({
-      success: true,
-      data: {
-        configured_email_from: '',
-        effective_email_from: 'smtp@example.com',
-        uses_default: true,
-        options: [{ email: 'smtp@example.com', is_default: true }],
-      },
-    })
-
-    await getRecallEmailSenderStatus()
-
-    expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-sender')
-    expect(recallCampaignKeys.emailSender).toEqual([
-      'recall-campaigns',
-      'email-sender',
-    ])
+  test('uses a stable query key for the dedicated activity SMTP settings', () => {
+    expect(recallCampaignKeys.smtp).toEqual(['recall-campaigns', 'smtp'])
   })
 
-  test('updates the activity email sender with the canonical email_from value', async () => {
+  test('loads redacted activity SMTP status from the dedicated endpoint', async () => {
     respondWith({
       success: true,
       data: {
-        configured_email_from: 'alias@example.com',
-        effective_email_from: 'alias@example.com',
-        uses_default: false,
-        options: [
-          { email: 'smtp@example.com', is_default: true },
-          { email: 'alias@example.com', is_default: false },
-        ],
+        server: 'smtp.example.com',
+        port: 465,
+        account: 'activity-user',
+        email_from: 'activity@example.com',
+        ssl_enabled: true,
+        force_auth_login: true,
+        token_configured: true,
+        configured: true,
       },
     })
 
-    await updateRecallEmailSender('alias@example.com')
+    const response = await getRecallActivitySMTPStatus()
 
-    expect(capturedConfig?.url).toBe('/api/recall-campaigns/email-sender')
-    expect(capturedConfig?.method).toBe('put')
-    expect(JSON.parse(String(capturedConfig?.data))).toEqual({
-      email_from: 'alias@example.com',
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/smtp')
+    expect(capturedConfig?.method).toBe('get')
+    expect(response.data).toEqual({
+      server: 'smtp.example.com',
+      port: 465,
+      account: 'activity-user',
+      email_from: 'activity@example.com',
+      ssl_enabled: true,
+      force_auth_login: true,
+      token_configured: true,
+      configured: true,
     })
+    expect(response.data).not.toHaveProperty('token')
+  })
+
+  test('updates activity SMTP with the complete input and never reads token from status', async () => {
+    const input: RecallActivitySMTPInput = {
+      server: 'smtp.example.com',
+      port: 587,
+      account: 'activity-user',
+      email_from: 'activity@example.com',
+      token: ' real password bytes ',
+      ssl_enabled: false,
+      force_auth_login: true,
+    }
+    respondWith({
+      success: true,
+      data: {
+        server: input.server,
+        port: input.port,
+        account: input.account,
+        email_from: input.email_from,
+        ssl_enabled: input.ssl_enabled,
+        force_auth_login: input.force_auth_login,
+        token_configured: true,
+        configured: true,
+      },
+    })
+
+    const response = await updateRecallActivitySMTP(input)
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/smtp')
+    expect(capturedConfig?.method).toBe('put')
+    expect(capturedConfig?.skipBusinessError).toBe(true)
+    expect(capturedConfig?.skipErrorHandler).toBe(true)
+    expect(JSON.parse(String(capturedConfig?.data))).toEqual(input)
+    expect(response.data).not.toHaveProperty('token')
   })
 })

@@ -64,7 +64,6 @@ func TestRecallWorkerRuntimeUsesReplicaOwnerAndMaintenanceRunsRecipients(t *test
 func TestRecallMaintenanceRunsRecipientBeforeEmailInSameTick(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
-	setRecallEmailSMTPFrom(t, "mailer@notify.example.com")
 	campaign := createRecallWorkerCampaign(t, model.RecallCampaignRunning)
 	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Update("next_run_at", int64(1_900_000_000)).Error)
 	user := model.User{Username: "recall-maintenance-sequence", Password: "password", Status: common.UserStatusEnabled, Email: "snapshot@example.com", EmailVerifiedAt: recallWorkerTestNow - 100, StripeCustomer: "cus_sequence"}
@@ -86,7 +85,7 @@ func TestRecallMaintenanceRunsRecipientBeforeEmailInSameTick(t *testing.T) {
 	recipientWorker := NewRecallRecipientWorker(stripeService, claims, "maintenance-worker")
 	recipientWorker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
 	sent := 0
-	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
+	emailWorker := NewRecallEmailWorker(func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		sent++
 		return nil
 	}, audience, claims, "maintenance-worker")
@@ -108,7 +107,6 @@ func TestRecallMaintenanceRunsRecipientBeforeEmailInSameTick(t *testing.T) {
 func TestRecallMaintenanceRecipientErrorStillRunsEmailBatch(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
-	setRecallEmailSMTPFrom(t, "mailer@notify.example.com")
 	campaign := createRecallWorkerCampaign(t, model.RecallCampaignRunning)
 	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Update("next_run_at", int64(1_900_000_000)).Error)
 	failingUser := model.User{Username: "recall-maintenance-failure", Password: "password", Status: common.UserStatusEnabled, Email: "failure@example.com", EmailVerifiedAt: recallWorkerTestNow - 100, AffCode: "maintenance-failure"}
@@ -137,7 +135,7 @@ func TestRecallMaintenanceRecipientErrorStillRunsEmailBatch(t *testing.T) {
 	recipientWorker := NewRecallRecipientWorker(stripeService, claims, "maintenance-worker")
 	recipientWorker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
 	sent := 0
-	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
+	emailWorker := NewRecallEmailWorker(func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		sent++
 		return nil
 	}, audience, claims, "maintenance-worker")
@@ -158,7 +156,6 @@ func TestRecallMaintenanceRecipientErrorStillRunsEmailBatch(t *testing.T) {
 func TestRecallMaintenanceCampaignErrorStillRunsRecipientsAndEmail(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
-	setRecallEmailSMTPFrom(t, "mailer@notify.example.com")
 	poisoned := createRecallWorkerCampaign(t, model.RecallCampaignScheduled)
 	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", poisoned.Id).Updates(map[string]any{
 		"execution_mode":        "scheduled_once",
@@ -189,7 +186,7 @@ func TestRecallMaintenanceCampaignErrorStillRunsRecipientsAndEmail(t *testing.T)
 	recipientWorker := NewRecallRecipientWorker(stripeService, claims, "maintenance-worker")
 	recipientWorker.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
 	sent := 0
-	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
+	emailWorker := NewRecallEmailWorker(func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		sent++
 		return nil
 	}, audience, claims, "maintenance-worker")
@@ -372,7 +369,6 @@ func TestRecallPromotionRevocationRetriesTransientAndFailsPermanentWithSanitized
 func TestRecallMaintenanceRevocationErrorStillRunsEmailBatch(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
-	setRecallEmailSMTPFrom(t, "mailer@notify.example.com")
 	createRecallRevocationRecipient(t, recallWorkerTestNow+100)
 	campaign := createRecallWorkerCampaign(t, model.RecallCampaignRunning)
 	emailUser := model.User{Username: "recall-revocation-maint-email", Password: "password", Status: common.UserStatusEnabled, Email: "snapshot@example.com", EmailVerifiedAt: recallWorkerTestNow - 100, AffCode: "revocation-maint-email"}
@@ -401,7 +397,7 @@ func TestRecallMaintenanceRevocationErrorStillRunsEmailBatch(t *testing.T) {
 	revocations := NewRecallPromotionRevocationWorker(stripeService, "maintenance-worker")
 	revocations.now = func() time.Time { return time.Unix(recallWorkerTestNow, 0).UTC() }
 	sent := 0
-	emailWorker := NewRecallEmailWorker(func(_, subject, receiver, content, messageID string) error {
+	emailWorker := NewRecallEmailWorker(func(_ common.SMTPConfig, subject, receiver, content, messageID string) error {
 		sent++
 		return nil
 	}, audience, claims, "maintenance-worker")

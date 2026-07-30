@@ -950,6 +950,9 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 	if err := validateRecallEmailActivationLocalization(draft.Emails); err != nil {
 		return err
 	}
+	if _, err := recallActivitySMTPPreflight(); err != nil {
+		return err
+	}
 	couponID := ""
 	if draft.CampaignType == model.RecallCampaignTypePromotion {
 		resolved, err := s.stripe.ValidateAndResolveProducts(ctx, draft.Products)
@@ -1054,7 +1057,33 @@ func (s *RecallCampaignService) Pause(ctx context.Context, actorID int, id int64
 }
 
 func (s *RecallCampaignService) Resume(ctx context.Context, actorID int, id int64) error {
-	return s.transitionCampaign(ctx, actorID, id, []string{model.RecallCampaignPaused}, model.RecallCampaignRunning, nil)
+	if err := recallCampaignGate(ctx); err != nil {
+		return err
+	}
+	if actorID <= 0 || id <= 0 {
+		return fmt.Errorf("recall campaign actor and campaign IDs must be positive")
+	}
+	campaign, err := model.GetRecallCampaignByIDWithContext(ctx, id)
+	if err != nil {
+		return err
+	}
+	if campaign.Status == model.RecallCampaignRunning {
+		return nil
+	}
+	if campaign.Status != model.RecallCampaignPaused {
+		return fmt.Errorf("recall campaign %d cannot transition from %s to %s", id, campaign.Status, model.RecallCampaignRunning)
+	}
+	if _, err := recallActivitySMTPPreflight(); err != nil {
+		return err
+	}
+	won, err := model.TransitionRecallCampaignWithContext(ctx, id, []string{model.RecallCampaignPaused}, model.RecallCampaignRunning, nil)
+	if err != nil {
+		return err
+	}
+	if !won {
+		return s.acceptRecallCampaignTargetState(ctx, id, model.RecallCampaignRunning)
+	}
+	return nil
 }
 
 func (s *RecallCampaignService) Cancel(ctx context.Context, actorID int, id int64) error {

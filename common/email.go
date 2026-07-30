@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"net/mail"
 	"net/smtp"
 	"regexp"
@@ -15,9 +16,58 @@ import (
 
 var emailMessageIDPattern = regexp.MustCompile(`^<[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?>$`)
 
+var smtpSessionTimeout = 30 * time.Second
+
 type emailSendError struct {
 	Uncertain bool
 	Err       error
+}
+
+type SMTPConfig struct {
+	Server         string
+	Port           int
+	Account        string
+	From           string
+	Token          string
+	SSLEnabled     bool
+	ForceAuthLogin bool
+}
+
+func (c SMTPConfig) Validate() error {
+	if strings.TrimSpace(c.Server) == "" {
+		return fmt.Errorf("SMTP server is required")
+	}
+	if c.Port < 1 || c.Port > 65535 {
+		return fmt.Errorf("SMTP port must be between 1 and 65535")
+	}
+	if strings.TrimSpace(c.Account) == "" {
+		return fmt.Errorf("SMTP account is required")
+	}
+	if strings.TrimSpace(c.Token) == "" {
+		return fmt.Errorf("SMTP token is required")
+	}
+	_, _, err := c.Sender()
+	return err
+}
+
+func (c SMTPConfig) Sender() (string, string, error) {
+	return parsePlainMailbox(strings.TrimSpace(c.From), "invalid SMTP sender")
+}
+
+func GlobalSMTPConfig() SMTPConfig {
+	from := strings.TrimSpace(SMTPFrom)
+	if from == "" {
+		from = strings.TrimSpace(SMTPAccount)
+	}
+	return SMTPConfig{
+		Server:         SMTPServer,
+		Port:           SMTPPort,
+		Account:        SMTPAccount,
+		From:           from,
+		Token:          SMTPToken,
+		SSLEnabled:     SMTPSSLEnabled,
+		ForceAuthLogin: SMTPForceAuthLogin,
+	}
 }
 
 func (e *emailSendError) Error() string {
@@ -40,12 +90,12 @@ func IsEmailSendUncertain(err error) bool {
 }
 
 func EmailMessageIDDomain() (string, error) {
-	_, domain, err := effectiveSMTPSender()
+	_, domain, err := GlobalSMTPConfig().Sender()
 	return domain, err
 }
 
 func effectiveSMTPSender() (string, string, error) {
-	return effectiveSMTPSenderFromConfig(SMTPFrom, SMTPAccount)
+	return GlobalSMTPConfig().Sender()
 }
 
 func validEmailDomain(domain string) bool {
@@ -73,18 +123,18 @@ func generateMessageID() (string, error) {
 	return fmt.Sprintf("<%d.%s@%s>", time.Now().UnixNano(), GetRandomString(12), domain), nil
 }
 
-func shouldUseSMTPLoginAuth() bool {
-	if SMTPForceAuthLogin {
+func shouldUseSMTPLoginAuth(config SMTPConfig) bool {
+	if config.ForceAuthLogin {
 		return true
 	}
-	return isOutlookServer(SMTPAccount) || slices.Contains(EmailLoginAuthServerList, SMTPServer)
+	return isOutlookServer(config.Account) || slices.Contains(EmailLoginAuthServerList, config.Server)
 }
 
-func getSMTPAuth() smtp.Auth {
-	if shouldUseSMTPLoginAuth() {
-		return LoginAuth(SMTPAccount, SMTPToken)
+func getSMTPAuth(config SMTPConfig) smtp.Auth {
+	if shouldUseSMTPLoginAuth(config) {
+		return LoginAuth(config.Account, config.Token)
 	}
-	return smtp.PlainAuth("", SMTPAccount, SMTPToken, SMTPServer)
+	return smtp.PlainAuth("", config.Account, config.Token, config.Server)
 }
 
 func SendEmail(subject string, receiver string, content string) error {
@@ -96,18 +146,31 @@ func SendEmail(subject string, receiver string, content string) error {
 }
 
 func SendEmailWithMessageID(subject string, receiver string, content string, messageID string) error {
-	sender, _, err := effectiveSMTPSender()
-	if err != nil {
-		return err
-	}
-	return SendEmailFromWithMessageID(sender, subject, receiver, content, messageID)
+	return sendEmailWithSMTPConfigAndLogPolicy(GlobalSMTPConfig(), subject, receiver, content, messageID, true)
 }
 
 func SendEmailFromWithMessageID(from string, subject string, receiver string, content string, messageID string) error {
-	if SMTPServer == "" && SMTPAccount == "" {
+	config := GlobalSMTPConfig()
+	config.From = from
+	return sendEmailWithSMTPConfigAndLogPolicy(config, subject, receiver, content, messageID, true)
+}
+
+func SendEmailWithSMTPConfig(config SMTPConfig, subject string, receiver string, content string, messageID string) error {
+	if err := config.Validate(); err != nil {
+		return err
+	}
+	return sendEmailWithSMTPConfig(config, subject, receiver, content, messageID)
+}
+
+func sendEmailWithSMTPConfig(config SMTPConfig, subject string, receiver string, content string, messageID string) error {
+	return sendEmailWithSMTPConfigAndLogPolicy(config, subject, receiver, content, messageID, false)
+}
+
+func sendEmailWithSMTPConfigAndLogPolicy(config SMTPConfig, subject string, receiver string, content string, messageID string, logTransportFailure bool) error {
+	if config.Server == "" && config.Account == "" {
 		return fmt.Errorf("SMTP 服务器未配置")
 	}
-	sender, _, err := parsePlainMailbox(from, "invalid SMTP sender")
+	sender, _, err := config.Sender()
 	if err != nil {
 		return err
 	}
@@ -120,15 +183,67 @@ func SendEmailFromWithMessageID(from string, subject string, receiver string, co
 		return err
 	}
 
-	auth := getSMTPAuth()
-	addr := fmt.Sprintf("%s:%d", SMTPServer, SMTPPort)
-	if SMTPPort == 465 || SMTPSSLEnabled {
-		return sendEmailTLS(addr, sender, recipients, auth, message)
+	auth := getSMTPAuth(config)
+	addr := fmt.Sprintf("%s:%d", config.Server, config.Port)
+	if config.Port == 465 || config.SSLEnabled {
+		return sendEmailTLS(config, addr, sender, recipients, auth, message, logTransportFailure)
+	}
+	if !logTransportFailure {
+		return sendEmailSMTPByPhase(config, addr, sender, recipients, auth, message)
 	}
 	if err := smtp.SendMail(addr, auth, sender, recipients, message); err != nil {
 		wrapped := &emailSendError{Uncertain: true, Err: err}
-		SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, wrapped))
+		if logTransportFailure {
+			SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, wrapped))
+		}
 		return wrapped
+	}
+	return nil
+}
+
+func sendEmailSMTPByPhase(config SMTPConfig, addr string, sender string, recipients []string, auth smtp.Auth, message []byte) error {
+	dialer := net.Dialer{Timeout: smtpSessionTimeout}
+	conn, err := dialer.Dial("tcp", addr)
+	if err != nil {
+		return &emailSendError{Err: err}
+	}
+	_ = conn.SetDeadline(time.Now().Add(smtpSessionTimeout))
+	client, err := smtp.NewClient(conn, config.Server)
+	if err != nil {
+		_ = conn.Close()
+		return &emailSendError{Err: err}
+	}
+	defer client.Close()
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		tlsConfig := &tls.Config{ServerName: config.Server}
+		if err := client.StartTLS(tlsConfig); err != nil {
+			return &emailSendError{Err: err}
+		}
+	} else if auth != nil && !isLocalSMTPHost(config.Server) {
+		return &emailSendError{Err: fmt.Errorf("SMTP server %s does not advertise STARTTLS; refusing plaintext SMTP auth", config.Server)}
+	}
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return &emailSendError{Err: err}
+		}
+	}
+	if err := client.Mail(sender); err != nil {
+		return &emailSendError{Err: err}
+	}
+	for _, receiver := range recipients {
+		if err := client.Rcpt(receiver); err != nil {
+			return &emailSendError{Err: err}
+		}
+	}
+	w, err := client.Data()
+	if err != nil {
+		return &emailSendError{Err: err}
+	}
+	if _, err := w.Write(message); err != nil {
+		return &emailSendError{Uncertain: true, Err: err}
+	}
+	if err := w.Close(); err != nil {
+		return &emailSendError{Uncertain: true, Err: err}
 	}
 	return nil
 }
@@ -214,16 +329,18 @@ func containsEmailHeaderBreak(value string) bool {
 	return strings.ContainsAny(value, "\r\n")
 }
 
-func sendEmailTLS(addr string, sender string, recipients []string, auth smtp.Auth, message []byte) error {
+func sendEmailTLS(config SMTPConfig, addr string, sender string, recipients []string, auth smtp.Auth, message []byte, allowInsecureCertificate bool) error {
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-		ServerName:         SMTPServer,
+		InsecureSkipVerify: allowInsecureCertificate,
+		ServerName:         config.Server,
 	}
-	conn, err := tls.Dial("tcp", addr, tlsConfig)
+	dialer := net.Dialer{Timeout: smtpSessionTimeout}
+	conn, err := tls.DialWithDialer(&dialer, "tcp", addr, tlsConfig)
 	if err != nil {
 		return &emailSendError{Err: err}
 	}
-	client, err := smtp.NewClient(conn, SMTPServer)
+	_ = conn.SetDeadline(time.Now().Add(smtpSessionTimeout))
+	client, err := smtp.NewClient(conn, config.Server)
 	if err != nil {
 		_ = conn.Close()
 		return &emailSendError{Err: err}
@@ -253,4 +370,13 @@ func sendEmailTLS(addr string, sender string, recipients []string, auth smtp.Aut
 		return &emailSendError{Uncertain: true, Err: err}
 	}
 	return nil
+}
+
+func isLocalSMTPHost(host string) bool {
+	normalized := strings.Trim(strings.ToLower(strings.TrimSpace(host)), "[]")
+	if normalized == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(normalized)
+	return ip != nil && ip.IsLoopback()
 }

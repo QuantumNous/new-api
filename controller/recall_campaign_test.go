@@ -126,23 +126,35 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/recall-controller.db"), &gorm.Config{})
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-
+	tempDir := t.TempDir()
 	originalDB := model.DB
 	originalLogDB := model.LOG_DB
 	originalRedisEnabled := common.RedisEnabled
 	originalCryptoSecret := common.CryptoSecret
+	originalOptionMap := common.OptionMap
+	originalSQLitePath := common.SQLitePath
+	originalIsMasterNode := common.IsMasterNode
 	originalTopUpPrices := setting.StripeTopUpPriceIds
 	originalPrice := setting.StripePriceId
 	originalPrice20 := setting.StripePriceId20
 	originalPrice200 := setting.StripePriceId200
+	t.Setenv("SQL_DSN", "")
+	common.SQLitePath = tempDir + "/init.db"
+	common.IsMasterNode = false
+	require.NoError(t, model.InitDB())
+	if initSQLDB, initErr := model.DB.DB(); initErr == nil {
+		_ = initSQLDB.Close()
+	}
+
+	db, err := gorm.Open(sqlite.Open(tempDir+"/recall-controller.db"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
 	model.DB = db
 	model.LOG_DB = db
 	common.RedisEnabled = false
 	common.CryptoSecret = "recall-controller-secret"
+	common.OptionMap = map[string]string{}
 	setting.StripeTopUpPriceIds = `{"10":"price_topup"}`
 	setting.StripePriceId = ""
 	setting.StripePriceId20 = ""
@@ -173,7 +185,7 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 		Campaigns:   service.NewRecallCampaignServiceWithTranslator(audience, stripeService, translator),
 		Claims:      claims,
 		Recipients:  service.NewRecallRecipientWorker(stripeService, claims, "controller-test"),
-		Emails:      service.NewRecallEmailWorker(func(_, _, _, _, _ string) error { harness.sendCount++; return nil }, audience, claims, "controller-test"),
+		Emails:      service.NewRecallEmailWorker(func(_ common.SMTPConfig, _, _, _, _ string) error { harness.sendCount++; return nil }, audience, claims, "controller-test"),
 		Attribution: service.NewRecallAttributionService(stripeFake),
 	}
 	originalProvider := recallRuntimeProvider
@@ -184,6 +196,9 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 		model.LOG_DB = originalLogDB
 		common.RedisEnabled = originalRedisEnabled
 		common.CryptoSecret = originalCryptoSecret
+		common.OptionMap = originalOptionMap
+		common.SQLitePath = originalSQLitePath
+		common.IsMasterNode = originalIsMasterNode
 		setting.StripeTopUpPriceIds = originalTopUpPrices
 		setting.StripePriceId = originalPrice
 		setting.StripePriceId20 = originalPrice20
@@ -200,17 +215,31 @@ func setRecallControllerEnabled(t *testing.T, enabled bool) {
 		value = "true"
 	}
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"recall_campaign_setting.enabled":            value,
-		"recall_campaign_setting.batch_size":         "100",
-		"recall_campaign_setting.tick_seconds":       "30",
-		"recall_campaign_setting.email_hourly_limit": "100",
+		"recall_campaign_setting.enabled":               value,
+		"recall_campaign_setting.batch_size":            "100",
+		"recall_campaign_setting.tick_seconds":          "30",
+		"recall_campaign_setting.email_hourly_limit":    "100",
+		"recall_campaign_setting.smtp_server":           "",
+		"recall_campaign_setting.smtp_port":             "0",
+		"recall_campaign_setting.smtp_account":          "",
+		"recall_campaign_setting.email_from":            "",
+		"recall_campaign_setting.smtp_token":            "",
+		"recall_campaign_setting.smtp_ssl_enabled":      "false",
+		"recall_campaign_setting.smtp_force_auth_login": "false",
 	}))
 	t.Cleanup(func() {
 		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-			"recall_campaign_setting.enabled":            "false",
-			"recall_campaign_setting.batch_size":         "100",
-			"recall_campaign_setting.tick_seconds":       "30",
-			"recall_campaign_setting.email_hourly_limit": "100",
+			"recall_campaign_setting.enabled":               "false",
+			"recall_campaign_setting.batch_size":            "100",
+			"recall_campaign_setting.tick_seconds":          "30",
+			"recall_campaign_setting.email_hourly_limit":    "100",
+			"recall_campaign_setting.smtp_server":           "",
+			"recall_campaign_setting.smtp_port":             "0",
+			"recall_campaign_setting.smtp_account":          "",
+			"recall_campaign_setting.email_from":            "",
+			"recall_campaign_setting.smtp_token":            "",
+			"recall_campaign_setting.smtp_ssl_enabled":      "false",
+			"recall_campaign_setting.smtp_force_auth_login": "false",
 		}))
 	})
 }
@@ -290,95 +319,106 @@ func requireRecallFailure(t *testing.T, recorder *httptest.ResponseRecorder, con
 	require.Contains(t, payload["message"], contains)
 }
 
-func TestRecallEmailSenderGetReturnsRedactedStatus(t *testing.T) {
+func TestRecallActivitySMTPGetReturnsRedactedStatus(t *testing.T) {
 	harness := setupRecallControllerHarness(t)
-	setRecallControllerSenderOptions(t, "system@example.com", "smtp-login@example.com", "Campaigns@Example.com,alerts@example.com", "")
+	setRecallControllerSMTPOptions(t, "smtp.activity.example.com", "587", "activity@example.com", "campaigns@example.com", "stored-secret", "true", "true")
 
-	recorder := invokeRecallHandler(t, GetRecallEmailSender, http.MethodGet, "/", nil, 7, nil)
-
-	require.Equal(t, http.StatusOK, recorder.Code)
-	payload := decodeRecallEnvelope(t, recorder)
-	require.Equal(t, true, payload["success"])
-	data := payload["data"].(map[string]any)
-	require.Equal(t, "", data["configured_email_from"])
-	require.Equal(t, "system@example.com", data["effective_email_from"])
-	require.Equal(t, true, data["uses_default"])
-	require.NotContains(t, recorder.Body.String(), "smtp-login@example.com")
-	require.NotContains(t, strings.ToLower(recorder.Body.String()), "token")
-	require.NotContains(t, strings.ToLower(recorder.Body.String()), "server")
-
-	require.NoError(t, harness.db.First(&model.Option{Key: "SMTPFrom"}, "key = ?", "SMTPFrom").Error)
-}
-
-func TestRecallEmailSenderPutPersistsCanonicalAliasAndReturnsStatus(t *testing.T) {
-	setupRecallControllerHarness(t)
-	setRecallControllerSenderOptions(t, "system@example.com", "smtp-login@example.com", "Campaigns@Example.com,alerts@example.com", "")
-
-	recorder := invokeRecallHandler(t, UpdateRecallEmailSender, http.MethodPut, "/", []byte(`{"email_from":" campaigns@example.com "}`), 7, nil)
+	recorder := invokeRecallHandler(t, GetRecallActivitySMTP, http.MethodGet, "/", nil, 7, nil)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	payload := decodeRecallEnvelope(t, recorder)
 	require.Equal(t, true, payload["success"])
 	data := payload["data"].(map[string]any)
-	require.Equal(t, "Campaigns@Example.com", data["configured_email_from"])
-	require.Equal(t, "Campaigns@Example.com", data["effective_email_from"])
-	require.Equal(t, false, data["uses_default"])
-	require.Equal(t, "Campaigns@Example.com", operation_setting.GetRecallCampaignSetting().EmailFrom)
+	require.Equal(t, "smtp.activity.example.com", data["server"])
+	require.Equal(t, float64(587), data["port"])
+	require.Equal(t, "activity@example.com", data["account"])
+	require.Equal(t, "campaigns@example.com", data["email_from"])
+	require.Equal(t, true, data["ssl_enabled"])
+	require.Equal(t, true, data["force_auth_login"])
+	require.Equal(t, true, data["token_configured"])
+	require.Equal(t, true, data["configured"])
+	require.NotContains(t, recorder.Body.String(), "stored-secret")
+	require.NotContains(t, strings.ToLower(recorder.Body.String()), `"token":`)
+
+	require.NoError(t, harness.db.First(&model.Option{Key: "recall_campaign_setting.smtp_token"}, "key = ?", "recall_campaign_setting.smtp_token").Error)
 }
 
-func TestRecallEmailSenderPutRejectsInvalidRequestAndUnlistedSender(t *testing.T) {
+func TestRecallActivitySMTPPutPersistsGroupedConfigAndReturnsRedactedStatus(t *testing.T) {
 	setupRecallControllerHarness(t)
-	setRecallControllerSenderOptions(t, "system@example.com", "smtp-login@example.com", "Campaigns@Example.com", "")
 
-	invalidJSON := invokeRecallHandler(t, UpdateRecallEmailSender, http.MethodPut, "/", []byte(`not-json`), 7, nil)
+	recorder := invokeRecallHandler(t, UpdateRecallActivitySMTP, http.MethodPut, "/", []byte(`{
+		"server":" smtp.activity.example.com ",
+		"port":587,
+		"account":" activity@example.com ",
+		"email_from":" campaigns@example.com ",
+		"token":"secret-value",
+		"ssl_enabled":true,
+		"force_auth_login":true
+	}`), 7, nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	data := payload["data"].(map[string]any)
+	require.Equal(t, "smtp.activity.example.com", data["server"])
+	require.Equal(t, "activity@example.com", data["account"])
+	require.Equal(t, "campaigns@example.com", data["email_from"])
+	require.Equal(t, true, data["token_configured"])
+	require.NotContains(t, recorder.Body.String(), "secret-value")
+	require.Equal(t, "campaigns@example.com", operation_setting.GetRecallCampaignSetting().EmailFrom)
+	require.Equal(t, "secret-value", operation_setting.GetRecallCampaignSetting().SMTPToken)
+}
+
+func TestRecallActivitySMTPPutRejectsInvalidRequestPortAndFrom(t *testing.T) {
+	setupRecallControllerHarness(t)
+
+	invalidJSON := invokeRecallHandler(t, UpdateRecallActivitySMTP, http.MethodPut, "/", []byte(`not-json`), 7, nil)
 	require.Equal(t, http.StatusBadRequest, invalidJSON.Code)
 	require.Contains(t, invalidJSON.Body.String(), "invalid request")
 
-	unlisted := invokeRecallHandler(t, UpdateRecallEmailSender, http.MethodPut, "/", []byte(`{"email_from":"missing@example.com"}`), 7, nil)
-	require.Equal(t, http.StatusOK, unlisted.Code)
-	requireRecallFailure(t, unlisted, "configured SMTP aliases")
+	invalidPort := invokeRecallHandler(t, UpdateRecallActivitySMTP, http.MethodPut, "/", []byte(`{"server":"smtp.activity.example.com","port":70000,"account":"activity@example.com","email_from":"campaigns@example.com","token":"secret"}`), 7, nil)
+	require.Equal(t, http.StatusOK, invalidPort.Code)
+	requireRecallFailure(t, invalidPort, "SMTP port")
 
-	defaultAddress := invokeRecallHandler(t, UpdateRecallEmailSender, http.MethodPut, "/", []byte(`{"email_from":"system@example.com"}`), 7, nil)
-	require.Equal(t, http.StatusOK, defaultAddress.Code)
-	requireRecallFailure(t, defaultAddress, "configured SMTP aliases")
+	invalidFrom := invokeRecallHandler(t, UpdateRecallActivitySMTP, http.MethodPut, "/", []byte(`{"server":"smtp.activity.example.com","port":587,"account":"activity@example.com","email_from":"Campaigns <campaigns@example.com>","token":"secret"}`), 7, nil)
+	require.Equal(t, http.StatusOK, invalidFrom.Code)
+	requireRecallFailure(t, invalidFrom, "invalid SMTP sender")
 	require.Empty(t, operation_setting.GetRecallCampaignSetting().EmailFrom)
 }
 
-func setRecallControllerSenderOptions(t *testing.T, smtpFrom string, smtpAccount string, aliases string, configured string) {
+func setRecallControllerSMTPOptions(t *testing.T, server string, port string, account string, emailFrom string, token string, sslEnabled string, forceAuthLogin string) {
 	t.Helper()
-	originalFrom := common.SMTPFrom
-	originalAccount := common.SMTPAccount
-	originalAliases := common.SMTPFromAliases
 	originalOptionMap := common.OptionMap
 	if common.OptionMap == nil {
 		common.OptionMap = make(map[string]string)
 	}
 	t.Cleanup(func() {
-		common.SMTPFrom = originalFrom
-		common.SMTPAccount = originalAccount
-		common.SMTPFromAliases = originalAliases
 		common.OptionMap = originalOptionMap
 	})
-	common.SMTPFrom = smtpFrom
-	common.SMTPAccount = smtpAccount
-	common.SMTPFromAliases = aliases
-	common.OptionMap["SMTPFrom"] = smtpFrom
-	common.OptionMap["SMTPAccount"] = smtpAccount
-	common.OptionMap["SMTPFromAliases"] = aliases
 	for key, value := range map[string]string{
-		"SMTPFrom":                           smtpFrom,
-		"SMTPAccount":                        smtpAccount,
-		"SMTPFromAliases":                    aliases,
-		"recall_campaign_setting.email_from": configured,
+		"recall_campaign_setting.smtp_server":           server,
+		"recall_campaign_setting.smtp_port":             port,
+		"recall_campaign_setting.smtp_account":          account,
+		"recall_campaign_setting.email_from":            emailFrom,
+		"recall_campaign_setting.smtp_token":            token,
+		"recall_campaign_setting.smtp_ssl_enabled":      sslEnabled,
+		"recall_campaign_setting.smtp_force_auth_login": forceAuthLogin,
 	} {
+		common.OptionMap[key] = value
 		require.NoError(t, model.DB.Save(&model.Option{Key: key, Value: value}).Error)
 	}
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"recall_campaign_setting.enabled":            "true",
-		"recall_campaign_setting.batch_size":         "100",
-		"recall_campaign_setting.tick_seconds":       "30",
-		"recall_campaign_setting.email_hourly_limit": "100",
-		"recall_campaign_setting.email_from":         configured,
+		"recall_campaign_setting.enabled":               "true",
+		"recall_campaign_setting.batch_size":            "100",
+		"recall_campaign_setting.tick_seconds":          "30",
+		"recall_campaign_setting.email_hourly_limit":    "100",
+		"recall_campaign_setting.smtp_server":           server,
+		"recall_campaign_setting.smtp_port":             port,
+		"recall_campaign_setting.smtp_account":          account,
+		"recall_campaign_setting.email_from":            emailFrom,
+		"recall_campaign_setting.smtp_token":            token,
+		"recall_campaign_setting.smtp_ssl_enabled":      sslEnabled,
+		"recall_campaign_setting.smtp_force_auth_login": forceAuthLogin,
 	}))
 }
 
@@ -786,6 +826,40 @@ func TestRecallEmailGenerationActivationReturnsStructuredBlockers(t *testing.T) 
 	require.Equal(t, float64(1), first["stage_no"])
 	require.Equal(t, "zh", first["locale"])
 	require.Equal(t, "missing", first["reason"])
+}
+
+func TestRecallCampaignActionReturnsStableActivitySMTPCode(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		action gin.HandlerFunc
+		status string
+	}{
+		{name: "activate", action: ActivateRecallCampaign, status: model.RecallCampaignDraft},
+		{name: "resume", action: ResumeRecallCampaign, status: model.RecallCampaignPaused},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			harness := setupRecallControllerHarness(t)
+			setRecallControllerSMTPOptions(t, "smtp.activity.example.com", "587", "activity@example.com", "campaigns@example.com", "stored-secret", "true", "true")
+			campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
+			if tt.status == model.RecallCampaignPaused {
+				require.NoError(t, harness.runtime.Campaigns.Activate(context.Background(), 7, campaign.Id))
+				require.NoError(t, harness.runtime.Campaigns.Pause(context.Background(), 7, campaign.Id))
+			}
+			setRecallControllerSMTPOptions(t, "", "0", "", "", "", "false", "false")
+
+			recorder := invokeRecallHandler(t, tt.action, http.MethodPost, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+			payload := decodeRecallEnvelope(t, recorder)
+			require.Equal(t, false, payload["success"])
+			require.Contains(t, payload["message"], "Activity SMTP settings")
+			require.NotEqual(t, service.RecallActivitySMTPNotConfiguredCode, payload["message"])
+			data, ok := payload["data"].(map[string]any)
+			require.True(t, ok, "expected structured data in response: %s", recorder.Body.String())
+			require.Equal(t, service.RecallActivitySMTPNotConfiguredCode, data["code"])
+			require.NotContains(t, data, "blockers")
+		})
+	}
 }
 
 func TestRecallEmailQuotaStatusRouteReturnsActivityOnlyWindow(t *testing.T) {
