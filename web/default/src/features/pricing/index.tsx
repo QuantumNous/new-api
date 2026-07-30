@@ -42,7 +42,7 @@ export function Pricing() {
       () => ({
         title: t('Model Pricing'),
         description: t(
-          'Browse model prices, capabilities, and billing modes across providers available on the gateway.'
+          'BoxAI model pricing on you-box.com — compare token prices, capabilities, and billing modes across providers on the unified AI API gateway.'
         ),
         path: '/pricing',
       }),

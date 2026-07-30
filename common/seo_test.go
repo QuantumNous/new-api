@@ -59,6 +59,8 @@ func TestBuildSitemapXML(t *testing.T) {
 	assert.Contains(t, xml, "<loc>https://you-box.com/</loc>")
 	assert.Contains(t, xml, "<loc>https://you-box.com/pricing</loc>")
 	assert.Contains(t, xml, "<loc>https://you-box.com/docs/getting-started</loc>")
+	assert.Contains(t, xml, "<loc>https://you-box.com/docs/what-is-boxai</loc>")
+	assert.Contains(t, xml, "<loc>https://you-box.com/rankings</loc>")
 	assert.NotContains(t, xml, "/console")
 }
 
@@ -85,11 +87,13 @@ func TestInjectSEOIntoHTML(t *testing.T) {
 	out := string(InjectSEOIntoHTML(index, page, "BoxAI", "https://you-box.com", "/logo.png", false))
 
 	assert.Contains(t, out, `lang="zh-CN"`)
-	assert.Contains(t, out, "<title>BoxAI</title>")
-	assert.Contains(t, out, `content="BoxAI"`)
+	assert.Contains(t, out, "BoxAI · Unified AI API Gateway | you-box.com")
+	assert.Contains(t, out, "BoxAI")
+	assert.Contains(t, out, "you-box.com")
+	assert.Contains(t, out, "alternateName")
 	assert.Contains(t, out, `name="robots" content="index,follow"`)
 	assert.Contains(t, out, `rel="canonical" href="https://you-box.com/"`)
-	assert.Contains(t, out, `property="og:title" content="BoxAI"`)
+	assert.Contains(t, out, `property="og:title" content="BoxAI · Unified AI API Gateway | you-box.com"`)
 	assert.Contains(t, out, `id="app-jsonld"`)
 	assert.Contains(t, out, `id="seo-prerender"`)
 	assert.Contains(t, out, "<h1>")
@@ -105,7 +109,11 @@ func TestInjectSEOIntoHTML(t *testing.T) {
 func TestFormatSEOTitle(t *testing.T) {
 	assert.Equal(t, "BoxAI", FormatSEOTitle("", "BoxAI"))
 	assert.Equal(t, "Pricing | BoxAI", FormatSEOTitle("Pricing", "BoxAI"))
-	assert.Equal(t, "New API", FormatSEOTitle("", ""))
+	assert.Equal(t, "BoxAI", FormatSEOTitle("", ""))
+	assert.Equal(t,
+		"BoxAI · Unified AI API Gateway | you-box.com",
+		FormatSEODocumentTitle("/", "", "BoxAI", "https://you-box.com"),
+	)
 }
 
 func TestSiteBaseURL(t *testing.T) {

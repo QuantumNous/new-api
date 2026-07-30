@@ -62,13 +62,44 @@ export function getSeoOverride(path: string): SeoInput | undefined {
   return seoOverrides.get(normalizeSeoPath(path))
 }
 
+export const DEFAULT_BRAND_NAME = 'BoxAI'
+export const HOME_SEO_TITLE_LEAD = 'Unified AI API Gateway'
+
 export function formatSeoTitle(pageTitle: string, siteName?: string): string {
   const page = pageTitle.trim()
-  const site = (siteName ?? '').trim()
-  if (!site) return page
+  const site = (siteName ?? '').trim() || DEFAULT_BRAND_NAME
   if (!page || page.toLowerCase() === site.toLowerCase()) return site
   if (page.includes('|') || page.endsWith(site)) return page
   return `${page} | ${site}`
+}
+
+/** Homepage: "BoxAI · Unified AI API Gateway | you-box.com" */
+export function formatSeoDocumentTitle(
+  path: string | undefined,
+  pageTitle: string,
+  siteName?: string,
+  origin?: string
+): string {
+  const site = (siteName ?? '').trim() || DEFAULT_BRAND_NAME
+  const page = pageTitle.trim()
+  const normalized = normalizeSeoPath(path || '/')
+  if (
+    normalized === '/' &&
+    (!page || page.toLowerCase() === site.toLowerCase())
+  ) {
+    let host = ''
+    try {
+      const o =
+        origin ||
+        (typeof window !== 'undefined' ? window.location.origin : '')
+      if (o) host = new URL(o).host
+    } catch {
+      /* empty */
+    }
+    if (!host) host = 'you-box.com'
+    return `${site} · ${HOME_SEO_TITLE_LEAD} | ${host}`
+  }
+  return formatSeoTitle(page, site)
 }
 
 function ensureMeta(
@@ -126,12 +157,17 @@ export function applySeo(input: SeoInput) {
 
   lastSeo = { ...input }
 
-  const siteName = input.siteName?.trim()
-  const title = formatSeoTitle(input.title, siteName)
-  const description = (input.description ?? '').trim()
+  const siteName = input.siteName?.trim() || DEFAULT_BRAND_NAME
   const path = input.path ?? window.location.pathname
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
   const origin = window.location.origin
+  const title = formatSeoDocumentTitle(
+    normalizedPath,
+    input.title,
+    siteName,
+    origin
+  )
+  const description = (input.description ?? '').trim()
   // Prefer trailing-slash-free canonical except home
   const canonical =
     normalizedPath === '/'
@@ -207,19 +243,31 @@ export function buildDefaultJsonLd(options: {
     (typeof window !== 'undefined' ? window.location.origin : '')
   const home = origin ? `${origin}/` : '/'
   const logo = resolveAbsoluteAssetUrl(options.logo, origin, '/logo.png')
+  const siteName = options.siteName?.trim() || DEFAULT_BRAND_NAME
+  let host = 'you-box.com'
+  try {
+    if (origin) host = new URL(origin).host || host
+  } catch {
+    /* empty */
+  }
+  const alternateName = ['Box AI', 'boxai', 'you-box', host].filter(
+    (v, i, arr) => v && arr.indexOf(v) === i
+  )
 
   return {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'Organization',
-        name: options.siteName,
+        name: siteName,
+        alternateName,
         url: home,
         logo,
       },
       {
         '@type': 'WebSite',
-        name: options.siteName,
+        name: siteName,
+        alternateName,
         url: home,
         description: options.description,
         potentialAction: {
@@ -230,7 +278,7 @@ export function buildDefaultJsonLd(options: {
       },
       {
         '@type': 'SoftwareApplication',
-        name: options.siteName,
+        name: siteName,
         applicationCategory: 'DeveloperApplication',
         operatingSystem: 'Web',
         url: home,
@@ -283,7 +331,7 @@ export function isPrivateSeoPath(pathname: string): boolean {
 }
 
 export const DEFAULT_SEO_DESCRIPTION =
-  'Unified AI API gateway aggregating OpenAI, Claude, Gemini and 40+ providers. One endpoint for models, billing, rate limits, and admin.'
+  'BoxAI (you-box.com) is a unified AI API gateway aggregating OpenAI, Claude, Gemini and 40+ providers. One endpoint for models, billing, rate limits, and admin.'
 
 /**
  * Resolve default SEO for a pathname when a page does not set its own.
@@ -306,53 +354,58 @@ export function resolveRouteSeo(
     }
   }
 
+  const brand = siteName?.trim() || DEFAULT_BRAND_NAME
   const catalog: Record<
     string,
     { title: string; description: string }
   > = {
     '/': {
-      title: siteName,
+      title: brand,
       description: DEFAULT_SEO_DESCRIPTION,
     },
     '/pricing': {
       title: 'Model Pricing',
       description:
-        'Browse model prices, capabilities, and billing modes across providers available on the gateway.',
+        'BoxAI model pricing on you-box.com — compare token prices, capabilities, and billing modes across providers on the unified AI API gateway.',
     },
     '/about': {
-      title: 'About',
+      title: 'About BoxAI',
       description:
-        'Learn about this AI API gateway, its mission, and how it helps teams ship multi-model products faster.',
+        'About BoxAI (you-box.com) — the unified AI API gateway for multi-model access, billing, and admin.',
     },
     '/privacy-policy': {
       title: 'Privacy Policy',
       description:
-        'Read how we collect, use, and protect personal data when you use the AI API gateway.',
+        'Privacy policy for BoxAI (you-box.com) — how we collect, use, and protect personal data.',
     },
     '/user-agreement': {
       title: 'User Agreement',
       description:
-        'Terms of use for the AI API gateway, including acceptable use and account responsibilities.',
+        'User agreement for BoxAI (you-box.com), including acceptable use and account responsibilities.',
+    },
+    '/docs/what-is-boxai': {
+      title: 'What is BoxAI',
+      description:
+        'What is BoxAI? BoxAI (you-box.com) is a unified AI API gateway for multi-provider models, billing, and developer access.',
     },
     '/docs/getting-started': {
       title: 'Getting Started',
       description:
-        'Create an API key, pick a model, and send your first request through the unified AI gateway.',
+        'Get started with BoxAI on you-box.com — create an API key, pick a model, and send your first OpenAI-compatible request.',
     },
     '/docs/streaming': {
       title: 'Streaming',
       description:
-        'Stream model responses with server-sent events and cancel interrupted generations safely.',
+        'Stream BoxAI model responses with server-sent events and cancel interrupted generations safely.',
     },
     '/docs/errors': {
       title: 'Errors, Retries, and Rate Limits',
       description:
-        'Classify gateway errors, retry transient failures safely, and respect rate limits.',
+        'Classify BoxAI gateway errors, retry transient failures safely, and respect rate limits on you-box.com.',
     },
     '/rankings': {
       title: 'Rankings',
-      description:
-        'Public model and usage rankings for the AI API gateway.',
+      description: 'BoxAI public model and usage rankings on you-box.com.',
     },
   }
 
@@ -386,7 +439,7 @@ export function resolveRouteSeo(
     const modelId = decodeURIComponent(normalized.slice('/pricing/'.length))
     return {
       title: `${modelId} Pricing`,
-      description: `Pricing and capabilities for model ${modelId} on the unified AI API gateway.`,
+      description: `Pricing and capabilities for model ${modelId} on BoxAI (you-box.com), the unified AI API gateway.`,
       path: normalized,
       siteName,
     }

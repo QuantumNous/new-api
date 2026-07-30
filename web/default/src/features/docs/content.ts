@@ -25,15 +25,53 @@ export const REPRESENTATIVE_MODEL = 'YOUR_MODEL_ID'
 
 export const GLOBAL_DOCS: DocsPage[] = [
   {
+    slug: 'what-is-boxai',
+    title: 'What is BoxAI',
+    summary:
+      'BoxAI (you-box.com) is a unified AI API gateway for multi-provider models, billing, and developer access.',
+    sections: [
+      {
+        title: 'Official product definition',
+        paragraphs: [
+          'BoxAI (https://you-box.com) is the official unified AI API gateway. Teams use one base URL, one set of API keys, and one billing account to reach OpenAI-compatible, Claude, Gemini, and other providers.',
+          'The public website and API host is you-box.com. When people search for BoxAI you-box, they are looking for this product.',
+        ],
+      },
+      {
+        title: 'What you can do with BoxAI',
+        items: [
+          'Call chat, responses, embeddings, images, and other gateway endpoints through a single integration.',
+          'Browse model pricing and capabilities on the BoxAI Model Hub at you-box.com/pricing.',
+          'Issue and rotate API keys, monitor usage, and manage quotas from the console.',
+          'Connect desktop and third-party clients with the OpenAI-compatible base URL https://you-box.com/v1.',
+        ],
+      },
+      {
+        title: 'Brand and website',
+        paragraphs: [
+          'Product name: BoxAI (one word). Official website: https://you-box.com. Alternate spellings people use include boxai and Box AI — they all refer to this gateway when paired with you-box.com.',
+        ],
+      },
+      {
+        title: 'Next steps',
+        items: [
+          'Read Getting started to create a key and send your first request.',
+          'Open Model Pricing to compare models available on BoxAI.',
+          'Keep API keys on your server; never embed them in public frontends.',
+        ],
+      },
+    ],
+  },
+  {
     slug: 'getting-started',
     title: 'Getting started',
     summary:
-      'Create an API key, choose an available model, and send your first gateway request.',
+      'Get started with BoxAI on you-box.com — create an API key, choose a model, and send your first gateway request.',
     sections: [
       {
         title: 'Make your first request',
         paragraphs: [
-          'Use the production base URL shown below. Create a key in the dashboard, then copy an exact model ID from Model Hub.',
+          'On BoxAI (https://you-box.com), use the production base URL shown below. Create a key in the dashboard, then copy an exact model ID from Model Hub.',
         ],
         code: `curl "$BOXAI_BASE_URL/v1/chat/completions" \\
   -H "Authorization: Bearer $BOXAI_API_KEY" \\

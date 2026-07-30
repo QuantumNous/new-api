@@ -1290,7 +1290,7 @@ export function ModelDetails() {
     return {
       title: t('{{name}} Pricing', { name }),
       description: t(
-        'Pricing and capabilities for model {{name}} on the unified AI API gateway.',
+        'Pricing and capabilities for model {{name}} on BoxAI (you-box.com), the unified AI API gateway.',
         { name }
       ),
       // Let useSeo default path to the active router pathname so override keys match.

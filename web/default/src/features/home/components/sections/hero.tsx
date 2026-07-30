@@ -95,11 +95,10 @@ export function Hero(props: HeroProps) {
             className='landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.4rem)] leading-[1.12] font-bold tracking-tight opacity-0'
             style={{ animationDelay: '60ms' }}
           >
-            {t('Multi-dimensional')}{' '}
             <span className='bg-gradient-to-r from-blue-500 via-blue-600 to-violet-500 bg-clip-text text-transparent'>
-              API
+              {brand}
             </span>{' '}
-            {t('Integration Platform')}
+            {t('Unified AI API Gateway')}
           </h1>
 
           <p
@@ -108,7 +107,7 @@ export function Hero(props: HeroProps) {
           >
             <span className='text-foreground font-medium'>{brand}</span>{' '}
             {t(
-              'helps developers and enterprises access the currently available AI models through one unified API.'
+              '(you-box.com) helps developers and enterprises access OpenAI, Claude, Gemini and more through one unified API.'
             )}
           </p>
 
