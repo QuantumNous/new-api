@@ -521,6 +521,22 @@ func TestRecallAttributionMetricsKeepCurrenciesSeparate(t *testing.T) {
 		CampaignId: campaign.Id, RecipientId: first.Id, EventType: "observed_click", Source: "claim",
 		SourceEventId: "metrics_click", EventData: `{}`, CreatedAt: 1_700_000_100,
 	}).Error)
+	for _, event := range []model.RecallEvent{
+		{
+			CampaignId: campaign.Id, RecipientId: first.Id, EventType: "email_open", Source: "email_open",
+			SourceEventId: "metrics_open_first", EventData: `{}`, CreatedAt: 1_700_000_110,
+		},
+		{
+			CampaignId: campaign.Id, RecipientId: second.Id, EventType: "email_open", Source: "email_open",
+			SourceEventId: "metrics_open_second", EventData: `{}`, CreatedAt: 1_700_000_120,
+		},
+		{
+			CampaignId: campaign.Id, RecipientId: first.Id, EventType: "email_open", Source: "email_open",
+			SourceEventId: "metrics_open_first_again", EventData: `{}`, CreatedAt: 1_700_000_130,
+		},
+	} {
+		require.NoError(t, model.DB.Create(&event).Error)
+	}
 
 	metrics, err := NewRecallAttributionService(&recallStripeFakeClient{}).GetMetrics(context.Background(), campaign.Id)
 
@@ -537,6 +553,7 @@ func TestRecallAttributionMetricsKeepCurrenciesSeparate(t *testing.T) {
 	require.Equal(t, int64(1), metrics.MessagesFailedCount)
 	require.Equal(t, int64(1), metrics.MessagesCancelledCount)
 	require.Equal(t, int64(1), metrics.ObservedClickCount)
+	require.Equal(t, int64(2), metrics.OpenedRecipientCount)
 	require.Equal(t, int64(1), metrics.DirectCount)
 	require.Equal(t, int64(1), metrics.AssistedCount)
 	require.Equal(t, int64(1), metrics.NoCouponCount)
