@@ -817,6 +817,27 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	return buildSubscriptionSummaries(subs), nil
 }
 
+// ExpireSupersededUserSubscriptions retires a user's active rows on oldPlanId
+// after a plan switch. Airwallex credits the unused time on the old price, so
+// leaving these active would grant a free overlapping allowance.
+//
+// keepSubId is excluded defensively in case the replacement row was created on
+// the same plan. users.group is intentionally NOT touched: the replacement row
+// carries the same upgrade_group, so there is nothing to downgrade.
+func ExpireSupersededUserSubscriptions(userId, oldPlanId, keepSubId int) (int64, error) {
+	if userId <= 0 || oldPlanId <= 0 {
+		return 0, errors.New("invalid supersede args")
+	}
+	now := common.GetTimestamp()
+	res := DB.Model(&UserSubscription{}).
+		Where("user_id = ? AND plan_id = ? AND status = ? AND id <> ?", userId, oldPlanId, "active", keepSubId).
+		Updates(map[string]any{"status": "expired", "end_time": now, "updated_at": now})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
+}
+
 // HasActiveUserSubscription returns whether the user has any active subscription.
 // This is a lightweight existence check to avoid heavy pre-consume transactions.
 func HasActiveUserSubscription(userId int) (bool, error) {
