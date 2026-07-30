@@ -437,6 +437,7 @@ export function CampaignSMTPSettings(): React.JSX.Element {
         return
       }
       const nextState = getRecallActivitySMTPSaveSuccessState(response.data)
+      statusRef.current = nextState.status
       setStatus(nextState.status)
       setSuccess(nextState.success)
       form.reset(nextState.values)

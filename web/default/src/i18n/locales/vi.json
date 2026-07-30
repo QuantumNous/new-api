@@ -6367,6 +6367,8 @@
     "SMTP account is required.": "Bắt buộc nhập tài khoản SMTP.",
     "Sender must be a plain email address.": "Người gửi phải là một địa chỉ email đơn giản.",
     "SMTP token is required for first save.": "Lần lưu đầu tiên cần có mã SMTP.",
-    "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "Gửi SMTP cho hoạt động thất bại. Hãy kiểm tra máy chủ, cổng, thông tin xác thực, chế độ TLS và ủy quyền người gửi, rồi thử lại."
+    "Activity SMTP is not configured. Configure it before sending.": "SMTP cho hoạt động chưa được cấu hình. Hãy cấu hình trước khi gửi.",
+    "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "Gửi SMTP cho hoạt động thất bại. Hãy kiểm tra máy chủ, cổng, thông tin xác thực, chế độ TLS và ủy quyền người gửi, rồi thử lại.",
+    "Delivery status is uncertain. Check the mailbox provider before retrying.": "Trạng thái gửi chưa chắc chắn. Hãy kiểm tra nhà cung cấp hộp thư trước khi thử lại."
   }
 }

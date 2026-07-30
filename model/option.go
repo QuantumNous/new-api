@@ -402,6 +402,18 @@ func UpdateRecallActivitySMTPOptions(input RecallActivitySMTPOptionInput) error 
 				return err
 			}
 		}
+		committedValues, err := loadRecallActivitySMTPOptionValuesForUpdate(tx)
+		if err != nil {
+			return err
+		}
+		committedConfig, err := recallActivitySMTPConfigFromOptionValues(committedValues)
+		if err != nil {
+			return err
+		}
+		if err := committedConfig.Validate(); err != nil {
+			return err
+		}
+		values = committedValues
 		return nil
 	})
 	if err != nil {
@@ -415,6 +427,42 @@ func UpdateRecallActivitySMTPOptions(input RecallActivitySMTPOptionInput) error 
 		common.SysError("pubsub: failed to publish options change: " + pubErr.Error())
 	}
 	return nil
+}
+
+func loadRecallActivitySMTPOptionValuesForUpdate(tx *gorm.DB) (map[string]string, error) {
+	values := make(map[string]string, len(recallActivitySMTPOptionKeys))
+	for _, key := range recallActivitySMTPOptionKeys {
+		var option Option
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(commonKeyCol+" = ?", key).First(&option).Error; err != nil {
+			return nil, err
+		}
+		values[key] = option.Value
+	}
+	return values, nil
+}
+
+func recallActivitySMTPConfigFromOptionValues(values map[string]string) (common.SMTPConfig, error) {
+	port, err := strconv.Atoi(values["recall_campaign_setting.smtp_port"])
+	if err != nil {
+		return common.SMTPConfig{}, err
+	}
+	sslEnabled, err := strconv.ParseBool(values["recall_campaign_setting.smtp_ssl_enabled"])
+	if err != nil {
+		return common.SMTPConfig{}, err
+	}
+	forceAuthLogin, err := strconv.ParseBool(values["recall_campaign_setting.smtp_force_auth_login"])
+	if err != nil {
+		return common.SMTPConfig{}, err
+	}
+	return common.SMTPConfig{
+		Server:         values["recall_campaign_setting.smtp_server"],
+		Port:           port,
+		Account:        values["recall_campaign_setting.smtp_account"],
+		From:           values[recallCampaignEmailFromOptionKey],
+		Token:          values["recall_campaign_setting.smtp_token"],
+		SSLEnabled:     sslEnabled,
+		ForceAuthLogin: forceAuthLogin,
+	}, nil
 }
 
 type recallSenderOptionState struct {

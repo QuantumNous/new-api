@@ -90,7 +90,40 @@ describe('Recall campaign activation readiness', () => {
 })
 
 describe('Recall campaign delivery errors', () => {
-  test('translates the stored safe Activity SMTP failure and preserves unknown messages', () => {
+  test('translates stable Activity SMTP error codes without exposing known raw messages', () => {
+    const t = (key: string) =>
+      key ===
+      'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+        ? 'Translated Activity SMTP failure'
+        : key === 'Activity SMTP is not configured. Configure it before sending.'
+          ? 'Translated Activity SMTP not configured'
+          : key ===
+              'Delivery status is uncertain. Check the mailbox provider before retrying.'
+            ? 'Translated uncertain SMTP delivery'
+            : `translated:${key}`
+
+    expect(
+      formatRecallDeliveryErrorMessage(
+        'activity_smtp_send_failed',
+        'raw smtp transport detail',
+        t
+      )
+    ).toBe('Translated Activity SMTP failure')
+
+    expect(
+      formatRecallDeliveryErrorMessage(
+        'activity_smtp_not_configured',
+        'raw config detail',
+        t
+      )
+    ).toBe('Translated Activity SMTP not configured')
+
+    expect(
+      formatRecallDeliveryErrorMessage('smtp_uncertain', 'raw timeout detail', t)
+    ).toBe('Translated uncertain SMTP delivery')
+  })
+
+  test('uses backend message only as an unknown error fallback', () => {
     const t = (key: string) =>
       key ===
       'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
@@ -99,14 +132,15 @@ describe('Recall campaign delivery errors', () => {
 
     expect(
       formatRecallDeliveryErrorMessage(
-        'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
+        'unknown_backend_code',
+        'Raw backend detail',
         t
       )
-    ).toBe('Translated Activity SMTP failure')
+    ).toBe('Raw backend detail')
 
-    expect(formatRecallDeliveryErrorMessage('Raw backend detail', t)).toBe(
+    expect(formatRecallDeliveryErrorMessage('', 'Raw backend detail', t)).toBe(
       'Raw backend detail'
     )
-    expect(formatRecallDeliveryErrorMessage('', t)).toBe('')
+    expect(formatRecallDeliveryErrorMessage('', '', t)).toBe('')
   })
 })

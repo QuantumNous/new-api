@@ -44,6 +44,13 @@ const DETAIL_PAGE_SIZE = 100
 const activationLocales = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi']
 const activitySMTPDeliveryFailure =
   'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+const recallDeliveryErrorCopyByCode: Record<string, string> = {
+  activity_smtp_not_configured:
+    'Activity SMTP is not configured. Configure it before sending.',
+  activity_smtp_send_failed: activitySMTPDeliveryFailure,
+  smtp_uncertain:
+    'Delivery status is uncertain. Check the mailbox provider before retrying.',
+}
 
 type Translate = (key: string) => string
 
@@ -86,11 +93,14 @@ export function getRecallActivationReadiness(
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function formatRecallDeliveryErrorMessage(
+  code: string,
   message: string,
   t: Translate
 ): string {
-  if (!message) return ''
-  if (message === activitySMTPDeliveryFailure) return t(message)
+  const copyKey = recallDeliveryErrorCopyByCode[code]
+  if (copyKey) return t(copyKey)
+  if (message) return message
+  if (code) return code
   return message
 }
 
@@ -392,10 +402,11 @@ export function CampaignDetail(props: CampaignDetailProps) {
                               <div>
                                 {t('Attempts')}: {message.attempt_count}
                               </div>
-                              {message.last_error_message ? (
+                              {message.last_error_code ||
+                              message.last_error_message ? (
                                 <div className='text-destructive'>
-                                  {message.last_error_code}:{' '}
                                   {formatRecallDeliveryErrorMessage(
+                                    message.last_error_code,
                                     message.last_error_message,
                                     t
                                   )}
@@ -404,10 +415,11 @@ export function CampaignDetail(props: CampaignDetailProps) {
                             </div>
                           ))}
                         </div>
-                        {recipient.last_error_message ? (
+                        {recipient.last_error_code ||
+                        recipient.last_error_message ? (
                           <p className='text-destructive mt-2'>
-                            {recipient.last_error_code}:{' '}
                             {formatRecallDeliveryErrorMessage(
+                              recipient.last_error_code,
                               recipient.last_error_message,
                               t
                             )}

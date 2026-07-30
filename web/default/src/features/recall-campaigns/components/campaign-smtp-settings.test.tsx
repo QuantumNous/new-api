@@ -716,6 +716,64 @@ describe('CampaignSMTPSettings', () => {
     dispose(root)
   })
 
+  test('allows an immediate second blank-token save after first save configures the token', async () => {
+    const putPayloads: unknown[] = []
+    setApiResponses(async (config) => {
+      if (config.method === 'put') {
+        putPayloads.push(
+          typeof config.data === 'string' ? JSON.parse(config.data) : config.data
+        )
+        return {
+          success: true,
+          data: makeStatus({ token_configured: true, configured: true }),
+        }
+      }
+      return {
+        success: true,
+        data:
+          putPayloads.length > 0
+            ? makeStatus({ token_configured: true, configured: true })
+            : makeStatus({
+                token_configured: false,
+                configured: false,
+              }),
+      }
+    })
+    const { container, root } = renderMountedSMTPSettings()
+
+    await waitFor(
+      () =>
+        (
+          container.querySelector('#recall-smtp-server') as HTMLInputElement
+        )?.value === 'smtp.example.com'
+    )
+    await React.act(async () => {
+      latestInputProps['recall-smtp-token']?.onChange?.(
+        {
+          target: { value: 'first secret' },
+        } as React.ChangeEvent<HTMLInputElement>
+      )
+      submitSMTPSettingsForm(container)
+      await wait()
+    })
+    await waitFor(() => putPayloads.length === 1)
+
+    await React.act(async () => {
+      submitSMTPSettingsForm(container)
+      await wait()
+    })
+
+    await waitFor(() => putPayloads.length === 2)
+    expect(putPayloads).toEqual([
+      expect.objectContaining({ token: 'first secret' }),
+      expect.objectContaining({ token: '' }),
+    ])
+    expect(container.textContent).not.toContain(
+      'SMTP token is required for first save.'
+    )
+    dispose(root)
+  })
+
   test('keeps dirty mounted inputs when a background SMTP status refetch completes', async () => {
     let getCount = 0
     setApiResponses(async (config) => {

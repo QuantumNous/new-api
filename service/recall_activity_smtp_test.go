@@ -207,6 +207,78 @@ func TestRecallActivitySMTPUpdatePreservesTokenOnWhitespaceOnlyToken(t *testing.
 	require.Equal(t, "stored-secret", operation_setting.GetRecallCampaignSetting().SMTPToken)
 }
 
+func TestRecallActivitySMTPUpdateBlankTokenUsesPersistedTokenWhenRuntimeIsStale(t *testing.T) {
+	db := setupRecallActivitySMTPServiceTest(t)
+	require.NoError(t, db.Create(&model.Option{Key: "recall_campaign_setting.smtp_token", Value: "persisted-secret"}).Error)
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"recall_campaign_setting.smtp_server":           "stale.smtp.example.com",
+		"recall_campaign_setting.smtp_port":             "587",
+		"recall_campaign_setting.smtp_account":          "stale@example.com",
+		"recall_campaign_setting.email_from":            "stale@example.com",
+		"recall_campaign_setting.smtp_token":            "",
+		"recall_campaign_setting.smtp_ssl_enabled":      "false",
+		"recall_campaign_setting.smtp_force_auth_login": "false",
+	}))
+
+	status, err := UpdateRecallActivitySMTP(RecallActivitySMTPInput{
+		Server:     "smtp.activity.example.com",
+		Port:       587,
+		Account:    "activity@example.com",
+		EmailFrom:  "campaigns@example.com",
+		Token:      "",
+		SSLEnabled: true,
+	})
+
+	require.NoError(t, err)
+	require.True(t, status.Configured)
+	require.True(t, status.TokenConfigured)
+	var token model.Option
+	require.NoError(t, db.First(&token, "key = ?", "recall_campaign_setting.smtp_token").Error)
+	require.Equal(t, "persisted-secret", token.Value)
+	require.Equal(t, "persisted-secret", operation_setting.GetRecallCampaignSetting().SMTPToken)
+}
+
+func TestRecallActivitySMTPUpdateBlankTokenWithoutPersistedTokenLeavesRuntimeAndDBUnchanged(t *testing.T) {
+	db := setupRecallActivitySMTPServiceTest(t)
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"recall_campaign_setting.smtp_server":           "old.smtp.example.com",
+		"recall_campaign_setting.smtp_port":             "25",
+		"recall_campaign_setting.smtp_account":          "old@example.com",
+		"recall_campaign_setting.email_from":            "old@example.com",
+		"recall_campaign_setting.smtp_token":            "runtime-only-secret",
+		"recall_campaign_setting.smtp_ssl_enabled":      "false",
+		"recall_campaign_setting.smtp_force_auth_login": "false",
+	}))
+
+	_, err := UpdateRecallActivitySMTP(RecallActivitySMTPInput{
+		Server:         "smtp.activity.example.com",
+		Port:           587,
+		Account:        "activity@example.com",
+		EmailFrom:      "campaigns@example.com",
+		Token:          "",
+		ForceAuthLogin: true,
+	})
+
+	require.ErrorContains(t, err, "SMTP token is required")
+	var count int64
+	require.NoError(t, db.Model(&model.Option{}).Where("key IN ?", []string{
+		"recall_campaign_setting.smtp_server",
+		"recall_campaign_setting.smtp_port",
+		"recall_campaign_setting.smtp_account",
+		"recall_campaign_setting.email_from",
+		"recall_campaign_setting.smtp_token",
+		"recall_campaign_setting.smtp_ssl_enabled",
+		"recall_campaign_setting.smtp_force_auth_login",
+	}).Count(&count).Error)
+	require.Zero(t, count)
+	require.Equal(t, "old.smtp.example.com", operation_setting.GetRecallCampaignSetting().SMTPServer)
+	require.Equal(t, 25, operation_setting.GetRecallCampaignSetting().SMTPPort)
+	require.Equal(t, "old@example.com", operation_setting.GetRecallCampaignSetting().SMTPAccount)
+	require.Equal(t, "old@example.com", operation_setting.GetRecallCampaignSetting().EmailFrom)
+	require.Equal(t, "runtime-only-secret", operation_setting.GetRecallCampaignSetting().SMTPToken)
+	require.False(t, operation_setting.GetRecallCampaignSetting().SMTPForceAuthLogin)
+}
+
 func TestRecallActivitySMTPSnapshotValidatesWithoutGlobalSMTP(t *testing.T) {
 	setupRecallActivitySMTPServiceTest(t)
 	originalServer := common.SMTPServer

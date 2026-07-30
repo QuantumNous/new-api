@@ -6367,6 +6367,8 @@
     "SMTP account is required.": "Учетная запись SMTP обязательна.",
     "Sender must be a plain email address.": "Отправитель должен быть обычным email-адресом.",
     "SMTP token is required for first save.": "SMTP-токен обязателен при первом сохранении.",
-    "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "Доставка через SMTP для активности не удалась. Проверьте хост, порт, учетные данные, режим TLS и авторизацию отправителя, затем повторите попытку."
+    "Activity SMTP is not configured. Configure it before sending.": "SMTP для активности не настроен. Настройте его перед отправкой.",
+    "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "Доставка через SMTP для активности не удалась. Проверьте хост, порт, учетные данные, режим TLS и авторизацию отправителя, затем повторите попытку.",
+    "Delivery status is uncertain. Check the mailbox provider before retrying.": "Статус доставки неизвестен. Проверьте почтового провайдера перед повторной попыткой."
   }
 }

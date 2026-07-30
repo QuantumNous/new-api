@@ -6367,6 +6367,8 @@
     "SMTP account is required.": "必须填写 SMTP 账号。",
     "Sender must be a plain email address.": "发件人必须是普通邮箱地址。",
     "SMTP token is required for first save.": "首次保存必须填写 SMTP 令牌。",
-    "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "活动 SMTP 投递失败。请检查主机、端口、凭据、TLS 模式和发件人授权，然后重试。"
+    "Activity SMTP is not configured. Configure it before sending.": "活动 SMTP 尚未配置。请先配置后再发送。",
+    "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "活动 SMTP 投递失败。请检查主机、端口、凭据、TLS 模式和发件人授权，然后重试。",
+    "Delivery status is uncertain. Check the mailbox provider before retrying.": "投递状态不确定。重试前请先检查邮箱服务商状态。"
   }
 }

@@ -6367,6 +6367,8 @@
     "SMTP account is required.": "A conta SMTP é obrigatória.",
     "Sender must be a plain email address.": "O remetente deve ser um endereço de email simples.",
     "SMTP token is required for first save.": "O token SMTP é obrigatório no primeiro salvamento.",
-    "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "A entrega SMTP da atividade falhou. Verifique host, porta, credenciais, modo TLS e autorização do remetente, depois tente novamente."
+    "Activity SMTP is not configured. Configure it before sending.": "O SMTP da atividade não está configurado. Configure-o antes de enviar.",
+    "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "A entrega SMTP da atividade falhou. Verifique host, porta, credenciais, modo TLS e autorização do remetente, depois tente novamente.",
+    "Delivery status is uncertain. Check the mailbox provider before retrying.": "O status da entrega é incerto. Verifique o provedor de e-mail antes de tentar novamente."
   }
 }

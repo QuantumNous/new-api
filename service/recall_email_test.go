@@ -1504,8 +1504,11 @@ func TestRecallEmailActivitySMTPDefiniteFailureStoresSafeMessage(t *testing.T) {
 	require.Equal(t, "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.", stored.LastErrorMessage)
 	require.NotContains(t, stored.LastErrorMessage, "activity-secret")
 	logged := logOutput.String()
-	require.Contains(t, logged, "454 temporary lookup failure")
+	require.Contains(t, logged, "category=smtp_transport_error")
+	require.Contains(t, logged, "ssl_enabled=true")
+	require.Contains(t, logged, "force_auth_login=true")
 	for _, sensitive := range []string{
+		"454 temporary lookup failure",
 		"smtp.secret-activity.example.com",
 		"2465",
 		"secret-account@example.com",
@@ -1516,15 +1519,64 @@ func TestRecallEmailActivitySMTPDefiniteFailureStoresSafeMessage(t *testing.T) {
 		"account=secret-account@example.com",
 		"from=secret-from@example.com",
 		"token=activity-secret",
-		"ssl_enabled=true",
-		"force_auth_login=true",
 	} {
 		require.NotContains(t, logged, sensitive)
 	}
 	require.NotContains(t, logged, "activity-secret")
 	require.NotContains(t, logged, "<!doctype html>")
-	require.Contains(t, logged, "[redacted]")
-	require.Contains(t, logged, "[rendered content redacted]")
+}
+
+func TestRecallEmailActivitySMTPFailureLogOmitsTransportEchoedMessageData(t *testing.T) {
+	var logOutput bytes.Buffer
+	common.LogWriterMu.Lock()
+	originalErrorWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logOutput
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultErrorWriter = originalErrorWriter
+		common.LogWriterMu.Unlock()
+	})
+	fixture := newRecallEmailFixture(t, 1, func(config common.SMTPConfig, subject, receiver, content, messageID string) error {
+		return fmt.Errorf(
+			"550 rejected recipient %s subject %s Message-ID %s account %s token %s body snippet Offer body 1 html %s",
+			receiver,
+			subject,
+			messageID,
+			config.Account,
+			config.Token,
+			content,
+		)
+	})
+	setValidRecallActivitySMTP(t, common.SMTPConfig{
+		Server:         "smtp.secret-activity.example.com",
+		Port:           2465,
+		Account:        "secret-account@example.com",
+		From:           "secret-from@example.com",
+		Token:          "activity-secret",
+		SSLEnabled:     true,
+		ForceAuthLogin: true,
+	})
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	logged := logOutput.String()
+	require.Contains(t, logged, "recall activity SMTP delivery failed")
+	require.Contains(t, logged, "category=smtp_transport_error")
+	for _, sensitive := range []string{
+		"snapshot@example.com",
+		"Return stage 1",
+		fmt.Sprintf("<recall-%d-1@example.com>", fixture.recipient.Id),
+		"secret-account@example.com",
+		"activity-secret",
+		"Offer body 1",
+		"<!doctype html>",
+	} {
+		require.NotContains(t, logged, sensitive)
+	}
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, "activity_smtp_send_failed", stored.LastErrorCode)
+	require.Equal(t, "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.", stored.LastErrorMessage)
 }
 
 func TestRecallEmailActivitySMTPNonTLSCommandRejectionStoresDefiniteSafeFailure(t *testing.T) {

@@ -173,7 +173,9 @@ const recallActivitySMTPCopyKeys = [
   'SMTP account is required.',
   'Sender must be a plain email address.',
   'SMTP token is required for first save.',
+  'Activity SMTP is not configured. Configure it before sending.',
   'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
+  'Delivery status is uncertain. Check the mailbox provider before retrying.',
 ] as const
 
 const recallHelpKeys = [

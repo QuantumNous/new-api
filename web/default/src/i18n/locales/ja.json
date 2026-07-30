@@ -6367,6 +6367,8 @@
     "SMTP account is required.": "SMTP アカウントは必須です。",
     "Sender must be a plain email address.": "送信者は通常のメールアドレスである必要があります。",
     "SMTP token is required for first save.": "初回保存には SMTP トークンが必要です。",
-    "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "アクティビティ SMTP 配信に失敗しました。ホスト、ポート、認証情報、TLS モード、送信者認可を確認してから再試行してください。"
+    "Activity SMTP is not configured. Configure it before sending.": "アクティビティ SMTP が設定されていません。送信前に設定してください。",
+    "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "アクティビティ SMTP 配信に失敗しました。ホスト、ポート、認証情報、TLS モード、送信者認可を確認してから再試行してください。",
+    "Delivery status is uncertain. Check the mailbox provider before retrying.": "配信状態が不確実です。再試行する前にメールプロバイダーを確認してください。"
   }
 }

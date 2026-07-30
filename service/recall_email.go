@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html"
 	htmltemplate "html/template"
+	"net/textproto"
 	"net/url"
 	"strconv"
 	"strings"
@@ -720,36 +721,24 @@ func (w *RecallEmailWorker) finishErrorWithMessage(ctx context.Context, item *mo
 	return nil
 }
 
-func sanitizeRecallActivitySMTPTransportError(err error, smtpConfig common.SMTPConfig, renderedContent string) string {
+func sanitizeRecallActivitySMTPTransportError(err error, smtpConfig common.SMTPConfig, _ string) string {
 	if err == nil {
 		return ""
 	}
-	message := err.Error()
-	for _, value := range []string{
-		smtpConfig.Server,
-		strconv.Itoa(smtpConfig.Port),
-		smtpConfig.Account,
-		smtpConfig.From,
-		smtpConfig.Token,
-	} {
-		if strings.TrimSpace(value) != "" && value != "0" {
-			message = strings.ReplaceAll(message, value, "[redacted]")
-		}
+	category := "smtp_transport_error"
+	if common.IsEmailSendUncertain(err) {
+		category = "smtp_uncertain"
 	}
-	for _, pair := range []struct {
-		key   string
-		value bool
-	}{
-		{key: "ssl_enabled", value: smtpConfig.SSLEnabled},
-		{key: "force_auth_login", value: smtpConfig.ForceAuthLogin},
-	} {
-		message = strings.ReplaceAll(message, fmt.Sprintf("%s=%t", pair.key, pair.value), pair.key+"=[redacted]")
-		message = strings.ReplaceAll(message, fmt.Sprintf("%s: %t", pair.key, pair.value), pair.key+": [redacted]")
+	parts := []string{
+		"category=" + category,
+		fmt.Sprintf("ssl_enabled=%t", smtpConfig.SSLEnabled),
+		fmt.Sprintf("force_auth_login=%t", smtpConfig.ForceAuthLogin),
 	}
-	if strings.TrimSpace(renderedContent) != "" {
-		message = strings.ReplaceAll(message, renderedContent, "[rendered content redacted]")
+	var smtpErr *textproto.Error
+	if errors.As(err, &smtpErr) && smtpErr.Code > 0 {
+		parts = append(parts, "smtp_status_code="+strconv.Itoa(smtpErr.Code))
 	}
-	return message
+	return strings.Join(parts, " ")
 }
 
 func recallEmailRetryDelay(attempt int) time.Duration {

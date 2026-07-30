@@ -68,7 +68,6 @@ func recallActivitySMTPPreflight() (common.SMTPConfig, error) {
 }
 
 func UpdateRecallActivitySMTP(input RecallActivitySMTPInput) (RecallActivitySMTPStatus, error) {
-	current := recallActivitySMTPConfigFromSetting(operation_setting.GetRecallCampaignSetting())
 	submitted := common.SMTPConfig{
 		Server:         strings.TrimSpace(input.Server),
 		Port:           input.Port,
@@ -80,13 +79,6 @@ func UpdateRecallActivitySMTP(input RecallActivitySMTPInput) (RecallActivitySMTP
 	}
 	if strings.TrimSpace(submitted.Token) == "" {
 		submitted.Token = ""
-	}
-	effective := submitted
-	if effective.Token == "" {
-		effective.Token = current.Token
-	}
-	if err := effective.Validate(); err != nil {
-		return RecallActivitySMTPStatus{}, err
 	}
 	if err := model.UpdateRecallActivitySMTPOptions(model.RecallActivitySMTPOptionInput{SMTPConfig: submitted}); err != nil {
 		return RecallActivitySMTPStatus{}, err
