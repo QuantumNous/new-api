@@ -23,22 +23,49 @@ import { filterToolsGroupByRole } from './use-sidebar-view'
 
 const navGroups: NavGroup[] = [
   { id: 'general', title: 'General', items: [] },
-  { id: 'tools', title: 'Tools', items: [] },
+  {
+    id: 'tools',
+    title: 'Tools',
+    items: [
+      { title: 'Get Started', url: '/quickstart' },
+      { title: 'Tool Marketplace', url: '/api-marketplace' },
+    ],
+  },
   { id: 'admin', title: 'Admin', items: [] },
 ]
 
 describe('filterToolsGroupByRole', () => {
-  test.each([
-    [ROLE.USER, ['general', 'admin']],
-    [ROLE.ADMIN, ['general', 'tools', 'admin']],
-    [ROLE.SUPER_ADMIN, ['general', 'tools', 'admin']],
-    [undefined, ['general', 'admin']],
-  ] as const)(
-    'filters only the tools group for role %p',
-    (role, expectedGroupIds) => {
-      expect(
-        filterToolsGroupByRole(navGroups, role).map((group) => group.id)
-      ).toEqual(expectedGroupIds)
+  test('keeps only Tool Marketplace in the regular user tools group', () => {
+    const filteredGroups = filterToolsGroupByRole(navGroups, ROLE.USER)
+    const toolsGroup = filteredGroups.find((group) => group.id === 'tools')
+
+    expect(filteredGroups.map((group) => group.id)).toEqual([
+      'general',
+      'tools',
+      'admin',
+    ])
+    expect(toolsGroup?.items).toMatchObject([
+      { title: 'Tool Marketplace', url: '/api-marketplace' },
+    ])
+  })
+
+  test.each([ROLE.ADMIN, ROLE.SUPER_ADMIN])(
+    'keeps every tools item for privileged role %p',
+    (role) => {
+      const toolsGroup = filterToolsGroupByRole(navGroups, role).find(
+        (group) => group.id === 'tools'
+      )
+
+      expect(toolsGroup?.items).toMatchObject([
+        { title: 'Get Started', url: '/quickstart' },
+        { title: 'Tool Marketplace', url: '/api-marketplace' },
+      ])
     }
   )
+
+  test('keeps the tools group hidden while the role is unavailable', () => {
+    expect(
+      filterToolsGroupByRole(navGroups, undefined).map((group) => group.id)
+    ).toEqual(['general', 'admin'])
+  })
 })

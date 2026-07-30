@@ -117,7 +117,7 @@ export function buildSidebarData(
             icon: Rocket,
           },
           {
-            title: t('API Marketplace'),
+            title: t('Tool Marketplace'),
             url: '/api-marketplace',
             icon: Wrench,
           },
