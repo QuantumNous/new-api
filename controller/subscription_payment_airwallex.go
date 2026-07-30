@@ -58,6 +58,10 @@ var getBillingSubscription = airwallex.GetBillingSubscription
 // live Airwallex call.
 var getBillingCheckout = airwallex.GetBillingCheckout
 
+// getBillingSubscriptionItems is a seam so webhook tests can read a
+// subscription's current price without a live Airwallex call.
+var getBillingSubscriptionItems = airwallex.GetBillingSubscriptionItems
+
 func airwallexConfigured() string {
 	if !setting.AirwallexEnabled {
 		return "Airwallex 未启用"
@@ -239,8 +243,8 @@ func genAirwallexSubscriptionLink(c *gin.Context, user *model.User, plan *model.
 		SubscriptionData: map[string]any{
 			"metadata": map[string]string{"trade_no": tradeNo, "new_api_user_id": strconv.Itoa(user.Id)},
 		},
-		Metadata:   map[string]string{"trade_no": tradeNo, "new_api_user_id": strconv.Itoa(user.Id)},
-		Locale:     "AUTO",
+		Metadata: map[string]string{"trade_no": tradeNo, "new_api_user_id": strconv.Itoa(user.Id)},
+		Locale:   "AUTO",
 		// HOSTED Billing Checkout uses success_url for the post-payment redirect.
 		// return_url is only valid for embedded/redirect ui_modes; sending it with
 		// ui_mode=HOSTED triggers a validation_error and no checkout url is returned.
@@ -532,26 +536,77 @@ func handleAirwallexInvoicePaid(c *gin.Context, event airwallexEvent) error {
 		logger.LogInfo(ctx, "Airwallex invoice.paid: 原订单未完成，跳过（由 billing_checkout.completed 激活）trade_no="+tradeNo)
 		return nil
 	}
-	if isAirwallexFirstCycleInvoice(event.Data.Object, orig) {
+
+	// The subscription's current price is authoritative over orig.PlanId: a
+	// monthly→annual switch repoints the price, and its proration invoice
+	// arrives looking like an ordinary renewal. Resolving the plan here is what
+	// stops a switch from granting another month of the OLD plan.
+	planId := orig.PlanId
+	planChanged := false
+	if items, err := getBillingSubscriptionItems(subId); err != nil {
+		// Unreachable Airwallex must not strand a paid invoice; fall back to the
+		// order's plan (correct for the common case: an ordinary renewal).
+		logger.LogError(ctx, "Airwallex invoice.paid: 订阅明细查询失败 sub="+subId+" error="+err.Error())
+	} else {
+		for _, item := range items {
+			livePlan, err := model.GetSubscriptionPlanByAirwallexPriceId(item.Price.Id)
+			if err != nil {
+				logger.LogError(ctx, "Airwallex invoice.paid: 套餐查询失败 price="+item.Price.Id+" error="+err.Error())
+				break
+			}
+			if livePlan != nil {
+				if livePlan.Id != orig.PlanId {
+					planChanged = true
+				}
+				planId = livePlan.Id
+				break
+			}
+		}
+	}
+
+	// The first-cycle skip protects against double-granting the signup invoice.
+	// A plan change overrides it: that invoice is a real, distinct charge, and
+	// a switch within 7 days of signup would otherwise be silently dropped.
+	if !planChanged && isAirwallexFirstCycleInvoice(event.Data.Object, orig) {
 		logger.LogInfo(ctx, "Airwallex invoice.paid: 首次周期发票，跳过 invoice="+invoiceId+" trade_no="+tradeNo)
 		return nil
 	}
-	// Subsequent cycle — create and complete the renewal order.
+
 	payload := common.GetJsonString(event.Data.Object)
-	return renewAirwallexSubscriptionBilling(c, orig, payload, invoiceId)
+	if err := renewAirwallexSubscriptionBilling(c, orig, payload, invoiceId, planId); err != nil {
+		return err
+	}
+	if planChanged {
+		oldPlanId := orig.PlanId
+		// Repoint the anchor order so every later renewal grants the new plan.
+		orig.PlanId = planId
+		if err := orig.Update(); err != nil {
+			return fmt.Errorf("Airwallex 套餐切换后原订单更新失败 trade_no=%s: %w", tradeNo, err)
+		}
+		n, err := model.ExpireSupersededUserSubscriptions(orig.UserId, oldPlanId, 0)
+		if err != nil {
+			return fmt.Errorf("Airwallex 旧订阅过期失败 user=%d: %w", orig.UserId, err)
+		}
+		logger.LogInfo(ctx, fmt.Sprintf("Airwallex 套餐切换完成 user=%d %d→%d 过期旧订阅%d条", orig.UserId, oldPlanId, planId, n))
+	}
+	return nil
 }
 
 // renewAirwallexSubscriptionBilling inserts + completes the next cycle's paid
 // order. Trade no embeds the Airwallex invoice id, so webhook redeliveries stay
 // idempotent regardless of when they are processed, and distinct invoices never
-// collapse. Returns error so callers receive 500 on DB failure.
-func renewAirwallexSubscriptionBilling(c *gin.Context, orig *model.SubscriptionOrder, payload string, invoiceId string) error {
+// collapse. planId comes from the caller, which resolves it from the
+// subscription's live price — it differs from orig.PlanId across a plan
+// switch. Returns error so callers receive 500 on DB failure.
+func renewAirwallexSubscriptionBilling(c *gin.Context, orig *model.SubscriptionOrder, payload string, invoiceId string, planId int) error {
 	ctx := c.Request.Context()
 	renewTradeNo := fmt.Sprintf("%s-r-%s", orig.TradeNo, invoiceId)
 	if model.GetSubscriptionOrderByTradeNo(renewTradeNo) == nil {
 		order := &model.SubscriptionOrder{
-			UserId:          orig.UserId,
-			PlanId:          orig.PlanId,
+			UserId: orig.UserId,
+			// planId is the plan the subscription is CURRENTLY on, which differs
+			// from orig.PlanId across a plan switch.
+			PlanId: planId,
 			// Money is the original order's amount (a historical record for the
 			// renewal row); the authoritative charge is Airwallex-side. If the
 			// plan price changes mid-subscription these can diverge — acceptable.
