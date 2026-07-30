@@ -50,7 +50,7 @@ describe('buildSidebarData', () => {
 
     expect(toolsGroup?.items).toMatchObject([
       { title: 'Get Started', url: '/quickstart' },
-      { title: 'API Marketplace', url: '/api-marketplace' },
+      { title: 'Tool Marketplace', url: '/api-marketplace' },
     ])
     expect(credentialsGroup?.items).toMatchObject([
       { title: 'API Keys', url: '/keys' },
