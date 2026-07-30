@@ -38,7 +38,12 @@ import {
   getQuotaTypeLabels,
 } from '../constants'
 import { filterByEndpointType, parseTags } from '../lib/filters'
-import type { IntegrationProfile, PricingModel, PricingVendor } from '../types'
+import type {
+  IntegrationProfile,
+  PricingModel,
+  PricingVendor,
+  TokenUnit,
+} from '../types'
 
 type FilterOption = {
   value: string
@@ -74,6 +79,11 @@ export interface PricingSidebarProps {
   integrationProfiles: IntegrationProfile[]
   hasActiveFilters: boolean
   onClearFilters: () => void
+  /** Optional price display settings, shown as extra sections when provided. */
+  tokenUnit?: TokenUnit
+  onTokenUnitChange?: (value: TokenUnit) => void
+  showRechargePrice?: boolean
+  onRechargePriceChange?: (value: boolean) => void
   className?: string
 }
 
@@ -308,6 +318,30 @@ export function PricingSidebar(props: PricingSidebarProps) {
           options={endpointOptions}
           onChange={props.onEndpointTypeChange}
         />
+        {props.onRechargePriceChange && (
+          <FilterSection
+            title={t('Price display mode')}
+            value={props.showRechargePrice ? 'recharge' : 'standard'}
+            options={[
+              { value: 'standard', label: t('Standard') },
+              { value: 'recharge', label: t('Recharge') },
+            ]}
+            onChange={(value) =>
+              props.onRechargePriceChange?.(value === 'recharge')
+            }
+          />
+        )}
+        {props.onTokenUnitChange && (
+          <FilterSection
+            title={t('Token unit')}
+            value={props.tokenUnit ?? 'M'}
+            options={[
+              { value: 'M', label: '/1M' },
+              { value: 'K', label: '/1K' },
+            ]}
+            onChange={(value) => props.onTokenUnitChange?.(value as TokenUnit)}
+          />
+        )}
       </div>
     </aside>
   )

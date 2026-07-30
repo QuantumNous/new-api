@@ -112,30 +112,27 @@ function CardContentSkeleton() {
 
 function FilterBarSkeleton() {
   return (
-    <div className='space-y-3 rounded-xl border p-3'>
-      <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
-        <div className='flex flex-wrap items-center gap-2'>
-          <Skeleton className='h-8 w-28 rounded-full' />
-          <Skeleton className='h-8 w-24 rounded-full' />
-          <Skeleton className='h-5 w-20' />
-        </div>
-        <div className='flex items-center gap-2'>
-          <Skeleton className='h-8 w-20 rounded-lg' />
-          <Skeleton className='h-8 w-24 rounded-lg' />
-          <Skeleton className='h-8 w-16 rounded-lg' />
-        </div>
+    <div className='flex flex-col gap-3'>
+      <div className='space-y-1.5'>
+        <Skeleton className='h-7 w-40' />
+        <Skeleton className='h-4 w-72 max-w-full' />
       </div>
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
         <Skeleton className='h-8 min-w-0 flex-1 rounded-lg' />
         <div className='flex items-center gap-2'>
-          {FILTER_CHIP_SKELETONS.slice(0, 2).map((chip) => (
-            <Skeleton
-              key={chip.id}
-              className='h-8 rounded-lg'
-              style={{ width: `${chip.width}px` }}
-            />
-          ))}
+          <Skeleton className='size-8 rounded-lg' />
+          <Skeleton className='h-8 w-20 rounded-lg' />
+          <Skeleton className='h-8 w-16 rounded-lg' />
         </div>
+      </div>
+      <div className='flex items-center gap-1.5 overflow-hidden'>
+        {FILTER_CHIP_SKELETONS.map((chip) => (
+          <Skeleton
+            key={chip.id}
+            className='h-7 shrink-0 rounded-full'
+            style={{ width: `${chip.width}px` }}
+          />
+        ))}
       </div>
     </div>
   )
