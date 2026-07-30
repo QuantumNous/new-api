@@ -295,6 +295,113 @@ func SubscriptionCancelAirwallex(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"cancelled": cancelled}})
 }
 
+// listBillingSubscriptions / switchBillingSubscriptionPrice are seams so
+// change-plan tests can run without live Airwallex calls.
+var listBillingSubscriptions = airwallex.ListBillingSubscriptions
+var switchBillingSubscriptionPrice = airwallex.SwitchBillingSubscriptionPrice
+
+type SubscriptionAirwallexChangePlanRequest struct {
+	PlanId int `json:"plan_id"`
+}
+
+// SubscriptionChangePlanAirwallex switches the caller's live subscription onto an
+// annual plan with Claude-style semantics: unused time on the monthly price is
+// credited, the annual price is charged immediately, and the billing anchor
+// resets to now.
+//
+// Monthly→annual only, and only within the same tier. The local plan row is NOT
+// updated here — the proration invoice's webhook owns that (see
+// handleAirwallexInvoicePaid), which keeps a single write path and removes any
+// endpoint-vs-webhook race.
+func SubscriptionChangePlanAirwallex(c *gin.Context) {
+	if msg := airwallexConfigured(); msg != "" {
+		common.ApiErrorMsg(c, msg)
+		return
+	}
+	var req SubscriptionAirwallexChangePlanRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	target, err := model.GetSubscriptionPlanById(req.PlanId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !target.Enabled {
+		common.ApiErrorMsg(c, "套餐未启用")
+		return
+	}
+	if target.AirwallexPriceId == "" {
+		common.ApiErrorMsg(c, "该套餐未配置 AirwallexPriceId")
+		return
+	}
+	if target.DurationUnit != model.SubscriptionDurationYear {
+		common.ApiErrorMsg(c, "仅支持切换到年付套餐")
+		return
+	}
+
+	userId := c.GetInt("id")
+	billingCustomerId := model.GetAirwallexBillingCustomerId(userId)
+	if billingCustomerId == "" {
+		common.ApiErrorMsg(c, "无进行中的订阅")
+		return
+	}
+	subs, err := listBillingSubscriptions(billingCustomerId, "ACTIVE")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(subs) == 0 {
+		common.ApiErrorMsg(c, "无进行中的订阅")
+		return
+	}
+	if len(subs) > 1 {
+		// Ambiguous: switching one of several would leave the others billing.
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Airwallex 切换套餐：用户 %d 有 %d 个活跃订阅", userId, len(subs)))
+		common.ApiErrorMsg(c, "订阅状态异常，请联系客服")
+		return
+	}
+	sub := subs[0]
+
+	items, err := getBillingSubscriptionItems(sub.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(items) != 1 {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Airwallex 切换套餐：订阅 %s 有 %d 个明细", sub.Id, len(items)))
+		common.ApiErrorMsg(c, "订阅状态异常，请联系客服")
+		return
+	}
+	item := items[0]
+	if item.Price.Id == target.AirwallexPriceId {
+		common.ApiErrorMsg(c, "已是该套餐")
+		return
+	}
+	current, err := model.GetSubscriptionPlanByAirwallexPriceId(item.Price.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if current == nil {
+		common.ApiErrorMsg(c, "当前套餐无法识别，请联系客服")
+		return
+	}
+	if current.UpgradeGroup != target.UpgradeGroup {
+		common.ApiErrorMsg(c, "仅支持同一档位内切换为年付")
+		return
+	}
+
+	reqId := fmt.Sprintf("switch-%s-%d", sub.Id, time.Now().UnixMilli())
+	if err := switchBillingSubscriptionPrice(sub.Id, reqId, item.Id, target.AirwallexPriceId); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Airwallex 切换套餐失败 sub=%s error=%q", sub.Id, err.Error()))
+		common.ApiErrorMsg(c, "切换套餐失败，请稍后重试")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"switched": true}})
+}
+
 // ---- webhook ----
 
 type airwallexEvent struct {

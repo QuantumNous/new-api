@@ -170,6 +170,7 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
 			subscriptionRoute.POST("/airwallex/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestAirwallexPay)
 			subscriptionRoute.POST("/airwallex/cancel", middleware.CriticalRateLimit(), controller.SubscriptionCancelAirwallex)
+			subscriptionRoute.POST("/airwallex/change-plan", middleware.CriticalRateLimit(), controller.SubscriptionChangePlanAirwallex)
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
