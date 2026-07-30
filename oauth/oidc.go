@@ -110,12 +110,12 @@ func (p *OIDCProvider) ExchangeToken(ctx context.Context, code string, c *gin.Co
 
 	// If provider returned an OAuth error, log and surface it
 	if oidcResponse.Error != "" {
-		logger.LogError(ctx, "[OAuth-OIDC] ExchangeToken provider error: %s - %s", oidcResponse.Error, oidcResponse.ErrorDescription)
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] ExchangeToken provider error: %s - %s", oidcResponse.Error, oidcResponse.ErrorDescription))
 		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "OIDC"}, oidcResponse.Error+": "+oidcResponse.ErrorDescription)
 	}
 
 	if oidcResponse.AccessToken == "" {
-		logger.LogError(ctx, "[OAuth-OIDC] ExchangeToken failed: empty access token, body=%s", string(bodyBytes))
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] ExchangeToken failed: empty access token, body=%s", string(bodyBytes)))
 		return nil, NewOAuthError(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "OIDC"})
 	}
 
