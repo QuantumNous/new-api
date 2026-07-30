@@ -246,6 +246,10 @@ export function setRecallCampaignGroups(
 export function prepareRecallCampaignSubmitDraft(
   draft: RecallCampaignDraft
 ): RecallCampaignDraft {
+  const { coupon_redeem_by: _legacyCouponRedeemBy, ...discountConfig } =
+    draft.discount_config as RecallCampaignDraft['discount_config'] & {
+      coupon_redeem_by?: number
+    }
   const starterHtml =
     draft.campaign_type === 'content_only'
       ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
@@ -254,8 +258,8 @@ export function prepareRecallCampaignSubmitDraft(
   return {
     ...draft,
     discount_config: {
-      ...draft.discount_config,
-      ...normalizeRecallMinimumSpendForSubmit(draft.discount_config),
+      ...discountConfig,
+      ...normalizeRecallMinimumSpendForSubmit(discountConfig),
     },
     audience_config: {
       ...draft.audience_config,
@@ -429,18 +433,12 @@ export function getRecallEffectivePromotionExpiry(
     | 'promotion_expiry_mode'
     | 'promotion_expires_at'
     | 'promotion_valid_seconds'
-    | 'discount_config'
   >,
   runAtSeconds: number
 ): number {
-  const promotionExpiry =
-    draft.promotion_expiry_mode === 'fixed'
-      ? draft.promotion_expires_at
-      : runAtSeconds + draft.promotion_valid_seconds
-  const couponRedeemBy = draft.discount_config.coupon_redeem_by
-  return couponRedeemBy > 0
-    ? Math.min(promotionExpiry, couponRedeemBy)
-    : promotionExpiry
+  return draft.promotion_expiry_mode === 'fixed'
+    ? draft.promotion_expires_at
+    : runAtSeconds + draft.promotion_valid_seconds
 }
 
 function hasRecallEmailTemplate(

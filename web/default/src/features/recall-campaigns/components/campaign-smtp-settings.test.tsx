@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { AxiosHeaders, type InternalAxiosRequestConfig } from 'axios'
 import { createRoot, type Root } from 'react-dom/client'
+import { AxiosHeaders, type InternalAxiosRequestConfig } from 'axios'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   afterAll,
@@ -178,6 +178,10 @@ function setupDom() {
       if (key === 'checked') this.checked = true
     }
 
+    getAttribute(key: string) {
+      return this.attributes[key] ?? null
+    }
+
     removeAttribute(key: string) {
       delete this.attributes[key]
       if (key === 'disabled') this.disabled = false
@@ -185,7 +189,10 @@ function setupDom() {
     }
 
     querySelector(selector: string): ElementShim | null {
-      if (selector.startsWith('#') && this.attributes.id === selector.slice(1)) {
+      if (
+        selector.startsWith('#') &&
+        this.attributes.id === selector.slice(1)
+      ) {
         return this
       }
       if (selector.toUpperCase() === this.tagName) {
@@ -250,11 +257,18 @@ const latestInputProps: Record<
   string,
   React.InputHTMLAttributes<HTMLInputElement>
 > = {}
+const latestButtonProps: Record<
+  string,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+> = {}
 
 mock.module('@/components/ui/button', () => ({
-  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props} />
-  ),
+  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => {
+    if (typeof props.children === 'string') {
+      latestButtonProps[props.children] = props
+    }
+    return <button {...props} />
+  },
 }))
 
 mock.module('@/components/ui/input', () => ({
@@ -301,6 +315,9 @@ beforeAll(() => {
 afterEach(() => {
   api.defaults.adapter = originalAdapter
   for (const key of Object.keys(latestInputProps)) delete latestInputProps[key]
+  for (const key of Object.keys(latestButtonProps)) {
+    delete latestButtonProps[key]
+  }
 })
 
 afterAll(() => {
@@ -381,6 +398,42 @@ function submitSMTPSettingsForm(container: HTMLElement) {
   form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
 }
 
+function findButtonByText(
+  root: HTMLElement,
+  text: string
+): HTMLButtonElement | null {
+  const visit = (node: Node): HTMLButtonElement | null => {
+    if (
+      node instanceof HTMLElement &&
+      node.tagName === 'BUTTON' &&
+      node.textContent === text
+    ) {
+      return node as HTMLButtonElement
+    }
+    for (const child of Array.from(node.childNodes)) {
+      const match = visit(child)
+      if (match) return match
+    }
+    return null
+  }
+  return visit(root)
+}
+
+async function clickButton(button: HTMLButtonElement) {
+  await React.act(async () => {
+    const label = button.textContent ?? ''
+    latestButtonProps[label]?.onClick?.(
+      new MouseEvent('click') as unknown as React.MouseEvent<HTMLButtonElement>
+    )
+    await wait()
+  })
+}
+
+async function expandSMTPSettingsForEdit(container: HTMLElement) {
+  const editButton = findButtonByText(container, 'Edit')
+  if (editButton) await clickButton(editButton)
+}
+
 function setApiResponses(
   handler: (config: InternalAxiosRequestConfig) => Promise<unknown>
 ) {
@@ -415,11 +468,13 @@ describe('CampaignSMTPSettings', () => {
           disabled={false}
           error=''
           fieldErrors={{}}
+          expanded={true}
           pending={false}
           status={makeStatus()}
           success=''
           values={createRecallActivitySMTPFormValues(makeStatus())}
           onFieldChange={() => undefined}
+          onEdit={() => undefined}
           onSave={() => undefined}
         />
       </I18nextProvider>
@@ -433,6 +488,41 @@ describe('CampaignSMTPSettings', () => {
     expect(html).toContain('value="smtp.example.com"')
     expect(html).toContain('type="password"')
     expect(html).not.toContain('real password')
+  })
+
+  test('renders configured SMTP as a compact collapsed summary without form inputs or token', () => {
+    const status = makeStatus()
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <CampaignSMTPSettingsView
+          disabled={false}
+          error=''
+          fieldErrors={{}}
+          expanded={false}
+          pending={false}
+          status={status}
+          success=''
+          values={{
+            ...createRecallActivitySMTPFormValues(status),
+            token: 'typed secret',
+          }}
+          onFieldChange={() => undefined}
+          onEdit={() => undefined}
+          onSave={() => undefined}
+        />
+      </I18nextProvider>
+    )
+
+    expect(html).toContain('Activity SMTP settings')
+    expect(html).toContain('activity@example.com')
+    expect(html).toContain('smtp.example.com:587')
+    expect(html).toContain('Configured')
+    expect(html).toContain('Edit')
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).toContain('aria-controls="recall-smtp-settings-form"')
+    expect(html).not.toContain('id="recall-smtp-server"')
+    expect(html).not.toContain('id="recall-smtp-token"')
+    expect(html).not.toContain('typed secret')
   })
 
   test('renders not configured state and requires first-save token', () => {
@@ -466,17 +556,21 @@ describe('CampaignSMTPSettings', () => {
           disabled={false}
           error=''
           fieldErrors={{}}
+          expanded={true}
           pending={false}
           status={status}
           success=''
           values={createRecallActivitySMTPFormValues(status)}
           onFieldChange={() => undefined}
+          onEdit={() => undefined}
           onSave={() => undefined}
         />
       </I18nextProvider>
     )
 
     expect(html).toContain('Not configured')
+    expect(html).toContain('id="recall-smtp-server"')
+    expect(html).toContain('id="recall-smtp-token"')
   })
 
   test('validates port range, integer shape, required host/account, and plain mailbox sender', () => {
@@ -502,8 +596,9 @@ describe('CampaignSMTPSettings', () => {
       { ...valid, email_from: 'activity@example.com\r\nbcc:x@example.com' },
       { ...valid, email_from: 'not-an-email' },
     ]) {
-      expect(recallActivitySMTPSchema(makeStatus()).safeParse(invalid).success)
-        .toBe(false)
+      expect(
+        recallActivitySMTPSchema(makeStatus()).safeParse(invalid).success
+      ).toBe(false)
     }
   })
 
@@ -602,11 +697,13 @@ describe('CampaignSMTPSettings', () => {
           disabled={false}
           error='Failed to update Activity SMTP settings.'
           fieldErrors={{}}
+          expanded={true}
           pending={false}
           status={makeStatus()}
           success=''
           values={values}
           onFieldChange={() => undefined}
+          onEdit={() => undefined}
           onSave={() => undefined}
         />
       </I18nextProvider>
@@ -635,6 +732,7 @@ describe('CampaignSMTPSettings', () => {
             server: 'SMTP server is required.',
             token: 'SMTP token is required for first save.',
           }}
+          expanded={true}
           pending={false}
           status={makeStatus({ token_configured: false })}
           success=''
@@ -650,6 +748,7 @@ describe('CampaignSMTPSettings', () => {
             unsubscribe_mailto: '',
           }}
           onFieldChange={() => undefined}
+          onEdit={() => undefined}
           onSave={() => undefined}
         />
       </I18nextProvider>
@@ -658,9 +757,7 @@ describe('CampaignSMTPSettings', () => {
     for (const field of ['server', 'port', 'account', 'email-from']) {
       expect(html).toContain(`id="recall-smtp-${field}-error"`)
       expect(html).toContain('aria-invalid="true"')
-      expect(html).toContain(
-        `aria-describedby="recall-smtp-${field}-error"`
-      )
+      expect(html).toContain(`aria-describedby="recall-smtp-${field}-error"`)
     }
     expect(html).toContain('id="recall-smtp-token-help"')
     expect(html).toContain('id="recall-smtp-token-error"')
@@ -679,11 +776,13 @@ describe('CampaignSMTPSettings', () => {
             port: 'SMTP port must be between 1 and 65535.',
             server: 'SMTP server is required.',
           }}
+          expanded={true}
           pending={false}
           status={makeStatus()}
           success=''
           values={createRecallActivitySMTPFormValues(makeStatus())}
           onFieldChange={() => undefined}
+          onEdit={() => undefined}
           onSave={() => undefined}
         />
       </I18nextProvider>
@@ -743,6 +842,105 @@ describe('CampaignSMTPSettings', () => {
     dispose(root)
   })
 
+  test('expands configured SMTP for editing and collapses only after successful save', async () => {
+    const requests: string[] = []
+    setApiResponses(async (config) => {
+      requests.push(`${config.method}:${config.url}`)
+      if (config.method === 'put') {
+        return {
+          success: true,
+          data: makeStatus({ server: 'smtp.saved.example.com' }),
+        }
+      }
+      return { success: true, data: makeStatus() }
+    })
+    const { container, root } = renderMountedSMTPSettings()
+
+    await waitFor(
+      () =>
+        findButtonByText(container, 'Edit')?.getAttribute('aria-expanded') ===
+        'false'
+    )
+    expect(container.textContent).toContain('activity@example.com')
+    expect(container.textContent).toContain('smtp.example.com:587')
+    expect(container.querySelector('#recall-smtp-server')).toBeNull()
+
+    await clickButton(findButtonByText(container, 'Edit') as HTMLButtonElement)
+    await waitFor(
+      () =>
+        (container.querySelector('#recall-smtp-server') as HTMLInputElement)
+          ?.value === 'smtp.example.com'
+    )
+
+    await React.act(async () => {
+      submitSMTPSettingsForm(container)
+      await wait()
+    })
+
+    await waitFor(
+      () =>
+        container.textContent?.includes('Activity SMTP settings saved.') ===
+        true
+    )
+    await waitFor(
+      () => requests.filter((request) => request.startsWith('get:')).length >= 2
+    )
+    expect(container.querySelector('#recall-smtp-server')).toBeNull()
+    expect(
+      findButtonByText(container, 'Edit')?.getAttribute('aria-expanded')
+    ).toBe('false')
+    dispose(root)
+  })
+
+  test('submits deliverability fields from the expanded SMTP form', async () => {
+    const putPayloads: unknown[] = []
+    setApiResponses(async (config) => {
+      if (config.method === 'put') {
+        putPayloads.push(
+          typeof config.data === 'string'
+            ? JSON.parse(config.data)
+            : config.data
+        )
+        return {
+          success: true,
+          data: makeStatus({
+            reply_to: 'support@example.com',
+            unsubscribe_mailto: 'mailto:unsubscribe@example.com',
+          }),
+        }
+      }
+      return { success: true, data: makeStatus() }
+    })
+    const { container, root } = renderMountedSMTPSettings()
+
+    await waitFor(() => container.textContent?.includes('Configured') === true)
+    await expandSMTPSettingsForEdit(container)
+    await waitFor(
+      () =>
+        container.querySelector('#recall-smtp-reply-to') !== null &&
+        container.querySelector('#recall-smtp-unsubscribe-mailto') !== null
+    )
+    await React.act(async () => {
+      latestInputProps['recall-smtp-reply-to']?.onChange?.({
+        target: { value: 'support@example.com' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      latestInputProps['recall-smtp-unsubscribe-mailto']?.onChange?.({
+        target: { value: 'mailto:unsubscribe@example.com' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      submitSMTPSettingsForm(container)
+      await wait()
+    })
+
+    await waitFor(() => putPayloads.length === 1)
+    expect(putPayloads[0]).toEqual(
+      expect.objectContaining({
+        reply_to: 'support@example.com',
+        unsubscribe_mailto: 'mailto:unsubscribe@example.com',
+      })
+    )
+    dispose(root)
+  })
+
   test('keeps success visible after save cache update and invalidate refetch', async () => {
     const requests: string[] = []
     setApiResponses(async (config) => {
@@ -758,6 +956,7 @@ describe('CampaignSMTPSettings', () => {
     const { container, root } = renderMountedSMTPSettings()
 
     await waitFor(() => container.textContent?.includes('Configured') === true)
+    await expandSMTPSettingsForEdit(container)
     await React.act(async () => {
       submitSMTPSettingsForm(container)
       await wait()
@@ -765,7 +964,8 @@ describe('CampaignSMTPSettings', () => {
 
     await waitFor(
       () =>
-        container.textContent?.includes('Activity SMTP settings saved.') === true
+        container.textContent?.includes('Activity SMTP settings saved.') ===
+        true
     )
     await waitFor(
       () => requests.filter((request) => request.startsWith('get:')).length >= 2
@@ -779,7 +979,9 @@ describe('CampaignSMTPSettings', () => {
     setApiResponses(async (config) => {
       if (config.method === 'put') {
         putPayloads.push(
-          typeof config.data === 'string' ? JSON.parse(config.data) : config.data
+          typeof config.data === 'string'
+            ? JSON.parse(config.data)
+            : config.data
         )
         return {
           success: true,
@@ -800,22 +1002,23 @@ describe('CampaignSMTPSettings', () => {
     const { container, root } = renderMountedSMTPSettings()
 
     await waitFor(
+      () => container.textContent?.includes('Not configured') === true
+    )
+    await waitFor(
       () =>
-        (
-          container.querySelector('#recall-smtp-server') as HTMLInputElement
-        )?.value === 'smtp.example.com'
+        (container.querySelector('#recall-smtp-server') as HTMLInputElement)
+          ?.value === 'smtp.example.com'
     )
     await React.act(async () => {
-      latestInputProps['recall-smtp-token']?.onChange?.(
-        {
-          target: { value: 'first secret' },
-        } as React.ChangeEvent<HTMLInputElement>
-      )
+      latestInputProps['recall-smtp-token']?.onChange?.({
+        target: { value: 'first secret' },
+      } as React.ChangeEvent<HTMLInputElement>)
       submitSMTPSettingsForm(container)
       await wait()
     })
     await waitFor(() => putPayloads.length === 1)
 
+    await expandSMTPSettingsForEdit(container)
     await React.act(async () => {
       submitSMTPSettingsForm(container)
       await wait()
@@ -857,11 +1060,12 @@ describe('CampaignSMTPSettings', () => {
     })
     const { container, queryClient, root } = renderMountedSMTPSettings()
 
+    await waitFor(() => container.textContent?.includes('Configured') === true)
+    await expandSMTPSettingsForEdit(container)
     await waitFor(
       () =>
-        (
-          container.querySelector('#recall-smtp-server') as HTMLInputElement
-        )?.value === 'initial.example.com'
+        (container.querySelector('#recall-smtp-server') as HTMLInputElement)
+          ?.value === 'initial.example.com'
     )
     await React.act(async () => {
       latestInputProps['recall-smtp-server']?.onChange?.({
@@ -886,10 +1090,14 @@ describe('CampaignSMTPSettings', () => {
 
     await waitFor(() => getCount >= 2)
     expect(
+      findButtonByText(container, 'Edit')?.getAttribute('aria-expanded')
+    ).toBe('true')
+    expect(
       (container.querySelector('#recall-smtp-server') as HTMLInputElement).value
     ).toBe('typed.example.com')
     expect(
-      (container.querySelector('#recall-smtp-account') as HTMLInputElement).value
+      (container.querySelector('#recall-smtp-account') as HTMLInputElement)
+        .value
     ).toBe('typed-account')
     expect(
       (container.querySelector('#recall-smtp-email-from') as HTMLInputElement)
@@ -921,18 +1129,17 @@ describe('CampaignSMTPSettings', () => {
     })
     const { container, root } = renderMountedSMTPSettings()
 
+    await waitFor(() => container.textContent?.includes('Configured') === true)
+    await expandSMTPSettingsForEdit(container)
     await waitFor(
       () =>
-        (
-          container.querySelector('#recall-smtp-server') as HTMLInputElement
-        )?.value === 'entered.example.com'
+        (container.querySelector('#recall-smtp-server') as HTMLInputElement)
+          ?.value === 'entered.example.com'
     )
     await React.act(async () => {
-      latestInputProps['recall-smtp-token']?.onChange?.(
-        {
-          target: { value: '  typed secret  ' },
-        } as React.ChangeEvent<HTMLInputElement>
-      )
+      latestInputProps['recall-smtp-token']?.onChange?.({
+        target: { value: '  typed secret  ' },
+      } as React.ChangeEvent<HTMLInputElement>)
       submitSMTPSettingsForm(container)
       await wait()
     })
@@ -946,6 +1153,9 @@ describe('CampaignSMTPSettings', () => {
     expect(container.textContent).toContain(
       'Failed to update Activity SMTP settings.'
     )
+    expect(
+      findButtonByText(container, 'Edit')?.getAttribute('aria-expanded')
+    ).toBe('true')
     expect(container.textContent).not.toContain('backend refused AUTH')
     expect(container.textContent).not.toContain('activity@example.com')
     expect(container.textContent).not.toContain('secret@example.com')
@@ -954,7 +1164,8 @@ describe('CampaignSMTPSettings', () => {
       (container.querySelector('#recall-smtp-server') as HTMLInputElement).value
     ).toBe('entered.example.com')
     expect(
-      (container.querySelector('#recall-smtp-account') as HTMLInputElement).value
+      (container.querySelector('#recall-smtp-account') as HTMLInputElement)
+        .value
     ).toBe('entered-account')
     expect(
       (container.querySelector('#recall-smtp-email-from') as HTMLInputElement)
@@ -975,11 +1186,12 @@ describe('CampaignSMTPSettings', () => {
     })
     const { container, root } = renderMountedSMTPSettings()
 
+    await waitFor(() => container.textContent?.includes('Configured') === true)
+    await expandSMTPSettingsForEdit(container)
     await waitFor(
       () =>
-        (
-          container.querySelector('#recall-smtp-server') as HTMLInputElement
-        )?.value === 'smtp.example.com'
+        (container.querySelector('#recall-smtp-server') as HTMLInputElement)
+          ?.value === 'smtp.example.com'
     )
     await React.act(async () => {
       submitSMTPSettingsForm(container)
@@ -1006,11 +1218,12 @@ describe('CampaignSMTPSettings', () => {
     })
     const { container, root } = renderMountedSMTPSettings()
 
+    await waitFor(() => container.textContent?.includes('Configured') === true)
+    await expandSMTPSettingsForEdit(container)
     await waitFor(
       () =>
-        (
-          container.querySelector('#recall-smtp-server') as HTMLInputElement
-        )?.value === 'smtp.example.com'
+        (container.querySelector('#recall-smtp-server') as HTMLInputElement)
+          ?.value === 'smtp.example.com'
     )
     await React.act(async () => {
       submitSMTPSettingsForm(container)

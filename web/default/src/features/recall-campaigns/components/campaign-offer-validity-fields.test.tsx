@@ -113,7 +113,6 @@ function makeDraft(): RecallCampaignDraft {
       minimum_amount: 0,
       minimum_amount_currency: '',
       minimum_spend: { enabled: false, amounts: {} },
-      coupon_redeem_by: 2_000_003_600,
     },
     product_scope: {
       topup_price_ids: ['price_topup_usd'],
@@ -147,7 +146,6 @@ function createForm(
     'discount_config.minimum_spend.amounts.inr',
     'discount_config.minimum_spend.amounts.brl',
     'discount_config.minimum_spend.amounts.jpy',
-    'discount_config.coupon_redeem_by',
     'promotion_expiry_mode',
     'promotion_expires_at',
     'promotion_valid_seconds',
@@ -193,12 +191,12 @@ describe('CampaignOfferValidityFields', () => {
     }
   })
 
-  test('uses a date-time picker for coupon redeem-by instead of a timestamp input', () => {
+  test('renders promotion expiry controls without legacy coupon redeem-by fields', () => {
     const html = renderFields(makeDraft())
 
-    expect(html).toContain('id="recall-coupon-redeem-by"')
-    expect(html).toContain('data-datetime-picker="true"')
-    expect(html).not.toContain('name="discount_config.coupon_redeem_by"')
+    expect(html).toContain('Promotion expiry mode')
+    expect(html).not.toContain('Coupon redeem-by')
+    expect(html).not.toContain('recall-coupon-redeem-by')
   })
 
   test('shows fixed expiry as a second date-time picker and hides duration', () => {
@@ -209,7 +207,7 @@ describe('CampaignOfferValidityFields', () => {
 
     const html = renderFields(draft)
 
-    expect(html.match(/data-datetime-picker="true"/g) ?? []).toHaveLength(2)
+    expect(html.match(/data-datetime-picker="true"/g) ?? []).toHaveLength(1)
     expect(html).toContain('id="recall-promotion-fixed-expiry"')
     expect(html).not.toContain('id="recall-promotion-validity-days"')
     expect(html).not.toContain('id="recall-promotion-validity-hours"')
@@ -218,7 +216,7 @@ describe('CampaignOfferValidityFields', () => {
   test('shows integer days and hours for relative validity and hides fixed expiry', () => {
     const html = renderFields(makeDraft())
 
-    expect(html.match(/data-datetime-picker="true"/g) ?? []).toHaveLength(1)
+    expect(html.match(/data-datetime-picker="true"/g) ?? []).toHaveLength(0)
     expect(html).toContain('id="recall-promotion-validity-days"')
     expect(html).toContain('id="recall-promotion-validity-hours"')
     expect(html).not.toContain('id="recall-promotion-fixed-expiry"')
@@ -238,24 +236,10 @@ describe('CampaignOfferValidityFields', () => {
     expect(form.getValues('promotion_valid_seconds')).toBe(86_400)
   })
 
-  test('shows the coupon-capped effective expiry in the local timezone', () => {
-    const draft = makeDraft()
-    const expected = new Intl.DateTimeFormat(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(new Date(draft.discount_config.coupon_redeem_by * 1_000))
-
-    const html = renderFields(draft)
-
-    expect(html).toContain(expected)
-    expect(html).toContain('local time')
-  })
-
   test('previews relative validity from a scheduled-once run time', () => {
     const draft = makeDraft()
     draft.execution_mode = 'scheduled_once'
     draft.schedule.scheduled_at = 2_000_010_000
-    draft.discount_config.coupon_redeem_by = 0
     const expected = new Intl.DateTimeFormat(undefined, {
       dateStyle: 'medium',
       timeStyle: 'short',
@@ -385,18 +369,5 @@ describe('CampaignOfferValidityFields', () => {
     })
     expect(form.getValues('discount_config.minimum_amount')).toBe(0)
     expect(form.getValues('discount_config.minimum_amount_currency')).toBe('')
-  })
-
-  test('associates field labels and validation errors with their controls', () => {
-    const html = renderFields(makeDraft(), (form) => {
-      form.setError('discount_config.coupon_redeem_by', {
-        message: 'Coupon redeem-by must be in the future',
-      })
-    })
-
-    expect(html).toContain('for="recall-coupon-redeem-by"')
-    expect(html).toContain('aria-describedby="recall-coupon-redeem-by-error"')
-    expect(html).toContain('id="recall-coupon-redeem-by-error"')
-    expect(html).toContain('Coupon redeem-by must be in the future')
   })
 })

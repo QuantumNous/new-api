@@ -62,7 +62,6 @@ export interface RecallDiscountConfig {
   minimum_amount: number
   minimum_amount_currency: string
   minimum_spend?: RecallMinimumSpendConfig
-  coupon_redeem_by: number
 }
 
 export interface RecallMinimumSpendConfig {

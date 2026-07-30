@@ -56,7 +56,6 @@ function makeDraft(): RecallCampaignDraft {
       currency_options: {},
       minimum_amount: 0,
       minimum_amount_currency: '',
-      coupon_redeem_by: 0,
     },
     product_scope: { topup_price_ids: ['price_topup'] },
     promotion_valid_seconds: 604800,

@@ -46,7 +46,6 @@ function makeDraft(): RecallCampaignDraft {
       currency_options: { inr: 45_000, brl: 2_500, jpy: 750 },
       minimum_amount: 100,
       minimum_amount_currency: 'usd',
-      coupon_redeem_by: 0,
     },
   } as RecallCampaignDraft
 }
@@ -90,7 +89,6 @@ function makeValidDraft(): RecallCampaignDraft {
       currency_options: {},
       minimum_amount: 0,
       minimum_amount_currency: '',
-      coupon_redeem_by: 0,
     },
     product_scope: {
       topup_price_ids: ['price_topup_20'],
@@ -672,6 +670,35 @@ describe('recall campaign editor normalization', () => {
     expect(normalized.discount_config.minimum_amount_currency).toBe('')
   })
 
+  test('strips legacy coupon redeem-by before submit normalization returns a draft', () => {
+    const draft = makeValidDraft()
+    ;(draft.discount_config as { coupon_redeem_by?: number }).coupon_redeem_by =
+      2_000_003_600
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.discount_config).not.toHaveProperty('coupon_redeem_by')
+    expect(normalized.discount_config).toMatchObject({
+      type: draft.discount_config.type,
+      percent_off: draft.discount_config.percent_off,
+      amount_off: draft.discount_config.amount_off,
+      currency: draft.discount_config.currency,
+      currency_options: draft.discount_config.currency_options,
+      minimum_amount: draft.discount_config.minimum_amount,
+      minimum_amount_currency: draft.discount_config.minimum_amount_currency,
+    })
+  })
+
+  test('strips legacy coupon redeem-by before editor form defaults are created', () => {
+    const draft = makeValidDraft()
+    ;(draft.discount_config as { coupon_redeem_by?: number }).coupon_redeem_by =
+      2_000_003_600
+
+    const normalized = createRecallCampaignFormDraft(draft)
+
+    expect(normalized.discount_config).not.toHaveProperty('coupon_redeem_by')
+  })
+
   test('preserves canonical minimum spend when switching automatic discount shapes', () => {
     const draft = makeValidDraft()
     draft.discount_config.minimum_spend = {
@@ -845,17 +872,24 @@ describe('recall campaign editor normalization', () => {
     })
   })
 
-  test('caps the displayed promotion expiry at coupon redeem-by', () => {
+  test('uses only relative promotion policy for effective expiry when legacy coupon redeem-by is earlier', () => {
     const draft = makeValidDraft()
     draft.promotion_valid_seconds = 7_200
-    draft.discount_config.coupon_redeem_by = 10_000
+    ;(draft.discount_config as { coupon_redeem_by?: number }).coupon_redeem_by =
+      10_000
 
-    expect(getRecallEffectivePromotionExpiry(draft, 5_000)).toBe(10_000)
+    expect(getRecallEffectivePromotionExpiry(draft, 5_000)).toBe(12_200)
+  })
 
+  test('uses only fixed promotion policy for effective expiry when legacy coupon redeem-by is earlier', () => {
+    const draft = makeValidDraft()
     draft.promotion_expiry_mode = 'fixed'
     draft.promotion_valid_seconds = 0
     draft.promotion_expires_at = 20_000
-    expect(getRecallEffectivePromotionExpiry(draft, 5_000)).toBe(10_000)
+    ;(draft.discount_config as { coupon_redeem_by?: number }).coupon_redeem_by =
+      10_000
+
+    expect(getRecallEffectivePromotionExpiry(draft, 5_000)).toBe(20_000)
   })
 
   test('derives ready, stale, manual, and missing locale states', () => {
