@@ -16,7 +16,8 @@ import (
 var trustedCredentialedOrigins = map[string]bool{
 	"https://localhost:3000":            true,
 	"https://localhost:3001":            true,
-	"https://account.jinn.ccwu.cc:8444": true, // JINN account portal (also the payment return-URL allowlist)
+	"https://account.jinnhq.com":        true, // JINN account portal (also the payment return-URL allowlist)
+	"https://account.jinn.ccwu.cc:8444": true, // legacy portal origin, kept until the old domain is retired
 }
 
 // TrustedBrowserOrigin reports whether origin is one of the JINN-owned web
