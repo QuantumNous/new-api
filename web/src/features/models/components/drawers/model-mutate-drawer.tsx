@@ -95,6 +95,8 @@ const extendedModelFormSchema = z.object({
   tags: z.array(z.string()),
   vendor_id: z.number().optional(),
   endpoints: z.string(),
+  context_window: z.number().int().nonnegative(),
+  max_output_tokens: z.number().int().nonnegative(),
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
@@ -366,6 +368,8 @@ export function ModelMutateDrawer({
       tags: [],
       vendor_id: undefined,
       endpoints: '',
+      context_window: 0,
+      max_output_tokens: 0,
       name_rule: 0,
       status: true,
       sync_official: true,
@@ -434,6 +438,8 @@ export function ModelMutateDrawer({
         tags: parseModelTags(model.tags),
         vendor_id: model.vendor_id,
         endpoints: model.endpoints || '',
+        context_window: model.context_window ?? 0,
+        max_output_tokens: model.max_output_tokens ?? 0,
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
@@ -459,6 +465,8 @@ export function ModelMutateDrawer({
         tags: [],
         vendor_id: undefined,
         endpoints: '',
+        context_window: 0,
+        max_output_tokens: 0,
         name_rule: 0,
         status: true,
         sync_official: true,
@@ -475,6 +483,8 @@ export function ModelMutateDrawer({
           ...values,
           id: isEditing ? currentModelId : undefined,
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
+          context_window: values.context_window,
+          max_output_tokens: values.max_output_tokens,
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
         }
@@ -769,6 +779,64 @@ export function ModelMutateDrawer({
                     </FormControl>
                     <FormDescription>
                       {t('The unique identifier for this model')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='context_window'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Context Window')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        step={1}
+                        {...field}
+                        onChange={(event) =>
+                          field.onChange(
+                            event.target.value === ''
+                              ? 0
+                              : Number(event.target.value)
+                          )
+                        }
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('0 means unspecified; values are raw tokens.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='max_output_tokens'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Max Output Tokens')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        step={1}
+                        {...field}
+                        onChange={(event) =>
+                          field.onChange(
+                            event.target.value === ''
+                              ? 0
+                              : Number(event.target.value)
+                          )
+                        }
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('0 means unspecified; values are raw tokens.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
