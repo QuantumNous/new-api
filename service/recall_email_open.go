@@ -8,6 +8,9 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"html"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -48,6 +51,45 @@ func CreateRecallEmailOpenToken(recipientID int64) (string, error) {
 	}
 	sealed := aead.Seal(nonce, nonce, payload, []byte(recallEmailOpenAAD))
 	return base64.RawURLEncoding.EncodeToString(sealed), nil
+}
+
+func appendRecallEmailOpenPixel(htmlBody string, baseOrigin string, token string) string {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return htmlBody
+	}
+	origin, err := url.Parse(strings.TrimSpace(baseOrigin))
+	if err != nil {
+		return htmlBody
+	}
+	scheme := strings.ToLower(origin.Scheme)
+	if (scheme != "http" && scheme != "https") || origin.Host == "" || origin.User != nil {
+		return htmlBody
+	}
+	if origin.Path != "" && origin.Path != "/" {
+		return htmlBody
+	}
+	if origin.RawQuery != "" || origin.Fragment != "" {
+		return htmlBody
+	}
+	tracking := url.URL{
+		Scheme: scheme,
+		Host:   origin.Host,
+		Path:   "/api/recall/open.gif",
+	}
+	query := tracking.Query()
+	query.Set("token", token)
+	tracking.RawQuery = query.Encode()
+	pixel := `<img src="` + html.EscapeString(tracking.String()) + `" width="1" height="1" alt="" style="display:none!important" aria-hidden="true">`
+	index := strings.LastIndex(strings.ToLower(htmlBody), "</body>")
+	tracked := htmlBody + pixel
+	if index >= 0 {
+		tracked = htmlBody[:index] + pixel + htmlBody[index:]
+	}
+	if len([]byte(tracked)) > recallEmailHTMLMaxBytes {
+		return htmlBody
+	}
+	return tracked
 }
 
 func RecordRecallEmailOpen(ctx context.Context, token string, openedAt time.Time) error {
