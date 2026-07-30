@@ -415,7 +415,7 @@ function PersonPicker({
       ? await onPick(m)
       : await allowUser("slack", m.id, teamId, m.name);
     if (result?.ok === false) {
-      setErr(result.error || "could not add person");
+      setErr(result.error || t("could not add person"));
       return;
     }
     setOpen(false);
@@ -504,13 +504,14 @@ function ApprovalOwnersRow({
   editable: boolean;
   onChanged: () => void;
 }) {
+  const { t } = useTranslation();
   const [err, setErr] = useState<string | null>(null);
   const label = (u: string) =>
-    names?.[u] || (u === installerId ? installerName || "You" : u);
+    names?.[u] || (u === installerId ? installerName || t("You") : u);
   const remove = async (userId: string) => {
     const result = await removeSlackApprovalOwner(userId);
     if (!result.ok) {
-      setErr(result.error || "could not remove approval owner");
+      setErr(result.error || t("could not remove approval owner"));
       return;
     }
     setErr(null);
@@ -518,11 +519,11 @@ function ApprovalOwnersRow({
   };
   return (
     <div className={ROW} data-testid="slack-approval-owners">
-      <span className={LABEL}>Approvals</span>
+      <span className={LABEL}>{t("Approvals")}</span>
       <span className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
         {owners.length === 0 && (
           <span className="text-[12px] text-warnInk">
-            Choose at least one owner before routing Inbox approvals to Slack.
+            {t("Choose at least one owner before routing Inbox approvals to Slack.")}
           </span>
         )}
         {owners.map((u) => (
@@ -536,9 +537,11 @@ function ApprovalOwnersRow({
               {initials(label(u))}
             </span>
             {label(u)}
-            {u === installerId && <span className="text-[10.5px] text-faint">· installer</span>}
+            {u === installerId && (
+              <span className="text-[10.5px] text-faint">{t("· installer")}</span>
+            )}
             {editable && (
-              <button className={XBTN} title="remove approval owner" onClick={() => remove(u)}>
+              <button className={XBTN} title={t("remove approval owner")} onClick={() => remove(u)}>
                 ×
               </button>
             )}
@@ -555,7 +558,7 @@ function ApprovalOwnersRow({
           />
         )}
         {!editable && owners.length > 0 && (
-          <span className="text-[11.5px] text-faint">Set by the workspace installer.</span>
+          <span className="text-[11.5px] text-faint">{t("Set by the workspace installer.")}</span>
         )}
         {err && <span className="basis-full text-[11.5px] text-warnInk">{err}</span>}
       </span>

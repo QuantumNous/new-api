@@ -601,13 +601,14 @@ function UsageChip({
   model: string;
   modelLabels?: Record<string, string>;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const total = totalTokens(usage);
   const pct = contextWindow
     ? Math.min(100, Math.round((usage.context / contextWindow) * 100))
     : null;
   const labelFor = (id: string) =>
-    id === "unknown" ? "Unknown model" : modelLabels?.[id] || shortModel(id);
+    id === "unknown" ? t("Unknown model") : modelLabels?.[id] || shortModel(id);
   // One field per line, session-summed (owner ask 2026-07-28). Values are cumulative
   // across the whole session, never just the last turn; "Input" is the fresh
   // (uncached) share — the cached share sits in the cache rows at its own price.
@@ -624,11 +625,11 @@ function UsageChip({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Token usage"
+        aria-label={t("Token usage")}
         title={
           pct !== null
-            ? `Token usage — ${pct}% of the context window used`
-            : "Token usage this session"
+            ? t("Token usage — {{pct}}% of the context window used", { pct })
+            : t("Token usage this session")
         }
         data-testid="usage-chip"
       >
@@ -653,7 +654,7 @@ function UsageChip({
             {contextWindow ? (
               <div className="mb-2.5">
                 <div className="text-[10.5px] uppercase tracking-[0.06em] text-faint font-semibold mb-1">
-                  Context window
+                  {t("Context window")}
                 </div>
                 <div className="h-1.5 rounded-full bg-line overflow-hidden">
                   <div
@@ -662,19 +663,23 @@ function UsageChip({
                   />
                 </div>
                 <div className="mt-1 text-[11.5px] text-muted tabular-nums">
-                  {formatTokens(usage.context)} of {formatTokens(contextWindow)} · {pct}%
+                  {t("{{used}} of {{total}} · {{pct}}%", {
+                    used: formatTokens(usage.context),
+                    total: formatTokens(contextWindow),
+                    pct,
+                  })}
                 </div>
               </div>
             ) : usage.context > 0 ? (
               <div className="mb-2.5 text-[11.5px] text-muted tabular-nums">
-                In context now: {formatTokens(usage.context)} tokens
+                {t("In context now: {{tokens}} tokens", { tokens: formatTokens(usage.context) })}
               </div>
             ) : null}
             <div className="text-[10.5px] uppercase tracking-[0.06em] text-faint font-semibold mb-1">
-              Session totals
+              {t("Session totals")}
             </div>
             <div className="flex flex-col gap-1.5">
-              {Object.entries(usage.byModel).map(([id, t]) => (
+              {Object.entries(usage.byModel).map(([id, turn]) => (
                 <div key={id}>
                   <div className="text-[12px] text-ink font-medium truncate" title={id}>
                     {labelFor(id)}
@@ -684,28 +689,30 @@ function UsageChip({
                       read as components: uncached + cache reads + cache writes = total.
                       Without one (Ollama, compat vendors), plain "Input" says it all. */}
                   <div className="mt-0.5 flex flex-col gap-0.5">
-                    {t.cache_read + t.cache_write > 0 ? (
+                    {turn.cache_read + turn.cache_write > 0 ? (
                       <>
-                        {stat("Uncached input", t.input)}
-                        {stat("Cache reads", t.cache_read)}
-                        {stat("Cache writes", t.cache_write)}
-                        {stat("Total input", t.input + t.cache_read + t.cache_write)}
+                        {stat(t("Uncached input"), turn.input)}
+                        {stat(t("Cache reads"), turn.cache_read)}
+                        {stat(t("Cache writes"), turn.cache_write)}
+                        {stat(t("Total input"), turn.input + turn.cache_read + turn.cache_write)}
                       </>
                     ) : (
-                      stat("Input", t.input)
+                      stat(t("Input"), turn.input)
                     )}
-                    {stat("Output", t.output)}
+                    {stat(t("Output"), turn.output)}
                   </div>
                 </div>
               ))}
             </div>
             <div className="mt-2 pt-2 border-t border-line flex items-baseline justify-between text-[11.5px]">
-              <span className="text-faint">Total</span>
-              <span className="text-ink tabular-nums">{formatTokens(total)} tokens</span>
+              <span className="text-faint">{t("Total")}</span>
+              <span className="text-ink tabular-nums">
+                {t("{{tokens}} tokens", { tokens: formatTokens(total) })}
+              </span>
             </div>
             {model && !modelLabels?.[model] && contextWindow === undefined && (
               <div className="mt-1 text-[10.5px] text-faint leading-snug">
-                Context meter unavailable for custom models.
+                {t("Context meter unavailable for custom models.")}
               </div>
             )}
           </div>

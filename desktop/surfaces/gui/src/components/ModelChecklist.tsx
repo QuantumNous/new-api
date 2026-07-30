@@ -118,12 +118,12 @@ export function ModelChecklist({
           <select
             value={family}
             onChange={(e) => setFamily(e.target.value)}
-            aria-label="Model family"
+            aria-label={t("Model family")}
             data-testid="mlist-family"
           >
             {families.map((f) => (
               <option key={f.value} value={f.value}>
-                {f.label}
+                {t(f.label)}
               </option>
             ))}
           </select>

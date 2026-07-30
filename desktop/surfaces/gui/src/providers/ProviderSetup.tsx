@@ -364,7 +364,7 @@ export function ProviderForm({
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
               data-testid={`${tp}-field-saved-${f.key}`}
             >
-              ✓ Saved
+              {t("✓ Saved")}
             </span>
           )}
           {/* §39: state lives IN the field — no status lines below. */}
@@ -373,7 +373,7 @@ export function ProviderForm({
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ok bg-okSoft rounded-full px-2 py-0.5 pointer-events-none"
               data-testid={`${tp}-saved-pill`}
             >
-              {info?.needs_key ? <>✓ Tested &amp; saved</> : <>✓ Detected</>}
+              {info?.needs_key ? t("✓ Tested & saved") : t("✓ Detected")}
             </span>
           )}
         </div>
@@ -384,7 +384,7 @@ export function ProviderForm({
             disabled={ps.verify.state === "testing" || (!ps.secretFilled && !ps.credentialed)}
             data-testid={`${tp}-test`}
           >
-            {ps.verify.state === "testing" ? "…" : info?.needs_key ? "Test" : "Detect"}
+            {ps.verify.state === "testing" ? "…" : info?.needs_key ? t("Test") : t("Detect")}
           </button>
         )}
       </div>
@@ -459,7 +459,7 @@ export function ProviderForm({
               <button
                 className="mt-2.5 inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-[12px] font-mono text-ink hover:border-lineStrong"
                 onClick={() => void navigator.clipboard?.writeText(selected.command || "")}
-                title="Copy command"
+                title={t("Copy command")}
                 data-testid={`${tp}-cmd-copy`}
               >
                 {selected.command}
@@ -470,10 +470,12 @@ export function ProviderForm({
             <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-line pt-3">
               {ps.savedState ? (
                 <span className="text-[11.5px] font-medium text-ok" data-testid={`${tp}-saved-pill`}>
-                  ✓ Tested &amp; saved
+                  {t("✓ Tested & saved")}
                 </span>
               ) : (
-                <span className="text-[11.5px] text-faint">Runs one read-only check, then saves.</span>
+                <span className="text-[11.5px] text-faint">
+                  {t("Runs one read-only check, then saves.")}
+                </span>
               )}
               <button
                 className="shrink-0 rounded-lg border border-accent bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:brightness-105 disabled:opacity-40"
@@ -481,7 +483,7 @@ export function ProviderForm({
                 disabled={ps.verify.state === "testing"}
                 data-testid={`${tp}-test`}
               >
-                {ps.verify.state === "testing" ? "…" : <>Test &amp; save</>}
+                {ps.verify.state === "testing" ? "…" : t("Test & save")}
               </button>
             </div>
           </div>

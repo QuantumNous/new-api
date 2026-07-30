@@ -85,7 +85,7 @@ function InboxRoutingCard() {
     const [platform, id] = addr.includes(":") ? addr.split(":", 2) : ["slack", addr];
     const result = await setInboxBinding("default", platform, id);
     if (!result.ok) {
-      setError(result.error || "Could not update Inbox routing.");
+      setError(result.error || t("Could not update Inbox routing."));
       return;
     }
     setError(null);
@@ -95,7 +95,7 @@ function InboxRoutingCard() {
   const clear = async () => {
     const result = await setInboxBinding("default", null, "");
     if (!result.ok) {
-      setError(result.error || "Could not clear Inbox routing.");
+      setError(result.error || t("Could not clear Inbox routing."));
       return;
     }
     setError(null);
@@ -153,7 +153,7 @@ function InboxRoutingCard() {
       </div>
       {missingSlackOwner && (
         <p className="text-[11.5px] text-warnInk mt-2">
-          Choose an approval owner under Integrations → Slack before routing approvals here.
+          {t("Choose an approval owner under Integrations → Slack before routing approvals here.")}
         </p>
       )}
       {error && <p className="text-[11.5px] text-warnInk mt-2">{error}</p>}

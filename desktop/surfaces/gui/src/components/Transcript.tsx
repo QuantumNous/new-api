@@ -453,7 +453,9 @@ export function Transcript({ items, running, streamingText, onRetry }: Props) {
           case "notice":
             return (
               <div className={"notice " + (item.tone === "warn" ? "warn" : "")} key={bi}>
-                {item.text}
+                {/* Notice copy is an English source string (server- or client-produced), so it
+                    doubles as the locale key — unknown text falls through untranslated. */}
+                {t(item.text)}
                 {item.retriable && !running && onRetry && block.i === retryAnchor(items) && (
                   <button className="btn ml-2" data-testid="notice-retry" onClick={onRetry}>
                     {t("Retry")}
