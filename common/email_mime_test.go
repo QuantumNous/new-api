@@ -222,6 +222,48 @@ func TestMailtoOnlyUnsubscribeOmitsOneClickPost(t *testing.T) {
 	require.Empty(t, message.Header.Get("List-Unsubscribe-Post"))
 }
 
+// A campaign body is admin-authored HTML. If it contained the boundary
+// delimiter, an unencoded copy would split the message and let arbitrary
+// headers into a forged part.
+func TestBodyCannotForgeMIMEPartsViaBoundaryCollision(t *testing.T) {
+	withTestSender(t, "campaigns@mg.example.com")
+
+	messageID := "<recall-7-1@mg.example.com>"
+	boundary := mimeBoundary(messageID)
+	body := "<p>hi</p>--" + boundary +
+		"\r\nContent-Type: text/plain\r\n\r\nINJECTED\r\n--" + boundary + "--"
+
+	raw, err := buildEmailMessageFromWithOptions(
+		"campaigns@mg.example.com",
+		"subject",
+		"user@example.com",
+		body,
+		messageID,
+		EmailOptions{Multipart: true},
+	)
+	require.NoError(t, err)
+
+	message := parseTestMessage(t, raw)
+	_, params, err := mime.ParseMediaType(message.Header.Get("Content-Type"))
+	require.NoError(t, err)
+
+	reader := multipart.NewReader(message.Body, params["boundary"])
+	parts := 0
+	for {
+		part, err := reader.NextPart()
+		if err != nil {
+			break
+		}
+		decoded, err := io.ReadAll(part)
+		require.NoError(t, err)
+		// The delimiter survives as literal text inside the HTML part rather
+		// than becoming structure.
+		require.NotEqual(t, "INJECTED", strings.TrimSpace(string(decoded)))
+		parts++
+	}
+	require.Equal(t, 2, parts)
+}
+
 func TestReplyToIsEmittedWhenValid(t *testing.T) {
 	withTestSender(t, "campaigns@mg.example.com")
 
