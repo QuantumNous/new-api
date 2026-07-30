@@ -758,7 +758,7 @@ func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, a
 		return RecallEmailGenerationResponse{}, err
 	}
 
-	translated, err := s.emailTranslator.Translate(ctx, englishStages)
+	translated, err := s.translateRecallEmailStagesForCampaign(ctx, current.CampaignType, englishStages)
 	if err != nil {
 		return RecallEmailGenerationResponse{}, fmt.Errorf("translate recall campaign email templates: %w", err)
 	}
@@ -2044,14 +2044,7 @@ func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, c
 
 	var translated map[int]map[string]RecallEmailTemplate
 	var translateErr error
-	if campaignTranslator, ok := s.emailTranslator.(RecallEmailCampaignTranslator); ok {
-		translated, translateErr = campaignTranslator.TranslateForCampaign(ctx, campaignType, needsTranslation)
-	} else {
-		if campaignType != model.RecallCampaignTypePromotion {
-			return nil, fmt.Errorf("recall email translator does not support campaign type %q", campaignType)
-		}
-		translated, translateErr = s.emailTranslator.Translate(ctx, needsTranslation)
-	}
+	translated, translateErr = s.translateRecallEmailStagesForCampaign(ctx, campaignType, needsTranslation)
 	if translateErr != nil {
 		if errors.Is(translateErr, errRecallEmailTranslationNotConfigured) {
 			return localized, nil
@@ -2081,6 +2074,20 @@ func (s *RecallCampaignService) localizeRecallEmailStages(ctx context.Context, c
 		localized[i].Templates = templates
 	}
 	return localized, nil
+}
+
+func (s *RecallCampaignService) translateRecallEmailStagesForCampaign(ctx context.Context, campaignType string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+	campaignType, err := normalizeRecallCampaignType(campaignType)
+	if err != nil {
+		return nil, err
+	}
+	if campaignTranslator, ok := s.emailTranslator.(RecallEmailCampaignTranslator); ok {
+		return campaignTranslator.TranslateForCampaign(ctx, campaignType, stages)
+	}
+	if campaignType != model.RecallCampaignTypePromotion {
+		return nil, fmt.Errorf("recall email translator does not support campaign type %q", campaignType)
+	}
+	return s.emailTranslator.Translate(ctx, stages)
 }
 
 func completeManualRecallEmailTemplates(campaignType string, stage RecallEmailStage) (map[string]RecallEmailTemplate, bool, error) {
