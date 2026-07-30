@@ -35,6 +35,18 @@ func TestGetRequestURL(t *testing.T) {
 	}
 }
 
+func TestInitUsesImagePollingDefaults(t *testing.T) {
+	adaptor := &Adaptor{}
+	adaptor.Init(imageRelayInfo("https://ai.dreambrand.studio"))
+
+	if adaptor.pollInterval != defaultImagePollInterval {
+		t.Fatalf("poll interval = %v, want %v", adaptor.pollInterval, defaultImagePollInterval)
+	}
+	if adaptor.pollTimeout != defaultImagePollTimeout {
+		t.Fatalf("poll timeout = %v, want %v", adaptor.pollTimeout, defaultImagePollTimeout)
+	}
+}
+
 func TestConvertImageRequest(t *testing.T) {
 	tests := []struct {
 		name          string

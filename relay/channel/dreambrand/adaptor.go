@@ -23,7 +23,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const maxDownloadedImageBytes = 50 * 1024 * 1024
+const (
+	maxDownloadedImageBytes  = 50 * 1024 * 1024
+	defaultImagePollInterval = 3 * time.Second
+	defaultImagePollTimeout  = 10 * time.Minute
+)
 
 type imageRequestPayload struct {
 	Prompt       string   `json:"prompt"`
@@ -72,10 +76,10 @@ type Adaptor struct {
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.Adaptor.Init(info)
 	if a.pollInterval <= 0 {
-		a.pollInterval = 3 * time.Second
+		a.pollInterval = defaultImagePollInterval
 	}
 	if a.pollTimeout <= 0 {
-		a.pollTimeout = 180 * time.Second
+		a.pollTimeout = defaultImagePollTimeout
 	}
 }
 
