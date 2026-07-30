@@ -21,6 +21,9 @@ import {
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
+import marketDayAsset from '@/assets/home/showcase/market-ledger-day.webp'
+import marketNightAsset from '@/assets/home/showcase/market-operations-night.webp'
+import { useTheme } from '@/composables/useTheme'
 import type {
   HomeMarketJourneyStage,
   HomeMarketListing,
@@ -54,7 +57,16 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { resolvedTheme } = useTheme()
 const draggedChannelId = ref<string | null>(null)
+const failedBackdropAssets = ref(new Set<string>())
+
+const backdropAsset = computed(() =>
+  resolvedTheme.value === 'dark' ? marketNightAsset : marketDayAsset
+)
+const backdropAvailable = computed(
+  () => !failedBackdropAssets.value.has(backdropAsset.value)
+)
 
 const journeySteps = computed(() => [
   { id: 'draft', label: t('showcase.market.journey.draft') },
@@ -182,10 +194,25 @@ function onWeightInput(channelId: string, event: Event): void {
     Number((event.target as HTMLInputElement).value)
   )
 }
+
+function markBackdropFailed(): void {
+  failedBackdropAssets.value = new Set(failedBackdropAssets.value).add(
+    backdropAsset.value
+  )
+}
 </script>
 
 <template>
   <section id="market-route" class="home-showcase-band market-route-band">
+    <div class="market-route-backdrop" aria-hidden="true">
+      <img
+        v-if="backdropAvailable"
+        :src="backdropAsset"
+        alt=""
+        loading="lazy"
+        @error="markBackdropFailed"
+      />
+    </div>
     <div class="home-showcase-inner">
       <HomeSectionHeading
         :eyebrow="t('showcase.market.eyebrow')"
@@ -482,8 +509,34 @@ function onWeightInput(channelId: string, event: Event): void {
   background: var(--page-background);
 }
 
+.market-route-backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+.market-route-backdrop::after {
+  position: absolute;
+  inset: 0;
+  background: var(--page-background);
+  content: '';
+  opacity: 0.52;
+}
+
+.market-route-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: saturate(0.72) contrast(0.92);
+}
+
 .market-route-band::before {
   position: absolute;
+  z-index: 1;
   inset: 0;
   background-image:
     linear-gradient(var(--border-subtle) 1px, transparent 1px),
@@ -502,6 +555,19 @@ function onWeightInput(channelId: string, event: Event): void {
   padding: 1.1rem 0;
   border-block: 1px solid var(--border-default);
   list-style: none;
+}
+
+.market-route-band > .home-showcase-inner {
+  position: relative;
+  z-index: 2;
+}
+
+html.dark .market-route-backdrop {
+  opacity: 0.24;
+}
+
+html.dark .market-route-backdrop::after {
+  opacity: 0.58;
 }
 
 .market-journey li {

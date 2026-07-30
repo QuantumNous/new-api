@@ -1,5 +1,7 @@
 import activityDayAsset from '@/assets/activity/activity-banner-day-sketch.webp'
 import activityNightAsset from '@/assets/activity/activity-banner.webp'
+import affiliateDayAsset from '@/assets/home/showcase/affiliate-network-day.webp'
+import affiliateNightAsset from '@/assets/home/showcase/affiliate-network-night.webp'
 import bigameDayAsset from '@/assets/activity/bigame-banner-day-sketch.webp'
 import bigameNightAsset from '@/assets/activity/bigame-banner.webp'
 import farmDayAsset from '@/assets/activity/farm-banner-day-sketch.webp'
@@ -138,8 +140,8 @@ export const HOME_SHOWCASE_MOCK: HomeShowcaseSnapshot = {
       target: 12,
       unitKey: 'showcase.activities.units.invites',
       routeName: 'invite',
-      dayAsset: activityDayAsset,
-      nightAsset: activityNightAsset,
+      dayAsset: affiliateDayAsset,
+      nightAsset: affiliateNightAsset,
     },
     {
       id: 'farm',

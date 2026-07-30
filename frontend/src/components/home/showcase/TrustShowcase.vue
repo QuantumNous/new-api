@@ -15,6 +15,9 @@ import {
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
+import qualityDayAsset from '@/assets/home/showcase/quality-workbench-day.webp'
+import qualityNightAsset from '@/assets/home/showcase/quality-workbench-night.webp'
+import { useTheme } from '@/composables/useTheme'
 import { safeExternalUrl, safeImageUrl } from '@/utils/safeUrl'
 import type {
   HomeQualityReport,
@@ -36,9 +39,18 @@ const props = defineProps<{
 }>()
 
 const { t, tm, locale } = useI18n()
+const { resolvedTheme } = useTheme()
 const agencyFilter = ref('all')
 const selectedChannelId = ref('')
 const failedEvidence = ref(new Set<string>())
+const failedBackdropAssets = ref(new Set<string>())
+
+const backdropAsset = computed(() =>
+  resolvedTheme.value === 'dark' ? qualityNightAsset : qualityDayAsset
+)
+const backdropAvailable = computed(
+  () => !failedBackdropAssets.value.has(backdropAsset.value)
+)
 
 interface SupportItem {
   link: HomeSupportLink
@@ -150,6 +162,12 @@ function markEvidenceFailed(reportId: string): void {
   failedEvidence.value = new Set(failedEvidence.value).add(reportId)
 }
 
+function markBackdropFailed(): void {
+  failedBackdropAssets.value = new Set(failedBackdropAssets.value).add(
+    backdropAsset.value
+  )
+}
+
 function supportIcon(link: HomeSupportLink) {
   if (link.id === 'ticket') return TicketCheck
   if (link.id === 'telegram') return Send
@@ -204,6 +222,15 @@ function supportIcon(link: HomeSupportLink) {
       </div>
 
       <div class="quality-workbench">
+        <div class="quality-workbench__backdrop" aria-hidden="true">
+          <img
+            v-if="backdropAvailable"
+            :src="backdropAsset"
+            alt=""
+            loading="lazy"
+            @error="markBackdropFailed"
+          />
+        </div>
         <div class="quality-workbench__intro">
           <div>
             <p class="quality-workbench__eyebrow">QUALITY LEDGER</p>
@@ -517,7 +544,48 @@ function supportIcon(link: HomeSupportLink) {
 }
 
 .quality-workbench {
+  position: relative;
+  overflow: hidden;
   margin-top: clamp(4rem, 8vw, 7rem);
+  padding-block: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.quality-workbench__backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+.quality-workbench__backdrop::after {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-solid);
+  content: '';
+  opacity: 0.56;
+}
+
+.quality-workbench__backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: saturate(0.74) contrast(0.94);
+}
+
+.quality-workbench > *:not(.quality-workbench__backdrop) {
+  position: relative;
+  z-index: 1;
+}
+
+html.dark .quality-workbench__backdrop {
+  opacity: 0.24;
+}
+
+html.dark .quality-workbench__backdrop::after {
+  opacity: 0.62;
 }
 
 .quality-workbench__intro {

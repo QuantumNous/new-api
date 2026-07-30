@@ -107,6 +107,10 @@ describe('MarketRouteShowcase', () => {
       key: 'ArrowDown',
     })
     expect(wrapper.emitted('move')?.[0]).toEqual(['route-atlas', 1])
+
+    await wrapper.find('.market-route-backdrop img').trigger('error')
+    await nextTick()
+    expect(wrapper.find('.market-route-backdrop img').exists()).toBe(false)
     wrapper.unmount()
   })
 })
@@ -192,6 +196,13 @@ describe('TrustShowcase', () => {
     expect(authenticated.find('.quality-evidence-placeholder').exists()).toBe(
       true
     )
+    await authenticated
+      .find('.quality-workbench__backdrop img')
+      .trigger('error')
+    await nextTick()
+    expect(
+      authenticated.find('.quality-workbench__backdrop img').exists()
+    ).toBe(false)
     expect(
       JSON.parse(
         authenticated.find('.final-action--primary').attributes('data-route') ??
