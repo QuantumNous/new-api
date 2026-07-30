@@ -71,6 +71,8 @@ func resetRecallActivitySMTPSetting(t *testing.T) {
 		"recall_campaign_setting.smtp_token":            "",
 		"recall_campaign_setting.smtp_ssl_enabled":      "false",
 		"recall_campaign_setting.smtp_force_auth_login": "false",
+		"recall_campaign_setting.reply_to":              "",
+		"recall_campaign_setting.unsubscribe_mailto":    "",
 	}))
 }
 
@@ -84,6 +86,8 @@ func TestRecallActivitySMTPStatusReturnsOnlyRedactedFields(t *testing.T) {
 		"recall_campaign_setting.smtp_token":            "stored-secret",
 		"recall_campaign_setting.smtp_ssl_enabled":      "true",
 		"recall_campaign_setting.smtp_force_auth_login": "true",
+		"recall_campaign_setting.reply_to":              "support@example.com",
+		"recall_campaign_setting.unsubscribe_mailto":    "mailto:unsubscribe@example.com",
 	}))
 
 	status := GetRecallActivitySMTPStatus()
@@ -98,7 +102,9 @@ func TestRecallActivitySMTPStatusReturnsOnlyRedactedFields(t *testing.T) {
 		"ssl_enabled":true,
 		"force_auth_login":true,
 		"token_configured":true,
-		"configured":true
+		"configured":true,
+		"reply_to":"support@example.com",
+		"unsubscribe_mailto":"mailto:unsubscribe@example.com"
 	}`, string(raw))
 	require.NotContains(t, string(raw), "stored-secret")
 	require.NotContains(t, strings.ToLower(string(raw)), `"token":`)
