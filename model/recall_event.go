@@ -467,17 +467,24 @@ func QueryRecallCampaignMetricRows(ctx context.Context, campaignID int64) ([]Rec
 		}
 	}
 
-	events := make([]RecallEvent, 0)
-	if err := DB.WithContext(ctx).Where("campaign_id = ?", campaignID).Find(&events).Error; err != nil {
+	var openedRecipientCount int64
+	if err := DB.WithContext(ctx).Model(&RecallEvent{}).
+		Where("campaign_id = ? AND event_type = ? AND recipient_id > 0", campaignID, "email_open").
+		Distinct("recipient_id").
+		Count(&openedRecipientCount).Error; err != nil {
 		return nil, nil, err
 	}
-	openedRecipientIDs := make(map[int64]struct{})
+	counts["opened_recipients"] = openedRecipientCount
+
+	events := make([]RecallEvent, 0)
+	if err := DB.WithContext(ctx).
+		Select("event_type", "event_data").
+		Where("campaign_id = ? AND (event_type <> ? OR event_type IS NULL)", campaignID, "email_open").
+		Find(&events).Error; err != nil {
+		return nil, nil, err
+	}
 	for _, event := range events {
 		switch event.EventType {
-		case "email_open":
-			if event.RecipientId > 0 {
-				openedRecipientIDs[event.RecipientId] = struct{}{}
-			}
 		case "observed_click":
 			counts["observed_clicks"]++
 		case "campaign_run":
@@ -495,7 +502,6 @@ func QueryRecallCampaignMetricRows(ctx context.Context, campaignID int64) ([]Rec
 			}
 		}
 	}
-	counts["opened_recipients"] = int64(len(openedRecipientIDs))
 
 	metricNames := []string{
 		"candidates", "enrolled", "excluded", "customer_success", "customer_failure", "code_success", "code_failure",

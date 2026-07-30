@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v86"
+	"gorm.io/gorm"
 )
 
 func TestParseRecallPaymentReadsCheckoutDiscountShapes(t *testing.T) {
@@ -562,6 +565,114 @@ func TestRecallAttributionMetricsKeepCurrenciesSeparate(t *testing.T) {
 		{Currency: "JPY", AssistedCount: 1, PaymentAmount: 8000, DiscountAmount: 500},
 		{Currency: "USD", DirectCount: 1, PaymentAmount: 1200, DiscountAmount: 200},
 	}, metrics.CurrencyMetrics)
+}
+
+func TestRecallAttributionMetricsAggregatesOpenedRecipientsInSQL(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	queries := captureRecallMetricSQL(t, db)
+	campaign, first := createRecallAttributionRecipient(t, "promo_sql_first")
+	secondPromotion := "promo_sql_second"
+	second := model.RecallRecipient{
+		CampaignId: campaign.Id, UserId: 9102, EligibilitySnapshot: `{}`, EmailSnapshot: "sql-second@example.com",
+		LanguageSnapshot: "en", State: model.RecallRecipientConverted, StripePromotionCodeId: &secondPromotion,
+		StripeCustomerId: "cus_sql_second",
+	}
+	require.NoError(t, model.DB.Create(&second).Error)
+	require.NoError(t, model.DB.Create(&model.RecallEvent{
+		CampaignId: campaign.Id, EventType: "campaign_run", Source: "scheduler", SourceEventId: "sql_run_metrics",
+		EventData: `{"eligible_total":2}`, CreatedAt: 1_700_000_000,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.RecallEvent{
+		CampaignId: campaign.Id, RecipientId: first.Id, EventType: "observed_click", Source: "claim",
+		SourceEventId: "sql_metrics_click", EventData: `{}`, CreatedAt: 1_700_000_100,
+	}).Error)
+	for _, event := range []model.RecallEvent{
+		{
+			CampaignId: campaign.Id, RecipientId: first.Id, EventType: "email_open", Source: "email_open",
+			SourceEventId: "sql_open_first", EventData: `{}`, CreatedAt: 1_700_000_110,
+		},
+		{
+			CampaignId: campaign.Id, RecipientId: second.Id, EventType: "email_open", Source: "email_open",
+			SourceEventId: "sql_open_second", EventData: `{}`, CreatedAt: 1_700_000_120,
+		},
+		{
+			CampaignId: campaign.Id, RecipientId: first.Id, EventType: "email_open", Source: "email_open",
+			SourceEventId: "sql_open_first_again", EventData: `{}`, CreatedAt: 1_700_000_130,
+		},
+	} {
+		require.NoError(t, model.DB.Create(&event).Error)
+	}
+
+	metrics, err := NewRecallAttributionService(&recallStripeFakeClient{}).GetMetrics(context.Background(), campaign.Id)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(2), metrics.OpenedRecipientCount)
+	require.Equal(t, int64(1), metrics.ObservedClickCount)
+	require.True(t, hasRecallEventDistinctRecipientCount(queries), "expected recall_events COUNT(DISTINCT recipient_id) query, got %#v", queries)
+	require.True(t, hasRecallEventQueryExcludingEmailOpen(queries), "expected non-aggregate recall_events query to exclude email_open, got %#v", queries)
+}
+
+type capturedRecallMetricSQL struct {
+	SQL  string
+	Vars []any
+}
+
+func captureRecallMetricSQL(t *testing.T, db *gorm.DB) *[]capturedRecallMetricSQL {
+	t.Helper()
+	const callbackName = "recall_metrics_sql_capture"
+	queries := make([]capturedRecallMetricSQL, 0)
+	require.NoError(t, db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		queries = append(queries, capturedRecallMetricSQL{
+			SQL:  normalizeRecallMetricSQL(tx.Statement.SQL.String()),
+			Vars: append([]any(nil), tx.Statement.Vars...),
+		})
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, db.Callback().Query().Remove(callbackName))
+	})
+	return &queries
+}
+
+func hasRecallEventDistinctRecipientCount(queries *[]capturedRecallMetricSQL) bool {
+	for _, query := range *queries {
+		if strings.Contains(query.SQL, "from recall_events") &&
+			strings.Contains(query.SQL, "count(distinct") &&
+			strings.Contains(query.SQL, "recipient_id") &&
+			recallMetricSQLVarsContain(query.Vars, "email_open") {
+			return true
+		}
+	}
+	return false
+}
+
+func hasRecallEventQueryExcludingEmailOpen(queries *[]capturedRecallMetricSQL) bool {
+	for _, query := range *queries {
+		if !strings.Contains(query.SQL, "from recall_events") ||
+			strings.Contains(query.SQL, "count(distinct") ||
+			!recallMetricSQLVarsContain(query.Vars, "email_open") {
+			continue
+		}
+		if strings.Contains(query.SQL, "event_type <>") || strings.Contains(query.SQL, "event_type !=") {
+			return true
+		}
+	}
+	return false
+}
+
+func recallMetricSQLVarsContain(vars []any, value string) bool {
+	for _, variable := range vars {
+		if variable == value {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeRecallMetricSQL(sql string) string {
+	sql = strings.ToLower(sql)
+	sql = strings.NewReplacer("`", "", `"`, "", "[", "", "]", "").Replace(sql)
+	sql = regexp.MustCompile(`\s+`).ReplaceAllString(sql, " ")
+	return strings.TrimSpace(sql)
 }
 
 func TestRecallAttributionReconcileUsesOnlyRecoverableSuccessfulStripeOrders(t *testing.T) {
