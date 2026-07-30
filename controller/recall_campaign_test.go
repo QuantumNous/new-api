@@ -185,7 +185,7 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 		Campaigns:   service.NewRecallCampaignServiceWithTranslator(audience, stripeService, translator),
 		Claims:      claims,
 		Recipients:  service.NewRecallRecipientWorker(stripeService, claims, "controller-test"),
-		Emails:      service.NewRecallEmailWorker(func(_ common.SMTPConfig, _, _, _, _ string) error { harness.sendCount++; return nil }, audience, claims, "controller-test"),
+		Emails:      service.NewRecallEmailWorker(func(_ common.SMTPConfig, _, _, _, _ string, _ common.EmailOptions) error { harness.sendCount++; return nil }, audience, claims, "controller-test"),
 		Attribution: service.NewRecallAttributionService(stripeFake),
 	}
 	originalProvider := recallRuntimeProvider
@@ -1216,6 +1216,49 @@ func TestRecallUnsubscribeRequiresSignedTokenAndImmediatelySuppressesMail(t *tes
 	require.Equal(t, http.StatusOK, valid.Code)
 	require.NotContains(t, valid.Body.String(), user.Email)
 	require.NotContains(t, valid.Body.String(), token)
+	require.NoError(t, harness.db.First(&user, user.Id).Error)
+	require.True(t, user.GetSetting().RecallMarketingOptOut)
+	require.NoError(t, harness.db.First(&message, message.Id).Error)
+	require.Equal(t, model.RecallMessageCancelled, message.State)
+	require.Equal(t, "user_opted_out", message.LastErrorCode)
+}
+
+// RFC 8058 requires the one-click target to accept POST without a session.
+// Mailbox providers call it directly, with no browser and no user present.
+func TestRecallOneClickUnsubscribePostSuppressesMailWithoutRenderingPage(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	user := seedRecallControllerUser(t, harness, 62, "one-click-unsubscribe")
+	recipient := model.RecallRecipient{
+		CampaignId:          campaign.Id,
+		UserId:              user.Id,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       user.Email,
+		LanguageSnapshot:    "en",
+		State:               model.RecallRecipientContacting,
+	}
+	require.NoError(t, harness.db.Create(&recipient).Error)
+	message := model.RecallMessage{
+		RecipientId:      recipient.Id,
+		StageNo:          1,
+		TemplateSnapshot: "secret-template",
+		ScheduledAt:      time.Now().Add(time.Minute).Unix(),
+		State:            model.RecallMessageScheduled,
+	}
+	require.NoError(t, harness.db.Create(&message).Error)
+
+	invalid := invokeRecallHandler(t, UnsubscribeRecallEmailOneClick, http.MethodPost, "/api/recall/unsubscribe?token=invalid", nil, 0, nil)
+	require.Equal(t, http.StatusBadRequest, invalid.Code)
+	require.NotContains(t, invalid.Body.String(), user.Email)
+
+	token, err := harness.runtime.Claims.CreateUnsubscribeToken(user.Id, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+	valid := invokeRecallHandler(t, UnsubscribeRecallEmailOneClick, http.MethodPost, "/api/recall/unsubscribe?token="+token, nil, 0, nil)
+	require.Equal(t, http.StatusOK, valid.Code)
+	// Providers discard the response; emitting a page would leak recipient data
+	// into logs and proxies for no benefit.
+	require.Empty(t, valid.Body.String())
+
 	require.NoError(t, harness.db.First(&user, user.Id).Error)
 	require.True(t, user.GetSetting().RecallMarketingOptOut)
 	require.NoError(t, harness.db.First(&message, message.Id).Error)

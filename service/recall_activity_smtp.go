@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"net/mail"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -45,21 +46,31 @@ type RecallActivitySMTPInput struct {
 	Token          string `json:"token"`
 	SSLEnabled     bool   `json:"ssl_enabled"`
 	ForceAuthLogin bool   `json:"force_auth_login"`
+	// ReplyTo and UnsubscribeMailto feed deliverability headers. They are
+	// optional; an empty value simply omits the header.
+	ReplyTo           string `json:"reply_to"`
+	UnsubscribeMailto string `json:"unsubscribe_mailto"`
 }
 
 type RecallActivitySMTPStatus struct {
-	Server          string `json:"server"`
-	Port            int    `json:"port"`
-	Account         string `json:"account"`
-	EmailFrom       string `json:"email_from"`
-	SSLEnabled      bool   `json:"ssl_enabled"`
-	ForceAuthLogin  bool   `json:"force_auth_login"`
-	TokenConfigured bool   `json:"token_configured"`
-	Configured      bool   `json:"configured"`
+	Server            string `json:"server"`
+	Port              int    `json:"port"`
+	Account           string `json:"account"`
+	EmailFrom         string `json:"email_from"`
+	SSLEnabled        bool   `json:"ssl_enabled"`
+	ForceAuthLogin    bool   `json:"force_auth_login"`
+	TokenConfigured   bool   `json:"token_configured"`
+	Configured        bool   `json:"configured"`
+	ReplyTo           string `json:"reply_to"`
+	UnsubscribeMailto string `json:"unsubscribe_mailto"`
 }
 
 func GetRecallActivitySMTPStatus() RecallActivitySMTPStatus {
-	return recallActivitySMTPStatus(recallActivitySMTPConfigFromSetting(operation_setting.GetRecallCampaignSetting()))
+	setting := operation_setting.GetRecallCampaignSetting()
+	status := recallActivitySMTPStatus(recallActivitySMTPConfigFromSetting(setting))
+	status.ReplyTo = strings.TrimSpace(setting.ReplyTo)
+	status.UnsubscribeMailto = strings.TrimSpace(setting.UnsubscribeMailto)
+	return status
 }
 
 func RecallActivitySMTPSnapshot() (common.SMTPConfig, error) {
@@ -88,7 +99,26 @@ func UpdateRecallActivitySMTP(input RecallActivitySMTPInput) (RecallActivitySMTP
 	if strings.TrimSpace(submitted.Token) == "" {
 		submitted.Token = ""
 	}
-	if err := model.UpdateRecallActivitySMTPOptions(model.RecallActivitySMTPOptionInput{SMTPConfig: submitted}); err != nil {
+	replyTo := strings.TrimSpace(input.ReplyTo)
+	if replyTo != "" {
+		if _, err := mail.ParseAddress(replyTo); err != nil {
+			return RecallActivitySMTPStatus{}, fmt.Errorf("reply-to must be a plain email address")
+		}
+	}
+	unsubscribeMailto := strings.TrimSpace(input.UnsubscribeMailto)
+	if unsubscribeMailto != "" {
+		if !strings.HasPrefix(unsubscribeMailto, "mailto:") {
+			return RecallActivitySMTPStatus{}, fmt.Errorf("unsubscribe mailto must start with mailto:")
+		}
+		if _, err := mail.ParseAddress(strings.TrimPrefix(unsubscribeMailto, "mailto:")); err != nil {
+			return RecallActivitySMTPStatus{}, fmt.Errorf("unsubscribe mailto must be a plain email address")
+		}
+	}
+	if err := model.UpdateRecallActivitySMTPOptions(model.RecallActivitySMTPOptionInput{
+		SMTPConfig:        submitted,
+		ReplyTo:           replyTo,
+		UnsubscribeMailto: unsubscribeMailto,
+	}); err != nil {
 		return RecallActivitySMTPStatus{}, err
 	}
 	return GetRecallActivitySMTPStatus(), nil

@@ -93,6 +93,9 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/creem/webhook", anonymousRequestBodyLimit, controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", anonymousRequestBodyLimit, controller.WaffoWebhook)
 		apiRouter.GET("/recall/unsubscribe", controller.UnsubscribeRecallEmail)
+		// RFC 8058 one-click target. Mailbox providers POST here with no
+		// session, so it stays anonymous like the GET landing page.
+		apiRouter.POST("/recall/unsubscribe", anonymousRequestBodyLimit, controller.UnsubscribeRecallEmailOneClick)
 		// :env separates test vs prod URLs so the operator can register each
 		// in Pancake's matching webhook slot; handler enforces env match.
 		apiRouter.POST("/waffo-pancake/webhook/:env", anonymousRequestBodyLimit, controller.WaffoPancakeWebhook)

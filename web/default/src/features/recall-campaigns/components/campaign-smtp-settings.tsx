@@ -58,6 +58,8 @@ function createEmptyStatus(): RecallActivitySMTPStatus {
     force_auth_login: true,
     token_configured: false,
     configured: false,
+    reply_to: '',
+    unsubscribe_mailto: '',
   }
 }
 
@@ -74,6 +76,8 @@ export function createRecallActivitySMTPFormValues(
     token: '',
     ssl_enabled: source.ssl_enabled,
     force_auth_login: source.force_auth_login,
+    reply_to: source.reply_to ?? '',
+    unsubscribe_mailto: source.unsubscribe_mailto ?? '',
   }
 }
 
@@ -89,6 +93,8 @@ export function normalizeRecallActivitySMTPInput(
     token: values.token.trim() ? values.token : '',
     ssl_enabled: values.ssl_enabled,
     force_auth_login: values.force_auth_login,
+    reply_to: values.reply_to.trim(),
+    unsubscribe_mailto: values.unsubscribe_mailto.trim(),
   }
 }
 
@@ -119,6 +125,23 @@ export function recallActivitySMTPSchema(
       token: z.string(),
       ssl_enabled: z.boolean(),
       force_auth_login: z.boolean(),
+      // Optional: empty simply omits the header.
+      reply_to: z.string().refine(
+        (value) => {
+          const trimmed = value.trim()
+          return trimmed.length === 0 || plainMailboxPattern.test(trimmed)
+        },
+        { message: 'Reply-to must be a plain email address.' }
+      ),
+      unsubscribe_mailto: z.string().refine(
+        (value) => {
+          const trimmed = value.trim()
+          if (trimmed.length === 0) return true
+          if (!trimmed.startsWith('mailto:')) return false
+          return plainMailboxPattern.test(trimmed.slice('mailto:'.length))
+        },
+        { message: 'Unsubscribe mailbox must look like mailto:name@example.com.' }
+      ),
     })
     .superRefine((values, context) => {
       if (status?.token_configured) return
@@ -360,6 +383,64 @@ export function CampaignSMTPSettingsView(
           />
           {t('Force AUTH LOGIN')}
         </label>
+
+        <div className='space-y-1'>
+          <Label htmlFor='recall-smtp-reply-to'>{t('Reply-to address')}</Label>
+          <Input
+            id='recall-smtp-reply-to'
+            aria-describedby={getFieldDescription(
+              'recall-smtp-reply-to',
+              props.fieldErrors.reply_to
+            )}
+            aria-invalid={getFieldAriaInvalid(props.fieldErrors.reply_to)}
+            type='email'
+            disabled={disabled}
+            value={props.values.reply_to}
+            onChange={(event) =>
+              props.onFieldChange('reply_to', event.target.value)
+            }
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Optional. Marketing mail without a reachable reply address scores worse with mailbox providers.'
+            )}
+          </p>
+          <FieldError
+            id={getFieldErrorId('recall-smtp-reply-to')}
+            message={props.fieldErrors.reply_to}
+          />
+        </div>
+
+        <div className='space-y-1'>
+          <Label htmlFor='recall-smtp-unsubscribe-mailto'>
+            {t('Unsubscribe mailbox')}
+          </Label>
+          <Input
+            id='recall-smtp-unsubscribe-mailto'
+            aria-describedby={getFieldDescription(
+              'recall-smtp-unsubscribe-mailto',
+              props.fieldErrors.unsubscribe_mailto
+            )}
+            aria-invalid={getFieldAriaInvalid(
+              props.fieldErrors.unsubscribe_mailto
+            )}
+            disabled={disabled}
+            placeholder='mailto:unsubscribe@example.com'
+            value={props.values.unsubscribe_mailto}
+            onChange={(event) =>
+              props.onFieldChange('unsubscribe_mailto', event.target.value)
+            }
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Optional mailto: fallback for clients without one-click unsubscribe. One-click always uses the console endpoint.'
+            )}
+          </p>
+          <FieldError
+            id={getFieldErrorId('recall-smtp-unsubscribe-mailto')}
+            message={props.fieldErrors.unsubscribe_mailto}
+          />
+        </div>
 
         <div className='flex items-center gap-3 md:col-span-2'>
           <Button type='submit' disabled={disabled}>

@@ -27,6 +27,8 @@ type Option struct {
 const OptionKeyPlaygroundDefaultModel = "PlaygroundDefaultModel"
 
 const recallCampaignEmailFromOptionKey = "recall_campaign_setting.email_from"
+const recallCampaignReplyToOptionKey = "recall_campaign_setting.reply_to"
+const recallCampaignUnsubscribeMailtoOptionKey = "recall_campaign_setting.unsubscribe_mailto"
 const recallActivitySMTPUpdateError = "activity SMTP settings must be updated together"
 
 var recallActivitySMTPOptionKeys = []string{
@@ -37,10 +39,14 @@ var recallActivitySMTPOptionKeys = []string{
 	"recall_campaign_setting.smtp_token",
 	"recall_campaign_setting.smtp_ssl_enabled",
 	"recall_campaign_setting.smtp_force_auth_login",
+	recallCampaignReplyToOptionKey,
+	recallCampaignUnsubscribeMailtoOptionKey,
 }
 
 type RecallActivitySMTPOptionInput struct {
 	common.SMTPConfig
+	ReplyTo           string
+	UnsubscribeMailto string
 }
 
 var (
@@ -378,6 +384,8 @@ func UpdateRecallActivitySMTPOptions(input RecallActivitySMTPOptionInput) error 
 		"recall_campaign_setting.smtp_token":            input.Token,
 		"recall_campaign_setting.smtp_ssl_enabled":      strconv.FormatBool(input.SSLEnabled),
 		"recall_campaign_setting.smtp_force_auth_login": strconv.FormatBool(input.ForceAuthLogin),
+		recallCampaignReplyToOptionKey:                  strings.TrimSpace(input.ReplyTo),
+		recallCampaignUnsubscribeMailtoOptionKey:        strings.TrimSpace(input.UnsubscribeMailto),
 	}
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
