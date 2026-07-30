@@ -46,7 +46,7 @@ func requireRejectedModelMetaField(t *testing.T, recorder *httptest.ResponseReco
 }
 
 func TestCreateModelMetaRejectsNegativeContextWindow(t *testing.T) {
-	setupModelListControllerTestDB(t)
+	db := setupModelListControllerTestDB(t)
 
 	recorder := performModelMetaRequest(t, http.MethodPost, "/api/model", model.Model{
 		ModelName:     "negative-context-window",
@@ -54,10 +54,13 @@ func TestCreateModelMetaRejectsNegativeContextWindow(t *testing.T) {
 	}, CreateModelMeta)
 
 	requireRejectedModelMetaField(t, recorder, "context_window")
+	var count int64
+	require.NoError(t, db.Model(&model.Model{}).Count(&count).Error)
+	require.Zero(t, count)
 }
 
 func TestCreateModelMetaRejectsNegativeMaxOutputTokens(t *testing.T) {
-	setupModelListControllerTestDB(t)
+	db := setupModelListControllerTestDB(t)
 
 	recorder := performModelMetaRequest(t, http.MethodPost, "/api/model", model.Model{
 		ModelName:       "negative-max-output-tokens",
@@ -65,6 +68,9 @@ func TestCreateModelMetaRejectsNegativeMaxOutputTokens(t *testing.T) {
 	}, CreateModelMeta)
 
 	requireRejectedModelMetaField(t, recorder, "max_output_tokens")
+	var count int64
+	require.NoError(t, db.Model(&model.Model{}).Count(&count).Error)
+	require.Zero(t, count)
 }
 
 func TestUpdateModelMetaRejectsNegativeTokenLimits(t *testing.T) {

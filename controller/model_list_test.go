@@ -423,6 +423,34 @@ func TestListModelsIncludesConfiguredTokenLimits(t *testing.T) {
 	require.Equal(t, int64(32768), payload.Data[0].MaxOutputTokens)
 }
 
+func TestListModelsReturnsErrorWhenTokenLimitLookupDatabaseFails(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
+		"model-with-token-limit": true,
+	})
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.False(t, payload.Success)
+	require.NotEmpty(t, payload.Message)
+}
+
 func TestListModelsOmitsUnspecifiedTokenLimits(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	db := setupModelListControllerTestDB(t)

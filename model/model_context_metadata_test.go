@@ -13,21 +13,35 @@ import (
 
 func setupModelMetadataTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
+	previousDB := DB
 	dsn := fmt.Sprintf(
 		"file:%s?mode=memory&cache=shared",
 		strings.ReplaceAll(t.Name(), "/", "_"),
 	)
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
-	DB = db
-	require.NoError(t, db.AutoMigrate(&Model{}))
 	t.Cleanup(func() {
+		DB = previousDB
 		sqlDB, openErr := db.DB()
 		if openErr == nil {
 			_ = sqlDB.Close()
 		}
 	})
+	DB = db
+	require.NoError(t, db.AutoMigrate(&Model{}))
 	return db
+}
+
+func TestSetupModelMetadataTestDBRestoresPreviousDB(t *testing.T) {
+	previousDB := DB
+
+	t.Run("isolated database", func(t *testing.T) {
+		isolatedDB := setupModelMetadataTestDB(t)
+		require.Same(t, isolatedDB, DB)
+	})
+
+	require.Same(t, previousDB, DB)
+	require.NoError(t, DB.Exec("SELECT 1").Error)
 }
 
 func TestModelUpdatePersistsAndClearsTokenLimits(t *testing.T) {
