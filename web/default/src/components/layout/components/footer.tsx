@@ -273,7 +273,7 @@ export function Footer(props: FooterProps) {
             </Link>
             <p className='text-muted-foreground/60 mt-3 max-w-[240px] text-xs leading-relaxed'>
               {t(
-                'Unified API gateway for multi-model AI access — built for developers and teams.'
+                'BoxAI (you-box.com) — unified AI API gateway for multi-model access, built for developers and teams.'
               )}
             </p>
           </div>

@@ -29,9 +29,21 @@ describe('formatSeoTitle', () => {
     expect(formatSeoTitle('Pricing', 'BoxAI')).toBe('Pricing | BoxAI')
   })
 
-  it('returns site name alone for home', () => {
+  it('returns site name alone for bare brand title', () => {
     expect(formatSeoTitle('BoxAI', 'BoxAI')).toBe('BoxAI')
     expect(formatSeoTitle('', 'BoxAI')).toBe('BoxAI')
+  })
+})
+
+describe('formatSeoDocumentTitle', () => {
+  it('builds homepage title with host', async () => {
+    const { formatSeoDocumentTitle } = await import('./seo')
+    expect(
+      formatSeoDocumentTitle('/', 'BoxAI', 'BoxAI', 'https://you-box.com')
+    ).toBe('BoxAI · Unified AI API Gateway | you-box.com')
+    expect(formatSeoDocumentTitle('/pricing', 'Model Pricing', 'BoxAI')).toBe(
+      'Model Pricing | BoxAI'
+    )
   })
 })
 

@@ -54,7 +54,7 @@ export function Home() {
 
   useSeo(
     useMemo(() => {
-      const siteName = systemName?.trim() || 'New API'
+      const siteName = systemName?.trim() || 'BoxAI'
       const description = t(DEFAULT_SEO_DESCRIPTION)
       return {
         title: siteName,
@@ -164,7 +164,7 @@ export function Home() {
       <CTA isAuthenticated={isAuthenticated} />
       <Footer
         copyright={t(
-          'All rights reserved. International API service — please comply with applicable local regulations.'
+          'All rights reserved. BoxAI official site: you-box.com. International API service — please comply with applicable local regulations.'
         )}
       />
     </PublicLayout>

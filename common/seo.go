@@ -20,8 +20,16 @@ type SEOPage struct {
 	Body string
 }
 
+// DefaultBrandName is the preferred product name for SEO when SystemName is empty.
+const DefaultBrandName = "BoxAI"
+
 // DefaultSEODescription is used when a page has no more specific copy.
-const DefaultSEODescription = "Unified AI API gateway aggregating OpenAI, Claude, Gemini and 40+ providers. One endpoint for models, billing, rate limits, and admin."
+// Keep BoxAI and the public hostname co-mentioned for brand+domain queries.
+const DefaultSEODescription = "BoxAI (you-box.com) is a unified AI API gateway aggregating OpenAI, Claude, Gemini and 40+ providers. One endpoint for models, billing, rate limits, and admin."
+
+// HomeSEOTitleTemplate builds the homepage document title.
+// Example: "BoxAI · Unified AI API Gateway | you-box.com"
+const HomeSEOTitleLead = "Unified AI API Gateway"
 
 // PublicSEOPages returns indexable marketing/docs routes (no auth-only paths).
 func PublicSEOPages() []SEOPage {
@@ -32,71 +40,89 @@ func PublicSEOPages() []SEOPage {
 			Description: DefaultSEODescription,
 			Priority:    "1.0",
 			Changefreq:  "daily",
-			Heading:     "Unified AI API Gateway",
-			Body:        "One API for OpenAI, Claude, Gemini and more. Manage keys, usage, billing, and model access in a single gateway.",
+			Heading:     "BoxAI — Unified AI API Gateway",
+			Body:        "BoxAI (you-box.com) is a unified AI API gateway for OpenAI, Claude, Gemini and more. Manage keys, usage, billing, and model access through one endpoint at https://you-box.com.",
 		},
 		{
 			Path:        "/pricing",
 			Title:       "Model Pricing",
-			Description: "Browse model prices, capabilities, and billing modes across providers available on the gateway.",
+			Description: "BoxAI model pricing on you-box.com — compare token prices, capabilities, and billing modes across providers on the unified AI API gateway.",
 			Priority:    "0.9",
 			Changefreq:  "daily",
-			Heading:     "Model Pricing",
-			Body:        "Compare input and output token prices, group rates, and model capabilities before you integrate.",
+			Heading:     "BoxAI Model Pricing",
+			Body:        "Browse BoxAI (you-box.com) model prices, group rates, and capabilities before you integrate with the unified API gateway.",
+		},
+		{
+			Path:        "/docs/what-is-boxai",
+			Title:       "What is BoxAI",
+			Description: "What is BoxAI? BoxAI (you-box.com) is a unified AI API gateway for multi-provider models, billing, and developer access.",
+			Priority:    "0.85",
+			Changefreq:  "monthly",
+			Heading:     "What is BoxAI?",
+			Body:        "BoxAI (https://you-box.com) is the official unified AI API gateway. One API for OpenAI-compatible, Claude, Gemini and other providers, with keys, usage, and billing in one place.",
 		},
 		{
 			Path:        "/docs/getting-started",
 			Title:       "Getting Started",
-			Description: "Create an API key, pick a model, and send your first request through the unified AI gateway.",
+			Description: "Get started with BoxAI on you-box.com — create an API key, pick a model, and send your first OpenAI-compatible request.",
 			Priority:    "0.8",
 			Changefreq:  "weekly",
-			Heading:     "Getting Started",
-			Body:        "Create an API key, choose an available model ID, and call the OpenAI-compatible chat completions endpoint.",
+			Heading:     "Getting Started with BoxAI",
+			Body:        "On BoxAI (https://you-box.com), create an API key, choose an available model ID, and call the OpenAI-compatible chat completions endpoint.",
 		},
 		{
 			Path:        "/docs/streaming",
 			Title:       "Streaming",
-			Description: "Stream model responses with server-sent events and cancel interrupted generations safely.",
+			Description: "Stream BoxAI model responses with server-sent events and cancel interrupted generations safely.",
 			Priority:    "0.7",
 			Changefreq:  "weekly",
 			Heading:     "Streaming",
-			Body:        "Enable streaming in your request payload and consume SSE frames until the stream completes or is aborted.",
+			Body:        "Enable streaming in your BoxAI request payload and consume SSE frames until the stream completes or is aborted.",
 		},
 		{
 			Path:        "/docs/errors",
 			Title:       "Errors, Retries, and Rate Limits",
-			Description: "Classify gateway errors, retry transient failures safely, and respect rate limits.",
+			Description: "Classify BoxAI gateway errors, retry transient failures safely, and respect rate limits on you-box.com.",
 			Priority:    "0.7",
 			Changefreq:  "weekly",
 			Heading:     "Errors, Retries, and Rate Limits",
-			Body:        "Fix validation and auth errors, back off on 429 responses, and retry only safe transient failures.",
+			Body:        "Fix validation and auth errors, back off on 429 responses, and retry only safe transient failures on the BoxAI gateway.",
+		},
+		{
+			Path:        "/rankings",
+			Title:       "Rankings",
+			Description: "BoxAI public model and usage rankings on you-box.com.",
+			Priority:    "0.6",
+			Changefreq:  "daily",
+			Heading:     "BoxAI Rankings",
+			Body:        "View public model and usage rankings for the BoxAI unified AI API gateway at you-box.com.",
 		},
 		{
 			Path:        "/about",
-			Title:       "About",
-			Description: "Learn about this AI API gateway, its mission, and how it helps teams ship multi-model products faster.",
+			Title:       "About BoxAI",
+			Description: "About BoxAI (you-box.com) — the unified AI API gateway for multi-model access, billing, and admin.",
 			Priority:    "0.5",
 			Changefreq:  "monthly",
-			Heading:     "About",
-			Body:        "A unified gateway for multi-provider AI APIs with billing, access control, and an admin dashboard.",
+			Heading:     "About BoxAI",
+			Body:        "BoxAI at https://you-box.com is a unified gateway for multi-provider AI APIs with billing, access control, and an admin dashboard.",
 		},
 		{
 			Path:        "/privacy-policy",
 			Title:       "Privacy Policy",
-			Description: "Read how we collect, use, and protect personal data when you use the AI API gateway.",
+			Description: "Privacy policy for BoxAI (you-box.com) — how we collect, use, and protect personal data.",
 			Priority:    "0.3",
 			Changefreq:  "yearly",
 			Heading:     "Privacy Policy",
-			Body:        "This page describes privacy practices for the AI API gateway service.",
+			Body:        "This page describes privacy practices for the BoxAI AI API gateway service at you-box.com.",
 		},
 		{
 			Path:        "/user-agreement",
 			Title:       "User Agreement",
-			Description: "Terms of use for the AI API gateway, including acceptable use and account responsibilities.",
+			Description: "User agreement for BoxAI (you-box.com), including acceptable use and account responsibilities.",
 			Priority:    "0.3",
 			Changefreq:  "yearly",
 			Heading:     "User Agreement",
-			Body:        "This page describes the terms that govern use of the AI API gateway.",
+			Body:        "This page describes the terms that govern use of the BoxAI AI API gateway at you-box.com.",
 		},
 	}
 }
@@ -253,12 +279,44 @@ func FormatSEOTitle(pageTitle, siteName string) string {
 	siteName = strings.TrimSpace(siteName)
 	pageTitle = strings.TrimSpace(pageTitle)
 	if siteName == "" {
-		siteName = "New API"
+		siteName = DefaultBrandName
 	}
 	if pageTitle == "" || strings.EqualFold(pageTitle, siteName) {
 		return siteName
 	}
 	return pageTitle + " | " + siteName
+}
+
+// FormatSEODocumentTitle chooses homepage vs inner-page title rules.
+// Homepage: "BoxAI · Unified AI API Gateway | you-box.com" when baseURL is set.
+func FormatSEODocumentTitle(path, pageTitle, siteName, baseURL string) string {
+	siteName = strings.TrimSpace(siteName)
+	if siteName == "" {
+		siteName = DefaultBrandName
+	}
+	path = NormalizePublicPath(path)
+	pageTitle = strings.TrimSpace(pageTitle)
+	if path == "/" && (pageTitle == "" || strings.EqualFold(pageTitle, siteName)) {
+		host := hostFromBaseURL(baseURL)
+		title := siteName + " · " + HomeSEOTitleLead
+		if host != "" {
+			return title + " | " + host
+		}
+		return title
+	}
+	return FormatSEOTitle(pageTitle, siteName)
+}
+
+func hostFromBaseURL(baseURL string) string {
+	base := SiteBaseURL(baseURL)
+	if base == "" {
+		return ""
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(u.Host)
 }
 
 // BuildRobotsTxt returns robots.txt body for the public site.
@@ -364,7 +422,7 @@ func InjectSEOIntoHTML(indexHTML []byte, page SEOPage, siteName, baseURL, imageU
 		return indexHTML
 	}
 	htmlStr := string(indexHTML)
-	title := FormatSEOTitle(page.Title, siteName)
+	title := FormatSEODocumentTitle(page.Path, page.Title, siteName, baseURL)
 	desc := strings.TrimSpace(page.Description)
 	if desc == "" {
 		desc = DefaultSEODescription
@@ -427,7 +485,7 @@ func InjectSEOIntoHTML(indexHTML []byte, page SEOPage, siteName, baseURL, imageU
 func siteNameOrDefault(name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "New API"
+		return DefaultBrandName
 	}
 	return name
 }
@@ -623,6 +681,19 @@ func upsertBeforeHeadClose(s, snippet string) string {
 	return s[:realIdx] + snippet + real + s[realIdx+len(real):]
 }
 
+
+func mapEsc(values []string, esc func(string) string) []string {
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		out = append(out, esc(v))
+	}
+	return out
+}
+
 func buildWebSiteJSONLD(siteName, baseURL, imageURL, description string) string {
 	home := AbsoluteURL(baseURL, "/")
 	if home == "" {
@@ -639,10 +710,16 @@ func buildWebSiteJSONLD(siteName, baseURL, imageURL, description string) string 
 	if logo == "" {
 		logo = AbsoluteURL(baseURL, "/logo.png")
 	}
+	host := hostFromBaseURL(baseURL)
+	alts := []string{"Box AI", "boxai", "you-box"}
+	if host != "" && host != "you-box.com" {
+		alts = append(alts, host)
+	}
+	altJSON := `["` + strings.Join(mapEsc(alts, esc), `","`) + `"]`
 	return fmt.Sprintf(
-		`{"@context":"https://schema.org","@graph":[{"@type":"Organization","name":"%s","url":"%s","logo":"%s"},{"@type":"WebSite","name":"%s","url":"%s","description":"%s","potentialAction":{"@type":"SearchAction","target":"%s/pricing?search={query}","query-input":"required name=query"}},{"@type":"SoftwareApplication","name":"%s","applicationCategory":"DeveloperApplication","operatingSystem":"Web","url":"%s","description":"%s"}]}`,
-		esc(siteName), esc(home), esc(logo),
-		esc(siteName), esc(home), esc(description),
+		`{"@context":"https://schema.org","@graph":[{"@type":"Organization","name":"%s","alternateName":%s,"url":"%s","logo":"%s"},{"@type":"WebSite","name":"%s","alternateName":%s,"url":"%s","description":"%s","potentialAction":{"@type":"SearchAction","target":"%s/pricing?search={query}","query-input":"required name=query"}},{"@type":"SoftwareApplication","name":"%s","applicationCategory":"DeveloperApplication","operatingSystem":"Web","url":"%s","description":"%s"}]}`,
+		esc(siteName), altJSON, esc(home), esc(logo),
+		esc(siteName), altJSON, esc(home), esc(description),
 		esc(strings.TrimRight(baseURL, "/")),
 		esc(siteName), esc(home), esc(description),
 	)
@@ -656,6 +733,16 @@ func buildPrerenderHTML(page SEOPage, title, desc, baseURL string) string {
 	body := strings.TrimSpace(page.Body)
 	if body == "" {
 		body = desc
+	}
+	// Ensure crawlers always see brand + public host together.
+	host := hostFromBaseURL(baseURL)
+	if host == "" {
+		host = "you-box.com"
+	}
+	brandLine := DefaultBrandName + " (" + host + ")"
+	low := strings.ToLower(body)
+	if !strings.Contains(low, "boxai") || !strings.Contains(low, strings.ToLower(host)) {
+		body = brandLine + " — " + body
 	}
 	var links strings.Builder
 	for _, p := range PublicSEOPages() {

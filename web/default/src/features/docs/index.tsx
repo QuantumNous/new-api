@@ -99,16 +99,19 @@ function DocsNavigation(props: {
     <nav aria-label={t('API Docs')} className='space-y-5'>
       <div>
         <p className='text-muted-foreground mb-1 px-3 text-xs font-semibold uppercase'>
-          {t('Getting started')}
+          {t('BoxAI')}
         </p>
-        <Link
-          to='/docs/$slug'
-          params={{ slug: 'getting-started' }}
-          className={linkClass('getting-started')}
-          onClick={props.onNavigate}
-        >
-          {t('Getting started')}
-        </Link>
+        {GLOBAL_DOCS.map((page) => (
+          <Link
+            key={page.slug}
+            to='/docs/$slug'
+            params={{ slug: page.slug }}
+            className={linkClass(page.slug)}
+            onClick={props.onNavigate}
+          >
+            {t(page.title)}
+          </Link>
+        ))}
       </div>
       <div>
         <p className='text-muted-foreground mb-1 px-3 text-xs font-semibold uppercase'>
@@ -131,22 +134,6 @@ function DocsNavigation(props: {
               </Link>
             ))}
           </div>
-        ))}
-      </div>
-      <div>
-        <p className='text-muted-foreground mb-1 px-3 text-xs font-semibold uppercase'>
-          {t('Platform')}
-        </p>
-        {GLOBAL_DOCS.slice(1).map((page) => (
-          <Link
-            key={page.slug}
-            to='/docs/$slug'
-            params={{ slug: page.slug }}
-            className={linkClass(page.slug)}
-            onClick={props.onNavigate}
-          >
-            {t(page.title)}
-          </Link>
         ))}
       </div>
     </nav>
