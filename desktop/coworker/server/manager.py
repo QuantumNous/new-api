@@ -35,9 +35,11 @@ from ..subscriptions import ChannelBuffer, SubscriptionStore
 from ..unrouted import UnroutedStore
 from ..unattended import UnattendedRegistry
 from ..audit import AuditStore
+from ..config import load_config, workspace_allowed_commands
 from ..conversations import ConversationStore, title_from
 from ..engine import ApprovalOutcome, Approver, TurnEngine
 from ..roots import RootDir
+from ..workspace_trust import WorkspaceTrustStore
 from ..automation import Schedule, ScheduledTask, Scheduler, TaskRun, TaskStore
 from ..connectors import (
     Gateway,
@@ -49,6 +51,7 @@ from ..connectors import (
     load_settings,
     make_adapter,
     set_experimental_enabled,
+    slack_split,
     update_connector_tools,
 )
 from ..connectors.browser_automation import (
@@ -140,6 +143,7 @@ class SessionManager:
         self._autotitle_inflight: set[str] = set()
         self._autotitle_tasks: set[asyncio.Task] = set()
         self._autotitle_attempts: dict[str, int] = {}
+        self.workspace_trust = WorkspaceTrustStore()
         self.secrets = SecretStore()
         # No explicit provider injected → route by the model's `provider:` prefix (OpenAI default,
         # Ollama, …). Tests inject a provider directly and bypass the router. The same router is
@@ -242,7 +246,69 @@ class SessionManager:
                 return {"path": str(resolved), "ok": False, "error": str(exc)}
         resolved = resolved.resolve()
         self.session_store.touch_workspace(str(resolved))
-        return {"path": str(resolved), "ok": True, "git_branch": _git_branch(resolved)}
+        return {
+            "path": str(resolved),
+            "ok": True,
+            "git_branch": _git_branch(resolved),
+            "command_trust": self.workspace_command_trust(resolved),
+        }
+
+    def workspace_command_trust(self, path: str | Path) -> dict[str, Any]:
+        if not str(path).strip():
+            return {
+                "workspace": "",
+                "requested_commands": [],
+                "trusted": False,
+                "required": False,
+            }
+        canonical = WorkspaceTrustStore.canonical(path)
+        commands = (
+            workspace_allowed_commands(canonical)
+            if Path(canonical).is_dir()
+            else []
+        )
+        trusted = self.workspace_trust.is_trusted(canonical)
+        return {
+            "workspace": canonical,
+            "requested_commands": commands,
+            "trusted": trusted,
+            "required": bool(commands and not trusted),
+        }
+
+    def set_workspace_trust(
+        self, path: str | Path, *, trusted: bool
+    ) -> dict[str, Any]:
+        if not str(path).strip():
+            return {"ok": False, "error": "workspace path is required"}
+        candidate = Path(path).expanduser()
+        if trusted and not candidate.is_dir():
+            return {"ok": False, "error": "workspace is not a directory"}
+        canonical = self.workspace_trust.set_trusted(candidate, trusted)
+        effective = load_config(
+            canonical, workspace_trusted=trusted
+        ).allowed_commands
+        # Apply trust/revocation immediately to live sessions rooted at this exact path.
+        for engine in self._engines.values():
+            engine_workspace = str(
+                (getattr(engine, "audit_context", {}) or {}).get("workspace", "")
+            )
+            if engine_workspace and WorkspaceTrustStore.canonical(
+                engine_workspace
+            ) == canonical:
+                engine.permissions.allowed_commands = list(effective)
+        return {
+            "ok": True,
+            **self.workspace_command_trust(canonical),
+        }
+
+    def trusted_workspaces(self) -> list[dict[str, Any]]:
+        return [
+            {
+                **self.workspace_command_trust(path),
+                "exists": Path(path).is_dir(),
+            }
+            for path in self.workspace_trust.list()
+        ]
 
     def recent_workspaces(self) -> list[dict[str, Any]]:
         """Recent real projects for the folder gate. Per-conversation scratch dirs are
@@ -393,6 +459,13 @@ class SessionManager:
             )
         if record is not None and record.grants:
             self._apply_grants(engine, record.grants)
+        # Auto-compaction (OPE-27): restore the persisted view boundary and wire the live
+        # Settings getter — post-construction, so build_engine's signature stays put.
+        if record is not None and record.compaction:
+            from ..compaction import CompactionState
+
+            engine.compaction_state = CompactionState.from_dict(record.compaction)
+        engine.compaction_settings = self.compaction_settings
         self._engines[session_id] = engine
         if is_new_session:
             self._emit_session_created(session_id, agent_name)
@@ -1072,10 +1145,18 @@ class SessionManager:
                 u: self._people.get(f"{c['name']}:{u}")
                 for u in (c.get("allowed_users") or [])
             }
+            c["approval_owner_names"] = {
+                u: self._people.get(f"{c['name']}:{u}")
+                for u in (c.get("approval_owner_ids") or [])
+            }
             for w in c.get("workspaces") or []:
                 w["allowed_user_names"] = {
                     u: self._people.get(f"{c['name']}:{u}")
                     for u in (w.get("allowed_users") or [])
+                }
+                w["approval_owner_names"] = {
+                    u: self._people.get(f"{c['name']}:{u}")
+                    for u in (w.get("approval_owner_ids") or [])
                 }
         return connectors
 
@@ -1644,12 +1725,18 @@ class SessionManager:
             selectable = list(dict.fromkeys([self.model, *account_models]))
         if self.model not in selectable:
             selectable.insert(0, self.model)
+        from ..providers.matrix import model_context_windows
 
         return {
             "provider": "boxai",
             "model": self.model,
             "models": selectable,
+            # Account models carry BoxAI's own naming; the curated matrix would relabel them
+            # with upstream provider attribution, so labels stay empty and ids render raw.
             "model_labels": {},
+            # {full id → context window in tokens}, verified matrix entries only —
+            # drives the composer's context-fill meter (absent id → meter hides).
+            "model_context_windows": model_context_windows(),
             "has_key": ready,
             "model_ready": ready,
             "source": "cloud" if ready else None,
@@ -1664,6 +1751,7 @@ class SessionManager:
             # hardcoded POSIX one (Windows -> %APPDATA%\coworker, macOS/Linux -> ~/.config).
             "secrets_path": str(self.secrets.path),
             **self.pdf_settings(),
+            **self.compaction_settings_payload(),
         }
 
     def _surfaces(self) -> dict[str, bool]:
@@ -1739,6 +1827,65 @@ class SessionManager:
             "pdf_max_pages": max(1, min(pages, 100)),
             "pdf_max_mb": max(1, min(mb, 10)),
         }
+
+    def compaction_settings(self) -> dict[str, Any]:
+        """The live auto-compaction knobs (OPE-27) — read by every engine per check, so a
+        Settings change applies without a rebuild. Only the two spec'd overrides plus the
+        summarizer-model pin; absent keys fall back to compaction.py defaults."""
+        from ..compaction import DEFAULT_CAP_TOKENS, DEFAULT_THRESHOLD_PCT
+
+        return {
+            "threshold_pct": float(
+                self._prefs.get("compaction_threshold_pct") or DEFAULT_THRESHOLD_PCT
+            ),
+            "cap_tokens": int(
+                self._prefs.get("compaction_cap_tokens") or DEFAULT_CAP_TOKENS
+            ),
+            # "" → the session's own model (engine falls back to self.model).
+            "model": str(self._prefs.get("compaction_model") or ""),
+        }
+
+    def compaction_settings_payload(self) -> dict[str, Any]:
+        """The same knobs under REST-facing names (prefixed to keep /v1/settings flat)."""
+        settings = self.compaction_settings()
+        return {
+            "compaction_threshold_pct": settings["threshold_pct"],
+            "compaction_cap_tokens": settings["cap_tokens"],
+            "compaction_model": settings["model"],
+        }
+
+    def set_compaction_settings(
+        self,
+        threshold_pct: Any = None,
+        cap_tokens: Any = None,
+        model: Any = None,
+    ) -> dict[str, Any]:
+        """Persist the auto-compaction overrides (OPE-27). Threshold is a percentage of
+        the model's context window (10–95); the cap is an absolute token ceiling; model
+        pins the summarizer ('' → the session's own model). Engines read these live via
+        `compaction_settings()`, so changes apply to running sessions immediately."""
+        if threshold_pct is not None:
+            try:
+                pct = float(threshold_pct)
+            except (TypeError, ValueError):
+                return {"ok": False, "error": "compaction_threshold_pct must be a number"}
+            if not 0.10 <= pct <= 0.95:
+                return {
+                    "ok": False,
+                    "error": "compaction_threshold_pct must be between 0.10 and 0.95",
+                }
+            self._prefs["compaction_threshold_pct"] = pct
+        if cap_tokens is not None:
+            try:
+                self._prefs["compaction_cap_tokens"] = max(
+                    10_000, min(int(cap_tokens), 2_000_000)
+                )
+            except (TypeError, ValueError):
+                return {"ok": False, "error": "compaction_cap_tokens must be a number"}
+        if model is not None:
+            self._prefs["compaction_model"] = str(model)
+        self._save_prefs()
+        return {"ok": True, **self.compaction_settings()}
 
     def set_pdf_settings(
         self,
@@ -1826,7 +1973,142 @@ class SessionManager:
     def disallow_user(
         self, name: str, user_id: str, team_id: Optional[str] = None
     ) -> dict[str, Any]:
+        if name == "slack" and user_id in self.slack_approval_owner_ids(team_id):
+            return {
+                "ok": False,
+                "error": "Remove this person as an approval owner first.",
+            }
         return self._set_allowed(name, user_id, team_id=team_id, add=False)
+
+    def slack_approval_owner_ids(self, team_id: Optional[str] = None) -> set[str]:
+        """Stable Slack user ids allowed to resolve consequential Inbox prompts.
+
+        Managed relay installs are installer-owned. Manual Socket Mode has no
+        human OAuth identity, so its owners are selected explicitly.
+        """
+        key = f"slack:team:{team_id}" if team_id else "slack:default"
+        profile = self.secrets.get(key) or {}
+        if team_id:
+            installer = str(profile.get("slack_user_id") or "").strip()
+            return {installer} if installer else set()
+        if profile.get("mode") == "relay":
+            return set()
+        return {
+            str(user_id).strip()
+            for user_id in (profile.get("approval_owner_ids") or [])
+            if str(user_id).strip()
+        }
+
+    def set_slack_approval_owner(
+        self, user_id: str, *, add: bool, display_name: str = ""
+    ) -> dict[str, Any]:
+        """Edit Manual Socket Mode approval owners.
+
+        Owner status implies inbound permission. Relay ownership is derived from
+        the OAuth installer and is intentionally not editable here.
+        """
+        user_id = str(user_id).strip()
+        if not user_id:
+            return {"ok": False, "error": "user_id required"}
+        profile = self.secrets.get("slack:default")
+        if not profile:
+            return {"ok": False, "error": "Slack is not connected in Manual mode."}
+        if profile.get("mode") == "relay" or profile.get("managed"):
+            return {
+                "ok": False,
+                "error": "Relay approval ownership is set by the Slack installer.",
+            }
+
+        owners = self.slack_approval_owner_ids()
+        if add:
+            owners.add(user_id)
+        else:
+            owners.discard(user_id)
+            if not owners and self._has_manual_slack_inbox_binding():
+                return {
+                    "ok": False,
+                    "error": (
+                        "Choose another approval owner before removing the last one "
+                        "while Slack Inbox routing is active."
+                    ),
+                }
+        profile["approval_owner_ids"] = sorted(owners)
+        if add:
+            allowed = set(profile.get("allowed_users") or [])
+            allowed.add(user_id)
+            profile["allowed_users"] = sorted(allowed)
+        self.secrets.put("slack:default", profile)
+        if display_name:
+            self._note_person("slack", user_id, display_name)
+        if self.gateway is not None and "slack" in self.gateway.settings:
+            self.gateway.settings["slack"].allowed_users = set(
+                profile.get("allowed_users") or []
+            )
+        return {
+            "ok": True,
+            "approval_owner_ids": sorted(owners),
+            "allowed_users": list(profile.get("allowed_users") or []),
+        }
+
+    def _has_manual_slack_inbox_binding(self) -> bool:
+        for raw in self.inbox_routing.bindings():
+            if raw.get("channel") != "slack":
+                continue
+            team_id, _ = slack_split(str(raw.get("target") or ""))
+            if team_id is None:
+                return True
+        return False
+
+    def _slack_actor_owns_item(
+        self,
+        item,
+        *,
+        actor_id: str,
+        chat_id: str,
+        team_id: Optional[str],
+    ) -> bool:
+        """Authorize a Slack resolution against both its owner and delivery binding."""
+        event_team, event_channel = slack_split(chat_id)
+        event_team = team_id or event_team
+        binding = self.inbox_routing.binding_for(item.inbox)
+        owner_team = event_team
+        if binding.channel == "slack":
+            owner_team, bound_channel = slack_split(binding.target)
+            if owner_team != event_team or bound_channel != event_channel:
+                return False
+        return bool(actor_id) and actor_id in self.slack_approval_owner_ids(owner_team)
+
+    def set_inbox_binding(
+        self, name: str, *, channel: Optional[str], target: str
+    ) -> dict[str, Any]:
+        """Persist an Inbox transport after validating its approval identity."""
+        channel = str(channel or "").strip() or None
+        target = str(target or "").strip()
+        if channel and not target:
+            return {"ok": False, "error": "Choose a destination channel."}
+        if channel == "slack":
+            settings = load_settings(self.secrets).get("slack")
+            if settings is None or not settings.enabled:
+                return {"ok": False, "error": "Slack is not connected."}
+            team_id, destination = slack_split(target)
+            if not destination:
+                return {"ok": False, "error": "Choose a destination channel."}
+            key = f"slack:team:{team_id}" if team_id else "slack:default"
+            if not self.secrets.get(key):
+                return {
+                    "ok": False,
+                    "error": "That Slack workspace is not connected.",
+                }
+            if not self.slack_approval_owner_ids(team_id):
+                return {
+                    "ok": False,
+                    "error": (
+                        "Choose at least one approval owner in Slack settings before "
+                        "routing Inbox requests there."
+                    ),
+                }
+        self.inbox_routing.set_binding(name, channel=channel, target=target)
+        return {"ok": True, "bindings": self.inbox_routing.bindings()}
 
     def _set_allowed(
         self, name: str, user_id: str, *, team_id: Optional[str] = None, add: bool
@@ -2349,6 +2631,12 @@ class SessionManager:
         binding = self.inbox_routing.binding_for(item.inbox)
         if not (binding.channel and self.gateway is not None):
             return
+        if binding.channel == "slack":
+            team_id, _ = slack_split(binding.target)
+            # Legacy bindings may predate approval ownership. Keep the item
+            # available in-app, but never mirror it to an ownerless channel.
+            if not self.slack_approval_owner_ids(team_id):
+                return
         target = f"{binding.channel}:{binding.target}"
         body = "\n".join(p for p in (item.title, item.body) if p).strip()
         buttons = buttons_for(item)
@@ -2375,10 +2663,29 @@ class SessionManager:
             return
         item_id, resolution = decoded
         item = self.inbox.get(item_id)
+        if item is None:
+            return
+        protected_kinds = {"approval", "directory", "plan"}
+        if (
+            getattr(event, "platform", "") == "slack"
+            and item.kind in protected_kinds
+        ):
+            actor_id = str(getattr(event, "user_id", "") or "")
+            if not self._slack_actor_owns_item(
+                item,
+                actor_id=actor_id,
+                chat_id=getattr(event, "chat_id", "") or "",
+                team_id=getattr(event, "team_id", None),
+            ):
+                if self.gateway is not None:
+                    await self.gateway.reject_interaction(event)
+                return
         already = item is not None and item.state != "pending"
-        await self.resolve_inbox(item_id, resolution)
+        resolved = await self.resolve_inbox(item_id, resolution)
+        if not resolved and not already:
+            return
         who = getattr(event, "user_name", None) or "someone"
-        title = item.title if item is not None else "Prompt"
+        title = item.title
         outcome = "already resolved" if already else f"“{resolution}” — by {who}"
         if self.gateway is not None and getattr(event, "message_id", None):
             try:
@@ -2399,7 +2706,26 @@ class SessionManager:
         from ..inbox_routing import resolve_from_reply
 
         text = getattr(event, "text", "") or ""
-        return resolve_from_reply(text, self.inbox.resolve) is not None
+
+        def _resolve(item_id: str, resolution: str) -> bool:
+            item = self.inbox.get(item_id)
+            if item is None:
+                return False
+            if (
+                getattr(event.source, "platform", "") == "slack"
+                and item.kind in {"approval", "directory", "plan"}
+            ):
+                actor_id = str(getattr(event.source, "user_id", "") or "")
+                if not self._slack_actor_owns_item(
+                    item,
+                    actor_id=actor_id,
+                    chat_id=getattr(event.source, "chat_id", "") or "",
+                    team_id=getattr(event.source, "team_id", None),
+                ):
+                    return False
+            return self.inbox.resolve(item_id, resolution)
+
+        return resolve_from_reply(text, _resolve) is not None
 
     # -- self-wake resumption ---------------------------------------------------
     async def resume_due_wakes(self) -> int:
@@ -2420,6 +2746,13 @@ class SessionManager:
 
     def mark_running(self, session_id: str) -> None:
         self._running_sessions.add(session_id)
+
+    def try_mark_running(self, session_id: str) -> bool:
+        """Atomically claim an idle session for one turn on the server event loop."""
+        if session_id in self._running_sessions:
+            return False
+        self._running_sessions.add(session_id)
+        return True
 
     def mark_idle(self, session_id: str) -> None:
         self._running_sessions.discard(session_id)
@@ -2444,15 +2777,12 @@ class SessionManager:
         by self-wake and channel-subscription delivery. `source` is the display-only MessageSource
         sidecar for connector messages (framed `message` stays the model-facing text).
         """
-        if self.is_running(session_id):
-            engine = self._engines.get(session_id)
-            if engine is not None:
-                engine.queue_steering(message, source)
-            return
         engine = self.get_engine(session_id)
         if engine is None:
             return
-        self.mark_running(session_id)
+        if not self.try_mark_running(session_id):
+            engine.queue_steering(message, source)
+            return
         try:
             async for event in engine.run(message, source=source):
                 # Stream every event to any socket viewing this session, so a background turn
@@ -2941,6 +3271,11 @@ class SessionManager:
                 agent=getattr(engine, "agent_name", "code"),
                 extra_roots=self._extra_roots_of(engine),
                 grants=_grants_of(engine),
+                compaction=(
+                    engine.compaction_state.as_dict()
+                    if getattr(engine, "compaction_state", None)
+                    else {}
+                ),
             )
         )
 

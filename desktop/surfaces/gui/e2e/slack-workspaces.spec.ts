@@ -61,6 +61,7 @@ test("disconnect removes one workspace and keeps the rest relaying", async ({ pa
 test("manual Socket Mode: one card with the flat allow-list (no regression)", async ({
   page,
 }) => {
+  let owners: string[] = [];
   // Override the connectors payload AFTER mockApi so this test sees a manual-mode Slack
   // (routes registered later match first).
   await page.route("**/v1/connectors", (route) =>
@@ -74,6 +75,8 @@ test("manual Socket Mode: one card with the flat allow-list (no regression)", as
             auth: "bot_token", two_way: true, available: true, brand_color: "#611f69",
             logo: "slack", fields: [], instructions: [], connected: true, account: "acme",
             enabled: true, allowed_users: ["U0OK"], allowed_user_names: { U0OK: "Rohit" },
+            approval_owner_ids: [...owners],
+            approval_owner_names: Object.fromEntries(owners.map((u) => [u, u === "U9MAYA" ? "Maya Chen" : u])),
             tools: [], managed: true, managed_profile: false, mode: "", workspaces: [],
             unauthorized: [],
           },
@@ -81,9 +84,22 @@ test("manual Socket Mode: one card with the flat allow-list (no regression)", as
       }),
     }),
   );
+  await page.route("**/v1/connectors/slack/approval-owners/add", async (route) => {
+    const body = route.request().postDataJSON();
+    owners = [...new Set([...owners, body.user_id])];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, approval_owner_ids: owners }),
+    });
+  });
   await openSlackPage(page);
   await expect(page.getByTestId("slack-mode-badge")).toContainText("Socket Mode");
   const card = page.getByTestId("slack-manual-card");
   await expect(card).toContainText("acme");
   await expect(card).toContainText("Rohit"); // flat allow-list chip, named
+  await expect(card).toContainText("Choose at least one owner");
+  await page.getByTestId("add-approval-owner").click();
+  await page.getByTestId("pick-person-U9MAYA").click();
+  await expect(page.getByTestId("approval-owner-U9MAYA")).toContainText("Maya Chen");
 });

@@ -26,11 +26,21 @@ import {
   type Persona,
   type RecentWorkspace,
   type SurfaceVisibility,
+  type WorkspaceCommandTrust,
 } from "./api";
-import type { ApprovalDecision, Attachment, Item, SessionInfo, TodoItem, WsEvent } from "./types";
+import type {
+  ApprovalDecision,
+  Attachment,
+  Item,
+  SessionInfo,
+  SessionUsage,
+  TodoItem,
+  WsEvent,
+} from "./types";
 import { isProjectScoped } from "./personaScope";
 import { baseName } from "./paths";
 import { itemsFromMessages } from "./itemsFromMessages";
+import { addTurnUsage, emptyUsage, usageFromMessages } from "./usage";
 import { streamMode } from "./streamGate";
 import { InboxItemCard } from "./components/InboxItemCard";
 import { isTauri, platformOS, startWindowDrag } from "./tauri";
@@ -55,6 +65,7 @@ import { ApprovalCard } from "./components/ApprovalCard";
 import { DirectoryRequestCard } from "./components/DirectoryRequestCard";
 import { PlanCard } from "./components/PlanCard";
 import { useTranslation } from "react-i18next";
+import { WorkspaceTrustPrompt } from "./components/WorkspaceTrustPrompt";
 
 const newId = () =>
   (crypto as any).randomUUID ? crypto.randomUUID().slice(0, 12) : Math.random().toString(36).slice(2, 14);
@@ -147,10 +158,18 @@ export function App() {
   const [workspace, setWorkspace] = useState<string | null>(null);
   const [branch, setBranch] = useState<string | null>(null);
   const [showGate, setShowGate] = useState(false);
+  const [workspaceTrustRequest, setWorkspaceTrustRequest] =
+    useState<WorkspaceCommandTrust | null>(null);
   const [agent, setAgent] = useState("cowork");
   const [model, setModel] = useState("gpt-5.6-sol");
   const [models, setModels] = useState<string[]>([]);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
+  // {full model id → context window in tokens} from the curated matrix (verified only);
+  // drives the composer usage chip's context-fill meter.
+  const [modelContextWindows, setModelContextWindows] = useState<Record<string, number>>({});
+  // Per-session token usage (OPE-42): rebuilt from the transcript on session load,
+  // accumulated live from assistant_message events, reset with the transcript.
+  const [usage, setUsage] = useState<SessionUsage>(emptyUsage());
   const [surfaces, setSurfaces] = useState<SurfaceVisibility>({ cowork: true, chat: false, code: false });
   const [mode, setMode] = useState("interactive");
   const [connected, setConnected] = useState(false);
@@ -392,9 +411,12 @@ export function App() {
           setBranch(null);
         }
         try {
-          setItems(itemsFromMessages(await getSessionMessages(last.session_id)));
+          const messages = await getSessionMessages(last.session_id);
+          setItems(itemsFromMessages(messages));
+          setUsage(usageFromMessages(messages));
         } catch {
           setItems([]);
+          setUsage(emptyUsage());
         }
         setSessionId(last.session_id);
         setShowGate(false);
@@ -483,6 +505,7 @@ export function App() {
       .then((s) => {
         setModels(s.models || []);
         setModelLabels(s.model_labels || {});
+        setModelContextWindows(s.model_context_windows || {});
         setModelReady(s.model_ready);
         if (s.surfaces) setSurfaces(s.surfaces);
       })
@@ -562,6 +585,7 @@ export function App() {
           setConnected(true);
           if (d.model) setModel(d.model);
           if (d.mode) setMode(d.mode);
+          if (d.command_trust?.required) setWorkspaceTrustRequest(d.command_trust);
           // Cowork: adopt the server-provisioned scratch dir (only when we don't already have one).
           if (d.workspace) setWorkspace((cur) => cur || d.workspace);
           break;
@@ -597,6 +621,7 @@ export function App() {
           setReasoningStream(reasoningRef.current + (d.text || ""));
           break;
         case "assistant_message": {
+          if (d.usage) setUsage((u) => addTurnUsage(u, d.usage));
           // The event's reasoning is authoritative (covers background-delivered turns);
           // the local buffer is the fallback for older servers.
           const reasoning = d.reasoning || reasoningRef.current;
@@ -688,6 +713,11 @@ export function App() {
           if (d.model) setModel(d.model);
           setItems((p) => [...p, { kind: "notice", tone: "info", text: d.text || "Model switched" }]);
           break;
+        case "compacted":
+          // Auto-compaction marker (OPE-27): outbound-only — the transcript stays intact,
+          // this divider just shows where the model's memory was summarized.
+          setItems((p) => [...p, { kind: "notice", tone: "info", text: d.text || "Context compacted" }]);
+          break;
         case "interrupted":
           flushPartialStream();
           setItems((p) => [...p, { kind: "notice", tone: "warn", text: "Interrupted." }]);
@@ -697,6 +727,12 @@ export function App() {
           setItems((p) => [
             ...p,
             { kind: "notice", tone: "warn", text: "Error: " + (d.error || "unknown"), retriable: true },
+          ]);
+          break;
+        case "input_rejected":
+          setItems((p) => [
+            ...p,
+            { kind: "notice", tone: "warn", text: d.error || "That message was rejected." },
           ]);
           break;
         case "turn_done":
@@ -871,6 +907,7 @@ export function App() {
     const target = forAgent || agent;
     setSurface("session"); // return to the conversation view if we were on a sub-view
     setItems([]);
+    setUsage(emptyUsage());
     setStreaming("");
     setTodo([]);
     setRunning(false);
@@ -935,8 +972,10 @@ export function App() {
     try {
       const messages = await getSessionMessages(id);
       setItems(itemsFromMessages(messages));
+      setUsage(usageFromMessages(messages));
     } catch {
       setItems([]);
+      setUsage(emptyUsage());
     }
   };
   const switchAgent = async (name: string) => {
@@ -949,6 +988,7 @@ export function App() {
 
     setAgent(name);
     setItems([]);
+    setUsage(emptyUsage());
     setStreaming("");
     setTodo([]);
     setRunning(false);
@@ -977,9 +1017,12 @@ export function App() {
       else setShowGate(true);
       setSessionId(target.sessionId);
       try {
-        setItems(itemsFromMessages(await getSessionMessages(target.sessionId)));
+        const messages = await getSessionMessages(target.sessionId);
+        setItems(itemsFromMessages(messages));
+        setUsage(usageFromMessages(messages));
       } catch {
         setItems([]);
+        setUsage(emptyUsage());
       }
       return;
     }
@@ -1003,6 +1046,7 @@ export function App() {
     setShowGate(false);
     setGateCreate(false);
     setItems([]);
+    setUsage(emptyUsage());
     setStreaming("");
     setTodo([]);
     setSessionId(newId());
@@ -1015,6 +1059,7 @@ export function App() {
     const target = forAgent || agent;
     setSurface("session");
     setItems([]);
+    setUsage(emptyUsage());
     setStreaming("");
     setTodo([]);
     setRunning(false);
@@ -1039,6 +1084,7 @@ export function App() {
     // Archiving the open chat: leave it and start fresh (it moves to the Archived section).
     if (archived && id === sessionId) {
       setItems([]);
+      setUsage(emptyUsage());
       setStreaming("");
       setTodo([]);
       setRunning(false);
@@ -1051,6 +1097,7 @@ export function App() {
     refreshSessions();
     if (id === sessionId) {
       setItems([]);
+      setUsage(emptyUsage());
       setStreaming("");
       setTodo([]);
       setRunning(false);
@@ -1541,6 +1588,8 @@ export function App() {
               onUnattendedChange={agent !== "chat" ? toggleUnattended : undefined}
               prefill={composerPrefill}
               resetKey={sessionId}
+              usage={usage}
+              contextWindow={modelContextWindows[model]}
               placeholder={
                 agent === "code"
                   ? "Ask the coder to build, fix, or explain…  (drop or paste files)"
@@ -1632,6 +1681,12 @@ export function App() {
                 }
               : undefined
           }
+        />
+      )}
+      {workspaceTrustRequest && (
+        <WorkspaceTrustPrompt
+          request={workspaceTrustRequest}
+          onClose={() => setWorkspaceTrustRequest(null)}
         />
       )}
     </div>

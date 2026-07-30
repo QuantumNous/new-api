@@ -46,6 +46,11 @@ const SETTINGS = {
     "anthropic:claude-opus-4-8": "Claude Opus 4.8 · Anthropic",
     "zai:glm-5.2": "GLM-5.2 · Z AI",
   },
+  // Context windows (subset — mirrors /v1/settings.model_context_windows); drives the
+  // composer usage chip's context-fill meter.
+  model_context_windows: {
+    "anthropic:claude-opus-4-8": 200_000,
+  },
 };
 
 const PERSONAS = {
@@ -358,11 +363,12 @@ export async function mockApi(page: import("@playwright/test").Page) {
     mode: "relay" as "" | "relay",
     account: "deeplearning.ai",
     allowed_users: [] as string[], // flat list (manual Socket Mode only)
+    approval_owner_ids: [] as string[],
     workspaces: [
       // T1DL mirrors a managed install: the installer (authed_user) was pre-added
       // to the allow-list on connect (UX-027) — keys the "you" chip + setup card.
-      { team_id: "T1DL", account: "deeplearning.ai", domain: "dlaiteam", allowed_users: ["U_ME"] as string[], allow_all: false, allowed_user_names: {} as Record<string, string | null>, installer_user_id: "U_ME", installer_name: "Rohit Prasad" },
-      { team_id: "T2AC", account: "acme-partners", domain: "acmehq", allowed_users: [] as string[], allow_all: false, allowed_user_names: {} as Record<string, string | null>, installer_user_id: "", installer_name: "" },
+      { team_id: "T1DL", account: "deeplearning.ai", domain: "dlaiteam", allowed_users: ["U_ME"] as string[], allow_all: false, allowed_user_names: {} as Record<string, string | null>, approval_owner_ids: ["U_ME"] as string[], approval_owner_names: { U_ME: "Rohit Prasad" } as Record<string, string | null>, installer_user_id: "U_ME", installer_name: "Rohit Prasad" },
+      { team_id: "T2AC", account: "acme-partners", domain: "acmehq", allowed_users: [] as string[], allow_all: false, allowed_user_names: {} as Record<string, string | null>, approval_owner_ids: [] as string[], approval_owner_names: {} as Record<string, string | null>, installer_user_id: "", installer_name: "" },
     ],
   };
   const slackConnector = () => ({
@@ -370,7 +376,9 @@ export async function mockApi(page: import("@playwright/test").Page) {
     auth: "bot_token", two_way: true, channels: true, available: true, brand_color: "#611f69", logo: "slack",
     fields: [], instructions: [], connected: slackState.connected,
     account: slackState.account, enabled: slackState.connected,
-    allowed_users: [...slackState.allowed_users], tools: [], managed: true,
+    allowed_users: [...slackState.allowed_users],
+    approval_owner_ids: [...slackState.approval_owner_ids],
+    tools: [], managed: true,
     managed_profile: slackState.mode === "relay", mode: slackState.mode,
     workspaces: slackState.workspaces.map((w) => ({ ...w, allowed_users: [...w.allowed_users] })),
     unauthorized: parked.map((x) => ({ ...x })),
@@ -685,6 +693,14 @@ export async function mockApi(page: import("@playwright/test").Page) {
           }, 120);
           return;
         }
+        // Auto-compaction (OPE-27): the server compacts mid-run and emits the marker,
+        // then the turn continues normally — the divider must render inline.
+        if (/compact the context/i.test(msg.text)) {
+          send("compacted", { text: "Context compacted — earlier turns were summarized" });
+          send("assistant_message", { text: "Still on it — continuing where I left off." });
+          send("turn_done");
+          return;
+        }
         // A turn that dies on a provider error; the follow-up {type:"retry"} recovers.
         if (/fail the turn/i.test(msg.text)) {
           send("error", { error: "model unreachable" });
@@ -713,7 +729,18 @@ export async function mockApi(page: import("@playwright/test").Page) {
         send("assistant_delta", { text: msg.text });
         // Echo the model the message carried — pins the model-per-message contract (the
         // composer's visible model must ride on every user_message; 2026-07-04 fix).
-        send("assistant_message", { text: `Echo: ${msg.text} [model=${msg.model || "none"}]` });
+        // `usage` mirrors the real engine's assistant_message sidecar (OPE-42): fixed
+        // counts per turn so the usage-chip specs can assert exact accumulation.
+        send("assistant_message", {
+          text: `Echo: ${msg.text} [model=${msg.model || "none"}]`,
+          usage: {
+            model: msg.model || "anthropic:claude-opus-4-8",
+            input: 1_000,
+            output: 200,
+            cache_read: 8_000,
+            cache_write: 800,
+          },
+        });
         send("turn_done");
       } else if (msg.type === "approval") {
         if (pendingTool === "run_shell") {
@@ -922,6 +949,24 @@ export async function mockApi(page: import("@playwright/test").Page) {
       // Directory picks carry the display name — backend seeds the people directory.
       if (add && b.name && ws) ws.allowed_user_names[b.user_id] = b.name;
       return json({ ok: true, allowed_users: [...pool], team_id: b.team_id ?? null });
+    }
+    if (p.endsWith("/v1/connectors/slack/approval-owners/add") && m === "POST") {
+      const b = req.postDataJSON();
+      if (!slackState.approval_owner_ids.includes(b.user_id))
+        slackState.approval_owner_ids.push(b.user_id);
+      if (!slackState.allowed_users.includes(b.user_id))
+        slackState.allowed_users.push(b.user_id);
+      return json({
+        ok: true,
+        approval_owner_ids: [...slackState.approval_owner_ids],
+        allowed_users: [...slackState.allowed_users],
+      });
+    }
+    if (p.endsWith("/v1/connectors/slack/approval-owners/remove") && m === "POST") {
+      const b = req.postDataJSON();
+      const i = slackState.approval_owner_ids.indexOf(b.user_id);
+      if (i >= 0) slackState.approval_owner_ids.splice(i, 1);
+      return json({ ok: true, approval_owner_ids: [...slackState.approval_owner_ids] });
     }
     // Workspace rosters for the pickers (users.list / conversations.list, mocked).
     if (/\/v1\/connectors\/slack\/workspaces\/[^/]+\/directory$/.test(p) && m === "GET") {
@@ -1149,7 +1194,7 @@ export async function mockApi(page: import("@playwright/test").Page) {
       // Slack managed install = add a workspace. The real flow completes in the system
       // browser; the mock installs instantly so the page's poll picks it up.
       if (p.includes("/connectors/slack/")) {
-        slackState.workspaces.push({ team_id: "T3NEW", account: "new-workspace", allowed_users: [], allow_all: false, allowed_user_names: {} });
+        slackState.workspaces.push({ team_id: "T3NEW", account: "new-workspace", domain: "new-workspace", allowed_users: ["U_ME"], allow_all: false, allowed_user_names: { U_ME: "Rohit Prasad" }, approval_owner_ids: ["U_ME"], approval_owner_names: { U_ME: "Rohit Prasad" }, installer_user_id: "U_ME", installer_name: "Rohit Prasad" });
         slackState.connected = true;
         slackState.mode = "relay";
       }

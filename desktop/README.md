@@ -80,6 +80,11 @@ npm install
 npm run dev        # browser UI on the Vite dev port
 ```
 
+The standalone server creates a per-launch token at
+`<state-dir>/sidecar-8765.token`; Vite reads that user-only file when it starts.
+For direct API calls, send its value in the `X-OpenWorker-Token` header. The
+desktop app uses an in-memory launch token instead and never writes it to disk.
+
 To run the full desktop app instead of the browser UI, replace step 3 with `npm run tauri dev` (from `surfaces/gui/`) - the Tauri shell launches the window and supervises the server itself.
 
 The UI ships in English, 中文, and Tiếng Việt: it follows the system language and can be changed under Settings > General > Language. Locale files are `surfaces/gui/src/i18n/locales/{zh,vi}.json` (flat JSON, English source strings as keys); `npm run i18n:check` verifies they match the strings used in the code.

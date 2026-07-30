@@ -15,6 +15,7 @@ from .base import (
     ModelCapabilities,
     ProviderClient,
     StreamChunk,
+    TokenUsage,
     ToolCall,
 )
 from .capabilities import capabilities_for
@@ -91,7 +92,28 @@ def _param_fix_retry(kwargs: dict[str, Any], exc: Exception) -> dict[str, Any]:
         fixed = dict(kwargs)
         fixed["max_completion_tokens"] = fixed.pop("max_tokens")
         return fixed
+    if "stream_options" in msg and "stream_options" in kwargs:
+        # Older compat servers don't know the usage opt-in; drop it, lose only metering.
+        fixed = dict(kwargs)
+        fixed.pop("stream_options")
+        return fixed
     raise exc
+
+
+def _usage_from(usage: Any) -> Optional[TokenUsage]:
+    """chat.completions usage → normalized counts. `prompt_tokens` INCLUDES cached
+    tokens, so the cached share is subtracted into `cache_read`; no write-side split
+    exists on this API shape."""
+    if usage is None:
+        return None
+    prompt = int(getattr(usage, "prompt_tokens", 0) or 0)
+    details = getattr(usage, "prompt_tokens_details", None)
+    cached = int(getattr(details, "cached_tokens", 0) or 0)
+    return TokenUsage(
+        input=max(prompt - cached, 0),
+        output=int(getattr(usage, "completion_tokens", 0) or 0),
+        cache_read=cached,
+    )
 
 
 class OpenAIProvider(ProviderClient):
@@ -174,6 +196,7 @@ class OpenAIProvider(ProviderClient):
             finish_reason=getattr(choice, "finish_reason", None),
             raw=response,
             reasoning=_delta_reasoning(message),
+            usage=_usage_from(getattr(response, "usage", None)),
         )
 
     def capabilities(self, model: str) -> ModelCapabilities:
@@ -191,6 +214,9 @@ class OpenAIProvider(ProviderClient):
             "model": model,
             "messages": _strip_foreign_sidecars(messages),
             "stream": True,
+            # Usage on the final chunk (empty `choices`). Compat servers that reject
+            # the option get a one-shot retry without it (_param_fix_retry).
+            "stream_options": {"include_usage": True},
             **settings,
         }
         if tools:
@@ -202,6 +228,7 @@ class OpenAIProvider(ProviderClient):
         reasoning_parts: list[str] = []
         tool_accum: dict[int, dict[str, str]] = {}
         finish_reason = None
+        usage: Optional[TokenUsage] = None
 
         # Up to two param-fix retries: effort and max_tokens can BOTH need fixing.
         for _ in range(2):
@@ -213,6 +240,9 @@ class OpenAIProvider(ProviderClient):
         else:
             chunks = client.chat.completions.create(**kwargs)
         for chunk in chunks:
+            chunk_usage = _usage_from(getattr(chunk, "usage", None))
+            if chunk_usage is not None:
+                usage = chunk_usage
             choices = getattr(chunk, "choices", None)
             if not choices:
                 continue
@@ -262,6 +292,7 @@ class OpenAIProvider(ProviderClient):
                 tool_calls=tool_calls,
                 finish_reason=finish_reason,
                 reasoning="".join(reasoning_parts) or None,
+                usage=usage,
             )
         )
 

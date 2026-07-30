@@ -28,9 +28,22 @@ from .base import (
     ModelCapabilities,
     ProviderClient,
     StreamChunk,
+    TokenUsage,
     ToolCall,
 )
 from .capabilities import capabilities_for
+
+
+def _usage_from(usage: Any) -> Optional[TokenUsage]:
+    """Messages-API usage object → normalized counts (input_tokens excludes cache)."""
+    if usage is None:
+        return None
+    return TokenUsage(
+        input=int(getattr(usage, "input_tokens", 0) or 0),
+        output=int(getattr(usage, "output_tokens", 0) or 0),
+        cache_read=int(getattr(usage, "cache_read_input_tokens", 0) or 0),
+        cache_write=int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
+    )
 
 # Required by the Messages API; a ceiling, not a spend target.
 DEFAULT_MAX_TOKENS = 16000
@@ -325,6 +338,32 @@ def convert_tools(tools: Optional[list[dict[str, Any]]]) -> list[dict[str, Any]]
     return converted
 
 
+def _add_cache_breakpoints(kwargs: dict[str, Any]) -> None:
+    """Opt the request into prompt caching (5-minute ephemeral, prefix-matched).
+
+    Two breakpoints, the standard agent-loop shape:
+    - last system block — caches tools + system together (tools render first);
+    - last content block of the final message — caches the whole conversation
+      prefix, so each request re-reads the previous turns' cache and writes only
+      the new tail (append-only history keeps the prefix byte-identical).
+
+    Outbound-only: the canonical history never carries `cache_control` (the final
+    message's blocks are freshly built by convert_messages — thinking replays sit
+    in earlier assistant turns — and the marked block is copied, not mutated).
+    Prefixes under the model's cacheable minimum silently don't cache; reads bill
+    ~0.1x and show up as `cache_read_input_tokens` (the metering's cache_read).
+    """
+    marker = {"type": "ephemeral"}
+    system = kwargs.get("system")
+    if isinstance(system, str) and system:
+        kwargs["system"] = [{"type": "text", "text": system, "cache_control": marker}]
+    messages = kwargs.get("messages") or []
+    if messages:
+        content = messages[-1].get("content")
+        if isinstance(content, list) and content:
+            content[-1] = {**content[-1], "cache_control": marker}
+
+
 def _reasoning_text(thinking_blocks: list[dict[str, Any]]) -> Optional[str]:
     """Display text for the GUI's disclosure — thinking text only (redacted stays opaque)."""
     text = "".join(
@@ -412,6 +451,7 @@ class AnthropicProvider(ProviderClient):
             kwargs["system"] = system
         if tools:
             kwargs["tools"] = convert_tools(tools)
+        _add_cache_breakpoints(kwargs)
         return kwargs
 
     def complete(
@@ -474,6 +514,7 @@ class AnthropicProvider(ProviderClient):
             raw=response,
             reasoning=_reasoning_text(thinking_blocks),
             extras=_thinking_extras(thinking_blocks),
+            usage=_usage_from(getattr(response, "usage", None)),
         )
 
     def capabilities(self, model: str) -> ModelCapabilities:
@@ -507,11 +548,18 @@ class AnthropicProvider(ProviderClient):
         # so both the text and the signature_delta tail are collected (in block order).
         thinking_accum: dict[int, dict[str, Any]] = {}
         stop_reason = None
+        usage: Optional[TokenUsage] = None
 
         last_message_delta: Any = None
         for event in events:
             kind = getattr(event, "type", None)
-            if kind == "content_block_start":
+            if kind == "message_start":
+                # Prompt-side counts (input + cache split) ride the opening event.
+                usage = (
+                    _usage_from(getattr(getattr(event, "message", None), "usage", None))
+                    or usage
+                )
+            elif kind == "content_block_start":
                 block = getattr(event, "content_block", None)
                 block_kind = getattr(block, "type", None)
                 if block_kind == "tool_use":
@@ -561,6 +609,13 @@ class AnthropicProvider(ProviderClient):
                 reason = getattr(last_message_delta, "stop_reason", None)
                 if reason:
                     stop_reason = reason
+                # Final (cumulative) output-token count rides message_delta.usage.
+                out = int(
+                    getattr(getattr(event, "usage", None), "output_tokens", 0) or 0
+                )
+                if out:
+                    usage = usage or TokenUsage()
+                    usage.output = out
 
         _raise_on_refusal(stop_reason, last_message_delta)
         tool_calls = []
@@ -580,5 +635,6 @@ class AnthropicProvider(ProviderClient):
                 finish_reason=_STOP_REASON_MAP.get(stop_reason, stop_reason),
                 reasoning=_reasoning_text(thinking_blocks),
                 extras=_thinking_extras(thinking_blocks),
+                usage=usage,
             )
         )

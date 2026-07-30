@@ -27,7 +27,9 @@ bash platform/packaging/setup_dev_env.sh   # → platform/.venv (server + this r
    ```
 
 Open http://localhost:5173. The UI talks to `http://127.0.0.1:8765` (override with
-`VITE_COWORKER_HTTP` / `VITE_COWORKER_WS`).
+`VITE_COWORKER_HTTP` / `VITE_COWORKER_WS`). Start the server before Vite so the
+UI can read its per-launch token from `<state-dir>/sidecar-8765.token`; restart
+Vite if the server is restarted.
 
 ## Run the desktop app from source
 

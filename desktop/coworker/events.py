@@ -31,6 +31,7 @@ class EventType(str, Enum):
     TURN_END = "turn_end"
     ERROR = "error"
     INTERRUPTED = "interrupted"
+    COMPACTED = "compacted"  # outbound history was compacted (summary or trim)
 
 
 @dataclass

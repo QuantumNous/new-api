@@ -154,6 +154,7 @@ async def test_ui_refresh_cross_cutting_e2e(fake_slack, tmp_path, monkeypatch):
         fake_slack.add_channel(CHANNEL, CHANNEL_NAME)
         # allow-list: the inbound gate drops unknown senders unless allowed
         assert mgr.allow_user("slack", USER)["ok"] is True
+        assert mgr.set_slack_approval_owner(USER, add=True)["ok"] is True
 
         # an Ops "incident" session subscribed to the channel, Unattended, approvals -> the channel
         mgr.session_store.save(
@@ -166,7 +167,9 @@ async def test_ui_refresh_cross_cutting_e2e(fake_slack, tmp_path, monkeypatch):
             )
         )
         mgr.subscriptions.subscribe(SID, f"slack:{CHANNEL}")
-        mgr.inbox_routing.set_binding("ops-incidents", channel="slack", target=CHANNEL)
+        assert mgr.set_inbox_binding(
+            "ops-incidents", channel="slack", target=CHANNEL
+        )["ok"]
         mgr.inbox_routing.set_session_override(SID, "ops-incidents")
         mgr.unattended.set(SID, True)
 

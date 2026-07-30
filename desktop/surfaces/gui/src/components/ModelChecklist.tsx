@@ -2,6 +2,22 @@ import { useState } from "react";
 import { addModel, getSettings, removeModel, setDefaultModel } from "../api";
 import { useTranslation } from "react-i18next";
 
+// Cloud-account providers dispatch by a family segment baked into the model id
+// (`bedrock:claude/…`, `vertex:openweight/…`). The add-model row shows a dropdown so
+// users pick the family instead of memorizing the prefix; curated matrix ids already
+// carry theirs.
+const MODEL_FAMILIES: Record<string, { value: string; label: string }[]> = {
+  bedrock: [
+    { value: "claude", label: "Claude family" },
+    { value: "other", label: "Other models" },
+  ],
+  vertex: [
+    { value: "gemini", label: "Gemini family" },
+    { value: "claude", label: "Claude family" },
+    { value: "openweight", label: "Open-weight" },
+  ],
+};
+
 // One provider's models as a checklist: tick = shown in the composer's model picker (the
 // curated list), the black "default" badge marks the model new sessions use, and hovering any
 // other row reveals "Make default". A free-type row below adds models by hand, so brand-new
@@ -25,6 +41,8 @@ export function ModelChecklist({
 }) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState("");
+  const families = MODEL_FAMILIES[provider];
+  const [family, setFamily] = useState(families?.[0]?.value || "");
 
   const provOf = (id: string) => {
     const i = id.indexOf(":");
@@ -54,8 +72,12 @@ export function ModelChecklist({
     await refresh();
   };
   const add = async () => {
-    const typed = draft.trim();
+    let typed = draft.trim();
     if (!typed) return;
+    // Fold the family choice into the id unless the user already typed one.
+    if (families && !families.some((f) => typed.startsWith(`${f.value}/`))) {
+      typed = `${family}/${typed}`;
+    }
     const res = await addModel(prefixed(typed));
     if (res.ok) {
       setDraft("");
@@ -92,6 +114,20 @@ export function ModelChecklist({
         );
       })}
       <div className="mlist-add">
+        {families && (
+          <select
+            value={family}
+            onChange={(e) => setFamily(e.target.value)}
+            aria-label="Model family"
+            data-testid="mlist-family"
+          >
+            {families.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        )}
         <input
           placeholder={t("Add another model…")}
           value={draft}

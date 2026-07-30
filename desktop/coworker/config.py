@@ -2,6 +2,9 @@
 
 Global:    <state-dir>/config.toml   (see `secrets.state_dir`; platform-native)
 Workspace: <workspace>/.coworker/config.toml   (overrides global)
+
+Workspace command allowances apply only after the user trusts that exact canonical
+workspace path. Other permission grants remain global-only.
 """
 
 from __future__ import annotations
@@ -13,27 +16,12 @@ from typing import Any, Optional
 
 from .secrets import state_dir
 
-DEFAULT_ALLOWED_COMMANDS = [
-    "ls",
-    "cat",
-    "pwd",
-    "echo",
-    "head",
-    "tail",
-    "grep",
-    "find",
-    "wc",
-    "git status",
-    "git diff",
-    "git log",
-    "git show",
-    "python3",
-    "python",
-    "pytest",
-    "node",
-    "npm",
-    "npx",
-]
+# Commands auto-run WITHOUT an approval prompt. There is no generally safe executable:
+# nominally read-only programs can read secrets outside the workspace, expand environment
+# variables, load project-controlled config/plugins, or execute helpers (for example
+# `find -exec` and pytest collection). Keep the built-in list empty. A user may explicitly
+# opt into command prefixes in their user-owned global config, accepting that authority.
+DEFAULT_ALLOWED_COMMANDS: list[str] = []
 
 
 @dataclass
@@ -81,6 +69,12 @@ _FIELDS = {
     "cloud_relay_ws_url",
 }
 
+# These fields change what consequential actions can run without a prompt, so the normal
+# workspace override pass never applies them. `allowed_commands` is added separately only
+# for a canonically trusted workspace; `auto_allow` remains user-global only.
+_GLOBAL_ONLY_FIELDS = {"allowed_commands", "auto_allow"}
+_WORKSPACE_FIELDS = _FIELDS - _GLOBAL_ONLY_FIELDS
+
 
 def global_config_path() -> Path:
     return state_dir() / "config.toml"
@@ -94,21 +88,38 @@ def _read(path: Path) -> dict[str, Any]:
         return {}
 
 
+def workspace_allowed_commands(workspace: str | Path) -> list[str]:
+    """Command prefixes requested by repository config; advisory until workspace trust."""
+    path = Path(workspace).expanduser() / ".coworker" / "config.toml"
+    value = _read(path).get("allowed_commands", [])
+    if not isinstance(value, list):
+        return []
+    return list(dict.fromkeys(v.strip() for v in value if isinstance(v, str) and v.strip()))
+
+
 def load_config(
-    workspace: Optional[str | Path] = None, *, global_path: Optional[Path] = None
+    workspace: Optional[str | Path] = None,
+    *,
+    global_path: Optional[Path] = None,
+    workspace_trusted: bool = False,
 ) -> Config:
     cfg = Config()
-    data: dict[str, Any] = {}
 
     g = Path(global_path) if global_path is not None else global_config_path()
     if g.is_file():
-        data.update(_read(g))
+        for key, value in _read(g).items():
+            if key in _FIELDS:
+                setattr(cfg, key, value)
     if workspace:
         w = Path(workspace).expanduser() / ".coworker" / "config.toml"
         if w.is_file():
-            data.update(_read(w))
-
-    for key, value in data.items():
-        if key in _FIELDS:
-            setattr(cfg, key, value)
+            for key, value in _read(w).items():
+                if key in _WORKSPACE_FIELDS:
+                    setattr(cfg, key, value)
+            if workspace_trusted:
+                cfg.allowed_commands = list(
+                    dict.fromkeys(
+                        [*cfg.allowed_commands, *workspace_allowed_commands(workspace)]
+                    )
+                )
     return cfg

@@ -174,6 +174,7 @@ async def test_interaction_reaches_gateway_handler(fake_slack):
         ie = seen[0]
         assert ie.platform == "slack"
         assert ie.value == "item-id|allow"
+        assert ie.user_id == "U1"
         assert ie.user_name == "alice"
         assert ie.chat_id == "C1"
         assert ie.message_id == "1700000001.000001"

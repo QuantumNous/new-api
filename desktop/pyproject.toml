@@ -11,6 +11,7 @@ dependencies = [
     "openai>=1.0",
     "anthropic>=0.40",  # native Claude Messages API provider
     "google-genai>=1.0",  # native Gemini provider
+    "google-auth>=2.23",  # Vertex credentials (service account / ADC / MaaS bearer)
     "textual>=1.0",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
@@ -20,7 +21,7 @@ dependencies = [
     "docstring_parser",
     "pyyaml>=6",  # persona manifest frontmatter (YAML)
     "pydantic>=2",
-    "mcp>=1.1",  # MCP client (stdio + streamable-http); we use our own async layer on it
+    "mcp>=1.1,<2",  # MCP client (stdio + streamable-http); 2.0 removed streamablehttp_client
     "httpx>=0.27",  # sync outbound senders for messaging connectors (send_message tool)
     "websockets>=13",  # managed Slack relay client transport (relay_client.py)
     "ddgs>=9",  # keyless default web-search provider (DuckDuckGo); Tavily/Brave use httpx
@@ -46,6 +47,8 @@ office = ["python-docx>=1.1", "openpyxl>=3.1", "python-pptx>=1.0", "reportlab>=4
 messaging = ["python-telegram-bot>=21", "slack-bolt>=1.18", "aiohttp>=3.9"]
 # Interactive Cowork browser automation.
 browser = ["playwright>=1.44"]
+# AWS Bedrock provider (lazy-imported; desktop builds bundle it, pip users opt in).
+bedrock = ["boto3>=1.34"]
 
 [project.scripts]
 openworker = "coworker.cli:main"
