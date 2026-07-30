@@ -190,12 +190,19 @@ export function Pricing() {
         />
         <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
           <main className='min-w-0 space-y-4'>
-            <h1 className='sr-only'>{t('Model Hub')}</h1>
+            <header className='space-y-1'>
+              <h1 className='text-foreground text-xl font-semibold tracking-tight sm:text-2xl'>
+                {t('Model Hub')}
+              </h1>
+              <p className='text-muted-foreground max-w-2xl text-sm'>
+                {t(
+                  'Browse capabilities, pricing, and context length in Model Hub, then copy the model name to call.'
+                )}
+              </p>
+            </header>
             <PricingToolbar
               filteredCount={filteredModels.length}
               totalCount={models?.length}
-              serviceCount={models?.length || 0}
-              sourceCount={vendors?.length || 0}
               searchValue={searchInput}
               onSearchChange={setSearchInput}
               onSearchClear={clearSearch}

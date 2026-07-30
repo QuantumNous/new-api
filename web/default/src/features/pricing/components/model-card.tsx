@@ -17,7 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { ChevronRight, Play } from 'lucide-react'
+import {
+  AudioLines,
+  Brain,
+  Eye,
+  Film,
+  Layers,
+  Play,
+  type LucideIcon,
+} from 'lucide-react'
 import { memo, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -63,8 +71,68 @@ function formatDiscountPercent(value: number): string {
   return value.toFixed(2)
 }
 
+const COMPACT_TOKEN_FORMAT = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 1,
+})
+
+function formatCompactTokenCount(tokens?: number): string {
+  if (!tokens || !Number.isFinite(tokens) || tokens <= 0) return ''
+  if (tokens >= 1_000_000) {
+    return `${COMPACT_TOKEN_FORMAT.format(tokens / 1_000_000)}M`
+  }
+  if (tokens >= 1_000) {
+    return `${COMPACT_TOKEN_FORMAT.format(tokens / 1_000)}K`
+  }
+  return COMPACT_TOKEN_FORMAT.format(tokens)
+}
+
+type MetaChip = {
+  key: string
+  icon: LucideIcon
+  label: string
+  title?: string
+}
+
+/** At most this many metadata chips per card so the row stays on one line. */
+const MAX_META_CHIPS = 4
+
+function collectMetaChips(
+  model: PricingModel,
+  t: (key: string) => string
+): MetaChip[] {
+  const chips: MetaChip[] = []
+  const contextLabel = formatCompactTokenCount(model.context_length)
+  if (contextLabel) {
+    chips.push({
+      key: 'context',
+      icon: Layers,
+      label: contextLabel,
+      title: t('Context length'),
+    })
+  }
+  const capabilities = new Set(
+    (model.capabilities ?? []).map((item) => item.trim().toLowerCase())
+  )
+  const inputModalities = new Set(
+    (model.input_modalities ?? []).map((item) => item.trim().toLowerCase())
+  )
+  if (capabilities.has('vision') || inputModalities.has('image')) {
+    chips.push({ key: 'vision', icon: Eye, label: t('Vision') })
+  }
+  if (capabilities.has('reasoning')) {
+    chips.push({ key: 'reasoning', icon: Brain, label: t('Reasoning') })
+  }
+  if (inputModalities.has('audio')) {
+    chips.push({ key: 'audio', icon: AudioLines, label: t('Audio') })
+  }
+  if (inputModalities.has('video')) {
+    chips.push({ key: 'video', icon: Film, label: t('Video') })
+  }
+  return chips.slice(0, MAX_META_CHIPS)
+}
+
 /**
- * Compact Model Hub card: identity, price, optional discount.
+ * Compact Model Hub card: identity, metadata chips, price footer.
  * Tags, description, groups, availability, and integration live in details.
  */
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -77,6 +145,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const isNew = isRecentlyReleased(props.model)
   const title = props.model.display_name || props.model.model_name
   const canTry = canTryInPlayground(props.model)
+  const metaChips = collectMetaChips(props.model, t)
+
+  const modelId = props.model.model_name
+  const showsModelId = Boolean(modelId) && modelId !== title
+  const subtitle = showsModelId ? modelId : props.model.vendor_name?.trim()
 
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
@@ -120,7 +193,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
       priceLine = (
-        <span className='text-amber-700 dark:text-amber-300'>
+        <span className='text-xs text-amber-700 dark:text-amber-300'>
           {t('Special billing expression')}
         </span>
       )
@@ -128,7 +201,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       const entry = dynamicSummary.primaryEntries[0]
       priceLine = (
         <div className='font-price flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5'>
-          <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
+          <span className='text-foreground text-sm font-semibold tabular-nums sm:text-[15px]'>
             {entry.formatted}
           </span>
           <span className='text-muted-foreground text-xs'>
@@ -235,59 +308,91 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       onKeyDown={handleKeyDown}
       data-card-hover='true'
       className={cn(
-        'group bg-card hover:bg-muted/30 focus-visible:ring-ring relative flex w-full cursor-pointer flex-col rounded-xl border p-3.5 text-left sm:p-4',
+        'group bg-card hover:border-primary/40 focus-visible:ring-ring relative flex h-full cursor-pointer flex-col rounded-xl border p-4 text-left',
         'focus-visible:ring-2 focus-visible:outline-none'
       )}
       aria-label={`${t('Details')}: ${title}`}
     >
-      <div className='flex items-start gap-2.5'>
-        <ModelBrandIcon
-          modelName={props.model.model_name}
-          icon={props.model.icon}
-          vendorIcon={props.model.vendor_icon}
-          size={28}
-        />
+      <div className='mb-3 flex items-start gap-2.5'>
+        <div className='bg-muted/40 flex size-9 shrink-0 items-center justify-center rounded-lg'>
+          <ModelBrandIcon
+            modelName={props.model.model_name}
+            icon={props.model.icon}
+            vendorIcon={props.model.vendor_icon}
+            size={22}
+          />
+        </div>
         <div className='min-w-0 flex-1'>
-          <div className='flex min-w-0 items-start gap-1.5'>
-            <h3 className='text-foreground min-w-0 flex-1 truncate text-sm leading-snug font-semibold sm:text-[15px]'>
+          <h3
+            className='text-foreground truncate text-sm leading-snug font-semibold sm:text-[15px]'
+            title={title}
+          >
+            {title}
+          </h3>
+          {(subtitle || isNew) && (
+            <div className='mt-0.5 flex min-w-0 items-center gap-1.5'>
               {isNew && (
-                <span className='bg-primary/10 text-primary mr-1.5 inline-flex rounded px-1 py-px align-middle text-[10px] font-bold tracking-wide uppercase'>
+                <span className='bg-primary/10 text-primary inline-flex shrink-0 rounded px-1 py-px text-[10px] font-bold tracking-wide uppercase'>
                   {t('NEW')}
                 </span>
               )}
-              {title}
-            </h3>
-            {cornerDiscount != null && (
-              <span
-                className='inline-flex shrink-0 items-center rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-rose-700 uppercase dark:text-rose-300'
-                title={cornerDiscountTitle}
-              >
-                -{formatDiscountPercent(cornerDiscount)}%
-              </span>
-            )}
-          </div>
-          <div className='mt-2'>{priceLine}</div>
+              {subtitle && (
+                <span
+                  className={cn(
+                    'text-muted-foreground min-w-0 truncate text-[11px]',
+                    showsModelId && 'font-mono'
+                  )}
+                  title={subtitle}
+                >
+                  {subtitle}
+                </span>
+              )}
+            </div>
+          )}
         </div>
+        {cornerDiscount != null && (
+          <span
+            className='inline-flex shrink-0 items-center self-start rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-rose-700 uppercase dark:text-rose-300'
+            title={cornerDiscountTitle}
+          >
+            -{formatDiscountPercent(cornerDiscount)}%
+          </span>
+        )}
       </div>
 
-      <div className='mt-3 flex items-center justify-between gap-2'>
-        {canTry ? (
-          <Link
-            to='/playground'
-            search={{ model: props.model.model_name }}
-            onClick={(event) => event.stopPropagation()}
-            className='bg-primary text-primary-foreground inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium'
-          >
-            <Play className='size-3' />
-            {t('Try')}
-          </Link>
-        ) : (
-          <span />
+      {metaChips.length > 0 && (
+        <div className='mb-3 flex flex-wrap gap-1.5'>
+          {metaChips.map((chip) => {
+            const ChipIcon = chip.icon
+            return (
+              <span
+                key={chip.key}
+                className='border-border/60 bg-muted/30 text-muted-foreground inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]'
+                title={chip.title}
+              >
+                <ChipIcon className='size-3 shrink-0' aria-hidden />
+                {chip.label}
+              </span>
+            )
+          })}
+        </div>
+      )}
+
+      <div className='mt-auto border-t pt-2.5'>
+        {priceLine}
+        {canTry && (
+          <div className='mt-2.5 flex'>
+            <Link
+              to='/playground'
+              search={{ model: props.model.model_name }}
+              onClick={(event) => event.stopPropagation()}
+              className='text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors'
+            >
+              <Play className='size-3' />
+              {t('Try')}
+            </Link>
+          </div>
         )}
-        <span className='text-muted-foreground group-hover:text-foreground inline-flex items-center gap-0.5 text-xs font-medium transition-colors'>
-          {t('Details')}
-          <ChevronRight className='size-3.5' />
-        </span>
       </div>
     </article>
   )

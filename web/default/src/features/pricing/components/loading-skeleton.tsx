@@ -85,31 +85,24 @@ export function LoadingSkeleton(props: LoadingSkeletonProps) {
 
 function CardContentSkeleton() {
   return (
-    <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3'>
+    <div className='grid grid-cols-[repeat(auto-fill,minmax(min(270px,100%),1fr))] gap-3.5 sm:gap-4'>
       {CARD_SKELETON_IDS.map((id) => (
-        <div key={id} className='rounded-xl border p-5'>
-          <div className='flex items-start justify-between gap-3'>
-            <div className='flex min-w-0 items-start gap-3'>
-              <Skeleton className='size-10 shrink-0 rounded-xl' />
-              <div className='min-w-0 flex-1 space-y-2'>
-                <Skeleton className='h-5 w-36' />
-                <Skeleton className='h-3.5 w-48' />
-              </div>
+        <div key={id} className='rounded-xl border p-4'>
+          <div className='flex items-start gap-2.5'>
+            <Skeleton className='size-9 shrink-0 rounded-lg' />
+            <div className='min-w-0 flex-1 space-y-1.5'>
+              <Skeleton className='h-4 w-32' />
+              <Skeleton className='h-3 w-40' />
             </div>
-            <Skeleton className='h-8 w-16 rounded-md' />
           </div>
-          <div className='mt-4 space-y-2'>
-            <Skeleton className='h-3.5 w-full' />
-            <Skeleton className='h-3.5 w-4/5' />
+          <div className='mt-3 flex items-center gap-1.5'>
+            <Skeleton className='h-5 w-14 rounded-md' />
+            <Skeleton className='h-5 w-16 rounded-md' />
+            <Skeleton className='h-5 w-14 rounded-md' />
           </div>
-          <div className='mt-4 flex items-center gap-2'>
-            <Skeleton className='h-4 w-24' />
-            <Skeleton className='h-4 w-16' />
-          </div>
-          <div className='mt-2 flex items-center gap-3'>
-            <Skeleton className='h-3.5 w-14' />
-            <Skeleton className='h-3.5 w-14' />
-            <Skeleton className='h-3.5 w-8' />
+          <div className='mt-3 flex items-center justify-between gap-2 border-t pt-2.5'>
+            <Skeleton className='h-4 w-36' />
+            <Skeleton className='h-6 w-14 rounded-md' />
           </div>
         </div>
       ))}
@@ -119,30 +112,27 @@ function CardContentSkeleton() {
 
 function FilterBarSkeleton() {
   return (
-    <div className='space-y-3 rounded-xl border p-3'>
-      <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
-        <div className='flex flex-wrap items-center gap-2'>
-          <Skeleton className='h-8 w-28 rounded-full' />
-          <Skeleton className='h-8 w-24 rounded-full' />
-          <Skeleton className='h-5 w-20' />
-        </div>
-        <div className='flex items-center gap-2'>
-          <Skeleton className='h-8 w-20 rounded-lg' />
-          <Skeleton className='h-8 w-24 rounded-lg' />
-          <Skeleton className='h-8 w-16 rounded-lg' />
-        </div>
+    <div className='flex flex-col gap-3'>
+      <div className='space-y-1.5'>
+        <Skeleton className='h-7 w-40' />
+        <Skeleton className='h-4 w-72 max-w-full' />
       </div>
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
         <Skeleton className='h-8 min-w-0 flex-1 rounded-lg' />
         <div className='flex items-center gap-2'>
-          {FILTER_CHIP_SKELETONS.slice(0, 2).map((chip) => (
-            <Skeleton
-              key={chip.id}
-              className='h-8 rounded-lg'
-              style={{ width: `${chip.width}px` }}
-            />
-          ))}
+          <Skeleton className='size-8 rounded-lg' />
+          <Skeleton className='h-8 w-20 rounded-lg' />
+          <Skeleton className='h-8 w-16 rounded-lg' />
         </div>
+      </div>
+      <div className='flex items-center gap-1.5 overflow-hidden'>
+        {FILTER_CHIP_SKELETONS.map((chip) => (
+          <Skeleton
+            key={chip.id}
+            className='h-7 shrink-0 rounded-full'
+            style={{ width: `${chip.width}px` }}
+          />
+        ))}
       </div>
     </div>
   )

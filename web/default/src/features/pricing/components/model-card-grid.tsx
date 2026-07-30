@@ -116,32 +116,23 @@ export function ModelCardGrid(props: ModelCardGridProps) {
 
         return (
           <section key={group.key} className='space-y-3 sm:space-y-4'>
-            <header className='flex items-center justify-between gap-3 border-b pb-2.5'>
-              <div className='flex min-w-0 items-center gap-2.5'>
-                <div className='bg-muted/50 flex size-8 shrink-0 items-center justify-center rounded-lg'>
-                  {vendorIcon || (
-                    <span className='text-muted-foreground text-xs font-bold'>
-                      {initial}
-                    </span>
-                  )}
-                </div>
-                <div className='min-w-0'>
-                  <h2 className='truncate text-sm font-semibold tracking-tight sm:text-base'>
-                    {group.name}
-                  </h2>
-                  <p className='text-muted-foreground text-xs'>
-                    {t('{{count}} available services', {
-                      count: totalForVendor,
-                    })}
-                    {shownForVendor < totalForVendor
-                      ? ` · ${countLabel}`
-                      : null}
-                  </p>
-                </div>
-              </div>
+            <header className='flex min-w-0 items-center gap-2 border-b pb-2.5'>
+              <span className='flex size-5 shrink-0 items-center justify-center'>
+                {vendorIcon || (
+                  <span className='text-muted-foreground text-xs font-bold'>
+                    {initial}
+                  </span>
+                )}
+              </span>
+              <h2 className='truncate text-sm font-semibold tracking-tight sm:text-base'>
+                {group.name}
+              </h2>
+              <span className='text-muted-foreground shrink-0 text-xs'>
+                {countLabel}
+              </span>
             </header>
 
-            <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3.5 lg:grid-cols-3 xl:grid-cols-4'>
+            <div className='grid grid-cols-[repeat(auto-fill,minmax(min(270px,100%),1fr))] gap-3.5 sm:gap-4'>
               {group.models.map((model) => (
                 <ModelCard
                   key={model.id ?? model.model_name}
