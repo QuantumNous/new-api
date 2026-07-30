@@ -330,7 +330,9 @@ func requireRecallOpenPixelResponse(t *testing.T, recorder *httptest.ResponseRec
 	require.Equal(t, "no-cache", recorder.Header().Get("Pragma"))
 	require.Equal(t, "nosniff", recorder.Header().Get("X-Content-Type-Options"))
 	body := recorder.Body.Bytes()
-	require.NotEmpty(t, body)
+	require.Len(t, body, 43)
+	require.Equal(t, []byte("GIF89a"), body[:6])
+	require.Equal(t, byte(0x3b), body[len(body)-1])
 	if expectedBody != nil {
 		require.Equal(t, expectedBody, body)
 	}

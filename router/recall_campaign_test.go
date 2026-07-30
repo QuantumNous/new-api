@@ -238,6 +238,8 @@ func TestRecallEmailOpenPixelBypassesGlobalAPIRateLimit(t *testing.T) {
 		require.Equal(t, http.StatusOK, recorder.Code)
 		require.Equal(t, "image/gif", recorder.Header().Get("Content-Type"))
 		require.Equal(t, "no-store, no-cache, must-revalidate, max-age=0", recorder.Header().Get("Cache-Control"))
+		require.Equal(t, "no-cache", recorder.Header().Get("Pragma"))
+		require.Equal(t, "nosniff", recorder.Header().Get("X-Content-Type-Options"))
 		require.NotEmpty(t, recorder.Body.Bytes())
 		if expectedBody != nil {
 			require.Equal(t, expectedBody, recorder.Body.Bytes())
