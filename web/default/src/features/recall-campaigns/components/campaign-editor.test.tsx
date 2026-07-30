@@ -331,7 +331,6 @@ function makeDraft(template: RecallAudienceTemplate): RecallCampaignDraft {
       currency_options: {},
       minimum_amount: 0,
       minimum_amount_currency: '',
-      coupon_redeem_by: 0,
     },
     product_scope: {
       topup_price_ids: ['price_topup_usd'],
@@ -669,7 +668,6 @@ function createOfferValidityForm(
     'discount_config.minimum_spend.amounts.inr',
     'discount_config.minimum_spend.amounts.brl',
     'discount_config.minimum_spend.amounts.jpy',
-    'discount_config.coupon_redeem_by',
     'promotion_expiry_mode',
     'promotion_expires_at',
     'promotion_valid_seconds',
@@ -864,7 +862,6 @@ describe('CampaignEditor audience rules', () => {
     expect(html).not.toContain('Top-up products')
     expect(html).not.toContain('Subscription products')
     expect(html).not.toContain('Minimum amount')
-    expect(html).not.toContain('Coupon redeem-by timestamp')
     expect(html).not.toContain('Promotion validity seconds')
     expect(html).toContain('Activity delivery validity seconds')
     expect(html).toContain('Enrollment limit')
@@ -893,7 +890,6 @@ describe('CampaignEditor audience rules', () => {
       currency_options: {},
       minimum_amount: 2500,
       minimum_amount_currency: 'USD',
-      coupon_redeem_by: 0,
     }
     draft.product_scope = {
       topup_price_ids: ['price_topup_usd'],
@@ -1289,14 +1285,14 @@ describe('CampaignEditor audience rules', () => {
 })
 
 describe('CampaignEditor offer validity', () => {
-  test('replaces timestamp, seconds, and minimum-currency inputs with guided controls', () => {
+  test('replaces raw validity and minimum-currency inputs with guided controls', () => {
     const html = renderEditor('first_purchase')
 
-    expect(html).toContain('Coupon redeem-by')
     expect(html).toContain('Promotion expiry mode')
     expect(html).toContain('Relative duration')
     expect(html).toContain('Set minimum spend')
-    expect(html).not.toContain('Coupon redeem-by timestamp')
+    expect(html).not.toContain('Coupon redeem-by')
+    expect(html).not.toContain('recall-coupon-redeem-by')
     expect(html).not.toContain('Promotion validity seconds')
     expect(html).not.toContain('Minimum amount currency')
   })

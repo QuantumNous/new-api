@@ -241,6 +241,8 @@ type RecallStripeService struct {
 	externalCallGuard func(context.Context) error
 }
 
+var errRecallExistingCouponExpiryIncompatible = errors.New("existing Stripe Coupon redeem_by is incompatible with recall promotion expiry")
+
 func NewRecallStripeService(client RecallStripeClient) *RecallStripeService {
 	if client == nil {
 		client = NewStripeRecallClient()
@@ -418,6 +420,43 @@ func (s *RecallStripeService) EnsureCoupon(ctx context.Context, campaignID int64
 	}
 }
 
+func validateRecallExistingCouponExpiryCompatibility(existing *stripe.Coupon, draft RecallCampaignDraft, activationNow time.Time) error {
+	if existing == nil || existing.RedeemBy == 0 {
+		return nil
+	}
+	switch normalizedRecallPromotionExpiryMode(draft.PromotionExpiryMode) {
+	case RecallPromotionExpiryFixed:
+		if draft.PromotionExpiresAt <= 0 {
+			return fmt.Errorf("%w: fixed promotion expiry is required", errRecallExistingCouponExpiryIncompatible)
+		}
+		if existing.RedeemBy < draft.PromotionExpiresAt {
+			return fmt.Errorf("%w: existing Coupon redeem_by must be at or after fixed promotion expiry", errRecallExistingCouponExpiryIncompatible)
+		}
+		return nil
+	case RecallPromotionExpiryRelative:
+		switch strings.ToLower(strings.TrimSpace(draft.ExecutionMode)) {
+		case "manual":
+			required := activationNow.Add(time.Duration(draft.PromotionValidSeconds) * time.Second).Unix()
+			if existing.RedeemBy < required {
+				return fmt.Errorf("%w: existing Coupon redeem_by must cover manual relative promotion expiry", errRecallExistingCouponExpiryIncompatible)
+			}
+			return nil
+		case "scheduled_once":
+			required := draft.Schedule.ScheduledAt + draft.PromotionValidSeconds
+			if existing.RedeemBy < required {
+				return fmt.Errorf("%w: existing Coupon redeem_by must cover scheduled relative promotion expiry", errRecallExistingCouponExpiryIncompatible)
+			}
+			return nil
+		case "recurring":
+			return fmt.Errorf("%w: recurring relative promotion cannot use an existing Coupon with finite redeem_by", errRecallExistingCouponExpiryIncompatible)
+		default:
+			return fmt.Errorf("%w: unsupported recall execution mode %q", errRecallExistingCouponExpiryIncompatible, draft.ExecutionMode)
+		}
+	default:
+		return fmt.Errorf("%w: unsupported recall promotion expiry mode %q", errRecallExistingCouponExpiryIncompatible, draft.PromotionExpiryMode)
+	}
+}
+
 func normalizeRecallDiscount(discount RecallDiscountConfig) (RecallDiscountConfig, error) {
 	discount.Type = strings.ToLower(strings.TrimSpace(discount.Type))
 	discount.Currency = strings.ToLower(strings.TrimSpace(discount.Currency))
@@ -571,9 +610,6 @@ func buildRecallCouponParams(ctx context.Context, campaignID int64, configRevisi
 	default:
 		return nil, recallStripePermanent("create Stripe Coupon", "automatic coupon requires a percent or fixed discount")
 	}
-	if discount.CouponRedeemBy > 0 {
-		params.RedeemBy = stripe.Int64(discount.CouponRedeemBy)
-	}
 	if enrollmentLimit > 0 {
 		params.MaxRedemptions = stripe.Int64(int64(enrollmentLimit))
 	}
@@ -612,7 +648,6 @@ func validateExistingRecallCoupon(existing *stripe.Coupon, requested RecallDisco
 	}
 
 	normalized := requested
-	normalized.CouponRedeemBy = existing.RedeemBy
 	if existing.PercentOff > 0 && existing.AmountOff == 0 && existing.Currency == "" {
 		if requested.Type != "" && requested.Type != "percent" {
 			return RecallDiscountConfig{}, recallStripePermanent("validate Stripe Coupon", "Stripe Coupon %s discount type does not match", existing.ID)

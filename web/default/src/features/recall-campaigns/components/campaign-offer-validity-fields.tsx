@@ -228,7 +228,6 @@ export function CampaignOfferValidityFields({
     mode,
     promotionExpiresAt,
     promotionValidSeconds,
-    couponRedeemBy,
     executionMode,
     scheduledAt,
   ] = useWatch({
@@ -238,7 +237,6 @@ export function CampaignOfferValidityFields({
       'promotion_expiry_mode',
       'promotion_expires_at',
       'promotion_valid_seconds',
-      'discount_config.coupon_redeem_by',
       'execution_mode',
       'schedule.scheduled_at',
     ],
@@ -251,12 +249,10 @@ export function CampaignOfferValidityFields({
       'discount_config.minimum_spend.amounts.inr',
       'discount_config.minimum_spend.amounts.brl',
       'discount_config.minimum_spend.amounts.jpy',
-      'discount_config.coupon_redeem_by',
       'promotion_expires_at',
       'promotion_valid_seconds',
     ],
   })
-  const couponError = errors.discount_config?.coupon_redeem_by?.message
   const fixedError = errors.promotion_expires_at?.message
   const durationError = errors.promotion_valid_seconds?.message
   const previewBaseSeconds =
@@ -268,10 +264,6 @@ export function CampaignOfferValidityFields({
       promotion_expiry_mode: mode,
       promotion_expires_at: promotionExpiresAt,
       promotion_valid_seconds: promotionValidSeconds,
-      discount_config: {
-        ...form.getValues('discount_config'),
-        coupon_redeem_by: couponRedeemBy,
-      },
     },
     previewBaseSeconds
   )
@@ -323,29 +315,6 @@ export function CampaignOfferValidityFields({
             </div>
           </>
         ) : null}
-      </div>
-
-      <div className='space-y-2'>
-        <Label htmlFor='recall-coupon-redeem-by'>{t('Coupon redeem-by')}</Label>
-        <Controller
-          control={form.control}
-          name='discount_config.coupon_redeem_by'
-          render={({ field }) => (
-            <DateTimePicker
-              id='recall-coupon-redeem-by'
-              value={unixSecondsToDate(field.value)}
-              onChange={(value) => field.onChange(dateToUnixSeconds(value))}
-              placeholder={t('Select coupon redeem-by')}
-              disabled={immutable}
-              aria-invalid={Boolean(couponError)}
-              aria-describedby={fieldErrorID(
-                'recall-coupon-redeem-by',
-                couponError
-              )}
-            />
-          )}
-        />
-        <FieldError id='recall-coupon-redeem-by' message={couponError} />
       </div>
 
       <fieldset className='space-y-2 md:col-span-2' disabled={immutable}>

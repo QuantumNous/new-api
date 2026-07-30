@@ -35,7 +35,6 @@ describe('campaign preview dialog', () => {
           currency_options: null,
           minimum_amount: 0,
           minimum_amount_currency: '',
-          coupon_redeem_by: 0,
         },
         topup_price_ids: [],
         subscription_price_ids: [],

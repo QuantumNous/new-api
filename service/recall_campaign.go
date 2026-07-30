@@ -979,9 +979,14 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 			return err
 		}
 		couponID = coupon.ID
+		if draft.CouponSource == "existing" {
+			if err := validateRecallExistingCouponExpiryCompatibility(coupon, draft, activationNow); err != nil {
+				return err
+			}
+		}
 		draft.Discount = discount
-		if draft.ExecutionMode == "scheduled_once" && draft.Discount.CouponRedeemBy > 0 &&
-			draft.Schedule.ScheduledAt >= draft.Discount.CouponRedeemBy {
+		if draft.ExecutionMode == "scheduled_once" && draft.legacyCouponRedeemBy > 0 &&
+			draft.Schedule.ScheduledAt >= draft.legacyCouponRedeemBy {
 			return fmt.Errorf("scheduled recall campaign must run before the Stripe Coupon redeem-by time")
 		}
 	}
@@ -1483,7 +1488,7 @@ func normalizeRecallCampaignRecipientEmailKey(email string) (string, bool) {
 }
 
 func recallCampaignActivationFields(draft RecallCampaignDraft, couponID string, activatedAt int64) (map[string]any, error) {
-	discountJSON, err := common.Marshal(draft.Discount)
+	discountJSON, err := encodeRecallPersistedDiscountConfig(draft.Discount)
 	if err != nil {
 		return nil, err
 	}
@@ -1520,6 +1525,23 @@ func validateRecallCampaignContext(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+type recallPersistedDiscountConfig struct {
+	RecallDiscountConfig
+	CouponRedeemBy int64 `json:"coupon_redeem_by,omitempty"`
+}
+
+func decodeRecallPersistedDiscountConfig(raw string) (RecallDiscountConfig, int64, error) {
+	var persisted recallPersistedDiscountConfig
+	if err := common.Unmarshal([]byte(raw), &persisted); err != nil {
+		return RecallDiscountConfig{}, 0, err
+	}
+	return persisted.RecallDiscountConfig, persisted.CouponRedeemBy, nil
+}
+
+func encodeRecallPersistedDiscountConfig(discount RecallDiscountConfig) ([]byte, error) {
+	return common.Marshal(discount)
 }
 
 func validateAndNormalizeRecallCampaignDraft(draft RecallCampaignDraft, now time.Time) (RecallCampaignDraft, error) {
@@ -1625,9 +1647,6 @@ func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now tim
 	if discount.Type != "percent" && discount.Type != "fixed" {
 		return RecallCampaignDraft{}, fmt.Errorf("recall discount type must be percent or fixed")
 	}
-	if discount.CouponRedeemBy > 0 && discount.CouponRedeemBy <= now.Unix() {
-		return RecallCampaignDraft{}, fmt.Errorf("recall coupon redeem-by must be in the future")
-	}
 	draft.Discount = discount
 	draft.Products.TopUpPriceIDs = normalizeRecallStripeIDs(draft.Products.TopUpPriceIDs)
 	draft.Products.SubscriptionPriceIDs = normalizeRecallStripeIDs(draft.Products.SubscriptionPriceIDs)
@@ -1693,8 +1712,8 @@ func recallPromotionExpiryAt(draft RecallCampaignDraft, runAt time.Time) (int64,
 	default:
 		return 0, fmt.Errorf("unsupported recall promotion expiry mode %q", draft.PromotionExpiryMode)
 	}
-	if draft.Discount.CouponRedeemBy > 0 && draft.Discount.CouponRedeemBy < expiresAt {
-		expiresAt = draft.Discount.CouponRedeemBy
+	if draft.legacyCouponRedeemBy > 0 && draft.legacyCouponRedeemBy < expiresAt {
+		expiresAt = draft.legacyCouponRedeemBy
 	}
 	if expiresAt <= runAt.Unix() {
 		return 0, fmt.Errorf("%w: expiry must be after its campaign run", errRecallPromotionExpired)
@@ -2245,7 +2264,7 @@ func recallCampaignModelFromDraft(draft RecallCampaignDraft, actorID int) (*mode
 	if err != nil {
 		return nil, err
 	}
-	discountJSON, err := common.Marshal(draft.Discount)
+	discountJSON, err := encodeRecallPersistedDiscountConfig(draft.Discount)
 	if err != nil {
 		return nil, err
 	}
@@ -2322,9 +2341,12 @@ func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaig
 	if err := common.Unmarshal([]byte(campaign.AudienceConfig), &draft.Audience); err != nil {
 		return RecallCampaignDraft{}, fmt.Errorf("decode recall audience config: %w", err)
 	}
-	if err := common.Unmarshal([]byte(campaign.DiscountConfig), &draft.Discount); err != nil {
+	discount, legacyCouponRedeemBy, err := decodeRecallPersistedDiscountConfig(campaign.DiscountConfig)
+	if err != nil {
 		return RecallCampaignDraft{}, fmt.Errorf("decode recall discount config: %w", err)
 	}
+	draft.Discount = discount
+	draft.legacyCouponRedeemBy = legacyCouponRedeemBy
 	if err := common.Unmarshal([]byte(campaign.ProductScope), &draft.Products); err != nil {
 		return RecallCampaignDraft{}, fmt.Errorf("decode recall product scope: %w", err)
 	}

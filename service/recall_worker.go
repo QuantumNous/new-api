@@ -328,8 +328,8 @@ func (w *RecallRecipientWorker) ensureRecipientPromotion(ctx context.Context, re
 	if err != nil {
 		return err
 	}
-	discount := RecallDiscountConfig{}
-	if err := common.Unmarshal([]byte(campaign.DiscountConfig), &discount); err != nil {
+	discount, legacyCouponRedeemBy, err := decodeRecallPersistedDiscountConfig(campaign.DiscountConfig)
+	if err != nil {
 		return recallStripePermanent("decode recall discount", "campaign %d discount is invalid", campaign.Id)
 	}
 	user := &model.User{}
@@ -339,7 +339,7 @@ func (w *RecallRecipientWorker) ensureRecipientPromotion(ctx context.Context, re
 			return recallStripePermanent("load recall user", "user %d is unavailable", recipient.UserId)
 		}
 	}
-	coupon := &stripe.Coupon{ID: strings.TrimSpace(campaign.StripeCouponId), RedeemBy: discount.CouponRedeemBy, Valid: true}
+	coupon := &stripe.Coupon{ID: strings.TrimSpace(campaign.StripeCouponId), RedeemBy: legacyCouponRedeemBy, Valid: true}
 	guardedStripe := w.guardedStripe(recipient.CampaignId)
 	promotion, err := guardedStripe.CreateRecipientPromotion(ctx, *campaign, *recipient, *user, coupon, discount)
 	if err != nil {
