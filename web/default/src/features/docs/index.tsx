@@ -23,6 +23,8 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { BundledLanguage } from 'shiki/bundle/web'
 
+import { useSeo } from '@/hooks/use-page-seo'
+
 import {
   CodeBlock,
   CodeBlockCopyButton,
@@ -310,6 +312,27 @@ export function DocsPage(props: { slug: string }) {
   const title = profile?.name_key ?? globalPage?.title
   const waitingForProfile = !globalPage && profilesQuery.isPending
   const profileUnavailable = !globalPage && profilesQuery.isError
+
+  const seoTitle = title ? t(title) : t('API Docs')
+  let seoDescription = t('API documentation for the unified AI gateway.')
+  if (globalPage) {
+    seoDescription = t(globalPage.summary)
+  } else if (profile) {
+    seoDescription = t(
+      'API documentation for {{name}} on the unified AI gateway.',
+      { name: t(title || 'API') }
+    )
+  }
+
+  useSeo(
+    useMemo(
+      () => ({
+        title: seoTitle,
+        description: seoDescription,
+      }),
+      [seoTitle, seoDescription]
+    )
+  )
 
   return (
     <PublicLayout>

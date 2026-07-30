@@ -21,7 +21,6 @@ import { useEffect, useCallback } from 'react'
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
 import {
   applyBrandTokenPresetToDom,
-  applyDocumentTitleToDom,
   applyFaviconToDom,
   applyPrimaryColorToDom,
 } from '@/lib/dom-utils'
@@ -185,9 +184,9 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
     if (autoLoad) loadConfig()
   }, [autoLoad, loadConfig])
 
-  // Preload logo image when URL changes
+  // Apply branding to the DOM when config changes.
+  // Document title is owned by usePageSeo / applySeo so route-specific titles are not clobbered.
   useEffect(() => {
-    applyDocumentTitleToDom(config.systemName)
     applyBrandTokenPresetToDom(config.tokenPreset)
     applyPrimaryColorToDom(config.primaryColor)
     const favicon = config.faviconUrl || config.logo
@@ -198,7 +197,6 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
     config.faviconUrl,
     config.logo,
     config.primaryColor,
-    config.systemName,
     config.tokenPreset,
     loadedLogoUrl,
   ])
