@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
+	"gorm.io/gorm"
 )
 
 type TaskStatus string
@@ -41,6 +42,10 @@ const (
 	TaskStatusSuccess               = "SUCCESS"
 	TaskStatusUnknown               = "UNKNOWN"
 )
+
+// TaskRefundLegacyCutoff separates tasks created before timeout refunds were
+// introduced. Timeout transitions for those legacy tasks do not auto-refund.
+const TaskRefundLegacyCutoff int64 = 1771718400 // 2026-02-22 00:00:00 UTC
 
 type Task struct {
 	ID         int64                 `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
@@ -386,6 +391,7 @@ func (Task *Task) Insert() error {
 type taskSnapshot struct {
 	Status     TaskStatus
 	Progress   string
+	SubmitTime int64
 	StartTime  int64
 	FinishTime int64
 	FailReason string
@@ -396,6 +402,7 @@ type taskSnapshot struct {
 func (s taskSnapshot) Equal(other taskSnapshot) bool {
 	return s.Status == other.Status &&
 		s.Progress == other.Progress &&
+		s.SubmitTime == other.SubmitTime &&
 		s.StartTime == other.StartTime &&
 		s.FinishTime == other.FinishTime &&
 		s.FailReason == other.FailReason &&
@@ -407,6 +414,7 @@ func (t *Task) Snapshot() taskSnapshot {
 	return taskSnapshot{
 		Status:     t.Status,
 		Progress:   t.Progress,
+		SubmitTime: t.SubmitTime,
 		StartTime:  t.StartTime,
 		FinishTime: t.FinishTime,
 		FailReason: t.FailReason,
@@ -438,6 +446,30 @@ func (t *Task) UpdateWithStatus(fromStatus TaskStatus) (bool, error) {
 		return false, result.Error
 	}
 	return result.RowsAffected > 0, nil
+}
+
+// UpdateIfUnchanged updates a polled task only when its persisted lifecycle
+// snapshot still matches the one that was fetched. The row lock makes the
+// read/compare/write sequence atomic on MySQL and PostgreSQL; SQLite serializes
+// the transaction without emitting unsupported FOR UPDATE syntax.
+func (t *Task) UpdateIfUnchanged(from taskSnapshot) (bool, error) {
+	updated := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var current Task
+		if err := lockForUpdate(tx).First(&current, t.ID).Error; err != nil {
+			return err
+		}
+		if !current.Snapshot().Equal(from) {
+			return nil
+		}
+		result := tx.Model(t).Select("*").Updates(t)
+		if result.Error != nil {
+			return result.Error
+		}
+		updated = result.RowsAffected > 0
+		return nil
+	})
+	return updated, err
 }
 
 // TaskBulkUpdate performs an unconditional bulk UPDATE by upstream task_id strings.

@@ -1,11 +1,23 @@
 package operation_setting
 
 import (
+	"encoding/json"
+	"fmt"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
+)
+
+const ToolPriceOptionKey = "tool_price_setting.prices"
+
+const (
+	maxToolNameLength    = 64
+	maxModelPrefixLength = 128
 )
 
 // ---------------------------------------------------------------------------
@@ -74,6 +86,85 @@ type toolPriceIndex struct {
 
 var currentIndex atomic.Pointer[toolPriceIndex]
 
+func validToolPriceKey(key string) bool {
+	colon := strings.IndexByte(key, ':')
+	tool := key
+	if colon >= 0 {
+		tool = key[:colon]
+	}
+	if len(tool) == 0 || len(tool) > maxToolNameLength {
+		return false
+	}
+	for _, c := range tool {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.') {
+			return false
+		}
+	}
+	if colon < 0 {
+		return true
+	}
+	model := key[colon+1:]
+	if len(model) < 2 || len(model) > maxModelPrefixLength+1 || model[len(model)-1] != '*' || strings.Count(model, "*") != 1 {
+		return false
+	}
+	for _, c := range model[:len(model)-1] {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || strings.ContainsRune("._-/+:", c)) {
+			return false
+		}
+	}
+	return true
+}
+
+func decodeToolPrices(value string, tolerant bool) (map[string]float64, int, error) {
+	var raw map[string]json.RawMessage
+	if err := common.UnmarshalJsonStr(value, &raw); err != nil || raw == nil {
+		return nil, 0, fmt.Errorf("tool prices must be a JSON object")
+	}
+	prices := make(map[string]float64, len(raw))
+	invalid := 0
+	for key, encoded := range raw {
+		if !validToolPriceKey(key) || common.GetJsonType(encoded) != "number" {
+			invalid++
+			if !tolerant {
+				return nil, invalid, fmt.Errorf("invalid tool price entry")
+			}
+			continue
+		}
+		price, err := strconv.ParseFloat(string(encoded), 64)
+		if err != nil || math.IsNaN(price) || math.IsInf(price, 0) || price < 0 {
+			invalid++
+			if !tolerant {
+				return nil, invalid, fmt.Errorf("invalid tool price entry")
+			}
+			continue
+		}
+		prices[key] = price
+	}
+	return prices, invalid, nil
+}
+
+// ValidateToolPricesJSON strictly validates values accepted at write boundaries.
+func ValidateToolPricesJSON(value string) error {
+	_, _, err := decodeToolPrices(value, false)
+	return err
+}
+
+// LoadToolPricesFromJSONString tolerates invalid entries in historical DB values.
+func LoadToolPricesFromJSONString(value string) {
+	prices, invalid, err := decodeToolPrices(value, true)
+	if err != nil {
+		common.SysLog("tool price configuration ignored: invalid document")
+		toolPriceSetting.Prices = make(map[string]float64)
+		RebuildToolPriceIndex()
+		return
+	}
+	toolPriceSetting.Prices = prices
+	if invalid > 0 {
+		common.SysLog(fmt.Sprintf("tool price configuration ignored %d invalid entries", invalid))
+	}
+	RebuildToolPriceIndex()
+}
+
 // RebuildToolPriceIndex rebuilds the lookup index from the current config.
 // Called on init and after config updates. Not on the billing hot path.
 func RebuildToolPriceIndex() {
@@ -84,8 +175,16 @@ func RebuildToolPriceIndex() {
 	for k, v := range defaultToolPriceOverrides {
 		merged[k] = v
 	}
+	invalid := 0
 	for k, v := range toolPriceSetting.Prices {
+		if !validToolPriceKey(k) || math.IsNaN(v) || math.IsInf(v, 0) || v < 0 {
+			invalid++
+			continue
+		}
 		merged[k] = v
+	}
+	if invalid > 0 {
+		common.SysLog(fmt.Sprintf("tool price index ignored %d invalid entries", invalid))
 	}
 
 	idx := &toolPriceIndex{

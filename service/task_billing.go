@@ -162,16 +162,21 @@ func taskModelName(task *model.Task) string {
 
 // RefundTaskQuota 统一的任务失败退款逻辑。
 // 当异步任务失败时，将预扣的 quota 退还给用户（支持钱包和订阅），并退还令牌额度。
-func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
+// 返回资金来源是否已成功退还；失败时保留 quota，供显式重试或人工对账。
+func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool {
 	quota := task.Quota
 	if quota == 0 {
-		return
+		return true
+	}
+	if quota < 0 {
+		logger.LogError(ctx, fmt.Sprintf("拒绝负数 task quota 退款 task %s: %d", task.TaskID, quota))
+		return false
 	}
 
 	// 1. 退还资金来源（钱包或订阅）
 	if err := taskAdjustFunding(task, -quota); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("退还资金来源失败 task %s: %s", task.TaskID, err.Error()))
-		return
+		return false
 	}
 
 	// 2. 退还令牌额度
@@ -192,6 +197,14 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 		Group:     task.Group,
 		Other:     other,
 	})
+
+	// 资金已实际退还后才清除任务上的计费金额。清除失败不能重试资金退款，
+	// 因此明确记录错误并仍返回成功，交由人工对账处理。
+	task.Quota = 0
+	if err := task.UpdateQuota(); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("退款成功但清除 task quota 失败 task %s: %s", task.TaskID, err.Error()))
+	}
+	return true
 }
 
 // RecalculateTaskQuota 通用的异步差额结算。
@@ -203,6 +216,10 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		return
 	}
 	preConsumedQuota := task.Quota
+	if preConsumedQuota < 0 {
+		logger.LogError(ctx, fmt.Sprintf("拒绝负数 task quota 差额结算 task %s: %d", task.TaskID, preConsumedQuota))
+		return
+	}
 	quotaDelta := actualQuota - preConsumedQuota
 
 	if quotaDelta == 0 {

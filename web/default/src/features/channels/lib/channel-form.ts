@@ -212,12 +212,39 @@ export const channelFormSchema = z
     upstream_model_update_ignored_models: z.string().optional(),
   })
   .superRefine((data, ctx) => {
-    if ([3, 8, 36, 45].includes(data.type) && !data.base_url?.trim()) {
+    if ([3, 8, 36, 45, 59, 60].includes(data.type) && !data.base_url?.trim()) {
       addRequiredIssue(
         ctx,
         'base_url',
         'Base URL is required for this channel type'
       )
+    }
+
+    if ([59, 60].includes(data.type) && data.base_url?.trim()) {
+      try {
+        const baseUrl = new URL(data.base_url.trim())
+        if (
+          !['http:', 'https:'].includes(baseUrl.protocol) ||
+          baseUrl.username ||
+          baseUrl.password ||
+          baseUrl.search ||
+          baseUrl.hash
+        ) {
+          addRequiredIssue(
+            ctx,
+            'base_url',
+            'Base URL must be an HTTP(S) URL without credentials, query parameters, or fragments'
+          )
+        } else if (/\/v1\/?$/.test(baseUrl.pathname)) {
+          addRequiredIssue(
+            ctx,
+            'base_url',
+            'Base URL must not end with /v1 because request paths are added automatically'
+          )
+        }
+      } catch {
+        addRequiredIssue(ctx, 'base_url', 'Enter a valid absolute Base URL')
+      }
     }
 
     if (data.type === CHANNEL_TYPE_ADVANCED_CUSTOM) {

@@ -66,3 +66,63 @@ func TestAdvancedCustomChannelRequiresModelListRouteOnlyWhenUpdateChecksEnabled(
 		})
 	}
 }
+
+func TestChannelValidateSettingsRejectsInvalidProxy(t *testing.T) {
+	tests := []struct {
+		name    string
+		proxy   string
+		wantErr bool
+	}{
+		{name: "empty"},
+		{name: "http", proxy: "http://proxy.example:8080"},
+		{name: "https", proxy: "https://proxy.example:8443"},
+		{name: "socks5", proxy: "socks5://proxy.example"},
+		{name: "socks5h root path", proxy: "socks5h://proxy.example:1080/"},
+		{name: "unsupported", proxy: "ftp://proxy.example", wantErr: true},
+		{name: "path", proxy: "socks5://proxy.example:1080/path", wantErr: true},
+		{name: "query", proxy: "http://proxy.example?token=secret", wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			channel := &Channel{}
+			channel.SetSetting(dto.ChannelSettings{Proxy: test.proxy})
+
+			err := channel.ValidateSettings()
+			if test.wantErr {
+				require.ErrorContains(t, err, "invalid channel proxy")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestChannelValidateSettingsRejectsInvalidHTTPTransport(t *testing.T) {
+	tests := []struct {
+		name    string
+		setting dto.ChannelSettings
+		wantErr string
+	}{
+		{name: "default"},
+		{name: "auto with shards", setting: dto.ChannelSettings{HTTPProtocol: "auto", HTTP2ConnectionShards: 4}},
+		{name: "maximum shards", setting: dto.ChannelSettings{HTTP2ConnectionShards: 8}},
+		{name: "unknown protocol", setting: dto.ChannelSettings{HTTPProtocol: "http2"}, wantErr: "http_protocol"},
+		{name: "negative shards", setting: dto.ChannelSettings{HTTP2ConnectionShards: -1}, wantErr: "http2_connection_shards"},
+		{name: "too many shards", setting: dto.ChannelSettings{HTTP2ConnectionShards: 9}, wantErr: "http2_connection_shards"},
+		{name: "http1 with multiple shards", setting: dto.ChannelSettings{HTTPProtocol: "http1", HTTP2ConnectionShards: 2}, wantErr: "http2_connection_shards"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			channel := &Channel{}
+			channel.SetSetting(test.setting)
+			err := channel.ValidateSettings()
+			if test.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, test.wantErr)
+		})
+	}
+}

@@ -24,3 +24,8 @@ func TestPath2RelayModePlayground(t *testing.T) {
 		})
 	}
 }
+
+func TestPath2RelayModeAlphaSearch(t *testing.T) {
+	assert.Equal(t, RelayModeAlphaSearch, Path2RelayMode("/v1/alpha/search"))
+	assert.Equal(t, RelayModeAlphaSearch, Path2RelayMode("/v1/alpha/search?future=1"))
+}

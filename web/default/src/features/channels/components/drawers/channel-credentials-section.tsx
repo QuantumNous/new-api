@@ -95,6 +95,7 @@ export function ChannelCredentialsSection(
   const { t } = useTranslation()
   const form = useFormContext<ChannelFormValues>()
   const currentType = props.currentType
+  const isGatewayChannel = currentType === 59 || currentType === 60
 
   return (
     <ChannelApiAccessSection>
@@ -110,6 +111,41 @@ export function ChannelCredentialsSection(
         <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
           <AlertDescription>
             {t('No permission to perform this action')}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isGatewayChannel && (
+        <Alert>
+          <AlertDescription className='space-y-3'>
+            <p>
+              {currentType === 59
+                ? t(
+                    "Connects to a user-managed Sub2API upstream. Use the API key issued by that upstream; platform administrator credentials are never used."
+                  )
+                : t(
+                    "Connects to a New API-compatible upstream with native multi-protocol routing. Use an API key created by that upstream."
+                  )}
+            </p>
+            <div className='flex flex-wrap gap-2'>
+              {[
+                'OpenAI Chat',
+                'Responses',
+                'Compact',
+                'Claude',
+                'Gemini',
+                'Alpha Search',
+              ].map((protocol) => (
+                <Badge key={protocol} variant='secondary'>
+                  {protocol}
+                </Badge>
+              ))}
+            </div>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Available protocols and models depend on the upstream deployment. You can fetch its model list after saving the channel.'
+              )}
+            </p>
           </AlertDescription>
         </Alert>
       )}
@@ -656,8 +692,29 @@ export function ChannelCredentialsSection(
             />
           )}
 
+          {isGatewayChannel && (
+            <FormField
+              control={form.control}
+              name='base_url'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Upstream Base URL *')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder='https://gateway.example.com' {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Enter the upstream site origin or deployment base path. Do not add /v1, endpoint paths, query parameters, or a trailing slash.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
           {/* General base_url for other types */}
-          {![3, 8, 22, 36, 45].includes(currentType) && (
+          {![3, 8, 22, 36, 45, 59, 60].includes(currentType) && (
             <FormField
               control={form.control}
               name='base_url'
@@ -834,6 +891,14 @@ export function ChannelCredentialsSection(
                 } else if (props.isBatchMode) {
                   keyDescription = t(
                     'Enter one API key per line for batch creation'
+                  )
+                } else if (currentType === 59) {
+                  keyDescription = t(
+                    'Use the channel API key issued by your Sub2API upstream. Do not enter a platform administrator key.'
+                  )
+                } else if (currentType === 60) {
+                  keyDescription = t(
+                    'Use an API key created in the upstream New API deployment.'
                   )
                 }
                 return (

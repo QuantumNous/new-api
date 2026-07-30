@@ -2,14 +2,18 @@ package service
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"golang.org/x/net/proxy"
@@ -20,9 +24,23 @@ var (
 	ssrfProtectedHTTPClient        *http.Client
 	ssrfProtectedDirectHTTPClient  *http.Client
 	strictUntrustedMediaHTTPClient *http.Client
-	proxyClientLock                sync.Mutex
-	proxyClients                   = make(map[string]*http.Client)
+	proxyClients                   = proxyHTTPClientCache{
+		clients: make(map[string]*http.Client),
+		aliases: make(map[string]string),
+	}
+	legacyProxyURLWarnings sync.Map
 )
+
+type proxyHTTPClientCache struct {
+	mutex   sync.RWMutex
+	clients map[string]*http.Client
+	aliases map[string]string
+}
+
+type proxyURLConfig struct {
+	parsedURL *url.URL
+	cacheKey  string
+}
 
 func checkRedirect(req *http.Request, via []*http.Request) error {
 	urlStr := req.URL.String()
@@ -55,30 +73,52 @@ func ValidateSSRFProtectedFetchURL(urlStr string) error {
 	return validateURLWithCurrentFetchSetting(urlStr, true)
 }
 
-func InitHttpClient() {
-	transport := &http.Transport{
-		MaxIdleConns:        common.RelayMaxIdleConns,
-		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-		IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
-		ForceAttemptHTTP2:   true,
-		Proxy:               http.ProxyFromEnvironment, // Support HTTP_PROXY, HTTPS_PROXY, NO_PROXY env vars
+func newRelayHTTPTransport() *http.Transport {
+	var transport *http.Transport
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok && defaultTransport != nil {
+		transport = defaultTransport.Clone()
+	} else {
+		dialer := &net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}
+		transport = &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
+			ForceAttemptHTTP2:     true,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: time.Second,
+		}
 	}
+	transport.MaxIdleConns = common.RelayMaxIdleConns
+	transport.MaxIdleConnsPerHost = common.RelayMaxIdleConnsPerHost
+	transport.IdleConnTimeout = time.Duration(common.RelayIdleConnTimeout) * time.Second
+	transport.ForceAttemptHTTP2 = true
 	if common.TLSInsecureSkipVerify {
 		transport.TLSClientConfig = common.InsecureTLSConfig
 	}
+	return transport
+}
 
-	if common.RelayTimeout == 0 {
-		httpClient = &http.Client{
-			Transport:     transport,
-			CheckRedirect: checkRedirect,
-		}
-	} else {
-		httpClient = &http.Client{
-			Transport:     transport,
-			Timeout:       time.Duration(common.RelayTimeout) * time.Second,
-			CheckRedirect: checkRedirect,
-		}
+func newRelayHTTPClient(transport http.RoundTripper) *http.Client {
+	client := &http.Client{
+		Transport:     transport,
+		CheckRedirect: checkRedirect,
 	}
+	if common.RelayTimeout != 0 {
+		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
+	}
+	return client
+}
+
+func clientCacheKey(proxyCacheKey string, policy HTTPTransportPolicy) string {
+	return proxyCacheKey + "\x00" + policy.cacheKeyPart()
+}
+
+func InitHttpClient() {
+	policy := defaultHTTPTransportPolicy()
+	httpClient = newDirectHTTPClient(policy, nil)
+	proxyClients.store(clientCacheKey("", policy), httpClient)
 	ssrfProtectedHTTPClient = newProtectedFetchHTTPClient()
 	ssrfProtectedDirectHTTPClient = newProtectedFetchDirectHTTPClient()
 	strictUntrustedMediaHTTPClient = newStrictUntrustedMediaHTTPClient()
@@ -124,110 +164,301 @@ func GetStrictUntrustedMediaHTTPClient() *http.Client {
 	return strictUntrustedMediaHTTPClient
 }
 
-// GetHttpClientWithProxy returns the default client or a proxy-enabled one when proxyURL is provided.
-func GetHttpClientWithProxy(proxyURL string) (*http.Client, error) {
-	if proxyURL == "" {
-		return GetHttpClient(), nil
+func newProxyURLConfig(parsedURL *url.URL) *proxyURLConfig {
+	return &proxyURLConfig{
+		parsedURL: parsedURL,
+		cacheKey:  parsedURL.String(),
 	}
-	return NewProxyHttpClient(proxyURL)
 }
 
-// ResetProxyClientCache 清空代理客户端缓存，确保下次使用时重新初始化
-func ResetProxyClientCache() {
-	proxyClientLock.Lock()
-	defer proxyClientLock.Unlock()
-	for _, client := range proxyClients {
-		if transport, ok := client.Transport.(*http.Transport); ok && transport != nil {
-			transport.CloseIdleConnections()
+func warnLegacyProxyURLOnce(config *proxyURLConfig) {
+	if _, loaded := legacyProxyURLWarnings.LoadOrStore(config.cacheKey, struct{}{}); loaded {
+		return
+	}
+	logger.LogWarn(
+		context.Background(),
+		fmt.Sprintf(
+			"legacy proxy URL suffix ignored at runtime: scheme=%s host=%s; update the channel proxy setting",
+			config.parsedURL.Scheme,
+			config.parsedURL.Host,
+		),
+	)
+}
+
+// NormalizeProxyURL validates a proxy URL using runtime-compatible rules and returns its canonical cache key.
+func NormalizeProxyURL(rawProxyURL string) (string, error) {
+	parsedURL, legacySuffixStripped, err := common.ParseProxyURLRuntime(rawProxyURL)
+	if err != nil {
+		return "", err
+	}
+	if parsedURL == nil {
+		return "", nil
+	}
+	config := newProxyURLConfig(parsedURL)
+	if legacySuffixStripped {
+		warnLegacyProxyURLOnce(config)
+	}
+	return config.cacheKey, nil
+}
+
+// ValidateProxyURL validates a channel proxy URL without connecting to it.
+func ValidateProxyURL(rawProxyURL string) error {
+	_, err := common.ParseProxyURLStrict(rawProxyURL)
+	return err
+}
+
+func (cache *proxyHTTPClientCache) store(fullKey string, client *http.Client) {
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
+	cache.clients[fullKey] = client
+}
+
+func (cache *proxyHTTPClientCache) resolveProxyKey(rawProxyURL string) string {
+	if canonicalKey, ok := cache.aliases[rawProxyURL]; ok {
+		return canonicalKey
+	}
+	return rawProxyURL
+}
+
+func (cache *proxyHTTPClientCache) get(rawProxyURL string, policy HTTPTransportPolicy) (*http.Client, bool) {
+	cache.mutex.RLock()
+	defer cache.mutex.RUnlock()
+	proxyKey := cache.resolveProxyKey(rawProxyURL)
+	client, ok := cache.clients[clientCacheKey(proxyKey, policy)]
+	return client, ok
+}
+
+func (cache *proxyHTTPClientCache) getOrCreate(
+	rawProxyURL string,
+	config *proxyURLConfig,
+	policy HTTPTransportPolicy,
+	factory func() (*http.Client, error),
+) (*http.Client, error) {
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
+
+	proxyKey := ""
+	if config != nil {
+		proxyKey = config.cacheKey
+		cache.aliases[rawProxyURL] = proxyKey
+	} else if rawProxyURL != "" {
+		proxyKey = cache.resolveProxyKey(rawProxyURL)
+	}
+	fullKey := clientCacheKey(proxyKey, policy)
+	if client, ok := cache.clients[fullKey]; ok {
+		return client, nil
+	}
+
+	client, err := factory()
+	if err != nil {
+		return nil, err
+	}
+	cache.clients[fullKey] = client
+	return client, nil
+}
+
+func (cache *proxyHTTPClientCache) removeProxy(proxyCacheKey string) []*http.Client {
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
+	removed := make([]*http.Client, 0)
+	prefix := proxyCacheKey + "\x00"
+	for key, client := range cache.clients {
+		if strings.HasPrefix(key, prefix) {
+			removed = append(removed, client)
+			delete(cache.clients, key)
 		}
 	}
-	proxyClients = make(map[string]*http.Client)
+	for alias, canonicalKey := range cache.aliases {
+		if canonicalKey == proxyCacheKey {
+			delete(cache.aliases, alias)
+		}
+	}
+	return removed
 }
 
-// NewProxyHttpClient 创建支持代理的 HTTP 客户端
-func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
-	if proxyURL == "" {
+func (cache *proxyHTTPClientCache) reset() map[string]*http.Client {
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
+	oldClients := cache.clients
+	cache.clients = make(map[string]*http.Client)
+	cache.aliases = make(map[string]string)
+	return oldClients
+}
+
+func configureProxyTransport(transport *http.Transport, proxyURL *url.URL) error {
+	switch proxyURL.Scheme {
+	case "http", "https":
+		transport.Proxy = http.ProxyURL(proxyURL)
+		return nil
+	case "socks5", "socks5h":
+		transport.Proxy = nil
+		forwardDialer := &net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}
+		dialer, err := proxy.FromURL(proxyURL, forwardDialer)
+		if err != nil {
+			return err
+		}
+		contextDialer, ok := dialer.(proxy.ContextDialer)
+		if !ok {
+			return fmt.Errorf("SOCKS proxy dialer does not support context cancellation")
+		}
+		transport.DialContext = contextDialer.DialContext
+		return nil
+	default:
+		return fmt.Errorf("unsupported proxy scheme")
+	}
+}
+
+func newTransportFactory(proxyURL *url.URL, tlsConfig *tls.Config) (func() *http.Transport, error) {
+	if proxyURL != nil {
+		probe := newRelayHTTPTransport()
+		if err := configureProxyTransport(probe, proxyURL); err != nil {
+			return nil, err
+		}
+	}
+	return func() *http.Transport {
+		transport := newRelayHTTPTransport()
+		if proxyURL != nil {
+			_ = configureProxyTransport(transport, proxyURL)
+		} else {
+			transport.Proxy = http.ProxyFromEnvironment
+		}
+		if tlsConfig != nil {
+			transport.TLSClientConfig = tlsConfig.Clone()
+		}
+		return transport
+	}, nil
+}
+
+func newHTTPClientFromPolicy(policy HTTPTransportPolicy, proxyURL *url.URL, tlsConfig *tls.Config) (*http.Client, error) {
+	factory, err := newTransportFactory(proxyURL, tlsConfig)
+	if err != nil {
+		return nil, err
+	}
+	return newHTTPClientFromTransportFactory(policy, factory), nil
+}
+
+func newHTTPClientFromTransportFactory(policy HTTPTransportPolicy, factory func() *http.Transport) *http.Client {
+	if policy.Shards < 1 {
+		policy.Shards = 1
+	}
+	if policy.Protocol == dto.HTTPProtocolHTTP1 || policy.Shards == 1 {
+		transport := factory()
+		applyHTTPTransportPolicy(transport, policy)
+		return newRelayHTTPClient(transport)
+	}
+	shardedFactory := func() *http.Transport {
+		transport := factory()
+		applyHTTPTransportPolicy(transport, policy)
+		return transport
+	}
+	return newRelayHTTPClient(newShardedRoundTripper(policy, shardedFactory))
+}
+
+func newDirectHTTPClient(policy HTTPTransportPolicy, tlsConfig *tls.Config) *http.Client {
+	client, err := newHTTPClientFromPolicy(policy, nil, tlsConfig)
+	if err != nil {
+		transport := newRelayHTTPTransport()
+		applyHTTPTransportPolicy(transport, policy)
+		return newRelayHTTPClient(transport)
+	}
+	return client
+}
+
+func newHTTPClientWithPolicyAndTLS(policy HTTPTransportPolicy, tlsConfig *tls.Config) *http.Client {
+	return newDirectHTTPClient(policy, tlsConfig)
+}
+
+func newProxyHTTPClient(proxyURL *url.URL) (*http.Client, error) {
+	return newHTTPClientFromPolicy(defaultHTTPTransportPolicy(), proxyURL, nil)
+}
+
+// GetHttpClientWithProxy returns the default client or a cached proxy-enabled client.
+func GetHttpClientWithProxy(rawProxyURL string) (*http.Client, error) {
+	return GetHttpClientWithProxySettings(rawProxyURL, dto.ChannelSettings{})
+}
+
+// GetHttpClientWithProxySettings returns a cached HTTP client for the proxy URL and
+// channel transport settings. Default auto with one shard reuses the global client.
+func GetHttpClientWithProxySettings(rawProxyURL string, settings dto.ChannelSettings) (*http.Client, error) {
+	policy := NormalizeHTTPTransportPolicy(settings)
+	trimmedProxyURL := strings.TrimSpace(rawProxyURL)
+	if trimmedProxyURL == "" {
+		return getOrCreateDirectClient(policy)
+	}
+	if client, ok := proxyClients.get(trimmedProxyURL, policy); ok {
+		return client, nil
+	}
+
+	parsedURL, legacySuffixStripped, err := common.ParseProxyURLRuntime(trimmedProxyURL)
+	if err != nil {
+		return nil, err
+	}
+	config := newProxyURLConfig(parsedURL)
+	if legacySuffixStripped {
+		warnLegacyProxyURLOnce(config)
+	}
+	return proxyClients.getOrCreate(trimmedProxyURL, config, policy, func() (*http.Client, error) {
+		return newHTTPClientFromPolicy(policy, config.parsedURL, nil)
+	})
+}
+
+func getOrCreateDirectClient(policy HTTPTransportPolicy) (*http.Client, error) {
+	if policy == defaultHTTPTransportPolicy() {
 		if client := GetHttpClient(); client != nil {
 			return client, nil
 		}
 		return http.DefaultClient, nil
 	}
-
-	proxyClientLock.Lock()
-	if client, ok := proxyClients[proxyURL]; ok {
-		proxyClientLock.Unlock()
+	if client, ok := proxyClients.get("", policy); ok {
 		return client, nil
 	}
-	proxyClientLock.Unlock()
+	return proxyClients.getOrCreate("", nil, policy, func() (*http.Client, error) {
+		return newDirectHTTPClient(policy, nil), nil
+	})
+}
 
-	parsedURL, err := url.Parse(proxyURL)
+// InvalidateProxyClient removes every cached policy variant for one proxy and
+// closes their idle connections, including all HTTP/2 shards.
+func InvalidateProxyClient(rawProxyURL string) {
+	parsedURL, legacySuffixStripped, err := common.ParseProxyURLRuntime(rawProxyURL)
 	if err != nil {
-		return nil, err
+		return
 	}
-
-	switch parsedURL.Scheme {
-	case "http", "https":
-		transport := &http.Transport{
-			MaxIdleConns:        common.RelayMaxIdleConns,
-			MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-			IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
-			ForceAttemptHTTP2:   true,
-			Proxy:               http.ProxyURL(parsedURL),
+	proxyCacheKey := ""
+	if parsedURL != nil {
+		config := newProxyURLConfig(parsedURL)
+		proxyCacheKey = config.cacheKey
+		if legacySuffixStripped {
+			warnLegacyProxyURLOnce(config)
 		}
-		if common.TLSInsecureSkipVerify {
-			transport.TLSClientConfig = common.InsecureTLSConfig
-		}
-		client := &http.Client{
-			Transport:     transport,
-			CheckRedirect: checkRedirect,
-		}
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
-		proxyClientLock.Lock()
-		proxyClients[proxyURL] = client
-		proxyClientLock.Unlock()
-		return client, nil
-
-	case "socks5", "socks5h":
-		// 获取认证信息
-		var auth *proxy.Auth
-		if parsedURL.User != nil {
-			auth = &proxy.Auth{
-				User:     parsedURL.User.Username(),
-				Password: "",
-			}
-			if password, ok := parsedURL.User.Password(); ok {
-				auth.Password = password
-			}
-		}
-
-		// 创建 SOCKS5 代理拨号器
-		// proxy.SOCKS5 使用 tcp 参数，所有 TCP 连接包括 DNS 查询都将通过代理进行。行为与 socks5h 相同
-		dialer, err := proxy.SOCKS5("tcp", parsedURL.Host, auth, proxy.Direct)
-		if err != nil {
-			return nil, err
-		}
-
-		transport := &http.Transport{
-			MaxIdleConns:        common.RelayMaxIdleConns,
-			MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-			IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
-			ForceAttemptHTTP2:   true,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return dialer.Dial(network, addr)
-			},
-		}
-		if common.TLSInsecureSkipVerify {
-			transport.TLSClientConfig = common.InsecureTLSConfig
-		}
-
-		client := &http.Client{Transport: transport, CheckRedirect: checkRedirect}
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
-		proxyClientLock.Lock()
-		proxyClients[proxyURL] = client
-		proxyClientLock.Unlock()
-		return client, nil
-
-	default:
-		return nil, fmt.Errorf("unsupported proxy scheme: %s, must be http, https, socks5 or socks5h", parsedURL.Scheme)
 	}
+	for _, client := range proxyClients.removeProxy(proxyCacheKey) {
+		client.CloseIdleConnections()
+	}
+	if proxyCacheKey == "" && httpClient != nil {
+		proxyClients.store(clientCacheKey("", defaultHTTPTransportPolicy()), httpClient)
+	}
+}
+
+// ResetProxyClientCache clears cached proxy and non-default direct policy clients.
+// The package-level default client pointer remains stable.
+func ResetProxyClientCache() {
+	defaultClient := httpClient
+	for _, client := range proxyClients.reset() {
+		client.CloseIdleConnections()
+	}
+	if defaultClient == nil {
+		return
+	}
+	defaultClient.CloseIdleConnections()
+	proxyClients.store(clientCacheKey("", defaultHTTPTransportPolicy()), defaultClient)
+}
+
+// NewProxyHttpClient is kept for compatibility.
+// Deprecated: use GetHttpClientWithProxy.
+func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
+	return GetHttpClientWithProxy(proxyURL)
 }

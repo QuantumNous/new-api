@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,11 +14,194 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestValidateMultiprotocolChannelsRequireBaseURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		channelType int
+		baseURL     *string
+		wantErr     bool
+	}{
+		{name: "New API missing", channelType: constant.ChannelTypeNewAPI, wantErr: true},
+		{name: "New API blank", channelType: constant.ChannelTypeNewAPI, baseURL: common.GetPointer("  "), wantErr: true},
+		{name: "New API configured", channelType: constant.ChannelTypeNewAPI, baseURL: common.GetPointer("https://new-api.example")},
+		{name: "Sub2API missing", channelType: constant.ChannelTypeSub2API, wantErr: true},
+		{name: "Sub2API blank", channelType: constant.ChannelTypeSub2API, baseURL: common.GetPointer("  "), wantErr: true},
+		{name: "Sub2API configured", channelType: constant.ChannelTypeSub2API, baseURL: common.GetPointer("https://sub2api.example")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateChannel(&model.Channel{Type: tt.channelType, BaseURL: tt.baseURL}, false)
+			if tt.wantErr {
+				require.ErrorContains(t, err, "channel base URL cannot be empty")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestUpdateChannelValidatesEffectiveMultiprotocolType(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	baseURL := "https://sub2api.example"
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeSub2API,
+		Name:    "Sub2API",
+		Key:     "test-key",
+		BaseURL: &baseURL,
+	}
+	require.NoError(t, db.Create(channel).Error)
+
+	requestBody, err := common.Marshal(map[string]any{
+		"id":       channel.Id,
+		"base_url": "",
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPut, "/api/channel", bytes.NewReader(requestBody))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleRootUser)
+
+	UpdateChannel(ctx)
+
+	assert.Contains(t, recorder.Body.String(), "Sub2API channel base URL cannot be empty")
+	var persisted model.Channel
+	require.NoError(t, db.First(&persisted, channel.Id).Error)
+	require.NotNil(t, persisted.BaseURL)
+	assert.Equal(t, baseURL, *persisted.BaseURL)
+}
+
+func TestCopyChannelRejectsMultiprotocolChannelWithoutBaseURL(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	channel := &model.Channel{
+		Type: constant.ChannelTypeNewAPI,
+		Name: "invalid New API",
+		Key:  "test-key",
+	}
+	require.NoError(t, db.Create(channel).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", channel.Id)}}
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/copy", nil)
+
+	CopyChannel(ctx)
+
+	assert.Contains(t, recorder.Body.String(), "Failed to copy channel: invalid channel settings")
+	var channelCount int64
+	require.NoError(t, db.Model(&model.Channel{}).Count(&channelCount).Error)
+	assert.Equal(t, int64(1), channelCount)
+}
+
+func TestMultiprotocolChannelRegistration(t *testing.T) {
+	want := []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeOpenAIResponseCompact,
+		constant.EndpointTypeAnthropic,
+		constant.EndpointTypeGemini,
+		constant.EndpointTypeOpenAIAlphaSearch,
+	}
+	for _, channelType := range []int{constant.ChannelTypeSub2API, constant.ChannelTypeNewAPI} {
+		apiType, ok := common.ChannelType2APIType(channelType)
+		require.True(t, ok)
+		assert.Equal(t, want, common.GetEndpointTypesByChannelType(channelType, "gpt-test"))
+		assert.True(t, common.IsResponsesCompactAPIType(apiType))
+	}
+	assert.Equal(t, constant.APITypeSub2API, mustAPIType(t, constant.ChannelTypeSub2API))
+	assert.Equal(t, constant.APITypeNewAPI, mustAPIType(t, constant.ChannelTypeNewAPI))
+	assert.Equal(t, "Sub2API", constant.GetChannelTypeName(constant.ChannelTypeSub2API))
+	assert.Equal(t, "New API", constant.GetChannelTypeName(constant.ChannelTypeNewAPI))
+}
+
+func mustAPIType(t *testing.T, channelType int) int {
+	t.Helper()
+	apiType, ok := common.ChannelType2APIType(channelType)
+	require.True(t, ok)
+	return apiType
+}
+
+func TestCopyChannelRejectsInvalidLegacyProxySettings(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	settingBytes, err := common.Marshal(dto.ChannelSettings{Proxy: "socks5://proxy.example/legacy-path"})
+	require.NoError(t, err)
+	setting := string(settingBytes)
+	origin := &model.Channel{
+		Type:    constant.ChannelTypeOpenAI,
+		Name:    "legacy proxy channel",
+		Key:     "test-key",
+		Models:  "gpt-test",
+		Group:   "default",
+		Setting: &setting,
+	}
+	require.NoError(t, db.Create(origin).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", origin.Id)}}
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/copy", nil)
+
+	CopyChannel(ctx)
+
+	assert.Contains(t, recorder.Body.String(), "invalid channel settings")
+	var channelCount int64
+	require.NoError(t, db.Model(&model.Channel{}).Count(&channelCount).Error)
+	assert.Equal(t, int64(1), channelCount)
+}
+
+func TestDeleteChannelResetsProxyCacheWhenPreReadFails(t *testing.T) {
+	setupModelListControllerTestDB(t)
+	service.ResetProxyClientCache()
+	t.Cleanup(service.ResetProxyClientCache)
+
+	proxyURL := "http://proxy.example:8080"
+	beforeDelete, err := service.GetHttpClientWithProxy(proxyURL)
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Params = gin.Params{{Key: "id", Value: "999999"}}
+	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/channel/999999", nil)
+
+	DeleteChannel(ctx)
+
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	afterDelete, err := service.GetHttpClientWithProxy(proxyURL)
+	require.NoError(t, err)
+	assert.NotSame(t, beforeDelete, afterDelete)
+}
+
+func TestDeleteChannelBatchReturnsActualDeletedCount(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	channel := &model.Channel{Name: "existing", Key: "test-key"}
+	require.NoError(t, db.Create(channel).Error)
+
+	requestBody, err := common.Marshal(ChannelBatch{Ids: []int{channel.Id, 999999}})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/channel/batch", bytes.NewReader(requestBody))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	DeleteChannelBatch(ctx)
+
+	var response struct {
+		Success bool  `json:"success"`
+		Data    int64 `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.True(t, response.Success)
+	assert.Equal(t, int64(1), response.Data)
+}
 
 func TestNormalizeChannelTestEndpointDetectsOpenAIImageModels(t *testing.T) {
 	for _, modelName := range []string{

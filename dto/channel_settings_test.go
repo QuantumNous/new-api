@@ -477,3 +477,20 @@ func TestAdvancedCustomSupportedEndpointTypesForModel(t *testing.T) {
 		constant.EndpointTypeAnthropic,
 	}, config.SupportedEndpointTypesForModel("other-model"))
 }
+
+func TestAdvancedCustomValidateAlphaSearchConverterPath(t *testing.T) {
+	valid := &AdvancedCustomConfig{Routes: []AdvancedCustomRoute{{
+		IncomingPath: "/v1/alpha/search",
+		UpstreamPath: "/v1/alpha/search",
+		Converter:    advancedCustomConverterNone,
+	}}}
+	require.NoError(t, valid.Validate())
+	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAIAlphaSearch}, valid.SupportedEndpointTypesForModel("gpt-5.1"))
+
+	invalid := &AdvancedCustomConfig{Routes: []AdvancedCustomRoute{{
+		IncomingPath: "/v1/alpha/search",
+		UpstreamPath: "/v1/alpha/search",
+		Converter:    advancedCustomConverterOpenAIChatToOpenAIResponses,
+	}}}
+	require.ErrorContains(t, invalid.Validate(), "converter does not match incoming_path")
+}

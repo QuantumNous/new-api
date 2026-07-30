@@ -2,6 +2,8 @@ package service
 
 import (
 	"fmt"
+	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -20,6 +23,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 )
+
+type ToolSurchargeItem struct {
+	Name  string  `json:"name"`
+	Count int     `json:"count"`
+	Price float64 `json:"price"`
+}
+
+func appendToolSurchargeLogInfo(other map[string]interface{}, items []ToolSurchargeItem) {
+	if len(items) > 0 {
+		other["tool_surcharges"] = items
+	}
+}
 
 type textQuotaSummary struct {
 	PromptTokens             int
@@ -58,6 +73,8 @@ type textQuotaSummary struct {
 	XAIXSearchCallCount      int
 	AudioInputPrice          float64
 	ImageGenerationCallPrice float64
+	ImageGenerationCallCount int
+	ToolSurchargeItems       []ToolSurchargeItem
 	ToolCallSurchargeQuota   decimal.Decimal
 }
 
@@ -85,71 +102,137 @@ func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *d
 	return usage.ClaudeCacheCreation5mTokens > 0 || usage.ClaudeCacheCreation1hTokens > 0
 }
 
+func collectToolSurchargeItem(items []ToolSurchargeItem, name string, count int, price float64) []ToolSurchargeItem {
+	if count <= 0 || price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
+		return items
+	}
+	return append(items, ToolSurchargeItem{Name: name, Count: count, Price: price})
+}
+
+func mergeToolSurchargeItems(items []ToolSurchargeItem) []ToolSurchargeItem {
+	if len(items) == 0 {
+		return nil
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Name == items[j].Name {
+			return items[i].Price < items[j].Price
+		}
+		return items[i].Name < items[j].Name
+	})
+	merged := items[:0]
+	for _, item := range items {
+		last := len(merged) - 1
+		if last >= 0 && merged[last].Name == item.Name && merged[last].Price == item.Price {
+			if item.Count > math.MaxInt-merged[last].Count {
+				common.SysError("tool surcharge call count overflow for " + item.Name)
+				merged[last].Count = math.MaxInt
+			} else {
+				merged[last].Count += item.Count
+			}
+			continue
+		}
+		merged = append(merged, item)
+	}
+	return merged
+}
+
 func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, summary *textQuotaSummary) decimal.Decimal {
+	if summary.GroupRatio < 0 || math.IsNaN(summary.GroupRatio) || math.IsInf(summary.GroupRatio, 0) {
+		logger.LogWarn(ctx, "ignored invalid tool surcharge group ratio")
+		return decimal.Zero
+	}
+	if common.QuotaPerUnit < 0 || math.IsNaN(common.QuotaPerUnit) || math.IsInf(common.QuotaPerUnit, 0) {
+		logger.LogWarn(ctx, "ignored invalid tool surcharge quota unit")
+		return decimal.Zero
+	}
 	dGroupRatio := decimal.NewFromFloat(summary.GroupRatio)
 	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 
-	var surcharge decimal.Decimal
-
+	var items []ToolSurchargeItem
+	managedXAI := ctx.GetBool("playground_managed_search")
+	responseToolCounts := make(map[string]int)
 	if relayInfo.ResponsesUsageInfo != nil {
-		if ctx.GetBool("playground_managed_search") {
-			if tool := relayInfo.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolXAIWebSearch]; tool != nil && tool.CallCount > 0 {
-				summary.XAIWebSearchCallCount = tool.CallCount
-				summary.XAIWebSearchPrice = operation_setting.GetToolPriceForModel("xai_web_search", summary.ModelName)
-				surcharge = surcharge.Add(decimal.NewFromFloat(summary.XAIWebSearchPrice).Mul(decimal.NewFromInt(int64(tool.CallCount))).Div(decimal.NewFromInt(1000)).Mul(dGroupRatio).Mul(dQuotaPerUnit))
+		for name, tool := range relayInfo.ResponsesUsageInfo.BuiltInTools {
+			if tool == nil || tool.CallCount <= 0 {
+				continue
 			}
-			if tool := relayInfo.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolXAIXSearch]; tool != nil && tool.CallCount > 0 {
-				summary.XAIXSearchCallCount = tool.CallCount
-				summary.XAIXSearchPrice = operation_setting.GetToolPriceForModel("xai_x_search", summary.ModelName)
-				surcharge = surcharge.Add(decimal.NewFromFloat(summary.XAIXSearchPrice).Mul(decimal.NewFromInt(int64(tool.CallCount))).Div(decimal.NewFromInt(1000)).Mul(dGroupRatio).Mul(dQuotaPerUnit))
+			responseToolCounts[name] = tool.CallCount
+			if managedXAI {
+				switch name {
+				case dto.BuildInToolXAIWebSearch:
+					summary.XAIWebSearchCallCount = tool.CallCount
+					summary.XAIWebSearchPrice = operation_setting.GetToolPriceForModel("xai_web_search", summary.ModelName)
+					items = collectToolSurchargeItem(items, "xai_web_search", tool.CallCount, summary.XAIWebSearchPrice)
+					continue
+				case dto.BuildInToolXAIXSearch:
+					summary.XAIXSearchCallCount = tool.CallCount
+					summary.XAIXSearchPrice = operation_setting.GetToolPriceForModel("xai_x_search", summary.ModelName)
+					items = collectToolSurchargeItem(items, "xai_x_search", tool.CallCount, summary.XAIXSearchPrice)
+					continue
+				}
+			}
+
+			price := operation_setting.GetToolPriceForModel(name, summary.ModelName)
+			count := tool.CallCount
+			if name == dto.BuildInToolImageGeneration {
+				count = min(tool.CallCount, dto.MaxImageN)
+				summary.ImageGenerationCallCount = count
+				summary.ImageGenerationCallPrice = operation_setting.GetGPTImage1PriceOnceCall(ctx.GetString("image_generation_call_quality"), ctx.GetString("image_generation_call_size"))
+				price = summary.ImageGenerationCallPrice * 1000
+			}
+			items = collectToolSurchargeItem(items, name, count, price)
+			switch name {
+			case dto.BuildInToolWebSearchPreview, dto.BuildInToolWebSearch:
+				summary.WebSearchCallCount = tool.CallCount
+				summary.WebSearchPrice = price
+			case dto.BuildInToolFileSearch:
+				summary.FileSearchCallCount = tool.CallCount
+				summary.FileSearchPrice = price
 			}
 		}
-		if webSearchTool, exists := relayInfo.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearchPreview]; exists && webSearchTool.CallCount > 0 {
-			summary.WebSearchCallCount = webSearchTool.CallCount
-			summary.WebSearchPrice = operation_setting.GetToolPriceForModel("web_search_preview", summary.ModelName)
-			surcharge = surcharge.Add(decimal.NewFromFloat(summary.WebSearchPrice).
-				Mul(decimal.NewFromInt(int64(webSearchTool.CallCount))).
-				Div(decimal.NewFromInt(1000)).
-				Mul(dGroupRatio).
-				Mul(dQuotaPerUnit))
+	}
+	hasTrackedWebSearch := responseToolCounts[dto.BuildInToolWebSearchPreview] > 0 ||
+		responseToolCounts[dto.BuildInToolWebSearch] > 0
+	if relayInfo.RelayMode != relayconstant.RelayModeResponses &&
+		!hasTrackedWebSearch &&
+		strings.HasSuffix(summary.ModelName, "search-preview") {
+		price := operation_setting.GetToolPriceForModel(dto.BuildInToolWebSearchPreview, summary.ModelName)
+		items = collectToolSurchargeItem(items, dto.BuildInToolWebSearchPreview, 1, price)
+		if summary.WebSearchCallCount == 0 {
+			summary.WebSearchCallCount = 1
+			summary.WebSearchPrice = price
 		}
-	} else if strings.HasSuffix(summary.ModelName, "search-preview") {
-		summary.WebSearchCallCount = 1
-		summary.WebSearchPrice = operation_setting.GetToolPriceForModel("web_search_preview", summary.ModelName)
-		surcharge = surcharge.Add(decimal.NewFromFloat(summary.WebSearchPrice).
-			Div(decimal.NewFromInt(1000)).
-			Mul(dGroupRatio).
-			Mul(dQuotaPerUnit))
 	}
 
-	summary.ClaudeWebSearchCallCount = ctx.GetInt("claude_web_search_requests")
-	if summary.ClaudeWebSearchCallCount > 0 {
-		summary.ClaudeWebSearchPrice = operation_setting.GetToolPrice("web_search")
-		surcharge = surcharge.Add(decimal.NewFromFloat(summary.ClaudeWebSearchPrice).
-			Div(decimal.NewFromInt(1000)).
-			Mul(dGroupRatio).
-			Mul(dQuotaPerUnit).
-			Mul(decimal.NewFromInt(int64(summary.ClaudeWebSearchCallCount))))
+	if responseToolCounts[dto.BuildInToolWebSearch] == 0 {
+		summary.ClaudeWebSearchCallCount = ctx.GetInt("claude_web_search_requests")
+		summary.ClaudeWebSearchPrice = operation_setting.GetToolPriceForModel(dto.BuildInToolWebSearch, summary.ModelName)
+		items = collectToolSurchargeItem(items, dto.BuildInToolWebSearch, summary.ClaudeWebSearchCallCount, summary.ClaudeWebSearchPrice)
 	}
-	if relayInfo.ResponsesUsageInfo != nil {
-		if fileSearchTool, exists := relayInfo.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolFileSearch]; exists && fileSearchTool.CallCount > 0 {
-			summary.FileSearchCallCount = fileSearchTool.CallCount
-			summary.FileSearchPrice = operation_setting.GetToolPrice("file_search")
-			surcharge = surcharge.Add(decimal.NewFromFloat(summary.FileSearchPrice).
-				Mul(decimal.NewFromInt(int64(fileSearchTool.CallCount))).
-				Div(decimal.NewFromInt(1000)).
-				Mul(dGroupRatio).
-				Mul(dQuotaPerUnit))
-		}
+	if ctx.GetBool("gemini_google_search_call") && responseToolCounts[dto.BuildInToolGoogleSearch] == 0 {
+		price := operation_setting.GetToolPriceForModel(dto.BuildInToolGoogleSearch, summary.ModelName)
+		items = collectToolSurchargeItem(items, dto.BuildInToolGoogleSearch, 1, price)
 	}
-
-	if ctx.GetBool("image_generation_call") {
+	if summary.ImageGenerationCallCount == 0 && ctx.GetBool("image_generation_call") {
+		summary.ImageGenerationCallCount = 1
 		summary.ImageGenerationCallPrice = operation_setting.GetGPTImage1PriceOnceCall(ctx.GetString("image_generation_call_quality"), ctx.GetString("image_generation_call_size"))
-		surcharge = surcharge.Add(decimal.NewFromFloat(summary.ImageGenerationCallPrice).
+		items = collectToolSurchargeItem(items, dto.BuildInToolImageGeneration, 1, summary.ImageGenerationCallPrice*1000)
+	}
+
+	summary.ToolSurchargeItems = mergeToolSurchargeItems(items)
+	var surcharge decimal.Decimal
+	for _, item := range summary.ToolSurchargeItems {
+		surcharge = surcharge.Add(decimal.NewFromFloat(item.Price).
+			Mul(decimal.NewFromInt(int64(item.Count))).
+			Div(decimal.NewFromInt(1000)).
 			Mul(dGroupRatio).
 			Mul(dQuotaPerUnit))
 	}
 
+	if surcharge.IsNegative() {
+		logger.LogWarn(ctx, "ignored invalid negative tool surcharge")
+		return decimal.Zero
+	}
 	return surcharge
 }
 
@@ -166,15 +249,26 @@ func noteQuotaClamp(relayInfo *relaycommon.RelayInfo, clamp *common.QuotaClamp) 
 }
 
 func composeTieredTextQuota(relayInfo *relaycommon.RelayInfo, summary textQuotaSummary, tieredQuota int, tieredResult *billingexpr.TieredResult) int {
+	if summary.ToolCallSurchargeQuota.IsNegative() {
+		summary.ToolCallSurchargeQuota = decimal.Zero
+	}
 	if summary.ToolCallSurchargeQuota.IsZero() {
+		if tieredQuota < 0 {
+			return 0
+		}
 		return tieredQuota
 	}
 
 	if tieredResult != nil {
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
-			quota, clamp := common.QuotaFromDecimalChecked(decimal.NewFromFloat(tieredResult.ActualQuotaBeforeGroup).
+			quotaDecimal := decimal.NewFromFloat(tieredResult.ActualQuotaBeforeGroup).
 				Mul(decimal.NewFromFloat(snap.GroupRatio)).
-				Add(summary.ToolCallSurchargeQuota))
+				Add(summary.ToolCallSurchargeQuota)
+			if quotaDecimal.IsNegative() {
+				common.SysError("negative tiered text quota rejected")
+				return 0
+			}
+			quota, clamp := common.QuotaFromDecimalChecked(quotaDecimal)
 			noteQuotaClamp(relayInfo, clamp)
 			return quota
 		}
@@ -183,9 +277,12 @@ func composeTieredTextQuota(relayInfo *relaycommon.RelayInfo, summary textQuotaS
 	// Saturate the final sum, not just the surcharge: tieredQuota can be near
 	// MaxQuota and adding the surcharge could push the total past the int32
 	// quota policy bound (persisted quota columns are 32-bit).
-	total, clamp := common.QuotaFromDecimalChecked(
-		decimal.NewFromInt(int64(tieredQuota)).Add(summary.ToolCallSurchargeQuota),
-	)
+	totalDecimal := decimal.NewFromInt(int64(tieredQuota)).Add(summary.ToolCallSurchargeQuota)
+	if totalDecimal.IsNegative() {
+		common.SysError("negative tiered text quota rejected")
+		return 0
+	}
+	total, clamp := common.QuotaFromDecimalChecked(totalDecimal)
 	noteQuotaClamp(relayInfo, clamp)
 	return total
 }
@@ -266,6 +363,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.ToolCallSurchargeQuota = calculateTextToolCallSurcharge(ctx, relayInfo, &summary)
 
 	var audioInputQuota decimal.Decimal
+	negativeQuotaRejected := false
 	if !relayInfo.PriceData.UsePrice {
 		baseTokens := dPromptTokens
 
@@ -320,11 +418,15 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
 		completionQuota := dCompletionTokens.Mul(dCompletionRatio)
 		quotaCalculateDecimal := promptQuota.Add(completionQuota).Mul(ratio)
-		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = relayInfo.PriceData.ApplyOtherRatiosToDecimal(quotaCalculateDecimal)
+		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
 
-		if !ratio.IsZero() && quotaCalculateDecimal.LessThanOrEqual(decimal.Zero) {
+		if quotaCalculateDecimal.IsNegative() {
+			logger.LogWarn(ctx, "negative text quota rejected")
+			quotaCalculateDecimal = decimal.Zero
+			negativeQuotaRejected = true
+		} else if !ratio.IsZero() && !summary.ToolCallSurchargeQuota.IsPositive() && quotaCalculateDecimal.IsZero() && summary.TotalTokens > 0 {
 			quotaCalculateDecimal = decimal.NewFromInt(1)
 		}
 		quota, clamp := common.QuotaFromDecimalChecked(quotaCalculateDecimal)
@@ -332,9 +434,14 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		noteQuotaClamp(relayInfo, clamp)
 	} else {
 		quotaCalculateDecimal := dModelPrice.Mul(dQuotaPerUnit).Mul(dGroupRatio)
-		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = relayInfo.PriceData.ApplyOtherRatiosToDecimal(quotaCalculateDecimal)
+		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
+		if quotaCalculateDecimal.IsNegative() {
+			logger.LogWarn(ctx, "negative text quota rejected")
+			quotaCalculateDecimal = decimal.Zero
+			negativeQuotaRejected = true
+		}
 		quota, clamp := common.QuotaFromDecimalChecked(quotaCalculateDecimal)
 		summary.Quota = quota
 		noteQuotaClamp(relayInfo, clamp)
@@ -342,7 +449,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 
 	if summary.TotalTokens == 0 && summary.ToolCallSurchargeQuota.IsZero() {
 		summary.Quota = 0
-	} else if !ratio.IsZero() && summary.Quota == 0 {
+	} else if !negativeQuotaRejected && !ratio.IsZero() && summary.Quota == 0 && summary.TotalTokens > 0 {
 		summary.Quota = 1
 	}
 
@@ -385,6 +492,10 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			tieredResult = tieredRes
 			summary.Quota = composeTieredTextQuota(relayInfo, summary, tieredQuota, tieredRes)
 		}
+	}
+	if summary.Quota < 0 {
+		logger.LogWarn(ctx, "negative settled text quota rejected")
+		summary.Quota = 0
 	}
 
 	if summary.WebSearchCallCount > 0 {
@@ -485,8 +596,10 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	if summary.ImageGenerationCallPrice > 0 {
 		other["image_generation_call"] = true
+		other["image_generation_call_count"] = summary.ImageGenerationCallCount
 		other["image_generation_call_price"] = summary.ImageGenerationCallPrice
 	}
+	appendToolSurchargeLogInfo(other, summary.ToolSurchargeItems)
 	if summary.CacheCreationTokens > 0 {
 		other["cache_creation_tokens"] = summary.CacheCreationTokens
 		other["cache_creation_ratio"] = summary.CacheCreationRatio

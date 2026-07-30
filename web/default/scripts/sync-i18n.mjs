@@ -82,6 +82,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Replicate',
   'SiliconFlow',
   'Stripe',
+  'Sub2API',
   'Submodel',
   'SunoAPI',
   'Telegram',

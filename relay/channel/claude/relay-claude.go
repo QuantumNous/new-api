@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -114,6 +115,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 				data = patchClaudeMessageDeltaUsageData(data, buildMessageDeltaPatchUsage(&claudeResponse, claudeInfo))
 			}
 		}
+		countClaudeStreamBillableTools(c, info, &claudeResponse)
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
 		response := StreamResponseClaude2OpenAI(&claudeResponse)
@@ -122,12 +124,44 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			return nil
 		}
 
+		countClaudeStreamBillableTools(c, info, &claudeResponse)
+
 		err = helper.ObjectData(c, response)
 		if err != nil {
 			logger.LogError(c, "send_stream_response_failed: "+err.Error())
 		}
 	}
 	return nil
+}
+
+const claudeBillableToolIdentitiesKey = "claude_billable_tool_identities"
+
+func countClaudeStreamBillableTools(c *gin.Context, info *relaycommon.RelayInfo, response *dto.ClaudeResponse) {
+	if response == nil {
+		return
+	}
+	if response.Type == "content_block_start" && response.ContentBlock != nil && response.ContentBlock.Type == "tool_use" {
+		identity := response.ContentBlock.Id
+		if identity == "" && response.Index != nil {
+			identity = fmt.Sprintf("index:%d", *response.Index)
+		}
+		if identity != "" {
+			seen, _ := c.Get(claudeBillableToolIdentitiesKey)
+			identities, _ := seen.(map[string]struct{})
+			if identities == nil {
+				identities = make(map[string]struct{})
+				c.Set(claudeBillableToolIdentitiesKey, identities)
+			}
+			if _, exists := identities[identity]; exists {
+				return
+			}
+			identities[identity] = struct{}{}
+		}
+		info.CountBillableToolCall(dto.BuildInCallToolUse, response.ContentBlock.Name)
+	}
+	if response.Type == "message_delta" && response.Usage != nil && response.Usage.ServerToolUse != nil && response.Usage.ServerToolUse.WebSearchRequests > 0 {
+		c.Set("claude_web_search_requests", response.Usage.ServerToolUse.WebSearchRequests)
+	}
 }
 
 func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) {
@@ -233,6 +267,11 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 
 	if claudeResponse.Usage != nil && claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {
 		c.Set("claude_web_search_requests", claudeResponse.Usage.ServerToolUse.WebSearchRequests)
+	}
+	for _, block := range claudeResponse.Content {
+		if block.Type == "tool_use" {
+			info.CountBillableToolCall(dto.BuildInCallToolUse, block.Name)
+		}
 	}
 
 	service.IOCopyBytesGracefully(c, httpResp, responseData)

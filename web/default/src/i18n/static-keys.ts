@@ -33,6 +33,7 @@ export const STATIC_I18N_KEYS = [
   'Auto-disable rules',
   'Channel health checks',
   'Request retry',
+  'Sub2API',
 
   // System settings sidebar
   'System Administration',

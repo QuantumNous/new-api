@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"math"
@@ -13,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -270,6 +272,13 @@ func getSubscriptionUsed(t *testing.T, id int) int64 {
 	return sub.AmountUsed
 }
 
+func getTaskQuota(t *testing.T, id int64) int {
+	t.Helper()
+	var task model.Task
+	require.NoError(t, model.DB.Select("quota").Where("id = ?", id).First(&task).Error)
+	return task.Quota
+}
+
 func getLastLog(t *testing.T) *model.Log {
 	t.Helper()
 	var log model.Log
@@ -304,8 +313,9 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	seedChannel(t, channelID)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	require.NoError(t, model.DB.Create(task).Error)
 
-	RefundTaskQuota(ctx, task, "task failed: upstream error")
+	assert.True(t, RefundTaskQuota(ctx, task, "task failed: upstream error"))
 
 	// User quota should increase by preConsumed
 	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
@@ -320,6 +330,8 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 	assert.Equal(t, preConsumed, log.Quota)
 	assert.Equal(t, "test-model", log.ModelName)
+	assert.Zero(t, task.Quota)
+	assert.Zero(t, getTaskQuota(t, task.ID))
 }
 
 func TestRefundTaskQuota_Subscription(t *testing.T) {
@@ -337,8 +349,9 @@ func TestRefundTaskQuota_Subscription(t *testing.T) {
 	seedSubscription(t, subID, userID, subTotal, subUsed)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceSubscription, subID)
+	require.NoError(t, model.DB.Create(task).Error)
 
-	RefundTaskQuota(ctx, task, "subscription task failed")
+	assert.True(t, RefundTaskQuota(ctx, task, "subscription task failed"))
 
 	// Subscription used should decrease by preConsumed
 	assert.Equal(t, subUsed-int64(preConsumed), getSubscriptionUsed(t, subID))
@@ -349,6 +362,7 @@ func TestRefundTaskQuota_Subscription(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+	assert.Zero(t, getTaskQuota(t, task.ID))
 }
 
 func TestRefundTaskQuota_ZeroQuota(t *testing.T) {
@@ -360,7 +374,7 @@ func TestRefundTaskQuota_ZeroQuota(t *testing.T) {
 
 	task := makeTask(userID, 0, 0, 0, BillingSourceWallet, 0)
 
-	RefundTaskQuota(ctx, task, "zero quota task")
+	assert.True(t, RefundTaskQuota(ctx, task, "zero quota task"))
 
 	// No change to user quota
 	assert.Equal(t, 5000, getUserQuota(t, userID))
@@ -380,8 +394,9 @@ func TestRefundTaskQuota_NoToken(t *testing.T) {
 	seedChannel(t, channelID)
 
 	task := makeTask(userID, channelID, preConsumed, 0, BillingSourceWallet, 0) // TokenId=0
+	require.NoError(t, model.DB.Create(task).Error)
 
-	RefundTaskQuota(ctx, task, "no token task failed")
+	assert.True(t, RefundTaskQuota(ctx, task, "no token task failed"))
 
 	// User quota refunded
 	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
@@ -390,6 +405,65 @@ func TestRefundTaskQuota_NoToken(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+	assert.Zero(t, getTaskQuota(t, task.ID))
+}
+
+func TestRefundTaskQuota_FundingFailureKeepsQuota(t *testing.T) {
+	truncate(t)
+
+	const userID, quota = 5, 1200
+	seedUser(t, userID, 5000)
+	task := makeTask(userID, 0, quota, 0, BillingSourceSubscription, 9999)
+	require.NoError(t, model.DB.Create(task).Error)
+
+	assert.False(t, RefundTaskQuota(context.Background(), task, "subscription missing"))
+	assert.Equal(t, quota, task.Quota)
+	assert.Equal(t, quota, getTaskQuota(t, task.ID))
+	assert.Equal(t, int64(0), countLogs(t))
+}
+
+func TestNegativeTaskQuotaCannotMutateFunding(t *testing.T) {
+	truncate(t)
+
+	const userID, negativeQuota = 7, -1200
+	seedUser(t, userID, 5000)
+	task := makeTask(userID, 0, negativeQuota, 0, BillingSourceWallet, 0)
+	require.NoError(t, model.DB.Create(task).Error)
+
+	assert.False(t, RefundTaskQuota(context.Background(), task, "invalid negative quota"))
+	RecalculateTaskQuota(context.Background(), task, 1000, "invalid negative pre-consume")
+
+	assert.Equal(t, 5000, getUserQuota(t, userID))
+	assert.Equal(t, negativeQuota, getTaskQuota(t, task.ID))
+	assert.Equal(t, int64(0), countLogs(t))
+}
+
+func TestRefundTaskQuota_QuotaClearFailureDoesNotRefundTwice(t *testing.T) {
+	truncate(t)
+
+	const userID, quota = 6, 1300
+	seedUser(t, userID, 5000)
+	task := makeTask(userID, 0, quota, 0, BillingSourceWallet, 0)
+	// Keep ID zero so the final quota UPDATE is rejected by GORM after the
+	// wallet refund and refund log have already succeeded.
+
+	var logBuffer bytes.Buffer
+	common.LogWriterMu.Lock()
+	oldWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logBuffer
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultErrorWriter = oldWriter
+		common.LogWriterMu.Unlock()
+	})
+
+	assert.True(t, RefundTaskQuota(context.Background(), task, "clear quota failure"))
+	assert.True(t, RefundTaskQuota(context.Background(), task, "must not refund again"))
+	assert.Equal(t, 5000+quota, getUserQuota(t, userID))
+	assert.Equal(t, int64(1), countLogs(t))
+	assert.Zero(t, task.Quota)
+	assert.Contains(t, logBuffer.String(), "清除 task quota 失败")
 }
 
 // ===========================================================================
@@ -566,7 +640,7 @@ func simulatePollBilling(ctx context.Context, task *model.Task, newStatus model.
 
 	isDone := task.Status == model.TaskStatus(model.TaskStatusSuccess) || task.Status == model.TaskStatus(model.TaskStatusFailure)
 	if isDone && snap.Status != task.Status {
-		won, err := task.UpdateWithStatus(snap.Status)
+		won, err := task.UpdateIfUnchanged(snap)
 		if err != nil {
 			shouldRefund = false
 			shouldSettle = false
@@ -575,7 +649,7 @@ func simulatePollBilling(ctx context.Context, task *model.Task, newStatus model.
 			shouldSettle = false
 		}
 	} else if !snap.Equal(task.Snapshot()) {
-		_, _ = task.UpdateWithStatus(snap.Status)
+		_, _ = task.UpdateIfUnchanged(snap)
 	}
 
 	if shouldSettle && actualQuota > 0 {

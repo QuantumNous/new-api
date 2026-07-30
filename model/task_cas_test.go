@@ -139,6 +139,7 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 	task := &Task{
 		Status:     TaskStatusInProgress,
 		Progress:   "42%",
+		SubmitTime: 1111,
 		StartTime:  1234,
 		FinishTime: 5678,
 		FailReason: "timeout",
@@ -150,6 +151,7 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 	snap := task.Snapshot()
 	assert.Equal(t, task.Status, snap.Status)
 	assert.Equal(t, task.Progress, snap.Progress)
+	assert.Equal(t, task.SubmitTime, snap.SubmitTime)
 	assert.Equal(t, task.StartTime, snap.StartTime)
 	assert.Equal(t, task.FinishTime, snap.FinishTime)
 	assert.Equal(t, task.FailReason, snap.FailReason)
@@ -202,6 +204,41 @@ func TestUpdateWithStatus_Lose(t *testing.T) {
 	var reloaded Task
 	require.NoError(t, DB.First(&reloaded, task.ID).Error)
 	assert.EqualValues(t, TaskStatusFailure, reloaded.Status) // unchanged
+}
+
+func TestUpdateIfUnchangedRejectsStaleSameStatusSnapshot(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID:   "task_snapshot_cas",
+		Status:   TaskStatusInProgress,
+		Progress: "10%",
+		Data:     json.RawMessage(`{"step":1}`),
+	}
+	insertTask(t, task)
+
+	var fresh, stale Task
+	require.NoError(t, DB.First(&fresh, task.ID).Error)
+	require.NoError(t, DB.First(&stale, task.ID).Error)
+	freshSnapshot := fresh.Snapshot()
+	staleSnapshot := stale.Snapshot()
+
+	fresh.Progress = "80%"
+	fresh.Data = json.RawMessage(`{"step":8}`)
+	won, err := fresh.UpdateIfUnchanged(freshSnapshot)
+	require.NoError(t, err)
+	assert.True(t, won)
+
+	stale.Progress = "20%"
+	stale.Data = json.RawMessage(`{"step":2}`)
+	won, err = stale.UpdateIfUnchanged(staleSnapshot)
+	require.NoError(t, err)
+	assert.False(t, won)
+
+	var reloaded Task
+	require.NoError(t, DB.First(&reloaded, task.ID).Error)
+	assert.Equal(t, "80%", reloaded.Progress)
+	assert.JSONEq(t, `{"step":8}`, string(reloaded.Data))
 }
 
 func TestUpdateWithStatus_ConcurrentWinner(t *testing.T) {

@@ -37,6 +37,23 @@ func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing
 	assert.Equal(t, "function_call_output", gjson.GetBytes(got.Input, "3.type").String())
 }
 
+func TestChatCompletionsRequestToResponsesRequestPreservesThinkingBudget(t *testing.T) {
+	for _, budget := range []int{0, 128} {
+		budget := budget
+		req := &dto.GeneralOpenAIRequest{
+			Model:          "qwen-plus",
+			EnableThinking: []byte(`true`),
+			ThinkingBudget: &budget,
+			Messages:       []dto.Message{{Role: "user", Content: "hello"}},
+		}
+
+		got, err := ChatCompletionsRequestToResponsesRequest(req)
+		require.NoError(t, err)
+		assert.Equal(t, req.EnableThinking, got.EnableThinking)
+		assert.Same(t, req.ThinkingBudget, got.ThinkingBudget)
+	}
+}
+
 func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testing.T) {
 	_, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
 		Model: "gpt-test",

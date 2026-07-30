@@ -27,6 +27,23 @@ type OpenAIResponsesCompactionRequest struct {
 	Text                 json.RawMessage `json:"text,omitempty"`
 }
 
+func (r *OpenAIResponsesCompactionRequest) ToResponsesRequest() *OpenAIResponsesRequest {
+	return &OpenAIResponsesRequest{
+		Model:                r.Model,
+		Input:                r.Input,
+		Instructions:         r.Instructions,
+		PreviousResponseID:   r.PreviousResponseID,
+		Tools:                r.Tools,
+		ParallelToolCalls:    r.ParallelToolCalls,
+		Reasoning:            r.Reasoning,
+		ServiceTier:          r.ServiceTier,
+		PromptCacheKey:       r.PromptCacheKey,
+		PromptCacheOptions:   r.PromptCacheOptions,
+		PromptCacheRetention: r.PromptCacheRetention,
+		Text:                 r.Text,
+	}
+}
+
 func (r *OpenAIResponsesCompactionRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var parts []string
 	if len(r.Instructions) > 0 {

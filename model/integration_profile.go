@@ -102,7 +102,8 @@ func NormalizeModelIntegrations(raw string) (string, error) {
 var endpointProfileIDs = map[constant.EndpointType]string{
 	constant.EndpointTypeOpenAI: "openai.chat_completions", constant.EndpointTypeOpenAIResponse: "openai.responses",
 	constant.EndpointTypeOpenAIResponseCompact: "openai.responses_compact", constant.EndpointTypeAnthropic: "anthropic.messages",
-	constant.EndpointTypeGemini: "gemini.generate_content", constant.EndpointTypeEmbeddings: "openai.embeddings",
+	constant.EndpointTypeOpenAIAlphaSearch: "openai.alpha_search",
+	constant.EndpointTypeGemini:            "gemini.generate_content", constant.EndpointTypeEmbeddings: "openai.embeddings",
 	constant.EndpointTypeJinaRerank: "jina.rerank", constant.EndpointTypeImageGeneration: "openai.images.generate",
 	constant.EndpointTypeOpenAIVideo: "openai.video.create",
 }

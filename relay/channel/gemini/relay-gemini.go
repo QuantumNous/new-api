@@ -76,6 +76,33 @@ func geminiResponseUsageText(response *dto.GeminiChatResponse) string {
 	return text.String()
 }
 
+func trackGeminiCompletedTools(c *gin.Context, info *relaycommon.RelayInfo, response *dto.GeminiChatResponse, seen map[string]struct{}) {
+	if c == nil || response == nil {
+		return
+	}
+	for candidateIndex, candidate := range response.Candidates {
+		if candidate.GroundingMetadata != nil && len(candidate.GroundingMetadata.WebSearchQueries) > 0 {
+			c.Set("gemini_google_search_call", true)
+			if _, exists := seen["google_search"]; !exists {
+				seen["google_search"] = struct{}{}
+				info.CountBillableToolCall(dto.BuildInCallGoogleSearchCall, "")
+			}
+		}
+		for partIndex, part := range candidate.Content.Parts {
+			if part.FunctionCall == nil || part.FunctionCall.FunctionName == "" {
+				continue
+			}
+			arguments, _ := common.Marshal(part.FunctionCall.Arguments)
+			identity := fmt.Sprintf("function:%d:%d:%s:%s", candidateIndex, partIndex, part.FunctionCall.FunctionName, arguments)
+			if _, exists := seen[identity]; exists {
+				continue
+			}
+			seen[identity] = struct{}{}
+			info.CountBillableToolCall(dto.BuildInCallFunctionCall, part.FunctionCall.FunctionName)
+		}
+	}
+}
+
 func buildUsageFromGeminiResponse(c *gin.Context, info *relaycommon.RelayInfo, response *dto.GeminiChatResponse) dto.Usage {
 	metadata := response.GetUsageMetadata()
 	if dto.HasGeminiUsageMetadataTokens(metadata) {
@@ -137,6 +164,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	var imageCount int
 	var hasBillableUsageMetadata bool
 	responseText := strings.Builder{}
+	seenCompletedTools := make(map[string]struct{})
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var geminiResponse dto.GeminiChatResponse
@@ -148,6 +176,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
 		}
+		trackGeminiCompletedTools(c, info, &geminiResponse, seenCompletedTools)
 
 		// 统计图片数量
 		for _, candidate := range geminiResponse.Candidates {
@@ -308,6 +337,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	trackGeminiCompletedTools(c, info, &geminiResponse, make(map[string]struct{}))
 	if len(geminiResponse.Candidates) == 0 {
 		usage := buildUsageFromGeminiResponse(c, info, &geminiResponse)
 
@@ -478,8 +508,8 @@ type GeminiModelsResponse struct {
 	NextPageToken string            `json:"nextPageToken"`
 }
 
-func FetchGeminiModels(baseURL, apiKey, proxyURL string) ([]string, error) {
-	client, err := service.GetHttpClientWithProxy(proxyURL)
+func FetchGeminiModels(baseURL, apiKey string, channelSetting dto.ChannelSettings) ([]string, error) {
+	client, err := service.GetHttpClientWithProxySettings(channelSetting.Proxy, channelSetting)
 	if err != nil {
 		return nil, fmt.Errorf("创建HTTP客户端失败: %v", err)
 	}

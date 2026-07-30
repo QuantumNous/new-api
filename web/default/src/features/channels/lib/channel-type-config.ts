@@ -144,6 +144,26 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models exposed by this channel',
     },
   },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'newapi',
+    hints: {
+      baseUrl: 'Required Sub2API upstream URL without /v1',
+      key: 'API key issued by the Sub2API upstream',
+      models: 'Models discovered from the Sub2API upstream',
+    },
+  },
+  60: {
+    id: 60,
+    name: CHANNEL_TYPES[60],
+    icon: 'newapi',
+    hints: {
+      baseUrl: 'Required New API upstream URL without /v1',
+      key: 'API key created in the New API upstream',
+      models: 'Models discovered from the New API upstream',
+    },
+  },
 }
 
 /**

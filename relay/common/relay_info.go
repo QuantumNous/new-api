@@ -342,6 +342,9 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeMiniMax:        true,
 	constant.ChannelTypeSiliconFlow:    true,
 	constant.ChannelTypeAdvancedCustom: true,
+	constant.ChannelTypeTencent:        true,
+	constant.ChannelTypeSub2API:        true,
+	constant.ChannelTypeNewAPI:         true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
@@ -575,6 +578,11 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			return GenRelayInfoResponsesCompaction(c, request), nil
 		}
 		return nil, errors.New("request is not a OpenAIResponsesCompactionRequest")
+	case types.RelayFormatOpenAIAlphaSearch:
+		if request, ok := request.(*dto.AlphaSearchRequest); ok {
+			return GenRelayInfoAlphaSearch(c, request), nil
+		}
+		return nil, errors.New("request is not an AlphaSearchRequest")
 	case types.RelayFormatTask:
 		info = genBaseRelayInfo(c, nil)
 		info.TaskRelayInfo = &TaskRelayInfo{}
@@ -649,6 +657,18 @@ func GenRelayInfoResponsesCompaction(c *gin.Context, request *dto.OpenAIResponse
 	return info
 }
 
+func GenRelayInfoAlphaSearch(c *gin.Context, request *dto.AlphaSearchRequest) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	if info.RelayMode == relayconstant.RelayModeUnknown {
+		info.RelayMode = relayconstant.RelayModeAlphaSearch
+	}
+	info.RelayFormat = types.RelayFormatOpenAIAlphaSearch
+	info.ResponsesUsageInfo = &ResponsesUsageInfo{BuiltInTools: map[string]*BuildInToolInfo{
+		dto.BuildInToolWebSearchPreview: {ToolName: dto.BuildInToolWebSearchPreview},
+	}}
+	return info
+}
+
 //func (info *RelayInfo) SetPromptTokens(promptTokens int) {
 //	info.promptTokens = promptTokens
 //}
@@ -688,15 +708,15 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt         string                 `json:"prompt"`
-	Model          string                 `json:"model,omitempty"`
-	Mode           string                 `json:"mode,omitempty"`
-	Image          string                 `json:"image,omitempty"`
-	Images         []string               `json:"images,omitempty"`
-	Size           string                 `json:"size,omitempty"`
-	Duration       int                    `json:"duration,omitempty"`
-	Seconds        string                 `json:"seconds,omitempty"`
-	InputReference string                 `json:"input_reference,omitempty"`
+	Prompt         string   `json:"prompt"`
+	Model          string   `json:"model,omitempty"`
+	Mode           string   `json:"mode,omitempty"`
+	Image          string   `json:"image,omitempty"`
+	Images         []string `json:"images,omitempty"`
+	Size           string   `json:"size,omitempty"`
+	Duration       int      `json:"duration,omitempty"`
+	Seconds        string   `json:"seconds,omitempty"`
+	InputReference string   `json:"input_reference,omitempty"`
 	// FirstFrame / LastFrame are playground-friendly aliases for image-to-video.
 	// Normalized into Images / InputReference before adaptors run.
 	FirstFrame string                 `json:"first_frame,omitempty"`

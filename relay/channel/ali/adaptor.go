@@ -176,7 +176,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 
 	switch info.RelayMode {
 	default:
-		aliReq := requestOpenAI2Ali(*request)
+		aliReq := requestOpenAI2Ali(*request, info.UpstreamModelName)
 		return aliReq, nil
 	}
 }
@@ -235,6 +235,9 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	if !dto.IsQwenThinkingBudgetModel(info.UpstreamModelName) {
+		request.ThinkingBudget = nil
+	}
 	return request, nil
 }
 

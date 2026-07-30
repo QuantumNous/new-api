@@ -72,6 +72,51 @@ func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "top_p").Exists())
 }
 
+func TestThinkingBudgetMarshallingIsLimitedToQwenModels(t *testing.T) {
+	zero := 0
+	positive := 128
+	tests := []struct {
+		name    string
+		request any
+		want    int64
+		exists  bool
+	}{
+		{name: "chat qwen preserves zero", request: GeneralOpenAIRequest{Model: "qwen-plus", ThinkingBudget: &zero}, want: 0, exists: true},
+		{name: "chat provider qwq preserves value", request: GeneralOpenAIRequest{Model: "provider/QwQ-32B", ThinkingBudget: &positive}, want: 128, exists: true},
+		{name: "chat non-qwen drops value", request: GeneralOpenAIRequest{Model: "gpt-4.1", ThinkingBudget: &positive}, exists: false},
+		{name: "responses qwen preserves zero", request: OpenAIResponsesRequest{Model: "Qwen/Qwen3-Thinking", ThinkingBudget: &zero}, want: 0, exists: true},
+		{name: "responses non-qwen drops value", request: OpenAIResponsesRequest{Model: "deepseek-r1", ThinkingBudget: &positive}, exists: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			encoded, err := common.Marshal(test.request)
+			require.NoError(t, err)
+			value := gjson.GetBytes(encoded, "thinking_budget")
+			require.Equal(t, test.exists, value.Exists())
+			if test.exists {
+				require.Equal(t, test.want, value.Int())
+			}
+		})
+	}
+}
+
+func TestIsQwenThinkingBudgetModel(t *testing.T) {
+	tests := map[string]bool{
+		"qwen-plus":                    true,
+		"Qwen/Qwen3-235B-A22B":         true,
+		"qwq-32b":                      true,
+		"provider/qwq-32b":             true,
+		"gpt-4.1":                      false,
+		"provider/not-qwen-compatible": false,
+	}
+	for model, want := range tests {
+		t.Run(model, func(t *testing.T) {
+			require.Equal(t, want, IsQwenThinkingBudgetModel(model))
+		})
+	}
+}
+
 func TestGeneralOpenAIRequestGetSystemRoleName(t *testing.T) {
 	tests := []struct {
 		name  string

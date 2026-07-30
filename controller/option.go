@@ -172,6 +172,17 @@ func UpdateOption(c *gin.Context) {
 		common.ApiErrorMsg(c, i18n.T(c, i18n.MsgOptionBankQRDedicatedEndpoint))
 		return
 	}
+	if option.Key == operation_setting.ToolPriceOptionKey {
+		value, ok := option.Value.(string)
+		if !ok {
+			common.ApiErrorMsg(c, i18n.T(c, i18n.MsgOptionInvalidParams))
+			return
+		}
+		if err := operation_setting.ValidateToolPricesJSON(value); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	switch option.Value.(type) {
 	case bool:
 		option.Value = common.Interface2String(option.Value.(bool))

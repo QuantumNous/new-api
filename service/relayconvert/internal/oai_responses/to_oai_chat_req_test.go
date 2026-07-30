@@ -55,6 +55,23 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *t
 	assert.Equal(t, "abc", gjson.GetBytes(got.Metadata, "trace").String())
 }
 
+func TestResponsesRequestToChatCompletionsRequestPreservesThinkingBudget(t *testing.T) {
+	for _, budget := range []int{0, 128} {
+		budget := budget
+		req := &dto.OpenAIResponsesRequest{
+			Model:          "qwen-plus",
+			Input:          mustRawMessage(t, "hello"),
+			EnableThinking: []byte(`true`),
+			ThinkingBudget: &budget,
+		}
+
+		got, err := ResponsesRequestToChatCompletionsRequest(req)
+		require.NoError(t, err)
+		assert.Equal(t, req.EnableThinking, got.EnableThinking)
+		assert.Same(t, req.ThinkingBudget, got.ThinkingBudget)
+	}
+}
+
 func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
 	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
 		Model: "gpt-test",

@@ -17,6 +17,38 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	// HTTPProtocol controls outbound HTTP version negotiation for this channel.
+	// Accepted values: "", "auto" (default), "http1".
+	HTTPProtocol string `json:"http_protocol,omitempty"`
+	// HTTP2ConnectionShards spreads HTTP/2 traffic across independent transports.
+	// Zero/unset means one connection shard.
+	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+}
+
+const (
+	HTTPProtocolAuto         = "auto"
+	HTTPProtocolHTTP1        = "http1"
+	MaxHTTP2ConnectionShards = 8
+)
+
+// ValidateHTTPTransport validates save-time HTTP transport channel settings.
+func (s *ChannelSettings) ValidateHTTPTransport() error {
+	if s == nil {
+		return nil
+	}
+	protocol := strings.ToLower(strings.TrimSpace(s.HTTPProtocol))
+	switch protocol {
+	case "", HTTPProtocolAuto, HTTPProtocolHTTP1:
+	default:
+		return fmt.Errorf("invalid http_protocol: %s", s.HTTPProtocol)
+	}
+	if s.HTTP2ConnectionShards < 0 || s.HTTP2ConnectionShards > MaxHTTP2ConnectionShards {
+		return fmt.Errorf("invalid http2_connection_shards: %d", s.HTTP2ConnectionShards)
+	}
+	if protocol == HTTPProtocolHTTP1 && s.HTTP2ConnectionShards > 1 {
+		return fmt.Errorf("http2_connection_shards must be 1 when http_protocol is http1")
+	}
+	return nil
 }
 
 type VertexKeyType string
@@ -106,6 +138,7 @@ const (
 	advancedCustomEndpointPathOpenAIChat             = "/v1/chat/completions"
 	advancedCustomEndpointPathOpenAIResponses        = "/v1/responses"
 	advancedCustomEndpointPathOpenAIResponsesCompact = "/v1/responses/compact"
+	advancedCustomEndpointPathOpenAIAlphaSearch      = "/v1/alpha/search"
 	advancedCustomEndpointPathClaudeMessages         = "/v1/messages"
 	advancedCustomEndpointPathJinaRerank             = "/v1/rerank"
 	advancedCustomEndpointPathImageGeneration        = "/v1/images/generations"
@@ -204,6 +237,8 @@ func advancedCustomEndpointTypeFromIncomingPath(incomingPath string) (constant.E
 		return constant.EndpointTypeOpenAIResponse, true
 	case advancedCustomEndpointPathOpenAIResponsesCompact:
 		return constant.EndpointTypeOpenAIResponseCompact, true
+	case advancedCustomEndpointPathOpenAIAlphaSearch:
+		return constant.EndpointTypeOpenAIAlphaSearch, true
 	case advancedCustomEndpointPathClaudeMessages:
 		return constant.EndpointTypeAnthropic, true
 	case advancedCustomEndpointPathJinaRerank:
@@ -475,6 +510,12 @@ func validateAdvancedCustomUpstreamTarget(index int, upstreamPath string) error 
 }
 
 func validateAdvancedCustomConverterPath(index int, incomingPath string, converter string) error {
+	if incomingPath == advancedCustomEndpointPathOpenAIAlphaSearch {
+		if converter == advancedCustomConverterNone {
+			return nil
+		}
+		return fmt.Errorf("advanced_custom.advanced_routes[%d].converter does not match incoming_path: %s", index, converter)
+	}
 	switch converter {
 	case advancedCustomConverterNone:
 		return nil

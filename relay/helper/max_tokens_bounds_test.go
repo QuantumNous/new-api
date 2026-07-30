@@ -69,4 +69,44 @@ func TestMaxTokensBounds(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "max_output_tokens is invalid")
 	})
+
+	for _, format := range []struct {
+		name string
+		body func(value string) string
+		call func(*gin.Context) error
+	}{
+		{
+			name: "chat",
+			body: func(value string) string {
+				return `{"model":"qwen-plus","messages":[{"role":"user","content":"hi"}],"thinking_budget":` + value + `}`
+			},
+			call: func(c *gin.Context) error {
+				_, err := GetAndValidateTextRequest(c, relayconstant.RelayModeChatCompletions)
+				return err
+			},
+		},
+		{
+			name: "responses",
+			body: func(value string) string {
+				return `{"model":"qwen-plus","input":"hi","thinking_budget":` + value + `}`
+			},
+			call: func(c *gin.Context) error {
+				_, err := GetAndValidateResponsesRequest(c)
+				return err
+			},
+		},
+	} {
+		t.Run(format.name+" thinking_budget bounds", func(t *testing.T) {
+			for _, value := range []string{"-1", "1073741824"} {
+				err := format.call(newJSONContext(t, format.body(value)))
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "thinking_budget is invalid")
+			}
+
+			for _, value := range []string{"0", "1073741823"} {
+				err := format.call(newJSONContext(t, format.body(value)))
+				require.NoError(t, err)
+			}
+		})
+	}
 }
