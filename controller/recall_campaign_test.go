@@ -828,6 +828,40 @@ func TestRecallEmailGenerationActivationReturnsStructuredBlockers(t *testing.T) 
 	require.Equal(t, "missing", first["reason"])
 }
 
+func TestRecallCampaignActionReturnsStableActivitySMTPCode(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		action gin.HandlerFunc
+		status string
+	}{
+		{name: "activate", action: ActivateRecallCampaign, status: model.RecallCampaignDraft},
+		{name: "resume", action: ResumeRecallCampaign, status: model.RecallCampaignPaused},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			harness := setupRecallControllerHarness(t)
+			setRecallControllerSMTPOptions(t, "smtp.activity.example.com", "587", "activity@example.com", "campaigns@example.com", "stored-secret", "true", "true")
+			campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
+			if tt.status == model.RecallCampaignPaused {
+				require.NoError(t, harness.runtime.Campaigns.Activate(context.Background(), 7, campaign.Id))
+				require.NoError(t, harness.runtime.Campaigns.Pause(context.Background(), 7, campaign.Id))
+			}
+			setRecallControllerSMTPOptions(t, "", "0", "", "", "", "false", "false")
+
+			recorder := invokeRecallHandler(t, tt.action, http.MethodPost, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+			payload := decodeRecallEnvelope(t, recorder)
+			require.Equal(t, false, payload["success"])
+			require.Contains(t, payload["message"], "Activity SMTP settings")
+			require.NotEqual(t, service.RecallActivitySMTPNotConfiguredCode, payload["message"])
+			data, ok := payload["data"].(map[string]any)
+			require.True(t, ok, "expected structured data in response: %s", recorder.Body.String())
+			require.Equal(t, service.RecallActivitySMTPNotConfiguredCode, data["code"])
+			require.NotContains(t, data, "blockers")
+		})
+	}
+}
+
 func TestRecallEmailQuotaStatusRouteReturnsActivityOnlyWindow(t *testing.T) {
 	setupRecallControllerHarness(t)
 	_, reserved, err := model.ReserveRecallEmailQuotaWithContext(context.Background(), 100)

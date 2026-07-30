@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { RecallApiError, useRecallCampaignMutations } from '../api'
+import { getRecallApiErrorCodeCopyKey } from '../copy'
 import type {
   RecallCampaignAction,
   RecallEmailLocalizationBlocker,
@@ -69,10 +70,12 @@ export function handleRecallCampaignActionError(
     handlers.onClose()
     return
   }
+  const codeCopy = getRecallApiErrorCodeCopyKey(error)
   handlers.onError(
-    error instanceof Error && error.message.trim()
-      ? error.message
-      : 'Recall campaign request failed'
+    codeCopy ||
+      (error instanceof Error && error.message.trim()
+        ? error.message
+        : 'Recall campaign request failed')
   )
 }
 

@@ -30,6 +30,12 @@ type recallEmailQuotaUpdateRequest struct {
 	Limit int `json:"limit"`
 }
 
+type recallCodedActionError interface {
+	error
+	Code() string
+	Message() string
+}
+
 type recallPreviewResponse struct {
 	service.RecallAudiencePreview
 	Stripe *service.RecallStripePreview `json:"stripe"`
@@ -565,6 +571,15 @@ func recallCampaignAction(c *gin.Context, action func(*service.RecallRuntime, in
 				"success": false,
 				"message": err.Error(),
 				"data":    gin.H{"blockers": blocked.Blockers},
+			})
+			return
+		}
+		var coded recallCodedActionError
+		if errors.As(err, &coded) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": coded.Message(),
+				"data":    gin.H{"code": coded.Code()},
 			})
 			return
 		}

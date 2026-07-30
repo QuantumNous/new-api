@@ -175,6 +175,17 @@ describe('recall campaign API contracts', () => {
     }
   })
 
+  test('posts campaign actions with local error handling enabled', async () => {
+    respondWith({ success: true })
+
+    await runRecallCampaignAction(9, 'activate')
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/9/activate')
+    expect(capturedConfig?.method).toBe('post')
+    expect(capturedConfig?.skipBusinessError).toBe(true)
+    expect(capturedConfig?.skipErrorHandler).toBe(true)
+  })
+
   test('posts email preview requests with the template wrapper', async () => {
     respondWith({
       success: true,
@@ -311,6 +322,8 @@ describe('recall campaign API contracts', () => {
 
     expect(capturedConfig?.url).toBe('/api/recall-campaigns/smtp')
     expect(capturedConfig?.method).toBe('put')
+    expect(capturedConfig?.skipBusinessError).toBe(true)
+    expect(capturedConfig?.skipErrorHandler).toBe(true)
     expect(JSON.parse(String(capturedConfig?.data))).toEqual(input)
     expect(response.data).not.toHaveProperty('token')
   })

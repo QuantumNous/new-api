@@ -13,12 +13,12 @@ import {
   recallCampaignKeys,
   updateRecallActivitySMTP,
 } from '../api'
+import { getRecallActivitySMTPSafeSaveErrorCopyKey } from '../copy'
 import type {
   RecallActivitySMTPInput,
   RecallActivitySMTPStatus,
 } from '../types'
 
-const SMTP_SAVE_ERROR = 'Failed to update Activity SMTP settings.'
 const SMTP_LOAD_ERROR = 'Failed to load Activity SMTP settings.'
 const SMTP_SAVE_SUCCESS = 'Activity SMTP settings saved.'
 
@@ -59,13 +59,6 @@ function createEmptyStatus(): RecallActivitySMTPStatus {
     token_configured: false,
     configured: false,
   }
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message
-  }
-  return SMTP_SAVE_ERROR
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -433,7 +426,7 @@ export function CampaignSMTPSettings(): React.JSX.Element {
         normalizeRecallActivitySMTPInput(formValues)
       )
       if (!response.data) {
-        setError(response.message || SMTP_SAVE_ERROR)
+        setError(getRecallActivitySMTPSafeSaveErrorCopyKey(response.message))
         return
       }
       const nextState = getRecallActivitySMTPSaveSuccessState(response.data)
@@ -447,7 +440,7 @@ export function CampaignSMTPSettings(): React.JSX.Element {
       })
       await queryClient.invalidateQueries({ queryKey: recallCampaignKeys.smtp })
     } catch (saveError) {
-      setError(getErrorMessage(saveError))
+      setError(getRecallActivitySMTPSafeSaveErrorCopyKey(saveError))
     }
   })
 

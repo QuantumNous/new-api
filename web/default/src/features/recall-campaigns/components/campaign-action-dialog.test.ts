@@ -57,4 +57,21 @@ describe('CampaignActionDialog localization blockers', () => {
 
     expect(events).toEqual(['Translations are stale'])
   })
+
+  test('uses stable Activity SMTP action error codes before raw backend messages', () => {
+    const events: string[] = []
+    const error = new RecallApiError('raw backend SMTP detail', {
+      code: 'activity_smtp_not_configured',
+      message: 'raw backend SMTP detail',
+    })
+
+    handleRecallCampaignActionError('activate', error, {
+      onClose: () => events.push('closed'),
+      onError: (message) => events.push(message),
+    })
+
+    expect(events).toEqual([
+      'Activity SMTP is not configured. Configure it before sending.',
+    ])
+  })
 })

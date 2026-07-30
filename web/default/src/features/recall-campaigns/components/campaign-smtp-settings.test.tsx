@@ -15,7 +15,7 @@ import { createInstance } from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
 import { api } from '@/lib/api'
-import { recallCampaignKeys } from '../api'
+import { RecallApiError, recallCampaignKeys } from '../api'
 import type { RecallActivitySMTPStatus } from '../types'
 
 const originalAdapter = api.defaults.adapter
@@ -533,7 +533,7 @@ describe('CampaignSMTPSettings', () => {
     ).toBe('')
   })
 
-  test('failed save renders backend error inline and retains entered values', () => {
+  test('failed save renders sanitized error inline and retains entered values', () => {
     const values = {
       server: ' smtp.example.com ',
       port: 2525,
@@ -547,7 +547,7 @@ describe('CampaignSMTPSettings', () => {
       <I18nextProvider i18n={testI18n}>
         <CampaignSMTPSettingsView
           disabled={false}
-          error='Backend rejected SMTP settings'
+          error='Failed to update Activity SMTP settings.'
           fieldErrors={{}}
           pending={false}
           status={makeStatus()}
@@ -560,7 +560,8 @@ describe('CampaignSMTPSettings', () => {
     )
 
     expect(html).toContain('role="alert"')
-    expect(html).toContain('Backend rejected SMTP settings')
+    expect(html).toContain('Failed to update Activity SMTP settings.')
+    expect(html).not.toContain('Backend rejected SMTP settings')
     expect(html).toContain('value=" smtp.example.com "')
     expect(html).toContain('value=" admin "')
     expect(html).toContain('value=" activity@example.com "')
@@ -843,10 +844,14 @@ describe('CampaignSMTPSettings', () => {
     dispose(root)
   })
 
-  test('retains mounted form values and shows backend alert after failed save', async () => {
+  test('retains mounted form values and hides raw backend alert after failed save', async () => {
     setApiResponses(async (config) => {
       if (config.method === 'put') {
-        return { success: false, message: 'Backend rejected SMTP settings' }
+        return {
+          success: false,
+          message:
+            'backend refused AUTH for activity@example.com with Message-ID <secret@example.com>',
+        }
       }
       return {
         success: true,
@@ -877,10 +882,16 @@ describe('CampaignSMTPSettings', () => {
 
     await waitFor(
       () =>
-        container.textContent?.includes('Backend rejected SMTP settings') ===
-        true
+        container.textContent?.includes(
+          'Failed to update Activity SMTP settings.'
+        ) === true
     )
-    expect(container.textContent).toContain('Backend rejected SMTP settings')
+    expect(container.textContent).toContain(
+      'Failed to update Activity SMTP settings.'
+    )
+    expect(container.textContent).not.toContain('backend refused AUTH')
+    expect(container.textContent).not.toContain('activity@example.com')
+    expect(container.textContent).not.toContain('secret@example.com')
     expect(container.textContent).toContain('SMTP token')
     expect(
       (container.querySelector('#recall-smtp-server') as HTMLInputElement).value
@@ -895,6 +906,67 @@ describe('CampaignSMTPSettings', () => {
     expect(
       (container.querySelector('#recall-smtp-token') as HTMLInputElement).value
     ).toBe('  typed secret  ')
+    dispose(root)
+  })
+
+  test('maps known backend validation messages to existing translated SMTP copy', async () => {
+    setApiResponses(async (config) => {
+      if (config.method === 'put') {
+        return { success: false, message: 'SMTP server is required' }
+      }
+      return { success: true, data: makeStatus() }
+    })
+    const { container, root } = renderMountedSMTPSettings()
+
+    await waitFor(
+      () =>
+        (
+          container.querySelector('#recall-smtp-server') as HTMLInputElement
+        )?.value === 'smtp.example.com'
+    )
+    await React.act(async () => {
+      submitSMTPSettingsForm(container)
+      await wait()
+    })
+
+    await waitFor(
+      () => container.textContent?.includes('SMTP server is required.') === true
+    )
+    expect(container.textContent).toContain('SMTP server is required.')
+    expect(container.textContent).not.toContain('SMTP server is required</')
+    dispose(root)
+  })
+
+  test('maps stable Activity SMTP save error codes and ignores raw details', async () => {
+    setApiResponses(async (config) => {
+      if (config.method === 'put') {
+        throw new RecallApiError('raw SMTP transport detail', {
+          code: 'activity_smtp_send_failed',
+          message: 'raw SMTP transport detail',
+        })
+      }
+      return { success: true, data: makeStatus() }
+    })
+    const { container, root } = renderMountedSMTPSettings()
+
+    await waitFor(
+      () =>
+        (
+          container.querySelector('#recall-smtp-server') as HTMLInputElement
+        )?.value === 'smtp.example.com'
+    )
+    await React.act(async () => {
+      submitSMTPSettingsForm(container)
+      await wait()
+    })
+
+    await waitFor(
+      () =>
+        container.textContent?.includes(
+          'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+        ) === true
+    )
+    expect(container.textContent).not.toContain('raw SMTP transport detail')
     dispose(root)
   })
 })

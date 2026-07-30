@@ -25,6 +25,14 @@ func (e recallActivitySMTPError) Error() string {
 	return fmt.Sprintf("%s: %s", e.code, e.message)
 }
 
+func (e recallActivitySMTPError) Code() string {
+	return e.code
+}
+
+func (e recallActivitySMTPError) Message() string {
+	return e.message
+}
+
 func newRecallActivitySMTPNotConfiguredError() error {
 	return recallActivitySMTPError{code: RecallActivitySMTPNotConfiguredCode, message: RecallActivitySMTPNotConfiguredMessage}
 }

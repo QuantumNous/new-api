@@ -156,7 +156,10 @@ export async function getRecallActivitySMTPStatus(): Promise<
 export async function updateRecallActivitySMTP(
   input: RecallActivitySMTPInput
 ): Promise<ApiResponse<RecallActivitySMTPStatus>> {
-  const response = await api.put('/api/recall-campaigns/smtp', input)
+  const response = await api.put('/api/recall-campaigns/smtp', input, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
   return requireRecallSuccess(response.data)
 }
 
@@ -213,7 +216,14 @@ export async function runRecallCampaignAction(
   id: number,
   action: RecallCampaignAction
 ): Promise<ApiResponse> {
-  const response = await api.post(`/api/recall-campaigns/${id}/${action}`)
+  const response = await api.post(
+    `/api/recall-campaigns/${id}/${action}`,
+    undefined,
+    {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    }
+  )
   return requireRecallSuccess(response.data)
 }
 

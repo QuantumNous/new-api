@@ -18,6 +18,79 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { RecallAudienceTemplate } from './types'
 
+export const activitySMTPDeliveryFailureCopyKey =
+  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+
+export const recallDeliveryErrorCopyByCode: Record<string, string> = {
+  activity_smtp_not_configured:
+    'Activity SMTP is not configured. Configure it before sending.',
+  activity_smtp_send_failed: activitySMTPDeliveryFailureCopyKey,
+  smtp_uncertain:
+    'Delivery status is uncertain. Check the mailbox provider before retrying.',
+}
+
+const activitySMTPSaveFallbackCopyKey =
+  'Failed to update Activity SMTP settings.'
+
+const activitySMTPSaveValidationCopyByMessage: Record<string, string> = {
+  'SMTP server is required': 'SMTP server is required.',
+  'SMTP server is required.': 'SMTP server is required.',
+  'SMTP port must be between 1 and 65535':
+    'SMTP port must be between 1 and 65535.',
+  'SMTP port must be between 1 and 65535.':
+    'SMTP port must be between 1 and 65535.',
+  'SMTP account is required': 'SMTP account is required.',
+  'SMTP account is required.': 'SMTP account is required.',
+  'SMTP token is required': 'SMTP token is required for first save.',
+  'SMTP token is required.': 'SMTP token is required for first save.',
+  'SMTP token is required for first save.':
+    'SMTP token is required for first save.',
+  'invalid SMTP sender': 'Sender must be a plain email address.',
+  'Sender must be a plain email address.':
+    'Sender must be a plain email address.',
+}
+
+function getObjectRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  return value as Record<string, unknown>
+}
+
+function getRecallApiErrorData(
+  error: unknown
+): Record<string, unknown> | undefined {
+  return getObjectRecord(getObjectRecord(error)?.data)
+}
+
+export function getRecallDeliveryErrorCopyKey(
+  code: unknown
+): string | undefined {
+  if (typeof code !== 'string') return undefined
+  return recallDeliveryErrorCopyByCode[code]
+}
+
+export function getRecallApiErrorCodeCopyKey(
+  error: unknown
+): string | undefined {
+  return getRecallDeliveryErrorCopyKey(getRecallApiErrorData(error)?.code)
+}
+
+export function getRecallActivitySMTPSafeSaveErrorCopyKey(
+  error: unknown
+): string {
+  const codeCopy = getRecallApiErrorCodeCopyKey(error)
+  if (codeCopy) return codeCopy
+
+  const message =
+    typeof error === 'string'
+      ? error
+      : error instanceof Error
+        ? error.message
+        : ''
+  const validationCopy =
+    activitySMTPSaveValidationCopyByMessage[message.trim()]
+  return validationCopy ?? activitySMTPSaveFallbackCopyKey
+}
+
 export const audienceTemplateDescriptionKeys: Record<
   RecallAudienceTemplate,
   string
@@ -95,7 +168,5 @@ export const recallActivitySMTPCopyKeys = [
   'SMTP account is required.',
   'Sender must be a plain email address.',
   'SMTP token is required for first save.',
-  'Activity SMTP is not configured. Configure it before sending.',
-  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
-  'Delivery status is uncertain. Check the mailbox provider before retrying.',
+  ...Object.values(recallDeliveryErrorCopyByCode),
 ] as const

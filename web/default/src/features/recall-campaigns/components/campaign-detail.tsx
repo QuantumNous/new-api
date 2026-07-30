@@ -29,6 +29,7 @@ import {
   getRecallRecipientRetry,
   isRecallPromotionCampaign,
 } from '../helpers'
+import { getRecallDeliveryErrorCopyKey } from '../copy'
 import type {
   RecallCampaignAction,
   RecallCampaignStatus,
@@ -42,16 +43,6 @@ import { CampaignPreviewDialog } from './campaign-preview-dialog'
 
 const DETAIL_PAGE_SIZE = 100
 const activationLocales = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi']
-const activitySMTPDeliveryFailure =
-  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
-const recallDeliveryErrorCopyByCode: Record<string, string> = {
-  activity_smtp_not_configured:
-    'Activity SMTP is not configured. Configure it before sending.',
-  activity_smtp_send_failed: activitySMTPDeliveryFailure,
-  smtp_uncertain:
-    'Delivery status is uncertain. Check the mailbox provider before retrying.',
-}
-
 type Translate = (key: string) => string
 
 function getRecallActivationBlockerReason(
@@ -97,7 +88,7 @@ export function formatRecallDeliveryErrorMessage(
   message: string,
   t: Translate
 ): string {
-  const copyKey = recallDeliveryErrorCopyByCode[code]
+  const copyKey = getRecallDeliveryErrorCopyKey(code)
   if (copyKey) return t(copyKey)
   if (message) return message
   if (code) return code
