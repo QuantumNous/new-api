@@ -38,16 +38,32 @@ stage() {
   fi
 }
 
+# The bundle directory is never cleaned between builds, so a previous version's installer
+# sits right next to this one's. Tauri puts the version in every bundle filename, so pin the
+# glob to it: an unpinned `ls | head -1` picks the alphabetically-first file, which staged
+# 0.1.6's .dmg under 0.1.7's name — the download page would have served the old app while
+# the updater shipped the new one. Staging nothing is recoverable; staging the wrong build
+# silently is not.
+bundle_for_this_version() {
+  local dir="$1" ext="$2" match
+  match="$(ls "$dir"/*_"$VERSION"_*."$ext" 2>/dev/null | head -1)"
+  if [ -z "$match" ]; then
+    echo "    (no $ext for $VERSION in $dir — build it first)" >&2
+    return 0
+  fi
+  echo "$match"
+}
+
 echo "==> staging BoxAI Desktop $VERSION into $STAGE"
 
 case "$(uname -s)" in
   Darwin)
-    stage "$(ls "$BUNDLE"/dmg/*.dmg 2>/dev/null | head -1)" "BoxAI-Desktop-macos-arm64.dmg"
+    stage "$(bundle_for_this_version "$BUNDLE/dmg" dmg)" "BoxAI-Desktop-macos-arm64.dmg"
     stage "$BUNDLE/macos/BoxAI Desktop.app.tar.gz" "BoxAI-Desktop-macos-arm64.app.tar.gz"
     ;;
   *)
-    stage "$(ls "$BUNDLE"/nsis/*.exe 2>/dev/null | head -1)" "BoxAI-Desktop-windows-setup.exe"
-    stage "$(ls "$BUNDLE"/msi/*.msi 2>/dev/null | head -1)" "BoxAI-Desktop-windows.msi"
+    stage "$(bundle_for_this_version "$BUNDLE/nsis" exe)" "BoxAI-Desktop-windows-setup.exe"
+    stage "$(bundle_for_this_version "$BUNDLE/msi" msi)" "BoxAI-Desktop-windows.msi"
     ;;
 esac
 
