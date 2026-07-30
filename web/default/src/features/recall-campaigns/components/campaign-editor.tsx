@@ -242,7 +242,6 @@ function createRecallCampaignDefaults(): RecallCampaignDraft {
       currency_options: {},
       minimum_amount: 0,
       minimum_amount_currency: '',
-      coupon_redeem_by: 0,
     },
     product_scope: { topup_price_ids: [], subscription_price_ids: [] },
     promotion_expiry_mode: 'relative',
