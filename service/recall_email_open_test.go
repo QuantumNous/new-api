@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -144,6 +145,46 @@ func TestRecallEmailOpenTokenRecordsRecipientOnce(t *testing.T) {
 	require.Len(t, events, 1)
 	require.Equal(t, recipient.Id, events[0].RecipientId)
 	require.Equal(t, int64(1_700_000_100), events[0].CreatedAt)
+}
+
+func TestRecallEmailOpenTokenConcurrentRecordsRecipientOnce(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	campaign := createRecallWorkerCampaign(t, model.RecallCampaignRunning)
+	recipient := createRecallWorkerRecipient(t, campaign.Id, 7, model.RecallRecipientContacting)
+	token, err := CreateRecallEmailOpenToken(recipient.Id)
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+
+	const openAttempts = 16
+	start := make(chan struct{})
+	errs := make(chan error, openAttempts)
+	var wg sync.WaitGroup
+	wg.Add(openAttempts)
+	for index := 0; index < openAttempts; index++ {
+		openedAt := time.Unix(1_700_000_100+int64(index), 0)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- RecordRecallEmailOpen(context.Background(), token, openedAt)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	var events []model.RecallEvent
+	require.NoError(t, model.DB.
+		Where("campaign_id = ? AND recipient_id = ? AND event_type = ?", campaign.Id, recipient.Id, "email_open").
+		Find(&events).Error)
+	require.Len(t, events, 1)
+	require.Equal(t, recipient.Id, events[0].RecipientId)
+	require.NotEmpty(t, events[0].SourceEventId)
 }
 
 func TestRecallEmailOpenTokenRejectsTamperingWithoutDatabaseWrite(t *testing.T) {

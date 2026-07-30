@@ -612,6 +612,27 @@ func TestRecallAttributionMetricsAggregatesOpenedRecipientsInSQL(t *testing.T) {
 	require.True(t, hasRecallEventQueryExcludingEmailOpen(queries), "expected non-aggregate recall_events query to exclude email_open, got %#v", queries)
 }
 
+func TestRecallAttributionMetricsWithoutEmailOpensReportsZeroOpenedRecipients(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	campaign, recipient := createRecallAttributionRecipient(t, "promo_no_open")
+	require.NoError(t, model.DB.Create(&model.RecallEvent{
+		CampaignId: campaign.Id, EventType: "campaign_run", Source: "scheduler", SourceEventId: "no_open_run_metrics",
+		EventData: `{"eligible_total":1}`, CreatedAt: 1_700_000_000,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.RecallEvent{
+		CampaignId: campaign.Id, RecipientId: recipient.Id, EventType: "observed_click", Source: "claim",
+		SourceEventId: "no_open_metrics_click", EventData: `{}`, CreatedAt: 1_700_000_100,
+	}).Error)
+
+	metrics, err := NewRecallAttributionService(&recallStripeFakeClient{}).GetMetrics(context.Background(), campaign.Id)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), metrics.CandidateCount)
+	require.Equal(t, int64(1), metrics.EnrolledCount)
+	require.Equal(t, int64(1), metrics.ObservedClickCount)
+	require.Zero(t, metrics.OpenedRecipientCount)
+}
+
 type capturedRecallMetricSQL struct {
 	SQL  string
 	Vars []any
