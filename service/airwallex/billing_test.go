@@ -155,8 +155,12 @@ func TestSwitchBillingSubscriptionPriceSendsProrationShape(t *testing.T) {
 		t.Fatalf("wrong path %s", gotPath)
 	}
 	for _, want := range []string{
-		`"billing_action":"IMMEDIATE_CHARGE_AND_RESET_CYCLE"`,
-		`"default_proration_mode":"PRORATED"`,
+		// Deferred, NOT immediate: charging immediately either strands the
+		// customer's credit in a refund that fails on an empty CNY balance, or
+		// (via trial_end_at, which Billing silently ignores) double-charges them.
+		// Both were verified live on 2026-07-30 — see SwitchBillingSubscriptionPrice.
+		`"billing_action":"DEFER_CHARGE_AND_KEEP_CYCLE"`,
+		`"default_proration_mode":"NONE"`,
 		`"id":"sit_1"`,
 		`"deleted":true`,
 		`"price_id":"pri_plus_year"`,

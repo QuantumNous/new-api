@@ -91,6 +91,10 @@ type BillingSubscription struct {
 	BillingCustomerId string            `json:"billing_customer_id"`
 	Status            string            `json:"status"` // PENDING|IN_TRIAL|ACTIVE|UNPAID|CANCELLED
 	Metadata          map[string]string `json:"metadata"`
+	// NextBillingAt is when the next charge lands (RFC3339 with a numeric zone,
+	// e.g. 2026-08-30T06:44:43+0000). A deferred plan switch takes effect then,
+	// so this is what the portal shows the customer as their start date.
+	NextBillingAt string `json:"next_billing_at"`
 }
 
 func GetBillingSubscription(id string) (*BillingSubscription, error) {
@@ -156,9 +160,27 @@ type updateBillingSubscriptionItem struct {
 	Deleted  bool   `json:"deleted,omitempty"`
 }
 
-// SwitchBillingSubscriptionPrice moves a live subscription onto newPriceId with
-// Claude-style semantics: unused time on the old price is credited, the new
-// price is charged immediately, and the billing anchor resets to now.
+// SwitchBillingSubscriptionPrice schedules a live subscription onto newPriceId
+// at its next billing date. Nothing is charged now, no credit is issued, and the
+// billing anchor is preserved — the customer keeps the period they already paid
+// for and is charged the new price when it ends.
+//
+// This deliberately does NOT charge immediately, after two attempts that did:
+//
+//   - IMMEDIATE_CHARGE_AND_RESET_CYCLE + PRORATED charges the new price in full
+//     and issues the unused time as a credit note that REFUNDS to the card
+//     (Airwallex does not discount the new invoice the way Stripe does).
+//     Verified live 2026-07-30: the refund failed with "amount_above_limit"
+//     because refunds draw on the merchant's CNY balance, which was empty. The
+//     customer was left out of pocket with no signal to us.
+//   - Charging the prorated difference as a one-off and suppressing the next
+//     cycle with trial_end_at does not work either: the Billing update endpoint
+//     accepts trial_end_at with a 200 and silently ignores it (verified live
+//     2026-07-30 — next_billing_at unchanged), so that route would double-charge.
+//
+// Deferring needs neither a refund nor a discount, so it has no failure mode:
+// the customer loses nothing and no money moves until the date they already
+// expected to be billed on.
 //
 // Airwallex forbids mutating price_id on an existing item, so the swap is
 // delete-old + add-new inside ONE update call (a single call keeps it atomic —
@@ -170,8 +192,8 @@ func SwitchBillingSubscriptionPrice(subId, requestId, oldItemId, newPriceId stri
 			{Id: oldItemId, Deleted: true},
 			{PriceId: newPriceId, Quantity: 1},
 		},
-		"billing_action":         "IMMEDIATE_CHARGE_AND_RESET_CYCLE",
-		"default_proration_mode": "PRORATED",
+		"billing_action":         "DEFER_CHARGE_AND_KEEP_CYCLE",
+		"default_proration_mode": "NONE",
 	}
 	return do(http.MethodPost, "/api/v1/billing/subscriptions/"+url.PathEscape(subId)+"/update", body, nil)
 }

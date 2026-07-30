@@ -376,7 +376,12 @@ func SubscriptionChangePlanAirwallex(c *gin.Context) {
 	}
 	item := items[0]
 	if item.Price.Id == target.AirwallexPriceId {
-		common.ApiErrorMsg(c, "已是该套餐")
+		// The switch is deferred, so between clicking it and the next billing
+		// date the Airwallex item is already annual while the local plan is
+		// still monthly — the card therefore still offers "switch". Say it is
+		// scheduled rather than "you are already on this plan", which would read
+		// as a contradiction of what the page shows.
+		common.ApiErrorMsg(c, "年付已安排，将于下次扣款日生效")
 		return
 	}
 	current, err := model.GetSubscriptionPlanByAirwallexPriceId(item.Price.Id)
@@ -403,7 +408,16 @@ func SubscriptionChangePlanAirwallex(c *gin.Context) {
 		common.ApiErrorMsg(c, "切换套餐失败，请稍后重试")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"switched": true}})
+	// The switch takes effect at the next billing date, not now — nothing has
+	// been charged. Hand that date back so the portal can state plainly when
+	// annual pricing starts instead of implying the plan changed today.
+	logger.LogInfo(c.Request.Context(),
+		fmt.Sprintf("Airwallex 年付切换已安排 user=%d sub=%s %d→%d 生效=%s", userId, sub.Id, current.Id, target.Id, sub.NextBillingAt))
+	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{
+		"switched":     true,
+		"deferred":     true,
+		"effective_at": sub.NextBillingAt,
+	}})
 }
 
 // ---- webhook ----

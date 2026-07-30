@@ -260,7 +260,11 @@ func TestChangePlanRejectsCrossTierSwitch(t *testing.T) {
 	requireRejected(t, w, "仅支持同一档位内切换为年付")
 }
 
-func TestChangePlanRejectsWhenAlreadyOnTargetPrice(t *testing.T) {
+// Because the switch is deferred, the Airwallex item is annual while the local
+// plan is still monthly until the next billing date — so the card keeps offering
+// "switch" and a second click is expected. It must report that the switch is
+// already scheduled, not that the user is already on the plan.
+func TestChangePlanReportsAlreadyScheduledOnSecondClick(t *testing.T) {
 	setupChangePlanDB(t)
 	require.NoError(t, model.SaveAirwallexBillingCustomerId(7, "bcus_1"))
 	annual := seedAnnualPlan(t)
@@ -279,7 +283,7 @@ func TestChangePlanRejectsWhenAlreadyOnTargetPrice(t *testing.T) {
 	c, w := changePlanRequest(t, 7, annual.Id)
 	SubscriptionChangePlanAirwallex(c)
 
-	requireRejected(t, w, "已是该套餐")
+	requireRejected(t, w, "年付已安排，将于下次扣款日生效")
 }
 
 func TestChangePlanRejectsWhenNoActiveSubscription(t *testing.T) {
@@ -365,7 +369,9 @@ func TestChangePlanSwitchesPriceWithItemId(t *testing.T) {
 
 	savedList := listBillingSubscriptions
 	listBillingSubscriptions = func(customerId, status string) ([]airwallex.BillingSubscription, error) {
-		return []airwallex.BillingSubscription{{Id: "sub_9", Status: "ACTIVE"}}, nil
+		return []airwallex.BillingSubscription{
+			{Id: "sub_9", Status: "ACTIVE", NextBillingAt: "2026-08-30T06:44:43+0000"},
+		}, nil
 	}
 	t.Cleanup(func() { listBillingSubscriptions = savedList })
 
@@ -388,10 +394,19 @@ func TestChangePlanSwitchesPriceWithItemId(t *testing.T) {
 	var resp struct {
 		Message string `json:"message"`
 		Data    struct {
-			Switched bool `json:"switched"`
+			Switched    bool   `json:"switched"`
+			Deferred    bool   `json:"deferred"`
+			EffectiveAt string `json:"effective_at"`
 		} `json:"data"`
 	}
 	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &resp))
 	require.Equal(t, "success", resp.Message)
 	require.True(t, resp.Data.Switched)
+
+	// The switch is scheduled, not applied: the response must say so and carry
+	// the date it lands on, because the portal shows that date to the customer.
+	// Dropping either field would let the UI imply the plan changed today, when
+	// no money has moved and the local plan is still monthly.
+	require.True(t, resp.Data.Deferred, "response must mark the switch as deferred")
+	require.Equal(t, "2026-08-30T06:44:43+0000", resp.Data.EffectiveAt)
 }
