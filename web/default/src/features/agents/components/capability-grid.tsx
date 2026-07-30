@@ -16,6 +16,10 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { AnimateInView } from '@/components/animate-in-view'
+
+import { SectionHeading } from './section-heading'
+
 const CAPABILITIES = [
   {
     title: 'Work with local files',
@@ -59,40 +63,39 @@ export function CapabilityGrid() {
   const { t } = useTranslation()
 
   return (
-    <section aria-labelledby='desktop-capabilities'>
-      <div className='mb-4'>
-        <h2
+    <section
+      aria-labelledby='desktop-capabilities'
+      className='border-border/40 relative z-10 border-t px-6 py-20 md:py-28'
+    >
+      <div className='mx-auto max-w-6xl'>
+        <SectionHeading
           id='desktop-capabilities'
-          className='text-foreground text-xl font-semibold'
-        >
-          {t('From conversation to completed work')}
-        </h2>
-        <p className='text-muted-foreground mt-1 text-sm'>
-          {t(
+          eyebrow={t('Capabilities')}
+          title={t('From conversation to completed work')}
+          description={t(
             'Give BoxAI the context and tools it needs, while you stay in control.'
           )}
-        </p>
-      </div>
-      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-        {CAPABILITIES.map((capability) => {
-          const Icon = capability.icon
-          return (
-            <article
-              key={capability.title}
-              className='border-border bg-card rounded-xl border p-5 shadow-xs'
-            >
-              <div className='bg-muted text-foreground mb-4 flex size-10 items-center justify-center rounded-lg'>
-                <Icon className='size-5' aria-hidden='true' />
-              </div>
-              <h3 className='text-foreground text-sm font-semibold'>
-                {t(capability.title)}
-              </h3>
-              <p className='text-muted-foreground mt-1.5 text-sm leading-6'>
-                {t(capability.description)}
-              </p>
-            </article>
-          )
-        })}
+        />
+        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+          {CAPABILITIES.map((capability, index) => {
+            const Icon = capability.icon
+            return (
+              <AnimateInView key={capability.title} delay={60 + index * 60}>
+                <article className='border-border/50 bg-card hover:border-border hover:bg-muted/20 transition-ui h-full rounded-2xl border p-6 shadow-xs'>
+                  <div className='bg-muted text-foreground mb-4 flex size-10 items-center justify-center rounded-xl'>
+                    <Icon className='size-5' strokeWidth={1.5} aria-hidden='true' />
+                  </div>
+                  <h3 className='text-foreground text-sm font-semibold'>
+                    {t(capability.title)}
+                  </h3>
+                  <p className='text-muted-foreground mt-1.5 text-sm leading-6'>
+                    {t(capability.description)}
+                  </p>
+                </article>
+              </AnimateInView>
+            )
+          })}
+        </div>
       </div>
     </section>
   )

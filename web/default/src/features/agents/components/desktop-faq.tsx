@@ -6,22 +6,13 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { useTranslation } from 'react-i18next'
+import { Link } from '@tanstack/react-router'
+import { Trans, useTranslation } from 'react-i18next'
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
+import { ProseAccordion } from './prose-accordion'
+import { SectionHeading } from './section-heading'
 
 const QUESTIONS = [
-  {
-    id: 'account',
-    question: 'Do I need a BoxAI account?',
-    answer:
-      'Yes. Model access comes from your BoxAI account, so usage is billed and rate-limited exactly like the API. You sign in once from the app and can revoke the device at any time from your profile.',
-  },
   {
     id: 'data',
     question: 'What leaves my computer?',
@@ -38,7 +29,13 @@ const QUESTIONS = [
     id: 'safety',
     question: 'It can run shell commands. How is that safe?',
     answer:
-      'Writes, sends, and shell commands are approval-gated by default: the app shows the exact action and waits. Unattended runs park their questions in an inbox instead of deciding on their own.',
+      'Writes, sends, and shell commands are approval-gated by default: the app shows the exact action and waits. A folder also has to be trusted before its own command allowances count, and unattended runs park their questions in an inbox instead of deciding on their own.',
+  },
+  {
+    id: 'usage',
+    question: 'How do I know what a session costs?',
+    answer:
+      'The composer tracks the tokens a session has spent, and long conversations are compacted automatically so context stays affordable. Every call is metered against your BoxAI account, so it also shows up in your usage logs.',
   },
   {
     id: 'platforms',
@@ -51,23 +48,46 @@ const QUESTIONS = [
 export function DesktopFaq() {
   const { t } = useTranslation()
 
+  const entries = [
+    {
+      id: 'account',
+      label: t('Do I need a BoxAI account?'),
+      body: (
+        <p>
+          <Trans
+            i18nKey='Yes. Model access comes from your BoxAI account, so usage is billed and rate-limited exactly like the API. You sign in once from the app and can revoke the device at any time from <1>your profile</1>.'
+            components={[
+              <span key='0' />,
+              <Link
+                key='1'
+                to='/profile'
+                className='text-primary underline underline-offset-4'
+              />,
+            ]}
+          />
+        </p>
+      ),
+    },
+    ...QUESTIONS.map((entry) => ({
+      id: entry.id,
+      label: t(entry.question),
+      body: <p>{t(entry.answer)}</p>,
+    })),
+  ]
+
   return (
-    <section aria-labelledby='desktop-faq'>
-      <div className='mb-4'>
-        <h2 id='desktop-faq' className='text-foreground text-xl font-semibold'>
-          {t('Questions')}
-        </h2>
+    <section
+      aria-labelledby='desktop-faq'
+      className='border-border/40 relative z-10 border-t px-6 py-20 md:py-28'
+    >
+      <div className='mx-auto max-w-6xl'>
+        <SectionHeading
+          id='desktop-faq'
+          eyebrow={t('Questions')}
+          title={t('What people ask before installing')}
+        />
+        <ProseAccordion entries={entries} />
       </div>
-      <Accordion className='border-border bg-card rounded-xl border px-4'>
-        {QUESTIONS.map((entry) => (
-          <AccordionItem key={entry.id} value={entry.id}>
-            <AccordionTrigger>{t(entry.question)}</AccordionTrigger>
-            <AccordionContent className='text-muted-foreground pb-4 text-sm leading-6'>
-              {t(entry.answer)}
-            </AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
     </section>
   )
 }
