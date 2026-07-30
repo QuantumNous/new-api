@@ -97,6 +97,8 @@ func TestAppendRecallEmailOpenPixel(t *testing.T) {
 			{name: "fragment", origin: "https://console.flatkey.ai/#app", token: token},
 			{name: "malformed IPv6", origin: "https://[::1/", token: token},
 			{name: "invalid port", origin: "https://console.flatkey.ai:bad/", token: token},
+			{name: "zero port", origin: "https://console.flatkey.ai:0/", token: token},
+			{name: "port above tcp range", origin: "https://console.flatkey.ai:65536/", token: token},
 			{name: "empty token", origin: "https://console.flatkey.ai", token: ""},
 		}
 		for _, testCase := range tests {

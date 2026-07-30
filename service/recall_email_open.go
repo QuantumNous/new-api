@@ -11,6 +11,7 @@ import (
 	"html"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -112,25 +113,21 @@ func recallEmailOpenHostHasValidPort(host string) bool {
 		if len(host) <= closeBracket+2 || host[closeBracket+1] != ':' {
 			return false
 		}
-		return recallEmailOpenPortIsDigits(host[closeBracket+2:])
+		return recallEmailOpenPortInTCPRange(host[closeBracket+2:])
 	}
 	colon := strings.LastIndex(host, ":")
 	if colon < 0 {
 		return true
 	}
-	return colon < len(host)-1 && recallEmailOpenPortIsDigits(host[colon+1:])
+	return colon < len(host)-1 && recallEmailOpenPortInTCPRange(host[colon+1:])
 }
 
-func recallEmailOpenPortIsDigits(port string) bool {
+func recallEmailOpenPortInTCPRange(port string) bool {
 	if port == "" {
 		return false
 	}
-	for index := 0; index < len(port); index++ {
-		if port[index] < '0' || port[index] > '9' {
-			return false
-		}
-	}
-	return true
+	parsed, err := strconv.Atoi(port)
+	return err == nil && parsed >= 1 && parsed <= 65535
 }
 
 func lastRecallEmailClosingBodyIndex(source string) int {
