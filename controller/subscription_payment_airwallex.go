@@ -652,26 +652,33 @@ func handleAirwallexInvoicePaid(c *gin.Context, event airwallexEvent) error {
 	// monthly→annual switch repoints the price, and its proration invoice
 	// arrives looking like an ordinary renewal. Resolving the plan here is what
 	// stops a switch from granting another month of the OLD plan.
+	//
+	// A lookup failure here must NOT fall back silently: Airwallex has already
+	// switched the subscription and charged the annual amount, so guessing wrong
+	// grants the wrong plan on a paid invoice that can never be reprocessed (the
+	// renewal order is keyed on this invoice id, and Airwallex won't invoice
+	// again for ~12 months). Returning an error makes the webhook 500 so
+	// Airwallex retries delivery instead. The fallback to orig.PlanId is
+	// reserved for the genuinely-unmapped-price case below — items resolved
+	// fine, but no local plan maps to the live price — which is a real
+	// condition, not a transient failure.
+	items, err := getBillingSubscriptionItems(subId)
+	if err != nil {
+		return fmt.Errorf("Airwallex invoice.paid: 订阅明细查询失败 sub=%s: %w", subId, err)
+	}
 	planId := orig.PlanId
 	planChanged := false
-	if items, err := getBillingSubscriptionItems(subId); err != nil {
-		// Unreachable Airwallex must not strand a paid invoice; fall back to the
-		// order's plan (correct for the common case: an ordinary renewal).
-		logger.LogError(ctx, "Airwallex invoice.paid: 订阅明细查询失败 sub="+subId+" error="+err.Error())
-	} else {
-		for _, item := range items {
-			livePlan, err := model.GetSubscriptionPlanByAirwallexPriceId(item.Price.Id)
-			if err != nil {
-				logger.LogError(ctx, "Airwallex invoice.paid: 套餐查询失败 price="+item.Price.Id+" error="+err.Error())
-				break
+	for _, item := range items {
+		livePlan, err := model.GetSubscriptionPlanByAirwallexPriceId(item.Price.Id)
+		if err != nil {
+			return fmt.Errorf("Airwallex invoice.paid: 套餐查询失败 price=%s: %w", item.Price.Id, err)
+		}
+		if livePlan != nil {
+			if livePlan.Id != orig.PlanId {
+				planChanged = true
 			}
-			if livePlan != nil {
-				if livePlan.Id != orig.PlanId {
-					planChanged = true
-				}
-				planId = livePlan.Id
-				break
-			}
+			planId = livePlan.Id
+			break
 		}
 	}
 
@@ -689,14 +696,23 @@ func handleAirwallexInvoicePaid(c *gin.Context, event airwallexEvent) error {
 	}
 	if planChanged {
 		oldPlanId := orig.PlanId
+		// Expire the old-plan subscription rows BEFORE repointing the anchor
+		// order. This pair is two separate unlocked writes, not a transaction;
+		// ordering it this way makes a failure between them retry-safe: if the
+		// expire succeeds but the repoint below fails, orig.PlanId in the DB is
+		// still oldPlanId, so a webhook retry recomputes planChanged=true again
+		// and re-runs both steps — the expire is idempotent (it only matches
+		// status="active" rows, which are already gone). Repointing first would
+		// instead leave planChanged=false on retry, permanently stranding the
+		// expire and leaving both the old and new UserSubscription rows active.
+		n, err := model.ExpireSupersededUserSubscriptions(orig.UserId, oldPlanId, 0)
+		if err != nil {
+			return fmt.Errorf("Airwallex 旧订阅过期失败 user=%d: %w", orig.UserId, err)
+		}
 		// Repoint the anchor order so every later renewal grants the new plan.
 		orig.PlanId = planId
 		if err := orig.Update(); err != nil {
 			return fmt.Errorf("Airwallex 套餐切换后原订单更新失败 trade_no=%s: %w", tradeNo, err)
-		}
-		n, err := model.ExpireSupersededUserSubscriptions(orig.UserId, oldPlanId, 0)
-		if err != nil {
-			return fmt.Errorf("Airwallex 旧订阅过期失败 user=%d: %w", orig.UserId, err)
 		}
 		logger.LogInfo(ctx, fmt.Sprintf("Airwallex 套餐切换完成 user=%d %d→%d 过期旧订阅%d条", orig.UserId, oldPlanId, planId, n))
 	}

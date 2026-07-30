@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service/airwallex"
+	"gorm.io/gorm"
 )
 
 // seedAnnualPlan inserts a yearly plan row mapped to pri_annual.
@@ -91,11 +92,15 @@ func TestInvoicePaidUnchangedPriceKeepsOriginalPlan(t *testing.T) {
 	}
 }
 
-// An items lookup failure must not silently drop the plan change; falling back
-// to the original plan is correct only when the price is genuinely unmapped.
-func TestInvoicePaidItemsErrorFallsBackToOriginalPlan(t *testing.T) {
+// An items lookup failure must NOT fall back to the original plan. Airwallex
+// has already switched the subscription and charged for it by the time this
+// webhook fires; guessing wrong here would grant the wrong plan on an invoice
+// that is keyed by id and can never be reprocessed. The handler must return an
+// error so the webhook 500s and Airwallex retries delivery, and must create no
+// order in the meantime.
+func TestInvoicePaidItemsErrorReturnsErrorAndCreatesNoOrder(t *testing.T) {
 	setupAirwallexWebhookDB(t)
-	orig := seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-60*24*time.Hour).Unix())
+	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-60*24*time.Hour).Unix())
 	stubBillingSubscriptionSeam(t)
 	saved := getBillingSubscriptionItems
 	getBillingSubscriptionItems = func(subId string) ([]airwallex.BillingSubscriptionItem, error) {
@@ -103,16 +108,121 @@ func TestInvoicePaidItemsErrorFallsBackToOriginalPlan(t *testing.T) {
 	}
 	t.Cleanup(func() { getBillingSubscriptionItems = saved })
 
+	before := countRenewalOrders(t)
 	ev := makeInvoiceEvent("inv_err", "INV-0004", time.Now())
-	if err := handleAirwallexInvoicePaid(testCtx(), ev); err != nil {
-		t.Fatal(err)
+	if err := handleAirwallexInvoicePaid(testCtx(), ev); err == nil {
+		t.Fatal("items lookup failure must return an error so the webhook 500s and Airwallex retries delivery")
+	}
+	if countRenewalOrders(t) != before {
+		t.Fatal("items lookup failure must not create a renewal order")
 	}
 	var order model.SubscriptionOrder
-	if err := model.DB.Where("trade_no LIKE ?", "%inv_err").First(&order).Error; err != nil {
+	if err := model.DB.Where("trade_no LIKE ?", "%inv_err").First(&order).Error; err == nil {
+		t.Fatal("no order should exist for a failed items lookup")
+	}
+}
+
+// A per-item plan-resolution error (model.GetSubscriptionPlanByAirwallexPriceId
+// failing, e.g. a transient DB error) must be treated the same way as an items
+// lookup error: return an error, create no order. Simulated here by dropping
+// the subscription_plans table out from under the lookup.
+func TestInvoicePaidPlanLookupErrorReturnsErrorAndCreatesNoOrder(t *testing.T) {
+	setupAirwallexWebhookDB(t)
+	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-60*24*time.Hour).Unix())
+	stubBillingSubscriptionSeam(t)
+	stubSubscriptionItems(t, "pri_annual")
+
+	if err := model.DB.Migrator().DropTable(&model.SubscriptionPlan{}); err != nil {
 		t.Fatal(err)
 	}
-	if order.PlanId != orig.PlanId {
-		t.Fatalf("want fallback to plan %d, got %d", orig.PlanId, order.PlanId)
+
+	before := countRenewalOrders(t)
+	ev := makeInvoiceEvent("inv_planerr", "INV-0006", time.Now())
+	if err := handleAirwallexInvoicePaid(testCtx(), ev); err == nil {
+		t.Fatal("plan lookup failure must return an error so the webhook 500s and Airwallex retries delivery")
+	}
+	if countRenewalOrders(t) != before {
+		t.Fatal("plan lookup failure must not create a renewal order")
+	}
+}
+
+// Retry-safety for the expire+repoint pair: if the anchor-order repoint fails
+// after the supersede/expire step already succeeded, the anchor order's
+// PlanId is left unchanged in the DB, so a webhook retry recomputes
+// planChanged=true and re-runs both steps. The expire is idempotent (it only
+// matches status="active" rows) so re-running it on retry is safe, and the
+// retry's repoint then succeeds — leaving no duplicate active subscription.
+func TestInvoicePaidPlanSwitchRetriesAfterRepointFailure(t *testing.T) {
+	setupAirwallexWebhookDB(t)
+	orig := seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-60*24*time.Hour).Unix())
+	annual := seedAnnualPlan(t)
+	stubBillingSubscriptionSeam(t)
+	stubSubscriptionItems(t, "pri_annual")
+
+	active := &model.UserSubscription{
+		UserId: orig.UserId, PlanId: 1, Status: "active",
+		StartTime: time.Now().Unix(), EndTime: time.Now().Add(15 * 24 * time.Hour).Unix(),
+	}
+	if err := model.DB.Create(active).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// Fail exactly one Update on the anchor order (matched by trade_no), so the
+	// repoint step fails the first time it runs but a retry succeeds.
+	failNext := true
+	if err := model.DB.Callback().Update().Before("gorm:update").Register("test:fail_anchor_repoint", func(tx *gorm.DB) {
+		if !failNext {
+			return
+		}
+		if so, ok := tx.Statement.Dest.(*model.SubscriptionOrder); ok && so.TradeNo == orig.TradeNo {
+			failNext = false
+			_ = tx.AddError(errors.New("simulated repoint failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = model.DB.Callback().Update().Remove("test:fail_anchor_repoint") })
+
+	ev := makeInvoiceEvent("inv_retry", "INV-0007", time.Now())
+
+	// First delivery: expire succeeds, repoint fails -> handler returns an error.
+	if err := handleAirwallexInvoicePaid(testCtx(), ev); err == nil {
+		t.Fatal("expected the simulated repoint failure to surface as an error")
+	}
+	var reloadedAfterFailure model.SubscriptionOrder
+	if err := model.DB.First(&reloadedAfterFailure, orig.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	if reloadedAfterFailure.PlanId != 1 {
+		t.Fatalf("anchor order must NOT be repointed when the repoint step failed, got %d", reloadedAfterFailure.PlanId)
+	}
+	var activeCountAfterFailure int64
+	if err := model.DB.Model(&model.UserSubscription{}).
+		Where("user_id = ? AND plan_id = ? AND status = ?", orig.UserId, 1, "active").
+		Count(&activeCountAfterFailure).Error; err != nil {
+		t.Fatal(err)
+	}
+	if activeCountAfterFailure != 0 {
+		t.Fatal("expire must have already run before the repoint failed")
+	}
+
+	// Retry (webhook redelivery): planChanged recomputes true since orig.PlanId
+	// is still 1, so both steps re-run; this time the repoint succeeds.
+	if err := handleAirwallexInvoicePaid(testCtx(), ev); err != nil {
+		t.Fatalf("retry must succeed once the repoint step is no longer forced to fail: %v", err)
+	}
+	var reloadedAfterRetry model.SubscriptionOrder
+	if err := model.DB.First(&reloadedAfterRetry, orig.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	if reloadedAfterRetry.PlanId != annual.Id {
+		t.Fatalf("anchor order must be repointed to %d after the retry, got %d", annual.Id, reloadedAfterRetry.PlanId)
+	}
+
+	// No duplicate active subscriptions: old plan fully expired, and the retry
+	// must not have created a second renewal order for the same invoice id.
+	if countRenewalOrders(t) != 1 {
+		t.Fatalf("retry must not create a duplicate renewal order, got %d", countRenewalOrders(t))
 	}
 }
 

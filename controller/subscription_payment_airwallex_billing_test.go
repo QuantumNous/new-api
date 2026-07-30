@@ -386,6 +386,7 @@ func TestInvoicePaidSkipsFirstCycleAfterCheckoutCompleted(t *testing.T) {
 	setupAirwallexWebhookDB(t)
 	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Unix())
 	stubBillingSubscriptionSeam(t)
+	stubSubscriptionItems(t, "pri_x") // price unchanged: ordinary renewal, not a plan switch
 
 	// Real first-cycle payload: number INV-…-0001, created moments after checkout.
 	ev := loadEvent(t, "testdata/awx_invoice_paid.json")
@@ -403,6 +404,7 @@ func TestInvoicePaidRenewalKeyedOnInvoiceId(t *testing.T) {
 	setupAirwallexWebhookDB(t)
 	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-32*24*time.Hour).Unix())
 	stubBillingSubscriptionSeam(t)
+	stubSubscriptionItems(t, "pri_x") // price unchanged: ordinary renewal, not a plan switch
 
 	ev := makeInvoiceEvent("inv_renewal_aug", "INV-PR2OS7ZL-0002", time.Now())
 	require.NoError(t, handleAirwallexInvoicePaid(testCtx(), ev))
@@ -418,6 +420,7 @@ func TestInvoicePaidRenewalReplayIdempotent(t *testing.T) {
 	setupAirwallexWebhookDB(t)
 	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-32*24*time.Hour).Unix())
 	stubBillingSubscriptionSeam(t)
+	stubSubscriptionItems(t, "pri_x") // price unchanged: ordinary renewal, not a plan switch
 
 	ev := makeInvoiceEvent("inv_renewal_aug", "INV-PR2OS7ZL-0002", time.Now())
 	require.NoError(t, handleAirwallexInvoicePaid(testCtx(), ev))
@@ -436,6 +439,7 @@ func TestInvoicePaidDistinctInvoicesCreateDistinctRenewals(t *testing.T) {
 	setupAirwallexWebhookDB(t)
 	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-70*24*time.Hour).Unix())
 	stubBillingSubscriptionSeam(t)
+	stubSubscriptionItems(t, "pri_x") // price unchanged: ordinary renewal, not a plan switch
 
 	require.NoError(t, handleAirwallexInvoicePaid(testCtx(),
 		makeInvoiceEvent("inv_renewal_a", "INV-PR2OS7ZL-0002", time.Now().Add(-35*24*time.Hour))))
