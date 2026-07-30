@@ -114,9 +114,6 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if modelName == "" {
 		modelName = ResolveModelName(request.Model)
 	}
-	if modelName == "seedream-5.0-lite" && (strings.EqualFold(request.Size, "2160p") || strings.EqualFold(request.Size, "4K")) {
-		return nil, fmt.Errorf("seedream-5.0-lite supports resolutions up to 1800p")
-	}
 	outputFormat, err := imageOutputFormat(request)
 	if err != nil {
 		return nil, err
