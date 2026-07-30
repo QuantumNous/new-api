@@ -303,6 +303,8 @@ describe('recall campaign API contracts', () => {
       token: ' real password bytes ',
       ssl_enabled: false,
       force_auth_login: true,
+      reply_to: 'support@example.com',
+      unsubscribe_mailto: 'mailto:unsubscribe@example.com',
     }
     respondWith({
       success: true,

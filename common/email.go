@@ -146,27 +146,33 @@ func SendEmail(subject string, receiver string, content string) error {
 }
 
 func SendEmailWithMessageID(subject string, receiver string, content string, messageID string) error {
-	return sendEmailWithSMTPConfigAndLogPolicy(GlobalSMTPConfig(), subject, receiver, content, messageID, true)
+	return sendEmailWithSMTPConfigAndLogPolicy(GlobalSMTPConfig(), subject, receiver, content, messageID, true, EmailOptions{})
 }
 
 func SendEmailFromWithMessageID(from string, subject string, receiver string, content string, messageID string) error {
 	config := GlobalSMTPConfig()
 	config.From = from
-	return sendEmailWithSMTPConfigAndLogPolicy(config, subject, receiver, content, messageID, true)
+	return sendEmailWithSMTPConfigAndLogPolicy(config, subject, receiver, content, messageID, true, EmailOptions{})
 }
 
 func SendEmailWithSMTPConfig(config SMTPConfig, subject string, receiver string, content string, messageID string) error {
+	return SendEmailWithSMTPConfigAndOptions(config, subject, receiver, content, messageID, EmailOptions{})
+}
+
+// SendEmailWithSMTPConfigAndOptions sends bulk mail with the deliverability
+// headers mailbox providers require. Activity delivery uses this path.
+func SendEmailWithSMTPConfigAndOptions(config SMTPConfig, subject string, receiver string, content string, messageID string, options EmailOptions) error {
 	if err := config.Validate(); err != nil {
 		return err
 	}
-	return sendEmailWithSMTPConfig(config, subject, receiver, content, messageID)
+	return sendEmailWithSMTPConfigAndLogPolicy(config, subject, receiver, content, messageID, false, options)
 }
 
 func sendEmailWithSMTPConfig(config SMTPConfig, subject string, receiver string, content string, messageID string) error {
-	return sendEmailWithSMTPConfigAndLogPolicy(config, subject, receiver, content, messageID, false)
+	return sendEmailWithSMTPConfigAndLogPolicy(config, subject, receiver, content, messageID, false, EmailOptions{})
 }
 
-func sendEmailWithSMTPConfigAndLogPolicy(config SMTPConfig, subject string, receiver string, content string, messageID string, logTransportFailure bool) error {
+func sendEmailWithSMTPConfigAndLogPolicy(config SMTPConfig, subject string, receiver string, content string, messageID string, logTransportFailure bool, options EmailOptions) error {
 	if config.Server == "" && config.Account == "" {
 		return fmt.Errorf("SMTP 服务器未配置")
 	}
@@ -174,7 +180,7 @@ func sendEmailWithSMTPConfigAndLogPolicy(config SMTPConfig, subject string, rece
 	if err != nil {
 		return err
 	}
-	message, err := buildEmailMessageFrom(sender, subject, receiver, content, messageID)
+	message, err := buildEmailMessageFromWithOptions(sender, subject, receiver, content, messageID, options)
 	if err != nil {
 		return err
 	}
@@ -257,6 +263,10 @@ func buildEmailMessage(subject string, receiver string, content string, messageI
 }
 
 func buildEmailMessageFrom(fromAddress string, subject string, receiver string, content string, messageID string) ([]byte, error) {
+	return buildEmailMessageFromWithOptions(fromAddress, subject, receiver, content, messageID, EmailOptions{})
+}
+
+func buildEmailMessageFromWithOptions(fromAddress string, subject string, receiver string, content string, messageID string, options EmailOptions) ([]byte, error) {
 	if containsEmailHeaderBreak(subject) || containsEmailHeaderBreak(receiver) || containsEmailHeaderBreak(messageID) {
 		return nil, fmt.Errorf("email headers must not contain CR or LF")
 	}
@@ -276,13 +286,55 @@ func buildEmailMessageFrom(fromAddress string, subject string, receiver string, 
 	}
 	from := (&mail.Address{Name: SystemName, Address: sender}).String()
 	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
-	return []byte(fmt.Sprintf("To: %s\r\n"+
-		"From: %s\r\n"+
-		"Subject: %s\r\n"+
-		"Date: %s\r\n"+
-		"Message-ID: %s\r\n"+
-		"Content-Type: text/html; charset=UTF-8\r\n\r\n%s\r\n",
-		strings.Join(recipients, ", "), from, encodedSubject, time.Now().Format(time.RFC1123Z), messageID, content)), nil
+
+	var headers strings.Builder
+	headers.WriteString("To: " + strings.Join(recipients, ", ") + "\r\n")
+	headers.WriteString("From: " + from + "\r\n")
+	// An unusable Reply-To is dropped rather than failing the send; it is a
+	// scoring nicety, not a delivery requirement.
+	if replyTo := strings.TrimSpace(options.ReplyTo); replyTo != "" {
+		if address, _, replyErr := parsePlainMailbox(replyTo, "invalid Reply-To address"); replyErr == nil {
+			headers.WriteString("Reply-To: " + address + "\r\n")
+		}
+	}
+	headers.WriteString("Subject: " + encodedSubject + "\r\n")
+	headers.WriteString("Date: " + time.Now().Format(time.RFC1123Z) + "\r\n")
+	headers.WriteString("Message-ID: " + messageID + "\r\n")
+	if value, oneClick := options.listUnsubscribeHeaderValue(); value != "" {
+		headers.WriteString("List-Unsubscribe: " + value + "\r\n")
+		// RFC 8058 one-click.
+		if oneClick {
+			headers.WriteString("List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n")
+		}
+	}
+	// MIME-Version is required by RFC 2045 whenever Content-Type is declared.
+	headers.WriteString("MIME-Version: 1.0\r\n")
+
+	if !options.Multipart {
+		headers.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+		headers.WriteString("Content-Transfer-Encoding: quoted-printable\r\n\r\n")
+		headers.WriteString(quotedPrintableEncode(content) + "\r\n")
+		return []byte(headers.String()), nil
+	}
+
+	textBody := strings.TrimSpace(options.TextBody)
+	if textBody == "" {
+		textBody = htmlToPlainText(content)
+	}
+	boundary := mimeBoundary(messageID)
+	headers.WriteString("Content-Type: multipart/alternative; boundary=\"" + boundary + "\"\r\n\r\n")
+	// Least-preferred alternative first, per RFC 2046: clients render the last
+	// part they can display, so text/html must come second.
+	headers.WriteString("--" + boundary + "\r\n")
+	headers.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+	headers.WriteString("Content-Transfer-Encoding: quoted-printable\r\n\r\n")
+	headers.WriteString(quotedPrintableEncode(textBody) + "\r\n")
+	headers.WriteString("--" + boundary + "\r\n")
+	headers.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+	headers.WriteString("Content-Transfer-Encoding: quoted-printable\r\n\r\n")
+	headers.WriteString(quotedPrintableEncode(content) + "\r\n")
+	headers.WriteString("--" + boundary + "--\r\n")
+	return []byte(headers.String()), nil
 }
 
 func ValidateEmailMessageID(messageID string) error {

@@ -553,6 +553,24 @@ func UnsubscribeRecallEmail(c *gin.Context) {
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte("<!doctype html><html><body><p>"+message+"</p></body></html>"))
 }
 
+// UnsubscribeRecallEmailOneClick implements the RFC 8058 POST target advertised
+// by List-Unsubscribe-Post. Mailbox providers post here without user
+// interaction, so it renders no page and never redirects.
+func UnsubscribeRecallEmailOneClick(c *gin.Context) {
+	runtime, err := recallControllerRuntime()
+	if err == nil {
+		err = runtime.Claims.Unsubscribe(c.Request.Context(), c.Query("token"))
+	}
+	status := http.StatusOK
+	if err != nil {
+		status = http.StatusBadRequest
+	}
+	// The response carries no body, so flush the status explicitly instead of
+	// relying on a later write to commit it.
+	c.Status(status)
+	c.Writer.WriteHeaderNow()
+}
+
 func recallCampaignAction(c *gin.Context, action func(*service.RecallRuntime, int, int64) error) {
 	id, err := recallPathID(c, "id")
 	if err != nil {

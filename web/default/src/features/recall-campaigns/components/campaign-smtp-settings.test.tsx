@@ -319,6 +319,8 @@ function makeStatus(
     force_auth_login: true,
     token_configured: true,
     configured: true,
+    reply_to: '',
+    unsubscribe_mailto: '',
     ...overrides,
   }
 }
@@ -403,6 +405,8 @@ describe('CampaignSMTPSettings', () => {
       token: '',
       ssl_enabled: false,
       force_auth_login: true,
+      reply_to: '',
+      unsubscribe_mailto: '',
     })
 
     const html = renderToStaticMarkup(
@@ -447,6 +451,8 @@ describe('CampaignSMTPSettings', () => {
       token: '   ',
       ssl_enabled: false,
       force_auth_login: true,
+      reply_to: '',
+      unsubscribe_mailto: '',
     })
 
     expect(validation.success).toBe(false)
@@ -482,6 +488,8 @@ describe('CampaignSMTPSettings', () => {
       token: '',
       ssl_enabled: false,
       force_auth_login: true,
+      reply_to: '',
+      unsubscribe_mailto: '',
     }
 
     for (const invalid of [
@@ -499,6 +507,43 @@ describe('CampaignSMTPSettings', () => {
     }
   })
 
+  test('accepts blank deliverability fields but rejects malformed ones', () => {
+    const valid = {
+      server: 'smtp.example.com',
+      port: 587,
+      account: 'activity-user',
+      email_from: 'activity@example.com',
+      token: '',
+      ssl_enabled: false,
+      force_auth_login: true,
+      reply_to: '',
+      unsubscribe_mailto: '',
+    }
+
+    // Both headers are optional; blank simply omits them.
+    expect(
+      recallActivitySMTPSchema(makeStatus()).safeParse(valid).success
+    ).toBe(true)
+    expect(
+      recallActivitySMTPSchema(makeStatus()).safeParse({
+        ...valid,
+        reply_to: 'support@example.com',
+        unsubscribe_mailto: 'mailto:unsubscribe@example.com',
+      }).success
+    ).toBe(true)
+
+    for (const invalid of [
+      { ...valid, reply_to: 'not-an-email' },
+      { ...valid, reply_to: 'Support <support@example.com>' },
+      // A bare address would be emitted as an unusable List-Unsubscribe URI.
+      { ...valid, unsubscribe_mailto: 'unsubscribe@example.com' },
+      { ...valid, unsubscribe_mailto: 'mailto:not-an-email' },
+    ]) {
+      expect(recallActivitySMTPSchema(makeStatus()).safeParse(invalid).success)
+        .toBe(false)
+    }
+  })
+
   test('normalizes submit input while preserving meaningful token bytes', () => {
     expect(
       normalizeRecallActivitySMTPInput({
@@ -509,6 +554,8 @@ describe('CampaignSMTPSettings', () => {
         token: '  exact password bytes  ',
         ssl_enabled: true,
         force_auth_login: false,
+        reply_to: '',
+        unsubscribe_mailto: '',
       })
     ).toEqual({
       server: 'smtp.example.com',
@@ -518,6 +565,8 @@ describe('CampaignSMTPSettings', () => {
       token: '  exact password bytes  ',
       ssl_enabled: true,
       force_auth_login: false,
+      reply_to: '',
+      unsubscribe_mailto: '',
     })
 
     expect(
@@ -529,6 +578,8 @@ describe('CampaignSMTPSettings', () => {
         token: '   ',
         ssl_enabled: false,
         force_auth_login: true,
+        reply_to: '',
+        unsubscribe_mailto: '',
       }).token
     ).toBe('')
   })
@@ -542,6 +593,8 @@ describe('CampaignSMTPSettings', () => {
       token: '  typed secret  ',
       ssl_enabled: true,
       force_auth_login: false,
+      reply_to: '',
+      unsubscribe_mailto: '',
     }
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
@@ -590,9 +643,11 @@ describe('CampaignSMTPSettings', () => {
             email_from: '',
             force_auth_login: true,
             port: 0,
+            reply_to: '',
             server: '',
             ssl_enabled: false,
             token: '',
+            unsubscribe_mailto: '',
           }}
           onFieldChange={() => undefined}
           onSave={() => undefined}
@@ -656,6 +711,8 @@ describe('CampaignSMTPSettings', () => {
         token: '',
         ssl_enabled: false,
         force_auth_login: true,
+        reply_to: '',
+        unsubscribe_mailto: '',
       },
       status: nextStatus,
       success: 'Activity SMTP settings saved.',

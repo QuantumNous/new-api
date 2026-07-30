@@ -42,7 +42,7 @@ func (e *RecallEmailQuotaWaitError) Error() string {
 	return fmt.Sprintf("recall email hourly quota is exhausted until %d", e.ResetsAt)
 }
 
-type RecallEmailSender func(config common.SMTPConfig, subject, receiver, content, messageID string) error
+type RecallEmailSender func(config common.SMTPConfig, subject, receiver, content, messageID string, options common.EmailOptions) error
 
 type RecallEmailWorker struct {
 	sender              RecallEmailSender
@@ -140,7 +140,7 @@ var recallEmailCopyByLanguage = map[string]recallEmailCopy{
 
 func NewRecallEmailWorker(sender RecallEmailSender, audience *RecallAudienceSelector, claims *RecallClaimService, owner string) *RecallEmailWorker {
 	if sender == nil {
-		sender = common.SendEmailWithSMTPConfig
+		sender = common.SendEmailWithSMTPConfigAndOptions
 	}
 	if audience == nil {
 		audience = NewRecallAudienceSelector()
@@ -406,6 +406,14 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	}
 	baseOrigin := strings.TrimRight(strings.TrimSpace(topUpBaseOrigin()), "/")
 	unsubscribeURL := baseOrigin + "/api/recall/unsubscribe?token=" + url.QueryEscape(unsubscribeToken)
+	// Gmail and Outlook read one-click unsubscribe from the List-Unsubscribe
+	// header, not from the body link, and downrank bulk mail that omits it.
+	emailOptions := common.EmailOptions{
+		ListUnsubscribeURL:    unsubscribeURL,
+		ListUnsubscribeMailto: strings.TrimSpace(operation_setting.GetRecallCampaignSetting().UnsubscribeMailto),
+		ReplyTo:               strings.TrimSpace(operation_setting.GetRecallCampaignSetting().ReplyTo),
+		Multipart:             true,
+	}
 	if campaignType == model.RecallCampaignTypePromotion && resolvedLanguage != item.Recipient.LanguageSnapshot {
 		productSummary, err = w.recallEmailProductSummary(ctx, item.Campaign.ProductScope, resolvedLanguage)
 		if err != nil {
@@ -556,7 +564,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 		return &RecallEmailQuotaWaitError{ResetsAt: attempt.Quota.ResetsAt}
 	}
 
-	if err := w.sender(smtpConfig, subject, item.Recipient.EmailSnapshot, htmlBody, providerMessageID); err != nil {
+	if err := w.sender(smtpConfig, subject, item.Recipient.EmailSnapshot, htmlBody, providerMessageID, emailOptions); err != nil {
 		if common.IsEmailSendUncertain(err) {
 			won, updateErr := model.CompleteRecallMessageLease(
 				item.Message.Id,

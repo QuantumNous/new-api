@@ -2,6 +2,8 @@ package operation_setting
 
 import (
 	"fmt"
+	"net/mail"
+	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/setting/config"
@@ -19,6 +21,12 @@ type RecallCampaignSetting struct {
 	SMTPToken          string `json:"smtp_token"`
 	SMTPSSLEnabled     bool   `json:"smtp_ssl_enabled"`
 	SMTPForceAuthLogin bool   `json:"smtp_force_auth_login"`
+	// ReplyTo is the address recipients answer to. Marketing mail without a
+	// reachable reply address scores worse with mailbox providers.
+	ReplyTo string `json:"reply_to"`
+	// UnsubscribeMailto is an optional mailto: fallback advertised alongside
+	// the one-click HTTPS unsubscribe endpoint.
+	UnsubscribeMailto string `json:"unsubscribe_mailto"`
 }
 
 var recallCampaignSetting = RecallCampaignSetting{
@@ -54,6 +62,21 @@ func (s *RecallCampaignSetting) NormalizeAndValidate() error {
 	}
 	if s.EmailHourlyLimit < 1 || s.EmailHourlyLimit > 100000 {
 		return fmt.Errorf("recall campaign email hourly limit must be between 1 and 100000")
+	}
+	s.ReplyTo = strings.TrimSpace(s.ReplyTo)
+	if s.ReplyTo != "" {
+		if _, err := mail.ParseAddress(s.ReplyTo); err != nil {
+			return fmt.Errorf("recall campaign reply-to must be a valid email address")
+		}
+	}
+	s.UnsubscribeMailto = strings.TrimSpace(s.UnsubscribeMailto)
+	if s.UnsubscribeMailto != "" {
+		if !strings.HasPrefix(s.UnsubscribeMailto, "mailto:") {
+			return fmt.Errorf("recall campaign unsubscribe mailto must start with mailto:")
+		}
+		if _, err := mail.ParseAddress(strings.TrimPrefix(s.UnsubscribeMailto, "mailto:")); err != nil {
+			return fmt.Errorf("recall campaign unsubscribe mailto must be a valid email address")
+		}
 	}
 	return nil
 }

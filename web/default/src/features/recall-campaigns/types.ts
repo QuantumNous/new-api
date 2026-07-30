@@ -243,6 +243,8 @@ export interface RecallActivitySMTPStatus {
   force_auth_login: boolean
   token_configured: boolean
   configured: boolean
+  reply_to: string
+  unsubscribe_mailto: string
 }
 
 export interface RecallActivitySMTPInput {
@@ -253,6 +255,8 @@ export interface RecallActivitySMTPInput {
   token: string
   ssl_enabled: boolean
   force_auth_login: boolean
+  reply_to: string
+  unsubscribe_mailto: string
 }
 
 export type RecallEmailLocalizationBlockerReason =
