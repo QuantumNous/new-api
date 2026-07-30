@@ -27,20 +27,20 @@ type BoundChannel struct {
 }
 
 type Model struct {
-	Id           int            `json:"id"`
-	ModelName    string         `json:"model_name" gorm:"size:128;not null;uniqueIndex:uk_model_name_delete_at,priority:1"`
-	Description  string         `json:"description,omitempty" gorm:"type:text"`
-	Icon         string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
-	Tags         string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
-	VendorID     int            `json:"vendor_id,omitempty" gorm:"index"`
-	Endpoints    string         `json:"endpoints,omitempty" gorm:"type:text"`
-	Status       int            `json:"status" gorm:"default:1"`
-	SyncOfficial int            `json:"sync_official" gorm:"default:1"`
+	Id              int            `json:"id"`
+	ModelName       string         `json:"model_name" gorm:"size:128;not null;uniqueIndex:uk_model_name_delete_at,priority:1"`
+	Description     string         `json:"description,omitempty" gorm:"type:text"`
+	Icon            string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
+	Tags            string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
+	VendorID        int            `json:"vendor_id,omitempty" gorm:"index"`
+	Endpoints       string         `json:"endpoints,omitempty" gorm:"type:text"`
+	Status          int            `json:"status" gorm:"default:1"`
+	SyncOfficial    int            `json:"sync_official" gorm:"default:1"`
 	ContextWindow   int64          `json:"context_window,omitempty" gorm:"type:bigint"`
 	MaxOutputTokens int64          `json:"max_output_tokens,omitempty" gorm:"type:bigint"`
-	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
-	UpdatedTime  int64          `json:"updated_time" gorm:"bigint"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
+	CreatedTime     int64          `json:"created_time" gorm:"bigint"`
+	UpdatedTime     int64          `json:"updated_time" gorm:"bigint"`
+	DeletedAt       gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
 
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
