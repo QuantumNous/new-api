@@ -702,6 +702,12 @@ export interface ModelSettings {
   pdf_fallback?: "text" | "images";
   pdf_max_pages?: number; // default 20, 1–100
   pdf_max_mb?: number; // default 10, 1–10
+  // Auto-compaction of long histories (OPE-27): trigger = min(threshold% × context
+  // window, cap tokens); model pins the summarizer ("" → the session's own model).
+  // Optional so the GUI is robust to an older backend.
+  compaction_threshold_pct?: number; // default 0.8, 0.10–0.95
+  compaction_cap_tokens?: number; // default 250000
+  compaction_model?: string;
 }
 
 export interface PdfSettings {
@@ -715,6 +721,24 @@ export async function setPdfSettings(
   patch: Partial<PdfSettings>,
 ): Promise<{ ok: boolean; error?: string } & Partial<PdfSettings>> {
   const res = await fetch(`${httpBase()}/v1/settings/pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return res.json();
+}
+
+export interface CompactionSettings {
+  compaction_threshold_pct: number;
+  compaction_cap_tokens: number;
+  compaction_model: string;
+}
+
+/** Persist the auto-compaction overrides (threshold %, token cap, summarizer model). */
+export async function setCompactionSettings(
+  patch: Partial<CompactionSettings>,
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${httpBase()}/v1/settings/compaction`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),

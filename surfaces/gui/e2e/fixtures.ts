@@ -681,6 +681,14 @@ export async function mockApi(page: import("@playwright/test").Page) {
           }, 120);
           return;
         }
+        // Auto-compaction (OPE-27): the server compacts mid-run and emits the marker,
+        // then the turn continues normally — the divider must render inline.
+        if (/compact the context/i.test(msg.text)) {
+          send("compacted", { text: "Context compacted — earlier turns were summarized" });
+          send("assistant_message", { text: "Still on it — continuing where I left off." });
+          send("turn_done");
+          return;
+        }
         // A turn that dies on a provider error; the follow-up {type:"retry"} recovers.
         if (/fail the turn/i.test(msg.text)) {
           send("error", { error: "model unreachable" });
