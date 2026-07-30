@@ -16,9 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useSeo } from '@/hooks/use-page-seo'
+import {
+  buildDefaultJsonLd,
+  DEFAULT_SEO_DESCRIPTION,
+} from '@/lib/seo'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
 import { RichContent } from '@/components/rich-content'
@@ -43,6 +49,27 @@ export function Home() {
   const { auth } = useAuthStore()
   const isAuthenticated = !!auth.user
   const { content, isLoaded, isUrl } = useHomePageContent()
+  const systemName = useSystemConfigStore((s) => s.config.systemName)
+  const logo = useSystemConfigStore((s) => s.config.logo)
+
+  useSeo(
+    useMemo(() => {
+      const siteName = systemName?.trim() || 'New API'
+      const description = t(DEFAULT_SEO_DESCRIPTION)
+      return {
+        title: siteName,
+        description,
+        path: '/',
+        siteName,
+        image: logo || '/logo.png',
+        jsonLd: buildDefaultJsonLd({
+          siteName,
+          description,
+          logo: logo || '/logo.png',
+        }),
+      }
+    }, [systemName, logo, t])
+  )
 
   const syncIframePreferences = useCallback(() => {
     try {

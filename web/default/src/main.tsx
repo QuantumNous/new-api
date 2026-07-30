@@ -33,7 +33,6 @@ import { getStatus } from '@/lib/api'
 import { installBuildMetadata } from '@/lib/build-metadata'
 import {
   applyBrandTokenPresetToDom,
-  applyDocumentTitleToDom,
   applyFaviconToDom,
   applyPrimaryColorToDom,
 } from '@/lib/dom-utils'
@@ -124,7 +123,8 @@ declare module '@tanstack/react-router' {
 
 // Render the app
 const rootElement = document.querySelector<HTMLElement>('#root')
-// Set document.title and favicon from cached status, then refresh from network
+// Hydrate branding (favicon/colors) from cached status, then refresh from network.
+// Document title is owned by usePageSeo after the router mounts.
 ;(function initSystemBranding() {
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
@@ -135,7 +135,6 @@ const rootElement = document.querySelector<HTMLElement>('#root')
         const s = JSON.parse(saved)
         const config = mapStatusDataToConfig(s)
         useSystemConfigStore.getState().setConfig(config)
-        if (config.systemName) applyDocumentTitleToDom(config.systemName)
         const favicon = config.faviconUrl || config.logo
         if (favicon) applyFaviconToDom(favicon)
         applyBrandTokenPresetToDom(config.tokenPreset || '')
@@ -149,7 +148,6 @@ const rootElement = document.querySelector<HTMLElement>('#root')
       .then((s) => {
         const config = mapStatusDataToConfig(s || undefined)
         useSystemConfigStore.getState().setConfig(config)
-        if (config.systemName) applyDocumentTitleToDom(config.systemName)
         const favicon = config.faviconUrl || config.logo
         if (favicon) applyFaviconToDom(favicon)
         applyBrandTokenPresetToDom(config.tokenPreset || '')

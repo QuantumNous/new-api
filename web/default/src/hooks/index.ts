@@ -19,6 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 // System Configuration
 export { useSystemConfig } from './use-system-config'
 
+// SEO
+export { usePageSeo, useSeo } from './use-page-seo'
+
 // Navigation
 export { useTopNavLinks } from './use-top-nav-links'
 

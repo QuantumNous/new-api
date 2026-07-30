@@ -33,6 +33,7 @@ import {
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useSeo } from '@/hooks/use-page-seo'
 import { CopyButton } from '@/components/copy-button'
 import { StaticDataTable } from '@/components/data-table'
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
@@ -1282,6 +1283,20 @@ export function ModelDetails() {
     if (!models || !modelId) return null
     return models.find((m) => m.model_name === modelId) || null
   }, [models, modelId])
+
+  const modelSeo = useMemo(() => {
+    const name = model?.display_name || model?.model_name || modelId
+    if (!name) return null
+    return {
+      title: t('{{name}} Pricing', { name }),
+      description: t(
+        'Pricing and capabilities for model {{name}} on the unified AI API gateway.',
+        { name }
+      ),
+      // Let useSeo default path to the active router pathname so override keys match.
+    }
+  }, [model, modelId, t])
+  useSeo(modelSeo)
 
   const handleBack = () => {
     navigate({ to: '/pricing', search })

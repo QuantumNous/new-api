@@ -17,6 +17,9 @@ func SetRouter(router *gin.Engine, assets ThemeAssets) {
 	// Published at the well-known path so the desktop connector broker can
 	// discover the desktop token signing key without extra configuration.
 	router.GET("/.well-known/jwks.json", middleware.RouteTag("api"), controller.GetDesktopJWKS)
+	// SEO discovery endpoints (must be registered before the SPA static fallback).
+	router.GET("/robots.txt", middleware.RouteTag("web"), controller.GetRobotsTxt)
+	router.GET("/sitemap.xml", middleware.RouteTag("web"), controller.GetSitemapXML)
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)

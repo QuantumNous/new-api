@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useSeo } from '@/hooks/use-page-seo'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 
@@ -36,6 +37,18 @@ import { usePricingData } from './hooks/use-pricing-data'
 
 export function Pricing() {
   const { t } = useTranslation()
+  useSeo(
+    useMemo(
+      () => ({
+        title: t('Model Pricing'),
+        description: t(
+          'Browse model prices, capabilities, and billing modes across providers available on the gateway.'
+        ),
+        path: '/pricing',
+      }),
+      [t]
+    )
+  )
   const [selectedModelName, setSelectedModelName] = useState<string | null>(
     null
   )
