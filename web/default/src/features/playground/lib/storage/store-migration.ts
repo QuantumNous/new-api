@@ -26,6 +26,7 @@ import type {
   StudioSettings,
 } from '../../types'
 import { isAttachmentPersistable } from '../attachments/attachment-utils'
+import { isLegacyModelSwitchMarker } from '../message/message-utils'
 import type {
   ActiveSessionByModality,
   PlaygroundSession,
@@ -176,10 +177,13 @@ export function preparePersistedPlaygroundState(
 ): PersistedPlaygroundState {
   const sessions = pruneSessions(state.sessions).map((session) => {
     if (isChatSession(session)) {
+      const visibleMessages = session.messages.filter(
+        (message) => !isLegacyModelSwitchMarker(message)
+      )
       const messages =
-        session.messages.length > MAX_STORED_MESSAGES
-          ? session.messages.slice(-MAX_STORED_MESSAGES)
-          : session.messages
+        visibleMessages.length > MAX_STORED_MESSAGES
+          ? visibleMessages.slice(-MAX_STORED_MESSAGES)
+          : visibleMessages
       return {
         ...session,
         messages: limitPersistedAttachments(

@@ -229,6 +229,41 @@ describe('loadPersistedPlaygroundState', () => {
       'hello from legacy storage'
     )
   })
+
+  it('removes persisted legacy model-switch markers during hydration', () => {
+    const marker: Message = {
+      key: 'model-change-1',
+      from: 'system',
+      versions: [{ id: 'v1', content: 'old → new' }],
+      modelChangeFrom: 'old',
+      modelChangeTo: 'new',
+      status: 'complete',
+    }
+    seedV2({
+      workspaceMode: 'model',
+      activeModality: 'chat',
+      config: { model: 'new' },
+      sessions: [
+        {
+          id: 's_with_marker',
+          modality: 'chat',
+          title: 'Migrated session',
+          model: 'new',
+          group: 'default',
+          messages: [userMessage, marker],
+          isDraft: false,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ],
+      activeSessionByModality: { chat: 's_with_marker' },
+      ui: { settingsPanelOpen: true },
+    })
+
+    const state = loadPersistedPlaygroundState()
+
+    expect(chatMessagesFromSessions(state)).toEqual([userMessage])
+  })
 })
 
 describe('preparePersistedPlaygroundState', () => {
@@ -352,5 +387,21 @@ describe('preparePersistedPlaygroundState', () => {
 
     expect(result.persistedChat.messages[0].attachments).toBeUndefined()
     expect(result.persistedChat.messages[1].attachments).toHaveLength(1)
+  })
+
+  it('never writes legacy model-switch markers back to storage', () => {
+    const result = persistChatMessages([
+      userMessage,
+      {
+        key: 'model-change-1',
+        from: 'system',
+        versions: [{ id: 'v1', content: 'old → new' }],
+        modelChangeFrom: 'old',
+        modelChangeTo: 'new',
+        status: 'complete',
+      },
+    ])
+
+    expect(result.persistedChat.messages).toEqual([userMessage])
   })
 })

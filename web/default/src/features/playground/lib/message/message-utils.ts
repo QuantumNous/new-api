@@ -74,6 +74,11 @@ export function hasMessageContent(message: Message): boolean {
   return getMessageContent(message).trim() !== ''
 }
 
+/** Legacy transcript row written when a user switched models mid-chat. */
+export function isLegacyModelSwitchMarker(message: Message): boolean {
+  return Boolean(message.modelChangeFrom && message.modelChangeTo)
+}
+
 /**
  * Update the active version's content, preserving the other versions.
  */
@@ -265,7 +270,7 @@ export function isValidMessage(message: Message): boolean {
   // leave the playground UI as chat turns sent upstream.
   if (
     message.from === MESSAGE_ROLES.SYSTEM ||
-    (message.modelChangeFrom && message.modelChangeTo)
+    isLegacyModelSwitchMarker(message)
   ) {
     return false
   }

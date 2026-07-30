@@ -68,6 +68,14 @@ export const WORKBENCH_STORAGE_KEY = 'playground_workbench_prefs_v1'
 export const MAX_PINNED_MODELS = 40
 export const MAX_SYSTEM_PROMPT_CHARS = 8000
 
+function createDefaultWorkbenchPrefs(): WorkbenchPrefs {
+  return {
+    pinnedModels: [],
+    chatTools: { ...DEFAULT_CHAT_TOOLS },
+    duo: { ...DEFAULT_DUO, answerModels: [] },
+  }
+}
+
 export function clampSystemPrompt(value: string | undefined | null): string {
   if (typeof value !== 'string') return ''
   return value.slice(0, MAX_SYSTEM_PROMPT_CHARS)
@@ -100,7 +108,7 @@ export function normalizeChatTools(
 export function loadWorkbenchPrefs(): WorkbenchPrefs {
   try {
     const raw = localStorage.getItem(WORKBENCH_STORAGE_KEY)
-    if (!raw) return structuredClone(DEFAULT_WORKBENCH_PREFS)
+    if (!raw) return createDefaultWorkbenchPrefs()
     const parsed = JSON.parse(raw) as Partial<WorkbenchPrefs>
     return {
       pinnedModels: Array.isArray(parsed.pinnedModels)
@@ -125,7 +133,7 @@ export function loadWorkbenchPrefs(): WorkbenchPrefs {
       },
     }
   } catch {
-    return structuredClone(DEFAULT_WORKBENCH_PREFS)
+    return createDefaultWorkbenchPrefs()
   }
 }
 

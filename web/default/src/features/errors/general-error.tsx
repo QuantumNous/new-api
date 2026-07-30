@@ -18,10 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import { ServerCrash, Timer } from 'lucide-react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 
+import { isChunkLoadError } from './chunk-load-error'
 import { ErrorPage } from './error-page'
 
 type GeneralErrorProps = {
@@ -47,6 +49,7 @@ export function GeneralError({
   const navigate = useNavigate()
   const { history } = useRouter()
   const status = getHttpStatus(error)
+  const chunkLoadError = isChunkLoadError(error)
   const isRateLimited = status === 429
   const title = isRateLimited
     ? t('Too many requests')
@@ -54,6 +57,23 @@ export function GeneralError({
   const description = isRateLimited
     ? t('Please wait a moment before trying again.')
     : t('We ran into an unexpected problem. Please try again in a moment.')
+
+  useEffect(() => {
+    if (!chunkLoadError) return
+
+    try {
+      const entryScript = [...document.scripts].find((script) =>
+        script.src.includes('/static/js/index.')
+      )?.src
+      const runtimeId = entryScript ?? window.__APP_BUILD__?.rev ?? 'unknown'
+      const reloadKey = `app:chunk-reload:${runtimeId}:${window.location.pathname}`
+      if (window.sessionStorage.getItem(reloadKey)) return
+      window.sessionStorage.setItem(reloadKey, '1')
+      window.location.reload()
+    } catch {
+      // If session storage is unavailable, do not risk a reload loop.
+    }
+  }, [chunkLoadError])
 
   if (minimal) {
     return (

@@ -36,6 +36,7 @@ import {
   getMessageContent,
   hasSessionContent,
   isChatSession,
+  isLegacyModelSwitchMarker,
   isStudioSession,
   type ChatSession,
   type PlaygroundSession,
@@ -71,10 +72,6 @@ function toServerMessages(
       const tool: ToolPayload = {}
       if (message.managedTool) tool.managedTool = message.managedTool
       if (message.sources?.length) tool.sources = message.sources
-      if (message.modelChangeFrom) {
-        tool.modelChangeFrom = message.modelChangeFrom
-      }
-      if (message.modelChangeTo) tool.modelChangeTo = message.modelChangeTo
       if (message.reasoning) tool.reasoning = message.reasoning
       const hasTool = Object.keys(tool).length > 0
       return {
@@ -102,29 +99,33 @@ function parseToolJson(raw?: string): ToolPayload {
 }
 
 function fromServerMessages(items: ServerMessage[]): Message[] {
-  return items.map((item, index) => {
-    let from: Message['from'] = 'user'
-    if (item.role === 'assistant') from = 'assistant'
-    else if (item.role === 'system') from = 'system'
-    const tool = parseToolJson(item.tool_json)
-    const createdAt =
-      item.created_at && item.created_at < 1_000_000_000_000
-        ? item.created_at * 1000
-        : item.created_at || Date.now()
-    return {
-      key: item.client_key || `srv-${item.id || index}`,
-      from,
-      versions: [{ id: `v-${item.id || index}`, content: item.content || '' }],
-      status: 'complete' as const,
-      createdAt,
-      model: item.model || undefined,
-      managedTool: tool.managedTool,
-      sources: tool.sources,
-      modelChangeFrom: tool.modelChangeFrom,
-      modelChangeTo: tool.modelChangeTo,
-      reasoning: tool.reasoning,
-    }
-  })
+  return items
+    .map((item, index) => {
+      let from: Message['from'] = 'user'
+      if (item.role === 'assistant') from = 'assistant'
+      else if (item.role === 'system') from = 'system'
+      const tool = parseToolJson(item.tool_json)
+      const createdAt =
+        item.created_at && item.created_at < 1_000_000_000_000
+          ? item.created_at * 1000
+          : item.created_at || Date.now()
+      return {
+        key: item.client_key || `srv-${item.id || index}`,
+        from,
+        versions: [
+          { id: `v-${item.id || index}`, content: item.content || '' },
+        ],
+        status: 'complete' as const,
+        createdAt,
+        model: item.model || undefined,
+        managedTool: tool.managedTool,
+        sources: tool.sources,
+        modelChangeFrom: tool.modelChangeFrom,
+        modelChangeTo: tool.modelChangeTo,
+        reasoning: tool.reasoning,
+      }
+    })
+    .filter((message) => !isLegacyModelSwitchMarker(message))
 }
 
 function parsePreviewUrls(raw?: string): string[] | undefined {

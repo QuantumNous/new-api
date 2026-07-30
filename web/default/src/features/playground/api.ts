@@ -983,7 +983,11 @@ export async function recordInspirationEvents(
 
 export async function getInspirationLibrary(): Promise<InspirationLibrary> {
   const res = await api.get('/api/playground/inspiration/library')
-  return res.data.data as InspirationLibrary
+  const data = res.data?.data as Partial<InspirationLibrary> | null | undefined
+  return {
+    collections: Array.isArray(data?.collections) ? data.collections : [],
+    saves: Array.isArray(data?.saves) ? data.saves : [],
+  }
 }
 
 export async function setInspirationFavorite(

@@ -27,6 +27,7 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_PARAMETER_ENABLED,
 } from '@/features/playground/constants'
+import { isLegacyModelSwitchMarker } from '@/features/playground/lib/message/message-utils'
 import type {
   ActiveSessionByModality,
   PlaygroundSession,
@@ -344,8 +345,7 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
             // transcript as fake system turns.
             const cleanedMessages = isChatSession(activeSession)
               ? activeSession.messages.filter(
-                  (message) =>
-                    !(message.modelChangeFrom && message.modelChangeTo)
+                  (message) => !isLegacyModelSwitchMarker(message)
                 )
               : undefined
             const nextSession: PlaygroundSession = {
@@ -655,10 +655,6 @@ export const usePlaygroundStore = create<PlaygroundStoreState>()(
 
 const EMPTY_CHAT_MESSAGES: Message[] = []
 
-function isLegacyModelSwitchMarker(message: Message): boolean {
-  return Boolean(message.modelChangeFrom && message.modelChangeTo)
-}
-
 /** Active chat messages for the current chat session (empty if none). */
 export function selectActiveChatMessages(
   state: PlaygroundStoreState
@@ -669,16 +665,10 @@ export function selectActiveChatMessages(
     'chat'
   )
   if (!isChatSession(session)) return EMPTY_CHAT_MESSAGES
-  // Legacy sessions may still hold model-switch markers; never render them.
-  // Important: return the original array when nothing needs filtering.
-  // A fresh `.filter()` result every getSnapshot re-renders forever under
-  // useSyncExternalStore ("getSnapshot should be cached").
-  if (!session.messages.some(isLegacyModelSwitchMarker)) {
-    return session.messages
-  }
-  return session.messages.filter(
-    (message) => !isLegacyModelSwitchMarker(message)
-  )
+  // Persisted and cloud messages are normalized at their boundaries. Selectors
+  // must return the store-owned array so useSyncExternalStore sees a stable
+  // snapshot even if an unexpected legacy row reaches runtime state.
+  return session.messages
 }
 
 export function selectActiveSession(

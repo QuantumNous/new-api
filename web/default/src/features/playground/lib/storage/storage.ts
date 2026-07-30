@@ -24,7 +24,10 @@ import {
   sanitizeMessagesOnLoad,
 } from '../message/message-streaming-utils'
 import { completeAssistantTiming } from '../message/message-timing-utils'
-import { hasMessageContent } from '../message/message-utils'
+import {
+  hasMessageContent,
+  isLegacyModelSwitchMarker,
+} from '../message/message-utils'
 import {
   MAX_LOADED_MESSAGE_CHARS,
   MAX_LOADED_MESSAGES_CHARS,
@@ -343,7 +346,9 @@ export function prepareLoadedMessages(parsed: Message[]): Message[] {
   const normalized = parsed.map(normalizeStoredMessageForLoad)
   const trimmed = trimMessages(normalized)
   const sizeTrimmed = trimMessagesByContentSize(trimmed)
-  return sanitizeMessagesOnLoad(sizeTrimmed)
+  return sanitizeMessagesOnLoad(sizeTrimmed).filter(
+    (message) => !isLegacyModelSwitchMarker(message)
+  )
 }
 
 /**

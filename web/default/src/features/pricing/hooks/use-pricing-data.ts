@@ -48,11 +48,13 @@ export function usePricingData(source: PricingDataSource = 'pricing') {
 
   const models = useMemo(() => {
     // Real /api/pricing payload only — empty list when the site has no models.
-    if (!data?.data?.length) return []
+    const catalog = Array.isArray(data?.data) ? data.data : []
+    if (!catalog.length) return []
 
-    const vendorMap = new Map((data.vendors ?? []).map((v) => [v.id, v]))
+    const vendors = Array.isArray(data?.vendors) ? data.vendors : []
+    const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]))
 
-    return data.data.map((model) => {
+    return catalog.map((model) => {
       const vendor = model.vendor_id
         ? vendorMap.get(model.vendor_id)
         : undefined
@@ -62,20 +64,22 @@ export function usePricingData(source: PricingDataSource = 'pricing') {
         vendor_name: vendor?.name ?? model.vendor_name,
         vendor_icon: vendor?.icon ?? model.vendor_icon,
         vendor_description: vendor?.description ?? model.vendor_description,
-        group_ratio: data.group_ratio,
+        group_ratio: data?.group_ratio ?? {},
       }
     })
   }, [data])
 
   return {
     models,
-    vendors: data?.vendors ?? [],
+    vendors: Array.isArray(data?.vendors) ? data.vendors : [],
     groupRatio: data?.group_ratio ?? {},
     usableGroup: data?.usable_group ?? {},
     endpointMap: data?.supported_endpoint ?? {},
-    integrationProfiles: data?.integration_profiles ?? [],
+    integrationProfiles: Array.isArray(data?.integration_profiles)
+      ? data.integration_profiles
+      : [],
     isLegacyPlaygroundCatalog: data?.legacy_playground_catalog === true,
-    autoGroups: data?.auto_groups ?? [],
+    autoGroups: Array.isArray(data?.auto_groups) ? data.auto_groups : [],
     isLoading,
     error,
     refetch,
